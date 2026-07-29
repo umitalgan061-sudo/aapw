@@ -253,3 +253,77 @@ system (settlements, rivers, roads) must check against, not just `water.js`. If 
 real bathymetry (an actual seabed below the water plane) or per-region sea levels, this ADR's
 "one flat plane, one constant" model is what gets superseded — update this file when that happens,
 same as every prior world-scale change has.
+
+## ADR-0006: day/night cycle as keyframe-interpolated lights, owned by a new `lighting.js`; `sky.js` extended, not duplicated
+
+**Date:** 2026-07-29
+
+**Decision:** FAZ 2's day/night cycle is a new `src/3d/lighting.js` module that owns the scene's
+`DirectionalLight` ("sun") and `HemisphereLight` (sky/ground ambient fill) — moved out of
+`game3d.js`'s `createScene()`, where they were previously created as static, unchanging lights.
+Color/intensity for both lights, plus the sun's position (a fixed-radius arc, elevation via
+`sin`/`cos` of the time-of-day ratio) and a `nightFactor`, are computed by linearly interpolating
+between seven hand-authored keyframes spaced around a `[0, 1)` day ratio (midnight → dawn → noon →
+dusk → midnight). `sky.js`'s `updateAuroraSky` is extended (not duplicated) with a fourth
+`dayNight` argument so the skybox's horizon/zenith gradient and aurora visibility consume the same
+`nightFactor`/colors the lights use, instead of the sky and the sun independently guessing at
+"is it night" and drifting apart over time.
+
+**Reasoning:**
+- **New module, not `game3d.js` inline code:** every other visual system (`sky.js`, `world/water.js`,
+  `world/terrain.js`) already follows a create/update/dispose triplet pattern living in its own
+  file; the sun/hemisphere lights were the one remaining piece of scene setup still inline in
+  `game3d.js`. Pulling them into `lighting.js` keeps `game3d.js` as an orchestrator (wiring systems
+  together) rather than a system itself — consistent with the project's own blast-radius rule.
+- **Keyframe interpolation over a continuous sinusoidal model:** a small ordered array of
+  `{ratio, sunColor, sunIntensity, hemiSky, hemiGround, hemiIntensity, nightFactor}` objects, found
+  and lerped by the caller's time ratio, is easy to reason about, easy to extend (a future "storm"
+  or "eclipse" preset is one more keyframe, not new interpolation math), and keeps every tunable
+  value in one visually-authored place rather than several independent formulas (sun color as a
+  function of elevation, intensity as a separate function, etc.) that would need to be kept in sync
+  by hand to avoid the sky and sun disagreeing about how dark "night" should look.
+- **`sky.js` extended, not given its own independent day/night logic:** `sky.js`'s own module doc
+  already flagged "revisit to gate the aurora to nighttime" as Phase 2 work. Computing time-of-day
+  independently in both `sky.js` and `lighting.js` would risk exactly the kind of two-systems-
+  disagreeing bug the project's `EventBus`/shared-config conventions exist to prevent. Passing
+  `lighting.js`'s output into `updateAuroraSky` costs one new parameter and keeps a single source
+  of truth for "what time is it and how dark should things be."
+- **Real-time-driven, not tied to the seeded world PRNG:** the day/night ratio is a deterministic
+  function of `elapsedSeconds` (from the same `THREE.Clock` every other per-frame system already
+  reads) and two config constants (`DAY_LENGTH_SECONDS`, `START_TIME_OF_DAY_RATIO`) — not
+  `Math.random()`, so it doesn't violate the project's determinism rule, but it's also not part of
+  "world geography" the way terrain/chunk seeding is (a session always starts at the same
+  time-of-day for the same wall-clock elapsed time, but does not need to reproduce identically
+  across different real-world play sessions the way terrain must). Matches `sky.js`'s existing
+  "cosmetic/non-deterministic visuals are exempt" convention (`src/3d/README.md`).
+- **No shadow maps wired up yet:** `QUALITY_PRESETS.shadowMapSize` already exists in `config.js`
+  but nothing currently calls `renderer.shadowMap.enabled = true` or sets `castShadow`/
+  `receiveShadow` on any mesh/light (confirmed by grep this run). Enabling shadows is real added
+  GPU cost (shadow-map render passes) and its own budget/quality-tier decision — deliberately out
+  of scope for this ADR; `lighting.js`'s `disposeDayNightLighting` has nothing shadow-related to
+  free today, but the module is where that toggle will eventually live when a phase needs it.
+
+**Alternatives considered:**
+- *Compute sun/sky color purely from the sun's elevation angle (a continuous formula), no
+  keyframes.* Rejected: harder to art-direct (a "just past sunrise should look warm and orange"
+  intent is naturally expressed as a keyframe near `ratio=0.27`, not as a coefficient in a
+  trigonometric blend), and every future "make dusk more red" tweak would mean re-deriving a
+  formula instead of editing one number in one array entry.
+- *Keep `sky.js` fully independent, re-deriving its own day/night state from `elapsedSeconds`
+  directly instead of taking `lighting.js`'s output.* Rejected: duplicates the keyframe table (or a
+  second, differently-tuned one) in two files, and any future keyframe edit would need to touch
+  both to stay visually consistent — exactly the coupling the project's "single source of truth"
+  preference (see `config.js`'s own doc comment) warns against.
+- *A full sky-dome shader driven entirely by sun elevation (physically-based Rayleigh/Mie
+  scattering), replacing the hand-authored gradient.* Rejected as premature: real cost (more GLSL,
+  more uniforms, harder to tune to a specific art direction) for a fidelity level nothing else in
+  the project has reached yet; the existing gradient-plus-aurora look already reads well and this
+  ADR's job is "gate it to time-of-day," not "replace it."
+
+**Consequence:** `game3d.js` no longer creates lights directly — any future system needing to read
+"is it currently day or night" (e.g. Phase 5 NPC schedules, Phase 6 nocturnal animal behavior)
+should read `lighting.js`'s `updateDayNightLighting` return value (already computed once per frame
+in `game3d.js`'s tick loop) rather than re-deriving it. `sky.js`'s "always-on aurora" Known Issue
+(3D_GAME_PROGRESS.md) is resolved by this ADR. If a later phase adds shadows, `lighting.js`'s sun
+`DirectionalLight` is where `castShadow`/`shadow.mapSize` get set — update this ADR or add a new one
+when that happens.

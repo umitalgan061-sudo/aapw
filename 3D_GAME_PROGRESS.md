@@ -14,10 +14,17 @@ KayKit, etc.) are used for `assets/`.
 ## Current Status
 
 - **Active Phase:** FAZ 1 ✅ TAMAMLANDI. FAZ 2 (Su/Atmosfer/Zaman) in progress: sea-level Gerstner
-  water (`world/water.js`) is live — see "This Run (run 6)" below.
-- **Last Update:** 2026-07-29 (run 6)
-- **Last Commit:** this run's `world/water.js` + `WATER_LEVEL_METERS` + DECISIONS.md ADR-0005 (see
-  "This Run (run 6)" below).
+  water (`world/water.js`) and a real-time day/night cycle (`lighting.js`, sun/hemisphere lights +
+  sky/aurora tied to time-of-day) are live — see "This Run (run 7)" below.
+- **Last Update:** 2026-07-29 (run 7)
+- **Last Commit:** this run's `lighting.js` + `sky.js` day/night wiring + DECISIONS.md ADR-0006 (see
+  "This Run (run 7)" below).
+- **World scale re-verified this run against the instruction's 100-150 km² band — already
+  correct, no change made.** A prior run (see "This Run (run 5)" below, DECISIONS.md ADR-0004)
+  already corrected the world scale from an un-completable 4278 km² down to **137.5 km²**, inside
+  the 100-150 km² target band. This run's Session Snapshot re-derived the numbers from
+  `src/3d/config.js` and confirmed they still match ADR-0004 exactly — no `METERS_PER_MAP_UNIT` or
+  grid-size change was needed.
 - **Parallel work from a prior run:** while a previous routine run was in progress, the project
   owner (with help from a separate Claude session) pushed 3 commits directly to `main` adding more
   manually-downloaded assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
@@ -110,6 +117,9 @@ Triangles<500K, TextureMem<512MB.
   merging or `InstancedMesh` (per the project's performance guidelines) would cut draw calls
   substantially, but at 169 draw calls there's no measured problem to justify the added complexity
   yet — revisit if/when draw calls approach the budget ceiling.
+- **`lighting.js` (added run 7):** 0 added draw calls/triangles — `DirectionalLight`/
+  `HemisphereLight` are not meshes and no shadow maps are enabled (see DECISIONS.md ADR-0006), so
+  this is a pure CPU-side per-frame color/position interpolation, negligible cost.
 - **`sky.js` + `world/water.js` combined (added run 6):** 2 more draw calls (171 total, still 7% of
   the desktop budget), ~960 sky triangles + ~32,768 water triangles (`PlaneGeometry(4000, 4000,
   128, 128)`, 2 triangles/cell) ≈ 33.7K triangles — under 1% of the desktop triangle budget and a
@@ -184,9 +194,17 @@ Triangles<500K, TextureMem<512MB.
   ADR-0005 for why this is one plane, not per-chunk water). Verified with a headless-Chromium
   bird's-eye screenshot: dozens of natural lake/pond shapes visible across the terrain, matching
   the low points of the existing FBM noise, zero console errors.
+- [x] Gün-gece döngüsü (`lighting.js`) — real-time-driven, `WORLD_DEFAULTS.DAY_LENGTH_SECONDS`
+  (720s = 1 game day) per full cycle, `START_TIME_OF_DAY_RATIO` (0.3, just past sunrise) at boot.
+  Seven hand-authored keyframes (midnight→dawn→noon→dusk→midnight) interpolate the sun
+  (`DirectionalLight`, now owned by `lighting.js` instead of created inline in `game3d.js`) and
+  hemisphere (`HemisphereLight`) color/intensity, plus the sun's elevation arc. `sky.js`'s
+  `updateAuroraSky` now takes this module's output and blends the sky gradient between blue-day
+  and dusk-night presets, fading the aurora in only at night via a new `uNightFactor` uniform —
+  resolves the "always-on aurora" Known Issue below. See DECISIONS.md ADR-0006.
+- [ ] Yıldızlı gece (star field, layered on top of the now-real night sky — not started this run)
 - [ ] Şelale (nehir yükseklik farkına göre)
 - [ ] Fog / volumetric ışık
-- [ ] Gün-gece döngüsü + yıldızlı gece (`lighting.js`)
 
 ### FAZ 3 — Kaleler/Yerleşimler (pending)
 - [ ] 2D haritadaki krallık konumlarını yansıtan modüler kale/kule (`settlements.js`)
@@ -699,6 +717,86 @@ since they're the one item that needs a new terrain concept, not just a new inde
 World Coverage unchanged at 30.73% (42.25 km² / 137.5 km²) — this run added a visual system, not
 terrain area.
 
+## This Run (2026-07-29, run 7)
+
+**Session Snapshot taken at start of run** (per protocol): repo was on a detached `HEAD` matching
+`origin/main` (`63c0ff3`, run 6's already-pushed water commit) — checked out `main` and
+fast-forwarded the local branch ref to match before doing anything else, so this run's commits
+land on a proper branch instead of adding to a detached history. Read `3D_GAME_PROGRESS.md`,
+`git log -10`, and `DECISIONS.md`'s last 3 ADRs per protocol.
+
+**World-scale correction check (this run's explicit first instruction):** the operator's brief
+asserted the old 4278 km² target might still be live and asked for a re-derivation targeting
+100-150 km². Verified against `src/3d/config.js` and `DECISIONS.md` ADR-0004: the correction was
+**already made in a prior run** — `WORLD_SCALE.METERS_PER_MAP_UNIT` is 1.75 (not the old ADR-0001
+value of 10), producing a 12.02km x 10.80km world, rounded to a 25x22 chunk grid = **137.5 km²**,
+inside the 100-150 km² band. No config change was needed; this is stated explicitly in "Current
+Status" above (with the re-verification noted) so a future run doesn't waste time re-deriving it
+again from scratch.
+
+**Done — FAZ 2 day/night cycle, per run 6's recommended next step:**
+- **Design decision made and recorded before writing code (DECISIONS.md ADR-0006):** a new
+  `src/3d/lighting.js` module owns the sun (`DirectionalLight`) and hemisphere
+  (`HemisphereLight`) — previously created inline as static, unchanging lights in `game3d.js`'s
+  `createScene()` — and animates both via linear interpolation between 7 hand-authored keyframes
+  spaced around a `[0, 1)` day-ratio (midnight→dawn→noon→dusk→midnight). `sky.js`'s
+  `updateAuroraSky` is extended with a 4th `dayNight` argument (not duplicated logic) so the sky
+  gradient and aurora visibility consume the same time-of-day state the lights use.
+- **Built `src/3d/lighting.js`:** `createDayNightLighting(scene)` / `updateDayNightLighting(lights,
+  elapsedSeconds, dayLengthSeconds, startRatio)` / `disposeDayNightLighting(scene, lights)`. Sun
+  elevation/position is a fixed-radius arc (`sin`/`cos` of the time angle); color/intensity for
+  both lights and a `nightFactor` come from the keyframe table. No GPU resources to free (no
+  shadow maps enabled anywhere in the project yet — confirmed by grep).
+- **`config.js`:** added `WORLD_DEFAULTS.DAY_LENGTH_SECONDS` (720s = 1 game day) and
+  `START_TIME_OF_DAY_RATIO` (0.3, just past sunrise, so a fresh session doesn't boot into darkness).
+- **`sky.js`:** added a `uNightFactor` uniform, multiplied into the aurora term in the fragment
+  shader (resolves the long-flagged "always-on aurora" Known Issue); `updateAuroraSky` now takes
+  the `lighting.js` output and writes it into `uHorizonColor`/`uZenithColor`/`uNightFactor` each
+  frame instead of using fixed dusk-toned defaults past the first frame.
+- **`game3d.js`:** removed the inline `HemisphereLight`/`DirectionalLight` creation, replaced with
+  `createDayNightLighting(scene)`; tick loop now calls `updateDayNightLighting()` once per frame
+  and threads its result into `updateAuroraSky()`; `pagehide` teardown now also calls
+  `disposeDayNightLighting()`.
+- **`service-worker.js`:** added `./src/3d/lighting.js` to `GAME3D_SHELL_FILES` — same rule run 5
+  established (a new code-imported 3D file must join the offline precache the moment it's added).
+- **Regression guard:** `node --check` on every non-vendored `src/3d/**/*.js` file (including the
+  new `lighting.js`) plus `script.js`/`service-worker.js`. All pass.
+- **Real smoke tests (headless Chromium via the globally-installed `playwright` package, repo
+  served locally with `http-server`):**
+  1. A dedicated unit-style test dynamic-`import()`ing `lighting.js` inside the page and sweeping
+     `updateDayNightLighting` across a full simulated day (20 samples): zero `NaN`s, zero page
+     errors, noon strictly brighter (`sunIntensity`, `hemiIntensity`) and less-night
+     (`nightFactor`) than midnight, confirming the interpolation actually works end-to-end and not
+     just "doesn't throw."
+  2. A full `game3d.html` load/render pass: zero `pageerror`/`console.error` events, screenshot
+     confirms a dawn-toned sky gradient + visible faded aurora + dimly-lit terrain consistent with
+     the 0.3 `START_TIME_OF_DAY_RATIO` default (see this run's scratch screenshot, not committed).
+  3. **Offline regression** (explicitly required by the task brief's Regression Guard list): visited
+     `index.html` first (SW registration lives there, not `game3d.html` — pre-existing, confirmed
+     by grep), then `game3d.html`, then went offline and reloaded `game3d.html` — zero errors,
+     canvas still renders, confirming `lighting.js`'s new precache entry didn't break the existing
+     offline guarantee.
+  4. **2D game regression:** loaded `index.html`, confirmed only the pre-existing sandbox-specific
+     noise (Firebase undefined, blocked network requests — documented in Known Issues below,
+     unrelated to this run's changes) and the "🎮 3D Dünya" button still present.
+
+**Files changed this run:** `src/3d/lighting.js` (new), `src/3d/config.js`
+(`DAY_LENGTH_SECONDS`/`START_TIME_OF_DAY_RATIO`), `src/3d/sky.js` (`uNightFactor` uniform,
+`updateAuroraSky` new `dayNight` param), `src/3d/game3d.js` (lighting wiring),
+`service-worker.js` (`GAME3D_SHELL_FILES`), `DECISIONS.md` (new ADR-0006), `src/3d/README.md`,
+`ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file). Nine files, ~330 new/changed lines — within
+this run's ≤20-files/≤800-lines budget; all documentation changes describe this one atomic change
+(one new module + its config constants + its two call-site integrations + its offline-cache entry).
+
+**Next step for the next run:** FAZ 2's remaining items, per run 6's still-valid ordering: rivers/
+waterfalls (needs a river-path/height-drop concept `terrain.js` doesn't have yet — design that
+first, same as prior runs did for sea-level water) and fog/volumetric light. A reasonable next pick
+is fog (self-contained, no new terrain concept, and pairs naturally with the day/night work just
+landed — e.g. thicker fog near dawn/dusk) before tackling the river/waterfall terrain-concept
+design work. World Coverage unchanged at 30.73% (42.25 km² / 137.5 km²) — this run added a visual
+system, not terrain area; growing coverage stays below FAZ-2-content work in priority per the
+project's own rules (no hard coverage gate until FAZ 3).
+
 ## Known Issues / Tech Debt
 
 - **`world/water.js` has no river/height-drop concept yet — waterfalls need one.** The current
@@ -706,10 +804,9 @@ terrain area.
   terrain drops steeply enough for a waterfall. FAZ 2's waterfall item needs a design decision
   first (a river-path concept in `terrain.js`, or a separate `rivers.js`), not just more shader
   work — don't start it as "more water.js" without that decision.
-- **`sky.js`'s aurora is always-on, not gated by time-of-day.** There is no day/night system yet
-  (Phase 2's `lighting.js`). Once it exists, fade the aurora in only at night (it currently reads
-  fine as a stylized "north of the Wall" identity regardless of time, but a literal day/night cycle
-  should still hide it in daylight for realism). `sky.js`'s own module doc comment has the same note.
+- **~~`sky.js`'s aurora is always-on, not gated by time-of-day~~ — fixed run 7.** `lighting.js`
+  now drives a real day/night cycle; the aurora fades out in daylight via `uNightFactor` (see
+  DECISIONS.md ADR-0006).
 - **~~`game3d.html`/`.css` and `src/3d/**` are not yet in `service-worker.js`'s cache list~~ —
   fixed run 5.** `GAME3D_SHELL_FILES` now precaches every currently-code-imported 3D file; verified
   working fully offline after one online visit. Character/creature model assets are deliberately

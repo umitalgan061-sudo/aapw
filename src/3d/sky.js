@@ -5,8 +5,10 @@
  * the GLSL lives inline here rather than as a fetched `.glsl` asset (avoids a new async load path
  * and offline-cache entry for something this cheap to inline).
  *
- * This is a Phase 1 placeholder: always-on aurora, not gated by time-of-day (there is no day/night
- * system yet — that's Phase 2's `lighting.js`). Revisit then to fade the aurora in only at night.
+ * Horizon/zenith colors and aurora visibility are driven per-frame by `lighting.js`'s day/night
+ * cycle (see `updateAuroraSky`'s `dayNight` argument) — the aurora fades in at night and fades out
+ * in daylight, and the sky gradient itself blends between a blue-sky day preset and this module's
+ * own dusk-toned night preset (see DECISIONS.md ADR-0006).
  * @module sky
  */
 
@@ -27,6 +29,7 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uAuroraColorA;
 	uniform vec3 uAuroraColorB;
 	uniform float uTime;
+	uniform float uNightFactor;
 	varying vec3 vWorldPosition;
 
 	// Cheap 2D value-noise hash (not the seeded terrain PRNG — this only drives a visual, not
@@ -60,12 +63,13 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 		bands = pow(clamp(bands, 0.0, 1.0), 2.0);
 		vec3 auroraColor = mix(uAuroraColorA, uAuroraColorB, valueNoise(sampleCoord + 5.0));
 
-		vec3 finalColor = skyColor + auroraColor * bands * auroraMask * 0.55;
+		vec3 finalColor = skyColor + auroraColor * bands * auroraMask * uNightFactor * 0.55;
 		gl_FragColor = vec4(finalColor, 1.0);
 	}
 `;
 
-/** Dusk-toned horizon/zenith gradient, chosen to read consistently with the existing warm sun/hemisphere lights in `game3d.js`. */
+/** Initial-frame-only fallback (dusk-toned) — overwritten every frame by `lighting.js`'s day/night
+ * colors via `updateAuroraSky`'s `dayNight` argument once the render loop starts. */
 const DEFAULT_HORIZON_COLOR = new THREE.Color(0xd98a52);
 const DEFAULT_ZENITH_COLOR = new THREE.Color(0x0b1633);
 const DEFAULT_AURORA_COLOR_A = new THREE.Color(0x2ce8a0);
@@ -89,6 +93,7 @@ export function createAuroraSky() {
 			uZenithColor: { value: DEFAULT_ZENITH_COLOR },
 			uAuroraColorA: { value: DEFAULT_AURORA_COLOR_A },
 			uAuroraColorB: { value: DEFAULT_AURORA_COLOR_B },
+			uNightFactor: { value: 1 },
 		},
 		side: THREE.BackSide,
 		depthWrite: false,
@@ -101,14 +106,21 @@ export function createAuroraSky() {
 }
 
 /**
- * Re-centers the skybox on the camera and advances its animated aurora bands. Call once per frame.
+ * Re-centers the skybox on the camera, advances its animated aurora bands, and applies the
+ * current day/night sky gradient + aurora visibility from `lighting.js`. Call once per frame.
  * @param {THREE.Mesh} skyMesh
  * @param {THREE.Vector3} cameraPosition
  * @param {number} elapsedSeconds
+ * @param {{horizonColor: THREE.Color, zenithColor: THREE.Color, nightFactor: number}} dayNight - the
+ *   object returned by `lighting.js`'s `updateDayNightLighting`.
  */
-export function updateAuroraSky(skyMesh, cameraPosition, elapsedSeconds) {
+export function updateAuroraSky(skyMesh, cameraPosition, elapsedSeconds, dayNight) {
 	skyMesh.position.copy(cameraPosition);
-	skyMesh.material.uniforms.uTime.value = elapsedSeconds;
+	const uniforms = skyMesh.material.uniforms;
+	uniforms.uTime.value = elapsedSeconds;
+	uniforms.uHorizonColor.value.copy(dayNight.horizonColor);
+	uniforms.uZenithColor.value.copy(dayNight.zenithColor);
+	uniforms.uNightFactor.value = dayNight.nightFactor;
 }
 
 /**

@@ -7,9 +7,10 @@
  * the origin via `world/chunkManager.js`, and then additively streams in more chunks
  * (`STREAM_RADIUS_CHUNKS`) as the interactive `OrbitControls` camera's target (`camera.js`) moves
  * into new chunks — World Coverage now grows by exploring, not just by a bigger boot-time load.
- * An always-on procedural aurora skybox (`sky.js`) surrounds the camera. FAZ 2 has begun: a
- * Gerstner-wave sea-level water plane (`world/water.js`) floods low-lying terrain. See
- * 3D_GAME_PROGRESS.md for what's next.
+ * A procedural aurora skybox (`sky.js`) surrounds the camera. FAZ 2 is in progress: a Gerstner-wave
+ * sea-level water plane (`world/water.js`) floods low-lying terrain, and a real-time day/night
+ * cycle (`lighting.js`) animates the sun/hemisphere lights and the sky's colors/aurora visibility
+ * together. See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
 
@@ -22,6 +23,7 @@ import { ChunkManager } from './world/chunkManager.js';
 import { createWater, updateWater, disposeWater } from './world/water.js';
 import { createOrbitCamera } from './camera.js';
 import { createAuroraSky, updateAuroraSky, disposeAuroraSky } from './sky.js';
+import { createDayNightLighting, updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
 
 /** Shared asset loader instance for the whole 3D mode. */
 export const assetLoader = new AssetLoader({ events: gameEvents });
@@ -44,7 +46,7 @@ gameEvents.on(EVENTS.ASSET_ERROR, (payload) => {
  * `canvas`, via `ChunkManager`. Fixed one-time load, not position-based streaming yet — see
  * 3D_GAME_PROGRESS.md FAZ 1 for what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, water: THREE.Mesh, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, water: THREE.Mesh, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -71,10 +73,7 @@ function createScene(canvas) {
 	scene.add(water);
 	const clock = new THREE.Clock();
 
-	scene.add(new THREE.HemisphereLight(0xffe8c0, 0x1a140a, 1.1));
-	const sun = new THREE.DirectionalLight(0xfff2d8, 1.4);
-	sun.position.set(300, 400, 200);
-	scene.add(sun);
+	const lights = createDayNightLighting(scene);
 
 	const chunkManager = new ChunkManager({
 		scene,
@@ -90,7 +89,7 @@ function createScene(canvas) {
 			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²) in ${generationMs.toFixed(0)}ms.`,
 	);
 
-	return { renderer, scene, camera, controls, chunkManager, sky, water, clock, lastStreamChunk: null };
+	return { renderer, scene, camera, controls, chunkManager, sky, water, lights, clock, lastStreamChunk: null };
 }
 
 /**
@@ -178,7 +177,13 @@ export async function initGame3D() {
 			state.controls.update(); // required every frame: enableDamping is on
 			streamAroundOrbitTarget(state);
 			const elapsedSeconds = state.clock.getElapsedTime();
-			updateAuroraSky(state.sky, state.camera.position, elapsedSeconds);
+			const dayNight = updateDayNightLighting(
+				state.lights,
+				elapsedSeconds,
+				WORLD_DEFAULTS.DAY_LENGTH_SECONDS,
+				WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO,
+			);
+			updateAuroraSky(state.sky, state.camera.position, elapsedSeconds, dayNight);
 			updateWater(state.water, state.camera.position, elapsedSeconds);
 			state.renderer.render(state.scene, state.camera);
 		};
@@ -191,6 +196,7 @@ export async function initGame3D() {
 			state.chunkManager.disposeAll();
 			disposeAuroraSky(state.sky);
 			disposeWater(state.water);
+			disposeDayNightLighting(state.scene, state.lights);
 			state.renderer.dispose();
 		}, { once: true });
 

@@ -22,7 +22,11 @@ non-obvious choices lives in `DECISIONS.md` (ADR log). This file is just an inde
 - **`camera.js`** — `createOrbitCamera()`, the dev-preview `OrbitControls` wrapper. Will likely be
   replaced (not extended) by a real third-person camera in Phase 4.
 - **`sky.js`** — `createAuroraSky()`/`updateAuroraSky()`/`disposeAuroraSky()`: procedural aurora
-  skybox, inline GLSL shader, no external asset files.
+  skybox, inline GLSL shader, no external asset files. `updateAuroraSky()` takes `lighting.js`'s
+  day/night output so the gradient and aurora visibility track time-of-day.
+- **`lighting.js`** — `createDayNightLighting()`/`updateDayNightLighting()`/
+  `disposeDayNightLighting()`: owns the scene's sun (`DirectionalLight`) and sky-fill
+  (`HemisphereLight`), keyframe-interpolated across a real-time day/night cycle.
 
 ## Subfolders
 

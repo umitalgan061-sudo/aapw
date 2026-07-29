@@ -59,6 +59,13 @@ export const WORLD_DEFAULTS = Object.freeze({
 	 * the FBM height range into natural-looking lakes/coastline without any change to terrain
 	 * generation itself (see DECISIONS.md ADR-0005). */
 	WATER_LEVEL_METERS: 6,
+	/** Real seconds for one full day/night cycle (`lighting.js`). 720s (12 real minutes) = 1 game
+	 * day — fast enough to see the full cycle within a short play session without every frame's
+	 * lighting change being imperceptible. Tune once there's a real player to feel it against. */
+	DAY_LENGTH_SECONDS: 720,
+	/** Where in the [0, 1) day/night ratio a session starts (0 = midnight, 0.5 = noon). 0.3 lands
+	 * just after sunrise, so a fresh session doesn't always boot into full darkness. */
+	START_TIME_OF_DAY_RATIO: 0.3,
 });
 
 /**

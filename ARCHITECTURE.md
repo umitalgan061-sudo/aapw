@@ -131,19 +131,41 @@ the way it is.
   sphere itself gets frustum-clipped — flagged in the module's own comment, not currently enforced
   by code (both are static constants that don't currently share a source of truth; revisit if
   `FAR_PLANE` ever becomes runtime-configurable via `QUALITY_PRESETS`).
-- **Phase 1 placeholder:** the aurora is always-on, not gated by time-of-day — there is no day/
-  night system yet (that's Phase 2's `lighting.js`). Revisit then to fade it in only at night.
+- **Time-of-day driven (added FAZ 2 run 7):** `updateAuroraSky` now takes a fourth `dayNight`
+  argument (`{horizonColor, zenithColor, nightFactor}`, produced by `lighting.js`'s
+  `updateDayNightLighting`) and applies it to `uHorizonColor`/`uZenithColor`/`uNightFactor` every
+  frame — the sky gradient blends blue-day to dusk-night, and the aurora fades out in daylight
+  (`uNightFactor` scales the aurora term in the fragment shader). The always-on placeholder noted
+  above is resolved; see DECISIONS.md ADR-0006.
+
+## `src/3d/lighting.js` — Day/night cycle
+
+- **Depends on:** `three` (vendored) only. Deliberately does not import `config.js` — callers pass
+  `dayLengthSeconds`/`startRatio` explicitly (matches `terrain.js`/`world.js`'s existing
+  "caller passes config values in" convention).
+- **Used by:** `game3d.js` (`createDayNightLighting`/`updateDayNightLighting`/
+  `disposeDayNightLighting` — owns the scene's `DirectionalLight` "sun" and `HemisphereLight` sky
+  fill, previously created inline in `game3d.js`) and `sky.js` indirectly (`game3d.js` passes
+  `updateDayNightLighting`'s return value straight into `updateAuroraSky`).
+- **Critical path:** no — purely visual; a bad interpolation would misrender lighting, not throw
+  (all math is plain arithmetic on finite keyframe constants, no external input).
+- **Failure mode:** none currently guarded — no user/network input reaches this module, only
+  `elapsedSeconds` from `game3d.js`'s own `THREE.Clock`.
+- **No GPU resources of its own:** lights have no geometry/texture/shadow-map yet (shadows aren't
+  enabled anywhere in the project). `disposeDayNightLighting` just removes the two lights from the
+  scene, for symmetry with every other system's create/update/dispose triplet.
 
 ## `src/3d/game3d.js` — Entry point / scene bootstrap
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
-  `world/chunkManager.js`, `world/water.js`, `camera.js`, `sky.js`.
+  `world/chunkManager.js`, `world/water.js`, `camera.js`, `sky.js`, `lighting.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
-- **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, lighting, resize
-  handling, the `OrbitControls` instance, the `ChunkManager` instance, the aurora sky mesh, the
-  water plane, and the `requestAnimationFrame` render loop (which also drives `controls.update()`,
-  `streamAroundOrbitTarget()`, `updateAuroraSky()`, and `updateWater()` each frame — see
-  `world/chunkManager.js`, `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003).
+- **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
+  lights (`lighting.js`), resize handling, the `OrbitControls` instance, the `ChunkManager`
+  instance, the aurora sky mesh, the water plane, and the `requestAnimationFrame` render loop
+  (which also drives `controls.update()`, `streamAroundOrbitTarget()`, `updateDayNightLighting()`,
+  `updateAuroraSky()`, and `updateWater()` each frame — see `world/chunkManager.js`, `lighting.js`,
+  `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006).
 - **Failure mode:** `initGame3D()` is fully try/caught — a WebGL init failure sets
   `gameState.error` and emits `GAME_ERROR` (caught by `game3d.html`'s error-screen listener above)
   rather than throwing an uncaught exception. If `#game3d-canvas` isn't present, rendering is
