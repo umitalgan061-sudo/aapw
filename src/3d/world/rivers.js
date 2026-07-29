@@ -5,9 +5,17 @@
  * (ADR-0005): the path is *found* by walking the existing FBM noise downhill, not carved into it.
  * See DECISIONS.md ADR-0009 for why a path-tracing approach was chosen over terrain carving.
  *
+ * Also detects and renders **waterfalls**: river segments whose drop/distance ratio is steep
+ * enough to flag as a fall rather than a normal gentle descent (`detectWaterfalls`/
+ * `createWaterfallMesh`) — see DECISIONS.md ADR-0011 for the exact thresholds (calibrated against
+ * this world's actual generated river, not guessed) and why the visual is a vertical "curtain"
+ * standing at the drop's midpoint rather than a slanted patch following the real (gentle, non-
+ * cliff) terrain between the two points.
+ *
  * Scope of this first pass (see 3D_GAME_PROGRESS.md Known Issues): one static river near the
  * world origin, confined to the FAZ 1 preview area so it never renders over unloaded terrain;
- * waterfalls and a real flow-animated shader are follow-up work, not attempted here.
+ * a real flow-animated shader for either the river or its waterfalls is follow-up work, not
+ * attempted here.
  * @module world/rivers
  */
 
@@ -201,4 +209,108 @@ export function createRiverMesh(points, widthMeters = 14) {
 export function disposeRiverMesh(riverMesh) {
 	riverMesh.geometry.dispose();
 	riverMesh.material.dispose();
+}
+
+/** Minimum vertical drop, in meters, between two consecutive river points for the segment to be
+ * flagged as a waterfall rather than a normal gentle descent. Calibrated against this world's
+ * actual traced river (seed 1337): its steepest two segments drop 2.61m and 4.02m over a 40m step
+ * (6.5% and 10.1% grade) while every other segment drops under 1.3m (≤3.2% grade) — see
+ * DECISIONS.md ADR-0011 for the full measured profile. Set between those two clusters so real,
+ * distinctly-steeper sections are flagged without also flagging the river's normal gentle flow. */
+const WATERFALL_MIN_DROP_METERS = 2.5;
+/** Minimum drop/horizontal-distance ratio (rise-over-run) for a segment to count as a waterfall —
+ * paired with `WATERFALL_MIN_DROP_METERS` so a long, gradual descent that happens to accumulate
+ * `WATERFALL_MIN_DROP_METERS` of total drop over a much longer distance isn't misflagged as a fall. */
+const WATERFALL_MIN_SLOPE = 0.06;
+
+const WATERFALL_FOAM_COLOR = new THREE.Color(0xf0f8ff);
+
+/**
+ * Scans a traced river path (`generateRiverPath`'s `points`) for segments steep enough to count as
+ * a waterfall — see `WATERFALL_MIN_DROP_METERS`/`WATERFALL_MIN_SLOPE` for the exact, measured
+ * thresholds. Pure function: same `points` always produces the same waterfalls.
+ * @param {THREE.Vector3[]} points
+ * @returns {{top: THREE.Vector3, bottom: THREE.Vector3, dropMeters: number}[]} One entry per
+ *   qualifying segment, `top` being the upstream (higher) point and `bottom` the downstream one.
+ */
+export function detectWaterfalls(points) {
+	const waterfalls = [];
+	for (let i = 1; i < points.length; i++) {
+		const top = points[i - 1];
+		const bottom = points[i];
+		const horizontalDistance = Math.hypot(bottom.x - top.x, bottom.z - top.z);
+		if (horizontalDistance === 0) continue;
+		const dropMeters = top.y - bottom.y;
+		const slope = dropMeters / horizontalDistance;
+		if (dropMeters >= WATERFALL_MIN_DROP_METERS && slope >= WATERFALL_MIN_SLOPE) {
+			waterfalls.push({ top, bottom, dropMeters });
+		}
+	}
+	return waterfalls;
+}
+
+/**
+ * Builds a vertical "curtain" mesh for one `detectWaterfalls` entry: a flat quad standing upright
+ * at the horizontal midpoint between `top`/`bottom`, spanning the full vertical drop, oriented
+ * perpendicular to the flow direction (same `perpX`/`perpZ` technique as `createRiverMesh`'s
+ * ribbon). Deliberately vertical rather than following the real (gently-sloped, non-cliff) terrain
+ * between the two points — `terrain.js`'s smooth FBM has no actual cliff faces yet, so a slanted
+ * patch would just look like a tinted continuation of the river ribbon, not a fall. This is a
+ * schematic "steep-section marker," not a physically-carved waterfall — see this module's own doc
+ * comment and DECISIONS.md ADR-0011.
+ * @param {{top: THREE.Vector3, bottom: THREE.Vector3, dropMeters: number}} waterfall One entry from `detectWaterfalls`.
+ * @param {number} [widthMeters=14] Matches `createRiverMesh`'s default river width.
+ * @returns {THREE.Mesh}
+ */
+export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 14) {
+	const midX = (top.x + bottom.x) / 2;
+	const midZ = (top.z + bottom.z) / 2;
+	const tangentLength = Math.hypot(bottom.x - top.x, bottom.z - top.z) || 1;
+	const perpX = -(bottom.z - top.z) / tangentLength;
+	const perpZ = (bottom.x - top.x) / tangentLength;
+	const halfWidth = widthMeters / 2;
+
+	// prettier-ignore
+	const positions = new Float32Array([
+		midX + perpX * halfWidth, top.y, midZ + perpZ * halfWidth, // top-left
+		midX - perpX * halfWidth, top.y, midZ - perpZ * halfWidth, // top-right
+		midX + perpX * halfWidth, bottom.y, midZ + perpZ * halfWidth, // bottom-left
+		midX - perpX * halfWidth, bottom.y, midZ - perpZ * halfWidth, // bottom-right
+	]);
+	// prettier-ignore
+	const colors = new Float32Array([
+		WATERFALL_FOAM_COLOR.r, WATERFALL_FOAM_COLOR.g, WATERFALL_FOAM_COLOR.b,
+		WATERFALL_FOAM_COLOR.r, WATERFALL_FOAM_COLOR.g, WATERFALL_FOAM_COLOR.b,
+		RIVER_COLOR.r, RIVER_COLOR.g, RIVER_COLOR.b,
+		RIVER_COLOR.r, RIVER_COLOR.g, RIVER_COLOR.b,
+	]);
+	const indices = [0, 2, 1, 2, 3, 1];
+
+	const geometry = new THREE.BufferGeometry();
+	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+	geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+	geometry.setIndex(indices);
+	geometry.computeVertexNormals();
+
+	const material = new THREE.MeshStandardMaterial({
+		vertexColors: true,
+		roughness: 0.2,
+		metalness: 0,
+		transparent: true,
+		opacity: 0.82,
+		side: THREE.DoubleSide,
+	});
+	const mesh = new THREE.Mesh(geometry, material);
+	mesh.userData.dropMeters = dropMeters;
+	return mesh;
+}
+
+/**
+ * Disposes a mesh created by `createWaterfallMesh` (geometry + material). Call on teardown —
+ * memory-leak checklist.
+ * @param {THREE.Mesh} waterfallMesh
+ */
+export function disposeWaterfallMesh(waterfallMesh) {
+	waterfallMesh.geometry.dispose();
+	waterfallMesh.material.dispose();
 }

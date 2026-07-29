@@ -12,7 +12,8 @@
  * (`lighting.js`) animates the sun/hemisphere lights and the sky's colors/aurora visibility
  * together, distance fog (`fog.js`) — synced to the same day/night state — fades terrain into
  * the horizon, and one static river (`world/rivers.js`) traces a deterministic downhill path from
- * high ground near the origin down to sea level. See 3D_GAME_PROGRESS.md for what's next.
+ * high ground near the origin down to sea level, with vertical "curtain" meshes marking its
+ * steepest (waterfall-grade) segments. See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
 
@@ -24,7 +25,14 @@ import { EVENTS, WORLD_DEFAULTS, CHUNK_CONFIG } from './config.js';
 import { ChunkManager } from './world/chunkManager.js';
 import { createHeightSampler } from './world/terrain.js';
 import { createWater, updateWater, disposeWater } from './world/water.js';
-import { generateRiverPath, createRiverMesh, disposeRiverMesh } from './world/rivers.js';
+import {
+	generateRiverPath,
+	createRiverMesh,
+	disposeRiverMesh,
+	detectWaterfalls,
+	createWaterfallMesh,
+	disposeWaterfallMesh,
+} from './world/rivers.js';
 import { createOrbitCamera } from './camera.js';
 import { createAuroraSky, updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { createDayNightLighting, updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
@@ -70,7 +78,7 @@ function isCoarsePointerDevice() {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, water: THREE.Mesh, river: THREE.Mesh | null, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -131,7 +139,13 @@ function createScene(canvas) {
 		`[game3d] River path traced: ${riverPoints.length} points, ended via "${riverEndReason}".`,
 	);
 
-	return { renderer, scene, camera, controls, chunkManager, sky, water, river, lights, clock, lastStreamChunk: null };
+	// Waterfall "curtains" mark the river's steepest segments — see world/rivers.js module doc /
+	// DECISIONS.md ADR-0011 for why the visual is schematic rather than a physically-carved cliff.
+	const waterfalls = detectWaterfalls(riverPoints).map((waterfall) => createWaterfallMesh(waterfall));
+	waterfalls.forEach((mesh) => scene.add(mesh));
+	console.info(`[game3d] Detected ${waterfalls.length} waterfall-grade drop(s) along the river.`);
+
+	return { renderer, scene, camera, controls, chunkManager, sky, water, river, waterfalls, lights, clock, lastStreamChunk: null };
 }
 
 /**
@@ -240,6 +254,7 @@ export async function initGame3D() {
 			disposeAuroraSky(state.sky);
 			disposeWater(state.water);
 			if (state.river) disposeRiverMesh(state.river);
+			state.waterfalls.forEach(disposeWaterfallMesh);
 			disposeDayNightLighting(state.scene, state.lights);
 			state.renderer.dispose();
 		}, { once: true });

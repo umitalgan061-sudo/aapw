@@ -238,8 +238,14 @@ Triangles<500K, TextureMem<512MB.
   alanıyla sınırlı (`maxRiverRadiusMeters`) — birden fazla nehir/streaming entegrasyonu gelecek iş.
   Gerçek üstten-görünüm ekran görüntüsüyle doğrulandı (kaynak→deniz ağzı işaretçileriyle).
   Detaylar: DECISIONS.md ADR-0009.
-- [ ] Şelale (nehir yükseklik farkına göre) — nehir artık var ama dik yükseklik düşüşü tespiti/
-  görsel efekti henüz yok, bu checklist maddesi ondan ayrı kalır.
+- [x] Şelale (nehir yükseklik farkına göre) — `detectWaterfalls(points)` nehrin izlenmiş yolundaki
+  dik segmentleri işaretliyor (`dropMeters >= 2.5` VE `slope >= 0.06`, bu dünyanın gerçek nehir
+  verisine karşı ölçülmüş eşikler — bkz. DECISIONS.md ADR-0011), `createWaterfallMesh` her birinde
+  dikey bir "perde" mesh'i oluşturuyor (üstte köpük-beyazı, altta nehir mavisine geçiş). Bilinçli
+  olarak şematik: `terrain.js`'in düz FBM yüzeyinde gerçek uçurum yok, bu yüzden perde arazi
+  eğimini takip etmek yerine dikey duruyor. Gerçek tohumla (1337) 2 şelale tespit edildi, headless
+  Chromium ile hem gerçek `game3d.html` sahnesinde hem ayrı bir üstten-görünüm doğrulama
+  render'ında sıfır hatayla doğrulandı.
 - [x] Fog (`fog.js`) — `THREE.FogExp2` on `scene.fog`, color reused directly from `lighting.js`'s
   current horizon color (so fogged terrain fades into the sky, not a mismatched flat color),
   density interpolated day→night via the same `nightFactor`. Automatically applies to
@@ -1112,12 +1118,81 @@ Either is legitimate; per this project's own rule, don't half-do both in one run
 introduced this run; one long-standing gap (mobile chunk-count safety) was closed instead of added
 to.
 
+## This Run (2026-07-29, run 12)
+
+**Continuation of the same operator session** ("Devam et" / "continue" right after run 11's push).
+Repo state already fresh in context (clean, `main` at `9a8f9fe`, run 11's device-radius fix +
+merge-resolution docs already pushed) — re-checked with `git fetch origin main` anyway (no new
+parallel work landed). Picked up run 11's own "Next step": waterfalls, now smaller in scope since
+the merged run 10 already built a real river to walk.
+
+**Done — FAZ 2 waterfalls, per run 11's recommended next step:**
+- **Measured the real river's height profile before picking any threshold (BİLMEME KURALI):** wrote
+  a scratch headless-Chromium script that imports the actual `createHeightSampler`/
+  `generateRiverPath` and logs every segment's horizontal distance, vertical drop, and slope for the
+  world's real seed-1337 river (11 points, reaching the sea). Result: eight segments drop under
+  1.3m (≤3.2% grade — the river's ordinary gentle flow) while exactly two stand out: 2.61m/40m
+  (6.5% grade) and 4.02m/40m (10.1% grade). This measured profile, not a guess, is what set this
+  run's thresholds.
+- **Design decision made and recorded before writing code (DECISIONS.md ADR-0011):** waterfalls are
+  *detected*, not authored — `detectWaterfalls(points)` flags a river segment when both
+  `dropMeters >= 2.5` and `slope >= 0.06` (sitting between the measured 8-segment "normal" cluster
+  and the 2-segment "steep" cluster above). `createWaterfallMesh` renders each as a vertical
+  "curtain" quad standing at the segment's horizontal midpoint, spanning the full vertical drop,
+  reusing `createRiverMesh`'s `perpX`/`perpZ` orientation technique. Deliberately vertical rather
+  than slanted to match the real (gently-sloped, non-cliff) terrain between the two points —
+  `terrain.js`'s smooth FBM has no actual cliff faces, so this is an explicitly schematic
+  "steep-section marker," not a physically-carved waterfall, consistent with `rivers.js`'s own
+  established "find the shape, don't carve it" approach (ADR-0009).
+- **Built directly into `world/rivers.js`** (`detectWaterfalls`, `createWaterfallMesh`,
+  `disposeWaterfallMesh`) rather than a new file — waterfalls are a derived query over the same
+  river-path data, not an independent world system. File grew from 205 to 316 lines, still well
+  under the project's 600-line cap.
+- **Wired into `game3d.js`:** right after generating the river, `detectWaterfalls(riverPoints).map
+  (createWaterfallMesh)` builds the curtain meshes, all added to the scene and logged
+  (`"Detected N waterfall-grade drop(s) along the river"`); disposed alongside the river mesh on
+  `pagehide` (memory-leak checklist).
+- **Regression guard:** `node --check` on `world/rivers.js`, `game3d.js`. Both pass.
+- **Real smoke tests (headless Chromium):**
+  1. Full `game3d.html` render pass — zero `pageerror`/`console.error`, console confirms `"Detected
+     2 waterfall-grade drop(s) along the river"`, matching the calibration profiling exactly (not
+     just "some number came back").
+  2. **A dedicated broadside verification render** (separate scratch scene, real terrain chunks +
+     real river + real waterfall mesh, source/mid markers, camera placed along the curtain's own
+     face-normal direction — derived from `createWaterfallMesh`'s `perp`/vertical spanning vectors,
+     not guessed): confirms the curtain renders at the correct location, correctly oriented
+     (broadside when viewed along its normal, edge-on if viewed from the wrong axis — caught this
+     distinction by trying the wrong camera axis first and correcting it), and reads as a modest,
+     wide-but-short cascade (14m wide, 4m tall) — an honest consequence of this terrain's actual
+     24m height budget, not a bug to paper over with a bigger/taller quad.
+  3. Offline-precache and 2D-game regression tests — both still clean. No new file was added this
+     run (`detectWaterfalls`/`createWaterfallMesh` live inside the already-precached
+     `world/rivers.js`), so no `service-worker.js` change was needed — verified, not assumed.
+
+**Files changed this run:** `src/3d/world/rivers.js` (`detectWaterfalls`/`createWaterfallMesh`/
+`disposeWaterfallMesh` additions), `src/3d/game3d.js` (waterfall wiring + disposal),
+`DECISIONS.md` (new ADR-0011), `ARCHITECTURE.md`, `src/3d/world/README.md`,
+`3D_GAME_PROGRESS.md` (this file — Roadmap checklist, Known Issues, this section). Six files,
+~220 new/changed lines — well within budget; one atomic addition (detection function + its visual
++ its wiring + its disposal, all one reviewable unit).
+
+**Next step for the next run:** FAZ 2's remaining items: volumetric light (god rays — a separate,
+larger technique, still not started) is now the only unchecked FAZ 2 roadmap item besides the
+starfield. World Coverage unchanged at 52.5% (72.25 km² / 137.5 km² — this run added a geography
+*detail*, not chunk-covered area). No new tech debt: waterfalls are static/non-streamed/
+non-flow-animated by explicit, documented design choice (same profile as the river itself), not an
+accidental gap. If a future run wants dramatically taller/more numerous waterfalls, that requires
+`terrain.js` to actually generate steeper local relief (a real, separate change) — not a bigger
+threshold or taller quad grafted onto this world's current rolling-hill terrain.
+
 ## Known Issues / Tech Debt
 
-- **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** The remaining
-  gap: waterfalls still need a steep-height-drop detector walking the same path points (`|Δy| /
-  |Δdistance|` between consecutive points, roughly) plus a visual effect at those points — not
-  attempted this run. See DECISIONS.md ADR-0009's Consequence section.
+- **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
+  ADR-0009's Consequence section.
+- **~~Waterfalls need a steep-height-drop detector~~ — landed run 12 (`detectWaterfalls`/
+  `createWaterfallMesh` in `world/rivers.js`).** Thresholds calibrated against the real traced
+  river (seed 1337): 2 segments flagged. The visual is a deliberately schematic vertical curtain,
+  not a terrain-carved cliff (`terrain.js` has no real cliff relief) — see DECISIONS.md ADR-0011.
 - **`world/rivers.js` is one static river, not a network, and doesn't stream.** Generated once at
   boot, confined to a fixed radius around the origin (see ADR-0009) — a real multi-river system
   tied to `ChunkManager`'s streaming (so rivers appear/persist correctly as the player explores

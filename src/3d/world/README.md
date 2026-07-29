@@ -29,7 +29,11 @@ here (blast radius rule — if a change needs more than that, it's not a world-s
   (`null` if fewer than 2 points); `disposeRiverMesh(mesh)` releases it. Static — no per-frame
   `update()`, unlike `water.js`. See `DECISIONS.md` ADR-0009 for why path-tracing (not terrain
   carving) was chosen and how the steepest-descent walk avoids getting stuck in the many small
-  local minima multi-octave FBM noise produces.
+  local minima multi-octave FBM noise produces. Also exports `detectWaterfalls(points)` (flags
+  segments with `dropMeters >= 2.5` and `slope >= 0.06`, thresholds measured against the actual
+  traced river — see `DECISIONS.md` ADR-0011) and `createWaterfallMesh(waterfall, widthMeters)` /
+  `disposeWaterfallMesh(mesh)` — a deliberately schematic vertical "curtain" quad at each flagged
+  segment, not a terrain-carved cliff.
 
 ## Conventions
 

@@ -629,3 +629,90 @@ not just a comment). If a future phase adds real quality tiers (`QUALITY_PRESETS
 binary device split is the natural seam to extend into a full tier selection — replace the ternary
 with a `QUALITY_PRESETS`-driven radius lookup at that point rather than adding a third special case
 here.
+
+## ADR-0011: waterfalls as vertical "curtain" markers on the river's steepest segments, thresholds calibrated against the actual traced path
+
+**Date:** 2026-07-29
+
+**Decision:** `world/rivers.js` gained `detectWaterfalls(points)` and `createWaterfallMesh(waterfall)`.
+`detectWaterfalls` scans consecutive pairs of points from `generateRiverPath`'s output and flags a
+segment as a waterfall when both `dropMeters >= 2.5` and `slope (drop/horizontalDistance) >= 0.06`.
+`createWaterfallMesh` renders each flagged segment as a flat vertical quad — standing upright at the
+horizontal midpoint between the segment's two points, spanning the full vertical drop, oriented
+perpendicular to the flow direction (reusing `createRiverMesh`'s `perpX`/`perpZ` technique) — colored
+white-foam at the top fading to the river's own blue at the bottom, using a built-in
+`MeshStandardMaterial` (not a custom shader), same choice `createRiverMesh` already made for the
+ribbon itself.
+
+**Reasoning:**
+- **Thresholds measured, not guessed (BİLMEME KURALI):** before writing `detectWaterfalls`, this
+  run drove a headless-Chromium page that imports the real `createHeightSampler`/`generateRiverPath`
+  and logged every segment's `(horizontalDistance, drop, slope)` for the world's actual seed-1337
+  river (11 points, reaching the sea). The result: eight segments drop under 1.3m (≤3.2% grade,
+  the river's normal gentle flow) while exactly two stand out — 2.61m/40m (6.5% grade) and
+  4.02m/40m (10.1% grade). `WATERFALL_MIN_DROP_METERS = 2.5` and `WATERFALL_MIN_SLOPE = 0.06` sit
+  between those two clusters, so they flag the two genuinely steeper segments without also
+  catching the river's ordinary descent. Verified via a second headless run (real `game3d.html`
+  boot, not just the profiling script) that `detectWaterfalls` returns exactly those 2 segments
+  against the live code path, not just the standalone profiling script.
+- **Vertical curtain, not a slanted patch following the real terrain:** `terrain.js`'s smooth
+  multi-octave FBM has no actual cliff faces — the "steep" segments above are still a gentle,
+  continuous slope in the real height field, just steeper than the river's average. A quad slanted
+  to match the real terrain between the two points would look like a slightly-more-tilted
+  continuation of the river ribbon, not a fall. Standing the quad up vertically (spanning the full
+  `top.y` to `bottom.y` range at one fixed horizontal position, the segment's midpoint) is a
+  deliberate, explicitly schematic simplification — a "steep-section marker," not a physically
+  carved waterfall — consistent with `world/rivers.js`'s own established approach of *finding*
+  shapes in the existing noise (ADR-0009) rather than reshaping `terrain.js` to match a desired
+  visual. Verified via a dedicated top-down/broadside verification render (separate scratch scene,
+  real terrain chunks + real river + real waterfall mesh, source/mid markers): the curtain renders
+  at the correct location, correctly oriented (broadside when viewed along its face normal, not
+  edge-on), and — at this terrain's actual height budget (`maxHeightMeters` 24, this segment's own
+  4.02m drop) — reads as a modest, wide-but-short cascade (14m wide, 4m tall) rather than a
+  dramatic tall waterfall. That is an honest consequence of the terrain's own scale, not a
+  half-finished result: a taller, more dramatic fall would need `terrain.js` to actually generate
+  steeper local relief (a separate, larger change), not a bigger threshold or taller quad grafted
+  onto ordinary rolling-hill terrain.
+- **Built-in `MeshStandardMaterial`, not a custom shader:** same reasoning `createRiverMesh` already
+  used — gets `scene.fog`/day-night lighting for free with zero fog-chunk/`UniformsLib` wiring
+  (contrast `world/water.js`'s ADR-0008 requirement), and this pass has no flow-animation ambition
+  yet (flagged as future work in this module's own doc comment, same as the river ribbon).
+- **No new file:** added directly to `world/rivers.js` rather than a separate `waterfalls.js` —
+  waterfalls are a query/derived-visual over the same river path data, not an independent world
+  system; `rivers.js` is still well under the project's 600-line file cap after this addition
+  (~316 lines).
+
+**Verified via headless Chromium (Playwright), not assumed correct from the design alone:**
+- The threshold-calibration profiling run (above) against the real, unmodified `generateRiverPath`.
+- A full `game3d.html` render pass: zero `pageerror`/`console.error`, console confirms `"Detected 2
+  waterfall-grade drop(s) along the river"` matching the calibration data exactly.
+- A dedicated top-down/broadside scratch-scene render (not committed) confirming correct
+  placement, orientation, and readable color gradient at the second (steeper, 4.02m) segment.
+- Offline-precache and 2D-game regression tests, re-run — both still clean. No new file was added
+  this run (`detectWaterfalls`/`createWaterfallMesh` live inside the already-precached
+  `world/rivers.js`), so no `service-worker.js` change was needed — confirmed, not assumed.
+
+**Alternatives considered:**
+- *A single combined "drop severity" score instead of two separate thresholds (drop AND slope).*
+  Rejected: a long, gradual descent could accumulate 2.5m of total drop over hundreds of meters
+  without ever being locally steep — pairing an absolute drop minimum with a slope minimum is what
+  actually distinguishes "a real steep spot" from "a long gentle stretch," and both are simple,
+  legible constants rather than one opaque composite number.
+- *Carve an actual step/cliff into `terrain.js` at each detected waterfall.* Rejected for this pass
+  (same reasoning as ADR-0009's river-carving alternative): would couple `terrain.js` to a "how
+  close is the nearest waterfall" concept and require revalidating every already-generated chunk's
+  look, for a visual improvement that isn't this pass's actual goal (marking existing steep spots).
+  Flagged as a real future direction if this project wants dramatic, cliff-faced waterfalls later.
+- *A flow-animated shader (scrolling foam/spray) matching the visual ambition of `water.js`'s
+  Gerstner waves.* Deferred, not attempted — same reasoning `createRiverMesh` already gave for the
+  river ribbon itself: no fog/lighting integration cost this pass needs to pay, pure visual polish
+  for later.
+
+**Consequence:** `world/rivers.js` is now the reference for any future "detect a feature along an
+already-traced path" system (the same `detectWaterfalls` pattern could generalize to rapids,
+fords, or bridge-crossing points once those become relevant). Known scope limits, tracked in
+`3D_GAME_PROGRESS.md` Known Issues: waterfalls are static (regenerated only at boot, tied to the
+one static river, not to a future streamed/multi-river system), don't flow-animate, and their
+visual scale is honestly bounded by `terrain.js`'s current lack of real cliff relief — a future run
+wanting dramatically taller waterfalls should start there, not by inflating this pass's thresholds
+or quad dimensions.
