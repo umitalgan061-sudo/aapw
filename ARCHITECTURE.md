@@ -69,6 +69,18 @@ the way it is.
 - **Determinism:** seeded (`mulberry32`), no `Math.random()` — same `(chunkX, chunkZ, seed)` always
   produces the same chunk.
 
+## `src/3d/world/chunkManager.js` — ChunkManager
+
+- **Depends on:** `world/terrain.js` (`createTerrainChunk`/`disposeTerrainChunk`).
+- **Used by:** `game3d.js` (one `ChunkManager` instance, `loadSquare(0, 0,
+  CHUNK_CONFIG.STREAM_RADIUS_CHUNKS)` at scene-bootstrap time). Will be used by the future
+  position-based streaming system (not built yet).
+- **Critical path:** yes for World Coverage — `getCoveredAreaKm2()`/`loadedCount` are how that
+  metric will eventually be computed live instead of hand-updated in `3D_GAME_PROGRESS.md`.
+- **Failure mode:** none currently beyond what `terrain.js` can throw (nothing, today). Load/
+  unload are idempotent (loading an already-loaded chunk key, or unloading a not-loaded one, is a
+  safe no-op) so callers can't double-add or double-dispose a chunk by mistake.
+
 ## `src/3d/game3d.js` — Entry point / scene bootstrap
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`.

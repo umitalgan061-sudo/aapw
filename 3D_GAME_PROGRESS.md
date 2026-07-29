@@ -34,17 +34,18 @@ KayKit, etc.) are used for `assets/`.
 
 ## World Coverage
 
-**World Coverage: 0.0058% (0.25 km² / 4278 km² target)**
+**World Coverage: 0.1461% (6.25 km² / 4278 km² target)**
 
 - **Target area** is derived from the 14 kingdom seats in `script.js`'s `INIT_KINGDOMS` (not the
   ~150 decorative marker/figure entries also in that file), padded and scaled to real-world meters.
   Full derivation, alternatives considered, and the exact numbers: `DECISIONS.md` ADR-0001.
   Summary: 68.7km x 61.7km world, rounded up to a 138 x 124 grid of 500m x 500m chunks = 4278 km².
   These numbers are now the source of truth in `src/3d/config.js` (`WORLD_SCALE`, `CHUNK_CONFIG`).
-- **Covered area:** 0.25 km² — exactly one real, seeded terrain chunk (`world/terrain.js`, grid
-  coordinate `(0, 0)`) exists so far, out of 17,112 chunk slots in the grid. Still effectively
-  nothing, but the number now moves — the next task should grow it (see "Next step" below), not
-  spend the run on visual polish.
+- **Covered area:** 6.25 km² — a 5x5 neighborhood of 25 real, seeded terrain chunks
+  (`world/chunkManager.js`, centered on grid coordinate `(0, 0)`, radius
+  `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS`), out of 17,112 chunk slots in the grid. Still under 1%, but
+  growing every run — the next task should keep growing it (see "Next step" below), not spend the
+  run on visual polish, per the project's own priority rule.
 - Per the project's phase-gate rules, FAZ 3 and FAZ 10 cannot be marked DONE below 80% coverage
   (crisis exception: fix critical bugs/perf first, then resume geographic growth).
 
@@ -72,10 +73,15 @@ KayKit, etc.) are used for `assets/`.
 - [ ] `src/3d/sky.js` — aurora shader skybox (procedural GLSL)
 - [x] `src/3d/world/terrain.js` — seeded value-noise/FBM terrain chunk generation
   (`createTerrainChunk`/`disposeTerrainChunk`), vertex-colored (grass→rock by height), no texture
-  needed yet. `game3d.js` now renders real chunk `(0, 0)` from this module — the first chunk that
-  counts toward World Coverage (see above). Still just **one** chunk out of 17,112 — no
-  chunk-manager/streaming yet, so nothing loads/unloads based on player position. "Ridged/erosion"
-  shaping and a literal "long valley" carve are deferred; current terrain is generic rolling FBM.
+  needed yet. "Ridged/erosion" shaping and a literal "long valley" carve are deferred; current
+  terrain is generic rolling FBM (confirmed to tile seamlessly across chunk borders, since noise
+  is sampled in world-space coordinates, not per-chunk-local ones).
+- [x] `src/3d/world/chunkManager.js` — `ChunkManager` (`loadChunk`/`unloadChunk`/`loadSquare`/
+  `disposeAll`, plus `getCoveredAreaKm2()` for World Coverage). `game3d.js` loads a
+  `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS` (2 → 5x5 = 25 chunks) neighborhood around the origin at
+  bootstrap. Still a **fixed one-time load**, not real position-based streaming — that needs a
+  player/camera-follow position to stream around, which doesn't exist until FAZ 4. Out of 17,112
+  total chunk slots, 25 are now real (World Coverage above).
 - [ ] `src/3d/camera.js` — orbit/free camera for now (third-person arrives in Phase 4). Current camera in `game3d.js` is a fixed, non-interactive `PerspectiveCamera` looking at the origin.
 - [ ] Confirm responsive layout + PWA `start_url`/manifest still resolve correctly with the new page present (not yet checked — `game3d.html`/`.css`/`src/3d/**` are not in `service-worker.js`'s cache list yet, so the 3D mode currently requires network/first-load; flagged under Known Issues)
 
@@ -195,26 +201,36 @@ KayKit, etc.) are used for `assets/`.
   screenshot shows real height variation and a grass→rock color gradient (not a flat green plane).
   World Coverage moved from 0% to 0.0058% (one real chunk now exists, out of 17,112 slots).
 
+- **Fourth sub-task, same run:** built `src/3d/world/chunkManager.js` (`ChunkManager`:
+  `loadChunk`/`unloadChunk`/`loadSquare`/`disposeAll`/`getCoveredAreaKm2()`/`loadedCount`).
+  `game3d.js` now calls `chunkManager.loadSquare(0, 0, CHUNK_CONFIG.STREAM_RADIUS_CHUNKS)` (radius
+  2 → a 5x5 = 25-chunk neighborhood) instead of rendering a single hardcoded chunk, camera moved
+  back (`(0, 700, 1200)`, still fixed/non-interactive — not a camera-controls sub-task) to frame
+  the larger area, and `pagehide` cleanup now calls `chunkManager.disposeAll()`. Re-ran the
+  headless-Chromium smoke test: zero console/page errors, log confirms "25 terrain chunks (~6.25
+  km²)", and the screenshot shows one continuous, seamless rolling landscape — no visible seams at
+  chunk borders, confirming world-space noise sampling in `terrain.js` was the right call. World
+  Coverage moved from 0.0058% to 0.1461%.
+
 **Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new), `game3d.html` (new),
 `game3d.css` (new), `src/3d/game3d.js`, `index.html`, `ARCHITECTURE.md` (new),
-`src/3d/world/terrain.js` (new), `src/3d/world/README.md` (new), `3D_GAME_PROGRESS.md` (this
-file). Three separate commits (world-scale/config; scene bootstrap; terrain chunk) to keep each
-one atomic and independently revertable.
+`src/3d/world/terrain.js` (new), `src/3d/world/chunkManager.js` (new), `src/3d/world/README.md`
+(new), `3D_GAME_PROGRESS.md` (this file). Four separate commits (world-scale/config; scene
+bootstrap; terrain chunk; chunk manager) to keep each one atomic and independently revertable.
 
-**Next step for the next run (start here):** Per the project's own priority rule — low World
-Coverage during FAZ 1-3/10 outranks visual polish — do **not** jump to `sky.js` next even though
-it's next on the FAZ 1 roadmap list above. Instead grow coverage: build a small chunk manager
-(e.g. `src/3d/world/chunkManager.js`) that generates a modest neighborhood of chunks around the
-origin (say a 5x5 or 7x7 grid using `createTerrainChunk`, reusing the `(chunkX, chunkZ)` grid
-convention already established) and updates `game3d.js` to add/track them instead of the single
-hardcoded `(0,0)` chunk. This both moves World Coverage further and is the real first step toward
-the "500m unload/preload streaming" requirement (a manager that can add chunks is a prerequisite
-for one that can also remove them). Keep chunk count modest enough this run to stay well within
-the performance budget (desktop triangles<5M — even 49 chunks at the current 64-segment resolution
-is ~49 * 64*64*2 ≈ 400K triangles, comfortably inside budget, but measure after adding rather than
-assuming). Only after chunk-manager + a meaningfully larger coverage number should `sky.js` and
-`camera.js` (orbit camera — current camera is still fixed) follow. Keep each sub-task to ≤5 files
-per the blast-radius rule.
+**Next step for the next run (start here):** Coverage is still under 1% (0.1461%), so per the
+project's own priority rule keep growing it before `sky.js`/`camera.js` polish. Options, roughly
+in order of value: (a) raise `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS` and/or call `loadSquare` again
+from a second, farther-out center to cover noticeably more area — but **measure FPS/triangle count
+after each increase** (desktop budget: triangles<5M, drawCalls<2500; at 64 segments/chunk each
+chunk is ~8192 triangles, so budget allows roughly 600 chunks before triangles alone become a
+concern — drawCalls will bind first since each chunk is its own draw call today, no merging yet);
+(b) reduce `segments` per chunk for distant/less-important chunks (a cheap manual LOD, ahead of a
+real LOD system) to afford a larger loaded area within budget; (c) once a meaningfully larger
+percentage is reached, move to `sky.js` (aurora shader skybox) and `camera.js` (orbit camera — the
+current camera is still a fixed, non-interactive `PerspectiveCamera`). Keep each sub-task to ≤5
+files per the blast-radius rule, and re-run the headless-Chromium smoke test each time, not just
+`node --check`.
 
 ## Known Issues / Tech Debt
 

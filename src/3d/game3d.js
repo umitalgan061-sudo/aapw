@@ -2,10 +2,10 @@
  * Entry point for the 3D Westeros world.
  *
  * Phase 1 scope: on top of the Phase 0 architecture (EventBus, GameState, AssetLoader), boots a
- * bare Three.js renderer/scene/camera against `#game3d-canvas` (see `game3d.html`) and renders
- * chunk `(0, 0)` from `world/terrain.js` — the first real, seeded terrain chunk, counted toward
- * World Coverage. Sky and camera controls are separate Phase 1 sub-tasks — see
- * 3D_GAME_PROGRESS.md for what's next.
+ * bare Three.js renderer/scene/camera against `#game3d-canvas` (see `game3d.html`) and loads a
+ * `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS` neighborhood of real, seeded terrain chunks around the
+ * origin via `world/chunkManager.js`, counted toward World Coverage. Sky and camera controls are
+ * separate Phase 1 sub-tasks — see 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
 
@@ -14,7 +14,7 @@ import { gameEvents } from './eventBus.js';
 import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
 import { EVENTS, WORLD_DEFAULTS, CHUNK_CONFIG } from './config.js';
-import { createTerrainChunk, disposeTerrainChunk } from './world/terrain.js';
+import { ChunkManager } from './world/chunkManager.js';
 
 /** Shared asset loader instance for the whole 3D mode. */
 export const assetLoader = new AssetLoader({ events: gameEvents });
@@ -32,10 +32,11 @@ gameEvents.on(EVENTS.ASSET_ERROR, (payload) => {
 });
 
 /**
- * Creates the renderer/scene/camera and renders terrain chunk `(0, 0)` against `canvas`. Only
- * one chunk exists so far — no chunk-manager/streaming yet, see 3D_GAME_PROGRESS.md FAZ 1.
+ * Creates the renderer/scene/camera and loads a `STREAM_RADIUS_CHUNKS` neighborhood of terrain
+ * chunks around the origin against `canvas`, via `ChunkManager`. Fixed one-time load, not
+ * position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, ground: THREE.Mesh}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, chunkManager: ChunkManager}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -51,7 +52,8 @@ function createScene(canvas) {
 		WORLD_DEFAULTS.NEAR_PLANE,
 		WORLD_DEFAULTS.FAR_PLANE,
 	);
-	camera.position.set(0, 220, 380);
+	// Positioned to frame the whole loaded chunk neighborhood from above/behind, not just one chunk.
+	camera.position.set(0, 700, 1200);
 	camera.lookAt(0, 0, 0);
 
 	scene.add(new THREE.HemisphereLight(0xffe8c0, 0x1a140a, 1.1));
@@ -59,15 +61,17 @@ function createScene(canvas) {
 	sun.position.set(300, 400, 200);
 	scene.add(sun);
 
-	const ground = createTerrainChunk({
-		chunkX: 0,
-		chunkZ: 0,
-		size: CHUNK_CONFIG.CHUNK_SIZE_METERS,
+	const chunkManager = new ChunkManager({
+		scene,
+		chunkSizeMeters: CHUNK_CONFIG.CHUNK_SIZE_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 	});
-	scene.add(ground);
+	chunkManager.loadSquare(0, 0, CHUNK_CONFIG.STREAM_RADIUS_CHUNKS);
+	console.info(
+		`[game3d] Loaded ${chunkManager.loadedCount} terrain chunks (~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²).`,
+	);
 
-	return { renderer, scene, camera, ground };
+	return { renderer, scene, camera, chunkManager };
 }
 
 /**
@@ -117,13 +121,13 @@ export async function initGame3D() {
 		window.addEventListener('pagehide', () => {
 			cancelAnimationFrame(frameId);
 			unbindResize();
-			disposeTerrainChunk(state.ground);
+			state.chunkManager.disposeAll();
 			state.renderer.dispose();
 		}, { once: true });
 
 		gameState.set('currentPhase', 'phase1-scene');
 		gameEvents.emit(EVENTS.GAME_READY, { phase: 'phase1-scene' });
-		console.info('[game3d] Phase 1 scene bootstrap ready: renderer/scene/camera live, terrain chunk (0,0) rendering.');
+		console.info(`[game3d] Phase 1 scene bootstrap ready: renderer/scene/camera live, ${state.chunkManager.loadedCount} terrain chunks rendering.`);
 	} catch (error) {
 		gameState.set('error', error.message);
 		gameEvents.emit(EVENTS.GAME_ERROR, { error });

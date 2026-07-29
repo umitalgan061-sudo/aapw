@@ -8,8 +8,13 @@ here (blast radius rule — if a change needs more than that, it's not a world-s
 
 - **`terrain.js`** — seeded value-noise/FBM terrain chunk generation. `createTerrainChunk({chunkX,
   chunkZ, seed, ...})` returns a positioned, ready-to-add `THREE.Mesh`; `disposeTerrainChunk(mesh)`
-  releases its geometry/material. No chunk-manager/streaming yet — see `3D_GAME_PROGRESS.md` FAZ 1
-  for what's next (loading/unloading chunks around the player, not just generating one at a time).
+  releases its geometry/material.
+- **`chunkManager.js`** — `ChunkManager` class: `loadChunk`/`unloadChunk`/`loadSquare` (a fixed
+  square neighborhood around a center) on top of `terrain.js`, plus `loadedCount`/
+  `getCoveredAreaKm2()` for World Coverage reporting and `disposeAll()` for teardown. Currently
+  only ever called once at scene-bootstrap time with a fixed radius — real position-based
+  streaming (load/unload as the player moves) is a later FAZ 1 sub-task; see
+  `3D_GAME_PROGRESS.md`.
 
 ## Conventions
 
