@@ -14,12 +14,13 @@ KayKit, etc.) are used for `assets/`.
 ## Current Status
 
 - **Active Phase:** FAZ 1 ✅ TAMAMLANDI. FAZ 2 (Su/Atmosfer/Zaman) in progress: sea-level Gerstner
-  water (`world/water.js`), a real-time day/night cycle (`lighting.js`, sun/hemisphere lights +
-  sky/aurora tied to time-of-day), and distance fog (`fog.js`, synced to the same day/night state)
-  are live — see "This Run (run 8)" below.
-- **Last Update:** 2026-07-29 (run 8)
-- **Last Commit:** this run's `fog.js` + `game3d.js` wiring + DECISIONS.md ADR-0007 (see
-  "This Run (run 8)" below).
+  water (`world/water.js`, now itself fogged too), a real-time day/night cycle (`lighting.js`,
+  sun/hemisphere lights + sky/aurora tied to time-of-day), and distance fog (`fog.js`, synced to
+  the same day/night state, applied to both terrain and water) are live — see "This Run (run 9)"
+  below.
+- **Last Update:** 2026-07-29 (run 9)
+- **Last Commit:** this run's `world/water.js` fog wiring + DECISIONS.md ADR-0008 (see
+  "This Run (run 9)" below).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
   correct, no change made.** A prior run (see "This Run (run 5)" below, DECISIONS.md ADR-0004)
   already corrected the world scale from an un-completable 4278 km² down to **137.5 km²**, inside
@@ -870,6 +871,47 @@ this run) is a small, well-scoped task if a future run wants a quick win before 
 river/waterfall design work. World Coverage unchanged at 30.73% (42.25 km² / 137.5 km²) — this run
 added a visual system, not terrain area.
 
+## This Run (2026-07-29, run 9)
+
+**Continuation of the same operator session** ("Devam et" / "continue" right after run 8's push).
+Repo state already fresh in context (clean, `main` at `9d45d08`, run 8's fog commit already
+pushed) — no re-read needed. Picked up run 8's own flagged "quick win": wiring `world/water.js`
+into `scene.fog`, deferred by ADR-0007 as a small, contained follow-up rather than done in run 8.
+
+**Done — `world/water.js` fog participation:**
+- **Verified the exact mechanism against the real vendored source before writing code** (BİLMEME
+  KURALI): `grep`ped `src/3d/vendor/three/three.module.js` for `fog_vertex`/`fog_pars_vertex`/
+  `fog_fragment`/`fog_pars_fragment`/`UniformsLib.fog`/`refreshFogUniforms` rather than trusting a
+  half-remembered description of three.js's custom-shader fog support.
+- Added the four `fog_*` GLSL chunks to `world/water.js`'s vertex/fragment shaders, set `fog: true`
+  on the material, and named the vertex shader's existing inline `modelViewMatrix * vec4(...)`
+  computation `mvPosition` (the fog chunk needs a variable with exactly that name) instead of
+  computing it anonymously for `gl_Position` alone.
+- **Caught a real runtime bug via the smoke test, not the docs:** the first version (chunks +
+  `fog: true`, no uniform merge) threw `Cannot read properties of undefined (reading 'value')`
+  inside three.js's `refreshFogUniforms` on every render call — `ShaderMaterial` doesn't
+  auto-merge `THREE.UniformsLib.fog` into its `uniforms` the way built-in materials do. Fixed with
+  `THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {...own uniforms}])`. Full mechanism recorded
+  in DECISIONS.md ADR-0008 so a future run wiring up a *different* custom shader's fog doesn't
+  rediscover this the hard way.
+- **Regression guard:** `node --check` on `world/water.js`. Pass.
+- **Real smoke tests:** full `game3d.html` render pass — first attempt failed with the uniform
+  error above (19 repeated `pageerror`s, one per frame before the loop presumably errored out
+  consistently); fixed, re-ran, zero errors, screenshot confirms terrain and water render together
+  with the fog reaching the horizon.  Re-ran the offline-precache and 2D-game regression tests
+  (unchanged files there, but cheap to re-verify) — both still clean.
+
+**Files changed this run:** `src/3d/world/water.js` (fog chunks/uniforms), `DECISIONS.md` (new
+ADR-0008), `ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file). Four files, ~80 changed lines —
+well within budget; no `service-worker.js` change needed (no new file, `world/water.js` was
+already precached).
+
+**Next step for the next run:** FAZ 2's remaining items: rivers/waterfalls (needs a river-path/
+height-drop concept `terrain.js` doesn't have yet — design that first, this is now the largest
+remaining FAZ 2 design task) and volumetric light (god rays — separate, larger technique, not
+started). World Coverage unchanged at 30.73% (42.25 km² / 137.5 km²) — this run improved an
+existing visual system, not terrain area.
+
 ## Known Issues / Tech Debt
 
 - **`world/water.js` has no river/height-drop concept yet — waterfalls need one.** The current
@@ -880,14 +922,11 @@ added a visual system, not terrain area.
 - **~~`sky.js`'s aurora is always-on, not gated by time-of-day~~ — fixed run 7.** `lighting.js`
   now drives a real day/night cycle; the aurora fades out in daylight via `uNightFactor` (see
   DECISIONS.md ADR-0006).
-- **`world/water.js` does not participate in `scene.fog` (added run 8).** `fog.js`'s
-  `THREE.FogExp2` only affects built-in materials; water's custom `ShaderMaterial` has no
-  `fog_pars_vertex`/`fog_vertex`/`fog_pars_fragment`/`fog_fragment` chunks, so distant water stays
-  fully saturated while terrain around it fades into haze. Low visual impact today (water is a
-  scattering of small lake/pond shapes, not a dominant horizon feature yet), but will read as
-  wrong once a real player is on the ground looking across open water toward the horizon. Fix by
-  threading a `vFogDepth` varying through the existing Gerstner vertex shader and adding the
-  fragment-side mix — deliberately deferred this run (see DECISIONS.md ADR-0007) rather than rushed.
+- **~~`world/water.js` does not participate in `scene.fog`~~ — fixed run 9.** Added the
+  `fog_pars_vertex`/`fog_vertex`/`fog_pars_fragment`/`fog_fragment` chunks, `fog: true`, and a
+  `THREE.UniformsLib.fog` merge into its uniforms (the non-obvious missing piece — see DECISIONS.md
+  ADR-0008 for the exact `WebGLRenderer` internals this required and the runtime error it threw
+  before the uniform merge was added).
 - **Volumetric light (god rays / light shafts) not started.** FAZ 2's roadmap lists this alongside
   fog; only the distance-fog half is done (see Roadmap above). True volumetric lighting is a larger,
   separate technique (screen-space raymarching or similar) — do not assume it's covered by `fog.js`.

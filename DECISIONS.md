@@ -386,3 +386,71 @@ the `fog_pars_vertex`/`fog_vertex`/`fog_pars_fragment`/`fog_fragment` chunks and
 itself — this ADR is the reference for why that's not automatic. If `fog.js` ever needs a
 fog-specific color slightly different from the horizon (e.g. a "thick localized swamp mist" that
 shouldn't affect the whole scene), that's a new, separate system — not a change to this one.
+
+## ADR-0008: wiring `world/water.js` into `scene.fog` — the exact chunks, and the `UniformsLib.fog` merge ADR-0007 deferred
+
+**Date:** 2026-07-29
+
+**Decision:** `world/water.js`'s custom `ShaderMaterial` now participates in `scene.fog`
+(deferred by ADR-0007 as a contained follow-up). Implementation, verified against the actual
+vendored `three.module.js` source rather than assumed from memory (BİLMEME KURALI — this project's
+own rule against guessing unfamiliar API/runtime behavior):
+
+- Vertex shader: added `#include <fog_pars_vertex>` (declares `varying float vFogDepth;`), computed
+  an explicit `vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);` before `gl_Position`
+  (reusing it for `gl_Position = projectionMatrix * mvPosition;` too, replacing the prior inline
+  `modelViewMatrix * vec4(...)`), then `#include <fog_vertex>` (sets `vFogDepth = -mvPosition.z;` —
+  this chunk hard-references a variable literally named `mvPosition`, which is why the vertex
+  shader now declares one instead of computing the view-space position inline).
+- Fragment shader: added `#include <fog_pars_fragment>` (declares `fogColor`/`fogDensity` uniforms
+  and the `vFogDepth` varying under `#ifdef USE_FOG`/`#ifdef FOG_EXP2`) and, after `gl_FragColor` is
+  set, `#include <fog_fragment>` (mixes it toward `fogColor` by the exp2 fog factor).
+- Material: `fog: true` (required — `WebGLProgram` only defines `USE_FOG` when
+  `material.fog === true`; confirmed from source, `ShaderMaterial`'s own default is `false`, unlike
+  most built-in materials).
+- **The part that isn't obvious from the three.js docs and initially broke:** setting `fog: true`
+  and including the chunks alone is not sufficient — `WebGLRenderer`'s `refreshFogUniforms()` reads
+  `material.uniforms.fogColor.value`/`.fogDensity.value` directly every frame, and for built-in
+  materials those uniform entries are auto-merged in from `THREE.UniformsLib.fog` by three.js's own
+  material-uniform setup; a custom `ShaderMaterial` does **not** get that merge automatically. The
+  first attempt threw `Cannot read properties of undefined (reading 'value')` inside
+  `refreshFogUniforms` on every render call the moment `scene.fog` existed — caught immediately by
+  this run's real headless-Chromium smoke test (page errors), not by `node --check` (pure syntax,
+  can't catch a shader-uniform mismatch) or by reading the docs alone. Fixed by merging
+  `THREE.UniformsLib.fog` into the material's own `uniforms` via `THREE.UniformsUtils.merge([
+  THREE.UniformsLib.fog, { ...own uniforms } ])`.
+
+**Reasoning:**
+- **Verified against the actual vendored source, not memory:** the project vendors an exact,
+  inspectable copy of three.js r160 (`src/3d/vendor/three/three.module.js`). Rather than trust a
+  half-remembered description of "how custom-shader fog works in three.js," this run `grep`ped the
+  real `fog_vertex`/`fog_pars_vertex`/`fog_fragment`/`fog_pars_fragment`/`UniformsLib.fog`/
+  `refreshFogUniforms` source directly and built the implementation from what it actually says —
+  the one guess made (assuming the merge wasn't needed) was caught by the smoke test within one
+  iteration, not shipped.
+- **Real smoke test, not just `node --check`, is why this run caught the bug at all.** Es
+  Modules/syntax checking cannot catch a GLSL compile-time reference to an undefined variable or a
+  runtime uniform-shape mismatch — only actually running the renderer does. This is the concrete
+  case the project's "regression guard" / "verify after writing" rule exists for.
+- **Reused `mvPosition` for `gl_Position` instead of computing view-space position twice:** the fog
+  chunk needs a variable literally named `mvPosition`; since the vertex shader already computed
+  `modelViewMatrix * vec4(displaced, 1.0)` inline for `gl_Position`, naming that computation once
+  and reusing it for both is strictly less code than computing it twice under two different names.
+
+**Alternatives considered:**
+- *Pass `fogColor`/`fogDensity` as the water module's own uniforms (`uFogColor`/`uFogDensity`,
+  updated manually from `game3d.js` each frame, like `uSunDirection`/`uCameraPosition` already
+  are).* Rejected: duplicates data `fog.js`/`scene.fog` already owns and would need to be kept in
+  sync by hand on every future fog tuning change; the `UniformsLib.fog` merge is three.js's own
+  intended mechanism for exactly this case and, once correctly wired, requires zero per-frame code
+  in `game3d.js` (the renderer refreshes `fogColor`/`fogDensity` from `scene.fog` automatically).
+- *Leave `world/water.js` unfogged permanently, close the tech-debt item as "won't fix."* Rejected:
+  ADR-0007 already scoped this as a small, well-defined follow-up, not a fundamentally hard problem
+  — the actual fix ended up being about a dozen lines plus the one real gotcha documented above.
+
+**Consequence:** the "water doesn't fog" Known Issues entry (3D_GAME_PROGRESS.md, added run 8) is
+resolved. Any future custom `ShaderMaterial` added to this project that should respect `scene.fog`
+must follow the same pattern: include the four `fog_*` chunks, set `fog: true`, and merge
+`THREE.UniformsLib.fog` into its own `uniforms` — this ADR (not ADR-0007 alone) is the complete
+reference, since ADR-0007 only established *that* custom shaders need the chunks, not the
+uniform-merge requirement this run discovered.

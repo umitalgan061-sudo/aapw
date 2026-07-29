@@ -4,6 +4,11 @@
  * skybox sphere) so it always extends to the horizon without needing per-chunk geometry or a
  * load/unload lifecycle. See DECISIONS.md ADR-0005 for why this is one plane, not per-chunk water,
  * and why `terrain.js` needed no changes for lakes/coastline to appear.
+ *
+ * Participates in `scene.fog` (`fog.js`) via three.js's `fog_pars_vertex`/`fog_vertex`/
+ * `fog_pars_fragment`/`fog_fragment` chunks (`material.fog: true` alone does nothing for a custom
+ * `ShaderMaterial` without these — see DECISIONS.md ADR-0007), so distant water now fades into the
+ * horizon the same as terrain, instead of staying fully saturated.
  * @module world/water
  */
 
@@ -13,6 +18,7 @@ const WATER_VERTEX_SHADER = /* glsl */ `
 	uniform float uTime;
 	varying vec3 vWorldPosition;
 	varying vec3 vNormal;
+	#include <fog_pars_vertex>
 
 	// Classic Gerstner (trochoidal) wave: displaces position and accumulates tangent/binormal so a
 	// real per-vertex normal can be derived, instead of faking it with a flat plane normal.
@@ -53,7 +59,9 @@ const WATER_VERTEX_SHADER = /* glsl */ `
 		vWorldPosition = worldPos;
 		vNormal = normalize(cross(binormal, tangent));
 
-		gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+		vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
+		gl_Position = projectionMatrix * mvPosition;
+		#include <fog_vertex>
 	}
 `;
 
@@ -64,6 +72,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uCameraPosition;
 	varying vec3 vWorldPosition;
 	varying vec3 vNormal;
+	#include <fog_pars_fragment>
 
 	void main() {
 		vec3 normal = normalize(vNormal);
@@ -77,6 +86,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), 80.0);
 
 		gl_FragColor = vec4(baseColor + specular * 0.6, 0.9);
+		#include <fog_fragment>
 	}
 `;
 
@@ -114,15 +124,22 @@ export function createWater(waterLevelMeters) {
 	const material = new THREE.ShaderMaterial({
 		vertexShader: WATER_VERTEX_SHADER,
 		fragmentShader: WATER_FRAGMENT_SHADER,
-		uniforms: {
-			uTime: { value: 0 },
-			uShallowColor: { value: DEFAULT_SHALLOW_COLOR },
-			uDeepColor: { value: DEFAULT_DEEP_COLOR },
-			uSunDirection: { value: SUN_DIRECTION },
-			uCameraPosition: { value: new THREE.Vector3() },
-		},
+		// ShaderMaterial (unlike built-in materials) does not auto-merge UniformsLib.fog into its
+		// uniforms — WebGLRenderer's refreshFogUniforms() would throw reading `.value` off a
+		// missing `fogColor`/`fogDensity` uniform without this explicit merge.
+		uniforms: THREE.UniformsUtils.merge([
+			THREE.UniformsLib.fog,
+			{
+				uTime: { value: 0 },
+				uShallowColor: { value: DEFAULT_SHALLOW_COLOR },
+				uDeepColor: { value: DEFAULT_DEEP_COLOR },
+				uSunDirection: { value: SUN_DIRECTION },
+				uCameraPosition: { value: new THREE.Vector3() },
+			},
+		]),
 		transparent: true,
 		depthWrite: true,
+		fog: true, // consumes scene.fog (fog.js) via the fog_* chunks included in both shaders above.
 	});
 
 	const mesh = new THREE.Mesh(geometry, material);

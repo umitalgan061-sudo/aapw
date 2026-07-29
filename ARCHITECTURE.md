@@ -106,9 +106,11 @@ the way it is.
   camera-following plane rather than per-chunk water geometry, and why `terrain.js` needed no
   changes for lakes/coastline to appear (existing low-noise valleys are already at/near y=0,
   below the new sea level).
-- **Does not fog yet.** Its custom `ShaderMaterial` has no `fog_*` GLSL chunks, so `scene.fog`
-  (`fog.js`, added run 8) has no visual effect on it — flagged as tech debt in
-  `3D_GAME_PROGRESS.md`, not silently assumed handled.
+- **Participates in `scene.fog` (added run 9).** Its custom `ShaderMaterial` includes the
+  `fog_pars_vertex`/`fog_vertex`/`fog_pars_fragment`/`fog_fragment` chunks and sets `fog: true`,
+  with `THREE.UniformsLib.fog` merged into its own `uniforms` (required for a custom
+  `ShaderMaterial` — unlike built-in materials, it isn't merged automatically; omitting it makes
+  `WebGLRenderer`'s `refreshFogUniforms` throw at render time). See DECISIONS.md ADR-0008.
 
 ## `src/3d/camera.js` — Orbit camera controls
 
