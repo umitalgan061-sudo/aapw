@@ -167,6 +167,19 @@ export const PLAYER_CONFIG = Object.freeze({
 	CAMERA_INITIAL_OFFSET_METERS: Object.freeze({ x: 0, y: 3.2, z: 7 }),
 });
 
+/** On-screen touch joystick (FAZ 4, mobile input). See `src/3d/ui/touchJoystick.js`. */
+export const TOUCH_JOYSTICK_CONFIG = Object.freeze({
+	/** Radius, in CSS pixels, the knob can be dragged from the base's center before clamping. */
+	RADIUS_PX: 50,
+	/** Drag distance below this fraction of `RADIUS_PX` reads as zero input — absorbs small
+	 * accidental finger jitter around the base's center without needing a physical dead zone. */
+	DEADZONE_RATIO: 0.15,
+	/** Drag distance at/above this fraction of `RADIUS_PX` sets `running: true` — lets one joystick
+	 * cover both walk and run (push gently to walk, push to the edge to run) instead of needing a
+	 * separate run button. */
+	RUN_THRESHOLD_RATIO: 0.75,
+});
+
 /** LocalStorage/sessionStorage keys owned by the 3D mode. Never reuse or collide with 2D game keys. */
 export const STORAGE_KEYS = Object.freeze({
 	QUALITY_SETTING: 'westeros3d_quality',

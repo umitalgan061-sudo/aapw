@@ -64,3 +64,37 @@ html, body {
 .g3d-back-link:active {
   background: rgba(200, 150, 10, 0.2);
 }
+
+/* Touch joystick (FAZ 4, mobile input) — src/3d/ui/touchJoystick.js. Only instantiated on
+   touch-primary devices (see game3d.js's isCoarsePointerDevice() gate), so this never appears on
+   desktop even though the CSS itself has no media-query gate. */
+.g3d-joystick-base {
+  position: fixed;
+  left: max(28px, env(safe-area-inset-left, 0px));
+  bottom: max(28px, env(safe-area-inset-bottom, 0px));
+  z-index: 15;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(10, 6, 2, 0.35);
+  border: 1px solid rgba(200, 150, 10, 0.35);
+  touch-action: none;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-joystick-base.g3d-joystick-active {
+  background: rgba(10, 6, 2, 0.5);
+}
+
+.g3d-joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  background: rgba(200, 150, 10, 0.55);
+  border: 1px solid rgba(232, 212, 160, 0.6);
+  pointer-events: none;
+}

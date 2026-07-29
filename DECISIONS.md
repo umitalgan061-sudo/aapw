@@ -1206,3 +1206,96 @@ mobile — this run added a player, not new terrain). Texture memory grows by th
 maps (baked into the FBX, not measured separately here — negligible against either device budget
 at this single-character scale). `service-worker.js`'s `GAME3D_SHELL_FILES` now includes every
 file this run added, keeping the offline-PWA golden rule intact.
+
+## ADR-0017: on-screen touch joystick (`ui/touchJoystick.js`) via Pointer Events, merged with keyboard axes in `game3d.js`
+
+**Date:** 2026-07-29
+
+**Decision:** New `src/3d/ui/` folder (per the target architecture's `ui/` bucket) and its first
+module, `touchJoystick.js`. `TouchJoystick` appends a base+knob `<div>` pair to `document.body`
+(styled via new `game3d.css` rules), tracks exactly one active pointer via Pointer Events
+(`pointerdown`/`pointermove`/`pointerup`/`pointercancel`, `setPointerCapture` so a drag past the
+base's own bounds still tracks correctly), and exposes `getAxes()` returning the same
+`{forward, strafe, running}` shape `input.js`'s `KeyboardInput` already uses — continuous -1..1
+here (an analog stick) rather than keyboard's discrete -1/0/1, which `game3d.js`'s existing
+camera-relative-move math already handles either way. New `TOUCH_JOYSTICK_CONFIG` (`config.js`):
+`RADIUS_PX` (drag clamp), `DEADZONE_RATIO` (small-jitter absorption), `RUN_THRESHOLD_RATIO` (push
+to the edge to run, so one stick covers both walk and run without a separate button). `game3d.js`
+instantiates a `TouchJoystick` only when `isCoarsePointerDevice()` is true (same signal
+`createScene()` already uses for the mobile chunk-radius split — one source of truth for "is this
+a touch device"), and a new module-local `combineAxes(keyboardAxes, joystickAxes)` sums the
+forward/strafe components (clamped to [-1, 1]) and ORs `running`, falling back to the keyboard
+axes unchanged when `joystickAxes` is `null` (desktop).
+
+**Reasoning:**
+- **Priority-ordered:** Session Snapshot re-confirmed the world-scale target (137.5 km²,
+  unchanged, tenth straight run — see World Coverage below), zero syntax errors (`node --check`
+  across every non-vendor file, including the two new ones), and a full regression smoke test
+  (2D game, 3D desktop, 3D mobile, service worker — see Verified below) passed clean before any
+  new code was written, confirming FAZ 4's run-17 player/camera work is stable. With no higher
+  priority item outstanding, this run picked FAZ 4's one still-open item flagged as closest to a
+  "blocking bug" rather than a cosmetic gap: touch-primary devices could load and see the player
+  (run 17 confirmed this) but had **no way to actually move it** — `input.js` is keyboard-only.
+  Camera wall-avoidance raycasting (FAZ 4's other open item) stays deferred; it's a visual-clipping
+  gap, not a device class with zero usable input.
+- **Pointer Events over Touch Events:** `pointerdown`/`pointermove`/`pointerup` unify mouse and
+  touch under one API and support `setPointerCapture` (so a fast drag that leaves the base's visual
+  bounds keeps delivering move events to it) — a raw `touchmove` listener would need its own
+  manual "did this touch's target change" bookkeeping to get the same behavior. Also means this
+  works under Playwright's `context.mouse` API for automated testing (verified below), not just a
+  real touch device this sandbox still can't provide.
+- **DOM overlay, not a canvas draw:** costs nothing from the render/triangle budget (a plain
+  `<div>` pair, styled via CSS, `pointer-events: none` on the knob so only the base receives
+  events). Positioned bottom-left with `env(safe-area-inset-*)` padding, matching the existing
+  `.g3d-back-link`'s safe-area convention (top-left) rather than inventing a new one.
+- **One stick, no separate run button:** `RUN_THRESHOLD_RATIO` (0.75) means pushing the stick
+  toward its edge sets `running: true`, the same way `KeyboardInput`'s Shift key does — avoids a
+  second on-screen button competing for the same thumb's reach.
+- **Conditionally instantiated, not self-gating:** `TouchJoystick` itself has no device-detection
+  logic — `game3d.js` decides whether to construct one at all (mirrors `ui/README.md`'s stated
+  convention). A desktop session never gets an idle joystick DOM node sitting in the document.
+- **`combineAxes()` sums rather than picks one source:** a touch-class device with a Bluetooth
+  keyboard attached (not unheard of on tablets) can use either input without one silently
+  overriding the other; on any device without a `TouchJoystick` instance, `joystickAxes` is `null`
+  and this is a no-op pass-through — no behavior change for existing keyboard-only sessions.
+
+**Alternatives considered:**
+- *Raw `touchstart`/`touchmove`/`touchend` listeners.* Rejected — Pointer Events give capture
+  semantics for free and unify mouse/touch, letting this run's own Playwright verification exercise
+  the exact same code path a real touch device would use, not a parallel mocked one.
+- *A separate fixed "Run" button instead of a drag-distance threshold.* Rejected as unnecessary
+  extra UI real estate — `RUN_THRESHOLD_RATIO` gives the same walk/run distinction keyboard's
+  Shift key does, from the same single stick.
+- *Have `KeyboardInput` and `TouchJoystick` both live under `input.js`.* Rejected — `input.js`'s
+  own doc comment and `ARCHITECTURE.md` already scope it to keyboard only; a DOM-owning module
+  with its own CSS classes fits the target architecture's dedicated `ui/` folder better, and keeps
+  `input.js`'s "no DOM, just event listeners" character intact.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- **Pre-change regression baseline (before writing any joystick code):** full smoke test across
+  2D game (only the known, pre-existing sandbox network limitations — `firebase is not defined`,
+  blocked image/video/CDN requests, nothing new), 3D desktop (444 terrain chunks, river/waterfall/
+  settlement/water/sky/stars/OrbitControls all clean, player loads and responds to WASD, zero
+  errors), 3D mobile-emulated (25 chunks, mobile-budget path, player loads, zero errors), and
+  service worker (registers cleanly on `index.html`; confirmed `game3d.html` never registers one
+  itself, by design, not a regression). Zero regressions found — safe to build on top of.
+- **Mobile-emulated (Pixel 5, `hasTouch`/`isMobile`) joystick test, post-change:** joystick DOM
+  (`.g3d-joystick-base`) present; simulated a mouse-drag (Pointer Events treat this identically to
+  a touch drag) from the base's center 45px upward (near `RADIUS_PX`'s 50px clamp) — knob's
+  `transform` updated to `translate(0px, -45px)` mid-drag, screenshots before/during the drag
+  differ (MD5/file-size both changed), confirming the chase camera actually moved in response
+  (the player walked/ran forward), not just a static knob graphic. Releasing the pointer reset the
+  knob's `transform` to empty, confirming cleanup. Zero console errors/page errors throughout.
+- **Desktop (default Playwright context — fine pointer, no touch) regression check:**
+  `.g3d-joystick-base` is absent (`isCoarsePointerDevice()` correctly gates it off), zero errors —
+  confirms desktop sessions are completely unaffected by this run's change.
+- **Offline precache check:** after one online visit to `index.html` (which registers the service
+  worker), `caches.open('westeros-shell-v1')` contains `./src/3d/ui/touchJoystick.js` — confirms
+  the new file won't 404 on a subsequent offline visit to `game3d.html`.
+- `node --check` on every non-vendor `.js` file touched this run (`config.js`, `input.js`,
+  `game3d.js`, the new `ui/touchJoystick.js`, `service-worker.js`): clean.
+
+**Consequence:** FAZ 4's roadmap sub-task "WASD + touch joystick" is now fully done (both halves
+implemented). The remaining FAZ 4 gaps are exactly the two already flagged in 3D_GAME_PROGRESS.md:
+camera wall-avoidance raycasting, and no gravity/jump/wall-collider physics — neither touched by
+this run. World Coverage is unchanged (this run added input, not terrain). No new tech debt.

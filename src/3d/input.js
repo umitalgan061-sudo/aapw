@@ -4,8 +4,9 @@
  * returns input-local forward/strafe values, not a world-space direction — callers combine that
  * with their own camera facing (see `gameplay/player.js` / `game3d.js`).
  *
- * Touch/joystick input (FAZ 4's other input requirement, for mobile) is a separate, not-yet-built
- * concern — this module intentionally covers keyboard only. See 3D_GAME_PROGRESS.md.
+ * Touch/joystick input (FAZ 4's other input requirement, for mobile) lives in its own module,
+ * `ui/touchJoystick.js` — this module intentionally covers keyboard only. `game3d.js` combines
+ * both via `combineAxes()` before computing camera-relative movement.
  * @module input
  */
 

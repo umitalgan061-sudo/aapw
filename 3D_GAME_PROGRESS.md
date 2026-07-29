@@ -17,25 +17,39 @@ KayKit, etc.) are used for `assets/`.
   waterfalls/stars all live; only postfx-gated god rays remain, deferred to FAZ 9 by design). FAZ 3
   (Kaleler/Yerleşimler) substantially complete (settlements + PBR textures; LOD/colliders still
   deferred to FAZ 4 — see runs 14-16, DECISIONS.md ADR-0013/ADR-0015). **FAZ 4 (Oynanabilir
-  Karakter) started run 17:** a playable character (`gameplay/player.js`) loads `peasant_girl.fbx` +
-  its idle/walking/running clips, moves via WASD/arrows relative to the camera (`input.js`), snaps
-  to real terrain height (`physics.js`), and the existing `OrbitControls` instance becomes its
-  chase camera — see "This Run (run 17)" below and DECISIONS.md ADR-0016.
-- **Last Update:** 2026-07-29 (run 17)
-- **Last Commit:** run 17's FAZ 4 first pass — vendored `FBXLoader` + deps, `physics.js`,
-  `input.js`, `gameplay/player.js`, chase-camera wiring in `game3d.js`/`camera.js`, DECISIONS.md
-  ADR-0016 (see "This Run (run 17)" below); run 16 gave castles PBR textures (`world/materials.js`,
-  ADR-0015).
+  Karakter) started run 17, touch input added run 18:** a playable character (`gameplay/
+  player.js`) loads `peasant_girl.fbx` + its idle/walking/running clips, moves via WASD/arrows
+  (`input.js`) or an on-screen joystick on touch-primary devices (`ui/touchJoystick.js`, new run
+  18) relative to the camera, snaps to real terrain height (`physics.js`), and the existing
+  `OrbitControls` instance becomes its chase camera — see "This Run (run 18)" below and
+  DECISIONS.md ADR-0016/ADR-0017.
+- **Last Update:** 2026-07-29 (run 18)
+- **Last Commit:** run 18's touch joystick — new `src/3d/ui/touchJoystick.js` + `ui/README.md`,
+  `TOUCH_JOYSTICK_CONFIG` (`config.js`), `combineAxes()`/wiring in `game3d.js`, joystick CSS
+  (`game3d.css`), `service-worker.js` precache entry, DECISIONS.md ADR-0017 (see "This Run
+  (run 18)" below); run 17 was FAZ 4's first pass (vendored `FBXLoader` + deps, `physics.js`,
+  `input.js`, `gameplay/player.js`, chase-camera wiring, DECISIONS.md ADR-0016).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (ninth straight run).** A prior run (see "This Run (run 5)" below,
+  correct, no change made (tenth straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
-  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, and 16 each
+  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, and 17 each
   re-verified this without changes needed. This run's Session Snapshot re-derived the numbers from
   `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more and again confirmed they
   match ADR-0004 exactly — no config change made. **If you are a future run and the operator's
   brief again asserts the old 4278 km² target is still live: it is not. Re-derive from `config.js`
   yourself (as this run did) rather than trusting the brief's own numbers — this has now been
-  independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, and 17.**
+  independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, and 18.**
+- **Repo-continuity note (run 18):** this run's Session Snapshot found the container's git working
+  tree in a `HEAD` state detached at run 17's own final commit (`d9a3260`), while the local `main`
+  branch ref and `origin/main` were both still pointing at the pre-3D-mode commit
+  (`38e09e7`) — i.e. `main` had silently fallen behind every run's actual work by one run's worth
+  of commits at container-restart time. Since `main` was a strict git ancestor of the detached
+  commit, fast-forwarding was safe and lossless: `git checkout main && git merge d9a3260
+  --ff-only`, confirmed `origin/main` already matched after a fresh `git fetch` (the remote push
+  had actually succeeded; only this container's local `origin/main` tracking ref was stale before
+  fetching). No commits were rewritten or discarded. Flagging this so a future run isn't surprised
+  by a detached `HEAD` at boot — check `git status`/`git branch --contains HEAD` in the Session
+  Snapshot and fast-forward `main` (never force-push) if the same pattern recurs.
 - **Parallel work from a prior run:** while a previous routine run was in progress, the project
   owner (with help from a separate Claude session) pushed 3 commits directly to `main` adding more
   manually-downloaded assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
@@ -308,10 +322,12 @@ Triangles<500K, TextureMem<512MB.
   DECISIONS.md ADR-0016). **Raycast duvar önleme henüz yok** — gerçek bir SpringArm rig'i ayrı,
   daha büyük bir iş; bu run'ın bütçesi hareket/animasyon/kamera-takip işine gitti (ADR-0016'nın
   "Alternatives considered" bölümüne bkz.).
-- [~] WASD + touch joystick (`input.js` + `gameplay/player.js`) — **WASD/ok tuşları + Shift-koşu
-  bitti**, kamera-relative hareket yönü `game3d.js`'in `computeCameraRelativeMove`'u ile hesaplanıyor.
-  **Touch joystick henüz yok** — mobilde gerçek dokunmatik test hâlâ yapılamıyor (bkz. Known
-  Issues), ayrı bir alt görev olarak bırakıldı.
+- [x] WASD + touch joystick (`input.js` + `ui/touchJoystick.js` + `gameplay/player.js`) —
+  WASD/ok tuşları + Shift-koşu ve dokunmatik cihazlarda ekran üstü joystick (run 18, DECISIONS.md
+  ADR-0017), her ikisi de `game3d.js`'in `combineAxes()`'i ile birleştirilip
+  `computeCameraRelativeMove`'a besleniyor. Gerçek fiziksel dokunmatik cihazda hâlâ test edilemedi
+  (bu sandbox'ın kalıcı sınırı — bkz. Known Issues), sadece Playwright'ın pointer-event simülasyonu
+  ile doğrulandı.
 - [x] Zemin çarpışması (`physics.js`) — `createGroundCollider(seed)`, `world/terrain.js`'in
   `createHeightSampler`'ını sarmalıyor; oyuncu her adımda gerçek arazi yüksekliğine yapışıyor.
   Yerçekimi/zıplama/duvar çarpışması yok — henüz gerçek bir ihtiyaç yok (bkz. ADR-0016).
@@ -1675,6 +1691,94 @@ start, reusing `gameplay/player.js`'s FBX-loading/retargeting pattern for the 6 
 Mixamo characters. No new tech debt; the two open items above are honest, flagged gaps, not
 accidental ones.
 
+## This Run (2026-07-29, run 18)
+
+**Session Snapshot taken at start of run** (per protocol):
+- Read this file, `git log -10 --oneline`, DECISIONS.md's last 3 ADRs (ADR-0014/0015/0016).
+- **Git issue found and fixed, same recurring pattern as runs 5/17 — this time worse (main was
+  18 runs behind, not one):** session started with `HEAD` detached at `d9a3260` (run 17's own
+  final commit) while local `main`/`origin/main` were both still at `38e09e7`, the commit from
+  *before* any 3D-mode work existed. Since `main` was a strict ancestor of `d9a3260`, `git checkout
+  main && git merge d9a3260 --ff-only` fast-forwarded losslessly; a subsequent `git fetch origin
+  main` showed `origin/main` already matched (the previous run's push had actually succeeded —
+  only this container's local `origin/main` tracking ref was stale before fetching, not a real
+  divergence). No commits rewritten/discarded. See Current Status above for the standing note.
+- The operator's brief again asserted the old "4278 km²"/"5-15m per unit" target needs fixing "to"
+  100-150 km². Re-derived from `src/3d/config.js` directly (not the brief) per the now-10-run-old
+  standing skepticism rule: `WORLD_SCALE.METERS_PER_MAP_UNIT` is `1.75`, 25x22 grid, 137.5 km² —
+  already correct, matching ADR-0004. No config change made.
+- `node --check` clean on every non-vendor `.js` file (baseline, before any edits this run).
+- **Ran a full regression smoke test (Playwright/headless Chromium) before writing any new code**,
+  per the Regression Guard — 2D game, 3D desktop, 3D mobile-emulated, and service worker all
+  passed with zero new errors (only the same pre-existing, already-documented sandbox network
+  limitations on the 2D side). Confirmed run 17's player/FBX/chase-camera work is stable before
+  building anything on top of it.
+- With syntax/bugs/perf/leaks/debt/world-scale/coverage all clear, the highest-priority remaining
+  item was FAZ 4's own still-open sub-task closest to a real blocking bug (not just cosmetic): a
+  touch-primary device could load and see the player (confirmed run 17) but had **no way to move
+  it at all** — `input.js` is keyboard-only. Camera wall-avoidance (FAZ 4's other open item) stays
+  a visual-clipping gap, not a "some device class simply can't play" gap, so it's lower priority.
+- World Coverage before this run: 80.7% desktop / 4.5% mobile (unchanged from run 17).
+
+**Done:**
+- **New `src/3d/ui/` folder** (the target architecture's `ui/` bucket, first populated this run)
+  plus `ui/README.md` (ownership/conventions, same style as `gameplay/README.md`).
+- **New `src/3d/ui/touchJoystick.js`** (`TouchJoystick`) — on-screen virtual joystick via Pointer
+  Events (`pointerdown`/`pointermove`/`pointerup`/`pointercancel`, `setPointerCapture`), appends its
+  own base+knob DOM to `document.body`, exposes `getAxes()` in the same `{forward, strafe, running}`
+  shape `KeyboardInput` uses (continuous here, not discrete). `dispose()` removes DOM + listeners.
+- **New `TOUCH_JOYSTICK_CONFIG`** (`config.js`): `RADIUS_PX` (50), `DEADZONE_RATIO` (0.15),
+  `RUN_THRESHOLD_RATIO` (0.75) — push-to-edge-to-run, no separate run button needed.
+- **`game3d.js` wiring:** instantiates a `TouchJoystick` only when `isCoarsePointerDevice()` is
+  true (same signal `createScene()` already uses for the mobile chunk-radius split); new
+  module-local `combineAxes(keyboardAxes, joystickAxes)` sums forward/strafe (clamped to [-1, 1])
+  and ORs `running`, falling back to keyboard axes unchanged when no joystick exists (desktop);
+  disposed on `pagehide` alongside the existing keyboard/player/controls teardown.
+- **`game3d.css`:** joystick base/knob styles, bottom-left with `env(safe-area-inset-*)` padding
+  (matching `.g3d-back-link`'s existing top-left safe-area convention).
+- **`input.js`'s doc comment updated** to point at `ui/touchJoystick.js` instead of describing
+  touch input as "not yet built."
+- **`service-worker.js`:** `GAME3D_SHELL_FILES` gained `./src/3d/ui/touchJoystick.js`.
+- **Regression guard:** `node --check` clean on `config.js`, `input.js`, `game3d.js`, the new
+  `ui/touchJoystick.js`, `service-worker.js`.
+- **Real smoke tests (headless Chromium/Playwright), not assumed correct from the code alone:**
+  1. Pre-change baseline (see Session Snapshot above): full regression pass, zero new errors.
+  2. Mobile-emulated (Pixel 5, `hasTouch`/`isMobile`) post-change: `.g3d-joystick-base` DOM
+     present; a simulated drag from the base's center 45px "up" (Pointer Events treat a mouse drag
+     identically to a touch drag) updated the knob's `transform` to `translate(0px, -45px)`
+     mid-drag; before/during screenshots differ (both MD5 and file size changed), confirming the
+     chase camera actually moved — the player walked/ran, not just a static knob graphic. Releasing
+     the pointer reset the knob's `transform` to empty (cleanup confirmed). Zero console/page
+     errors.
+  3. Desktop (default Playwright context, fine pointer/no touch): `.g3d-joystick-base` is absent
+     — confirms `isCoarsePointerDevice()` correctly gates it off and desktop is unaffected. Zero
+     errors.
+  4. Offline precache check: after one online visit to `index.html` (registers the service
+     worker), `caches.open('westeros-shell-v1')` contains `./src/3d/ui/touchJoystick.js` —
+     confirms no 404 on a subsequent offline visit to `game3d.html`.
+- Updated `DECISIONS.md` (new ADR-0017), `ARCHITECTURE.md` (new `ui/touchJoystick.js` and `ui/`
+  folder entries; updated `config.js`, `input.js`, `game3d.js` entries), this file's Current
+  Status/World Coverage/Known Issues and this section.
+
+**Files changed this run:** `src/3d/ui/touchJoystick.js` (new), `src/3d/ui/README.md` (new),
+`src/3d/config.js`, `src/3d/game3d.js`, `src/3d/input.js`, `game3d.css`, `service-worker.js`,
+`DECISIONS.md`, `ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file). ~140 hand-written new lines,
+10 files — comfortably within this run's ≤800-line/≤20-file budget. One commit (the joystick
+module, its config, and its `game3d.js` wiring are one atomic, revertable unit — none of the
+pieces are independently useful without the others).
+
+**World Coverage:** unchanged at 80.7% desktop (111.00 km² / 137.5 km²) / 4.5% mobile (6.25 km² /
+137.5 km²) — this run added input, not terrain.
+
+**Next step for the next run:** FAZ 4's only still-open item now is camera wall-avoidance
+raycasting (the chase-cam can clip through terrain/castles at some orbit angles — not yet observed
+as an actual visible problem, since the player still spawns/moves mostly in open terrain, but will
+become one once the player walks near a settlement or a steep slope). Once that's judged "enough"
+for FAZ 4 (it's a polish item, not a blocking gap — the core playable-character loop is fully
+functional on both desktop and mobile input now), FAZ 5 (NPC) becomes the next viable phase,
+reusing `gameplay/player.js`'s FBX-loading/retargeting pattern for the 6 already-downloaded Mixamo
+characters. No new tech debt this run.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -1748,11 +1852,11 @@ accidental ones.
   (player currently spawns/moves in open terrain, away from castles) but will become one once the
   player walks near a settlement or a steep slope. A real fix needs raycasting from the player
   toward the camera and pulling the camera in if it hits geometry — flagged, not built speculatively.
-- **No touch joystick for FAZ 4 movement yet.** `input.js` is keyboard-only (WASD/arrows +
-  Shift-to-run). Mobile-class devices can spawn the player and see it render/animate (confirmed via
-  the same touch-emulated headless-Chromium test every prior mobile check has used) but have no way
-  to actually move it yet — a real joystick UI is separate work, and (same limitation as every
-  prior run) can't be validated on a real touch device in this sandbox.
+- **~~No touch joystick for FAZ 4 movement~~ — landed run 18 (`ui/touchJoystick.js`).** Mobile-class
+  devices now get an on-screen joystick alongside keyboard (`input.js`) support — see DECISIONS.md
+  ADR-0017. Verified via a Playwright-simulated drag (Pointer Events treat mouse and touch drags
+  identically), not a real physical touch device — this sandbox still can't provide one, same
+  caveat as every other "mobile" verification in this file.
 - **Any future Mixamo/Free3D asset needs a human step.** The cloud agent cannot log into Mixamo,
   and Free3D's download flow doesn't trigger via automated browser clicks either (per the wolf/
   dragon commit message). If a later phase needs a new character/creature/animation, mark it here

@@ -37,6 +37,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/fog.js',
     './src/3d/physics.js',
     './src/3d/input.js',
+    './src/3d/ui/touchJoystick.js',
     './src/3d/gameplay/player.js',
     './src/3d/world/terrain.js',
     './src/3d/world/chunkManager.js',

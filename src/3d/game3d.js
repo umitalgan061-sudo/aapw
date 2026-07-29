@@ -15,9 +15,10 @@
  * (`world/rivers.js`) traces a deterministic downhill path from high ground near the origin down
  * to sea level, with vertical "curtain" meshes marking its steepest (waterfall-grade) segments.
  * FAZ 4 (in progress): a playable character (`gameplay/player.js`) spawns at the world origin,
- * moves via WASD/arrow keys (`input.js`) relative to the camera's facing, snaps to ground height
- * (`physics.js`), and the same `OrbitControls` instance becomes its chase camera — see
- * DECISIONS.md ADR-0016.
+ * moves via WASD/arrow keys (`input.js`) or an on-screen joystick on touch-primary devices
+ * (`ui/touchJoystick.js`) relative to the camera's facing, snaps to ground height (`physics.js`),
+ * and the same `OrbitControls` instance becomes its chase camera — see DECISIONS.md ADR-0016 and
+ * ADR-0017.
  * See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
@@ -30,6 +31,7 @@ import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, P
 import { ChunkManager } from './world/chunkManager.js';
 import { createGroundCollider } from './physics.js';
 import { KeyboardInput } from './input.js';
+import { TouchJoystick } from './ui/touchJoystick.js';
 import { createPlayer } from './gameplay/player.js';
 import { createWater, updateWater, disposeWater } from './world/water.js';
 import {
@@ -225,6 +227,25 @@ function computeCameraRelativeMove(camera, controls, axes) {
 }
 
 /**
+ * Combines keyboard and (optional) touch-joystick axes into one `{forward, strafe, running}`,
+ * summing the continuous forward/strafe components (clamped back to [-1, 1]) and OR-ing `running`
+ * — lets a touch-capable device with a plugged-in keyboard use either without one silently
+ * overriding the other, and costs nothing extra on devices with no joystick (`joystickAxes` is
+ * `null` there, so this just returns `keyboardAxes` unchanged).
+ * @param {{forward: number, strafe: number, running: boolean}} keyboardAxes
+ * @param {{forward: number, strafe: number, running: boolean} | null} joystickAxes
+ * @returns {{forward: number, strafe: number, running: boolean}}
+ */
+function combineAxes(keyboardAxes, joystickAxes) {
+	if (!joystickAxes) return keyboardAxes;
+	return {
+		forward: Math.max(-1, Math.min(1, keyboardAxes.forward + joystickAxes.forward)),
+		strafe: Math.max(-1, Math.min(1, keyboardAxes.strafe + joystickAxes.strafe)),
+		running: keyboardAxes.running || joystickAxes.running,
+	};
+}
+
+/**
  * Converts a world-space coordinate to the chunk grid coordinate it falls in, matching the
  * `world/README.md` convention (chunk `(cx, cz)` centered at world `(cx * size, 0, cz * size)`).
  * @param {number} worldCoord
@@ -307,6 +328,11 @@ export async function initGame3D() {
 		// (hidden only once GAME_READY's "phase1-scene" fires below) stays up for the ~6MB of
 		// character/animation FBX downloads too — no half-loaded player pop-in mid-view.
 		const keyboardInput = new KeyboardInput(window);
+		// Touch-primary devices get an on-screen joystick alongside keyboard support (which stays
+		// harmlessly inert there — no physical keyboard to trigger it). Same isCoarsePointerDevice()
+		// gate createScene() already uses for the mobile chunk-radius split, so both mobile-only
+		// behaviors agree on what counts as "mobile" from one signal.
+		const touchJoystick = isCoarsePointerDevice() ? new TouchJoystick() : null;
 		const player = await createPlayer({
 			assetLoader,
 			groundCollider: state.groundCollider,
@@ -315,6 +341,7 @@ export async function initGame3D() {
 		state.scene.add(player.object3D);
 		state.player = player;
 		state.keyboardInput = keyboardInput;
+		state.touchJoystick = touchJoystick;
 		// A player now exists — panning the target would just get overwritten next frame (the
 		// camera chases the player instead), so free-pan is no longer meaningful. See camera.js.
 		state.controls.enablePan = false;
@@ -340,7 +367,7 @@ export async function initGame3D() {
 			const delta = state.clock.getDelta();
 			state.elapsedSeconds += delta;
 
-			const axes = state.keyboardInput.getAxes();
+			const axes = combineAxes(state.keyboardInput.getAxes(), state.touchJoystick?.getAxes() ?? null);
 			const moveDirection = computeCameraRelativeMove(state.camera, state.controls, axes);
 			// OrbitControls computes its offset as (camera.position - target) every update() call —
 			// moving `target` alone (without moving `camera.position` by the same amount) cancels
@@ -377,6 +404,7 @@ export async function initGame3D() {
 			cancelAnimationFrame(frameId);
 			unbindResize();
 			state.keyboardInput.dispose();
+			state.touchJoystick?.dispose();
 			state.player.dispose();
 			state.controls.dispose();
 			state.chunkManager.disposeAll();

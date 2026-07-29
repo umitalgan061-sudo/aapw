@@ -46,7 +46,8 @@ the way it is.
   `SETTLEMENT_CONFIG` (castle keep/tower/roof dimensions for `world/settlements.js`, added FAZ 3 —
   see ADR-0013), and (added FAZ 4) `PLAYER_CONFIG` (character/animation asset URLs, walk/run
   speeds, turn rate, animation crossfade duration, spawn point, chase-camera framing/distance
-  limits — see ADR-0016).
+  limits — see ADR-0016), and `TOUCH_JOYSTICK_CONFIG` (drag radius, dead zone, run threshold for
+  `ui/touchJoystick.js` — see ADR-0017).
 - **Critical path:** yes — every system imports constants from here.
 - **Failure mode:** N/A (static data only).
 
@@ -260,8 +261,31 @@ the way it is.
 - **Failure mode:** none — plain `Set` membership tracking, cannot throw.
 - **Camera-agnostic by design:** returns input-local `{forward, strafe, running}`, not a
   world-space direction — `game3d.js` combines this with the camera's facing itself (see
-  `game3d.js`'s own entry below). Touch/joystick input (FAZ 4's other input requirement, for
-  mobile) is not built yet — this module intentionally covers keyboard only.
+  `game3d.js`'s own entry below). Touch/joystick input lives separately in `ui/touchJoystick.js`.
+
+## `src/3d/ui/touchJoystick.js` — On-screen touch joystick (FAZ 4, run 18)
+
+- **Depends on:** `config.js` (`TOUCH_JOYSTICK_CONFIG`). Appends its own DOM (base+knob `<div>`s,
+  styled via `game3d.css`) to a container element (`document.body` by default).
+- **Used by:** `game3d.js` — instantiated only when `isCoarsePointerDevice()` is true, read once
+  per frame via `getAxes()` (same shape as `KeyboardInput.getAxes()`), combined with keyboard axes
+  via `game3d.js`'s `combineAxes()`, disposed on `pagehide`.
+- **Critical path:** no — if it fails to construct or never registers a touch, the player just
+  can't move via touch (keyboard still works if a keyboard happens to be attached; a stationary
+  character is the same safe degraded state `input.js` already documents).
+- **Failure mode:** none expected — plain DOM creation and Pointer Event listeners, no external
+  data or async work, cannot throw under normal use.
+- **Camera-agnostic by design:** same convention as `input.js` — returns input-local
+  `{forward, strafe, running}` (continuous, not discrete, since it's an analog stick), never reads
+  `OrbitControls`/`camera` directly. See `ui/README.md`.
+
+## `src/3d/ui/` (folder) — On-screen UI (joystick today; future HUD/inventory/dialogue/debug panels)
+
+- **Depends on:** `config.js` only. Only this folder plus `config.js` should be touched for a
+  UI-system change (blast radius rule) — see `ui/README.md`.
+- **Used by:** `game3d.js`.
+- **Critical path:** varies per file — see `touchJoystick.js`'s own entry above.
+- **Failure mode:** varies per file.
 
 ## `src/3d/gameplay/player.js` — Playable character (FAZ 4)
 
@@ -371,8 +395,9 @@ the way it is.
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
   `world/chunkManager.js`, `physics.js` (ground collider, feeds `world/rivers.js`/
-  `world/settlements.js` too), `input.js`, `gameplay/player.js`, `world/water.js`,
-  `world/rivers.js`, `world/settlements.js`, `camera.js`, `sky.js`, `stars.js`, `lighting.js`, `fog.js`.
+  `world/settlements.js` too), `input.js`, `ui/touchJoystick.js`, `gameplay/player.js`,
+  `world/water.js`, `world/rivers.js`, `world/settlements.js`, `camera.js`, `sky.js`, `stars.js`,
+  `lighting.js`, `fog.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
   lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance
@@ -388,8 +413,13 @@ the way it is.
   `fog.js`, `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009/
   ADR-0011/ADR-0013/ADR-0016).
 - **`computeCameraRelativeMove(camera, controls, axes)` (module-local, added FAZ 4):** turns raw
-  keyboard axes into a world-space movement direction from the camera's current facing. Kept here,
+  input axes into a world-space movement direction from the camera's current facing. Kept here,
   not in `gameplay/player.js`, so gameplay code stays camera-agnostic (see `gameplay/README.md`).
+- **`combineAxes(keyboardAxes, joystickAxes)` (module-local, added FAZ 4 run 18):** sums the
+  continuous forward/strafe components (clamped to [-1, 1]) and ORs `running`, so a touch-capable
+  device with a keyboard attached can use either input source without one overriding the other.
+  `joystickAxes` is `null` on desktop (no `TouchJoystick` instantiated there), in which case this
+  just returns `keyboardAxes` unchanged. See `ui/touchJoystick.js`'s entry and ADR-0017.
 - **`elapsedSeconds` tracking (changed FAZ 4):** the tick loop now calls `clock.getDelta()` once
   per frame (needed for player movement/animation) and accumulates it into `state.elapsedSeconds`
   itself, instead of calling `clock.getElapsedTime()` separately — avoids the two clock-reads
