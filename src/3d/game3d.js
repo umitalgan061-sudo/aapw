@@ -2,9 +2,10 @@
  * Entry point for the 3D Westeros world.
  *
  * Phase 1 scope: on top of the Phase 0 architecture (EventBus, GameState, AssetLoader), boots a
- * bare Three.js renderer/scene/camera against `#game3d-canvas` (see `game3d.html`) and renders a
- * single placeholder ground chunk sized to `CHUNK_CONFIG.CHUNK_SIZE_METERS`. Terrain noise, sky
- * and camera controls are separate Phase 1 sub-tasks — see 3D_GAME_PROGRESS.md for what's next.
+ * bare Three.js renderer/scene/camera against `#game3d-canvas` (see `game3d.html`) and renders
+ * chunk `(0, 0)` from `world/terrain.js` — the first real, seeded terrain chunk, counted toward
+ * World Coverage. Sky and camera controls are separate Phase 1 sub-tasks — see
+ * 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
 
@@ -13,6 +14,7 @@ import { gameEvents } from './eventBus.js';
 import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
 import { EVENTS, WORLD_DEFAULTS, CHUNK_CONFIG } from './config.js';
+import { createTerrainChunk, disposeTerrainChunk } from './world/terrain.js';
 
 /** Shared asset loader instance for the whole 3D mode. */
 export const assetLoader = new AssetLoader({ events: gameEvents });
@@ -30,8 +32,8 @@ gameEvents.on(EVENTS.ASSET_ERROR, (payload) => {
 });
 
 /**
- * Creates the renderer/scene/camera/placeholder-ground against `canvas`. Placeholder-only:
- * flat lit plane, no noise/materials/LOD yet — those arrive with the terrain system.
+ * Creates the renderer/scene/camera and renders terrain chunk `(0, 0)` against `canvas`. Only
+ * one chunk exists so far — no chunk-manager/streaming yet, see 3D_GAME_PROGRESS.md FAZ 1.
  * @param {HTMLCanvasElement} canvas
  * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, ground: THREE.Mesh}}
  */
@@ -57,12 +59,12 @@ function createScene(canvas) {
 	sun.position.set(300, 400, 200);
 	scene.add(sun);
 
-	const chunkSize = CHUNK_CONFIG.CHUNK_SIZE_METERS;
-	const ground = new THREE.Mesh(
-		new THREE.PlaneGeometry(chunkSize, chunkSize),
-		new THREE.MeshStandardMaterial({ color: 0x3a5a2a }),
-	);
-	ground.rotation.x = -Math.PI / 2;
+	const ground = createTerrainChunk({
+		chunkX: 0,
+		chunkZ: 0,
+		size: CHUNK_CONFIG.CHUNK_SIZE_METERS,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+	});
 	scene.add(ground);
 
 	return { renderer, scene, camera, ground };
@@ -115,14 +117,13 @@ export async function initGame3D() {
 		window.addEventListener('pagehide', () => {
 			cancelAnimationFrame(frameId);
 			unbindResize();
-			state.ground.geometry.dispose();
-			state.ground.material.dispose();
+			disposeTerrainChunk(state.ground);
 			state.renderer.dispose();
 		}, { once: true });
 
 		gameState.set('currentPhase', 'phase1-scene');
 		gameEvents.emit(EVENTS.GAME_READY, { phase: 'phase1-scene' });
-		console.info('[game3d] Phase 1 scene bootstrap ready: renderer/scene/camera live, placeholder ground chunk rendering.');
+		console.info('[game3d] Phase 1 scene bootstrap ready: renderer/scene/camera live, terrain chunk (0,0) rendering.');
 	} catch (error) {
 		gameState.set('error', error.message);
 		gameEvents.emit(EVENTS.GAME_ERROR, { error });

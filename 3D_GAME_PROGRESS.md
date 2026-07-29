@@ -34,16 +34,17 @@ KayKit, etc.) are used for `assets/`.
 
 ## World Coverage
 
-**World Coverage: 0% (0 km² / 4278 km² target)**
+**World Coverage: 0.0058% (0.25 km² / 4278 km² target)**
 
 - **Target area** is derived from the 14 kingdom seats in `script.js`'s `INIT_KINGDOMS` (not the
   ~150 decorative marker/figure entries also in that file), padded and scaled to real-world meters.
   Full derivation, alternatives considered, and the exact numbers: `DECISIONS.md` ADR-0001.
   Summary: 68.7km x 61.7km world, rounded up to a 138 x 124 grid of 500m x 500m chunks = 4278 km².
   These numbers are now the source of truth in `src/3d/config.js` (`WORLD_SCALE`, `CHUNK_CONFIG`).
-- **Covered area:** 0 km² — no terrain chunk generation exists yet (FAZ 1 has not built the scene
-  or terrain system yet, only the config/grid math this run). This is expected at this stage; the
-  metric exists now so every future terrain task has a number to move.
+- **Covered area:** 0.25 km² — exactly one real, seeded terrain chunk (`world/terrain.js`, grid
+  coordinate `(0, 0)`) exists so far, out of 17,112 chunk slots in the grid. Still effectively
+  nothing, but the number now moves — the next task should grow it (see "Next step" below), not
+  spend the run on visual polish.
 - Per the project's phase-gate rules, FAZ 3 and FAZ 10 cannot be marked DONE below 80% coverage
   (crisis exception: fix critical bugs/perf first, then resume geographic growth).
 
@@ -69,7 +70,12 @@ KayKit, etc.) are used for `assets/`.
 - [x] Three.js scene bootstrap in `game3d.js`: renderer, scene, camera, resize handling, render loop (extended `initGame3D()` — skips rendering with a warning if `#game3d-canvas` isn't present, so it stays safe to call from non-browser/test contexts)
 - [x] Add "🎮 3D Dünya" button to `index.html` linking to `game3d.html` (additive `<a class="tb-btn">` in the existing toolbar, nothing else in `index.html` touched)
 - [ ] `src/3d/sky.js` — aurora shader skybox (procedural GLSL)
-- [ ] `src/3d/terrain.js` — heightmap-based long valley terrain (FBM noise to start; ridged/erosion can follow in a later Phase-1 sub-task). Current ground in `game3d.js` is a **flat, untextured placeholder plane** (`CHUNK_CONFIG.CHUNK_SIZE_METERS` sized, at world origin) proving the render loop works — it is NOT part of the chunk grid yet and does NOT count toward World Coverage.
+- [x] `src/3d/world/terrain.js` — seeded value-noise/FBM terrain chunk generation
+  (`createTerrainChunk`/`disposeTerrainChunk`), vertex-colored (grass→rock by height), no texture
+  needed yet. `game3d.js` now renders real chunk `(0, 0)` from this module — the first chunk that
+  counts toward World Coverage (see above). Still just **one** chunk out of 17,112 — no
+  chunk-manager/streaming yet, so nothing loads/unloads based on player position. "Ridged/erosion"
+  shaping and a literal "long valley" carve are deferred; current terrain is generic rolling FBM.
 - [ ] `src/3d/camera.js` — orbit/free camera for now (third-person arrives in Phase 4). Current camera in `game3d.js` is a fixed, non-interactive `PerspectiveCamera` looking at the origin.
 - [ ] Confirm responsive layout + PWA `start_url`/manifest still resolve correctly with the new page present (not yet checked — `game3d.html`/`.css`/`src/3d/**` are not in `service-worker.js`'s cache list yet, so the 3D mode currently requires network/first-load; flagged under Known Issues)
 
@@ -178,20 +184,37 @@ KayKit, etc.) are used for `assets/`.
   blocking outbound requests for `resimler/map.png`/Firebase, not a real-device issue. Flagged
   below for whoever next needs to browser-test the 2D game in this kind of sandbox.
 
-**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new), `game3d.html` (new),
-`game3d.css` (new), `src/3d/game3d.js`, `index.html`, `3D_GAME_PROGRESS.md` (this file). Two
-separate commits (world-scale/config first, then the scene bootstrap) to keep each one atomic and
-independently revertable.
+- **Third sub-task, same run:** built `src/3d/world/terrain.js` (new `src/3d/world/` folder, with
+  its own README per the project's per-folder-README rule) — a seeded `mulberry32` PRNG, a hashed-
+  lattice value-noise function, and 5-octave FBM on top of it, baked into a displaced + vertex-
+  colored `PlaneGeometry` per chunk. `game3d.js` now calls `createTerrainChunk({chunkX:0, chunkZ:0,
+  seed: WORLD_DEFAULTS.WORLD_SEED, size: CHUNK_CONFIG.CHUNK_SIZE_METERS})` instead of building a
+  flat placeholder plane inline, and disposes it via `disposeTerrainChunk` on `pagehide`. Added
+  `WORLD_DEFAULTS.WORLD_SEED` (1337) to `config.js` — the one master seed all world generation
+  should derive from. Re-ran the headless-Chromium smoke test: zero console/page errors, and the
+  screenshot shows real height variation and a grass→rock color gradient (not a flat green plane).
+  World Coverage moved from 0% to 0.0058% (one real chunk now exists, out of 17,112 slots).
 
-**Next step for the next run (start here):** Continue FAZ 1: `src/3d/terrain.js` — replace the
-flat placeholder ground in `game3d.js` with real heightmap terrain (start with FBM noise; ridged/
-erosion can follow later) for exactly **one** chunk at a real chunk-grid coordinate (use
-`CHUNK_CONFIG`/`WORLD_SCALE` from `config.js`, not another arbitrary placeholder at the origin) —
-this is the first chunk that should actually count toward World Coverage. Use a seeded RNG
-(mulberry32/xorshift, per the project's determinism rule) for the noise seed, not `Math.random()`.
-After terrain, the following FAZ 1 sub-tasks are `sky.js` (aurora shader skybox) and `camera.js`
-(orbit camera — no player-facing controls exist yet, the current camera is fixed). Keep each to
-≤5 files per the blast-radius rule.
+**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new), `game3d.html` (new),
+`game3d.css` (new), `src/3d/game3d.js`, `index.html`, `ARCHITECTURE.md` (new),
+`src/3d/world/terrain.js` (new), `src/3d/world/README.md` (new), `3D_GAME_PROGRESS.md` (this
+file). Three separate commits (world-scale/config; scene bootstrap; terrain chunk) to keep each
+one atomic and independently revertable.
+
+**Next step for the next run (start here):** Per the project's own priority rule — low World
+Coverage during FAZ 1-3/10 outranks visual polish — do **not** jump to `sky.js` next even though
+it's next on the FAZ 1 roadmap list above. Instead grow coverage: build a small chunk manager
+(e.g. `src/3d/world/chunkManager.js`) that generates a modest neighborhood of chunks around the
+origin (say a 5x5 or 7x7 grid using `createTerrainChunk`, reusing the `(chunkX, chunkZ)` grid
+convention already established) and updates `game3d.js` to add/track them instead of the single
+hardcoded `(0,0)` chunk. This both moves World Coverage further and is the real first step toward
+the "500m unload/preload streaming" requirement (a manager that can add chunks is a prerequisite
+for one that can also remove them). Keep chunk count modest enough this run to stay well within
+the performance budget (desktop triangles<5M — even 49 chunks at the current 64-segment resolution
+is ~49 * 64*64*2 ≈ 400K triangles, comfortably inside budget, but measure after adding rather than
+assuming). Only after chunk-manager + a meaningfully larger coverage number should `sky.js` and
+`camera.js` (orbit camera — current camera is still fixed) follow. Keep each sub-task to ≤5 files
+per the blast-radius rule.
 
 ## Known Issues / Tech Debt
 

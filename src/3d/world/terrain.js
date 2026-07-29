@@ -1,0 +1,154 @@
+/**
+ * Procedural terrain chunk generation: seeded value noise + fractal Brownian motion (FBM),
+ * baked into a displaced/vertex-colored `PlaneGeometry` per chunk. No external heightmap images
+ * or textures — this is deliberately "geography first, polish later" (see 3D_GAME_PROGRESS.md's
+ * World Coverage section): cheap enough to generate hundreds of chunks, detail arrives later.
+ *
+ * Chunk grid convention (shared with `CHUNK_CONFIG` in `config.js`): chunk `(chunkX, chunkZ)` is
+ * centered at world position `(chunkX * size, 0, chunkZ * size)`, so chunk `(0, 0)` sits centered
+ * on the world origin. A future chunk-manager/streaming system should reuse this convention
+ * rather than inventing another one.
+ * @module world/terrain
+ */
+
+import * as THREE from 'three';
+
+/**
+ * Deterministic 32-bit PRNG (mulberry32). Never use `Math.random()` for world generation — see
+ * the project's determinism rule: same seed + same config must always produce the same world.
+ * @param {number} seed
+ * @returns {() => number} Returns a function producing floats in [0, 1).
+ */
+function mulberry32(seed) {
+	let a = seed >>> 0;
+	return function random() {
+		a |= 0;
+		a = (a + 0x6d2b79f5) | 0;
+		let t = Math.imul(a ^ (a >>> 15), 1 | a);
+		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+	};
+}
+
+const LATTICE_SIZE = 256;
+const LATTICE_MASK = LATTICE_SIZE - 1;
+
+/**
+ * Builds a seeded 2D value-noise function (smoothly interpolated hashed lattice values, in the
+ * classic "value noise" family — simpler than gradient/Perlin noise but sufficient for terrain
+ * FBM at this project's current fidelity target).
+ * @param {number} seed
+ * @returns {(x: number, y: number) => number} Noise in [0, 1), continuous over x/y.
+ */
+function createValueNoise2D(seed) {
+	const random = mulberry32(seed);
+	const permutation = new Uint8Array(LATTICE_SIZE);
+	for (let i = 0; i < LATTICE_SIZE; i++) permutation[i] = i;
+	for (let i = LATTICE_SIZE - 1; i > 0; i--) {
+		const j = Math.floor(random() * (i + 1));
+		const tmp = permutation[i];
+		permutation[i] = permutation[j];
+		permutation[j] = tmp;
+	}
+
+	const hash = (ix, iy) => permutation[(permutation[ix & LATTICE_MASK] + iy) & LATTICE_MASK];
+	const latticeValue = (ix, iy) => hash(ix, iy) / LATTICE_MASK;
+	const smoothstep = (t) => t * t * (3 - 2 * t);
+
+	return function noise2D(x, y) {
+		const x0 = Math.floor(x);
+		const y0 = Math.floor(y);
+		const sx = smoothstep(x - x0);
+		const sy = smoothstep(y - y0);
+		const n00 = latticeValue(x0, y0);
+		const n10 = latticeValue(x0 + 1, y0);
+		const n01 = latticeValue(x0, y0 + 1);
+		const n11 = latticeValue(x0 + 1, y0 + 1);
+		const nx0 = n00 + (n10 - n00) * sx;
+		const nx1 = n01 + (n11 - n01) * sx;
+		return nx0 + (nx1 - nx0) * sy;
+	};
+}
+
+/**
+ * Fractal Brownian motion: sums several octaves of `noise2D` at increasing frequency and
+ * decreasing amplitude for natural-looking, multi-scale terrain instead of one smooth bump field.
+ * @param {(x: number, y: number) => number} noise2D
+ * @param {number} x
+ * @param {number} y
+ * @param {{octaves?: number, lacunarity?: number, gain?: number}} [options]
+ * @returns {number} Normalized to [0, 1).
+ */
+function fbm2D(noise2D, x, y, { octaves = 5, lacunarity = 2, gain = 0.5 } = {}) {
+	let amplitude = 1;
+	let frequency = 1;
+	let sum = 0;
+	let maxAmplitude = 0;
+	for (let i = 0; i < octaves; i++) {
+		sum += noise2D(x * frequency, y * frequency) * amplitude;
+		maxAmplitude += amplitude;
+		amplitude *= gain;
+		frequency *= lacunarity;
+	}
+	return sum / maxAmplitude;
+}
+
+const LOW_COLOR = new THREE.Color(0x2c4a1e);
+const HIGH_COLOR = new THREE.Color(0x6b6152);
+/** World-units-per-noise-cell; tuned by eye so a single chunk shows a few rolling hills, not one giant bump or pure static. */
+const NOISE_SCALE = 0.006;
+
+/**
+ * Generates one terrain chunk: a displaced, vertex-colored ground mesh, deterministic for a
+ * given `(chunkX, chunkZ, seed)`. Height and color both derive from the same FBM sample so low
+ * ground reads as grass and high ground reads as bare rock, with no separate texture needed yet.
+ * @param {object} options
+ * @param {number} options.chunkX Chunk grid column (see module-level grid convention above).
+ * @param {number} options.chunkZ Chunk grid row.
+ * @param {number} [options.size=500] Chunk edge length in meters.
+ * @param {number} [options.segments=64] Geometry subdivisions per edge (resolution).
+ * @param {number} [options.maxHeightMeters=24] Peak height variation within the chunk.
+ * @param {number} [options.seed=1] World seed — same seed + same args always produce the same chunk.
+ * @returns {THREE.Mesh} Positioned at the chunk's world-space center, ready to `scene.add()`.
+ */
+export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = 24, seed = 1 }) {
+	const noise2D = createValueNoise2D(seed);
+	const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
+	geometry.rotateX(-Math.PI / 2);
+
+	const position = geometry.attributes.position;
+	const colors = new Float32Array(position.count * 3);
+	const blended = new THREE.Color();
+
+	for (let i = 0; i < position.count; i++) {
+		const worldX = chunkX * size + position.getX(i);
+		const worldZ = chunkZ * size + position.getZ(i);
+		const h = fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE);
+		position.setY(i, h * maxHeightMeters);
+
+		blended.copy(LOW_COLOR).lerp(HIGH_COLOR, h);
+		colors[i * 3] = blended.r;
+		colors[i * 3 + 1] = blended.g;
+		colors[i * 3 + 2] = blended.b;
+	}
+	position.needsUpdate = true;
+	geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+	geometry.computeVertexNormals();
+
+	const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+	const mesh = new THREE.Mesh(geometry, material);
+	mesh.position.set(chunkX * size, 0, chunkZ * size);
+	mesh.userData.chunkCoord = { x: chunkX, z: chunkZ };
+	mesh.userData.areaKm2 = (size * size) / 1_000_000;
+	return mesh;
+}
+
+/**
+ * Disposes a mesh created by `createTerrainChunk` (geometry + material). Call on chunk unload —
+ * see the project's memory-leak checklist.
+ * @param {THREE.Mesh} chunkMesh
+ */
+export function disposeTerrainChunk(chunkMesh) {
+	chunkMesh.geometry.dispose();
+	chunkMesh.material.dispose();
+}

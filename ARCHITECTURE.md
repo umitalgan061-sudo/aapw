@@ -54,6 +54,21 @@ the way it is.
   overlay into a visible Turkish error message instead of leaving a blank/black screen (L3 —
   critical error screen, no silent white/black screen).
 
+## `src/3d/world/terrain.js` — Procedural terrain chunk generation
+
+- **Depends on:** `three` (vendored). Deliberately does not import `config.js` — callers pass
+  `size`/`seed` explicitly (see `world/README.md`'s chunk-grid convention) so this module stays
+  generic and reusable by any future caller, not coupled to one config shape.
+- **Used by:** `game3d.js` (`createTerrainChunk`/`disposeTerrainChunk`), and will be used by the
+  future chunk-manager/streaming system (not built yet — see `3D_GAME_PROGRESS.md`).
+- **Critical path:** yes for anything world-geography related — every future World Coverage % gain
+  goes through this module (or its eventual siblings: rivers, roads, settlements).
+- **Failure mode:** none yet (pure synchronous geometry math, cannot fail at runtime short of an
+  out-of-memory condition on a pathological segment count — not currently guarded, revisit if
+  chunk resolution ever becomes caller-configurable beyond this project's own code).
+- **Determinism:** seeded (`mulberry32`), no `Math.random()` — same `(chunkX, chunkZ, seed)` always
+  produces the same chunk.
+
 ## `src/3d/game3d.js` — Entry point / scene bootstrap
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`.

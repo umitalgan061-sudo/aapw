@@ -48,6 +48,10 @@ export const WORLD_DEFAULTS = Object.freeze({
 	FAR_PLANE: 2000,
 	NEAR_PLANE: 0.1,
 	FOV_DEGREES: 60,
+	/** Master seed for all procedural world generation (terrain, later vegetation/rivers/etc.).
+	 * Every generator must derive from this via a seeded PRNG — never `Math.random()` — so the
+	 * same seed always reproduces the same world. */
+	WORLD_SEED: 1337,
 });
 
 /**
