@@ -135,6 +135,38 @@ export const SETTLEMENT_CONFIG = Object.freeze({
 	MIN_GROUND_CLEARANCE_METERS: 1.5,
 });
 
+/** Playable character (FAZ 4): base mesh + Mixamo-retargeted animation clip file paths, movement
+ * speeds, and camera/animation tuning. See `gameplay/player.js` and DECISIONS.md ADR-0016. */
+export const PLAYER_CONFIG = Object.freeze({
+	MODEL_URL: 'assets/models/characters/peasant_girl.fbx',
+	/** Skin-less clips ("In Place", per `assets_manifest.json`) retargeted onto the model's skeleton. */
+	ANIMATION_URLS: Object.freeze({
+		idle: 'assets/animations/peasant_girl/idle.fbx',
+		walking: 'assets/animations/peasant_girl/walking.fbx',
+		running: 'assets/animations/peasant_girl/running.fbx',
+	}),
+	WALK_SPEED_MPS: 3.2,
+	RUN_SPEED_MPS: 6.5,
+	/** Turn speed, in radians/second the model rotates toward its movement heading. */
+	TURN_RATE_RADIANS_PER_SECOND: 10,
+	ANIMATION_CROSSFADE_SECONDS: 0.25,
+	/** World-space spawn point — the world origin, always inside the boot-preview area on both
+	 * desktop and mobile (see CHUNK_CONFIG), so the player never spawns on an unloaded chunk. */
+	SPAWN_X_METERS: 0,
+	SPAWN_Z_METERS: 0,
+	/** Height above the player's feet the chase camera's `OrbitControls.target` is held at, so the
+	 * camera looks at roughly chest/head height instead of the ground at the player's feet. */
+	CAMERA_TARGET_HEIGHT_METERS: 1.5,
+	/** `OrbitControls` distance limits once a player exists — much tighter than Phase 1's
+	 * overview-preview defaults (20-1800m in `camera.js`), since this is now a third-person chase
+	 * camera, not a free "look at the whole valley" dev camera. */
+	CAMERA_MIN_DISTANCE_METERS: 3,
+	CAMERA_MAX_DISTANCE_METERS: 40,
+	/** Camera position, relative to the player, the chase camera starts framed at (behind and
+	 * above) — the user can then orbit/zoom freely from there via `OrbitControls`. */
+	CAMERA_INITIAL_OFFSET_METERS: Object.freeze({ x: 0, y: 3.2, z: 7 }),
+});
+
 /** LocalStorage/sessionStorage keys owned by the 3D mode. Never reuse or collide with 2D game keys. */
 export const STORAGE_KEYS = Object.freeze({
 	QUALITY_SETTING: 'westeros3d_quality',

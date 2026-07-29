@@ -1078,3 +1078,131 @@ materials' maps changed); texture memory grows by a negligible ~768KB (2 materia
 LOD/colliders — still correctly deferred until a player exists (FAZ 4) to justify either. `service-
 worker.js`'s `GAME3D_SHELL_FILES` now includes `materials.js`, keeping the offline-PWA golden rule
 intact for every currently-code-imported 3D file.
+
+## ADR-0016: FAZ 4 first pass — playable character (`gameplay/player.js`), vendored `FBXLoader`, and an `OrbitControls`-based chase camera instead of a custom spring-arm rig
+
+**Date:** 2026-07-29
+
+**Decision:** Vendored three.js r160's `FBXLoader.js` (plus its two transitive dependencies,
+`libs/fflate.module.js` and `curves/NURBSCurve.js`/`NURBSUtils.js`, all fetched from the same
+`unpkg.com/three@0.160.0` pin every other vendored addon uses) alongside `GLTFLoader.js`.
+`assetLoader.js` gained `loadFBXModel(url)` (lazy dynamic-import, same L1-silent-fallback pattern
+as `loadModel`). New `src/3d/physics.js` (`createGroundCollider(seed)`) wraps `world/terrain.js`'s
+`createHeightSampler` so gameplay code depends on "physics", not a world-generation internal. New
+`src/3d/input.js` (`KeyboardInput`) tracks WASD/arrow keys + Shift-to-run, exposing camera-agnostic
+`{forward, strafe, running}` axes. New `src/3d/gameplay/player.js` (`createPlayer`) loads
+`peasant_girl.fbx` plus its three skin-less idle/walking/running clips (retargeted via
+`THREE.AnimationMixer` — no bone remapping needed, they share Mixamo's standard skeleton),
+corrects Mixamo's centimeter-scale export using the FBX's own `unitScaleFactor` rather than a
+hardcoded `0.01`, snaps to `physics.js`'s ground height every step, turns to face its movement
+heading, and crossfades idle/walking/running off real speed. `game3d.js` computes a camera-relative
+world-space movement direction each frame (`computeCameraRelativeMove`, kept in `game3d.js` — not
+`player.js` — so gameplay code stays camera-agnostic per `gameplay/README.md`'s Conventions) and
+reuses the existing `OrbitControls` instance as the player's chase camera by translating both
+`camera.position` and `controls.target` by the player's per-frame movement delta, then letting
+`OrbitControls.update()` layer the user's own drag/zoom input on top. `PLAYER_CONFIG` (new,
+`config.js`) holds every constant this introduces (asset URLs, speeds, turn rate, crossfade
+duration, spawn point, camera framing/distance limits).
+
+**Reasoning:**
+- **Priority-ordered:** Session Snapshot found zero syntax errors, blocking bugs, or new tech debt
+  this run; the 100-150 km² world-scale target was re-verified correct for the ninth straight run
+  (unchanged, see World Coverage below); FAZ 3/10's 80% coverage gate is already clear (80.7%); and
+  FAZ 3's own last sub-task (LOD/colliders) is explicitly deferred until a player exists to justify
+  either. With every higher priority settled, the roadmap's active-phase item is FAZ 4 itself —
+  this run started it.
+- **Reuse `OrbitControls` rather than write a new spring-arm rig in the same run:** a real
+  third-person camera eventually wants spring-arm-style smoothing and raycast wall-avoidance (so it
+  can't clip through terrain/castles) — meaningfully more work than this run's movement/animation
+  scope. `OrbitControls` is already vendored, tested (camera.js's own drag-simulation smoke test
+  from FAZ 1), and already distance/angle-limited. Reusing it for the chase camera let this run's
+  budget go toward the actually-new work (character loading, retargeted animation, ground
+  collision, camera-relative input) instead of a second parallel camera system. Wall-avoidance
+  raycasting is explicitly not done — flagged in 3D_GAME_PROGRESS.md's Known Issues, same
+  "partial credit, be honest about what's left" pattern as ADR-0015's PBR-vs-LOD split.
+- **A real bug found and fixed mid-run, not shipped:** the first working version set
+  `controls.target` to the player's new position every frame and called `controls.update()`,
+  assuming `OrbitControls` would "follow." It doesn't — `OrbitControls.update()` computes its
+  internal offset as `camera.position - target` fresh every call, so moving `target` alone (without
+  moving `camera.position` by the same amount) mathematically cancels itself out: the resulting
+  camera position is unchanged, only its look-at direction changes. Found via this run's own
+  headless-browser movement test (screenshot showed the character visibly shrinking/walking away
+  from a camera that never moved), not assumed correct from reading the code. Fixed by translating
+  both `camera.position` and `controls.target` by the player's per-frame position delta before
+  calling `update()` — this preserves whatever relative offset the user's own mouse-drag/zoom has
+  set, while actually making the camera chase the player.
+- **Scale-correct via the FBX's own metadata, not a guessed constant:** Mixamo FBX exports store
+  geometry in centimeters; three.js's `FBXLoader` does not auto-convert (confirmed by reading the
+  vendored loader source — it only stashes `GlobalSettings.UnitScaleFactor` into `userData`, it
+  never applies it). The well-known workaround is a hardcoded `scale.setScalar(0.01)`, but that's a
+  guess baked into gameplay code with no link back to why; instead `player.js` reads the loaded
+  model's own `unitScaleFactor` and derives `metersPerFbxUnit = unitScaleFactor / 100`, so a
+  differently-scaled future character asset (a different source, not Mixamo) still comes out
+  correct instead of silently wrong. Verified via screenshot: the character renders at a
+  visually correct human height relative to the terrain and the ~7m chase-camera distance.
+- **Camera-agnostic gameplay code:** `gameplay/player.js` never imports or reads `camera`/
+  `controls` — `update(delta, moveDirectionXZ, isRunning)` takes an already-computed world-space
+  direction. `game3d.js` (which owns the camera) computes that direction from the camera's current
+  facing and the raw keyboard axes. Keeps the gameplay/camera boundary clean if the camera system
+  is ever replaced with a real spring-arm rig later, per this file's own per-folder ownership rule.
+- **Keyboard only, no touch joystick yet:** FAZ 4's roadmap also wants touch input for mobile.
+  Building a joystick UI is a distinct, real sub-task of its own (and mobile input still can't be
+  tested for real in this sandbox — see Known Issues) — not half-added alongside the movement/
+  animation/camera work in the same run.
+- **No gravity, jumping, or wall/collider raycast:** `physics.js` only does ground-height snapping.
+  Building more would be speculative — nothing in the world needs jumping yet, and no collider
+  exists to raycast against (castles have none either — FAZ 3's own deferred sub-task). Real future
+  work once a concrete need exists (e.g., castle collision once LOD/colliders finally lands).
+
+**Alternatives considered:**
+- *Write a dedicated `SpringArm`-style camera class this run instead of reusing `OrbitControls`.*
+  Rejected per the Reasoning above — real wall-avoidance raycasting is substantial, separate work;
+  reusing tested infrastructure was the better use of this run's budget.
+- *Hardcode `model.scale.setScalar(0.01)` for the known-Mixamo-centimeter case.* Rejected — reading
+  the file's own `unitScaleFactor` costs nothing extra and doesn't silently break if the asset
+  source ever changes (see `assets_manifest.json`'s note that 6 more Mixamo characters share this
+  same skeleton/scale convention, but a *different* future source might not).
+- *Have `player.js` read `camera`/`controls` directly instead of taking a pre-computed direction.*
+  Rejected — couples gameplay to the specific camera implementation, contradicting `gameplay/
+  README.md`'s stated convention and making a future camera-system replacement touch gameplay code
+  too.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- Desktop pass: zero `pageerror`/`console.error`. Console confirms unchanged terrain/river/
+  waterfall/settlement counts (`"Loaded 441 terrain chunks (~110.25 km²)"` → `"Placed 14
+  kingdom-seat settlements; 444 terrain chunks resident (~111.00 km²)"`, identical to ADR-0015 —
+  this run added a player, it didn't touch world generation) plus a new line confirming the player
+  spawned at real, ground-sampled height: `"player spawned at (0.0, 20.8, 0.0)"`.
+- Screenshot at boot: the character renders at a correct visual scale, standing on terrain.
+- Movement test: held W for 1.5s — first attempt exposed the chase-camera bug above (screenshot
+  showed the character shrinking into the distance); after the fix, a second run (Shift+W held 4s,
+  then A held 2s, then idle 1s) shows the character staying consistently framed/centered across the
+  whole sequence, confirming the fix.
+- Orbit-drag test: after the movement sequence, a left-mouse-drag across the canvas visibly
+  rotated the view to a different angle on the character (now seen from the side) while keeping
+  her centered/in-frame — confirms user orbit control still works correctly around a moving player,
+  not just a fixed origin point.
+- Touch-emulated pass (`hasTouch: true, isMobile: true`): unchanged `"Loaded 25 terrain chunks
+  (~6.25 km²)"` / `"...grounding skipped, see ADR-0013"`, player still spawns correctly, zero
+  errors — FAZ 4's addition doesn't disturb the existing mobile budget branch.
+- Offline-precache regression: visited `index.html` online first, confirmed via `caches.open` that
+  every new file this run added — `physics.js`, `input.js`, `gameplay/player.js`, the vendored
+  `FBXLoader.js`/`fflate.module.js`/`NURBSCurve.js`/`NURBSUtils.js`, and (new this run) the actual
+  `peasant_girl.fbx` + 3 animation clips themselves, now that FAZ 4 code really fetches them — are
+  all present in the `westeros-shell-v1` cache, then went offline and loaded `game3d.html` fresh:
+  loaded fully (loading overlay hid, meaning the player finished loading from cache too), zero
+  errors.
+- `node --check` across every non-vendor `.js` file (including the 4 newly vendored ones):
+  clean. `manifest.json`/`assets_manifest.json` still valid JSON.
+- 2D-game regression (`index.html`): same pre-existing, already-documented sandbox-only
+  `firebase is not defined` / blocked-network-request/404 errors as every prior run — nothing new.
+
+**Consequence:** FAZ 4's roadmap now has two of its four sub-tasks meaningfully started: "3rd
+person camera" (chase-cam via reused `OrbitControls`, wall-avoidance raycast still open) and "WASD
++ touch joystick" (WASD done, touch joystick still open) plus "ground collision" (height-snapping
+done, no gravity/jump/wall-collider) and "rigged human + animation blending" (done — idle/walking/
+running crossfade off real speed). World Coverage is unchanged (444/550 chunks desktop, 25/550
+mobile — this run added a player, not new terrain). Texture memory grows by the character's own
+maps (baked into the FBX, not measured separately here — negligible against either device budget
+at this single-character scale). `service-worker.js`'s `GAME3D_SHELL_FILES` now includes every
+file this run added, keeping the offline-PWA golden rule intact.

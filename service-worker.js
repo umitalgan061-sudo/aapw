@@ -18,8 +18,10 @@ const SHELL_FILES = [
 ];
 
 // 3D mode's own app shell — precached separately (own cache.addAll call, own catch) so a failure
-// here can never block the 2D shell above from installing. Only currently-loaded-by-code files:
-// no character/creature model/animation assets (those aren't fetched by any code until FAZ 4/6/7).
+// here can never block the 2D shell above from installing. FAZ 4 (this run) is the first system
+// to actually fetch a character/animation asset (peasant_girl + its 3 clips) — those are precached
+// below alongside the code that loads them. FAZ 5/6/7's NPC/animal/dragon assets still aren't
+// fetched by any code yet, so they stay out of this list until those phases actually load them.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -33,6 +35,9 @@ const GAME3D_SHELL_FILES = [
     './src/3d/stars.js',
     './src/3d/lighting.js',
     './src/3d/fog.js',
+    './src/3d/physics.js',
+    './src/3d/input.js',
+    './src/3d/gameplay/player.js',
     './src/3d/world/terrain.js',
     './src/3d/world/chunkManager.js',
     './src/3d/world/water.js',
@@ -43,7 +48,15 @@ const GAME3D_SHELL_FILES = [
     './src/3d/vendor/three/LICENSE',
     './src/3d/vendor/three/addons/loaders/GLTFLoader.js',
     './src/3d/vendor/three/addons/utils/BufferGeometryUtils.js',
-    './src/3d/vendor/three/addons/controls/OrbitControls.js'
+    './src/3d/vendor/three/addons/controls/OrbitControls.js',
+    './src/3d/vendor/three/addons/loaders/FBXLoader.js',
+    './src/3d/vendor/three/addons/libs/fflate.module.js',
+    './src/3d/vendor/three/addons/curves/NURBSCurve.js',
+    './src/3d/vendor/three/addons/curves/NURBSUtils.js',
+    './assets/models/characters/peasant_girl.fbx',
+    './assets/animations/peasant_girl/idle.fbx',
+    './assets/animations/peasant_girl/walking.fbx',
+    './assets/animations/peasant_girl/running.fbx'
 ];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];

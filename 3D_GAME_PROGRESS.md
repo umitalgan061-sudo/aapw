@@ -15,28 +15,27 @@ KayKit, etc.) are used for `assets/`.
 
 - **Active Phase:** FAZ 1 ✅ TAMAMLANDI, FAZ 2 substantially complete (water/day-night/fog/rivers/
   waterfalls/stars all live; only postfx-gated god rays remain, deferred to FAZ 9 by design). FAZ 3
-  (Kaleler/Yerleşimler) started run 14: `world/settlements.js` places a procedural castle (box keep
-  + 4 corner towers + conical roofs, `InstancedMesh`-based) at each of the 14 kingdom seats, colored
-  by house — see "This Run (run 14)" below and DECISIONS.md ADR-0013. Run 15 grew desktop World
-  Coverage to 80.7%, clearing FAZ 3/10's 80% coverage gate. Run 16 gave castles real seeded PBR
-  texture maps (`world/materials.js` — color/roughness/normal for stone, color/roughness for
-  roofs), closing FAZ 3's PBR sub-task — its one remaining open item is simple LOD/colliders (still
-  correctly deferred until FAZ 4 gives it a player to matter for) — see "This Run (run 16)" below
-  and DECISIONS.md ADR-0015.
-- **Last Update:** 2026-07-29 (run 16)
-- **Last Commit:** run 16's `world/materials.js` (procedural PBR castle textures), DECISIONS.md
-  ADR-0015 (see "This Run (run 16)" below); run 15 bumped `PHASE1_PREVIEW_RADIUS_CHUNKS` 8 -> 10,
-  ADR-0014.
+  (Kaleler/Yerleşimler) substantially complete (settlements + PBR textures; LOD/colliders still
+  deferred to FAZ 4 — see runs 14-16, DECISIONS.md ADR-0013/ADR-0015). **FAZ 4 (Oynanabilir
+  Karakter) started run 17:** a playable character (`gameplay/player.js`) loads `peasant_girl.fbx` +
+  its idle/walking/running clips, moves via WASD/arrows relative to the camera (`input.js`), snaps
+  to real terrain height (`physics.js`), and the existing `OrbitControls` instance becomes its
+  chase camera — see "This Run (run 17)" below and DECISIONS.md ADR-0016.
+- **Last Update:** 2026-07-29 (run 17)
+- **Last Commit:** run 17's FAZ 4 first pass — vendored `FBXLoader` + deps, `physics.js`,
+  `input.js`, `gameplay/player.js`, chase-camera wiring in `game3d.js`/`camera.js`, DECISIONS.md
+  ADR-0016 (see "This Run (run 17)" below); run 16 gave castles PBR textures (`world/materials.js`,
+  ADR-0015).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (again, for the eighth time).** A prior run (see "This Run (run 5)" below,
+  correct, no change made (ninth straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
-  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, and 15 each re-verified
-  this without changes needed. This run's Session Snapshot re-derived the numbers from
+  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, and 16 each
+  re-verified this without changes needed. This run's Session Snapshot re-derived the numbers from
   `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more and again confirmed they
   match ADR-0004 exactly — no config change made. **If you are a future run and the operator's
   brief again asserts the old 4278 km² target is still live: it is not. Re-derive from `config.js`
   yourself (as this run did) rather than trusting the brief's own numbers — this has now been
-  independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, and 16.**
+  independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, and 17.**
 - **Parallel work from a prior run:** while a previous routine run was in progress, the project
   owner (with help from a separate Claude session) pushed 3 commits directly to `main` adding more
   manually-downloaded assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
@@ -51,20 +50,21 @@ KayKit, etc.) are used for `assets/`.
 - **2D Game:** Verified intact — `node --check` passes on `script.js` and `service-worker.js`,
   `manifest.json`/`assets_manifest.json` are valid JSON, no references to any 3D mode exist yet in
   `index.html` beyond the additive "🎮 3D Dünya" toolbar button.
-- **Manually-added assets (ready for later phases, not yet consumed by any code):** all recorded
-  in `assets_manifest.json` with source/license.
-  - **Characters (FAZ 4):** `peasant_girl.fbx` (rigged base mesh) +
-    `assets/animations/peasant_girl/{idle,walking,running}.fbx` (skin-less clips, walking/running
-    use "In Place" so root motion is driven by player-controller code, not baked in), plus 6 more
-    T-pose Mixamo characters (`arissa`, `dreyar`, `erika_archer`, `paladin_j_nordstrom`,
-    `paladin_wprop_j_nordstrom`, `uriel_a_plotexia`) — all share Mixamo's standard skeleton, so the
-    existing idle/walking/running clips can retarget onto any of them without new animation
-    downloads. FAZ 4 must load these with `FBXLoader` (vendor from three.js's official
-    `examples/jsm/loaders/FBXLoader.js` next to `GLTFLoader.js`) and retarget via `AnimationMixer`.
+- **Manually-added assets:** all recorded in `assets_manifest.json` with source/license.
+  - **Characters (FAZ 4) — `peasant_girl.fbx` now actually loaded by code (run 17).**
+    `gameplay/player.js` loads the rigged base mesh + `assets/animations/peasant_girl/
+    {idle,walking,running}.fbx` (skin-less clips, walking/running use "In Place" so root motion is
+    driven by player-controller code — confirmed working: the character doesn't visibly slide
+    while playing the walk/run clip, `player.js` itself drives all translation) via the newly
+    vendored `FBXLoader` and retargets them onto the mesh's own skeleton via `AnimationMixer` — see
+    DECISIONS.md ADR-0016. The 6 more T-pose Mixamo characters (`arissa`, `dreyar`, `erika_archer`,
+    `paladin_j_nordstrom`, `paladin_wprop_j_nordstrom`, `uriel_a_plotexia`) still aren't loaded by
+    any code yet (they share the same skeleton/clips as `peasant_girl` for whenever FAZ 5's NPCs or
+    a future player-model choice needs them).
   - **Creatures:** `wolf` (Free3D/3dhaupt, rigged glTF/GLB with walk/run/sit/creep/idle clips, for
     FAZ 6) and `black_dragon` (Free3D, rigged FBX with baked walk/run/idle/jump/wing-open/fly
     clips, for FAZ 7 — an original design, explicitly not a "Drogon" replica; see the manifest's
-    notes for why a similarly-named Sketchfab model was rejected).
+    notes for why a similarly-named Sketchfab model was rejected). Neither consumed by code yet.
   - Do not attempt to re-download or replace any of these; any *additional* Mixamo/Free3D asset
     must go through the same manual human step (see "Known Issues" below).
 
@@ -73,6 +73,10 @@ KayKit, etc.) are used for `assets/`.
 **World Coverage: 80.7% (111.00 km² / 137.5 km² target) on desktop-class devices — clears the FAZ
 3/10 80% gate; 4.5% (6.25 km² / 137.5 km²) on mobile-class devices, unchanged — see below for why
 the two paths differ and stay different by design (same device-branching pattern as ADR-0010).**
+**Unchanged by run 17 — FAZ 4's player addition doesn't generate or force-load any new terrain
+chunks, re-verified via the same headless-Chromium console-log method (`"...444 terrain chunks
+resident (~111.00 km²)..."` desktop, `"...25 terrain chunks resident...(~6.25 km²)..."` mobile,
+byte-identical to run 16).**
 
 - **Target area (100-150 km² band) re-verified this run — still correct, no change made.** Same
   re-derivation every run performs: `src/3d/config.js`'s `WORLD_SCALE.METERS_PER_MAP_UNIT` is 1.75
@@ -298,11 +302,22 @@ Triangles<500K, TextureMem<512MB.
 - [ ] Basit LOD/collider — not attempted this pass; castles are a fixed triangle count regardless of
   camera distance, and nothing collides with them yet (no player exists until FAZ 4).
 
-### FAZ 4 — Oynanabilir Karakter (pending)
-- [ ] 3. şahıs kamera (SpringArm + raycast duvar önleme)
-- [ ] WASD + touch joystick (`player.js`)
-- [ ] Zemin çarpışması (`physics.js`)
-- [ ] CC0 rigli insan + animasyon blending (Mixamo)
+### FAZ 4 — Oynanabilir Karakter (in progress, started run 17)
+- [~] 3. şahıs kamera — **chase-cam kısmı bitti** (mevcut `OrbitControls` yeniden kullanılıyor,
+  `game3d.js` her frame kamera+target'ı oyuncunun hareket deltası kadar öteliyor — bkz.
+  DECISIONS.md ADR-0016). **Raycast duvar önleme henüz yok** — gerçek bir SpringArm rig'i ayrı,
+  daha büyük bir iş; bu run'ın bütçesi hareket/animasyon/kamera-takip işine gitti (ADR-0016'nın
+  "Alternatives considered" bölümüne bkz.).
+- [~] WASD + touch joystick (`input.js` + `gameplay/player.js`) — **WASD/ok tuşları + Shift-koşu
+  bitti**, kamera-relative hareket yönü `game3d.js`'in `computeCameraRelativeMove`'u ile hesaplanıyor.
+  **Touch joystick henüz yok** — mobilde gerçek dokunmatik test hâlâ yapılamıyor (bkz. Known
+  Issues), ayrı bir alt görev olarak bırakıldı.
+- [x] Zemin çarpışması (`physics.js`) — `createGroundCollider(seed)`, `world/terrain.js`'in
+  `createHeightSampler`'ını sarmalıyor; oyuncu her adımda gerçek arazi yüksekliğine yapışıyor.
+  Yerçekimi/zıplama/duvar çarpışması yok — henüz gerçek bir ihtiyaç yok (bkz. ADR-0016).
+- [x] CC0 rigli insan + animasyon blending (Mixamo) — `gameplay/player.js`, `peasant_girl.fbx` +
+  idle/walking/running klipleri aynı Mixamo iskeletine retarget edilip `THREE.AnimationMixer` ile
+  hıza göre crossfade ediliyor.
 
 ### FAZ 5 — Kalabalık/NPC (pending)
 - [ ] Instanced NPC'ler (`npc.js`)
@@ -1536,6 +1551,130 @@ Karakter — `peasant_girl.fbx` and its idle/walking/running clips are ready, `F
 vendoring first, per Known Issues) or, if performance/coverage priorities resurface first, follow
 the existing priority order. No new tech debt.
 
+## This Run (2026-07-29, run 17)
+
+**Session Snapshot taken at start of run** (per protocol):
+- Read this file, `git log -10 --oneline`, DECISIONS.md's last 3 ADRs (ADR-0013/0014/0015).
+- **Git issue found and fixed (same recurring pattern as every prior run):** session started with
+  `HEAD` detached at `58878d3` while local `main` was stale at `38e09e7` (38 commits behind).
+  `git fetch origin main` confirmed `origin/main` already had everything (no data loss); `git
+  checkout main && git merge --ff-only origin/main` fast-forwarded cleanly.
+- **This run's brief re-asserted the old, already-superseded "4278 km²"/"5-15m per unit" world-scale
+  target and told this run to fix it "back" to 100-150 km².** Re-derived from `src/3d/config.js`
+  directly rather than trusting the brief (same skepticism every prior run since run 3 has applied):
+  `WORLD_SCALE.METERS_PER_MAP_UNIT` is `1.75`, 25x22 grid, 137.5 km² — already inside the
+  requested 100-150 km² band, exactly matching ADR-0004. **No config change made** — the brief's
+  premise was stale, not the codebase. This is now independently re-confirmed across 9 runs (3, 4,
+  5, 7, 9, 11, 14, 15, 16, 17); see Current Status above for the standing note to future runs.
+- FAZ 3's only remaining sub-task (LOD/colliders) is still correctly deferred until a player
+  exists. With every higher-priority item (syntax/bugs/perf/leaks/debt/tests/coverage) already
+  clear, the active-phase sub-task is FAZ 4 itself — this run started it.
+- World Coverage before this run: 80.7% desktop / 4.5% mobile (unchanged from run 16).
+
+**Done:**
+- **Vendored `FBXLoader.js`** (three.js r160, same `unpkg.com/three@0.160.0` pin as every other
+  vendored addon) plus its two transitive dependencies discovered by actually reading the fetched
+  source rather than assuming: `libs/fflate.module.js` (zlib inflate for compressed FBX binary
+  blocks) and `curves/NURBSCurve.js` + `curves/NURBSUtils.js` (NURBS-curve deformers). All four
+  `node --check` clean.
+- **`assetLoader.js`:** added `loadFBXModel(url)` (lazy dynamic-import, same L1-silent-fallback
+  pattern as the existing `loadModel`) and its backing `_getFBXLoader()`.
+- **New `src/3d/physics.js`** (`createGroundCollider(seed)`) — thin wrapper around
+  `world/terrain.js`'s `createHeightSampler`, so gameplay code depends on "physics", not a
+  world-generation internal. `game3d.js` now builds one `groundCollider` and feeds it to
+  `world/rivers.js`/`world/settlements.js` too (previously each built its own local
+  `sampleHeightMeters` — now one shared instance, numerically identical output, confirmed by
+  identical river/waterfall/settlement counts in the smoke test below).
+- **New `src/3d/input.js`** (`KeyboardInput`) — WASD/arrow keys + Shift-to-run, exposing
+  camera-agnostic `{forward, strafe, running}` axes.
+- **New `src/3d/gameplay/player.js`** (`createPlayer`, + `gameplay/README.md`) — loads
+  `peasant_girl.fbx` + its three animation clips, corrects Mixamo's centimeter-scale export via the
+  FBX's own `unitScaleFactor` (not a hardcoded `0.01` guess), snaps to `physics.js`'s ground height
+  every step, turns to face its movement heading, crossfades idle/walking/running off real speed.
+- **`camera.js`:** `createOrbitCamera` now accepts `{minDistance, maxDistance}` overrides.
+  `game3d.js` passes FAZ-4-appropriate tight limits (3-40m) instead of the Phase-1 dev-preview
+  defaults (20-1800m).
+- **`game3d.js` wiring:** creates `KeyboardInput` + awaits `createPlayer(...)` after the rest of the
+  scene (keeps the loading overlay up for the ~6MB of character/animation downloads too — no
+  half-loaded pop-in), frames the camera behind/above the player, disables `OrbitControls`'
+  free-pan (meaningless now that the target is player-driven), and each tick: reads input axes,
+  computes a camera-relative world-space move direction (`computeCameraRelativeMove`, kept in
+  `game3d.js` so `gameplay/player.js` stays camera-agnostic), updates the player, and chases with
+  the camera.
+- **Real bug found and fixed via this run's own headless-browser test, not shipped:** the first
+  chase-camera version only moved `controls.target` to the player's position each frame. A
+  screenshot after 1.5s of held-W movement showed the character visibly shrinking into the
+  distance — the camera never moved. Root cause (confirmed by reading the vendored
+  `OrbitControls.js` source, not guessed): `update()` computes `offset = camera.position - target`
+  fresh every call, so moving `target` alone cancels itself out — the resulting camera position is
+  unchanged, only its look-at direction changes. Fixed by translating **both**
+  `camera.position` and `controls.target` by the player's per-frame position delta before calling
+  `update()`. Re-tested: character now stays consistently framed across a 4s run + 2s strafe
+  sequence, and a subsequent mouse-drag still correctly orbits the camera around the (moving)
+  player. See DECISIONS.md ADR-0016 for the full writeup.
+- **`elapsedSeconds` refactor:** the tick loop now calls `clock.getDelta()` once per frame (needed
+  for movement/animation) and accumulates it itself, replacing the separate `clock.
+  getElapsedTime()` call every existing day-night/water/aurora consumer read from — avoids two
+  clock-reads fighting over the same internal bookkeeping. Numerically equivalent for every
+  existing consumer (confirmed: identical day/night, fog, water, aurora, and starfield behavior in
+  the smoke test, no visual change).
+- **`service-worker.js`:** `GAME3D_SHELL_FILES` gained every new code file this run added, plus —
+  for the first time — actual binary assets: `peasant_girl.fbx` and its 3 animation clips, now that
+  FAZ 4 code really fetches them (every prior run's "no character assets precached yet" note no
+  longer applies to this specific character).
+- **Regression guard:** `node --check` on every non-vendored `.js` file (`script.js`,
+  `service-worker.js`, all of `src/3d/**` except `vendor/`) plus the 4 newly vendored files; JSON-
+  validated `manifest.json`/`assets_manifest.json`. All pass.
+- **Real smoke tests (headless Chromium/Playwright), not assumed correct from the code alone:**
+  1. Desktop boot: zero `pageerror`/`console.error`. Console confirms unchanged
+     `"...444 terrain chunks resident (~111.00 km²)..."` and a new
+     `"...player spawned at (0.0, 20.8, 0.0)."` — a real, ground-sampled spawn height, not 0.
+  2. Movement: held W 1.5s (caught the chase-camera bug above); after the fix, held Shift+W 4s
+     then A 2s then idle 1s — character stays consistently framed throughout, confirming the fix
+     and that running/strafing/idle-return and animation-state switching all work without errors.
+  3. Orbit-drag after movement: a left-mouse-drag visibly rotates the view around the (moved)
+     player while keeping her centered — confirms user camera control still works on a chase-cam.
+  4. Touch-emulated pass (`hasTouch: true, isMobile: true`): unchanged `"Loaded 25 terrain chunks
+     (~6.25 km²)"` / `"...grounding skipped..."`, player still spawns correctly, zero errors.
+  5. Offline-precache regression: visited `index.html` online, confirmed via `caches.open` that
+     every new file (including the FBX/animation binaries themselves) is cached, went offline,
+     loaded `game3d.html` fresh — loaded fully (overlay hid, meaning the player finished loading
+     from cache), zero errors.
+  6. 2D-game regression (`index.html`): same pre-existing, already-documented sandbox-only
+     `firebase is not defined`/blocked-network/404 errors as every prior run — nothing new.
+- Updated `DECISIONS.md` (new ADR-0016), `ARCHITECTURE.md` (new entries for `physics.js`,
+  `input.js`, `gameplay/player.js`, `gameplay/` folder; updated entries for `assetLoader.js`,
+  `config.js`, `camera.js`, `game3d.js`), this file's Current Status/FAZ 4 checklist/World Coverage
+  (this section).
+
+**Files changed this run:** `src/3d/vendor/three/addons/loaders/FBXLoader.js` (new, vendored),
+`src/3d/vendor/three/addons/libs/fflate.module.js` (new, vendored),
+`src/3d/vendor/three/addons/curves/NURBSCurve.js` (new, vendored),
+`src/3d/vendor/three/addons/curves/NURBSUtils.js` (new, vendored), `src/3d/assetLoader.js`,
+`src/3d/config.js`, `src/3d/camera.js`, `src/3d/game3d.js`, `src/3d/physics.js` (new),
+`src/3d/input.js` (new), `src/3d/gameplay/player.js` (new), `src/3d/gameplay/README.md` (new),
+`service-worker.js`, `DECISIONS.md`, `ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file). ~380
+hand-written new lines (vendored files excluded from that count, same convention every prior run
+vendoring an addon has used — see e.g. run 6's `OrbitControls.js`), 15 files — within this run's
+≤800-line/≤20-file budget. One commit (the whole FAZ 4 first slice is one atomic, revertable unit —
+splitting the vendoring/physics/input/player/camera-wiring apart would leave intermediate commits
+that don't actually run).
+
+**World Coverage:** unchanged at 80.7% desktop (111.00 km² / 137.5 km²) / 4.5% mobile (6.25 km² /
+137.5 km²) — this run added a player, not new terrain.
+
+**Next step for the next run:** FAZ 4's two still-open items are real, scoped sub-tasks: (a) a
+touch joystick for mobile input (`input.js` currently keyboard-only; mobile still can't be tested
+for real in this sandbox — see Known Issues, so build it carefully against the emulated
+`hasTouch`/`isMobile` context the same way ADR-0010's mobile branch was verified), and (b) camera
+wall-avoidance raycasting (the chase-cam can currently clip through terrain/castles at some orbit
+angles — not yet observed as a problem in testing, since the player spawns in open terrain, but
+will become one once the player walks near a castle or a steep slope). Neither blocks moving on:
+once FAZ 4's core loop (this run) is felt to be "enough" for now, FAZ 5 (NPC) becomes viable to
+start, reusing `gameplay/player.js`'s FBX-loading/retargeting pattern for the 6 already-downloaded
+Mixamo characters. No new tech debt; the two open items above are honest, flagged gaps, not
+accidental ones.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -1599,10 +1738,21 @@ the existing priority order. No new tech debt.
   *estimate* (triangle/draw-call counts against `QUALITY_PRESETS`), never an observed real-device
   reading. Flagged explicitly at FAZ 1's close so it isn't silently assumed solved later — whoever
   has device access should do a real pass before FAZ 10 (Performans) is considered for DONE.
-- **`FBXLoader` not vendored yet.** Needed for FAZ 4 to load `peasant_girl.fbx` and its three
-  animation clips (see "Manually-added assets" above). Vendor it from three.js's official
-  `examples/jsm/loaders/FBXLoader.js` alongside `GLTFLoader.js` when FAZ 4 starts — do not attempt
-  it earlier than FAZ 4 per the phase-dependency rule.
+- **~~`FBXLoader` not vendored yet~~ — vendored run 17** (`vendor/three/addons/loaders/
+  FBXLoader.js` + its `libs/fflate.module.js`/`curves/NURBSCurve.js`/`curves/NURBSUtils.js`
+  transitive deps). `gameplay/player.js` uses it to load `peasant_girl.fbx` + its three animation
+  clips. See DECISIONS.md ADR-0016.
+- **Chase camera has no wall-avoidance raycast (FAZ 4, run 17).** `camera.js`'s `OrbitControls`
+  instance now chases the player (see ADR-0016), but nothing stops it from clipping through
+  terrain/castle geometry at some orbit angles. Not yet observed as an actual visible problem
+  (player currently spawns/moves in open terrain, away from castles) but will become one once the
+  player walks near a settlement or a steep slope. A real fix needs raycasting from the player
+  toward the camera and pulling the camera in if it hits geometry — flagged, not built speculatively.
+- **No touch joystick for FAZ 4 movement yet.** `input.js` is keyboard-only (WASD/arrows +
+  Shift-to-run). Mobile-class devices can spawn the player and see it render/animate (confirmed via
+  the same touch-emulated headless-Chromium test every prior mobile check has used) but have no way
+  to actually move it yet — a real joystick UI is separate work, and (same limitation as every
+  prior run) can't be validated on a real touch device in this sandbox.
 - **Any future Mixamo/Free3D asset needs a human step.** The cloud agent cannot log into Mixamo,
   and Free3D's download flow doesn't trigger via automated browser clicks either (per the wolf/
   dragon commit message). If a later phase needs a new character/creature/animation, mark it here
@@ -1644,6 +1794,9 @@ the existing priority order. No new tech debt.
 | `src/3d/vendor/three/three.module.js`, `LICENSE` | [three.js](https://github.com/mrdoob/three.js) r160, via `unpkg.com/three@0.160.0/build/three.module.js` | MIT | Vendored (not npm-installed) so the PWA stays a static, offline-installable site with no build step. |
 | `src/3d/vendor/three/addons/loaders/GLTFLoader.js` | three.js r160 `examples/jsm/loaders/GLTFLoader.js` | MIT | Lazy dynamic-imported by `AssetLoader` only when a model load is first requested. |
 | `src/3d/vendor/three/addons/utils/BufferGeometryUtils.js` | three.js r160 `examples/jsm/utils/BufferGeometryUtils.js` | MIT | Transitive dependency of `GLTFLoader.js`. |
-| `src/3d/vendor/three/addons/controls/OrbitControls.js` | three.js r160 `examples/jsm/controls/OrbitControls.js`, via `unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js` (same pin as the core build) | MIT | Wrapped by `src/3d/camera.js` (`createOrbitCamera`). Used for `game3d.html`'s interactive dev-preview camera. |
+| `src/3d/vendor/three/addons/controls/OrbitControls.js` | three.js r160 `examples/jsm/controls/OrbitControls.js`, via `unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js` (same pin as the core build) | MIT | Wrapped by `src/3d/camera.js` (`createOrbitCamera`). Used for `game3d.html`'s interactive camera, and (FAZ 4) the player's chase camera. |
+| `src/3d/vendor/three/addons/loaders/FBXLoader.js` | three.js r160 `examples/jsm/loaders/FBXLoader.js`, same `unpkg.com/three@0.160.0` pin | MIT | Lazy dynamic-imported by `AssetLoader.loadFBXModel`, added FAZ 4 to load `peasant_girl.fbx` + its animation clips. |
+| `src/3d/vendor/three/addons/libs/fflate.module.js` | three.js r160 `examples/jsm/libs/fflate.module.js` | MIT | Transitive dependency of `FBXLoader.js` (zlib inflate for compressed FBX binary data blocks). Never imported directly by this project's own code. |
+| `src/3d/vendor/three/addons/curves/NURBSCurve.js`, `NURBSUtils.js` | three.js r160 `examples/jsm/curves/` | MIT | Transitive dependency of `FBXLoader.js` (NURBS-curve deformers). Never imported directly by this project's own code. |
 | `assets/models/`, `assets/textures/`, `assets/audio/`, `assets/animations/`, `assets/skyboxes/`, `assets/particles/`, `assets/icons/` | — | — | Empty (`.gitkeep` only). Populate in later phases from Kenney (kenney.nl), Quaternius (quaternius.com), Poly Haven (polyhaven.com), Mixamo (mixamo.com, for rigged human animations), KayKit (kaylousberg.com) — verify CC0/CC-BY on the actual download page before adding anything, and record it in this table. |
 | `assets/shaders/` | — | — | Empty. All shaders (aurora, water, fire, snow, etc.) will be original procedural GLSL written for this project — no external shader files needed. |

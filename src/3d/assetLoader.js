@@ -14,6 +14,10 @@ import { EVENTS } from './config.js';
 /** Relative path used for the lazy/dynamic import of GLTFLoader — only paid for once actually needed. */
 const GLTF_LOADER_MODULE_PATH = './vendor/three/addons/loaders/GLTFLoader.js';
 
+/** Relative path used for the lazy/dynamic import of FBXLoader — only paid for once a Mixamo-style
+ * character/animation FBX is first requested (FAZ 4). */
+const FBX_LOADER_MODULE_PATH = './vendor/three/addons/loaders/FBXLoader.js';
+
 export class AssetLoader {
 	/**
 	 * @param {object} [options]
@@ -25,6 +29,8 @@ export class AssetLoader {
 		this.textureLoader = new THREE.TextureLoader(this.manager);
 		/** @type {Promise<import('./vendor/three/addons/loaders/GLTFLoader.js').GLTFLoader>|null} */
 		this._gltfLoaderPromise = null;
+		/** @type {Promise<import('./vendor/three/addons/loaders/FBXLoader.js').FBXLoader>|null} */
+		this._fbxLoaderPromise = null;
 
 		this.manager.onProgress = (url, loaded, total) => {
 			this.events.emit(EVENTS.ASSET_PROGRESS, { url, loaded, total, ratio: total > 0 ? loaded / total : 1 });
@@ -46,6 +52,40 @@ export class AssetLoader {
 			);
 		}
 		return this._gltfLoaderPromise;
+	}
+
+	/** Lazily imports and constructs the FBXLoader so it's never bundled/parsed until a character/animation FBX is requested. */
+	async _getFBXLoader() {
+		if (!this._fbxLoaderPromise) {
+			this._fbxLoaderPromise = import(FBX_LOADER_MODULE_PATH).then(
+				({ FBXLoader }) => new FBXLoader(this.manager)
+			);
+		}
+		return this._fbxLoaderPromise;
+	}
+
+	/**
+	 * Load an FBX file (Mixamo character mesh or skin-less animation clip). Returns the loaded
+	 * `Group` as-is: for a character mesh, traverse it for the skinned mesh/skeleton; for an
+	 * animation-only file, read `.animations[0]`. Falls back to a placeholder box on failure so a
+	 * missing/corrupt character asset degrades the same way a missing GLTF model does.
+	 * @param {string} url
+	 * @param {object} [options]
+	 * @param {number} [options.fallbackColor]
+	 * @param {number} [options.fallbackSize]
+	 * @returns {Promise<THREE.Group>}
+	 */
+	async loadFBXModel(url, { fallbackColor = 0xff00ff, fallbackSize = 1 } = {}) {
+		try {
+			const loader = await this._getFBXLoader();
+			const object3D = await loader.loadAsync(url);
+			this.events.emit(EVENTS.ASSET_LOADED, { url, type: 'fbx' });
+			return object3D;
+		} catch (error) {
+			console.error(`[AssetLoader] loadFBXModel("${url}") failed, using placeholder box.`, error);
+			this.events.emit(EVENTS.ASSET_ERROR, { url, type: 'fbx', error });
+			return this._createPlaceholder(fallbackColor, fallbackSize);
+		}
 	}
 
 	/**

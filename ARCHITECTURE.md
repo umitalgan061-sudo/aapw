@@ -25,9 +25,12 @@ the way it is.
 ## `src/3d/assetLoader.js` — AssetLoader
 
 - **Depends on:** `eventBus.js`, lazy dynamic-imports `GLTFLoader` (from
-  `vendor/three/addons/loaders/`) only when a model load is first requested.
-- **Used by:** `game3d.js` (`assetLoader` singleton export); will be used by every future system
-  that loads a model/texture.
+  `vendor/three/addons/loaders/`) only when a model load is first requested, and (added FAZ 4)
+  `FBXLoader` the same way — only paid for once a Mixamo-style character/animation FBX is
+  requested. `FBXLoader.js` itself vendors two more transitive deps (`vendor/three/addons/libs/
+  fflate.module.js`, `vendor/three/addons/curves/NURBSCurve.js` + `NURBSUtils.js`) — never imported
+  by anything in this project directly, only by `FBXLoader.js` itself.
+- **Used by:** `game3d.js` (`assetLoader` singleton export); `gameplay/player.js` (`loadFBXModel`).
 - **Critical path:** no — falls back to a placeholder box mesh on load failure (L1 silent fallback
   per the project's error-handling hierarchy).
 - **Failure mode:** emits `asset:error`, logs, substitutes a placeholder. Never throws to callers.
@@ -40,8 +43,10 @@ the way it is.
   storage keys, event names, `WORLD_SCALE`/`CHUNK_CONFIG` (the kingdom-bounding-box-derived
   world size and 500m chunk grid; bounding box from `DECISIONS.md` ADR-0001, scale corrected down
   to a ≤150 km² target by ADR-0004 — always check ADR-0004 for the current numbers, not ADR-0001),
-  and `SETTLEMENT_CONFIG` (castle keep/tower/roof dimensions for `world/settlements.js`, added FAZ 3
-  — see ADR-0013).
+  `SETTLEMENT_CONFIG` (castle keep/tower/roof dimensions for `world/settlements.js`, added FAZ 3 —
+  see ADR-0013), and (added FAZ 4) `PLAYER_CONFIG` (character/animation asset URLs, walk/run
+  speeds, turn rate, animation crossfade duration, spawn point, chase-camera framing/distance
+  limits — see ADR-0016).
 - **Critical path:** yes — every system imports constants from here.
 - **Failure mode:** N/A (static data only).
 
@@ -210,17 +215,83 @@ the way it is.
   disposed, so `disposeCastleMaterial` (not a bare `material.dispose()`) must be used on teardown;
   `settlements.js`'s `disposeSettlements` already does this correctly.
 
-## `src/3d/camera.js` — Orbit camera controls
+## `src/3d/camera.js` — Orbit camera controls / FAZ 4 chase camera
 
 - **Depends on:** `src/3d/vendor/three/addons/controls/OrbitControls.js` (vendored three.js r160
   addon, same pin as the core build — see `3D_GAME_PROGRESS.md` Asset Sources).
-- **Used by:** `game3d.js` only (`createOrbitCamera(camera, canvas)`).
-- **Critical path:** no — purely a dev-preview convenience. A real third-person player-follow
-  camera (spring-arm + wall-avoidance raycast) is separate Phase 4 work and will likely replace
-  this rather than build on it.
+- **Used by:** `game3d.js` only (`createOrbitCamera(camera, canvas, {minDistance, maxDistance})`).
+- **Critical path:** no — purely a camera convenience.
 - **Failure mode:** none currently (vendored, well-tested upstream code; this module only
   configures it). Caller must call `.update()` every frame (damping requires it) and `.dispose()`
   on teardown to remove its pointer/wheel listeners — both already wired in `game3d.js`.
+- **FAZ 4 update (ADR-0016):** rather than a separate custom spring-arm rig, `game3d.js` reuses this
+  same instance as the player's chase camera — `createOrbitCamera` now accepts `minDistance`/
+  `maxDistance` overrides (`PLAYER_CONFIG.CAMERA_MIN_DISTANCE_METERS`/`CAMERA_MAX_DISTANCE_METERS`,
+  much tighter than the 20-1800m dev-preview defaults), and `game3d.js`'s tick loop translates both
+  `camera.position` and `controls.target` by the player's per-frame movement delta every frame
+  (required — see ADR-0016's "real bug found" note: moving `target` alone does *not* move the
+  camera, `OrbitControls.update()`'s offset math cancels it out). Free-pan is disabled
+  (`controls.enablePan = false`) once a player exists, since a panned target would just get
+  overwritten next frame. True wall-avoidance raycasting is **not** implemented — flagged in
+  `3D_GAME_PROGRESS.md`'s Known Issues.
+
+## `src/3d/physics.js` — Ground-collision resolution (FAZ 4)
+
+- **Depends on:** `world/terrain.js` (`createHeightSampler`) — the one exception to "gameplay code
+  doesn't reach into `world/` directly": this module exists specifically so *other* gameplay code
+  gets that indirection instead.
+- **Used by:** `game3d.js` (`createGroundCollider`, also feeds `world/rivers.js`'s
+  `generateRiverPath` and `world/settlements.js`'s `createSettlements` their height sampler now —
+  one shared instance per scene instead of three independent ones) and `gameplay/player.js`
+  (`getGroundHeight` every movement step).
+- **Critical path:** no — pure synchronous math, cannot fail at runtime.
+- **Failure mode:** none (same as `world/terrain.js`'s own height sampler).
+- **Scope, deliberately minimal:** ground-height snapping only. No gravity/velocity simulation, no
+  wall/collider raycast against settlements — real future work once a concrete need exists
+  (jumping, castle collision), not built speculatively now.
+
+## `src/3d/input.js` — Keyboard input (FAZ 4)
+
+- **Depends on:** nothing (reads `window` keydown/keyup events, passed in as a constructor param
+  for testability).
+- **Used by:** `game3d.js` (`KeyboardInput`, read once per frame via `getAxes()`).
+- **Critical path:** no — if input never registers, the player just never moves (a stationary
+  character is a safe degraded state, not a crash).
+- **Failure mode:** none — plain `Set` membership tracking, cannot throw.
+- **Camera-agnostic by design:** returns input-local `{forward, strafe, running}`, not a
+  world-space direction — `game3d.js` combines this with the camera's facing itself (see
+  `game3d.js`'s own entry below). Touch/joystick input (FAZ 4's other input requirement, for
+  mobile) is not built yet — this module intentionally covers keyboard only.
+
+## `src/3d/gameplay/player.js` — Playable character (FAZ 4)
+
+- **Depends on:** `three` (vendored, dynamic-imports `FBXLoader` via `assetLoader.js`),
+  `config.js` (`PLAYER_CONFIG`), `assetLoader.js` (`loadFBXModel`, and the static
+  `disposeObject3D` helper on teardown). Takes `groundCollider` (`physics.js`) and a pre-computed
+  world-space movement direction as parameters rather than importing either — see
+  `gameplay/README.md`'s Conventions for why (keeps this folder reusable if the camera system is
+  ever replaced).
+- **Used by:** `game3d.js` (`createPlayer`, `update()` called every frame, `dispose()` on
+  `pagehide`).
+- **Critical path:** yes for FAZ 4 — if the character fails to load, `assetLoader`'s existing L1
+  silent-fallback substitutes a placeholder box (movement/ground-snapping still work on it, just no
+  animation) rather than crashing the whole scene.
+- **Failure mode:** an FBX load failure is caught inside `assetLoader.loadFBXModel` itself (L1,
+  same as `loadModel`); a wholesale player-creation failure (e.g. a bug in this module, not an
+  asset issue) propagates up to `game3d.js`'s existing top-level try/catch (L3 — critical error
+  screen, not a silent blank page).
+- **Determinism note:** the character's *position* is real-time-input-driven (inherently
+  non-deterministic session to session, expected) but its ground-height sampling still goes
+  through the same seeded `physics.js` collider every other system uses.
+
+## `src/3d/gameplay/` (folder) — Playable characters, future NPCs/dragons/animals/combat/etc.
+
+- **Depends on:** `eventBus.js`, `physics.js`, `input.js`, `config.js`, `assetLoader.js`. Only
+  these plus this folder itself should be touched for a gameplay-system change (blast radius rule)
+  — see `gameplay/README.md`.
+- **Used by:** `game3d.js`.
+- **Critical path:** varies per file — see `player.js`'s own entry above.
+- **Failure mode:** varies per file.
 
 ## `src/3d/sky.js` — Aurora skybox
 
@@ -299,23 +370,38 @@ the way it is.
 ## `src/3d/game3d.js` — Entry point / scene bootstrap
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
-  `world/chunkManager.js`, `world/terrain.js` (`createHeightSampler` only), `world/water.js`,
+  `world/chunkManager.js`, `physics.js` (ground collider, feeds `world/rivers.js`/
+  `world/settlements.js` too), `input.js`, `gameplay/player.js`, `world/water.js`,
   `world/rivers.js`, `world/settlements.js`, `camera.js`, `sky.js`, `stars.js`, `lighting.js`, `fog.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
-  lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance,
-  the `ChunkManager` instance, the aurora sky mesh, the water plane, the static river mesh and its
-  waterfall curtain meshes (`world/rivers.js`), the 14 kingdom-seat settlements
-  (`world/settlements.js`, all generated once, not part of the per-frame loop), and the
-  `requestAnimationFrame` render loop (which also drives `controls.update()`,
-  `streamAroundOrbitTarget()`, `updateDayNightLighting()`, `updateAuroraSky()`, `updateFog()`, and
-  `updateWater()` each frame — see `world/chunkManager.js`, `lighting.js`, `fog.js`, `sky.js`,
-  `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009/ADR-0011/ADR-0013).
-- **Failure mode:** `initGame3D()` is fully try/caught — a WebGL init failure sets
-  `gameState.error` and emits `GAME_ERROR` (caught by `game3d.html`'s error-screen listener above)
-  rather than throwing an uncaught exception. If `#game3d-canvas` isn't present, rendering is
-  skipped with a `console.warn`, not a throw, so the module stays safe to import from non-browser
-  contexts (tests).
+  lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance
+  (now also the FAZ 4 chase camera — see `camera.js`'s entry), the `ChunkManager` instance, the
+  aurora sky mesh, the water plane, the static river mesh and its waterfall curtain meshes
+  (`world/rivers.js`), the 14 kingdom-seat settlements (`world/settlements.js`, all generated once,
+  not part of the per-frame loop), the playable character (`gameplay/player.js`, loaded async
+  *after* the rest of the scene — see `computeCameraRelativeMove` below), and the
+  `requestAnimationFrame` render loop (which now also drives `keyboardInput.getAxes()`,
+  `computeCameraRelativeMove()`, `player.update()`, the chase-camera translation, `controls.
+  update()`, `streamAroundOrbitTarget()`, `updateDayNightLighting()`, `updateAuroraSky()`,
+  `updateFog()`, and `updateWater()` each frame — see `world/chunkManager.js`, `lighting.js`,
+  `fog.js`, `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009/
+  ADR-0011/ADR-0013/ADR-0016).
+- **`computeCameraRelativeMove(camera, controls, axes)` (module-local, added FAZ 4):** turns raw
+  keyboard axes into a world-space movement direction from the camera's current facing. Kept here,
+  not in `gameplay/player.js`, so gameplay code stays camera-agnostic (see `gameplay/README.md`).
+- **`elapsedSeconds` tracking (changed FAZ 4):** the tick loop now calls `clock.getDelta()` once
+  per frame (needed for player movement/animation) and accumulates it into `state.elapsedSeconds`
+  itself, instead of calling `clock.getElapsedTime()` separately — avoids the two clock-reads
+  fighting over the same internal `oldTime` bookkeeping. Numerically equivalent to before for every
+  existing day-night/water/aurora consumer.
+- **Failure mode:** `initGame3D()` is fully try/caught (now also wraps the `await createPlayer(...)`
+  call) — a WebGL init *or* player-load failure sets `gameState.error` and emits `GAME_ERROR`
+  (caught by `game3d.html`'s error-screen listener) rather than throwing an uncaught exception. If
+  `#game3d-canvas` isn't present, rendering is skipped with a `console.warn`, not a throw, so the
+  module stays safe to import from non-browser contexts (tests). In practice a player-load failure
+  is unlikely to reach this outer catch at all — `assetLoader.loadFBXModel`'s own L1 fallback
+  already substitutes a placeholder box for a missing/corrupt FBX.
 - **Device-class chunk radius (ADR-0010):** `createScene()` picks the one-time boot preview radius
   via `isCoarsePointerDevice()` (`window.matchMedia('(pointer: coarse)')`, try/caught to `false`) —
   `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` on desktop-class devices, the mobile-budget

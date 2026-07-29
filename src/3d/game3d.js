@@ -14,6 +14,10 @@
  * — synced to the same day/night state — fades terrain into the horizon, and one static river
  * (`world/rivers.js`) traces a deterministic downhill path from high ground near the origin down
  * to sea level, with vertical "curtain" meshes marking its steepest (waterfall-grade) segments.
+ * FAZ 4 (in progress): a playable character (`gameplay/player.js`) spawns at the world origin,
+ * moves via WASD/arrow keys (`input.js`) relative to the camera's facing, snaps to ground height
+ * (`physics.js`), and the same `OrbitControls` instance becomes its chase camera — see
+ * DECISIONS.md ADR-0016.
  * See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
@@ -22,9 +26,11 @@ import * as THREE from 'three';
 import { gameEvents } from './eventBus.js';
 import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
-import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG } from './config.js';
+import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, PLAYER_CONFIG } from './config.js';
 import { ChunkManager } from './world/chunkManager.js';
-import { createHeightSampler } from './world/terrain.js';
+import { createGroundCollider } from './physics.js';
+import { KeyboardInput } from './input.js';
+import { createPlayer } from './gameplay/player.js';
 import { createWater, updateWater, disposeWater } from './world/water.js';
 import {
 	generateRiverPath,
@@ -81,7 +87,7 @@ function isCoarsePointerDevice() {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -99,9 +105,13 @@ function createScene(canvas) {
 		WORLD_DEFAULTS.NEAR_PLANE,
 		WORLD_DEFAULTS.FAR_PLANE,
 	);
-	// Starting position; OrbitControls (created below) takes over from here on user input.
+	// Starting position; overwritten once the player loads (see initGame3D) with a proper
+	// third-person framing. OrbitControls (created below) takes over from here on user input.
 	camera.position.set(0, 700, 1200);
-	const controls = createOrbitCamera(camera, canvas);
+	const controls = createOrbitCamera(camera, canvas, {
+		minDistance: PLAYER_CONFIG.CAMERA_MIN_DISTANCE_METERS,
+		maxDistance: PLAYER_CONFIG.CAMERA_MAX_DISTANCE_METERS,
+	});
 
 	const sky = createAuroraSky();
 	scene.add(sky);
@@ -131,11 +141,13 @@ function createScene(canvas) {
 			`(${isMobileClass ? 'touch/mobile-class device — mobile-budget radius' : 'desktop-class device — full preview radius'}).`,
 	);
 
-	// Static, generated once — see world/rivers.js module doc for why this doesn't stream/update per frame yet.
-	const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
+	// Single ground-height source for the whole scene (physics.js — also what FAZ 4's player
+	// snaps to). Static, generated once — see world/rivers.js module doc for why the river itself
+	// doesn't stream/update per frame yet.
+	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED);
 	const { points: riverPoints, endReason: riverEndReason } = generateRiverPath({
 		seed: WORLD_DEFAULTS.WORLD_SEED,
-		sampleHeightMeters,
+		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 	});
 	const river = createRiverMesh(riverPoints);
@@ -152,7 +164,7 @@ function createScene(canvas) {
 
 	// One procedural castle per kingdom seat (FAZ 3) — see world/settlements.js and DECISIONS.md ADR-0013.
 	const settlementsResult = createSettlements({
-		sampleHeightMeters,
+		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 		mapBounds: WORLD_SCALE.MAP_BOUNDS,
 		metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
@@ -181,7 +193,35 @@ function createScene(canvas) {
 			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²)${isMobileClass ? ' (mobile — grounding skipped, see ADR-0013)' : ' after grounding them'}.`,
 	);
 
-	return { renderer, scene, camera, controls, chunkManager, sky, stars, water, river, waterfalls, settlements: settlementsResult.group, lights, clock, lastStreamChunk: null };
+	return { renderer, scene, camera, controls, chunkManager, groundCollider, sky, stars, water, river, waterfalls, settlements: settlementsResult.group, lights, clock, elapsedSeconds: 0, lastStreamChunk: null };
+}
+
+/**
+ * Computes a normalized (or zero) world-space `(x, z)` movement direction from raw input axes and
+ * the camera's current facing — kept here (not in `gameplay/player.js`) so gameplay code stays
+ * camera-agnostic (see `gameplay/README.md`'s Conventions).
+ * @param {THREE.PerspectiveCamera} camera
+ * @param {import('./camera.js').OrbitControls} controls
+ * @param {{forward: number, strafe: number}} axes
+ * @returns {{x: number, z: number}}
+ */
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _move = new THREE.Vector3();
+const _worldUp = new THREE.Vector3(0, 1, 0);
+function computeCameraRelativeMove(camera, controls, axes) {
+	if (axes.forward === 0 && axes.strafe === 0) return { x: 0, z: 0 };
+
+	_forward.subVectors(controls.target, camera.position);
+	_forward.y = 0;
+	if (_forward.lengthSq() < 1e-6) _forward.set(0, 0, -1);
+	else _forward.normalize();
+	_right.crossVectors(_forward, _worldUp).normalize();
+
+	_move.set(0, 0, 0).addScaledVector(_forward, axes.forward).addScaledVector(_right, axes.strafe);
+	if (_move.lengthSq() < 1e-6) return { x: 0, z: 0 };
+	_move.normalize();
+	return { x: _move.x, z: _move.z };
 }
 
 /**
@@ -263,12 +303,62 @@ export async function initGame3D() {
 		const state = createScene(canvas);
 		const unbindResize = bindResize(state);
 
+		// FAZ 4: playable character. Loaded after the terrain/sky/water scene so the loading overlay
+		// (hidden only once GAME_READY's "phase1-scene" fires below) stays up for the ~6MB of
+		// character/animation FBX downloads too — no half-loaded player pop-in mid-view.
+		const keyboardInput = new KeyboardInput(window);
+		const player = await createPlayer({
+			assetLoader,
+			groundCollider: state.groundCollider,
+			spawn: { x: PLAYER_CONFIG.SPAWN_X_METERS, z: PLAYER_CONFIG.SPAWN_Z_METERS },
+		});
+		state.scene.add(player.object3D);
+		state.player = player;
+		state.keyboardInput = keyboardInput;
+		// A player now exists — panning the target would just get overwritten next frame (the
+		// camera chases the player instead), so free-pan is no longer meaningful. See camera.js.
+		state.controls.enablePan = false;
+		// Frame the camera behind/above the player before the first render (subsequent frames only
+		// move controls.target — see the tick loop below — letting OrbitControls preserve whatever
+		// relative orbit offset the user has dragged to).
+		const { x: offsetX, y: offsetY, z: offsetZ } = PLAYER_CONFIG.CAMERA_INITIAL_OFFSET_METERS;
+		state.camera.position.set(
+			player.object3D.position.x + offsetX,
+			player.object3D.position.y + offsetY,
+			player.object3D.position.z + offsetZ,
+		);
+		state.controls.target.set(
+			player.object3D.position.x,
+			player.object3D.position.y + PLAYER_CONFIG.CAMERA_TARGET_HEIGHT_METERS,
+			player.object3D.position.z,
+		);
+		state.controls.update();
+
 		let frameId;
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
+			const delta = state.clock.getDelta();
+			state.elapsedSeconds += delta;
+
+			const axes = state.keyboardInput.getAxes();
+			const moveDirection = computeCameraRelativeMove(state.camera, state.controls, axes);
+			// OrbitControls computes its offset as (camera.position - target) every update() call —
+			// moving `target` alone (without moving `camera.position` by the same amount) cancels
+			// itself out and leaves the camera stationary while it re-aims at the new target (found
+			// via this run's own headless-browser movement test: the player visibly walked away from
+			// a camera that never followed). Translating both by the player's per-frame delta
+			// preserves the user's current orbit/zoom offset while actually chasing the player.
+			const previousTargetX = state.controls.target.x;
+			const previousTargetZ = state.controls.target.z;
+			state.player.update(delta, moveDirection, axes.running);
+			const playerPos = state.player.object3D.position;
+			state.camera.position.x += playerPos.x - previousTargetX;
+			state.camera.position.z += playerPos.z - previousTargetZ;
+			state.controls.target.set(playerPos.x, playerPos.y + PLAYER_CONFIG.CAMERA_TARGET_HEIGHT_METERS, playerPos.z);
+
 			state.controls.update(); // required every frame: enableDamping is on
 			streamAroundOrbitTarget(state);
-			const elapsedSeconds = state.clock.getElapsedTime();
+			const elapsedSeconds = state.elapsedSeconds;
 			const dayNight = updateDayNightLighting(
 				state.lights,
 				elapsedSeconds,
@@ -286,6 +376,8 @@ export async function initGame3D() {
 		window.addEventListener('pagehide', () => {
 			cancelAnimationFrame(frameId);
 			unbindResize();
+			state.keyboardInput.dispose();
+			state.player.dispose();
 			state.controls.dispose();
 			state.chunkManager.disposeAll();
 			disposeAuroraSky(state.sky);
@@ -300,7 +392,11 @@ export async function initGame3D() {
 
 		gameState.set('currentPhase', 'phase1-scene');
 		gameEvents.emit(EVENTS.GAME_READY, { phase: 'phase1-scene' });
-		console.info(`[game3d] Phase 1 scene bootstrap ready: renderer/scene/camera + orbit controls live, ${state.chunkManager.loadedCount} terrain chunks rendering.`);
+		console.info(
+			`[game3d] Phase 1 scene bootstrap ready: renderer/scene/camera + chase-cam controls live, ` +
+				`${state.chunkManager.loadedCount} terrain chunks rendering, player spawned at ` +
+				`(${player.object3D.position.x.toFixed(1)}, ${player.object3D.position.y.toFixed(1)}, ${player.object3D.position.z.toFixed(1)}).`,
+		);
 	} catch (error) {
 		gameState.set('error', error.message);
 		gameEvents.emit(EVENTS.GAME_ERROR, { error });
