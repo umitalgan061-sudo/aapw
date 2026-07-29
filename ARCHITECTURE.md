@@ -81,6 +81,18 @@ the way it is.
   unload are idempotent (loading an already-loaded chunk key, or unloading a not-loaded one, is a
   safe no-op) so callers can't double-add or double-dispose a chunk by mistake.
 
+## `src/3d/camera.js` — Orbit camera controls
+
+- **Depends on:** `src/3d/vendor/three/addons/controls/OrbitControls.js` (vendored three.js r160
+  addon, same pin as the core build — see `3D_GAME_PROGRESS.md` Asset Sources).
+- **Used by:** `game3d.js` only (`createOrbitCamera(camera, canvas)`).
+- **Critical path:** no — purely a dev-preview convenience. A real third-person player-follow
+  camera (spring-arm + wall-avoidance raycast) is separate Phase 4 work and will likely replace
+  this rather than build on it.
+- **Failure mode:** none currently (vendored, well-tested upstream code; this module only
+  configures it). Caller must call `.update()` every frame (damping requires it) and `.dispose()`
+  on teardown to remove its pointer/wheel listeners — both already wired in `game3d.js`.
+
 ## `src/3d/game3d.js` — Entry point / scene bootstrap
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`.

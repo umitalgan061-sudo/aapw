@@ -3,9 +3,10 @@
  *
  * Phase 1 scope: on top of the Phase 0 architecture (EventBus, GameState, AssetLoader), boots a
  * bare Three.js renderer/scene/camera against `#game3d-canvas` (see `game3d.html`) and loads a
- * `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS` neighborhood of real, seeded terrain chunks around the
- * origin via `world/chunkManager.js`, counted toward World Coverage. Sky and camera controls are
- * separate Phase 1 sub-tasks — see 3D_GAME_PROGRESS.md for what's next.
+ * `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` neighborhood of real, seeded terrain chunks around
+ * the origin via `world/chunkManager.js`, counted toward World Coverage, with an interactive
+ * `OrbitControls` camera (`camera.js`) to inspect it. Sky is a separate Phase 1 sub-task — see
+ * 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
 
@@ -15,6 +16,7 @@ import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
 import { EVENTS, WORLD_DEFAULTS, CHUNK_CONFIG } from './config.js';
 import { ChunkManager } from './world/chunkManager.js';
+import { createOrbitCamera } from './camera.js';
 
 /** Shared asset loader instance for the whole 3D mode. */
 export const assetLoader = new AssetLoader({ events: gameEvents });
@@ -32,11 +34,12 @@ gameEvents.on(EVENTS.ASSET_ERROR, (payload) => {
 });
 
 /**
- * Creates the renderer/scene/camera and loads a `STREAM_RADIUS_CHUNKS` neighborhood of terrain
- * chunks around the origin against `canvas`, via `ChunkManager`. Fixed one-time load, not
- * position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for what's next.
+ * Creates the renderer/scene/camera (with interactive orbit controls) and loads a
+ * `PHASE1_PREVIEW_RADIUS_CHUNKS` neighborhood of terrain chunks around the origin against
+ * `canvas`, via `ChunkManager`. Fixed one-time load, not position-based streaming yet — see
+ * 3D_GAME_PROGRESS.md FAZ 1 for what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, chunkManager: ChunkManager}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -52,9 +55,9 @@ function createScene(canvas) {
 		WORLD_DEFAULTS.NEAR_PLANE,
 		WORLD_DEFAULTS.FAR_PLANE,
 	);
-	// Positioned to frame the whole loaded chunk neighborhood from above/behind, not just one chunk.
+	// Starting position; OrbitControls (created below) takes over from here on user input.
 	camera.position.set(0, 700, 1200);
-	camera.lookAt(0, 0, 0);
+	const controls = createOrbitCamera(camera, canvas);
 
 	scene.add(new THREE.HemisphereLight(0xffe8c0, 0x1a140a, 1.1));
 	const sun = new THREE.DirectionalLight(0xfff2d8, 1.4);
@@ -75,7 +78,7 @@ function createScene(canvas) {
 			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²) in ${generationMs.toFixed(0)}ms.`,
 	);
 
-	return { renderer, scene, camera, chunkManager };
+	return { renderer, scene, camera, controls, chunkManager };
 }
 
 /**
@@ -118,6 +121,7 @@ export async function initGame3D() {
 		let frameId;
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
+			state.controls.update(); // required every frame: enableDamping is on
 			state.renderer.render(state.scene, state.camera);
 		};
 		tick();
@@ -125,13 +129,14 @@ export async function initGame3D() {
 		window.addEventListener('pagehide', () => {
 			cancelAnimationFrame(frameId);
 			unbindResize();
+			state.controls.dispose();
 			state.chunkManager.disposeAll();
 			state.renderer.dispose();
 		}, { once: true });
 
 		gameState.set('currentPhase', 'phase1-scene');
 		gameEvents.emit(EVENTS.GAME_READY, { phase: 'phase1-scene' });
-		console.info(`[game3d] Phase 1 scene bootstrap ready: renderer/scene/camera live, ${state.chunkManager.loadedCount} terrain chunks rendering.`);
+		console.info(`[game3d] Phase 1 scene bootstrap ready: renderer/scene/camera + orbit controls live, ${state.chunkManager.loadedCount} terrain chunks rendering.`);
 	} catch (error) {
 		gameState.set('error', error.message);
 		gameEvents.emit(EVENTS.GAME_ERROR, { error });

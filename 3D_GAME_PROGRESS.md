@@ -118,6 +118,13 @@ Triangles<500K, TextureMem<512MB.
 - [x] Import map in `game3d.html` pointing `three` → `src/3d/vendor/three/three.module.js` and `three/addons/` → `src/3d/vendor/three/addons/` (proven working, see this run's headless-browser smoke test below)
 - [x] Three.js scene bootstrap in `game3d.js`: renderer, scene, camera, resize handling, render loop (extended `initGame3D()` — skips rendering with a warning if `#game3d-canvas` isn't present, so it stays safe to call from non-browser/test contexts)
 - [x] Add "🎮 3D Dünya" button to `index.html` linking to `game3d.html` (additive `<a class="tb-btn">` in the existing toolbar, nothing else in `index.html` touched)
+- [x] `src/3d/camera.js` — `createOrbitCamera()` wraps a vendored `OrbitControls` (three.js r160
+  official addon, pinned/vendored the same way `GLTFLoader.js` was — see Asset Sources), damped,
+  distance/polar-angle limited so it can't zoom through or dip below the ground. Verified with a
+  headless-browser drag simulation: the horizon line visibly rotates between before/after
+  screenshots, confirming pointer input actually drives the camera, not just "no errors."
+  Third-person player-follow camera is still separate, later, Phase 4 work — this is dev-preview
+  only.
 - [ ] `src/3d/sky.js` — aurora shader skybox (procedural GLSL)
 - [x] `src/3d/world/terrain.js` — seeded value-noise/FBM terrain chunk generation
   (`createTerrainChunk`/`disposeTerrainChunk`), vertex-colored (grass→rock by height), no texture
@@ -275,30 +282,51 @@ Triangles<500K, TextureMem<512MB.
   software-rendering artifact — not a regression from adding chunks — before writing it down as
   fact rather than assumption. World Coverage moved from 0.1461% to 0.9876% (crossed 1%).
 
+- **Sixth sub-task, same run:** built `src/3d/camera.js` (`createOrbitCamera`) wrapping a newly
+  vendored `OrbitControls.js` (three.js r160 official addon, fetched from the same `unpkg.com`
+  pin as the core build and core-only-r160-matched — see Asset Sources). Damped, distance-limited
+  (20-4000m), and polar-angle-limited so the camera can't dip below the target's height (i.e.
+  can't orbit underground). `game3d.js` now creates it after positioning the camera, calls
+  `controls.update()` every frame (required for damping), and `controls.dispose()` on `pagehide`
+  alongside the existing chunk/renderer cleanup. Verified with a headless-browser **drag
+  simulation** (not just load-and-screenshot): captured a screenshot, dragged the canvas, captured
+  again — the horizon line visibly rotates between the two, proving pointer input actually drives
+  the camera. Zero console/page errors. This finishes the FAZ 1 roadmap's `camera.js` item. World
+  Coverage unchanged (this sub-task didn't add/remove chunks): still 0.9876%.
+- **Corrected a mistake from this run's own prior notes:** the "Next step" written after the
+  chunk-manager sub-task claimed "draw calls will bind before triangles do" as chunk count grows —
+  that's backwards. At 8192 triangles/chunk and one draw call/chunk, the **triangle** budget
+  (5M) is hit at ~610 chunks, while the **draw-call** budget (2500) wouldn't hit until ~2500
+  chunks. Corrected below so the next run doesn't optimize for the wrong constraint.
+
 **Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new, now 2 ADRs), `game3d.html`
 (new), `game3d.css` (new), `src/3d/game3d.js`, `index.html`, `ARCHITECTURE.md` (new),
 `src/3d/world/terrain.js` (new), `src/3d/world/chunkManager.js` (new), `src/3d/world/README.md`
-(new), `3D_GAME_PROGRESS.md` (this file). Five separate commits (world-scale/config; scene
-bootstrap; terrain chunk; chunk manager; preview-radius split) to keep each one atomic and
-independently revertable, plus one merge commit reconciling a parallel session's asset-only
-commits (6 more Mixamo characters, wolf, black_dragon — see Current Status above) with this run's
-work; no conflicts.
+(new), `src/3d/camera.js` (new), `src/3d/vendor/three/addons/controls/OrbitControls.js` (new,
+vendored), `3D_GAME_PROGRESS.md` (this file). Six separate commits (world-scale/config; scene
+bootstrap; terrain chunk; chunk manager; preview-radius split; orbit camera) to keep each one
+atomic and independently revertable, plus one merge commit reconciling a parallel session's
+asset-only commits (6 more Mixamo characters, wolf, black_dragon — see Current Status above) with
+this run's work; no conflicts.
 
-**Next step for the next run (start here):** Coverage is just under 1% (0.9876%) — still keep
-growing it before `sky.js`/`camera.js` polish, per the project's own priority rule, but the easy
-"just raise the radius" lever is getting closer to its ceiling: at the current 64-segments/chunk
-resolution, draw calls (1 per chunk, no merging yet) will bind before triangles do. Options, in
-order of value: (a) **get a real (non-sandboxed) FPS reading** before pushing coverage further —
-this run could only confirm the low sandbox FPS is a software-rendering artifact by relative
-comparison, not get an absolute real number; if a real-browser test becomes possible, do it before
-trusting further growth is "free"; (b) reduce `segments` per chunk (a cheap manual LOD ahead of a
-real LOD system) so a larger preview area costs proportionally less; (c) merge/instance chunk
-geometry to cut draw calls, which is the real fix for scaling past a few hundred chunks — bigger
-task, likely its own sub-task rather than a quick addition; (d) once coverage is meaningfully
-higher and the desktop budget still has headroom, move to `sky.js` (aurora shader skybox) and
-`camera.js` (orbit camera — the current camera is still fixed). Keep each sub-task to ≤5 files per
-the blast-radius rule, and re-run the headless-Chromium smoke test each time, not just
-`node --check`.
+**Next step for the next run (start here):** Coverage is just under 1% (0.9876%). Before pushing
+it further by brute-force radius increases again, consider the more valuable structural move: the
+"grow a bigger and bigger static preview blob" approach caps out around ~610 chunks (~14% of the
+world) purely on the triangle budget, and would leave zero performance headroom for anything else
+(player, NPCs, water, castles) — it does not scale to real World Coverage growth. The real,
+sustainable path is **position-based streaming**: now that `camera.js` gives us a moving 3D
+position (the orbit target/camera itself, no player needed yet), add a `ChunkManager.update
+(centerX, centerZ)` method that loads chunks newly in-range and unloads ones now out-of-range of
+`STREAM_RADIUS_CHUNKS` (the small, mobile-safe constant — NOT `PHASE1_PREVIEW_RADIUS_CHUNKS`),
+call it from the render loop keyed off the camera's world position, and let the static
+`PHASE1_PREVIEW_RADIUS_CHUNKS` preview go away (or shrink) once real streaming exists. This
+directly implements the project's "500m streaming" requirement and, critically, decouples World
+Coverage growth from "how many chunks fit in one static scene" — it can then grow by *exploring*
+(camera moves → new chunks generate) rather than by loading more at once. This is a bigger task
+than recent sub-tasks; consider splitting it (e.g. one run for `ChunkManager.update()` + a
+"cumulative chunks ever generated" coverage counter, a following run for wiring it to the camera
+and re-tuning `game3d.js`). Keep each sub-task to ≤5 files per the blast-radius rule, and re-run
+the headless-Chromium smoke test each time, not just `node --check`.
 
 ## Known Issues / Tech Debt
 
@@ -352,5 +380,6 @@ the blast-radius rule, and re-run the headless-Chromium smoke test each time, no
 | `src/3d/vendor/three/three.module.js`, `LICENSE` | [three.js](https://github.com/mrdoob/three.js) r160, via `unpkg.com/three@0.160.0/build/three.module.js` | MIT | Vendored (not npm-installed) so the PWA stays a static, offline-installable site with no build step. |
 | `src/3d/vendor/three/addons/loaders/GLTFLoader.js` | three.js r160 `examples/jsm/loaders/GLTFLoader.js` | MIT | Lazy dynamic-imported by `AssetLoader` only when a model load is first requested. |
 | `src/3d/vendor/three/addons/utils/BufferGeometryUtils.js` | three.js r160 `examples/jsm/utils/BufferGeometryUtils.js` | MIT | Transitive dependency of `GLTFLoader.js`. |
+| `src/3d/vendor/three/addons/controls/OrbitControls.js` | three.js r160 `examples/jsm/controls/OrbitControls.js`, via `unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js` (same pin as the core build) | MIT | Wrapped by `src/3d/camera.js` (`createOrbitCamera`). Used for `game3d.html`'s interactive dev-preview camera. |
 | `assets/models/`, `assets/textures/`, `assets/audio/`, `assets/animations/`, `assets/skyboxes/`, `assets/particles/`, `assets/icons/` | — | — | Empty (`.gitkeep` only). Populate in later phases from Kenney (kenney.nl), Quaternius (quaternius.com), Poly Haven (polyhaven.com), Mixamo (mixamo.com, for rigged human animations), KayKit (kaylousberg.com) — verify CC0/CC-BY on the actual download page before adding anything, and record it in this table. |
 | `assets/shaders/` | — | — | Empty. All shaders (aurora, water, fire, snow, etc.) will be original procedural GLSL written for this project — no external shader files needed. |
