@@ -2525,6 +2525,23 @@ async function breakAlliance(sid,tid){
   openDetail(sid); openPanel();
 }
 
+const ALLIANCE_GIFT_AMOUNT = 30;
+async function sendAllianceGift(sid,tid){
+  const source=findKingdom(sid);
+  const target=findKingdom(tid);
+  if(!source||!target) return;
+  if(!(source.alliances||[]).includes(tid)){ toast('⚠️ Bu hane müttefikiniz değil'); return; }
+  const amount=Math.min(ALLIANCE_GIFT_AMOUNT,source.gold||0);
+  if(amount<=0){ toast('⚠️ Yeterli altın yok!'); return; }
+  source.gold=Math.max(0,(source.gold||0)-amount);
+  target.gold=(target.gold||0)+amount;
+  target.morale=Math.min(100,(target.morale||80)+5);
+  await saveData(); renderAll();
+  addChronicle('🎁',`İttifak Hediyesi: ${source.name} → ${target.name}`,`${source.name}, müttefiki ${target.name}'e ${amount} altın hediye etti.`,'#c8960a');
+  toast(`🎁 ${target.name}'e ${amount} altın gönderildi`,'ally');
+  openDetail(sid); openPanel();
+}
+
 /* ════════ MARRIAGE SYSTEM ════════ */
 function startMarriage(id) {
   closePanel();
@@ -3098,7 +3115,7 @@ function renderDetailInfo(k,cb,vassals,pw,allies,tradePartners){
     ${allies.length>0?`
     <div class="kd-ally-list">
       <div class="kd-vassal-ttl">İttifaklar</div>
-      <div>${allies.map(a=>`<div class="ally-chip" onclick="openDetail('${a.id}')"><span>${a.sigil}</span><span>${a.name.split(' ')[0]}</span><span class="break-ally" onclick="event.stopPropagation();breakAlliance('${k.id}','${a.id}')" title="İttifakı boz">✕</span></div>`).join('')}</div>
+      <div>${allies.map(a=>`<div class="ally-chip" onclick="openDetail('${a.id}')"><span>${a.sigil}</span><span>${a.name.split(' ')[0]}</span><span class="gift-ally" onclick="event.stopPropagation();sendAllianceGift('${k.id}','${a.id}')" title="${ALLIANCE_GIFT_AMOUNT} Altın hediye et">🎁</span><span class="break-ally" onclick="event.stopPropagation();breakAlliance('${k.id}','${a.id}')" title="İttifakı boz">✕</span></div>`).join('')}</div>
     </div>`:''}
 
     ${tradePartners.length>0?`
@@ -3235,7 +3252,10 @@ function renderDetailAllies(k){
           </div>
           <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
             <div class="k-row-pwr" style="color:${a.color};border-color:${a.color}40;">${pw}</div>
-            <button class="ka-btn ka-del" style="flex:none;min-width:32px;height:28px;font-size:9px;padding:4px 8px" onclick="event.stopPropagation();breakAlliance('${k.id}','${a.id}')">✕ Boz</button>
+            <div style="display:flex;gap:4px;">
+              <button class="ka-btn" style="flex:none;min-width:32px;height:28px;font-size:9px;padding:4px 8px;color:#e8b420;border-color:rgba(200,150,10,.3);" onclick="event.stopPropagation();sendAllianceGift('${k.id}','${a.id}')">🎁 ${ALLIANCE_GIFT_AMOUNT}</button>
+              <button class="ka-btn ka-del" style="flex:none;min-width:32px;height:28px;font-size:9px;padding:4px 8px" onclick="event.stopPropagation();breakAlliance('${k.id}','${a.id}')">✕ Boz</button>
+            </div>
           </div>
         </div>`;
       }).join('')}

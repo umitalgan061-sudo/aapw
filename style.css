@@ -406,6 +406,8 @@ left:0;right:0;bottom: 0;
 .ally-chip:hover{background:rgba(74,136,200,.14);}
 .ally-chip .break-ally{font-size:9px;color:rgba(220,80,80,.6);margin-left:4px;transition:color .15s;}
 .ally-chip:hover .break-ally{color:rgba(220,80,80,1);}
+.ally-chip .gift-ally{font-size:9px;color:rgba(200,150,10,.55);margin-left:4px;transition:color .15s;}
+.ally-chip:hover .gift-ally{color:rgba(232,180,32,1);}
 .kd-vassal-ttl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:2.5px;color:var(--text-dim);text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(200,150,10,.1);display:flex;align-items:center;gap:6px;}
 .kd-vassal-ttl::before{content:'';display:block;width:3px;height:3px;border-radius:50%;background:rgba(200,150,10,.4);flex-shrink:0;}
 
