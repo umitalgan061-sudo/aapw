@@ -7,7 +7,8 @@
  * the origin via `world/chunkManager.js`, and then additively streams in more chunks
  * (`STREAM_RADIUS_CHUNKS`) as the interactive `OrbitControls` camera's target (`camera.js`) moves
  * into new chunks — World Coverage now grows by exploring, not just by a bigger boot-time load.
- * Sky is a separate Phase 1 sub-task — see 3D_GAME_PROGRESS.md for what's next.
+ * An always-on procedural aurora skybox (`sky.js`) surrounds the camera; see 3D_GAME_PROGRESS.md
+ * for what's next.
  * @module game3d
  */
 
@@ -18,6 +19,7 @@ import { AssetLoader } from './assetLoader.js';
 import { EVENTS, WORLD_DEFAULTS, CHUNK_CONFIG } from './config.js';
 import { ChunkManager } from './world/chunkManager.js';
 import { createOrbitCamera } from './camera.js';
+import { createAuroraSky, updateAuroraSky, disposeAuroraSky } from './sky.js';
 
 /** Shared asset loader instance for the whole 3D mode. */
 export const assetLoader = new AssetLoader({ events: gameEvents });
@@ -40,7 +42,7 @@ gameEvents.on(EVENTS.ASSET_ERROR, (payload) => {
  * `canvas`, via `ChunkManager`. Fixed one-time load, not position-based streaming yet — see
  * 3D_GAME_PROGRESS.md FAZ 1 for what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, lastStreamChunk: {x: number, z: number} | null}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -48,6 +50,7 @@ function createScene(canvas) {
 	renderer.setSize(window.innerWidth, window.innerHeight);
 
 	const scene = new THREE.Scene();
+	// Fallback only — the aurora sky sphere (added below) fully covers the viewport every frame.
 	scene.background = new THREE.Color(0x0c0805);
 
 	const camera = new THREE.PerspectiveCamera(
@@ -59,6 +62,10 @@ function createScene(canvas) {
 	// Starting position; OrbitControls (created below) takes over from here on user input.
 	camera.position.set(0, 700, 1200);
 	const controls = createOrbitCamera(camera, canvas);
+
+	const sky = createAuroraSky();
+	scene.add(sky);
+	const clock = new THREE.Clock();
 
 	scene.add(new THREE.HemisphereLight(0xffe8c0, 0x1a140a, 1.1));
 	const sun = new THREE.DirectionalLight(0xfff2d8, 1.4);
@@ -79,7 +86,7 @@ function createScene(canvas) {
 			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²) in ${generationMs.toFixed(0)}ms.`,
 	);
 
-	return { renderer, scene, camera, controls, chunkManager, lastStreamChunk: null };
+	return { renderer, scene, camera, controls, chunkManager, sky, clock, lastStreamChunk: null };
 }
 
 /**
@@ -166,6 +173,7 @@ export async function initGame3D() {
 			frameId = requestAnimationFrame(tick);
 			state.controls.update(); // required every frame: enableDamping is on
 			streamAroundOrbitTarget(state);
+			updateAuroraSky(state.sky, state.camera.position, state.clock.getElapsedTime());
 			state.renderer.render(state.scene, state.camera);
 		};
 		tick();
@@ -175,6 +183,7 @@ export async function initGame3D() {
 			unbindResize();
 			state.controls.dispose();
 			state.chunkManager.disposeAll();
+			disposeAuroraSky(state.sky);
 			state.renderer.dispose();
 		}, { once: true });
 

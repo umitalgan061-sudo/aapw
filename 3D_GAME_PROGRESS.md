@@ -15,12 +15,11 @@ KayKit, etc.) are used for `assets/`.
 
 - **Active Phase:** FAZ 1 — İskelet ve Arazi (in progress: world scale corrected down to a
   completable ~137.5 km² target — see World Coverage below — `game3d.html` renders 169 real seeded
-  terrain chunks via `ChunkManager`, an interactive orbit camera, and real position-based chunk
-  streaming as that camera explores; sky not built yet)
-- **Last Update:** 2026-07-29 (run 3)
-- **Last Commit:** merge of `bd1c513` (this run's world-scale correction) with `1225786` (a
-  parallel session's real position-based chunk streaming, pushed to `main` while this run was in
-  progress — see "This Run (run 3)" below for how the two were reconciled).
+  terrain chunks via `ChunkManager`, an interactive orbit camera, real position-based chunk
+  streaming as that camera explores, and an always-on procedural aurora skybox. Only the PWA
+  offline-cache checklist item remains unchecked in FAZ 1.)
+- **Last Update:** 2026-07-29 (run 4)
+- **Last Commit:** this run's `sky.js` + camera far-plane fix (see "This Run (run 4)" below).
 - **Parallel work from a prior run:** while a previous routine run was in progress, the project
   owner (with help from a separate Claude session) pushed 3 commits directly to `main` adding more
   manually-downloaded assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
@@ -142,7 +141,12 @@ Triangles<500K, TextureMem<512MB.
   screenshots, confirming pointer input actually drives the camera, not just "no errors."
   Third-person player-follow camera is still separate, later, Phase 4 work — this is dev-preview
   only.
-- [ ] `src/3d/sky.js` — aurora shader skybox (procedural GLSL)
+- [x] `src/3d/sky.js` — aurora shader skybox (procedural GLSL, inline in the module — see Asset
+  Sources). A large inverted sphere re-centered on the camera every frame, shaded by an original
+  horizon->zenith gradient plus an animated aurora-band overlay (value-noise driven). Always-on for
+  now — not yet gated by time-of-day, since Phase 2's day/night system doesn't exist yet (flagged
+  under Known Issues). Verified with a headless-Chromium screenshot: visible green/blue/purple
+  aurora bands over a dusk-toned gradient, terrain unobscured below the horizon line.
 - [x] `src/3d/world/terrain.js` — seeded value-noise/FBM terrain chunk generation
   (`createTerrainChunk`/`disposeTerrainChunk`), vertex-colored (grass→rock by height), no texture
   needed yet. "Ridged/erosion" shaping and a literal "long valley" carve are deferred; current
@@ -454,8 +458,93 @@ Either is legitimate; don't half-do both in one run. Keep sub-tasks to ≤5 file
 blast-radius rule, and re-run the full regression guard + headless-Chromium smoke test
 (including a pan simulation if touching streaming) before committing.
 
+## This Run (2026-07-29, run 4)
+
+**Session Snapshot taken at start of run** (per protocol):
+- Last 3 commits before this run: `9d2811d` merge: reconcile world-scale correction with parallel
+  chunk-streaming work; `bd1c513` fix(3d): correct world scale from 4278 km² to a completable
+  ~137.5 km²; `1225786` feat(3d): real position-based chunk streaming via orbit-target movement.
+- **Git issue found and fixed (same recurring pattern as runs 2 and 3):** session started with
+  `HEAD` detached at `9d2811d` while local `main` was stale at `38e09e7`. `git fetch origin main`
+  confirmed `origin/main` already had all prior work (no data loss); `git checkout main && git
+  merge --ff-only origin/main` fast-forwarded cleanly, 23 commits.
+- **This run's assigned top-priority task (world-scale correction to a ≤150 km² band) was already
+  done:** the standing instruction was updated to require a 100-150 km² target, and run 3's
+  ADR-0004 correction (137.5 km², 12.02km x 10.80km, still covering every kingdom seat) already
+  satisfies it exactly — verified by re-reading `config.js`'s `WORLD_SCALE`/`CHUNK_CONFIG` and
+  DECISIONS.md ADR-0004 rather than assuming. No config change was needed; this run picked up the
+  next FAZ 1 task instead, per the priority order (world-scale correction wasn't item 1-6 anymore
+  since it was already satisfied).
+- World Coverage before this run: 30.73% (42.25 km² / 137.5 km²) — unchanged by this run's work
+  (no new terrain chunks generated).
+
+**Done:**
+- **Found and fixed a real blocking bug while building the sky sphere's radius constant:**
+  `camera.js`'s `OrbitControls.maxDistance` was `4000`, but `config.js`'s `WORLD_DEFAULTS.FAR_PLANE`
+  (the camera's far clip plane) is `2000`. Zooming out anywhere past 2000m put the entire orbit
+  target beyond the far clip plane, making the whole scene vanish (just background color) — a
+  real, user-reachable regression, not a hypothetical one. Fixed by lowering `maxDistance` to
+  `1800` (comfortable margin under `FAR_PLANE`). Verified via a headless-Chromium test: scrolled
+  the mouse wheel to fully zoom out (30 wheel events) — terrain and sky both stayed visible,
+  confirmed by screenshot (previously would have gone to solid background color).
+- **Built `src/3d/sky.js`** — the last unchecked FAZ 1 roadmap item besides the PWA offline-cache
+  check. `createAuroraSky()` returns a large (`SKY_RADIUS_METERS = 1900`, under `FAR_PLANE`)
+  inverted `SphereGeometry` with an original `ShaderMaterial`: vertex shader passes world position,
+  fragment shader computes a horizon->zenith color gradient from view direction plus an animated,
+  value-noise-driven aurora band masked to the upper sky. `updateAuroraSky()` re-centers it on the
+  camera and advances `uTime` every frame (so it always surrounds the viewer regardless of orbit
+  position); `disposeAuroraSky()` releases geometry/material on teardown. GLSL is inline in the
+  module (JS template strings), not a fetched `.glsl` asset — matches the project's own
+  already-written Asset Sources note ("no external shader files needed") and avoids adding a new
+  async load path / offline-cache entry for something this cheap to inline.
+- Wired into `game3d.js`: one `THREE.Clock` added to scene state, sky mesh added to the scene,
+  `updateAuroraSky()` called every render-loop tick, `disposeAuroraSky()` called on `pagehide`
+  alongside the existing renderer/chunk/controls cleanup (memory-leak checklist). `scene.background`
+  kept as a fallback color (never actually visible — the sky sphere fully covers the viewport) in
+  case of any edge-case rendering hole.
+- **Regression guard:** `node --check` on `script.js`, `service-worker.js`, and every non-vendored
+  `src/3d/**/*.js` file (including the new `sky.js`); JSON-validated `manifest.json` and
+  `assets_manifest.json`. All pass.
+- **Real smoke test (not just `node --check`):** served the repo locally (`python3 -m http.server`)
+  and drove headless Chromium (Playwright) against `game3d.html`. Zero `pageerror`/`console.error`
+  events. Screenshots confirm: (1) the aurora skybox renders — visible green/blue/purple bands over
+  a dusk gradient, terrain unobscured; (2) a left-drag orbit rotates the sky along with the camera
+  (proving it follows the camera, not fixed in world space); (3) zooming out to the new
+  `maxDistance` (1800m) keeps the whole scene visible, confirming the far-plane fix. Did not
+  re-verify `index.html`/the 2D game's own rendering this run (no file under its critical path was
+  touched — `index.html`/`script.js`/`style.css`/`service-worker.js` are all unmodified — `node
+  --check`/JSON validation above is the applicable regression check for an unmodified file set).
+- **Performance:** `sky.js` adds exactly one draw call and a `SphereGeometry(1900, 32, 16)` (~960
+  triangles) — negligible against both the desktop (2500 draw calls / 5M triangles) and mobile (500
+  draw calls / 500K triangles) budgets. Not re-measured with a full FPS pass (same sandbox
+  SwiftShader-software-rendering caveat as prior runs — see Known Issues).
+
+**Files changed this run:** `src/3d/sky.js` (new), `src/3d/camera.js` (`maxDistance` bug fix),
+`src/3d/game3d.js` (sky wiring), `ARCHITECTURE.md` (new `sky.js` entry, updated `game3d.js` entry),
+`3D_GAME_PROGRESS.md` (this file). Four files, well under both the file-count and line budgets for
+this run. No `DECISIONS.md` ADR added — this is an implementation detail (a new self-contained
+visual module) and a straightforward bug fix, not a hard-to-reverse architectural choice.
+
+**Next step for the next run:** FAZ 1 now has exactly one unchecked item left: "Confirm responsive
+layout + PWA `start_url`/manifest still resolve correctly with the new page present" — i.e. add
+`game3d.html`/`game3d.css`/`src/3d/**`/`assets/**` (or at least the currently-used subset) to
+`service-worker.js`'s offline cache list, then verify the 3D mode still loads with the network
+disabled. That's the natural FAZ 1 close-out task and unblocks marking FAZ 1 DONE (subject to the
+phase-gate checklist in the system instructions — build/console/memory/FPS/progress/README/asset/
+commit/mobil/docs — not just this one checkbox). After that, FAZ 2 (Su/Atmosfer/Zaman) is next:
+Gerstner-wave water, waterfalls, fog, and the day/night cycle — the day/night system is also when
+`sky.js`'s always-on aurora should be revisited and gated to nighttime only (flagged in both
+`sky.js`'s own doc comment and Known Issues below). World Coverage is unchanged at 30.73%
+(42.25 km² / 137.5 km²) — growing it further is lower priority than closing out FAZ 1's last item,
+per this project's own priority order (finish the active phase's remaining sub-tasks before more
+geographic growth, since FAZ 1 doesn't have an 80%-coverage gate — only FAZ 3/FAZ 10 do).
+
 ## Known Issues / Tech Debt
 
+- **`sky.js`'s aurora is always-on, not gated by time-of-day.** There is no day/night system yet
+  (Phase 2's `lighting.js`). Once it exists, fade the aurora in only at night (it currently reads
+  fine as a stylized "north of the Wall" identity regardless of time, but a literal day/night cycle
+  should still hide it in daylight for realism). `sky.js`'s own module doc comment has the same note.
 - **`game3d.html`/`.css` and `src/3d/**` are not yet in `service-worker.js`'s cache list.** The 3D
   mode currently needs network access on first load; add it to the offline cache list once the
   mode has enough content to be worth using offline (premature right now, still just a placeholder

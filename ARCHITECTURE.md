@@ -99,15 +99,35 @@ the way it is.
   configures it). Caller must call `.update()` every frame (damping requires it) and `.dispose()`
   on teardown to remove its pointer/wheel listeners — both already wired in `game3d.js`.
 
+## `src/3d/sky.js` — Aurora skybox
+
+- **Depends on:** `three` (vendored) only. Deliberately does not import `config.js` — its GLSL is
+  inline (see the module doc comment for why: avoids a new fetched-`.glsl` async load path and
+  offline-cache entry for something this cheap to inline; consistent with `3D_GAME_PROGRESS.md`'s
+  Asset Sources note that shaders need no external files).
+- **Used by:** `game3d.js` (`createAuroraSky`/`updateAuroraSky`/`disposeAuroraSky`) — one sky mesh,
+  re-centered on the camera and re-animated every frame so it always surrounds the viewer.
+- **Critical path:** no — purely visual; a shader compile failure would render an invalid
+  color/black sphere (three.js logs to console, doesn't throw) rather than break the rest of the
+  scene.
+- **Failure mode:** none currently guarded beyond three.js's own shader-compile console logging.
+  `SKY_RADIUS_METERS` (1900) must stay under `WORLD_DEFAULTS.FAR_PLANE` (config.js, 2000m) or the
+  sphere itself gets frustum-clipped — flagged in the module's own comment, not currently enforced
+  by code (both are static constants that don't currently share a source of truth; revisit if
+  `FAR_PLANE` ever becomes runtime-configurable via `QUALITY_PRESETS`).
+- **Phase 1 placeholder:** the aurora is always-on, not gated by time-of-day — there is no day/
+  night system yet (that's Phase 2's `lighting.js`). Revisit then to fade it in only at night.
+
 ## `src/3d/game3d.js` — Entry point / scene bootstrap
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
-  `world/chunkManager.js`, `camera.js`.
+  `world/chunkManager.js`, `camera.js`, `sky.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, lighting, resize
-  handling, the `OrbitControls` instance, the `ChunkManager` instance, and the
-  `requestAnimationFrame` render loop (which also drives `controls.update()` and
-  `streamAroundOrbitTarget()` each frame — see `world/chunkManager.js` and DECISIONS.md ADR-0003).
+  handling, the `OrbitControls` instance, the `ChunkManager` instance, the aurora sky mesh, and the
+  `requestAnimationFrame` render loop (which also drives `controls.update()`,
+  `streamAroundOrbitTarget()`, and `updateAuroraSky()` each frame — see `world/chunkManager.js`,
+  `sky.js`, and DECISIONS.md ADR-0003).
 - **Failure mode:** `initGame3D()` is fully try/caught — a WebGL init failure sets
   `gameState.error` and emits `GAME_ERROR` (caught by `game3d.html`'s error-screen listener above)
   rather than throwing an uncaught exception. If `#game3d-canvas` isn't present, rendering is

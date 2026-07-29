@@ -25,7 +25,10 @@ export function createOrbitCamera(camera, domElement) {
 	controls.enableDamping = true;
 	controls.dampingFactor = 0.08;
 	controls.minDistance = 20;
-	controls.maxDistance = 4000;
+	// Must stay under `WORLD_DEFAULTS.FAR_PLANE` (config.js, 2000m) with margin — previously 4000,
+	// which let the camera dolly out past the far clip plane and made the entire scene vanish
+	// (found this run while building sky.js's own far-plane-relative sphere radius).
+	controls.maxDistance = 1800;
 	// Stop just short of the target's height so orbiting can't dip the camera below/into the ground.
 	controls.maxPolarAngle = Math.PI / 2 - 0.05;
 	controls.update();
