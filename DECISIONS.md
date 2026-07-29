@@ -716,3 +716,94 @@ one static river, not to a future streamed/multi-river system), don't flow-anima
 visual scale is honestly bounded by `terrain.js`'s current lack of real cliff relief — a future run
 wanting dramatically taller waterfalls should start there, not by inflating this pass's thresholds
 or quad dimensions.
+
+## ADR-0012: night starfield as a self-contained `THREE.Points` cloud in a new `stars.js`, not folded into `sky.js`
+
+**Date:** 2026-07-29
+
+**Decision:** A new top-level module, `src/3d/stars.js`, adds a procedural night starfield —
+`createStarfield(seed)` builds a `THREE.Points` cloud of 1200 points scattered across the upper
+hemisphere (a small margin above the horizon, mirroring `sky.js`'s own aurora mask), re-centered on
+the camera every frame (`updateStarfield`, same technique `sky.js`/`world/water.js` already use)
+and faded in/out purely via opacity driven by `lighting.js`'s `nightFactor` — the same gating
+mechanism `sky.js` already uses for the aurora. `disposeStarfield` releases its geometry/material.
+
+**Reasoning:**
+- **New file, not added to `sky.js`:** `sky.js` is a `ShaderMaterial`-backed inverted sphere (a
+  gradient + aurora shader); a starfield is a completely different rendering primitive
+  (`THREE.Points` over a `BufferGeometry` of point positions, a built-in `PointsMaterial`, no custom
+  GLSL needed). Cramming both into one file would mean `sky.js` owns two unrelated rendering
+  techniques under one name; a dedicated `stars.js` keeps each module's `create/update/dispose`
+  triplet about exactly one visual system, consistent with `fog.js`/`lighting.js`'s existing
+  granularity (each a small, focused file) rather than `sky.js` growing into a general "atmosphere"
+  catch-all.
+- **Self-contained seeded PRNG, not imported from `world/terrain.js`:** the project's determinism
+  rule (seeded PRNG, never `Math.random()`) applies everywhere, not just `world/`. Rather than
+  import `mulberry32` across the `world/` folder boundary — `world/` is reserved for physical-world
+  systems (terrain/water/rivers/vegetation/roads/settlements) per the target architecture, while
+  sky/lighting/fog/stars are atmosphere, kept at the top `src/3d/` level — `stars.js` carries its
+  own copy of the same small algorithm, XORed with a distinct tag (`0x53544152`, "STAR"-ish) for an
+  independent stream. This mirrors `world/rivers.js`'s own choice to XOR-tag its stream rather than
+  reuse `terrain.js`'s raw seed, and keeps `stars.js` dependency-free (`three` only), matching
+  `sky.js`'s own self-contained noise functions.
+- **Built-in `PointsMaterial`, not a custom shader:** no per-star flicker/twinkle animation is
+  attempted this pass (flagged as future work below), so a plain built-in material with a single
+  `opacity` uniform driven once per frame is the simplest correct choice — avoids the
+  `UniformsLib.fog`-merge complexity ADR-0008 had to solve for a genuinely custom shader, since
+  this module has no such shader to begin with.
+- **`fog: false` on the star material:** same reasoning `sky.js` already gives for its own
+  `fog: false` — stars sit "at infinity" (rendered at `STARFIELD_RADIUS_METERS`, 1850m, just inside
+  `sky.js`'s 1900m sphere), and this world's fog density at night (`fog.js`) would visibly dim
+  anything real positioned that far away, which would look wrong for something meant to read as
+  impossibly distant.
+- **Upper-hemisphere-only distribution, small margin above the horizon:** stars scattered across
+  the *entire* sphere (including below `y = 0`) would place some "underground," visible only if the
+  camera looked down past the terrain's edge — a real but pointless edge case to render. Restricting
+  to `heightFactor` in `[0.05, 1.0]` (mirroring `sky.js`'s own `auroraMask` starting at `dir.y =
+  0.05`) avoids this cheaply, without needing any terrain-relative occlusion logic.
+- **`renderOrder = -0.5`:** between `sky.js`'s sphere (`-1`, drawn first) and ordinary opaque scene
+  geometry (`0`, the three.js default) — stars draw after the sky gradient/aurora but before
+  terrain/water/river meshes, so real geometry's normal depth test correctly occludes stars behind
+  it (neither the sky sphere nor the stars write depth, so anything drawn afterward with real
+  depth values naturally wins).
+
+**Verified via headless Chromium (Playwright), not assumed correct from the design alone:**
+- A full `game3d.html` render pass: zero `pageerror`/`console.error` with the starfield wired into
+  the full scene alongside every other system (terrain, water, river, waterfalls, sky, fog).
+- **A unit-style sweep** (same technique runs 7/8 used for `lighting.js`/`fog.js`): drove
+  `updateDayNightLighting`/`updateStarfield` directly across 20 samples spanning a full simulated
+  day — confirmed `stars.material.opacity` exactly equals `dayNight.nightFactor` at every sample
+  (not just "some fade happens"), and that `updateStarfield` actually re-centers the point cloud on
+  a given camera position.
+- **A dedicated visual verification render** (separate scratch canvas, not the real page's own —
+  the real page's `requestAnimationFrame` loop would otherwise overwrite a one-off render to the
+  same canvas): forced `nightFactor = 1` and rendered the starfield alone — confirms hundreds of
+  small white points scattered correctly across the upper half of the view only, nothing below the
+  horizon, correct point size/color, not just "some points exist somewhere."
+- Offline-precache (new file added to `service-worker.js`'s `GAME3D_SHELL_FILES`, verified fully
+  offline after one online visit) and 2D-game regression tests — both still clean.
+
+**Alternatives considered:**
+- *Fold stars into `sky.js`'s existing shader as another term in the fragment color.* Rejected: a
+  shader-based "is this fragment near a star" test (e.g. hashing screen-space or view-direction
+  coordinates into sparse bright dots) is a legitimate alternative technique, but couples an
+  unrelated rendering approach into `sky.js`'s single gradient+aurora shader, and a `THREE.Points`
+  cloud is both simpler to reason about (explicit star positions, not a procedural density function
+  tuned to *look* sparse) and cheaper (a few thousand tiny points vs. per-fragment noise sampling
+  across the entire sky sphere's surface).
+- *Reuse `world/terrain.js`'s exported `mulberry32` directly instead of a second copy.* Rejected:
+  crosses the `world/`-vs-atmosphere folder boundary this project's target architecture draws
+  deliberately; a ~15-line PRNG function duplicated once, tagged for an independent stream, costs
+  less than coupling an atmosphere module to `world/`'s internals.
+- *Twinkle animation (per-star opacity/size varying with `uTime`) via a custom `ShaderMaterial`.*
+  Deferred, not attempted — real visual polish for later, and would need the same kind of
+  fog-uniform-merge care ADR-0008 documents if it should also respect `scene.fog` (it currently
+  opts out via `fog: false`, so this isn't an immediate concern either way).
+
+**Consequence:** `stars.js` closes FAZ 2's "Yıldızlı gece" roadmap item, leaving volumetric light
+(god rays) as FAZ 2's only remaining unchecked item — explicitly flagged in the roadmap as needing
+a real post-processing pipeline (`EffectComposer`/render targets) that doesn't exist yet in this
+project (that's FAZ 9's `postfx.js` scope), so it should wait for that groundwork rather than be
+half-built early. Known scope limits, tracked in `3D_GAME_PROGRESS.md` Known Issues: stars are a
+fixed pattern (not tied to real astronomical positions/rotation), don't twinkle, and their brightness
+is a flat per-scene opacity, not per-star variation.

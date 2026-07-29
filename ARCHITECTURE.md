@@ -181,6 +181,23 @@ the way it is.
   (`uNightFactor` scales the aurora term in the fragment shader). The always-on placeholder noted
   above is resolved; see DECISIONS.md ADR-0006.
 
+## `src/3d/stars.js` — Night starfield
+
+- **Depends on:** `three` (vendored) only. Deliberately does not import `world/terrain.js`'s
+  `mulberry32` — carries its own copy of the same PRNG algorithm, tagged for an independent stream,
+  since stars are an atmosphere concern kept at the top `src/3d/` level, not a `world/` system (see
+  DECISIONS.md ADR-0012).
+- **Used by:** `game3d.js` (`createStarfield`/`updateStarfield`/`disposeStarfield`) — one
+  `THREE.Points` cloud (1200 seeded points across the upper hemisphere), re-centered on the camera
+  every frame like `sky.js`'s sphere, opacity driven directly by `lighting.js`'s `nightFactor`.
+- **Critical path:** no — purely visual; a shader/material issue would misrender or stay invisible,
+  never throw (built-in `PointsMaterial`, no custom shader).
+- **Failure mode:** none currently guarded — pure synchronous geometry math, no external input.
+- **Determinism:** seeded (`mulberry32`, XORed with a distinct tag from `terrain.js`/`rivers.js`'s
+  own streams) — same seed always produces the same star pattern.
+- **Fog:** deliberately `fog: false`, same reasoning as `sky.js`'s sphere — stars sit "at infinity"
+  and would visibly (and wrongly) dim under this world's night fog density otherwise.
+
 ## `src/3d/lighting.js` — Day/night cycle
 
 - **Depends on:** `three` (vendored) only. Deliberately does not import `config.js` — callers pass
@@ -219,7 +236,7 @@ the way it is.
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
   `world/chunkManager.js`, `world/terrain.js` (`createHeightSampler` only), `world/water.js`,
-  `world/rivers.js`, `camera.js`, `sky.js`, `lighting.js`, `fog.js`.
+  `world/rivers.js`, `camera.js`, `sky.js`, `stars.js`, `lighting.js`, `fog.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
   lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance,

@@ -10,10 +10,11 @@
  * A procedural aurora skybox (`sky.js`) surrounds the camera. FAZ 2 is in progress: a Gerstner-wave
  * sea-level water plane (`world/water.js`) floods low-lying terrain, a real-time day/night cycle
  * (`lighting.js`) animates the sun/hemisphere lights and the sky's colors/aurora visibility
- * together, distance fog (`fog.js`) — synced to the same day/night state — fades terrain into
- * the horizon, and one static river (`world/rivers.js`) traces a deterministic downhill path from
- * high ground near the origin down to sea level, with vertical "curtain" meshes marking its
- * steepest (waterfall-grade) segments. See 3D_GAME_PROGRESS.md for what's next.
+ * together, a starfield (`stars.js`) fades in over the same night state, distance fog (`fog.js`)
+ * — synced to the same day/night state — fades terrain into the horizon, and one static river
+ * (`world/rivers.js`) traces a deterministic downhill path from high ground near the origin down
+ * to sea level, with vertical "curtain" meshes marking its steepest (waterfall-grade) segments.
+ * See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
 
@@ -35,6 +36,7 @@ import {
 } from './world/rivers.js';
 import { createOrbitCamera } from './camera.js';
 import { createAuroraSky, updateAuroraSky, disposeAuroraSky } from './sky.js';
+import { createStarfield, updateStarfield, disposeStarfield } from './stars.js';
 import { createDayNightLighting, updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
 import { createFog, updateFog } from './fog.js';
 
@@ -78,7 +80,7 @@ function isCoarsePointerDevice() {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -102,6 +104,8 @@ function createScene(canvas) {
 
 	const sky = createAuroraSky();
 	scene.add(sky);
+	const stars = createStarfield(WORLD_DEFAULTS.WORLD_SEED);
+	scene.add(stars);
 	const water = createWater(WORLD_DEFAULTS.WATER_LEVEL_METERS);
 	scene.add(water);
 	const clock = new THREE.Clock();
@@ -145,7 +149,7 @@ function createScene(canvas) {
 	waterfalls.forEach((mesh) => scene.add(mesh));
 	console.info(`[game3d] Detected ${waterfalls.length} waterfall-grade drop(s) along the river.`);
 
-	return { renderer, scene, camera, controls, chunkManager, sky, water, river, waterfalls, lights, clock, lastStreamChunk: null };
+	return { renderer, scene, camera, controls, chunkManager, sky, stars, water, river, waterfalls, lights, clock, lastStreamChunk: null };
 }
 
 /**
@@ -240,6 +244,7 @@ export async function initGame3D() {
 				WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO,
 			);
 			updateAuroraSky(state.sky, state.camera.position, elapsedSeconds, dayNight);
+			updateStarfield(state.stars, state.camera.position, dayNight.nightFactor);
 			updateFog(state.scene.fog, dayNight);
 			updateWater(state.water, state.camera.position, elapsedSeconds);
 			state.renderer.render(state.scene, state.camera);
@@ -252,6 +257,7 @@ export async function initGame3D() {
 			state.controls.dispose();
 			state.chunkManager.disposeAll();
 			disposeAuroraSky(state.sky);
+			disposeStarfield(state.stars);
 			disposeWater(state.water);
 			if (state.river) disposeRiverMesh(state.river);
 			state.waterfalls.forEach(disposeWaterfallMesh);

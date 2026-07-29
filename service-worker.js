@@ -30,6 +30,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/config.js',
     './src/3d/camera.js',
     './src/3d/sky.js',
+    './src/3d/stars.js',
     './src/3d/lighting.js',
     './src/3d/fog.js',
     './src/3d/world/terrain.js',

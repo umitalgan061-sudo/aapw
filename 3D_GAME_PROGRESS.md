@@ -227,7 +227,14 @@ Triangles<500K, TextureMem<512MB.
   `updateAuroraSky` now takes this module's output and blends the sky gradient between blue-day
   and dusk-night presets, fading the aurora in only at night via a new `uNightFactor` uniform —
   resolves the "always-on aurora" Known Issue below. See DECISIONS.md ADR-0006.
-- [ ] Yıldızlı gece (star field, layered on top of the now-real night sky — not started this run)
+- [x] Yıldızlı gece (`stars.js`) — 1200 tohumlu (seeded) noktadan oluşan üst-yarımküre yıldız
+  bulutu, kamerayla birlikte yeniden merkezlenen bir `THREE.Points`, opaklığı doğrudan
+  `lighting.js`'in `nightFactor`'üyle sürülüyor (aurora'nın kullandığı aynı gece-gündüz geçidi).
+  Kendi içine kapalı bir `mulberry32` kopyası taşıyor (`world/terrain.js`'den import etmiyor —
+  yıldızlar bir atmosfer meselesi, `world/` sistemi değil). Gerçek `game3d.html` sahnesinde ve ayrı
+  bir gece-zorlamalı doğrulama render'ında sıfır hatayla, gün döngüsü boyunca opaklığın
+  `nightFactor`'ü tam eşleştirdiği bir birim-testi taramasıyla doğrulandı. Detaylar: DECISIONS.md
+  ADR-0012.
 - [x] Nehir — ilk gerçek geçiş (`world/rivers.js`) — deterministik yokuş-aşağı yürüyüş
   (steepest-descent, `terrain.js`'in mevcut FBM yükseklik alanı üzerinde, `terrain.js`'e hiç
   dokunmadan — su için ADR-0005'in aynı tekniği), kaynak noktasından (orijine 2000m içindeki en
@@ -1185,6 +1192,75 @@ accidental gap. If a future run wants dramatically taller/more numerous waterfal
 `terrain.js` to actually generate steeper local relief (a real, separate change) — not a bigger
 threshold or taller quad grafted onto this world's current rolling-hill terrain.
 
+## This Run (2026-07-29, run 13)
+
+**Continuation of the same operator session** ("Devam et" / "continue" right after run 12's push).
+Repo state already fresh in context (clean, `main` at `dd6678b`, run 12's waterfall commit already
+pushed) — re-checked with `git fetch origin main` anyway (no new parallel work landed). Picked up
+run 12's own "Next step": between the two remaining FAZ 2 items, chose the starfield over
+volumetric light — god rays are explicitly flagged in the roadmap as needing a real post-processing
+pipeline (`EffectComposer`/render targets) this project doesn't have yet (that's FAZ 9's
+`postfx.js` scope), so building it now would mean either half-building a postfx pipeline early or a
+fragile fake; the starfield is self-contained and lower-risk, matching this project's own pattern
+of preferring the smaller, well-scoped task when both remain.
+
+**Done — FAZ 2 starfield, per run 12's recommended next step:**
+- **Design decision made and recorded before writing code (DECISIONS.md ADR-0012):** a new
+  top-level `src/3d/stars.js` (not folded into `sky.js`) adds a `THREE.Points` cloud of 1200 seeded
+  points scattered across the upper hemisphere, re-centered on the camera every frame (same
+  technique `sky.js`/`world/water.js` already use), opacity driven directly by `lighting.js`'s
+  `nightFactor` — the same day/night gating `sky.js` already applies to its aurora. Carries its own
+  self-contained `mulberry32` copy (XOR-tagged for an independent stream) rather than importing
+  `world/terrain.js`'s, since stars are an atmosphere concern kept at the top `src/3d/` level, not a
+  `world/` system — matches the target architecture's folder ownership.
+- **Built `src/3d/stars.js`:** `createStarfield(seed)` / `updateStarfield(starfield,
+  cameraPosition, nightFactor)` / `disposeStarfield(starfield)`. Built-in `PointsMaterial`
+  (`sizeAttenuation: false`, `fog: false` — same reasoning `sky.js` gives for its own `fog: false`,
+  stars sit "at infinity" and this world's night fog density would visibly (and wrongly) dim
+  anything real positioned that far away), `renderOrder: -0.5` (after `sky.js`'s sphere at `-1`,
+  before ordinary opaque scene geometry at the default `0`).
+- **Wired into `game3d.js`:** star cloud added to the scene at boot, `updateStarfield()` called
+  every render-loop tick right after `updateAuroraSky()`, `disposeStarfield()` called on
+  `pagehide` alongside the existing cleanup chain.
+- **`service-worker.js`:** added `./src/3d/stars.js` to `GAME3D_SHELL_FILES` — a new code-imported
+  file must join the offline precache the moment it's added, per the rule established since run 5.
+- **Regression guard:** `node --check` on `stars.js`/`game3d.js`/`service-worker.js`. All pass.
+- **Real smoke tests (headless Chromium via Playwright):**
+  1. Full `game3d.html` render pass: zero `pageerror`/`console.error` with the starfield wired into
+     the full scene alongside every other system (terrain, water, river, waterfalls, sky, fog).
+  2. **A unit-style sweep** (same technique runs 7/8 used for `lighting.js`/`fog.js`): drove
+     `updateDayNightLighting`/`updateStarfield` directly across 20 samples spanning a full simulated
+     day — confirmed `stars.material.opacity` exactly equals `dayNight.nightFactor` at every single
+     sample (not just "some fade happens"), and that the point cloud actually re-centers on a given
+     camera position.
+  3. **A dedicated visual verification render** (a separate scratch canvas, since the real page's
+     own `requestAnimationFrame` loop would otherwise immediately overwrite a one-off render to its
+     canvas — caught this on the first attempt, when the screenshot showed the real running scene
+     instead of the isolated test): forced `nightFactor = 1` and rendered the starfield alone —
+     screenshot confirms hundreds of small white points scattered correctly across the upper half
+     of the view only, nothing below the horizon.
+  4. Offline-precache (verified fully offline after one online visit, including the new
+     `stars.js` precache entry) and 2D-game regression tests — both still clean.
+
+**Files changed this run:** `src/3d/stars.js` (new), `src/3d/game3d.js` (starfield wiring +
+disposal), `service-worker.js` (`GAME3D_SHELL_FILES`), `DECISIONS.md` (new ADR-0012),
+`ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file — Roadmap checklist, this section). Six files,
+~200 new/changed lines — well within budget; one atomic addition (one new self-contained module +
+its wiring + its disposal + its offline-cache entry).
+
+**Next step for the next run:** FAZ 2's only remaining unchecked item is volumetric light (god
+rays) — per this run's own reasoning above, that should wait for a real post-processing pipeline
+(FAZ 9's `postfx.js` scope: `EffectComposer`, render targets, bloom/tonemapping/SSAO/DOF all live
+there together) rather than being half-built in isolation now. A reasonable alternative next pick:
+start FAZ 3 (Kaleler/Yerleşimler) instead, since FAZ 2's atmosphere work is now substantially
+complete (water, day/night, fog, rivers, waterfalls, stars) and FAZ 3 has its own real subtasks
+(`settlements.js`, PBR materials, LOD/colliders) independent of the postfx-gated god-rays item.
+World Coverage unchanged at 52.5% (72.25 km² / 137.5 km² — this run added atmosphere polish, not
+chunk-covered area; FAZ 3 cannot be marked DONE below 80% coverage, so coverage growth should be
+revisited before or alongside FAZ 3's own close-out). No new tech debt: stars are a fixed,
+non-twinkling pattern by explicit, documented design choice (flagged in ADR-0012's Consequence),
+not an accidental gap.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -1197,6 +1273,15 @@ threshold or taller quad grafted onto this world's current rolling-hill terrain.
   boot, confined to a fixed radius around the origin (see ADR-0009) — a real multi-river system
   tied to `ChunkManager`'s streaming (so rivers appear/persist correctly as the player explores
   beyond the FAZ 1 preview area) is future work, not this pass's scope.
+- **`stars.js`'s starfield is a fixed, non-twinkling pattern.** Same seed always produces the same
+  star positions (by design — determinism rule), but there's no per-star flicker/twinkle animation
+  and no relation to real astronomical positions — a flat, uniform opacity per scene, not per-star
+  variation. See DECISIONS.md ADR-0012's Consequence for what a future flow-animated pass would need.
+- **Volumetric light (god rays) intentionally deferred, not skipped.** Flagged in the FAZ 2 roadmap
+  and DECISIONS.md ADR-0012's Consequence as needing a real post-processing pipeline
+  (`EffectComposer`/render targets) this project doesn't have yet — that's FAZ 9's `postfx.js`
+  scope. Building it in isolation now would mean either half-building a postfx pipeline early or a
+  fragile screen-space fake; wait for FAZ 9's groundwork.
 - **`world/rivers.js`'s surface doesn't flow-animate.** Uses a static built-in `MeshStandardMaterial`
   (see ADR-0009's Alternatives) — no scrolling-UV or foam shader like `world/water.js`'s Gerstner
   waves. Low priority until the river network itself is more developed.
