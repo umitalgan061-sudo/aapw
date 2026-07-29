@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no">
+<meta name="description" content="Westeros'un interaktif haritası - Krallıkları yönet, savaş yap, ittifak kur">
+<meta name="keywords" content="Westeros, Game of Thrones, strategy, map, kingdoms">
+<meta name="author" content="Tiyatro">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Westeros">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#c8960a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#c8960a" media="(prefers-color-scheme: light)">
+<meta name="msapplication-config" content="browserconfig.xml">
+<title>Westeros — Yedi Krallık Haritası</title>
+<link rel="apple-touch-icon" sizes="180x180" href="logo.png">
+<link rel="icon" type="image/png" href="logo.png"><link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@400;700;900&family=IM+Fell+English:ital@0;1&display=swap" as="style" onload="this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@400;700;900&family=IM+Fell+English:ital@0;1&display=swap"></noscript>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"></noscript>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="ios-pwa-fix.css">
+
+
+<!-- PWA Support -->
+<style>
+  /* PWA Geliştirmeleri ve Global Bar Düzenlemesi */
+  .global-bar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 10px;
+    padding: 8px 10px !important;
+    background: rgba(0, 0, 0, 0.85) !important;
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(200, 150, 10, 0.2);
+    /* iOS'ta yatay kaydırma için zorunlu */
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
+  }
+
+  @media (max-width: 767px), (display-mode: standalone) {
+    .global-bar {
+      justify-content: flex-start !important;
+    }
+  }
+  .global-bar::-webkit-scrollbar { display: none; }
+  .global-bar > span { 
+    flex-shrink: 0; 
+    white-space: nowrap; 
+    font-size: 8.5px;
+    letter-spacing: 0.2px;
+  }
+
+  body.pwa-mode {
+    overscroll-behavior-y: none;
+    user-select: none;
+    -webkit-user-select: none;
+    padding-top: env(safe-area-inset-top);
+  }
+  body.pwa-mode .title-bar {
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+  body.pwa-mode input, body.pwa-mode textarea { user-select: text; -webkit-user-select: text; }
+
+  /* Figure Marker Geliştirmesi */
+  @keyframes mysticFigureGlow {
+    0%, 100% { 
+      filter: drop-shadow(0 0 30px rgba(200, 150, 10, 0.4)) brightness(1);
+      transform: translate(-50%, -50%) scale(1);
+    }
+    50% { 
+      filter: drop-shadow(0 0 70px rgba(232, 180, 32, 0.6)) brightness(1.15);
+      transform: translate(-50%, -50%) scale(1.05);
+    }
+  }
+
+  .km-type-figure { z-index: 150 !important; }
+  .km-type-figure .km-av {
+    width: var(--fig-size, 800px) !important; 
+    height: var(--fig-size, 800px) !important;
+    background: none !important;
+    animation: mysticFigureGlow 6s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .km-type-figure .km-av img {
+    object-fit: contain !important;
+  }
+
+  /* ══ CİNEMATIC INTRO STYLES ══ */
+  #loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: #06040a;
+    z-index: 10000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    transition: opacity 1.2s ease-in-out;
+  }
+  #loading.out {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .intro-dragon-wrap {
+    position: relative;
+    width: 90vw;
+    height: 100%;
+    max-height: 100dvh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transform: scale(1.1);
+    animation: dragonReveal 4s ease-out 1s forwards;
+  }
+
+  .intro-dragon {
+    width: 100%;
+    height: 100%;
+    background: url('resimler/kapak.png') center/contain no-repeat;
+    filter: brightness(0.7) contrast(1.2);
+  }
+
+  /* Gerçekçi Ateş Katmanı */
+  #fireCanvas {
+    position: absolute;
+    inset: 0;
+    z-index: 10001;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+
+  .fire-active #fireCanvas {
+    opacity: 1;
+  }
+
+  .fire {
+    mix-blend-mode: screen;
+    animation: fireFlash 2s ease;
+  }
+
+  @keyframes fireFlash {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.5) contrast(1.5); }
+  }
+
+
+
+  .intro-title {
+    position: absolute;
+    bottom: 15%;
+    font-family: 'Cinzel', serif;
+    font-size: 40px;
+    color: var(--gold);
+    letter-spacing: 15px;
+    text-shadow: 0 0 20px rgba(200, 150, 10, 0.5);
+    opacity: 0;
+    animation: titleAppear 3s ease-out 4s forwards;
+  }
+
+  /* Ekran Erime Efekti */
+  .melting-mode {
+    filter: url(#screenMelt);
+    animation: screenDrop 4s ease-in-out 6.5s forwards;
+  }
+
+  @keyframes screenDrop {
+    0% { transform: translateY(0) scale(1); filter: url(#screenMelt) brightness(1); }
+    50% { filter: url(#screenMelt) brightness(1.5) contrast(1.2); }
+    100% { transform: translateY(120vh) scale(1.1); filter: url(#screenMelt) brightness(2); opacity: 0; }
+  }
+
+  /* Gizli SVG Filtresi (Erime için) */
+  #melt-svg {
+    position: absolute;
+    width: 0;
+    height: 0;
+  }
+
+  @keyframes dragonReveal {
+    to { opacity: 1; transform: scale(1); }
+  }
+
+
+  @keyframes eyeGlow {
+    0% { opacity: 0; transform: scale(0.5); }
+    50% { opacity: 1; transform: scale(1.2); }
+    100% { opacity: 0.9; transform: scale(1); }
+  }
+
+  @keyframes titleAppear {
+    from { opacity: 0; letter-spacing: 30px; filter: blur(10px); }
+    to { opacity: 1; letter-spacing: 15px; filter: blur(0); }
+  }
+
+  /* loading-done class artık kullanılmıyor - #loading.out kullanıyoruz */
+</style>
+<meta name="color-scheme" content="dark light">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://www.gstatic.com">
+<link rel="dns-prefetch" href="https://i.redd.it">
+
+<!-- ══ ADDITIONAL META TAGS & OPTIMIZATIONS ══ -->
+<meta name="application-name" content="Westeros">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="format-detection" content="telephone=no">
+<meta name="format-detection" content="email=no">
+
+<!-- Open Graph / Social Media -->
+<meta property="og:type" content="application/x-web-app">
+<meta property="og:title" content="Westeros — Yedi Krallık Haritası">
+<meta property="og:description" content="Westeros'un interaktif haritası - Krallıkları yönet, savaş yap, ittifak kur">
+<meta property="og:site_name" content="Westeros">
+<meta property="og:locale" content="tr_TR">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Westeros — Yedi Krallık Haritası">
+<meta name="twitter:description" content="Strategy game haritası">
+
+<!-- Preload Critical Resources -->
+<link rel="preload" href="style.css" as="style">
+<link rel="preload" href="script.js" as="script">
+<!-- Harita ve giriş resmi ön yükleme — kritik render path -->
+<link rel="preload" href="resimler/map.png" as="image" fetchpriority="high">
+<link rel="preload" href="resimler/kapak.png" as="image">
+
+<!-- Performance Hints -->
+<link rel="prefetch" href="service-worker.js">
+<link rel="prefetch" href="manifest.json">
+</head>
+<body>
+
+<!-- ══ LOADING ══ -->
+<div id="loading">
+  <div class="intro-dragon-wrap">
+    <div class="intro-dragon"></div>
+  </div>
+  <!-- WESTEROS intro-title kaldırıldı - daha temiz giriş ekranı -->
+  <canvas id="fireCanvas"></canvas>
+</div>
+
+<!-- Erime Efekti Filtresi -->
+<svg id="melt-svg">
+  <filter id="screenMelt">
+    <feTurbulence type="fractalNoise" baseFrequency="0.015 0.03" numOctaves="3" seed="2">
+      <animate attributeName="baseFrequency" dur="5s" values="0.015 0.03;0.03 0.1;0.015 0.03" repeatCount="indefinite" />
+    </feTurbulence>
+    <feDisplacementMap in="SourceGraphic" scale="0">
+      <animate attributeName="scale" dur="8s" begin="6s" values="0;20;60;150" fill="freeze" />
+    </feDisplacementMap>
+  </filter>
+</svg>
+
+
+<!-- ══ PARTICLES ══ -->
+<div id="embers"></div>
+<div id="snow-layer"></div>
+<div id="rain-layer"></div>
+
+<!-- ══ TITLE BAR ══ -->
+<header class="title-bar">
+  <div class="tb-left">
+    <div class="tb-crown-icon">♛</div>
+    <div class="tb-titles">
+      <div class="tb-title">WESTEROS</div>
+      <div class="tb-sub" id="tb-season-lbl">Yedi Krallık Haritası</div>
+    </div>
+  </div>
+  <div class="tb-right">
+    <button class="tb-btn" id="sb-btn" onclick="toggleSB()" title="Sıralama"><i class="fa-solid fa-trophy"></i><span class="tb-badge" id="k-count">0</span></button>
+    <button class="tb-btn" onclick="showList()" title="Krallıklar"><i class="fa-solid fa-shield-halved"></i></button>
+    <button class="tb-btn" onclick="showChronicle()" title="Kronoloji"><i class="fa-solid fa-scroll"></i></button>
+    <button class="tb-btn" onclick="showDiplomacy()" title="Diplomasi"><i class="fa-solid fa-handshake"></i></button>
+    <button class="tb-btn" onclick="showStats()" title="İstatistikler"><i class="fa-solid fa-chart-line"></i></button>
+    <button class="tb-btn" onclick="openAdd()" title="Yeni Krallık"><i class="fa-solid fa-plus"></i></button>
+  </div>
+</header>
+
+<!-- ══ GLOBAL BAR ══ -->
+<div class="global-bar">
+  <span>🌍 <span class="gb-val" id="gb-kingdoms">0</span> HANE</span>
+  <span>⚔️ <span class="gb-val" id="gb-battles">0</span> SAVAŞ</span>
+  <span>🤝 <span class="gb-val" id="gb-alliances">0</span> İTTİFAK</span>
+  <span>📦 <span class="gb-val" id="gb-trades">0</span> TİCARET</span>
+  <span>🔬 <span class="gb-val" id="gb-techs">0</span> TEK</span>
+  <span id="gb-season-stat">🌸 İLKBAHAR</span>
+  <span>📜 TUR <span class="gb-val" id="gb-turn">1</span></span>
+</div>
+
+<!-- ══ NIGHT KING WIDGET ══ -->
+<div class="nk-widget" id="nk-widget" onclick="showNKInfo()">
+  <div class="nk-icon">🧊</div>
+  <div class="nk-info">
+    <div class="nk-title">Gece Kralı</div>
+    <div class="nk-bar-wrap"><div class="nk-bar-fill" id="nk-fill" style="width:0%"></div></div>
+  </div>
+  <div class="nk-pct" id="nk-pct">0%</div>
+</div>
+
+<!-- ══ SEASON WIDGET ══ -->
+<div class="season-widget" id="season-widget" onclick="triggerSeasonAdvance()">
+  <div class="season-icon" id="season-icon">🌸</div>
+  <div class="season-info">
+    <div class="season-name" id="season-name">İlkbahar</div>
+    <div class="season-turn" id="season-turn">Tur 1 · Dokun</div>
+  </div>
+</div>
+
+<!-- ══ IRON THRONE WIDGET — IMPROVED ══ -->
+<div class="throne-widget" id="throne-widget" onclick="openThroneSelector()">
+  <div class="throne-icon">♛</div>
+  <div class="throne-info">
+    <div class="throne-title-lbl">⚔️ Demir Taht</div>
+    <div class="throne-leader" id="throne-leader">Cersei Lannister</div>
+  </div>
+  <button class="throne-change-btn" onclick="event.stopPropagation();openThroneSelector()" title="Lider Değiştir">✏️</button>
+</div>
+
+<!-- ══ THRONE SELECTOR MODAL ══ -->
+<div class="throne-selector" id="throne-selector" onclick="closeThroneSelector(event)">
+  <div class="throne-selector-box" id="throne-selector-box">
+    <div class="throne-selector-ttl">♛ DEMİR TAHT</div>
+    <div class="throne-selector-sub">♛ Hükümdarı Manuel Seç</div>
+    <div class="throne-kingdom-list" id="throne-kingdom-list"></div>
+    <button class="throne-sel-cancel" onclick="closeThroneSelector()">İptal</button>
+  </div>
+</div>
+
+<!-- ══ MODE BARS ══ -->
+<div class="mode-bar mode-bar--red" id="bar-conquer"><span class="mb-txt">⚔️ Savaşılacak krallığa dokun</span><button class="mb-cancel" onclick="cancelMode()">İPTAL</button></div>
+<div class="mode-bar mode-bar--blue" id="bar-repos"><span class="mb-txt">📍 Haritaya dokun — yeni konum</span><button class="mb-cancel" onclick="cancelMode()">İPTAL</button></div>
+<div class="mode-bar mode-bar--green" id="bar-terr"><span class="mb-txt">🗺️ Sınır noktaları ekle</span><button class="mb-cancel" onclick="finishTerr()">BİTTİ ✓</button></div>
+<div class="mode-bar mode-bar--purple" id="bar-ally"><span class="mb-txt">🤝 İttifak kurulacak krallığa dokun</span><button class="mb-cancel" onclick="cancelMode()">İPTAL</button></div>
+<div class="mode-bar mode-bar--teal" id="bar-trade"><span class="mb-txt">📦 Ticaret kurulacak krallığa dokun</span><button class="mb-cancel" onclick="cancelMode()">İPTAL</button></div>
+<div class="mode-bar mode-bar--purple" id="bar-spy"><span class="mb-txt">🕵️ Casusluk yapılacak krallığa dokun</span><button class="mb-cancel" onclick="cancelMode()">İPTAL</button></div>
+<div class="mode-bar mode-bar--orange" id="bar-blockade"><span class="mb-txt">⛔ Abluka uygulanacak krallığa dokun</span><button class="mb-cancel" onclick="cancelMode()">İPTAL</button></div>
+<div class="mode-bar mode-bar--purple" id="bar-marriage"><span class="mb-txt">💍 Evlilik teklif edilecek krallığa dokun</span><button class="mb-cancel" onclick="cancelMode()">İPTAL</button></div>
+
+<!-- ══ MAP ══ -->
+<div id="map-wrap">
+  <div id="map-canvas">
+    <div class="map-base"></div>
+    <div class="map-sepia"></div>
+    <div class="map-texture"></div>
+    <div class="map-edge-vignette"></div>
+    <div class="nk-overlay" id="nk-overlay"></div>
+    <svg id="trade-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <svg id="alliance-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <svg id="terr-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <svg id="blockade-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <svg id="marriage-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="markers-layer"></div>
+  </div>
+</div>
+
+<!-- ══ ZOOM ══ -->
+<div class="zoom-panel" id="zoom-panel">
+  <button class="z-btn" onclick="zm(1.3)" title="Yakınlaştır"><i class="fa-solid fa-plus"></i></button>
+  <div class="z-pct" id="z-pct">100%</div>
+  <button class="z-btn" onclick="zm(0.77)" title="Uzaklaştır"><i class="fa-solid fa-minus"></i></button>
+  <div class="z-divider"></div>
+  <button class="z-btn" onclick="resetView()" title="Sıfırla"><i class="fa-solid fa-house"></i></button>
+  <button class="z-btn" onclick="fitAll()" title="Tümünü gör"><i class="fa-solid fa-expand"></i></button>
+</div>
+
+<!-- ══ MINI-MAP ══ -->
+<div class="mini-map" id="mini-map" onclick="miniMapClick(event)">
+  <div class="mini-map-bg"></div>
+  <div class="mini-map-overlay" id="mini-overlay"></div>
+  <div class="mini-map-viewport" id="mini-viewport"></div>
+  <div class="mini-map-lbl">MİNİ HARİTA</div>
+</div>
+
+<!-- ══ AUTO-TURN BAR ══ -->
+<div class="auto-turn-wrap" id="auto-turn-wrap">
+  <div class="auto-turn-indicator" id="auto-indicator"></div>
+  <button class="auto-turn-btn" id="auto-btn" onclick="toggleAutoTurn()">⏯ OTO-TUR</button>
+  <div class="auto-turn-speed">
+    <div class="auto-spd sel" onclick="setAutoSpeed(3000,this)">1x</div>
+    <div class="auto-spd" onclick="setAutoSpeed(1500,this)">2x</div>
+    <div class="auto-spd" onclick="setAutoSpeed(600,this)">5x</div>
+  </div>
+</div>
+
+
+<!-- ══ SEASON TRANSITION ══ -->
+<div class="season-transition" id="season-transition">
+  <div class="st-ripple"></div>
+  <div class="st-ripple"></div>
+  <div class="st-ripple"></div>
+  <div class="st-icon-wrap">
+    <div class="st-icon" id="st-icon">🌸</div>
+    <div class="st-season-name" id="st-name">İlkbahar</div>
+  </div>
+</div>
+
+<!-- ══ BOTTOM PANEL ══ -->
+<div class="panel off" id="panel">
+  <div class="panel-drag" id="panel-drag"></div>
+  <button class="panel-x" onclick="closePanel()"><i class="fa-solid fa-xmark"></i></button>
+  <div class="panel-tabs" id="panel-tabs"></div>
+  <div class="panel-tab-sep"></div>
+  <div class="panel-body" id="panel-body"></div>
+</div>
+
+<!-- ══ SCOREBOARD ══ -->
+<div class="scoreboard" id="scoreboard">
+  <div class="sb-ttl">♛ Güç Sıralaması</div>
+  <div id="sb-list"></div>
+</div>
+
+<!-- ══ ADD MODAL ══ -->
+<div class="mo" id="mo-add" onclick="bgClick(event,'mo-add',closeAdd)">
+  <div class="mo-box">
+    <div class="mo-handle" onclick="closeAdd()"></div>
+    <div class="mo-ttl">⚔️ Yeni Krallık Kur</div>
+    <div class="f2">
+      <div class="fg"><label class="fl">Kral / Kraliçe *</label><input class="fi" id="n-king" placeholder="Jon Snow…" autocomplete="off"></div>
+      <div class="fg"><label class="fl">Hane *</label><input class="fi" id="n-house" placeholder="Stark…" autocomplete="off"></div>
+    </div>
+    <div class="fg"><label class="fl">Ünvan</label><input class="fi" id="n-title" placeholder="Kuzey Kralı…" autocomplete="off"></div>
+    <div class="fg"><label class="fl">Fotoğraf URL</label><input class="fi" id="n-photo" type="url" placeholder="https://…"></div>
+    <div class="f2">
+      <div class="fg"><label class="fl">Başlangıç Ordusu</label><div class="slider-row"><input type="range" min="10" max="200" value="80" id="n-army" oninput="document.getElementById('n-armyv').textContent=this.value"><span class="s-val" id="n-armyv">80</span></div></div>
+      <div class="fg"><label class="fl">Altın</label><div class="slider-row"><input type="range" min="50" max="500" value="150" id="n-gold" oninput="document.getElementById('n-goldv').textContent=this.value"><span class="s-val" id="n-goldv">150</span></div></div>
+    </div>
+    <div class="fg"><label class="fl">Arma Rengi</label><div class="c-grid" id="cp-add"></div></div>
+    <div class="fg"><label class="fl">Arma Simgesi</label><div class="s-grid" id="sp-add"></div></div>
+    <div class="f-acts">
+      <button class="f-cancel" onclick="closeAdd()">İptal</button>
+      <button class="f-submit" onclick="createKingdom()"><i class="fa-solid fa-crown"></i> KRALLIK KUR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EDIT MODAL ══ -->
+<div class="mo" id="mo-edit" onclick="bgClick(event,'mo-edit',closeEdit)">
+  <div class="mo-box">
+    <div class="mo-handle" onclick="closeEdit()"></div>
+    <div class="mo-ttl">✏️ Krallığı Düzenle</div>
+    <input type="hidden" id="e-id">
+    <div class="f2">
+      <div class="fg"><label class="fl">Kral / Kraliçe</label><input class="fi" id="e-king" autocomplete="off"></div>
+      <div class="fg"><label class="fl">Hane</label><input class="fi" id="e-house" autocomplete="off"></div>
+    </div>
+    <div class="fg"><label class="fl">Ünvan</label><input class="fi" id="e-title" autocomplete="off"></div>
+    <div class="fg"><label class="fl">Fotoğraf URL</label><input class="fi" id="e-photo" type="url"></div>
+    <div class="f2">
+      <div class="fg"><label class="fl">Ordu Gücü</label><div class="slider-row"><input type="range" min="10" max="200" value="80" id="e-army" oninput="document.getElementById('e-armyv').textContent=this.value"><span class="s-val" id="e-armyv">80</span></div></div>
+      <div class="fg"><label class="fl">Donanma</label><div class="slider-row"><input type="range" min="0" max="100" value="20" id="e-navy" oninput="document.getElementById('e-navyv').textContent=this.value"><span class="s-val" id="e-navyv">20</span></div></div>
+    </div>
+    <div class="fg"><label class="fl">Arma Rengi</label><div class="c-grid" id="cp-edit"></div></div>
+    <div class="fg"><label class="fl">Arma Simgesi</label><div class="s-grid" id="sp-edit"></div></div>
+    <div class="f-acts">
+      <button class="f-cancel" onclick="closeEdit()">İptal</button>
+      <button class="f-submit" onclick="saveEdit()"><i class="fa-solid fa-floppy-disk"></i> KAYDET</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TECHNOLOGY MODAL ══ -->
+<div class="mo" id="mo-tech" onclick="bgClick(event,'mo-tech',closeTech)">
+  <div class="mo-box">
+    <div class="mo-handle" onclick="closeTech()"></div>
+    <div class="mo-ttl">🔬 Araştırma & Geliştirme</div>
+    <div id="tech-content"></div>
+    <div class="f-acts"><button class="f-cancel" onclick="closeTech()">Kapat</button></div>
+  </div>
+</div>
+
+<!-- ══ MERCENARY MODAL ══ -->
+<div class="mo" id="mo-merc" onclick="bgClick(event,'mo-merc',closeMerc)">
+  <div class="mo-box">
+    <div class="mo-handle" onclick="closeMerc()"></div>
+    <div class="mo-ttl">⚔️ Paralı Asker Şirketleri</div>
+    <div id="merc-content"></div>
+    <div class="f-acts"><button class="f-cancel" onclick="closeMerc()">Kapat</button></div>
+  </div>
+</div>
+
+<!-- ══ COMPARE MODAL ══ -->
+<div class="mo" id="mo-compare" onclick="bgClick(event,'mo-compare',()=>document.getElementById('mo-compare').classList.remove('open'))">
+  <div class="mo-box">
+    <div class="mo-handle" onclick="document.getElementById('mo-compare').classList.remove('open')"></div>
+    <div class="mo-ttl">⚖️ Krallık Karşılaştır</div>
+    <div id="compare-content"></div>
+    <div class="f-acts"><button class="f-cancel" onclick="document.getElementById('mo-compare').classList.remove('open')">Kapat</button></div>
+  </div>
+</div>
+
+<!-- ══ BATTLE SCREEN ══ -->
+<div class="battle-screen" id="battle-screen">
+  <div class="bs-bg"></div>
+  <div class="bs-content">
+    <div class="bs-title">⚔️ SAVAŞ ⚔️</div>
+    <div class="bs-subtitle" id="bs-subtitle">Kılıçlar Konuşuyor</div>
+    <div class="bs-terrain" id="bs-terrain"></div>
+    <div class="bs-advantages" id="bs-advantages"></div>
+    <div class="bs-combatants">
+      <div class="bs-side" id="bs-att-side">
+        <div class="bs-av-wrap"><div class="bs-av" id="bs-att-av"></div><div class="bs-crown">♛</div></div>
+        <div class="bs-name" id="bs-att-name"></div>
+        <div class="bs-house" id="bs-att-house"></div>
+        <div class="bs-army-disp" id="bs-att-army">⚔️ 0</div>
+        <div class="bs-morale-wrap"><div class="bs-morale-lbl">MORAL</div><div class="bs-morale-bar"><div class="bs-morale-fill" id="bs-att-morale" style="width:100%;background:#e8b420;"></div></div></div>
+        <div class="bs-dice-wrap" id="bs-att-dice"></div>
+        <div class="bs-roll-total" id="bs-att-total"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;"><div class="bs-vs">VS</div></div>
+      <div class="bs-side" id="bs-def-side">
+        <div class="bs-av-wrap"><div class="bs-av" id="bs-def-av"></div><div class="bs-crown">♛</div></div>
+        <div class="bs-name" id="bs-def-name"></div>
+        <div class="bs-house" id="bs-def-house"></div>
+        <div class="bs-army-disp" id="bs-def-army">🛡️ 0</div>
+        <div class="bs-morale-wrap"><div class="bs-morale-lbl">MORAL</div><div class="bs-morale-bar"><div class="bs-morale-fill" id="bs-def-morale" style="width:100%;background:#e8b420;"></div></div></div>
+        <div class="bs-dice-wrap" id="bs-def-dice"></div>
+        <div class="bs-roll-total" id="bs-def-total"></div>
+      </div>
+    </div>
+    <div class="bs-rounds" id="bs-rounds"></div>
+    <div class="bs-separator"></div>
+    <div class="bs-outcome" id="bs-outcome"></div>
+    <div id="bs-outcome-sub" class="bs-outcome-sub"></div>
+    <div class="bs-actions" id="bs-actions"></div>
+  </div>
+</div>
+
+<!-- ══ SPY SCREEN ══ -->
+<div class="spy-screen" id="spy-screen">
+  <div class="spy-bg"></div>
+  <div class="spy-content">
+    <div class="spy-title">🕵️ CASUSLUK</div>
+    <div class="spy-subtitle" id="spy-subtitle">Gölgede Hareket Et</div>
+    <div class="spy-ops" id="spy-ops"></div>
+    <div class="spy-result" id="spy-result" style="display:none;"></div>
+    <button class="spy-close-btn" onclick="closeSpyScreen()">✕ KAPAT</button>
+  </div>
+</div>
+
+<!-- ══ ALLIANCE MODAL ══ -->
+<div class="mo" id="mo-ally" onclick="bgClick(event,'mo-ally',closeAlly)">
+  <div class="mo-box">
+    <div class="mo-handle" onclick="closeAlly()"></div>
+    <div class="mo-ttl">🤝 İttifak Kur</div>
+    <div class="fg">
+      <div style="font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim);text-align:center;margin-bottom:14px;line-height:1.6;">İttifak kurulacak krallığı seçin.<br><span style="color:var(--gold)">50 Altın</span> gerekir.</div>
+      <div class="ally-kingdom-grid" id="ally-grid"></div>
+    </div>
+    <div class="f-acts">
+      <button class="f-cancel" onclick="closeAlly()">İptal</button>
+      <button class="f-submit" id="ally-confirm-btn" onclick="confirmAlly()" style="background:linear-gradient(135deg,#1a4a8B,#1a6ab0,#2080c0);border-color:rgba(74,136,200,.45);box-shadow:0 4px 28px rgba(26,74,139,.55);"><i class="fa-solid fa-handshake"></i> İTTİFAK KUR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CONFIRM ══ -->
+<div class="confirm-wrap" id="conf-wrap">
+  <div class="confirm-box">
+    <div class="conf-icon" id="conf-icon">⚠️</div>
+    <div class="conf-ttl" id="conf-ttl">Emin misin?</div>
+    <div class="conf-msg" id="conf-msg"></div>
+    <div class="conf-acts">
+      <button class="conf-no" onclick="closeConf()">İptal</button>
+      <button class="conf-yes" id="conf-yes">Tamam</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ VICTORY SCREEN ══ -->
+<div class="victory-screen" id="victory-screen">
+  <div class="victory-content">
+    <div class="victory-crown">♛</div>
+    <div class="victory-title">DEMİR TAHT</div>
+    <div class="victory-subtitle">Westeros'un Efendisi</div>
+    <div class="victory-name" id="victory-name">—</div>
+    <div class="victory-house" id="victory-house">—</div>
+    <div class="victory-stats" id="victory-stats"></div>
+    <button class="victory-close" onclick="closeVictory()">♛ OYUNA DEVAM ET ♛</button>
+  </div>
+</div>
+
+<!-- ══ NIGHT KING INVASION BANNER ══ -->
+<div class="nk-invasion-banner" id="nk-banner">
+  <div class="nk-banner-icon">🧟</div>
+  <div class="nk-banner-title">GECE KRALI!</div>
+  <div class="nk-banner-sub">Duvar Yıkıldı</div>
+  <div class="nk-banner-desc" id="nk-banner-desc">Gece Kralı ordusuyla güneye ilerliyor.</div>
+  <button class="nk-banner-btn" onclick="closeNKBanner()">⚔️ ANLAŞILDIM</button>
+</div>
+
+<!-- ══ RANDOM EVENT OVERLAY ══ -->
+<div class="event-overlay" id="event-overlay">
+  <div class="event-card" id="event-card" style="--ec:var(--gold)">
+    <div class="event-icon-big" id="event-icon">⚡</div>
+    <div class="event-name" id="event-name">Olay Adı</div>
+    <div class="event-kingdom" id="event-kingdom">Krallık</div>
+    <div class="event-effect" id="event-effect">Etki açıklaması</div>
+    <div class="event-close-hint">Kapatmak için dokun</div>
+  </div>
+</div>
+
+<!-- ══ CONTEXT MENU ══ -->
+<div class="ctx-menu" id="ctx-menu" style="display:none;"></div>
+
+<div class="achievement-popup" id="achievement-popup"></div>
+<div id="toasts"></div>
+<div class="turn-progress"><div class="turn-progress-fill" id="turn-progress-fill" style="width:0%"></div></div>
+
+<!-- ══ ADDITIONAL UI COMPONENTS ══ -->
+<!-- Offline Indicator -->
+<div class="offline-indicator" id="offline-indicator"></div>
+
+<!-- PWA Install Prompt -->
+<!--
+<div class="pwa-install-prompt" id="pwa-install-prompt">
+  <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+    <img src="logo.png" alt="Westeros" style="width:40px; height:40px; border-radius:8px; border:1px solid var(--gold); background:#000;">
+    <div class="pwa-install-prompt-title" style="margin:0;">Westeros'u Yükle</div>
+  </div>
+  <div class="pwa-install-prompt-desc" id="pwa-install-prompt-desc">Yedi Krallık deneyimini tam ekran yaşamak için uygulamayı ana ekranına ekle.</div>
+  <div class="pwa-install-prompt-actions">
+    <button class="pwa-install-btn" id="pwa-install-btn">Yükle</button>
+    <button class="pwa-dismiss-btn" id="pwa-dismiss-btn">Şimdilik Hayır</button>
+  </div>
+</div>
+-->
+
+
+
+
+
+<!-- PWA Update Notification -->
+<div class="pwa-update-notif" id="pwa-update-notif">
+  <div class="pwa-update-text">Yeni sürüm mevcut</div>
+  <button class="pwa-update-btn" onclick="location.reload()">Güncelle</button>
+</div>
+
+<!-- Storage Warning -->
+<div class="storage-warning" id="storage-warning">
+  ⚠️ Depolama neredeyse dolu. Verilerinizi silin.
+</div>
+
+<!-- Performance Monitor (hidden debug panel) -->
+<div id="perf-monitor" style="display:none;position:fixed;bottom:10px;right:10px;background:rgba(0,0,0,.8);color:#0f0;font-family:monospace;font-size:10px;padding:10px;border-radius:4px;z-index:10000;max-width:200px;max-height:150px;overflow-y:auto;">
+  <div style="color:#0f0;font-weight:bold;margin-bottom:5px;">📊 PERF</div>
+  <div id="perf-fps">FPS: 60</div>
+  <div id="perf-mem">MEM: 0MB</div>
+  <div id="perf-sw">SW: ✓</div>
+  <div id="perf-net">NET: ✓</div>
+</div>
+
+<!-- Debug Console (hidden) -->
+<div id="debug-console" style="display:none;position:fixed;bottom:200px;right:10px;background:rgba(0,0,0,.9);color:#fff;font-family:monospace;font-size:9px;padding:8px;border-radius:4px;z-index:10000;max-width:250px;max-height:200px;overflow-y:auto;border:1px solid #0f0;">
+  <div style="margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid #0f0;color:#0f0;">DEBUG LOG</div>
+  <div id="debug-log-content"></div>
+</div>
+
+<!-- PWA Service Worker Registration — Cache'siz ──
+     Cache tamamen kaldırıldı. Firebase zaten realtime sync yapıyor.
+     SW sadece PWA kurulum desteği ve push notification için kayıtlı. -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', async () => {
+
+      // Cache'li SW'ı kaydet — statik dosyalar için hız kazancı
+      // Firebase trafiği SW'dan geçmez (service-worker.js içinde filtreleniyor)
+      try {
+        const reg = await navigator.serviceWorker.register('service-worker.js', {
+          scope: './',
+          updateViaCache: 'none'   // Tarayıcı SW dosyasını hiç cache'lemesin
+        });
+        console.log('✓ Service Worker (akıllı cache) kayıt edildi:', reg.scope);
+        // Yeni SW varsa hemen aktive et
+        if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      } catch (e) {
+        console.warn('✗ Service Worker kayıt hatası:', e);
+      }
+
+      // NOT: controllerchange → location.reload() döngüsü KASITLI olarak kaldırıldı.
+      // O döngü "güncelleme geldi → yenile → tekrar güncelleme → sonsuz döngü" yapıyordu.
+    });
+  }
+  
+  // Detect if app is installed
+  window.addEventListener('appinstalled', () => {
+    console.log('✓ PWA installed successfully');
+    deferredPrompt = null;
+  });
+  
+  // Detect display mode
+  function checkDisplayMode() {
+    const isStandalone = window.navigator.standalone || 
+                        window.matchMedia('(display-mode: standalone)').matches;
+    if (isStandalone) {
+      console.log('✓ Running as standalone PWA');
+      document.body.classList.add('pwa-mode');
+    }
+  }
+  
+  checkDisplayMode();
+  window.matchMedia('(display-mode: standalone)').addEventListener('change', checkDisplayMode);
+  
+  // Offline/Online status tracking
+  window.addEventListener('online', () => {
+    console.log('✓ Connection restored');
+    if (window.onConnectionRestored) window.onConnectionRestored();
+  });
+  
+  window.addEventListener('offline', () => {
+    console.log('✗ Connection lost - Offline mode active');
+    if (window.onConnectionLost) window.onConnectionLost();
+  });
+  
+  // Prevent iOS bounce scroll - improved version
+  // touchstart'ta başlangıç pozisyonunu kaydet (yön tespiti için)
+  let _touchStartX = 0, _touchStartY = 0;
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      _touchStartX = e.touches[0].clientX;
+      _touchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    const target = e.target;
+    // Harita üzerinde her türlü hareketi (tek/çok parmak) tarayıcıdan koru;
+    // haritanın kendi touchmove handler'ı zaten bunları işliyor.
+    if (target.closest('#map-wrap') || target.closest('#map-canvas')) {
+      if (e.cancelable) e.preventDefault();
+      return;
+    }
+    // Çok parmak (pinch/zoom): harita dışında engelle
+    if (e.touches && e.touches.length > 1) {
+      if (e.cancelable) e.preventDefault();
+      return;
+    }
+    // Global bar: YATAY kaydırma — dx > dy ise izin ver, dikey hareketi engelle
+    if (target.closest('.global-bar')) {
+      const dx = Math.abs(e.touches[0].clientX - _touchStartX);
+      const dy = Math.abs(e.touches[0].clientY - _touchStartY);
+      if (dx >= dy) return; // Yatay hareket → scroll'a izin ver
+      if (e.cancelable) e.preventDefault(); // Dikey hareket → engelle
+      return;
+    }
+    // Harita dışı scrollable alanlarda tek parmak kaydırmaya izin ver
+    if (target.closest('.panel-body') || 
+        target.closest('.mo-box') || 
+        target.closest('.scoreboard') || 
+        target.closest('.throne-selector-box') ||
+        target.closest('.spy-screen .spy-content') ||
+        target.closest('.battle-screen .bs-content') ||
+        target.closest('.chronicle-list') ||
+        target.closest('.k-list') ||
+        target.closest('.tech-grid') ||
+        target.closest('.merc-grid') ||
+        target.closest('.ally-kingdom-grid') ||
+        target.closest('.throne-kingdom-list')) {
+      return; // Bu alanlarda kaydırmaya izin ver
+    }
+    if (e.cancelable) e.preventDefault(); // Diğer her yerde yenilemeyi engelle
+  }, { passive: false });
+  
+  // ══ PWA UTILITIES ══
+  
+  // Install Prompt Manager
+  window.PWAInstall = {
+    deferredPrompt: null,
+    init: function() {
+      window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent the mini-infobar from appearing on mobile
+        e.preventDefault();
+        // Stash the event so it can be triggered later.
+        this.deferredPrompt = e;
+        // Update UI notify the user they can install the PWA
+        setTimeout(() => this.showInstallPromptUI(), 4000);
+        WesterosLogger.log('INFO', '[PWA] Kurulum kriterleri karşılandı, buton gösteriliyor.');
+        console.log('[PWA] beforeinstallprompt fired');
+      });
+
+      // iOS Custom Prompt Detection
+      const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS && !isStandalone) {
+        setTimeout(() => {
+          const promptElement = document.getElementById('pwa-install-prompt');
+          if (promptElement) {
+            promptElement.classList.add('ios-style');
+            const desc = document.getElementById('pwa-install-prompt-desc');
+            const installBtn = document.getElementById('pwa-install-btn');
+            if (desc) desc.innerHTML = "Westeros'u cihazına yüklemek ve tam ekran deneyimini yaşamak için:<br><br>1. Alttaki <b>'Paylaş'</b> <i class='fa-solid fa-arrow-up-from-bracket' style='color:#007aff'></i> ikonuna dokunun.<br>2. Menüyü yukarı kaydırıp <b>'Ana Ekrana Ekle'</b> seçeneğini seçin.";
+            if (installBtn) {
+              installBtn.innerHTML = "ANLADIM";
+              installBtn.onclick = () => this.hideInstallPromptUI();
+            }
+            promptElement.classList.add('show');
+          }
+        }, 6000);
+      }
+
+      window.addEventListener('appinstalled', () => {
+        console.log('✓ PWA installed successfully');
+        this.deferredPrompt = null;
+        this.hideInstallPromptUI();
+      });
+
+      document.getElementById('pwa-install-btn')?.addEventListener('click', () => this.showPrompt());
+      document.getElementById('pwa-dismiss-btn')?.addEventListener('click', () => this.hideInstallPromptUI());
+    },
+    showInstallPromptUI: function() {
+      const promptElement = document.getElementById('pwa-install-prompt');
+      if (promptElement && this.deferredPrompt) {
+        promptElement.classList.add('show');
+      }
+    },
+    hideInstallPromptUI: function() {
+      const promptElement = document.getElementById('pwa-install-prompt');
+      if (promptElement) {
+        promptElement.classList.remove('show');
+      }
+    },
+    showPrompt: async function() {
+      if (!this.deferredPrompt) return false;
+      this.deferredPrompt.prompt();
+      const { outcome } = await this.deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        console.log('[PWA] User accepted install');
+      }
+      this.deferredPrompt = null;
+      return true;
+    },
+    canInstall: function() {
+      return this.deferredPrompt !== null;
+    }
+  };
+
+  // Initialize Install Prompt Manager
+  // window.PWAInstall.init();
+  
+  // Network Status
+  window.PWANetwork = {
+    isOnline: navigator.onLine,
+    init: function() {
+      window.addEventListener('online', () => {
+        this.isOnline = true;
+        this.onOnline();
+      });
+      window.addEventListener('offline', () => {
+        this.isOnline = false;
+        this.onOffline();
+      });
+    },
+    onOnline: function() {
+      console.log('[PWA] Online');
+      document.body.classList.remove('offline-mode');
+      const indicator = document.querySelector('.offline-indicator');
+      if (indicator) indicator.classList.remove('show');
+    },
+    onOffline: function() {
+      console.log('[PWA] Offline');
+      document.body.classList.add('offline-mode');
+      const indicator = document.querySelector('.offline-indicator');
+      if (indicator) indicator.classList.add('show');
+    }
+  };
+  
+  PWANetwork.init();
+  
+  // ══ ADDITIONAL ENHANCEMENTS ══
+  
+  // Analytics & Performance Monitoring
+  window.WesterosAnalytics = {
+    startTime: performance.now(),
+    events: [],
+    track: function(eventName, data = {}) {
+      const event = {
+        name: eventName,
+        timestamp: new Date().toISOString(),
+        data: data
+      };
+      this.events.push(event);
+      console.log('[Analytics]', eventName, data);
+    },
+    getMetrics: function() {
+      const navTiming = performance.getEntriesByType('navigation')[0];
+      return {
+        domContentLoaded: navTiming?.domContentLoadedEventEnd - navTiming?.domContentLoadedEventStart,
+        loadComplete: navTiming?.loadEventEnd - navTiming?.loadEventStart,
+        totalTime: performance.now() - this.startTime,
+        eventCount: this.events.length
+      };
+    }
+  };
+  
+  // Enhanced Logger with History
+  window.WesterosLogger = {
+    logs: [],
+    maxLogs: 100,
+    log: function(level, message, data = null) {
+      const entry = {
+        level: level,
+        message: message,
+        data: data,
+        timestamp: new Date().toISOString()
+      };
+      this.logs.push(entry);
+      if (this.logs.length > this.maxLogs) this.logs.shift();
+      
+      const prefix = `[${level}]`;
+      if (level === 'ERROR') console.error(prefix, message, data);
+      else if (level === 'WARN') console.warn(prefix, message, data);
+      else console.log(prefix, message, data);
+    },
+    export: function() {
+      return JSON.stringify(this.logs, null, 2);
+    }
+  };
+  
+  // Keyboard Shortcuts
+  window.WesterosShortcuts = {
+    enabled: true,
+    init: function() {
+      document.addEventListener('keydown', (e) => {
+        if (!this.enabled) return;
+        
+        // Debug shortcuts (Ctrl+Shift+D)
+        if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+          e.preventDefault();
+          this.toggleDebugPanel();
+        }
+        
+        // Performance monitor (Ctrl+Shift+P)
+        if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+          e.preventDefault();
+          this.togglePerfMonitor();
+        }
+      });
+    },
+    toggleDebugPanel: function() {
+      const panel = document.getElementById('debug-console');
+      if (panel) {
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        this.updateDebugPanel();
+      }
+    },
+    togglePerfMonitor: function() {
+      const monitor = document.getElementById('perf-monitor');
+      if (monitor) {
+        monitor.style.display = monitor.style.display === 'none' ? 'block' : 'none';
+      }
+    },
+    updateDebugPanel: function() {
+      const content = document.getElementById('debug-log-content');
+      if (content) {
+        const logs = WesterosLogger.logs.slice(-20);
+        content.innerHTML = logs.map(l => 
+          `<div style="margin:2px 0;color:${l.level === 'ERROR' ? '#f00' : '#0f0'}">[${l.level}] ${l.message}</div>`
+        ).join('');
+      }
+    }
+  };
+  
+  WesterosShortcuts.init();
+  
+  // Health Check System
+  window.WesterosHealth = {
+    checks: {},
+    register: function(name, checkFn) {
+      this.checks[name] = { fn: checkFn, lastCheck: null, status: 'unknown' };
+    },
+    checkAll: async function() {
+      for (const [name, check] of Object.entries(this.checks)) {
+        try {
+          check.status = await check.fn() ? 'healthy' : 'unhealthy';
+          check.lastCheck = new Date().toISOString();
+        } catch (error) {
+          check.status = 'error';
+          check.error = error.message;
+        }
+      }
+      return this.checks;
+    },
+    report: function() {
+      console.group('🏥 Westeros Health Report');
+      for (const [name, check] of Object.entries(this.checks)) {
+        const symbol = check.status === 'healthy' ? '✅' : check.status === 'unhealthy' ? '⚠️' : '❌';
+        console.log(`${symbol} ${name}:`, check.status, check.lastCheck);
+      }
+      console.groupEnd();
+    }
+  };
+  
+  // Register health checks
+  WesterosHealth.register('ServiceWorker', async () => {
+    if (!('serviceWorker' in navigator)) return false;
+    const reg = await navigator.serviceWorker.getRegistrations();
+    return reg.length > 0;
+  });
+  
+  WesterosHealth.register('Network', async () => {
+    return navigator.onLine;
+  });
+  
+  // Run health check on startup
+  WesterosHealth.checkAll().then(() => {
+    WesterosLogger.log('INFO', 'Health check completed');
+    WesterosHealth.report();
+  });
+  
+  // Global error handler
+  window.addEventListener('error', (event) => {
+    WesterosLogger.log('ERROR', 'Uncaught Error', {
+      message: event.message,
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno
+    });
+    WesterosAnalytics.track('error', { type: 'uncaught', message: event.message });
+  });
+  
+  // Unhandled promise rejection handler
+  window.addEventListener('unhandledrejection', (event) => {
+    WesterosLogger.log('ERROR', 'Unhandled Promise Rejection', {
+      reason: event.reason?.message || event.reason
+    });
+    WesterosAnalytics.track('error', { type: 'unhandledRejection', reason: event.reason });
+  });
+  
+  // Page visibility changes
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      WesterosLogger.log('INFO', 'App hidden');
+      WesterosAnalytics.track('app_hidden');
+    } else {
+      WesterosLogger.log('INFO', 'App visible');
+      WesterosAnalytics.track('app_visible');
+    }
+  });
+  
+  // Memory warning (if supported)
+  if ('memory' in performance) {
+    setInterval(() => {
+      const used = performance.memory.usedJSHeapSize / 1048576;
+      const limit = performance.memory.jsHeapSizeLimit / 1048576;
+      if (used > limit * 0.8) {
+        WesterosLogger.log('WARN', 'High memory usage', { 
+          used: used.toFixed(1) + 'MB', 
+          limit: limit.toFixed(1) + 'MB' 
+        });
+      }
+    }, 30000);
+  }
+  
+  // Export utilities globally
+  window.WesterosDebug = {
+    analytics: WesterosAnalytics,
+    logger: WesterosLogger,
+    health: WesterosHealth,
+    shortcuts: WesterosShortcuts,
+    exportLogs: () => console.log(WesterosLogger.export()),
+    getMetrics: () => WesterosAnalytics.getMetrics(),
+    health: () => WesterosHealth.report()
+  };
+  
+  console.log('✅ Westeros Debug Suite Loaded - Use window.WesterosDebug for debugging');
+
+</script>
+
+<!-- Firebase Library -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js" defer></script>
+
+<!-- ══ WESTEROS INTRO ══ -->
+<script>
+(function(){
+'use strict';
+
+/* ── window.load bloklama ── */
+var _origAEL=window.addEventListener.bind(window);
+var _pending=[];
+var _done=false;
+window.addEventListener=function(t,fn,o){
+  if(t==='load'&&!_done) _pending.push({fn:fn,o:o});
+  else _origAEL(t,fn,o);
+};
+function _bitti(){
+  if(_done)return;_done=true;
+  window.addEventListener=_origAEL;
+  try{var mi=new Image();mi.src='resimler/map.png';}catch(_){}
+  _pending.forEach(function(x){
+    if(document.readyState==='complete'){try{x.fn();}catch(e){}}
+    else _origAEL('load',x.fn,x.o);
+  });
+  _pending=[];
+}
+setTimeout(_bitti,25000);
+
+var VIDEOS=['ilk.mp4','ilk1.mp4','ilk2.mp4','ilk3.mp4','ilk4.mp4','ilk5.mp4','ilk6.mp4','ilk7.mp4','ilk8.mp4','ilk9.mp4','ilk10.mp4','ilk11.mp4','ilk12.mp4','ilk13.mp4','ilk14.mp4','ilk15.mp4','ilk16.mp4','ilk17.mp4','ilk18.mp4','ilk19.mp4','ilk20.mp4','ilk21.mp4','ilk22.mp4'];
+
+function _isMobil(){
+  return window.matchMedia('(display-mode: standalone)').matches
+    ||navigator.standalone===true
+    ||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    ||(navigator.maxTouchPoints>1&&/Macintosh/i.test(navigator.userAgent));
+}
+
+function _shuffledVideos(){
+  /* Son 5 oynanan videoyu localStorage'dan oku */
+  var HISTORY_KEY='_wst_vid_hist';
+  var HISTORY_SIZE=5;
+  var history=[];
+  try{ history=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]'); }catch(e){ history=[]; }
+  if(!Array.isArray(history)) history=[];
+
+  /* Tarihte olmayan adayları belirle */
+  var candidates=VIDEOS.filter(function(v){ return history.indexOf(v)===-1; });
+  /* Tüm videolar tarihte ise sıfırla */
+  if(candidates.length===0){ candidates=VIDEOS.slice(); history=[]; }
+
+  /* Adayları karıştır (Fisher-Yates) */
+  var arr=candidates.slice();
+  for(var i=arr.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1));var t=arr[i];arr[i]=arr[j];arr[j]=t; }
+
+  /* Seçilen videoyu geçmişe ekle, en fazla HISTORY_SIZE tut */
+  history.push(arr[0]);
+  if(history.length>HISTORY_SIZE) history=history.slice(history.length-HISTORY_SIZE);
+  try{ localStorage.setItem(HISTORY_KEY,JSON.stringify(history)); }catch(e){}
+
+  return arr;
+}
+
+/* ── Ejderha splash ── */
+function _ejderha(){
+  var old=document.getElementById('_vW');if(old)old.remove();
+  if(document.getElementById('_ejSp'))return;
+  var st=document.createElement('style');
+  st.textContent='@keyframes _eG{0%{box-shadow:0 0 10px 2px #ff4500;opacity:.4;transform:scale(1)}100%{box-shadow:0 0 25px 12px #ff8c00;opacity:1;transform:scale(1.2)}}@keyframes _fD{0%{transform:translate(-50%,-50%) scale(1);opacity:.05}50%{transform:translate(-52%,-48%) scale(1.05);opacity:.1}100%{transform:translate(-50%,-50%) scale(1);opacity:.05}}@keyframes _fS{from{opacity:0}to{opacity:1}}._dEy{position:absolute;width:8px;height:4px;background:#ffcc00;border-radius:50%;filter:blur(2px);animation:_eG 1.5s infinite alternate;z-index:100002}._dEL{top:48.8%;left:43.3%}._dER{top:48.5%;left:55.9%}@media(max-width:768px){._dEL{top:49.8%;left:42.8%}._dER{top:49.5%}}';
+  document.head.appendChild(st);
+  var sp=document.createElement('div');sp.id='_ejSp';
+  sp.style.cssText='position:fixed;top:0;left:0;right:0;bottom:calc(-1 * env(safe-area-inset-bottom,0px));background:#000;z-index:2147483644;display:flex;justify-content:center;align-items:center;opacity:1;transition:opacity 1.5s ease-in-out';
+  var wr=document.createElement('div');wr.style.cssText='position:relative;width:100%;height:100%;display:flex;justify-content:center;align-items:center;overflow:hidden';
+  var img=document.createElement('img');img.style.cssText='max-width:100%;max-height:100%;object-fit:contain;display:block;z-index:100000';
+  var eL=document.createElement('div');eL.className='_dEy _dEL';
+  var eR=document.createElement('div');eR.className='_dEy _dER';
+  var vig=document.createElement('div');vig.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:100002;background:radial-gradient(circle,transparent 40%,rgba(0,0,0,.95) 100%)';
+  wr.appendChild(img);wr.appendChild(vig);wr.appendChild(eL);wr.appendChild(eR);sp.appendChild(wr);
+  var sc=document.createElement('canvas');sc.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:100003';
+  sp.appendChild(sc);
+  var sCtx=sc.getContext('2d'),sparks=[];
+  function _sp(){
+    if(!document.getElementById('_ejSp'))return;
+    if(sc.width!==window.innerWidth){sc.width=window.innerWidth;sc.height=window.innerHeight;}
+    sCtx.clearRect(0,0,sc.width,sc.height);
+    if(Math.random()<.9)sparks.push({x:Math.random()*sc.width,y:sc.height+10,v:Math.random()*4+2,s:Math.random()*2+1,o:1});
+    for(var i=sparks.length-1;i>=0;i--){var p=sparks[i];p.x+=(Math.random()-.5)*1.5;p.y-=p.v;p.o-=.007;if(p.o<=0||p.y<-10){sparks.splice(i,1);continue;}sCtx.beginPath();sCtx.arc(p.x,p.y,p.s,0,Math.PI*2);sCtx.fillStyle='rgba(255,60,0,'+p.o+')';sCtx.shadowBlur=10;sCtx.shadowColor='red';sCtx.fill();}
+    requestAnimationFrame(_sp);
+  }
+  function _kul(){
+    var cc=document.createElement('canvas'),cx=cc.getContext('2d'),rect=img.getBoundingClientRect();
+    cc.width=window.innerWidth;cc.height=window.innerHeight;cc.style.cssText='position:fixed;inset:0;z-index:100004;pointer-events:none';sp.appendChild(cc);
+    var tmp=document.createElement('canvas');tmp.width=rect.width;tmp.height=rect.height;
+    var tc=tmp.getContext('2d');tc.drawImage(img,0,0,rect.width,rect.height);
+    var id=tc.getImageData(0,0,rect.width,rect.height).data;
+    img.style.visibility='hidden';eL.style.visibility='hidden';eR.style.visibility='hidden';
+    var lt=sp.querySelector('._eLt');if(lt)lt.style.opacity='0';
+    var ps=[],ad=3.2,wi=Math.floor(rect.width);
+    for(var y=0;y<rect.height;y+=ad)for(var x=0;x<rect.width;x+=ad){var idx=(Math.floor(y)*wi+Math.floor(x))*4;if(id[idx+3]>0)ps.push({x:x+rect.left,y:y+rect.top,vx:(Math.random()-.5)*4,vy:-Math.random()*7-3,sz:Math.random()*3+1,c:'rgba('+id[idx]+','+id[idx+1]+','+id[idx+2]+','+(id[idx+3]/255)+')',l:1,d:Math.random()*.02+.01});}
+    for(var j=0;j<1000;j++)ps.push({x:Math.random()*window.innerWidth,y:window.innerHeight+Math.random()*400,vx:(Math.random()-.5)*3,vy:-Math.random()*6-2,sz:Math.random()*2.5+1,c:'rgba('+(40+Math.random()*40|0)+','+(35+Math.random()*35|0)+','+(30+Math.random()*30|0)+','+(0.4+Math.random()*.4)+')',l:1.2+Math.random()*.5,d:Math.random()*.008+.002});
+    function _an(){cx.clearRect(0,0,cc.width,cc.height);ps.forEach(function(p){if(p.l>0){p.x+=p.vx;p.y+=p.vy;p.l-=p.d;cx.fillStyle=p.c;cx.globalAlpha=p.l;cx.fillRect(p.x,p.y,p.sz,p.sz);}});if(document.getElementById('_ejSp'))requestAnimationFrame(_an);}
+    _an();
+    setTimeout(function(){sp.style.opacity='0';setTimeout(function(){sp.remove();_bitti();},1500);},2000);
+  }
+  img.onload=function(){
+    document.body.appendChild(sp);_sp();
+    setTimeout(function(){var lt=document.createElement('div');lt.className='_eLt';lt.textContent='Westeros Y\u00fckleniyor';lt.style.cssText='position:absolute;top:5%;left:50%;transform:translateX(-50%);z-index:100003;color:#c8960a;font-family:Cinzel,serif;font-size:2em;text-shadow:0 0 10px rgba(200,150,10,.8);letter-spacing:2px;opacity:0;animation:_fS 1s forwards;text-align:center;width:100%';sp.appendChild(lt);},500);
+    setTimeout(_kul,4000);
+  };
+  img.onerror=function(){sp.remove();_bitti();};
+  img.src='resimler/kapak.png';
+}
+
+/* ── Video wrapper oluştur (önceden oluşturulmuş video elementi ile) ── */
+function _mkWrap(vid){
+  var old=document.getElementById('_vW');if(old)old.remove();
+  var wrap=document.createElement('div');wrap.id='_vW';
+  
+  /* Masaüstünde videonun mobil boyutlarına uyum sağla (9:16 aspect ratio) */
+  var isDesktop=window.innerWidth>768;
+  if(isDesktop){
+    wrap.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:2147483646;touch-action:manipulation;-webkit-tap-highlight-color:transparent;display:flex;justify-content:center;align-items:center;padding:0;margin:0';
+    vid.style.cssText='height:100dvh;max-width:calc(100dvh * 9 / 16);object-fit:contain;background:#000;margin:auto';
+  } else {
+    wrap.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:2147483646;touch-action:manipulation;-webkit-tap-highlight-color:transparent';
+    vid.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100dvh;object-fit:cover;background:#000;display:block';
+  }
+  var skip=document.createElement('div');skip.id='_vSk';
+  skip.style.cssText='position:absolute;bottom:calc(80px + env(safe-area-inset-bottom,0px));right:28px;padding:13px 28px;background:rgba(0,0,0,.65);color:#c8960a;border:1px solid rgba(200,150,10,.6);border-radius:5px;font-family:Cinzel,serif;font-size:15px;letter-spacing:2px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .5s;z-index:2147483647;touch-action:manipulation;user-select:none';
+  skip.textContent='\ ATLA';
+  wrap.appendChild(vid);wrap.appendChild(skip);
+  document.body.appendChild(wrap);
+  return {wrap:wrap,vid:vid,skip:skip,muteOL:null};
+}
+
+/* ── Video oynat ── */
+function _play(obj){
+  var wrap=obj.wrap,vid=obj.vid,skip=obj.skip,muteOL=obj.muteOL;
+  var _gone=false;
+
+  function _next(){
+    if(_gone)return;_gone=true;
+    wrap.style.transition='opacity .4s';wrap.style.opacity='0';
+    setTimeout(function(){if(wrap.parentNode)wrap.remove();_ejderha();},420);
+  }
+
+  var _tmo=setTimeout(function(){console.warn('[V] timeout');_next();},20000);
+
+  vid.addEventListener('playing',function(){
+    clearTimeout(_tmo);
+    setTimeout(function(){var sk=document.getElementById('_vSk');if(sk){sk.style.opacity='1';sk.style.pointerEvents='all';}},2000);
+  
+  },{once:true});
+  vid.addEventListener('ended',function(){_next();},{once:true});
+  vid.addEventListener('error',function(){clearTimeout(_tmo);_next();},{once:true});
+
+  function _sk(e){e.preventDefault();_next();}
+  skip.addEventListener('touchend',_sk,{once:true,passive:false});
+  skip.addEventListener('click',_sk,{once:true});
+}
+
+/* ── Masaüstü ── */
+function _masaustu(){
+  /* Masaüstünde de gate ekranı göster (Autoplay policy başarısız olmasını önle) */
+  var st=document.createElement('style');
+  st.textContent='@keyframes _gP{0%,100%{opacity:.65}50%{opacity:1}}@keyframes _gG{0%,100%{filter:drop-shadow(0 0 12px rgba(200,150,10,.5))}50%{filter:drop-shadow(0 0 36px rgba(200,150,10,1))}}';
+  document.head.appendChild(st);
+
+  var gate=document.createElement('div');gate.id='_gate';
+  gate.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:2147483647;display:flex;flex-direction:column;justify-content:center;align-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none';
+  gate.classList.add('_gate-fix');
+  gate.innerHTML='<img src="logo.png" onerror="this.style.display=\'none\'" style="width:100px;height:100px;object-fit:contain;margin-bottom:24px;animation:_gG 2s ease-in-out infinite">'
+    +'<div style="color:#c8960a;font-family:Cinzel,serif;font-size:2.5em;letter-spacing:6px;margin-bottom:8px;text-shadow:0 0 20px rgba(200,150,10,.8)">WESTEROS</div>'
+    +'<div style="color:rgba(200,150,10,.5);font-family:Cinzel,serif;font-size:.85em;letter-spacing:4px;margin-bottom:52px">YED\u0130 KRALLIK HAR\u0130TASI</div>'
+    +'<div style="padding:20px 50px;border:2px solid rgba(200,150,10,.7);color:#c8960a;font-family:Cinzel,serif;font-size:1.3em;letter-spacing:3px;border-radius:6px;background:rgba(200,150,10,.1);animation:_gP 1.4s ease-in-out infinite;box-shadow:0 0 24px rgba(200,150,10,.25)">\ &nbsp; OYNAT &nbsp; \</div>';
+  document.body.appendChild(gate);
+
+  var list=_shuffledVideos();
+  var vid=document.createElement('video');
+  vid.setAttribute('playsinline','');vid.setAttribute('webkit-playsinline','');
+  vid.playsInline=true;vid.muted=true;
+  vid.src='videolar/'+list[0];
+
+  function _go(e){
+    e.preventDefault();e.stopPropagation();
+    gate.remove();
+    
+    var obj=_mkWrap(vid);
+    var p=vid.play();
+    if(p){p.then(function(){vid.muted=false;}).catch(function(){_ejderha();});}
+    _play(obj);
+  }
+
+  gate.addEventListener('click',_go,{once:true});
+  gate.addEventListener('keypress',function(e){if(e.key==='Enter'){_go(e);}},{once:true});
+}
+
+/* ── Mobil gate ── */
+function _mobil(){
+  var st=document.createElement('style');
+  st.textContent='@keyframes _gP{0%,100%{opacity:.65}50%{opacity:1}}@keyframes _gG{0%,100%{filter:drop-shadow(0 0 12px rgba(200,150,10,.5))}50%{filter:drop-shadow(0 0 36px rgba(200,150,10,1))}}';
+  document.head.appendChild(st);
+
+  var gate=document.createElement('div');gate.id='_gate';
+  gate.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:2147483647;display:flex;flex-direction:column;justify-content:center;align-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none';
+  gate.classList.add('_gate-fix');
+  gate.innerHTML='<img src="logo.png" onerror="this.style.display=\'none\'" style="width:80px;height:80px;object-fit:contain;margin-bottom:24px;animation:_gG 2s ease-in-out infinite">'
+    +'<div style="color:#c8960a;font-family:Cinzel,serif;font-size:2em;letter-spacing:6px;margin-bottom:8px;text-shadow:0 0 20px rgba(200,150,10,.8)">WESTEROS</div>'
+    +'<div style="color:rgba(200,150,10,.5);font-family:Cinzel,serif;font-size:.75em;letter-spacing:4px;margin-bottom:42px">YED\u0130 KRALLIK HAR\u0130TASI</div>'
+    +'<div style="padding:18px 44px;border:2px solid rgba(200,150,10,.7);color:#c8960a;font-family:Cinzel,serif;font-size:1.1em;letter-spacing:3px;border-radius:6px;background:rgba(200,150,10,.1);animation:_gP 1.4s ease-in-out infinite;box-shadow:0 0 24px rgba(200,150,10,.25)">\u2694 &nbsp; DOKUNARAK BA\u015eLA &nbsp; \u2694</div>';
+  document.body.appendChild(gate);
+
+  function _go(e){
+    e.preventDefault();e.stopPropagation();
+    /* AudioContext unlock */
+    try{var ac=new(window.AudioContext||window.webkitAudioContext)();var b=ac.createBuffer(1,1,22050);var s=ac.createBufferSource();s.buffer=b;s.connect(ac.destination);s.start(0);setTimeout(function(){ac.close();},300);}catch(_){}
+
+    gate.remove();
+
+    /* ═══ iOS KRİTİK: Gesture context içinde video oluştur ve play() çağır ═══
+       iOS'ta play() sadece gesture event handler içinde çağrılabilir.
+       Fetch async olduğu için, video elementini ŞIMDI oluşturup play() çağırıyoruz.
+       Hata verse bile video elementi "unlock" edilmiş olur. */
+    var videoList=_shuffledVideos();
+    var vid=document.createElement('video');
+    vid.setAttribute('playsinline','');vid.setAttribute('webkit-playsinline','');
+    vid.setAttribute('x5-playsinline','');vid.setAttribute('x5-video-player-type','h5');
+    vid.playsInline=true;vid.muted=true;vid.autoplay=false;
+
+    /* İlk play() çağrısı - gesture context'i "yakalar" */
+    var unlockP=vid.play();
+    if(unlockP)unlockP.catch(function(){/* beklenen hata - src yok */});
+
+    var obj=_mkWrap(vid);
+    _play(obj);
+
+    /* Şimdi blob fetch yap ve src'yi güncelle */
+    var tried=0;
+    function _tryFetch(idx){
+      if(idx>=videoList.length){
+        /* Tüm videolar denendi, direkt src ile dene */
+        vid.src='videolar/'+videoList[0];
+        var p2=vid.play();
+        if(p2){p2.then(function(){vid.muted=false;}).catch(function(){obj.wrap.remove();_ejderha();});}
+        return;
+      }
+      var src='videolar/'+videoList[idx];
+      fetch(src)
+        .then(function(r){if(!r.ok)throw new Error(r.status);return r.blob();})
+        .then(function(blob){
+          var blobUrl=URL.createObjectURL(blob);
+          vid.src=blobUrl;
+          vid.load();
+          var p=vid.play();
+          if(p){
+            p.then(function(){vid.muted=false;})
+             .catch(function(err){
+               console.warn('[V] blob play hata:',err.name);
+               URL.revokeObjectURL(blobUrl);
+               if(err.name==='NotAllowedError'){
+                 /* Zaten unlock edilmişti — overlay göster */
+                 vid.muted=true;
+                 obj.muteOL.style.display='flex';
+                 function _umR(ev){
+                   ev.preventDefault();ev.stopPropagation();
+                   obj.muteOL.style.display='none';
+                   vid.muted=true;
+                   var p3=vid.play();
+                   if(p3){p3.then(function(){vid.muted=false;}).catch(function(){obj.wrap.remove();_ejderha();});}
+                 }
+                 obj.muteOL.addEventListener('touchend',_umR,{once:true,passive:false});
+                 obj.muteOL.addEventListener('click',_umR,{once:true});
+               } else {
+                 _tryFetch(idx+1);
+               }
+             });
+          }
+        })
+        .catch(function(e){
+          console.warn('[V] fetch hata:',src,e.message);
+          _tryFetch(idx+1);
+        });
+    }
+    _tryFetch(0);
+  }
+
+  gate.addEventListener('touchend',_go,{once:true,passive:false});
+  gate.addEventListener('click',_go,{once:true});
+}
+
+/* ── Başlat ── */
+function _start(){
+  if(!document.body){setTimeout(_start,50);return;}
+  if(_isMobil()) _mobil(); else _masaustu();
+}
+
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_start);
+else _start();
+
+})();
+</script>
+<script src="script.js" defer></script>
+
+</body>
+</html>
