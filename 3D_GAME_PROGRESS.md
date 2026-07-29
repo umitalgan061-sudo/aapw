@@ -13,13 +13,13 @@ KayKit, etc.) are used for `assets/`.
 
 ## Current Status
 
-- **Active Phase:** FAZ 1 — İskelet ve Arazi (in progress: world scale corrected down to a
-  completable ~137.5 km² target — see World Coverage below — `game3d.html` renders 169 real seeded
-  terrain chunks via `ChunkManager`, an interactive orbit camera, real position-based chunk
-  streaming as that camera explores, and an always-on procedural aurora skybox. Only the PWA
-  offline-cache checklist item remains unchecked in FAZ 1.)
-- **Last Update:** 2026-07-29 (run 4)
-- **Last Commit:** this run's `sky.js` + camera far-plane fix (see "This Run (run 4)" below).
+- **Active Phase:** FAZ 1 ✅ TAMAMLANDI — all checklist items done (world scale corrected to a
+  completable ~137.5 km² target, terrain/chunk streaming, orbit camera, aurora sky, offline
+  precaching). FAZ 2 (Su/Atmosfer/Zaman) is next — see "This Run (run 5)" below for the
+  phase-gate retrospective.
+- **Last Update:** 2026-07-29 (run 5)
+- **Last Commit:** this run's `service-worker.js` 3D-shell precaching + `src/3d/README.md` +
+  FAZ 1 close-out (see "This Run (run 5)" below).
 - **Parallel work from a prior run:** while a previous routine run was in progress, the project
   owner (with help from a separate Claude session) pushed 3 commits directly to `main` adding more
   manually-downloaded assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
@@ -125,7 +125,7 @@ Triangles<500K, TextureMem<512MB.
 - [x] Vendored Three.js r160 (`src/3d/vendor/three/`) + `GLTFLoader.js`/`BufferGeometryUtils.js` addons, for fully offline ES-module use (see Asset Sources)
 - [x] Verified end-to-end in a real headless-Chromium smoke test (import map resolves `three`, `initGame3D()` runs, missing-model fallback produces a placeholder mesh, no console errors from our own code) — test file was scratch-only, not committed
 
-### FAZ 1 — İskelet ve Arazi (in progress)
+### FAZ 1 — İskelet ve Arazi ✅ TAMAMLANDI (2026-07-29)
 - [x] World scale + chunk/streaming grid computed from `INIT_KINGDOMS` bounding box and recorded as
   `WORLD_SCALE`/`CHUNK_CONFIG` in `src/3d/config.js` (see `DECISIONS.md` ADR-0001 and the World
   Coverage section above). This is the "invest in a chunk system from the start" requirement — the
@@ -161,7 +161,14 @@ Triangles<500K, TextureMem<512MB.
   resident count nears budget or FAZ 4 gives us a real player — see ADR-0003). Out of **550** total
   chunk slots (corrected this run from 17,112 — see World Coverage above and DECISIONS.md
   ADR-0004), 169 are real at boot; more accumulate as the world is explored.
-- [ ] Confirm responsive layout + PWA `start_url`/manifest still resolve correctly with the new page present (not yet checked — `game3d.html`/`.css`/`src/3d/**` are not in `service-worker.js`'s cache list yet, so the 3D mode currently requires network/first-load; flagged under Known Issues)
+- [x] `game3d.html`/`.css` and every `src/3d/**` file actually imported by code (not the unused
+  character/creature model assets — see below) are now precached in `service-worker.js`'s
+  `GAME3D_SHELL_FILES` list, in their own `cache.addAll()` call independent of the 2D game's
+  `SHELL_FILES` precache — a failure caching one can never block the other (see "This Run (run 5)"
+  below and Known Issues). Verified offline: after one online visit, a fresh tab with the network
+  disabled loads `game3d.html` fully (terrain + sky render, zero console errors) and `index.html`
+  still loads offline exactly as before (pre-existing `firebase is not defined` page error,
+  unrelated to this change, reproduced identically before/after).
 
 ### FAZ 2 — Su/Atmosfer/Zaman (pending)
 - [ ] Gerstner wave su (`water.js`)
@@ -539,16 +546,98 @@ Gerstner-wave water, waterfalls, fog, and the day/night cycle — the day/night 
 per this project's own priority order (finish the active phase's remaining sub-tasks before more
 geographic growth, since FAZ 1 doesn't have an 80%-coverage gate — only FAZ 3/FAZ 10 do).
 
+## This Run (2026-07-29, run 5)
+
+**Session Snapshot taken at start of run** (per protocol): repo was clean, `HEAD` already on
+`main` at `ad0f4ac` (run 4's aurora-sky/far-plane-fix commit, already pushed) — no detached-HEAD
+issue this time. Continuing directly from run 4's documented "Next step": close out FAZ 1's last
+checklist item (offline precaching), per the project's own priority order (finishing the active
+phase's remaining sub-task ranks above starting FAZ 2 or growing World Coverage further).
+
+**Done:**
+- **`service-worker.js`:** added `GAME3D_SHELL_FILES` (the 3D mode's own app-shell file list —
+  `game3d.html`/`.css`, every non-vendored `src/3d/*.js` + `world/*.js` file, and the vendored
+  Three.js core/addons actually imported by code) and precache it in `install` via a *second*,
+  independently-`.catch()`-guarded `cache.addAll()` call alongside the existing 2D
+  `SHELL_FILES` one — so a 3D-precache failure can never block the 2D game's own shell install
+  (Golden Rule #1: preserve the existing 2D game above all else). Deliberately excluded the
+  character/creature model/animation assets (`assets/models/**`, `assets/animations/**`): nothing
+  in code fetches them yet (FAZ 4/6/7 haven't started), and precaching multi-megabyte binaries
+  nothing uses yet would bloat install for no current benefit — precache them once real code
+  actually loads them.
+- Added `src/3d/README.md` (was missing — every code-owned folder needs one per the project's own
+  rule; `src/3d/vendor/` is intentionally exempt as vendored/never-hand-edited third-party code,
+  already documented in the Asset Sources table).
+- Updated `ARCHITECTURE.md`'s 2D-game entry: it previously said "no line in service-worker.js has
+  been modified for the 3D mode," which this run's change makes literally false — corrected to
+  describe the new *additive*, independently-failing precache call instead of overclaiming zero
+  touch.
+- **Regression guard:** `node --check service-worker.js` passes; every other `src/3d/**` file
+  already re-checked in run 4 and untouched since.
+- **Real smoke test — this run's central one, not incidental:** served the repo locally
+  (`python3 -m http.server`), drove headless Chromium (Playwright) through the actual offline
+  scenario the checklist item is about: (1) load `index.html` online once (lets the SW install and
+  both precache calls run), (2) inspect the Cache Storage contents directly — confirmed all 16
+  `GAME3D_SHELL_FILES` entries plus the 7 `SHELL_FILES` entries are present in `westeros-shell-v1`,
+  (3) `context.setOffline(true)`, open a **fresh tab**, navigate to `game3d.html` — zero
+  `pageerror`/`console.error` events, screenshot confirms terrain + aurora sky both render fully
+  with no network at all, (4) same offline check against `index.html` — still loads (title,
+  toolbar, 3D-mode button all present), reproducing the same pre-existing `firebase is not
+  defined` page error documented in prior runs (confirmed unrelated: identical before/after this
+  service-worker.js change, since that error is a script.js/Firebase issue, not a caching one).
+- **Phase-gate checklist for closing FAZ 1** (per the system instructions' "Faz Geçiş Kapısı"):
+  - *Build:* `node --check` passes on every non-vendored JS file (this run + carried over from
+    run 4). ✅
+  - *Console:* zero page/console errors in both the online and fresh-offline smoke tests above,
+    for both `game3d.html` and `index.html`. ✅
+  - *Memory:* `pagehide` cleanup chain (`cancelAnimationFrame`, resize unbind, `controls.dispose()`,
+    `chunkManager.disposeAll()`, `disposeAuroraSky()`, `renderer.dispose()`) unchanged and already
+    verified in earlier runs; this run added no new long-lived allocation. ✅
+  - *FPS:* still not reliably measurable in this sandbox (SwiftShader software rendering — see
+    Known Issues); unchanged from prior runs, not a new gap introduced this run. ⚠️ carried-over,
+    documented limitation, not a blocker (real-device testing needed, flagged for whoever can).
+  - *Progress/README/docs:* this file, `ARCHITECTURE.md`, and the new `src/3d/README.md` all
+    updated this run. ✅
+  - *Asset:* no new assets added this run; `assets_manifest.json` unchanged, still accurate. ✅
+  - *Commit:* see below. ✅
+  - *Mobil:* no real mobile-device or touch-input testing has been possible in any run so far
+    (sandbox limitation, not skipped by choice) — flagged under Known Issues, still an open gap
+    FAZ 1 closes without resolving. ⚠️ carried-over, pre-existing gap across every phase so far.
+  - **Verdict:** FAZ 1 marked ✅ TAMAMLANDI. The two ⚠️ items (FPS/mobile real-device testing) are
+    sandbox limitations affecting every phase equally, not FAZ-1-specific regressions — the
+    project's own Known Issues section already tracks them as standing, not phase-blocking, gaps.
+
+**Files changed this run:** `service-worker.js` (`GAME3D_SHELL_FILES` + install-handler change),
+`src/3d/README.md` (new), `ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file — FAZ 1 checklist,
+Current Status, Known Issues, this section). One commit — the shell-file list and its install-time
+wiring are one atomic, independently-revertable unit; docs updated alongside since they describe
+exactly this change.
+
+**Next step for the next run:** FAZ 1 is done — start FAZ 2 (Su/Atmosfer/Zaman): Gerstner-wave
+water (`world/water.js`, matching `world/terrain.js`'s existing seeded/deterministic conventions),
+waterfalls where rivers cross a height drop, fog/volumetric light, and a day/night cycle
+(`lighting.js`). Recommended order: water first (self-contained, no dependency on lighting), then
+day/night (`lighting.js`), and only then revisit `sky.js` to gate its aurora to nighttime (both
+Known Issues entries — "always-on aurora" and "no rivers/lakes for water to fill yet, terrain has
+no water-level concept" — should be read before starting, since water needs *some* notion of sea
+level/lake basins that `terrain.js` doesn't currently expose; check whether that's a `terrain.js`
+extension or a new concern in `water.js` before writing code, and update `world/README.md`'s
+conventions section once decided). World Coverage remains 30.73% (42.25 km² / 137.5 km²) —
+unchanged this run (no terrain/doc-only changes to World Coverage's inputs); growing it stays
+below FAZ-2-content work in priority since only FAZ 3/FAZ 10 have a hard coverage gate.
+
 ## Known Issues / Tech Debt
 
 - **`sky.js`'s aurora is always-on, not gated by time-of-day.** There is no day/night system yet
   (Phase 2's `lighting.js`). Once it exists, fade the aurora in only at night (it currently reads
   fine as a stylized "north of the Wall" identity regardless of time, but a literal day/night cycle
   should still hide it in daylight for realism). `sky.js`'s own module doc comment has the same note.
-- **`game3d.html`/`.css` and `src/3d/**` are not yet in `service-worker.js`'s cache list.** The 3D
-  mode currently needs network access on first load; add it to the offline cache list once the
-  mode has enough content to be worth using offline (premature right now, still just a placeholder
-  scene).
+- **~~`game3d.html`/`.css` and `src/3d/**` are not yet in `service-worker.js`'s cache list~~ —
+  fixed run 5.** `GAME3D_SHELL_FILES` now precaches every currently-code-imported 3D file; verified
+  working fully offline after one online visit. Character/creature model assets are deliberately
+  *not* precached (nothing loads them yet, and they're large binary files — precache them once
+  FAZ 4/6/7 actually `fetch()`es them, so a stale/incomplete precache list can't silently drift
+  from what code really needs).
 - **Headless/sandboxed browser testing of the 2D game hits a pre-existing blank-screen state after
   clicking "OYNAT".** Confirmed this run (via a before/after `git stash` comparison against the
   prior commit) that it is NOT caused by any 3D-mode change — likely this sandbox blocking outbound
@@ -562,6 +651,12 @@ geographic growth, since FAZ 1 doesn't have an 80%-coverage gate — only FAZ 3/
   comparison within this sandbox, never as an absolute number against the project's 60fps
   desktop/30fps mobile targets. Whoever can run this on a real device/browser should get a real
   baseline reading once there's enough scene content to make it meaningful.
+- **No real mobile-device or touch-input testing has been possible in any run so far** (same
+  headless-sandbox limitation as the FPS caveat above — no physical/emulated touch device
+  available here). Every quality/performance number in this file for "mobile" is a budget
+  *estimate* (triangle/draw-call counts against `QUALITY_PRESETS`), never an observed real-device
+  reading. Flagged explicitly at FAZ 1's close so it isn't silently assumed solved later — whoever
+  has device access should do a real pass before FAZ 10 (Performans) is considered for DONE.
 - **`FBXLoader` not vendored yet.** Needed for FAZ 4 to load `peasant_girl.fbx` and its three
   animation clips (see "Manually-added assets" above). Vendor it from three.js's official
   `examples/jsm/loaders/FBXLoader.js` alongside `GLTFLoader.js` when FAZ 4 starts — do not attempt

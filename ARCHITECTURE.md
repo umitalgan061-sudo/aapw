@@ -137,9 +137,13 @@ the way it is.
 ## 2D game (`index.html`, `script.js`, `style.css`, `service-worker.js`)
 
 - **Depends on:** nothing in `src/3d/` or `assets/`.
-- **Used by:** the existing PWA's users. The 3D mode adds exactly one additive touchpoint: a
-  `<a class="tb-btn" href="game3d.html">` button in the toolbar. No other line in `index.html`,
-  and no line in `script.js`/`style.css`/`service-worker.js`, has been modified for the 3D mode.
+- **Used by:** the existing PWA's users. The 3D mode adds two additive touchpoints: a
+  `<a class="tb-btn" href="game3d.html">` button in `index.html`'s toolbar, and a second,
+  independent `cache.addAll(GAME3D_SHELL_FILES)` call in `service-worker.js`'s `install` handler
+  (own `.catch()`, so a 3D-precache failure can never block the 2D app shell's own
+  `cache.addAll(SHELL_FILES)` — see that file's comments and `3D_GAME_PROGRESS.md`'s FAZ 1
+  checklist). No line in `script.js`/`style.css`, and no *existing* line in `service-worker.js`,
+  has been modified for the 3D mode — only new, additive lines were added.
 - **Critical path:** yes — this is the whole existing product. Every 3D-mode run must verify it
   still works (see the Regression Guard smoke-test list in the system instructions and this file's
   "This Run" sections).

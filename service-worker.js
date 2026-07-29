@@ -17,6 +17,28 @@ const SHELL_FILES = [
     './logo.png'
 ];
 
+// 3D mode's own app shell — precached separately (own cache.addAll call, own catch) so a failure
+// here can never block the 2D shell above from installing. Only currently-loaded-by-code files:
+// no character/creature model/animation assets (those aren't fetched by any code until FAZ 4/6/7).
+const GAME3D_SHELL_FILES = [
+    './game3d.html',
+    './game3d.css',
+    './src/3d/game3d.js',
+    './src/3d/eventBus.js',
+    './src/3d/state.js',
+    './src/3d/assetLoader.js',
+    './src/3d/config.js',
+    './src/3d/camera.js',
+    './src/3d/sky.js',
+    './src/3d/world/terrain.js',
+    './src/3d/world/chunkManager.js',
+    './src/3d/vendor/three/three.module.js',
+    './src/3d/vendor/three/LICENSE',
+    './src/3d/vendor/three/addons/loaders/GLTFLoader.js',
+    './src/3d/vendor/three/addons/utils/BufferGeometryUtils.js',
+    './src/3d/vendor/three/addons/controls/OrbitControls.js'
+];
+
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];
 
@@ -38,9 +60,16 @@ function isFirebaseRequest(url) {
 // ── INSTALL ──
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(SHELL_CACHE)
-            .then(cache => cache.addAll(SHELL_FILES))
-            .catch(() => {}) // offline ilk kurulum: sessizce geç, sonraki ziyaretlerde tamamlanır
+        Promise.all([
+            caches.open(SHELL_CACHE)
+                .then(cache => cache.addAll(SHELL_FILES))
+                .catch(() => {}), // offline ilk kurulum: sessizce geç, sonraki ziyaretlerde tamamlanır
+            // Ayrı addAll + ayrı catch: 3D shell'in önbelleğe alınması başarısız olsa bile (örn. bir
+            // dosya geçici olarak erişilemez), yukarıdaki kritik 2D shell kurulumunu asla engellemez.
+            caches.open(SHELL_CACHE)
+                .then(cache => cache.addAll(GAME3D_SHELL_FILES))
+                .catch(() => {}),
+        ])
     );
     self.skipWaiting();
 });
