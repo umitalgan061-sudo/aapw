@@ -295,6 +295,8 @@
     <button class="tb-btn" onclick="openAdd()" title="Yeni Krallık"><i class="fa-solid fa-plus"></i></button>
   </div>
 </header>
+<input type="file" id="save-import-input" accept="application/json,.json" style="display:none" onchange="if(this.files&&this.files[0])importSaveFromFile(this.files[0]);this.value='';">
+
 
 <!-- ══ GLOBAL BAR ══ -->
 <div class="global-bar">

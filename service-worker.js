@@ -45,6 +45,13 @@ self.addEventListener('install', (event) => {
     self.skipWaiting();
 });
 
+// ── MESSAGE (index.html: reg.waiting.postMessage({type:'SKIP_WAITING'})) ──
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
+
 // ── ACTIVATE ──
 self.addEventListener('activate', (event) => {
     const KEEP = [MEDIA_CACHE, SHELL_CACHE];
