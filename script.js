@@ -701,8 +701,9 @@ const INIT_KINGDOMS=[
 ];
 
 const INIT_MARKERS = [
-  {id: 'hotpie',name: 'Hotpie',type: 'npc',icon: '🍞',x: 1700,y: 3100,color: '#d4a060',description: 'Nehir Topraklarında Aşçı',photo: 'resimler/hotpie.jpg'}, 
-  
+  {id: 'hotpie',name: 'Hotpie',type: 'npc',icon: '🍞',x: 1700,y: 3100,color: '#d4a060',description: 'Nehir Topraklarında Aşçı',photo: 'resimler/hotpie.jpg'},
+  {id: 'yuksek_maester',name: 'Yüksek Maester',type: 'npc',icon: '📜',x: 1900,y: 3040,color: '#8faabb',description: 'Citadel\'in bilgeliğini taşıyan, krallıklara öğüt veren yaşlı maester. Henüz bir portresi çizilmedi — zincirinin sembolüyle anılıyor.',photo: ''},
+
   {id: 'demir_taht_fig', name: 'Demir Taht', type: 'figure', icon: '', x: 1660, y: 3552, color: 'transparent', description: '', photo: 'resimler/taht.png', noPopup: true, size: 170},
   
   {id: 'ejderha1_fig', name: 'Büyük Ejderha', type: 'figure', icon: '', x: 3485, y: 5570, color: 'transparent', description: '', photo: 'resimler/ejderha1.png', noPopup: true, size: 135},
@@ -2033,7 +2034,14 @@ function openMarkerInfo(marker){
   document.getElementById('panel-body').innerHTML=`
     <div class="panel-ttl" style="color:${marker.color}">${marker.icon} ${marker.name}</div>
     <div style="text-align:center;margin:20px 0;">
-      <img src="${marker.photo}" style="width:100px;height:100px;border-radius:50%;border:3px solid ${marker.color};object-fit:cover;"/>
+      ${marker.photo && marker.photo.trim() ? `
+      <img src="${marker.photo}"
+        onerror="this.style.display='none';this.nextElementSibling&&(this.nextElementSibling.style.display='grid');"
+        style="width:100px;height:100px;border-radius:50%;border:3px solid ${marker.color};object-fit:cover;"/>
+      <div style="display:none;width:100px;height:100px;border-radius:50%;border:3px solid ${marker.color};place-items:center;margin:0 auto;font-size:40px;background:#1a1208;">${marker.icon || marker.name.charAt(0).toUpperCase()}</div>
+      ` : `
+      <div style="display:grid;width:100px;height:100px;border-radius:50%;border:3px solid ${marker.color};place-items:center;margin:0 auto;font-size:40px;background:#1a1208;">${marker.icon || marker.name.charAt(0).toUpperCase()}</div>
+      `}
     </div>
     <div style="font-size:12px;color:var(--text-mid);text-align:center;margin-bottom:20px;line-height:1.6;">
       ${marker.description}
