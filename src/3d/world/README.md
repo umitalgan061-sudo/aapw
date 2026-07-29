@@ -41,10 +41,20 @@ here (blast radius rule — if a change needs more than that, it's not a world-s
   the chunk grid's own `(0, 0)`-centered convention; reuse this function for any future system that
   places something by kingdom location (roads, NPC spawns, quest markers), don't invent a second
   mapping. `createSettlements({sampleHeightMeters, seaLevelMeters, mapBounds, metersPerMapUnit,
-  settlementConfig})` returns `{group, seats}` — `group` is 3 `InstancedMesh`es (keeps/towers/roofs,
-  one draw call per part, not per castle); `seats` exposes each seat's real world position/ground
-  height so `game3d.js` can force-load terrain under it. `disposeSettlements(group)` releases all
-  three. See `DECISIONS.md` ADR-0013.
+  settlementConfig, seed})` returns `{group, seats}` — `group` is 3 `InstancedMesh`es (keeps/towers/
+  roofs, one draw call per part, not per castle); `seats` exposes each seat's real world position/
+  ground height so `game3d.js` can force-load terrain under it. `disposeSettlements(group)` releases
+  all three (geometries plus each material's texture maps, via `materials.js`). See `DECISIONS.md`
+  ADR-0013.
+- **`materials.js`** — procedural (canvas-generated, no external image files) PBR-ish materials for
+  `settlements.js`. `createStoneMaterial({seed, baseColor, repeat})` returns a
+  `MeshStandardMaterial` with seeded color/roughness/normal maps depicting mortared stone blocks
+  (a shared height field drives all three maps so the grooves/bevels/shading agree).
+  `createRoofMaterial({seed, repeat})` returns a `MeshStandardMaterial` with color/roughness maps
+  depicting horizontal slate shingle rows, deliberately grayscale-ish so `InstancedMesh`'s
+  per-instance house color still shows through the multiply. `disposeCastleMaterial(material)`
+  disposes a material's own maps plus itself. See DECISIONS.md's newest ADR for why procedural
+  generation was chosen over an external texture file.
 
 ## Conventions
 

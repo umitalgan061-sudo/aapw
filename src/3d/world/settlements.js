@@ -5,13 +5,17 @@
  * so each castle sits on the ground it actually renders, not a guessed flat height. FAZ 3's first
  * pass: modular primitive geometry, not an external model — matches this project's established
  * "geography/gameplay shape first, asset-based detail later" pattern (terrain/water/rivers all
- * did the same before any model asset was consumed). PBR-ish materials (`MeshStandardMaterial`
- * with tuned roughness/metalness) and per-kingdom roof/banner color via `InstancedMesh`
- * per-instance color — one draw call per geometry (keep/tower/roof), not one per castle.
+ * did the same before any model asset was consumed). Materials (stone walls/towers, slate roofs)
+ * are seeded procedural PBR maps from `world/materials.js` (color/roughness/normal for stone,
+ * color/roughness for roofs) -- FAZ 3's second pass, see that module's doc comment for why
+ * procedural rather than an external texture file. Per-kingdom roof/banner color via
+ * `InstancedMesh` per-instance color, multiplied over the roof's grayscale-ish shingle map — one
+ * draw call per geometry (keep/tower/roof), not one per castle.
  * @module world/settlements
  */
 
 import * as THREE from 'three';
+import { createStoneMaterial, createRoofMaterial, disposeCastleMaterial } from './materials.js';
 
 /**
  * Kingdom seats: `id`/`name`/`house`/`color`/2D-map `mapX`/`mapY` only, derived from `script.js`'s
@@ -77,13 +81,16 @@ export function mapToWorldXZ(mapX, mapY, mapBounds, metersPerMapUnit) {
  * @param {{minX: number, maxX: number, minY: number, maxY: number}} options.mapBounds `WORLD_SCALE.MAP_BOUNDS`.
  * @param {number} options.metersPerMapUnit `WORLD_SCALE.METERS_PER_MAP_UNIT`.
  * @param {import('../config.js').SETTLEMENT_CONFIG} options.settlementConfig `config.js`'s `SETTLEMENT_CONFIG`.
+ * @param {number} options.seed `WORLD_DEFAULTS.WORLD_SEED` — seeds the procedural stone/roof
+ *   texture generation in `world/materials.js` so castle materials are deterministic like every
+ *   other generator in this folder (see `world/README.md`'s "Determinism" convention).
  * @returns {{group: THREE.Group, seats: {id: string, name: string, x: number, z: number, groundY: number}[]}}
  *   `seats` is exposed so `game3d.js` can force-load the terrain chunk under each castle — most
  *   seats fall outside both the boot-preview and mobile streaming radii (measured, not assumed:
  *   5 of 14 sit beyond even the desktop 17x17 boot preview) and would otherwise render floating
  *   over unrendered ground.
  */
-export function createSettlements({ sampleHeightMeters, seaLevelMeters, mapBounds, metersPerMapUnit, settlementConfig }) {
+export function createSettlements({ sampleHeightMeters, seaLevelMeters, mapBounds, metersPerMapUnit, settlementConfig, seed }) {
 	const {
 		KEEP_WIDTH_METERS,
 		KEEP_HEIGHT_METERS,
@@ -104,8 +111,13 @@ export function createSettlements({ sampleHeightMeters, seaLevelMeters, mapBound
 	const towerGeometry = new THREE.CylinderGeometry(TOWER_RADIUS_TOP_METERS, TOWER_RADIUS_BOTTOM_METERS, TOWER_HEIGHT_METERS, 8);
 	const roofGeometry = new THREE.ConeGeometry(ROOF_RADIUS_METERS, ROOF_HEIGHT_METERS, 8);
 
-	const stoneMaterial = new THREE.MeshStandardMaterial({ color: STONE_COLOR, roughness: 0.9, metalness: 0.05 });
-	const roofMaterial = new THREE.MeshStandardMaterial({ roughness: 0.6, metalness: 0.1 });
+	// Repeat counts tuned so a texture tile (8 stone blocks / 10 shingle rows) reads at roughly a
+	// 1-1.5m real-world scale against the keep/roof's actual meters, not an arbitrary default —
+	// see world/materials.js's module doc for why these are procedural rather than external files.
+	const stoneRepeat = Math.max(2, Math.round(KEEP_WIDTH_METERS / 11));
+	const roofRepeat = Math.max(2, Math.round(ROOF_HEIGHT_METERS / 3));
+	const stoneMaterial = createStoneMaterial({ seed, baseColor: STONE_COLOR, repeat: stoneRepeat });
+	const roofMaterial = createRoofMaterial({ seed: seed + 1, repeat: roofRepeat });
 
 	const keepMesh = new THREE.InstancedMesh(keepGeometry, stoneMaterial, seatCount);
 	const towerMesh = new THREE.InstancedMesh(towerGeometry, stoneMaterial, towerCount);
@@ -166,13 +178,20 @@ export function createSettlements({ sampleHeightMeters, seaLevelMeters, mapBound
 }
 
 /**
- * Disposes every geometry/material created by `createSettlements` (memory-leak checklist). Call
- * on scene teardown.
+ * Disposes every geometry/material (and each material's procedural texture maps, via
+ * `world/materials.js`'s `disposeCastleMaterial`) created by `createSettlements` (memory-leak
+ * checklist). Call on scene teardown. `keepMesh`/`towerMesh` share one material instance, so
+ * materials are deduped through a `Set` before disposing — `THREE.Material.dispose()` is itself
+ * idempotent, but disposing the same textures twice is needless work, not just harmless.
  * @param {THREE.Group} group `createSettlements`'s returned `group`.
  */
 export function disposeSettlements(group) {
+	const disposedMaterials = new Set();
 	for (const mesh of group.children) {
 		mesh.geometry.dispose();
-		mesh.material.dispose();
+		if (!disposedMaterials.has(mesh.material)) {
+			disposedMaterials.add(mesh.material);
+			disposeCastleMaterial(mesh.material);
+		}
 	}
 }

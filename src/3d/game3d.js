@@ -157,6 +157,7 @@ function createScene(canvas) {
 		mapBounds: WORLD_SCALE.MAP_BOUNDS,
 		metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
 		settlementConfig: SETTLEMENT_CONFIG,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
 	});
 	scene.add(settlementsResult.group);
 	// Most seats sit outside both the boot-preview and mobile streaming radii (measured — see

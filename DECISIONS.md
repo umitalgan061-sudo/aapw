@@ -983,3 +983,98 @@ remaining on draw calls); flagged in `3D_GAME_PROGRESS.md` as a real constraint 
 raw terrain radius future runs can add before needing chunk-geometry merging or LOD. Clearing the
 80% *coverage* gate does not close FAZ 3 itself — its PBR/LOD/collider sub-tasks (flagged in prior
 runs) remain open, unaffected by this change.
+
+## ADR-0015: procedural canvas-generated PBR maps for castle materials (`world/materials.js`), not an external texture file or a collider/LOD pass
+
+**Date:** 2026-07-29
+
+**Decision:** New module `src/3d/world/materials.js` generates seeded, canvas-based color +
+roughness + normal maps for `settlements.js`'s stone keep/tower material, and color + roughness
+maps for its roof material. `settlements.js` now calls `createStoneMaterial`/`createRoofMaterial`
+instead of building two flat-color `MeshStandardMaterial`s inline, and `createSettlements` takes a
+new required `seed` option (`game3d.js` passes `WORLD_DEFAULTS.WORLD_SEED`). `disposeSettlements`
+now dedupes shared materials through a `Set` before calling the new `disposeCastleMaterial` (which
+also disposes each material's texture maps — three.js does not do this automatically when a
+material is disposed).
+
+**Reasoning:**
+- **Priority-ordered:** this run's Session Snapshot found zero syntax errors, blocking bugs, or
+  new tech debt; the 100-150 km² world-scale target was re-verified correct for the eighth
+  straight run (`config.js`'s `METERS_PER_MAP_UNIT: 1.75`, 25x22 grid = 137.5 km², unchanged — see
+  `3D_GAME_PROGRESS.md`'s World Coverage section); and FAZ 3/10's 80% desktop coverage gate is
+  already clear (80.7%, from ADR-0014). With those higher priorities settled, priority #8 (the
+  active phase's remaining sub-task) is next — FAZ 3's two open items are "PBR materials/textures"
+  and "simple LOD/colliders." This run picked the texture item.
+- **Textures over colliders/LOD, specifically:** no player exists until FAZ 4, so a collider has
+  nothing to collide with yet and would be dead code (violates the project's own "don't add
+  handling for scenarios that can't happen" rule); LOD has no measured need either — settlements
+  are already only 3 draw calls / ~2,520 triangles total, nowhere near either performance budget.
+  PBR materials/textures is the one FAZ 3 sub-task with a real, immediately-visible payoff and no
+  speculative dependency on an unbuilt system.
+- **Procedural, not an external file:** this project's one hard constraint is no downloaded
+  HBO/show media, but even a generic CC0 stone texture would still need a human download step (per
+  `3D_GAME_PROGRESS.md`'s "any future asset needs a human step" note) — unnecessary when the
+  castles are simple enough for a canvas-generated result to look correct, and it matches this
+  project's established "procedural first" pattern (`sky.js`'s aurora, `water.js`'s Gerstner
+  waves, `terrain.js`'s FBM noise — none of them use an image file either).
+- **Height-field-driven, not three independent noise passes:** `buildStoneHeightField` computes one
+  seeded height field (beveled blocks, recessed mortar grooves, small per-block variation); the
+  color, roughness, and normal maps all read from it, so the mortar lines in the color map, the
+  rougher-mortar shading, and the normal map's grooves all agree with each other pixel-for-pixel —
+  three independently-seeded noise passes could plausibly disagree on where a groove is.
+- **Determinism preserved:** both `createStoneMaterial`/`createRoofMaterial` take `seed` and use
+  `terrain.js`'s exported `mulberry32` (reused, not reimplemented — `world/README.md`'s
+  "Determinism" convention already says to reuse this exact PRNG). `settlements.js` passes
+  `WORLD_DEFAULTS.WORLD_SEED` (roof gets `seed + 1` so it's a different-but-still-deterministic
+  pattern from the stone material, not an accidental identical texture).
+- **Repeat counts computed from real geometry size, not guessed:** `settlements.js` derives
+  `stoneRepeat`/`roofRepeat` from `KEEP_WIDTH_METERS`/`ROOF_HEIGHT_METERS` against a target
+  ~1-1.5m real-world block/shingle-row scale, rather than hardcoding an arbitrary repeat count that
+  would look wrong if `SETTLEMENT_CONFIG`'s dimensions ever change.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- A scratch preview page (written this run, deleted before commit — never part of the repo) built
+  one real castle via `createSettlements` with a real `importmap` for `three`, positioned a camera
+  close to it, and rendered — screenshot confirms visible mortared stone blocks with real
+  normal-map depth (not flat per-block color) and a roof correctly tinted by the seat's house color
+  (`#c8430a`, Targeryan orange) multiplied over the shingle-row shading. Zero console errors.
+- Desktop-viewport pass on the real `game3d.html` (not the scratch page): console still confirms
+  `"Loaded 441 terrain chunks (~110.25 km²)"` then `"Placed 14 kingdom-seat settlements; 444
+  terrain chunks resident (~111.00 km²)"` — identical chunk/settlement counts to ADR-0014, since
+  this change only replaces materials, not geometry or placement. Zero `pageerror`/`console.error`.
+- Touch-emulated pass (`hasTouch: true, isMobile: true`): unchanged at `"Loaded 25 terrain chunks
+  (~6.25 km²)"` / `"...grounding skipped, see ADR-0013"`. Zero `pageerror`/`console.error`.
+- Offline-precache regression: visited `index.html` online first (the page that actually calls
+  `serviceWorker.register`, not `game3d.html` itself), confirmed via `caches.open` that the new
+  `./src/3d/world/materials.js` entry (added to `service-worker.js`'s `GAME3D_SHELL_FILES`, same
+  pattern every prior new 3D file has followed) is present in the `westeros-shell-v1` cache, then
+  set the browser context offline and loaded `game3d.html` directly — loaded successfully, zero
+  page errors, confirming this run didn't silently break the offline-PWA golden rule.
+- `node --check` across every non-vendor `.js` file: clean. `script.js`/`service-worker.js`
+  individually re-checked; `manifest.json`/`assets_manifest.json` still valid JSON.
+- 2D-game regression (`index.html`): same pre-existing, already-documented sandbox-only
+  `firebase is not defined` / blocked-network-request errors as every prior run — nothing new.
+
+**Alternatives considered:**
+- *Skip textures, do colliders/LOD instead.* Rejected per the priority reasoning above — no
+  consumer for either yet, so building them now would be speculative, not needed work.
+- *One shared material for keep+tower+roof.* Rejected: roof needs per-instance house-color tint to
+  keep working (existing `InstancedMesh.setColorAt` behavior, unchanged by this ADR), which only
+  makes sense against a grayscale-ish map, not the same stone-colored map the walls use.
+- *A single higher-resolution texture atlas covering stone+roof in one file.* Rejected as
+  unnecessary complexity: two separate small (256x256) canvases are already cheap (~768KB
+  combined, negligible against either texture budget) and simpler to reason about than atlas UV
+  packing, for a total of two materials.
+- *Bake the normal map from the color map (e.g. luminance-as-height) instead of a dedicated height
+  field.* Rejected: the color map's per-pixel tint jitter would produce a noisy, incorrect normal
+  map; a shared explicit height field (used for all three maps, per the Reasoning above) is more
+  work upfront but the only way to get grooves/bevels that actually line up.
+
+**Consequence:** FAZ 3's second roadmap sub-task ("PBR materials/textures beyond the current
+flat-color `MeshStandardMaterial`") is done. World Coverage and performance budget are unchanged by
+this ADR (same geometry, same draw-call count — 3 `InstancedMesh`es, same as ADR-0013 — only the
+materials' maps changed); texture memory grows by a negligible ~768KB (2 materials x up to 3 maps x
+256x256x4 bytes), nowhere near either device budget. FAZ 3's one remaining sub-task is simple
+LOD/colliders — still correctly deferred until a player exists (FAZ 4) to justify either. `service-
+worker.js`'s `GAME3D_SHELL_FILES` now includes `materials.js`, keeping the offline-PWA golden rule
+intact for every currently-code-imported 3D file.

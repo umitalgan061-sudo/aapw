@@ -18,21 +18,25 @@ KayKit, etc.) are used for `assets/`.
   (Kaleler/Yerleşimler) started run 14: `world/settlements.js` places a procedural castle (box keep
   + 4 corner towers + conical roofs, `InstancedMesh`-based) at each of the 14 kingdom seats, colored
   by house — see "This Run (run 14)" below and DECISIONS.md ADR-0013. Run 15 grew desktop World
-  Coverage to 80.7%, clearing FAZ 3/10's 80% coverage gate (PBR/LOD sub-tasks still open — see "This
-  Run (run 15)" and DECISIONS.md ADR-0014).
-- **Last Update:** 2026-07-29 (run 15)
-- **Last Commit:** run 15's `PHASE1_PREVIEW_RADIUS_CHUNKS` 8 -> 10 bump, DECISIONS.md ADR-0014 (see
-  "This Run (run 15)" below); run 14 added kingdom-seat settlements + mobile-safe grounding, ADR-0013.
+  Coverage to 80.7%, clearing FAZ 3/10's 80% coverage gate. Run 16 gave castles real seeded PBR
+  texture maps (`world/materials.js` — color/roughness/normal for stone, color/roughness for
+  roofs), closing FAZ 3's PBR sub-task — its one remaining open item is simple LOD/colliders (still
+  correctly deferred until FAZ 4 gives it a player to matter for) — see "This Run (run 16)" below
+  and DECISIONS.md ADR-0015.
+- **Last Update:** 2026-07-29 (run 16)
+- **Last Commit:** run 16's `world/materials.js` (procedural PBR castle textures), DECISIONS.md
+  ADR-0015 (see "This Run (run 16)" below); run 15 bumped `PHASE1_PREVIEW_RADIUS_CHUNKS` 8 -> 10,
+  ADR-0014.
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (again, for the seventh time).** A prior run (see "This Run (run 5)" below,
+  correct, no change made (again, for the eighth time).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
-  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, and 14 each re-verified this
-  without changes needed. This run's Session Snapshot re-derived the numbers from `src/3d/config.js`
-  (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more and again confirmed they match ADR-0004
-  exactly — no config change made. **If you are a future run and the operator's brief again asserts
-  the old 4278 km² target is still live: it is not. Re-derive from `config.js` yourself (as this run
-  did) rather than trusting the brief's own numbers — this has now been independently re-confirmed
-  across runs 3, 4, 5, 7, 9, 11, 14, and 15.**
+  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, and 15 each re-verified
+  this without changes needed. This run's Session Snapshot re-derived the numbers from
+  `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more and again confirmed they
+  match ADR-0004 exactly — no config change made. **If you are a future run and the operator's
+  brief again asserts the old 4278 km² target is still live: it is not. Re-derive from `config.js`
+  yourself (as this run did) rather than trusting the brief's own numbers — this has now been
+  independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, and 16.**
 - **Parallel work from a prior run:** while a previous routine run was in progress, the project
   owner (with help from a separate Claude session) pushed 3 commits directly to `main` adding more
   manually-downloaded assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
@@ -287,8 +291,10 @@ Triangles<500K, TextureMem<512MB.
 - [x] 2D haritadaki krallık konumlarını yansıtan modüler kale/kule (`world/settlements.js`) — 14
   kingdom seats, `InstancedMesh`-based (box keep + 4 corner towers + conical roofs), colored by
   house via per-instance roof color. See DECISIONS.md ADR-0013.
-- [ ] PBR malzemeler — current materials are flat-color `MeshStandardMaterial` (roughness/metalness
-  tuned by eye, no texture maps). Real PBR texture maps (albedo/normal/roughness) are a follow-up.
+- [x] PBR malzemeler — `world/materials.js` (new, run 16): seeded canvas-generated color/roughness/
+  normal maps for the stone keep/tower material, color/roughness maps for the roof material (mortar
+  grooves, per-block variance, real normal-map bevel depth). Procedural, not an external texture
+  file. See DECISIONS.md ADR-0015.
 - [ ] Basit LOD/collider — not attempted this pass; castles are a fixed triangle count regardless of
   camera distance, and nothing collides with them yet (no player exists until FAZ 4).
 
@@ -1450,6 +1456,86 @@ need chunk-geometry merging or LOD first, not just a bigger number. Mobile cover
 far below any comparable gate for that path, but no gate currently keys off the mobile number
 specifically — revisit if that becomes a real requirement. No new tech debt.
 
+## This Run (2026-07-29, run 16)
+
+**Session Snapshot:** read this file, `git log -10 --oneline`, `DECISIONS.md`'s last 3 ADRs
+(ADR-0013/0014 and the settlements/coverage consequences). `node --check` across every non-vendor
+`.js` file: clean, zero syntax errors. Repo was on a detached `HEAD` at session start (37 commits
+behind `origin/main`, all already-merged prior-run history) — checked out `main` and fast-forwarded
+before doing anything else, not a real divergent-work conflict.
+
+**World-scale correction task (this run's stated top priority) — verified already done, nothing to
+fix, for the eighth straight run:** re-derived `WORLD_SCALE.METERS_PER_MAP_UNIT` (1.75) and
+`CHUNK_CONFIG.GRID_COLUMNS`/`GRID_ROWS` (25x22) directly from `config.js`, computed 25 x 22 x 0.25
+km²/chunk = 137.5 km² by hand — squarely inside the 100-150 km² band, identical to every run since
+ADR-0004. No `config.js` edit made for the scale itself.
+
+**Picked FAZ 3's "PBR malzemeler" sub-task as this run's task**, per the priority order: zero
+syntax errors, zero blocking bugs, FAZ 3/10's 80% desktop coverage gate already clear (80.7%, from
+run 15), zero new memory leaks, zero missing regression coverage — with those clear, priority #8
+(the active phase's remaining sub-task) was next. Of FAZ 3's two open sub-tasks, textures (not
+LOD/colliders) was the legitimate one to build: no player exists until FAZ 4, so a collider has
+nothing to collide with yet, and LOD has no measured need (settlements are already only 3 draw
+calls / ~2,520 triangles, nowhere near budget) — see DECISIONS.md ADR-0015 for the full reasoning.
+
+**Done:**
+- Added `src/3d/world/materials.js` (new, 246 lines): `createStoneMaterial`/`createRoofMaterial`
+  build seeded canvas-generated PBR maps (`mulberry32`-seeded, reused from `terrain.js`, not
+  reimplemented) — one shared height field drives a mortared-stone-block color map, a roughness
+  map, and a real gradient-derived normal map for the keep/tower material; a shingle-row color +
+  roughness pair for the roof material. `disposeCastleMaterial` disposes a material's own maps plus
+  itself (three.js doesn't do this automatically on `material.dispose()`).
+- `world/settlements.js`: replaced the two flat-color `MeshStandardMaterial`s with
+  `createStoneMaterial`/`createRoofMaterial` calls; `createSettlements` now takes a required `seed`
+  option; repeat counts (`stoneRepeat`/`roofRepeat`) computed from `SETTLEMENT_CONFIG`'s real
+  meters, not hardcoded; `disposeSettlements` dedupes the keep/tower's shared material through a
+  `Set` before calling the new `disposeCastleMaterial`.
+- `game3d.js`: passes `seed: WORLD_DEFAULTS.WORLD_SEED` into `createSettlements` (one line).
+- `service-worker.js`: added `./src/3d/world/materials.js` to `GAME3D_SHELL_FILES`, same pattern
+  every prior new 3D file has followed — offline precache would otherwise silently miss it.
+- `world/README.md`: documented the new `materials.js` module and `createSettlements`'s new `seed`
+  parameter.
+- **Real smoke tests (headless Chromium via Playwright, repo served locally with
+  `python3 -m http.server`):**
+  1. A scratch texture-preview page (written this run to visually verify the maps, deleted before
+     commit — `git status` confirms it's not in the diff) rendered one real castle from
+     `createSettlements` close-up: screenshot shows genuine mortared-stone-block depth from the
+     normal map (not flat per-block color) and a roof correctly tinted by the seat's house color
+     multiplied over the shingle shading. Zero console errors.
+  2. Desktop-viewport pass on the real `game3d.html`: console confirms `"Loaded 441 terrain chunks
+     (~110.25 km²)"` then `"Placed 14 kingdom-seat settlements; 444 terrain chunks resident
+     (~111.00 km²)"` — identical counts to run 15 (materials-only change, no geometry/placement
+     change). Zero `pageerror`/`console.error`.
+  3. Touch-emulated pass (`hasTouch: true, isMobile: true`): unchanged at `"Loaded 25 terrain
+     chunks (~6.25 km²)"`. Zero `pageerror`/`console.error`.
+  4. Offline-precache regression: visited `index.html` online first (the page that actually calls
+     `serviceWorker.register` — `game3d.html` alone never registers it), confirmed via
+     `caches.open('westeros-shell-v1')` that `./src/3d/world/materials.js` is now cached, then set
+     the browser context offline and loaded `game3d.html` directly — loaded fully, zero page
+     errors.
+  5. 2D-game regression (`index.html`): same pre-existing, already-documented sandbox-only
+     `firebase is not defined` / blocked-network-request errors as every prior run — nothing new.
+- Updated `DECISIONS.md` (new ADR-0015), this file's **Current Status**, FAZ 3 roadmap checklist,
+  and Known Issues (this section).
+
+**Files changed this run:** `src/3d/world/materials.js` (new), `src/3d/world/settlements.js`,
+`src/3d/game3d.js`, `service-worker.js`, `src/3d/world/README.md`, `DECISIONS.md`,
+`3D_GAME_PROGRESS.md` (this file). Seven files, ~250 new lines (`materials.js`) plus small edits to
+the rest — well under this run's ≤20-files/≤800-lines budget.
+
+**World Coverage:** unchanged at 80.7% desktop (111.00 km² / 137.5 km²) / 4.5% mobile (6.25 km² /
+137.5 km²) — this run changed materials only, not chunk geometry or settlement placement.
+
+**Next step for the next run:** FAZ 3's only remaining sub-task is simple LOD/colliders — still
+correctly deferred until FAZ 4 gives the world a player to justify either (a collider with nothing
+to collide with, or LOD tuned against a camera that doesn't exist yet, would both be speculative
+work against this project's own "don't build for hypothetical future requirements" rule). Once FAZ
+4 lands a real player and camera, LOD/colliders becomes real, measurable work — until then, the
+next legitimate FAZ 3 work is exhausted and a future run should either start FAZ 4 (Oynanabilir
+Karakter — `peasant_girl.fbx` and its idle/walking/running clips are ready, `FBXLoader` still needs
+vendoring first, per Known Issues) or, if performance/coverage priorities resurface first, follow
+the existing priority order. No new tech debt.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -1536,10 +1622,10 @@ specifically — revisit if that becomes a real requirement. No new tech debt.
 - **`BufferGeometryUtils.js` is vendored only because `GLTFLoader.js` imports it** (for
   `toTrianglesDrawMode`), not because anything calls it directly yet. Expected to stay unused
   until non-triangle-strip GLTF assets show up.
-- **`world/settlements.js`'s castles have no PBR texture maps, no LOD, and no collider.** Flat-color
-  `MeshStandardMaterial` (roughness/metalness tuned by eye), a fixed triangle count regardless of
-  camera distance, and nothing collides with them yet — no player exists until FAZ 4. Both are
-  explicitly listed as FAZ 3's own remaining sub-tasks, not accidental gaps.
+- **~~`world/settlements.js`'s castles have no PBR texture maps~~ — fixed run 16
+  (`world/materials.js`).** See DECISIONS.md ADR-0015. **Still no LOD or collider** — a fixed
+  triangle count regardless of camera distance, and nothing collides with the castles yet, since no
+  player exists until FAZ 4. This remains FAZ 3's one open sub-task, not an accidental gap.
 - **Kingdom seats outside the desktop boot-preview radius render without visible ground on
   mobile-class devices.** By design (see DECISIONS.md ADR-0013's "real mobile perf-budget bug"):
   force-loading a terrain neighborhood under every seat on mobile would add ~753K triangles, 1.9x

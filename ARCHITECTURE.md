@@ -150,8 +150,10 @@ the way it is.
 
 ## `src/3d/world/settlements.js` — Kingdom-seat castles (FAZ 3)
 
-- **Depends on:** `three` (vendored) only. Deliberately does not import `config.js` (matches
-  `terrain.js`/`water.js`/`rivers.js`'s "caller passes config values in" convention) or `script.js`
+- **Depends on:** `three` (vendored) and `world/materials.js` (`createStoneMaterial`/
+  `createRoofMaterial`/`disposeCastleMaterial`, added run 16/ADR-0015). Deliberately does not
+  import `config.js` (matches `terrain.js`/`water.js`/`rivers.js`'s "caller passes config values
+  in" convention) or `script.js`
   (see the module's own doc comment: importing the 2D game's top-level script as an ES module here
   would execute 2D-game logic against DOM elements this page doesn't have — a real risk to the
   "keep the 2D game intact" golden rule, not hypothetical). `KINGDOM_SEATS` is a hand-copied,
@@ -165,8 +167,11 @@ the way it is.
   place castles at an unusual (but still sea-level-clamped) height, never throw.
 - **Failure mode:** none currently guarded — pure synchronous math over a caller-provided height
   sampler, same failure profile as `terrain.js`/`rivers.js`.
-- **Determinism:** no randomness at all — every seat's position is a deterministic function of its
-  fixed `mapX`/`mapY` and the (already-seeded) `sampleHeightMeters`.
+- **Determinism:** every seat's *position* is a deterministic function of its fixed `mapX`/`mapY`
+  and the (already-seeded) `sampleHeightMeters` — no randomness in placement at all. Material
+  *appearance* now involves seeded randomness too, via `world/materials.js`'s `mulberry32`-driven
+  texture generation (`createSettlements`'s new required `seed` option, passed straight through) —
+  see that module's own Determinism note below.
 - **Coordinate convention established here (ADR-0013):** `mapToWorldXZ(mapX, mapY, mapBounds,
   metersPerMapUnit)` maps the padded kingdom bounding box's *center* to the world origin — the same
   origin chunk `(0, 0)` is centered on. Any future system placing things by 2D-map coordinate
@@ -180,6 +185,30 @@ the way it is.
   directly beneath until player-streaming (FAZ 4+) reaches that chunk naturally.
 - **Fog/lighting:** built-in `MeshStandardMaterial` (like `terrain.js`/`rivers.js`) — gets
   `scene.fog` and the day/night lights for free, no custom shader chunks needed.
+
+## `src/3d/world/materials.js` — Procedural castle PBR textures (FAZ 3, run 16)
+
+- **Depends on:** `three` (vendored) and `world/terrain.js`'s exported `mulberry32` (reused, not
+  reimplemented — same PRNG every other world-generation module uses). Uses the browser's
+  `document.createElement('canvas')`/`CanvasRenderingContext2D` — browser-only, same as every other
+  file under `src/3d/`.
+- **Used by:** `world/settlements.js` only (`createStoneMaterial`/`createRoofMaterial` build the
+  keep/tower and roof materials; `disposeCastleMaterial` releases a material's maps on teardown).
+  Not imported anywhere else — if a future system (roads? a second building type?) needs similar
+  procedural stone texturing, reuse this module rather than duplicating the height-field/canvas
+  logic.
+- **Critical path:** no — purely cosmetic; a pathological seed would at worst produce visually
+  scrappy variance, never throw or block scene bootstrap.
+- **Failure mode:** none currently guarded — synchronous canvas drawing over a fixed-size
+  (`TEXTURE_SIZE = 256`) buffer, same failure profile as the rest of `world/`.
+- **Determinism:** `createStoneMaterial`/`createRoofMaterial` both take `seed` and use
+  `mulberry32(seed)` — same seed always paints the same texture. `settlements.js` passes
+  `WORLD_DEFAULTS.WORLD_SEED` for stone, `WORLD_SEED + 1` for roofs (deliberately different, so the
+  two materials don't paint an identical pattern).
+- **Memory:** each material owns up to 3 `THREE.CanvasTexture`s (`map`/`roughnessMap`/`normalMap`)
+  at 256x256 RGBA — three.js does not dispose a material's textures when the material itself is
+  disposed, so `disposeCastleMaterial` (not a bare `material.dispose()`) must be used on teardown;
+  `settlements.js`'s `disposeSettlements` already does this correctly.
 
 ## `src/3d/camera.js` — Orbit camera controls
 
