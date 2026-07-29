@@ -915,3 +915,71 @@ above). Remaining FAZ 3 items (PBR materials/textures beyond the current flat-co
 `MeshStandardMaterial`, simple LOD/colliders) are follow-up work, not attempted this pass — flagged
 in `3D_GAME_PROGRESS.md` Known Issues, same "don't half-do the phase in one run" pattern every prior
 FAZ has followed.
+
+## ADR-0014: bump `PHASE1_PREVIEW_RADIUS_CHUNKS` 8 -> 10 to clear FAZ 3/10's 80% World Coverage gate
+
+**Date:** 2026-07-29
+
+**Decision:** `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (`config.js`) changes from 8 to 10 — the
+desktop-only boot-preview square grows from 17x17 (289 chunks) to 21x21 (441 chunks). No other code
+changed; `STREAM_RADIUS_CHUNKS` (mobile path) and the settlement-grounding logic are untouched.
+
+**Reasoning:**
+- **Priority-ordered, not incidental:** this run's Session Snapshot found zero syntax errors,
+  blocking bugs, or new tech debt, and the standing 100-150 km² world-scale target was re-verified
+  already correct (no change needed — see World Coverage section below). With those higher
+  priorities clear, priority #7 (low World Coverage against the still-open FAZ 3/10 80% gate) ranks
+  above picking a new FAZ 3 sub-task (PBR/LOD, priority #8) per this project's own task-priority
+  order — exactly the "still legitimate future work" `3D_GAME_PROGRESS.md`'s prior run flagged
+  under Next Step.
+- **Radius chosen by direct computation against the real kingdom-seat bounding box, not guessed:**
+  all 14 `KINGDOM_SEATS` map to world-space chunk coordinates with `max(|chunkX|, |chunkZ|) <= 10`
+  (computed via `mapToWorldXZ` against the real `WORLD_SCALE.MAP_BOUNDS`/`METERS_PER_MAP_UNIT`) —
+  radius 10 is the smallest radius that puts every seat's *center* chunk inside the boot-preview
+  square itself, before any per-seat grounding runs, without overshooting into a needlessly large
+  square. A radius of 9 would still leave the Night King seat's `chunkZ = -10` outside the square.
+- **Budget headroom checked before picking the number, not after:** at 8192 triangles/chunk (a
+  64x64-segment `PlaneGeometry`, unchanged), 441 chunks is ~3.61M terrain triangles alone — pushing
+  a radius further (e.g. 12, 25x25=625 chunks, ~5.12M triangles) would have *exceeded* the desktop
+  5M-triangle ceiling on terrain alone, before settlements/water/sky/river. 10 was the largest radius
+  that (a) covers every real kingdom seat and (b) leaves real headroom under the budget for FAZ 4+'s
+  future draw calls (player, NPCs, animals, dragons, vegetation) rather than spending the whole
+  ceiling on empty terrain today.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the math alone:**
+- Desktop-viewport pass: console confirms `"Loaded 441 terrain chunks (~110.25 km²)"`, then
+  `"Placed 14 kingdom-seat settlements; 444 terrain chunks resident (~111.00 km²) after grounding
+  them"` — 444, not 441, because the Night King seat's grounding neighborhood (`chunkZ` from -11 to
+  -9) pokes 3 chunks past the square's `z = -10` edge, exactly as predicted from the bounding-box
+  computation above. Zero `pageerror`/`console.error`.
+- Touch-emulated pass (`hasTouch: true, isMobile: true`): unchanged at `"Loaded 25 terrain chunks
+  (~6.25 km²)"` and `"25 terrain chunks resident ... (mobile — grounding skipped)"` — confirms this
+  change is genuinely desktop-only, the mobile path never reads `PHASE1_PREVIEW_RADIUS_CHUNKS`.
+  Zero `pageerror`/`console.error`.
+- 2D-game regression (`index.html`): same pre-existing, already-documented `firebase is not defined`
+  / sandbox-network-blocked errors as every prior run, nothing new.
+
+**Alternatives considered:**
+- *Radius 12 (625 chunks) for a rounder margin above the 80% gate.* Rejected: terrain triangles
+  alone (~5.12M) would exceed the entire desktop triangle budget before counting settlements/water/
+  sky/river, and leaves no room for FAZ 4+ content. Radius 10 already clears the 80% gate (80.7%);
+  going further isn't needed to satisfy the gate and actively works against future headroom.
+- *Merge/instance terrain chunk geometry now, to afford a much larger radius.* Rejected as
+  premature: draw calls are still only 18% of budget (453 of 2500) at radius 10 — no measured draw-
+  call problem exists to justify the complexity yet, consistent with this project's existing "revisit
+  if draw calls approach the ceiling" tech-debt note. Triangle count, not draw calls, is the binding
+  constraint here, and merging geometry doesn't reduce triangle count.
+- *The "scripted flythrough at boot" idea (runs 2/3/11's notes).* Still valid future work for
+  organically growing *cumulative* coverage via `streamTowards` during real exploration, but doesn't
+  address today's *boot-baseline* gate the same direct radius bump does — not mutually exclusive,
+  just a different lever, left for a future run.
+
+**Consequence:** Desktop World Coverage moves from 58.4% (80.25 km² / 137.5 km²) to **80.7% (111.00
+km² / 137.5 km²)** — clears FAZ 3/10's 80% coverage gate. Mobile World Coverage is unchanged (4.5%,
+25 chunks / 6.25 km², by design). Desktop performance budget: ~453 draw calls (18.1% of the 2500
+ceiling, up from 324) and ~3.67M triangles (73.4% of the 5M ceiling, up from 2.63M) — comfortably
+inside both, but triangle headroom is now the tighter of the two budgets (26.6% remaining vs. 81.9%
+remaining on draw calls); flagged in `3D_GAME_PROGRESS.md` as a real constraint on how much more
+raw terrain radius future runs can add before needing chunk-geometry merging or LOD. Clearing the
+80% *coverage* gate does not close FAZ 3 itself — its PBR/LOD/collider sub-tasks (flagged in prior
+runs) remain open, unaffected by this change.

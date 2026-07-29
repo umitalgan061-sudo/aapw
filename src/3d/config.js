@@ -105,8 +105,10 @@ export const CHUNK_CONFIG = Object.freeze({
 	 * pointers — `game3d.js` picks this vs. STREAM_RADIUS_CHUNKS via a `(pointer: coarse)` check
 	 * before calling `loadSquare`, so a touch device never actually loads this many chunks (see
 	 * DECISIONS.md ADR-0010). See ADR-0002 for why this is a separate constant from
-	 * STREAM_RADIUS_CHUNKS rather than the same number. */
-	PHASE1_PREVIEW_RADIUS_CHUNKS: 8,
+	 * STREAM_RADIUS_CHUNKS rather than the same number. Bumped 8 -> 10 (289 -> 441 chunks) to push
+	 * desktop World Coverage across FAZ 3/10's 80% gate — see DECISIONS.md ADR-0014; still
+	 * comfortably inside the desktop triangle/draw-call budget (see 3D_GAME_PROGRESS.md). */
+	PHASE1_PREVIEW_RADIUS_CHUNKS: 10,
 });
 
 /** Procedural castle dimensions for `world/settlements.js` (FAZ 3). One shared silhouette (box
