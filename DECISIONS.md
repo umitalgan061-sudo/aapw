@@ -1299,3 +1299,106 @@ axes unchanged when `joystickAxes` is `null` (desktop).
 implemented). The remaining FAZ 4 gaps are exactly the two already flagged in 3D_GAME_PROGRESS.md:
 camera wall-avoidance raycasting, and no gravity/jump/wall-collider physics — neither touched by
 this run. World Coverage is unchanged (this run added input, not terrain). No new tech debt.
+
+## ADR-0018: chase-camera wall-avoidance via a per-frame, non-persistent raycast pull-in (`camera.js`'s `resolveCameraCollision`)
+
+**Date:** 2026-07-29
+
+**Decision:** New `resolveCameraCollision(raycaster, target, desiredPosition, collidables,
+marginMeters, minDistanceMeters)` in `camera.js`. Each frame, after `OrbitControls.update()` has
+computed the free-orbit "desired" camera position, `game3d.js`'s tick loop raycasts from
+`controls.target` (roughly the player's chest) toward that desired position; if the ray hits
+anything in a small candidate list before reaching it, the function returns a new position pulled
+in to just short of the hit (`PLAYER_CONFIG.CAMERA_COLLISION_MARGIN_METERS`, floored at
+`CAMERA_COLLISION_MIN_DISTANCE_METERS` so the camera can never end up inside the player model
+itself). The candidate list (`game3d.js`'s new `collectCameraCollidables`) is deliberately small:
+the player's current terrain chunk + its 8 immediate neighbors (via `chunkManager.
+getLoadedChunkMesh`, a new lookup method — `CAMERA_MAX_DISTANCE_METERS` is 40m, far short of one
+500m chunk, so nothing farther out can ever be the real occluder) plus the 3 settlement
+`InstancedMesh` parts (cheap regardless of distance, only 14 castles total). Critically, the
+pulled-in position is applied to `camera.position` **only** for that frame's `renderer.render()`
+call — immediately afterward, `game3d.js` restores `camera.position` to the pre-collision desired
+value, and `resolveCameraCollision` itself never touches `OrbitControls`' own spherical radius.
+
+**Reasoning:**
+- **Priority-ordered:** Session Snapshot re-confirmed the world-scale target (137.5 km², unchanged,
+  eleventh straight run this operator brief has re-asserted the stale "4278 km²"/"5-15m per unit"
+  premise and been re-derived-and-rejected against `config.js` directly — see Session Snapshot
+  below), zero syntax errors (`node --check` on every non-vendor file, baseline), and a full
+  regression smoke test (2D game, 3D desktop — 444 chunks/14 settlements/river/waterfalls, 3D
+  mobile-emulated — 25 chunks, service worker) passed clean, zero new errors, before any new code
+  was written. World Coverage (80.7% desktop / 4.5% mobile) is already past FAZ 3/10's 80% gate, so
+  with syntax/bugs/perf/leaks/debt/coverage all clear, the highest-priority remaining item was FAZ
+  4's one still-open sub-task: chase-camera clipping through terrain/castles, flagged since run 17.
+- **Why non-persistent (the "apply-then-restore" pattern), not writing into `OrbitControls.
+  spherical.radius` directly:** `OrbitControls.update()` recomputes `offset = camera.position -
+  target` fresh every call and re-derives its internal spherical radius/angles from *whatever
+  `camera.position` currently is* (confirmed by reading the vendored `OrbitControls.js` source,
+  not assumed) — there's no separately-stored "user's desired zoom" the library tracks for you.
+  Naively leaving a collision-shortened `camera.position` in place would get that shortened radius
+  picked up as the new baseline on the very next `update()` call, permanently shrinking the user's
+  zoom with no way to grow back out once the obstruction clears. Restoring `camera.position` to the
+  desired value right after render keeps `OrbitControls`' internal state — and therefore the user's
+  actual zoom/orbit distance — completely untouched by collisions; only that one frame's rendered
+  image is pulled in, and the camera eases back out the instant line of sight clears (no explicit
+  "recovery" logic needed, since nothing was ever damaged to recover from).
+- **Small, cheap-to-build candidate list over raycasting the whole scene:** with 441-444 terrain
+  chunks resident on desktop, testing every one every frame would mean 441 bounding-sphere checks
+  purely to rule out chunks nowhere near the 40m-max chase radius. Restricting to the player's
+  chunk + 8 neighbors (guaranteed to contain anything within 40m regardless of where in its chunk
+  the player stands) cuts that to at most 9, and `getLoadedChunkMesh` — a new one-line method on
+  `ChunkManager` — means `game3d.js` doesn't need to reimplement `chunkManager.js`'s private
+  `chunkKey` format to look them up.
+- **Ray origin at `controls.target` (chest height), not the player's feet:** matches what the
+  camera is actually orbiting around — a ray from ground level would false-hit the player's own
+  terrain chunk at a glancing angle on flat ground where there's no real occlusion.
+- **`InstancedMesh` collidables work with three.js's stock `Raycaster` out of the box** (r160's
+  `InstancedMesh.raycast` override, no extra wiring) — confirmed by this run's own behavioral test
+  (see Verified below), not assumed from the API docs.
+
+**Alternatives considered:**
+- *A full custom spring-arm camera rig replacing `OrbitControls` entirely.* Rejected for the same
+  reason ADR-0016 rejected it originally: `OrbitControls` is already tested/damped/limited, and a
+  parallel rig is a much larger, riskier rewrite for a problem a raycast bolted onto the existing
+  rig fully solves.
+- *Writing the collision-shortened distance into `spherical.radius` (a "sticky" pull-in that only
+  grows back via a slow lerp once clear).* Rejected — reads as laggy/rubber-bandy compared to an
+  instant, render-only clamp, and requires tracking a separate "was I just in collision" state
+  machine to know when to start lerping back out. The apply-then-restore pattern gets the same
+  visual result (camera pulled in while occluded) with strictly less state.
+- *Player capsule/collider itself excluded from the candidate list on purpose* — not a rejected
+  alternative so much as a non-issue: `collectCameraCollidables` never includes `player.object3D` at
+  all, so there's no self-occlusion risk to guard against in the first place.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- **Pre-change regression baseline:** full smoke test (2D game, 3D desktop, 3D mobile-emulated) —
+  only the known, pre-existing sandbox network limitations on the 2D side (`firebase is not
+  defined`, blocked external requests), zero new errors, confirming run 18's touch-joystick work is
+  stable before building on top of it.
+- **A standalone in-browser behavioral test of `resolveCameraCollision` itself** (loaded through the
+  same `game3d.html` import map, real vendored `THREE.Raycaster`/`Mesh`/`InstancedMesh`, not a
+  mocked stand-in), asserting: (1) an unobstructed ray returns the exact same `desiredPosition`
+  reference — no wasted allocation on the common case; (2) a `Mesh` wall placed between target and
+  camera returns a *new* `Vector3` pulled in to `hitDistance - marginMeters` (measured 9.100m for a
+  wall front-face at 9.5m with a 0.4m margin — exact, not approximate); (3) a wall extremely close
+  to the target clamps to `CAMERA_COLLISION_MIN_DISTANCE_METERS` (1.5m) rather than going tighter or
+  negative; (4) an empty collidables array is a safe no-op; (5) an `InstancedMesh` (what settlements
+  actually are) triggers the same pull-in as a plain `Mesh`. All 5 assertions passed.
+- **Post-change full regression smoke test:** 3D desktop (444 chunks) and 3D mobile-emulated (25
+  chunks) both zero console/page errors; 2D game unchanged (same pre-existing sandbox-only errors as
+  the baseline, not new).
+- **6+ seconds of continuous simulated player movement** (held-down "w" key in `game3d.html`,
+  running `resolveCameraCollision` every one of ~360+ real render-loop frames, not just the isolated
+  unit-style test above) produced zero console/page errors — confirms the apply-then-restore
+  position juggling every frame doesn't destabilize `OrbitControls` damping or accumulate drift.
+- `node --check` on every file touched this run (`config.js`, `camera.js`, `game3d.js`,
+  `world/chunkManager.js`): clean.
+
+**Consequence:** FAZ 4's roadmap is now fully implemented — playable character, WASD + touch
+joystick input, ground snapping, and chase-camera wall-avoidance all landed. The two gaps still
+flagged in 3D_GAME_PROGRESS.md's Known Issues (no gravity/jump/wall-collider *physics* — this ADR
+only fixes what the *camera* can see through, not what the *player* can walk through — and no LOD/
+collider on castles themselves) remain future work, not touched by this run. World Coverage is
+unchanged (80.7% desktop / 4.5% mobile — this run added a camera behavior, not terrain). No new
+tech debt: the one new `ChunkManager` method (`getLoadedChunkMesh`) is a straightforward accessor
+matching its class's existing style, not a workaround.

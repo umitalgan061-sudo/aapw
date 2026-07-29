@@ -9,12 +9,16 @@
  * `controls.target` at the player (see DECISIONS.md ADR-0016 for why: it's already tested,
  * damped, and distance/angle-limited, and reusing it means this run's FAZ 4 budget goes toward
  * real movement/animation work instead of a parallel camera rig). `game3d.js` disables panning
- * once a player exists (a free-panned target would just get overwritten next frame). True
- * wall-avoidance raycasting (so the camera can't clip through terrain/castles) is not implemented
- * yet — flagged in 3D_GAME_PROGRESS.md's Known Issues.
+ * once a player exists (a free-panned target would just get overwritten next frame).
+ * `resolveCameraCollision` (below) adds wall-avoidance: `game3d.js` calls it every frame, after
+ * `OrbitControls.update()` has computed the "desired" free-orbit position, to pull the camera in
+ * front of any terrain/castle it would otherwise clip through — see that function's doc comment
+ * and DECISIONS.md ADR-0018 for why this stays a per-frame, non-persistent adjustment rather than
+ * writing the shortened distance back into `OrbitControls`' own spherical radius.
  * @module camera
  */
 
+import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/addons/controls/OrbitControls.js';
 
 /**
@@ -45,4 +49,50 @@ export function createOrbitCamera(camera, domElement, { minDistance = 20, maxDis
 	controls.maxPolarAngle = Math.PI / 2 - 0.05;
 	controls.update();
 	return controls;
+}
+
+/** Reused scratch vector — `resolveCameraCollision` runs once per frame; a fresh `Vector3` every
+ * call would be needless per-frame garbage. Safe because its value is only read synchronously
+ * within the same call, never retained across frames. */
+const _rayDirection = new THREE.Vector3();
+
+/**
+ * Pulls `desiredPosition` in along the target->camera ray if it's occluded by anything in
+ * `collidables` (terrain chunks, castle parts — see `game3d.js`'s `collectCameraCollidables`),
+ * so the chase camera lands just in front of a wall/hillside instead of clipping through it.
+ * Deliberately does not mutate `OrbitControls`' own spherical radius — `game3d.js` restores
+ * `camera.position` to `desiredPosition` right after each frame's render, so a collision pull-in
+ * is purely a one-frame visual adjustment: the user's actual zoom/orbit distance is preserved and
+ * the camera smoothly returns to it the moment line of sight clears, rather than staying stuck at
+ * whatever distance the last collision left it at. See DECISIONS.md ADR-0018.
+ * @param {import('three').Raycaster} raycaster Reused across frames by the caller.
+ * @param {import('three').Vector3} target Ray origin — `OrbitControls.target` (the player's chase
+ *   point), not the player's feet, so the ray starts roughly at chest height.
+ * @param {import('three').Vector3} desiredPosition The free-orbit camera position `OrbitControls.
+ *   update()` computed this frame, before any collision adjustment.
+ * @param {import('three').Object3D[]} collidables Candidate meshes to test against. Kept small by
+ *   the caller (nearby terrain chunks + settlement parts only) — this function does no filtering
+ *   of its own.
+ * @param {number} marginMeters Distance to stop short of the hit surface (`PLAYER_CONFIG.
+ *   CAMERA_COLLISION_MARGIN_METERS`).
+ * @param {number} minDistanceMeters Hard floor the resolved distance is clamped above (`PLAYER_
+ *   CONFIG.CAMERA_COLLISION_MIN_DISTANCE_METERS`).
+ * @returns {import('three').Vector3} Either `desiredPosition` unchanged (no occlusion) or a new
+ *   `Vector3` pulled in along the ray — never mutates `desiredPosition` itself, since the caller
+ *   needs the original value to restore `camera.position` after render.
+ */
+export function resolveCameraCollision(raycaster, target, desiredPosition, collidables, marginMeters, minDistanceMeters) {
+	_rayDirection.subVectors(desiredPosition, target);
+	const desiredDistance = _rayDirection.length();
+	if (desiredDistance < 1e-6 || collidables.length === 0) return desiredPosition;
+	_rayDirection.divideScalar(desiredDistance);
+
+	raycaster.set(target, _rayDirection);
+	raycaster.near = 0;
+	raycaster.far = desiredDistance;
+	const hits = raycaster.intersectObjects(collidables, false);
+	if (hits.length === 0) return desiredPosition;
+
+	const clampedDistance = Math.max(minDistanceMeters, hits[0].distance - marginMeters);
+	return target.clone().addScaledVector(_rayDirection, clampedDistance);
 }

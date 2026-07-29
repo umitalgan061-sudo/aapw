@@ -17,8 +17,9 @@
  * FAZ 4 (in progress): a playable character (`gameplay/player.js`) spawns at the world origin,
  * moves via WASD/arrow keys (`input.js`) or an on-screen joystick on touch-primary devices
  * (`ui/touchJoystick.js`) relative to the camera's facing, snaps to ground height (`physics.js`),
- * and the same `OrbitControls` instance becomes its chase camera — see DECISIONS.md ADR-0016 and
- * ADR-0017.
+ * and the same `OrbitControls` instance becomes its chase camera, with `camera.js`'s
+ * `resolveCameraCollision` pulling it in front of any terrain/castle it would otherwise clip
+ * through — see DECISIONS.md ADR-0016, ADR-0017, and ADR-0018.
  * See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
@@ -43,7 +44,7 @@ import {
 	disposeWaterfallMesh,
 } from './world/rivers.js';
 import { createSettlements, disposeSettlements } from './world/settlements.js';
-import { createOrbitCamera } from './camera.js';
+import { createOrbitCamera, resolveCameraCollision } from './camera.js';
 import { createAuroraSky, updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { createStarfield, updateStarfield, disposeStarfield } from './stars.js';
 import { createDayNightLighting, updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
@@ -89,7 +90,7 @@ function isCoarsePointerDevice() {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -195,7 +196,13 @@ function createScene(canvas) {
 			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²)${isMobileClass ? ' (mobile — grounding skipped, see ADR-0013)' : ' after grounding them'}.`,
 	);
 
-	return { renderer, scene, camera, controls, chunkManager, groundCollider, sky, stars, water, river, waterfalls, settlements: settlementsResult.group, lights, clock, elapsedSeconds: 0, lastStreamChunk: null };
+	return {
+		renderer, scene, camera, controls, chunkManager, groundCollider, sky, stars, water, river, waterfalls,
+		settlements: settlementsResult.group, lights, clock, elapsedSeconds: 0, lastStreamChunk: null,
+		// Reused every frame by resolveCameraCollision() — a fresh Raycaster per frame would be
+		// needless garbage for a purely synchronous, single-frame query.
+		cameraCollisionRaycaster: new THREE.Raycaster(),
+	};
 }
 
 /**
@@ -254,6 +261,39 @@ function combineAxes(keyboardAxes, joystickAxes) {
  */
 function worldToChunkCoord(worldCoord, chunkSizeMeters) {
 	return Math.round(worldCoord / chunkSizeMeters);
+}
+
+/** Reused across frames by `collectCameraCollidables` — cleared and refilled each call rather than
+ * allocated fresh, since it only needs to live for the duration of that frame's raycast. */
+const _cameraCollidables = [];
+
+/**
+ * Gathers the small set of meshes `camera.js`'s `resolveCameraCollision` should test the chase
+ * camera's line of sight against: the terrain chunk the player currently stands in (plus its 8
+ * immediate neighbors, so a ray started near a chunk boundary can't miss the chunk it should hit)
+ * and every settlement part (`state.settlements`' 3 `InstancedMesh` children — cheap regardless of
+ * distance, only 14 castles total). Deliberately excludes water/river meshes (not "walls" in the
+ * FAZ 4 Known Issues sense this exists to fix) and the wider unloaded world (the chase camera's
+ * `CAMERA_MAX_DISTANCE_METERS` is 40m, far short of even one 500m chunk, so anything farther out
+ * can never be the actual occluder).
+ * @param {{chunkManager: ChunkManager, settlements: THREE.Group}} state
+ * @param {number} worldX Player's current world-space X.
+ * @param {number} worldZ Player's current world-space Z.
+ * @returns {THREE.Object3D[]} A reused array — valid only until the next call.
+ */
+function collectCameraCollidables(state, worldX, worldZ) {
+	_cameraCollidables.length = 0;
+	const chunkSize = CHUNK_CONFIG.CHUNK_SIZE_METERS;
+	const centerChunkX = worldToChunkCoord(worldX, chunkSize);
+	const centerChunkZ = worldToChunkCoord(worldZ, chunkSize);
+	for (let dz = -1; dz <= 1; dz++) {
+		for (let dx = -1; dx <= 1; dx++) {
+			const mesh = state.chunkManager.getLoadedChunkMesh(centerChunkX + dx, centerChunkZ + dz);
+			if (mesh) _cameraCollidables.push(mesh);
+		}
+	}
+	for (const part of state.settlements.children) _cameraCollidables.push(part);
+	return _cameraCollidables;
 }
 
 /**
@@ -396,7 +436,27 @@ export async function initGame3D() {
 			updateStarfield(state.stars, state.camera.position, dayNight.nightFactor);
 			updateFog(state.scene.fog, dayNight);
 			updateWater(state.water, state.camera.position, elapsedSeconds);
+
+			// Wall-avoidance: pull the camera in front of any terrain/castle occluding the line from
+			// the player to it. Applied last (after sky/stars/water already used the true free-orbit
+			// position above) and undone right after render — see camera.js's resolveCameraCollision
+			// doc comment / DECISIONS.md ADR-0018 for why this never touches OrbitControls' own
+			// spherical radius, so the user's actual zoom distance is preserved across occlusions.
+			const desiredCameraX = state.camera.position.x;
+			const desiredCameraY = state.camera.position.y;
+			const desiredCameraZ = state.camera.position.z;
+			const collidables = collectCameraCollidables(state, playerPos.x, playerPos.z);
+			const resolvedPosition = resolveCameraCollision(
+				state.cameraCollisionRaycaster,
+				state.controls.target,
+				state.camera.position,
+				collidables,
+				PLAYER_CONFIG.CAMERA_COLLISION_MARGIN_METERS,
+				PLAYER_CONFIG.CAMERA_COLLISION_MIN_DISTANCE_METERS,
+			);
+			state.camera.position.copy(resolvedPosition);
 			state.renderer.render(state.scene, state.camera);
+			state.camera.position.set(desiredCameraX, desiredCameraY, desiredCameraZ);
 		};
 		tick();
 

@@ -94,7 +94,10 @@ the way it is.
 - **Used by:** `game3d.js` — one `ChunkManager` instance, `loadSquare(0, 0,
   PHASE1_PREVIEW_RADIUS_CHUNKS)` at scene-bootstrap time, then `streamTowards(centerChunkX,
   centerChunkZ, STREAM_RADIUS_CHUNKS)` every frame the `OrbitControls` target has crossed into a
-  new chunk (see `streamAroundOrbitTarget()` in `game3d.js`).
+  new chunk (see `streamAroundOrbitTarget()` in `game3d.js`). Also `getLoadedChunkMesh(chunkX,
+  chunkZ)` (ADR-0018), read every frame by `collectCameraCollidables()` to fetch the player's
+  current chunk mesh (+ 8 neighbors) as camera wall-avoidance raycast candidates, without that
+  caller needing to know the internal `chunkKey` format.
 - **Critical path:** yes for World Coverage — `getCumulativeCoveredAreaKm2()`/
   `everGeneratedCount` are that metric's source of truth (not `getCoveredAreaKm2()`/`loadedCount`,
   which reflect only currently-resident chunks — see DECISIONS.md ADR-0003).
@@ -220,7 +223,9 @@ the way it is.
 
 - **Depends on:** `src/3d/vendor/three/addons/controls/OrbitControls.js` (vendored three.js r160
   addon, same pin as the core build — see `3D_GAME_PROGRESS.md` Asset Sources).
-- **Used by:** `game3d.js` only (`createOrbitCamera(camera, canvas, {minDistance, maxDistance})`).
+- **Used by:** `game3d.js` (`createOrbitCamera(camera, canvas, {minDistance, maxDistance})`, and,
+  every frame, `resolveCameraCollision(raycaster, target, desiredPosition, collidables,
+  marginMeters, minDistanceMeters)`).
 - **Critical path:** no — purely a camera convenience.
 - **Failure mode:** none currently (vendored, well-tested upstream code; this module only
   configures it). Caller must call `.update()` every frame (damping requires it) and `.dispose()`
@@ -233,8 +238,17 @@ the way it is.
   (required — see ADR-0016's "real bug found" note: moving `target` alone does *not* move the
   camera, `OrbitControls.update()`'s offset math cancels it out). Free-pan is disabled
   (`controls.enablePan = false`) once a player exists, since a panned target would just get
-  overwritten next frame. True wall-avoidance raycasting is **not** implemented — flagged in
-  `3D_GAME_PROGRESS.md`'s Known Issues.
+  overwritten next frame.
+- **FAZ 4 wall-avoidance (ADR-0018):** `resolveCameraCollision` raycasts from `controls.target`
+  toward the free-orbit camera position every frame and, if a terrain/castle mesh occludes it,
+  returns a new position pulled in just short of the hit (`PLAYER_CONFIG.
+  CAMERA_COLLISION_MARGIN_METERS`, floored at `CAMERA_COLLISION_MIN_DISTANCE_METERS`). Stateless —
+  it never writes back into `OrbitControls`' own spherical radius; `game3d.js` applies the pulled-in
+  position only for that frame's `renderer.render()` call and restores the true desired position
+  immediately after, so a collision is a one-frame visual clamp, not a permanent zoom change (the
+  camera eases back out the instant line of sight clears). Reuses one caller-owned `THREE.Raycaster`
+  (no per-frame allocation) against a small caller-supplied candidate list — see `game3d.js`'s
+  `collectCameraCollidables` entry below for what's actually tested.
 
 ## `src/3d/physics.js` — Ground-collision resolution (FAZ 4)
 
@@ -409,9 +423,24 @@ the way it is.
   `requestAnimationFrame` render loop (which now also drives `keyboardInput.getAxes()`,
   `computeCameraRelativeMove()`, `player.update()`, the chase-camera translation, `controls.
   update()`, `streamAroundOrbitTarget()`, `updateDayNightLighting()`, `updateAuroraSky()`,
-  `updateFog()`, and `updateWater()` each frame — see `world/chunkManager.js`, `lighting.js`,
+  `updateFog()`, `updateWater()`, and (ADR-0018) `collectCameraCollidables()` +
+  `camera.js`'s `resolveCameraCollision()` each frame — see `world/chunkManager.js`, `lighting.js`,
   `fog.js`, `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009/
-  ADR-0011/ADR-0013/ADR-0016).
+  ADR-0011/ADR-0013/ADR-0016/ADR-0018).
+- **`collectCameraCollidables(state, worldX, worldZ)` (module-local, added ADR-0018):** builds the
+  small candidate list `resolveCameraCollision` raycasts against each frame — the player's current
+  terrain chunk + its 8 immediate neighbors (via `chunkManager.getLoadedChunkMesh`, sufficient
+  since `CAMERA_MAX_DISTANCE_METERS` is 40m, far short of one 500m chunk) plus every settlement
+  part (`state.settlements.children`, 3 cheap `InstancedMesh`es). Reuses one module-local array
+  (`_cameraCollidables.length = 0` then refill) rather than allocating a new array every frame.
+  Water/river meshes are deliberately excluded — not "walls" in the sense this exists to fix.
+- **Wall-avoidance apply/restore (tick loop, ADR-0018):** after `controls.update()` and the sky/
+  stars/fog/water updates (which use the true free-orbit `camera.position`), the tick loop snapshots
+  that desired position, calls `resolveCameraCollision`, applies the (possibly pulled-in) result to
+  `camera.position` only for that frame's `renderer.render()` call, then immediately restores
+  `camera.position` to the snapshotted desired value. This keeps the pull-in a purely visual,
+  per-frame effect — the next frame's chase-delta translation (which reads `camera.position`) always
+  starts from the user's true, uncollided zoom/orbit state.
 - **`computeCameraRelativeMove(camera, controls, axes)` (module-local, added FAZ 4):** turns raw
   input axes into a world-space movement direction from the camera's current facing. Kept here,
   not in `gameplay/player.js`, so gameplay code stays camera-agnostic (see `gameplay/README.md`).

@@ -165,6 +165,14 @@ export const PLAYER_CONFIG = Object.freeze({
 	/** Camera position, relative to the player, the chase camera starts framed at (behind and
 	 * above) — the user can then orbit/zoom freely from there via `OrbitControls`. */
 	CAMERA_INITIAL_OFFSET_METERS: Object.freeze({ x: 0, y: 3.2, z: 7 }),
+	/** How far, in meters, `camera.js`'s `resolveCameraCollision` pulls the camera in front of
+	 * whatever terrain/castle surface it hits, so the lens sits just short of the geometry instead
+	 * of exactly on it (which would still clip on the near plane as the player keeps moving). */
+	CAMERA_COLLISION_MARGIN_METERS: 0.4,
+	/** Hard floor, in meters, the collision-resolved camera distance is never pulled closer than —
+	 * keeps the camera from ending up inside the player model itself when a wall is hit very close
+	 * to `CAMERA_MIN_DISTANCE_METERS`. Comfortably above `WORLD_DEFAULTS.NEAR_PLANE` (0.1m). */
+	CAMERA_COLLISION_MIN_DISTANCE_METERS: 1.5,
 });
 
 /** On-screen touch joystick (FAZ 4, mobile input). See `src/3d/ui/touchJoystick.js`. */

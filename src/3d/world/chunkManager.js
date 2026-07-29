@@ -100,6 +100,17 @@ export class ChunkManager {
 		this.loadSquare(centerChunkX, centerChunkZ, radius);
 	}
 
+	/**
+	 * @param {number} chunkX
+	 * @param {number} chunkZ
+	 * @returns {import('three').Mesh | undefined} The chunk mesh if currently resident, else
+	 *   `undefined` (unloaded, or never generated). Lets callers (e.g. `game3d.js`'s camera
+	 *   collision raycast) look up a specific chunk's mesh without reimplementing `chunkKey`.
+	 */
+	getLoadedChunkMesh(chunkX, chunkZ) {
+		return this.loaded.get(chunkKey(chunkX, chunkZ));
+	}
+
 	/** @returns {number} Number of currently-loaded (resident) chunks. */
 	get loadedCount() {
 		return this.loaded.size;

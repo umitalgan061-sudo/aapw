@@ -17,28 +17,33 @@ KayKit, etc.) are used for `assets/`.
   waterfalls/stars all live; only postfx-gated god rays remain, deferred to FAZ 9 by design). FAZ 3
   (Kaleler/Yerleşimler) substantially complete (settlements + PBR textures; LOD/colliders still
   deferred to FAZ 4 — see runs 14-16, DECISIONS.md ADR-0013/ADR-0015). **FAZ 4 (Oynanabilir
-  Karakter) started run 17, touch input added run 18:** a playable character (`gameplay/
+  Karakter) roadmap now fully implemented (run 19):** a playable character (`gameplay/
   player.js`) loads `peasant_girl.fbx` + its idle/walking/running clips, moves via WASD/arrows
-  (`input.js`) or an on-screen joystick on touch-primary devices (`ui/touchJoystick.js`, new run
-  18) relative to the camera, snaps to real terrain height (`physics.js`), and the existing
-  `OrbitControls` instance becomes its chase camera — see "This Run (run 18)" below and
-  DECISIONS.md ADR-0016/ADR-0017.
-- **Last Update:** 2026-07-29 (run 18)
-- **Last Commit:** run 18's touch joystick — new `src/3d/ui/touchJoystick.js` + `ui/README.md`,
-  `TOUCH_JOYSTICK_CONFIG` (`config.js`), `combineAxes()`/wiring in `game3d.js`, joystick CSS
-  (`game3d.css`), `service-worker.js` precache entry, DECISIONS.md ADR-0017 (see "This Run
-  (run 18)" below); run 17 was FAZ 4's first pass (vendored `FBXLoader` + deps, `physics.js`,
-  `input.js`, `gameplay/player.js`, chase-camera wiring, DECISIONS.md ADR-0016).
+  (`input.js`) or an on-screen joystick on touch-primary devices (`ui/touchJoystick.js`, run 18)
+  relative to the camera, snaps to real terrain height (`physics.js`), and the existing
+  `OrbitControls` instance becomes its chase camera with wall-avoidance raycasting (`camera.js`'s
+  `resolveCameraCollision`, new run 19) pulling it in front of any terrain/castle it would
+  otherwise clip through — see "This Run (run 19)" below and DECISIONS.md ADR-0016/ADR-0017/
+  ADR-0018. The remaining FAZ 4-adjacent gap (no gravity/jump/wall-collider *physics* — a player can
+  still walk through a castle wall, only the *camera* now avoids clipping) is a deliberately
+  separate future item, not blocking FAZ 4's own gate.
+- **Last Update:** 2026-07-29 (run 19)
+- **Last Commit:** run 19's camera wall-avoidance — new `resolveCameraCollision` (`camera.js`),
+  `PLAYER_CONFIG.CAMERA_COLLISION_MARGIN_METERS`/`CAMERA_COLLISION_MIN_DISTANCE_METERS`
+  (`config.js`), `ChunkManager.getLoadedChunkMesh` (`world/chunkManager.js`), and
+  `collectCameraCollidables()`/apply-then-restore wiring in `game3d.js`'s tick loop, DECISIONS.md
+  ADR-0018 (see "This Run (run 19)" below); run 18 was the touch joystick (`ui/touchJoystick.js`,
+  `TOUCH_JOYSTICK_CONFIG`, DECISIONS.md ADR-0017).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (tenth straight run).** A prior run (see "This Run (run 5)" below,
+  correct, no change made (eleventh straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
-  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, and 17 each
+  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, 17, and 18 each
   re-verified this without changes needed. This run's Session Snapshot re-derived the numbers from
   `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more and again confirmed they
   match ADR-0004 exactly — no config change made. **If you are a future run and the operator's
   brief again asserts the old 4278 km² target is still live: it is not. Re-derive from `config.js`
   yourself (as this run did) rather than trusting the brief's own numbers — this has now been
-  independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, and 18.**
+  independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, 18, and 19.**
 - **Repo-continuity note (run 18):** this run's Session Snapshot found the container's git working
   tree in a `HEAD` state detached at run 17's own final commit (`d9a3260`), while the local `main`
   branch ref and `origin/main` were both still pointing at the pre-3D-mode commit
@@ -90,7 +95,9 @@ the two paths differ and stay different by design (same device-branching pattern
 **Unchanged by run 17 — FAZ 4's player addition doesn't generate or force-load any new terrain
 chunks, re-verified via the same headless-Chromium console-log method (`"...444 terrain chunks
 resident (~111.00 km²)..."` desktop, `"...25 terrain chunks resident...(~6.25 km²)..."` mobile,
-byte-identical to run 16).**
+byte-identical to run 16). Still unchanged by run 19 (camera wall-avoidance is a per-frame render
+adjustment, not a terrain/streaming change) — same figures re-confirmed via an identical console-log
+check.**
 
 - **Target area (100-150 km² band) re-verified this run — still correct, no change made.** Same
   re-derivation every run performs: `src/3d/config.js`'s `WORLD_SCALE.METERS_PER_MAP_UNIT` is 1.75
@@ -1779,6 +1786,104 @@ functional on both desktop and mobile input now), FAZ 5 (NPC) becomes the next v
 reusing `gameplay/player.js`'s FBX-loading/retargeting pattern for the 6 already-downloaded Mixamo
 characters. No new tech debt this run.
 
+## This Run (2026-07-29, run 19)
+
+**Session Snapshot taken at start of run** (per protocol):
+- Read this file, `git log -10 --oneline`, DECISIONS.md's last 3 ADRs (ADR-0016/0017, this file's
+  Known Issues). `git status`/`git branch` showed `HEAD` detached at `68072ab` (run 18's own final
+  commit) — the same recurring pattern flagged in runs 5/17/18's snapshots, though milder this
+  time. A stale local `origin/main` tracking ref (from before this container's `git fetch`) made it
+  briefly look like `main` was 42 commits behind; `git fetch origin main` immediately showed
+  `origin/main` already at `68072ab` (the push had genuinely succeeded — only the local ref cache
+  was stale), so `git branch -f main origin/main && git checkout main` was a safe, lossless
+  fast-forward with nothing to merge or rewrite. Flagging again for a future run: check the *fetched*
+  `origin/main`, not the pre-fetch cached one, before concluding `main` is actually behind.
+- **World scale re-derived from `src/3d/config.js` directly (not the operator brief), per the
+  now-eleven-run-old standing skepticism rule:** `WORLD_SCALE.METERS_PER_MAP_UNIT` is `1.75`,
+  `CHUNK_CONFIG.GRID_COLUMNS`/`GRID_ROWS` are `25`/`22` → 137.5 km² grid-nominal — already inside
+  the requested 100-150 km² band, exactly matching ADR-0004. **No config change made** — the brief's
+  restated "4278 km²"/"5-15m per unit" premise does not match the repository's actual state, same
+  conclusion runs 3/4/5/7/9/11/14/15/16/17/18 already reached.
+- `node --check` clean on every non-vendor `.js` file (baseline, before any edits this run).
+- **Ran a full regression smoke test (Playwright/headless Chromium) before writing any new code**,
+  per the Regression Guard — 2D game (only the same pre-existing, already-documented sandbox
+  network limitations — `firebase is not defined`, blocked external requests, nothing new), 3D
+  desktop (441→444 terrain chunks after settlement grounding, 14 settlements, river/waterfalls,
+  zero errors), 3D mobile-emulated (25 chunks, mobile-budget path, zero errors) all passed clean.
+  Confirmed run 18's touch-joystick work is stable before building on top of it.
+- World Coverage before this run: 80.7% desktop / 4.5% mobile (unchanged from run 18).
+- With syntax/bugs/perf/leaks/debt/world-scale/coverage all clear (coverage is already past FAZ
+  3/10's 80% gate), the highest-priority remaining item was FAZ 4's own last still-open sub-task,
+  explicitly named as "next step" in run 18's own entry above: chase-camera wall-avoidance
+  raycasting.
+
+**Done:**
+- **New `camera.js` export `resolveCameraCollision(raycaster, target, desiredPosition,
+  collidables, marginMeters, minDistanceMeters)`** — raycasts from the `OrbitControls` target
+  toward the free-orbit desired camera position; if a candidate mesh occludes it, returns a new
+  `Vector3` pulled in to `hitDistance - marginMeters` (floored at `minDistanceMeters`), else returns
+  `desiredPosition` unchanged (no allocation on the common unobstructed case).
+- **New `PLAYER_CONFIG.CAMERA_COLLISION_MARGIN_METERS` (0.4) and
+  `CAMERA_COLLISION_MIN_DISTANCE_METERS` (1.5)** in `config.js` — no magic numbers in `camera.js`
+  itself, per the project's config convention.
+- **New `ChunkManager.getLoadedChunkMesh(chunkX, chunkZ)`** (`world/chunkManager.js`) — a one-line
+  accessor so `game3d.js` can look up a specific resident chunk's mesh without reimplementing the
+  module-private `chunkKey` format itself.
+- **New `game3d.js` module-local `collectCameraCollidables(state, worldX, worldZ)`** — builds the
+  small per-frame candidate list: the player's current terrain chunk + 8 neighbors (via the new
+  `getLoadedChunkMesh`) plus the 3 settlement `InstancedMesh` parts. Reuses one module-local array
+  (cleared and refilled, not reallocated) every call.
+- **`game3d.js` tick loop wiring:** after the existing chase-camera translation + `controls.
+  update()` (unchanged from run 17/18) and the sky/stars/fog/water updates that already use the
+  free-orbit `camera.position`, the loop snapshots that desired position, resolves collision
+  against `collectCameraCollidables()`'s output, applies the (possibly pulled-in) result for that
+  one `renderer.render()` call, and restores the snapshotted desired position right after — see
+  DECISIONS.md ADR-0018 for why this apply-then-restore shape is what keeps the user's actual
+  zoom/orbit distance from permanently shrinking after a collision.
+- Added one `THREE.Raycaster` to `createScene()`'s returned state (`cameraCollisionRaycaster`),
+  reused every frame — no per-frame `Raycaster` allocation.
+- **Regression guard:** `node --check` clean on `config.js`, `camera.js`, `game3d.js`,
+  `world/chunkManager.js`.
+- **Real tests, not assumed correct from the code alone:**
+  1. Pre-change baseline (see Session Snapshot above): full regression pass, zero new errors.
+  2. **A standalone in-browser behavioral test of `resolveCameraCollision`** (real vendored
+     `THREE.Raycaster`/`Mesh`/`InstancedMesh`, loaded through the same `game3d.html` import map, not
+     a mocked stand-in): unobstructed case returns the same reference; a `Mesh` wall pulls the
+     camera in to the exact expected distance (9.100m for a 9.5m hit with a 0.4m margin); a
+     near-target wall clamps to the 1.5m floor; an empty collidables array is a no-op;
+     `InstancedMesh` occlusion (what settlements actually are) triggers a pull-in identically to a
+     plain `Mesh`. All 5 assertions passed.
+  3. Post-change full regression smoke test: 3D desktop (444 chunks) and 3D mobile-emulated (25
+     chunks) both zero console/page errors; 2D game unchanged (same pre-existing sandbox-only
+     errors as the baseline).
+  4. **6+ seconds of continuous simulated player movement** (held "w" in the real `game3d.html`
+     render loop, ~360+ frames each running `resolveCameraCollision` for real, not just the
+     isolated test above) — zero console/page errors, confirming the per-frame apply-then-restore
+     position juggling doesn't destabilize `OrbitControls` damping or accumulate drift over time.
+- Updated `DECISIONS.md` (new ADR-0018), `ARCHITECTURE.md` (`camera.js`, `world/chunkManager.js`,
+  `game3d.js` entries), this file's Current Status/World Coverage/Known Issues and this section.
+
+**Files changed this run:** `src/3d/camera.js`, `src/3d/config.js`, `src/3d/game3d.js`,
+`src/3d/world/chunkManager.js`, `DECISIONS.md`, `ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this
+file). 7 files, well within this run's ≤800-line/≤20-file budget (~110 hand-written new lines).
+One commit (the collision function, its config constants, the `ChunkManager` accessor, and the
+`game3d.js` wiring are one atomic, revertable unit — none of the pieces are independently useful
+without the others).
+
+**World Coverage:** unchanged at 80.7% desktop (111.00 km² / 137.5 km²) / 4.5% mobile (6.25 km² /
+137.5 km²) — this run changed a per-frame camera behavior, not terrain/streaming.
+
+**Next step for the next run:** FAZ 4's roadmap is now fully implemented (playable character, WASD
++ touch input, ground snapping, chase-camera wall-avoidance). The one FAZ 4-adjacent gap left is
+player-side physics (no gravity/jump/wall-collider — a player can still *walk* through a castle
+wall even though the camera no longer clips through one), flagged as future work rather than
+blocking FAZ 4's own close-out. With FAZ 4 substantially done and World Coverage already past the
+FAZ 3/10 gate, the next viable phase is **FAZ 5 (NPC)** — reusing `gameplay/player.js`'s
+FBX-loading/retargeting pattern for the 6 already-downloaded T-pose Mixamo characters
+(`arissa`/`dreyar`/`erika_archer`/`paladin_j_nordstrom`/`paladin_wprop_j_nordstrom`/
+`uriel_a_plotexia`), which all share `peasant_girl`'s skeleton and can reuse its idle/walking/
+running clips via retargeting. No new tech debt this run.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -1846,12 +1951,14 @@ characters. No new tech debt this run.
   FBXLoader.js` + its `libs/fflate.module.js`/`curves/NURBSCurve.js`/`curves/NURBSUtils.js`
   transitive deps). `gameplay/player.js` uses it to load `peasant_girl.fbx` + its three animation
   clips. See DECISIONS.md ADR-0016.
-- **Chase camera has no wall-avoidance raycast (FAZ 4, run 17).** `camera.js`'s `OrbitControls`
-  instance now chases the player (see ADR-0016), but nothing stops it from clipping through
-  terrain/castle geometry at some orbit angles. Not yet observed as an actual visible problem
-  (player currently spawns/moves in open terrain, away from castles) but will become one once the
-  player walks near a settlement or a steep slope. A real fix needs raycasting from the player
-  toward the camera and pulling the camera in if it hits geometry — flagged, not built speculatively.
+- **~~Chase camera has no wall-avoidance raycast~~ — landed run 19 (`camera.js`'s
+  `resolveCameraCollision`).** Raycasts from `controls.target` toward the desired camera position
+  every frame against nearby terrain chunks + settlement parts, pulling the camera in front of
+  whatever it hits — see DECISIONS.md ADR-0018. The pull-in is deliberately non-persistent (applied
+  only for that frame's render, restored right after) so the user's actual zoom/orbit distance is
+  never permanently shrunk. **Still open:** this only fixes what the *camera* can see through — the
+  *player* can still walk through castle walls (no player-side collider yet, separate future work,
+  see the settlements LOD/collider item below).
 - **~~No touch joystick for FAZ 4 movement~~ — landed run 18 (`ui/touchJoystick.js`).** Mobile-class
   devices now get an on-screen joystick alongside keyboard (`input.js`) support — see DECISIONS.md
   ADR-0017. Verified via a Playwright-simulated drag (Pointer Events treat mouse and touch drags
