@@ -19,10 +19,17 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 /* ════════ MULTIPLAYER - GLOBAL GAME ════════ */
 // Oyuncu kimliği (unique)
-let benimID = localStorage.getItem('playerID');
-if (!benimID) {
+let benimID;
+try {
+  benimID = localStorage.getItem('playerID');
+  if (!benimID) {
+    benimID = 'player_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('playerID', benimID);
+  }
+} catch (e) {
+  // Safari özel gezinme / depolama devre dışı: localStorage erişimi hata fırlatabilir.
+  // Oturum boyunca geçerli geçici bir ID ile devam et.
   benimID = 'player_' + Math.random().toString(36).substr(2, 9);
-  localStorage.setItem('playerID', benimID);
 }
 
 const rtdb = firebase.database();
