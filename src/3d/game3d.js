@@ -43,10 +43,29 @@ gameEvents.on(EVENTS.ASSET_ERROR, (payload) => {
 });
 
 /**
- * Creates the renderer/scene/camera (with interactive orbit controls) and loads a
- * `PHASE1_PREVIEW_RADIUS_CHUNKS` neighborhood of terrain chunks around the origin against
- * `canvas`, via `ChunkManager`. Fixed one-time load, not position-based streaming yet — see
- * 3D_GAME_PROGRESS.md FAZ 1 for what's next.
+ * Detects a touch-primary (phone/tablet-class) device via the standard `(pointer: coarse)` media
+ * query — more reliable than user-agent sniffing, and the same signal a CSS media query would use.
+ * Falls back to `false` (treat as desktop) if `matchMedia` itself is unavailable, so this can never
+ * throw and block scene creation.
+ * @returns {boolean}
+ */
+function isCoarsePointerDevice() {
+	try {
+		return window.matchMedia('(pointer: coarse)').matches;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Creates the renderer/scene/camera (with interactive orbit controls) and loads a one-time
+ * boot-preview neighborhood of terrain chunks around the origin against `canvas`, via
+ * `ChunkManager`. The radius is `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` on desktop-class
+ * (fine/no pointer) devices, or the much smaller mobile-budget `STREAM_RADIUS_CHUNKS` on
+ * touch-primary devices — see DECISIONS.md ADR-0009 for why this split exists: without it, a
+ * phone loaded the same chunk count as desktop and blew the mobile triangle budget several times
+ * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
+ * what's next.
  * @param {HTMLCanvasElement} canvas
  * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, water: THREE.Mesh, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
  */
@@ -83,13 +102,17 @@ function createScene(canvas) {
 		chunkSizeMeters: CHUNK_CONFIG.CHUNK_SIZE_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 	});
-	// Phase-1-only preview radius, deliberately not STREAM_RADIUS_CHUNKS — see config.js/ADR-0002.
+	// Touch-primary devices get the mobile-budget STREAM_RADIUS_CHUNKS instead of the desktop-only
+	// PHASE1_PREVIEW_RADIUS_CHUNKS boot preview — see this function's own doc comment / ADR-0009.
+	const isMobileClass = isCoarsePointerDevice();
+	const previewRadiusChunks = isMobileClass ? CHUNK_CONFIG.STREAM_RADIUS_CHUNKS : CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS;
 	const generationStart = performance.now();
-	chunkManager.loadSquare(0, 0, CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS);
+	chunkManager.loadSquare(0, 0, previewRadiusChunks);
 	const generationMs = performance.now() - generationStart;
 	console.info(
 		`[game3d] Loaded ${chunkManager.loadedCount} terrain chunks ` +
-			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²) in ${generationMs.toFixed(0)}ms.`,
+			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²) in ${generationMs.toFixed(0)}ms ` +
+			`(${isMobileClass ? 'touch/mobile-class device — mobile-budget radius' : 'desktop-class device — full preview radius'}).`,
 	);
 
 	return { renderer, scene, camera, controls, chunkManager, sky, water, lights, clock, lastStreamChunk: null };

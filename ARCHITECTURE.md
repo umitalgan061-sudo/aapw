@@ -198,6 +198,12 @@ the way it is.
   rather than throwing an uncaught exception. If `#game3d-canvas` isn't present, rendering is
   skipped with a `console.warn`, not a throw, so the module stays safe to import from non-browser
   contexts (tests).
+- **Device-class chunk radius (ADR-0009):** `createScene()` picks the one-time boot preview radius
+  via `isCoarsePointerDevice()` (`window.matchMedia('(pointer: coarse)')`, try/caught to `false`) —
+  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` on desktop-class devices, the mobile-budget
+  `STREAM_RADIUS_CHUNKS` on touch-primary ones. Fixes a real gap: every prior run grew the preview
+  radius under a "desktop-only" comment that nothing actually enforced at runtime, so a real phone
+  was silently loading the full desktop chunk count and blowing the mobile triangle budget.
 
 ## 2D game (`index.html`, `script.js`, `style.css`, `service-worker.js`)
 

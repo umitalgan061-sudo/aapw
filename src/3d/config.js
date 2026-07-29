@@ -101,10 +101,12 @@ export const CHUNK_CONFIG = Object.freeze({
 	 * Phase 10. Do NOT reuse this for the Phase 1 no-player preview load below — see ADR-0002. */
 	STREAM_RADIUS_CHUNKS: 2,
 	/** Radius, in chunks, `game3d.js` loads once at boot purely to preview world-generation
-	 * progress before a player/streaming system exists. Desktop-only concern (`game3d.html` isn't
-	 * reachable on the budget the mobile figures above protect) — see DECISIONS.md ADR-0002 for
-	 * why this is a separate constant from STREAM_RADIUS_CHUNKS rather than the same number. */
-	PHASE1_PREVIEW_RADIUS_CHUNKS: 6,
+	 * progress before a player/streaming system exists. Only used on non-touch (desktop-class)
+	 * pointers — `game3d.js` picks this vs. STREAM_RADIUS_CHUNKS via a `(pointer: coarse)` check
+	 * before calling `loadSquare`, so a touch device never actually loads this many chunks (see
+	 * DECISIONS.md ADR-0009). See ADR-0002 for why this is a separate constant from
+	 * STREAM_RADIUS_CHUNKS rather than the same number. */
+	PHASE1_PREVIEW_RADIUS_CHUNKS: 8,
 });
 
 /** LocalStorage/sessionStorage keys owned by the 3D mode. Never reuse or collide with 2D game keys. */

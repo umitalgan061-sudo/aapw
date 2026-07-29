@@ -454,3 +454,78 @@ must follow the same pattern: include the four `fog_*` chunks, set `fog: true`, 
 `THREE.UniformsLib.fog` into its own `uniforms` — this ADR (not ADR-0007 alone) is the complete
 reference, since ADR-0007 only established *that* custom shaders need the chunks, not the
 uniform-merge requirement this run discovered.
+
+## ADR-0009: gate the boot-preview chunk radius on `(pointer: coarse)`, then grow it for desktop
+
+**Date:** 2026-07-29
+
+**Decision:** `game3d.js`'s `createScene()` now picks the boot-time preview radius by device class
+— `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (8, up from 6) on desktop-class (fine/no pointer)
+devices, or the existing mobile-budget `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS` (2) on touch-primary
+devices, detected via `window.matchMedia('(pointer: coarse)').matches` (wrapped in try/catch,
+defaulting to `false`/desktop if `matchMedia` is unavailable for any reason).
+
+**Reasoning — a real, already-present bug, not a hypothetical one:** every run since Phase 1
+(runs 2, 3, 5) grew `PHASE1_PREVIEW_RADIUS_CHUNKS` and documented it as a "desktop-only concern,"
+but no code anywhere ever actually branched on device — `createScene()` called
+`chunkManager.loadSquare(0, 0, CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS)` unconditionally. A real
+phone opening `game3d.html` today loads exactly the same chunk count as a desktop and already blew
+the mobile budget (169 chunks × 8192 triangles ≈ 1.38M triangles, ~2.8x the 500K mobile ceiling,
+per 3D_GAME_PROGRESS.md's own Performance Budget Status section) — the "desktop-only" framing was
+aspirational documentation, not enforced runtime behavior. This is a performance-budget violation
+(priority #3 in the standing task order), ranked above growing World Coverage further (#7) — so it
+was fixed *before* raising the radius, not after.
+
+`(pointer: coarse)` was chosen over user-agent sniffing because it's the same signal a CSS media
+query would use, is immune to UA-string spoofing/rot, and directly answers the question that
+matters ("is the primary input touch, i.e. is this the class of device the mobile budget targets"),
+not "what OS string did the browser report."
+
+Once the mobile path was verified safe (see smoke test below), the desktop-only preview radius was
+grown from 6 (169 chunks, 13x13) to 8 (289 chunks, 17x17) as this run's World Coverage improvement
+— see 3D_GAME_PROGRESS.md for the updated numbers. 289 chunks is ~2,367,488 triangles (47% of the
+5M desktop triangle budget) and 291 draw calls (12% of the 2500 desktop draw-call budget) — still
+comfortable headroom, unlike jumping straight to the ~441 chunks (21x21) that would satisfy FAZ 3's
+80%-coverage gate outright from a single config bump alone, which would cheapen a milestone FAZ 3
+hasn't earned yet (no settlements exist).
+
+**Verified via headless Chromium (Playwright), not assumed from the media-query name alone:**
+- A default (fine-pointer) browser context loaded `game3d.html`: console confirms `"Loaded 289
+  terrain chunks (~72.25 km²) in 1365ms (desktop-class device — full preview radius)"`, zero page
+  errors, screenshot shows terrain/water/aurora sky all rendering correctly.
+- A touch-emulated context (`hasTouch: true, isMobile: true`, matching Playwright's standard mobile
+  device recipe) loaded the same page: `window.matchMedia('(pointer: coarse)').matches` read `true`
+  inside the page (confirming the emulation actually flips the signal this code reads, not just
+  the device viewport), console confirms `"Loaded 25 terrain chunks (~6.25 km²) in 472ms
+  (touch/mobile-class device — mobile-budget radius)"`, zero page errors, screenshot confirms the
+  scene still renders (smaller view, same visual style).
+- Offline regression (SW registration via `index.html`, then `game3d.html`, then a fresh tab with
+  the network disabled): `game3d.html` still fully loads (loading overlay's `hidden` class present,
+  zero page errors) — this change touched no new files, so no `service-worker.js`
+  `GAME3D_SHELL_FILES` update was needed, but re-verified rather than assumed. `index.html` offline
+  reproduced the same single pre-existing `firebase is not defined` error documented in every prior
+  run's Known Issues — confirmed unrelated, since this change touched only `src/3d/config.js` and
+  `src/3d/game3d.js`, neither of which `index.html`/`script.js` depend on.
+
+**Alternatives considered:**
+- *User-agent sniffing (`navigator.userAgent` regex).* Rejected: brittle against desktop browsers
+  with touch screens (would misclassify as mobile) and against UA-string spoofing/future browser
+  changes; `(pointer: coarse)` answers the actual question (touch-primary input) directly.
+- *`window.innerWidth` viewport-width threshold.* Rejected: conflates screen size with input type —
+  a tablet or a resized desktop window at a narrow width isn't necessarily touch-primary, and this
+  project already has a real, more precise signal available.
+- *Jump straight to the ~441-chunk (21x21) radius that hits FAZ 3's 80% coverage gate in one run.*
+  Rejected this run: FAZ 3 hasn't started (no settlements), and previous runs' own retrospectives
+  explicitly warned against treating World Coverage as "a bigger static blob to inflate" rather than
+  a genuinely explored/generated world — satisfying the gate via one preview-radius config edit,
+  before any castle exists, would be a hollow win. A smaller, real, verified step (169 → 289 chunks)
+  was taken instead; nothing prevents a future run from growing it further once it's independently
+  justified (or from building the FAZ-1-era "scripted flythrough" idea instead, which grows coverage
+  by actually generating streamed terrain rather than a bigger static preview).
+
+**Consequence:** any future change to `PHASE1_PREVIEW_RADIUS_CHUNKS` must keep re-verifying against
+the *desktop* triangle budget only (mobile is now genuinely protected by the pointer-type branch,
+not just a comment). If a future phase adds real quality tiers (`QUALITY_PRESETS`, Phase 10), this
+binary device split is the natural seam to extend into a full tier selection — replace the ternary
+with a `QUALITY_PRESETS`-driven radius lookup at that point rather than adding a third special case
+here.

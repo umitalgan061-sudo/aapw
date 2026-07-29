@@ -14,19 +14,20 @@ KayKit, etc.) are used for `assets/`.
 ## Current Status
 
 - **Active Phase:** FAZ 1 ✅ TAMAMLANDI. FAZ 2 (Su/Atmosfer/Zaman) in progress: sea-level Gerstner
-  water (`world/water.js`, now itself fogged too), a real-time day/night cycle (`lighting.js`,
+  water (`world/water.js`, itself fogged too), a real-time day/night cycle (`lighting.js`,
   sun/hemisphere lights + sky/aurora tied to time-of-day), and distance fog (`fog.js`, synced to
-  the same day/night state, applied to both terrain and water) are live — see "This Run (run 9)"
+  the same day/night state, applied to both terrain and water) are live. This run (run 10) fixed a
+  real mobile perf-budget gap and grew the desktop boot-preview coverage — see "This Run (run 10)"
   below.
-- **Last Update:** 2026-07-29 (run 9)
-- **Last Commit:** this run's `world/water.js` fog wiring + DECISIONS.md ADR-0008 (see
-  "This Run (run 9)" below).
+- **Last Update:** 2026-07-29 (run 10)
+- **Last Commit:** this run's device-class chunk-radius fix + coverage growth, DECISIONS.md ADR-0009
+  (see "This Run (run 10)" below).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made.** A prior run (see "This Run (run 5)" below, DECISIONS.md ADR-0004)
-  already corrected the world scale from an un-completable 4278 km² down to **137.5 km²**, inside
-  the 100-150 km² target band. This run's Session Snapshot re-derived the numbers from
-  `src/3d/config.js` and confirmed they still match ADR-0004 exactly — no `METERS_PER_MAP_UNIT` or
-  grid-size change was needed.
+  correct, no change made (again).** A prior run (see "This Run (run 5)" below, DECISIONS.md
+  ADR-0004) corrected the world scale from an un-completable 4278 km² down to **137.5 km²**, inside
+  the 100-150 km² target band; runs 4, 7, and 9 each re-verified this without changes needed. This
+  run's Session Snapshot re-derived the numbers from `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`,
+  25x22 grid) once more and again confirmed they match ADR-0004 exactly — no config change made.
 - **Parallel work from a prior run:** while a previous routine run was in progress, the project
   owner (with help from a separate Claude session) pushed 3 commits directly to `main` adding more
   manually-downloaded assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
@@ -60,34 +61,37 @@ KayKit, etc.) are used for `assets/`.
 
 ## World Coverage
 
-**World Coverage: 30.73% (42.25 km² / 137.5 km² target)**
+**World Coverage: 52.5% (72.25 km² / 137.5 km² target)**
 
-- **Target area corrected this run — see DECISIONS.md ADR-0004.** The prior 4278 km² target
-  (ADR-0001, `METERS_PER_MAP_UNIT: 10`) was ruled un-completable in realistic time and is
-  superseded. The padded kingdom bounding box is unchanged (14 `INIT_KINGDOMS` seats, re-verified
-  against current `script.js` this run: x:[920,6190]/y:[300,5370] raw, padded to
-  x:[120,6990]/y:[0,6170]) but the scale is now **1.75 m/map-unit**, giving a **12.02km x 10.80km**
-  world (~129.8 km² by exact bounds), rounded up to a **25 x 22 grid of 500m x 500m chunks =
-  137.5 km²** (550 total chunk slots, down from 17,112). These numbers are the source of truth in
-  `src/3d/config.js` (`WORLD_SCALE`, `CHUNK_CONFIG`) — full derivation in `DECISIONS.md` ADR-0004.
-- **Covered area (boot baseline): 42.25 km²** — a 13x13 neighborhood of 169 real, seeded terrain
-  chunks (`world/chunkManager.js`, centered on grid coordinate `(0, 0)`, radius
-  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` — see DECISIONS.md ADR-0002), out of **550** chunk
-  slots in the new grid (30.7% of them — down from 17,112 slots/0.9876%, a corrected denominator,
-  not new terrain). This is the deterministic, reproducible number any page load produces. Keep
-  growing it before visual polish, per the project's own priority rule — but measure the desktop
-  performance budget every time it grows (see below), and note the preview neighborhood is already
-  a substantial fraction of the whole small world now, so further growth should favor real
-  position-based streaming over just enlarging the static preview radius.
+- **Target area (100-150 km² band) re-verified this run — still correct, no change made.** The
+  standing instruction's world-scale correction (originally ADR-0004, now re-stated as a 100-150 km²
+  band) was already satisfied: `src/3d/config.js`'s `WORLD_SCALE.METERS_PER_MAP_UNIT` is 1.75 (not
+  ADR-0001's original 10), the padded kingdom bounding box is unchanged (14 `INIT_KINGDOMS` seats),
+  giving a **12.02km x 10.80km** world (~129.8 km² by exact bounds), rounded up to a **25 x 22 grid
+  of 500m x 500m chunks = 137.5 km²** (550 total chunk slots). Re-derived from `config.js` directly
+  this run rather than assumed — confirmed identical to ADR-0004.
+- **Covered area (boot baseline): 72.25 km²** (up from 42.25 km²) — a 17x17 neighborhood of 289
+  real, seeded terrain chunks (`world/chunkManager.js`, centered on grid coordinate `(0, 0)`, radius
+  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS`, grown from 6 to 8 this run — see DECISIONS.md
+  ADR-0009), out of **550** chunk slots (52.5% of them, up from 30.73%). This is the deterministic,
+  reproducible number any page load produces **on a desktop-class device**. This growth was only
+  made safe by a fix landed in the same run: **before this run, the preview radius was loaded
+  unconditionally regardless of device**, so a real phone already exceeded the mobile triangle
+  budget by ~2.8x with zero mitigation — see ADR-0009 and Performance Budget Status below. Now a
+  touch-primary device (`(pointer: coarse)`) loads the much smaller `STREAM_RADIUS_CHUNKS` (2, 25
+  chunks, ~6.25 km²) boot preview instead, verified via a touch-emulated headless Chromium context.
+  Deliberately did **not** jump straight to the ~441-chunk (21x21) radius that would satisfy FAZ 3's
+  80% coverage gate in one config edit — see ADR-0009's "alternatives considered" for why that would
+  be a hollow win before any settlement exists; a smaller, real, safety-verified step was taken
+  instead, leaving room for further growth (streaming-driven or a boot-time scripted flythrough) in
+  future runs.
   **Tracked from `getCumulativeCoveredAreaKm2()`, not `getCoveredAreaKm2()`** — see DECISIONS.md
   ADR-0003: `game3d.js` also additively **streams in more chunks at runtime** as the interactive
   camera's orbit target crosses into unvisited chunks (never unloading — see ADR-0003 for why
   eviction is deliberately deferred), so real interactive sessions grow coverage further than this
-  static baseline. Verified with a headless pan simulation: panning ~7000m past the preview's edge
-  grew cumulative coverage from 42.25 km² to 54.75 km² (now 39.8% of the corrected 137.5 km² target,
-  up from what would have been 1.28% of the old 4278 km² one) with zero errors, confirming the
-  mechanism works — but that number is session-specific runtime behavior, not a new fixed baseline
-  to report here.
+  static baseline. That mechanism is unchanged this run (not re-tested via a fresh pan simulation
+  since `chunkManager.js`/`streamTowards` weren't touched) but still applies on top of the new,
+  higher boot baseline.
 - Per the project's phase-gate rules, FAZ 3 and FAZ 10 cannot be marked DONE below 80% coverage
   (crisis exception: fix critical bugs/perf first, then resume geographic growth).
 
@@ -96,25 +100,37 @@ KayKit, etc.) are used for `assets/`.
 Desktop budget: DrawCalls<2500, Triangles<5M, TextureMem<2GB. Mobile: DrawCalls<500,
 Triangles<500K, TextureMem<512MB.
 
-- **Current scene (169 chunks, 64 segments each):** 169 draw calls (one per chunk mesh — no
-  merging/instancing yet, flagged below), ~1.38M triangles (169 × 65×65×2). Comfortably inside the
-  **desktop** budget (28% of triangle budget, 7% of draw-call budget) but roughly **2.8x over the
-  mobile triangle budget** if this exact scene were used on a phone — it deliberately isn't:
-  `game3d.html` currently has no quality/mobile-specific chunk count, this preview radius is
-  desktop-only in intent (see DECISIONS.md ADR-0002). A real mobile-safe view will be
-  `STREAM_RADIUS_CHUNKS` (2 → 25 chunks, ~204K triangles, well inside mobile budget) once a
-  streaming system uses it instead of the fixed Phase-1 preview.
+- **Current desktop-class boot scene (289 chunks, 64 segments each, up from 169 this run):** 289
+  draw calls (one per chunk mesh — no merging/instancing yet, flagged below), ~2.37M triangles
+  (289 × 65×65×2). Comfortably inside the **desktop** budget (47% of triangle budget, 12% of
+  draw-call budget). Verified via headless Chromium, not just computed: console confirms `"Loaded
+  289 terrain chunks (~72.25 km²) in 1365ms"`, zero page errors, screenshot shows terrain/water/sky
+  rendering correctly.
+- **Mobile is now genuinely protected, not just documented as "deliberately not this."** This run
+  found and fixed a real gap (DECISIONS.md ADR-0009): nothing in code actually branched on device,
+  so a real phone loading `game3d.html` got the exact same chunk count as desktop — at the old
+  169-chunk preview that was already ~2.8x over the mobile triangle budget, and would have gotten
+  worse every time a future run grew the "desktop-only" radius further. `game3d.js`'s `createScene()`
+  now detects `(pointer: coarse)` and loads `STREAM_RADIUS_CHUNKS` (2 → 25 chunks, ~204K triangles,
+  41% of the mobile triangle budget) instead on touch-primary devices. Verified via a
+  touch-emulated headless Chromium context (`hasTouch: true, isMobile: true`): console confirms
+  `"Loaded 25 terrain chunks (~6.25 km²) in 472ms (touch/mobile-class device — mobile-budget
+  radius)"`, `window.matchMedia('(pointer: coarse)').matches` read `true` inside the page (confirms
+  the emulation actually flips the signal this code reads), zero page errors.
 - **FPS: not reliably measurable in this sandbox.** Headless Chromium here falls back to
-  SwiftShader **software** rendering (no real GPU passthrough) — sampled ~5 FPS at 169 chunks vs.
-  ~6 FPS at 25 chunks (measured this run, before/after comparison), a small relative drop despite
-  a 6.7x triangle-count increase. That pattern points to a mostly-fixed software-rasterization
-  overhead dominating, not geometry-bound cost — consistent with 1.38M triangles being trivial for
-  any real GPU. Treat this sandbox's FPS numbers as non-representative; real FPS needs a real
-  device/browser test, which no run has been able to do yet. Flagged under Known Issues.
-- **Generation time (one-time, not per-frame):** 169 chunks generated in ~630ms (measured via
-  `performance.now()` around the `loadSquare` call in `game3d.js`). Acceptable for a one-time boot
-  cost; would need attention if a future streaming system calls this per-frame instead of on
-  demand as the player crosses chunk boundaries.
+  SwiftShader **software** rendering (no real GPU passthrough) — sampled ~5-6 FPS in this sandbox
+  across prior chunk-count comparisons, a pattern pointing to a mostly-fixed software-rasterization
+  overhead dominating, not geometry-bound cost. Treat this sandbox's FPS numbers as
+  non-representative; real FPS needs a real device/browser test, which no run has been able to do
+  yet. Flagged under Known Issues. Not re-sampled this run (same sandbox limitation, no new
+  information to add).
+- **Generation time (one-time, not per-frame):** 289 chunks generated in ~1365ms on the desktop path
+  (up from 630ms at 169 chunks — roughly linear, as expected), 472ms on the mobile path (25 chunks).
+  Both measured via `performance.now()` around the `loadSquare` call in `game3d.js`, both masked
+  behind `game3d.html`'s loading overlay (only hidden once `phase1-scene` `GAME_READY` fires, i.e.
+  after generation completes) so neither shows as visible jank. Would need attention if a future
+  streaming system called this per-frame instead of on demand as the player crosses chunk
+  boundaries.
 - **Tech debt flagged, not yet worth fixing:** each chunk is its own draw call/mesh. Geometry
   merging or `InstancedMesh` (per the project's performance guidelines) would cut draw calls
   substantially, but at 169 draw calls there's no measured problem to justify the added complexity
@@ -126,12 +142,13 @@ Triangles<500K, TextureMem<512MB.
 - **`lighting.js` (added run 7):** 0 added draw calls/triangles — `DirectionalLight`/
   `HemisphereLight` are not meshes and no shadow maps are enabled (see DECISIONS.md ADR-0006), so
   this is a pure CPU-side per-frame color/position interpolation, negligible cost.
-- **`sky.js` + `world/water.js` combined (added run 6):** 2 more draw calls (171 total, still 7% of
-  the desktop budget), ~960 sky triangles + ~32,768 water triangles (`PlaneGeometry(4000, 4000,
-  128, 128)`, 2 triangles/cell) ≈ 33.7K triangles — under 1% of the desktop triangle budget and a
-  small (6.7%) slice of the *mobile* triangle budget on its own; combined with a mobile-appropriate
-  25-chunk terrain view (~204K triangles, see above) that's still comfortably inside the 500K
-  mobile ceiling. No `InstancedMesh`/LOD needed yet for either.
+- **`sky.js` + `world/water.js` combined (added run 6):** 2 more draw calls (291 total on the
+  desktop path, still 12% of the desktop budget), ~960 sky triangles + ~32,768 water triangles
+  (`PlaneGeometry(4000, 4000, 128, 128)`, 2 triangles/cell) ≈ 33.7K triangles — under 1% of the
+  desktop triangle budget and a small (6.7%) slice of the *mobile* triangle budget on its own;
+  combined with the real mobile-path 25-chunk terrain view (~204K triangles, see above, now
+  actually reachable via the device-class branch, not just a hypothetical) that's still comfortably
+  inside the 500K mobile ceiling. No `InstancedMesh`/LOD needed yet for either.
 
 ## Roadmap
 
@@ -911,6 +928,97 @@ height-drop concept `terrain.js` doesn't have yet — design that first, this is
 remaining FAZ 2 design task) and volumetric light (god rays — separate, larger technique, not
 started). World Coverage unchanged at 30.73% (42.25 km² / 137.5 km²) — this run improved an
 existing visual system, not terrain area.
+
+## This Run (2026-07-29, run 10)
+
+**Session Snapshot taken at start of run** (per protocol): repo started `HEAD` detached, matching
+`origin/main` (`3c8236d`, run 9's fog-uniform-merge commit) while local `main` was stale at
+`38e09e7` — the same recurring pattern documented in runs 2-4. Fixed with `git checkout main && git
+merge --ff-only origin/main` (29 commits fast-forwarded, no data loss — confirmed `origin/main` was
+already ahead of local `main`, not the other way around). Read `3D_GAME_PROGRESS.md` in full,
+`git log -10`, and `DECISIONS.md`'s last ADR (ADR-0008) per protocol.
+
+**World-scale correction check (this run's explicit first instruction):** the operator's brief
+restated the 100-150 km² band requirement, asserting the old (already-superseded) 4278 km² target
+might still be live. Re-verified directly against `src/3d/config.js`: `WORLD_SCALE.
+METERS_PER_MAP_UNIT` is `1.75`, `CHUNK_CONFIG.GRID_COLUMNS`/`GRID_ROWS` are `25`/`22` — exactly
+ADR-0004's numbers (137.5 km², inside the 100-150 km² band). No config change needed — stated
+explicitly here (again) so a future run doesn't re-derive this from scratch a fifth time.
+
+**Done — found and fixed a real, previously-undetected perf-budget bug, then grew coverage safely
+on top of the fix:**
+- **Regression guard first:** `node --check` on every non-vendored `src/3d/**/*.js` file plus
+  `script.js`/`service-worker.js`, JSON-validated `manifest.json`/`assets_manifest.json`. All pass —
+  no syntax errors going into this run.
+- **Investigated the standing instruction's priority order** (syntax → blocking bugs → perf-budget
+  overrun → memory leak → tech debt → missing regression test → low coverage → active-phase
+  subtask → new feature) before picking a task, rather than defaulting straight to "grow coverage"
+  (priority #7) or "next FAZ 2 item" (#8). While scoping *how* to grow World Coverage safely (the
+  obvious next lever being `PHASE1_PREVIEW_RADIUS_CHUNKS`, per runs 2/3/5's own precedent), re-read
+  `game3d.js`'s `createScene()` and found that **every prior run's "desktop-only" framing for this
+  constant was aspirational documentation, never enforced code** — `chunkManager.loadSquare(0, 0,
+  CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS)` runs unconditionally, with zero device branching
+  anywhere in `src/3d/**` (confirmed by grep for `mobile`/`matchMedia`/`userAgent`/
+  `maxTouchPoints`/`QUALITY_PRESETS` usage — only comments mentioned "mobile," no code read it). A
+  real phone opening `game3d.html` today already loads the full 169-chunk desktop preview
+  (~1.38M triangles, ~2.8x the mobile triangle budget) with no mitigation — a real, already-present
+  performance-budget violation (priority #3), ranked above growing coverage further (#7). Fixed that
+  before touching the radius, per the priority order.
+- **Built the fix (DECISIONS.md ADR-0009):** `game3d.js` gained `isCoarsePointerDevice()`
+  (`window.matchMedia('(pointer: coarse)').matches`, try/caught to `false` if `matchMedia` is
+  unavailable). `createScene()` now picks `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` on
+  desktop-class devices or the existing mobile-budget `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS` on
+  touch-primary ones, logging which path was taken and why. `(pointer: coarse)` was chosen over
+  user-agent sniffing as the more reliable, spoof-resistant, directly-relevant signal (see ADR-0009
+  for the full reasoning/alternatives).
+- **Only once the mobile path was verified safe, grew the desktop-only radius** (this run's actual
+  World Coverage improvement): `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` 6 → 8 (169 → 289 chunks,
+  13x13 → 17x17), World Coverage 30.73% → **52.5%** (42.25 km² → 72.25 km² / 137.5 km²).
+  Deliberately did **not** jump straight to the ~441-chunk (21x21) radius that would satisfy FAZ 3's
+  80% coverage gate in one edit — no settlement exists yet, so hitting that gate via a pure config
+  bump would be a hollow win; see ADR-0009's alternatives-considered for the full reasoning. 289
+  chunks measures at 47% of the desktop triangle budget and 12% of the desktop draw-call budget —
+  comfortable headroom remains for future runs.
+- **Real smoke tests (headless Chromium via Playwright, repo served locally with
+  `python3 -m http.server`), both device paths, not just the math:**
+  1. Default (fine-pointer) context: console confirms `"Loaded 289 terrain chunks (~72.25 km²) in
+     1365ms (desktop-class device — full preview radius)"`, zero page errors, screenshot confirms
+     terrain/water/aurora sky all render correctly at the larger chunk count.
+  2. Touch-emulated context (`hasTouch: true, isMobile: true`): confirmed
+     `window.matchMedia('(pointer: coarse)').matches` reads `true` *inside the page* (the emulation
+     genuinely flips the signal this code reads, not just the viewport size) — console confirms
+     `"Loaded 25 terrain chunks (~6.25 km²) in 472ms (touch/mobile-class device — mobile-budget
+     radius)"`, zero page errors, screenshot confirms the scene still renders correctly at the
+     smaller chunk count.
+  3. **Offline regression:** visited `index.html` then `game3d.html` online (SW install + both
+     precache calls), then a fresh tab with the network disabled reloading `game3d.html` — loading
+     overlay's hidden class present (full load succeeded), zero page errors. No new file was added
+     this run, so no `service-worker.js` `GAME3D_SHELL_FILES` change was needed — verified this
+     rather than assumed.
+  4. **2D game regression:** `index.html` offline reproduced the same single, already-documented
+     pre-existing `firebase is not defined` error from every prior run's Known Issues — confirmed
+     unrelated, since this run touched only `src/3d/config.js` and `src/3d/game3d.js`, neither of
+     which `index.html`/`script.js` depend on.
+
+**Files changed this run:** `src/3d/game3d.js` (`isCoarsePointerDevice()` + device-branched preview
+radius), `src/3d/config.js` (`PHASE1_PREVIEW_RADIUS_CHUNKS` 6 → 8, updated doc comment),
+`DECISIONS.md` (new ADR-0009), `ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file — World Coverage,
+Current Status, Performance Budget Status, this section). Five files, well within this run's
+≤20-files/≤800-lines budget; one atomic change (the mobile-safety fix and the coverage growth it
+unblocked are a single reviewable/revertable unit — the growth wouldn't have been safe to make
+without the fix landing in the same commit).
+
+**Next step for the next run:** FAZ 2's remaining items are unchanged in priority: rivers/
+waterfalls (needs a river-path/height-drop concept `terrain.js` doesn't have yet — design that
+first) and volumetric light (god rays — separate, larger technique). World Coverage is now 52.5%
+(72.25 km² / 137.5 km², up from 30.73%) — further growth is legitimate (real headroom remains in
+both the desktop triangle budget, 47% used, and the draw-call budget, 12% used) via either another
+`PHASE1_PREVIEW_RADIUS_CHUNKS` bump (re-verify both device paths again, same as this run) or the
+still-valid "scripted flythrough at boot" idea from run 2/3's notes (grows coverage by genuinely
+streaming terrain rather than a bigger static preview — arguably the better long-term direction).
+Either is legitimate; per this project's own rule, don't half-do both in one run. No new tech debt
+introduced this run; one long-standing gap (mobile chunk-count safety) was closed instead of added
+to.
 
 ## Known Issues / Tech Debt
 
