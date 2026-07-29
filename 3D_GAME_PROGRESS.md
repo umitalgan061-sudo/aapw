@@ -13,24 +13,42 @@ KayKit, etc.) are used for `assets/`.
 
 ## Current Status
 
-- **Active Phase:** FAZ 1 — İskelet ve Arazi (in progress: world scale + chunk grid defined, `game3d.html` renders a bare scene with a placeholder ground plane; real terrain/sky/camera-controls not built yet)
+- **Active Phase:** FAZ 1 — İskelet ve Arazi (in progress: world scale + chunk grid defined,
+  `game3d.html` renders 25 real seeded terrain chunks via `ChunkManager`, ~0.15% World Coverage;
+  sky/camera-controls not built yet)
 - **Last Update:** 2026-07-29
-- **Last Commit:** `feat(3d): scaffold Phase 0 architecture (EventBus, GameState, AssetLoader, vendored Three.js)`
-  — two further commits since then added Mixamo character assets (see "Manually-added assets" below)
-  but did not touch this file; this run backfills that gap.
+- **Last Commit:** `5bea1d4` (merge of this run's chunk-manager work with a parallel session's
+  asset additions — see below).
+- **Parallel work this run:** while this routine was running, the project owner (with help from a
+  separate Claude session) pushed 3 commits directly to `main` adding more manually-downloaded
+  assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
+  `paladin_j_nordstrom`, `paladin_wprop_j_nordstrom`, `uriel_a_plotexia` — all T-pose, all share
+  Mixamo's standard skeleton so the existing `peasant_girl` idle/walking/running clips can retarget
+  onto any of them) and 2 creature models (`wolf` — Free3D/3dhaupt, rigged glTF/GLB, for FAZ 6; a
+  `black_dragon` — Free3D, rigged FBX with baked wing/fly/fire actions, for FAZ 7, explicitly an
+  original design, not a "Drogon" replica — see `assets_manifest.json` notes). None of these are
+  consumed by any code yet (expected — FAZ 4/6/7 haven't started). Merged cleanly (`git merge
+  origin/main`, no conflicts) into this run's work. **12 assets now registered in
+  `assets_manifest.json`.**
 - **2D Game:** Verified intact — `node --check` passes on `script.js` and `service-worker.js`,
   `manifest.json`/`assets_manifest.json` are valid JSON, no references to any 3D mode exist yet in
-  `index.html`.
-- **Manually-added assets (ready for FAZ 4, not yet consumed):** the project owner logged into
-  Mixamo and manually downloaded `assets/models/characters/peasant_girl.fbx` (rigged base mesh) plus
-  `assets/animations/peasant_girl/{idle,walking,running}.fbx` (skin-less animation clips, walking/
-  running use "In Place" so root motion is driven by player-controller code, not baked in). All four
-  are recorded in `assets_manifest.json` with source/license. FAZ 4 must load the mesh with
-  `FBXLoader` (vendor from three.js `examples/jsm/loaders/FBXLoader.js` next to `GLTFLoader.js`) and
-  retarget the three animation clips onto its skeleton via `AnimationMixer` — standard Mixamo
-  workflow since all Mixamo characters share the same skeleton. Do not attempt to re-download or
-  replace these; any *additional* Mixamo asset must go through the same manual human step next
-  session (see "Known Issues" below).
+  `index.html` beyond the additive "🎮 3D Dünya" toolbar button.
+- **Manually-added assets (ready for later phases, not yet consumed by any code):** all recorded
+  in `assets_manifest.json` with source/license.
+  - **Characters (FAZ 4):** `peasant_girl.fbx` (rigged base mesh) +
+    `assets/animations/peasant_girl/{idle,walking,running}.fbx` (skin-less clips, walking/running
+    use "In Place" so root motion is driven by player-controller code, not baked in), plus 6 more
+    T-pose Mixamo characters (`arissa`, `dreyar`, `erika_archer`, `paladin_j_nordstrom`,
+    `paladin_wprop_j_nordstrom`, `uriel_a_plotexia`) — all share Mixamo's standard skeleton, so the
+    existing idle/walking/running clips can retarget onto any of them without new animation
+    downloads. FAZ 4 must load these with `FBXLoader` (vendor from three.js's official
+    `examples/jsm/loaders/FBXLoader.js` next to `GLTFLoader.js`) and retarget via `AnimationMixer`.
+  - **Creatures:** `wolf` (Free3D/3dhaupt, rigged glTF/GLB with walk/run/sit/creep/idle clips, for
+    FAZ 6) and `black_dragon` (Free3D, rigged FBX with baked walk/run/idle/jump/wing-open/fly
+    clips, for FAZ 7 — an original design, explicitly not a "Drogon" replica; see the manifest's
+    notes for why a similarly-named Sketchfab model was rejected).
+  - Do not attempt to re-download or replace any of these; any *additional* Mixamo/Free3D asset
+    must go through the same manual human step (see "Known Issues" below).
 
 ## World Coverage
 
@@ -249,11 +267,12 @@ files per the blast-radius rule, and re-run the headless-Chromium smoke test eac
   animation clips (see "Manually-added assets" above). Vendor it from three.js's official
   `examples/jsm/loaders/FBXLoader.js` alongside `GLTFLoader.js` when FAZ 4 starts — do not attempt
   it earlier than FAZ 4 per the phase-dependency rule.
-- **Any future Mixamo asset needs a human step.** The cloud agent cannot log into Mixamo. If a
-  later phase needs a new character/animation, mark it here as "insan onayı gerekli — Mixamo manuel
-  indirme" and stop; do not attempt to fetch it automatically.
+- **Any future Mixamo/Free3D asset needs a human step.** The cloud agent cannot log into Mixamo,
+  and Free3D's download flow doesn't trigger via automated browser clicks either (per the wolf/
+  dragon commit message). If a later phase needs a new character/creature/animation, mark it here
+  as "insan onayı gerekli — manuel indirme" and stop; do not attempt to fetch it automatically.
 - **`assets_manifest.json` is hand-maintained, no automated check that it matches `assets/`.**
-  Low risk today (4 files, both in sync), but flag as tech debt if the asset count grows without a
+  Low risk today (12 files, in sync as of this run), but flag as tech debt if the asset count grows without a
   script to diff `assets/**` against the manifest.
 - **No visual loading progress bar yet.** `AssetLoader` already emits `EVENTS.ASSET_PROGRESS`
   with a `ratio` — there's just no UI listening yet since there's no HTML page for the 3D mode
