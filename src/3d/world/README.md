@@ -22,6 +22,14 @@ here (blast radius rule — if a change needs more than that, it's not a world-s
   a `ChunkManager`-owned concept — a single plane at a fixed sea level already floods `terrain.js`'s
   low points into natural lakes/coastline with no terrain changes needed. See `DECISIONS.md`
   ADR-0005 for the full reasoning and alternatives considered.
+- **`rivers.js`** — one deterministic downhill-flow river, traced (not carved) over `terrain.js`'s
+  height field. `generateRiverPath({seed, sampleHeightMeters, seaLevelMeters, ...})` walks
+  steepest-descent from the highest point near the origin down to sea level, returning
+  `{points, endReason}`; `createRiverMesh(points, widthMeters)` builds a static ribbon `THREE.Mesh`
+  (`null` if fewer than 2 points); `disposeRiverMesh(mesh)` releases it. Static — no per-frame
+  `update()`, unlike `water.js`. See `DECISIONS.md` ADR-0009 for why path-tracing (not terrain
+  carving) was chosen and how the steepest-descent walk avoids getting stuck in the many small
+  local minima multi-octave FBM noise produces.
 
 ## Conventions
 

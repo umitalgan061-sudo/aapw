@@ -455,7 +455,107 @@ must follow the same pattern: include the four `fog_*` chunks, set `fog: true`, 
 reference, since ADR-0007 only established *that* custom shaders need the chunks, not the
 uniform-merge requirement this run discovered.
 
-## ADR-0009: gate the boot-preview chunk radius on `(pointer: coarse)`, then grow it for desktop
+## ADR-0009: rivers as a traced downhill path over `terrain.js`'s height field, not carved terrain; escalating-radius steepest descent
+
+**Date:** 2026-07-29
+
+**Decision:** FAZ 2's river (`src/3d/world/rivers.js`) is found, not authored: a deterministic
+steepest-descent walk starts at the highest point within 2000m of the world origin and repeatedly
+steps toward the lowest nearby height (sampled from `terrain.js`'s existing FBM field via a new
+`createHeightSampler` export — see below) until it reaches `WORLD_DEFAULTS.WATER_LEVEL_METERS`
+(the sea). `terrain.js`'s chunk generation itself is **not modified** — same "find the shape in the
+existing noise, don't carve a new one into it" approach ADR-0005 used for sea-level water. The walk
+uses an **escalating search radius** when no downhill neighbor exists at the normal step distance
+(retry at `stepMeters * 2^n`, up to a cap) rather than giving up immediately, because plain
+single-radius steepest descent got trapped by small local minima almost immediately in testing (see
+below) — flagged explicitly because this is a case where the *first*, simpler implementation
+produced an obviously-too-short/broken result and needed a real fix, not shipped as "good enough."
+
+**Reasoning:**
+- **Path-tracing over the existing height field, not terrain carving:** carving would mean
+  `terrain.js` needs a "how close is the nearest river" concept baked into its per-vertex height/
+  color loop, coupling two systems that don't need to be coupled and re-validating every chunk's
+  existing look. Tracing costs nothing to `terrain.js` beyond one small, additive export
+  (`createHeightSampler`) and produces a river that already sits naturally in the terrain's own
+  valleys by construction — the same trade-off ADR-0005 already made for water, applied here.
+- **`createHeightSampler(seed, fbmOptions?)` extracted from `createTerrainChunk`'s per-vertex loop:**
+  previously the height formula (`fbm2D(noise2D, x*scale, z*scale) * maxHeightMeters`) only existed
+  inline inside the chunk-geometry loop. Pulling it into a standalone, pure, exported function lets
+  `rivers.js` query "how tall is the terrain at this exact point" without generating a whole chunk,
+  and guarantees the river's rendered height always matches whatever `createTerrainChunk` would
+  bake at that same point — one source of truth, not two independently-written height formulas that
+  could silently drift. `createTerrainChunk` now calls `createHeightSampler` internally; verified
+  behavior-identical via an unchanged before/after headless-Chromium terrain screenshot (same seed,
+  same visual output) — this was a pure refactor, not a generation-behavior change.
+- **`mulberry32` exported from `terrain.js` for `rivers.js` to reuse:** the project's determinism
+  rule requires a seeded PRNG, never `Math.random()`, for anything that shapes world geography.
+  Rather than write a second copy of the same 32-bit PRNG in `rivers.js`, it imports the one
+  `terrain.js` already implements — one canonical implementation, XORed with a fixed tag
+  (`seed ^ 0x52495652`) to get an independent random stream from terrain's own noise sequence
+  without needing a second unrelated algorithm.
+- **Escalating-radius steepest descent, discovered necessary by testing, not assumed upfront:** the
+  first implementation (fixed `stepMeters`, single-radius candidate search) got stuck at a
+  `local-minimum` after only ~10 points / ~360m in an actual headless-Chromium run — nowhere near
+  sea level. Multi-octave FBM (5 octaves here) has many small local dips from its higher-frequency
+  octaves layered on top of the macro shape a real river should follow; a single point sampled 40m
+  away can easily land on a slightly-higher bump even when the broader area trends downhill. Tried
+  reducing octaves for the walk's *decision* function alone (a "coarse/fine split") first — still
+  got stuck, just less often. What actually worked, verified with the exact same seed across
+  multiple trials before committing to it: if no candidate at `stepMeters` is downhill, retry at
+  `stepMeters * 2`, `* 4`, etc. (capped at `MAX_STUCK_ESCALATIONS = 4`) before declaring the walk
+  stuck — effectively "look further ahead" to step over a small bump while still preferring the
+  smallest jump that finds real descent. This let the *same* full-detail (5-octave) height field
+  the terrain actually renders reach the sea in 11 points, using only one escalation — simpler than
+  maintaining a second coarse-only sampler, since the escalation fix addresses the root cause
+  (steepest descent's blindness to nearby-but-not-visible lower ground) directly.
+- **Ribbon mesh with a built-in `MeshStandardMaterial`, not a custom shader:** unlike
+  `world/water.js`'s Gerstner shader, the river doesn't animate (no flow/wave motion this pass —
+  see Alternatives below), so a plain vertex-colored built-in material is enough, and gets
+  `scene.fog`/day-night lighting for free (no ADR-0008-style chunk wiring needed) — the smallest
+  correct choice for this pass's actual visual requirements, not a shortcut that skips something
+  needed.
+- **Confined to a fixed radius (`maxRiverRadiusMeters`, default 2800m) around the origin, not
+  world-scale:** the walk stops if it would step outside this radius, deliberately kept inside the
+  FAZ 1 preview area (`PHASE1_PREVIEW_RADIUS_CHUNKS` × 500m ≈ 3000m) so the rendered ribbon never
+  extends over terrain that isn't actually loaded — a river floating past the edge of loaded ground
+  would look broken. **Consequence, stated plainly:** at this world's terrain relief (max height
+  24m) the resulting river is short (~11 points, roughly 680m point-to-point, one river, one
+  session — verified in a dedicated top-down orthographic screenshot showing it winding from a
+  marked source to a marked sea outlet), not yet the many-rivers, world-spanning network a finished
+  FAZ 2/3 needs. This pass establishes the *mechanism* (a working, deterministic, sea-reaching
+  path-tracer); scaling to multiple rivers tied to real streaming, not just one static one, is
+  future work — see Consequence below.
+
+**Alternatives considered:**
+- *Carve real riverbed geometry into `terrain.js` along the path (lower vertex heights near the
+  path).* Rejected: couples two systems ADR-0005 deliberately kept decoupled for water, and would
+  need every one of the 169-and-growing already-generated/screenshotted chunks re-validated against
+  a new "am I near a river" concept — real cost for a visual improvement (a slightly recessed
+  riverbed) not needed yet at this world's scale.
+- *Grid-based flow accumulation (D8/D-infinity, the standard GIS/hydrology technique) instead of a
+  single steepest-descent walk.* Rejected for this pass: correctly handles arbitrary numbers of
+  rivers and endorheic basins, but needs a full heightmap grid computed and cached up front (a real
+  new data structure and generation cost), not a cheap per-point query — appropriate if/when this
+  project needs *many* rivers derived automatically from the whole terrain, not for a first,
+  single-river pass whose job is proving the path-tracing concept works at all.
+- *Two independently-tuned samplers (coarse for pathfinding, fine for rendering).* Tried first,
+  rejected after testing: still got stuck in local minima just less often than the fine-only
+  baseline, added a second tunable (which octave count is "coarse enough") without fully solving
+  the problem the escalation fix solves directly and more simply.
+- *A flow-animated custom shader (scrolling UVs, foam) for the river surface, matching `water.js`'s
+  visual ambition.* Deferred, not attempted: `createRiverMesh`'s built-in material has no fog/
+  lighting integration cost the way `water.js`'s custom shader did (ADR-0008), so this is a pure
+  visual-polish addition for later, not blocking this pass's actual goal (a real, sea-reaching path).
+
+**Consequence:** `world/rivers.js` is the reference for any future world-geography system that needs
+to query terrain height without generating a chunk (`createHeightSampler`) or trace a path over it
+(the escalating-descent technique). Known scope limits, tracked in `3D_GAME_PROGRESS.md` Known
+Issues rather than silently assumed solved: only one river exists (not a network), it's static (not
+streamed/regenerated as the world grows), it has no waterfall/rapids visual at steep drops, and its
+surface doesn't flow-animate. Any future run generalizing to multiple rivers or tying river
+generation into `ChunkManager`'s streaming should read this ADR first — the height-sampler/PRNG
+exports and the escalation technique are the reusable parts; the single-fixed-river scope is not.
+## ADR-0010: gate the boot-preview chunk radius on `(pointer: coarse)`, then grow it for desktop
 
 **Date:** 2026-07-29
 

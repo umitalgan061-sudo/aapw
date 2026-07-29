@@ -16,10 +16,12 @@ import * as THREE from 'three';
 /**
  * Deterministic 32-bit PRNG (mulberry32). Never use `Math.random()` for world generation — see
  * the project's determinism rule: same seed + same config must always produce the same world.
+ * Exported so other world-generation modules (`world/rivers.js`) reuse this exact implementation
+ * instead of a second, potentially-drifting copy of the same algorithm.
  * @param {number} seed
  * @returns {() => number} Returns a function producing floats in [0, 1).
  */
-function mulberry32(seed) {
+export function mulberry32(seed) {
 	let a = seed >>> 0;
 	return function random() {
 		a |= 0;
@@ -97,6 +99,33 @@ const LOW_COLOR = new THREE.Color(0x2c4a1e);
 const HIGH_COLOR = new THREE.Color(0x6b6152);
 /** World-units-per-noise-cell; tuned by eye so a single chunk shows a few rolling hills, not one giant bump or pure static. */
 const NOISE_SCALE = 0.006;
+/** Default peak height variation, in meters. Exported so callers that need to sample this same
+ * height field outside a chunk (e.g. `world/rivers.js` tracing a downhill flow path) use the exact
+ * same scale terrain chunks are generated at, instead of a second, potentially-drifting constant. */
+export const DEFAULT_MAX_HEIGHT_METERS = 24;
+
+/**
+ * Builds a pure, stateless world-space height sampler for a given seed — the same FBM formula
+ * `createTerrainChunk` bakes into chunk geometry, exposed standalone so other systems can query
+ * "how tall is the terrain at this exact point" without generating a whole chunk. Determinism
+ * guarantee: same `(worldX, worldZ, seed, maxHeightMeters)` always returns the same height, and
+ * matches whatever `createTerrainChunk` would bake at that point (both derive from the same
+ * `noise2D`/`fbm2D` calls) — used by `world/rivers.js` to trace a path over the *actual* terrain
+ * a chunk would render, not an approximation of it.
+ * @param {number} seed
+ * @param {{octaves?: number, lacunarity?: number, gain?: number}} [fbmOptions] Forwarded to
+ *   `fbm2D`. Default (5 octaves, matching `createTerrainChunk`) is what chunk geometry actually
+ *   renders; a caller that needs the terrain's *macro* shape without its finest bumps (e.g.
+ *   `world/rivers.js` picking a downhill flow direction — see DECISIONS.md ADR-0009 for why) can
+ *   pass fewer octaves for a low-pass-filtered version of the same underlying noise field.
+ * @returns {(worldX: number, worldZ: number, maxHeightMeters?: number) => number}
+ */
+export function createHeightSampler(seed, fbmOptions) {
+	const noise2D = createValueNoise2D(seed);
+	return function sampleHeightMeters(worldX, worldZ, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS) {
+		return fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE, fbmOptions) * maxHeightMeters;
+	};
+}
 
 /**
  * Generates one terrain chunk: a displaced, vertex-colored ground mesh, deterministic for a
@@ -107,12 +136,12 @@ const NOISE_SCALE = 0.006;
  * @param {number} options.chunkZ Chunk grid row.
  * @param {number} [options.size=500] Chunk edge length in meters.
  * @param {number} [options.segments=64] Geometry subdivisions per edge (resolution).
- * @param {number} [options.maxHeightMeters=24] Peak height variation within the chunk.
+ * @param {number} [options.maxHeightMeters] Peak height variation within the chunk (`DEFAULT_MAX_HEIGHT_METERS`).
  * @param {number} [options.seed=1] World seed — same seed + same args always produce the same chunk.
  * @returns {THREE.Mesh} Positioned at the chunk's world-space center, ready to `scene.add()`.
  */
-export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = 24, seed = 1 }) {
-	const noise2D = createValueNoise2D(seed);
+export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1 }) {
+	const sampleHeightMeters = createHeightSampler(seed);
 	const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
 	geometry.rotateX(-Math.PI / 2);
 
@@ -123,10 +152,10 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	for (let i = 0; i < position.count; i++) {
 		const worldX = chunkX * size + position.getX(i);
 		const worldZ = chunkZ * size + position.getZ(i);
-		const h = fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE);
-		position.setY(i, h * maxHeightMeters);
+		const y = sampleHeightMeters(worldX, worldZ, maxHeightMeters);
+		position.setY(i, y);
 
-		blended.copy(LOW_COLOR).lerp(HIGH_COLOR, h);
+		blended.copy(LOW_COLOR).lerp(HIGH_COLOR, y / maxHeightMeters);
 		colors[i * 3] = blended.r;
 		colors[i * 3 + 1] = blended.g;
 		colors[i * 3 + 2] = blended.b;

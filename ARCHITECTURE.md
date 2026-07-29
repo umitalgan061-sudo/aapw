@@ -73,6 +73,12 @@ the way it is.
   defaults to `true` — it automatically respects `scene.fog` (`fog.js`) with zero code here, unlike
   `sky.js`/`world/water.js`'s custom `ShaderMaterial`s, which need their own fog GLSL chunks to
   participate (see `fog.js`'s module doc).
+- **Now also exports `createHeightSampler(seed, fbmOptions?)` and `mulberry32` (added run 10)** —
+  pulled out of `createTerrainChunk`'s per-vertex loop into a standalone, pure function so
+  `world/rivers.js` can query "how tall is the terrain at this exact point" without generating a
+  chunk, and reuse the exact same PRNG rather than a second implementation. `createTerrainChunk`
+  itself now calls `createHeightSampler` internally — same output as before this refactor (verified
+  via an unchanged headless-Chromium terrain screenshot), not a behavior change.
 
 ## `src/3d/world/chunkManager.js` — ChunkManager
 
@@ -111,6 +117,26 @@ the way it is.
   with `THREE.UniformsLib.fog` merged into its own `uniforms` (required for a custom
   `ShaderMaterial` — unlike built-in materials, it isn't merged automatically; omitting it makes
   `WebGLRenderer`'s `refreshFogUniforms` throw at render time). See DECISIONS.md ADR-0008.
+
+## `src/3d/world/rivers.js` — Deterministic downhill river
+
+- **Depends on:** `three` (vendored), `world/terrain.js` (`mulberry32` only — reuses the project's
+  one PRNG implementation; does **not** import `createHeightSampler`, since the caller
+  (`game3d.js`) builds the sampler and passes it in, same "caller wires config/dependencies
+  together" convention `water.js`/`terrain.js` already follow).
+- **Used by:** `game3d.js` (`generateRiverPath`/`createRiverMesh`/`disposeRiverMesh`) — one static
+  river mesh, generated once at scene bootstrap (not per-frame, not streamed — see DECISIONS.md
+  ADR-0009 for the deliberately-scoped-down first pass).
+- **Critical path:** no — purely visual/geographic decoration; a pathological height field would
+  at worst produce a very short or absent river (`createRiverMesh` returns `null` for <2 points,
+  handled by `game3d.js`), never a throw.
+- **Failure mode:** none currently guarded — pure synchronous math over a caller-provided sampler
+  function, same failure profile as `terrain.js`.
+- **Determinism:** seeded (`mulberry32`, XORed with a fixed tag for an independent stream from
+  terrain's own noise) — same `(seed, sampleHeightMeters)` always produces the same path.
+- **Fog/lighting:** uses `MeshStandardMaterial` (built-in, `vertexColors`) like `terrain.js` — gets
+  `scene.fog` and the day/night lights for free, no custom shader chunks needed (contrast with
+  `world/water.js`'s `ShaderMaterial`, which needed ADR-0008's explicit chunk/uniform wiring).
 
 ## `src/3d/camera.js` — Orbit camera controls
 
@@ -184,21 +210,23 @@ the way it is.
 ## `src/3d/game3d.js` — Entry point / scene bootstrap
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
-  `world/chunkManager.js`, `world/water.js`, `camera.js`, `sky.js`, `lighting.js`, `fog.js`.
+  `world/chunkManager.js`, `world/terrain.js` (`createHeightSampler` only), `world/water.js`,
+  `world/rivers.js`, `camera.js`, `sky.js`, `lighting.js`, `fog.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
   lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance,
-  the `ChunkManager` instance, the aurora sky mesh, the water plane, and the `requestAnimationFrame`
-  render loop (which also drives `controls.update()`, `streamAroundOrbitTarget()`,
-  `updateDayNightLighting()`, `updateAuroraSky()`, `updateFog()`, and `updateWater()` each frame —
-  see `world/chunkManager.js`, `lighting.js`, `fog.js`, `sky.js`, `world/water.js`, and
-  DECISIONS.md ADR-0003/ADR-0006/ADR-0007).
+  the `ChunkManager` instance, the aurora sky mesh, the water plane, the static river mesh
+  (`world/rivers.js`, generated once, not part of the per-frame loop), and the
+  `requestAnimationFrame` render loop (which also drives `controls.update()`,
+  `streamAroundOrbitTarget()`, `updateDayNightLighting()`, `updateAuroraSky()`, `updateFog()`, and
+  `updateWater()` each frame — see `world/chunkManager.js`, `lighting.js`, `fog.js`, `sky.js`,
+  `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009).
 - **Failure mode:** `initGame3D()` is fully try/caught — a WebGL init failure sets
   `gameState.error` and emits `GAME_ERROR` (caught by `game3d.html`'s error-screen listener above)
   rather than throwing an uncaught exception. If `#game3d-canvas` isn't present, rendering is
   skipped with a `console.warn`, not a throw, so the module stays safe to import from non-browser
   contexts (tests).
-- **Device-class chunk radius (ADR-0009):** `createScene()` picks the one-time boot preview radius
+- **Device-class chunk radius (ADR-0010):** `createScene()` picks the one-time boot preview radius
   via `isCoarsePointerDevice()` (`window.matchMedia('(pointer: coarse)')`, try/caught to `false`) —
   `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` on desktop-class devices, the mobile-budget
   `STREAM_RADIUS_CHUNKS` on touch-primary ones. Fixes a real gap: every prior run grew the preview

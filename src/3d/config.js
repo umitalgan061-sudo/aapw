@@ -104,7 +104,7 @@ export const CHUNK_CONFIG = Object.freeze({
 	 * progress before a player/streaming system exists. Only used on non-touch (desktop-class)
 	 * pointers — `game3d.js` picks this vs. STREAM_RADIUS_CHUNKS via a `(pointer: coarse)` check
 	 * before calling `loadSquare`, so a touch device never actually loads this many chunks (see
-	 * DECISIONS.md ADR-0009). See ADR-0002 for why this is a separate constant from
+	 * DECISIONS.md ADR-0010). See ADR-0002 for why this is a separate constant from
 	 * STREAM_RADIUS_CHUNKS rather than the same number. */
 	PHASE1_PREVIEW_RADIUS_CHUNKS: 8,
 });
