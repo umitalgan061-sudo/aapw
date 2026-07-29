@@ -1,10 +1,21 @@
-// ══ WESTEROS SERVICE WORKER v3 — iOS VIDEO FIX ══
+// ══ WESTEROS SERVICE WORKER v4 — iOS VIDEO FIX + OFFLINE APP SHELL ══
 // Video (mp4): SW BYPASS — iOS Safari Range request için direkt ağa git
 // Resimler: cache-first
+// App shell (html/css/js/manifest): network-first, offline'da cache'e düş
 // Diğer: network-first
 
 const SW_VERSION = 'westeros-media-v3';
 const MEDIA_CACHE = 'westeros-media-v3';
+const SHELL_CACHE = 'westeros-shell-v1';
+const SHELL_FILES = [
+    './',
+    './index.html',
+    './style.css',
+    './ios-pwa-fix.css',
+    './script.js',
+    './manifest.json',
+    './logo.png'
+];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];
@@ -26,15 +37,21 @@ function isFirebaseRequest(url) {
 
 // ── INSTALL ──
 self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(SHELL_CACHE)
+            .then(cache => cache.addAll(SHELL_FILES))
+            .catch(() => {}) // offline ilk kurulum: sessizce geç, sonraki ziyaretlerde tamamlanır
+    );
     self.skipWaiting();
 });
 
 // ── ACTIVATE ──
 self.addEventListener('activate', (event) => {
+    const KEEP = [MEDIA_CACHE, SHELL_CACHE];
     event.waitUntil(
         caches.keys().then(keys => {
             return Promise.all(
-                keys.filter(key => key !== MEDIA_CACHE)
+                keys.filter(key => !KEEP.includes(key))
                     .map(key => {
                         return caches.delete(key);
                     })
@@ -75,15 +92,25 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Diğer: network-first
+    // Diğer (app shell dahil): network-first, başarısız olursa shell cache'e düş
+    const isSameOrigin = url.origin === self.location.origin;
     event.respondWith(
-        fetch(event.request, { cache: 'no-store' }).catch(() => {
-            if (event.request.destination === 'document') {
-                return new Response(
-                    '<html><body style="background:#06040a;color:#c8960a;font-family:serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-size:18px;">İnternet bağlantısı yok</body></html>',
-                    { headers: { 'Content-Type': 'text/html' } }
-                );
+        fetch(event.request, { cache: 'no-store' }).then(response => {
+            if (isSameOrigin && response && response.status === 200 && event.request.method === 'GET') {
+                const clone = response.clone();
+                caches.open(SHELL_CACHE).then(cache => cache.put(event.request, clone)).catch(() => {});
             }
+            return response;
+        }).catch(() => {
+            return caches.match(event.request).then(cached => {
+                if (cached) return cached;
+                if (event.request.destination === 'document') {
+                    return caches.match('./index.html').then(shellDoc => shellDoc || new Response(
+                        '<html><body style="background:#06040a;color:#c8960a;font-family:serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-size:18px;">İnternet bağlantısı yok</body></html>',
+                        { headers: { 'Content-Type': 'text/html' } }
+                    ));
+                }
+            });
         })
     );
 });

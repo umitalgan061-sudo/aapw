@@ -22,6 +22,7 @@ html, body {
 /* ── 3. Intro dragon ── */
 .intro-dragon-wrap {
   height: 100% !important;
+  max-height: calc(var(--vh, 1vh) * 100) !important;
   max-height: 100dvh !important;
   width: 100% !important;
 }
@@ -64,6 +65,7 @@ canvas:not(#fireCanvas):not(#_ejCv) {
   left: 0 !important;
   right: 0 !important;
   height: auto !important;
+  min-height: calc((var(--vh, 1vh) * 100) - var(--topbar-total)) !important;
   min-height: calc(100dvh - var(--topbar-total)) !important;
   background: radial-gradient(ellipse at 20% 30%,#091525 0%,#04090f 40%,#020406 70%,#010203 100%) !important;
 }

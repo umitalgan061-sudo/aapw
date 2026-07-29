@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no">
+<style>html{background:#06040a}</style>
 <meta name="description" content="Westeros'un interaktif haritası - Krallıkları yönet, savaş yap, ittifak kur">
 <meta name="keywords" content="Westeros, Game of Thrones, strategy, map, kingdoms">
 <meta name="author" content="Tiyatro">
@@ -118,6 +119,7 @@
     position: relative;
     width: 90vw;
     height: 100%;
+    max-height: calc(var(--vh, 1vh) * 100);
     max-height: 100dvh;
     display: flex;
     justify-content: center;
@@ -1206,10 +1208,10 @@ function _mkWrap(vid){
   var isDesktop=window.innerWidth>768;
   if(isDesktop){
     wrap.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:2147483646;touch-action:manipulation;-webkit-tap-highlight-color:transparent;display:flex;justify-content:center;align-items:center;padding:0;margin:0';
-    vid.style.cssText='height:100dvh;max-width:calc(100dvh * 9 / 16);object-fit:contain;background:#000;margin:auto';
+    vid.style.cssText='height:calc(var(--vh, 1vh) * 100);height:100dvh;max-width:calc(var(--vh, 1vh) * 100 * 9 / 16);max-width:calc(100dvh * 9 / 16);object-fit:contain;background:#000;margin:auto';
   } else {
     wrap.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:2147483646;touch-action:manipulation;-webkit-tap-highlight-color:transparent';
-    vid.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100dvh;object-fit:cover;background:#000;display:block';
+    vid.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:calc(var(--vh, 1vh) * 100);height:100dvh;object-fit:cover;background:#000;display:block';
   }
   var skip=document.createElement('div');skip.id='_vSk';
   skip.style.cssText='position:absolute;bottom:calc(80px + env(safe-area-inset-bottom,0px));right:28px;padding:13px 28px;background:rgba(0,0,0,.65);color:#c8960a;border:1px solid rgba(200,150,10,.6);border-radius:5px;font-family:Cinzel,serif;font-size:15px;letter-spacing:2px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .5s;z-index:2147483647;touch-action:manipulation;user-select:none';
