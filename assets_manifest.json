@@ -16,6 +16,51 @@
       "deprecated": false,
       "replacedBy": null,
       "notes": "Rigged medieval-style female character, downloaded manually via authenticated Mixamo session (cannot be automated by the cloud agent). Intended as base mesh for FAZ 4 (Oynanabilir Karakter) and/or generic NPC."
+    },
+    {
+      "id": "anim_idle",
+      "file": "assets/animations/peasant_girl/idle.fbx",
+      "type": "animation_clip",
+      "source": "Adobe Mixamo",
+      "sourceUrl": "https://www.mixamo.com",
+      "license": "Adobe Mixamo License",
+      "version": 1,
+      "skin": false,
+      "inPlace": null,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Idle animation, no mesh (retarget onto peasant_girl skeleton via Three.js AnimationMixer)."
+    },
+    {
+      "id": "anim_walking",
+      "file": "assets/animations/peasant_girl/walking.fbx",
+      "type": "animation_clip",
+      "source": "Adobe Mixamo",
+      "sourceUrl": "https://www.mixamo.com",
+      "license": "Adobe Mixamo License",
+      "version": 1,
+      "skin": false,
+      "inPlace": true,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Walking cycle, In Place enabled so root does not translate — movement driven by player controller code."
+    },
+    {
+      "id": "anim_running",
+      "file": "assets/animations/peasant_girl/running.fbx",
+      "type": "animation_clip",
+      "source": "Adobe Mixamo",
+      "sourceUrl": "https://www.mixamo.com",
+      "license": "Adobe Mixamo License",
+      "version": 1,
+      "skin": false,
+      "inPlace": true,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Running cycle, In Place enabled — movement driven by player controller code."
     }
   ]
 }
