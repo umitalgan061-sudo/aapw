@@ -48,6 +48,38 @@ export const WORLD_DEFAULTS = Object.freeze({
 	FAR_PLANE: 2000,
 	NEAR_PLANE: 0.1,
 	FOV_DEGREES: 60,
+	/** Master seed for all procedural world generation (terrain, later vegetation/rivers/etc.).
+	 * Every generator must derive from this via a seeded PRNG — never `Math.random()` — so the
+	 * same seed always reproduces the same world. */
+	WORLD_SEED: 1337,
+});
+
+/**
+ * World scale, derived from the 2D map's `INIT_KINGDOMS` coordinates in `script.js` so the 3D
+ * open world can eventually cover every kingdom seat, not just a small demo valley.
+ * `#map-canvas` in `style.css` is 9000x7000 px; kingdom seats span roughly x:[920,6190], y:[300,5370]
+ * within it (computed from `script.js` on 2026-07-29 — re-derive if kingdom data changes materially).
+ * See DECISIONS.md ADR-0001 for the full derivation and rationale.
+ * @see DECISIONS.md
+ */
+export const WORLD_SCALE = Object.freeze({
+	/** Meters represented by one 2D-map pixel unit. */
+	METERS_PER_MAP_UNIT: 10,
+	/** Kingdom-seat bounding box in map units, padded 800 units per side and clamped to the map canvas. */
+	MAP_BOUNDS: Object.freeze({ minX: 120, maxX: 6990, minY: 0, maxY: 6170 }),
+	/** World extent in meters (map bounds above * METERS_PER_MAP_UNIT). */
+	WORLD_WIDTH_METERS: 68700,
+	WORLD_DEPTH_METERS: 61700,
+});
+
+/** Chunk/streaming grid (World Partition). See DECISIONS.md ADR-0001. */
+export const CHUNK_CONFIG = Object.freeze({
+	CHUNK_SIZE_METERS: 500,
+	/** ceil(WORLD_WIDTH_METERS / CHUNK_SIZE_METERS), ceil(WORLD_DEPTH_METERS / CHUNK_SIZE_METERS). */
+	GRID_COLUMNS: 138,
+	GRID_ROWS: 124,
+	/** Radius, in chunks, kept loaded around the player/camera. Tune per QUALITY_PRESETS in Phase 10. */
+	STREAM_RADIUS_CHUNKS: 2,
 });
 
 /** LocalStorage/sessionStorage keys owned by the 3D mode. Never reuse or collide with 2D game keys. */

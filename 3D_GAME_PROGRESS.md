@@ -13,11 +13,40 @@ KayKit, etc.) are used for `assets/`.
 
 ## Current Status
 
-- **Active Phase:** FAZ 1 — İskelet ve Arazi (pending, not started)
+- **Active Phase:** FAZ 1 — İskelet ve Arazi (in progress: world scale + chunk grid defined, `game3d.html` renders a bare scene with a placeholder ground plane; real terrain/sky/camera-controls not built yet)
 - **Last Update:** 2026-07-29
 - **Last Commit:** `feat(3d): scaffold Phase 0 architecture (EventBus, GameState, AssetLoader, vendored Three.js)`
+  — two further commits since then added Mixamo character assets (see "Manually-added assets" below)
+  but did not touch this file; this run backfills that gap.
 - **2D Game:** Verified intact — `node --check` passes on `script.js` and `service-worker.js`,
-  `manifest.json` is valid JSON, no references to any 3D mode exist yet in `index.html`.
+  `manifest.json`/`assets_manifest.json` are valid JSON, no references to any 3D mode exist yet in
+  `index.html`.
+- **Manually-added assets (ready for FAZ 4, not yet consumed):** the project owner logged into
+  Mixamo and manually downloaded `assets/models/characters/peasant_girl.fbx` (rigged base mesh) plus
+  `assets/animations/peasant_girl/{idle,walking,running}.fbx` (skin-less animation clips, walking/
+  running use "In Place" so root motion is driven by player-controller code, not baked in). All four
+  are recorded in `assets_manifest.json` with source/license. FAZ 4 must load the mesh with
+  `FBXLoader` (vendor from three.js `examples/jsm/loaders/FBXLoader.js` next to `GLTFLoader.js`) and
+  retarget the three animation clips onto its skeleton via `AnimationMixer` — standard Mixamo
+  workflow since all Mixamo characters share the same skeleton. Do not attempt to re-download or
+  replace these; any *additional* Mixamo asset must go through the same manual human step next
+  session (see "Known Issues" below).
+
+## World Coverage
+
+**World Coverage: 0.0058% (0.25 km² / 4278 km² target)**
+
+- **Target area** is derived from the 14 kingdom seats in `script.js`'s `INIT_KINGDOMS` (not the
+  ~150 decorative marker/figure entries also in that file), padded and scaled to real-world meters.
+  Full derivation, alternatives considered, and the exact numbers: `DECISIONS.md` ADR-0001.
+  Summary: 68.7km x 61.7km world, rounded up to a 138 x 124 grid of 500m x 500m chunks = 4278 km².
+  These numbers are now the source of truth in `src/3d/config.js` (`WORLD_SCALE`, `CHUNK_CONFIG`).
+- **Covered area:** 0.25 km² — exactly one real, seeded terrain chunk (`world/terrain.js`, grid
+  coordinate `(0, 0)`) exists so far, out of 17,112 chunk slots in the grid. Still effectively
+  nothing, but the number now moves — the next task should grow it (see "Next step" below), not
+  spend the run on visual polish.
+- Per the project's phase-gate rules, FAZ 3 and FAZ 10 cannot be marked DONE below 80% coverage
+  (crisis exception: fix critical bugs/perf first, then resume geographic growth).
 
 ## Roadmap
 
@@ -31,15 +60,24 @@ KayKit, etc.) are used for `assets/`.
 - [x] Vendored Three.js r160 (`src/3d/vendor/three/`) + `GLTFLoader.js`/`BufferGeometryUtils.js` addons, for fully offline ES-module use (see Asset Sources)
 - [x] Verified end-to-end in a real headless-Chromium smoke test (import map resolves `three`, `initGame3D()` runs, missing-model fallback produces a placeholder mesh, no console errors from our own code) — test file was scratch-only, not committed
 
-### FAZ 1 — İskelet ve Arazi (pending)
-- [ ] `game3d.html` + `game3d.css` (own page, isolated from `index.html`/`style.css`)
-- [ ] Import map in `game3d.html` pointing `three` → `src/3d/vendor/three/three.module.js` and `three/addons/` → `src/3d/vendor/three/addons/` (already proven working in the Phase 0 smoke test)
-- [ ] Three.js scene bootstrap in `game3d.js`: renderer, scene, camera, resize handling, render loop (extend `initGame3D()`)
+### FAZ 1 — İskelet ve Arazi (in progress)
+- [x] World scale + chunk/streaming grid computed from `INIT_KINGDOMS` bounding box and recorded as
+  `WORLD_SCALE`/`CHUNK_CONFIG` in `src/3d/config.js` (see `DECISIONS.md` ADR-0001 and the World
+  Coverage section above). This is the "invest in a chunk system from the start" requirement — the
+  grid math exists now, even though no chunk has been generated yet.
+- [x] `game3d.html` + `game3d.css` (own page, isolated from `index.html`/`style.css` — literal colors, no shared variables/files)
+- [x] Import map in `game3d.html` pointing `three` → `src/3d/vendor/three/three.module.js` and `three/addons/` → `src/3d/vendor/three/addons/` (proven working, see this run's headless-browser smoke test below)
+- [x] Three.js scene bootstrap in `game3d.js`: renderer, scene, camera, resize handling, render loop (extended `initGame3D()` — skips rendering with a warning if `#game3d-canvas` isn't present, so it stays safe to call from non-browser/test contexts)
+- [x] Add "🎮 3D Dünya" button to `index.html` linking to `game3d.html` (additive `<a class="tb-btn">` in the existing toolbar, nothing else in `index.html` touched)
 - [ ] `src/3d/sky.js` — aurora shader skybox (procedural GLSL)
-- [ ] `src/3d/terrain.js` — heightmap-based long valley terrain (FBM noise to start; ridged/erosion can follow in a later Phase-1 sub-task)
-- [ ] `src/3d/camera.js` — orbit/free camera for now (third-person arrives in Phase 4)
-- [ ] Add "🎮 3D Dünya" button to `index.html` linking to `game3d.html` (additive only — must not touch any existing 2D game logic/markup)
-- [ ] Confirm responsive layout + PWA `start_url`/manifest still resolve correctly with the new page present
+- [x] `src/3d/world/terrain.js` — seeded value-noise/FBM terrain chunk generation
+  (`createTerrainChunk`/`disposeTerrainChunk`), vertex-colored (grass→rock by height), no texture
+  needed yet. `game3d.js` now renders real chunk `(0, 0)` from this module — the first chunk that
+  counts toward World Coverage (see above). Still just **one** chunk out of 17,112 — no
+  chunk-manager/streaming yet, so nothing loads/unloads based on player position. "Ridged/erosion"
+  shaping and a literal "long valley" carve are deferred; current terrain is generic rolling FBM.
+- [ ] `src/3d/camera.js` — orbit/free camera for now (third-person arrives in Phase 4). Current camera in `game3d.js` is a fixed, non-interactive `PerspectiveCamera` looking at the origin.
+- [ ] Confirm responsive layout + PWA `start_url`/manifest still resolve correctly with the new page present (not yet checked — `game3d.html`/`.css`/`src/3d/**` are not in `service-worker.js`'s cache list yet, so the 3D mode currently requires network/first-load; flagged under Known Issues)
 
 ### FAZ 2 — Su/Atmosfer/Zaman (pending)
 - [ ] Gerstner wave su (`water.js`)
@@ -93,36 +131,114 @@ KayKit, etc.) are used for `assets/`.
 - [ ] Shadow optimizasyonu
 - [ ] Memory leak taraması (`AssetLoader.disposeObject3D` already exists — audit all systems use it)
 
-## This Run (2026-07-29)
+## This Run (2026-07-29, run 2)
+
+**Session Snapshot taken at start of run** (per protocol):
+- Last 3 commits before this run: `7b5c2de` feat(assets): Idle/Walking/Running animations for
+  Peasant Girl; `25f8c86` feat(assets): Peasant Girl character model from Mixamo; `c2bfb74`
+  feat(3d): scaffold Phase 0 architecture. Affected systems: `assets/`, `assets_manifest.json`,
+  `src/3d/*` (Phase 0 only — no terrain/scene/chunk system existed yet).
+- **Git issue found and fixed:** the session started with `HEAD` detached at `7b5c2de` while the
+  local `main` ref was stale at `38e09e7` (pre-3D-mode). `origin/main` was already at `7b5c2de`
+  (last run did push correctly) — this was a local checkout artifact, not data loss. Fixed with
+  `git fetch origin main && git checkout main && git merge --ff-only origin/main`.
+- No open regression/bug list existed. No FPS numbers exist yet (no renderer built). No loaded
+  assets at runtime yet (4 Mixamo files exist on disk but nothing in `src/3d/` references them
+  yet). Riskiest files right now: `src/3d/vendor/three/three.module.js` (53k lines, vendored —
+  never hand-edit, only re-vendor a pinned version), `script.js` (214KB, 2D game's single largest
+  file, must stay untouched by 3D work), `assets_manifest.json` (must stay in sync with `assets/`
+  by hand — no automated check yet, flagged as tech debt below).
+- World Coverage before this run: not yet computed as a number (0% implicitly, no baseline existed).
 
 **Done:**
-- Fixed a leftover git issue from a previous run: HEAD was detached at the merge commit for
-  `claude/westeros-pwa-quality-audit-pninxh` while the local `main` branch ref was stale
-  (pointing at an old commit). Fetched `origin/main` (which already contained the merge) and
-  checked out `main` properly so this and future runs commit on the real branch.
-- Confirmed no `3D_GAME_PROGRESS.md` or `src/3d/` existed yet — this is a genuine first run.
-- Verified the 2D game is intact (`node --check` on `script.js`/`service-worker.js`, JSON-valid
-  `manifest.json`, no 3D references anywhere in `index.html`).
-- Built all of FAZ 0 (see checklist above) and verified it with a real headless-browser smoke
-  test (not committed — scratch only), not just `node --check`.
+- Regression guard: re-ran `node --check` on `script.js`, `service-worker.js`, and every
+  `src/3d/*.js` file, plus JSON-validated `manifest.json` and `assets_manifest.json`. All pass.
+- Computed the kingdom-seat bounding box from `INIT_KINGDOMS` in `script.js` (14 seats, x:[920,6190]
+  y:[300,5370] inside the 9000x7000 `#map-canvas`), and turned it into a concrete world scale: see
+  `DECISIONS.md` ADR-0001. Added `WORLD_SCALE` and `CHUNK_CONFIG` to `src/3d/config.js`.
+- Added the mandatory **World Coverage** metric to this file (see section above): 0% (0 km² /
+  4278 km²) — target computed, nothing generated yet.
+- Backfilled the asset/docs gap left by the two prior commits (Mixamo character + animations were
+  committed but this progress file was never updated to mention them) — see "Manually-added
+  assets" under Current Status.
+- Created `DECISIONS.md` (ADR log, ADR-0001 is the world-scale decision above).
+- **Second sub-task, same run:** built the first real FAZ 1 slice. Added `game3d.html` +
+  `game3d.css` (isolated page/stylesheet, own import map for `three`/`three/addons/`) and extended
+  `initGame3D()` in `game3d.js` to create a `WebGLRenderer`/`Scene`/`PerspectiveCamera`, a
+  hemisphere+directional light pair, a flat placeholder ground plane sized to
+  `CHUNK_CONFIG.CHUNK_SIZE_METERS`, window-resize handling, and a `requestAnimationFrame` render
+  loop with `pagehide` cleanup (cancels the frame, unbinds resize, disposes geometry/material/
+  renderer — memory-leak checklist). `initGame3D()` still no-ops safely (warns, doesn't throw) if
+  `#game3d-canvas` isn't on the page. Added the "🎮 3D Dünya" button to `index.html`'s existing
+  toolbar (`<a class="tb-btn" href="game3d.html">`, nothing else touched).
+- **Regression + real smoke test (not just `node --check`):** served the repo locally
+  (`http-server`) and drove real headless Chromium (Playwright, pre-installed browser) against
+  both pages. `game3d.html`: zero page errors, `GAME_READY` fired for both `phase0-architecture`
+  and `phase1-scene`, loading overlay correctly hid itself, and a screenshot confirms the lit
+  green ground chunk actually renders (not just "no exceptions"). `index.html`: the new button
+  exists in the DOM with the correct `href`/title after entering the game. Also found that
+  clicking "OYNAT" produces a blank black screen in this sandboxed headless environment — verified
+  this is **pre-existing** by stashing the diff and re-running the identical test against the prior
+  commit, which reproduced byte-for-byte the same blank screen and the same `firebase is not
+  defined` / blocked-network console errors. Not a regression from this run; likely this sandbox
+  blocking outbound requests for `resimler/map.png`/Firebase, not a real-device issue. Flagged
+  below for whoever next needs to browser-test the 2D game in this kind of sandbox.
 
-**Files added this run:**
-`3D_GAME_PROGRESS.md`, `src/3d/config.js`, `src/3d/eventBus.js`, `src/3d/state.js`,
-`src/3d/assetLoader.js`, `src/3d/game3d.js`, `src/3d/vendor/three/three.module.js` (+`LICENSE`),
-`src/3d/vendor/three/addons/loaders/GLTFLoader.js`, `src/3d/vendor/three/addons/utils/BufferGeometryUtils.js`,
-`assets/{models,textures,audio,animations,shaders,skyboxes,particles,icons}/.gitkeep`.
+- **Third sub-task, same run:** built `src/3d/world/terrain.js` (new `src/3d/world/` folder, with
+  its own README per the project's per-folder-README rule) — a seeded `mulberry32` PRNG, a hashed-
+  lattice value-noise function, and 5-octave FBM on top of it, baked into a displaced + vertex-
+  colored `PlaneGeometry` per chunk. `game3d.js` now calls `createTerrainChunk({chunkX:0, chunkZ:0,
+  seed: WORLD_DEFAULTS.WORLD_SEED, size: CHUNK_CONFIG.CHUNK_SIZE_METERS})` instead of building a
+  flat placeholder plane inline, and disposes it via `disposeTerrainChunk` on `pagehide`. Added
+  `WORLD_DEFAULTS.WORLD_SEED` (1337) to `config.js` — the one master seed all world generation
+  should derive from. Re-ran the headless-Chromium smoke test: zero console/page errors, and the
+  screenshot shows real height variation and a grass→rock color gradient (not a flat green plane).
+  World Coverage moved from 0% to 0.0058% (one real chunk now exists, out of 17,112 slots).
 
-**Next step for the next run (start here):** Begin FAZ 1. Suggested first atomic sub-task
-(30-60 min): create `game3d.html` + `game3d.css` with the import map (copy the mapping proven
-in this run's smoke test) and a minimal Three.js scene in `game3d.js` — renderer attached to a
-`<canvas>`, a camera, an empty scene with a ground-plane placeholder, resize handling, and a
-render loop calling `initGame3D()`. Do **not** attempt terrain/sky/camera-controls in the same
-sub-task — that's the following FAZ 1 sub-tasks. Only after the bare scene renders and resizes
-correctly, add the "🎮 3D Dünya" button to `index.html` (additive `<a>`/`<button>` linking to
-`game3d.html`, nothing else in `index.html` touched) and re-verify the 2D game still loads.
+**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new), `game3d.html` (new),
+`game3d.css` (new), `src/3d/game3d.js`, `index.html`, `ARCHITECTURE.md` (new),
+`src/3d/world/terrain.js` (new), `src/3d/world/README.md` (new), `3D_GAME_PROGRESS.md` (this
+file). Three separate commits (world-scale/config; scene bootstrap; terrain chunk) to keep each
+one atomic and independently revertable.
+
+**Next step for the next run (start here):** Per the project's own priority rule — low World
+Coverage during FAZ 1-3/10 outranks visual polish — do **not** jump to `sky.js` next even though
+it's next on the FAZ 1 roadmap list above. Instead grow coverage: build a small chunk manager
+(e.g. `src/3d/world/chunkManager.js`) that generates a modest neighborhood of chunks around the
+origin (say a 5x5 or 7x7 grid using `createTerrainChunk`, reusing the `(chunkX, chunkZ)` grid
+convention already established) and updates `game3d.js` to add/track them instead of the single
+hardcoded `(0,0)` chunk. This both moves World Coverage further and is the real first step toward
+the "500m unload/preload streaming" requirement (a manager that can add chunks is a prerequisite
+for one that can also remove them). Keep chunk count modest enough this run to stay well within
+the performance budget (desktop triangles<5M — even 49 chunks at the current 64-segment resolution
+is ~49 * 64*64*2 ≈ 400K triangles, comfortably inside budget, but measure after adding rather than
+assuming). Only after chunk-manager + a meaningfully larger coverage number should `sky.js` and
+`camera.js` (orbit camera — current camera is still fixed) follow. Keep each sub-task to ≤5 files
+per the blast-radius rule.
 
 ## Known Issues / Tech Debt
 
+- **`game3d.html`/`.css` and `src/3d/**` are not yet in `service-worker.js`'s cache list.** The 3D
+  mode currently needs network access on first load; add it to the offline cache list once the
+  mode has enough content to be worth using offline (premature right now, still just a placeholder
+  scene).
+- **Headless/sandboxed browser testing of the 2D game hits a pre-existing blank-screen state after
+  clicking "OYNAT".** Confirmed this run (via a before/after `git stash` comparison against the
+  prior commit) that it is NOT caused by any 3D-mode change — likely this sandbox blocking outbound
+  requests for `resimler/map.png` and Firebase (`firebase is not defined` in the console either
+  way). Whoever next needs to visually browser-test the 2D game in a similarly locked-down sandbox
+  should expect this and may need a network allowlist or local image fixtures; it does not appear
+  to be a real bug in `script.js`/`index.html` itself.
+- **`FBXLoader` not vendored yet.** Needed for FAZ 4 to load `peasant_girl.fbx` and its three
+  animation clips (see "Manually-added assets" above). Vendor it from three.js's official
+  `examples/jsm/loaders/FBXLoader.js` alongside `GLTFLoader.js` when FAZ 4 starts — do not attempt
+  it earlier than FAZ 4 per the phase-dependency rule.
+- **Any future Mixamo asset needs a human step.** The cloud agent cannot log into Mixamo. If a
+  later phase needs a new character/animation, mark it here as "insan onayı gerekli — Mixamo manuel
+  indirme" and stop; do not attempt to fetch it automatically.
+- **`assets_manifest.json` is hand-maintained, no automated check that it matches `assets/`.**
+  Low risk today (4 files, both in sync), but flag as tech debt if the asset count grows without a
+  script to diff `assets/**` against the manifest.
 - **No visual loading progress bar yet.** `AssetLoader` already emits `EVENTS.ASSET_PROGRESS`
   with a `ratio` — there's just no UI listening yet since there's no HTML page for the 3D mode
   until Phase 1. Wire a real progress bar into `game3d.html`'s loading screen as part of Phase 1
