@@ -13,23 +13,25 @@ KayKit, etc.) are used for `assets/`.
 
 ## Current Status
 
-- **Active Phase:** FAZ 1 ✅ TAMAMLANDI. FAZ 2 (Su/Atmosfer/Zaman) in progress: sea-level Gerstner
-  water (`world/water.js`, itself fogged too), a real-time day/night cycle (`lighting.js`,
-  sun/hemisphere lights + sky/aurora tied to time-of-day), distance fog (`fog.js`, synced to the
-  same day/night state, applied to terrain and water), and one deterministic downhill river
-  (`world/rivers.js`, reaching the sea) are live. A parallel run (run 11) then found and fixed a
-  real mobile perf-budget gap and grew the desktop boot-preview coverage — see "This Run (run 10)"
-  and "This Run (run 11)" below.
-- **Last Update:** 2026-07-29 (run 11)
-- **Last Commit:** run 11's device-class chunk-radius fix + coverage growth, DECISIONS.md ADR-0010
-  (see "This Run (run 11)" below); run 10 added `world/rivers.js` + `terrain.js`'s height-sampler
-  export, DECISIONS.md ADR-0009 (see "This Run (run 10)" below).
+- **Active Phase:** FAZ 1 ✅ TAMAMLANDI, FAZ 2 substantially complete (water/day-night/fog/rivers/
+  waterfalls/stars all live; only postfx-gated god rays remain, deferred to FAZ 9 by design). FAZ 3
+  (Kaleler/Yerleşimler) started run 14: `world/settlements.js` places a procedural castle (box keep
+  + 4 corner towers + conical roofs, `InstancedMesh`-based) at each of the 14 kingdom seats, colored
+  by house — see "This Run (run 14)" below and DECISIONS.md ADR-0013.
+- **Last Update:** 2026-07-29 (run 14)
+- **Last Commit:** run 14's kingdom-seat settlements + mobile-safe grounding fix, DECISIONS.md
+  ADR-0013 (see "This Run (run 14)" below); run 11 added the device-class chunk-radius fix +
+  coverage growth, DECISIONS.md ADR-0010.
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (again).** A prior run (see "This Run (run 5)" below, DECISIONS.md
-  ADR-0004) corrected the world scale from an un-completable 4278 km² down to **137.5 km²**, inside
-  the 100-150 km² target band; runs 4, 7, and 9 each re-verified this without changes needed. This
-  run's Session Snapshot re-derived the numbers from `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`,
-  25x22 grid) once more and again confirmed they match ADR-0004 exactly — no config change made.
+  correct, no change made (again, for the sixth time).** A prior run (see "This Run (run 5)" below,
+  DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
+  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, and 11 each re-verified this
+  without changes needed. This run's Session Snapshot re-derived the numbers from `src/3d/config.js`
+  (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more and again confirmed they match ADR-0004
+  exactly — no config change made. **If you are a future run and the operator's brief again asserts
+  the old 4278 km² target is still live: it is not. Re-derive from `config.js` yourself (as this run
+  did) rather than trusting the brief's own numbers — this has now been independently re-confirmed
+  across runs 3, 4, 5, 7, 9, 11, and 14.**
 - **Parallel work from a prior run:** while a previous routine run was in progress, the project
   owner (with help from a separate Claude session) pushed 3 commits directly to `main` adding more
   manually-downloaded assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
@@ -63,7 +65,9 @@ KayKit, etc.) are used for `assets/`.
 
 ## World Coverage
 
-**World Coverage: 52.5% (72.25 km² / 137.5 km² target)**
+**World Coverage: 58.4% (80.25 km² / 137.5 km² target) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — see below for why the two paths differ and stay different by
+design (same device-branching pattern as ADR-0010).**
 
 - **Target area (100-150 km² band) re-verified this run — still correct, no change made.** The
   standing instruction's world-scale correction (originally ADR-0004, now re-stated as a 100-150 km²
@@ -72,42 +76,56 @@ KayKit, etc.) are used for `assets/`.
   giving a **12.02km x 10.80km** world (~129.8 km² by exact bounds), rounded up to a **25 x 22 grid
   of 500m x 500m chunks = 137.5 km²** (550 total chunk slots). Re-derived from `config.js` directly
   this run rather than assumed — confirmed identical to ADR-0004.
-- **Covered area (boot baseline): 72.25 km²** (up from 42.25 km²) — a 17x17 neighborhood of 289
-  real, seeded terrain chunks (`world/chunkManager.js`, centered on grid coordinate `(0, 0)`, radius
-  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS`, grown from 6 to 8 this run — see DECISIONS.md
-  ADR-0010), out of **550** chunk slots (52.5% of them, up from 30.73%). This is the deterministic,
-  reproducible number any page load produces **on a desktop-class device**. This growth was only
-  made safe by a fix landed in the same run: **before this run, the preview radius was loaded
-  unconditionally regardless of device**, so a real phone already exceeded the mobile triangle
-  budget by ~2.8x with zero mitigation — see ADR-0010 and Performance Budget Status below. Now a
-  touch-primary device (`(pointer: coarse)`) loads the much smaller `STREAM_RADIUS_CHUNKS` (2, 25
-  chunks, ~6.25 km²) boot preview instead, verified via a touch-emulated headless Chromium context.
-  Deliberately did **not** jump straight to the ~441-chunk (21x21) radius that would satisfy FAZ 3's
-  80% coverage gate in one config edit — see ADR-0010's "alternatives considered" for why that would
-  be a hollow win before any settlement exists; a smaller, real, safety-verified step was taken
-  instead, leaving room for further growth (streaming-driven or a boot-time scripted flythrough) in
-  future runs.
+- **Covered area (boot baseline, desktop-class): 80.25 km²** (up from 72.25 km²) — the same 289-chunk
+  17x17 preview neighborhood as run 11, **plus 32 more chunks** force-loaded this run to ground the
+  14 new kingdom-seat settlements (`world/settlements.js`) so none render floating over unrendered
+  terrain — see DECISIONS.md ADR-0013. This is a side effect of FAZ 3's settlement work, not this
+  run's primary goal, but it's the metric the project tracks so it's recorded honestly: 321 total
+  resident chunks / 550 (58.4%), verified via the same headless-Chromium console-log method every
+  prior run has used (`"Placed 14 kingdom-seat settlements; 321 terrain chunks resident (~80.25
+  km²)"`).
+- **Mobile-class boot baseline is unchanged at 25 chunks (~6.25 km², 4.5% of 550 slots) — deliberately
+  not grounded this run.** The first version of this run's settlement-grounding code force-loaded the
+  same 3x3-per-seat neighborhood on *every* device; measured via the same touch-emulated headless
+  Chromium context ADR-0010 established, this added ~92 extra chunks (~753K triangles) on the mobile
+  path alone — **1.9x the entire mobile triangle budget by itself**, before counting the mobile boot
+  preview's own 25 chunks. Caught and fixed within this same run, before commit (see DECISIONS.md
+  ADR-0013's "real mobile perf-budget bug" section) — mobile-class devices now skip forced grounding
+  entirely; settlements still exist at their correct sampled height, just may render without visible
+  ground directly under them until player-streaming (FAZ 4+) reaches that chunk.
   **Tracked from `getCumulativeCoveredAreaKm2()`, not `getCoveredAreaKm2()`** — see DECISIONS.md
   ADR-0003: `game3d.js` also additively **streams in more chunks at runtime** as the interactive
   camera's orbit target crosses into unvisited chunks (never unloading — see ADR-0003 for why
-  eviction is deliberately deferred), so real interactive sessions grow coverage further than this
-  static baseline. That mechanism is unchanged this run (not re-tested via a fresh pan simulation
-  since `chunkManager.js`/`streamTowards` weren't touched) but still applies on top of the new,
-  higher boot baseline.
+  eviction is deliberately deferred), so real interactive sessions grow coverage further than either
+  static baseline above.
 - Per the project's phase-gate rules, FAZ 3 and FAZ 10 cannot be marked DONE below 80% coverage
-  (crisis exception: fix critical bugs/perf first, then resume geographic growth).
+  (crisis exception: fix critical bugs/perf first, then resume geographic growth). FAZ 3 is **not**
+  being marked DONE this run — settlements are its first sub-task, not its close-out; 58.4% is
+  still below the 80% gate.
 
 ## Performance Budget Status
 
 Desktop budget: DrawCalls<2500, Triangles<5M, TextureMem<2GB. Mobile: DrawCalls<500,
 Triangles<500K, TextureMem<512MB.
 
-- **Current desktop-class boot scene (289 chunks, 64 segments each, up from 169 this run):** 289
-  draw calls (one per chunk mesh — no merging/instancing yet, flagged below), ~2.37M triangles
-  (289 × 65×65×2). Comfortably inside the **desktop** budget (47% of triangle budget, 12% of
-  draw-call budget). Verified via headless Chromium, not just computed: console confirms `"Loaded
-  289 terrain chunks (~72.25 km²) in 1365ms"`, zero page errors, screenshot shows terrain/water/sky
-  rendering correctly.
+- **Current desktop-class boot scene (321 chunks, up from 289 this run — the 32 extra are
+  settlement-grounding chunks, see World Coverage above):** 321 terrain draw calls (one per chunk
+  mesh — no merging/instancing yet, flagged below) + 3 more for the new `world/settlements.js`
+  `InstancedMesh`es (keeps/towers/roofs) = 324 total, ~2.63M terrain triangles (321 × 65×65×2) plus
+  a negligible ~2,520 settlement triangles (14 keeps + 56 towers + 56 roofs, all low-poly primitives)
+  ≈ **2.63M triangles total**. Comfortably inside the **desktop** budget (52.6% of triangle budget,
+  13% of draw-call budget). Verified via headless Chromium, not just computed: console confirms
+  `"Placed 14 kingdom-seat settlements; 321 terrain chunks resident (~80.25 km²) after grounding
+  them"`, zero page errors, close-up screenshot shows a castle correctly seated on real terrain.
+- **`world/settlements.js` (added run 14):** 3 draw calls total (one `InstancedMesh` per castle
+  part — keeps/towers/roofs — covering all 14 kingdom seats, not 3-per-castle), ~2,520 triangles
+  total. On its own, negligible against both budgets. On **mobile**, settlement force-grounding is
+  skipped entirely (see World Coverage above) specifically because the *terrain* chunks it would
+  otherwise force-load would have added ~753K triangles — 1.9x the mobile triangle budget by
+  itself; the settlement meshes' own ~2,520 triangles were never the problem. Mobile total with
+  settlements: unchanged 25 terrain chunks (~204,800 triangles) + ~2,520 settlement triangles ≈
+  207,320 triangles (41.5% of the mobile budget, up from 41% — the settlement meshes themselves are
+  cheap enough to include on mobile even though their grounding chunks aren't).
 - **Mobile is now genuinely protected, not just documented as "deliberately not this."** This run
   found and fixed a real gap (DECISIONS.md ADR-0010): nothing in code actually branched on device,
   so a real phone loading `game3d.html` got the exact same chunk count as desktop — at the old
@@ -264,10 +282,14 @@ Triangles<500K, TextureMem<512MB.
   larger technique not attempted this run — do not mark this checklist item done from the fog work
   alone.
 
-### FAZ 3 — Kaleler/Yerleşimler (pending)
-- [ ] 2D haritadaki krallık konumlarını yansıtan modüler kale/kule (`settlements.js`)
-- [ ] PBR malzemeler
-- [ ] Basit LOD/collider
+### FAZ 3 — Kaleler/Yerleşimler (in progress)
+- [x] 2D haritadaki krallık konumlarını yansıtan modüler kale/kule (`world/settlements.js`) — 14
+  kingdom seats, `InstancedMesh`-based (box keep + 4 corner towers + conical roofs), colored by
+  house via per-instance roof color. See DECISIONS.md ADR-0013.
+- [ ] PBR malzemeler — current materials are flat-color `MeshStandardMaterial` (roughness/metalness
+  tuned by eye, no texture maps). Real PBR texture maps (albedo/normal/roughness) are a follow-up.
+- [ ] Basit LOD/collider — not attempted this pass; castles are a fixed triangle count regardless of
+  camera distance, and nothing collides with them yet (no player exists until FAZ 4).
 
 ### FAZ 4 — Oynanabilir Karakter (pending)
 - [ ] 3. şahıs kamera (SpringArm + raycast duvar önleme)
@@ -1261,6 +1283,105 @@ revisited before or alongside FAZ 3's own close-out). No new tech debt: stars ar
 non-twinkling pattern by explicit, documented design choice (flagged in ADR-0012's Consequence),
 not an accidental gap.
 
+## This Run (2026-07-29, run 14)
+
+**Session Snapshot taken at start of run** (per protocol): repo started `HEAD` detached at `3ef056d`
+(run 13's starfield commit) while local `main` was stale at `38e09e7` — the same recurring pattern
+every prior run has hit. Fixed with `git fetch origin --prune && git checkout main && git merge
+--ff-only origin/main` (35 commits fast-forwarded, confirmed `origin/main` was ahead, not the other
+way around — no data loss). Read this file in full, `git log -10 --oneline`, DECISIONS.md's last 3
+ADRs (ADR-0010/0011/0012), and `src/3d/config.js` directly.
+
+**World-scale correction check (this run's explicit first instruction):** the operator's brief again
+asserted the old 4278 km² target might still be live and asked for a fresh 100-150 km² recalculation.
+Re-verified directly against `src/3d/config.js`: `WORLD_SCALE.METERS_PER_MAP_UNIT` is `1.75`,
+`CHUNK_CONFIG.GRID_COLUMNS`/`GRID_ROWS` are `25`/`22` — exactly ADR-0004's numbers (137.5 km², inside
+the 100-150 km² band). No config change needed, same conclusion runs 3/4/5/7/9/11 already reached —
+see the added note under Current Status above so a future run doesn't need to re-derive this a
+seventh time from scratch.
+
+**Regression guard first:** `node --check` on every non-vendored `src/3d/**/*.js` file plus
+`script.js`/`service-worker.js`, JSON-validated `manifest.json`/`assets_manifest.json`. All pass — no
+syntax errors going into this run.
+
+**Picked FAZ 3 (Kaleler/Yerleşimler) as this run's task**, per the priority order: no blocking bugs/
+perf overruns/memory leaks/missing regression tests were found in the snapshot above (World Coverage
+was already reasonably high for FAZ 1/2's own gates), and FAZ 3 has real, well-scoped sub-tasks
+independent of FAZ 2's one remaining item (volumetric light, correctly deferred to FAZ 9's postfx
+groundwork per run 13's own reasoning — not revisited this run, still correctly blocked).
+
+**Done — FAZ 3's first sub-task, kingdom-seat settlements:**
+- **Measured before designing (BİLMEME KURALI):** wrote a scratch Node probe (real `WORLD_SCALE`/
+  `createHeightSampler`, all 14 real `INIT_KINGDOMS` seats copied from `script.js`) to check whether
+  any seat's real terrain height falls below sea level before writing any clamping logic. Result:
+  all 14 sample above `WATER_LEVEL_METERS` (6m) — lowest is `jon` (Castle Black/the Wall) at exactly
+  6.00m — and 5 of 14 fall outside even the desktop 17x17 boot-preview radius (all 14 fall outside
+  the mobile radius). This measured profile, not a guess, is what shaped both the height-clamp
+  safety net and the settlement-grounding design below.
+- **Design decisions made and recorded before writing code (DECISIONS.md ADR-0013):** a new
+  `src/3d/world/settlements.js` — `KINGDOM_SEATS` (a hand-copied, frozen `INIT_KINGDOMS` snapshot,
+  position/color/name only, explicitly *not* a live `script.js` import — see ADR-0013 for the real
+  risk that would pose to the 2D game), `mapToWorldXZ()` (a new map->world coordinate convention:
+  the padded kingdom bounding box's center maps to the world origin, matching the chunk grid's own
+  origin), and `createSettlements()`/`disposeSettlements()` building 3 `InstancedMesh`es (keep/
+  tower/roof — one draw call per *part*, not per castle) covering all 14 seats, roofs colored per-
+  kingdom via `setColorAt`. New `SETTLEMENT_CONFIG` in `config.js` holds every castle dimension (no
+  magic numbers in `settlements.js` itself).
+- **Wired into `game3d.js`:** settlements created and added to the scene right after the river/
+  waterfalls, disposed on `pagehide` alongside the existing cleanup chain (memory-leak checklist).
+- **Found and fixed a real mobile perf-budget bug within this same run, before commit:** the first
+  version force-loaded a 3x3 terrain-chunk neighborhood under every seat unconditionally, so each
+  castle would have visible ground beneath it. Before adding the device-mobile smoke test, this
+  measured out to **92 extra chunks (~753K triangles) on the mobile path alone — 1.9x the entire
+  mobile triangle budget by itself**, on top of the mobile boot preview's own 25 chunks. Caught by
+  this run's own headless-Chromium mobile smoke test (same touch-emulated context ADR-0010
+  established), not shipped and fixed later. Fixed by gating the forced-grounding loop on the same
+  `isCoarsePointerDevice()` check `game3d.js` already has: desktop-class devices force-ground every
+  seat (289 → 321 resident chunks), mobile-class devices skip it (stays at the existing 25-chunk
+  preview; settlements still placed at the correct real height, just occasionally without visible
+  ground directly beneath, until a later phase's player-streaming reaches that chunk). See
+  DECISIONS.md ADR-0013 for the full writeup.
+- **`service-worker.js`:** added `./src/3d/world/settlements.js` to `GAME3D_SHELL_FILES`.
+- **Regression guard:** `node --check` on `settlements.js`/`game3d.js`/`config.js`/
+  `service-worker.js`. All pass.
+- **Real smoke tests (headless Chromium via Playwright, repo served locally with
+  `python3 -m http.server`):**
+  1. Full `game3d.html` render pass, both device paths (default + touch-emulated `hasTouch: true,
+     isMobile: true`): zero `pageerror`/`console.error` on either. Desktop console confirms `"Placed
+     14 kingdom-seat settlements; 321 terrain chunks resident (~80.25 km²) after grounding them"`;
+     mobile console confirms `"Placed 14 kingdom-seat settlements; 25 terrain chunks resident (~6.25
+     km²) (mobile — grounding skipped, see ADR-0013)"` — the fix verified on both paths, not just
+     computed.
+  2. **A dedicated close-up verification render** (separate scratch canvas + isolated scene, same
+     technique ADR-0009/ADR-0011/ADR-0012 used for river/waterfall/star verification — the real
+     page's own `requestAnimationFrame` loop would otherwise overwrite a one-off render to the real
+     canvas, so `#game3d-canvas` was removed before creating an isolated one): loaded the real 3x3
+     terrain neighborhood under seat `umit` (Targaryen), rendered the real `createSettlements`
+     output there — screenshot confirms a stone-gray keep + 4 corner towers with orange (`#c8430a`,
+     matching `INIT_KINGDOMS`'s own `umit.color`) conical roofs, correctly seated on the real
+     terrain, not floating or misaligned.
+  3. Offline-precache (new file added to `GAME3D_SHELL_FILES`, one online visit then a fresh
+     tab/context with the network disabled — `game3d.html` still loads with the same `[game3d]`
+     console log sequence, zero errors) and 2D-game regression tests (`index.html` still reproduces
+     only the same pre-existing, already-documented `firebase is not defined` error) — both clean.
+
+**Files changed this run:** `src/3d/world/settlements.js` (new), `src/3d/config.js`
+(`SETTLEMENT_CONFIG`), `src/3d/game3d.js` (settlements wiring, disposal, device-branched grounding),
+`service-worker.js` (`GAME3D_SHELL_FILES`), `DECISIONS.md` (new ADR-0013), `ARCHITECTURE.md`,
+`src/3d/world/README.md`, `3D_GAME_PROGRESS.md` (this file). Eight files, ~330 new/changed lines —
+within this run's ≤20-files/≤800-lines budget; one atomic addition (new module + its config
+constants + its wiring + its device-safety fix + its offline-cache entry + its docs, all landing
+together since the growth wouldn't have been mobile-safe without the fix in the same commit).
+
+**Next step for the next run:** FAZ 3's remaining sub-tasks are PBR materials/textures (current
+castles are flat-color `MeshStandardMaterial`, no texture maps) and simple LOD/colliders (not
+attempted — no player exists yet to collide with anything, and castles are cheap enough that LOD
+isn't a measured need yet). World Coverage is now 58.4% (80.25 km² / 137.5 km²) on desktop — still
+below FAZ 3/10's 80% gate, so further growth (another `PHASE1_PREVIEW_RADIUS_CHUNKS` bump, re-
+verified on both device paths, or the still-valid "scripted flythrough at boot" idea from runs 2/3)
+remains legitimate future work, alongside or after FAZ 3's remaining items. No new tech debt beyond
+what's flagged below (PBR/LOD/collider gaps were pre-existing FAZ 3 scope, not introduced this run).
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -1347,7 +1468,19 @@ not an accidental gap.
 - **`BufferGeometryUtils.js` is vendored only because `GLTFLoader.js` imports it** (for
   `toTrianglesDrawMode`), not because anything calls it directly yet. Expected to stay unused
   until non-triangle-strip GLTF assets show up.
-- Terrain, sky, water, weather, AI, physics, audio, UI, save-bridge — none of these exist yet.
+- **`world/settlements.js`'s castles have no PBR texture maps, no LOD, and no collider.** Flat-color
+  `MeshStandardMaterial` (roughness/metalness tuned by eye), a fixed triangle count regardless of
+  camera distance, and nothing collides with them yet — no player exists until FAZ 4. Both are
+  explicitly listed as FAZ 3's own remaining sub-tasks, not accidental gaps.
+- **Kingdom seats outside the desktop boot-preview radius render without visible ground on
+  mobile-class devices.** By design (see DECISIONS.md ADR-0013's "real mobile perf-budget bug"):
+  force-loading a terrain neighborhood under every seat on mobile would add ~753K triangles, 1.9x
+  the mobile triangle budget on its own. Settlements still sample the correct real terrain height on
+  mobile, they just may lack a visible ground mesh directly beneath until a later phase's
+  player-driven streaming naturally reaches that chunk. Revisit once FAZ 4 gives mobile a real
+  streaming trigger.
+- Sky, water, weather, AI, physics, audio, UI, save-bridge — none of the *unstarted* ones exist yet
+  (terrain/sky/water/settlements now do — see the Roadmap above for what's live per phase).
   This is expected; Phase 0 was architecture-only by design.
 
 ## Asset Sources (CC0 / CC-BY / MIT — no HBO/show media)

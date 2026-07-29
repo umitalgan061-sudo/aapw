@@ -22,7 +22,7 @@ import * as THREE from 'three';
 import { gameEvents } from './eventBus.js';
 import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
-import { EVENTS, WORLD_DEFAULTS, CHUNK_CONFIG } from './config.js';
+import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG } from './config.js';
 import { ChunkManager } from './world/chunkManager.js';
 import { createHeightSampler } from './world/terrain.js';
 import { createWater, updateWater, disposeWater } from './world/water.js';
@@ -34,6 +34,7 @@ import {
 	createWaterfallMesh,
 	disposeWaterfallMesh,
 } from './world/rivers.js';
+import { createSettlements, disposeSettlements } from './world/settlements.js';
 import { createOrbitCamera } from './camera.js';
 import { createAuroraSky, updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { createStarfield, updateStarfield, disposeStarfield } from './stars.js';
@@ -80,7 +81,7 @@ function isCoarsePointerDevice() {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -149,7 +150,37 @@ function createScene(canvas) {
 	waterfalls.forEach((mesh) => scene.add(mesh));
 	console.info(`[game3d] Detected ${waterfalls.length} waterfall-grade drop(s) along the river.`);
 
-	return { renderer, scene, camera, controls, chunkManager, sky, stars, water, river, waterfalls, lights, clock, lastStreamChunk: null };
+	// One procedural castle per kingdom seat (FAZ 3) — see world/settlements.js and DECISIONS.md ADR-0013.
+	const settlementsResult = createSettlements({
+		sampleHeightMeters,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		mapBounds: WORLD_SCALE.MAP_BOUNDS,
+		metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
+		settlementConfig: SETTLEMENT_CONFIG,
+	});
+	scene.add(settlementsResult.group);
+	// Most seats sit outside both the boot-preview and mobile streaming radii (measured — see
+	// DECISIONS.md ADR-0013). Force-loading a neighborhood under each one is desktop-only: doing
+	// it unconditionally was measured to add ~92 extra chunks (~753K triangles) on the mobile path
+	// alone — 1.9x the *entire* mobile triangle budget by itself, on top of the terrain already
+	// loaded. Caught by this run's own smoke test before commit, not shipped and fixed later — see
+	// DECISIONS.md ADR-0013's Consequence. Mobile-class devices place settlements at their correct
+	// sampled height regardless (still uses the real terrain height, just may render without a
+	// visible ground mesh directly beneath until the player-streaming system reaches that chunk).
+	if (!isMobileClass) {
+		for (const seat of settlementsResult.seats) {
+			const seatChunkX = worldToChunkCoord(seat.x, CHUNK_CONFIG.CHUNK_SIZE_METERS);
+			const seatChunkZ = worldToChunkCoord(seat.z, CHUNK_CONFIG.CHUNK_SIZE_METERS);
+			chunkManager.loadSquare(seatChunkX, seatChunkZ, 1);
+		}
+	}
+	console.info(
+		`[game3d] Placed ${settlementsResult.seats.length} kingdom-seat settlements; ` +
+			`${chunkManager.loadedCount} terrain chunks resident ` +
+			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²)${isMobileClass ? ' (mobile — grounding skipped, see ADR-0013)' : ' after grounding them'}.`,
+	);
+
+	return { renderer, scene, camera, controls, chunkManager, sky, stars, water, river, waterfalls, settlements: settlementsResult.group, lights, clock, lastStreamChunk: null };
 }
 
 /**
@@ -261,6 +292,7 @@ export async function initGame3D() {
 			disposeWater(state.water);
 			if (state.river) disposeRiverMesh(state.river);
 			state.waterfalls.forEach(disposeWaterfallMesh);
+			disposeSettlements(state.settlements);
 			disposeDayNightLighting(state.scene, state.lights);
 			state.renderer.dispose();
 		}, { once: true });

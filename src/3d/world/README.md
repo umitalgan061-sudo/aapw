@@ -34,6 +34,17 @@ here (blast radius rule — if a change needs more than that, it's not a world-s
   traced river — see `DECISIONS.md` ADR-0011) and `createWaterfallMesh(waterfall, widthMeters)` /
   `disposeWaterfallMesh(mesh)` — a deliberately schematic vertical "curtain" quad at each flagged
   segment, not a terrain-carved cliff.
+- **`settlements.js`** — one procedural castle (box keep + 4 corner towers + conical roofs) per
+  kingdom seat. `KINGDOM_SEATS` is a hand-copied, frozen snapshot of `script.js`'s `INIT_KINGDOMS`
+  (position/color/name only). `mapToWorldXZ(mapX, mapY, mapBounds, metersPerMapUnit)` converts a
+  2D-map coordinate to world `(x, z)` — the map-bounds *center* maps to the world origin, matching
+  the chunk grid's own `(0, 0)`-centered convention; reuse this function for any future system that
+  places something by kingdom location (roads, NPC spawns, quest markers), don't invent a second
+  mapping. `createSettlements({sampleHeightMeters, seaLevelMeters, mapBounds, metersPerMapUnit,
+  settlementConfig})` returns `{group, seats}` — `group` is 3 `InstancedMesh`es (keeps/towers/roofs,
+  one draw call per part, not per castle); `seats` exposes each seat's real world position/ground
+  height so `game3d.js` can force-load terrain under it. `disposeSettlements(group)` releases all
+  three. See `DECISIONS.md` ADR-0013.
 
 ## Conventions
 

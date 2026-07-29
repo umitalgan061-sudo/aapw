@@ -109,6 +109,30 @@ export const CHUNK_CONFIG = Object.freeze({
 	PHASE1_PREVIEW_RADIUS_CHUNKS: 8,
 });
 
+/** Procedural castle dimensions for `world/settlements.js` (FAZ 3). One shared silhouette (box
+ * keep + 4 corner towers + conical roofs) reused for every kingdom seat, distinguished only by
+ * the roof/banner color — see DECISIONS.md ADR-0013. Kept here, not hardcoded in
+ * `settlements.js`, per the project's "no magic numbers in gameplay/rendering code" rule. */
+export const SETTLEMENT_CONFIG = Object.freeze({
+	KEEP_WIDTH_METERS: 34,
+	KEEP_HEIGHT_METERS: 20,
+	KEEP_DEPTH_METERS: 34,
+	TOWER_RADIUS_TOP_METERS: 5,
+	TOWER_RADIUS_BOTTOM_METERS: 6.5,
+	TOWER_HEIGHT_METERS: 30,
+	/** Distance from keep-center to each corner tower's center, on both X and Z. */
+	TOWER_CORNER_OFFSET_METERS: 20,
+	ROOF_RADIUS_METERS: 7.2,
+	ROOF_HEIGHT_METERS: 9,
+	/** Minimum height, in meters, above `WORLD_DEFAULTS.WATER_LEVEL_METERS` a castle's ground
+	 * point is clamped up to — see `world/README.md`'s "Sea level" convention: any system placing
+	 * things by height must check against it, not assume its own threshold. All 14 real kingdom
+	 * seats sample above sea level already (measured, not assumed — see DECISIONS.md ADR-0013),
+	 * but one (`jon`, the Wall) lands within a meter of it, close enough that this margin is a real
+	 * safety net, not dead code. */
+	MIN_GROUND_CLEARANCE_METERS: 1.5,
+});
+
 /** LocalStorage/sessionStorage keys owned by the 3D mode. Never reuse or collide with 2D game keys. */
 export const STORAGE_KEYS = Object.freeze({
 	QUALITY_SETTING: 'westeros3d_quality',

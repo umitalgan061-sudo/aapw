@@ -807,3 +807,111 @@ project (that's FAZ 9's `postfx.js` scope), so it should wait for that groundwor
 half-built early. Known scope limits, tracked in `3D_GAME_PROGRESS.md` Known Issues: stars are a
 fixed pattern (not tied to real astronomical positions/rotation), don't twinkle, and their brightness
 is a flat per-scene opacity, not per-star variation.
+
+## ADR-0013: kingdom-seat settlements as procedural `InstancedMesh` castles, a new map->world coordinate convention, and mobile-safe grounding
+
+**Date:** 2026-07-29
+
+**Decision:** A new `src/3d/world/settlements.js` places one procedural castle (box keep + 4 corner
+towers + conical roofs, `SETTLEMENT_CONFIG` in `config.js`) at each of the 14 kingdom seats from
+`script.js`'s `INIT_KINGDOMS`, starting FAZ 3. Three pieces:
+1. **`KINGDOM_SEATS`** — a hand-copied, frozen snapshot of `INIT_KINGDOMS` (`id`/`name`/`house`/
+   `color`/`mapX`/`mapY` only, no gameplay state), not a live import of `script.js`.
+2. **`mapToWorldXZ(mapX, mapY, mapBounds, metersPerMapUnit)`** — a new map->world coordinate
+   convention: the padded kingdom bounding box's *center* (`WORLD_SCALE.MAP_BOUNDS`) maps to the
+   world origin `(0, 0)`, the same origin chunk `(0, 0)` is already centered on (`world/terrain.js`/
+   `chunkManager.js`'s existing convention). This is the first system that needs to place something
+   at a *specific* 2D-map location rather than "somewhere near the origin" (rivers/water don't care
+   where kingdoms are), so it's the first time this mapping needed to exist at all.
+3. **Device-branched grounding in `game3d.js`** — force-loads a 3x3 terrain-chunk neighborhood under
+   each seat, desktop-class devices only (see Consequence for why mobile is excluded).
+
+**Reasoning:**
+- **Frozen snapshot, not a live import of `script.js`:** `script.js` is the 2D game's own top-level
+  script — it runs immediately against 2D-game DOM elements (`#map-canvas`, etc.) the moment it's
+  evaluated. Importing it as an ES module from `game3d.js`'s page would execute all of that logic in
+  the 3D page's context, a real risk to the "keep the 2D game intact" golden rule (not a
+  hypothetical one — `script.js` is 214KB of tightly-coupled 2D game logic). A small, hand-copied,
+  explicitly-labeled-as-hand-synced data snapshot costs one manual step if `INIT_KINGDOMS` ever
+  changes materially — the exact same tradeoff `config.js`'s `WORLD_SCALE` bounding box already
+  made in ADR-0001, extended to per-seat data instead of just the aggregate bounding box.
+- **Bounding-box-center-to-origin mapping:** the alternative (map the bounding box's top-left corner
+  to the origin, or pick some other anchor) would work equally well mathematically, but centering
+  keeps `mapToWorldXZ`'s output symmetric around the same origin every other world system already
+  treats as "the middle of the map" (chunk `(0, 0)`, the river's search origin, the boot-preview
+  radius) — one mental model for "where is the middle of the world," not two.
+- **`InstancedMesh`, not one mesh per castle:** 14 castles x (1 keep + 4 towers + 4 roofs) = 126
+  separate meshes would be 126 draw calls for repeated geometry — exactly the case
+  `InstancedMesh` exists for for per the project's own performance guidelines. Built as 3
+  `InstancedMesh`es (one per part) instead: 3 draw calls total, regardless of kingdom count. Per-
+  kingdom identity (which house owns which castle) comes from `roofMesh.setColorAt(i, color)` (a
+  per-instance color attribute three.js's built-in `MeshStandardMaterial` already supports), not
+  from a separate material per kingdom (which would defeat instancing).
+- **Procedural primitives, not an external model, for this first pass:** matches this project's
+  established "geography/gameplay shape first, asset-based detail later" pattern — `terrain.js`,
+  `water.js`, and `rivers.js` all shipped as procedural geometry before any model asset existed.
+  FAZ 4+ can later replace/augment these with real castle models if a suitable CC0/CC-BY one is
+  found; nothing here blocks that.
+- **Height clamp, not a floor-height assumption:** every seat's ground height comes from the real
+  `sampleHeightMeters(x, z)` (the same function `terrain.js`/`rivers.js` use), clamped up to
+  `WORLD_DEFAULTS.WATER_LEVEL_METERS + SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS` — `world/
+  README.md`'s own "Sea level" convention already anticipated this exact requirement ("any future
+  system that places things by height (settlements, roads, rivers) must check against it rather
+  than assuming its own threshold"). **Measured, not assumed:** a scratch probe script (real
+  `WORLD_SCALE`/`createHeightSampler`, all 14 real seats) found all 14 already sample above sea
+  level (lowest: `jon` — Castle Black/the Wall — at exactly 6.00m, essentially *at* sea level, a
+  thematically fitting "cold, low, near the literal edge" reading but close enough that the clamp is
+  a real safety net, not dead code for this seed).
+
+**Verified via headless Chromium (Playwright), not assumed correct from the design alone:**
+- Full `game3d.html` render pass, both device paths (default + touch-emulated): zero
+  `pageerror`/`console.error`, console confirms `"Placed 14 kingdom-seat settlements"` on both,
+  with the correct resident-chunk count for each path (see Consequence).
+- **A dedicated close-up verification render** (separate scratch canvas + isolated scene, same
+  technique ADR-0009/ADR-0011/ADR-0012 used — the real page's own `requestAnimationFrame` loop
+  would otherwise overwrite a one-off render to the real canvas, caught on the first attempt by
+  removing `#game3d-canvas` before creating an isolated one): loaded the real 3x3 terrain
+  neighborhood under seat `umit` (Targaryen), rendered the real `createSettlements` output at that
+  seat — confirms a stone-gray keep + 4 corner towers with orange (`#c8430a`, matching `INIT_KINGDOMS`'
+  own `umit.color`) conical roofs, correctly seated on the real sampled terrain, not floating or
+  misaligned.
+- Offline-precache (new file added to `service-worker.js`'s `GAME3D_SHELL_FILES`) and 2D-game
+  regression tests — both still clean (same pre-existing, already-documented `firebase is not
+  defined` error, unrelated to this change).
+
+**A real mobile perf-budget bug found and fixed within this same run, before commit — not shipped
+and fixed later:** the first version of the device-branched grounding force-loaded a 3x3 chunk
+neighborhood under every seat unconditionally, on every device. Measured via the same headless
+touch-emulated smoke test every prior device-branching run (ADR-0010) uses: this added **92 extra
+chunks (~753K triangles) on the mobile path alone** — 1.9x the *entire* mobile triangle budget by
+itself, stacked on top of the mobile boot preview's own 25 chunks. Fixed by gating the forced-
+grounding loop on the same `isCoarsePointerDevice()` check `game3d.js` already established in
+ADR-0010: desktop-class devices force-ground every seat (289 -> 321 resident chunks, ~80.25 km²,
+comfortably inside the desktop budget); mobile-class devices skip it (stays at the existing 25-chunk
+mobile preview, settlements still placed at the correct real height, just occasionally without
+visible ground directly beneath until player-streaming reaches that chunk in a later phase).
+
+**Alternatives considered:**
+- *Skip forced grounding entirely, on every device, and rely on `streamTowards` to eventually catch
+  up.* Rejected: `streamTowards` only fires as the *camera's orbit target* moves — with no player
+  yet (FAZ 4+), nothing drives the target near a distant kingdom seat in a fresh page load, so most
+  castles would float indefinitely in the current dev-preview. Forcing a small neighborhood at boot
+  (desktop only, per the fix above) makes every seat visually correct without waiting on a system
+  that doesn't have a real trigger yet.
+- *Skip settlements at seats outside the loaded radius instead of placing-but-not-grounding them
+  (mobile).* Rejected for this pass: all 14 seats would disappear on mobile (none fall inside the
+  tiny 5x5 mobile preview), a much larger visual gap than "castle without visible ground under it."
+  Revisit once a real per-seat visibility/culling need exists.
+- *One mesh per castle instead of `InstancedMesh`.* Rejected: no benefit at 14 castles today, but
+  actively contradicts the project's own "prefer `InstancedMesh` for repeated geometry" guideline
+  for zero cost — the instanced version is not more complex to write.
+
+**Consequence:** FAZ 3's first roadmap item ("2D haritadaki krallık konumlarını yansıtan modüler
+kale/kule") is done. World Coverage grows on desktop from 52.5% to **58.4% (80.25 km² / 137.5 km²)**
+as a side effect of grounding settlements (32 extra resident chunks) — not the primary goal of this
+change, but an honest side benefit worth recording since it's the metric the project tracks (mobile
+World Coverage is unaffected, unchanged at 25 chunks / 6.25 km², by design — see the perf-bug fix
+above). Remaining FAZ 3 items (PBR materials/textures beyond the current flat-color
+`MeshStandardMaterial`, simple LOD/colliders) are follow-up work, not attempted this pass — flagged
+in `3D_GAME_PROGRESS.md` Known Issues, same "don't half-do the phase in one run" pattern every prior
+FAZ has followed.

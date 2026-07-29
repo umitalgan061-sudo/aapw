@@ -37,9 +37,11 @@ the way it is.
 - **Depends on:** nothing.
 - **Used by:** every system. No magic numbers should live outside this file.
 - **Contains:** vendor/asset paths, quality presets, `WORLD_DEFAULTS` (FOV/near/far/target FPS),
-  storage keys, event names, and `WORLD_SCALE`/`CHUNK_CONFIG` (the kingdom-bounding-box-derived
+  storage keys, event names, `WORLD_SCALE`/`CHUNK_CONFIG` (the kingdom-bounding-box-derived
   world size and 500m chunk grid; bounding box from `DECISIONS.md` ADR-0001, scale corrected down
-  to a ≤150 km² target by ADR-0004 — always check ADR-0004 for the current numbers, not ADR-0001).
+  to a ≤150 km² target by ADR-0004 — always check ADR-0004 for the current numbers, not ADR-0001),
+  and `SETTLEMENT_CONFIG` (castle keep/tower/roof dimensions for `world/settlements.js`, added FAZ 3
+  — see ADR-0013).
 - **Critical path:** yes — every system imports constants from here.
 - **Failure mode:** N/A (static data only).
 
@@ -146,6 +148,39 @@ the way it is.
   traced river (seed 1337), not guessed. The rendered curtain is a deliberately schematic vertical
   quad, not a terrain-carved cliff — `terrain.js`'s smooth FBM has no real cliff faces yet.
 
+## `src/3d/world/settlements.js` — Kingdom-seat castles (FAZ 3)
+
+- **Depends on:** `three` (vendored) only. Deliberately does not import `config.js` (matches
+  `terrain.js`/`water.js`/`rivers.js`'s "caller passes config values in" convention) or `script.js`
+  (see the module's own doc comment: importing the 2D game's top-level script as an ES module here
+  would execute 2D-game logic against DOM elements this page doesn't have — a real risk to the
+  "keep the 2D game intact" golden rule, not hypothetical). `KINGDOM_SEATS` is a hand-copied,
+  frozen snapshot of `script.js`'s `INIT_KINGDOMS` (id/name/house/color/map-x/map-y only, no
+  gameplay state) — hand-sync if kingdom data changes materially, same rule as `config.js`'s
+  `WORLD_SCALE` bounding box.
+- **Used by:** `game3d.js` (`createSettlements`/`disposeSettlements`) — one `THREE.Group` holding 3
+  `InstancedMesh`es (keeps/towers/roofs, one per castle *part*, not one per castle) covering all 14
+  kingdom seats, generated once at scene bootstrap like `world/rivers.js`.
+- **Critical path:** no — purely visual/geographic; a pathological height field would at worst
+  place castles at an unusual (but still sea-level-clamped) height, never throw.
+- **Failure mode:** none currently guarded — pure synchronous math over a caller-provided height
+  sampler, same failure profile as `terrain.js`/`rivers.js`.
+- **Determinism:** no randomness at all — every seat's position is a deterministic function of its
+  fixed `mapX`/`mapY` and the (already-seeded) `sampleHeightMeters`.
+- **Coordinate convention established here (ADR-0013):** `mapToWorldXZ(mapX, mapY, mapBounds,
+  metersPerMapUnit)` maps the padded kingdom bounding box's *center* to the world origin — the same
+  origin chunk `(0, 0)` is centered on. Any future system placing things by 2D-map coordinate
+  (roads, NPC spawn points, quest markers) should reuse this exact function, not invent a second
+  mapping.
+- **Device-class dependent (see `game3d.js` below):** on desktop-class devices, `game3d.js` force-
+  loads a 3x3 terrain-chunk neighborhood under every seat so no castle renders floating over
+  unrendered ground. On mobile-class devices this is skipped — measured to add ~92 chunks (~753K
+  triangles, 1.9x the *entire* mobile triangle budget on its own) if done unconditionally; mobile
+  castles still sample the real terrain height, just may render without a visible ground mesh
+  directly beneath until player-streaming (FAZ 4+) reaches that chunk naturally.
+- **Fog/lighting:** built-in `MeshStandardMaterial` (like `terrain.js`/`rivers.js`) — gets
+  `scene.fog` and the day/night lights for free, no custom shader chunks needed.
+
 ## `src/3d/camera.js` — Orbit camera controls
 
 - **Depends on:** `src/3d/vendor/three/addons/controls/OrbitControls.js` (vendored three.js r160
@@ -236,16 +271,17 @@ the way it is.
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
   `world/chunkManager.js`, `world/terrain.js` (`createHeightSampler` only), `world/water.js`,
-  `world/rivers.js`, `camera.js`, `sky.js`, `stars.js`, `lighting.js`, `fog.js`.
+  `world/rivers.js`, `world/settlements.js`, `camera.js`, `sky.js`, `stars.js`, `lighting.js`, `fog.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
   lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance,
   the `ChunkManager` instance, the aurora sky mesh, the water plane, the static river mesh and its
-  waterfall curtain meshes (`world/rivers.js`, all generated once, not part of the per-frame loop),
-  and the `requestAnimationFrame` render loop (which also drives `controls.update()`,
+  waterfall curtain meshes (`world/rivers.js`), the 14 kingdom-seat settlements
+  (`world/settlements.js`, all generated once, not part of the per-frame loop), and the
+  `requestAnimationFrame` render loop (which also drives `controls.update()`,
   `streamAroundOrbitTarget()`, `updateDayNightLighting()`, `updateAuroraSky()`, `updateFog()`, and
   `updateWater()` each frame — see `world/chunkManager.js`, `lighting.js`, `fog.js`, `sky.js`,
-  `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009/ADR-0011).
+  `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009/ADR-0011/ADR-0013).
 - **Failure mode:** `initGame3D()` is fully try/caught — a WebGL init failure sets
   `gameState.error` and emits `GAME_ERROR` (caught by `game3d.html`'s error-screen listener above)
   rather than throwing an uncaught exception. If `#game3d-canvas` isn't present, rendering is
