@@ -14,13 +14,13 @@ KayKit, etc.) are used for `assets/`.
 ## Current Status
 
 - **Active Phase:** FAZ 1 ✅ TAMAMLANDI. FAZ 2 (Su/Atmosfer/Zaman) in progress: sea-level Gerstner
-  water (`world/water.js`, now itself fogged too), a real-time day/night cycle (`lighting.js`,
-  sun/hemisphere lights + sky/aurora tied to time-of-day), and distance fog (`fog.js`, synced to
-  the same day/night state, applied to both terrain and water) are live — see "This Run (run 9)"
-  below.
-- **Last Update:** 2026-07-29 (run 9)
-- **Last Commit:** this run's `world/water.js` fog wiring + DECISIONS.md ADR-0008 (see
-  "This Run (run 9)" below).
+  water (`world/water.js`, itself fogged too), a real-time day/night cycle (`lighting.js`,
+  sun/hemisphere lights + sky/aurora tied to time-of-day), distance fog (`fog.js`, synced to the
+  same day/night state, applied to terrain and water), and one deterministic downhill river
+  (`world/rivers.js`, reaching the sea) are live — see "This Run (run 10)" below.
+- **Last Update:** 2026-07-29 (run 10)
+- **Last Commit:** this run's `world/rivers.js` + `terrain.js` height-sampler export + DECISIONS.md
+  ADR-0009 (see "This Run (run 10)" below).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
   correct, no change made.** A prior run (see "This Run (run 5)" below, DECISIONS.md ADR-0004)
   already corrected the world scale from an un-completable 4278 km² down to **137.5 km²**, inside
@@ -209,7 +209,18 @@ Triangles<500K, TextureMem<512MB.
   and dusk-night presets, fading the aurora in only at night via a new `uNightFactor` uniform —
   resolves the "always-on aurora" Known Issue below. See DECISIONS.md ADR-0006.
 - [ ] Yıldızlı gece (star field, layered on top of the now-real night sky — not started this run)
-- [ ] Şelale (nehir yükseklik farkına göre)
+- [x] Nehir — ilk gerçek geçiş (`world/rivers.js`) — deterministik yokuş-aşağı yürüyüş
+  (steepest-descent, `terrain.js`'in mevcut FBM yükseklik alanı üzerinde, `terrain.js`'e hiç
+  dokunmadan — su için ADR-0005'in aynı tekniği), kaynak noktasından (orijine 2000m içindeki en
+  yüksek nokta) deniz seviyesine kadar. Küçük yerel minimumlara takılmayı önlemek için artan
+  yarıçaplı arama (escalating-radius) eklendi — ilk basit (tek yarıçaplı) sürüm ~360m'de takılıp
+  kalıyordu, gerçek smoke testinde yakalandı ve düzeltildi. `terrain.js`'den yeni
+  `createHeightSampler`/`mulberry32` export'ları ile besleniyor. Statik tek nehir, FAZ 1 önizleme
+  alanıyla sınırlı (`maxRiverRadiusMeters`) — birden fazla nehir/streaming entegrasyonu gelecek iş.
+  Gerçek üstten-görünüm ekran görüntüsüyle doğrulandı (kaynak→deniz ağzı işaretçileriyle).
+  Detaylar: DECISIONS.md ADR-0009.
+- [ ] Şelale (nehir yükseklik farkına göre) — nehir artık var ama dik yükseklik düşüşü tespiti/
+  görsel efekti henüz yok, bu checklist maddesi ondan ayrı kalır.
 - [x] Fog (`fog.js`) — `THREE.FogExp2` on `scene.fog`, color reused directly from `lighting.js`'s
   current horizon color (so fogged terrain fades into the sky, not a mismatched flat color),
   density interpolated day→night via the same `nightFactor`. Automatically applies to
@@ -912,13 +923,80 @@ remaining FAZ 2 design task) and volumetric light (god rays — separate, larger
 started). World Coverage unchanged at 30.73% (42.25 km² / 137.5 km²) — this run improved an
 existing visual system, not terrain area.
 
+## This Run (2026-07-29, run 10)
+
+**Continuation of the same operator session** ("Devam et" / "continue" right after run 9's push).
+Repo state already fresh in context (clean, `main` at `3c8236d`, run 9's water-fog fix already
+pushed) — no re-read needed. Picked up FAZ 2's largest remaining design task, flagged as pending
+across runs 6-9: rivers/waterfalls, blocked on "a river-path/height-drop concept `terrain.js`
+doesn't have yet."
+
+**Done — FAZ 2 river, first real pass:**
+- **Design decision made and recorded before writing code (DECISIONS.md ADR-0009):** rivers are
+  *traced* over `terrain.js`'s existing FBM height field (deterministic steepest-descent walk from
+  a high point to sea level), not carved into `terrain.js` — same "find the shape in the existing
+  noise" approach ADR-0005 used for sea-level water, so `terrain.js`'s chunk generation itself
+  needed no changes.
+- **Extracted `createHeightSampler(seed, fbmOptions?)` and exported `mulberry32` from
+  `terrain.js`:** pulls the per-vertex height formula out of `createTerrainChunk`'s loop into a
+  standalone, pure, reusable function (`world/rivers.js` needs to query height without generating a
+  whole chunk) and shares the one PRNG implementation instead of a second copy. `createTerrainChunk`
+  now calls this internally — verified behavior-identical (unchanged terrain screenshot, same seed).
+- **Built `src/3d/world/rivers.js`:** `generateRiverPath({seed, sampleHeightMeters,
+  seaLevelMeters, ...})` → `{points, endReason}`; `createRiverMesh(points, widthMeters)` → a static
+  ribbon `THREE.Mesh` (built-in `MeshStandardMaterial`, so it gets `scene.fog`/day-night lighting
+  for free); `disposeRiverMesh`.
+- **Caught and fixed a real algorithmic bug via testing, not assumed correct from the design alone:**
+  the first version (single fixed search radius) got stuck in a small local minimum after only ~10
+  points/~360m — nowhere near the sea — confirmed via an actual headless-Chromium run reading the
+  `console.info` path stats, not just eyeballing the code. Root cause: multi-octave FBM has many
+  small local dips layered on the macro shape. Tried a coarse/fine sampler split first (still got
+  stuck, just less often); the fix that actually worked, verified across several trials before
+  committing: escalate the search radius (`stepMeters * 2^n`, capped) when no downhill neighbor
+  exists at the normal distance. With this fix, the exact same full-detail (5-octave) height field
+  the terrain renders reaches the sea in 11 points using only one escalation.
+- **Regression guard:** `node --check` on `world/rivers.js`, `world/terrain.js`, `game3d.js`. All pass.
+- **Real smoke tests (headless Chromium):**
+  1. Full `game3d.html` render pass — zero `pageerror`/`console.error`, `console.info` confirms
+     `"River path traced: 11 points, ended via \"sea\""`.
+  2. **A dedicated independent top-down orthographic verification render** (separate scene, real
+     terrain chunks + real river mesh, source/mouth marked with colored spheres) — visually confirms
+     the river actually winds from a high source point down to a sea-level outlet over real terrain,
+     not just "the function returned without throwing."
+  3. Terrain-refactor regression check: `createHeightSampler` extraction produces byte-for-byte the
+     same visual terrain (compared the standard boot screenshot before/after — identical).
+  4. Offline-precache and 2D-game regression tests — both still clean.
+- **`service-worker.js`:** added `./src/3d/world/rivers.js` to `GAME3D_SHELL_FILES`.
+
+**Files changed this run:** `src/3d/world/rivers.js` (new), `src/3d/world/terrain.js`
+(`createHeightSampler`/`mulberry32` exports, internal refactor), `src/3d/game3d.js` (river wiring),
+`service-worker.js` (`GAME3D_SHELL_FILES`), `DECISIONS.md` (new ADR-0009), `src/3d/world/README.md`,
+`ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file). Eight files, ~350 new/changed lines — within
+budget; documentation changes describe this one atomic addition (one new module + one small,
+behavior-preserving refactor to enable it + its wiring + its offline-cache entry).
+
+**Next step for the next run:** waterfalls (a steep-height-drop detector over the river's own path
+points — much smaller now that a real path exists to walk) or generalizing to multiple rivers/
+streaming integration (bigger, see ADR-0009's Consequence). Volumetric light (god rays) also still
+not started. World Coverage unchanged at 30.73% (42.25 km² / 137.5 km²) — this run added a
+geography feature, not chunk-covered area.
+
 ## Known Issues / Tech Debt
 
-- **`world/water.js` has no river/height-drop concept yet — waterfalls need one.** The current
-  water system is a single flat sea-level plane; it has no idea where a river channel is or where
-  terrain drops steeply enough for a waterfall. FAZ 2's waterfall item needs a design decision
-  first (a river-path concept in `terrain.js`, or a separate `rivers.js`), not just more shader
-  work — don't start it as "more water.js" without that decision.
+- **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** The remaining
+  gap: waterfalls still need a steep-height-drop detector walking the same path points (`|Δy| /
+  |Δdistance|` between consecutive points, roughly) plus a visual effect at those points — not
+  attempted this run. See DECISIONS.md ADR-0009's Consequence section.
+- **`world/rivers.js` is one static river, not a network, and doesn't stream.** Generated once at
+  boot, confined to a fixed radius around the origin (see ADR-0009) — a real multi-river system
+  tied to `ChunkManager`'s streaming (so rivers appear/persist correctly as the player explores
+  beyond the FAZ 1 preview area) is future work, not this pass's scope.
+- **`world/rivers.js`'s surface doesn't flow-animate.** Uses a static built-in `MeshStandardMaterial`
+  (see ADR-0009's Alternatives) — no scrolling-UV or foam shader like `world/water.js`'s Gerstner
+  waves. Low priority until the river network itself is more developed.
+- **~~`sky.js`'s aurora is always-on, not gated by time-of-day~~ — fixed run 7.** `lighting.js`
+  now drives a real day/night cycle; the aurora fades out in daylight via `uNightFactor` (see
+  DECISIONS.md ADR-0006).
 - **~~`sky.js`'s aurora is always-on, not gated by time-of-day~~ — fixed run 7.** `lighting.js`
   now drives a real day/night cycle; the aurora fades out in daylight via `uNightFactor` (see
   DECISIONS.md ADR-0006).

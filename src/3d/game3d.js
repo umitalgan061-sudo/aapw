@@ -10,8 +10,9 @@
  * A procedural aurora skybox (`sky.js`) surrounds the camera. FAZ 2 is in progress: a Gerstner-wave
  * sea-level water plane (`world/water.js`) floods low-lying terrain, a real-time day/night cycle
  * (`lighting.js`) animates the sun/hemisphere lights and the sky's colors/aurora visibility
- * together, and distance fog (`fog.js`) — synced to the same day/night state — fades terrain into
- * the horizon. See 3D_GAME_PROGRESS.md for what's next.
+ * together, distance fog (`fog.js`) — synced to the same day/night state — fades terrain into
+ * the horizon, and one static river (`world/rivers.js`) traces a deterministic downhill path from
+ * high ground near the origin down to sea level. See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
 
@@ -21,7 +22,9 @@ import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
 import { EVENTS, WORLD_DEFAULTS, CHUNK_CONFIG } from './config.js';
 import { ChunkManager } from './world/chunkManager.js';
+import { createHeightSampler } from './world/terrain.js';
 import { createWater, updateWater, disposeWater } from './world/water.js';
+import { generateRiverPath, createRiverMesh, disposeRiverMesh } from './world/rivers.js';
 import { createOrbitCamera } from './camera.js';
 import { createAuroraSky, updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { createDayNightLighting, updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
@@ -48,7 +51,7 @@ gameEvents.on(EVENTS.ASSET_ERROR, (payload) => {
  * `canvas`, via `ChunkManager`. Fixed one-time load, not position-based streaming yet — see
  * 3D_GAME_PROGRESS.md FAZ 1 for what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, water: THREE.Mesh, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, sky: THREE.Mesh, water: THREE.Mesh, river: THREE.Mesh | null, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, lastStreamChunk: {x: number, z: number} | null}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -92,7 +95,20 @@ function createScene(canvas) {
 			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²) in ${generationMs.toFixed(0)}ms.`,
 	);
 
-	return { renderer, scene, camera, controls, chunkManager, sky, water, lights, clock, lastStreamChunk: null };
+	// Static, generated once — see world/rivers.js module doc for why this doesn't stream/update per frame yet.
+	const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
+	const { points: riverPoints, endReason: riverEndReason } = generateRiverPath({
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		sampleHeightMeters,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+	});
+	const river = createRiverMesh(riverPoints);
+	if (river) scene.add(river);
+	console.info(
+		`[game3d] River path traced: ${riverPoints.length} points, ended via "${riverEndReason}".`,
+	);
+
+	return { renderer, scene, camera, controls, chunkManager, sky, water, river, lights, clock, lastStreamChunk: null };
 }
 
 /**
@@ -200,6 +216,7 @@ export async function initGame3D() {
 			state.chunkManager.disposeAll();
 			disposeAuroraSky(state.sky);
 			disposeWater(state.water);
+			if (state.river) disposeRiverMesh(state.river);
 			disposeDayNightLighting(state.scene, state.lights);
 			state.renderer.dispose();
 		}, { once: true });

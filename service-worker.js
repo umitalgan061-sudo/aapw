@@ -35,6 +35,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/terrain.js',
     './src/3d/world/chunkManager.js',
     './src/3d/world/water.js',
+    './src/3d/world/rivers.js',
     './src/3d/vendor/three/three.module.js',
     './src/3d/vendor/three/LICENSE',
     './src/3d/vendor/three/addons/loaders/GLTFLoader.js',
