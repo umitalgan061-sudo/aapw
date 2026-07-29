@@ -1079,10 +1079,31 @@ Current Status, Performance Budget Status, this section). Five files, well withi
 unblocked are a single reviewable/revertable unit — the growth wouldn't have been safe to make
 without the fix landing in the same commit).
 
-**Next step for the next run:** FAZ 2's remaining items are unchanged in priority: rivers/
-waterfalls (needs a river-path/height-drop concept `terrain.js` doesn't have yet — design that
-first) and volumetric light (god rays — separate, larger technique). World Coverage is now 52.5%
-(72.25 km² / 137.5 km², up from 30.73%) — further growth is legitimate (real headroom remains in
+**Parallel work found on push, merged into this run:** `git push` was rejected — a parallel session
+had pushed `5a99675` (`feat(3d): deterministic downhill river tracing over terrain's height field`,
+run 10 above) to `main` while this run was in progress: `world/rivers.js`, `terrain.js`'s
+`createHeightSampler`/`mulberry32` exports, and `game3d.js` wiring to trace and render one static
+river. Merged with `git merge origin/main` (real conflicts in `3D_GAME_PROGRESS.md`/`DECISIONS.md`,
+resolved by hand — `ARCHITECTURE.md`/`game3d.js`/`config.js` auto-merged cleanly, confirmed by
+re-reading the merged `game3d.js` rather than assumed). Both changes touch `game3d.js`'s
+`createScene()` but at disjoint spots (device-branched chunk radius vs. river-mesh generation) so
+they composed without semantic conflict. The one real collision: **both runs independently claimed
+"ADR-0009"** for their respective decisions (same date, parallel sessions) — resolved by keeping
+the rivers ADR as ADR-0009 (it reached `origin/main` first) and renumbering this run's device-radius
+ADR to **ADR-0010** everywhere it's referenced (`DECISIONS.md`, `3D_GAME_PROGRESS.md`,
+`ARCHITECTURE.md`, `src/3d/config.js`, `src/3d/game3d.js`). Re-ran the full regression guard
+(`node --check` on every non-vendored `src/3d/**/*.js` file + JSON validation) and the headless-
+Chromium smoke test again post-merge, both device paths: zero errors, console confirms both `"Loaded
+289 terrain chunks (~72.25 km²)"`/`"Loaded 25 terrain chunks (~6.25 km²)"` (device-branched radius,
+this run's change) **and** `"River path traced: 11 points, ended via \"sea\""` (their change) in the
+same boot sequence — the two features coexist correctly.
+
+**Next step for the next run:** now that a real river exists (`world/rivers.js`, from the merged
+run 10), the remaining FAZ 2 items are smaller than previously scoped: waterfalls (a steep-height-
+drop detector walking the river's own path points, per run 10's "Next step" — no longer needs a
+river concept designed from scratch) and volumetric light (god rays — separate, larger technique).
+World Coverage is now 52.5% (72.25 km² / 137.5 km², up from 30.73% — unaffected by the river merge,
+since rivers don't add chunk-covered area) — further growth remains legitimate (real headroom in
 both the desktop triangle budget, 47% used, and the draw-call budget, 12% used) via either another
 `PHASE1_PREVIEW_RADIUS_CHUNKS` bump (re-verify both device paths again, same as this run) or the
 still-valid "scripted flythrough at boot" idea from run 2/3's notes (grows coverage by genuinely
