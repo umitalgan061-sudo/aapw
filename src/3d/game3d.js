@@ -8,9 +8,10 @@
  * (`STREAM_RADIUS_CHUNKS`) as the interactive `OrbitControls` camera's target (`camera.js`) moves
  * into new chunks — World Coverage now grows by exploring, not just by a bigger boot-time load.
  * A procedural aurora skybox (`sky.js`) surrounds the camera. FAZ 2 is in progress: a Gerstner-wave
- * sea-level water plane (`world/water.js`) floods low-lying terrain, and a real-time day/night
- * cycle (`lighting.js`) animates the sun/hemisphere lights and the sky's colors/aurora visibility
- * together. See 3D_GAME_PROGRESS.md for what's next.
+ * sea-level water plane (`world/water.js`) floods low-lying terrain, a real-time day/night cycle
+ * (`lighting.js`) animates the sun/hemisphere lights and the sky's colors/aurora visibility
+ * together, and distance fog (`fog.js`) — synced to the same day/night state — fades terrain into
+ * the horizon. See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
 
@@ -24,6 +25,7 @@ import { createWater, updateWater, disposeWater } from './world/water.js';
 import { createOrbitCamera } from './camera.js';
 import { createAuroraSky, updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { createDayNightLighting, updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
+import { createFog, updateFog } from './fog.js';
 
 /** Shared asset loader instance for the whole 3D mode. */
 export const assetLoader = new AssetLoader({ events: gameEvents });
@@ -56,6 +58,7 @@ function createScene(canvas) {
 	const scene = new THREE.Scene();
 	// Fallback only — the aurora sky sphere (added below) fully covers the viewport every frame.
 	scene.background = new THREE.Color(0x0c0805);
+	scene.fog = createFog(); // color/density synced to day/night every frame — see updateFog() in the tick loop below.
 
 	const camera = new THREE.PerspectiveCamera(
 		WORLD_DEFAULTS.FOV_DEGREES,
@@ -184,6 +187,7 @@ export async function initGame3D() {
 				WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO,
 			);
 			updateAuroraSky(state.sky, state.camera.position, elapsedSeconds, dayNight);
+			updateFog(state.scene.fog, dayNight);
 			updateWater(state.water, state.camera.position, elapsedSeconds);
 			state.renderer.render(state.scene, state.camera);
 		};

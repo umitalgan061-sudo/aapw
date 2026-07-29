@@ -27,6 +27,10 @@ non-obvious choices lives in `DECISIONS.md` (ADR log). This file is just an inde
 - **`lighting.js`** — `createDayNightLighting()`/`updateDayNightLighting()`/
   `disposeDayNightLighting()`: owns the scene's sun (`DirectionalLight`) and sky-fill
   (`HemisphereLight`), keyframe-interpolated across a real-time day/night cycle.
+- **`fog.js`** — `createFog()`/`updateFog()`: `scene.fog` (`THREE.FogExp2`), color/density synced
+  every frame to `lighting.js`'s day/night output. Only affects built-in materials
+  (`world/terrain.js`'s ground) — `sky.js`/`world/water.js`'s custom shaders don't consume it (see
+  the module doc comment and 3D_GAME_PROGRESS.md Known Issues for `world/water.js`).
 
 ## Subfolders
 

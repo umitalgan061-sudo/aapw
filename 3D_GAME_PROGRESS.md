@@ -14,11 +14,12 @@ KayKit, etc.) are used for `assets/`.
 ## Current Status
 
 - **Active Phase:** FAZ 1 ✅ TAMAMLANDI. FAZ 2 (Su/Atmosfer/Zaman) in progress: sea-level Gerstner
-  water (`world/water.js`) and a real-time day/night cycle (`lighting.js`, sun/hemisphere lights +
-  sky/aurora tied to time-of-day) are live — see "This Run (run 7)" below.
-- **Last Update:** 2026-07-29 (run 7)
-- **Last Commit:** this run's `lighting.js` + `sky.js` day/night wiring + DECISIONS.md ADR-0006 (see
-  "This Run (run 7)" below).
+  water (`world/water.js`), a real-time day/night cycle (`lighting.js`, sun/hemisphere lights +
+  sky/aurora tied to time-of-day), and distance fog (`fog.js`, synced to the same day/night state)
+  are live — see "This Run (run 8)" below.
+- **Last Update:** 2026-07-29 (run 8)
+- **Last Commit:** this run's `fog.js` + `game3d.js` wiring + DECISIONS.md ADR-0007 (see
+  "This Run (run 8)" below).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
   correct, no change made.** A prior run (see "This Run (run 5)" below, DECISIONS.md ADR-0004)
   already corrected the world scale from an un-completable 4278 km² down to **137.5 km²**, inside
@@ -117,6 +118,10 @@ Triangles<500K, TextureMem<512MB.
   merging or `InstancedMesh` (per the project's performance guidelines) would cut draw calls
   substantially, but at 169 draw calls there's no measured problem to justify the added complexity
   yet — revisit if/when draw calls approach the budget ceiling.
+- **`fog.js` (added run 8):** 0 added draw calls/triangles/GPU resources — `THREE.FogExp2` is
+  plain color+density data consumed by materials that already opt in (`world/terrain.js`'s
+  built-in `MeshStandardMaterial`); the per-fragment fog-mix cost on those materials is part of
+  three.js's standard built-in shader, not new/custom work this project added.
 - **`lighting.js` (added run 7):** 0 added draw calls/triangles — `DirectionalLight`/
   `HemisphereLight` are not meshes and no shadow maps are enabled (see DECISIONS.md ADR-0006), so
   this is a pure CPU-side per-frame color/position interpolation, negligible cost.
@@ -204,7 +209,16 @@ Triangles<500K, TextureMem<512MB.
   resolves the "always-on aurora" Known Issue below. See DECISIONS.md ADR-0006.
 - [ ] Yıldızlı gece (star field, layered on top of the now-real night sky — not started this run)
 - [ ] Şelale (nehir yükseklik farkına göre)
-- [ ] Fog / volumetric ışık
+- [x] Fog (`fog.js`) — `THREE.FogExp2` on `scene.fog`, color reused directly from `lighting.js`'s
+  current horizon color (so fogged terrain fades into the sky, not a mismatched flat color),
+  density interpolated day→night via the same `nightFactor`. Automatically applies to
+  `world/terrain.js` (built-in `MeshStandardMaterial`); `sky.js`/`world/water.js`'s custom shaders
+  do not consume it yet (see Known Issues). See DECISIONS.md ADR-0007, including why the initial
+  density guess looked wrong in an actual screenshot and was retuned.
+- [ ] Volumetric ışık (god rays / light shafts) — **not started.** Fog above only covers distance
+  haze; true volumetric/light-shaft rendering (screen-space raymarching or similar) is a separate,
+  larger technique not attempted this run — do not mark this checklist item done from the fog work
+  alone.
 
 ### FAZ 3 — Kaleler/Yerleşimler (pending)
 - [ ] 2D haritadaki krallık konumlarını yansıtan modüler kale/kule (`settlements.js`)
@@ -797,6 +811,65 @@ design work. World Coverage unchanged at 30.73% (42.25 km² / 137.5 km²) — th
 system, not terrain area; growing coverage stays below FAZ-2-content work in priority per the
 project's own rules (no hard coverage gate until FAZ 3).
 
+## This Run (2026-07-29, run 8)
+
+**Continuation of the same operator session** (user said "devam et" / "continue" right after run
+7's push) — no new Session Snapshot re-read needed since repo state was already fresh in context
+(clean, `main` at `b59a31c`, run 7's day/night commit already pushed). Picked up run 7's own
+documented "Next step": fog, since it's self-contained and pairs with the day/night work just
+landed.
+
+**Done — FAZ 2 fog, per run 7's recommended next step:**
+- **Design decision made and recorded before writing code (DECISIONS.md ADR-0007):** a new
+  `src/3d/fog.js` reuses `lighting.js`'s per-frame output directly — fog color = current horizon
+  color (so fogged terrain fades into the sky, not a mismatched flat color), fog density
+  interpolated day→night via `lighting.js`'s existing `nightFactor` — rather than a second,
+  independently-tuned keyframe table.
+- **Built `src/3d/fog.js`:** `createFog()` / `updateFog(fog, dayNight)`, `THREE.FogExp2` on
+  `scene.fog`. No dispose needed (plain data, not a GPU resource).
+- **Wired into `game3d.js`:** `scene.fog = createFog()` at scene setup; tick loop calls
+  `updateFog(state.scene.fog, dayNight)` right after `updateDayNightLighting()`/`updateAuroraSky()`.
+- **`service-worker.js`:** added `./src/3d/fog.js` to `GAME3D_SHELL_FILES`.
+- **Density tuned against a real screenshot, not just the formula** — flagged explicitly in
+  DECISIONS.md ADR-0007: the first density guess (derived from "50% fog by ~1500m") rendered
+  visibly washed-out/hazy even in the near field when actually screenshotted, not just at range.
+  Halved-ish to `0.0004`/`0.00055` (day/night) and re-verified: clear foreground, light haze by
+  ~1000m, meaningfully thick only near the 2000m far plane — the intended "atmosphere, not a wall"
+  look.
+- **Scoped `world/water.js`/`sky.js` out of this change, explicitly, not silently:** three.js only
+  auto-fogs shaders that include the `fog_*` GLSL chunks; wiring that into water's existing
+  Gerstner vertex shader is its own contained follow-up (a `vFogDepth` varying threaded through),
+  not a two-line addition — logged as a new Known Issues entry below instead of rushed in.
+- **Regression guard:** `node --check` on every non-vendored `src/3d/**/*.js` file (including the
+  new `fog.js`) plus `service-worker.js`. All pass.
+- **Real smoke tests (same headless-Chromium/`http-server` setup as run 7):**
+  1. A unit-style test sweeping `updateFog` across a full simulated day (20 samples, chained after
+     `updateDayNightLighting`): zero `NaN`s, fog color exactly matches `dayNight.horizonColor` at
+     every sample (confirms the "single source of truth" design actually holds, not just intended),
+     midnight density > noon density as expected.
+  2. Full `game3d.html` render pass, twice (before/after the density retune) — zero
+     `pageerror`/`console.error` both times; the *screenshot* comparison (not just "no errors") is
+     what caught the initial density being too strong and drove the retune.
+  3. Offline regression (SW registration via `index.html`, then `game3d.html`, then offline reload):
+     zero errors, canvas still renders — confirms `fog.js`'s new precache entry didn't break the
+     existing offline guarantee.
+  4. 2D game regression: only the pre-existing, documented sandbox noise (Firebase/network),
+     3D-mode button still present.
+
+**Files changed this run:** `src/3d/fog.js` (new), `src/3d/game3d.js` (fog wiring),
+`service-worker.js` (`GAME3D_SHELL_FILES`), `DECISIONS.md` (new ADR-0007), `src/3d/README.md`,
+`ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file). Seven files, ~150 new/changed lines — well
+within budget; documentation changes describe this one atomic change (one new module + its single
+call-site integration + its offline-cache entry).
+
+**Next step for the next run:** FAZ 2's remaining items: rivers/waterfalls (needs a river-path/
+height-drop concept `terrain.js` doesn't have yet — design that first) and volumetric light (god
+rays — a separate, larger technique from the distance fog just landed, not started). Also worth
+picking up opportunistically: wiring `world/water.js` into `scene.fog` (flagged in Known Issues
+this run) is a small, well-scoped task if a future run wants a quick win before tackling the
+river/waterfall design work. World Coverage unchanged at 30.73% (42.25 km² / 137.5 km²) — this run
+added a visual system, not terrain area.
+
 ## Known Issues / Tech Debt
 
 - **`world/water.js` has no river/height-drop concept yet — waterfalls need one.** The current
@@ -807,6 +880,17 @@ project's own rules (no hard coverage gate until FAZ 3).
 - **~~`sky.js`'s aurora is always-on, not gated by time-of-day~~ — fixed run 7.** `lighting.js`
   now drives a real day/night cycle; the aurora fades out in daylight via `uNightFactor` (see
   DECISIONS.md ADR-0006).
+- **`world/water.js` does not participate in `scene.fog` (added run 8).** `fog.js`'s
+  `THREE.FogExp2` only affects built-in materials; water's custom `ShaderMaterial` has no
+  `fog_pars_vertex`/`fog_vertex`/`fog_pars_fragment`/`fog_fragment` chunks, so distant water stays
+  fully saturated while terrain around it fades into haze. Low visual impact today (water is a
+  scattering of small lake/pond shapes, not a dominant horizon feature yet), but will read as
+  wrong once a real player is on the ground looking across open water toward the horizon. Fix by
+  threading a `vFogDepth` varying through the existing Gerstner vertex shader and adding the
+  fragment-side mix — deliberately deferred this run (see DECISIONS.md ADR-0007) rather than rushed.
+- **Volumetric light (god rays / light shafts) not started.** FAZ 2's roadmap lists this alongside
+  fog; only the distance-fog half is done (see Roadmap above). True volumetric lighting is a larger,
+  separate technique (screen-space raymarching or similar) — do not assume it's covered by `fog.js`.
 - **~~`game3d.html`/`.css` and `src/3d/**` are not yet in `service-worker.js`'s cache list~~ —
   fixed run 5.** `GAME3D_SHELL_FILES` now precaches every currently-code-imported 3D file; verified
   working fully offline after one online visit. Character/creature model assets are deliberately

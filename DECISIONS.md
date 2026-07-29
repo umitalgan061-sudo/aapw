@@ -327,3 +327,62 @@ in `game3d.js`'s tick loop) rather than re-deriving it. `sky.js`'s "always-on au
 (3D_GAME_PROGRESS.md) is resolved by this ADR. If a later phase adds shadows, `lighting.js`'s sun
 `DirectionalLight` is where `castShadow`/`shadow.mapSize` get set — update this ADR or add a new one
 when that happens.
+
+## ADR-0007: fog color/density reuse `lighting.js`'s day/night output directly; water/sky stay unfogged for now
+
+**Date:** 2026-07-29
+
+**Decision:** FAZ 2's fog (`src/3d/fog.js`) is a `THREE.FogExp2` assigned to `scene.fog`, with its
+color set to exactly `lighting.js`'s current `horizonColor` and its density linearly interpolated
+between a day and a night constant using `lighting.js`'s `nightFactor` — no new keyframe table, no
+independent "what time is it" computation. `world/terrain.js` picks it up automatically (built-in
+`MeshStandardMaterial` defaults `fog: true`); `sky.js` and `world/water.js`'s custom
+`ShaderMaterial`s do not, and are left that way this run rather than wired up.
+
+**Reasoning:**
+- **Fog color = horizon color, not a separate tuned value:** fog's job is to fade distant geometry
+  into the backdrop. If fog had its own color, distant terrain would fade into a visibly different
+  color than the sky right above the same horizon line — a seam. Reusing `lighting.js`'s
+  `horizonColor` (already computed once per frame for `sky.js`) guarantees the two always match,
+  for free, and keeps a single source of truth per ADR-0006's own precedent.
+- **Density from `nightFactor`, not a new day/night state machine:** `nightFactor` already encodes
+  "how dark/hazy should things read right now" for the sky/aurora; reduced visibility at night is
+  physically plausible anyway, so reusing it for fog density (day: clear-ish, night: ~1.4x denser)
+  is both the smallest-code option and a reasonable in-universe justification, not an arbitrary
+  reuse of an unrelated number.
+- **Density tuned against a real render, not just the formula:** an initial `0.00055`/`0.001`
+  day/night pair (derived from "50% fog by ~1500m") looked washed-out in an actual headless-Chromium
+  screenshot — nearby terrain read as hazy, not just the horizon. Lowered to `0.0004`/`0.00055`
+  (re-verified visually: clear foreground, light haze by ~1000m, meaningfully thick only near the
+  2000m far plane) — flagging this because the *first* number would have "looked correct" by the
+  math alone; the project's own rule (verify after writing, not just after deriving) caught it.
+- **`world/water.js` and `sky.js` deliberately not wired to `scene.fog` this run:** both are custom
+  `ShaderMaterial`s; three.js only auto-populates fog uniforms for shaders that explicitly include
+  the `fog_pars_*`/`fog_*` GLSL chunks — setting `material.fog = true` alone does nothing for a
+  custom shader that doesn't reference those chunks (documented three.js custom-shader behavior,
+  not a guess). `sky.js` already explicitly opts out (`fog: false`) since it's a backdrop that must
+  never fog into itself — correct, left unchanged. `world/water.js` doesn't opt in: adding the fog
+  chunks correctly needs a `vFogDepth` varying threaded through its existing Gerstner vertex shader,
+  which is its own contained follow-up, not a two-line addition — doing it hastily here risked a
+  worse mistake than leaving water unfogged and documenting it as tech debt (BİLMEME KURALI: don't
+  guess, flag it instead).
+
+**Alternatives considered:**
+- *A second keyframe table for fog color/density, independent of `lighting.js`.* Rejected: doubles
+  the tunable surface for "what does dawn look like" across two files that must stay visually
+  consistent by hand — the exact coupling problem ADR-0006 already chose to avoid for the sky.
+- *Linear (`THREE.Fog`) instead of exponential-squared (`THREE.FogExp2`).* Rejected: linear fog's
+  hard near/far cutoffs read artificially at this world's open, rolling-terrain scale; exponential
+  falloff is the standard choice for outdoor/atmospheric fog and was already the intended technique
+  going into this run.
+- *Add the fog GLSL chunks to `world/water.js` in this same run.* Rejected for scope control — see
+  Reasoning above; tracked instead in `3D_GAME_PROGRESS.md` Known Issues so it isn't silently
+  forgotten.
+
+**Consequence:** any future built-in-material system (e.g. Phase 3 settlement meshes, Phase 6
+animal models, if built with `MeshStandardMaterial`) gets fog for free with no extra code. Any
+future custom-`ShaderMaterial` system that should fog (most plausibly `world/water.js`) must add
+the `fog_pars_vertex`/`fog_vertex`/`fog_pars_fragment`/`fog_fragment` chunks and set `fog: true`
+itself — this ADR is the reference for why that's not automatic. If `fog.js` ever needs a
+fog-specific color slightly different from the horizon (e.g. a "thick localized swamp mist" that
+shouldn't affect the whole scene), that's a new, separate system — not a change to this one.

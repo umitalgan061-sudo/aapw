@@ -69,6 +69,10 @@ the way it is.
   chunk resolution ever becomes caller-configurable beyond this project's own code).
 - **Determinism:** seeded (`mulberry32`), no `Math.random()` — same `(chunkX, chunkZ, seed)` always
   produces the same chunk.
+- **Fog (added run 8):** uses `MeshStandardMaterial`, a built-in material whose `fog` property
+  defaults to `true` — it automatically respects `scene.fog` (`fog.js`) with zero code here, unlike
+  `sky.js`/`world/water.js`'s custom `ShaderMaterial`s, which need their own fog GLSL chunks to
+  participate (see `fog.js`'s module doc).
 
 ## `src/3d/world/chunkManager.js` — ChunkManager
 
@@ -102,6 +106,9 @@ the way it is.
   camera-following plane rather than per-chunk water geometry, and why `terrain.js` needed no
   changes for lakes/coastline to appear (existing low-noise valleys are already at/near y=0,
   below the new sea level).
+- **Does not fog yet.** Its custom `ShaderMaterial` has no `fog_*` GLSL chunks, so `scene.fog`
+  (`fog.js`, added run 8) has no visual effect on it — flagged as tech debt in
+  `3D_GAME_PROGRESS.md`, not silently assumed handled.
 
 ## `src/3d/camera.js` — Orbit camera controls
 
@@ -155,17 +162,35 @@ the way it is.
   enabled anywhere in the project). `disposeDayNightLighting` just removes the two lights from the
   scene, for symmetry with every other system's create/update/dispose triplet.
 
+## `src/3d/fog.js` — Distance fog
+
+- **Depends on:** `three` (vendored) only. Takes `lighting.js`'s per-frame output (`horizonColor`,
+  `nightFactor`) as a plain argument to `updateFog` — does not import `lighting.js` itself, same
+  "caller wires systems together, modules don't reach across to each other" pattern as everything
+  else here.
+- **Used by:** `game3d.js` (`createFog()` assigned to `scene.fog`, `updateFog()` called once per
+  frame after `updateDayNightLighting()`). Consumed automatically by any built-in material in the
+  scene (`world/terrain.js`'s `MeshStandardMaterial`) via three.js's own `scene.fog` mechanism —
+  no per-material wiring needed for those. Custom `ShaderMaterial`s (`sky.js`, `world/water.js`) do
+  **not** pick it up automatically; `sky.js` deliberately opts out, `world/water.js` doesn't opt in
+  yet (tech debt, see `3D_GAME_PROGRESS.md`).
+- **Critical path:** no — purely visual.
+- **Failure mode:** none currently guarded — plain arithmetic on finite inputs, no external data.
+- **No GPU resources of its own:** `THREE.FogExp2` is plain JS data (color + density), not a
+  GPU-backed resource — no `dispose*()` needed, unlike every mesh-owning system in this file.
+
 ## `src/3d/game3d.js` — Entry point / scene bootstrap
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
-  `world/chunkManager.js`, `world/water.js`, `camera.js`, `sky.js`, `lighting.js`.
+  `world/chunkManager.js`, `world/water.js`, `camera.js`, `sky.js`, `lighting.js`, `fog.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
-  lights (`lighting.js`), resize handling, the `OrbitControls` instance, the `ChunkManager`
-  instance, the aurora sky mesh, the water plane, and the `requestAnimationFrame` render loop
-  (which also drives `controls.update()`, `streamAroundOrbitTarget()`, `updateDayNightLighting()`,
-  `updateAuroraSky()`, and `updateWater()` each frame — see `world/chunkManager.js`, `lighting.js`,
-  `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006).
+  lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance,
+  the `ChunkManager` instance, the aurora sky mesh, the water plane, and the `requestAnimationFrame`
+  render loop (which also drives `controls.update()`, `streamAroundOrbitTarget()`,
+  `updateDayNightLighting()`, `updateAuroraSky()`, `updateFog()`, and `updateWater()` each frame —
+  see `world/chunkManager.js`, `lighting.js`, `fog.js`, `sky.js`, `world/water.js`, and
+  DECISIONS.md ADR-0003/ADR-0006/ADR-0007).
 - **Failure mode:** `initGame3D()` is fully try/caught — a WebGL init failure sets
   `gameState.error` and emits `GAME_ERROR` (caught by `game3d.html`'s error-screen listener above)
   rather than throwing an uncaught exception. If `#game3d-canvas` isn't present, rendering is
