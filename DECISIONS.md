@@ -95,3 +95,54 @@ be tuned independently. World Coverage jumped from 6.25 km² (25 chunks) to 42.2
 via a fresh desktop-budget check (drawCalls/triangles) whenever it's raised again, and never let
 `STREAM_RADIUS_CHUNKS` itself grow past what the mobile budget in `config.js`'s `QUALITY_PRESETS`
 comments can afford.
+
+## ADR-0003: correct world scale down from 4278 km² to ~130-138 km²
+
+**Date:** 2026-07-29
+
+**Decision:** ADR-0001's `METERS_PER_MAP_UNIT: 10` is superseded. The project owner corrected the
+standing instruction: the earlier "5-15 m/map-unit" guidance produced a ~4278 km² target that is
+not realistically completable, and the corrected requirement is a world that (a) still covers the
+padded kingdom bounding box from ADR-0001 in full, but (b) has a **total area no greater than
+150 km²** (target band: roughly 100-150 km², e.g. ~10km x 12km to ~12km x 15km). The bounding box
+itself is unchanged (same 14 `INIT_KINGDOMS` seats, same 800-map-unit padding, same
+x:[120,6990]/y:[0,6170] clamped box — re-verified against current `script.js` this run, still
+identical to ADR-0001's numbers). Only the meters-per-unit scale shrinks, to **1.75 m/map-unit**:
+
+- `WORLD_WIDTH_METERS`: 6870 map units x 1.75 = **12,022.5 m** (12.02 km)
+- `WORLD_DEPTH_METERS`: 6170 map units x 1.75 = **10,797.5 m** (10.80 km)
+- Exact-bounds area: 12.0225 x 10.7975 ≈ **129.8 km²**
+- Chunk grid (500m chunks, unchanged size): `GRID_COLUMNS` 138→**25**, `GRID_ROWS` 124→**22**
+  (ceil of width/depth over 500m), for **550 total chunk slots** (down from 17,112) and a
+  rounded-to-whole-chunks target area of 25 x 22 x 0.25 km² = **137.5 km²** — the new World
+  Coverage denominator, both within the 100-150 km² band.
+
+**Reasoning:**
+- The instruction is explicit that absolute meters-per-unit is not the goal; kingdom coverage and
+  a completable total area are. Shrinking the scale (not the bounding box) is the only lever that
+  satisfies both: every kingdom seat stays inside the world, and the world stops being
+  continent-sized.
+- 500m chunks were kept unchanged: at the new scale they still give a sensibly-grained streaming
+  system (550 slots is easy bookkeeping, same as before) without touching `CHUNK_SIZE_METERS`,
+  which nothing yet depends on being 500m specifically but which also isn't broken.
+- No code outside `config.js` reads `GRID_COLUMNS`/`GRID_ROWS`/`WORLD_WIDTH_METERS`/
+  `WORLD_DEPTH_METERS`/`METERS_PER_MAP_UNIT` yet (`chunkManager.js`/`terrain.js` take a
+  `chunkSizeMeters` and generate around a `(chunkX, chunkZ)` center, not tied to a hard grid
+  boundary) — confirmed by grep this run. So this is a pure config/documentation correction with
+  zero runtime behavior change to the 169 chunks already generated; only the World Coverage
+  *percentage* changes (same 42.25 km² covered, against a much smaller denominator).
+
+**Alternatives considered:**
+- *Keep 10 m/unit and instead just report coverage against a smaller "phase 1 target subset."*
+  Rejected: contradicts the explicit instruction that the config constants themselves (not just
+  the reporting) must reflect the new ≤150 km² target, and would leave `WORLD_SCALE`/`CHUNK_CONFIG`
+  permanently wrong relative to what the project can actually finish.
+- *Shrink the padded bounding box instead of the meters/unit.* Rejected: would risk excluding a
+  kingdom seat, which both ADRs agree is the one non-negotiable constraint ("aim is including every
+  kingdom, not an absolute meter scale").
+
+**Consequence:** World Coverage recalculates from 0.9876% (42.25 km² / 4278 km²) to **~30.7%**
+(42.25 km² / 137.5 km²) with zero new terrain generated — a corrected denominator, not new
+progress. `3D_GAME_PROGRESS.md` is updated accordingly this run. Any future world-scale change must
+update `WORLD_SCALE`/`CHUNK_CONFIG` in `config.js`, this ADR, and the World Coverage section
+together, same as ADR-0001 required.

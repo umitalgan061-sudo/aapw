@@ -59,25 +59,28 @@ export const WORLD_DEFAULTS = Object.freeze({
  * open world can eventually cover every kingdom seat, not just a small demo valley.
  * `#map-canvas` in `style.css` is 9000x7000 px; kingdom seats span roughly x:[920,6190], y:[300,5370]
  * within it (computed from `script.js` on 2026-07-29 — re-derive if kingdom data changes materially).
- * See DECISIONS.md ADR-0001 for the full derivation and rationale.
+ * See DECISIONS.md ADR-0001 for the bounding-box/padding rationale and ADR-0003 for why
+ * `METERS_PER_MAP_UNIT` is 1.75, not ADR-0001's original 10 (total world area must stay under
+ * 150 km² to be achievable; the padded kingdom bounding box below is unchanged).
  * @see DECISIONS.md
  */
 export const WORLD_SCALE = Object.freeze({
-	/** Meters represented by one 2D-map pixel unit. */
-	METERS_PER_MAP_UNIT: 10,
+	/** Meters represented by one 2D-map pixel unit. Kept small (see ADR-0003) so the whole padded
+	 * kingdom bounding box fits inside a ~100-150 km² world instead of a continent-scale one. */
+	METERS_PER_MAP_UNIT: 1.75,
 	/** Kingdom-seat bounding box in map units, padded 800 units per side and clamped to the map canvas. */
 	MAP_BOUNDS: Object.freeze({ minX: 120, maxX: 6990, minY: 0, maxY: 6170 }),
 	/** World extent in meters (map bounds above * METERS_PER_MAP_UNIT). */
-	WORLD_WIDTH_METERS: 68700,
-	WORLD_DEPTH_METERS: 61700,
+	WORLD_WIDTH_METERS: 12022.5,
+	WORLD_DEPTH_METERS: 10797.5,
 });
 
-/** Chunk/streaming grid (World Partition). See DECISIONS.md ADR-0001 and ADR-0002. */
+/** Chunk/streaming grid (World Partition). See DECISIONS.md ADR-0001, ADR-0002, and ADR-0003. */
 export const CHUNK_CONFIG = Object.freeze({
 	CHUNK_SIZE_METERS: 500,
 	/** ceil(WORLD_WIDTH_METERS / CHUNK_SIZE_METERS), ceil(WORLD_DEPTH_METERS / CHUNK_SIZE_METERS). */
-	GRID_COLUMNS: 138,
-	GRID_ROWS: 124,
+	GRID_COLUMNS: 25,
+	GRID_ROWS: 22,
 	/** Radius, in chunks, kept loaded around the *player* once one exists (FAZ 4+). Small on
 	 * purpose — must fit the mobile budget (drawCalls<500, triangles<500K) at all times, since
 	 * this is the radius a phone keeps resident during real gameplay. Tune per QUALITY_PRESETS in

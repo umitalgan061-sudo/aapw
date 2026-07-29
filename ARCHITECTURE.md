@@ -37,8 +37,9 @@ the way it is.
 - **Depends on:** nothing.
 - **Used by:** every system. No magic numbers should live outside this file.
 - **Contains:** vendor/asset paths, quality presets, `WORLD_DEFAULTS` (FOV/near/far/target FPS),
-  storage keys, event names, and — as of this run — `WORLD_SCALE` and `CHUNK_CONFIG` (the
-  kingdom-bounding-box-derived world size and 500m chunk grid; see `DECISIONS.md` ADR-0001).
+  storage keys, event names, and `WORLD_SCALE`/`CHUNK_CONFIG` (the kingdom-bounding-box-derived
+  world size and 500m chunk grid; bounding box from `DECISIONS.md` ADR-0001, scale corrected down
+  to a ≤150 km² target by ADR-0003 — always check ADR-0003 for the current numbers, not ADR-0001).
 - **Critical path:** yes — every system imports constants from here.
 - **Failure mode:** N/A (static data only).
 
