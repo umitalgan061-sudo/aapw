@@ -66,9 +66,13 @@ function createScene(canvas) {
 		chunkSizeMeters: CHUNK_CONFIG.CHUNK_SIZE_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 	});
-	chunkManager.loadSquare(0, 0, CHUNK_CONFIG.STREAM_RADIUS_CHUNKS);
+	// Phase-1-only preview radius, deliberately not STREAM_RADIUS_CHUNKS — see config.js/ADR-0002.
+	const generationStart = performance.now();
+	chunkManager.loadSquare(0, 0, CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS);
+	const generationMs = performance.now() - generationStart;
 	console.info(
-		`[game3d] Loaded ${chunkManager.loadedCount} terrain chunks (~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²).`,
+		`[game3d] Loaded ${chunkManager.loadedCount} terrain chunks ` +
+			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²) in ${generationMs.toFixed(0)}ms.`,
 	);
 
 	return { renderer, scene, camera, chunkManager };

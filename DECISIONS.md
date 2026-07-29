@@ -57,3 +57,41 @@ at 0%. Every future terrain/chunk-generation task should move this number, and P
 marked DONE below 80% per the project's phase-gate rules. If `INIT_KINGDOMS` coordinates change
 materially in a future 2D-game update, this ADR's bounding box (and the `WORLD_SCALE` constants in
 `config.js`) must be recomputed rather than left stale.
+
+## ADR-0002: separate "Phase 1 preview" chunk radius from the real streaming radius
+
+**Date:** 2026-07-29
+
+**Decision:** `CHUNK_CONFIG` now has two radius constants instead of one:
+`STREAM_RADIUS_CHUNKS` (unchanged, still `2`) and a new `PHASE1_PREVIEW_RADIUS_CHUNKS` (`6`).
+`game3d.js`'s one-time boot-time `chunkManager.loadSquare(...)` call now uses the new constant;
+`STREAM_RADIUS_CHUNKS` is reserved for the future player-follow streaming system.
+
+**Reasoning:** `STREAM_RADIUS_CHUNKS` was originally scaffolded in Phase 0/ADR-0001 as "the radius
+kept loaded around the player" — a number that has to respect the **mobile** performance budget
+(drawCalls<500, triangles<500K) at all times, since real gameplay on a phone keeps this many chunks
+resident continuously. Reusing that same constant to size the Phase-1 no-player dev/preview load
+(this run wanted to grow World Coverage, which pushed the loaded area from 25 to 169 chunks —
+comfortably inside the **desktop** budget at ~1.38M triangles / 169 draw calls, but roughly 2.8x
+over the mobile triangle budget) would have silently turned "mobile streaming radius" into "desktop
+preview radius," corrupting a number Phase 10's `QUALITY_PRESETS` will later depend on for real
+device tuning. Splitting them now costs one extra constant and keeps both honest: preview radius
+can grow aggressively for World Coverage/desktop testing, streaming radius stays whatever the
+mobile budget can actually afford, and neither has to be renegotiated when the other changes.
+
+**Alternatives considered:**
+- *Just raise `STREAM_RADIUS_CHUNKS` to 6.* Rejected: would make the documented "kept loaded
+  around the player" number a mobile-budget violation the moment `game3d.js` treats it as gospel
+  for a real streaming implementation later, unless someone remembers to lower it again first —
+  exactly the kind of stale-config foot-gun this file exists to prevent.
+- *Compute the preview radius from current screen/quality settings instead of a fixed constant.*
+  Rejected as premature: there is no quality-detection system yet (that's Phase 10), and no player
+  camera to size a "how far can you see" heuristic around; a fixed number is honest about what
+  actually exists right now.
+
+**Consequence:** `game3d.js`'s boot preview and any future real streaming implementation can now
+be tuned independently. World Coverage jumped from 6.25 km² (25 chunks) to 42.25 km² (169 chunks,
+~0.99%) in the run this ADR was written for, purely by raising the new preview constant — confirm
+via a fresh desktop-budget check (drawCalls/triangles) whenever it's raised again, and never let
+`STREAM_RADIUS_CHUNKS` itself grow past what the mobile budget in `config.js`'s `QUALITY_PRESETS`
+comments can afford.

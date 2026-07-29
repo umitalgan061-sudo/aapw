@@ -72,14 +72,22 @@ export const WORLD_SCALE = Object.freeze({
 	WORLD_DEPTH_METERS: 61700,
 });
 
-/** Chunk/streaming grid (World Partition). See DECISIONS.md ADR-0001. */
+/** Chunk/streaming grid (World Partition). See DECISIONS.md ADR-0001 and ADR-0002. */
 export const CHUNK_CONFIG = Object.freeze({
 	CHUNK_SIZE_METERS: 500,
 	/** ceil(WORLD_WIDTH_METERS / CHUNK_SIZE_METERS), ceil(WORLD_DEPTH_METERS / CHUNK_SIZE_METERS). */
 	GRID_COLUMNS: 138,
 	GRID_ROWS: 124,
-	/** Radius, in chunks, kept loaded around the player/camera. Tune per QUALITY_PRESETS in Phase 10. */
+	/** Radius, in chunks, kept loaded around the *player* once one exists (FAZ 4+). Small on
+	 * purpose — must fit the mobile budget (drawCalls<500, triangles<500K) at all times, since
+	 * this is the radius a phone keeps resident during real gameplay. Tune per QUALITY_PRESETS in
+	 * Phase 10. Do NOT reuse this for the Phase 1 no-player preview load below — see ADR-0002. */
 	STREAM_RADIUS_CHUNKS: 2,
+	/** Radius, in chunks, `game3d.js` loads once at boot purely to preview world-generation
+	 * progress before a player/streaming system exists. Desktop-only concern (`game3d.html` isn't
+	 * reachable on the budget the mobile figures above protect) — see DECISIONS.md ADR-0002 for
+	 * why this is a separate constant from STREAM_RADIUS_CHUNKS rather than the same number. */
+	PHASE1_PREVIEW_RADIUS_CHUNKS: 6,
 });
 
 /** LocalStorage/sessionStorage keys owned by the 3D mode. Never reuse or collide with 2D game keys. */

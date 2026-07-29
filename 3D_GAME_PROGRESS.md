@@ -52,20 +52,50 @@ KayKit, etc.) are used for `assets/`.
 
 ## World Coverage
 
-**World Coverage: 0.1461% (6.25 km² / 4278 km² target)**
+**World Coverage: 0.9876% (42.25 km² / 4278 km² target)**
 
 - **Target area** is derived from the 14 kingdom seats in `script.js`'s `INIT_KINGDOMS` (not the
   ~150 decorative marker/figure entries also in that file), padded and scaled to real-world meters.
   Full derivation, alternatives considered, and the exact numbers: `DECISIONS.md` ADR-0001.
   Summary: 68.7km x 61.7km world, rounded up to a 138 x 124 grid of 500m x 500m chunks = 4278 km².
   These numbers are now the source of truth in `src/3d/config.js` (`WORLD_SCALE`, `CHUNK_CONFIG`).
-- **Covered area:** 6.25 km² — a 5x5 neighborhood of 25 real, seeded terrain chunks
+- **Covered area:** 42.25 km² — a 13x13 neighborhood of 169 real, seeded terrain chunks
   (`world/chunkManager.js`, centered on grid coordinate `(0, 0)`, radius
-  `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS`), out of 17,112 chunk slots in the grid. Still under 1%, but
-  growing every run — the next task should keep growing it (see "Next step" below), not spend the
-  run on visual polish, per the project's own priority rule.
+  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` — see DECISIONS.md ADR-0002 for why this is a
+  separate constant from `STREAM_RADIUS_CHUNKS`), out of 17,112 chunk slots in the grid. Crossed
+  1% this run; keep growing it before visual polish, per the project's own priority rule — but
+  measure the desktop performance budget every time it grows (see below).
 - Per the project's phase-gate rules, FAZ 3 and FAZ 10 cannot be marked DONE below 80% coverage
   (crisis exception: fix critical bugs/perf first, then resume geographic growth).
+
+## Performance Budget Status
+
+Desktop budget: DrawCalls<2500, Triangles<5M, TextureMem<2GB. Mobile: DrawCalls<500,
+Triangles<500K, TextureMem<512MB.
+
+- **Current scene (169 chunks, 64 segments each):** 169 draw calls (one per chunk mesh — no
+  merging/instancing yet, flagged below), ~1.38M triangles (169 × 65×65×2). Comfortably inside the
+  **desktop** budget (28% of triangle budget, 7% of draw-call budget) but roughly **2.8x over the
+  mobile triangle budget** if this exact scene were used on a phone — it deliberately isn't:
+  `game3d.html` currently has no quality/mobile-specific chunk count, this preview radius is
+  desktop-only in intent (see DECISIONS.md ADR-0002). A real mobile-safe view will be
+  `STREAM_RADIUS_CHUNKS` (2 → 25 chunks, ~204K triangles, well inside mobile budget) once a
+  streaming system uses it instead of the fixed Phase-1 preview.
+- **FPS: not reliably measurable in this sandbox.** Headless Chromium here falls back to
+  SwiftShader **software** rendering (no real GPU passthrough) — sampled ~5 FPS at 169 chunks vs.
+  ~6 FPS at 25 chunks (measured this run, before/after comparison), a small relative drop despite
+  a 6.7x triangle-count increase. That pattern points to a mostly-fixed software-rasterization
+  overhead dominating, not geometry-bound cost — consistent with 1.38M triangles being trivial for
+  any real GPU. Treat this sandbox's FPS numbers as non-representative; real FPS needs a real
+  device/browser test, which no run has been able to do yet. Flagged under Known Issues.
+- **Generation time (one-time, not per-frame):** 169 chunks generated in ~630ms (measured via
+  `performance.now()` around the `loadSquare` call in `game3d.js`). Acceptable for a one-time boot
+  cost; would need attention if a future streaming system calls this per-frame instead of on
+  demand as the player crosses chunk boundaries.
+- **Tech debt flagged, not yet worth fixing:** each chunk is its own draw call/mesh. Geometry
+  merging or `InstancedMesh` (per the project's performance guidelines) would cut draw calls
+  substantially, but at 169 draw calls there's no measured problem to justify the added complexity
+  yet — revisit if/when draw calls approach the budget ceiling.
 
 ## Roadmap
 
@@ -96,10 +126,12 @@ KayKit, etc.) are used for `assets/`.
   is sampled in world-space coordinates, not per-chunk-local ones).
 - [x] `src/3d/world/chunkManager.js` — `ChunkManager` (`loadChunk`/`unloadChunk`/`loadSquare`/
   `disposeAll`, plus `getCoveredAreaKm2()` for World Coverage). `game3d.js` loads a
-  `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS` (2 → 5x5 = 25 chunks) neighborhood around the origin at
-  bootstrap. Still a **fixed one-time load**, not real position-based streaming — that needs a
-  player/camera-follow position to stream around, which doesn't exist until FAZ 4. Out of 17,112
-  total chunk slots, 25 are now real (World Coverage above).
+  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (6 → 13x13 = 169 chunks) neighborhood around the
+  origin at bootstrap — see DECISIONS.md ADR-0002 for why this is a separate constant from
+  `STREAM_RADIUS_CHUNKS` (which stays mobile-budget-sized for the real future streaming system).
+  Still a **fixed one-time load**, not real position-based streaming — that needs a player/
+  camera-follow position to stream around, which doesn't exist until FAZ 4. Out of 17,112 total
+  chunk slots, 169 are now real (World Coverage above).
 - [ ] `src/3d/camera.js` — orbit/free camera for now (third-person arrives in Phase 4). Current camera in `game3d.js` is a fixed, non-interactive `PerspectiveCamera` looking at the origin.
 - [ ] Confirm responsive layout + PWA `start_url`/manifest still resolve correctly with the new page present (not yet checked — `game3d.html`/`.css`/`src/3d/**` are not in `service-worker.js`'s cache list yet, so the 3D mode currently requires network/first-load; flagged under Known Issues)
 
@@ -230,24 +262,42 @@ KayKit, etc.) are used for `assets/`.
   chunk borders, confirming world-space noise sampling in `terrain.js` was the right call. World
   Coverage moved from 0.0058% to 0.1461%.
 
-**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new), `game3d.html` (new),
-`game3d.css` (new), `src/3d/game3d.js`, `index.html`, `ARCHITECTURE.md` (new),
-`src/3d/world/terrain.js` (new), `src/3d/world/chunkManager.js` (new), `src/3d/world/README.md`
-(new), `3D_GAME_PROGRESS.md` (this file). Four separate commits (world-scale/config; scene
-bootstrap; terrain chunk; chunk manager) to keep each one atomic and independently revertable.
+- **Fifth sub-task, same run:** grew World Coverage further and, in doing so, caught a config
+  smell before it shipped. Added `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (6) as a distinct
+  constant from `STREAM_RADIUS_CHUNKS` (2) — see DECISIONS.md ADR-0002 for why reusing
+  `STREAM_RADIUS_CHUNKS` for this desktop-only preview load would have quietly turned a
+  "mobile-budget streaming radius" constant into a "desktop preview radius" one, corrupting a
+  number Phase 10 will need later. `game3d.js` now loads a 13x13 = 169-chunk neighborhood.
+  Measured (see new "Performance Budget Status" section above): 169 draw calls / ~1.38M triangles
+  (well inside desktop budget, ~2.8x over mobile budget — expected, this preview is desktop-only),
+  169 chunks generated in ~630ms one-time cost, and did a before/after FPS comparison (169 vs. 25
+  chunks) in this sandbox to confirm the low sampled FPS (~5) is a SwiftShader
+  software-rendering artifact — not a regression from adding chunks — before writing it down as
+  fact rather than assumption. World Coverage moved from 0.1461% to 0.9876% (crossed 1%).
 
-**Next step for the next run (start here):** Coverage is still under 1% (0.1461%), so per the
-project's own priority rule keep growing it before `sky.js`/`camera.js` polish. Options, roughly
-in order of value: (a) raise `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS` and/or call `loadSquare` again
-from a second, farther-out center to cover noticeably more area — but **measure FPS/triangle count
-after each increase** (desktop budget: triangles<5M, drawCalls<2500; at 64 segments/chunk each
-chunk is ~8192 triangles, so budget allows roughly 600 chunks before triangles alone become a
-concern — drawCalls will bind first since each chunk is its own draw call today, no merging yet);
-(b) reduce `segments` per chunk for distant/less-important chunks (a cheap manual LOD, ahead of a
-real LOD system) to afford a larger loaded area within budget; (c) once a meaningfully larger
-percentage is reached, move to `sky.js` (aurora shader skybox) and `camera.js` (orbit camera — the
-current camera is still a fixed, non-interactive `PerspectiveCamera`). Keep each sub-task to ≤5
-files per the blast-radius rule, and re-run the headless-Chromium smoke test each time, not just
+**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new, now 2 ADRs), `game3d.html`
+(new), `game3d.css` (new), `src/3d/game3d.js`, `index.html`, `ARCHITECTURE.md` (new),
+`src/3d/world/terrain.js` (new), `src/3d/world/chunkManager.js` (new), `src/3d/world/README.md`
+(new), `3D_GAME_PROGRESS.md` (this file). Five separate commits (world-scale/config; scene
+bootstrap; terrain chunk; chunk manager; preview-radius split) to keep each one atomic and
+independently revertable, plus one merge commit reconciling a parallel session's asset-only
+commits (6 more Mixamo characters, wolf, black_dragon — see Current Status above) with this run's
+work; no conflicts.
+
+**Next step for the next run (start here):** Coverage is just under 1% (0.9876%) — still keep
+growing it before `sky.js`/`camera.js` polish, per the project's own priority rule, but the easy
+"just raise the radius" lever is getting closer to its ceiling: at the current 64-segments/chunk
+resolution, draw calls (1 per chunk, no merging yet) will bind before triangles do. Options, in
+order of value: (a) **get a real (non-sandboxed) FPS reading** before pushing coverage further —
+this run could only confirm the low sandbox FPS is a software-rendering artifact by relative
+comparison, not get an absolute real number; if a real-browser test becomes possible, do it before
+trusting further growth is "free"; (b) reduce `segments` per chunk (a cheap manual LOD ahead of a
+real LOD system) so a larger preview area costs proportionally less; (c) merge/instance chunk
+geometry to cut draw calls, which is the real fix for scaling past a few hundred chunks — bigger
+task, likely its own sub-task rather than a quick addition; (d) once coverage is meaningfully
+higher and the desktop budget still has headroom, move to `sky.js` (aurora shader skybox) and
+`camera.js` (orbit camera — the current camera is still fixed). Keep each sub-task to ≤5 files per
+the blast-radius rule, and re-run the headless-Chromium smoke test each time, not just
 `node --check`.
 
 ## Known Issues / Tech Debt
@@ -263,6 +313,12 @@ files per the blast-radius rule, and re-run the headless-Chromium smoke test eac
   way). Whoever next needs to visually browser-test the 2D game in a similarly locked-down sandbox
   should expect this and may need a network allowlist or local image fixtures; it does not appear
   to be a real bug in `script.js`/`index.html` itself.
+- **FPS cannot be reliably measured in this sandbox.** Headless Chromium here has no real GPU and
+  falls back to SwiftShader software rendering (explicit console warning every run). Sampled FPS
+  numbers (currently ~5 at 169 terrain chunks) are useful only for *relative* before/after
+  comparison within this sandbox, never as an absolute number against the project's 60fps
+  desktop/30fps mobile targets. Whoever can run this on a real device/browser should get a real
+  baseline reading once there's enough scene content to make it meaningful.
 - **`FBXLoader` not vendored yet.** Needed for FAZ 4 to load `peasant_girl.fbx` and its three
   animation clips (see "Manually-added assets" above). Vendor it from three.js's official
   `examples/jsm/loaders/FBXLoader.js` alongside `GLTFLoader.js` when FAZ 4 starts — do not attempt
