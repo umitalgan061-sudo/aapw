@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no">
+<meta name="theme-color" content="#c8960a">
+<meta name="description" content="Westeros 3D Dünya — deneysel açık dünya modu">
+<title>Westeros — 3D Dünya</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="stylesheet" href="game3d.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./src/3d/vendor/three/three.module.js",
+    "three/addons/": "./src/3d/vendor/three/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="game3d-canvas"></canvas>
+<div id="game3d-loading" class="g3d-loading">
+  <div>Westeros 3D dünyası yükleniyor&hellip;</div>
+</div>
+<a class="g3d-back-link" href="index.html">&larr; 2D Haritaya Dön</a>
+<script type="module">
+  import { initGame3D } from './src/3d/game3d.js';
+  import { gameEvents } from './src/3d/eventBus.js';
+  import { EVENTS } from './src/3d/config.js';
+
+  const loadingEl = document.getElementById('game3d-loading');
+
+  gameEvents.on(EVENTS.GAME_READY, ({ phase }) => {
+    if (phase === 'phase1-scene' && loadingEl) {
+      loadingEl.classList.add('g3d-loading-hidden');
+    }
+  });
+
+  gameEvents.on(EVENTS.GAME_ERROR, ({ error }) => {
+    if (loadingEl) {
+      loadingEl.textContent = 'Bir şeyler ters gitti: 3D dünya başlatılamadı. Sayfayı yenilemeyi deneyin.';
+      loadingEl.classList.remove('g3d-loading-hidden');
+      loadingEl.classList.add('g3d-loading-error');
+    }
+    console.error('[game3d.html] game error', error);
+  });
+
+  initGame3D();
+</script>
+</body>
+</html>
