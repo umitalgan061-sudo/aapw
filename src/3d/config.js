@@ -52,6 +52,13 @@ export const WORLD_DEFAULTS = Object.freeze({
 	 * Every generator must derive from this via a seeded PRNG — never `Math.random()` — so the
 	 * same seed always reproduces the same world. */
 	WORLD_SEED: 1337,
+	/** Sea level, in world-space meters (same Y axis as terrain height). A shared constant because
+	 * more than one future system needs it (water.js's flood plane, later settlements.js should
+	 * never place a castle below it, roads/rivers should respect it) — not water.js-local tuning.
+	 * `terrain.js`'s default `maxHeightMeters` is 24, so this floods roughly the lowest quarter of
+	 * the FBM height range into natural-looking lakes/coastline without any change to terrain
+	 * generation itself (see DECISIONS.md ADR-0005). */
+	WATER_LEVEL_METERS: 6,
 });
 
 /**

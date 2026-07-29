@@ -13,13 +13,11 @@ KayKit, etc.) are used for `assets/`.
 
 ## Current Status
 
-- **Active Phase:** FAZ 1 ✅ TAMAMLANDI — all checklist items done (world scale corrected to a
-  completable ~137.5 km² target, terrain/chunk streaming, orbit camera, aurora sky, offline
-  precaching). FAZ 2 (Su/Atmosfer/Zaman) is next — see "This Run (run 5)" below for the
-  phase-gate retrospective.
-- **Last Update:** 2026-07-29 (run 5)
-- **Last Commit:** this run's `service-worker.js` 3D-shell precaching + `src/3d/README.md` +
-  FAZ 1 close-out (see "This Run (run 5)" below).
+- **Active Phase:** FAZ 1 ✅ TAMAMLANDI. FAZ 2 (Su/Atmosfer/Zaman) in progress: sea-level Gerstner
+  water (`world/water.js`) is live — see "This Run (run 6)" below.
+- **Last Update:** 2026-07-29 (run 6)
+- **Last Commit:** this run's `world/water.js` + `WATER_LEVEL_METERS` + DECISIONS.md ADR-0005 (see
+  "This Run (run 6)" below).
 - **Parallel work from a prior run:** while a previous routine run was in progress, the project
   owner (with help from a separate Claude session) pushed 3 commits directly to `main` adding more
   manually-downloaded assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
@@ -112,6 +110,12 @@ Triangles<500K, TextureMem<512MB.
   merging or `InstancedMesh` (per the project's performance guidelines) would cut draw calls
   substantially, but at 169 draw calls there's no measured problem to justify the added complexity
   yet — revisit if/when draw calls approach the budget ceiling.
+- **`sky.js` + `world/water.js` combined (added run 6):** 2 more draw calls (171 total, still 7% of
+  the desktop budget), ~960 sky triangles + ~32,768 water triangles (`PlaneGeometry(4000, 4000,
+  128, 128)`, 2 triangles/cell) ≈ 33.7K triangles — under 1% of the desktop triangle budget and a
+  small (6.7%) slice of the *mobile* triangle budget on its own; combined with a mobile-appropriate
+  25-chunk terrain view (~204K triangles, see above) that's still comfortably inside the 500K
+  mobile ceiling. No `InstancedMesh`/LOD needed yet for either.
 
 ## Roadmap
 
@@ -170,8 +174,16 @@ Triangles<500K, TextureMem<512MB.
   still loads offline exactly as before (pre-existing `firebase is not defined` page error,
   unrelated to this change, reproduced identically before/after).
 
-### FAZ 2 — Su/Atmosfer/Zaman (pending)
-- [ ] Gerstner wave su (`water.js`)
+### FAZ 2 — Su/Atmosfer/Zaman (in progress)
+- [x] Gerstner wave su (`world/water.js`) — one camera-following sea-level plane (fixed at
+  `WORLD_DEFAULTS.WATER_LEVEL_METERS`, 6m), three summed Gerstner waves computed in the vertex
+  shader (real per-vertex normals from accumulated tangent/binormal, not a flat-plane fake),
+  Fresnel-mixed shallow/deep color plus a Blinn-Phong specular highlight matching the scene's
+  existing sun direction. No `terrain.js` changes needed — existing low-noise valleys already sit
+  near y=0, so they flood into natural-looking lakes/coastline automatically (see DECISIONS.md
+  ADR-0005 for why this is one plane, not per-chunk water). Verified with a headless-Chromium
+  bird's-eye screenshot: dozens of natural lake/pond shapes visible across the terrain, matching
+  the low points of the existing FBM noise, zero console errors.
 - [ ] Şelale (nehir yükseklik farkına göre)
 - [ ] Fog / volumetric ışık
 - [ ] Gün-gece döngüsü + yıldızlı gece (`lighting.js`)
@@ -626,8 +638,74 @@ conventions section once decided). World Coverage remains 30.73% (42.25 km² / 1
 unchanged this run (no terrain/doc-only changes to World Coverage's inputs); growing it stays
 below FAZ-2-content work in priority since only FAZ 3/FAZ 10 have a hard coverage gate.
 
+## This Run (2026-07-29, run 6)
+
+**Session Snapshot taken at start of run** (per protocol): repo clean, `HEAD` on `main` at
+`1083eba` (run 5's FAZ-1-close-out commit, already pushed). The user asked mid-run to continue and
+switched the reporting language to Turkish going forward — no other instruction change. Continuing
+run 5's documented "Next step": start FAZ 2 with water, since it's self-contained (no dependency on
+the not-yet-built day/night `lighting.js`).
+
+**Done:**
+- **Design decision made and recorded before writing code (DECISIONS.md ADR-0005):** sea-level
+  water is one large Gerstner-wave plane, fixed at a new `WORLD_DEFAULTS.WATER_LEVEL_METERS` (6m)
+  and re-centered on the camera every frame (same technique as `sky.js`) — not per-chunk water, and
+  no changes to `terrain.js`. Reasoning, alternatives considered, and consequences are in the ADR;
+  short version: `terrain.js`'s existing FBM height already produces natural valleys near y=0, so a
+  flat plane at a modest sea level floods them into believable lakes/coastline for free.
+- **Built `src/3d/world/water.js`:** `createWater(waterLevelMeters)` / `updateWater(mesh,
+  cameraPosition, elapsedSeconds)` / `disposeWater(mesh)`. Vertex shader sums three Gerstner waves
+  (different direction/wavelength/steepness) and derives a real per-vertex normal from the
+  accumulated tangent/binormal (not a fake flat normal); fragment shader Fresnel-mixes a
+  shallow/deep color pair and adds a Blinn-Phong specular highlight using the same sun direction as
+  `game3d.js`'s existing `DirectionalLight`. `PlaneGeometry(4000, 4000, 128, 128)` — see Performance
+  Budget Status for the triangle-count accounting.
+- Wired into `game3d.js`: water mesh added to the scene, `updateWater()` called every render-loop
+  tick (reusing the same `THREE.Clock` `sky.js` already added), `disposeWater()` called on
+  `pagehide` alongside the existing cleanup chain.
+- **`service-worker.js`:** added `./src/3d/world/water.js` to `GAME3D_SHELL_FILES` — a new
+  code-imported file must join the offline precache list the moment it's added, or FAZ 1's
+  "the 3D mode works fully offline" guarantee silently regresses for anyone who installed the PWA
+  before this file existed. (Caught this myself this run rather than a future run finding it stale.)
+- Updated `src/3d/world/README.md` (new `water.js` entry, a sea-level convention note, and — while
+  already editing this file — corrected its `chunkManager.js` description, which had gone stale
+  since run 3/4 added `streamTowards`/cumulative-coverage tracking but nobody had updated this
+  particular README), `ARCHITECTURE.md` (new `water.js` entry, updated `game3d.js` entry), and
+  `src/3d/README.md` (config.js description, `world/` subfolder one-liner).
+- **Regression guard:** `node --check` on every non-vendored `src/3d/**/*.js` file (including the
+  new `water.js`) plus `script.js`/`service-worker.js`. All pass.
+- **Real smoke test:** served the repo locally, drove headless Chromium. Zero `pageerror`/
+  `console.error` events across a close-up pass (confirms the shader compiles and renders, visible
+  turquoise water patches against the terrain) and a zoomed-out bird's-eye pass (confirms water
+  fills natural low points scattered across the whole loaded terrain area, matching the FBM noise's
+  own valley shapes — not a uniform ocean covering everything, which would have signaled the sea
+  level was set too high relative to `terrain.js`'s `maxHeightMeters`).
+
+**Files changed this run:** `src/3d/world/water.js` (new), `src/3d/config.js`
+(`WATER_LEVEL_METERS`), `src/3d/game3d.js` (water wiring), `service-worker.js`
+(`GAME3D_SHELL_FILES`), `DECISIONS.md` (new ADR-0005), `src/3d/world/README.md`, `ARCHITECTURE.md`,
+`src/3d/README.md`, `3D_GAME_PROGRESS.md` (this file). Nine files — over the ≤5-files "one
+sub-task" guidance from earlier runs' own retrospectives, but within this run's actual budget
+(≤20 files / ≤800 lines); the extra files are all documentation kept in sync with one atomic code
+change (one new module + its config constant + its wiring + its offline-cache entry), not multiple
+unrelated changes bundled together.
+
+**Next step for the next run:** FAZ 2's remaining items: waterfalls (needs a river/height-drop
+concept `terrain.js` doesn't have yet — design that before writing code, same as this run did for
+water/sea-level), fog/volumetric light, and the day/night cycle (`lighting.js`). Recommended order
+per run 5's notes, still valid: day/night next (self-contained, like water was), *then* revisit
+`sky.js` to gate the aurora to nighttime-only (flagged in Known Issues) — rivers/waterfalls last
+since they're the one item that needs a new terrain concept, not just a new independent system.
+World Coverage unchanged at 30.73% (42.25 km² / 137.5 km²) — this run added a visual system, not
+terrain area.
+
 ## Known Issues / Tech Debt
 
+- **`world/water.js` has no river/height-drop concept yet — waterfalls need one.** The current
+  water system is a single flat sea-level plane; it has no idea where a river channel is or where
+  terrain drops steeply enough for a waterfall. FAZ 2's waterfall item needs a design decision
+  first (a river-path concept in `terrain.js`, or a separate `rivers.js`), not just more shader
+  work — don't start it as "more water.js" without that decision.
 - **`sky.js`'s aurora is always-on, not gated by time-of-day.** There is no day/night system yet
   (Phase 2's `lighting.js`). Once it exists, fade the aurora in only at night (it currently reads
   fine as a stylized "north of the Wall" identity regardless of time, but a literal day/night cycle

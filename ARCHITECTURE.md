@@ -87,6 +87,22 @@ the way it is.
   fall out of range. No eviction policy exists yet; see ADR-0003 for why that's deliberate for now
   and what would trigger adding one.
 
+## `src/3d/world/water.js` — Sea-level water
+
+- **Depends on:** `three` (vendored) only. Deliberately does not import `terrain.js`/
+  `chunkManager.js` — it doesn't need to know where terrain chunks are; a fixed-height plane
+  intersects whatever terrain exists automatically. Reads `WORLD_DEFAULTS.WATER_LEVEL_METERS` via
+  the `waterLevelMeters` parameter its caller passes in, not by importing `config.js` directly
+  (matches `terrain.js`'s existing "caller passes config values explicitly" convention).
+- **Used by:** `game3d.js` (`createWater`/`updateWater`/`disposeWater`) — one water mesh,
+  re-centered on the camera every frame, same pattern as `sky.js`.
+- **Critical path:** no — purely visual, same failure-mode profile as `sky.js` (a shader compile
+  issue would misrender, not throw).
+- **Failure mode:** none currently guarded. See DECISIONS.md ADR-0005 for why this is one
+  camera-following plane rather than per-chunk water geometry, and why `terrain.js` needed no
+  changes for lakes/coastline to appear (existing low-noise valleys are already at/near y=0,
+  below the new sea level).
+
 ## `src/3d/camera.js` — Orbit camera controls
 
 - **Depends on:** `src/3d/vendor/three/addons/controls/OrbitControls.js` (vendored three.js r160
@@ -121,13 +137,13 @@ the way it is.
 ## `src/3d/game3d.js` — Entry point / scene bootstrap
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
-  `world/chunkManager.js`, `camera.js`, `sky.js`.
+  `world/chunkManager.js`, `world/water.js`, `camera.js`, `sky.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, lighting, resize
-  handling, the `OrbitControls` instance, the `ChunkManager` instance, the aurora sky mesh, and the
-  `requestAnimationFrame` render loop (which also drives `controls.update()`,
-  `streamAroundOrbitTarget()`, and `updateAuroraSky()` each frame — see `world/chunkManager.js`,
-  `sky.js`, and DECISIONS.md ADR-0003).
+  handling, the `OrbitControls` instance, the `ChunkManager` instance, the aurora sky mesh, the
+  water plane, and the `requestAnimationFrame` render loop (which also drives `controls.update()`,
+  `streamAroundOrbitTarget()`, `updateAuroraSky()`, and `updateWater()` each frame — see
+  `world/chunkManager.js`, `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003).
 - **Failure mode:** `initGame3D()` is fully try/caught — a WebGL init failure sets
   `gameState.error` and emits `GAME_ERROR` (caught by `game3d.html`'s error-screen listener above)
   rather than throwing an uncaught exception. If `#game3d-canvas` isn't present, rendering is

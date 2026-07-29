@@ -15,9 +15,10 @@ non-obvious choices lives in `DECISIONS.md` (ADR log). This file is just an inde
 - **`assetLoader.js`** — `AssetLoader`: wraps `GLTFLoader` (lazy-imported), placeholder-mesh
   fallback on load failure, `disposeObject3D()` cleanup helper.
 - **`config.js`** — every constant: vendor/asset paths, quality presets, `WORLD_SCALE`/
-  `CHUNK_CONFIG`, storage keys, event names. No magic numbers should live outside this file (folder
-  README exceptions: `world/terrain.js`'s local color/noise-scale constants and `sky.js`'s local
-  color/radius constants — small, single-module tuning values that don't need to be global).
+  `CHUNK_CONFIG`, `WORLD_DEFAULTS.WATER_LEVEL_METERS`, storage keys, event names. No magic numbers
+  should live outside this file *unless* they're single-module cosmetic tuning nothing else reads
+  (e.g. `world/terrain.js`'s color/noise-scale constants, `sky.js`'s aurora colors, `world/water.js`'s
+  wave shape/plane-extent constants) — shared, cross-system facts like sea level belong here instead.
 - **`camera.js`** — `createOrbitCamera()`, the dev-preview `OrbitControls` wrapper. Will likely be
   replaced (not extended) by a real third-person camera in Phase 4.
 - **`sky.js`** — `createAuroraSky()`/`updateAuroraSky()`/`disposeAuroraSky()`: procedural aurora
@@ -25,7 +26,7 @@ non-obvious choices lives in `DECISIONS.md` (ADR log). This file is just an inde
 
 ## Subfolders
 
-- **`world/`** — terrain/chunk streaming; see its own `README.md`.
+- **`world/`** — terrain, chunk streaming, sea-level water; see its own `README.md`.
 - **`vendor/`** — vendored third-party code (Three.js r160 + official addons), never hand-edited;
   see `3D_GAME_PROGRESS.md`'s Asset Sources table for exact provenance/license of each file.
 

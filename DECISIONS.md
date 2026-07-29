@@ -196,3 +196,60 @@ further cumulative growth from `streamTowards()` now compounds against the small
 target instead of the un-completable one. `3D_GAME_PROGRESS.md` is updated accordingly this run.
 Any future world-scale change must update `WORLD_SCALE`/`CHUNK_CONFIG` in `config.js`, this ADR,
 and the World Coverage section together, same as ADR-0001 required.
+
+## ADR-0005: sea-level water as one camera-following plane, not per-chunk geometry; terrain.js untouched
+
+**Date:** 2026-07-29
+
+**Decision:** FAZ 2's water (`world/water.js`) is a single large Gerstner-wave-shaded plane, fixed
+at world Y = `WORLD_DEFAULTS.WATER_LEVEL_METERS` (6m), re-centered on the camera's XZ position
+every frame (same trick `sky.js` already uses for its skybox sphere) rather than one water mesh
+per terrain chunk. `terrain.js`'s height generation is **not modified** — no negative heights, no
+new "is this vertex underwater" concept baked into terrain data at all.
+
+**Reasoning:**
+- `terrain.js`'s existing FBM height is `noise * maxHeightMeters` (always in `[0, 24)` today) —
+  its low points (noise near 0) already read as natural valleys. A flat plane at a modest sea level
+  (6m, about a quarter of the height range) floods exactly those valleys into lakes/coastline with
+  zero terrain-generation changes, zero regression risk to the 169 chunks already generated and
+  screenshotted in prior runs, and zero new state for `ChunkManager` to track. This is the smallest
+  change that produces a real, natural-looking result — preferred per the project's own
+  "when in doubt, less code" rule over inventing a coupled terrain/water height system this early.
+- **Camera-following, not chunk-based:** a per-chunk water mesh would need `ChunkManager` to know
+  which chunks are "wet enough to bother," would multiply draw calls by resident chunk count (169
+  today, growing via streaming), and would need its own load/unload lifecycle mirroring terrain's.
+  A single ~4000m x 4000m plane recentered on the camera (not literally infinite, but larger than
+  what's visible before the far clip plane/horizon absorbs the edge) is one mesh, one draw call,
+  and needs no lifecycle beyond what `sky.js` already established as a pattern — the two systems
+  now share one well-understood technique instead of two different ones.
+- **Why `WATER_LEVEL_METERS` lives in `config.js`, unlike `sky.js`'s local color constants:** sea
+  level is a fact multiple future systems need to agree on (Phase 3 `settlements.js` must not place
+  a castle below it; Phase 2's own later `rivers.js`/waterfall work needs to know where "sea" ends
+  and "river" begins). `sky.js`'s aurora colors, by contrast, are single-module cosmetic tuning
+  nothing else will ever read — that's why they stayed local. This mirrors the project's own
+  established distinction (see `src/3d/README.md`'s Conventions section).
+
+**Alternatives considered:**
+- *Carve real below-zero terrain (lakebeds/ocean floor) into `terrain.js`.* Rejected for now:
+  meaningfully more complex (renormalizing the height curve, redoing the grass→rock vertex-color
+  gradient's assumptions, revalidating all 169 already-generated/screenshotted chunks) for a visual
+  difference that isn't needed yet — there's no underwater gameplay or diving camera to justify
+  seeing a real seabed. Revisit if/when a system actually needs to know "how deep is this water,"
+  not before.
+- *Per-chunk water mesh, added/removed by `ChunkManager` alongside terrain.* Rejected: couples two
+  systems that don't need to be coupled yet (water is flat/uniform everywhere at this fidelity
+  level; only terrain varies per chunk) and multiplies draw calls for no visual benefit over one
+  large plane at this world scale (12km x 11km total — a single reasonably-sized plane already
+  covers any camera position without visible edges).
+- *Truly infinite/world-sized water plane (matching `WORLD_SCALE.WORLD_WIDTH_METERS` exactly).*
+  Rejected: unlike the sky (which is a backdrop, never needs geometric precision), a literal
+  12,022m x 10,797m plane at full segment density would be a real triangle-budget cost for area
+  the camera can't currently reach anyway (`maxDistance` is 1800m — see ADR-0004/run-4's far-plane
+  fix). A camera-following ~4000m plane costs the same either way visually, at a fraction of the
+  triangle count.
+
+**Consequence:** `WORLD_DEFAULTS.WATER_LEVEL_METERS` is now a value every future world-placement
+system (settlements, rivers, roads) must check against, not just `water.js`. If a later phase adds
+real bathymetry (an actual seabed below the water plane) or per-region sea levels, this ADR's
+"one flat plane, one constant" model is what gets superseded — update this file when that happens,
+same as every prior world-scale change has.
