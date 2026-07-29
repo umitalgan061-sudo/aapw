@@ -15,9 +15,12 @@ KayKit, etc.) are used for `assets/`.
 
 - **Active Phase:** FAZ 1 — İskelet ve Arazi (in progress: world scale corrected down to a
   completable ~137.5 km² target — see World Coverage below — `game3d.html` renders 169 real seeded
-  terrain chunks via `ChunkManager` + an interactive orbit camera; sky not built yet)
+  terrain chunks via `ChunkManager`, an interactive orbit camera, and real position-based chunk
+  streaming as that camera explores; sky not built yet)
 - **Last Update:** 2026-07-29 (run 3)
-- **Last Commit:** `f7c513b` (interactive orbit camera, before this run's world-scale correction).
+- **Last Commit:** merge of `bd1c513` (this run's world-scale correction) with `1225786` (a
+  parallel session's real position-based chunk streaming, pushed to `main` while this run was in
+  progress — see "This Run (run 3)" below for how the two were reconciled).
 - **Parallel work from a prior run:** while a previous routine run was in progress, the project
   owner (with help from a separate Claude session) pushed 3 commits directly to `main` adding more
   manually-downloaded assets: 6 more Mixamo character models (`arissa`, `dreyar`, `erika_archer`,
@@ -53,23 +56,32 @@ KayKit, etc.) are used for `assets/`.
 
 **World Coverage: 30.73% (42.25 km² / 137.5 km² target)**
 
-- **Target area corrected this run (2026-07-29, run 3) — see DECISIONS.md ADR-0003.** The prior
-  4278 km² target (ADR-0001, `METERS_PER_MAP_UNIT: 10`) was ruled un-completable in realistic time
-  and is superseded. The padded kingdom bounding box is unchanged (14 `INIT_KINGDOMS` seats,
-  re-verified against current `script.js` this run: x:[920,6190]/y:[300,5370] raw, padded to
+- **Target area corrected this run — see DECISIONS.md ADR-0004.** The prior 4278 km² target
+  (ADR-0001, `METERS_PER_MAP_UNIT: 10`) was ruled un-completable in realistic time and is
+  superseded. The padded kingdom bounding box is unchanged (14 `INIT_KINGDOMS` seats, re-verified
+  against current `script.js` this run: x:[920,6190]/y:[300,5370] raw, padded to
   x:[120,6990]/y:[0,6170]) but the scale is now **1.75 m/map-unit**, giving a **12.02km x 10.80km**
   world (~129.8 km² by exact bounds), rounded up to a **25 x 22 grid of 500m x 500m chunks =
   137.5 km²** (550 total chunk slots, down from 17,112). These numbers are the source of truth in
-  `src/3d/config.js` (`WORLD_SCALE`, `CHUNK_CONFIG`) — full derivation in `DECISIONS.md` ADR-0003.
-- **Covered area:** 42.25 km² — unchanged from before this run; no new chunks were generated, only
-  the target denominator was corrected. Still the same 13x13 neighborhood of 169 real, seeded
-  terrain chunks (`world/chunkManager.js`, centered on grid coordinate `(0, 0)`, radius
-  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` — see DECISIONS.md ADR-0002), out of 550 chunk slots
-  in the new grid (30.7% of them). Keep growing it before visual polish, per the project's own
-  priority rule — but measure the desktop performance budget every time it grows (see below), and
-  note the preview neighborhood is already a substantial fraction of the whole small world now, so
-  further growth should favor real position-based streaming over just enlarging the static preview
-  radius (see "Next step" below).
+  `src/3d/config.js` (`WORLD_SCALE`, `CHUNK_CONFIG`) — full derivation in `DECISIONS.md` ADR-0004.
+- **Covered area (boot baseline): 42.25 km²** — a 13x13 neighborhood of 169 real, seeded terrain
+  chunks (`world/chunkManager.js`, centered on grid coordinate `(0, 0)`, radius
+  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` — see DECISIONS.md ADR-0002), out of **550** chunk
+  slots in the new grid (30.7% of them — down from 17,112 slots/0.9876%, a corrected denominator,
+  not new terrain). This is the deterministic, reproducible number any page load produces. Keep
+  growing it before visual polish, per the project's own priority rule — but measure the desktop
+  performance budget every time it grows (see below), and note the preview neighborhood is already
+  a substantial fraction of the whole small world now, so further growth should favor real
+  position-based streaming over just enlarging the static preview radius.
+  **Tracked from `getCumulativeCoveredAreaKm2()`, not `getCoveredAreaKm2()`** — see DECISIONS.md
+  ADR-0003: `game3d.js` also additively **streams in more chunks at runtime** as the interactive
+  camera's orbit target crosses into unvisited chunks (never unloading — see ADR-0003 for why
+  eviction is deliberately deferred), so real interactive sessions grow coverage further than this
+  static baseline. Verified with a headless pan simulation: panning ~7000m past the preview's edge
+  grew cumulative coverage from 42.25 km² to 54.75 km² (now 39.8% of the corrected 137.5 km² target,
+  up from what would have been 1.28% of the old 4278 km² one) with zero errors, confirming the
+  mechanism works — but that number is session-specific runtime behavior, not a new fixed baseline
+  to report here.
 - Per the project's phase-gate rules, FAZ 3 and FAZ 10 cannot be marked DONE below 80% coverage
   (crisis exception: fix critical bugs/perf first, then resume geographic growth).
 
@@ -137,13 +149,14 @@ Triangles<500K, TextureMem<512MB.
   terrain is generic rolling FBM (confirmed to tile seamlessly across chunk borders, since noise
   is sampled in world-space coordinates, not per-chunk-local ones).
 - [x] `src/3d/world/chunkManager.js` — `ChunkManager` (`loadChunk`/`unloadChunk`/`loadSquare`/
-  `disposeAll`, plus `getCoveredAreaKm2()` for World Coverage). `game3d.js` loads a
-  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (6 → 13x13 = 169 chunks) neighborhood around the
-  origin at bootstrap — see DECISIONS.md ADR-0002 for why this is a separate constant from
-  `STREAM_RADIUS_CHUNKS` (which stays mobile-budget-sized for the real future streaming system).
-  Still a **fixed one-time load**, not real position-based streaming — that needs a player/
-  camera-follow position to stream around, which doesn't exist until FAZ 4. Out of 550 total
-  chunk slots (corrected this run — see World Coverage above), 169 are now real.
+  `disposeAll`, plus `getCoveredAreaKm2()`/`getCumulativeCoveredAreaKm2()` for World Coverage).
+  `game3d.js` loads a `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (6 → 13x13 = 169 chunks)
+  neighborhood around the origin at bootstrap (ADR-0002), **and** now additively
+  `streamTowards()`s more chunks at runtime as the camera's orbit target moves — real
+  position-based streaming (ADR-0003), just without eviction yet (no need for it until either the
+  resident count nears budget or FAZ 4 gives us a real player — see ADR-0003). Out of **550** total
+  chunk slots (corrected this run from 17,112 — see World Coverage above and DECISIONS.md
+  ADR-0004), 169 are real at boot; more accumulate as the world is explored.
 - [ ] Confirm responsive layout + PWA `start_url`/manifest still resolve correctly with the new page present (not yet checked — `game3d.html`/`.css`/`src/3d/**` are not in `service-worker.js`'s cache list yet, so the 3D mode currently requires network/first-load; flagged under Known Issues)
 
 ### FAZ 2 — Su/Atmosfer/Zaman (pending)
@@ -198,6 +211,150 @@ Triangles<500K, TextureMem<512MB.
 - [ ] Shadow optimizasyonu
 - [ ] Memory leak taraması (`AssetLoader.disposeObject3D` already exists — audit all systems use it)
 
+## This Run (2026-07-29, run 2)
+
+**Session Snapshot taken at start of run** (per protocol):
+- Last 3 commits before this run: `7b5c2de` feat(assets): Idle/Walking/Running animations for
+  Peasant Girl; `25f8c86` feat(assets): Peasant Girl character model from Mixamo; `c2bfb74`
+  feat(3d): scaffold Phase 0 architecture. Affected systems: `assets/`, `assets_manifest.json`,
+  `src/3d/*` (Phase 0 only — no terrain/scene/chunk system existed yet).
+- **Git issue found and fixed:** the session started with `HEAD` detached at `7b5c2de` while the
+  local `main` ref was stale at `38e09e7` (pre-3D-mode). `origin/main` was already at `7b5c2de`
+  (last run did push correctly) — this was a local checkout artifact, not data loss. Fixed with
+  `git fetch origin main && git checkout main && git merge --ff-only origin/main`.
+- No open regression/bug list existed. No FPS numbers exist yet (no renderer built). No loaded
+  assets at runtime yet (4 Mixamo files exist on disk but nothing in `src/3d/` references them
+  yet). Riskiest files right now: `src/3d/vendor/three/three.module.js` (53k lines, vendored —
+  never hand-edit, only re-vendor a pinned version), `script.js` (214KB, 2D game's single largest
+  file, must stay untouched by 3D work), `assets_manifest.json` (must stay in sync with `assets/`
+  by hand — no automated check yet, flagged as tech debt below).
+- World Coverage before this run: not yet computed as a number (0% implicitly, no baseline existed).
+
+**Done:**
+- Regression guard: re-ran `node --check` on `script.js`, `service-worker.js`, and every
+  `src/3d/*.js` file, plus JSON-validated `manifest.json` and `assets_manifest.json`. All pass.
+- Computed the kingdom-seat bounding box from `INIT_KINGDOMS` in `script.js` (14 seats, x:[920,6190]
+  y:[300,5370] inside the 9000x7000 `#map-canvas`), and turned it into a concrete world scale: see
+  `DECISIONS.md` ADR-0001. Added `WORLD_SCALE` and `CHUNK_CONFIG` to `src/3d/config.js`.
+- Added the mandatory **World Coverage** metric to this file (see section above): 0% (0 km² /
+  4278 km²) — target computed, nothing generated yet.
+- Backfilled the asset/docs gap left by the two prior commits (Mixamo character + animations were
+  committed but this progress file was never updated to mention them) — see "Manually-added
+  assets" under Current Status.
+- Created `DECISIONS.md` (ADR log, ADR-0001 is the world-scale decision above).
+- **Second sub-task, same run:** built the first real FAZ 1 slice. Added `game3d.html` +
+  `game3d.css` (isolated page/stylesheet, own import map for `three`/`three/addons/`) and extended
+  `initGame3D()` in `game3d.js` to create a `WebGLRenderer`/`Scene`/`PerspectiveCamera`, a
+  hemisphere+directional light pair, a flat placeholder ground plane sized to
+  `CHUNK_CONFIG.CHUNK_SIZE_METERS`, window-resize handling, and a `requestAnimationFrame` render
+  loop with `pagehide` cleanup (cancels the frame, unbinds resize, disposes geometry/material/
+  renderer — memory-leak checklist). `initGame3D()` still no-ops safely (warns, doesn't throw) if
+  `#game3d-canvas` isn't on the page. Added the "🎮 3D Dünya" button to `index.html`'s existing
+  toolbar (`<a class="tb-btn" href="game3d.html">`, nothing else touched).
+- **Regression + real smoke test (not just `node --check`):** served the repo locally
+  (`http-server`) and drove real headless Chromium (Playwright, pre-installed browser) against
+  both pages. `game3d.html`: zero page errors, `GAME_READY` fired for both `phase0-architecture`
+  and `phase1-scene`, loading overlay correctly hid itself, and a screenshot confirms the lit
+  green ground chunk actually renders (not just "no exceptions"). `index.html`: the new button
+  exists in the DOM with the correct `href`/title after entering the game. Also found that
+  clicking "OYNAT" produces a blank black screen in this sandboxed headless environment — verified
+  this is **pre-existing** by stashing the diff and re-running the identical test against the prior
+  commit, which reproduced byte-for-byte the same blank screen and the same `firebase is not
+  defined` / blocked-network console errors. Not a regression from this run; likely this sandbox
+  blocking outbound requests for `resimler/map.png`/Firebase, not a real-device issue. Flagged
+  below for whoever next needs to browser-test the 2D game in this kind of sandbox.
+
+- **Third sub-task, same run:** built `src/3d/world/terrain.js` (new `src/3d/world/` folder, with
+  its own README per the project's per-folder-README rule) — a seeded `mulberry32` PRNG, a hashed-
+  lattice value-noise function, and 5-octave FBM on top of it, baked into a displaced + vertex-
+  colored `PlaneGeometry` per chunk. `game3d.js` now calls `createTerrainChunk({chunkX:0, chunkZ:0,
+  seed: WORLD_DEFAULTS.WORLD_SEED, size: CHUNK_CONFIG.CHUNK_SIZE_METERS})` instead of building a
+  flat placeholder plane inline, and disposes it via `disposeTerrainChunk` on `pagehide`. Added
+  `WORLD_DEFAULTS.WORLD_SEED` (1337) to `config.js` — the one master seed all world generation
+  should derive from. Re-ran the headless-Chromium smoke test: zero console/page errors, and the
+  screenshot shows real height variation and a grass→rock color gradient (not a flat green plane).
+  World Coverage moved from 0% to 0.0058% (one real chunk now exists, out of 17,112 slots).
+
+- **Fourth sub-task, same run:** built `src/3d/world/chunkManager.js` (`ChunkManager`:
+  `loadChunk`/`unloadChunk`/`loadSquare`/`disposeAll`/`getCoveredAreaKm2()`/`loadedCount`).
+  `game3d.js` now calls `chunkManager.loadSquare(0, 0, CHUNK_CONFIG.STREAM_RADIUS_CHUNKS)` (radius
+  2 → a 5x5 = 25-chunk neighborhood) instead of rendering a single hardcoded chunk, camera moved
+  back (`(0, 700, 1200)`, still fixed/non-interactive — not a camera-controls sub-task) to frame
+  the larger area, and `pagehide` cleanup now calls `chunkManager.disposeAll()`. Re-ran the
+  headless-Chromium smoke test: zero console/page errors, log confirms "25 terrain chunks (~6.25
+  km²)", and the screenshot shows one continuous, seamless rolling landscape — no visible seams at
+  chunk borders, confirming world-space noise sampling in `terrain.js` was the right call. World
+  Coverage moved from 0.0058% to 0.1461%.
+
+- **Fifth sub-task, same run:** grew World Coverage further and, in doing so, caught a config
+  smell before it shipped. Added `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (6) as a distinct
+  constant from `STREAM_RADIUS_CHUNKS` (2) — see DECISIONS.md ADR-0002 for why reusing
+  `STREAM_RADIUS_CHUNKS` for this desktop-only preview load would have quietly turned a
+  "mobile-budget streaming radius" constant into a "desktop preview radius" one, corrupting a
+  number Phase 10 will need later. `game3d.js` now loads a 13x13 = 169-chunk neighborhood.
+  Measured (see new "Performance Budget Status" section above): 169 draw calls / ~1.38M triangles
+  (well inside desktop budget, ~2.8x over mobile budget — expected, this preview is desktop-only),
+  169 chunks generated in ~630ms one-time cost, and did a before/after FPS comparison (169 vs. 25
+  chunks) in this sandbox to confirm the low sampled FPS (~5) is a SwiftShader
+  software-rendering artifact — not a regression from adding chunks — before writing it down as
+  fact rather than assumption. World Coverage moved from 0.1461% to 0.9876% (crossed 1%).
+
+- **Sixth sub-task, same run:** built `src/3d/camera.js` (`createOrbitCamera`) wrapping a newly
+  vendored `OrbitControls.js` (three.js r160 official addon, fetched from the same `unpkg.com`
+  pin as the core build and core-only-r160-matched — see Asset Sources). Damped, distance-limited
+  (20-4000m), and polar-angle-limited so the camera can't dip below the target's height (i.e.
+  can't orbit underground). `game3d.js` now creates it after positioning the camera, calls
+  `controls.update()` every frame (required for damping), and `controls.dispose()` on `pagehide`
+  alongside the existing chunk/renderer cleanup. Verified with a headless-browser **drag
+  simulation** (not just load-and-screenshot): captured a screenshot, dragged the canvas, captured
+  again — the horizon line visibly rotates between the two, proving pointer input actually drives
+  the camera. Zero console/page errors. This finishes the FAZ 1 roadmap's `camera.js` item. World
+  Coverage unchanged (this sub-task didn't add/remove chunks): still 0.9876%.
+- **Corrected a mistake from this run's own prior notes:** the "Next step" written after the
+  chunk-manager sub-task claimed "draw calls will bind before triangles do" as chunk count grows —
+  that's backwards. At 8192 triangles/chunk and one draw call/chunk, the **triangle** budget
+  (5M) is hit at ~610 chunks, while the **draw-call** budget (2500) wouldn't hit until ~2500
+  chunks. Corrected below so the next run doesn't optimize for the wrong constraint.
+
+- **Seventh sub-task, same run:** implemented the real position-based streaming the previous
+  "Next step" called for — turned out to fit in one run after all. `ChunkManager` gained
+  `streamTowards(centerChunkX, centerChunkZ, radius)` (additive-only: loads what's newly in range,
+  never unloads — see DECISIONS.md ADR-0003 for why eviction is deliberately deferred) and a
+  persistent `everGenerated` `Set` backing `getCumulativeCoveredAreaKm2()`/`everGeneratedCount`.
+  `game3d.js` calls it every frame the `OrbitControls` target has crossed into a new chunk (cheap
+  no-op check otherwise). Verified with a headless-browser **pan simulation**: right-drag the
+  canvas repeatedly to push the target ~7000m past the boot preview's edge, and confirmed via
+  console logs that new 5-chunk columns streamed in exactly at each chunk-boundary crossing, with
+  cumulative coverage climbing from 42.25 km² to 54.75 km² and zero errors. World Coverage's
+  reported baseline stays at the boot number (42.25 km², reproducible) since the streamed total is
+  session-specific — see the updated World Coverage section above for why the metric now reads
+  from `getCumulativeCoveredAreaKm2()` rather than the resident-chunk count.
+
+**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new, now 3 ADRs), `game3d.html`
+(new), `game3d.css` (new), `src/3d/game3d.js`, `index.html`, `ARCHITECTURE.md` (new),
+`src/3d/world/terrain.js` (new), `src/3d/world/chunkManager.js` (new), `src/3d/world/README.md`
+(new), `src/3d/camera.js` (new), `src/3d/vendor/three/addons/controls/OrbitControls.js` (new,
+vendored), `3D_GAME_PROGRESS.md` (this file). Seven separate commits (world-scale/config; scene
+bootstrap; terrain chunk; chunk manager; preview-radius split; orbit camera; real streaming) to
+keep each one atomic and independently revertable, plus one merge commit reconciling a parallel
+session's asset-only commits (6 more Mixamo characters, wolf, black_dragon — see Current Status
+above) with this run's work; no conflicts.
+
+**Next step for the next run (start here):** The boot-baseline coverage number (42.25 km²,
+0.9876%) hasn't moved in a few runs now — real exploration-driven growth exists but doesn't change
+what a fresh page load reports. Two honest paths forward, pick one rather than half-doing both:
+(a) **raise the boot baseline again** (bump `PHASE1_PREVIEW_RADIUS_CHUNKS`, re-measure the
+performance budget — remember the *triangle* budget binds first, at ~610 chunks, not draw calls);
+or (b) **stop treating the static number as the thing to grow** and instead build something that
+*exercises* the streaming system automatically (e.g. a simple scripted flythrough/orbit-target
+sweep that runs once at boot, in addition to interactive control, so every page load — not just
+ones a human happens to pan around — organically covers more area). (b) is more aligned with the
+project's actual goal (a world that gets explored, not a bigger static blob) but is a real
+sub-task of its own — don't rush it into a corner of an unrelated commit. Either way, re-run the
+headless-Chromium smoke test (pan simulation included) and update the World Coverage numbers to
+match reality, not aspiration. Once coverage is meaningfully higher, `sky.js` (aurora shader
+skybox) is next on the FAZ 1 roadmap. Keep each sub-task to ≤5 files per the blast-radius rule.
+
 ## This Run (2026-07-29, run 3)
 
 **Session Snapshot taken at start of run** (per protocol):
@@ -225,7 +382,7 @@ Triangles<500K, TextureMem<512MB.
   with no runtime code to touch and no risk of breaking the 169 already-generated chunks.
 
 **Done:**
-- **World-scale correction (DECISIONS.md ADR-0003):** `src/3d/config.js`'s `WORLD_SCALE.
+- **World-scale correction (DECISIONS.md ADR-0004):** `src/3d/config.js`'s `WORLD_SCALE.
   METERS_PER_MAP_UNIT` changed from `10` to `1.75` (same padded kingdom bounding box, only the
   meters-per-unit scale shrinks, per the corrected instruction that absolute meter scale doesn't
   matter, only "covers every kingdom" + "≤150 km² total" do). Resulting `WORLD_WIDTH_METERS`/
@@ -234,7 +391,7 @@ Triangles<500K, TextureMem<512MB.
   slots, down from 17,112), giving a rounded-to-whole-chunks target of **137.5 km²** — within the
   requested 100-150 km² band. `CHUNK_SIZE_METERS` (500m) was left unchanged; nothing required
   changing it, and 550 slots is already a sensible grid size.
-- Added `DECISIONS.md` ADR-0003 documenting the correction: exact numbers, reasoning (why the
+- Added `DECISIONS.md` ADR-0004 documenting the correction: exact numbers, reasoning (why the
   bounding box stays fixed and only the scale shrinks), alternatives considered, and the
   consequence for World Coverage's denominator.
 - Updated `3D_GAME_PROGRESS.md`'s **World Coverage** section, **Current Status**, and the FAZ 1
@@ -256,24 +413,46 @@ Triangles<500K, TextureMem<512MB.
   again to be unrelated to this run's config-only change, not a new regression).
 
 **Files changed this run:** `src/3d/config.js` (`WORLD_SCALE`/`CHUNK_CONFIG` correction),
-`DECISIONS.md` (new ADR-0003), `3D_GAME_PROGRESS.md` (this file — World Coverage, Current Status,
+`DECISIONS.md` (new ADR-0004), `3D_GAME_PROGRESS.md` (this file — World Coverage, Current Status,
 FAZ 1 checklist, this section). Documentation/config only — no `src/3d/world/**`, `game3d.js`, or
 2D-game files touched, matching the corrected instruction's "config/chunk system constants" scope.
 One commit (the correction is a single atomic, revertable unit — recomputing scale, grid, and both
 docs together is what keeps them from drifting out of sync with each other, unlike leaving the
 docs for a follow-up commit).
 
-**Next step for the next run:** World Coverage is now a healthy 30.73% against an achievable
-target, with 380 chunk slots still unloaded out of 550. Per the previous run's own (still valid)
-recommendation, the next structural move should be **position-based streaming** rather than
-further brute-force preview-radius growth: `PHASE1_PREVIEW_RADIUS_CHUNKS` (169 chunks) is already
-30.7% of the *entire* new world, so growing that static preview further has much less room before
-it becomes "just render everything" — a `ChunkManager.update(centerX, centerZ)` method that loads/
-unloads around a moving position (the orbit camera target works fine as a stand-in before FAZ 4's
-player exists), wired to `STREAM_RADIUS_CHUNKS` (the small, mobile-safe constant), is what actually
-lets World Coverage keep growing by *exploring* rather than by enlarging one fixed blob. `sky.js`
-(procedural aurora skybox, still unchecked in the FAZ 1 roadmap) is a good alternative next
-sub-task if streaming feels too large for one run — either is legitimate FAZ 1 work at this point.
+- **Parallel work found on push:** `git push` was rejected — a parallel session had pushed
+  `1225786` (`feat(3d): real position-based chunk streaming via orbit-target movement`) to `main`
+  while this run was in progress: `ChunkManager.streamTowards()`, `everGenerated`/
+  `getCumulativeCoveredAreaKm2()`, and `game3d.js` wiring to stream around the orbit target every
+  frame it crosses a chunk boundary (their own `DECISIONS.md` ADR-0003, sub-tasks 4-7 of what they
+  still labeled "run 2" — see that section above, restored to its full form in this merge). Merged
+  with `git merge origin/main` (real conflicts in `3D_GAME_PROGRESS.md`/`DECISIONS.md`, resolved by
+  hand — `ARCHITECTURE.md` auto-merged). Nothing in their change touches `WORLD_SCALE`/
+  `CHUNK_CONFIG`'s grid constants (confirmed by the same grep that found nothing outside
+  `config.js` reads them), so the two changes are orthogonal and compose cleanly: their streaming
+  code derives area-per-chunk from `chunkSizeMeters` at runtime rather than any hardcoded grid
+  total, so it is unaffected by the 17,112 → 550 slot correction. The only manual fixes required
+  were renumbering my new ADR from a colliding "ADR-0003" to **ADR-0004** (they had already claimed
+  0003 for the streaming decision) and updating every cross-reference to it, plus folding the two
+  World-Coverage write-ups (theirs: resident-vs-cumulative; mine: corrected denominator) into one
+  consistent section above. Re-ran the full regression guard (`node --check` + JSON validation)
+  and the headless-Chromium smoke test again post-merge: zero errors, log confirms
+  `"Loaded 169 terrain chunks (~42.25 km²)"` exactly as before.
+
+**Next step for the next run:** World Coverage's static/reproducible boot baseline is a
+healthy 30.73% (42.25 km² / 137.5 km²) against an achievable target, and a parallel session's
+streaming work (merged into this run — see "Parallel work found on push" above) already grows
+coverage further at runtime as the orbit target explores (demonstrated: 42.25 km² -> 54.75 km²,
+now 39.8% of the corrected target, in a pan test). With streaming already built, the next
+highest-value FAZ 1 sub-task is **`sky.js`** (procedural aurora shader skybox, still unchecked
+in the roadmap) — the one remaining unchecked item in FAZ 1 besides the PWA/manifest check.
+Alternatively, per that same parallel run's own still-valid suggestion: a scripted
+flythrough/orbit-target sweep at boot (so every page load organically explores more area, not
+just interactive sessions a human happens to pan around) would make the *reported* World
+Coverage number grow on its own rather than staying pinned to the 169-chunk static preview.
+Either is legitimate; don't half-do both in one run. Keep sub-tasks to ≤5 files per the
+blast-radius rule, and re-run the full regression guard + headless-Chromium smoke test
+(including a pan simulation if touching streaming) before committing.
 
 ## Known Issues / Tech Debt
 

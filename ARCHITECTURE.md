@@ -39,7 +39,7 @@ the way it is.
 - **Contains:** vendor/asset paths, quality presets, `WORLD_DEFAULTS` (FOV/near/far/target FPS),
   storage keys, event names, and `WORLD_SCALE`/`CHUNK_CONFIG` (the kingdom-bounding-box-derived
   world size and 500m chunk grid; bounding box from `DECISIONS.md` ADR-0001, scale corrected down
-  to a ≤150 km² target by ADR-0003 — always check ADR-0003 for the current numbers, not ADR-0001).
+  to a ≤150 km² target by ADR-0004 — always check ADR-0004 for the current numbers, not ADR-0001).
 - **Critical path:** yes — every system imports constants from here.
 - **Failure mode:** N/A (static data only).
 
@@ -73,14 +73,19 @@ the way it is.
 ## `src/3d/world/chunkManager.js` — ChunkManager
 
 - **Depends on:** `world/terrain.js` (`createTerrainChunk`/`disposeTerrainChunk`).
-- **Used by:** `game3d.js` (one `ChunkManager` instance, `loadSquare(0, 0,
-  CHUNK_CONFIG.STREAM_RADIUS_CHUNKS)` at scene-bootstrap time). Will be used by the future
-  position-based streaming system (not built yet).
-- **Critical path:** yes for World Coverage — `getCoveredAreaKm2()`/`loadedCount` are how that
-  metric will eventually be computed live instead of hand-updated in `3D_GAME_PROGRESS.md`.
+- **Used by:** `game3d.js` — one `ChunkManager` instance, `loadSquare(0, 0,
+  PHASE1_PREVIEW_RADIUS_CHUNKS)` at scene-bootstrap time, then `streamTowards(centerChunkX,
+  centerChunkZ, STREAM_RADIUS_CHUNKS)` every frame the `OrbitControls` target has crossed into a
+  new chunk (see `streamAroundOrbitTarget()` in `game3d.js`).
+- **Critical path:** yes for World Coverage — `getCumulativeCoveredAreaKm2()`/
+  `everGeneratedCount` are that metric's source of truth (not `getCoveredAreaKm2()`/`loadedCount`,
+  which reflect only currently-resident chunks — see DECISIONS.md ADR-0003).
 - **Failure mode:** none currently beyond what `terrain.js` can throw (nothing, today). Load/
   unload are idempotent (loading an already-loaded chunk key, or unloading a not-loaded one, is a
   safe no-op) so callers can't double-add or double-dispose a chunk by mistake.
+- **Known limitation, by design:** `streamTowards` is additive-only — it never unloads chunks that
+  fall out of range. No eviction policy exists yet; see ADR-0003 for why that's deliberate for now
+  and what would trigger adding one.
 
 ## `src/3d/camera.js` — Orbit camera controls
 
@@ -96,11 +101,13 @@ the way it is.
 
 ## `src/3d/game3d.js` — Entry point / scene bootstrap
 
-- **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`.
+- **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
+  `world/chunkManager.js`, `camera.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, lighting, resize
-  handling, and the `requestAnimationFrame` render loop. Currently renders one flat placeholder
-  ground plane (not yet real terrain — see `3D_GAME_PROGRESS.md` for the terrain sub-task).
+  handling, the `OrbitControls` instance, the `ChunkManager` instance, and the
+  `requestAnimationFrame` render loop (which also drives `controls.update()` and
+  `streamAroundOrbitTarget()` each frame — see `world/chunkManager.js` and DECISIONS.md ADR-0003).
 - **Failure mode:** `initGame3D()` is fully try/caught — a WebGL init failure sets
   `gameState.error` and emits `GAME_ERROR` (caught by `game3d.html`'s error-screen listener above)
   rather than throwing an uncaught exception. If `#game3d-canvas` isn't present, rendering is
