@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "peasant_girl",
+      "file": "assets/models/characters/peasant_girl.fbx",
+      "type": "character_model",
+      "source": "Adobe Mixamo",
+      "sourceUrl": "https://www.mixamo.com",
+      "license": "Adobe Mixamo License (free for use in personal/commercial projects, redistribution of raw asset not permitted)",
+      "version": 1,
+      "pose": "T-pose",
+      "format": "FBX Binary",
+      "lod": null,
+      "textureSize": null,
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Rigged medieval-style female character, downloaded manually via authenticated Mixamo session (cannot be automated by the cloud agent). Intended as base mesh for FAZ 4 (Oynanabilir Karakter) and/or generic NPC."
+    }
+  ]
+}
