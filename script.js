@@ -609,6 +609,10 @@ const RANDOM_EVENTS = [
   {id:'dragon_sighting',icon:'🐉',title:'Ejderha Görüldü',color:'#c8430a',desc:'Ufuklarda ejderha gölgesi.',effect:(k)=>{k.morale=Math.max(0,(k.morale||80)-15);return `-15 Moral`;}},
   {id:'royal_wedding',icon:'💍',title:'Nişan Haberi',color:'#c8386a',desc:'Komşu haneden nişan teklifi!',effect:(k)=>{k.gold+=50;k.territory=(k.territory||60)+5;return `+50 Altın, +5 Toprak`;}},
   {id:'winter_stores',icon:'🧊',title:'Kış Hazırlığı',color:'#8faabb',desc:'Verimli kış hazırlıkları.',effect:(k)=>{k.gold+=40;k.army=(k.army||50)+10;return `+40 Altın, +10 Asker`;}},
+  {id:'maester_gift',icon:'📜',title:'Maester Hediyesi',color:'#20c8a0',desc:'Citadel yeni bir bilgi zincirini paylaştı.',effect:(k)=>{const g=Math.floor(30+Math.random()*30);k.gold+=g;k.morale=Math.min(100,(k.morale||80)+5);return `+${g} Altın, +5 Moral`;}},
+  {id:'bandit_raid',icon:'🗡️',title:'Haydut Baskını',color:'#8b1a1a',desc:'Yol kesenler ticaret kervanını vurdu.',effect:(k)=>{const l=Math.floor(20+Math.random()*25);k.gold=Math.max(0,(k.gold||0)-l);k.morale=Math.max(0,(k.morale||80)-5);return `-${l} Altın, -5 Moral`;}},
+  {id:'blessed_harvest_moon',icon:'🌕',title:'Hasat Ayı',color:'#e8b420',desc:'Yedi Tanrı bu geceyi kutsadı.',effect:(k)=>{k.morale=Math.min(100,(k.morale||80)+12);k.territory=(k.territory||60)+2;return `+12 Moral, +2 Toprak`;}},
+  {id:'shipyard_boom',icon:'🚢',title:'Tersane Atılımı',color:'#4a88c8',desc:'Ustalar yeni gemi yapım tekniği buldu.',effect:(k)=>{k.navy=(k.navy||0)+8;k.gold=Math.max(0,(k.gold||0)-15);return `+8 Gemi, -15 Altın`;}},
 ];
 
 const TECHNOLOGIES = {
@@ -638,6 +642,7 @@ const MERCENARY_COMPANIES = [
   {id:'stormcrows',name:'Fırtına Kargaları',icon:'🐦',desc:'Hızlı baskın uzmanları',troops:30,bonus:'Saldırıda +30% güç',cost:120,duration:2,color:'#9040c0',battleBonus:0.30},
   {id:'unsullied',name:'Kirlilememiş',icon:'🛡️',desc:'Astapor\'un seçkin piyadeleri',troops:50,bonus:'Savunmada +35% güç',cost:250,duration:4,color:'#4a9c30',battleBonus:0.35},
   {id:'dothraki',name:'Dothrak Süvarileri',icon:'🏇',desc:'Kalabalık bozkır savaşçıları',troops:80,bonus:'Savaşta +15% güç',cost:180,duration:2,color:'#c8430a',battleBonus:0.15},
+  {id:'brave_companions',name:'Cesur Yoldaşlar',icon:'💀',desc:'Disiplinsiz ama ucuz zanaatkar-savaşçılar',troops:45,bonus:'Kuşatmada +20% güç',cost:90,duration:2,color:'#8b1a1a',battleBonus:0.20},
 ];
 
 const ACHIEVEMENTS_DEF = [
@@ -922,6 +927,70 @@ async function saveData(){
       db.collection('got3').doc('chronicles').set({events:chronicles.slice(-100)}),
     ]);
   }catch(e){ toast('⚠️ Kayıt hatası'); }
+}
+
+/* ════════ SAVE EXPORT / IMPORT (File System API + indirme yedeği) ════════ */
+function downloadSaveBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportSaveToFile(){
+  const payload = { version: 1, exportedAt: new Date().toISOString(), kingdoms, markers, globalState, chronicles };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const filename = `westeros-save-${new Date().toISOString().slice(0,10)}.json`;
+  if (window.showSaveFilePicker) {
+    (async () => {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: 'Westeros Kayıt Dosyası', accept: { 'application/json': ['.json'] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        toast('✓ Kayıt dosyaya aktarıldı');
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        downloadSaveBlob(blob, filename);
+        toast('✓ Kayıt indirildi');
+      }
+    })();
+  } else {
+    downloadSaveBlob(blob, filename);
+    toast('✓ Kayıt indirildi');
+  }
+}
+
+function triggerImportSaveDialog(){
+  const input = document.getElementById('save-import-input');
+  if (input) input.click();
+}
+
+async function importSaveFromFile(file){
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data || !Array.isArray(data.kingdoms)) { toast('⚠️ Geçersiz kayıt dosyası'); return; }
+    kingdoms = data.kingdoms;
+    kingdoms.forEach(ensureKingdomDefaults);
+    rebuildKingdomMap();
+    if (Array.isArray(data.markers) && data.markers.length) markers = data.markers;
+    if (data.globalState) globalState = { ...globalState, ...data.globalState };
+    nightKingThreat = globalState.nightKingThreat || 0;
+    if (Array.isArray(data.chronicles)) chronicles = data.chronicles;
+    await saveData();
+    renderAll();
+    toast('✓ Kayıt içe aktarıldı');
+  } catch (e) {
+    console.error(e);
+    toast('⚠️ Kayıt dosyası okunamadı');
+  }
 }
 
 async function saveChronicles(){
@@ -3376,6 +3445,13 @@ function showStats(){
                 </div>`;
             }).join('')}
         </div>`}
+
+        <div class="dipl-ttl" style="margin-top:20px;">💾 Kayıt Yönetimi</div>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+            <button class="tb-btn" style="width:auto;height:auto;padding:10px 14px;gap:8px;font-size:11px;font-family:'Cinzel',serif;letter-spacing:1px;" onclick="exportSaveToFile()"><i class="fa-solid fa-download"></i>&nbsp; Dışa Aktar</button>
+            <button class="tb-btn" style="width:auto;height:auto;padding:10px 14px;gap:8px;font-size:11px;font-family:'Cinzel',serif;letter-spacing:1px;" onclick="triggerImportSaveDialog()"><i class="fa-solid fa-upload"></i>&nbsp; İçe Aktar</button>
+        </div>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:8px;">Oyun kaydını bir JSON dosyasına aktarıp başka bir cihazda içe aktarabilirsin.</div>
     `;
     openPanel();
 }
