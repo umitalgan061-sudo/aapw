@@ -157,6 +157,43 @@
       "deprecated": false,
       "replacedBy": null,
       "notes": "Hooded rogue/assassin-style female character with dual blades. Shares Mixamo standard skeleton."
+    },
+    {
+      "id": "wolf",
+      "file": "assets/models/animals/wolf/Wolf-Blender-2.82a.glb",
+      "type": "creature_model",
+      "source": "Free3D (3dhaupt / Dennis Haupt)",
+      "sourceUrl": "https://free3d.com/3d-model/wolf-rigged-and-game-ready-42808.html",
+      "license": "Personal Use License (non-commercial, personal/private, editorial use only)",
+      "version": 1,
+      "format": "glTF Binary (.glb), also .gltf+.bin+textures available alongside",
+      "polygons": 1567,
+      "vertices": 1694,
+      "rigged": true,
+      "animated": true,
+      "animationClips": ["Walk cycle", "Run cycle", "Sit", "Creep cycle", "Idle"],
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Low-poly rigged/animated wolf for FAZ 6 (Hayvanlar). Manually downloaded by project owner (bu sitenin indirme akışı otomatik tıklamayla tetiklenmiyor). glTF/GLB kullan — Three.js GLTFLoader zaten vendored, dönüştürme gerekmez."
+    },
+    {
+      "id": "black_dragon",
+      "file": "assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx",
+      "textures": "assets/models/creatures/dragon/textures/",
+      "type": "creature_model",
+      "source": "Free3D (3dhaupt / Dennis Haupt)",
+      "sourceUrl": "https://free3d.com/3d-model/black-dragon-rigged-and-game-ready-92023.html",
+      "license": "Personal Use License (non-commercial, personal/private, editorial use only)",
+      "version": 1,
+      "format": "FBX Binary (baked actions)",
+      "polygons": 38000,
+      "vertices": 19400,
+      "rigged": true,
+      "animated": true,
+      "animationClips": ["Run cycle", "Walk cycle", "Idle", "Jump", "Open Wings", "Fly"],
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "ÖNEMLİ: Bu jenerik/orijinal bir ejderha tasarımıdır (3dhaupt'un kendi yaratımı), HBO/Game of Thrones'un 'Drogon' karakterinin kopyası DEĞİLDİR — o modeli kasıtlı olarak reddettik (telifli karakter replikası riski). FAZ 7 (Ejderhalar) için kullan. Manually downloaded by project owner (bu sitenin indirme akışı otomatik tıklamayla tetiklenmiyor)."
     }
   ]
 }
