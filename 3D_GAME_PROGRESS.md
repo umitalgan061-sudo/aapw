@@ -59,12 +59,20 @@ KayKit, etc.) are used for `assets/`.
   Full derivation, alternatives considered, and the exact numbers: `DECISIONS.md` ADR-0001.
   Summary: 68.7km x 61.7km world, rounded up to a 138 x 124 grid of 500m x 500m chunks = 4278 km².
   These numbers are now the source of truth in `src/3d/config.js` (`WORLD_SCALE`, `CHUNK_CONFIG`).
-- **Covered area:** 42.25 km² — a 13x13 neighborhood of 169 real, seeded terrain chunks
-  (`world/chunkManager.js`, centered on grid coordinate `(0, 0)`, radius
-  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` — see DECISIONS.md ADR-0002 for why this is a
-  separate constant from `STREAM_RADIUS_CHUNKS`), out of 17,112 chunk slots in the grid. Crossed
-  1% this run; keep growing it before visual polish, per the project's own priority rule — but
-  measure the desktop performance budget every time it grows (see below).
+- **Covered area (boot baseline): 42.25 km²** — a 13x13 neighborhood of 169 real, seeded terrain
+  chunks (`world/chunkManager.js`, centered on grid coordinate `(0, 0)`, radius
+  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` — see DECISIONS.md ADR-0002), out of 17,112 chunk
+  slots in the grid. This is the deterministic, reproducible number any page load produces.
+  Crossed 1% two runs ago; keep growing it before visual polish, per the project's own priority
+  rule — but measure the desktop performance budget every time it grows (see below).
+  **Note this is now tracked from `getCumulativeCoveredAreaKm2()`, not `getCoveredAreaKm2()`** —
+  see DECISIONS.md ADR-0003: as of this run, `game3d.js` also additively **streams in more chunks
+  at runtime** as the interactive camera's orbit target crosses into unvisited chunks (never
+  unloading — see ADR-0003 for why eviction is deliberately deferred), so real interactive
+  sessions grow coverage further than this static baseline. Verified this run with a headless pan
+  simulation: panning ~7000m past the preview's edge grew cumulative coverage from 42.25 km² to
+  54.75 km² with zero errors, confirming the mechanism works — but that number is session-specific
+  runtime behavior, not a new fixed baseline to report here.
 - Per the project's phase-gate rules, FAZ 3 and FAZ 10 cannot be marked DONE below 80% coverage
   (crisis exception: fix critical bugs/perf first, then resume geographic growth).
 
@@ -132,14 +140,13 @@ Triangles<500K, TextureMem<512MB.
   terrain is generic rolling FBM (confirmed to tile seamlessly across chunk borders, since noise
   is sampled in world-space coordinates, not per-chunk-local ones).
 - [x] `src/3d/world/chunkManager.js` — `ChunkManager` (`loadChunk`/`unloadChunk`/`loadSquare`/
-  `disposeAll`, plus `getCoveredAreaKm2()` for World Coverage). `game3d.js` loads a
-  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (6 → 13x13 = 169 chunks) neighborhood around the
-  origin at bootstrap — see DECISIONS.md ADR-0002 for why this is a separate constant from
-  `STREAM_RADIUS_CHUNKS` (which stays mobile-budget-sized for the real future streaming system).
-  Still a **fixed one-time load**, not real position-based streaming — that needs a player/
-  camera-follow position to stream around, which doesn't exist until FAZ 4. Out of 17,112 total
-  chunk slots, 169 are now real (World Coverage above).
-- [ ] `src/3d/camera.js` — orbit/free camera for now (third-person arrives in Phase 4). Current camera in `game3d.js` is a fixed, non-interactive `PerspectiveCamera` looking at the origin.
+  `disposeAll`, plus `getCoveredAreaKm2()`/`getCumulativeCoveredAreaKm2()` for World Coverage).
+  `game3d.js` loads a `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (6 → 13x13 = 169 chunks)
+  neighborhood around the origin at bootstrap (ADR-0002), **and** now additively
+  `streamTowards()`s more chunks at runtime as the camera's orbit target moves — real
+  position-based streaming (ADR-0003), just without eviction yet (no need for it until either the
+  resident count nears budget or FAZ 4 gives us a real player — see ADR-0003). Out of 17,112 total
+  chunk slots, 169 are real at boot; more accumulate as the world is explored.
 - [ ] Confirm responsive layout + PWA `start_url`/manifest still resolve correctly with the new page present (not yet checked — `game3d.html`/`.css`/`src/3d/**` are not in `service-worker.js`'s cache list yet, so the 3D mode currently requires network/first-load; flagged under Known Issues)
 
 ### FAZ 2 — Su/Atmosfer/Zaman (pending)
@@ -299,34 +306,44 @@ Triangles<500K, TextureMem<512MB.
   (5M) is hit at ~610 chunks, while the **draw-call** budget (2500) wouldn't hit until ~2500
   chunks. Corrected below so the next run doesn't optimize for the wrong constraint.
 
-**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new, now 2 ADRs), `game3d.html`
+- **Seventh sub-task, same run:** implemented the real position-based streaming the previous
+  "Next step" called for — turned out to fit in one run after all. `ChunkManager` gained
+  `streamTowards(centerChunkX, centerChunkZ, radius)` (additive-only: loads what's newly in range,
+  never unloads — see DECISIONS.md ADR-0003 for why eviction is deliberately deferred) and a
+  persistent `everGenerated` `Set` backing `getCumulativeCoveredAreaKm2()`/`everGeneratedCount`.
+  `game3d.js` calls it every frame the `OrbitControls` target has crossed into a new chunk (cheap
+  no-op check otherwise). Verified with a headless-browser **pan simulation**: right-drag the
+  canvas repeatedly to push the target ~7000m past the boot preview's edge, and confirmed via
+  console logs that new 5-chunk columns streamed in exactly at each chunk-boundary crossing, with
+  cumulative coverage climbing from 42.25 km² to 54.75 km² and zero errors. World Coverage's
+  reported baseline stays at the boot number (42.25 km², reproducible) since the streamed total is
+  session-specific — see the updated World Coverage section above for why the metric now reads
+  from `getCumulativeCoveredAreaKm2()` rather than the resident-chunk count.
+
+**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new, now 3 ADRs), `game3d.html`
 (new), `game3d.css` (new), `src/3d/game3d.js`, `index.html`, `ARCHITECTURE.md` (new),
 `src/3d/world/terrain.js` (new), `src/3d/world/chunkManager.js` (new), `src/3d/world/README.md`
 (new), `src/3d/camera.js` (new), `src/3d/vendor/three/addons/controls/OrbitControls.js` (new,
-vendored), `3D_GAME_PROGRESS.md` (this file). Six separate commits (world-scale/config; scene
-bootstrap; terrain chunk; chunk manager; preview-radius split; orbit camera) to keep each one
-atomic and independently revertable, plus one merge commit reconciling a parallel session's
-asset-only commits (6 more Mixamo characters, wolf, black_dragon — see Current Status above) with
-this run's work; no conflicts.
+vendored), `3D_GAME_PROGRESS.md` (this file). Seven separate commits (world-scale/config; scene
+bootstrap; terrain chunk; chunk manager; preview-radius split; orbit camera; real streaming) to
+keep each one atomic and independently revertable, plus one merge commit reconciling a parallel
+session's asset-only commits (6 more Mixamo characters, wolf, black_dragon — see Current Status
+above) with this run's work; no conflicts.
 
-**Next step for the next run (start here):** Coverage is just under 1% (0.9876%). Before pushing
-it further by brute-force radius increases again, consider the more valuable structural move: the
-"grow a bigger and bigger static preview blob" approach caps out around ~610 chunks (~14% of the
-world) purely on the triangle budget, and would leave zero performance headroom for anything else
-(player, NPCs, water, castles) — it does not scale to real World Coverage growth. The real,
-sustainable path is **position-based streaming**: now that `camera.js` gives us a moving 3D
-position (the orbit target/camera itself, no player needed yet), add a `ChunkManager.update
-(centerX, centerZ)` method that loads chunks newly in-range and unloads ones now out-of-range of
-`STREAM_RADIUS_CHUNKS` (the small, mobile-safe constant — NOT `PHASE1_PREVIEW_RADIUS_CHUNKS`),
-call it from the render loop keyed off the camera's world position, and let the static
-`PHASE1_PREVIEW_RADIUS_CHUNKS` preview go away (or shrink) once real streaming exists. This
-directly implements the project's "500m streaming" requirement and, critically, decouples World
-Coverage growth from "how many chunks fit in one static scene" — it can then grow by *exploring*
-(camera moves → new chunks generate) rather than by loading more at once. This is a bigger task
-than recent sub-tasks; consider splitting it (e.g. one run for `ChunkManager.update()` + a
-"cumulative chunks ever generated" coverage counter, a following run for wiring it to the camera
-and re-tuning `game3d.js`). Keep each sub-task to ≤5 files per the blast-radius rule, and re-run
-the headless-Chromium smoke test each time, not just `node --check`.
+**Next step for the next run (start here):** The boot-baseline coverage number (42.25 km²,
+0.9876%) hasn't moved in a few runs now — real exploration-driven growth exists but doesn't change
+what a fresh page load reports. Two honest paths forward, pick one rather than half-doing both:
+(a) **raise the boot baseline again** (bump `PHASE1_PREVIEW_RADIUS_CHUNKS`, re-measure the
+performance budget — remember the *triangle* budget binds first, at ~610 chunks, not draw calls);
+or (b) **stop treating the static number as the thing to grow** and instead build something that
+*exercises* the streaming system automatically (e.g. a simple scripted flythrough/orbit-target
+sweep that runs once at boot, in addition to interactive control, so every page load — not just
+ones a human happens to pan around — organically covers more area). (b) is more aligned with the
+project's actual goal (a world that gets explored, not a bigger static blob) but is a real
+sub-task of its own — don't rush it into a corner of an unrelated commit. Either way, re-run the
+headless-Chromium smoke test (pan simulation included) and update the World Coverage numbers to
+match reality, not aspiration. Once coverage is meaningfully higher, `sky.js` (aurora shader
+skybox) is next on the FAZ 1 roadmap. Keep each sub-task to ≤5 files per the blast-radius rule.
 
 ## Known Issues / Tech Debt
 

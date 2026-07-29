@@ -95,3 +95,50 @@ be tuned independently. World Coverage jumped from 6.25 km² (25 chunks) to 42.2
 via a fresh desktop-budget check (drawCalls/triangles) whenever it's raised again, and never let
 `STREAM_RADIUS_CHUNKS` itself grow past what the mobile budget in `config.js`'s `QUALITY_PRESETS`
 comments can afford.
+
+## ADR-0003: additive-only chunk streaming; World Coverage tracks cumulative, not resident, chunks
+
+**Date:** 2026-07-29
+
+**Decision:** `ChunkManager.streamTowards(centerChunkX, centerChunkZ, radius)` loads whatever's
+newly in range of a moving center (the `OrbitControls` target, wired up in `game3d.js`), but does
+**not** unload chunks that fall out of range. A separate `everGenerated` `Set` (only ever grows,
+independent of the `loaded` `Map`, which eviction could shrink later) backs a new
+`getCumulativeCoveredAreaKm2()`, which is now the number `3D_GAME_PROGRESS.md`'s World Coverage
+section should read from — not `getCoveredAreaKm2()` (currently-resident area).
+
+**Reasoning:** The previous approach to raising World Coverage — a bigger and bigger one-shot
+`loadSquare` at boot (ADR-0002) — hits a hard ceiling around ~610 chunks (the triangle budget) and
+leaves zero headroom for anything else once a real player/NPCs/water/castles exist. The
+sustainable path is coverage that grows through *exploration*: as a moving reference point (camera
+today, player from FAZ 4 on) crosses into unvisited territory, new chunks generate and count
+permanently, while at any instant only a small, budget-safe neighborhood needs to be resident.
+Implementing full eviction (unloading far chunks) right now was deliberately skipped: nothing yet
+exercises exploration at a scale that would exceed the performance budget (a human dragging a dev
+camera, not a full game with hours of play time), so building LRU/distance-based eviction today
+would be complexity with no current failure it prevents — pure speculation about a future need.
+`unloadChunk`/`disposeAll` already exist and are ready for a real eviction policy to call once
+there's an actual reason to (either the resident chunk count approaches the desktop budget, or
+FAZ 4 gives us a real player and a real memory-bound need). Verified this run with a headless-
+browser pan simulation: panning the camera target ~7000m away from the boot-time preview's edge
+streamed in new chunks exactly as expected, growing cumulative coverage from 42.25 km² to
+54.75 km² with zero unload/reload thrashing anywhere near the original preview area.
+
+**Alternatives considered:**
+- *Build full load/unload (LRU or distance-based) streaming now.* Rejected for this sub-task:
+  more moving parts (what evicts, when, how far past `radius` before eviction, whether an evicted
+  chunk needs its terrain regenerated identically if revisited — it does, since generation is
+  deterministic, but that's untested until eviction exists) for a problem this project doesn't
+  have yet. Revisit the moment resident-chunk count threatens the budget.
+- *Keep World Coverage tied to resident chunk count (`getCoveredAreaKm2`).* Rejected: the moment
+  eviction is added, this number would silently start going backwards as old chunks unload even
+  though the world has only ever grown — exactly the kind of stale/misleading metric this project's
+  World Coverage tracking exists to prevent.
+
+**Consequence:** `3D_GAME_PROGRESS.md`'s reported World Coverage baseline is the boot-time number
+(currently 169 chunks / 42.25 km², from `loadSquare` — a static, reproducible figure any page load
+produces). The cumulative number grows further at runtime as someone actually interacts with the
+dev camera, which is real but session-specific and not something to hardcode as "the new total" —
+future runs should note *that the mechanism works* (demonstrated) rather than chase a moving
+runtime number. When real eviction is eventually added, it must keep incrementing
+`everGenerated`/never decrementing it, or this ADR's whole point is lost.

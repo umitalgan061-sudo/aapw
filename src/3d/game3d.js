@@ -2,11 +2,12 @@
  * Entry point for the 3D Westeros world.
  *
  * Phase 1 scope: on top of the Phase 0 architecture (EventBus, GameState, AssetLoader), boots a
- * bare Three.js renderer/scene/camera against `#game3d-canvas` (see `game3d.html`) and loads a
+ * bare Three.js renderer/scene/camera against `#game3d-canvas` (see `game3d.html`), loads a
  * `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` neighborhood of real, seeded terrain chunks around
- * the origin via `world/chunkManager.js`, counted toward World Coverage, with an interactive
- * `OrbitControls` camera (`camera.js`) to inspect it. Sky is a separate Phase 1 sub-task — see
- * 3D_GAME_PROGRESS.md for what's next.
+ * the origin via `world/chunkManager.js`, and then additively streams in more chunks
+ * (`STREAM_RADIUS_CHUNKS`) as the interactive `OrbitControls` camera's target (`camera.js`) moves
+ * into new chunks — World Coverage now grows by exploring, not just by a bigger boot-time load.
+ * Sky is a separate Phase 1 sub-task — see 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
 
@@ -39,7 +40,7 @@ gameEvents.on(EVENTS.ASSET_ERROR, (payload) => {
  * `canvas`, via `ChunkManager`. Fixed one-time load, not position-based streaming yet — see
  * 3D_GAME_PROGRESS.md FAZ 1 for what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, lastStreamChunk: {x: number, z: number} | null}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -78,7 +79,49 @@ function createScene(canvas) {
 			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²) in ${generationMs.toFixed(0)}ms.`,
 	);
 
-	return { renderer, scene, camera, controls, chunkManager };
+	return { renderer, scene, camera, controls, chunkManager, lastStreamChunk: null };
+}
+
+/**
+ * Converts a world-space coordinate to the chunk grid coordinate it falls in, matching the
+ * `world/README.md` convention (chunk `(cx, cz)` centered at world `(cx * size, 0, cz * size)`).
+ * @param {number} worldCoord
+ * @param {number} chunkSizeMeters
+ * @returns {number}
+ */
+function worldToChunkCoord(worldCoord, chunkSizeMeters) {
+	return Math.round(worldCoord / chunkSizeMeters);
+}
+
+/**
+ * Streams in new chunks around the orbit target, but only when it has actually crossed into a
+ * different chunk since the last check — cheap to call every frame since the common case (camera
+ * orbiting, target not panned) is a no-op integer comparison.
+ * @param {{controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, lastStreamChunk: {x: number, z: number} | null}} state
+ */
+function streamAroundOrbitTarget(state) {
+	const chunkSize = CHUNK_CONFIG.CHUNK_SIZE_METERS;
+	const targetChunkX = worldToChunkCoord(state.controls.target.x, chunkSize);
+	const targetChunkZ = worldToChunkCoord(state.controls.target.z, chunkSize);
+
+	if (
+		state.lastStreamChunk &&
+		state.lastStreamChunk.x === targetChunkX &&
+		state.lastStreamChunk.z === targetChunkZ
+	) {
+		return;
+	}
+	state.lastStreamChunk = { x: targetChunkX, z: targetChunkZ };
+
+	const beforeCount = state.chunkManager.everGeneratedCount;
+	state.chunkManager.streamTowards(targetChunkX, targetChunkZ, CHUNK_CONFIG.STREAM_RADIUS_CHUNKS);
+	const newlyGenerated = state.chunkManager.everGeneratedCount - beforeCount;
+	if (newlyGenerated > 0) {
+		console.info(
+			`[game3d] Streamed in ${newlyGenerated} new chunk(s) near (${targetChunkX}, ${targetChunkZ}) ` +
+				`— cumulative World Coverage now ${state.chunkManager.getCumulativeCoveredAreaKm2().toFixed(2)} km².`,
+		);
+	}
 }
 
 /**
@@ -122,6 +165,7 @@ export async function initGame3D() {
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
 			state.controls.update(); // required every frame: enableDamping is on
+			streamAroundOrbitTarget(state);
 			state.renderer.render(state.scene, state.camera);
 		};
 		tick();

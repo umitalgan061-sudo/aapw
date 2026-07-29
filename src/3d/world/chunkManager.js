@@ -1,12 +1,13 @@
 /**
- * Minimal chunk load/unload manager for `world/terrain.js`.
+ * Chunk load manager for `world/terrain.js`.
  *
- * Phase 1 scope: loads a fixed square neighborhood of chunks around a center coordinate once, at
- * scene-bootstrap time, using `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS`. Distance-based dynamic load/
- * unload as the player moves — the actual "500m streaming" requirement — is a later FAZ 1
- * sub-task, once a player/camera-follow position exists to stream around. Keeping load/unload as
- * explicit methods now (instead of only ever loading once) means that later work is a caller
- * change, not a rewrite of this class.
+ * Two ways to bring chunks in: `loadSquare` (a one-shot fixed neighborhood, used for `game3d.js`'s
+ * boot-time preview) and `streamTowards` (additive: loads whatever's newly in range of a moving
+ * center, called every time that center crosses into a new chunk — see `camera.js`/`game3d.js`).
+ * Deliberately does NOT unload chunks that fall out of streaming range yet — see DECISIONS.md
+ * ADR-0003 for why eviction is intentionally deferred rather than built speculatively now.
+ * `unloadChunk`/`disposeAll` still exist for scene teardown and are ready for eviction logic to
+ * reuse once it's actually needed.
  * @module world/chunkManager
  */
 
@@ -32,8 +33,11 @@ export class ChunkManager {
 		this.scene = scene;
 		this.chunkSizeMeters = chunkSizeMeters;
 		this.seed = seed;
-		/** @type {Map<string, import('three').Mesh>} */
+		/** @type {Map<string, import('three').Mesh>} Currently in the scene. */
 		this.loaded = new Map();
+		/** @type {Set<string>} Every chunk key ever loaded, even if later unloaded. Only grows —
+		 * see DECISIONS.md ADR-0003 for why World Coverage is tracked from this, not `loaded`. */
+		this.everGenerated = new Set();
 	}
 
 	/**
@@ -50,6 +54,7 @@ export class ChunkManager {
 		const mesh = createTerrainChunk({ chunkX, chunkZ, size: this.chunkSizeMeters, seed: this.seed });
 		this.scene.add(mesh);
 		this.loaded.set(key, mesh);
+		this.everGenerated.add(key);
 		return mesh;
 	}
 
@@ -81,16 +86,41 @@ export class ChunkManager {
 		}
 	}
 
-	/** @returns {number} Number of currently-loaded chunks. */
+	/**
+	 * Loads whatever's newly within `radius` chunks of `(centerChunkX, centerChunkZ)`. Purely
+	 * additive — does not unload chunks that fall outside the radius (see module docs/ADR-0003).
+	 * Call this whenever the streaming center (e.g. the camera/player) crosses into a new chunk,
+	 * not every frame — `loadChunk` is cheap to no-op on already-loaded chunks, but there's no
+	 * reason to even iterate the square if the center hasn't moved.
+	 * @param {number} centerChunkX
+	 * @param {number} centerChunkZ
+	 * @param {number} radius
+	 */
+	streamTowards(centerChunkX, centerChunkZ, radius) {
+		this.loadSquare(centerChunkX, centerChunkZ, radius);
+	}
+
+	/** @returns {number} Number of currently-loaded (resident) chunks. */
 	get loadedCount() {
 		return this.loaded.size;
 	}
 
-	/** @returns {number} Total area, in km², covered by currently-loaded chunks. */
+	/** @returns {number} Number of chunks ever generated, including ones since unloaded. */
+	get everGeneratedCount() {
+		return this.everGenerated.size;
+	}
+
+	/** @returns {number} Total area, in km², covered by currently-loaded (resident) chunks. */
 	getCoveredAreaKm2() {
 		let total = 0;
 		for (const mesh of this.loaded.values()) total += mesh.userData.areaKm2 ?? 0;
 		return total;
+	}
+
+	/** @returns {number} Total area, in km², ever generated — the World Coverage source number. */
+	getCumulativeCoveredAreaKm2() {
+		const areaPerChunkKm2 = (this.chunkSizeMeters * this.chunkSizeMeters) / 1_000_000;
+		return this.everGenerated.size * areaPerChunkKm2;
 	}
 
 	/** Unloads every currently-loaded chunk. Call on scene teardown — memory-leak checklist. */
