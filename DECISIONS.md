@@ -2313,3 +2313,39 @@ wolf/NPC entry uses, consumed generically by the existing `spawnConfiguredAnimal
 with no special-casing. Real remaining FAZ 6 work, unchanged by this run: the other 3 animal types
 (horses, carts, dogs/cats, birds) still need a human manual-download step each; FAZ 5's own
 player/pack-awareness gap for NPCs remains untouched.
+
+## ADR-0031: 11th NPC at `Xaro` (Qarth) — first NPC at a house not yet represented
+
+**Context:** ADR-0024's own Consequence/"Why not all remaining 9 seats" section left `berk`, `olena`,
+`twin`, and `Xaro` as real, scoped-out remaining FAZ 5 candidates (`Night King` deliberately excluded
+outright — a special antagonist entity, not a normal kingdom seat). With run 30's FAZ 6 pack-alert
+chain verification closing that phase's one flagged gap, and no other higher-priority syntax/
+blocking-bug/perf/memory-leak/tech-debt issue found this run's Session Snapshot (`node --check`
+clean, no file over the 600-line cap, both device-class smoke tests byte-identical to run 30's own
+numbers), the next-cheapest open item was FAZ 5's own remaining kingdom-seat gap — the same category
+of work ADR-0024 already established a proven, low-risk pattern for.
+
+**Decision:** Added one new `NPC_CONFIG.SPAWNS` entry, `xaro-guard-1`, at the `Xaro` (Qarth) kingdom
+seat — reusing `dreyar.fbx` (already downloaded, already placed once at `umit`, already precached in
+`service-worker.js`), needing **zero new asset files and zero code changes**: `game3d.js`'s
+`spawnConfiguredNPCs` (moved there from `game3d.js` itself by ADR-0028) already handles any number of
+`SPAWNS` entries generically. Chose `Xaro` over `berk`/`olena`/`twin` for house diversity, matching
+ADR-0024's own stated reasoning: `berk`/`olena` are both Tyrell (already represented via `ziya`) and
+`twin` is a second Lannister (already represented via `cersei`), while `Xaro`/Qarth is a house with
+zero existing NPC presence. Offset/patrol/rotation follow the exact same shape every other single-NPC
+seat uses (`offsetXMeters: 12, offsetZMeters: 12`, patrol to `(12, -12)`, `rotationYRadians: Math.PI`)
+— no new geometry pattern introduced.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- `node --check` clean on `config.js` (the only touched file besides docs).
+- Full smoke test on both device classes: `"Spawned 11 FAZ 5 NPC(s)."` (up from 10), zero
+  console/page errors, every other count (terrain chunks, settlements, animals, river/waterfalls)
+  byte-identical to run 30 — confirms the new spawn is additive only.
+
+**Consequence:** 10 of 14 kingdom seats now have at least one NPC (11 NPCs total); `berk`, `olena`,
+and `twin` remain the only real candidates without one (`Night King` stays deliberately excluded).
+A further seat still needs either a second NPC reusing an already-placed model (lower value now that
+all 6 downloaded characters are placed at least once, several twice) or a new Mixamo/Free3D download
+(human manual-download step, per every prior ADR's same constraint). No new tech debt — `xaro-guard-1`
+is a plain `SPAWNS` entry, the same shape every other single-NPC seat already uses. FAZ 5's other two
+real gaps (a dialogue/interaction system; player/pack-awareness for NPCs) remain untouched by this run.

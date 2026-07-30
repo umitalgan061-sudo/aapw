@@ -214,7 +214,10 @@ export const NPC_CONFIG = Object.freeze({
 	 * `uriel_a_plotexia.fbx` ~13MB) — config-only, no new asset download, no new code (`game3d.js`'s
 	 * spawn-resolution loop already iterates this list generically). All 6 downloaded character
 	 * files are now placed; every model here gets offline-precached in `service-worker.js`, so asset
-	 * weight remains a real, tracked cost (~64MB across all 6 FBX files). */
+	 * weight remains a real, tracked cost (~64MB across all 6 FBX files). Run 31 adds an 11th NPC at
+	 * `Xaro` (Qarth) — a house not yet represented by any NPC — reusing `dreyar.fbx` a second time
+	 * (already placed once at `umit`), same zero-new-asset/zero-new-code reasoning as ADR-0024's
+	 * 4-seat extension. */
 	SPAWNS: Object.freeze([
 		Object.freeze({
 			id: 'stannis-guard-1',
@@ -328,6 +331,16 @@ export const NPC_CONFIG = Object.freeze({
 			// berkalp/Winterfell), since Jon's seat is thematically the Wall, not Winterfell itself.
 			displayName: 'Gece Nöbeti Muhafızı',
 			patrol: Object.freeze({ toOffsetXMeters: -12, toOffsetZMeters: -12 }),
+		}),
+		Object.freeze({
+			id: 'xaro-guard-1',
+			modelUrl: 'assets/models/characters/dreyar.fbx',
+			seatId: 'Xaro',
+			offsetXMeters: 12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+			displayName: 'Qarth Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: 12, toOffsetZMeters: -12 }),
 		}),
 	]),
 });

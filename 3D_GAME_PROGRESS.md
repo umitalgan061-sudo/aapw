@@ -27,19 +27,21 @@ KayKit, etc.) are used for `assets/`.
   wall-collider *physics* — a player can still walk through a castle wall, only the *camera* now
   avoids clipping) is a deliberately separate future item, not blocking FAZ 4's own gate. **FAZ 5
   (Kalabalık/NPC) started run 20, extended run 21, patrol added run 22, name-tag UI added run 23,
-  patrol extended to all 6 NPCs run 24, 4 more seats added run 25:** run 20 placed a first pass of 2
-  static, idling NPCs (`gameplay/npc.js`) at the Stannis Baratheon kingdom seat; run 21 extended
-  `NPC_CONFIG.SPAWNS` (config-only, no code change) to 4 more seats (`umit`, `cersei`, `berkalp`,
-  `doran`), one NPC each, using the 4 remaining downloaded Mixamo character files; run 22 piloted a
-  waypoint-patrol system (`gameplay/npc.js`'s `patrolWaypoints`) on the 2 `stannis` NPCs; run 23
-  gave all 6 NPCs a billboard name-tag (`gameplay/npc.js`'s `createNameTagSprite`) showing a
-  house-flavored Turkish name above their heads; run 24 extended the run-22 patrol pattern
-  (config-only, same proven geometry) to the other 4 NPCs; run 25 added 4 more NPCs (`ziya`,
-  `balon`, `robin`, `jon`), config-only, by reusing already-downloaded character models — no new
-  asset. **10 NPCs total, all patrolling with a name tag, 9 of 14 kingdom seats now have at least
-  one.** All five runs reuse `player.js`'s Mixamo FBX-loading/scale-correction/animation-retargeting
+  patrol extended to all 6 NPCs run 24, 4 more seats added run 25, 11th NPC added run 31:** run 20
+  placed a first pass of 2 static, idling NPCs (`gameplay/npc.js`) at the Stannis Baratheon kingdom
+  seat; run 21 extended `NPC_CONFIG.SPAWNS` (config-only, no code change) to 4 more seats (`umit`,
+  `cersei`, `berkalp`, `doran`), one NPC each, using the 4 remaining downloaded Mixamo character
+  files; run 22 piloted a waypoint-patrol system (`gameplay/npc.js`'s `patrolWaypoints`) on the 2
+  `stannis` NPCs; run 23 gave all 6 NPCs a billboard name-tag (`gameplay/npc.js`'s
+  `createNameTagSprite`) showing a house-flavored Turkish name above their heads; run 24 extended the
+  run-22 patrol pattern (config-only, same proven geometry) to the other 4 NPCs; run 25 added 4 more
+  NPCs (`ziya`, `balon`, `robin`, `jon`), config-only, by reusing already-downloaded character
+  models — no new asset; **run 31 added an 11th NPC at `Xaro` (Qarth), the first NPC at a house not
+  yet represented, reusing `dreyar.fbx` a second time** — see DECISIONS.md ADR-0031. **11 NPCs
+  total, all patrolling with a name tag, 10 of 14 kingdom seats now have at least one.** All runs
+  reuse `player.js`'s Mixamo FBX-loading/scale-correction/animation-retargeting
   pipeline — see DECISIONS.md
-  ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024. **FAZ 6 (Hayvanlar) started run 26, patrol
+  ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031. **FAZ 6 (Hayvanlar) started run 26, patrol
   added run 27, flee added run 28, pack-alert added run 29, 3rd wolf + chain verification run 30:**
   a first pass of 2 static, idling wolves (`gameplay/animals.js`, new module) at the `berkalp` (House
   Stark/Winterfell) kingdom seat, loaded via `AssetLoader.loadModel`'s glTF/GLB path (previously
@@ -56,25 +58,24 @@ KayKit, etc.) are used for `assets/`.
   off wolf-1 -> wolf-3 pack-flees off wolf-2, one frame later) via a direct-call test with a
   negative control — see DECISIONS.md ADR-0030. See "This Run (run 29)"/"This Run (run 30)" below
   and DECISIONS.md ADR-0025/ADR-0026/ADR-0027/ADR-0028/ADR-0029/ADR-0030.
-- **Last Update:** 2026-07-30 (run 30)
-- **Last Commit:** run 30's FAZ 6 3rd wolf + chain verification — `config.js`'s
+- **Last Update:** 2026-07-30 (run 31)
+- **Last Commit:** run 31's FAZ 5 11th NPC — `config.js`'s `NPC_CONFIG.SPAWNS` gained `xaro-guard-1`
+  at the `Xaro` (Qarth) kingdom seat (config-only, no code change, reuses `dreyar.fbx`) —
+  DECISIONS.md ADR-0031. Preceded by run 30's FAZ 6 3rd wolf + chain verification — `config.js`'s
   `ANIMAL_CONFIG.SPAWNS` gained `berkalp-wolf-3` (config-only, no code change), verifying the 3-hop
   pack-alert chain (wolf-1 -> wolf-2 -> wolf-3) actually propagates — DECISIONS.md ADR-0030.
-  Preceded in the same run by ADR-0028's `game3d.js` line-count fix (spawn-resolution loops moved
-  into `gameplay/npc.js`'s new `spawnConfiguredNPCs` / `gameplay/animals.js`'s new
-  `spawnConfiguredAnimals`).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (twenty-third straight run).** A prior run (see "This Run (run 5)" below,
+  correct, no change made (twenty-fifth straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
   **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20,
-  21, 22, 23, 24, 25, 26, 27, and 28 each re-verified this without changes needed. This run's Session
-  Snapshot re-derived the numbers from `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid)
-  once more and again confirmed they match ADR-0004 exactly — no config change made. **If you are a
-  future run and the operator's brief again asserts the old 4278 km² target is still live: it is
-  not. Re-derive from `config.js` yourself (as this run did) rather than trusting the brief's own
+  21, 22, 23, 24, 25, 26, 27, 28, 29, and 30 each re-verified this without changes needed. This run's
+  Session Snapshot re-derived the numbers from `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22
+  grid) once more and again confirmed they match ADR-0004 exactly — no config change made. **If you
+  are a future run and the operator's brief again asserts the old 4278 km² target is still live: it
+  is not. Re-derive from `config.js` yourself (as this run did) rather than trusting the brief's own
   numbers — this has now been independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16,
-  17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, and 29.**
-- **Repo-continuity note (recurs — run 18, then again run 29):** run 18's Session Snapshot found the
+  17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, and 30.**
+- **Repo-continuity note (recurs — run 18, run 29, run 30):** run 18's Session Snapshot found the
   container's git working tree in a `HEAD` state detached at that run's own prior final commit, while
   the local `main` branch ref and `origin/main` were both still pointing at the pre-3D-mode commit
   (`38e09e7`) — i.e. `main` had silently fallen behind every run's actual work by one run's worth of
@@ -2950,6 +2951,62 @@ reuse this run's/ADR-0029's exact pattern if wanted). FAZ 4's own remaining gap 
 wall-collider physics) also remains open. No new tech debt this run — `berkalp-wolf-3` is a plain
 `SPAWNS` entry, the same shape every other wolf/NPC uses, consumed by already-generic code.
 
+## This Run (2026-07-30, run 31)
+
+**Chained sub-task within the same execution as run 30** (per the operator's updated instruction:
+after run 30's commit passed its own regression guard and smoke test, with budget/time still
+available, continued to the next atomic item rather than stopping).
+
+**Session Snapshot re-taken at the start of this sub-task:** `node --check` still clean on every
+`.js` file (including run 30's just-committed `config.js` change), no file over the 600-line cap,
+both device-class smoke tests still byte-identical to run 30's own numbers (`"Spawned 3 FAZ 6
+animal(s)."`, `"Spawned 10 FAZ 5 NPC(s)."`, `"...444 terrain chunks resident (~111.00 km²)..."`
+desktop / `"...25 terrain chunks resident...(~6.25 km²)..."` mobile, zero errors both). No new
+syntax/blocking-bug/perf/memory-leak/tech-debt issue found. World scale re-verified against
+`src/3d/config.js` directly — still 137.5 km², inside the 100-150 km² band, no change needed
+(twenty-fifth straight confirmation). With FAZ 6's own flagged gap now closed by run 30, the next
+item per the task's priority order was FAZ 5's own remaining open sub-task: 4 of 14 kingdom seats
+(`berk`, `olena`, `twin`, `Xaro`) still had zero NPCs (`Night King` deliberately excluded, ADR-0024).
+
+**Decision and work this run (one atomic change — DECISIONS.md ADR-0031):** Added `xaro-guard-1` to
+`NPC_CONFIG.SPAWNS` at the `Xaro` (Qarth) kingdom seat — config-only, reusing the already-downloaded
+`dreyar.fbx` (already placed once at `umit`), no new asset, no code change. Chose `Xaro` over
+`berk`/`olena`/`twin` for house diversity (Qarth has zero existing NPC presence; the other three
+duplicate an already-represented house), matching ADR-0024's own stated reasoning. See ADR-0031 for
+the full decision.
+
+**Regression guard:** `node --check` clean on `config.js`. Full smoke test on both device classes:
+`"Spawned 11 FAZ 5 NPC(s)."` (up from 10), zero console/page errors, every other count (terrain,
+settlements, animals, river/waterfalls) byte-identical to the pre-change baseline — confirms this is
+a purely additive spawn.
+
+- Updated `DECISIONS.md` (new ADR-0031), this file's Current Status, Known Issues sections, and this
+  section. `ARCHITECTURE.md`/`gameplay/README.md` needed no edit — neither hardcodes an NPC count.
+
+**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new ADR-0031), `3D_GAME_PROGRESS.md`
+(this file). 3 files — the code change itself is one 9-line config entry plus a small doc-comment
+update. One commit.
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged from run 30 (this run's change touches neither
+terrain nor streaming).**
+
+**Cumulative for this chained execution (runs 30+31 combined):** 2 atomic sub-tasks, 2 commits, 6
+files touched total (`src/3d/config.js`, `src/3d/game3d.js` reverted to zero net diff, `DECISIONS.md`,
+`3D_GAME_PROGRESS.md`) — well within the ≤25-file/≤1200-new-line chained-run budget (combined new
+code is ~20 lines across two config-only spawn entries; the remainder is documentation). Both
+sub-tasks passed their own independent regression guard and smoke test before committing.
+
+**Next step for the next run:** FAZ 5's remaining real gaps: 3 kingdom seats still without any NPC
+(`berk`, `olena`, `twin` — each would now duplicate an already-represented house, or need a new
+human-downloaded asset for further diversity), a dialogue/interaction system, and player/pack-
+awareness for NPCs (could reuse ADR-0029's exact `isFleeing`/`packmateFleePositions` pattern if
+wanted, though a guard fleeing the player reads narratively odd — worth reconsidering the design, not
+just copy-pasting, before building it). FAZ 6's remaining real gap: the other 3 animal types (horses,
+carts, dogs/cats, birds), each needing a human manual-download step. FAZ 4's own remaining gap (no
+gravity/jump/wall-collider physics) also remains open. No new tech debt this run — `xaro-guard-1` is
+a plain `SPAWNS` entry, the same shape every other single-NPC seat already uses.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -3025,24 +3082,26 @@ wall-collider physics) also remains open. No new tech debt this run — `berkalp
   never permanently shrunk. **Still open:** this only fixes what the *camera* can see through — the
   *player* can still walk through castle walls (no player-side collider yet, separate future work,
   see the settlements LOD/collider item below).
-- **FAZ 5's NPCs exist at only 9 of 14 kingdom seats, with no dialogue/interaction.**
-  `NPC_CONFIG.SPAWNS` places 10 NPCs across `stannis` (2), `umit`, `cersei`, `berkalp`, `doran`,
-  `ziya`, `balon`, `robin`, and `jon` (1 each) — `berk`, `olena`, `twin`, `Xaro`, and `Night King`
+- **FAZ 5's NPCs exist at only 10 of 14 kingdom seats, with no dialogue/interaction.**
+  `NPC_CONFIG.SPAWNS` places 11 NPCs across `stannis` (2), `umit`, `cersei`, `berkalp`, `doran`,
+  `ziya`, `balon`, `robin`, `jon`, and `Xaro` (1 each) — `berk`, `olena`, `twin`, and `Night King`
   (deliberately excluded, see DECISIONS.md ADR-0024) still have none. **~~9 of 14 seats have zero
-  NPCs~~ — narrowed to 5 in run 25** (4 more seats added by reusing already-downloaded models, no new
-  asset — see DECISIONS.md ADR-0024). A further seat now needs either a second NPC reusing an
-  already-placed model (lower value — would duplicate a house already represented) or a new Mixamo/
-  Free3D download (human manual-download step). **~~Patrol-only-at-2-of-6~~ — landed run 24**
-  (config-only extension of ADR-0021's proven geometry, see DECISIONS.md ADR-0023) — **all 10 NPCs
-  now patrol** a 24m back-and-forth line with idle pauses and directional turning. **~~No name-tag
-  UI~~ — landed run 23** (`gameplay/npc.js`'s `createNameTagSprite`, a billboard `THREE.Sprite`
-  above each NPC's head, see DECISIONS.md ADR-0022) — all 10 NPCs now show a house-flavored Turkish
-  name tag. No NPC reacts to the player's presence — patrol runs on a fixed clock/route regardless of
-  where the player is, deliberately not real behavior-tree AI, and there is still no dialogue/
-  interaction system (clicking/approaching an NPC does nothing beyond seeing its tag). All remaining
-  gaps are honest, scoped-out ones (see
-  DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024's "Alternatives considered"),
-  not accidental.
+  NPCs~~ — narrowed to 5 in run 25, narrowed to 4 in run 31** (run 25: 4 more seats added by reusing
+  already-downloaded models, no new asset, DECISIONS.md ADR-0024; run 31: `Xaro`, a house not yet
+  represented, added the same way — see DECISIONS.md ADR-0031). The 3 remaining seats (`berk`,
+  `olena`, `twin`) need either a second NPC reusing an already-placed model (lower value — would
+  duplicate a house already represented) or a new Mixamo/Free3D download (human manual-download
+  step). **~~Patrol-only-at-2-of-6~~ — landed run 24** (config-only extension of ADR-0021's proven
+  geometry, see DECISIONS.md ADR-0023) — **all 11 NPCs now patrol** a 24m back-and-forth line with
+  idle pauses and directional turning. **~~No name-tag UI~~ — landed run 23**
+  (`gameplay/npc.js`'s `createNameTagSprite`, a billboard `THREE.Sprite` above each NPC's head, see
+  DECISIONS.md ADR-0022) — all 11 NPCs now show a house-flavored Turkish name tag. No NPC reacts to
+  the player's presence — patrol runs on a fixed clock/route regardless of where the player is,
+  deliberately not real behavior-tree AI, and there is still no dialogue/interaction system
+  (clicking/approaching an NPC does nothing beyond seeing its tag). All remaining gaps are honest,
+  scoped-out ones (see
+  DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031's "Alternatives
+  considered"), not accidental.
 - **FAZ 6's wolves exist at only one seat, with no real pathfinding AI.** 3 wolves at
   `berkalp` (`ANIMAL_CONFIG.SPAWNS`). **~~static/idle only, no wander~~ — landed run 27**
   (`gameplay/animals.js`'s patrol support, copied from `gameplay/npc.js`'s proven pattern, see
