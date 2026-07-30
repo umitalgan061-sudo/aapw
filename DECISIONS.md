@@ -1813,3 +1813,47 @@ static/idle-only default pattern the `patrol` field already established (ADR-002
 World Coverage (this run added NPC UI, not terrain) or to the World Coverage's underlying world-scale
 numbers, which were re-verified unchanged against the 100-150 km² band per this run's Session
 Snapshot (see `3D_GAME_PROGRESS.md`'s "This Run" section below) before any of this work began.
+
+## ADR-0023: FAZ 5 patrol extended to all 6 NPCs (config-only, same geometry ADR-0021 already proved safe)
+
+**Context:** ADR-0021 piloted waypoint patrol on just 2 of 6 NPCs (the `stannis` guards) as a
+deliberately small first slice, and every run since (22, 23) flagged "extending to more NPCs is a
+config-only change, same pattern already established" as the cheapest open FAZ 5 sub-task. With
+world scale, syntax, perf, memory, and the prior run's name-tag work all clear, this was the
+highest-priority remaining item this run (run 24).
+
+**Decision:** Add a `patrol` field (`{toOffsetXMeters, toOffsetZMeters}`) to the 4 remaining static
+`NPC_CONFIG.SPAWNS` entries (`umit-guard-1`, `cersei-guard-1`, `berkalp-guard-1`, `doran-guard-1`),
+using the exact same geometry ADR-0021 already validated: flip the existing `offsetZMeters` sign,
+keep `offsetXMeters` unchanged. Since every kingdom seat uses the identical shared castle template
+(`world/settlements.js`'s one box-keep + 4-tower silhouette, `SETTLEMENT_CONFIG`), the same 16.97m
+radial distance from keep center that ADR-0021 confirmed clears the 34m keep footprint on `stannis`
+applies unchanged to all 14 seats — no per-seat re-verification of wall clearance was needed, only a
+real regression/movement test to confirm it actually works on each seat's own local terrain slope
+(ground height differs per seat; the patrol code already resamples height every step, proven on
+`stannis`, but not yet exercised on `umit`/`cersei`/`berkalp`/`doran`'s terrain until now).
+**Zero code changes** — `game3d.js`'s NPC-loading loop already builds `patrolWaypoints` generically
+from any `spawn.patrol` field (see the loop's `spawn.patrol ? [...] : undefined` branch), so this is
+purely additive config, identical in shape to ADR-0020's seat-extension pattern.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- Pre-change regression baseline: 3D desktop (444 chunks, 14 settlements, `"Spawned 6 FAZ 5
+  NPC(s)."`), 3D mobile-emulated (25 chunks), 2D game (only the same pre-existing, already-
+  documented sandbox network limitations) — matching run 23's own baseline exactly.
+- Post-change full smoke test on both device classes: identical log lines, zero new console/page
+  errors; 2D game unchanged.
+- **A position-over-time measurement via a temporary debug hook** (`window.__debugGame3DState =
+  state`, added only for this test and reverted before commit — confirmed via `git diff` showing
+  zero net change to the committed `game3d.js`): sampled all 6 NPCs' `(x, z)` position twice, 8
+  seconds apart. **All 6** NPCs moved ~3.6m in the window (previously only the 2 `stannis` guards
+  moved; the other 4 were 0.000m in ADR-0022's own test) — confirms patrol now works correctly on
+  every seat's own terrain, not just `stannis`'s.
+- `node --check` on `config.js`: clean.
+
+**Consequence:** FAZ 5's "patrol only on 2 of 6 NPCs" gap is closed — all 6 NPCs now walk a 24m
+scripted back-and-forth patrol with idle pauses and directional turning. Still-open FAZ 5 work: 9 of
+14 kingdom seats have zero NPCs (needs either a second NPC reusing an already-placed model, or a new
+Mixamo/Free3D download requiring the documented human manual-download step), no dialogue/interaction
+system, and no player-awareness/reactive behavior (patrol runs on a fixed route regardless of player
+position — deliberately still out of scope, real behavior-tree territory). No new tech debt — this
+is a pure config extension of an already-verified pattern, no new parameters or code paths.

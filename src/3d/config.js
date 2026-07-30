@@ -248,6 +248,10 @@ export const NPC_CONFIG = Object.freeze({
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
 			displayName: 'Targeryan Muhafızı',
+			// Patrol extension (run 24) — same geometry ADR-0021 already proved safe on the 2 stannis
+			// guards: flip the Z offset sign, same 16.97m radial distance from the keep center, same
+			// shared castle template every kingdom seat uses (world/settlements.js).
+			patrol: Object.freeze({ toOffsetXMeters: 12, toOffsetZMeters: -12 }),
 		}),
 		Object.freeze({
 			id: 'cersei-guard-1',
@@ -257,6 +261,7 @@ export const NPC_CONFIG = Object.freeze({
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
 			displayName: 'Lannister Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: 12, toOffsetZMeters: -12 }),
 		}),
 		Object.freeze({
 			id: 'berkalp-guard-1',
@@ -266,6 +271,7 @@ export const NPC_CONFIG = Object.freeze({
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
 			displayName: 'Stark Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: -12, toOffsetZMeters: -12 }),
 		}),
 		Object.freeze({
 			id: 'doran-guard-1',
@@ -275,6 +281,7 @@ export const NPC_CONFIG = Object.freeze({
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
 			displayName: 'Martell Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: -12, toOffsetZMeters: -12 }),
 		}),
 	]),
 });
