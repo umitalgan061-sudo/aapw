@@ -441,15 +441,19 @@ export const INTERACTION_CONFIG = Object.freeze({
 		'olena-guard-1': '{name}: Olena Hanım keskin dilinden ödün vermez. Sözlerine dikkat et.',
 		'twin-guard-1': '{name}: İkiz Kuleler\'in gölgesinde yürüyorsun. Burada her adım izlenir.',
 	}),
-	/** FAZ 5's first real branching pilot (run 44, DECISIONS.md ADR-0058): 2 of 14 NPCs
-	 * (`umit-guard-1`, `berkalp-guard-1` — the player's home seat and the Stark seat the wolves
-	 * already patrol at) get 2 numbered choices after their greeting; picking one (Digit1/Digit2 —
-	 * see `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response
-	 * line, replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry
-	 * here — an absent/empty array means the old greeting-then-close-on-E behavior, unchanged. Not a
-	 * real dialogue tree/quest system yet (no further branching, no state/persistence, no stat
-	 * effects) — proves the mechanism on a small pilot first, same "pilot on 2 of N" precedent
-	 * `NPC_CONFIG.SPAWNS`' own patrol rollout (run 22) already established for this project. */
+	/** FAZ 5's real branching pilot (started run 44, DECISIONS.md ADR-0058; grown run 46,
+	 * DECISIONS.md ADR-0060). 4 of 14 NPCs (`umit-guard-1`/`berkalp-guard-1` — the player's home seat
+	 * and the Stark seat the wolves already patrol at; `doran-guard-1`/`xaro-guard-1` — Dorne's pride
+	 * and Qarth's thirteen gates, both already flavor-rich in `GREETINGS_BY_NPC_ID` above) get 2
+	 * numbered choices after their greeting; picking one (Digit1/Digit2 — see
+	 * `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response line,
+	 * replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry here —
+	 * an absent/empty array means the old greeting-then-close-on-E behavior, unchanged.
+	 * `jon-guard-1` deliberately excluded again (see ADR-0058's "Alternatives considered": its
+	 * ominous one-liner reads better staying a single line). Not a real dialogue tree/quest system
+	 * yet (no further branching, no state/persistence, no stat effects) — proves the mechanism on a
+	 * growing pilot subset first, same "pilot on 2 of N, extend later" precedent `NPC_CONFIG.SPAWNS`'
+	 * own patrol rollout (run 22) already established for this project. */
 	CHOICES_BY_NPC_ID: Object.freeze({
 		'umit-guard-1': Object.freeze([
 			Object.freeze({
@@ -469,6 +473,26 @@ export const INTERACTION_CONFIG = Object.freeze({
 			Object.freeze({
 				label: 'Kurtlar neden bu kadar yakın dolaşıyor?',
 				response: '{name}: Direwolf bizim kanımızdandır. Onlar buradaysa, biz de güvende demektir.',
+			}),
+		]),
+		'doran-guard-1': Object.freeze([
+			Object.freeze({
+				label: 'Diğer krallıklarla aranız neden bu kadar gergin?',
+				response: '{name}: Dorne kimseye boyun eğmedi, kimseye de borçlu değil. Gerginlik değil, bağımsızlıktır bu.',
+			}),
+			Object.freeze({
+				label: 'Dorne\'un gizli bahçeleri var mı?',
+				response: '{name}: Bahçelerimizde ne yetiştiğini yalnızca Dorne halkı bilir, yabancı. Sen bilmesen daha iyi.',
+			}),
+		]),
+		'xaro-guard-1': Object.freeze([
+			Object.freeze({
+				label: 'Diğer on iki kapının ardında ne var?',
+				response: '{name}: Tüccarlar, sırlar, bazen de hiçbir şey. Qarth kapılarını meraklılara açık tutmaz.',
+			}),
+			Object.freeze({
+				label: 'Qarth\'a nasıl güven kazanılır?',
+				response: '{name}: Altınla, ya da sabırla. İkisi de yoksa, on üçüncü kapı seni hiç görmeyecek.',
 			}),
 		]),
 	}),

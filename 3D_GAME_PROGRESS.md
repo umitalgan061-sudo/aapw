@@ -4638,6 +4638,51 @@ world-event system's flavor pool could still grow. All three smoke-check files n
 headroom (302/321/153 of 600) — no immediate file-cap pressure for the next several checks added to
 any of them.
 
+## This Run (2026-07-30, run 46)
+
+**Continued in the same session, same budget, immediately after run 45's commit+push** (per this
+run's own chaining protocol — don't stop after one sub-task while budget/time remain). No new
+Session Snapshot re-read needed (repo state already fresh in context from run 45).
+
+**Sub-task 2 — decision and work (DECISIONS.md ADR-0060):** priority re-scan: no new syntax error/
+blocking bug/perf regression/memory leak/tech debt since run 45's commit. World Coverage (priority
+8) re-confirmed already clear — desktop 96.2% past the FAZ 3/10 gate, mobile's 4.5% a deliberate
+measured perf-budget constraint (ADR-0013), not an open gap. FAZ 3's other open sub-task (castle
+LOD) was considered but not attempted: real LOD would need multiple mesh-detail levels for
+`world/settlements.js`'s castles, hitting the same mesh-simplification tooling gap ADR-0057 already
+found blocking FAZ 7 (no Blender, no network access for `gltf-transform`/`gltfpack`) — flagged below
+instead of re-investigating a likely dead end. Picked run 44/45's own flagged option instead: grew
+`gameplayConfig.js`'s `CHOICES_BY_NPC_ID` pilot from 2 to 4 of 14 NPCs, adding `doran-guard-1`
+(Dorne) and `xaro-guard-1` (Qarth) — both already had distinctive greeting-line flavor to build a
+natural follow-up question on. Config/content-only change; zero code touched in `dialogueBox.js`/
+`interaction.js`/`game3d.js` since the branching mechanism itself was already built and tested by
+run 44.
+
+**Regression guard:** `node --check` clean on the one touched file. Full committed smoke suite —
+**all 12 checks PASS**, identical to the pre-change baseline (mechanism unchanged, only new config
+data). **Real headless-Chromium proof of the new content itself** (not just the already-tested
+mechanism): instantiated the real `DialogueBox`/`InteractionPrompt`/`createInteractionController`
+with the actual `INTERACTION_CONFIG` inside the live `game3d.html` page, opened `xaro-guard-1`'s
+dialogue — screenshot shows the real greeting plus both new choice labels ("Diğer on iki kapının
+ardında ne var?" / "Qarth'a nasıl güven kazanılır?"); selected choice 2 — second screenshot shows
+that choice's own real response text, choice list emptied, hint reverted. Zero console/page errors
+in either state.
+
+**Files changed this sub-task:** `src/3d/gameplay/gameplayConfig.js`, `DECISIONS.md` (new ADR-0060),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~60 new/changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5% (6.25 km² /
+137.5 km²) mobile — a dialogue-content-only addition, touches no terrain/streaming/chunk logic.**
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **FAZ 7 still blocked**
+(unchanged). **FAZ 3's LOD gap is now flagged as likely tooling-blocked** (same class of gap as FAZ
+7 — see Known Issues below) — a future run should confirm this directly (check for a mesh-
+simplification tool/network access) before spending time attempting real LOD, rather than assuming
+it's blocked without checking. FAZ 5's choice-branching pilot now covers 4 of 14 NPCs (`umit`,
+`berkalp`, `doran`, `xaro`); 10 remain (`jon-guard-1` deliberately excluded per ADR-0058, 9 others no
+fresh reason yet to extend to). FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download
+step; the world-event system's flavor pool could still grow.
+
 ## Known Issues / Tech Debt
 
 - **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s

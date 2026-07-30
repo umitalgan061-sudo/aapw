@@ -4371,3 +4371,74 @@ already have — a still-open FAZ 5 gap noted in 3D_GAME_PROGRESS.md) have a nat
 `game3dSmokeChecksMovement.js`; future non-movement per-entity checks belong in `game3dSmokeChecks.js`.
 `smokeTestGame3D.js`'s own header comment updated to describe the 3-file split so a future run's
 Session Snapshot doesn't have to re-derive it from scratch.
+
+## ADR-0060: Grow the dialogue-choice pilot from 2 to 4 of 14 NPCs
+
+**Status:** Accepted (run 46).
+
+**Context:** With ADR-0059's tech-debt fix committed and priority 7/8 (regression coverage, World
+Coverage) both already clear (desktop 96.2%, past the FAZ 3/10 80% gate; mobile's 4.5% is a
+deliberate, repeatedly-measured perf-budget constraint per ADR-0013, not a gap to close), the next
+concrete priority-9 item is FAZ 5's own still-open note from run 44/45: the choice-branching pilot
+(ADR-0058) "could extend to more of the remaining 12 NPCs... neither automatically the next pick
+without a fresh reason." This run's fresh reason: no syntax error/blocking bug/perf regression/
+memory leak/new tech debt was found, FAZ 7 is still blocked without a decimated asset, and growing
+an already-proven, low-risk mechanism (config + content only, zero code changes) is a safer use of
+remaining run time/budget than starting a new, larger system.
+
+**Decision:** `gameplayConfig.js`'s `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` gains 2 more entries:
+`doran-guard-1` (Dorne) and `xaro-guard-1` (Qarth) — chosen because both already have distinctive,
+lore-rich greeting lines in `GREETINGS_BY_NPC_ID` (Dorne's "never bowed" pride; Qarth's "thirteen
+gates, only one open to you") that a natural follow-up question can build on, the same selection
+reasoning ADR-0058 used for `umit-guard-1`/`berkalp-guard-1`. `jon-guard-1` is deliberately still
+excluded, per ADR-0058's own "Alternatives considered" note that its ominous one-liner reads better
+staying a single line. No code in `ui/dialogueBox.js`, `gameplay/interaction.js`, or `game3d.js` was
+touched — the branching *mechanism* was already fully built and tested by ADR-0058; this is purely
+new config data flowing through it.
+
+**Reasoning:**
+- **2 more, not all remaining 12, matching this project's own "pilot small, extend later" precedent
+  a second time:** writing 12 NPCs' worth of new branching dialogue in one sub-task risks rushed,
+  lower-quality Turkish prose with no way to review it carefully — the same scope-discipline reason
+  ADR-0058 itself gave for stopping at 2 the first time.
+- **Config-only change, no code touched:** `game3dSmokeChecks.js`'s `checkInteractionController`
+  already exercises the choice mechanism generically via fake NPC ids/choice data (its t8-t15
+  assertions from ADR-0058), so it doesn't need new assertions for these 2 real NPCs specifically —
+  the mechanism itself is unchanged. Real proof instead comes from driving the actual
+  `INTERACTION_CONFIG.CHOICES_BY_NPC_ID`/`GREETINGS_BY_NPC_ID` data (not synthetic stand-ins) through
+  a real `DialogueBox`/`InteractionPrompt`/`createInteractionController` inside the live
+  `game3d.html` page (see Verified below) — proves the new *content*, not the already-tested
+  mechanism.
+- **Why not LOD (FAZ 3's other open sub-task) instead:** considered, but real mesh LOD would need
+  multiple geometry detail levels for `world/settlements.js`'s castle models — the same
+  mesh-simplification tooling gap ADR-0057 already found blocking FAZ 7 (no Blender, no network
+  access to fetch `gltf-transform`/`gltfpack`). Attempting it now risks a repeat of that
+  investigation for the same dead end; flagged in 3D_GAME_PROGRESS.md instead of silently retried.
+
+**Verified:**
+- `node --check` clean on the one touched file (`gameplayConfig.js`).
+- Line count: `gameplayConfig.js` 499/600 (up from 475/600) — comfortable headroom remains.
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`): **all 12 checks PASS**, identical
+  to the pre-change baseline — confirms zero regression to the already-tested mechanism.
+- **Real headless-Chromium proof of the new content specifically:** instantiated the real
+  `DialogueBox`/`InteractionPrompt`/`createInteractionController` with the actual
+  `INTERACTION_CONFIG` (not fake stub data) inside the live `game3d.html` page, opened
+  `xaro-guard-1`'s dialogue — screenshot shows the real greeting plus both new numbered choice
+  labels; selected choice 2 — second screenshot shows that choice's own real response text, choice
+  list emptied, hint reverted to "E / Esc - Kapat." Zero console/page errors in either state.
+
+**Alternatives considered:**
+- *Extend to all remaining 12 NPCs* — rejected: same reasoning ADR-0058 already gave, applies
+  identically the second time.
+- *Add a 3rd choice or a second reply-to-a-reply level* — rejected: still no quest/state system for a
+  deeper branch to meaningfully lead anywhere; growing pilot *breadth* (more NPCs) is lower-risk than
+  growing pilot *depth* (more branching complexity) with the same missing foundation.
+- *Attempt FAZ 3's LOD gap instead* — rejected once considered: real risk of hitting the same
+  asset-tooling wall ADR-0057 already documented, for a lower-confidence outcome within this run's
+  remaining time than a proven, config-only extension.
+
+**Consequences:** 4 of 14 NPCs now have real branching content; 10 remain (`jon-guard-1`
+deliberately excluded, 9 others not yet given a fresh reason to extend to). `gameplayConfig.js` has
+24 lines less headroom than before but is still well under the 600-line cap. FAZ 3's LOD gap remains
+open and now explicitly flagged as tooling-blocked (same class of blocker as FAZ 7), not silently
+skipped.
