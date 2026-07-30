@@ -50,6 +50,15 @@
  *     closed-form ballistic height (`v² / (2·|g|)`), lands (never goes negative), and takes
  *     roughly the closed-form flight time — guards against a future edit to `PLAYER_CONFIG`'s
  *     `GRAVITY_MPS2`/`JUMP_SPEED_MPS` or `integrateJumpArc` itself silently breaking the arc.
+ *   - **Interaction controller (`gameplay/interaction.js`'s `createInteractionController`, added
+ *     run 36 — see DECISIONS.md ADR-0041).** Same in-page dynamic-`import()` pattern, using plain
+ *     fake `interactionPrompt`/`dialogueBox` stubs (the module takes both as injected
+ *     collaborators, so no real DOM/UI module is needed). Asserts the full open/close state
+ *     machine: prompt hidden when no NPC is near, shown when one is; `E` opens a dialogue with the
+ *     right per-NPC greeting and hides the prompt; `E` again or `Escape` closes it; walking out of
+ *     range auto-closes it with no keypress; a browser key-repeat event is ignored (doesn't
+ *     re-toggle). This system had zero persisted coverage before — only ad hoc verification notes
+ *     in run 33's own history.
  *
  * Usage: `node scripts/smokeTestGame3D.js`
  * Exit codes: 0 = 3D mode passed (2D shell informational-only). 1 = the 3D-mode check (or the 2D
@@ -313,6 +322,90 @@ async function checkJumpArc(browser, baseUrl) {
 	return { name: 'jump/gravity arc (physics.js)', ok, details };
 }
 
+/**
+ * Regression guard for `gameplay/interaction.js`'s `createInteractionController` (run 36, third
+ * chained sub-task, DECISIONS.md ADR-0041) — FAZ 5's open/close/auto-close state machine (ADR-0033)
+ * had zero persisted test coverage until now, only ever verified ad hoc in run 33's own notes. The
+ * module has no `THREE`/DOM dependency of its own (its collaborators — `interactionPrompt`/
+ * `dialogueBox` — are injected), so this test uses plain fake stubs instead of the real UI modules,
+ * same in-page dynamic-`import()` pattern as `checkSettlementCollider`/`checkJumpArc` for real
+ * module resolution.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkInteractionController(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
+
+			function makeFakes() {
+				const prompt = { visible: null, setVisible(v) { this.visible = v; } };
+				const dialogue = { shown: null, show(text) { this.shown = text; }, hide() { this.shown = null; } };
+				const controller = createInteractionController({
+					interactionPrompt: prompt,
+					dialogueBox: dialogue,
+					greetingTemplate: 'Selam, {name}!',
+					radiusMeters: 6,
+				});
+				return { prompt, dialogue, controller };
+			}
+			const npc = { object3D: { position: { x: 10, z: 0 } }, displayName: 'Test NPC' };
+			const near = { x: 10, z: 3 }; // distance 3 < radius 6
+			const far = { x: 10, z: 100 }; // distance 100 > radius 6
+
+			const t1 = makeFakes();
+			t1.controller.update([npc], far);
+			const farHidesPrompt = t1.prompt.visible === false && t1.dialogue.shown === null;
+
+			const t2 = makeFakes();
+			t2.controller.update([npc], near);
+			const nearShowsPrompt = t2.prompt.visible === true && t2.dialogue.shown === null;
+
+			const t3 = makeFakes();
+			t3.controller.update([npc], near);
+			t3.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			const eOpensDialogue = t3.dialogue.shown === 'Selam, Test NPC!' && t3.prompt.visible === false;
+
+			const t4 = makeFakes();
+			t4.controller.update([npc], near);
+			t4.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			t4.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			const eAgainCloses = t4.dialogue.shown === null;
+
+			const t5 = makeFakes();
+			t5.controller.update([npc], near);
+			t5.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			t5.controller.handleKeyDown({ code: 'Escape', repeat: false });
+			const escapeCloses = t5.dialogue.shown === null;
+
+			const t6 = makeFakes();
+			t6.controller.update([npc], near);
+			t6.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			t6.controller.update([npc], far); // player walked away while dialogue open
+			const walkingAwayAutoCloses = t6.dialogue.shown === null;
+
+			const t7 = makeFakes();
+			t7.controller.update([npc], near);
+			t7.controller.handleKeyDown({ code: 'KeyE', repeat: true }); // held-key repeat, must be ignored
+			const repeatIgnored = t7.dialogue.shown === null;
+
+			return {
+				farHidesPrompt, nearShowsPrompt, eOpensDialogue, eAgainCloses, escapeCloses,
+				walkingAwayAutoCloses, repeatIgnored,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'far hides prompt, near shows it, E opens/closes, Escape closes, walking away auto-closes, key-repeat ignored'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'interaction controller (gameplay/interaction.js)', ok, details };
+}
+
 async function main() {
 	const playwright = loadPlaywright();
 	if (!playwright) {
@@ -335,6 +428,7 @@ async function main() {
 		results.push(await check3DMode(browser, baseUrl));
 		results.push(await checkSettlementCollider(browser, baseUrl));
 		results.push(await checkJumpArc(browser, baseUrl));
+		results.push(await checkInteractionController(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();

@@ -3578,14 +3578,52 @@ documentation. One commit, separate from the ADR-0039 sub-task's commit.
 137.5 km²) on mobile-class devices — unchanged (this sub-task is test-tooling only, touches no
 terrain/streaming/rendering code).**
 
-**Cumulative for this chained execution (run 36's two sub-tasks):** 2 atomic sub-tasks, 2 commits,
-9 distinct files touched total (`src/3d/config.js`, `src/3d/physics.js`, `src/3d/input.js`,
+**Third chained sub-task within this same run (per the operator's "don't stop after one" rule —
+regression guard and smoke test both passed and budget/time remained):** re-scanned the priority
+order fresh once more after ADR-0040 was committed and pushed. Priorities 1-5 still empty; landed on
+priority 6 again — a real, previously-uncovered gap: `gameplay/interaction.js`'s open/close/
+auto-close state machine (run 33, ADR-0033), which every one of FAZ 5's 14 NPCs' E-key dialogue
+depends on, had zero persisted regression coverage — only ad hoc verification notes from run 33
+itself.
+
+**Decision and work (DECISIONS.md ADR-0041):** Added a fifth check, `checkInteractionController`,
+to `scripts/smokeTestGame3D.js`. `gameplay/interaction.js` takes its `interactionPrompt`/
+`dialogueBox` collaborators as injected parameters (no `THREE`/DOM import of its own), so the check
+uses plain fake stubs rather than the real UI modules — same in-page dynamic-`import()` pattern the
+other module-level checks use, so it still exercises the real module resolution the live game uses.
+Covers the full state machine: prompt hidden/shown correctly by distance; `E` opens a dialogue with
+the right per-NPC greeting and hides the prompt; `E` again or `Escape` closes it; walking out of
+range auto-closes it with no keypress; a browser key-repeat event is correctly ignored.
+
+**Regression guard — verified with a real injected bug, not just reasoning:** `node --check`
+clean (449 lines, under the 600-line cap). All 5 checks PASS against the real repo. Re-injected a
+real bug — disabled the "player walked out of the active NPC's radius" auto-close condition in
+`gameplay/interaction.js` (replaced with a literal `false`) — the new check correctly failed
+specifically on the `walkingAwayAutoCloses` assertion (all 6 other assertions in that same check
+stayed true, isolating exactly which behavior broke), while the other four checks stayed PASS.
+Restored `interaction.js` immediately after; `diff` against a pre-edit backup confirmed a
+byte-identical restore, `node --check` on it afterward stayed clean.
+
+**Memory-leak checklist:** N/A — extends an existing one-shot Node CLI script; fake collaborator
+stubs are plain objects with no listener/timer/`THREE.*` allocation.
+
+**Files changed this sub-task:** `scripts/smokeTestGame3D.js`, `DECISIONS.md` (new ADR-0041),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~80 new lines of code (the new check) plus
+documentation. One commit, separate from the ADR-0039/ADR-0040 sub-tasks' commits. No change to
+`gameplay/interaction.js` itself (test-only addition).
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged (this sub-task is test-tooling only, touches no
+terrain/streaming/rendering code).**
+
+**Cumulative for this chained execution (run 36's three sub-tasks):** 3 atomic sub-tasks, 3 commits,
+10 distinct files touched total (`src/3d/config.js`, `src/3d/physics.js`, `src/3d/input.js`,
 `src/3d/gameplay/player.js`, `src/3d/game3d.js`, `scripts/smokeTestGame3D.js`, `ARCHITECTURE.md`,
 `DECISIONS.md`, `3D_GAME_PROGRESS.md`) — well within the ≤25-file/≤1200-new-line chained-run budget
-(combined new code across both sub-tasks is ~130 lines; the remainder is documentation). Each
+(combined new code across all three sub-tasks is ~210 lines; the remainder is documentation). Each
 sub-task passed its own independent regression guard before its own commit, and each included a
-real fault-injection test (zeroed gravity, both times, since the second sub-task's check exists
-specifically to catch the same class of bug the first sub-task's ad hoc test caught).
+real fault-injection test (zeroed gravity twice, for the same reason noted in the prior run's
+retrospective; a disabled auto-close condition for the third).
 
 **Next step for the next run:** re-scan the priority order fresh, as always. FAZ 4 now has no known
 mechanical gaps left (both the horizontal wall-collider and vertical gravity/jump are done and
@@ -3593,10 +3631,14 @@ regression-guarded). FAZ 3's one remaining item is still LOD (still no measured 
 higher-value remaining gaps, unchanged from run 34/35's own assessment: FAZ 5's actual dialogue
 content and NPC player/pack-awareness (content-design decisions), FAZ 6's other 3 animal types
 (each needs a human manual-download step, mark as "insan onayı gerekli" and stop if attempted). Two
-new, honestly-scoped mobile gaps surfaced by this run: `touchJoystick.js` has no jump control, and
-jump feel (height/gravity constants) hasn't been focus-tested — either could be a legitimate future
-sub-task if a run's priority scan reaches them. A fresh priority-order scan next run may land on any
-of these or on a newly-introduced gap — don't assume this list is exhaustive without re-deriving it.
+new, honestly-scoped mobile gaps surfaced by this run's first sub-task: `touchJoystick.js` has no
+jump control, and jump feel (height/gravity constants) hasn't been focus-tested — either could be a
+legitimate future sub-task if a run's priority scan reaches them. `scripts/smokeTestGame3D.js` now
+has 5 checks; the only FAZ 5/6 system left with zero persisted coverage is the NPC/animal
+patrol-and-pack-alert logic itself (`gameplay/npc.js`/`gameplay/animals.js`) — a plausible priority-6
+candidate for a future run, same reasoning as this run's third sub-task. A fresh priority-order scan
+next run may land on any of these or on a newly-introduced gap — don't assume this list is
+exhaustive without re-deriving it.
 
 ## Known Issues / Tech Debt
 

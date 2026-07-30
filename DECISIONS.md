@@ -2934,3 +2934,58 @@ backup confirmed a byte-identical restore.
 3D-mode boot, settlement collider, jump/gravity arc), each with a demonstrated real failure path.
 No new file, no new dependency, no file over the line cap. Same not-wired-into-CI caveat as every
 prior `scripts/` ADR (no CI pipeline exists in this repo) — still a manual step.
+
+## ADR-0041: Persisted regression check for `gameplay/interaction.js`'s open/close state machine
+
+**Status:** Accepted (run 36, third chained sub-task).
+
+**Context:** With ADR-0039 (jump/gravity) and ADR-0040 (its regression check) both landed and
+pushed, a fresh priority-order re-scan (per the operator's "don't stop after one" chained-subtask
+rule — regression guard and smoke test both passed and budget/time remained) found priorities 1-5
+still empty and landed on priority 6 again: `gameplay/interaction.js`'s open/close/auto-close state
+machine (run 33, ADR-0033) — real gameplay-critical logic every one of FAZ 5's 14 NPCs depends on
+— had zero persisted test coverage. Run 33's own notes verified it by hand at the time; nothing has
+guarded it against regression since.
+
+**Decision:** Added a fifth check, `checkInteractionController`, to `scripts/smokeTestGame3D.js`.
+`gameplay/interaction.js` has no `THREE`/DOM dependency of its own — `interactionPrompt`/
+`dialogueBox` are injected collaborators — so this test uses plain fake stubs (`{visible, shown}`
+tracking objects) rather than the real UI modules, still via the same in-page dynamic-`import()`
+pattern the other three module-level checks use (real module resolution, not a separate harness).
+Covers the full state machine end to end: prompt hidden when no NPC is in range, shown when one is
+and no dialogue is open; `KeyE` opens a dialogue with the correct per-NPC greeting text and hides
+the prompt; `KeyE` again or `Escape` closes it; the player walking out of range auto-closes it with
+no keypress; a browser key-repeat event (`event.repeat: true`) is correctly ignored, not treated as
+a second real press.
+
+**Alternatives considered:**
+- *Drive it through the real UI (`ui/interactionPrompt.js`/`ui/dialogueBox.js`) instead of fakes* —
+  rejected: those modules are already independently covered by the fact that `check3DMode` boots
+  the real game with real NPCs and asserts zero console/page errors; re-testing their DOM rendering
+  here would duplicate that coverage without adding a new assertion, while adding fake stubs lets
+  this check assert the *state machine's own decisions* (what got shown/hidden and when) directly
+  and deterministically, with no DOM query needed.
+- *Drive the real game and physically walk the player near an NPC via simulated keyboard input* —
+  rejected as needlessly fragile for what this test needs to prove: real per-frame movement across
+  a large world (444 terrain chunks) adds real time and multiple potential failure surfaces (chunk
+  streaming, pathing around geometry, terrain height sampling) that have nothing to do with the
+  interaction state machine itself, which is pure per-call logic already provable in isolation with
+  synthetic positions in microseconds.
+
+**Verified:** `node --check scripts/smokeTestGame3D.js` clean (449 lines, under the 600-line cap).
+All 5 checks PASS against the real repo. **Failure path verified with a real injected bug**
+(temporarily disabling the "player walked out of the active NPC's radius" auto-close branch in
+`gameplay/interaction.js`, replacing its condition with a literal `false`) — the new check correctly
+failed specifically on the `walkingAwayAutoCloses` assertion (all 6 other assertions in the same
+check stayed true, isolating exactly which behavior broke), while the other four checks stayed
+PASS. Restored `interaction.js` immediately after; `diff` against a pre-edit backup confirmed a
+byte-identical restore, and `node --check` on it afterward stayed clean.
+
+**Memory-leak checklist:** N/A — extends an existing one-shot Node CLI script; the fake
+`interactionPrompt`/`dialogueBox` stubs are plain objects with no listener/timer/`THREE.*`
+allocation, discarded when the page closes.
+
+**Consequence:** `scripts/smokeTestGame3D.js` now has 5 committed checks (2D shell boot, 3D-mode
+boot, settlement collider, jump/gravity arc, interaction controller), each with a demonstrated real
+failure path. No new file, no `gameplay/interaction.js` change at all (test-only addition), no file
+over the line cap. Same not-wired-into-CI caveat as every prior `scripts/` ADR.
