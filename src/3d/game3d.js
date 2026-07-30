@@ -468,7 +468,9 @@ export async function initGame3D() {
 		// FAZ 6: wild animals (wolf only, see config.js's ANIMAL_CONFIG doc comment). Same seat-anchored
 		// spawn resolution as the NPC block above, loaded in parallel the same way. A `spawn.patrol`
 		// entry (run 27, same shape as NPC_CONFIG's) adds a 2nd world-space waypoint the animal walks a
-		// straight line to/from; animals without one stay static/idle-only.
+		// straight line to/from; animals without one stay idle-only when not fleeing. `groundCollider`
+		// is now always passed (run 28) — flee (below) needs ground-height sampling regardless of
+		// whether this spawn also patrols.
 		const wolves = await Promise.all(
 			ANIMAL_CONFIG.SPAWNS.map(async (spawn) => {
 				const seat = seatsById.get(spawn.seatId);
@@ -494,12 +496,15 @@ export async function initGame3D() {
 					groundY: sampleClampedGroundY(worldX, worldZ),
 					rotationYRadians: spawn.rotationYRadians,
 					name: spawn.id,
-					groundCollider: patrolWaypoints ? state.groundCollider : undefined,
+					groundCollider: state.groundCollider,
 					walkClipName: patrolWaypoints ? ANIMAL_CONFIG.WALK_CLIP_NAME : undefined,
 					patrolWaypoints,
 					speedMps: ANIMAL_CONFIG.PATROL_SPEED_MPS,
 					pauseSeconds: ANIMAL_CONFIG.PATROL_PAUSE_SECONDS,
 					turnRateRadiansPerSecond: ANIMAL_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+					fleeClipName: ANIMAL_CONFIG.FLEE_CLIP_NAME,
+					fleeTriggerRadiusMeters: ANIMAL_CONFIG.FLEE_TRIGGER_RADIUS_METERS,
+					fleeSpeedMps: ANIMAL_CONFIG.FLEE_SPEED_MPS,
 				});
 			}),
 		);
@@ -525,8 +530,10 @@ export async function initGame3D() {
 			const previousTargetZ = state.controls.target.z;
 			state.player.update(delta, moveDirection, axes.running);
 			for (const npc of state.npcs) npc.update(delta);
-			for (const animal of state.animals) animal.update(delta);
+			// player.update() above already moved player.object3D synchronously this frame, so this
+			// read is current — safe to feed into each animal's flee-awareness check below.
 			const playerPos = state.player.object3D.position;
+			for (const animal of state.animals) animal.update(delta, playerPos);
 			state.camera.position.x += playerPos.x - previousTargetX;
 			state.camera.position.z += playerPos.z - previousTargetZ;
 			state.controls.target.set(playerPos.x, playerPos.y + PLAYER_CONFIG.CAMERA_TARGET_HEIGHT_METERS, playerPos.z);

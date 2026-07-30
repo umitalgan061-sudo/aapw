@@ -27,21 +27,27 @@ a system here (blast radius rule).
   No movement, AI, or interaction — the caller (`game3d.js`) supplies the exact world position and
   ground height (already sampled once for the settlement it stands near), this module only loads
   and idles.
-- **`animals.js`** — wild animals, wolf (FAZ 6, run 26; patrol added run 27). `createWolf({assetLoader,
-  modelUrl, idleClipName, stripChildNames, worldX, worldZ, groundY, rotationYRadians, name,
-  groundCollider, walkClipName, patrolWaypoints, speedMps, pauseSeconds,
-  turnRateRadiansPerSecond})` loads the wolf glTF/GLB (`AssetLoader.loadModel`, no Mixamo-style
-  scale correction needed — the source file is already real-world-meter scale), strips any bundled
-  non-skinned decoration mesh named in `stripChildNames` (the wolf file ships a stray "Circle"
-  shadow-catcher disc as a scene-root sibling of its own skinned meshes), plays the named idle clip
-  on loop, and returns the same `{object3D, update(delta), dispose()}` shape `npc.js` does. If
-  `patrolWaypoints` is supplied it walks a straight line between them (index wraps via modulo — 2
-  points ping-pong, 3+ loop), pausing to idle at each one — the same movement logic `npc.js`'s
-  `createNPC` uses, copied rather than shared (see DECISIONS.md ADR-0026 for why: the two files'
-  loaders/clip-lookup APIs differ enough that a shared helper would be an awkward partial
+- **`animals.js`** — wild animals, wolf (FAZ 6, run 26; patrol run 27; flee run 28).
+  `createWolf({assetLoader, modelUrl, idleClipName, stripChildNames, worldX, worldZ, groundY,
+  rotationYRadians, name, groundCollider, walkClipName, patrolWaypoints, speedMps, pauseSeconds,
+  turnRateRadiansPerSecond, fleeClipName, fleeTriggerRadiusMeters, fleeSpeedMps})` loads the wolf
+  glTF/GLB (`AssetLoader.loadModel`, no Mixamo-style scale correction needed — the source file is
+  already real-world-meter scale), strips any bundled non-skinned decoration mesh named in
+  `stripChildNames` (the wolf file ships a stray "Circle" shadow-catcher disc as a scene-root
+  sibling of its own skinned meshes), plays the named idle clip on loop, and returns
+  `{object3D, update(delta, playerPosition), dispose()}` — the same shape `npc.js` does, plus the
+  optional `playerPosition` argument (run 28). Each frame, in priority order: if
+  `fleeTriggerRadiusMeters` is set and `playerPosition` is within it, the wolf runs straight away
+  from the player at `fleeSpeedMps` (see DECISIONS.md ADR-0027); otherwise, if `patrolWaypoints` is
+  supplied, it walks a straight line between them (index wraps via modulo — 2 points ping-pong, 3+
+  loop), pausing to idle at each one (DECISIONS.md ADR-0026); otherwise it just idles. Both moving
+  branches share a local `turnToward` helper (shortest-path turn) but the movement logic itself is
+  copied from `npc.js`'s `createNPC` rather than shared across files (see ADR-0026 for why: the two
+  files' loaders/clip-lookup APIs differ enough that a shared helper would be an awkward partial
   abstraction, and `npc.js` is a stable, already-tested system not worth touching for a
-  readability-only win at just 2 consumers). Omitting `patrolWaypoints` (the default) keeps the
-  run-26 static-idle-only behavior. No AI, player-awareness, or name-tag yet.
+  readability-only win at just 2 consumers). Omitting both `patrolWaypoints` and
+  `fleeTriggerRadiusMeters` keeps the run-26 static-idle-only behavior. No real AI, herd behavior,
+  or name-tag yet.
 
 ## Conventions
 

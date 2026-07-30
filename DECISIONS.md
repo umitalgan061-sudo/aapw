@@ -2050,3 +2050,66 @@ the other 3 animal types (horses, carts, dogs/cats, birds — none downloaded, h
 step needed for each), and player-awareness (flee/aggro) for the wolf. No new tech debt — the
 duplication-vs-shared-helper tradeoff above was made deliberately, not accidentally, and is
 explicitly flagged for revisit at a third consumer.
+
+## ADR-0027: Wolves flee from the player within 15m (first FAZ 6 player-awareness)
+
+**Context:** Run 27 left "player-awareness (flee/aggro) for the wolf" as an explicit next-step
+candidate, alongside FAZ 5's own still-open dialogue/player-awareness gap for NPCs. This run's
+Session Snapshot found the git working tree already clean and in sync with `origin/main` (no
+detached-HEAD repair needed this time) and no higher-priority syntax/blocking-bug/perf/memory issue,
+so per the task's priority order this run picked up the flee slice — the smaller, better-scoped of
+the two open player-awareness items (a wolf's flee reaction needs only a distance check + a movement
+vector; an NPC dialogue system needs a whole new interaction/UI layer, out of proportion with one
+atomic run).
+
+**Decision:** `gameplay/animals.js`'s `createWolf` gained `fleeClipName`/`fleeTriggerRadiusMeters`/
+`fleeSpeedMps` parameters and a distance check against a new `playerPosition` argument on
+`update(delta, playerPosition)` (previously just `update(delta)` — the signature change is
+contained to this module and its one caller, `game3d.js`'s animal-update loop). When the wolf is
+within `fleeTriggerRadiusMeters` (15m) of the player, flee overrides idle/patrol entirely (checked
+first, highest priority) and the wolf runs in a straight line directly away from the player's
+current position at `fleeSpeedMps` (4.5, faster than the 2.2 patrol trot), playing
+`FLEE_CLIP_NAME` (`01_Run_Armature_0`, confirmed via the `.gltf` JSON). No hysteresis/separate
+"flee until this much safer" distance — once the wolf crosses back outside the trigger radius, flee
+stops immediately and normal patrol/idle resumes from wherever the wolf ended up (no waypoint-index
+reset needed, since patrol targets a fixed waypoint regardless of the wolf's current position). This
+is a deliberate "smallest thing that earns flee" scope, the same discipline patrol itself used
+(ADR-0021/ADR-0026) — no pathfinding, no fatigue/stamina, no herd behavior (the second wolf doesn't
+react to the first one fleeing).
+
+`game3d.js`'s tick loop was restructured slightly: `playerPos` (previously read only after the NPC/
+animal update calls, for the camera-chase math) is now read once right after `player.update()` and
+passed into each animal's `update()` — safe because `player.update()` already moved
+`player.object3D` synchronously earlier in the same frame, so the read is current, not stale by a
+frame. NPCs are unaffected — `npc.js`'s own `update(delta)` signature and call site are untouched,
+matching this run's decision to scope player-awareness to the wolf only.
+
+**Why straight-line-away instead of pathfinding-away-from-threat:** the terrain has no obstacles a
+straight line would need to route around at this seat (a flat-ish rolling FBM field, per
+`world/terrain.js`), and `world/settlements.js`'s castle geometry is 30-48m+ away from where these
+wolves patrol — a real navmesh-based flee (avoiding walls, other terrain features) is disproportionate
+scope for a first pass and would duplicate `camera.js`'s own raycasting machinery for a problem this
+seat doesn't actually have yet. Revisit if a future seat places a wolf close enough to a wall that
+this becomes a real visible bug (see Known Issues).
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- `node --check` clean on all 3 touched files (`config.js`, `game3d.js`, `gameplay/animals.js`).
+- Full smoke test on both device classes (post-cleanup, debug hook removed): `"Spawned 2 FAZ 6
+  animal(s)."` on both, zero console/page errors, all pre-existing counts unchanged.
+- **A live proximity test via a temporary debug hook** (`window.__debugGame3DState = state`, added
+  only for this test and reverted before commit — confirmed via `git diff` showing zero net change
+  to the committed `game3d.js`): with the player far away, `berkalp-wolf-1` moved at its normal
+  patrol rate (unchanged baseline). Teleporting the player to 5m from the wolf (well inside the 15m
+  trigger) and sampling every 1.5s showed the distance-to-player climb from 6.51m → 15.38m within
+  ~4.5s (the wolf fleeing away, roughly consistent with the 4.5 m/s config value given this
+  sandbox's well-documented non-representative frame timing — see Known Issues), then the wolf
+  settled just outside the 15m boundary (14.88-15.38m across further samples) once safe, confirming
+  flee correctly starts on proximity and correctly stops once the trigger radius is cleared, with no
+  runaway/oscillation loop.
+
+**Consequence:** FAZ 6's wolf is now feature-complete at first-pass player-awareness scope: loads,
+idles, patrols, and flees. Zero new draw calls/triangles (same 2 `SkinnedMesh` instances, one more
+clip loaded). Real remaining FAZ 6 work: the other 3 animal types (still need human manual-download
+steps) and any herd/pack reaction. FAZ 5's own player-awareness/dialogue gap for NPCs remains
+untouched, a separate and larger scope. No new tech debt — the `update(delta, playerPosition)`
+signature change is additive (an optional parameter) and contained to `animals.js`'s one caller.

@@ -336,12 +336,14 @@ export const NPC_CONFIG = Object.freeze({
  * glTF (`assets_manifest.json`) was already downloaded for this phase (run 20's era) and sat unused
  * until run 26. Modeled after `NPC_CONFIG`'s seat-anchored spawn shape, but animals get no name tag.
  * Waypoint patrol (run 27) reuses `NPC_CONFIG`'s own proven `patrol` field shape/behavior — see
- * DECISIONS.md ADR-0026. */
+ * DECISIONS.md ADR-0026. Player-awareness (run 28, flee): a wolf within `FLEE_TRIGGER_RADIUS_METERS`
+ * of the player overrides its idle/patrol state and runs directly away instead — see DECISIONS.md
+ * ADR-0027. `NPC_CONFIG`'s guards have no equivalent yet (still open FAZ 5 work, out of this scope). */
 export const ANIMAL_CONFIG = Object.freeze({
 	WOLF_MODEL_URL: 'assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
 	/** Exact glTF animation-clip names (`THREE.AnimationClip.findByName`) — confirmed against the
 	 * source file's own `.gltf` JSON sidecar, not guessed: `01_Run_Armature_0`, `02_walk_Armature_0`,
-	 * `03_creep_Armature_0`, `04_Idle_Armature_0`, `05_site_Armature_0`. Only idle+walk are used. */
+	 * `03_creep_Armature_0`, `04_Idle_Armature_0`, `05_site_Armature_0`. Idle/walk/run are used. */
 	IDLE_CLIP_NAME: '04_Idle_Armature_0',
 	/** Walking clip for patrolling animals (run 27) — same "In Place" assumption `NPC_CONFIG.
 	 * WALK_ANIMATION_URL` relies on for Mixamo clips; unlike Mixamo, this glTF's own root bone is not
@@ -357,6 +359,15 @@ export const ANIMAL_CONFIG = Object.freeze({
 	/** Same turn rate as `NPC_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND` — no reason for a wolf to
 	 * turn faster/slower than a patrolling guard at this scope. */
 	PATROL_TURN_RATE_RADIANS_PER_SECOND: 4,
+	/** Run clip for fleeing (run 28) — a wolf sprinting away from the player, distinct from its
+	 * unhurried patrol walk. */
+	FLEE_CLIP_NAME: '01_Run_Armature_0',
+	/** A wolf within this many meters of the player flees; picked to trigger only once the player has
+	 * actually approached (not merely entered the same 40-60m spawn-offset neighborhood), while still
+	 * comfortably inside the same terrain chunk everything else here already assumes is grounded. */
+	FLEE_TRIGGER_RADIUS_METERS: 15,
+	/** Faster than `PATROL_SPEED_MPS` (2.2) — a fleeing sprint, not a patrol trot. */
+	FLEE_SPEED_MPS: 4.5,
 	/** The source file bundles a flat, non-skinned "Circle" mesh (a Blender shadow-catcher disc) as
 	 * a sibling of the wolf's own skinned meshes at the scene root — confirmed via the `.gltf` JSON
 	 * (`meshes[5].name === 'Circle'`), not part of the animal itself. `gameplay/animals.js` strips
