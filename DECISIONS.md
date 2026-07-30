@@ -3684,3 +3684,58 @@ being kept — see "Verified" below.
   transform-feedback pass)* — technically possible but far more machinery than a smoke check
   warrants; the shader-source check is simpler, faster, and (having been verified against the real
   old/new shaders) equally conclusive for this specific bug class.
+
+## ADR-0051: Real per-NPC dialogue content, replacing the single shared generic greeting
+
+**Status:** Accepted (run 40, fourth sub-task — continued after a second "Devam et").
+
+**Context:** Priority 9 (active phase's missing sub-task) — `3D_GAME_PROGRESS.md`'s FAZ 5 entry has
+flagged "no real dialogue content" since run 33 (ADR-0033): every one of the 14 NPCs shows the exact
+same `INTERACTION_CONFIG.GREETING_TEMPLATE` line, differing only by the `{name}` substitution. This
+sub-task replaces that with one hand-written, house-flavored line per NPC — still not a real
+dialogue tree (no branching/replies/quest hooks, explicitly out of scope), but a genuine content gap
+closed with zero new risk to the proven open/close state machine.
+
+**Decision:** `config.js`'s new `INTERACTION_CONFIG.GREETINGS_BY_NPC_ID` — a frozen object, one
+entry per `NPC_CONFIG.SPAWNS` id, each an original Turkish line (never adapted from the show — same
+"Westeros theme freely, no real show media" constraint every asset here already follows) written
+per-id, not per-house: `twin-guard-1` and `cersei-guard-1` are both House Lannister but distinct
+seats, and every seat already gets its own `displayName`/name-tag (ADR-0022) and, for `berk`/
+`olena`, a deliberately shared Tyrell-flavor `displayName` (ADR-0036) — the new greetings echo that
+same existing per-seat-not-per-house granularity rather than inventing a new one. `gameplay/
+interaction.js`'s `openDialogue` looks its speaker up by `npc.object3D.name` — already carrying
+each NPC's spawn `id` since `gameplay/npc.js`'s `createNPC` sets `model.name = name` at creation
+(run 20) — falling back to the old `GREETING_TEMPLATE` for any id with no entry (defensive; every
+real spawn has one today). No new field needed on the NPC controller object, no `npc.js` change at
+all. `game3d.js`'s one call site gained one new option (`greetingsByNpcId`); kept on the same source
+line as `greetingTemplate` rather than its own line, since `game3d.js` sits at the project's
+600-line cap exactly (ADR-0049) and this sub-task needed to add zero net lines there.
+
+**Verified:**
+- `node --check` clean on `config.js`, `gameplay/interaction.js`, `game3d.js` (confirmed still
+  exactly 600 lines).
+- Full committed smoke suite — all 10 checks PASS. `checkInteractionController` (`game3dSmokeChecks.js`)
+  extended with 2 new assertions in the same run: a real per-NPC entry is used when the fake NPC's
+  `object3D.name` matches one, and an unmapped id correctly falls back to the generic template —
+  both asserted against the real `createInteractionController`, not a stub of it.
+- **Real headless-Chromium proof, not just the config data:** rendered the actual `ui/dialogueBox.js`
+  `DialogueBox` component (real DOM/CSS, not a mock) with 2 real per-NPC entries pulled live from
+  `config.js` — `umit-guard-1` ("Ümit Targeryan'ın kalesine hoş geldin!...") and `jon-guard-1`
+  ("Gece Nöbeti sınırdadır...") — screenshotted both, confirming visibly distinct text renders
+  correctly styled in the real UI component. A third in-page check iterated every one of
+  `NPC_CONFIG.SPAWNS`' 14 ids against `GREETINGS_BY_NPC_ID`: 0 missing, 14 unique strings (no
+  accidental copy-paste duplicate covering two ids). Zero console/page errors throughout.
+
+**Alternatives considered:**
+- *Simulate real WASD navigation to an in-scene NPC and press E, screenshotting the live 3D canvas*
+  — attempted first (matching ADR-0049's own precedent of proving a feature via real navigation),
+  but dead-reckoning a path around the settlement collider without visual feedback between steps
+  proved unreliable (ended up pressed against the keep wall, short of the guard's actual offset
+  corner) and burned the sub-task's proportionate share of run time. Switched to directly rendering
+  the real `DialogueBox` component with real config content instead — still 100% production code
+  (the class, the CSS, the actual data), and a more direct proof of *this* sub-task's actual claim
+  ("content differs per NPC"), which doesn't depend on successfully piloting the chase camera.
+- *One line per house instead of per NPC id* — rejected per Context above: two of this project's
+  own precedents (`displayName`, name tags) already operate at per-seat granularity even for shared
+  houses; a coarser per-house dialogue map would be a step backward in that established convention,
+  not a simplification of it.

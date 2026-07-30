@@ -4170,18 +4170,54 @@ the 25-file cap) and ~760 new/changed lines total (well under the 1200-line budg
 drive-by docs fix + 3 sub-tasks + this coverage sub-task pending its own commit below), each
 regression-guarded.
 
+**Sub-task 4 — decision and work (DECISIONS.md ADR-0051), continued after a second "Devam et":**
+priority 9's flagged FAZ 5 gap — real per-NPC dialogue content, replacing the single generic
+`GREETING_TEMPLATE` every NPC shared since run 33. New `config.js` `INTERACTION_CONFIG.
+GREETINGS_BY_NPC_ID`: one hand-written, house-flavored Turkish line per `NPC_CONFIG.SPAWNS` id (14
+total, original writing — not adapted from the show). `gameplay/interaction.js`'s `openDialogue`
+looks the speaker up by `npc.object3D.name` (already carrying the spawn id since run 20 — no
+`npc.js` change needed), falling back to the old template for any unmapped id. `game3d.js`'s one
+call site gained the new option on the same source line as the existing one — net zero new lines,
+since the file sits at the 600-line cap exactly.
+
+**Regression guard:** `node --check` clean, `game3d.js` confirmed still exactly 600 lines. Full
+smoke suite — all 10 checks PASS; `checkInteractionController` extended with 2 new assertions
+(per-NPC lookup used when the id matches, falls back to template when it doesn't) in the same run.
+**Real headless-Chromium proof:** rendered the actual `ui/dialogueBox.js` component (real DOM/CSS)
+with 2 real entries pulled live from `config.js` — `umit-guard-1` and `jon-guard-1` — screenshotted
+both, visibly distinct correctly-styled text. A coverage check over all 14 `NPC_CONFIG.SPAWNS` ids
+found 0 missing entries and 14 unique strings (no accidental duplicate). Zero console/page errors.
+
+**Memory-leak checklist:** N/A — a config data table + one lookup at dialogue-open time; no new
+per-frame allocation, listener, or timer.
+
+**Files changed this sub-task:** `src/3d/config.js`, `src/3d/gameplay/interaction.js`,
+`src/3d/game3d.js`, `scripts/game3dSmokeChecks.js`, `DECISIONS.md` (new ADR-0051),
+`3D_GAME_PROGRESS.md` (this file, correction + this entry). 6 files, ~90 new/changed lines.
+
+**World Coverage (unchanged this sub-task): 80.7% (111.00 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — dialogue content only, no terrain/streaming touched.**
+
+**Run totals (4 chained sub-tasks, run 40):** 15 files touched across all 4 sub-tasks (well under
+the 25-file cap) and ~850 new/changed lines total (well under the 1200-line budget). 6 commits (1
+drive-by docs fix + 4 sub-tasks + this dialogue sub-task pending its own commit below), each
+regression-guarded (full smoke suite plus a real headless-Chromium screenshot or verified-against-
+a-real-regression check).
+
 **Next step for the next run:** re-scan the priority order fresh, as always — priorities 1/1.5/1.7
-are resolved and priority 7 now has coverage for both of this run's fixes. Likely next landing
-spots: priority 8 (World Coverage, flat at 80.7%/4.5% since run 15, deferred twice already — see
-run 39's ADR-0047 Context for what a safe attempt needs: either `renderer.info`-based triangle/
-draw-call instrumentation first, or a smaller step than `PHASE1_PREVIEW_RADIUS_CHUNKS` 10 -> 11);
-priority 9's remaining FAZ 5/6 gaps (real per-NPC dialogue content; cart/dog-cat/bird still need a
-human manual-download step); FAZ 7 (dragons — `verdant_wyrm` model ready, no code started); or the
-priority-9.5 world-events/EventBus-expansion task, not yet reached across 2 runs now. `game3d.js` is
-at the 600-line cap exactly — the next run touching it for anything beyond a pure line-for-line swap
-will need to extract something first. **Standing lesson from this run's own correction:** when a
-verification claim can't be tested against a known-bad case (the old shader, a broken toggle), treat
-it as unverified, not proven — this run's mistake and fix are exactly that pattern.
+are resolved, priority 7 has coverage for run 40's fixes, and priority 9's dialogue-content gap is
+closed. Likely next landing spots: priority 8 (World Coverage, flat at 80.7%/4.5% since run 15,
+deferred twice already — see run 39's ADR-0047 Context for what a safe attempt needs: either
+`renderer.info`-based triangle/draw-call instrumentation first, or a smaller step than
+`PHASE1_PREVIEW_RADIUS_CHUNKS` 10 -> 11); FAZ 5/6's remaining gap (cart/dog-cat/bird still need a
+human manual-download step — mark "insan onayı gerekli" and stop if attempted); FAZ 7 (dragons —
+`verdant_wyrm` model ready, no code started); or the priority-9.5 world-events/EventBus-expansion
+task, not yet reached across 2 runs now. `game3d.js` is at the 600-line cap exactly — the next run
+touching it for anything beyond a pure line-for-line swap will need to extract something first.
+**Standing lesson from this run's own correction (ADR-0050):** when a verification claim can't be
+tested against a known-bad case (the old shader, a broken toggle), treat it as unverified, not
+proven — this run's mistake and fix are exactly that pattern; apply it to every future "Verified"
+bullet, not just this file's water/camera checks.
 
 ## Known Issues / Tech Debt
 
@@ -4297,15 +4333,17 @@ it as unverified, not proven — this run's mistake and fix are exactly that pat
   interaction affordance at all~~ — first pass landed run 32** (`ui/interactionPrompt.js`, a static
   "E - Selamla" prompt shown within 6m of any NPC — see DECISIONS.md ADR-0032). **~~No keypress
   handling~~ — landed run 33** (`gameplay/interaction.js`'s new controller, DECISIONS.md ADR-0033):
-  pressing E while the prompt shows opens `ui/dialogueBox.js` with a generic greeting naming the
-  NPC (via its `displayName`), Escape or E again closes it, and walking out of range — the
-  player's or the patrolling NPC's own movement, either counts — auto-closes it. **Still no real
-  dialogue system:** the greeting is one static template, identical for every NPC, no branching, no
-  reply options, no quest hooks. No NPC reacts to the player's presence otherwise — patrol runs on
-  a fixed clock/route regardless of where the player is, deliberately not real
+  pressing E while the prompt shows opens `ui/dialogueBox.js` with a greeting naming the NPC (via
+  its `displayName`), Escape or E again closes it, and walking out of range — the player's or the
+  patrolling NPC's own movement, either counts — auto-closes it. **~~The greeting was one static
+  template, identical for every NPC~~ — fixed run 40** (`config.js`'s `INTERACTION_CONFIG.
+  GREETINGS_BY_NPC_ID`, DECISIONS.md ADR-0051) — all 14 NPCs now speak their own hand-written,
+  house-flavored line. **Still no real dialogue system:** no branching, no reply options, no quest
+  hooks — one static line per NPC, not a tree. No NPC reacts to the player's presence otherwise —
+  patrol runs on a fixed clock/route regardless of where the player is, deliberately not real
   behavior-tree AI. All remaining gaps are honest, scoped-out ones (see
-  DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031/ADR-0032/ADR-0033's
-  "Alternatives considered"), not accidental. **~~Every patrolling NPC's and wolf's `update()`
+  DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031/ADR-0032/ADR-0033/
+  ADR-0051's "Alternatives considered"), not accidental. **~~Every patrolling NPC's and wolf's `update()`
   idled a full `pauseSeconds` before its first distance-to-waypoint check ever ran, so it idled
   *two* full `pauseSeconds` cycles (not one) before its first real step~~ — documented run 38
   sub-tasks 1/2 (DECISIONS.md ADR-0043/ADR-0044), fixed run 38 sub-task 3 (ADR-0045).** `pauseTimer`

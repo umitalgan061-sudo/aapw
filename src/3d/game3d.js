@@ -473,7 +473,7 @@ export async function initGame3D() {
 		state.interaction = createInteractionController({
 			interactionPrompt: state.interactionPrompt,
 			dialogueBox: state.dialogueBox,
-			greetingTemplate: INTERACTION_CONFIG.GREETING_TEMPLATE,
+			greetingTemplate: INTERACTION_CONFIG.GREETING_TEMPLATE, greetingsByNpcId: INTERACTION_CONFIG.GREETINGS_BY_NPC_ID,
 			radiusMeters: INTERACTION_CONFIG.PROMPT_RADIUS_METERS,
 		});
 		const handleInteractKeyDown = (event) => state.interaction.handleKeyDown(event);

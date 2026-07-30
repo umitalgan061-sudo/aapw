@@ -153,7 +153,7 @@ async function checkInteractionController(browser, baseUrl) {
 		result = await page.evaluate(async () => {
 			const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
 
-			function makeFakes() {
+			function makeFakes(extraOptions = {}) {
 				const prompt = { visible: null, setVisible(v) { this.visible = v; } };
 				const dialogue = { shown: null, show(text) { this.shown = text; }, hide() { this.shown = null; } };
 				const controller = createInteractionController({
@@ -161,6 +161,7 @@ async function checkInteractionController(browser, baseUrl) {
 					dialogueBox: dialogue,
 					greetingTemplate: 'Selam, {name}!',
 					radiusMeters: 6,
+					...extraOptions,
 				});
 				return { prompt, dialogue, controller };
 			}
@@ -204,9 +205,23 @@ async function checkInteractionController(browser, baseUrl) {
 			t7.controller.handleKeyDown({ code: 'KeyE', repeat: true }); // held-key repeat, must be ignored
 			const repeatIgnored = t7.dialogue.shown === null;
 
+			// run 40 (ADR-0051): per-NPC greeting lookup by object3D.name, falling back to the
+			// generic template when an id has no entry — both branches asserted here.
+			const namedNpc = { object3D: { position: { x: 10, z: 0 }, name: 'test-guard-1' }, displayName: 'Named NPC' };
+			const t8 = makeFakes({ greetingsByNpcId: { 'test-guard-1': '{name} diyor ki: özel selam!' } });
+			t8.controller.update([namedNpc], near);
+			t8.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			const perNpcGreetingUsed = t8.dialogue.shown === 'Named NPC diyor ki: özel selam!';
+
+			const unnamedNpc = { object3D: { position: { x: 10, z: 0 }, name: 'unknown-id' }, displayName: 'Unknown NPC' };
+			const t9 = makeFakes({ greetingsByNpcId: { 'test-guard-1': '{name} diyor ki: özel selam!' } });
+			t9.controller.update([unnamedNpc], near);
+			t9.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			const unmappedIdFallsBackToTemplate = t9.dialogue.shown === 'Selam, Unknown NPC!';
+
 			return {
 				farHidesPrompt, nearShowsPrompt, eOpensDialogue, eAgainCloses, escapeCloses,
-				walkingAwayAutoCloses, repeatIgnored,
+				walkingAwayAutoCloses, repeatIgnored, perNpcGreetingUsed, unmappedIdFallsBackToTemplate,
 			};
 		});
 	} finally {
@@ -214,7 +229,8 @@ async function checkInteractionController(browser, baseUrl) {
 	}
 	const ok = Object.values(result).every(Boolean);
 	const details = ok
-		? 'far hides prompt, near shows it, E opens/closes, Escape closes, walking away auto-closes, key-repeat ignored'
+		? 'far hides prompt, near shows it, E opens/closes, Escape closes, walking away auto-closes, key-repeat ignored, ' +
+			'per-NPC greeting lookup + fallback-to-template both correct'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
 	return { name: 'interaction controller (gameplay/interaction.js)', ok, details };
 }

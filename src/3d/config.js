@@ -537,19 +537,46 @@ export const TOUCH_JOYSTICK_CONFIG = Object.freeze({
 	RUN_THRESHOLD_RATIO: 0.75,
 });
 
-/** FAZ 5 (run 32-33): `ui/interactionPrompt.js` shows a proximity *affordance* ("E - Selamla") when
- * the player is near any NPC; pressing E while it's showing opens `ui/dialogueBox.js` with a single
- * generic greeting line built from `GREETING_TEMPLATE` (run 33, DECISIONS.md ADR-0033) — still no
- * real per-NPC dialogue content/branching/replies, deliberately scoped smaller than a full dialogue
- * system (see 3D_GAME_PROGRESS.md Known Issues). */
+/** FAZ 5 (run 32-33, per-NPC content run 40): `ui/interactionPrompt.js` shows a proximity
+ * *affordance* ("E - Selamla") when the player is near any NPC; pressing E while it's showing opens
+ * `ui/dialogueBox.js` with that NPC's own greeting — see DECISIONS.md ADR-0033 (the open/close
+ * mechanism) and ADR-0051 (real per-NPC content, replacing the single generic line every NPC used
+ * to share). Still no branching/replies/quest hooks — one static line per NPC, not a real dialogue
+ * tree (see 3D_GAME_PROGRESS.md Known Issues). */
 export const INTERACTION_CONFIG = Object.freeze({
 	/** Closer than `NPC_CONFIG`'s 12m keep-clearance offset — a "standing right next to them" cue,
 	 * not a "somewhere in this courtyard" one. */
 	PROMPT_RADIUS_METERS: 6,
-	/** `{name}` is replaced with the NPC's `displayName` — see `game3d.js`'s `openDialogue`. One
-	 * generic line for every NPC; not a real per-character/per-house greeting yet (that needs actual
-	 * dialogue-writing, a separate future decision, not a config constant). */
+	/** Fallback only, for any NPC id not present in `GREETINGS_BY_NPC_ID` below (none today — every
+	 * real `NPC_CONFIG.SPAWNS` entry has its own line — but a future spawn added without a matching
+	 * entry degrades gracefully instead of showing `undefined`). `{name}` is replaced with the NPC's
+	 * `displayName` — see `gameplay/interaction.js`'s `openDialogue`. */
 	GREETING_TEMPLATE: '{name}: Uzak yollardan mı geliyorsun, yabancı?',
+	/** One hand-written, house-flavored line per `NPC_CONFIG.SPAWNS` entry, keyed by that entry's
+	 * `id` (already carried onto `object3D.name` — see `gameplay/npc.js`'s `createNPC`, no new field
+	 * needed to look this up). Original writing, not adapted from the show — same "Westeros theme
+	 * freely, no real show media" constraint every asset in this project already follows. See
+	 * DECISIONS.md ADR-0051 for why per-id (not per-house): `twin-guard-1` and `cersei-guard-1` are
+	 * both House Lannister but distinct seats, and reusing one line for both read as less "real"
+	 * than the per-house grouping this map still visibly shares (`berk-guard-1`/`olena-guard-1`
+	 * intentionally echo `ziya-guard-1`'s Tyrell flavor, same as their shared `displayName` already
+	 * does — see ADR-0036). */
+	GREETINGS_BY_NPC_ID: Object.freeze({
+		'stannis-guard-1': '{name}: Kral Stannis\'in adaleti bu topraklarda hüküm sürer. İşin nedir, yabancı?',
+		'stannis-guard-2': '{name}: İkinci nöbetçi benim, gözüm hep tepede. Sakin dur, seni izliyorum.',
+		'umit-guard-1': '{name}: Ümit Targeryan\'ın kalesine hoş geldin! Ejderha kanı bu surlarda hâlâ akar derler.',
+		'cersei-guard-1': '{name}: Bir Lannister borcunu öder. Sen de saygını göster, yeter.',
+		'berkalp-guard-1': '{name}: Kışın geldiğini unutma, yolcu. Kuzeyde sözler boşa verilmez.',
+		'doran-guard-1': '{name}: Dorne asla dize gelmedi. Burada da eğilmeyeceğiz.',
+		'ziya-guard-1': '{name}: Büyüyen güç bizimdir. Ziya Hanım\'ın bahçeleri seni bekliyor olabilir.',
+		'balon-guard-1': '{name}: Biz tohum ekmeyiz, biçeriz. Demir Adalar\'da hoş karşılanmak kolay değildir.',
+		'robin-guard-1': '{name}: Yükseklik güçtür, yabancı. Arryn\'in kartalları her şeyi görür.',
+		'jon-guard-1': '{name}: Gece Nöbeti sınırdadır. Duvar\'ın ötesinde ne olduğunu bilmek istemezsin.',
+		'xaro-guard-1': '{name}: Qarth\'ın on üç kapısı vardır, ama sana yalnızca biri açık, yabancı.',
+		'berk-guard-1': '{name}: Berk Bey\'in toprakları verimlidir, ama misafirperverliğimiz sınırsız değildir.',
+		'olena-guard-1': '{name}: Olena Hanım keskin dilinden ödün vermez. Sözlerine dikkat et.',
+		'twin-guard-1': '{name}: İkiz Kuleler\'in gölgesinde yürüyorsun. Burada her adım izlenir.',
+	}),
 });
 
 /** LocalStorage/sessionStorage keys owned by the 3D mode. Never reuse or collide with 2D game keys. */

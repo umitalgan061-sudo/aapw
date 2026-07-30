@@ -3,9 +3,11 @@
  * machine (nearest-NPC tracking, keypress handling, distance-based auto-close) so `game3d.js`'s
  * tick loop only calls one `update()` per frame and one `handleKeyDown()` per keydown event.
  * Extracted into its own module to stay under the project's 600-line-per-file cap — the same
- * reasoning ADR-0028 already used for the FAZ 5/6 spawn-resolution loops. Still deliberately
- * minimal: one generic greeting line per NPC, no per-NPC content/branching/replies yet — see
- * DECISIONS.md ADR-0033.
+ * reasoning ADR-0028 already used for the FAZ 5/6 spawn-resolution loops. Real per-NPC greeting
+ * content landed run 40 (`INTERACTION_CONFIG.GREETINGS_BY_NPC_ID`, DECISIONS.md ADR-0051) —
+ * `openDialogue` looks its speaker up by `object3D.name` (already carried as each NPC's spawn `id`
+ * — see `gameplay/npc.js`'s `createNPC`), falling back to the old generic template for any id with
+ * no entry. Still deliberately no branching/replies/quest hooks — one static line per NPC.
  * @module gameplay/interaction
  */
 
@@ -13,11 +15,13 @@
  * @param {object} options
  * @param {{setVisible: (visible: boolean) => void}} options.interactionPrompt
  * @param {{show: (text: string) => void, hide: () => void}} options.dialogueBox
- * @param {string} options.greetingTemplate Contains a literal `{name}` placeholder.
+ * @param {string} options.greetingTemplate Contains a literal `{name}` placeholder. Fallback only.
+ * @param {Object<string, string>} [options.greetingsByNpcId] Keyed by NPC id (`object3D.name`),
+ *   each containing a literal `{name}` placeholder — see `config.js`'s `GREETINGS_BY_NPC_ID`.
  * @param {number} options.radiusMeters
  * @returns {{update: (npcs: Array<{object3D: import('three').Object3D, displayName: (string|null)}>, playerPos: {x: number, z: number}) => void, handleKeyDown: (event: KeyboardEvent) => void}}
  */
-export function createInteractionController({ interactionPrompt, dialogueBox, greetingTemplate, radiusMeters }) {
+export function createInteractionController({ interactionPrompt, dialogueBox, greetingTemplate, greetingsByNpcId = {}, radiusMeters }) {
 	let activeNpc = null;
 	let nearestNpc = null;
 
@@ -25,7 +29,8 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 		activeNpc = npc;
 		interactionPrompt.setVisible(false);
 		const name = npc.displayName ?? 'Yabancı';
-		dialogueBox.show(greetingTemplate.replace('{name}', name));
+		const template = greetingsByNpcId[npc.object3D.name] ?? greetingTemplate;
+		dialogueBox.show(template.replace('{name}', name));
 	}
 
 	function closeDialogue() {
