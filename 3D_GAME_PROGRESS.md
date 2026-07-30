@@ -500,6 +500,10 @@ Triangles<500K, TextureMem<512MB.
 - [ ] Binilebilir 6DOF uçuş kamerası
 
 ### FAZ 8 — RPG/UI Sistemleri (pending)
+- [x] Olay sistemi (early piece, run 42): `gameplay/worldEvents.js` + `ui/worldEventToast.js` —
+  periodic flavor events routed through the `EventBus`, see DECISIONS.md ADR-0056. Deliberately
+  lore/ambiance only (no stat effects — the 3D world has no per-kingdom economy yet); the real
+  quest/dialogue-branching/inventory-tied event system below is still fully open.
 - [ ] HUD: minimap, compass, quest log, health/stamina/mana, FPS sayacı (`ui.js`)
 - [ ] Envanter + craft (`inventory.js`)
 - [ ] Görev günlüğü (`quests.js`)
@@ -4397,19 +4401,69 @@ nodes/GPU resources beyond the terrain chunks `ChunkManager` already knew how to
 `3D_GAME_PROGRESS.md` (this file). 3 files, ~110 new/changed lines (mostly ADR-0055's own
 reasoning/verification prose). One commit, direct push to `main`.
 
-**World Coverage (after this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop — up from 80.7%
+**World Coverage (after sub-task 1): 96.2% (132.25 km² / 137.5 km²) desktop — up from 80.7%
 (111.00 km²); 4.5% (6.25 km² / 137.5 km²) mobile, unchanged (`STREAM_RADIUS_CHUNKS` untouched, same
 device branch as every prior radius change).**
 
+**Sub-task 2 — decision and work (DECISIONS.md ADR-0056), continued after "Devam et":** priority
+9.5, explicitly requested and not yet reached across 4 runs, and correctly the next pick — priority
+9 (FAZ 5's own open gap, a full dialogue-tree/quest system) is a much larger feature than "small
+atomic steps" calls for, and nothing higher-priority (syntax/bugs/perf/memory/missing-test-coverage)
+turned up in a fresh scan. Ported `script.js`'s 2D event-card *pattern* (curated pool, periodic
+pick, themed card), not its stat-mutating *mechanic* (no 3D economy exists to mutate). New
+`gameplay/worldEvents.js` (`createWorldEventSystem`) emits one of 8 curated flavor events
+(icon/title/desc/color, e.g. "Kuzgun Ulaştı", "Ejderha Gölgesi") through the `EventBus` every 45-90
+real-time seconds (seeded, deterministic); new `ui/worldEventToast.js` (`WorldEventToast`)
+self-subscribes to that same event and shows a small, non-blocking, auto-dismissing (6s) card — the
+first place in this codebase where two systems talk purely through the bus, not a direct call
+(exactly what "EventBus'ı gerçek oyun olaylarına genişlet" asked for). `game3d.js` wires both into
+the tick loop / `pagehide` teardown; `config.js` gained one `EVENTS.WORLD_EVENT_TRIGGERED` entry.
+
+**Regression guard:** `node --check` clean on all 3 touched JS files. `game3d.js`: 442 -> 456 lines,
+`config.js`: 598 -> 599 lines (both still under the 600-line cap, `config.js`'s headroom now
+effectively gone). New persisted check `checkWorldEvents` (`game3dSmokeChecksScene.js`) — full
+committed smoke suite now runs **12** checks, all PASS. **Confirmed to catch a real regression**
+(this project's established standard): temporarily broke `worldEvents.js`'s `dispose()` (no-op
+instead of actually disposing), re-ran — `checkWorldEvents` correctly failed on `noFireAfterDispose:
+false` alone, every other assertion still `true`; source restored immediately after, re-confirmed a
+clean 12/12 PASS. **Real headless-Chromium proof:** booted `game3d.html`, emitted a real event
+through the live page's own `gameEvents` bus, screenshotted — the toast renders top-center with
+correct icon/title/description and a color-matched border, doesn't obstruct the player/castle view,
+zero console/page errors.
+
+**Memory-leak checklist:** `worldEvents.js` owns no listeners/DOM (it only emits) — `dispose()` just
+flags itself inert. `worldEventToast.js` owns one `EventBus` subscription, one DOM node, and at most
+one pending `setTimeout` — all three released in `dispose()`, wired into the existing `pagehide`
+chain alongside every other debug/UI system.
+
+**Files changed this sub-task:** `src/3d/gameplay/worldEvents.js` (new), `src/3d/ui/worldEventToast.js`
+(new), `src/3d/game3d.js`, `src/3d/config.js`, `game3d.css`, `src/3d/gameplay/README.md`,
+`src/3d/ui/README.md`, `scripts/game3dSmokeChecksScene.js`, `scripts/smokeTestGame3D.js`,
+`ARCHITECTURE.md`, `DECISIONS.md` (new ADR-0056), `3D_GAME_PROGRESS.md` (this file). 12 files, ~520
+new/changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5% (6.25 km² /
+137.5 km²) mobile — a gameplay/UI-only addition, touches no terrain/streaming/chunk logic.**
+
+**Run totals (2 chained sub-tasks, run 42):** 15 distinct files touched across both sub-tasks
+(`src/3d/config.js`, `DECISIONS.md`, `3D_GAME_PROGRESS.md`, `src/3d/gameplay/worldEvents.js`,
+`src/3d/ui/worldEventToast.js`, `src/3d/game3d.js`, `game3d.css`, `src/3d/gameplay/README.md`,
+`src/3d/ui/README.md`, `scripts/game3dSmokeChecksScene.js`, `scripts/smokeTestGame3D.js`,
+`ARCHITECTURE.md` — well under the 25-file cap) and ~630 new/changed lines total (well under the
+1200-line budget). 2 commits, each regression-guarded (full smoke suite plus a real
+headless-Chromium screenshot and, for sub-task 2, a demonstrated-real-failure-path check).
+
 **Next step for the next run:** re-scan the priority order fresh, as always. World Coverage's own
-gate (80%) has been clear since run 29 and is now comfortably ahead of it (96.2%) — a future run
-should not treat "grow it further" as automatically the next priority-8 pick without a fresh reason
-(e.g. new content changing the real measured headroom); radius 12+ was deliberately rejected this
-run for loading terrain outside the designed world extent (ADR-0055). Other open items unchanged:
-FAZ 5/6's cart/dog-cat/bird gap (needs a human manual-download step); FAZ 7 (dragons —
-`verdant_wyrm` ready, no code started); priority-9.5 world-events/EventBus expansion (not yet
-reached across 4 runs now — likely the best next pick if no higher-priority regression/bug turns
-up). `game3d.js` is at 442/600 lines, `config.js` at 597/600 (still thin headroom).
+gate (80%) has been clear since run 29 and is now comfortably ahead of it (96.2%) — don't treat
+"grow it further" as automatically the next priority-8 pick without a fresh reason (radius 12+ was
+deliberately rejected, ADR-0055). The world-event system (ADR-0056) is deliberately a first, small
+slice — a future run could grow the flavor-event pool, add a rarer "notable" event tier, or (bigger
+scope) start wiring real quest triggers through the same `EventBus` pattern now that it's
+established. Other open items unchanged: FAZ 5/6's cart/dog-cat/bird gap (needs a human
+manual-download step); FAZ 7 (dragons — `verdant_wyrm` ready, no code started); FAZ 5's real
+dialogue-tree/quest system (priority 9, larger scope, still untouched). `game3d.js` is at 456/600
+lines, `config.js` at 599/600 — effectively no headroom left; the next addition there needs a real
+extraction, not careful trimming.
 
 ## Known Issues / Tech Debt
 

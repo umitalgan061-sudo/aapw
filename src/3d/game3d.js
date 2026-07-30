@@ -40,10 +40,12 @@ import { KeyboardInput } from './input.js';
 import { TouchJoystick } from './ui/touchJoystick.js';
 import { InteractionPrompt } from './ui/interactionPrompt.js';
 import { DialogueBox } from './ui/dialogueBox.js';
+import { WorldEventToast } from './ui/worldEventToast.js';
 import { createPlayer } from './gameplay/player.js';
 import { spawnConfiguredNPCs } from './gameplay/npc.js';
 import { spawnConfiguredAnimals } from './gameplay/animals.js';
 import { createInteractionController } from './gameplay/interaction.js';
+import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.js';
 import { disposeRiverMesh, disposeWaterfallMesh } from './world/rivers.js';
 import { disposeSettlements, mapToWorldXZ } from './world/settlements.js';
@@ -317,6 +319,15 @@ export async function initGame3D() {
 		// sceneManager.js's own chunk-radius split already used, so both agree on the device class.
 		state.perfPanel = createPerfPanel({ renderer: state.renderer, isMobileClass: isCoarsePointerDevice() });
 
+		// Priority 9.5: periodic world-flavor events routed through the EventBus (DECISIONS.md
+		// ADR-0056) — worldEvents.js only emits, worldEventToast.js is the (only, for now) listener.
+		state.worldEvents = createWorldEventSystem({
+			eventsBus: gameEvents,
+			seed: WORLD_DEFAULTS.WORLD_SEED,
+			eventName: EVENTS.WORLD_EVENT_TRIGGERED,
+		});
+		state.worldEventToast = new WorldEventToast({ eventsBus: gameEvents, eventName: EVENTS.WORLD_EVENT_TRIGGERED });
+
 		let frameId;
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
@@ -360,6 +371,7 @@ export async function initGame3D() {
 
 			state.controls.update(); // required every frame: enableDamping is on
 			streamAroundOrbitTarget(state);
+			state.worldEvents.update(delta);
 			const elapsedSeconds = state.elapsedSeconds;
 			const dayNight = updateDayNightLighting(
 				state.lights,
@@ -416,6 +428,8 @@ export async function initGame3D() {
 			state.controls.dispose();
 			state.freeCamera.dispose();
 			state.perfPanel.dispose();
+			state.worldEvents.dispose();
+			state.worldEventToast.dispose();
 			state.chunkManager.disposeAll();
 			disposeAuroraSky(state.sky);
 			disposeStarfield(state.stars);

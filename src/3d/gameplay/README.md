@@ -66,6 +66,14 @@ a system here (blast radius rule).
   `event.repeat`, so holding the key doesn't rapid-fire) and closes it on `Escape`. Extracted from
   `game3d.js` to stay under the 600-line cap (DECISIONS.md ADR-0033) — the same reasoning
   `spawnConfiguredNPCs`/`spawnConfiguredAnimals` already used (ADR-0028).
+- **`worldEvents.js`** — periodic world-flavor events (FAZ 8 early piece, priority 9.5, run 42).
+  `createWorldEventSystem({eventsBus, seed, eventName})` returns `{update(deltaSeconds),
+  dispose()}`. `update()` counts down a seeded, randomized (45-90s) real-time interval and, once it
+  elapses, emits a picked flavor event (`{id, icon, title, desc, color}`) through `eventsBus` -
+  deliberately routed through the `EventBus` rather than a direct call, since the point of this
+  system was to extend the bus to real gameplay events. No stat effects (unlike `script.js`'s 2D
+  `RANDOM_EVENTS`) - the 3D world has no per-kingdom economy yet, so this ports the *pattern*
+  (curated pool, periodic pick, themed card) not the *mechanic*. See DECISIONS.md ADR-0056.
 
 ## Conventions
 

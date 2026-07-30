@@ -1,7 +1,7 @@
 # `src/3d/ui/`
 
-Owns on-screen UI the player interacts with directly — the touch joystick, interaction prompt, and
-dialogue box today, and (future phases) HUD/inventory/debug panels. Only this folder and
+Owns on-screen UI the player interacts with directly — the touch joystick, interaction prompt,
+dialogue box, and world-event toast today, and (future phases) HUD/inventory/debug panels. Only this folder and
 `src/3d/config.js` should be touched when working on a system here (blast radius rule); UI modules
 render their own DOM, they don't reach into `world/`, `gameplay/`, or Three.js scene internals — the
 one exception is that `gameplay/interaction.js` (not this folder) owns the distance math/keypress
@@ -28,6 +28,14 @@ convention below.
   `game3d.css`), hidden by default. `show(text)` sets the text and un-hides; `hide()` no-ops if
   already hidden. `isVisible` getter, `dispose()` removes the DOM. Same "dumb DOM only" split as
   `interactionPrompt.js` — `gameplay/interaction.js` decides what text to show and when.
+- **`worldEventToast.js`** — toast card for `gameplay/worldEvents.js`'s periodic events (run 42).
+  `new WorldEventToast({eventsBus, eventName, container?})` appends a hidden `<div>` and
+  self-subscribes to `eventName` on `eventsBus` (the *one* exception to "own DOM only, caller
+  decides when" below — the whole point of the world-event system was routing through the
+  `EventBus`, so this widget listens for itself instead of `game3d.js` calling `show()`). Shows the
+  emitted event's icon/title/description, auto-hides after 6s, and re-arms its own hide timer if a
+  second event arrives before the first finishes. `dispose()` unsubscribes, clears any pending
+  timer, and removes the DOM.
 
 ## Conventions
 

@@ -594,4 +594,6 @@ export const EVENTS = Object.freeze({
 	ASSETS_READY: 'assets:ready',
 	GAME_READY: 'game:ready',
 	GAME_ERROR: 'game:error',
+	/** `gameplay/worldEvents.js`'s periodic flavor events — see DECISIONS.md ADR-0056. */
+	WORLD_EVENT_TRIGGERED: 'world:eventTriggered',
 });

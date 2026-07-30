@@ -277,10 +277,96 @@ async function checkPerfPanel(browser, baseUrl) {
 	return { name: 'F2 debug/profiling panel (debug/perfPanel.js, ADR-0053)', ok, details };
 }
 
+/**
+ * Guards ADR-0056's world-event system (`gameplay/worldEvents.js` + `ui/worldEventToast.js`).
+ * `createWorldEventSystem` only checks its countdown once per `update()` call (never loops to catch
+ * multiple crossings within one big delta), so a single call with a delta far past the max interval
+ * is expected to fire *exactly once* — this asserts that, plus determinism (two independently
+ * created systems with the same seed emit the same first event), the below-threshold no-op case,
+ * and the toast's show/dispose lifecycle (real `EventBus`, not a synthetic stand-in, since the whole
+ * point of this system is routing through it).
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkWorldEvents(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createWorldEventSystem } = await import('/src/3d/gameplay/worldEvents.js');
+			const { WorldEventToast } = await import('/src/3d/ui/worldEventToast.js');
+			const { EventBus } = await import('/src/3d/eventBus.js');
+
+			const bus = new EventBus();
+			const eventName = 'test:worldEvent';
+			const received = [];
+			bus.on(eventName, (payload) => received.push(payload));
+
+			const system = createWorldEventSystem({ eventsBus: bus, seed: 42, eventName });
+			system.update(1); // 1s, far below the 45s minimum interval — must not fire.
+			const noFireBelowThreshold = received.length === 0;
+
+			system.update(1000); // far past the max interval — must fire exactly once, not loop.
+			const firedExactlyOnce = received.length === 1;
+			const firstEventId = received[0] && received[0].id;
+			const payloadShapeOk = received[0]
+				&& typeof received[0].icon === 'string' && typeof received[0].title === 'string'
+				&& typeof received[0].desc === 'string' && typeof received[0].color === 'string';
+
+			system.update(1000); // resets its own countdown after firing — a 2nd huge delta fires again.
+			const firesAgainAfterReset = received.length === 2;
+
+			system.dispose();
+			received.length = 0;
+			system.update(1000);
+			const noFireAfterDispose = received.length === 0;
+
+			// Determinism: a fresh system with the same seed picks the exact same first event id.
+			const receivedB = [];
+			bus.on(`${eventName}B`, (payload) => receivedB.push(payload));
+			const systemB = createWorldEventSystem({ eventsBus: bus, seed: 42, eventName: `${eventName}B` });
+			systemB.update(1000);
+			const deterministic = receivedB[0] && receivedB[0].id === firstEventId;
+			systemB.dispose();
+
+			// Toast lifecycle needs its own fresh system/bus channel (received[0] above was consumed
+			// by the determinism check's comparison, not re-fired).
+			const toastEvents = [];
+			bus.on(`${eventName}C`, (payload) => toastEvents.push(payload));
+			const systemC = createWorldEventSystem({ eventsBus: bus, seed: 7, eventName: `${eventName}C` });
+			const toast = new WorldEventToast({ eventsBus: bus, eventName: `${eventName}C` });
+			const el = document.querySelector('.g3d-event-toast');
+			const hiddenInitially = el.hidden === true;
+			systemC.update(1000);
+			const shownOnEvent = el.hidden === false
+				&& el.querySelector('.g3d-event-toast-title').textContent === toastEvents[0].title
+				&& el.querySelector('.g3d-event-toast-desc').textContent === toastEvents[0].desc;
+
+			toast.dispose();
+			systemC.dispose();
+			const disposedRemovesDom = document.querySelector('.g3d-event-toast') === null;
+
+			return {
+				noFireBelowThreshold, firedExactlyOnce, payloadShapeOk, firesAgainAfterReset,
+				noFireAfterDispose, deterministic, hiddenInitially, shownOnEvent, disposedRemovesDom,
+			};
+		});
+	} catch (error) {
+		result = { error: String(error) };
+	}
+	await page.close();
+	const ok = result && Object.values(result).every((value) => value === true);
+	const details = ok
+		? 'no-op below the min interval, fires exactly once per update() call past it (never loops), resets its own countdown, dispose() stops further emits, same seed picks the same first event, toast shows real emitted payload text and dispose() removes its DOM'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'world-event system (gameplay/worldEvents.js + ui/worldEventToast.js, ADR-0056)', ok, details };
+}
+
 module.exports = {
 	check2DShell,
 	check3DMode,
 	checkWaterVertexShaderStatic,
 	checkFreeCamera,
 	checkPerfPanel,
+	checkWorldEvents,
 };

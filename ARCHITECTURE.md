@@ -9,7 +9,10 @@ the way it is.
 - **Depends on:** nothing.
 - **Used by:** every other system (`state.js`, `assetLoader.js`, `game3d.js`, and all future
   gameplay/world systems). Systems must talk to each other only through this bus, never via direct
-  references, so the architecture stays open to a future ECS/multiplayer split.
+  references, so the architecture stays open to a future ECS/multiplayer split. Until run 42 every
+  real usage was loading/error plumbing (`ASSET_PROGRESS`, `GAME_READY`, ...); `gameplay/
+  worldEvents.js` -> `ui/worldEventToast.js` (`EVENTS.WORLD_EVENT_TRIGGERED`) is the first
+  gameplay-to-gameplay decoupled pub/sub pair — see DECISIONS.md ADR-0056.
 - **Critical path:** yes — if this fails to construct, nothing in the 3D mode can communicate.
 - **Failure mode:** a throwing listener is caught and logged per-listener (`emit` wraps each
   handler call in try/catch), so one broken system can't stop the rest of the world from ticking.
@@ -361,15 +364,32 @@ the way it is.
   (content/branching/quest hooks) is separate, still-open FAZ 5 work — see DECISIONS.md ADR-0033 and
   3D_GAME_PROGRESS.md's Known Issues.
 
-## `src/3d/ui/` (folder) — On-screen UI (joystick + interaction prompt + dialogue box today; future
-HUD/inventory/debug panels)
+## `src/3d/ui/worldEventToast.js` — World-event toast card (run 42, ADR-0056)
+
+- **Depends on:** nothing beyond the DOM and an `EventBus` instance passed in — no `config.js`
+  import, no gameplay import. Appends its own DOM (`<div class="g3d-event-toast">` with icon/
+  title/description, styled via `game3d.css`) to a container element (`document.body` by default).
+- **Used by:** nothing calls its methods directly — it self-subscribes to `EVENTS.
+  WORLD_EVENT_TRIGGERED` on the `eventsBus` passed into its constructor and reacts on its own. The
+  one exception to this folder's "dumb DOM, caller decides when" convention (see `ui/README.md`),
+  deliberate: the point of `gameplay/worldEvents.js` was routing through the `EventBus`, not another
+  direct call. `game3d.js` only constructs it and calls `dispose()` on `pagehide`.
+- **Critical path:** no — a dev-visible flavor toast with no game-state consequence.
+- **Failure mode:** none expected — plain DOM creation/EventBus subscription, cannot throw under
+  normal use. If `dispose()` isn't called on teardown, its `EventBus` listener and a pending
+  `setTimeout` (if a toast is mid-display) leak — `game3d.js`'s `pagehide` handler already calls it.
+
+## `src/3d/ui/` (folder) — On-screen UI (joystick + interaction prompt + dialogue box + world-event
+toast today; future HUD/inventory/debug panels)
 
 - **Depends on:** `config.js` (only `touchJoystick.js` actually imports it; `interactionPrompt.js`
   and `dialogueBox.js` do not — their config values are read by `gameplay/interaction.js` instead
-  and passed in as plain arguments). Only this folder plus `config.js` should be touched for a
-  UI-system change (blast radius rule) — see `ui/README.md`.
-- **Used by:** `game3d.js` directly (`touchJoystick.js`, `interactionPrompt.js`, `dialogueBox.js`
-  instantiation) and `gameplay/interaction.js` (calls `interactionPrompt`/`dialogueBox` methods).
+  and passed in as plain arguments; `worldEventToast.js` takes an `EventBus` instance instead). Only
+  this folder plus `config.js` should be touched for a UI-system change (blast radius rule) — see
+  `ui/README.md`.
+- **Used by:** `game3d.js` directly (`touchJoystick.js`, `interactionPrompt.js`, `dialogueBox.js`,
+  `worldEventToast.js` instantiation) and `gameplay/interaction.js` (calls
+  `interactionPrompt`/`dialogueBox` methods).
 - **Critical path:** varies per file — see each file's own entry above.
 - **Failure mode:** varies per file.
 
@@ -523,14 +543,36 @@ HUD/inventory/debug panels)
   the dialogue auto-closes. See DECISIONS.md ADR-0033's "false alarm" note — this was verified
   against a real patrolling NPC, not just assumed correct from the distance math.
 
-## `src/3d/gameplay/` (folder) — Playable characters, NPCs, animals, future dragons/combat/etc.
+## `src/3d/gameplay/worldEvents.js` — Periodic world-flavor events (run 42, ADR-0056)
+
+- **Depends on:** nothing beyond an `EventBus` instance and a seed/event-name string passed into
+  `createWorldEventSystem` — no `config.js` import (same options-over-import convention `npc.js`/
+  `animals.js` established), no DOM. A local `mulberry32` PRNG is duplicated from `world/terrain.js`
+  rather than imported, per this folder's blast-radius rule (`gameplay/` doesn't import `world/`).
+- **Used by:** `game3d.js`'s tick loop (`system.update(delta)` every frame) and, indirectly,
+  `ui/worldEventToast.js` — which listens on the same `EVENTS.WORLD_EVENT_TRIGGERED` name on the
+  shared `gameEvents` bus rather than being called directly. This is the first system in the
+  codebase where two independent modules communicate purely through the `EventBus`, not a direct
+  method call — the explicit point of this priority-9.5 task.
+- **Critical path:** no — a periodic flavor/ambiance system with no effect on terrain/streaming/
+  rendering/other gameplay state; disabling it changes nothing else in the world.
+- **Failure mode:** none expected — pure countdown arithmetic and one `eventsBus.emit()` call per
+  firing; `EventBus.emit()` itself already catches per-listener exceptions, so even a broken
+  `worldEventToast.js` listener couldn't stop this system's own `update()` from continuing.
+- **Design (ADR-0056):** deliberately checks its countdown once per `update()` call rather than
+  looping to catch multiple crossings within one large delta (e.g. a tab backgrounded for minutes) —
+  simpler, and a burst of several queued events on tab-refocus would read as spam, not "the world
+  kept happening while you were away."
+
+## `src/3d/gameplay/` (folder) — Playable characters, NPCs, animals, world events, future
+dragons/combat/etc.
 
 - **Depends on:** `eventBus.js`, `physics.js`, `input.js`, `config.js`, `assetLoader.js`. Only
   these plus this folder itself should be touched for a gameplay-system change (blast radius rule)
   — see `gameplay/README.md`.
 - **Used by:** `game3d.js`.
-- **Critical path:** varies per file — see `player.js`'s, `npc.js`'s, `animals.js`'s, and
-  `interaction.js`'s own entries above.
+- **Critical path:** varies per file — see `player.js`'s, `npc.js`'s, `animals.js`'s,
+  `interaction.js`'s, and `worldEvents.js`'s own entries above.
 - **Failure mode:** varies per file.
 
 ## `src/3d/debug/freeCamera.js` — F4 debug/editor free-fly camera (run 40, ADR-0049)

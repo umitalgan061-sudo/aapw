@@ -161,3 +161,45 @@ html, body {
   pointer-events: none;
   backdrop-filter: blur(4px);
 }
+
+.g3d-event-toast {
+  --g3d-event-color: #c8960a;
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 18;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: min(360px, calc(100vw - 48px));
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(10, 6, 2, 0.75);
+  border-left: 3px solid var(--g3d-event-color);
+  border-top: 1px solid rgba(200, 150, 10, 0.3);
+  border-right: 1px solid rgba(200, 150, 10, 0.3);
+  border-bottom: 1px solid rgba(200, 150, 10, 0.3);
+  color: #e8d4a0;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-event-toast-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.g3d-event-toast-title {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--g3d-event-color);
+}
+
+.g3d-event-toast-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0.9;
+}

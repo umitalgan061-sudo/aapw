@@ -4015,3 +4015,101 @@ design — `STREAM_RADIUS_CHUNKS` untouched). Desktop performance: measured 351/
 headroom remains for FAZ 7 dragons and future vegetation instancing, though this is an empirical
 near-worst-case reading from one flight path, not an exhaustive proof no camera angle could ever
 exceed it.
+
+## ADR-0056: Periodic world-flavor events routed through the EventBus (priority 9.5)
+
+**Status:** Accepted (run 42, second sub-task).
+
+**Context:** A standing instruction (present in every run's prompt, never yet reached in 4 runs per
+run 41's own "Next step" note) asked to port `script.js`'s 2D event-card system into the 3D mode and
+extend the `EventBus` to real gameplay events, explicitly "in small atomic steps." The 2D system
+(`triggerRandomEvents()`/`RANDOM_EVENTS`) fires a random event per game *turn*, applying a stat
+change (gold/army/morale/territory/navy) to a `kingdom` object and showing a modal card. The 3D
+world has neither a turn system nor a per-kingdom economy yet (no gold/army/morale on any 3D
+entity) — a literal port would have nothing to apply its effect to. Re-scanning the priority order
+first (per every run's own protocol): no syntax error, blocking bug, perf/memory issue, or missing
+regression coverage was found; World Coverage's own gate has been clear since run 29 and this run's
+own first sub-task (ADR-0055) already grew it further, so priority 9 ("active phase's own open
+sub-task" — FAZ 5's real gap is a full dialogue-tree/quest system, a much larger feature, not a
+small atomic step) was judged larger in scope than priority 9.5's own explicitly-requested,
+already-scoped-down task.
+
+**Decision:** Port the *pattern*, not the *mechanic*. New `gameplay/worldEvents.js`:
+`createWorldEventSystem({eventsBus, seed, eventName})` counts down a seeded-random 45-90 real-time-
+second interval and, once it elapses, `eventsBus.emit()`s one event picked from a small curated
+8-entry flavor list (`{id, icon, title, desc, color}` — lore/ambiance only, e.g. "Kuzgun Ulaştı",
+"Kurt Uluması", "Ejderha Gölgesi" — no stat mutation, since there is no stat to mutate yet). New
+`ui/worldEventToast.js`: `WorldEventToast` self-subscribes to that same event name on the passed-in
+`EventBus` and renders a small, non-blocking, auto-dismissing (6s) top-of-screen card — the same
+icon+title+description shape as the 2D card, deliberately smaller/passive (never pauses input or
+covers the screen the way the 2D modal overlay does, since this is ambiance, not a decision point).
+`game3d.js` wires both: creates them after the F2 panel, calls `worldEvents.update(delta)` in the
+tick loop, disposes both on `pagehide`. This is deliberately the *first* place in the codebase where
+two independent modules talk purely through the `EventBus` rather than a direct method call
+(`interaction.js` calling `dialogueBox.show()` directly, for contrast) — the explicit ask.
+
+**Reasoning:**
+- **EventBus, not a direct call, because that was the literal ask** — "EventBus'ı gerçek oyun
+  olaylarına genişlet." A direct `game3d.js` call from `worldEvents` to a toast function would have
+  built the same visible feature without touching the bus at all.
+- **No stat effects, because nothing exists to receive them:** the 2D `RANDOM_EVENTS`' entire
+  purpose is `k.gold +=`/`k.army -=`-style mutation on a `kingdoms` array that has no 3D equivalent.
+  Inventing a placeholder gold/army number on the player just to have something to mutate would be
+  speculative FAZ-8-economy work with no product behind it yet — this project's own "don't add
+  handling for scenarios that can't happen" rule.
+- **Local `WORLD_EVENTS` list and `mulberry32` duplicate, not `config.js`/`world/terrain.js`
+  imports:** `config.js` is at its 600-line cap (thin headroom flagged by 3 prior runs now) — same
+  "tool-local constants" precedent `debug/perfPanel.js`'s own budgets and `debug/freeCamera.js`'s
+  `FAR_PLANE_METERS` already set. The PRNG duplicate follows `gameplay/README.md`'s own blast-radius
+  rule (`gameplay/` never imports `world/`) and the exact precedent `animals.js`'s patrol-logic
+  duplication from `npc.js` already established for this project (ADR-0026's "why duplicate").
+- **Real-time interval, not turn-based:** the 3D mode has no turn concept (`3D_GAME_PROGRESS.md`'s
+  Roadmap confirms no turn/economy system exists yet) — a real-time countdown is the only option
+  that fits the world as it exists today.
+- **Checks its countdown once per `update()` call, never loops:** a tab backgrounded for minutes
+  (or a slow headless-sandbox frame) could otherwise queue many toasts to fire back-to-back on
+  refocus, reading as spam rather than "the world kept happening." One event per call, at most, is a
+  simpler and better-feeling behavior, verified explicitly in the regression check below.
+
+**Verified:**
+- `node --check` clean on `gameplay/worldEvents.js`, `ui/worldEventToast.js`, `game3d.js`.
+  `game3d.js`: 442 -> 456 lines. `config.js`: 598 -> 599 lines (one new `EVENTS` entry, one-line
+  comment — the file's headroom is now effectively gone; a future addition needs a real extraction).
+- Full committed smoke suite — all 12 checks PASS (new `checkWorldEvents`, 11 pre-existing
+  unaffected).
+- **New persisted regression check (`checkWorldEvents`, `game3dSmokeChecksScene.js`):** a real
+  `EventBus` (not synthetic) drives a real `createWorldEventSystem` + `WorldEventToast` pair,
+  asserting: no emit below the minimum interval, exactly one emit for a delta far past the maximum
+  (proving the "never loops" design), the emitted payload's shape, a second huge delta firing again
+  (the countdown resets), `dispose()` stopping further emits, two independently-created systems with
+  the same seed picking the identical first event (determinism), and the toast showing the real
+  emitted title/description text plus `dispose()` removing its DOM.
+- **Confirmed to catch a real regression, this project's own established standard** (ADR-0042/
+  ADR-0050/ADR-0054): temporarily broke `dispose()` (commented out `disposed = true`), re-ran the
+  suite — `checkWorldEvents` correctly failed on `noFireAfterDispose: false` alone, every other
+  assertion still `true`. Source file restored immediately after; re-ran once more to confirm a
+  clean 12/12 PASS.
+- **Real headless-Chromium proof on the live page**, not just the isolated check: booted
+  `game3d.html`, emitted a real event through the page's own live `gameEvents` bus (the same
+  instance `game3d.js` wired both systems to — not a synthetic stand-in), screenshotted. The toast
+  renders top-center with the correct icon/title/description and a color-matched left border,
+  doesn't obstruct the player/castle view beneath it, zero console/page errors.
+
+**Alternatives considered:**
+- *Give 3D kingdoms real gold/army/morale fields now, to port the 2D mechanic literally* — rejected:
+  that's a full FAZ-8-economy feature (persistence, UI to display it, a reason for it to matter),
+  far beyond "small atomic steps," and nothing in the current 3D world would consume those numbers.
+- *Wire the toast via a direct `game3d.js` call instead of the EventBus* — rejected: defeats the
+  explicit point of this task. The indirection also costs nothing real here (one extra `.on()`
+  subscription) while establishing the first real precedent for decoupled gameplay-to-gameplay
+  communication this project's own `ARCHITECTURE.md` describes as the intended pattern.
+- *Loop inside `update()` to fire every interval a large delta crossed* — rejected per Reasoning
+  above (spam risk on tab-refocus); also would have made the "fires exactly once" regression
+  assertion meaningless, removing a clean, cheap-to-verify invariant for no real benefit.
+
+**Consequences:** A second EventBus-connected pub/sub pair now exists as a template for future FAZ 8
+systems (quest triggers, weather-driven events) to follow. `config.js` has effectively no headroom
+left (599/600) — the very next line added there needs a real extraction first, not just careful
+trimming. The curated 8-event list is static content, not data-driven from `script.js`'s own
+`RANDOM_EVENTS` — a future run could grow the pool or vary it, but 8 was enough to prove the
+mechanism without over-scoping this sub-task.
