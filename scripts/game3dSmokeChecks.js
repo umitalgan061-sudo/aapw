@@ -1,86 +1,24 @@
 /**
- * game3dSmokeChecks.js — the individual check functions run by `smokeTestGame3D.js`.
+ * game3dSmokeChecks.js — per-entity gameplay check functions run by `smokeTestGame3D.js`.
  *
- * Split out of `smokeTestGame3D.js` this run (was 552 lines; adding this run's new
- * `checkNpcPatrol` regression check in-place would have pushed it past this project's 600-line
- * file cap). Mirrors the same "extract into a focused module, moved verbatim" pattern
- * DECISIONS.md ADR-0028 already established for `game3d.js` — the runner (`smokeTestGame3D.js`)
- * keeps only the static-file-server/Playwright-bootstrap infrastructure; every actual browser
- * assertion lives here.
+ * Split out of `smokeTestGame3D.js` originally (was 552 lines; adding `checkNpcPatrol` in-place
+ * would have pushed it past this project's 600-line file cap) — see DECISIONS.md ADR-0028 for the
+ * same "extract into a focused module, moved verbatim" pattern `game3d.js` itself used. Split
+ * *again* this run (was 587/600 lines; run 40's 2 new checks wouldn't have fit): page/scene-level
+ * checks (2D shell load, 3D mode boot, water shader geometry, F4 debug camera) now live in
+ * `game3dSmokeChecksScene.js`; this file keeps the per-entity gameplay checks (settlement
+ * collider, jump arc, interaction, wolf/NPC patrol). `smokeTestGame3D.js` calls both files'
+ * exports — see its own comment for the combined check list.
  *
  * Every function here takes `(browser, baseUrl)` and returns `Promise<{name, ok, details}>`. See
  * each function's own comment for what it guards against.
  * @module scripts/game3dSmokeChecks
  */
 
-/** Timeout for a page navigation (`load`/`domcontentloaded`) — asset fetches happen after this. */
+/** Timeout for a page navigation (`domcontentloaded`) — asset fetches happen after this. Same
+ * value/convention as `game3dSmokeChecksScene.js`'s own copy; duplicated rather than shared/
+ * imported across the two sibling check files since it's a single primitive with no other state. */
 const NAV_TIMEOUT_MS = 15000;
-/** Timeout for the 3D mode's boot sequence (444 terrain chunks + ~76MB of character/animal
- *  models decoded under SwiftShader software rendering in a headless sandbox can be slow — see
- *  3D_GAME_PROGRESS.md's FPS caveat). Generous on purpose to avoid environment-flaky failures. */
-const GAME3D_READY_TIMEOUT_MS = 60000;
-
-/**
- * Navigates to `url` and collects uncaught exceptions / console errors seen during the load.
- * @param {import('playwright').Browser} browser
- * @param {string} url
- * @returns {Promise<{page: import('playwright').Page, errors: string[]}>}
- */
-async function loadAndCollectErrors(browser, url) {
-	const page = await browser.newPage();
-	const errors = [];
-	page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
-	page.on('console', (msg) => {
-		if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
-	});
-	await page.goto(url, { waitUntil: 'load', timeout: NAV_TIMEOUT_MS });
-	return { page, errors };
-}
-
-/**
- * Non-blocking: only a failed navigation (empty title) counts against `ok`. Console/page errors
- * are reported for visibility but never fail this check — they trace to this sandbox's
- * external-network restrictions and a pre-existing, unrelated 2D media-asset gap, not to anything
- * a 3D-mode regression could cause.
- * @returns {Promise<{name: string, ok: boolean, details: string}>}
- */
-async function check2DShell(browser, baseUrl) {
-	const { page, errors } = await loadAndCollectErrors(browser, `${baseUrl}/index.html`);
-	const title = await page.title();
-	await page.close();
-	const ok = title.length > 0;
-	const errorNote = errors.length > 0
-		? ` (${errors.length} console/page error(s) seen, non-blocking — see file header comment)`
-		: '';
-	return { name: '2D shell (index.html)', ok, details: `title="${title}"${errorNote}` };
-}
-
-/** @returns {Promise<{name: string, ok: boolean, details: string}>} */
-async function check3DMode(browser, baseUrl) {
-	const { page, errors } = await loadAndCollectErrors(browser, `${baseUrl}/game3d.html`);
-	let outcome = 'timeout';
-	try {
-		const handle = await page.waitForFunction(
-			() => {
-				const el = document.getElementById('game3d-loading');
-				if (!el) return 'missing-element';
-				if (el.classList.contains('g3d-loading-hidden')) return 'ready';
-				if (el.classList.contains('g3d-loading-error')) return 'error';
-				return false;
-			},
-			{ timeout: GAME3D_READY_TIMEOUT_MS, polling: 250 },
-		);
-		outcome = await handle.jsonValue();
-	} catch (error) {
-		outcome = 'timeout';
-	}
-	await page.close();
-	const ok = outcome === 'ready' && errors.length === 0;
-	const details = ok
-		? 'loading screen hid (GAME_READY phase1-scene), zero console/page errors'
-		: `outcome=${outcome}${errors.length ? `, errors: ${errors.join('; ')}` : ''}`;
-	return { name: '3D mode (game3d.html)', ok, details };
-}
 
 /**
  * Replays ADR-0037's manual collider verification as a persisted, always-run regression check.
@@ -576,8 +514,6 @@ async function checkWolfPatrol(browser, baseUrl) {
 }
 
 module.exports = {
-	check2DShell,
-	check3DMode,
 	checkSettlementCollider,
 	checkJumpArc,
 	checkInteractionController,

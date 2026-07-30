@@ -3491,17 +3491,20 @@ shader-internals-only change; no caller in `game3d.js` needed to change.
   3D-mode boot check (zero console/page errors — the shader compiles; an earlier iteration of this
   fix briefly broke `#include <fog_vertex>`'s implicit `mvPosition` dependency and this same check
   caught it immediately as a `THREE.WebGLProgram: Shader Error`).
-- **Root-cause proof, not just a visual spot-check:** a throwaway in-page probe (real `createWater`/
-  `updateWater` from `/src/3d/world/water.js`, run over HTTP against the actual served file, same
-  pattern `game3dSmokeChecks.js` uses for its isolated checks) sampled the water plane's
-  `geometry.attributes.position` array at `t=0` and `t=5s`. Result: `maxDelta: 0` across all 16,641
-  vertices (5,547 grid points × 3 components) — the geometry is now provably time-invariant, which
-  is the direct, quantitative negation of the bug (the old shader would show a nonzero max delta up
-  to ~1.01m here). `maxDeltaFromInitial: 0` too, confirming `updateWater` itself never touches
-  vertex Y.
 - Real headless-Chromium boot screenshot of `game3d.html` (Playwright, ~2s after the loading screen
   hid) — zero console/page errors, player/castle render correctly at night, consistent with
   ADR-0046's spawn point; no regression to the existing render path.
+- **Correction (run 40, later sub-task):** this ADR originally claimed a "root-cause proof" here —
+  an in-page probe sampling `water.geometry.attributes.position` before/after `updateWater()` and
+  reporting `maxDelta: 0`. That test was **invalid**, not evidence: a vertex shader's displacement
+  runs entirely on the GPU inside `gl_Position`'s computation and is never written back into the
+  CPU-side `BufferAttribute` — the old, buggy Gerstner shader would have reported the exact same
+  `maxDelta: 0` (confirmed by literally re-running the same probe against the pre-fix shader while
+  building this correction). The actual root-cause proof now lives as a committed regression check,
+  `scripts/game3dSmokeChecksScene.js`'s `checkWaterVertexShaderStatic` — it asserts the compiled
+  vertex shader source contains no `uTime` and no `sin(`/`cos(` calls, which *is* a real structural
+  guarantee against vertex-stage animation, and was confirmed to fail against the pre-fix shader
+  before being kept. See ADR-0050 for the full story of how this was caught and fixed.
 
 **Alternatives considered:**
 - *Reduce Gerstner steepness significantly* (the run's own "simplest" suggestion) — rejected as the
@@ -3611,3 +3614,73 @@ project's 600-line cap exactly — any future addition to this file needs either
 extraction, not more inline growth. No F2/F3 debug/profiling panels exist yet; `debug/README.md`
 documents the conventions this module already follows (renders instead of the normal camera, never
 touches gameplay-perf constants, fully disposable) for whoever builds those next.
+
+## ADR-0050: Persisted regression coverage for ADR-0048/ADR-0049, and a self-caught correction
+
+**Status:** Accepted (run 40, third sub-task — continued in the same run after "Devam et").
+
+**Context:** Priority 7 (missing smoke-test/regression coverage) outranks priority 8/9 in this
+project's own priority order, and both of this run's landed fixes (ADR-0048's water shader,
+ADR-0049's F4 camera) only had ad-hoc/throwaway verification, no persisted check. `scripts/
+game3dSmokeChecks.js` was already at 587/600 lines (flagged by run 39 as monitored tech debt) — too
+little headroom for 2 new checks — so this sub-task also had to split it, the same "extract into a
+focused module" move `game3d.js` itself (ADR-0028) and this file's own original extraction already
+used.
+
+**Decision:** New `scripts/game3dSmokeChecksScene.js` holds page/scene-level checks
+(`check2DShell`, `check3DMode` — moved verbatim — plus the two new ones below); `game3dSmokeChecks.js`
+keeps the per-entity gameplay checks (`checkSettlementCollider`/`checkJumpArc`/
+`checkInteractionController`/`checkWolfPackAlert`/`checkNpcPatrol`/`checkWolfPatrol`). Both export to
+`smokeTestGame3D.js`, which now runs 10 checks total. `NAV_TIMEOUT_MS` is duplicated (not
+shared/imported) across the two sibling files — a single primitive constant, not worth a shared-
+constants module for.
+
+New checks:
+- **`checkWaterVertexShaderStatic`** (ADR-0048 guard) — asserts the real, served `water.js`'s
+  compiled vertex shader source contains no `uTime` and no `sin(`/`cos(` calls, proving no
+  time-varying value can reach vertex positions.
+- **`checkFreeCamera`** (ADR-0049 guard) — builds a real `createFreeCameraController` against a
+  synthetic source camera/canvas (same isolation pattern `checkWolfPackAlert` already uses) and
+  asserts: inactive by default, a no-op while inactive even with a key held, F4 activates it and
+  copies the source camera's pose, WASD moves it once active, a second F4 deactivates it again.
+
+**A self-caught correction, documented rather than quietly fixed:** the first draft of
+`checkWaterVertexShaderStatic` was instead a `geometry.attributes.position` before/after comparison
+— the same technique ADR-0048's own "Verified" section had already used and called a "root-cause
+proof." Running that draft check against the pre-ADR-0048 (buggy) shader, to confirm it would
+actually catch a regression, revealed it does not: `ok: true` either way. The reason is a real gap
+in understanding, not a typo — a vertex shader's position math executes entirely on the GPU as part
+of `gl_Position`, and is never written back into the CPU-visible `BufferAttribute` the JS side can
+read. Sampling that buffer can *never* observe vertex-shader displacement, old shader or new. This
+means ADR-0048's own "Root-cause proof" bullet was invalid the moment it was written — not a
+regression introduced later. Both `DECISIONS.md`'s ADR-0048 and `3D_GAME_PROGRESS.md`'s run-40
+sub-task-1 entry now carry an explicit correction note rather than being silently edited, per this
+project's own "no accidental gaps, only honestly scoped ones" standard — a mistake in a prior
+verification claim deserves the same visibility a mistake in code would. The replacement check
+(shader-source string inspection) was itself verified against both the old and new shader before
+being kept — see "Verified" below.
+
+**Verified:**
+- `node --check` clean on all 3 changed/new files. `game3dSmokeChecks.js` (523 lines) and
+  `game3dSmokeChecksScene.js` (196 lines) both comfortably under the 600-line cap, with headroom
+  for future checks without another split.
+- Full committed smoke suite — all **10** checks PASS (previously 8).
+- **Both new checks independently confirmed to catch a real regression**, not just pass on the
+  happy path (this project's own established verification standard — e.g. ADR-0042's "a
+  demonstrated real failure path"): `checkWaterVertexShaderStatic` run against the actual pre-fix
+  `water.js` (`git show` of the commit before ADR-0048) reports `ok: false` (`hasUTime: true,
+  hasTrig: true`); `checkFreeCamera` run against a one-line-patched `freeCamera.js` (F4 keydown
+  handler's deactivate branch stubbed to never fire) reports `ok: false`
+  (`deactivatedOnSecondF4: false`, every other assertion still `true`). Both source files were
+  restored immediately after (`git diff` confirmed clean) — these were verification-only edits, not
+  part of the shipped change.
+
+**Alternatives considered:**
+- *Leave ADR-0048's original "Verified" bullet as-is and just add the new check silently* — rejected:
+  the bullet actively claims something false ("quantitative negation of the bug"); leaving it
+  unedited would mislead a future run that trusts this file's own history as ground truth, exactly
+  the failure mode `3D_GAME_PROGRESS.md`'s per-run notes exist to prevent.
+- *Read back the GPU-transformed vertex positions instead (e.g. `WebGLRenderer`'s readback / a
+  transform-feedback pass)* — technically possible but far more machinery than a smoke check
+  warrants; the shader-source check is simpler, faster, and (having been verified against the real
+  old/new shaders) equally conclusive for this specific bug class.

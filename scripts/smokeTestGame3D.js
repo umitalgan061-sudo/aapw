@@ -9,10 +9,11 @@
  * check outranks writing another feature). This script is that committed check.
  *
  * This file is just the infrastructure (static file server + Playwright bootstrap + result
- * printing). The actual per-feature assertions live in `game3dSmokeChecks.js` (split out this
- * run — see that file's header comment for why) — see its own comment for what each check
- * guards against: 2D shell load (informational), 3D mode boot, settlement collider, jump/gravity
- * arc, interaction controller, wolf flee/pack-alert, NPC waypoint patrol, and wolf waypoint patrol.
+ * printing). The actual per-feature assertions live in `game3dSmokeChecksScene.js` (page/scene-
+ * level: 2D shell load, 3D mode boot, water vertex-shader-has-no-displacement, F4 debug camera) and
+ * `game3dSmokeChecks.js` (per-entity gameplay: settlement collider, jump/gravity arc, interaction
+ * controller, wolf flee/pack-alert, NPC waypoint patrol, wolf waypoint patrol) — split across two
+ * files run 40 (each was approaching the 600-line cap) — see either file's header comment for why.
  *
  * Requires Playwright's Chromium browser (dev-only tooling — this repo intentionally has no
  * `package.json`/build step for the *deployed* site; this script is never loaded by a browser or
@@ -28,6 +29,7 @@
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const sceneChecks = require('./game3dSmokeChecksScene.js');
 const checks = require('./game3dSmokeChecks.js');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -116,8 +118,10 @@ async function main() {
 
 	const results = [];
 	try {
-		results.push(await checks.check2DShell(browser, baseUrl));
-		results.push(await checks.check3DMode(browser, baseUrl));
+		results.push(await sceneChecks.check2DShell(browser, baseUrl));
+		results.push(await sceneChecks.check3DMode(browser, baseUrl));
+		results.push(await sceneChecks.checkWaterVertexShaderStatic(browser, baseUrl));
+		results.push(await sceneChecks.checkFreeCamera(browser, baseUrl));
 		results.push(await checks.checkSettlementCollider(browser, baseUrl));
 		results.push(await checks.checkJumpArc(browser, baseUrl));
 		results.push(await checks.checkInteractionController(browser, baseUrl));

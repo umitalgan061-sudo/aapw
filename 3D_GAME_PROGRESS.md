@@ -4054,12 +4054,13 @@ larger lake-depth threshold were both considered and rejected as the primary fix
 **Regression guard:** `node --check` clean. Full committed smoke suite — all 8 checks PASS,
 including a real shader-compile catch mid-development (an early version of the fix broke
 `#include <fog_vertex>`'s implicit `mvPosition` dependency; the 3D-mode boot check caught it
-immediately as a `THREE.WebGLProgram: Shader Error`, fixed before commit). **Root-cause proof:** a
-throwaway in-page probe sampled the real water plane's `geometry.attributes.position` at `t=0` and
-`t=5s` — `maxDelta: 0` across all 16,641 vertex components, quantitatively confirming the geometry
-is now time-invariant (the pre-fix shader would show a nonzero delta up to ~1.01m here). Real
-headless-Chromium boot screenshot (Playwright, ~2s post-ready) — zero console/page errors, scene
-renders correctly.
+immediately as a `THREE.WebGLProgram: Shader Error`, fixed before commit). Real headless-Chromium
+boot screenshot (Playwright, ~2s post-ready) — zero console/page errors, scene renders correctly.
+**Correction (this run, later sub-task):** this entry originally also claimed a quantitative
+"root-cause proof" here (sampling `water.geometry.attributes.position` before/after `updateWater()`
+and reporting `maxDelta: 0`). That probe was invalid — vertex-shader displacement never reaches the
+CPU-side `BufferAttribute`, so the *old, buggy* shader reports the identical `maxDelta: 0`, proving
+nothing. Caught and replaced later this same run with a real structural check — see ADR-0050.
 
 **Memory-leak checklist:** N/A — shader-internals-only change, no new per-frame allocation,
 listener, or timer; `createWater`/`updateWater`/`disposeWater`'s object lifecycle is unchanged.
@@ -4125,15 +4126,62 @@ the 1200-line budget). 3 commits (one drive-by docs fix + the two sub-tasks), ea
 regression-guarded (full smoke suite + a real headless-Chromium screenshot or quantitative in-page
 probe) and pushed directly to `main`.
 
+**Sub-task 3 — decision and work (DECISIONS.md ADR-0050), continued after "Devam et":** priority 7
+(missing smoke-test/regression coverage) for this run's own 2 landed fixes, both of which had only
+ad-hoc/throwaway verification. `scripts/game3dSmokeChecks.js` was at 587/600 lines (already
+flagged tech debt), too little headroom for 2 new checks — split it: `check2DShell`/`check3DMode`
+moved verbatim into a new `scripts/game3dSmokeChecksScene.js` (page/scene-level checks), alongside
+2 new checks there (`checkWaterVertexShaderStatic` for ADR-0048, `checkFreeCamera` for ADR-0049);
+`game3dSmokeChecks.js` keeps the 6 per-entity gameplay checks. `smokeTestGame3D.js` now runs 10
+checks total (was 8).
+
+**A mistake caught and corrected, not silently fixed:** building `checkWaterVertexShaderStatic`'s
+first draft (a `geometry.attributes.position` before/after comparison — the same technique run 40's
+own sub-task 1 had already used and called a "root-cause proof") and testing it against the actual
+pre-fix shader (to confirm it would catch a regression) revealed it does not: a vertex shader's
+displacement runs entirely on the GPU inside `gl_Position`, never written back to the CPU-side
+buffer JS can read — so that comparison always reports `maxDelta: 0`, old buggy shader or new fixed
+one alike. **This means sub-task 1's own "Root-cause proof" claim earlier in this same run was
+invalid from the moment it was written.** Both this file's sub-task-1 entry above and `DECISIONS.md`
+ADR-0048 now carry an explicit correction note instead of a silent edit — see ADR-0050 for the full
+account. Replaced with a real structural check instead: the compiled vertex shader source must
+contain no `uTime` and no `sin(`/`cos(` calls — verified to correctly fail against the real pre-fix
+shader and correctly pass against the real current one.
+
+**Regression guard:** `node --check` clean on all 3 files. Full smoke suite — all **10** checks
+PASS. Both new checks independently verified to catch a real regression (this project's own
+"demonstrated real failure path" standard, ADR-0042): `checkWaterVertexShaderStatic` run against a
+`git show` of the actual pre-ADR-0048 `water.js` reports `ok: false`; `checkFreeCamera` run against
+a one-line-patched `freeCamera.js` (deactivate branch stubbed out) reports `ok: false`
+(`deactivatedOnSecondF4: false`). Both source files restored immediately after, confirmed clean via
+`git diff` — verification-only edits, never part of the shipped change.
+
+**Memory-leak checklist:** N/A — test-infrastructure-only change, no runtime code path touched.
+
+**Files changed this sub-task:** `scripts/game3dSmokeChecksScene.js` (new), `scripts/
+game3dSmokeChecks.js`, `scripts/smokeTestGame3D.js`, `DECISIONS.md` (correction + new ADR-0050),
+`3D_GAME_PROGRESS.md` (this file, correction + this entry). 5 files, ~330 new/changed lines.
+
+**World Coverage (unchanged this sub-task): 80.7% (111.00 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — test-infrastructure-only, no terrain/streaming touched.**
+
+**Run totals (3 chained sub-tasks, run 40):** 12 files touched across all 3 sub-tasks (well under
+the 25-file cap) and ~760 new/changed lines total (well under the 1200-line budget). 5 commits (1
+drive-by docs fix + 3 sub-tasks + this coverage sub-task pending its own commit below), each
+regression-guarded.
+
 **Next step for the next run:** re-scan the priority order fresh, as always — priorities 1/1.5/1.7
-are now all resolved. Likely next landing spots: priority 8 (World Coverage, flat at 80.7%/4.5%
-since run 15, deferred twice already — see run 39's ADR-0047 Context for what a safe attempt needs:
-either `renderer.info`-based triangle/draw-call instrumentation first, or a smaller step than
-`PHASE1_PREVIEW_RADIUS_CHUNKS` 10 -> 11); priority 9's remaining FAZ 5/6 gaps (real per-NPC dialogue
-content; cart/dog-cat/bird still need a human manual-download step); FAZ 7 (dragons —
-`verdant_wyrm` model ready, no code started); or the priority-9.5 world-events/EventBus-expansion
-task, not yet reached across 2 runs now. `game3d.js` is at the 600-line cap exactly — the next run
-touching it for anything beyond a pure line-for-line swap will need to extract something first.
+are resolved and priority 7 now has coverage for both of this run's fixes. Likely next landing
+spots: priority 8 (World Coverage, flat at 80.7%/4.5% since run 15, deferred twice already — see
+run 39's ADR-0047 Context for what a safe attempt needs: either `renderer.info`-based triangle/
+draw-call instrumentation first, or a smaller step than `PHASE1_PREVIEW_RADIUS_CHUNKS` 10 -> 11);
+priority 9's remaining FAZ 5/6 gaps (real per-NPC dialogue content; cart/dog-cat/bird still need a
+human manual-download step); FAZ 7 (dragons — `verdant_wyrm` model ready, no code started); or the
+priority-9.5 world-events/EventBus-expansion task, not yet reached across 2 runs now. `game3d.js` is
+at the 600-line cap exactly — the next run touching it for anything beyond a pure line-for-line swap
+will need to extract something first. **Standing lesson from this run's own correction:** when a
+verification claim can't be tested against a known-bad case (the old shader, a broken toggle), treat
+it as unverified, not proven — this run's mistake and fix are exactly that pattern.
 
 ## Known Issues / Tech Debt
 
