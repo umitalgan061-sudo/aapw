@@ -5107,3 +5107,73 @@ the next new-house pick, House Arryn, not yet covered). `gameplayConfig.js` is n
 lines of headroom before the next comparable-sized growth needs a file split. The world-event pool
 (12 entries) could also still grow. FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download
 step.
+
+## This Run (2026-07-30, run 49)
+
+**Fresh Session Snapshot at container boot:** `HEAD` was detached at run 48's final commit
+(`9595c02`) with a stale local `main` still pointing at the old pre-3D-mode commit (`38e09e7`) — same
+harmless pattern runs 40/47/48 already documented. `git fetch origin` then `git checkout main && git
+reset --hard origin/main` reattached cleanly (no data at risk — nothing had been pushed off `main`).
+
+**This run's own stored prompt asked for 2 items already shipped 9 runs ago:** lake-water flicker
+(fixed run 40, ADR-0048) and an F4 debug free-fly camera (shipped run 40, ADR-0049) — confirmed, not
+assumed: `git log`/`DECISIONS.md` both show them landed, and the committed smoke suite's
+`checkWaterVertexShaderStatic`/`checkFreeCamera` both still PASS (ran the full 12-check suite fresh
+before touching anything). Same stale-prompt situation runs 44-48 already flagged.
+
+**Notable new finding (documented, not acted on):** `npx gltfpack -h` and `npx @gltf-transform/cli
+--version` both now install and run successfully in this container — the network-access wall every
+run since ADR-0057 hit (blocking FAZ 7/FAZ 3's LOD sub-task) appears lifted. Did **not** attempt a
+real decimation pass this run: FAZ 7 has no code yet (a multi-sub-task feature, not an atomic step)
+and FAZ 3's actual "LOD gap" targets `world/settlements.js`'s *procedural* castle geometry
+(`BoxGeometry`/`CylinderGeometry`/`ConeGeometry` `InstancedMesh`, not a loaded `.glb`) — this tooling
+doesn't even apply there. Flagged for whichever future run picks up FAZ 7 as its active phase. See
+DECISIONS.md ADR-0064 for the full reasoning.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0064):** fresh full priority re-scan: `node
+--check` clean on every `src/3d/**/*.js`/`scripts/*.js` file; no blocking bug; no file over the
+600-line cap (`gameplayConfig.js` was 544/600, the largest); full smoke suite already at 12/12; World
+Coverage unchanged past its gate (96.2% desktop, 4.5% mobile). With nothing new at priorities 2-8,
+rotated to priority 9 (FAZ 5's dialogue pilot) per run 48's own "Next step" note, which named
+`robin-guard-1` as ready. Grew `gameplayConfig.js`'s `CHOICES_BY_NPC_ID` from 8 to 10 of 14 NPCs,
+adding `robin-guard-1` (Arryn, the pilot's first Vale seat) and `ziya-guard-1` (Tyrell-flavored, the
+pilot's first Reach seat). Config-only; zero changes to `interaction.js`/`dialogueBox.js`/`game3d.js`.
+
+**Regression guard:** `node --check` clean. Full committed smoke suite — all **12** checks PASS,
+identical to the pre-change baseline. **Real headless-Chromium proof of the new content
+specifically:** a one-off Playwright script booted the live `game3d.html` page (zero console/page
+errors), then instantiated the real `DialogueBox`/`InteractionPrompt`/`createInteractionController`
+with the actual `INTERACTION_CONFIG` for both new ids, reading state off the instance's own DOM refs
+(a global `document.querySelector` would have matched the real running game's own hidden dialogue box
+instead — caught and fixed before trusting the first, empty-text result). Screenshot confirms
+`robin-guard-1`'s real greeting plus both numbered choice labels render over the real scene (castle,
+player, night sky); selecting choice 1 shows that choice's own real response text with the choice
+list cleared and the hint reverted to "E / Esc - Kapat". Zero console/page errors throughout.
+
+**Memory-leak checklist:** N/A — config-only content addition to a frozen object literal, no new
+allocation, listener, or timer; the one-off verification script's own `DialogueBox`/
+`InteractionPrompt` instances were scratch/throwaway, not part of the committed app.
+
+**Files changed this sub-task:** `src/3d/gameplay/gameplayConfig.js`, `DECISIONS.md` (new ADR-0064),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~85 new/changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a dialogue-content-only addition touches no terrain/streaming/chunk
+logic.**
+
+**Run totals (1 sub-task, run 49):** 3 files touched, ~85 new/changed lines (well under the
+1200-line/25-file budget). One commit, regression-guarded (12/12 smoke suite + a real
+headless-Chromium screenshot of the new content specifically) and pushed directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. FAZ 5's choice-branching
+pilot now covers 10 of 14 NPCs (`umit`, `berkalp`, `doran`, `xaro`, `cersei`, `stannis-guard-1`,
+`stannis-guard-2`, `balon`, `robin`, `ziya`); 4 remain (`jon-guard-1` deliberately excluded,
+`berk-guard-1`/`olena-guard-1`/`twin-guard-1` — no fresh reason yet, and the next 2-NPC growth will
+need `gameplayConfig.js` split into a sibling file first, only 34/600 lines of headroom left). FAZ 7's
+tooling blocker (gltfpack/gltf-transform) is now lifted — a future run picking up FAZ 7 as its active
+phase should start with a real decimation pass on one reference dragon (`reference_dragon_v1.glb`,
+82MB) before attempting any spawn/AI code, and re-verify `world/settlements.js` really is fully
+procedural (no `.glb`) before assuming FAZ 3's LOD gap needs the same tooling. World-event pool (12
+entries) could still grow. FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download step;
+`ivory_stallion.glb` (horse) is confirmed geometry-only/untextured/unrigged per `assets_manifest.json`
+— usable only as a static prop, not an animated FAZ 6 animal, until a human rigs it.

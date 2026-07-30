@@ -4638,3 +4638,96 @@ excluded, 5 others — `ziya-guard-1`/`robin-guard-1`/`berk-guard-1`/`olena-guar
 fresh reason yet, though `robin-guard-1` would be the next new-house pick (Arryn, not yet covered).
 `gameplayConfig.js` has 56 lines of headroom left before the 600-line cap and would need a split on
 its next comparable-sized growth.
+
+## ADR-0064: Grow the dialogue-choice pilot from 8 to 10 of 14 NPCs
+
+**Status:** Accepted (run 49).
+
+**Context:** Fresh session boot, `HEAD` detached at run 48's final commit (`9595c02`) with a stale
+local `main` pointing at the old pre-3D commit (`38e09e7`) — same harmless pattern runs 40/47/48
+already documented; `git fetch origin` then `git checkout main && git reset --hard origin/main`
+reattached cleanly to the real remote tip.
+
+This run's own stored prompt asked for 2 items already shipped 9 runs ago: lake-water flicker
+(fixed run 40, ADR-0048) and an F4 debug free-fly camera (shipped run 40, ADR-0049) — re-confirmed,
+not assumed: `git log`/`DECISIONS.md` both show them landed, and the committed smoke suite's
+`checkWaterVertexShaderStatic`/`checkFreeCamera` both still PASS (12/12 full suite). Same
+stale-prompt situation runs 44-48 already flagged.
+
+Full priority re-scan otherwise: `node --check` clean on every `src/3d/**/*.js`/`scripts/*.js` file;
+no blocking bug; no file over the 600-line cap (`gameplayConfig.js` was 544/600, the largest); full
+smoke suite already at 12/12 (no missing regression coverage); World Coverage unchanged past its gate
+(96.2% desktop, 4.5% mobile — ADR-0013 perf-budget constraint, not an open gap).
+
+**New finding this run, worth flagging even though not acted on:** `npx gltfpack -h` and
+`npx @gltf-transform/cli --version` both now resolve and run successfully in this container (`npx
+gltf-transform` — the bare, wrong package name every prior run tried — still 404s; the correct
+scoped package `@gltf-transform/cli` is the one that works). Every prior run since ADR-0057 recorded
+this as a hard network-access wall blocking FAZ 7 (dragon models) and FAZ 3's LOD sub-task. This run
+only confirmed the CLIs now install and start — it did **not** run a real decimation pass on any
+asset, since FAZ 7 has no spawn/AI code yet (roadmap: "kod başlamadı") and FAZ 3's own settlement
+"LOD gap" is procedural-geometry InstancedMesh work, not a glTF-mesh-simplification problem at all
+(`world/settlements.js`'s castles are generated `BoxGeometry`/`CylinderGeometry`/`ConeGeometry`, not
+loaded `.glb` models — only `gameplay/animals.js`'s wolf uses `AssetLoader.loadModel`). Actually
+using this tooling belongs to whichever run picks up FAZ 7 as its active phase, not this one — noted
+here and in `3D_GAME_PROGRESS.md` so that run can skip re-discovering it from scratch.
+
+With nothing new at priorities 2-8, rotated to priority 9 (FAZ 5's dialogue pilot) per run 48's own
+"Next step" note, which explicitly named `robin-guard-1` as the next new-house pick.
+
+**Decision:** `gameplayConfig.js`'s `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` gains 2 more entries:
+`robin-guard-1` (Arryn, the pilot's first Vale seat) and `ziya-guard-1` (Tyrell-flavored, the
+pilot's first Reach seat). Both chosen for the same criterion ADR-0058/60/62/63 all used: an
+existing `GREETINGS_BY_NPC_ID` line distinctive enough to hang a natural follow-up on ("Yükseklik
+güçtür... Arryn'in kartalları her şeyi görür" -> why settle so high / do the eagles really see
+everything; "Büyüyen güç bizimdir... bahçeleri" -> what the gardens are known for / what "growing
+power" means). No code in `ui/dialogueBox.js`, `gameplay/interaction.js`, or `game3d.js` touched —
+config/content only.
+
+**Reasoning:**
+- **2 more, not all 6 remaining:** same "pilot small, extend later, review each batch carefully for
+  Turkish prose quality" precedent ADR-0058/60/62/63 all established.
+- **House diversity:** `robin-guard-1` adds House Arryn (Vale) and `ziya-guard-1` adds a Tyrell/Reach
+  flavor seat to the pilot's coverage — previously Targaryen/Stark/Martell/Qarth-adjacent/
+  Lannister/Baratheon/Greyjoy only.
+- **Why not FAZ 7/FAZ 3-LOD instead, now that the tooling wall is gone:** the tooling gap was only
+  one of two blockers — FAZ 7 also has zero spawn/AI/rendering code yet (a multi-sub-task feature,
+  not a single atomic step) and FAZ 3's "LOD gap" turned out to target procedural geometry, not
+  loaded meshes, so `gltfpack`/`gltf-transform` don't even apply to it. Starting FAZ 7 now would mean
+  jumping past FAZ 5/6 (still the active, incomplete phases per the roadmap) straight to priority-10
+  "new feature" territory. Flagged as unblocked-but-not-started rather than silently retried or
+  silently skipped.
+
+**Verified:**
+- `node --check` clean on the one touched file.
+- Line count: `gameplayConfig.js` 566/600 (up from 544/600) — still under the 600-line cap, 34 lines
+  of headroom remain (next comparable growth will need a split).
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`): **all 12** checks PASS, identical
+  to the pre-change baseline (the suite's `checkInteractionController` already asserts the
+  offer/select/fallback mechanism generically, not against fixed ids/content).
+- **Real headless-Chromium proof of the new content specifically:** a one-off Playwright script
+  booted the live `game3d.html` page (zero console/page errors), then instantiated the real
+  `DialogueBox`/`InteractionPrompt`/`createInteractionController` with the actual
+  `INTERACTION_CONFIG` for both new ids, reading state off the instance's own DOM refs (not a global
+  `document.querySelector`, which would have matched the real running game's own hidden dialogue box
+  instead). Screenshot confirms `robin-guard-1`'s real greeting plus both numbered choice labels
+  render over the real scene (castle, player, night sky); selecting choice 1 shows that choice's own
+  real response text with the choice list cleared and the hint reverted to "E / Esc - Kapat". Zero
+  console/page errors throughout.
+
+**Alternatives considered:**
+- *Extend to all 6 remaining NPCs in one batch* — rejected, same reasoning as ADR-0058/60/62/63.
+- *Attempt a real FAZ 7 asset-decimation pass now that tooling works* — rejected this run: FAZ 7
+  isn't the active phase (FAZ 5/6 both still have open work) and a real decimation pass on an 80MB+
+  reference model plus judging the output quality is a bigger, riskier undertaking than this run's
+  remaining budget should gamble on its first attempt at previously-unverified tooling.
+
+**Consequences:** 10 of 14 NPCs now have real branching content; 4 remain (`jon-guard-1` deliberately
+excluded, 3 others — `berk-guard-1`/`olena-guard-1`/`twin-guard-1` — no fresh reason yet, all three
+Lannister/Frey-adjacent seats already represented elsewhere in the pilot). `gameplayConfig.js` has 34
+lines of headroom left before the 600-line cap — the next 2-NPC-sized growth will likely need a
+split into a sibling dialogue-content file, same pattern `game3dSmokeChecks.js` already went through
+twice (ADR-0028, ADR-0059). FAZ 7's tooling blocker is now lifted but the phase itself remains
+unstarted; FAZ 3's "LOD gap" is confirmed to need a different (procedural-geometry) approach than
+`gltfpack`/`gltf-transform`, not currently justified by any measured perf need (unchanged conclusion
+from ADR-0015/ADR-0032).

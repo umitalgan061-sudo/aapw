@@ -443,12 +443,14 @@ export const INTERACTION_CONFIG = Object.freeze({
 	}),
 	/** FAZ 5's real branching pilot (started run 44, DECISIONS.md ADR-0058; grown run 46 to 4,
 	 * DECISIONS.md ADR-0060; grown run 47 to 6, DECISIONS.md ADR-0062; grown run 48 to 8,
-	 * DECISIONS.md ADR-0063). 8 of 14 NPCs
+	 * DECISIONS.md ADR-0063; grown run 49 to 10, DECISIONS.md ADR-0064). 10 of 14 NPCs
 	 * (`umit-guard-1`/`berkalp-guard-1` — the player's home seat and the Stark seat the wolves already
 	 * patrol at; `doran-guard-1`/`xaro-guard-1` — Dorne's pride and Qarth's thirteen gates;
 	 * `cersei-guard-1`/`stannis-guard-1` — Lannister gold and Baratheon justice, both already
 	 * flavor-rich in `GREETINGS_BY_NPC_ID` above; `stannis-guard-2` — Baratheon's second watchman;
-	 * `balon-guard-1` — Greyjoy's "we do not sow" flavor, the pilot's first Iron Islands seat) get 2
+	 * `balon-guard-1` — Greyjoy's "we do not sow" flavor, the pilot's first Iron Islands seat;
+	 * `robin-guard-1` — Arryn's Eyrie height, the pilot's first Vale seat; `ziya-guard-1` — Tyrell's
+	 * gardens/growing-power flavor, the pilot's first Reach seat) get 2
 	 * numbered choices after their greeting; picking
 	 * one (Digit1/Digit2 — see
 	 * `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response line,
@@ -538,6 +540,26 @@ export const INTERACTION_CONFIG = Object.freeze({
 			Object.freeze({
 				label: 'Demir Adalar\'a nasıl saygı gösterilir?',
 				response: '{name}: Güçle, yabancı. Zayıflık burada saygı görmez, ne sözle ne de altınla.',
+			}),
+		]),
+		'robin-guard-1': Object.freeze([
+			Object.freeze({
+				label: 'Neden bu kadar yükseğe yerleştiniz?',
+				response: '{name}: Eyrie\'ye kimse merdivensiz çıkamaz, yabancı. Yükseklik en iyi kaledir, kılıçtan önce gelir.',
+			}),
+			Object.freeze({
+				label: 'Kartallarınız gerçekten her şeyi mi görür?',
+				response: '{name}: Vadi\'nin her karışını görürler. Sana da bir göz atıyorlardır şu an, merak etme.',
+			}),
+		]),
+		'ziya-guard-1': Object.freeze([
+			Object.freeze({
+				label: 'Ziya Hanım\'ın bahçeleri neyle ünlü?',
+				response: '{name}: Reach\'in en bereketli toprakları burada, yabancı. Kışın bile açlık bilmeyiz.',
+			}),
+			Object.freeze({
+				label: 'Büyüyen güç derken neyi kastediyorsun?',
+				response: '{name}: Ordular kılıçla büyür, biz tahılla. Sonunda ikisi de aynı kapıya çıkar.',
 			}),
 		]),
 	}),
