@@ -4568,3 +4568,73 @@ branching mechanism itself is unchanged; this is config/content only.
 **Consequences:** 6 of 14 NPCs now have real branching content; 8 remain (`jon-guard-1` deliberately
 excluded, 7 others no fresh reason yet). `gameplayConfig.js` has 22 fewer lines of headroom but is
 still well under the 600-line cap.
+
+## ADR-0063: Grow the dialogue-choice pilot from 6 to 8 of 14 NPCs
+
+**Status:** Accepted (run 48).
+
+**Context:** Fresh session boot, `HEAD` detached at run 47's final commit (`e0010e9`) with a stale
+local `main`/cached `origin/main` ref again pointing at the old pre-3D commit (`38e09e7`) — same
+harmless pattern runs 40/47 already documented; `git fetch origin main` confirmed the real remote
+`main` matched the detached `HEAD` exactly, then `git checkout -B main origin/main` reattached
+cleanly (this run's first attempt raced the fetch — reset to a stale cached `origin/main` before
+fetching — caught immediately via `git cat-file -t <sha>` confirming `e0010e9` was still reachable,
+then corrected with a second fetch-then-checkout; no data was lost, nothing had been pushed yet).
+
+This run's own stored prompt asked for 2 items already shipped 8 runs ago: lake-water flicker (fixed
+run 40, ADR-0048) and an F4 debug free-fly camera (shipped run 40, ADR-0049) — re-confirmed, not
+assumed: the committed smoke suite's `checkWaterVertexShaderStatic`/`checkFreeCamera` both still PASS
+(12/12 full suite), and `node --check` stayed clean on every `src/3d/**/*.js`/`scripts/*.js` file. Same
+stale-prompt situation runs 44-47 already flagged. Full priority re-scan otherwise: no blocking bug,
+no file over the 600-line cap (`gameplayConfig.js` was 521/600, the largest), World Coverage unchanged
+past its gate (96.2% desktop / 4.5% mobile, ADR-0013 perf-budget constraint), FAZ 7/FAZ 3's LOD gap
+re-confirmed still tooling-blocked (no network access for `gltf-transform`/`gltfpack`, no `blender` on
+PATH). With nothing new at priorities 2-8, rotated to priority 9 — run 47's own "Next step" note
+explicitly flagged `stannis-guard-2` as a natural next pick (its greeting already flavor-rich).
+
+**Decision:** `gameplayConfig.js`'s `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` gains 2 more entries:
+`stannis-guard-2` (Baratheon's second watchman) and `balon-guard-1` (Greyjoy, Iron Islands — the
+pilot's first Iron Islands seat). Both chosen for the same criterion ADR-0058/ADR-0060/ADR-0062 all
+used: an existing `GREETINGS_BY_NPC_ID` line distinctive enough to hang a natural follow-up on
+("gözüm hep tepede" -> what he watches for / how he splits duty with the first watchman; "tohum
+ekmeyiz, biçeriz" -> what that motto means / how respect is earned on the Iron Islands). No code in
+`ui/dialogueBox.js`, `gameplay/interaction.js`, or `game3d.js` touched — config/content only.
+
+**Reasoning:**
+- **2 more, not all 6 remaining:** same "pilot small, extend later, review each batch carefully for
+  Turkish prose quality" precedent ADR-0058/ADR-0060/ADR-0062 all established.
+- **House diversity:** `balon-guard-1` adds House Greyjoy to the pilot's coverage (previously
+  Targaryen/Stark/Martell/Qarth-adjacent/Lannister/Baratheon only); `stannis-guard-2` deepens
+  Baratheon rather than adding a new house, but its own greeting was specifically flagged last run as
+  ready — picked over a 3rd fresh-house pick (e.g. `robin-guard-1`) to close out run 47's own explicit
+  suggestion first.
+- **Why not extend the world-event pool again instead:** priority order puts 9 ahead of 9.5 once both
+  have been touched in a prior run; 9.5 (world events, 12 entries) was already grown run 47, so this
+  run rotates to 9.
+
+**Verified:**
+- `node --check` clean on the one touched file.
+- Line count: `gameplayConfig.js` 544/600 (up from 521/600) — comfortable headroom remains.
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`): **all 12 checks PASS**, identical to
+  the pre-change baseline (the suite's `checkInteractionController` already asserts the
+  offer/select/fallback mechanism generically, not against fixed ids/content).
+- **Real headless-Chromium proof of the new content specifically:** a one-off Playwright script
+  booted the live `game3d.html` page (zero console/page errors), then instantiated the real
+  `DialogueBox` with the actual `INTERACTION_CONFIG.GREETINGS_BY_NPC_ID`/`CHOICES_BY_NPC_ID` for both
+  new ids. Screenshots confirm: `stannis-guard-2`'s and `balon-guard-1`'s real greeting text plus both
+  numbered choice labels render over the real scene (castle, player, night sky); selecting choice 1
+  for each shows that choice's own real response text with the choice list cleared and the hint
+  reverted to "E / Esc - Kapat". Zero console/page errors throughout.
+
+**Alternatives considered:**
+- *Extend to all 6 remaining NPCs in one batch* — rejected, same reasoning as ADR-0058/ADR-0060/
+  ADR-0062.
+- *Pick 2 entirely-new-house NPCs instead of `stannis-guard-2`* — rejected: run 47's own "Next step"
+  note called out `stannis-guard-2` by name as ready: closing out an explicit prior-run suggestion
+  before opening a new one keeps the rotation legible across runs.
+
+**Consequences:** 8 of 14 NPCs now have real branching content; 6 remain (`jon-guard-1` deliberately
+excluded, 5 others — `ziya-guard-1`/`robin-guard-1`/`berk-guard-1`/`olena-guard-1`/`twin-guard-1` — no
+fresh reason yet, though `robin-guard-1` would be the next new-house pick (Arryn, not yet covered).
+`gameplayConfig.js` has 56 lines of headroom left before the 600-line cap and would need a split on
+its next comparable-sized growth.

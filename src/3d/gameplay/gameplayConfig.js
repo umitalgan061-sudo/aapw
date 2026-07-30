@@ -442,11 +442,14 @@ export const INTERACTION_CONFIG = Object.freeze({
 		'twin-guard-1': '{name}: İkiz Kuleler\'in gölgesinde yürüyorsun. Burada her adım izlenir.',
 	}),
 	/** FAZ 5's real branching pilot (started run 44, DECISIONS.md ADR-0058; grown run 46 to 4,
-	 * DECISIONS.md ADR-0060; grown run 47 to 6, DECISIONS.md ADR-0062). 6 of 14 NPCs
+	 * DECISIONS.md ADR-0060; grown run 47 to 6, DECISIONS.md ADR-0062; grown run 48 to 8,
+	 * DECISIONS.md ADR-0063). 8 of 14 NPCs
 	 * (`umit-guard-1`/`berkalp-guard-1` — the player's home seat and the Stark seat the wolves already
 	 * patrol at; `doran-guard-1`/`xaro-guard-1` — Dorne's pride and Qarth's thirteen gates;
 	 * `cersei-guard-1`/`stannis-guard-1` — Lannister gold and Baratheon justice, both already
-	 * flavor-rich in `GREETINGS_BY_NPC_ID` above) get 2 numbered choices after their greeting; picking
+	 * flavor-rich in `GREETINGS_BY_NPC_ID` above; `stannis-guard-2` — Baratheon's second watchman;
+	 * `balon-guard-1` — Greyjoy's "we do not sow" flavor, the pilot's first Iron Islands seat) get 2
+	 * numbered choices after their greeting; picking
 	 * one (Digit1/Digit2 — see
 	 * `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response line,
 	 * replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry here —
@@ -515,6 +518,26 @@ export const INTERACTION_CONFIG = Object.freeze({
 			Object.freeze({
 				label: 'Neden başka bir kral değil de Stannis?',
 				response: '{name}: Hak onundur, yabancı. O, görevden kaçmaz — bu yeterli bir cevaptır.',
+			}),
+		]),
+		'stannis-guard-2': Object.freeze([
+			Object.freeze({
+				label: 'Tepede tam olarak ne arıyorsun?',
+				response: '{name}: Düşman ateşi, yabancı bayrağı, her ne gelirse. İlk gören ben olurum, ilk uyaran da.',
+			}),
+			Object.freeze({
+				label: 'Birinci nöbetçiyle aranız nasıl?',
+				response: '{name}: O kapıyı tutar, ben tepeyi. İkimiz de aynı krala hizmet ederiz, sorun çıkmaz.',
+			}),
+		]),
+		'balon-guard-1': Object.freeze([
+			Object.freeze({
+				label: 'Tohum ekmemek ne demek?',
+				response: '{name}: Toprağa güvenmeyiz, denize güveniriz. İhtiyacımız olanı alırız, beklemeyiz.',
+			}),
+			Object.freeze({
+				label: 'Demir Adalar\'a nasıl saygı gösterilir?',
+				response: '{name}: Güçle, yabancı. Zayıflık burada saygı görmez, ne sözle ne de altınla.',
 			}),
 		]),
 	}),

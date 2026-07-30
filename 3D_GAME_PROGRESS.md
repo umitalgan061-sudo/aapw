@@ -5038,3 +5038,72 @@ of gap. FAZ 5's choice-branching pilot now covers 6 of 14 NPCs (`umit`, `berkalp
 `stannis-guard-2`'s own greeting line ("İkinci nöbetçi benim, gözüm hep tepede...") is already
 flavor-rich enough to be a natural next pick). The world-event pool (12 entries) could still grow
 further. FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download step.
+
+## This Run (2026-07-30, run 48)
+
+**Fresh Session Snapshot at container boot:** `HEAD` was detached at run 47's final commit
+(`e0010e9`, ADR-0062's dialogue-pilot growth to 6) with a stale local `main`/cached `origin/main` ref
+pointing at the old pre-3D-mode commit (`38e09e7`). First reattach attempt raced ahead of the fetch —
+`git checkout -B main origin/main` ran against the stale cached ref before a fresh `git fetch origin
+main`, resetting local `main` back to `38e09e7`. Caught immediately (per this project's own
+regression-guard discipline: verify, don't assume) via `git cat-file -t e0010e9`, which confirmed the
+commit was still fully reachable (nothing had been pushed, so nothing was ever at risk) — a second
+`git fetch origin main` then showed the real remote tip is `e0010e9`, and `git checkout -B main
+origin/main` repeated against the now-correct fetched ref reattached cleanly. Same harmless class of
+issue runs 40/47 already documented, this run's own extra step (checking reachability before
+re-fetching) is the incremental improvement worth carrying forward: fetch *before* resetting a branch
+to `origin/<name>`, not after.
+
+**This run's own stored prompt asked for 2 items already shipped 8 runs ago:** lake-water flicker
+(fixed run 40, ADR-0048) and an F4 debug free-fly camera (shipped run 40, ADR-0049) — confirmed, not
+assumed: `git log`/`DECISIONS.md` both show them landed, and the committed smoke suite's
+`checkWaterVertexShaderStatic`/`checkFreeCamera` both still PASS. Same stale-prompt situation runs
+44-47 already flagged — this run re-confirms it independently again rather than trusting the prior
+note on faith.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0063):** fresh full priority re-scan: `node
+--check` clean on every `src/3d/**/*.js` and `scripts/*.js` file; no blocking bug; no file over the
+600-line cap (`gameplayConfig.js` was 521/600, the largest); full smoke suite already at 12/12 (no
+missing regression coverage); World Coverage unchanged past its gate (96.2% desktop, 4.5% mobile —
+ADR-0013 perf-budget constraint, not an open gap); FAZ 7/FAZ 3's LOD gap re-confirmed still genuinely
+tooling-blocked this run (`npx gltf-transform --version`/`npx gltfpack --version` both fail — no
+network access — and no `blender` binary on PATH), not assumed from a stale note. With nothing new at
+priorities 2-8, rotated to priority 9 (FAZ 5's dialogue pilot) per run 47's own "Next step" note,
+which explicitly named `stannis-guard-2` as ready. Grew `gameplayConfig.js`'s `CHOICES_BY_NPC_ID` from
+6 to 8 of 14 NPCs, adding `stannis-guard-2` (Baratheon, second watchman) and `balon-guard-1` (Greyjoy,
+Iron Islands — the pilot's first Iron Islands seat, new house diversity). Config-only; zero changes to
+`interaction.js`/`dialogueBox.js`/`game3d.js`.
+
+**Regression guard:** `node --check` clean. Full committed smoke suite — all **12** checks PASS,
+identical to the pre-change baseline (mechanism unchanged, only new config data). **Real
+headless-Chromium proof of the new content specifically:** a one-off Playwright script booted the live
+`game3d.html` page (zero console/page errors), then instantiated the real `DialogueBox` with the
+actual `INTERACTION_CONFIG` for both new NPC ids — screenshots confirm each NPC's real greeting plus
+both numbered choice labels render over the real scene (castle, player, night sky), and selecting
+choice 1 shows that choice's own real response text with the hint reverted to "E / Esc - Kapat". Zero
+console errors throughout.
+
+**Memory-leak checklist:** N/A — config-only content addition to a frozen object literal, no new
+allocation, listener, or timer; the one-off verification script's own `DialogueBox` instances were
+scratch/throwaway, not part of the committed app.
+
+**Files changed this sub-task:** `src/3d/gameplay/gameplayConfig.js`, `DECISIONS.md` (new ADR-0063),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~65 new/changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a dialogue-content-only addition touches no terrain/streaming/chunk
+logic.**
+
+**Run totals (1 sub-task, run 48):** 3 files touched, ~65 new/changed lines (well under the
+1200-line/25-file budget). One commit, regression-guarded (12/12 smoke suite + real headless-Chromium
+screenshots of the new content specifically) and pushed directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **FAZ 7 still blocked**
+(re-confirmed run 48). **FAZ 3's LOD gap remains tooling-blocked**, same class of gap. FAZ 5's
+choice-branching pilot now covers 8 of 14 NPCs (`umit`, `berkalp`, `doran`, `xaro`, `cersei`,
+`stannis-guard-1`, `stannis-guard-2`, `balon`); 6 remain (`jon-guard-1` deliberately excluded, 5
+others — `ziya`/`robin`/`berk`/`olena`/`twin` — no fresh reason yet, though `robin-guard-1` would be
+the next new-house pick, House Arryn, not yet covered). `gameplayConfig.js` is now 544/600 — only 56
+lines of headroom before the next comparable-sized growth needs a file split. The world-event pool
+(12 entries) could also still grow. FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download
+step.
