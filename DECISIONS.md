@@ -2652,3 +2652,92 @@ deliberately excluded seat). No new tech debt — purely additive config entries
 proven shape; no new code path, no new asset, no file over the line cap. Real remaining FAZ 5 gaps
 are unchanged and require either a content-design decision (real dialogue content/branching) or a
 design reconsideration (NPC player/pack-awareness) — not a mechanical fix like this one was.
+
+## ADR-0037: `physics.js`'s `createSettlementCollider` — a simple player-vs-castle horizontal collider
+
+**Status:** Accepted (run 35).
+
+**Context:** A fresh state re-derivation (not assuming anything carried over from the prior run's
+own closing notes, per this run's own "devam et" instruction) found FAZ 1 already ✅ TAMAMLANDI
+since run 5, `sky.js` already built and wired in since run 4 — the specific "priority 8" candidate
+named in this run's brief no longer existed as open work. Re-scanning the actual current Roadmap for
+a genuine priority-8 item (a missing subtask of an actually in-progress phase, with priorities 1-7
+confirmed empty by the same fresh scan) found FAZ 3 — still "(in progress)" — had one named open
+item pair, "Basit LOD/collider." The collider half matched a real, previously-flagged, still-open
+gap: `camera.js`'s own Known Issues note ("this only fixes what the *camera* can see through — the
+*player* can still walk through castle walls"). The LOD half had no measured perf need behind it —
+`world/settlements.js`'s `InstancedMesh`-based rendering already holds castle draw calls to 3 total
+regardless of camera distance, so building LOD now would be speculative optimization work, not a fix
+for any observed budget overrun.
+
+**Decision:** Added `physics.js`'s `createSettlementCollider(seats, settlementConfig,
+playerRadiusMeters = 0.4)`. Per kingdom seat, tests two simple analytic shapes built from the exact
+same `SETTLEMENT_CONFIG` dimensions `world/settlements.js`'s `createSettlements` already uses for
+the visible geometry (so the collider always matches what's rendered, never a second, independently-
+tuned source of truth):
+1. An axis-aligned box for the keep (`KEEP_WIDTH_METERS` x `KEEP_DEPTH_METERS`, centered on the
+   seat), grown by `playerRadiusMeters`.
+2. A circle at each of the 4 corner towers' real offsets (`TOWER_CORNER_OFFSET_METERS`), radius
+   `TOWER_RADIUS_BOTTOM_METERS + playerRadiusMeters`.
+
+`resolveXZ(worldX, worldZ)` pushes a penetrating point out along the shallowest escape axis (box) or
+radially (circle), and is a no-op — the overwhelmingly common case, true for 13 of 14 seats on
+almost every frame — when the point isn't inside anything. `gameplay/player.js`'s `createPlayer` now
+accepts an optional `settlementCollider` and resolves the candidate next `(x, z)` through it every
+frame with movement input, *before* `groundCollider.getGroundHeight` samples the terrain at that
+resolved position — mirroring the existing `groundCollider` dependency-injection shape (a parameter,
+not an import) rather than reaching into `world/settlements.js` directly, keeping the "physics.js
+owns collision" folder-ownership boundary intact (see ARCHITECTURE.md). `game3d.js` builds the one
+shared collider instance from `settlementsResult.seats` + `SETTLEMENT_CONFIG` and threads it into
+`createPlayer`'s options.
+
+**A real edge-case bug found and fixed during verification:** the tower-circle push-out's original
+zero-distance guard (`distance > 1e-6`, meant only to avoid a divide-by-zero) also silently skipped
+the correction when a point landed *exactly* on a tower's center — leaving it unresolved instead of
+pushed out. Fixed by special-casing `distance < 1e-6` to kick the point out along a fixed `+X`
+direction (the escape direction is arbitrary at that singular point; only guaranteed escape matters).
+Found by testing the actual edge case in isolation, not assumed correct from reading the code.
+
+**Alternatives considered:**
+- *Bundle LOD into this same subtask, since the roadmap lists them as one line item* — rejected:
+  LOD has no measured perf need (see Context above), and the collider alone is already a complete,
+  independently-valuable, independently-revertible unit. Splitting keeps each change small and
+  reviewable rather than one subtask doing two unrelated things for the sake of matching the
+  roadmap's own line-item grouping.
+- *A raycast-based collider, matching `camera.js`'s `resolveCameraCollision` approach* — rejected:
+  raycasting is the right tool when the collidable geometry is arbitrary/rotated (the camera can
+  approach from any angle in 3D, including from above/below), but every castle here is a static,
+  axis-aligned box + circles known in advance; a closed-form box/circle test is cheaper, has no
+  "ray started inside the geometry" edge case to reason about, and is simpler to unit-test in
+  isolation the way this ADR's Verified section does.
+- *A single large bounding circle per seat instead of box+towers* — rejected: measured against the
+  actual guard NPC offsets in `NPC_CONFIG.SPAWNS` (`±12m` from seat center on each axis, distance
+  ~17m), a single circle large enough to cover the tower ring (~34.8m radius) would place the
+  interaction-range boundary for every NPC well inside the exclusion zone, making it impossible for
+  the player to ever walk close enough to trigger `ui/interactionPrompt.js`'s 6m prompt — silently
+  breaking all of FAZ 5's existing interaction work. The box+towers shape (17.4m box half-extent)
+  leaves NPCs reachable, matching how they visually read against the actual keep geometry.
+
+**Verified:**
+1. `node --check` clean on `physics.js` (120 lines), `gameplay/player.js` (114 lines), `game3d.js`
+   (579 lines, re-measured against the 600-line cap per the standing run-29 checklist item — still
+   under). `node scripts/checkAssetsManifest.js` still exits 0. `node scripts/smokeTestGame3D.js`
+   PASS on both checks, before and after.
+2. **Isolated collider math**, run in-browser via the project's real import map (not Node's
+   `require`, since `physics.js` has no non-browser harness and this keeps the test exercising the
+   exact module resolution the game itself uses): a point at a synthetic castle's exact center is
+   pushed to precisely 17.4m (`KEEP_WIDTH_METERS/2 + 0.4`); a far point is an exact no-op; a point on
+   a tower's exact center is pushed to precisely the tower's radius (confirming the edge-case fix);
+   and 3000 simulated per-frame forward steps — the same loop shape `player.js`'s own `update()`
+   uses — walking straight at the keep center from 60m away come to rest at exactly 517.4 (17.4m
+   short of center) and never penetrate further despite 3000 more attempts to.
+3. **Live integration sanity**, real headless-Chromium session: held `D` for 3 seconds of ordinary
+   open-field movement (nowhere near any castle) — zero console/page errors, confirming the new
+   optional parameter doesn't disturb the much more common non-castle-adjacent movement path.
+
+**Consequence:** The player can no longer walk through a kingdom seat's keep or towers — the last
+specifically-named gap in `camera.js`'s own Known Issues note is now closed. FAZ 3's remaining open
+item is LOD only, still correctly unstarted (no measured need). No new tech debt: the collider
+reuses `SETTLEMENT_CONFIG` as its single source of truth (no duplicated geometry constants), stays
+under the 600-line cap on every touched file, and `settlementCollider` is optional everywhere it's
+threaded through, so no existing caller/test shape was broken.

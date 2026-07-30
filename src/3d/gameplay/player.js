@@ -14,6 +14,10 @@ import { AssetLoader } from '../assetLoader.js';
  * @param {object} options
  * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider `physics.js`'s collider.
+ * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.settlementCollider]
+ *   `physics.js`'s `createSettlementCollider` (FAZ 3's "Basit ... collider") — optional so this
+ *   module still works in any future context with no settlements (e.g. a unit test) without a
+ *   caller needing to fabricate one; movement simply isn't blocked by castles when omitted.
  * @param {{x: number, z: number}} [options.spawn] World-space spawn point.
  * @returns {Promise<{
  *   object3D: THREE.Object3D,
@@ -24,6 +28,7 @@ import { AssetLoader } from '../assetLoader.js';
 export async function createPlayer({
 	assetLoader,
 	groundCollider,
+	settlementCollider = null,
 	spawn = { x: PLAYER_CONFIG.SPAWN_X_METERS, z: PLAYER_CONFIG.SPAWN_Z_METERS },
 }) {
 	const model = await assetLoader.loadFBXModel(PLAYER_CONFIG.MODEL_URL, {
@@ -75,8 +80,13 @@ export async function createPlayer({
 
 			if (hasInput) {
 				const speed = isRunning ? PLAYER_CONFIG.RUN_SPEED_MPS : PLAYER_CONFIG.WALK_SPEED_MPS;
-				model.position.x += moveDirectionXZ.x * speed * delta;
-				model.position.z += moveDirectionXZ.z * speed * delta;
+				let nextX = model.position.x + moveDirectionXZ.x * speed * delta;
+				let nextZ = model.position.z + moveDirectionXZ.z * speed * delta;
+				if (settlementCollider) {
+					({ x: nextX, z: nextZ } = settlementCollider.resolveXZ(nextX, nextZ));
+				}
+				model.position.x = nextX;
+				model.position.z = nextZ;
 				model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
 
 				const targetYaw = Math.atan2(moveDirectionXZ.x, moveDirectionXZ.z);

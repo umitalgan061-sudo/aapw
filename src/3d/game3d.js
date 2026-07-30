@@ -34,7 +34,7 @@ import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
 import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, PLAYER_CONFIG, NPC_CONFIG, ANIMAL_CONFIG, INTERACTION_CONFIG } from './config.js';
 import { ChunkManager } from './world/chunkManager.js';
-import { createGroundCollider } from './physics.js';
+import { createGroundCollider, createSettlementCollider } from './physics.js';
 import { KeyboardInput } from './input.js';
 import { TouchJoystick } from './ui/touchJoystick.js';
 import { InteractionPrompt } from './ui/interactionPrompt.js';
@@ -99,7 +99,7 @@ function isCoarsePointerDevice() {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, settlementCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -205,8 +205,12 @@ function createScene(canvas) {
 			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²)${isMobileClass ? ' (mobile — grounding skipped, see ADR-0013)' : ' after grounding them'}.`,
 	);
 
+	// FAZ 3's "Basit ... collider": keeps the player from walking through a castle's keep/towers —
+	// see physics.js's createSettlementCollider doc comment for the box+circle shape this uses.
+	const settlementCollider = createSettlementCollider(settlementsResult.seats, SETTLEMENT_CONFIG);
+
 	return {
-		renderer, scene, camera, controls, chunkManager, groundCollider, sky, stars, water, river, waterfalls,
+		renderer, scene, camera, controls, chunkManager, groundCollider, settlementCollider, sky, stars, water, river, waterfalls,
 		settlements: settlementsResult.group,
 		// Exposed (not just the settlements.group mesh) so initGame3D can place FAZ 5 NPCs relative to
 		// a named kingdom seat's real world position/ground height without re-deriving mapToWorldXZ.
@@ -389,6 +393,7 @@ export async function initGame3D() {
 		const player = await createPlayer({
 			assetLoader,
 			groundCollider: state.groundCollider,
+			settlementCollider: state.settlementCollider,
 			spawn: { x: PLAYER_CONFIG.SPAWN_X_METERS, z: PLAYER_CONFIG.SPAWN_Z_METERS },
 		});
 		state.scene.add(player.object3D);

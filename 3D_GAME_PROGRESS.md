@@ -389,8 +389,14 @@ Triangles<500K, TextureMem<512MB.
   normal maps for the stone keep/tower material, color/roughness maps for the roof material (mortar
   grooves, per-block variance, real normal-map bevel depth). Procedural, not an external texture
   file. See DECISIONS.md ADR-0015.
-- [ ] Basit LOD/collider — not attempted this pass; castles are a fixed triangle count regardless of
-  camera distance, and nothing collides with them yet (no player exists until FAZ 4).
+- [x] Basit collider — **run 35** (`physics.js`'s `createSettlementCollider`, DECISIONS.md ADR-0037):
+  an axis-aligned box (keep) + 4 circles (corner towers) per seat, grown by a small player-radius
+  margin; `gameplay/player.js` resolves the player's horizontal movement through it every frame
+  before ground-height sampling, so the player can no longer walk through a castle's keep or towers.
+- [ ] LOD — still not attempted; castles are a fixed triangle count regardless of camera distance.
+  Deliberately not bundled into run 35's collider work (see ADR-0037's Alternatives) — `settlements.js`'s
+  `InstancedMesh` already keeps this at 3 draw calls total regardless of distance, and no perf-budget
+  overrun has ever been measured that LOD would fix, so it stays a real but low-urgency remaining item.
 
 ### FAZ 4 — Oynanabilir Karakter ✅ TAMAMLANDI (run 17-19)
 - [x] 3. şahıs kamera — chase-cam (mevcut `OrbitControls` yeniden kullanılıyor, `game3d.js` her
@@ -3318,6 +3324,109 @@ wire `scripts/checkAssetsManifest.js` and `scripts/smokeTestGame3D.js` into a li
 pre-commit hook if that friction becomes real, but that would be speculative today (see both ADRs'
 Consequence sections).
 
+## This Run (2026-07-30, run 35)
+
+**Fresh state re-derivation at start of run** (per the operator's explicit "devam et" / continue
+instruction — nothing assumed carried over): repo was already clean and `main` up to date with
+`origin/main` at `3a417b9` (run 34's third commit) — no detached-HEAD/stale-ref issue this time.
+Re-read `3D_GAME_PROGRESS.md`'s Current Status/Roadmap/Known Issues, `git log -10`, `DECISIONS.md`'s
+last 3 ADRs (0034/0035/0036), and re-ran `node --check` across every non-vendor `.js` file (all
+pass) plus `node scripts/smokeTestGame3D.js` as the pre-subtask Regression Guard baseline (both
+checks PASS, zero console/page errors). World scale re-confirmed at 137.5 km² (no change) and World
+Coverage unchanged from run 34's figures (see below) — nothing in priorities 1-7 had anything new to
+act on (no syntax error, blocking bug, perf overrun, memory leak, open tech-debt item, missing
+smoke-test coverage, or a coverage-gate failure — coverage is already clear of both gates).
+
+**Correcting the prior run's stale framing:** the instruction handed into this run named "FAZ 1's
+remaining sky.js work" as the priority-8 candidate, but re-deriving state (not assuming) showed FAZ 1
+has been ✅ TAMAMLANDI since run 5, and `sky.js` itself has existed and been fully wired in since run
+4 — there was no remaining sky.js work to do. Re-scanning the actual current Roadmap for the true
+priority-8 candidate (a missing subtask of an *actually* in-progress phase) found FAZ 3 — still
+explicitly "(in progress)" — had exactly one named open item pair: "Basit LOD/collider." Of the two,
+the collider half matched a real, separately-named, previously-unresolved gap (`camera.js`'s own
+Known Issues entry: "the *player* can still walk through castle walls"), while LOD had no measured
+perf need behind it (`settlements.js`'s `InstancedMesh` already holds castle rendering to 3 draw
+calls total regardless of distance — no perf-budget overrun anywhere near this). Picked the collider
+as this run's one atomic sub-task; left LOD as the (correctly, still-real) remaining FAZ 3 item.
+
+**Decision and work (DECISIONS.md ADR-0037):** Added `physics.js`'s `createSettlementCollider(seats,
+settlementConfig, playerRadiusMeters)` — per kingdom seat, an axis-aligned box matching the keep's
+real footprint plus a circle at each of the 4 corner towers' real positions (same
+`SETTLEMENT_CONFIG` dimensions `world/settlements.js` builds the visible geometry from), each grown
+by a small player-radius margin so the character's own mesh doesn't visually poke through. Wired
+into `gameplay/player.js`: `createPlayer` now accepts an optional `settlementCollider` and, on every
+frame with movement input, resolves the candidate next `(x, z)` through it *before* ground-height
+sampling — mirroring the existing `groundCollider` dependency-injection shape rather than reaching
+into `world/settlements.js` directly (keeps the "physics.js owns collision" folder-ownership rule
+intact). `game3d.js` builds the one shared `settlementCollider` instance from `settlementsResult.
+seats` + `SETTLEMENT_CONFIG` and threads it into `createPlayer`'s options — 3 files touched
+(`physics.js`, `gameplay/player.js`, `game3d.js`), no new file, no EventBus involvement needed since
+this is the same kind of direct-dependency wiring `groundCollider` already used, not cross-system
+communication.
+
+**A real bug found and fixed during verification (not just written and assumed correct):** an
+isolated unit test of the tower-circle push-out found that a point landing *exactly* on a tower's
+center (distance 0) was silently left unresolved — the original zero-distance guard (`distance >
+1e-6`) meant to avoid a divide-by-zero also skipped the correction entirely in that exact case.
+Fixed by special-casing `distance < 1e-6` to kick the point out along a fixed `+X` direction instead
+of skipping it (the escape direction doesn't matter at that singular point, only that it always
+escapes). Real per-frame player movement essentially never lands on that exact point, but a collider
+that can silently fail to resolve isn't a safe primitive to ship — caught by testing the actual
+edge case, not just the common path.
+
+**Regression guard — verified beyond `node --check`, with real behavioral proof:**
+1. `node --check` clean on `physics.js` (120 lines), `gameplay/player.js` (114 lines), `game3d.js`
+   (579 lines — re-measured against the 600-line cap per the standing checklist item from run 29;
+   still comfortably under). `node scripts/checkAssetsManifest.js` still exits 0 (no asset files
+   touched). `node scripts/smokeTestGame3D.js` PASS on both checks, before and after this change.
+2. **Isolated collider math**, run in-browser (real `three`-resolved ES modules via the existing
+   import map, not Node's `require`, since `physics.js` has no non-browser test harness): a point at
+   a synthetic castle's exact center is pushed to precisely the keep's half-extent (17.4m, i.e.
+   `KEEP_WIDTH_METERS/2 + playerRadiusMeters`); a point far away is a no-op; a point exactly on a
+   tower's center is pushed to exactly the tower's radius (the edge-case fix above, confirmed
+   working); and — the most direct proof this actually blocks movement, not just that isolated calls
+   don't throw — 3000 simulated per-frame forward steps (the same shape `player.js`'s own `update()`
+   loop uses) walking straight at the keep center from 60m away come to rest at *exactly* 517.4
+   (17.4m short of the center), never penetrating further despite 3000 more attempts to.
+3. **Live integration sanity**, real headless-Chromium session against `game3d.html`: held `D` for
+   3 seconds of normal open-field movement (nowhere near any castle) — zero console/page errors,
+   confirming the new `settlementCollider` wiring doesn't break ordinary movement, the much more
+   common case than castle-adjacent movement.
+4. Reviewed `gameplay/player.js`'s diff directly: `settlementCollider` is optional (defaults to
+   `null`, a no-op when omitted) so any future caller/test constructing a player without one still
+   works exactly as before this change.
+
+**Memory-leak checklist:** No new `THREE.*` geometry/material/texture allocated by
+`createSettlementCollider` — it's pure per-call arithmetic over the same `seats` array
+`world/settlements.js` already owns and disposes; no event listener, timer, or long-lived resource
+added. `disposeSettlements`'s existing cleanup is untouched and still the sole owner of the castles'
+actual GPU resources.
+
+**Performance:** `resolveXZ` is O(seat count) = O(14) simple arithmetic comparisons per moving
+frame, no allocation in the common (no-op) path — negligible against any per-frame budget, not
+re-measured with a dedicated FPS pass (same SwiftShader-software-rendering sandbox caveat as every
+prior run).
+
+**Files changed this run:** `src/3d/physics.js`, `src/3d/gameplay/player.js`, `src/3d/game3d.js`,
+`DECISIONS.md` (new ADR-0037), `3D_GAME_PROGRESS.md` (this file — FAZ 3 checklist, two Known Issues
+entries, this section), `ARCHITECTURE.md` (updated `physics.js`/`gameplay/player.js` entries). 6
+files, ~95 new lines of code (`physics.js`'s new export + `player.js`'s wiring) plus documentation —
+well within this run's budget. One commit.
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged from run 34 (this sub-task adds horizontal collision
+logic only, touches no terrain/streaming/rendering geometry or chunk count).**
+
+**Next step for the next run:** re-scan the priority order fresh, as always. FAZ 3's one remaining
+item is LOD (still no measured perf need behind it — don't treat "the roadmap has an unchecked box"
+as equivalent to "there's a perf problem to fix"). Real higher-value remaining gaps, unchanged from
+run 34's own assessment: FAZ 5's actual dialogue content and NPC player/pack-awareness (content-
+design decisions), FAZ 6's other 3 animal types (each needs a human manual-download step, mark as
+"insan onayı gerekli" and stop if attempted), FAZ 4's own remaining gap (no gravity/jump physics —
+note the *horizontal* castle-wall gap this run closed is a different, now-resolved item from that
+one). A fresh priority-order scan next run may land on any of these or on a newly-introduced gap —
+don't assume this list is exhaustive without re-deriving it.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -3390,9 +3499,9 @@ Consequence sections).
   every frame against nearby terrain chunks + settlement parts, pulling the camera in front of
   whatever it hits — see DECISIONS.md ADR-0018. The pull-in is deliberately non-persistent (applied
   only for that frame's render, restored right after) so the user's actual zoom/orbit distance is
-  never permanently shrunk. **Still open:** this only fixes what the *camera* can see through — the
-  *player* can still walk through castle walls (no player-side collider yet, separate future work,
-  see the settlements LOD/collider item below).
+  never permanently shrunk. **~~Still open: player can still walk through castle walls~~ — fixed
+  run 35** (`physics.js`'s `createSettlementCollider`, DECISIONS.md ADR-0037) — see the settlements
+  collider item below for the shape/verification details.
 - **FAZ 5's NPCs exist at 13 of 14 kingdom seats now, with no real dialogue content (open/close
   now works since run 33, but the greeting itself is one generic line, not per-NPC content).**
   `NPC_CONFIG.SPAWNS` places 14 NPCs across `stannis` (2), `umit`, `cersei`, `berkalp`, `doran`,
@@ -3480,9 +3589,16 @@ Consequence sections).
   `toTrianglesDrawMode`), not because anything calls it directly yet. Expected to stay unused
   until non-triangle-strip GLTF assets show up.
 - **~~`world/settlements.js`'s castles have no PBR texture maps~~ — fixed run 16
-  (`world/materials.js`).** See DECISIONS.md ADR-0015. **Still no LOD or collider** — a fixed
-  triangle count regardless of camera distance, and nothing collides with the castles yet, since no
-  player exists until FAZ 4. This remains FAZ 3's one open sub-task, not an accidental gap.
+  (`world/materials.js`).** See DECISIONS.md ADR-0015. **~~No collider~~ — fixed run 35**
+  (`physics.js`'s `createSettlementCollider`, DECISIONS.md ADR-0037): a box (keep) + 4 circles
+  (corner towers) per seat, grown by a small player-radius margin; `gameplay/player.js` resolves
+  the player's horizontal movement through it every frame, so the player can no longer walk through
+  a castle. Verified both in isolation (a simulated 200+ frame walk straight at a synthetic
+  castle's center stops exactly at the keep's half-extent, not before/after) and via the real
+  headless-Chromium smoke test (zero regressions, normal open-field movement unaffected). **Still
+  no LOD** — a fixed triangle count regardless of camera distance; `settlements.js`'s
+  `InstancedMesh` already keeps this at 3 draw calls total though, so this is real but low-urgency
+  remaining work, not a measured perf problem. This is FAZ 3's one remaining open sub-task.
 - **Kingdom seats outside the desktop boot-preview radius render without visible ground on
   mobile-class devices.** By design (see DECISIONS.md ADR-0013's "real mobile perf-budget bug"):
   force-loading a terrain neighborhood under every seat on mobile would add ~753K triangles, 1.9x
