@@ -4268,6 +4268,39 @@ direct push to `main`.
 (6.25 km² / 137.5 km²) mobile — a pure code-organization refactor touches no terrain/streaming/chunk
 logic or values.**
 
+**Sub-task 2 — decision and work (DECISIONS.md ADR-0053), continued after "Devam et":** priority 6
+(tech debt/missing tooling), the real prerequisite behind priority 8's twice-deferred World Coverage
+growth (ADR-0047, ADR-0049 both found the same blocker: no `renderer.info`-based instrumentation to
+measure a chunk-radius bump's real, not estimated, triangle/draw-call cost). New `src/3d/debug/
+perfPanel.js`: F2 toggles a real-time `renderer.info` readout (draw calls, triangles, geometry/
+texture object counts) against this project's own desktop/mobile perf budgets — same self-contained
+conventions `freeCamera.js` (F4) established (own listener, own DOM, no-op while inactive, full
+`dispose()`). `game3d.js` creates one instance and calls `update(delta)` immediately after
+`renderer.render()` each frame (required ordering — `renderer.info` resets on every `render()`
+call). `game3d.js`: 433 -> 442 lines (9 new lines: import, create call, one comment + update call,
+one dispose call) — well under the cap, exactly the headroom sub-task 1 existed to free up.
+
+**Regression guard:** `node --check` clean on both files. `wc -l`: `game3d.js` 442 lines,
+`perfPanel.js` 92 lines. Full committed smoke suite — all 10 checks PASS, zero regressions. **Real
+headless-Chromium proof:** booted `game3d.html`, screenshotted the hidden baseline, pressed F2,
+screenshotted again — the panel legibly shows real live numbers from the actual boot-preview scene
+(`Draw calls: 38 / 2500`, `Triangles: 337,993 / 5,000,000`, `Geometries: 38`, `Textures: 14`), a
+second F2 press correctly re-hides it, zero console/page errors throughout.
+
+**Memory-leak checklist:** the panel's one DOM node and one `window` `keydown` listener are created
+once at scene setup and released together via `perfPanel.dispose()`, wired into the existing
+`pagehide` teardown chain. No per-frame allocation in the inactive path (`update()` returns
+immediately); the active path's DOM write is throttled to 4/sec, not every frame.
+
+**Files changed this sub-task:** `src/3d/debug/perfPanel.js` (new), `src/3d/game3d.js`,
+`game3d.css`, `src/3d/debug/README.md`, `ARCHITECTURE.md`, `DECISIONS.md` (new ADR-0053),
+`3D_GAME_PROGRESS.md` (this file). 7 files, ~200 new/changed lines. One commit, direct push to
+`main`.
+
+**World Coverage (unchanged this sub-task): 80.7% (111.00 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a new debug-only panel touches no terrain/streaming/chunk logic;
+it now exists as the real instrumentation the *next* World Coverage attempt needs to be safe.**
+
 ## Known Issues / Tech Debt
 
 - **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s

@@ -53,6 +53,7 @@ import { updateStarfield, disposeStarfield } from './stars.js';
 import { updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
 import { updateFog } from './fog.js';
 import { createScene, isCoarsePointerDevice, worldToChunkCoord } from './sceneManager.js';
+import { createPerfPanel } from './debug/perfPanel.js';
 
 /** Shared asset loader instance for the whole 3D mode. */
 export const assetLoader = new AssetLoader({ events: gameEvents });
@@ -312,6 +313,10 @@ export async function initGame3D() {
 		const handleInteractKeyDown = (event) => state.interaction.handleKeyDown(event);
 		window.addEventListener('keydown', handleInteractKeyDown);
 
+		// F2 debug/profiling panel (debug/README.md, ADR-0053) — same isCoarsePointerDevice() signal
+		// sceneManager.js's own chunk-radius split already used, so both agree on the device class.
+		state.perfPanel = createPerfPanel({ renderer: state.renderer, isMobileClass: isCoarsePointerDevice() });
+
 		let frameId;
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
@@ -391,6 +396,9 @@ export async function initGame3D() {
 			state.camera.position.copy(resolvedPosition);
 			state.renderer.render(state.scene, viewCamera);
 			state.camera.position.set(desiredCameraX, desiredCameraY, desiredCameraZ);
+			// After render(): renderer.info.render.calls/.triangles reset on every render() call, so
+			// reading them any earlier this frame would report the *previous* frame's numbers.
+			state.perfPanel.update(delta);
 		};
 		tick();
 
@@ -407,6 +415,7 @@ export async function initGame3D() {
 			state.animals.forEach((animal) => animal.dispose());
 			state.controls.dispose();
 			state.freeCamera.dispose();
+			state.perfPanel.dispose();
 			state.chunkManager.disposeAll();
 			disposeAuroraSky(state.sky);
 			disposeStarfield(state.stars);

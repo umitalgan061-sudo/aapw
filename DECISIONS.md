@@ -3821,3 +3821,71 @@ of freeing 170 lines for an unrelated debug panel.
   this project's own Golden Rules (not a soft guideline), and `game3d.js` genuinely mixes two
   concerns (one-time scene construction, ongoing tick-loop/lifecycle ownership) that a real module
   boundary describes better than a bigger number would.
+
+## ADR-0053: F2 debug/profiling panel — real `renderer.info` instrumentation
+
+**Status:** Accepted (run 41, second sub-task — continued after ADR-0052's extraction).
+
+**Context:** With `game3d.js` back under its 600-line cap (ADR-0052), this run's actual priority-6
+target was buildable: this project has never had a way to measure a frame's *real* draw-call/
+triangle cost. `3D_GAME_PROGRESS.md`'s World Coverage entry (flat at 80.7%/4.5% since run 15) has
+been deferred twice specifically because of this — ADR-0047 computed a `PHASE1_PREVIEW_RADIUS_CHUNKS`
+10 -> 11 bump against `chunkManager`'s own *estimated* triangle math and judged the resulting margin
+too thin to commit to without better measurement; ADR-0049 repeated the same finding. An F2/F3
+debug/profiling panel was already planned in `ARCHITECTURE.md`'s target layout and `debug/README.md`'s
+own "not yet built" note — this sub-task builds F2 first (profiling), leaving F3 open for whatever
+panel needs it next.
+
+**Decision:** New `src/3d/debug/perfPanel.js`, `createPerfPanel({renderer, isMobileClass,
+container})` — same self-contained conventions `freeCamera.js` (F4) established: owns its own F2
+keydown listener, its own DOM node (a `<pre class="g3d-perf-panel">`, styled in `game3d.css`), a
+no-op `update(delta)` while inactive, and a `dispose()` that removes everything. Reads
+`renderer.info.render.calls`/`.triangles` and `renderer.info.memory.geometries`/`.textures` each
+update, checked against `DESKTOP_BUDGET`/`MOBILE_BUDGET` — two small frozen objects kept local to
+this file (not `config.js`, already at its own 600-line cap) mirroring `freeCamera.js`'s own
+`FAR_PLANE_METERS`/`FLY_SPEED_MPS` precedent for tool-specific constants. `game3d.js` creates one
+instance in `initGame3D`, passing the same `isCoarsePointerDevice()` call already imported for the
+`touchJoystick` gate (so both agree on device class from one signal), and calls
+`state.perfPanel.update(delta)` **immediately after** `state.renderer.render(...)` in the tick loop
+— `renderer.info.render.calls`/`.triangles` reset on every `render()` call (`autoReset`, on by
+default), so reading them any earlier in the same frame would report the *previous* frame's numbers,
+not the one just drawn. DOM writes are throttled to 4/sec (`REFRESH_INTERVAL_SECONDS`) since a
+debug readout doesn't need sub-frame repaint churn; the underlying counters are still read live
+every call regardless of the throttle.
+
+**Honesty about what `renderer.info` can and can't answer:** `renderer.info.memory.textures` is a
+GPU *object count*, not a byte size — three.js exposes no public VRAM-in-MB figure. The panel labels
+it "GPU objects, not MB" rather than presenting a fabricated memory-in-megabytes number this
+project's own "BİLMEME KURALI" (don't guess an unfamiliar/unavailable API) explicitly warns against.
+Draw calls and triangles — the two numbers `chunkManager`'s own math was already estimating, and the
+actual blocker ADR-0047/ADR-0049 both hit — are real, exact, GPU-reported figures.
+
+**Verified:**
+- `node --check` clean on `game3d.js` and `debug/perfPanel.js`. `wc -l`: `game3d.js` 442 lines
+  (was 433 after ADR-0052, +9 for the panel's create/update/dispose call sites), `perfPanel.js` 92
+  lines. Both comfortably under the 600-line cap.
+- Full committed smoke suite — all 10 checks PASS, zero regressions.
+- **Real headless-Chromium verification, not a synthetic-only check:** booted `game3d.html`,
+  screenshotted the baseline (panel hidden), pressed F2, waited past one throttle interval,
+  screenshotted again. Panel legibly renders real live numbers pulled from the actual boot-preview
+  scene: `FPS: 2` (SwiftShader software rendering under this sandbox — matches this project's own
+  documented headless-FPS caveat, not a bug), `Draw calls: 38 / 2500 (Desktop)`, `Triangles: 337,993
+  / 5,000,000 (Desktop)`, `Geometries: 38`, `Textures: 14 (GPU objects, not MB...)`. A second F2
+  press correctly re-hides the panel (`hidden: true`, confirmed via `page.evaluate`). Zero
+  console/page errors throughout.
+
+**Alternatives considered:**
+- *Add `PERF_BUDGET_CONFIG` to `config.js` instead of keeping the budget numbers local to
+  `perfPanel.js`* — rejected: `config.js` is itself at 597/600 lines, no headroom for a new
+  exported block, and `freeCamera.js` already established the "tool-specific constants live with
+  the tool" convention for exactly this situation.
+- *Report `renderer.info.memory` as a texture-memory-in-MB estimate (e.g. width×height×4 bytes per
+  known texture)* — rejected: no code here has access to each texture's actual dimensions/format
+  without walking the full material graph, which is real, non-trivial future work if ever needed —
+  presenting a fabricated number now would violate this project's own BİLMEME KURALI standard more
+  than omitting the figure does.
+- *Use `PERF_BUDGET_CONFIG` to actually gate/warn in the console instead of (or in addition to) a
+  visual DOM panel* — the visual panel was what this run's own instructions and the target
+  architecture (`ARCHITECTURE.md`'s F2/F3 slot) specifically called for; a console-only warning
+  wouldn't be visible during the exact "fly around with F4 and watch the numbers" workflow this
+  tool exists to support.

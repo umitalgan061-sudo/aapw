@@ -558,6 +558,29 @@ HUD/inventory/debug panels)
   in `game3d.js` needs its own F4-handling code beyond creating the controller and calling
   `update()`/`dispose()`.
 
+## `src/3d/debug/perfPanel.js` — F2 debug/profiling panel (run 41, ADR-0053)
+
+- **Depends on:** nothing but the DOM/`window` and the `renderer` object passed in — reads
+  `renderer.info` only, never imports `three` itself.
+- **Used by:** `game3d.js`'s tick loop only (`panel.update(delta)` called once per frame,
+  immediately after `renderer.render()` — see the file's own doc comment for why the ordering
+  matters: `renderer.info.render.calls`/`.triangles` reset on every `render()` call).
+- **Critical path:** no — a dev/debug tool, entirely optional; never changes what gets rendered,
+  only reads `renderer.info` and writes its own DOM overlay.
+- **Failure mode:** if `dispose()` isn't called on teardown, its `window`-level `keydown` listener
+  and DOM node leak — `game3d.js`'s `pagehide` handler already calls it.
+- **Design (ADR-0053):** answers a real, twice-flagged gap (ADR-0047, ADR-0049) — growing World
+  Coverage (`CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS`) needs the real, GPU-reported triangle/
+  draw-call cost of a frame, not `chunkManager`'s own estimate, before it's safe to commit to a
+  bigger radius. Perf-budget numbers (`DESKTOP_BUDGET`/`MOBILE_BUDGET`) are kept local to this file
+  rather than `config.js` (already at the 600-line cap) — same "give the tool its own values"
+  convention `freeCamera.js`'s `FAR_PLANE_METERS` already established (see `debug/README.md`'s
+  Conventions). DOM writes throttled to 4/sec (`REFRESH_INTERVAL_SECONDS`) to avoid needless
+  layout/paint churn for a value a human only glances at; the underlying `renderer.info` counters
+  are still read fresh on every `update()` call regardless. Deliberately does *not* claim a texture
+  memory figure in MB — three.js's public `renderer.info.memory.textures` is a GPU *object count*,
+  not a byte size, and the panel labels it that way rather than presenting an invented number.
+
 ## `src/3d/sky.js` — Aurora skybox
 
 - **Depends on:** `three` (vendored) only. Deliberately does not import `config.js` — its GLSL is
@@ -666,7 +689,7 @@ HUD/inventory/debug panels)
   `world/rivers.js` (`disposeRiverMesh`/`disposeWaterfallMesh`), `world/settlements.js`
   (`disposeSettlements`/`mapToWorldXZ`), `camera.js` (`resolveCameraCollision`), `sky.js`,
   `stars.js`, `lighting.js`, `fog.js` (their `update*`/`dispose*` halves only — the `create*`
-  factories moved into `sceneManager.js`, ADR-0052).
+  factories moved into `sceneManager.js`, ADR-0052), `debug/perfPanel.js` (added run 41, ADR-0053).
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
   lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance
