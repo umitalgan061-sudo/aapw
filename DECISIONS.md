@@ -4296,3 +4296,78 @@ split that produced `game3dSmokeChecksScene.js`) before it fits, not careful tri
 touch/mobile equivalent exists for the new `Digit1`/`Digit2`/`Digit3` keys (dialogue interaction was
 already keyboard/desktop-only before this change — `ui/touchJoystick.js` has no interact button of
 its own — so this doesn't newly regress mobile, it just doesn't extend the existing gap either).
+
+## ADR-0059: Split `game3dSmokeChecks.js` a third time (596/600 lines) into `game3dSmokeChecksMovement.js`
+
+**Status:** Accepted (run 45).
+
+**Context:** Session Snapshot at the start of this run found the two previously-flagged "urgent"
+items already landed by prior runs: lake-water flicker (ADR-0048, `2dfc85f`) and the F4 debug
+free-fly camera (ADR-0049, `7642de6`) both predate this run's HEAD. Re-scanning the priority order
+with nothing new since: no syntax error, no blocking bug, no perf-budget overrun, no memory leak.
+Priority 6 (tech debt) has one concrete, already-flagged item: ADR-0058's own "Consequences" section
+recorded `scripts/game3dSmokeChecks.js` at 596/600 lines and said explicitly "the very next check
+added there needs a real extraction ... before it fits, not careful trimming." Re-measuring
+confirmed this is still exactly true (596 lines, unchanged since ADR-0058) — this outranks priority
+9/9.5/10 by the project's own stated order, the same reasoning ADR-0057 used to pick a tech-debt fix
+over starting FAZ 7.
+
+**Decision:** Moved the three waypoint-patrol/flee-AI check functions — `checkWolfPackAlert`,
+`checkNpcPatrol`, `checkWolfPatrol` — verbatim (no logic changes) out of `game3dSmokeChecks.js` into
+a new sibling file, `scripts/game3dSmokeChecksMovement.js`, following the exact same "extract into a
+focused module, moved verbatim" pattern `game3dSmokeChecksScene.js` (run 40) and `game3dSmokeChecks.js`
+itself (run 28/ADR-0028) already used. `game3dSmokeChecks.js` now keeps only the non-movement
+per-entity checks: `checkSettlementCollider`, `checkJumpArc`, `checkInteractionController`.
+`scripts/smokeTestGame3D.js` now requires all three check files and calls all 12 checks in the same
+order as before (scene checks, then non-movement entity checks, then movement checks).
+
+**Reasoning:**
+- **Split by concern (movement/patrol-AI vs. everything else), not by size alone:** the three moved
+  checks all drive `update()` loops over multiple frames asserting patrol/flee timing and geometry;
+  the three kept checks (collider resolution, jump-arc physics, interaction state machine) are each
+  a single-call or short-sequence assertion with no patrol/flee behavior. This mirrors
+  `game3dSmokeChecksScene.js`'s own run-40 split (page/scene-level vs. per-entity), a precedent
+  already established in this codebase rather than an arbitrary new grouping.
+- **Verbatim move, not a rewrite:** every moved function's body, the shared `NAV_TIMEOUT_MS`
+  constant (duplicated into the new file, matching the existing duplication-over-cross-file-import
+  convention the two other check files already use), and `smokeTestGame3D.js`'s call order were
+  copied unchanged — this is a pure file-boundary change, not an opportunity to also "improve" the
+  checks themselves, matching this project's own "refactor only for bug/perf/readability/architecture,
+  not while also changing behavior" rule.
+- **Why now, not deferred again:** the debt was already flagged twice in writing (ADR-0058's
+  Consequences, and 3D_GAME_PROGRESS.md's per-run notes) as blocking the *next* check from fitting —
+  deferring a third time when no new check even needs to be added yet would let the file cross 600
+  lines the moment one is, turning a clean preemptive split into a rushed one under pressure.
+
+**Verified:**
+- `node --check` clean on all 3 touched files: `game3dSmokeChecks.js`, `game3dSmokeChecksMovement.js`
+  (new), `smokeTestGame3D.js`.
+- Line counts re-measured: `game3dSmokeChecks.js` 302/600 (was 596/600),
+  `game3dSmokeChecksMovement.js` 321/600 (new file), `smokeTestGame3D.js` 153/600 (unchanged net —
+  one new `require` line). All three now have real headroom.
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`): **all 12 checks PASS**, identical
+  names/details/order to the pre-split run — confirms the split changed no behavior, only file
+  boundaries. Exit code 0.
+- `node scripts/checkAssetsManifest.js`: unaffected (untouched files), still OK — re-run only to
+  confirm this sub-task didn't accidentally touch anything under `assets/`.
+
+**Alternatives considered:**
+- *Trim comments/whitespace in `game3dSmokeChecks.js` instead of extracting* — rejected per
+  ADR-0058's own explicit call: "a real extraction ... not careful trimming" — trimming buys a few
+  lines now but the file is still one check away from the cap again, and this project's docstrings
+  carry real WHY-content (design rationale, ADR cross-references) that a "quality" pass would be
+  reluctant to cut anyway.
+- *Split by file (one check per file)* — rejected: 3 near-empty single-function files for 3
+  ~100-line checks is worse-organized than one cohesive "movement AI checks" module, and no other
+  check file in this project follows a one-function-per-file convention.
+- *Rename `game3dSmokeChecks.js` to something more specific now that it's narrower (e.g.
+  `game3dSmokeChecksEntity.js`)* — rejected: an unforced rename would touch `smokeTestGame3D.js`'s
+  `require` path for no functional benefit and add unnecessary churn to a file whose name is still
+  accurate (it's still per-entity checks, just a subset of them).
+
+**Consequences:** All three smoke-check files now have comfortable headroom under the 600-line cap.
+Future patrol/flee-AI checks (e.g. if NPCs ever gain the pack-awareness `gameplay/animals.js`'s wolves
+already have — a still-open FAZ 5 gap noted in 3D_GAME_PROGRESS.md) have a natural home in
+`game3dSmokeChecksMovement.js`; future non-movement per-entity checks belong in `game3dSmokeChecks.js`.
+`smokeTestGame3D.js`'s own header comment updated to describe the 3-file split so a future run's
+Session Snapshot doesn't have to re-derive it from scratch.

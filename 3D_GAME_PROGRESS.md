@@ -4579,6 +4579,65 @@ produced `game3dSmokeChecksScene.js`), flagging this now so a future run doesn't
 the cap adding "just one more assertion." Other open items unchanged: FAZ 5/6's cart/dog-cat/bird
 gap (needs a human manual-download step); the world-event system's flavor pool could still grow.
 
+## This Run (2026-07-30, run 45)
+
+**Session Snapshot at container boot:** fresh container, no live conversation history. `git status`
+found `HEAD` detached at `4638982` (run 44's commit) with a clean working tree; local `main` was
+stale at an unrelated pre-3D commit (`38e09e7`) left over from the container's initial checkout.
+`git ls-remote origin` and a `git fetch origin main` confirmed `origin/main` was already at
+`4638982` (matching detached `HEAD` exactly — no lost work, just a stale local ref) — fast-forwarded
+local `main` to it (`git reset --hard origin/main`) per the repo-continuity protocol this file has
+flagged since run 18. Read this file's last ~185 lines and `DECISIONS.md`'s last 2 ADRs
+(ADR-0057/ADR-0058); `ARCHITECTURE.md` last touched the same day, so a full re-read wasn't needed
+(7-day threshold not crossed). Full smoke suite (12 checks) re-run as a fresh baseline — all PASS
+before any new work.
+
+**Finding: both "urgent" items in this run's incoming task prompt were already done.** The prompt
+described the lake-water flicker as unfixed and asked for a new F4 free-fly camera — but
+`git log` showed both already landed by prior runs: lake-water flicker fixed at `2dfc85f`
+(DECISIONS.md ADR-0048), F4 debug camera added at `7642de6` (ADR-0049), both predating this run's
+starting commit. Skipped re-doing either (matching this project's own "if the state says it's
+already done, verify from the actual repo state, don't blindly redo it" rule) and moved to the next
+real priority-order item instead of stopping.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0059):** priority re-scan found no new syntax
+error/blocking bug/perf overrun/memory leak since run 44's baseline. FAZ 7 unchanged (still blocked
+on the decimation gap, not re-measured — no new information since run 43). Priority 6 (tech debt)
+had one concrete, already-flagged, still-true item: `scripts/game3dSmokeChecks.js` at 596/600 lines,
+explicitly flagged by ADR-0058's own Consequences as needing "a real extraction ... not careful
+trimming" before its next check could fit. Extracted the three waypoint-patrol/flee-AI checks
+(`checkWolfPackAlert`, `checkNpcPatrol`, `checkWolfPatrol`) verbatim into a new
+`scripts/game3dSmokeChecksMovement.js`, the same pattern `game3dSmokeChecksScene.js` used at run 40.
+`game3dSmokeChecks.js` now keeps only `checkSettlementCollider`/`checkJumpArc`/
+`checkInteractionController`. `smokeTestGame3D.js` updated to require and call all three check
+files in the same order as before.
+
+**Regression guard:** `node --check` clean on all 3 touched files. Line counts re-measured:
+`game3dSmokeChecks.js` 302/600 (was 596/600), `game3dSmokeChecksMovement.js` 321/600 (new),
+`smokeTestGame3D.js` 153/600 (unchanged net). Full committed smoke suite —**all 12 checks PASS**,
+identical names/details/order to the pre-split baseline, confirming this was a pure file-boundary
+change with zero behavior change. `node scripts/checkAssetsManifest.js` also re-run — still OK
+(untouched by this sub-task, checked anyway since it touched `scripts/`). This sub-task is
+code-organization-only (no new event listeners, DOM nodes, timers, or GPU resources created), so the
+per-sub-task memory-leak checklist has nothing new to check — `dispose()`/cleanup paths in the
+moved code are unchanged from before the split.
+
+**Files changed this sub-task:** `scripts/game3dSmokeChecks.js`, `scripts/game3dSmokeChecksMovement.js`
+(new), `scripts/smokeTestGame3D.js`, `DECISIONS.md` (new ADR-0059), `3D_GAME_PROGRESS.md` (this
+file). 5 files, ~330 new/changed lines (mostly the verbatim-moved check code). One commit, direct
+push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5% (6.25 km² /
+137.5 km²) mobile — a dev-tooling-only change, touches no terrain/streaming/chunk/gameplay logic.**
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **FAZ 7 still blocked**
+(unchanged, don't re-measure without a decimated asset in hand). Priority 9's open items are
+unchanged from run 44: FAZ 5's choice-branching pilot could extend to more of the remaining 12 NPCs
+or grow past 1 level; FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download step; the
+world-event system's flavor pool could still grow. All three smoke-check files now have real
+headroom (302/321/153 of 600) — no immediate file-cap pressure for the next several checks added to
+any of them.
+
 ## Known Issues / Tech Debt
 
 - **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s

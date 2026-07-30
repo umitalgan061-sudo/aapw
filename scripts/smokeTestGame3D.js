@@ -11,10 +11,11 @@
  * This file is just the infrastructure (static file server + Playwright bootstrap + result
  * printing). The actual per-feature assertions live in `game3dSmokeChecksScene.js` (page/scene-
  * level: 2D shell load, 3D mode boot, water vertex-shader-has-no-displacement, F4 debug camera, F2
- * debug/profiling panel, world-event system) and `game3dSmokeChecks.js` (per-entity gameplay:
- * settlement collider, jump/gravity arc, interaction controller, wolf flee/pack-alert, NPC waypoint
- * patrol, wolf waypoint patrol) — split across two files run 40 (each was approaching the 600-line
- * cap) — see either file's header comment for why.
+ * debug/profiling panel, world-event system), `game3dSmokeChecks.js` (per-entity gameplay:
+ * settlement collider, jump/gravity arc, interaction controller), and `game3dSmokeChecksMovement.js`
+ * (waypoint-patrol/flee-AI: wolf flee/pack-alert, NPC waypoint patrol, wolf waypoint patrol) — split
+ * across three files (run 40, then again this run once `game3dSmokeChecks.js` hit 596/600 lines) —
+ * see each file's own header comment for why.
  *
  * Requires Playwright's Chromium browser (dev-only tooling — this repo intentionally has no
  * `package.json`/build step for the *deployed* site; this script is never loaded by a browser or
@@ -32,6 +33,7 @@ const path = require('path');
 const fs = require('fs');
 const sceneChecks = require('./game3dSmokeChecksScene.js');
 const checks = require('./game3dSmokeChecks.js');
+const movementChecks = require('./game3dSmokeChecksMovement.js');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -128,9 +130,9 @@ async function main() {
 		results.push(await checks.checkSettlementCollider(browser, baseUrl));
 		results.push(await checks.checkJumpArc(browser, baseUrl));
 		results.push(await checks.checkInteractionController(browser, baseUrl));
-		results.push(await checks.checkWolfPackAlert(browser, baseUrl));
-		results.push(await checks.checkNpcPatrol(browser, baseUrl));
-		results.push(await checks.checkWolfPatrol(browser, baseUrl));
+		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
+		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));
+		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();
