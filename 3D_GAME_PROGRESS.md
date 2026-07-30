@@ -3547,6 +3547,57 @@ object whose `dispose()` already runs on teardown (now also clears the new field
 137.5 km²) on mobile-class devices — unchanged (this sub-task adds vertical player movement only,
 touches no terrain/streaming/rendering geometry or chunk count).**
 
+**Second chained sub-task within this same run (per the operator's "don't stop after one" rule —
+regression guard and smoke test both passed and budget/time remained):** re-scanned the priority
+order fresh after ADR-0039 was committed. Priorities 1-5 still empty; landed on priority 6 again,
+missing smoke-test/regression coverage — ADR-0039's own verification (steps 2-3 above) was real but
+ad hoc, the same gap ADR-0035/ADR-0038 already established a pattern for closing.
+
+**Decision and work (DECISIONS.md ADR-0040):** Extended `scripts/smokeTestGame3D.js` with a fourth
+check, `checkJumpArc`, reusing the same in-page dynamic-`import()` pattern as
+`checkSettlementCollider`. Persists ADR-0039's manual verification (idle stays grounded; a stepped
+jump arc peaks near the closed-form ballistic height with a discretization-aware 0.1m tolerance;
+never goes negative; lands within ±3 frames of the closed-form flight time) as an always-run
+assertion.
+
+**Regression guard — verified with the real bug, not just reasoning:** `node --check` clean
+(351 lines, under the 600-line cap). All 4 checks PASS against the real repo. Re-injected the exact
+zeroed-gravity bug from this run's first sub-task — the new check correctly failed
+(`peakOk: false, landedOk: false`, frame count pinned at the 600-iteration safety cap), while the
+other three checks stayed PASS (isolated, non-cascading failure signal). Restored `physics.js`
+immediately after; `diff` against a pre-edit backup confirmed a byte-identical restore.
+
+**Memory-leak checklist:** N/A — extends an existing one-shot Node CLI script (server + browser
+both explicitly closed before `process.exit`), no new long-lived browser-side state.
+
+**Files changed this sub-task:** `scripts/smokeTestGame3D.js`, `DECISIONS.md` (new ADR-0040),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~65 new lines of code (the new check) plus
+documentation. One commit, separate from the ADR-0039 sub-task's commit.
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged (this sub-task is test-tooling only, touches no
+terrain/streaming/rendering code).**
+
+**Cumulative for this chained execution (run 36's two sub-tasks):** 2 atomic sub-tasks, 2 commits,
+9 distinct files touched total (`src/3d/config.js`, `src/3d/physics.js`, `src/3d/input.js`,
+`src/3d/gameplay/player.js`, `src/3d/game3d.js`, `scripts/smokeTestGame3D.js`, `ARCHITECTURE.md`,
+`DECISIONS.md`, `3D_GAME_PROGRESS.md`) — well within the ≤25-file/≤1200-new-line chained-run budget
+(combined new code across both sub-tasks is ~130 lines; the remainder is documentation). Each
+sub-task passed its own independent regression guard before its own commit, and each included a
+real fault-injection test (zeroed gravity, both times, since the second sub-task's check exists
+specifically to catch the same class of bug the first sub-task's ad hoc test caught).
+
+**Next step for the next run:** re-scan the priority order fresh, as always. FAZ 4 now has no known
+mechanical gaps left (both the horizontal wall-collider and vertical gravity/jump are done and
+regression-guarded). FAZ 3's one remaining item is still LOD (still no measured perf need). Real
+higher-value remaining gaps, unchanged from run 34/35's own assessment: FAZ 5's actual dialogue
+content and NPC player/pack-awareness (content-design decisions), FAZ 6's other 3 animal types
+(each needs a human manual-download step, mark as "insan onayı gerekli" and stop if attempted). Two
+new, honestly-scoped mobile gaps surfaced by this run: `touchJoystick.js` has no jump control, and
+jump feel (height/gravity constants) hasn't been focus-tested — either could be a legitimate future
+sub-task if a run's priority scan reaches them. A fresh priority-order scan next run may land on any
+of these or on a newly-introduced gap — don't assume this list is exhaustive without re-deriving it.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md

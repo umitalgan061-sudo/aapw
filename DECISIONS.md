@@ -2891,3 +2891,46 @@ horizontal move before the vertical arc is applied). FAZ 4's own remaining named
 Real, honestly-scoped remaining items: no jump/fall animation clip (visual-only limitation, reuses
 existing poses); no mobile/touch jump control (`touchJoystick.js` unchanged this run); jump height/
 gravity feel is a first-pass tuning, not focus-tested.
+
+## ADR-0040: Extend `scripts/smokeTestGame3D.js` with a jump/gravity-arc regression check
+
+**Status:** Accepted (run 36, second chained sub-task).
+
+**Context:** With ADR-0039's jump arc landed, regression-guarded via a one-off in-page test, and
+committed, a fresh priority-order re-scan (per the operator's "don't stop after one" chained-subtask
+rule — regression guard and smoke test both passed and budget/time remained) found priorities 1-5
+still empty and landed on priority 6 again, missing smoke-test/regression coverage: the manual
+verification behind ADR-0039 (Verified steps 3-4 above) was real but ad hoc, exactly the gap
+ADR-0035/ADR-0038 already established a pattern for closing.
+
+**Decision:** Added a fourth check, `checkJumpArc`, to `scripts/smokeTestGame3D.js` — same in-page
+dynamic-`import()` pattern as `checkSettlementCollider`, navigating to `game3d.html` and importing
+`physics.js`/`config.js` directly. Persists ADR-0039's own manual verification (idle stays grounded;
+a stepped jump arc peaks near the closed-form ballistic height with a discretization-aware
+tolerance; it lands without ever going negative; frame count matches the closed-form flight time
+within a small tolerance) as an always-run assertion instead of a one-off.
+
+**Alternatives considered:**
+- *Tighter floating-point-exact tolerance on the peak height, matching `checkSettlementCollider`'s
+  exact assertions* — rejected: unlike the collider's static analytic geometry, `integrateJumpArc`
+  is a *discretized* simulation (semi-implicit Euler) of a continuous formula — the two are expected
+  to differ by a small, real, delta-dependent amount, not floating-point noise. A tolerance tight
+  enough to demand exact agreement would be permanently red for a correct implementation; a fixed
+  0.1m tolerance is still tight enough to catch a wrong `GRAVITY_MPS2`/`JUMP_SPEED_MPS` or a broken
+  integration order.
+- *A separate dedicated test script* — rejected for the same reason ADR-0038 rejected it: this
+  check reuses the same browser/server/import-map infrastructure the other three checks already
+  pay for.
+
+**Verified:** `node --check scripts/smokeTestGame3D.js` clean (351 lines, under the 600-line cap).
+All 4 checks PASS against the real repo. **Failure path verified with a real injected bug**
+(temporarily zeroing `gravityMps2` inside `integrateJumpArc`, the exact bug ADR-0039's own
+verification step 4 used) — the new check correctly failed (`peakOk: false, landedOk: false`,
+frame count pinned at the 600-iteration safety cap since the arc never lands), while the other
+three checks stayed PASS. Restored `physics.js` immediately after; a `diff` against a pre-edit
+backup confirmed a byte-identical restore.
+
+**Consequence:** `scripts/smokeTestGame3D.js` now has 4 committed checks (2D shell boot,
+3D-mode boot, settlement collider, jump/gravity arc), each with a demonstrated real failure path.
+No new file, no new dependency, no file over the line cap. Same not-wired-into-CI caveat as every
+prior `scripts/` ADR (no CI pipeline exists in this repo) — still a manual step.

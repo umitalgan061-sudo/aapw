@@ -44,6 +44,12 @@
  *     keep's half-extent, never penetrating further. Guards against a future edit to `physics.js`
  *     or `config.js`'s `SETTLEMENT_CONFIG` silently breaking castle collision (e.g. reintroducing
  *     the exact zero-distance edge-case bug ADR-0037 found and fixed).
+ *   - **Jump/gravity arc (`physics.js`'s `integrateJumpArc`, added run 36 — see DECISIONS.md
+ *     ADR-0039).** Same in-page dynamic-`import()` pattern as the settlement collider check above:
+ *     asserts standing still stays grounded at height 0, and a full stepped jump arc peaks at the
+ *     closed-form ballistic height (`v² / (2·|g|)`), lands (never goes negative), and takes
+ *     roughly the closed-form flight time — guards against a future edit to `PLAYER_CONFIG`'s
+ *     `GRAVITY_MPS2`/`JUMP_SPEED_MPS` or `integrateJumpArc` itself silently breaking the arc.
  *
  * Usage: `node scripts/smokeTestGame3D.js`
  * Exit codes: 0 = 3D mode passed (2D shell informational-only). 1 = the 3D-mode check (or the 2D
@@ -239,6 +245,74 @@ async function checkSettlementCollider(browser, baseUrl) {
 	return { name: 'settlement collider (physics.js)', ok, details };
 }
 
+/**
+ * Regression guard for `physics.js`'s `integrateJumpArc` (run 36, DECISIONS.md ADR-0039) — FAZ 4's
+ * previously-open "no gravity/jump" gap. Runs the same in-page dynamic-`import()` pattern
+ * `checkSettlementCollider` above established, stepping the pure function frame-by-frame the same
+ * way `gameplay/player.js`'s `update()` does, and checking the resulting arc against the closed-form
+ * ballistic-motion formula (peak height `v² / (2·|g|)`, flight time `2v / |g|`) rather than just
+ * "it runs without throwing".
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkJumpArc(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { integrateJumpArc } = await import('/src/3d/physics.js');
+			const { PLAYER_CONFIG } = await import('/src/3d/config.js');
+			const gravity = PLAYER_CONFIG.GRAVITY_MPS2;
+			const jumpSpeed = PLAYER_CONFIG.JUMP_SPEED_MPS;
+			const delta = 1 / 60;
+
+			// Standing still (never jumped): height/velocity 0 in, must stay grounded at height 0.
+			const idle = integrateJumpArc(0, 0, delta, gravity);
+			const idleOk = idle.isGrounded && idle.heightAboveGroundMeters === 0 && idle.velocityYMps === 0;
+
+			// A full jump arc, stepped frame-by-frame exactly like `player.js`'s `update()` loop.
+			let height = 0;
+			let velocity = jumpSpeed;
+			let peak = 0;
+			let frames = 0;
+			let wentNegative = false;
+			let landedFrame = -1;
+			for (let i = 0; i < 600 && landedFrame === -1; i++) {
+				const step = integrateJumpArc(height, velocity, delta, gravity);
+				height = step.heightAboveGroundMeters;
+				velocity = step.velocityYMps;
+				if (height < 0) wentNegative = true;
+				if (height > peak) peak = height;
+				frames++;
+				if (step.isGrounded) landedFrame = frames;
+			}
+
+			const expectedPeak = (jumpSpeed * jumpSpeed) / (2 * -gravity);
+			const expectedFlightSeconds = (2 * jumpSpeed) / -gravity;
+			const expectedFrames = expectedFlightSeconds / delta;
+			// Semi-implicit Euler integration (velocity updated before position each step, matching
+			// `integrateJumpArc`'s own order) systematically undershoots the true continuous-time
+			// peak by a small, delta-dependent amount — not a bug, just discretization error, so the
+			// tolerance is wider than a floating-point epsilon on purpose.
+			const peakOk = Math.abs(peak - expectedPeak) < 0.1;
+			const landedOk = landedFrame > 0 && !wentNegative;
+			const frameCountOk = Math.abs(frames - expectedFrames) <= 3;
+
+			return {
+				idleOk, peak, expectedPeak, peakOk, landedOk, landedFrame, frames, expectedFrames, frameCountOk,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = result.idleOk && result.peakOk && result.landedOk && result.frameCountOk;
+	const details = ok
+		? `idle stays grounded at 0, peak=${result.peak.toFixed(3)}m (expected ${result.expectedPeak.toFixed(3)}m), ` +
+			`landed after ${result.frames} frames (expected ~${result.expectedFrames.toFixed(1)}), never negative`
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'jump/gravity arc (physics.js)', ok, details };
+}
+
 async function main() {
 	const playwright = loadPlaywright();
 	if (!playwright) {
@@ -260,6 +334,7 @@ async function main() {
 		results.push(await check2DShell(browser, baseUrl));
 		results.push(await check3DMode(browser, baseUrl));
 		results.push(await checkSettlementCollider(browser, baseUrl));
+		results.push(await checkJumpArc(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();
