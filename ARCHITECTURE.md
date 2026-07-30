@@ -687,3 +687,20 @@ HUD/inventory/debug panels)
   doesn't exist, or if a `.fbx`/`.glb` file on disk isn't registered in the manifest. Exits 0 (with
   non-fatal warnings for expected texture/sidecar files) otherwise. See ADR-0034 for the full
   design/alternatives.
+
+## `scripts/smokeTestGame3D.js` — persisted regression-guard smoke test (tooling, run 34)
+
+- **Depends on:** Playwright's Chromium (dev-only, not a repo dependency — see ADR-0035), a local
+  static file server it starts itself (plain Node `http`), and `game3d.html`'s existing
+  `#game3d-loading` / `g3d-loading-hidden` / `g3d-loading-error` DOM contract (see the `game3d.html`
+  entry above) — no code change to that contract was needed, this script only observes it.
+- **Used by:** a human or a future run, invoked manually (`node scripts/smokeTestGame3D.js`) as the
+  Regression Guard's smoke test, replacing the ad-hoc throwaway Playwright script every prior run
+  wrote fresh. Not wired into CI (none exists in this repo).
+- **Critical path:** no — dev-time verification only, never imported by any browser-loaded file.
+- **Failure mode:** exits 1 if the 3D mode (`game3d.html`) fails to reach its `GAME_READY`
+  (`phase1-scene`) DOM signal within 60s, reaches its `GAME_ERROR` signal instead, or throws any
+  uncaught page exception / logs any `console.error` during load — verified against a real injected
+  failure, see ADR-0035. The 2D shell (`index.html`) check is informational-only (see ADR-0035 for
+  why) and only fails this script if the page fails to navigate at all. Exits 2 (distinct from a
+  real failure) if Playwright itself isn't resolvable in the current environment.

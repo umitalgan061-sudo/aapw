@@ -3213,13 +3213,65 @@ immediately after `main()` returns.
 137.5 km²) on mobile-class devices — unchanged from run 33 (this subtask is a dev-tooling script,
 touches no terrain/streaming/rendering code).**
 
-**Next step for the next run:** this run's budget/time allowed for a chained second subtask — see
-below for whether one landed. If this is genuinely the last entry in this run's chain, the next
-run should return to FAZ 5/6's remaining real gaps (unchanged from run 33's "Next step": dialogue
-content, `berk`/`olena`/`twin` NPCs, NPC player/pack-awareness reconsideration, the other 3 FAZ 6
-animal types, FAZ 4's gravity/jump/wall-collider physics) — all of these need either a content/
-design decision or a human manual-download step, not a mechanical fix, so the priority-order scan
-should re-run fresh at the top (syntax/bugs/perf/leaks/debt) before jumping straight to any of them.
+**Second chained sub-task within this same run (per the operator's "don't stop after one" rule —
+regression guard and smoke test both passed and budget/time remained):** with technical debt's
+named item now paid down (ADR-0034), re-scanned the priority order fresh — still no syntax error,
+blocking bug, perf-budget overrun, or memory leak — and landed on priority 6, missing smoke-test/
+regression coverage: every prior run's own smoke test was a throwaway script, never committed.
+
+**Decision and work (DECISIONS.md ADR-0035):** Added `scripts/smokeTestGame3D.js` — starts a local
+static file server (plain Node `http`), then in headless Chromium (1) loads `game3d.html` and waits
+for its existing `#game3d-loading` element to gain `g3d-loading-hidden` (the real `EVENTS.GAME_READY`
+DOM signal `game3d.html`'s own inline script already sets) as the hard gate, failing on a timeout,
+an `g3d-loading-error` outcome, or any console/page error; (2) loads `index.html` (2D shell) and
+reports console/page errors informationally without failing on them — a direct Playwright trace
+showed every error there traces to this sandbox's own external-CDN network restriction (gstatic/
+cloudflare/fonts.googleapis all `net::ERR_CONNECTION_RESET`, cascading into `firebase is not
+defined`) or to `resimler/`/`videolar/` paths that don't exist anywhere in this git checkout at all
+— neither a code regression, and hard-failing on either would make the check permanently red
+regardless of correctness. See ADR-0035's Investigation section for the full trace.
+
+**Regression guard — verified with a real injected failure, not just reasoning:** `node --check`
+clean (220 lines). Ran clean against the real repo (both checks PASS, exit 0). Then temporarily
+added `throw new Error(...)` as `initGame3D()`'s first line, re-ran the script — correctly reported
+`FAIL` for the 3D-mode check with the exact injected error/stack trace, exit code 1 — confirming the
+failure path actually works, not just the happy path. Restored `game3d.js` immediately after;
+`diff` against a pre-edit backup and the final `git diff --stat`/`git status` both confirm a
+byte-identical restore (zero net change to that file in this run's commit).
+
+**Memory-leak checklist:** N/A — one-shot Node CLI script (server + browser both explicitly closed
+in a `finally` block before `process.exit`), no long-lived browser-side state of its own.
+
+- Updated `DECISIONS.md` (new ADR-0035), `ARCHITECTURE.md` (new `scripts/smokeTestGame3D.js`
+  entry), and this section.
+
+**Files changed this sub-task:** `scripts/smokeTestGame3D.js` (new), `ARCHITECTURE.md`,
+`DECISIONS.md` (new ADR-0035), `3D_GAME_PROGRESS.md` (this file). 4 files, 220 new lines of code
+(the script itself) plus documentation. One commit, separate from the ADR-0034 sub-task's commit.
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged (this sub-task is dev-tooling only, touches no
+terrain/streaming/rendering code; the smoke test's own PASS output for `game3d.html` re-confirms
+the 3D mode still boots to `GAME_READY` cleanly).**
+
+**Cumulative for this chained execution (run 34's two sub-tasks):** 2 atomic sub-tasks, 2 commits,
+7 distinct files touched total (`scripts/checkAssetsManifest.js`, `scripts/smokeTestGame3D.js`,
+`ARCHITECTURE.md`, `DECISIONS.md`, `3D_GAME_PROGRESS.md`, plus the fast-forward of `main` itself) —
+well within the ≤25-file/≤1200-new-line chained-run budget (combined new code is ~350 lines across
+the two scripts; the remainder is documentation). Each sub-task passed its own independent
+regression guard (including, this run, two real fault-injection tests — a bad manifest path/an
+unregistered model file for ADR-0034, a thrown error inside `initGame3D` for ADR-0035) before its
+own commit.
+
+**Next step for the next run:** both readily-available tech-debt/coverage gaps this run's scan
+turned up are now closed. Priority-order should re-run fresh from the top again (it will very likely
+land on priority 8, "missing subtask of the active phase") at FAZ 5/6's remaining real gaps
+(unchanged from run 33: dialogue content, `berk`/`olena`/`twin` NPCs, NPC player/pack-awareness
+reconsideration, the other 3 FAZ 6 animal types, FAZ 4's gravity/jump/wall-collider physics) — all
+of these need either a content/design decision or a human manual-download step, not a mechanical
+fix. A future run could also wire `scripts/checkAssetsManifest.js` and `scripts/smokeTestGame3D.js`
+into a lightweight pre-commit hook if that friction becomes real, but that would be speculative
+today (see both ADRs' Consequence sections).
 
 ## Known Issues / Tech Debt
 

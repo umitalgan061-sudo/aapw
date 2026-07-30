@@ -2528,3 +2528,75 @@ convention noted throughout `3D_GAME_PROGRESS.md`'s Asset Sources table); runnin
 step for now. A future run could add a lightweight pre-commit hook if that friction becomes real,
 but that would be speculative today with only one contributor pattern (manual asset drops) actually
 exercising this path.
+
+## ADR-0035: `scripts/smokeTestGame3D.js` — a persisted, committed regression-guard smoke test
+
+**Status:** Accepted (run 34, second chained sub-task).
+
+**Context:** Every prior run (per this file's "This Run" sections back to at least run 5) performed
+its Regression Guard smoke test by writing a one-off Playwright script inline, running it, and
+discarding it — the check itself was never committed. This matches this run's priority-order
+category 6 (missing smoke-test/regression coverage), correctly ranking below any open syntax
+error/blocking bug/perf overrun/memory leak/technical-debt item (none were found — see run 34's
+first sub-task, ADR-0034 — before this was picked up as the next one).
+
+**Decision:** Added `scripts/smokeTestGame3D.js` (dependency-free beyond Playwright itself, which
+is dev-only tooling, consistent with ADR-0034's precedent — this repo has no `package.json` by
+design). It starts a local static file server over the repo root (plain Node `http`, no external
+network), then in headless Chromium:
+1. Loads `game3d.html` and waits for `#game3d-loading` to gain the `g3d-loading-hidden` class — the
+   exact DOM signal `game3d.html`'s own inline script already sets on `EVENTS.GAME_READY`'s
+   `phase1-scene` (or `g3d-loading-error` on `EVENTS.GAME_ERROR`). This is the real gate: any
+   uncaught page exception, `console.error`, error-class outcome, or timeout fails the whole run
+   (exit 1).
+2. Loads `index.html` (2D shell) and reports console/page errors for visibility, but does **not**
+   fail on them — see "Investigation" below for why.
+
+**Investigation (why the 2D check is non-blocking):** A direct Playwright trace (`page.on('console'
+/'requestfailed'/'response')`, run manually before deciding the design) showed every console error
+this sandbox produces on `index.html` traces to one of two causes, neither a code regression:
+- External CDN requests (`gstatic.com`, `cdnjs.cloudflare.com`, `fonts.googleapis.com`) failing with
+  `net::ERR_CONNECTION_RESET` — this sandbox's own outbound-network restriction — which cascades
+  into `firebase is not defined` once the (never-loaded) Firebase SDK script is referenced.
+- 404s for `resimler/*.png` and `videolar/*.mp4` — confirmed via `ls resimler/` → "No such file or
+  directory": these paths do not exist anywhere in this git checkout, a pre-existing gap predating
+  every 3D-mode run and outside this initiative's scope (Golden Rule #1: preserve, don't fix, the
+  2D game; the 2D game is untouched by any 3D-mode commit).
+
+Hard-failing on either would make the check permanently red in this sandbox regardless of actual
+code correctness — the opposite of a useful regression guard, and exactly the "cries wolf" failure
+mode that trains future runs to ignore it. Only a failed navigation (`index.html` itself not
+loading, or an empty `<title>`) counts against the 2D check.
+
+**Alternatives considered:**
+- *Fail the whole script on any 2D console error* — rejected per the Investigation above: produces
+  a permanently-failing check in this sandbox, unrelated to any actual regression risk.
+- *Allowlist specific error-message substrings for the 2D check instead of making it fully
+  non-blocking* — considered, but the two root causes (external-CDN network policy, missing local
+  media directories) are both entirely orthogonal to anything a 3D-mode code change could affect,
+  and both are already independently documented in `3D_GAME_PROGRESS.md`'s Known Issues from prior
+  runs' own manual investigations. A substring allowlist would be strictly more code for the same
+  practical guarantee, and would silently need updating if the 2D game's own (out-of-scope)
+  external-dependency list ever changes. Revisit only if this smoke test is ever asked to *also*
+  gate 2D-game regressions specifically — not this project's stated goal.
+- *Skip the 2D check entirely* — rejected: still valuable as a fast crash/navigation-failure guard
+  (Golden Rule #1, "preserve the existing 2D game") even without asserting on console noise.
+
+**Verified:** `node --check scripts/smokeTestGame3D.js` passes (220 lines, under the 600-line cap).
+Ran clean against the real repo: both checks report PASS, exit 0. **Failure-path verified with a
+real injected bug**, not just reasoning: temporarily added `throw new Error(...)` as the first line
+inside `initGame3D()`'s `try` block, ran the script — correctly reported `FAIL` for the 3D-mode
+check with the exact injected error text and stack trace, exit code 1. Restored `game3d.js`
+immediately after, confirmed via `diff` against a pre-edit backup copy that the restore was
+byte-identical (also visible in the final `git status`/`git diff --stat` showing zero net change to
+that file). Requires Playwright's Chromium; gracefully exits 2 (not a stack trace) with install
+guidance if unavailable, tried both a plain `require('playwright')` and a fallback global-install
+path.
+
+**Consequence:** Future runs get one command (`node scripts/smokeTestGame3D.js`) that replaces
+writing a fresh ad-hoc Playwright script every time, with a real, demonstrated-working failure path
+for the 3D mode specifically. Not wired into CI (none exists in this repo, same as ADR-0034) — a
+manual step for now. The 2D shell's own real regression coverage remains exactly what it was before
+this script (a human/future-run visual check plus this script's crash/navigation guard) — deep 2D
+interaction testing (clicking "OYNAT", etc.) is still blocked by this sandbox's network restrictions
+and remains explicitly out of scope, same as every prior run's note on this.
