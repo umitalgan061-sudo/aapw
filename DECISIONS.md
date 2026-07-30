@@ -1621,3 +1621,111 @@ work, same honest gaps ADR-0019 already flagged plus one narrowed: no movement/p
 player-NPC interaction/dialogue/name-tag UI, and 9 of 14 kingdom seats still have zero NPCs (down
 from 13). No new tech debt — this was a pure config + precache-list extension of an already-verified
 pattern, no new abstractions or refactors.
+
+## ADR-0021: FAZ 5 waypoint patrol — a scoped, 2-NPC pilot (`gameplay/npc.js`'s `patrolWaypoints`), not a full behavior tree
+
+**Date:** 2026-07-30 (run 22)
+
+**Decision:** `gameplay/npc.js`'s `createNPC` gained optional `groundCollider`/`walkAnimationUrl`/
+`patrolWaypoints`/`speedMps`/`pauseSeconds`/`turnRateRadiansPerSecond` parameters. When
+`patrolWaypoints` (2+ world-space points) is supplied, the NPC walks a straight line to the next
+point in the list (index wraps via modulo — 2 points ping-pong back and forth, 3+ would loop),
+pausing to idle for `pauseSeconds` at each one, reusing `player.js`'s exact per-frame ground-height
+resampling (`groundCollider.getGroundHeight`) and shortest-path yaw-turn-toward-heading pattern, and
+crossfading between the shared idle/walk `AnimationMixer` actions the same way `player.js` does. When
+`patrolWaypoints` is omitted (the default), an NPC behaves exactly as before (run 20/21) — fully
+backward compatible, zero behavior change for existing static NPCs. `config.js`'s `NPC_CONFIG` gained
+`WALK_ANIMATION_URL` (reused from `PLAYER_CONFIG.ANIMATION_URLS.walking`), `PATROL_SPEED_MPS` (1.4,
+slower than the player's 3.2 — a guard's pace), `PATROL_PAUSE_SECONDS` (3), and
+`PATROL_TURN_RATE_RADIANS_PER_SECOND` (4, slower than the player's 10 — an unhurried guard-turn).
+Only 2 of the 6 NPCs (`stannis-guard-1`/`-2`) got a `patrol: {toOffsetXMeters, toOffsetZMeters}`
+field added to their `NPC_CONFIG.SPAWNS` entry — a 24m straight walk to the opposite side of the same
+offset, at the identical 16.97m radial distance from the keep center the static spawn point already
+proved clear (no new wall-clearance risk). The other 4 NPCs (`umit`, `cersei`, `berkalp`, `doran`)
+are untouched, still static/idle-only. `game3d.js`'s spawn-resolution loop computes each patrolling
+NPC's 2nd waypoint in world space (`seat.x/z + patrol.toOffsetXMeters/ZMeters`, same formula already
+used for the spawn point itself) and passes it through; NPCs without a `patrol` field get
+`patrolWaypoints: undefined`, taking the unchanged static code path.
+
+**Reasoning:**
+- **Priority-ordered, per protocol:** Session Snapshot confirmed clean git state (main already
+  matched a fresh `origin/main` fetch, no detached-HEAD issue this run), re-derived the world scale
+  from `config.js` directly (still 137.5 km², matching ADR-0004, 14 straight runs now — see this
+  file's Session Snapshot), `node --check` clean at baseline, and a pre-change regression smoke test
+  (2D game, 3D desktop — 444 chunks/14 settlements/6 static NPCs, 3D mobile-emulated) passed with
+  zero errors. World Coverage remains 80.7% desktop / 4.5% mobile, past the FAZ 3/10 gate. With
+  syntax/bugs/perf/leaks/debt/coverage clear and FAZ 4 fully closed, the next roadmap item was FAZ
+  5's own explicitly-unchecked "Waypoint/patrol (Behavior Tree)" line — the last open FAZ 5 sub-task
+  besides interaction/dialogue UI (a separate, larger concern involving input handling and new UI,
+  not attempted this run).
+- **Why a straight-line 2-point ping-pong, not a real behavior tree:** the roadmap line literally
+  says "(Behavior Tree)" in parentheses, but every run brief since ADR-0019 has explicitly scoped
+  full AI/behavior-tree work out of a single run. A straight-line walk between 2 caller-supplied
+  points — no pathfinding, no obstacle avoidance, no decision logic beyond "arrived or not, paused or
+  not" — is the smallest possible thing that actually earns the word "patrol" (the NPC visibly
+  walks, turns, and idles in a loop) without building a general-purpose AI system speculatively. A
+  real behavior tree (multiple states, priorities, player-awareness) is real future work once there's
+  a second concrete need for it (e.g. flee/follow animals in FAZ 6), not something to build against a
+  single use case now.
+- **Why only 2 of 6 NPCs, not all 6:** matches the project's own established incremental pattern
+  (run 20 shipped 2 static NPCs before run 21 extended to 6; `world/settlements.js` shipped modular
+  primitives before `world/materials.js` added PBR texturing as a separate run). Patrol movement is a
+  genuinely new code path (ground resampling every frame, a second animation clip per NPC, state
+  machine) — proving it correctly on 2 NPCs first, verified with real position-over-time
+  measurements (not just "no errors"), is safer than rolling it out to all 6 in one commit. The other
+  4 NPCs' `NPC_CONFIG.SPAWNS` entries simply don't have a `patrol` field, so extending patrol to them
+  later is the same kind of config-only change ADR-0020 already established for adding new NPCs.
+- **Why the walk clip needs no new download:** `peasant_girl`'s `walking.fbx` is already downloaded,
+  already precached (`service-worker.js`, since run 17), and already skin-less/"In Place" — the exact
+  same clip `player.js` retargets onto its own model. Since all 6 NPC character files share
+  `peasant_girl`'s Mixamo skeleton (confirmed at every prior NPC-related run), the walk clip retargets
+  onto `paladin_j_nordstrom`/`arissa` (the 2 patrolling models) with zero new code, the same way the
+  idle clip already did.
+- **Why the NPC resamples ground height every frame while walking (not just at the 2 endpoints):**
+  matches `player.js`'s own movement exactly — terrain height genuinely varies across even a 24m
+  walk (confirmed non-flat by the existing FBM noise), so snapping only at the endpoints would let the
+  NPC visibly float or clip into the ground mid-walk. This is why `groundCollider` had to become a
+  parameter `createNPC` didn't previously need.
+
+**Alternatives considered:**
+- *A shared, generic "path-follower" component used by both `player.js` and `npc.js`.* Rejected as
+  premature abstraction — `player.js`'s movement is real-time-input-driven (a direction vector each
+  frame) while `npc.js`'s patrol is a fixed point-to-point walk; the actual duplicated logic (ground
+  resampling formula, shortest-path yaw lerp) is 4-5 lines each, well under the threshold where a
+  shared abstraction pays for the indirection it adds. Revisit if a third movement-driven system
+  (animals, FAZ 6) needs the same pattern a third time.
+- *Give all 6 NPCs a patrol immediately, since the config already supports 4 more without new code.*
+  Rejected — see "why only 2 of 6" above; proving new movement code on a small, easily-observed pilot
+  first is a real ADR-0019-style scoping choice, not a missed opportunity.
+- *A loop through 3+ waypoints (a real patrol route) instead of 2-point ping-pong.* Rejected for this
+  pilot — 2 points already exercises every code path (arrival detection, pause, turn, walk,
+  modulo-wrap) a longer route would; a 3+-point patrol is a config-only follow-up (`patrol` could
+  become `patrolOffsets: [{...}, {...}, ...]` later) once the 2-point pilot proves out on a real
+  device, not a reason to complicate this pass.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- Pre-change regression baseline: 2D game (only pre-existing, already-documented sandbox network
+  limitations), 3D desktop (444 chunks, 14 settlements, `"Spawned 6 FAZ 5 NPC(s)."`), 3D
+  mobile-emulated (25 chunks) — zero errors, matching run 21's own baseline exactly.
+- Post-change full smoke test on both device classes: `"Spawned 6 FAZ 5 NPC(s)."` unchanged, zero
+  console/page errors; 2D game unchanged.
+- **A position-over-time measurement via a temporary debug hook** (`window.__debugGame3DState =
+  state`, added only for this test and reverted before commit — confirmed via `git diff` showing zero
+  trace of it in the committed `game3d.js`): sampled all 6 NPCs' `(x, z)` position 3 times, 8 seconds
+  apart. `stannis-guard-1`/`-2` moved 3.6m then 11.4m between samples (≈1.4 m/s, matching
+  `PATROL_SPEED_MPS` exactly once past the initial 3s pause) while `umit-guard-1`, `cersei-guard-1`,
+  `berkalp-guard-1`, and `doran-guard-1` moved exactly 0.000m both times — confirms patrol movement
+  works for the 2 configured NPCs and, just as importantly, confirms it does **not** leak into the 4
+  static ones (zero regression to run 21's static-placement behavior).
+- `node --check` on all 3 touched files (`config.js`, `game3d.js`, `gameplay/npc.js`): clean.
+
+**Consequence:** FAZ 5's "Waypoint/patrol" roadmap line has a real, verified first slice: 2 of 6 NPCs
+now walk a scripted patrol route with idle pauses and directional turning, the other 4 remain
+unaffected static idlers, and the patrol mechanism itself (`patrolWaypoints`, arbitrary length,
+modulo-wrapped) is already general enough to extend to more NPCs or longer routes as a config-only
+follow-up. World Coverage unchanged (80.7% desktop / 4.5% mobile — this run added movement, not
+terrain). Still-open FAZ 5 work: no player-NPC interaction/dialogue/name-tag UI, patrol still only on
+2 of 6 NPCs, and no player-awareness/reactive behavior (an NPC keeps patrolling regardless of where
+the player is — real behavior-tree territory, deliberately still out of scope). No new tech debt —
+`createNPC`'s new parameters are all optional with the pre-existing behavior as the default, so
+nothing about the static-NPC code path changed.

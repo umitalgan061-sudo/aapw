@@ -183,6 +183,17 @@ export const PLAYER_CONFIG = Object.freeze({
 export const NPC_CONFIG = Object.freeze({
 	/** Skin-less idle clip retargeted onto every NPC (shared Mixamo skeleton, no bone remapping). */
 	IDLE_ANIMATION_URL: PLAYER_CONFIG.ANIMATION_URLS.idle,
+	/** Walking clip for patrolling NPCs (run 22) — same skin-less, "In Place" `peasant_girl` clip
+	 * `player.js` uses, retargeted the same way. Only loaded for `SPAWNS` entries that define a
+	 * `patrol` (most NPCs remain static/idle-only). */
+	WALK_ANIMATION_URL: PLAYER_CONFIG.ANIMATION_URLS.walking,
+	/** Deliberately slower than `PLAYER_CONFIG.WALK_SPEED_MPS` (3.2) — a guard's patrol pace, not a
+	 * player sprinting between two points. */
+	PATROL_SPEED_MPS: 1.4,
+	/** How long a patrolling NPC idles at each waypoint before turning back. */
+	PATROL_PAUSE_SECONDS: 3,
+	/** Slower turn than the player's (10) — a deliberate, unhurried guard-turn, not snappy input response. */
+	PATROL_TURN_RATE_RADIANS_PER_SECOND: 4,
 	/** Static placements, each anchored to a `world/settlements.js` kingdom-seat id and offset from
 	 * that castle's keep center (in meters) so the NPC clears the keep's own footprint
 	 * (`SETTLEMENT_CONFIG.KEEP_WIDTH_METERS` is 34, so a 12m offset stands comfortably outside the
@@ -204,6 +215,11 @@ export const NPC_CONFIG = Object.freeze({
 			offsetXMeters: 12,
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
+			// Pilot for the FAZ 5 waypoint-patrol sub-task (run 22): walks a straight 24m line to
+			// (12, -12) and back, staying at the same 16.97m radial distance from the keep center as
+			// the static spawn point already does — no new wall-clearance risk (see DECISIONS.md
+			// ADR-0021). The other 5 NPCs are untouched and remain static/idle-only.
+			patrol: Object.freeze({ toOffsetXMeters: 12, toOffsetZMeters: -12 }),
 		}),
 		Object.freeze({
 			id: 'stannis-guard-2',
@@ -212,6 +228,7 @@ export const NPC_CONFIG = Object.freeze({
 			offsetXMeters: -12,
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
+			patrol: Object.freeze({ toOffsetXMeters: -12, toOffsetZMeters: -12 }),
 		}),
 		Object.freeze({
 			id: 'umit-guard-1',

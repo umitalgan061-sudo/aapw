@@ -408,12 +408,20 @@ export async function initGame3D() {
 		);
 		state.controls.update();
 
-		// FAZ 5 first pass: static, idling NPCs at a kingdom-seat settlement (see config.js's
-		// NPC_CONFIG doc comment for why `stannis`/these two specific models). Loaded after the
-		// player (same "keep the loading overlay up for every character download" reasoning as the
-		// player itself) and in parallel via Promise.all, not a sequential loop, since neither NPC
-		// depends on the other finishing first.
+		// FAZ 5: NPCs at kingdom-seat settlements (see config.js's NPC_CONFIG doc comment). Loaded
+		// after the player (same "keep the loading overlay up for every character download" reasoning
+		// as the player itself) and in parallel via Promise.all, not a sequential loop, since no NPC
+		// depends on another finishing first. A `spawn.patrol` entry (run 22, pilot on 2 of 6 NPCs —
+		// see DECISIONS.md ADR-0021) adds a 2nd world-space waypoint the NPC walks a straight line
+		// to/from; NPCs without one stay static/idle-only, unchanged from run 20/21.
 		const seatsById = new Map(state.settlementSeats.map((seat) => [seat.id, seat]));
+		// Same sea-level-clamp convention world/settlements.js's own placement uses (see
+		// world/README.md's "Sea level" convention), so an NPC never ends up sitting below the water
+		// plane if an offset happens to land somewhere lower than the keep itself.
+		const sampleClampedGroundY = (worldX, worldZ) => Math.max(
+			state.groundCollider.getGroundHeight(worldX, worldZ),
+			WORLD_DEFAULTS.WATER_LEVEL_METERS + SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
+		);
 		const npcs = await Promise.all(
 			NPC_CONFIG.SPAWNS.map(async (spawn) => {
 				const seat = seatsById.get(spawn.seatId);
@@ -423,14 +431,13 @@ export async function initGame3D() {
 				}
 				const worldX = seat.x + spawn.offsetXMeters;
 				const worldZ = seat.z + spawn.offsetZMeters;
-				// Sampled at the NPC's own offset position, not just reused from the seat's keep-center
-				// groundY — same sea-level-clamp convention world/settlements.js's own placement uses
-				// (see world/README.md's "Sea level" convention), so an NPC never ends up sitting below
-				// the water plane if its offset happens to land somewhere lower than the keep itself.
-				const groundY = Math.max(
-					state.groundCollider.getGroundHeight(worldX, worldZ),
-					WORLD_DEFAULTS.WATER_LEVEL_METERS + SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
-				);
+				const groundY = sampleClampedGroundY(worldX, worldZ);
+				const patrolWaypoints = spawn.patrol
+					? [
+							{ x: worldX, z: worldZ },
+							{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
+						]
+					: undefined;
 				return createNPC({
 					assetLoader,
 					modelUrl: spawn.modelUrl,
@@ -440,6 +447,12 @@ export async function initGame3D() {
 					groundY,
 					rotationYRadians: spawn.rotationYRadians,
 					name: spawn.id,
+					groundCollider: patrolWaypoints ? state.groundCollider : undefined,
+					walkAnimationUrl: patrolWaypoints ? NPC_CONFIG.WALK_ANIMATION_URL : undefined,
+					patrolWaypoints,
+					speedMps: NPC_CONFIG.PATROL_SPEED_MPS,
+					pauseSeconds: NPC_CONFIG.PATROL_PAUSE_SECONDS,
+					turnRateRadiansPerSecond: NPC_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
 				});
 			}),
 		);

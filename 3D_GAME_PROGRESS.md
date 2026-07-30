@@ -26,29 +26,34 @@ KayKit, etc.) are used for `assets/`.
   DECISIONS.md ADR-0016/ADR-0017/ADR-0018. The remaining FAZ 4-adjacent gap (no gravity/jump/
   wall-collider *physics* — a player can still walk through a castle wall, only the *camera* now
   avoids clipping) is a deliberately separate future item, not blocking FAZ 4's own gate. **FAZ 5
-  (Kalabalık/NPC) started run 20, extended run 21:** run 20 placed a first pass of 2 static, idling
-  NPCs (`gameplay/npc.js`) at the Stannis Baratheon kingdom seat; run 21 extended `NPC_CONFIG.
-  SPAWNS` (config-only, no code change) to 4 more seats (`umit`, `cersei`, `berkalp`, `doran`), one
-  NPC each, using the 4 remaining downloaded Mixamo character files — all 6 downloaded characters
-  are now in active use, 5 of 14 kingdom seats have at least one NPC. Both runs reuse `player.js`'s
-  Mixamo FBX-loading/scale-correction/animation-retargeting pipeline — see "This Run (run 21)"
-  below and DECISIONS.md ADR-0019/ADR-0020.
-- **Last Update:** 2026-07-30 (run 21)
-- **Last Commit:** run 21's FAZ 5 NPC-seat extension — `NPC_CONFIG.SPAWNS` (`config.js`) grown from
-  2 to 6 entries across 5 kingdom seats, `service-worker.js`'s `GAME3D_SHELL_FILES` gained the 4
-  newly-used character FBX files, DECISIONS.md ADR-0020 (see "This Run (run 21)" below); run 20 was
-  FAZ 5's first pass (`gameplay/npc.js`, `NPC_CONFIG`, DECISIONS.md ADR-0019).
+  (Kalabalık/NPC) started run 20, extended run 21, patrol added run 22:** run 20 placed a first pass
+  of 2 static, idling NPCs (`gameplay/npc.js`) at the Stannis Baratheon kingdom seat; run 21 extended
+  `NPC_CONFIG.SPAWNS` (config-only, no code change) to 4 more seats (`umit`, `cersei`, `berkalp`,
+  `doran`), one NPC each, using the 4 remaining downloaded Mixamo character files; run 22 added a
+  scoped waypoint-patrol system (`gameplay/npc.js`'s `patrolWaypoints`) piloted on the 2 `stannis`
+  NPCs — they now walk a 24m back-and-forth line with idle pauses and directional turning, while the
+  other 4 remain static. All 6 downloaded characters are in active use, 5 of 14 kingdom seats have at
+  least one NPC. All three runs reuse `player.js`'s Mixamo FBX-loading/scale-correction/
+  animation-retargeting pipeline — see "This Run (run 22)" below and DECISIONS.md
+  ADR-0019/ADR-0020/ADR-0021.
+- **Last Update:** 2026-07-30 (run 22)
+- **Last Commit:** run 22's FAZ 5 waypoint patrol — `gameplay/npc.js`'s `createNPC` gained optional
+  patrol-movement parameters (backward-compatible, static NPCs unchanged), `NPC_CONFIG` gained
+  walk-animation/patrol-speed/pause/turn-rate constants and a `patrol` field on the 2 `stannis`
+  spawn entries, `game3d.js`'s NPC-loading loop computes each patrolling NPC's 2nd waypoint,
+  DECISIONS.md ADR-0021 (see "This Run (run 22)" below); run 21 was the NPC-seat extension
+  (DECISIONS.md ADR-0020).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (fourteenth straight run).** A prior run (see "This Run (run 5)" below,
+  correct, no change made (fifteenth straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
-  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, 17, 18, 19, and
-  20 each re-verified this without changes needed. This run's Session Snapshot re-derived the
+  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20,
+  and 21 each re-verified this without changes needed. This run's Session Snapshot re-derived the
   numbers from `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more and again
   confirmed they match ADR-0004 exactly — no config change made. **If you are a future run and the
   operator's brief again asserts the old 4278 km² target is still live: it is not. Re-derive from
   `config.js` yourself (as this run did) rather than trusting the brief's own numbers — this has
-  now been independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20,
-  and 21.**
+  now been independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20, 21,
+  and 22.**
 - **Repo-continuity note (run 18):** this run's Session Snapshot found the container's git working
   tree in a `HEAD` state detached at run 17's own final commit (`d9a3260`), while the local `main`
   branch ref and `origin/main` were both still pointing at the pre-3D-mode commit
@@ -350,7 +355,7 @@ Triangles<500K, TextureMem<512MB.
   idle/walking/running klipleri aynı Mixamo iskeletine retarget edilip `THREE.AnimationMixer` ile
   hıza göre crossfade ediliyor.
 
-### FAZ 5 — Kalabalık/NPC (in progress, started run 20, extended run 21)
+### FAZ 5 — Kalabalık/NPC (in progress, started run 20, extended run 21, patrol added run 22)
 - [~] Statik/idle NPC'ler (`gameplay/npc.js`) — **ilk pas (run 20):** `stannis` kalesi yanında 2
   NPC (`paladin_j_nordstrom`, `arissa`), `player.js`'in aynı Mixamo FBX/retarget hattı yeniden
   kullanılarak yükleniyor. Literal "instanced" değil (`THREE.InstancedMesh` iskeletsel animasyon
@@ -360,10 +365,18 @@ Triangles<500K, TextureMem<512MB.
   (`erika_archer`), `doran` (`uriel_a_plotexia`), her biri 1 NPC. 14 krallık koltuğundan 5'inde
   artık en az 1 NPC var, indirilen 6 karakter dosyasının tamamı kullanımda. Bkz. DECISIONS.md
   ADR-0019/ADR-0020.
-- [ ] Waypoint/patrol (Behavior Tree) — henüz başlanmadı, bu run'ın bilinçli olarak kapsam dışı
-  bıraktığı iş (bkz. ADR-0019'un "Alternatives considered" bölümü).
+- [~] Waypoint/patrol — **pilot (run 22), tam bir Behavior Tree değil:** `gameplay/npc.js`'in
+  `createNPC`'i artık isteğe bağlı `patrolWaypoints` alıyor — verilirse NPC 2+ dünya-uzayı nokta
+  arasında düz bir çizgide yürüyor (indeks modulo ile sarılıyor — 2 nokta gidiş-geliş, 3+ döngü),
+  her noktada `PATROL_PAUSE_SECONDS` kadar idle bekliyor, `player.js`'in aynı zemin-yükseklik
+  yeniden-örnekleme ve en-kısa-yol dönüş mantığını yeniden kullanıyor. Sadece `stannis`'teki 2 NPC
+  bu özelliği kullanıyor (24m gidiş-geliş) — diğer 4 NPC hâlâ tamamen statik, davranışları
+  değişmedi. Gerçek AI/oyuncu-farkındalığı/çok-noktalı rota henüz yok — bilinçli olarak kapsam
+  dışı (bkz. ADR-0021'in "Alternatives considered" bölümü).
 - [x] Idle animasyon döngüsü — `peasant_girl`'in `idle.fbx`'i her NPC'nin paylaşılan iskeletine
-  retarget edilip döngüsel oynatılıyor; walk cycle bu ilk pasta gerekmiyor (NPC'ler statik).
+  retarget edilip döngüsel oynatılıyor. **Yürüme döngüsü (run 22):** patrol eden NPC'ler için
+  `peasant_girl`'in `walking.fbx`'i de aynı şekilde retarget edilip idle/walk arası crossfade
+  ediliyor; statik NPC'ler için hâlâ gerekmiyor.
 
 ### FAZ 6 — Hayvanlar (pending)
 - [ ] Atlar (binilebilir, NavMesh) (`animals.js`)
@@ -2097,6 +2110,79 @@ player-NPC interaction/dialogue/name-tag UI yet. FAZ 4's own remaining gap (no g
 collider physics) also remains open and untouched, same status as run 19/20 left it. No new tech
 debt this run — a pure config + precache-list extension of an already-verified pattern.
 
+## This Run (2026-07-30, run 22)
+
+**Session Snapshot taken at start of run** (per protocol, triggered by a live "Devam et" — continue
+— request rather than a scheduled firing):
+- Confirmed git state: `main` already matched a fresh `git fetch origin main`'s `origin/main`
+  exactly (`0c0af45`, run 21's own final commit) — no detached-HEAD/stale-tracking-ref issue this
+  run, unlike the recurring container-restart pattern runs 5/17/18/19/20 documented.
+- Read this file's most recent run section (run 21) and grepped `DECISIONS.md`/`ARCHITECTURE.md`
+  for the current `NPC_CONFIG`/`gameplay/npc.js` state before doing anything else, per protocol.
+- **World scale re-verified from `src/3d/config.js` directly, per the now-fourteen-run-old standing
+  skepticism rule:** `WORLD_SCALE.METERS_PER_MAP_UNIT` is `1.75`, `CHUNK_CONFIG.GRID_COLUMNS`/
+  `GRID_ROWS` are `25`/`22` → 137.5 km², inside the requested 100-150 km² band, matching ADR-0004.
+  **No config change made.**
+- `node --check` clean on every non-vendor `.js` file (baseline). `git status` clean, nothing
+  uncommitted at session start.
+- **Ran a full regression smoke test (Playwright/headless Chromium, repo served via `python3 -m
+  http.server`) before writing any new code**, per the Regression Guard — 2D game (only the same
+  pre-existing, already-documented sandbox network limitations), 3D desktop (444 chunks, 14
+  settlements, `"Spawned 6 FAZ 5 NPC(s)."`), 3D mobile-emulated (25 chunks) all passed clean.
+- World Coverage before this run: 80.7% desktop / 4.5% mobile (unchanged from run 21).
+- With syntax/bugs/perf/leaks/debt/world-scale/coverage all clear, the highest-priority remaining
+  item was FAZ 5's own last unchecked roadmap line: "Waypoint/patrol (Behavior Tree)."
+
+**Done:**
+- **`gameplay/npc.js`:** `createNPC` gained optional `groundCollider`/`walkAnimationUrl`/
+  `patrolWaypoints`/`speedMps`/`pauseSeconds`/`turnRateRadiansPerSecond` parameters. When
+  `patrolWaypoints` (2+ world-space points) is passed, the NPC walks a straight line to the next
+  point (modulo-wrapped index), pausing to idle at each one, reusing `player.js`'s exact per-frame
+  ground-resampling and shortest-path yaw-turn pattern. Omitting it (the default) keeps the
+  pre-existing static/idle-only behavior byte-for-byte. See DECISIONS.md ADR-0021.
+- **`config.js`'s `NPC_CONFIG`:** added `WALK_ANIMATION_URL` (reused from `PLAYER_CONFIG`),
+  `PATROL_SPEED_MPS` (1.4), `PATROL_PAUSE_SECONDS` (3), `PATROL_TURN_RATE_RADIANS_PER_SECOND` (4),
+  and a `patrol: {toOffsetXMeters, toOffsetZMeters}` field on the 2 `stannis` spawn entries only —
+  a 24m straight walk to the opposite side of each guard's existing offset, at the identical radial
+  distance from the keep center the static spawn already proved clear. The other 4 NPCs are untouched.
+- **`game3d.js`:** the NPC-loading loop now computes each patrolling NPC's 2nd waypoint in world
+  space from `spawn.patrol` and passes `groundCollider`/`walkAnimationUrl`/`patrolWaypoints`/speed/
+  pause/turn-rate through to `createNPC`; NPCs without a `patrol` field get `patrolWaypoints:
+  undefined`, taking the unchanged static code path.
+- **Regression guard:** `node --check` clean on all 3 touched files (`config.js`, `game3d.js`,
+  `gameplay/npc.js`).
+- **Real tests, not assumed correct from the code alone:**
+  1. Pre-change regression baseline (see Session Snapshot above): zero new errors.
+  2. Post-change full smoke test: 3D desktop and mobile-emulated both still `"Spawned 6 FAZ 5
+     NPC(s)."`, zero console/page errors; 2D game unchanged.
+  3. **A position-over-time measurement via a temporary debug hook** (`window.__debugGame3DState =
+     state`, added only for this test and reverted before commit — confirmed via `git diff` showing
+     zero trace of it in the committed `game3d.js`): sampled all 6 NPCs' world position 3 times, 8
+     seconds apart. `stannis-guard-1`/`-2` moved 3.6m then 11.4m between samples (≈1.4 m/s, matching
+     `PATROL_SPEED_MPS` once past the initial pause) while the other 4 NPCs moved exactly 0.000m
+     both times — confirms patrol works for the 2 configured NPCs and does not leak into the 4
+     static ones.
+- Updated `DECISIONS.md` (new ADR-0021), `ARCHITECTURE.md` (`config.js`/`gameplay/npc.js` entries),
+  this file's Current Status/Roadmap (FAZ 5 checklist)/this section.
+
+**Files changed this run:** `src/3d/config.js`, `src/3d/game3d.js`, `src/3d/gameplay/npc.js`,
+`DECISIONS.md` (new ADR-0021), `ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file). 6 files, well
+within the ≤800-line/≤20-file budget (~90 hand-written lines of code across the 3 source files, plus
+doc updates). One commit (the patrol parameters, config constants, and `game3d.js` wiring are one
+atomic, revertable unit — none independently useful without the others).
+
+**World Coverage:** unchanged at 80.7% desktop (111.00 km² / 137.5 km²) / 4.5% mobile (6.25 km² /
+137.5 km²) — this run added NPC movement, not terrain.
+
+**Next step for the next run:** FAZ 5's remaining honest gaps: (a) patrol still only on 2 of 6 NPCs
+— extending to more is the same kind of config-only change ADR-0020 already established (add a
+`patrol` field to more `SPAWNS` entries, no new code), (b) 9 of 14 kingdom seats still have zero
+NPCs, (c) no player-NPC interaction/dialogue/name-tag UI yet, and (d) no player-awareness/reactive
+behavior — an NPC patrols regardless of where the player is, real behavior-tree territory,
+deliberately still out of scope (see ADR-0021's "Alternatives considered"). FAZ 4's own remaining
+gap (no gravity/jump/wall-collider physics) also remains open and untouched. No new tech debt this
+run — all new `createNPC` parameters are optional with the pre-existing behavior as the default.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -2172,13 +2258,16 @@ debt this run — a pure config + precache-list extension of an already-verified
   never permanently shrunk. **Still open:** this only fixes what the *camera* can see through — the
   *player* can still walk through castle walls (no player-side collider yet, separate future work,
   see the settlements LOD/collider item below).
-- **FAZ 5's NPCs are static/idle-only, at 5 of 14 kingdom seats.** `gameplay/npc.js` (run 20)
-  intentionally has no movement/patrol/AI; `NPC_CONFIG.SPAWNS` places 6 NPCs across `stannis` (2),
-  `umit`, `cersei`, `berkalp`, and `doran` (1 each, added run 21 — config-only, see DECISIONS.md
-  ADR-0020) — the other 9 kingdom seats have none. All 6 downloaded Mixamo character files are now
-  in use; a further seat needs either a second NPC reusing an already-placed model or a new
-  Mixamo/Free3D download (human manual-download step). Both remaining gaps are honest, scoped-out
-  ones (see DECISIONS.md ADR-0019/ADR-0020's "Alternatives considered"), not accidental.
+- **FAZ 5's NPCs are patrol-only-at-2-of-6, at 5 of 14 kingdom seats, with no player-awareness or
+  interaction.** `NPC_CONFIG.SPAWNS` places 6 NPCs across `stannis` (2, both patrolling a 24m
+  back-and-forth line since run 22 — see DECISIONS.md ADR-0021), `umit`, `cersei`, `berkalp`, and
+  `doran` (1 each, static/idle-only, added run 21 — config-only, see DECISIONS.md ADR-0020) — the
+  other 9 kingdom seats have none. All 6 downloaded Mixamo character files are now in use; a further
+  seat needs either a second NPC reusing an already-placed model or a new Mixamo/Free3D download
+  (human manual-download step). No NPC reacts to the player's presence — patrol runs on a fixed
+  clock/route regardless of where the player is, deliberately not real behavior-tree AI. All
+  remaining gaps are honest, scoped-out ones (see DECISIONS.md ADR-0019/ADR-0020/ADR-0021's
+  "Alternatives considered"), not accidental.
 - **~~No touch joystick for FAZ 4 movement~~ — landed run 18 (`ui/touchJoystick.js`).** Mobile-class
   devices now get an on-screen joystick alongside keyboard (`input.js`) support — see DECISIONS.md
   ADR-0017. Verified via a Playwright-simulated drag (Pointer Events treat mouse and touch drags
