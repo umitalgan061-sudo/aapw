@@ -51,9 +51,10 @@ the way it is.
   see ADR-0013), and (added FAZ 4) `PLAYER_CONFIG` (character/animation asset URLs, walk/run
   speeds, turn rate, animation crossfade duration, spawn point, chase-camera framing/distance
   limits — see ADR-0016), `TOUCH_JOYSTICK_CONFIG` (drag radius, dead zone, run threshold for
-  `ui/touchJoystick.js` — see ADR-0017), and (added FAZ 5, run 20) `NPC_CONFIG` (idle-animation URL
-  reused from `PLAYER_CONFIG`, and the flat `SPAWNS` list mapping a kingdom-seat id + world offset to
-  a Mixamo character FBX for each static NPC — see `gameplay/npc.js` and ADR-0019).
+  `ui/touchJoystick.js` — see ADR-0017), and (added FAZ 5, run 20, extended run 21) `NPC_CONFIG`
+  (idle-animation URL reused from `PLAYER_CONFIG`, and the flat `SPAWNS` list mapping a kingdom-seat
+  id + world offset to a Mixamo character FBX for each static NPC — 6 entries across 5 seats as of
+  run 21, all 6 downloaded character files now in use — see `gameplay/npc.js` and ADR-0019/ADR-0020).
 - **Critical path:** yes — every system imports constants from here.
 - **Failure mode:** N/A (static data only).
 
@@ -332,7 +333,7 @@ the way it is.
   non-deterministic session to session, expected) but its ground-height sampling still goes
   through the same seeded `physics.js` collider every other system uses.
 
-## `src/3d/gameplay/npc.js` — Static, idling NPCs (FAZ 5, run 20)
+## `src/3d/gameplay/npc.js` — Static, idling NPCs (FAZ 5, run 20; `NPC_CONFIG.SPAWNS` extended to 5 seats/6 NPCs run 21, no code change — see ADR-0020)
 
 - **Depends on:** `three` (vendored, dynamic-imports `FBXLoader` via `assetLoader.js`),
   `assetLoader.js` (`loadFBXModel`, `AssetLoader.correctMixamoFbxScale` — new static helper this

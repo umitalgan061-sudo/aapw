@@ -1536,3 +1536,88 @@ unused, available for future NPC placements without any new asset download). No 
 one refactor this run made (`AssetLoader.correctMixamoFbxScale`) removes duplication rather than
 adding it, and `settlementSeats` being exposed from `createScene`'s return value is a straightforward
 new field on an existing return object, not a workaround.
+
+## ADR-0020: FAZ 5 second pass — extend `NPC_CONFIG.SPAWNS` to 4 more kingdom seats, config-only, using the 4 remaining downloaded character files
+
+**Date:** 2026-07-30 (run 21)
+
+**Decision:** Extended `config.js`'s `NPC_CONFIG.SPAWNS` from 2 entries (both at `stannis`) to 6,
+adding one NPC each at `umit` (`dreyar.fbx`), `cersei` (`paladin_wprop_j_nordstrom.fbx`), `berkalp`
+(`erika_archer.fbx`), and `doran` (`uriel_a_plotexia.fbx`) — the 4 downloaded Mixamo character files
+run 20 left unused. No code changes: `game3d.js`'s spawn-resolution loop (`NPC_CONFIG.SPAWNS.map(...)`
+in the async NPC-loading block) already iterates the list generically and resolves each entry's
+`seatId` against `state.settlementSeats`, so a new list entry is sufficient on its own. Also added
+the 4 new FBX files to `service-worker.js`'s `GAME3D_SHELL_FILES` precache list (same "precache once
+code actually loads it" rule ADR-0019 followed for the first 2).
+
+**Reasoning:**
+- **Priority-ordered, per protocol:** Session Snapshot re-derived the world scale directly from
+  `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid = 137.5 km²) — unchanged, matching
+  ADR-0004 exactly; this is now the 14th straight run reaching the same conclusion against a
+  standing-instruction premise ("4278 km²"/"redo the correction") that has not matched the
+  repository's actual state since run 3. No config change was made. `node --check` was clean on the
+  full non-vendor tree at baseline, and a pre-change regression smoke test (2D game, 3D desktop — 444
+  chunks/14 settlements, 3D mobile-emulated — 25 chunks) passed with zero errors before any edit.
+  World Coverage remains 80.7% desktop / 4.5% mobile, past the FAZ 3/10 80% gate; FAZ 4 and FAZ 5's
+  first pass were already closed/started. With syntax/bugs/perf/leaks/debt/coverage all clear, the
+  highest-value next slice was run 20's own explicitly-flagged "cheapest" option: extending
+  `NPC_CONFIG.SPAWNS` to more seats needs no new code, only config entries.
+- **Why these 4 seats, not 4 random ones:** `umit`, `cersei`, `berkalp`, and `doran` were picked to
+  spread NPCs across distinct regions/houses (Targeryan capital, Lannister, Stark north, Martell
+  south) rather than clustering more guards at seats already covered, on the theory that a future
+  manual playtest exploring the map benefits more from "every visited region has at least one NPC"
+  than from "one region has many." All 4 are real `world/settlements.js` seat ids, verified by
+  `grep`-ing the live `INIT_KINGDOMS`-derived `SEATS` array before writing the config, not assumed
+  from memory.
+- **Why one NPC per seat, not two (unlike `stannis`'s pair):** this pass's goal was breadth (more
+  seats populated) over depth (more NPCs per seat) — a deliberate, scoped choice, not a resource
+  constraint. Two of the 4 newly-used files (`erika_archer.fbx` ~18.7MB, `uriel_a_plotexia.fbx`
+  ~13MB) are the two largest of the 6 character files; using each once, not twice, keeps total
+  offline-precache weight proportionate (all 6 files combined ≈ 64MB, now fully committed to the
+  precache list either way since every downloaded character is now in use).
+- **Ground height sampling works regardless of terrain-chunk residency, confirmed before assuming
+  it's safe:** `game3d.js`'s NPC-loading loop calls `state.groundCollider.getGroundHeight(worldX,
+  worldZ)`, the same procedural (noise-based) sampler `world/settlements.js` itself uses to ground all
+  14 seats at boot — it is not a lookup against a rendered mesh, so an NPC at any seat gets a correct
+  height whether or not that seat's terrain chunk is currently resident. This means the new NPCs are
+  safe to add even outside the desktop boot-preview radius (not a concern here — all 4 new seats sit
+  inside the already-444-chunk desktop preview, confirmed by the smoke test below spawning without
+  any new console warnings) and on mobile, where they inherit the same documented "may lack a visible
+  ground mesh directly beneath" caveat this file's Known Issues already track for settlements
+  generally (not a new gap this run introduces).
+
+**Alternatives considered:**
+- *Give the new NPCs movement/patrol now that there's more than one seat to walk between.* Rejected —
+  still explicitly out of scope per the standing "don't build full AI/behavior-tree in one run" rule;
+  this pass stays a pure, atomic extension of an already-proven pattern.
+- *Distribute all 4 new NPCs across the remaining 12 empty seats more evenly (e.g. 1 every 3 seats,
+  covering more of the roadmap's "waypoint later" groundwork).* Considered, but picking the 4 as
+  "one per remaining major house, prioritizing geographic spread" is simpler to reason about and
+  verify than a formulaic every-Nth-seat rule, for the same real benefit (breadth over depth).
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- Pre-change regression baseline: 2D game (only the pre-existing, already-documented sandbox network
+  limitations), 3D desktop (444 chunks, 14 settlements), 3D mobile-emulated (25 chunks) — zero errors.
+- Post-change smoke test on both device classes: console confirms `"Spawned 6 FAZ 5 NPC(s)."` (up
+  from 2), desktop still `"444 terrain chunks resident (~111.00 km²)"`, mobile still `"25 terrain
+  chunks"` — zero console/page errors either path.
+- **A live-scene check via a temporary debug hook** (`window.__debugGame3DState = state`, added only
+  for this test and reverted before commit — confirmed via `git diff` showing zero trace of it in the
+  committed `game3d.js`): all 6 NPCs (`stannis-guard-1`/`-2`, `umit-guard-1`, `cersei-guard-1`,
+  `berkalp-guard-1`, `doran-guard-1`) present in `state.scene`'s graph by name, at 6 distinct
+  world positions (not all clustered at one point), and `userData.isPlaceholder` unset on every one
+  (confirms real FBX geometry loaded for all 4 new characters, not the `AssetLoader` fallback box).
+- **Offline-precache check:** after one online visit to `index.html`, `caches.open('westeros-shell-
+  v1')` contains all 4 newly-referenced FBX files (`dreyar.fbx`, `paladin_wprop_j_nordstrom.fbx`,
+  `erika_archer.fbx`, `uriel_a_plotexia.fbx`) plus `npc.js` — confirms none would 404 offline.
+- `node --check` on `config.js` and `service-worker.js` (the only 2 files this run touched): clean.
+  JSON-validated `manifest.json`/`assets_manifest.json` (unchanged — all 6 characters were already
+  registered by the parallel asset-adding session, only code-side usage changed this run): clean.
+
+**Consequence:** All 6 downloaded Mixamo character files are now in active use; 5 of 14 kingdom seats
+have at least one NPC (`stannis` x2, `umit`, `cersei`, `berkalp`, `doran` x1 each). World Coverage
+unchanged (80.7% desktop / 4.5% mobile — this run added characters, not terrain). Still-open FAZ 5
+work, same honest gaps ADR-0019 already flagged plus one narrowed: no movement/patrol/AI, no
+player-NPC interaction/dialogue/name-tag UI, and 9 of 14 kingdom seats still have zero NPCs (down
+from 13). No new tech debt — this was a pure config + precache-list extension of an already-verified
+pattern, no new abstractions or refactors.

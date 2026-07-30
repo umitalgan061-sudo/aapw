@@ -60,7 +60,11 @@ const GAME3D_SHELL_FILES = [
     './assets/animations/peasant_girl/walking.fbx',
     './assets/animations/peasant_girl/running.fbx',
     './assets/models/characters/paladin_j_nordstrom.fbx',
-    './assets/models/characters/arissa.fbx'
+    './assets/models/characters/arissa.fbx',
+    './assets/models/characters/dreyar.fbx',
+    './assets/models/characters/paladin_wprop_j_nordstrom.fbx',
+    './assets/models/characters/erika_archer.fbx',
+    './assets/models/characters/uriel_a_plotexia.fbx'
 ];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];

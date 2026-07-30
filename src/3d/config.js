@@ -186,13 +186,16 @@ export const NPC_CONFIG = Object.freeze({
 	/** Static placements, each anchored to a `world/settlements.js` kingdom-seat id and offset from
 	 * that castle's keep center (in meters) so the NPC clears the keep's own footprint
 	 * (`SETTLEMENT_CONFIG.KEEP_WIDTH_METERS` is 34, so a 12m offset stands comfortably outside the
-	 * wall) instead of intersecting it. Deliberately just 2 for this first pass, and deliberately
-	 * the two smallest of the 6 available character files (`arissa.fbx` ~6.6MB, `paladin_j_
-	 * nordstrom.fbx` ~8.6MB) rather than the two largest (`erika_archer.fbx` ~18.7MB, `uriel_a_
-	 * plotexia.fbx` ~13MB) — every model here gets offline-precached in `service-worker.js`, so
-	 * asset weight is a real, not theoretical, cost. Picked `stannis` as the seat: it's the kingdom
-	 * capital closest to the player's world-origin spawn point, easiest to reach for manual/future
-	 * verification without adding a dedicated fast-travel debug tool this run doesn't need. */
+	 * wall) instead of intersecting it. First pass (run 20) placed just 2, at `stannis` — the kingdom
+	 * seat closest to the player's world-origin spawn point, easiest to reach for manual/future
+	 * verification without a dedicated fast-travel debug tool. This run (21) extends to 4 more seats
+	 * (`umit`, `cersei`, `berkalp`, `doran` — one per remaining major house, spread across the map
+	 * rather than clustered near the origin) using the 4 remaining downloaded character files
+	 * (`dreyar.fbx` ~7.3MB, `erika_archer.fbx` ~18.7MB, `paladin_wprop_j_nordstrom.fbx` ~8.8MB,
+	 * `uriel_a_plotexia.fbx` ~13MB) — config-only, no new asset download, no new code (`game3d.js`'s
+	 * spawn-resolution loop already iterates this list generically). All 6 downloaded character
+	 * files are now placed; every model here gets offline-precached in `service-worker.js`, so asset
+	 * weight remains a real, tracked cost (~64MB across all 6 FBX files). */
 	SPAWNS: Object.freeze([
 		Object.freeze({
 			id: 'stannis-guard-1',
@@ -206,6 +209,38 @@ export const NPC_CONFIG = Object.freeze({
 			id: 'stannis-guard-2',
 			modelUrl: 'assets/models/characters/arissa.fbx',
 			seatId: 'stannis',
+			offsetXMeters: -12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+		}),
+		Object.freeze({
+			id: 'umit-guard-1',
+			modelUrl: 'assets/models/characters/dreyar.fbx',
+			seatId: 'umit',
+			offsetXMeters: 12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+		}),
+		Object.freeze({
+			id: 'cersei-guard-1',
+			modelUrl: 'assets/models/characters/paladin_wprop_j_nordstrom.fbx',
+			seatId: 'cersei',
+			offsetXMeters: 12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+		}),
+		Object.freeze({
+			id: 'berkalp-guard-1',
+			modelUrl: 'assets/models/characters/erika_archer.fbx',
+			seatId: 'berkalp',
+			offsetXMeters: -12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+		}),
+		Object.freeze({
+			id: 'doran-guard-1',
+			modelUrl: 'assets/models/characters/uriel_a_plotexia.fbx',
+			seatId: 'doran',
 			offsetXMeters: -12,
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
