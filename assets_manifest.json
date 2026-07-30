@@ -194,6 +194,21 @@
       "deprecated": false,
       "replacedBy": null,
       "notes": "ÖNEMLİ: Bu jenerik/orijinal bir ejderha tasarımıdır (3dhaupt'un kendi yaratımı), HBO/Game of Thrones'un 'Drogon' karakterinin kopyası DEĞİLDİR — o modeli kasıtlı olarak reddettik (telifli karakter replikası riski). FAZ 7 (Ejderhalar) için kullan. Manually downloaded by project owner (bu sitenin indirme akışı otomatik tıklamayla tetiklenmiyor)."
+    },
+    {
+      "id": "elven_warrior",
+      "file": "assets/models/characters/elven_warrior.glb",
+      "type": "character_model",
+      "source": "Meshy AI (text/image-to-3D generation)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license — Free plan: CC BY 4.0 (attribution to Meshy required if used commercially); Paid plan: full private ownership. Confirm which plan generated this asset before any public/commercial use — irrelevant for this private repo either way.",
+      "version": 1,
+      "format": "glTF Binary (.glb), textured",
+      "rigged": false,
+      "animated": false,
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "AI-generated ortaçağ/fantastik elf savaşçı karakteri, yeşil zırh. Manually downloaded by project owner (Meshy AI web arayüzünden, cloud ajanının erişemeyeceği bir hesap gerektiriyor). RİG/İSKELET İÇERMİYOR — FAZ 5 (NPC) için statik/dekoratif kullanım ya da Mixamo peasant_girl iskeletine manuel rigging/retarget gerekirse ek iş gerekir; ilk aşamada duruş (T-pose olmayabilir, üretilen pozda) sabit NPC olarak kullanılabilir. İki reddedilen kardeş model de indirildi ama eklenmedi: 'Boho Western Muse' (tema uyumsuz) ve 'Violet Neon Runner' (tema uyumsuz + ~152MB, performans bütçesine aykırı) — istenirse ileride tekrar değerlendirilebilir."
     }
   ]
 }
