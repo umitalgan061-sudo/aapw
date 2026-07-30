@@ -4937,3 +4937,64 @@ step; the world-event system's flavor pool could still grow.
 | `src/3d/vendor/three/addons/curves/NURBSCurve.js`, `NURBSUtils.js` | three.js r160 `examples/jsm/curves/` | MIT | Transitive dependency of `FBXLoader.js` (NURBS-curve deformers). Never imported directly by this project's own code. |
 | `assets/models/`, `assets/textures/`, `assets/audio/`, `assets/animations/`, `assets/skyboxes/`, `assets/particles/`, `assets/icons/` | — | — | Empty (`.gitkeep` only). Populate in later phases from Kenney (kenney.nl), Quaternius (quaternius.com), Poly Haven (polyhaven.com), Mixamo (mixamo.com, for rigged human animations), KayKit (kaylousberg.com) — verify CC0/CC-BY on the actual download page before adding anything, and record it in this table. |
 | `assets/shaders/` | — | — | Empty. All shaders (aurora, water, fire, snow, etc.) will be original procedural GLSL written for this project — no external shader files needed. |
+
+## This Run (2026-07-30, run 47)
+
+**Fresh Session Snapshot at container boot:** `HEAD` was detached at run 46's final commit
+(`4c5ef7a`, ADR-0060's dialogue-pilot growth) with a stale local `main`/cached `origin/main` ref
+pointing at a much older pre-3D-mode commit (`38e09e7`) — `git fetch origin main` confirmed the real
+remote `main` already matched the detached `HEAD` exactly (no actual divergence, no lost work), then
+`git checkout -B main origin/main` reattached cleanly. Same harmless pattern run 40 already
+documented and resolved the same way. Read `3D_GAME_PROGRESS.md`'s tail (runs 44-46, Known Issues),
+`git log -10`, and `DECISIONS.md`'s last 2 ADRs (0059/0060).
+
+**This run's own stored prompt asked for 2 items already shipped 6 runs ago:** lake-water flicker
+(fixed run 40, ADR-0048) and an F4 debug free-fly camera (shipped run 40, ADR-0049) — confirmed, not
+assumed: `git log`/`DECISIONS.md` both show them landed, and the committed smoke suite's
+`checkWaterVertexShaderStatic`/`checkFreeCamera` both still PASS. Same stale-prompt situation runs
+44-46 already flagged (3D_GAME_PROGRESS.md lines ~4239/4365/4479/4596-4597) — this run re-confirms it
+independently rather than trusting the prior note on faith.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0061):** fresh full priority re-scan: `node
+--check` clean on every `src/3d/**/*.js` and `scripts/*.js` file (no syntax error); no blocking bug;
+no file over the 600-line cap (`gameplayConfig.js` is the largest at 499/600); full smoke suite
+already at 12/12 (no missing regression coverage); World Coverage already past its gate (96.2%
+desktop, 4.5% mobile — a deliberate ADR-0013 perf-budget constraint, not an open gap); FAZ 7/FAZ 3's
+LOD gap re-confirmed still genuinely tooling-blocked this run (`npx gltf-transform --version`/`npx
+gltfpack --version` both fail — no network access to fetch either package — and no `blender` binary
+on PATH), not assumed from a stale note. With no new syntax/blocking/perf/leak/tech-debt item found,
+moved to priority 9.5: grew `gameplay/worldEvents.js`'s `WORLD_EVENTS` flavor pool from 8 to 12
+entries (`falling_star`, `horse_gallop`, `trade_caravan`, `bell_toll`) — picked over extending the
+FAZ 5 dialogue pilot a 3rd run in a row specifically to rotate priority-order attention (run 46's own
+"Next step" explicitly flagged the event pool as still growable). Config-only; zero changes to
+`createWorldEventSystem`'s picker/timer logic, which already generalizes to any array length.
+
+**Regression guard:** `node --check` clean. Full committed smoke suite — all **12** checks PASS,
+identical to the pre-change baseline (mechanism unchanged, only new config data). **Real
+headless-Chromium proof of the new content specifically:** a 60-seed sweep through the real
+`createWorldEventSystem`/`EventBus` inside the live `game3d.html` page surfaced all 4 new event ids
+alongside the 8 originals (confirms the picker genuinely reaches them, not just that they parse);
+then drove the real `WorldEventToast` component with a `horse_gallop` payload — screenshot shows the
+toast correctly rendering "Nal Sesleri" with its icon and full description text. Zero console errors.
+
+**Memory-leak checklist:** N/A — pure data addition to a frozen array literal, no new allocation,
+listener, or timer.
+
+**Files changed this sub-task:** `src/3d/gameplay/worldEvents.js`, `DECISIONS.md` (new ADR-0061),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~45 new/changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a world-event content addition touches no terrain/streaming/chunk
+logic.**
+
+**Run totals (1 sub-task, run 47):** 3 files touched, ~45 new/changed lines (well under the
+1200-line/25-file budget). One commit, regression-guarded (12/12 smoke suite + a real
+headless-Chromium screenshot of the new content specifically) and pushed directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **FAZ 7 still blocked**
+(re-confirmed this run, not just cited). **FAZ 3's LOD gap remains tooling-blocked**, same class of
+gap. FAZ 5's choice-branching pilot still covers 4 of 14 NPCs (`jon-guard-1` deliberately excluded,
+9 others no fresh reason yet) — a reasonable next pick if this run's own event-pool growth doesn't
+feel like the obvious next rotation target. The world-event pool (12 entries now) could still grow
+further, or gain a UI cooldown/queue if events ever start overlapping visually (not yet observed).
+FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download step.

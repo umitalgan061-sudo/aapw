@@ -4442,3 +4442,77 @@ deliberately excluded, 9 others not yet given a fresh reason to extend to). `gam
 24 lines less headroom than before but is still well under the 600-line cap. FAZ 3's LOD gap remains
 open and now explicitly flagged as tooling-blocked (same class of blocker as FAZ 7), not silently
 skipped.
+
+## ADR-0061: Grow the world-event flavor pool from 8 to 12 entries
+
+**Status:** Accepted (run 47).
+
+**Context:** Fresh Session Snapshot this run: `git fetch` showed the local remote-tracking `origin/
+main` ref was stale (cached at a much older pre-3D-mode commit) while the real remote `main` already
+matched — same harmless "stale cache, no actual divergence" pattern documented in run 40's own
+snapshot notes, resolved the same way (`git checkout -B main origin/main`). The run's own stored
+prompt asked for two items — lake-water flicker and an F4 debug free-fly camera — both already
+verified shipped 6 runs ago (run 40, ADR-0048/ADR-0049): confirmed via `git log`/`DECISIONS.md` and a
+clean 12/12 smoke-suite pass (including `checkWaterVertexShaderStatic` and `checkFreeCamera`
+specifically), not just taking the file's own claim on faith. A fresh full-priority re-scan found: no
+syntax error (`node --check` clean across every `src/3d/**/*.js` and `scripts/*.js`), no blocking bug,
+no file over the 600-line cap, no new tech debt, smoke coverage already complete (12/12), World
+Coverage already past its gate (96.2% desktop). FAZ 7/FAZ 3-LOD remain genuinely tooling-blocked —
+re-confirmed directly this run (`npx gltf-transform --version` / `npx gltfpack --version` both fail
+with no network access to fetch the package; no `blender` binary on PATH), not assumed. With
+priority 9 (FAZ 5 dialogue pilot) having just grown last run (46) and priority 9.5 (`gameplay/
+worldEvents.js`'s flavor pool, explicitly flagged in run 46's "Next step" as still growable)
+untouched since its own introduction (run 45, ADR-0056/ADR-0059 era), this run picks priority 9.5 to
+keep priority-order rotation honest rather than growing the same system three runs in a row.
+
+**Decision:** `gameplay/worldEvents.js`'s `WORLD_EVENTS` array grows from 8 to 12 entries: `falling_star`
+(🌠 a shooting star, read as an omen), `horse_gallop` (🐎 distant hoofbeats — a deliberate nod to
+`ANIMAL_CONFIG`'s now-live `ivory_stallion` horse, though the event itself is world-flavor text, not
+tied to the real horse entity's position/state), `trade_caravan` (🛒 a merchant caravan approaching),
+and `bell_toll` (🔔 an ambiguous castle bell — watch-change or warning, left open). Same object shape
+as every existing entry (`{id, icon, title, desc, color}`), same original-prose/no-show-media
+constraint, zero code changes to `createWorldEventSystem`'s picker/timer logic (`Math.floor(random() *
+WORLD_EVENTS.length)` already generalizes to any array length).
+
+**Reasoning:**
+- **Config-only, zero picker-logic risk:** `createWorldEventSystem` never hardcodes the array's
+  length or any specific index/id — `scripts/game3dSmokeChecksScene.js`'s `checkWorldEvents` already
+  asserts determinism/timing/payload-shape generically (two same-seeded systems agree on their first
+  *whatever* event, not a fixed expected id), so growing the pool needed no test changes to stay
+  green.
+- **4 new, not doubling to 16+, matching this project's own incremental-growth precedent:** ADR-0058/
+  ADR-0060 grew the dialogue pilot 2 NPCs at a time for the same reason — a smaller batch is easier to
+  proofread for tone/lore-fit than a large one written in a rush.
+- **`horse_gallop` chosen partly to reflect FAZ 6's now-live horse asset:** thematically ties the
+  event pool a little closer to the world's actual current content (a horse now stands at `umit`),
+  without creating any actual coupling — the event fires independently of the real horse entity's
+  existence/position, avoiding a cross-folder dependency `gameplay/worldEvents.js`'s own blast-radius
+  rule (only `gameplay/`, `eventBus.js`, `physics.js`, `input.js`) would otherwise flag.
+- **Why not extend the dialogue pilot again instead:** considered, but priority order exists precisely
+  so one open item doesn't get picked 3 runs running while a different explicitly-flagged one (this
+  one) sits untouched — same rotation discipline ADR-0060 itself used to justify not picking FAZ 3's
+  LOD gap.
+
+**Verified:**
+- `node --check` clean on the one touched file.
+- Line count: `worldEvents.js` 95/600 (up from 91/600) — trivial headroom cost.
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`): **all 12 checks PASS**, identical to
+  the pre-change baseline.
+- **Real headless-Chromium proof of the new content specifically** (not just the already-tested
+  mechanism): a 60-seed sweep through the real `createWorldEventSystem`/`EventBus` inside the live
+  `game3d.html` page surfaced all 4 new ids (`falling_star`/`horse_gallop`/`trade_caravan`/
+  `bell_toll`) alongside the 8 originals — confirms the picker genuinely reaches the new entries, not
+  just that they parse. Then drove the real `WorldEventToast` component (not a stub) with a
+  `horse_gallop` payload — screenshot shows the toast rendering the correct icon/title/description
+  text. Zero console errors.
+
+**Alternatives considered:**
+- *Extend the FAZ 5 dialogue pilot again (5th/6th NPC)* — rejected this run specifically to rotate
+  priority-9/9.5 attention, not because it's a worse task in isolation.
+- *Add a 5th+ new event to push the pool further* — rejected: 4 is enough to prove/exercise the growth
+  path this run without risking rushed, lower-quality prose (same reasoning ADR-0058/ADR-0060 already
+  applied to dialogue growth).
+
+**Consequences:** The world-event flavor pool is now 12 entries (was 8), still config-only with no
+per-kingdom economy/stats hook (unchanged design boundary from ADR-0056). FAZ 3's LOD gap and FAZ 7
+remain open, both re-confirmed (not just assumed) still tooling-blocked this run.
