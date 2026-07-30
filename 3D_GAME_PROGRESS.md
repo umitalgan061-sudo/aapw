@@ -4301,6 +4301,51 @@ immediately); the active path's DOM write is throttled to 4/sec, not every frame
 (6.25 km² / 137.5 km²) mobile — a new debug-only panel touches no terrain/streaming/chunk logic;
 it now exists as the real instrumentation the *next* World Coverage attempt needs to be safe.**
 
+**Sub-task 3 — decision and work (DECISIONS.md ADR-0054), continued after a second "Devam et":**
+priority 7 (missing smoke-test/regression coverage) for sub-task 2's own F2 panel, which so far only
+had this run's throwaway verification screenshot script. New `checkPerfPanel` in
+`game3dSmokeChecksScene.js` (same isolation pattern as `checkFreeCamera`, a synthetic fake
+`renderer` object standing in for a real `WebGLRenderer`): asserts inactive-by-default/no-op, the
+refresh throttle, a live re-read of `renderer.info`, the over-budget flag, F2 toggle, `dispose()`
+removing the DOM node, and that `isMobileClass` really swaps in the mobile budget. `smokeTestGame3D.js`
+now runs **11** checks (was 10).
+
+**Regression guard:** `node --check` clean on both files. Full smoke suite — all 11 checks PASS.
+**Confirmed to catch a real regression, not just pass on the happy path** (this project's own
+established standard, ADR-0042/ADR-0050): temporarily patched `perfPanel.js`'s F2 handler to always
+activate (never deactivate), re-ran the suite — `checkPerfPanel` correctly failed with
+`deactivatedOnSecondF2: false, hiddenAfterSecondF2: false`, every other assertion still `true`.
+Source file restored immediately after — `git diff --stat` confirmed byte-identical to `HEAD`, then
+re-ran the suite once more to confirm a clean 11/11 PASS. Verification-only edit, never shipped.
+
+**Memory-leak checklist:** N/A — test-infrastructure-only change, no runtime code path touched.
+
+**Files changed this sub-task:** `scripts/game3dSmokeChecksScene.js`, `scripts/smokeTestGame3D.js`,
+`DECISIONS.md` (new ADR-0054), `3D_GAME_PROGRESS.md` (this file). 4 files, ~100 new/changed lines.
+One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 80.7% (111.00 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — test-infrastructure-only, no terrain/streaming touched.**
+
+**Run totals (3 chained sub-tasks, run 41):** 15 files touched across all 3 sub-tasks
+(`src/3d/sceneManager.js`, `src/3d/game3d.js`, `src/3d/debug/perfPanel.js`, `game3d.css`,
+`src/3d/debug/README.md`, `scripts/game3dSmokeChecksScene.js`, `scripts/smokeTestGame3D.js`,
+`ARCHITECTURE.md`, `DECISIONS.md`, `3D_GAME_PROGRESS.md` — well under the 25-file cap) and ~970
+new/changed lines total (well under the 1200-line budget). 3 commits, each regression-guarded (full
+smoke suite plus a real headless-Chromium screenshot or a demonstrated-real-failure-path check).
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Priority 8 (World
+Coverage) now has its real prerequisite (F2's `renderer.info` readout) — a future run could boot
+`game3d.html`, press F2, read the live draw-call/triangle numbers against `DESKTOP_BUDGET`
+(`debug/perfPanel.js`), and use *that* real headroom (not `chunkManager`'s estimate) to decide how
+far `PHASE1_PREVIEW_RADIUS_CHUNKS` can safely grow — this run intentionally left that actual bump
+undone, since it's a separate, real-headroom-dependent decision, not automatically safe just because
+the instrumentation now exists. Other open items unchanged from run 40's own list: FAZ 5/6's
+cart/dog-cat/bird gap (needs a human manual-download step); FAZ 7 (dragons — `verdant_wyrm` ready,
+no code started); priority-9.5 world-events/EventBus expansion (not yet reached across 3 runs now).
+`game3d.js` is at 442/600 lines and `config.js` at 597/600 — both have some headroom now, but
+`config.js`'s is thin; a future addition there may need its own extraction first.
+
 ## Known Issues / Tech Debt
 
 - **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s

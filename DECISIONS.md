@@ -3889,3 +3889,46 @@ actual blocker ADR-0047/ADR-0049 both hit — are real, exact, GPU-reported figu
   architecture (`ARCHITECTURE.md`'s F2/F3 slot) specifically called for; a console-only warning
   wouldn't be visible during the exact "fly around with F4 and watch the numbers" workflow this
   tool exists to support.
+
+## ADR-0054: Persisted regression coverage for ADR-0053's F2 debug/profiling panel
+
+**Status:** Accepted (run 41, third sub-task — continued after a second "Devam et").
+
+**Context:** Priority 7 (missing smoke-test/regression coverage) outranks priority 8/9/9.5/10 in
+this project's own priority order, and ADR-0053's F2 panel had only the ad-hoc headless-Chromium
+screenshot script this run itself wrote and threw away — no persisted check, same gap ADR-0050 fixed
+for ADR-0048/ADR-0049 last run. `game3dSmokeChecksScene.js` (the file that already holds
+`checkFreeCamera`, F4's own equivalent check) had 201/600 lines, comfortable headroom for one more
+check without another split.
+
+**Decision:** New `checkPerfPanel` in `game3dSmokeChecksScene.js`, same isolation pattern
+`checkFreeCamera` already established: builds a real `createPerfPanel` against a synthetic fake
+`renderer` object (`{info: {render: {...}, memory: {...}}}` — only `.info` is ever read, so a plain
+object stands in for a real `WebGLRenderer`). Asserts the full lifecycle: inactive by default and a
+true no-op (no DOM write at all) until F2; the refresh throttle (a call below
+`REFRESH_INTERVAL_SECONDS` doesn't write, a call that crosses it does); a live re-read of
+`renderer.info` (mutated between calls, not captured once at creation); the over-budget `" !"`
+flag; F2 deactivation; `dispose()` actually removing the DOM node; and — a separate instance — that
+`isMobileClass: true` really swaps in `MOBILE_BUDGET` rather than silently accepting and ignoring
+the option (620 draw calls flags over-budget under the 500 mobile cap but would not under desktop's
+2500). `smokeTestGame3D.js` now runs 11 checks total (was 10).
+
+**Verified:**
+- `node --check` clean on both changed files. `game3dSmokeChecksScene.js` grew to 286 lines,
+  `smokeTestGame3D.js` to 150 — both comfortably under the 600-line cap.
+- Full committed smoke suite — all 11 checks PASS.
+- **Confirmed to catch a real regression**, this project's own established standard (ADR-0042/
+  ADR-0050): temporarily patched `perfPanel.js`'s F2 handler to always set `panel.active = true`
+  (never toggle off, simulating a broken deactivate branch), re-ran the suite — `checkPerfPanel`
+  correctly reported `ok: false` with `deactivatedOnSecondF2: false, hiddenAfterSecondF2: false`,
+  every other assertion still `true` (proving the check isolates the specific broken behavior, not
+  a blanket failure). Restored the source file immediately after; `git diff --stat` confirmed
+  byte-identical to `HEAD`, re-ran the suite once more to confirm a clean 11/11 PASS — the patch was
+  verification-only, never part of the shipped change.
+
+**Alternatives considered:**
+- *Skip the "prove it catches a real regression" step, given the earlier headless-Chromium
+  screenshot in ADR-0053 already showed the feature working end-to-end* — rejected: ADR-0050's own
+  standing lesson (from run 40's self-caught mistake) is explicit that a positive-path check proves
+  nothing about whether it *would* catch a break; this run applied that lesson rather than repeating
+  the exact failure mode it exists to prevent.

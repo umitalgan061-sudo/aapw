@@ -10,10 +10,11 @@
  *
  * This file is just the infrastructure (static file server + Playwright bootstrap + result
  * printing). The actual per-feature assertions live in `game3dSmokeChecksScene.js` (page/scene-
- * level: 2D shell load, 3D mode boot, water vertex-shader-has-no-displacement, F4 debug camera) and
- * `game3dSmokeChecks.js` (per-entity gameplay: settlement collider, jump/gravity arc, interaction
- * controller, wolf flee/pack-alert, NPC waypoint patrol, wolf waypoint patrol) — split across two
- * files run 40 (each was approaching the 600-line cap) — see either file's header comment for why.
+ * level: 2D shell load, 3D mode boot, water vertex-shader-has-no-displacement, F4 debug camera, F2
+ * debug/profiling panel) and `game3dSmokeChecks.js` (per-entity gameplay: settlement collider,
+ * jump/gravity arc, interaction controller, wolf flee/pack-alert, NPC waypoint patrol, wolf
+ * waypoint patrol) — split across two files run 40 (each was approaching the 600-line cap) — see
+ * either file's header comment for why.
  *
  * Requires Playwright's Chromium browser (dev-only tooling — this repo intentionally has no
  * `package.json`/build step for the *deployed* site; this script is never loaded by a browser or
@@ -122,6 +123,7 @@ async function main() {
 		results.push(await sceneChecks.check3DMode(browser, baseUrl));
 		results.push(await sceneChecks.checkWaterVertexShaderStatic(browser, baseUrl));
 		results.push(await sceneChecks.checkFreeCamera(browser, baseUrl));
+		results.push(await sceneChecks.checkPerfPanel(browser, baseUrl));
 		results.push(await checks.checkSettlementCollider(browser, baseUrl));
 		results.push(await checks.checkJumpArc(browser, baseUrl));
 		results.push(await checks.checkInteractionController(browser, baseUrl));

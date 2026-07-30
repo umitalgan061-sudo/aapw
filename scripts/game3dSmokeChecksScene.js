@@ -193,9 +193,94 @@ async function checkFreeCamera(browser, baseUrl) {
 	return { name: 'F4 debug free-fly camera (debug/freeCamera.js, ADR-0049)', ok, details };
 }
 
+/**
+ * Guards ADR-0053's F2 debug/profiling panel (`debug/perfPanel.js`): builds a real
+ * `createPerfPanel` against a synthetic fake `renderer` (only `.info` is read, so a plain object
+ * stands in for a real `WebGLRenderer` — same isolation pattern `checkFreeCamera` above already
+ * uses). Asserts the full lifecycle: inactive by default and a true no-op (no DOM write) until F2,
+ * the refresh throttle (no write below `REFRESH_INTERVAL_SECONDS`, a real write once past it),
+ * live re-reads of `renderer.info` (not a value captured once at creation), the over-budget " !"
+ * flag, F2 deactivation, `dispose()` actually removing the DOM node, and — separately — that
+ * `isMobileClass: true` really switches to `MOBILE_BUDGET`, not just accepting the option and
+ * ignoring it (620 draw calls flags over-budget on mobile's 500 cap but would not on desktop's
+ * 2500 one, so this also proves the budget object itself is being read, not hardcoded).
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkPerfPanel(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createPerfPanel } = await import('/src/3d/debug/perfPanel.js');
+			const fakeRenderer = { info: { render: { calls: 0, triangles: 0 }, memory: { geometries: 0, textures: 0 } } };
+			const panel = createPerfPanel({ renderer: fakeRenderer, isMobileClass: false });
+			const el = document.querySelector('.g3d-perf-panel');
+
+			const inactiveInitially = panel.active === false;
+			const hiddenInitially = el.hidden === true;
+			fakeRenderer.info.render.calls = 999; // must not leak into the DOM while inactive.
+			panel.update(1);
+			const noWriteWhileInactive = el.textContent === '';
+
+			window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F2' }));
+			const activatedOnF2 = panel.active === true;
+			const domVisibleOnActivate = el.hidden === false;
+
+			fakeRenderer.info.render.calls = 100;
+			fakeRenderer.info.render.triangles = 200000;
+			fakeRenderer.info.memory.geometries = 5;
+			fakeRenderer.info.memory.textures = 3;
+			panel.update(0.1); // below the refresh throttle — must not write yet.
+			const throttledNoWriteBelowInterval = el.textContent === '';
+			panel.update(0.2); // cumulative 0.3s, past the 0.25s throttle — must write now.
+			const text1 = el.textContent;
+			const writesAfterThrottleInterval = text1.includes('Draw calls: 100 / 2500 (Desktop)')
+				&& text1.includes('Triangles: 200,000 / 5,000,000 (Desktop)')
+				&& text1.includes('Geometries: 5') && text1.includes('Textures: 3');
+
+			fakeRenderer.info.render.calls = 3000; // over DESKTOP_BUDGET.maxDrawCalls (2500).
+			panel.update(0.3); // past the throttle again (reset after the last write).
+			const overBudgetFlagged = el.textContent.includes('/ 2500 (Desktop) !');
+
+			window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F2' }));
+			const deactivatedOnSecondF2 = panel.active === false;
+			const hiddenAfterSecondF2 = el.hidden === true;
+
+			panel.dispose();
+			const disposedRemovesDom = document.querySelector('.g3d-perf-panel') === null;
+
+			// Separate instance: confirms isMobileClass really swaps in MOBILE_BUDGET (620 draw
+			// calls only flags over-budget under the 500 mobile cap, not the 2500 desktop one).
+			const fakeMobileRenderer = { info: { render: { calls: 620, triangles: 0 }, memory: { geometries: 0, textures: 0 } } };
+			const mobilePanel = createPerfPanel({ renderer: fakeMobileRenderer, isMobileClass: true });
+			const mobileEl = document.querySelector('.g3d-perf-panel');
+			window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F2' }));
+			mobilePanel.update(0.3);
+			const mobileBudgetUsed = mobileEl.textContent.includes('/ 500 (Mobile) !');
+			mobilePanel.dispose();
+
+			return {
+				inactiveInitially, hiddenInitially, noWriteWhileInactive, activatedOnF2, domVisibleOnActivate,
+				throttledNoWriteBelowInterval, writesAfterThrottleInterval, overBudgetFlagged,
+				deactivatedOnSecondF2, hiddenAfterSecondF2, disposedRemovesDom, mobileBudgetUsed,
+			};
+		});
+	} catch (error) {
+		result = { error: String(error) };
+	}
+	await page.close();
+	const ok = result && Object.values(result).every((value) => value === true);
+	const details = ok
+		? 'inactive by default, no-ops while inactive, F2 activates/deactivates, refresh-throttled writes, over-budget flag, dispose removes DOM, isMobileClass swaps in the mobile budget'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'F2 debug/profiling panel (debug/perfPanel.js, ADR-0053)', ok, details };
+}
+
 module.exports = {
 	check2DShell,
 	check3DMode,
 	checkWaterVertexShaderStatic,
 	checkFreeCamera,
+	checkPerfPanel,
 };
