@@ -472,7 +472,8 @@ export async function initGame3D() {
 			const delta = state.clock.getDelta();
 			state.elapsedSeconds += delta;
 
-			const axes = combineAxes(state.keyboardInput.getAxes(), state.touchJoystick?.getAxes() ?? null);
+			const keyboardAxes = state.keyboardInput.getAxes();
+			const axes = combineAxes(keyboardAxes, state.touchJoystick?.getAxes() ?? null);
 			const moveDirection = computeCameraRelativeMove(state.camera, state.controls, axes);
 			// OrbitControls computes its offset as (camera.position - target) every update() call —
 			// moving `target` alone (without moving `camera.position` by the same amount) cancels
@@ -482,7 +483,9 @@ export async function initGame3D() {
 			// preserves the user's current orbit/zoom offset while actually chasing the player.
 			const previousTargetX = state.controls.target.x;
 			const previousTargetZ = state.controls.target.z;
-			state.player.update(delta, moveDirection, axes.running);
+			// Jump is keyboard-only for now (`touchJoystick.js` has no jump button yet — see
+			// 3D_GAME_PROGRESS.md Known Issues) — read straight off `keyboardAxes`, not the merged `axes`.
+			state.player.update(delta, moveDirection, axes.running, keyboardAxes.jumpRequested);
 			for (const npc of state.npcs) npc.update(delta);
 			// player.update() above already moved player.object3D synchronously this frame, so this
 			// read is current — safe to feed into each animal's flee-awareness check below.

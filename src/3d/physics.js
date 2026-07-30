@@ -5,9 +5,8 @@
  * `world/terrain.js` owns the actual height-field math (the same FBM sampler `world/rivers.js`
  * traces its downhill path over) — this module exists so gameplay code depends on "physics", not
  * directly on a world-generation internal, keeping the project's per-folder ownership boundaries
- * clean (see ARCHITECTURE.md). Ground snapping and horizontal castle collision exist; no gravity/
- * velocity simulation or jumping yet — real future work once there's a concrete need, not built
- * speculatively now.
+ * clean (see ARCHITECTURE.md). Ground snapping, horizontal castle collision, and a simple jump/
+ * gravity arc (`integrateJumpArc`, run 36) all live here.
  * @module physics
  */
 
@@ -117,4 +116,29 @@ export function createSettlementCollider(seats, settlementConfig, playerRadiusMe
 			return { x, z };
 		},
 	};
+}
+
+/**
+ * One frame of a simple ballistic jump arc, expressed as height *above the ground* rather than an
+ * absolute world Y — this way a caller (`gameplay/player.js`) can add the result on top of
+ * whatever `getGroundHeight` reports at the character's *current* XZ every frame, so normal
+ * walking (which already snaps straight to ground height) keeps following slopes/steps exactly as
+ * before and this only ever adds an offset on top, never replaces the ground-following behavior.
+ * Pure function, no shared state — a caller owns `heightAboveGroundMeters`/`velocityYMps` between
+ * calls (see `gameplay/player.js`'s `update`).
+ * @param {number} heightAboveGroundMeters Current height above the ground, meters (0 when standing).
+ * @param {number} velocityYMps Current vertical velocity, m/s (positive = up).
+ * @param {number} delta Seconds since the last frame.
+ * @param {number} gravityMps2 `PLAYER_CONFIG.GRAVITY_MPS2` — negative (downward acceleration).
+ * @returns {{heightAboveGroundMeters: number, velocityYMps: number, isGrounded: boolean}}
+ *   `isGrounded` is true exactly when the arc has landed back at height 0 this frame (velocity
+ *   reset to 0 too) — the caller uses this to gate whether a new jump can start.
+ */
+export function integrateJumpArc(heightAboveGroundMeters, velocityYMps, delta, gravityMps2) {
+	const nextVelocityYMps = velocityYMps + gravityMps2 * delta;
+	const nextHeightAboveGroundMeters = heightAboveGroundMeters + nextVelocityYMps * delta;
+	if (nextHeightAboveGroundMeters <= 0) {
+		return { heightAboveGroundMeters: 0, velocityYMps: 0, isGrounded: true };
+	}
+	return { heightAboveGroundMeters: nextHeightAboveGroundMeters, velocityYMps: nextVelocityYMps, isGrounded: false };
 }

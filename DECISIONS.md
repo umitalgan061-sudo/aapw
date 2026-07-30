@@ -2789,3 +2789,105 @@ the new check correctly reported `FAIL` with the wrong resolved distances (`cent
 castle collider still work correctly," with a demonstrated real failure path for the newer check.
 No new file, no new dependency, no file over the line cap. Same not-wired-into-CI caveat as
 ADR-0034/ADR-0035 (no CI pipeline exists in this repo) — still a manual step.
+
+## ADR-0039: `physics.js`'s `integrateJumpArc` — simple ballistic jump/gravity for the player
+
+**Status:** Accepted (run 36, first sub-task).
+
+**Context:** A fresh Session Snapshot at run 36's start found the repo already clean (all
+`node --check` clean, `scripts/checkAssetsManifest.js`/`scripts/smokeTestGame3D.js` both PASS,
+no file over the 600-line cap, world scale unchanged at 137.5 km²) — priorities 1-7 (syntax error,
+blocking bug, perf-budget overrun, memory leak, tech debt, missing regression coverage, low world
+coverage) had nothing new to act on; mobile's low coverage figure is an already-documented,
+by-design perf-budget tradeoff (ADR-0010/ADR-0013), not a bug. Priority 8 (an active phase's own
+missing subtask) landed on FAZ 4's one remaining named gap: `physics.js`'s own module doc and
+3D_GAME_PROGRESS.md's Known Issues both explicitly called out "no gravity/velocity simulation or
+jumping yet" as separate, still-open work from run 35's *horizontal* castle-wall collider (ADR-0037)
+— a real, bounded, mechanical gap with no manual-asset-download dependency (no jump/fall animation
+clip exists, but the character can still visibly move vertically without one, using its existing
+idle/walk/run clips — see Consequence).
+
+**Decision:** Added `physics.js`'s `integrateJumpArc(heightAboveGroundMeters, velocityYMps, delta,
+gravityMps2)` — a pure function (no shared state, no `THREE.*`) that steps one frame of a simple
+ballistic arc and returns `{heightAboveGroundMeters, velocityYMps, isGrounded}`. Deliberately
+expressed as height *above the ground* rather than an absolute world Y, so `gameplay/player.js` can
+add the result on top of whatever `groundCollider.getGroundHeight()` reports at the player's
+*current* XZ every frame — normal walking (which already snaps straight to ground height every
+frame, following slopes/steps) is completely unaffected: `heightAboveGround` is 0 except during an
+actual jump, so `groundHeight + 0 === groundHeight`, byte-identical to the pre-run-36 behavior.
+`config.js`'s `PLAYER_CONFIG` gained `GRAVITY_MPS2: -20` (snappier than real-world 9.8 — a
+deliberate game-feel choice, not a physics simulation) and `JUMP_SPEED_MPS: 7` (peak height ≈1.2m,
+a small hop, matching FAZ 4's "basit" framing rather than platformer-scale jumps).
+`gameplay/player.js`'s `update()` gained a 4th, optional `jumpRequested` parameter (defaults to
+`false`, so any existing caller passing 3 args is unaffected) — launches a jump
+(`velocityY = JUMP_SPEED_MPS`) only when `jumpRequested` is true *and* the player is currently
+`isGrounded`, so holding the jump key can't chain jumps mid-air. `input.js`'s `KeyboardInput` gained
+Space-key handling: edge-triggered (`jumpRequested` set only on the keydown that *first* presses the
+key, not while held), consumed and cleared by the next `getAxes()` call, so holding Space doesn't
+re-jump every frame. `game3d.js`'s tick loop reads `jumpRequested` straight off the un-merged
+`keyboardAxes` object (computed once per frame, before `combineAxes()`) since jump is deliberately
+keyboard-only for now — `touchJoystick.js` has no jump control (see Consequence).
+
+**Alternatives considered:**
+- *Absolute-Y gravity simulation (mutate `model.position.y` directly with a velocity, ignoring
+  ground height until landing)* — rejected: this would require re-deriving the "am I on a slope"
+  case from scratch (re-sampling ground height at every XZ position during descent, then comparing
+  against the falling Y) and risks subtly breaking the existing, already-correct slope/step-following
+  behavior `hasInput`'s branch relies on. The height-above-ground framing sidesteps this entirely by
+  composing with the existing ground-snap instead of replacing it.
+- *A dedicated jump/fall animation state* — rejected for this pass: no such clip was ever downloaded
+  (only `idle`/`walking`/`running` exist for `peasant_girl`), and fabricating one isn't possible per
+  this project's asset constraint (no synthetic animation generation, only real downloaded/CC0
+  clips). The character keeps its current `idle`/`walking`/`running` pose while airborne — visually
+  imperfect but honest, flagged in Known Issues rather than silently left unmentioned.
+- *Wiring jump into `touchJoystick.js` too, this same run* — rejected as scope creep for one atomic
+  sub-task: the joystick UI has no spare control surface for a jump button today, and adding one is
+  itself a UI-design decision (button placement, sizing, discoverability) deserving its own pass,
+  not squeezed into a physics sub-task. Flagged in Known Issues as a real, scoped-out mobile gap.
+- `GRAVITY_MPS2`/`JUMP_SPEED_MPS` *magnitudes* — chosen for a small, quick hop (peak ≈1.2m, full arc
+  ≈0.7s) appropriate for "step over uneven ground," not a platforming mechanic; easy to retune later
+  since both are named `PLAYER_CONFIG` constants, no magic numbers in `physics.js`/`player.js` itself.
+
+**Verified:**
+1. `node --check` clean on every touched file: `config.js` (528 lines), `physics.js` (144 lines),
+   `input.js` (72 lines), `gameplay/player.js` (137 lines), `game3d.js` (582 lines) — all
+   comfortably under the 600-line cap. `node scripts/checkAssetsManifest.js` still exits 0 (no
+   asset files touched). `node scripts/smokeTestGame3D.js` PASS on all checks before and after.
+2. **A real edge case found and fixed during design, not left implicit:** standing still
+   (`heightAboveGroundMeters=0, velocityYMps=0`) must stay grounded at height 0, not drift — traced
+   through the math by hand (`0 + gravity*delta` is negative, `0 + negative*delta` is negative,
+   `<= 0` triggers the grounded-clamp branch) and confirmed via the committed test below rather than
+   assumed.
+3. **Isolated math, run in-browser** (same real-import-map pattern ADR-0037/ADR-0038 established —
+   `physics.js` has no non-browser test harness): standing still stays grounded at height 0; a full
+   jump arc, stepped frame-by-frame exactly like `player.js`'s own loop, peaks within the
+   discretization-error tolerance of the closed-form ballistic height (`v²/(2·|g|)` ≈1.225m, observed
+   ≈1.167m — semi-implicit Euler integration systematically undershoots the true continuous peak by a
+   small, delta-dependent amount, not a bug), lands (never goes negative during flight), and takes
+   the closed-form flight time (`2v/|g|` ≈0.7s ≈42 frames at 60fps) within ±3 frames.
+4. **Fault injection, not just the happy path:** temporarily zeroed `gravityMps2` inside
+   `integrateJumpArc` (a jump that never comes down) — the new check correctly failed (never landed
+   within 600 simulated frames, wildly wrong peak), while the settlement-collider and boot checks
+   stayed PASS (isolated failure signal, not a cascade). Restored `physics.js` immediately after;
+   `diff` against a pre-edit backup confirmed a byte-identical restore.
+5. **Live integration sanity**, real headless-Chromium session against the actual assembled game
+   (`game3d.html`, not an isolated module import): pressed and released Space during normal
+   gameplay — zero console/page errors, confirming the new `jumpRequested` wiring through
+   `input.js`/`game3d.js`/`player.js` doesn't break the real boot/movement path, the much more
+   common case than an isolated unit test alone would prove.
+
+**Memory-leak checklist:** No new `THREE.*` allocation, event listener, or timer — `integrateJumpArc`
+is pure per-call arithmetic; `input.js`'s jump state is a single boolean field on an object that
+already exists and is already cleared in `dispose()`.
+
+**Performance:** O(1) per frame, no allocation — negligible against any per-frame budget, same
+reasoning as ADR-0037's collider.
+
+**Consequence:** The player can now jump (Space, desktop keyboard only) with gravity pulling them
+back down, composing cleanly with existing ground-height/slope-following and the settlement
+collider (a jump doesn't bypass the horizontal castle collider — `resolveXZ` still runs on the
+horizontal move before the vertical arc is applied). FAZ 4's own remaining named gap
+("no gravity/jump ... physics") is now closed — FAZ 4 has no further known mechanical gaps.
+Real, honestly-scoped remaining items: no jump/fall animation clip (visual-only limitation, reuses
+existing poses); no mobile/touch jump control (`touchJoystick.js` unchanged this run); jump height/
+gravity feel is a first-pass tuning, not focus-tested.

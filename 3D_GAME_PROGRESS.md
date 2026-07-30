@@ -23,9 +23,11 @@ KayKit, etc.) are used for `assets/`.
   camera, snaps to real terrain height (`physics.js`), and the existing `OrbitControls` instance
   becomes its chase camera with wall-avoidance raycasting (`camera.js`'s `resolveCameraCollision`,
   run 19) pulling it in front of any terrain/castle it would otherwise clip through — see
-  DECISIONS.md ADR-0016/ADR-0017/ADR-0018. The remaining FAZ 4-adjacent gap (no gravity/jump/
-  wall-collider *physics* — a player can still walk through a castle wall, only the *camera* now
-  avoids clipping) is a deliberately separate future item, not blocking FAZ 4's own gate. **FAZ 5
+  DECISIONS.md ADR-0016/ADR-0017/ADR-0018. **The FAZ 4-adjacent gaps this note used to track are
+  now both closed:** the horizontal wall-collider landed run 35 (`physics.js`'s
+  `createSettlementCollider`, ADR-0037) and gravity/jump landed run 36 (`physics.js`'s
+  `integrateJumpArc`, ADR-0039 — Space, desktop keyboard only, a small ≈1.2m hop, no dedicated
+  jump/fall animation clip). **FAZ 5
   (Kalabalık/NPC) started run 20, extended run 21, patrol added run 22, name-tag UI added run 23,
   patrol extended to all 6 NPCs run 24, 4 more seats added run 25, 11th NPC added run 31:** run 20
   placed a first pass of 2 static, idling NPCs (`gameplay/npc.js`) at the Stannis Baratheon kingdom
@@ -66,15 +68,16 @@ KayKit, etc.) are used for `assets/`.
   off wolf-1 -> wolf-3 pack-flees off wolf-2, one frame later) via a direct-call test with a
   negative control — see DECISIONS.md ADR-0030. See "This Run (run 29)"/"This Run (run 30)" below
   and DECISIONS.md ADR-0025/ADR-0026/ADR-0027/ADR-0028/ADR-0029/ADR-0030.
-- **Last Update:** 2026-07-30 (run 33)
-- **Last Commit:** run 33's FAZ 5 dialogue open/close — new `ui/dialogueBox.js` +
-  `gameplay/interaction.js` (extracted from `game3d.js` to stay under the 600-line cap), `npc.js`'s
-  returned controller gained a `displayName` field, pressing E near an NPC now opens a generic
-  greeting, Escape or E again closes it, walking out of range auto-closes it — DECISIONS.md
-  ADR-0033. Preceded by run 32's FAZ 5 interaction affordance (new `ui/interactionPrompt.js` +
-  `config.js`'s `INTERACTION_CONFIG` — ADR-0032), run 31's FAZ 5 11th NPC (`xaro-guard-1` at the
-  `Xaro`/Qarth kingdom seat — ADR-0031), and run 30's FAZ 6 3rd wolf + chain verification
-  (`berkalp-wolf-3`, verifying the 3-hop pack-alert chain actually propagates — ADR-0030).
+- **Last Update:** 2026-07-30 (run 36)
+- **Last Commit:** run 36's second sub-task, extending `scripts/smokeTestGame3D.js` with a
+  jump/gravity-arc regression check (DECISIONS.md ADR-0040). Preceded by run 36's first sub-task,
+  FAZ 4's gravity/jump physics (`physics.js`'s `integrateJumpArc`, ADR-0039 — closes FAZ 4's last
+  named mechanical gap); run 35's player-vs-castle collider + its own smoke-test extension
+  (ADR-0037/ADR-0038); run 34's asset-manifest check, persisted smoke test, and the last 3 FAZ 5
+  NPC seats (ADR-0034/ADR-0035/ADR-0036); run 33's FAZ 5 dialogue open/close (`ui/dialogueBox.js` +
+  `gameplay/interaction.js`, ADR-0033); run 32's FAZ 5 interaction affordance (ADR-0032); run 31's
+  FAZ 5 11th NPC (`xaro-guard-1` at `Xaro`/Qarth, ADR-0031); run 30's FAZ 6 3rd wolf + pack-alert
+  chain verification (ADR-0030). See "This Run (run 36)" below for full details.
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
   correct, no change made (twenty-seventh straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
@@ -412,7 +415,10 @@ Triangles<500K, TextureMem<512MB.
   ile doğrulandı.
 - [x] Zemin çarpışması (`physics.js`) — `createGroundCollider(seed)`, `world/terrain.js`'in
   `createHeightSampler`'ını sarmalıyor; oyuncu her adımda gerçek arazi yüksekliğine yapışıyor.
-  Yerçekimi/zıplama/duvar çarpışması yok — henüz gerçek bir ihtiyaç yok (bkz. ADR-0016).
+  Kale duvar çarpışması run 35'te eklendi (`createSettlementCollider`, ADR-0037). **Yerçekimi/
+  zıplama run 36'da eklendi** (`physics.js`'in `integrateJumpArc`'ı, ADR-0039) — Space tuşu (sadece
+  masaüstü klavye) basit bir balistik zıplama tetikliyor, karakter havadayken mevcut yer
+  yapışmasının üstüne bir "yerden yükseklik" ofseti biniyor, eğim/basamak takibi bozulmuyor.
 - [x] CC0 rigli insan + animasyon blending (Mixamo) — `gameplay/player.js`, `peasant_girl.fbx` +
   idle/walking/running klipleri aynı Mixamo iskeletine retarget edilip `THREE.AnimationMixer` ile
   hıza göre crossfade ediliyor.
@@ -3472,6 +3478,75 @@ note the *horizontal* castle-wall gap this run closed is a different, now-resolv
 one). A fresh priority-order scan next run may land on any of these or on a newly-introduced gap —
 don't assume this list is exhaustive without re-deriving it.
 
+## This Run (2026-07-30, run 36)
+
+**Session Snapshot at container boot:** repo was clean, `HEAD` detached at run 35's own final
+commit (`bdba1a1`, ADR-0038's smoke-test extension) with local `main` still pointing at the
+pre-3D-mode commit (`38e09e7`) — the same recurring container-restart pattern documented in this
+file's "Repo-continuity note" (runs 18/29/30/34). Confirmed `origin/main` already matched the
+detached `HEAD` (the push had succeeded); fast-forwarded local `main`
+(`git checkout main && git merge origin/main --ff-only`) — no rewrite, no force. Re-read
+`3D_GAME_PROGRESS.md`'s Current Status/Roadmap/Known Issues and `DECISIONS.md`'s last 3 ADRs
+(0037/0038 plus 0036). `node --check` clean on every non-vendor `.js` file, no file over the
+600-line cap (`game3d.js` largest at 579), `node scripts/checkAssetsManifest.js` exits 0, and
+`node scripts/smokeTestGame3D.js` PASS on all 3 checks (2D shell, 3D mode, settlement collider) —
+all taken as this run's pre-subtask Regression Guard baseline. World scale re-derived once more from
+`config.js` — still 137.5 km², no change (twenty-ninth straight confirmation).
+
+**Priority-order scan:** no syntax error, blocking bug, perf-budget overrun, or memory leak found.
+No fresh tech-debt item beyond what runs 34-35 already closed (asset-manifest check, persisted
+smoke test, settlement collider + its own regression check). Missing smoke-test coverage was
+already closed for everything landed so far. Mobile's 4.5% world-coverage figure is unchanged and
+still a documented, by-design perf-budget tradeoff (ADR-0010/ADR-0013), not a bug to chase.
+Priority 8 (the active phase's own missing subtask) found FAZ 4's one remaining named mechanical
+gap, called out explicitly in this file's Known Issues and `physics.js`'s own module doc: "no
+gravity/velocity simulation or jumping yet" — separate, still-open work from run 35's *horizontal*
+castle-wall collider. No manual-asset-download dependency (no jump animation clip exists, but
+vertical movement is visible without one using the existing idle/walk/run poses) — picked as this
+run's first atomic sub-task.
+
+**Decision and work (DECISIONS.md ADR-0039):** Added `physics.js`'s `integrateJumpArc` — a pure
+function stepping one frame of a simple ballistic jump arc, expressed as height *above the ground*
+so it composes with (rather than replaces) the existing ground-height snap: 0 height-above-ground
+reproduces the pre-run-36 behavior exactly. `config.js`'s `PLAYER_CONFIG` gained `GRAVITY_MPS2`
+(-20) and `JUMP_SPEED_MPS` (7, peak ≈1.2m). `gameplay/player.js`'s `update()` gained an optional
+4th `jumpRequested` parameter (defaults `false`), launching a jump only when grounded.
+`input.js`'s `KeyboardInput` gained edge-triggered Space handling (`jumpRequested`, set once per
+press, cleared on read) so holding the key doesn't chain-jump. `game3d.js`'s tick loop reads
+`jumpRequested` off the un-merged `keyboardAxes` (jump is keyboard-only for now — no mobile
+control yet). See ADR-0039 for full alternatives considered.
+
+**Regression guard — verified beyond `node --check`, with real behavioral proof:**
+1. `node --check` clean on every touched file (`config.js` 528 lines, `physics.js` 144, `input.js`
+   72, `gameplay/player.js` 137, `game3d.js` 582 — all under the 600-line cap).
+   `node scripts/checkAssetsManifest.js` still exits 0. `node scripts/smokeTestGame3D.js` PASS on
+   all 3 existing checks before and after.
+2. **Isolated math**, run in-browser (same real-import-map pattern as ADR-0037/ADR-0038): standing
+   still stays grounded at height 0; a full stepped jump arc (same per-frame loop shape as
+   `player.js`'s own `update()`) peaks within a discretization-aware tolerance of the closed-form
+   ballistic height, lands without ever going negative, and takes the closed-form flight time
+   within ±3 frames.
+3. **A real ad hoc verification, temporarily zeroing gravity inside `integrateJumpArc`** — the
+   isolated test correctly showed the arc never landing (peak wildly wrong, never returns to
+   grounded) — confirming the test actually exercises the failure path, not just the happy path.
+   Restored immediately; `diff` against a pre-edit backup confirmed a byte-identical restore.
+4. **Live integration sanity**, real headless-Chromium session against the actual assembled game
+   (`game3d.html`): pressed and released Space during normal gameplay — zero console/page errors,
+   confirming the new wiring through `input.js`/`game3d.js`/`player.js` doesn't break the real
+   boot/movement path.
+
+**Memory-leak checklist:** No new `THREE.*` allocation, event listener, or timer —
+`integrateJumpArc` is pure per-call arithmetic; `input.js`'s jump flag is one boolean field on an
+object whose `dispose()` already runs on teardown (now also clears the new field).
+
+**Files changed this sub-task:** `src/3d/config.js`, `src/3d/physics.js`, `src/3d/input.js`,
+`src/3d/gameplay/player.js`, `src/3d/game3d.js`, `ARCHITECTURE.md`, `DECISIONS.md` (new ADR-0039),
+`3D_GAME_PROGRESS.md` (this file). 8 files, ~65 new lines of code plus documentation. One commit.
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged (this sub-task adds vertical player movement only,
+touches no terrain/streaming/rendering geometry or chunk count).**
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -3547,6 +3622,16 @@ don't assume this list is exhaustive without re-deriving it.
   never permanently shrunk. **~~Still open: player can still walk through castle walls~~ — fixed
   run 35** (`physics.js`'s `createSettlementCollider`, DECISIONS.md ADR-0037) — see the settlements
   collider item below for the shape/verification details.
+- **~~FAZ 4's own remaining gap: no gravity/jump physics~~ — fixed run 36** (`physics.js`'s
+  `integrateJumpArc`, DECISIONS.md ADR-0039). Space (desktop keyboard only — `input.js`'s
+  `KeyboardInput`, edge-triggered so holding it doesn't chain-jump) launches a small ≈1.2m ballistic
+  hop; gravity (`PLAYER_CONFIG.GRAVITY_MPS2`) pulls the player back down, composing with the
+  existing ground-height snap (0 height-above-ground reproduces the pre-run-36 behavior exactly, so
+  slope/step-following is unaffected) and the settlement collider (horizontal movement is still
+  resolved through `resolveXZ` before the vertical arc). **Still open:** no jump/fall animation clip
+  (none was ever downloaded — the character keeps its current idle/walk/run pose while airborne);
+  `ui/touchJoystick.js` has no jump control yet (mobile/touch players can't jump); jump height/
+  gravity feel is a first-pass tuning value, not focus-tested against real gameplay.
 - **FAZ 5's NPCs exist at 13 of 14 kingdom seats now, with no real dialogue content (open/close
   now works since run 33, but the greeting itself is one generic line, not per-NPC content).**
   `NPC_CONFIG.SPAWNS` places 14 NPCs across `stannis` (2), `umit`, `cersei`, `berkalp`, `doran`,

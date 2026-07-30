@@ -272,38 +272,43 @@ the way it is.
   (no per-frame allocation) against a small caller-supplied candidate list — see `game3d.js`'s
   `collectCameraCollidables` entry below for what's actually tested.
 
-## `src/3d/physics.js` — Ground- and settlement-collision resolution (FAZ 4 / FAZ 3, run 35)
+## `src/3d/physics.js` — Ground- and settlement-collision resolution, plus jump/gravity (FAZ 4 / FAZ 3, run 35; jump arc added run 36)
 
 - **Depends on:** `world/terrain.js` (`createHeightSampler`) — the one exception to "gameplay code
   doesn't reach into `world/` directly": this module exists specifically so *other* gameplay code
-  gets that indirection instead. `createSettlementCollider` (run 35) depends on nothing beyond its
-  own arguments — no import of `world/settlements.js` itself; the caller passes the same `seats`
-  array and `SETTLEMENT_CONFIG` that module's `createSettlements` already returned/consumed, so the
-  collider always matches what was actually rendered without a second source of truth.
+  gets that indirection instead. `createSettlementCollider` (run 35) and `integrateJumpArc` (run 36)
+  depend on nothing beyond their own arguments — no import of `world/settlements.js`/`config.js`;
+  the caller passes in whatever state/config it owns, so this stays a pure-function toolbox.
 - **Used by:** `game3d.js` (`createGroundCollider`, also feeds `world/rivers.js`'s
   `generateRiverPath` and `world/settlements.js`'s `createSettlements` their height sampler now —
   one shared instance per scene instead of three independent ones; `createSettlementCollider`, one
   shared instance built from `settlementsResult.seats`) and `gameplay/player.js`
   (`getGroundHeight` every movement step; `settlementCollider.resolveXZ` before that, when a
-  collider was passed in).
+  collider was passed in; `integrateJumpArc` every frame, run 36, to layer a jump arc on top of the
+  ground-height snap without disturbing it).
 - **Critical path:** no — pure synchronous math, cannot fail at runtime.
 - **Failure mode:** none (same as `world/terrain.js`'s own height sampler).
-- **Scope, deliberately minimal:** ground-height snapping plus a "basit" (simple) horizontal
-  castle collider (axis-aligned box for the keep, a circle per corner tower, both grown by a small
-  player-radius margin) — see DECISIONS.md ADR-0037. Still no gravity/velocity simulation or
-  jumping — real future work once a concrete need exists, not built speculatively now.
+- **Scope, deliberately minimal:** ground-height snapping, a "basit" (simple) horizontal castle
+  collider (axis-aligned box for the keep, a circle per corner tower, both grown by a small
+  player-radius margin — DECISIONS.md ADR-0037), and a simple ballistic jump/gravity arc expressed
+  as height-above-ground so it composes with ground snapping instead of replacing it (DECISIONS.md
+  ADR-0039). No general rigid-body physics engine — not needed for this project's scope.
 
-## `src/3d/input.js` — Keyboard input (FAZ 4)
+## `src/3d/input.js` — Keyboard input (FAZ 4; edge-triggered jump added run 36)
 
 - **Depends on:** nothing (reads `window` keydown/keyup events, passed in as a constructor param
   for testability).
 - **Used by:** `game3d.js` (`KeyboardInput`, read once per frame via `getAxes()`).
-- **Critical path:** no — if input never registers, the player just never moves (a stationary
-  character is a safe degraded state, not a crash).
+- **Critical path:** no — if input never registers, the player just never moves/jumps (a
+  stationary character is a safe degraded state, not a crash).
 - **Failure mode:** none — plain `Set` membership tracking, cannot throw.
-- **Camera-agnostic by design:** returns input-local `{forward, strafe, running}`, not a
-  world-space direction — `game3d.js` combines this with the camera's facing itself (see
-  `game3d.js`'s own entry below). Touch/joystick input lives separately in `ui/touchJoystick.js`.
+- **Camera-agnostic by design:** returns input-local `{forward, strafe, running, jumpRequested}`,
+  not a world-space direction — `game3d.js` combines this with the camera's facing itself (see
+  `game3d.js`'s own entry below). Touch/joystick input lives separately in `ui/touchJoystick.js`
+  and (run 36) has no jump control yet — see 3D_GAME_PROGRESS.md's Known Issues.
+- **`jumpRequested` is edge-triggered, not level-triggered:** true for exactly one `getAxes()` call
+  per Space keydown (reset on read), so a held Space key doesn't launch a jump every frame — the
+  one-shot flag is set in `_onKeyDown` only the first time `Space` enters the held-keys set.
 
 ## `src/3d/ui/touchJoystick.js` — On-screen touch joystick (FAZ 4, run 18)
 
@@ -368,17 +373,28 @@ HUD/inventory/debug panels)
 - **Critical path:** varies per file — see each file's own entry above.
 - **Failure mode:** varies per file.
 
-## `src/3d/gameplay/player.js` — Playable character (FAZ 4)
+## `src/3d/gameplay/player.js` — Playable character (FAZ 4; jump/gravity added run 36)
 
 - **Depends on:** `three` (vendored, dynamic-imports `FBXLoader` via `assetLoader.js`),
   `config.js` (`PLAYER_CONFIG`), `assetLoader.js` (`loadFBXModel`, and the static
-  `disposeObject3D` helper on teardown). Takes `groundCollider` and, since run 35, an optional
-  `settlementCollider` (both `physics.js`) and a pre-computed world-space movement direction as
-  parameters rather than importing any of them — see `gameplay/README.md`'s Conventions for why
-  (keeps this folder reusable if the camera system is ever replaced). `settlementCollider` defaults
-  to `null` (a no-op) so a caller with no settlements still works unchanged.
-- **Used by:** `game3d.js` (`createPlayer`, `update()` called every frame, `dispose()` on
-  `pagehide`).
+  `disposeObject3D` helper on teardown), `physics.js` (`integrateJumpArc`, run 36 — the one
+  `import` this module has of `physics.js` itself; `groundCollider`/`settlementCollider` remain
+  dependency-injected, not imported, per `gameplay/README.md`'s Conventions). Takes `groundCollider`
+  and, since run 35, an optional `settlementCollider` (both `physics.js`) and a pre-computed
+  world-space movement direction as parameters rather than importing them — keeps this folder
+  reusable if the camera system is ever replaced. `settlementCollider` defaults to `null` (a no-op)
+  so a caller with no settlements still works unchanged.
+- **Used by:** `game3d.js` (`createPlayer`, `update(delta, moveDirectionXZ, isRunning,
+  jumpRequested)` called every frame — `jumpRequested` added run 36, defaults to `false` so any
+  existing caller passing 3 args still works unchanged — `dispose()` on `pagehide`).
+- **Jump/gravity (run 36):** `update()` tracks `heightAboveGround`/`velocityY`/`isGrounded` as
+  closure state and calls `physics.js`'s `integrateJumpArc` every frame, adding the result on top
+  of `groundCollider.getGroundHeight()` — 0 height-above-ground (the common case) reproduces the
+  pre-run-36 direct-snap-to-ground behavior exactly, so slope/step-following is unaffected. A jump
+  only launches (`velocityY = PLAYER_CONFIG.JUMP_SPEED_MPS`) when `jumpRequested` is true *and*
+  `isGrounded`, so holding the jump key can't chain jumps mid-air. No dedicated jump/fall animation
+  clip exists (none was downloaded) — the character keeps playing whatever `idle`/`walking`/
+  `running` state it was already in while airborne; see 3D_GAME_PROGRESS.md's Known Issues.
 - **Critical path:** yes for FAZ 4 — if the character fails to load, `assetLoader`'s existing L1
   silent-fallback substitutes a placeholder box (movement/ground-snapping still work on it, just no
   animation) rather than crashing the whole scene.
@@ -647,6 +663,10 @@ HUD/inventory/debug panels)
   device with a keyboard attached can use either input source without one overriding the other.
   `joystickAxes` is `null` on desktop (no `TouchJoystick` instantiated there), in which case this
   just returns `keyboardAxes` unchanged. See `ui/touchJoystick.js`'s entry and ADR-0017.
+  `jumpRequested` (run 36) is deliberately *not* merged by this function — it's keyboard-only for
+  now, so the tick loop reads it straight off the un-merged `keyboardAxes` it already computed
+  before calling `combineAxes`, rather than adding a no-op field here for `touchJoystick.js` to
+  ignore. See DECISIONS.md ADR-0039.
 - **`elapsedSeconds` tracking (changed FAZ 4):** the tick loop now calls `clock.getDelta()` once
   per frame (needed for player movement/animation) and accumulates it into `state.elapsedSeconds`
   itself, instead of calling `clock.getElapsedTime()` separately — avoids the two clock-reads

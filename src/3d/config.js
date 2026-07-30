@@ -150,6 +150,14 @@ export const PLAYER_CONFIG = Object.freeze({
 	/** Turn speed, in radians/second the model rotates toward its movement heading. */
 	TURN_RATE_RADIANS_PER_SECOND: 10,
 	ANIMATION_CROSSFADE_SECONDS: 0.25,
+	/** Downward acceleration, m/s². Deliberately snappier than real-world 9.8 — a common
+	 * game-feel choice (fast, responsive arc) rather than a physically-accurate simulation;
+	 * see `physics.js`'s `integrateJumpArc`. */
+	GRAVITY_MPS2: -20,
+	/** Initial upward velocity, m/s, a jump launches at — peak height is
+	 * `JUMP_SPEED_MPS² / (2 * -GRAVITY_MPS2)` ≈ 1.2m, a small hop over uneven ground/steps,
+	 * not a platformer-scale jump. */
+	JUMP_SPEED_MPS: 7,
 	/** World-space spawn point — the world origin, always inside the boot-preview area on both
 	 * desktop and mobile (see CHUNK_CONFIG), so the player never spawns on an unloaded chunk. */
 	SPAWN_X_METERS: 0,

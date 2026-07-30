@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { PLAYER_CONFIG } from '../config.js';
 import { AssetLoader } from '../assetLoader.js';
+import { integrateJumpArc } from '../physics.js';
 
 /**
  * Loads the character and its animation clips, and returns a small controller object.
@@ -21,7 +22,7 @@ import { AssetLoader } from '../assetLoader.js';
  * @param {{x: number, z: number}} [options.spawn] World-space spawn point.
  * @returns {Promise<{
  *   object3D: THREE.Object3D,
- *   update: (delta: number, moveDirectionXZ: {x: number, z: number}, isRunning: boolean) => void,
+ *   update: (delta: number, moveDirectionXZ: {x: number, z: number}, isRunning: boolean, jumpRequested?: boolean) => void,
  *   dispose: () => void,
  * }>}
  */
@@ -53,6 +54,13 @@ export async function createPlayer({
 	const groundY = groundCollider.getGroundHeight(spawn.x, spawn.z);
 	model.position.set(spawn.x, groundY, spawn.z);
 
+	// Jump/gravity state (`physics.js`'s `integrateJumpArc`) — height is tracked *above* whatever
+	// `groundCollider` reports at the player's current XZ each frame, so ordinary ground-following
+	// (slopes, steps) is untouched: it's 0 except during an actual jump.
+	let heightAboveGround = 0;
+	let velocityY = 0;
+	let isGrounded = true;
+
 	let currentActionName = null;
 	/** Crossfades to `name`'s action; a no-op if it's already the current one or was never loaded. */
 	function playAction(name) {
@@ -74,8 +82,10 @@ export async function createPlayer({
 		 * @param {{x: number, z: number}} moveDirectionXZ Normalized (or zero) world-space direction
 		 *   — already camera-relative, computed by the caller (see this module's doc comment).
 		 * @param {boolean} isRunning
+		 * @param {boolean} [jumpRequested] Edge-triggered — true for at most one `update()` call per
+		 *   jump key press (see `input.js`'s `KeyboardInput.getAxes`). Ignored while airborne.
 		 */
-		update(delta, moveDirectionXZ, isRunning) {
+		update(delta, moveDirectionXZ, isRunning, jumpRequested = false) {
 			const hasInput = moveDirectionXZ.x !== 0 || moveDirectionXZ.z !== 0;
 
 			if (hasInput) {
@@ -87,7 +97,6 @@ export async function createPlayer({
 				}
 				model.position.x = nextX;
 				model.position.z = nextZ;
-				model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
 
 				const targetYaw = Math.atan2(moveDirectionXZ.x, moveDirectionXZ.z);
 				const turnStep = PLAYER_CONFIG.TURN_RATE_RADIANS_PER_SECOND * delta;
@@ -101,6 +110,20 @@ export async function createPlayer({
 			} else {
 				playAction('idle');
 			}
+
+			if (jumpRequested && isGrounded) {
+				velocityY = PLAYER_CONFIG.JUMP_SPEED_MPS;
+				isGrounded = false;
+			}
+			({ heightAboveGroundMeters: heightAboveGround, velocityYMps: velocityY, isGrounded } = integrateJumpArc(
+				heightAboveGround,
+				velocityY,
+				delta,
+				PLAYER_CONFIG.GRAVITY_MPS2,
+			));
+			// Always ground-height + jump-arc offset — 0 offset (the common case) reproduces the old
+			// direct-snap-to-ground behavior exactly, so slope/step-following is unaffected by this change.
+			model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z) + heightAboveGround;
 
 			mixer.update(delta);
 		},

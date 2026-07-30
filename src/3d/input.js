@@ -15,22 +15,31 @@ const BACK_KEYS = new Set(['KeyS', 'ArrowDown']);
 const RIGHT_KEYS = new Set(['KeyD', 'ArrowRight']);
 const LEFT_KEYS = new Set(['KeyA', 'ArrowLeft']);
 const RUN_KEYS = new Set(['ShiftLeft', 'ShiftRight']);
+const JUMP_KEYS = new Set(['Space']);
 
 export class KeyboardInput {
 	/** @param {EventTarget} [target] Defaults to `window`. Passed explicitly so this stays testable. */
 	constructor(target = window) {
 		this._keys = new Set();
+		// Edge-triggered (not "is the key down"), so a held Space doesn't re-jump every frame —
+		// set on the keydown that first presses it, consumed (and cleared) by the next getAxes().
+		this._jumpRequested = false;
 		this._target = target;
-		this._onKeyDown = (event) => this._keys.add(event.code);
+		this._onKeyDown = (event) => {
+			if (JUMP_KEYS.has(event.code) && !this._keys.has(event.code)) this._jumpRequested = true;
+			this._keys.add(event.code);
+		};
 		this._onKeyUp = (event) => this._keys.delete(event.code);
 		target.addEventListener('keydown', this._onKeyDown);
 		target.addEventListener('keyup', this._onKeyUp);
 	}
 
 	/**
-	 * @returns {{forward: number, strafe: number, running: boolean}} `forward`/`strafe` are each
-	 *   -1, 0, or 1 (input-local — positive forward is "the key the player pressed for forward",
-	 *   not a world-space axis). `running` is true while any Shift key is held.
+	 * @returns {{forward: number, strafe: number, running: boolean, jumpRequested: boolean}}
+	 *   `forward`/`strafe` are each -1, 0, or 1 (input-local — positive forward is "the key the
+	 *   player pressed for forward", not a world-space axis). `running` is true while any Shift key
+	 *   is held. `jumpRequested` is true for exactly one `getAxes()` call per Space press (see
+	 *   the constructor's `_onKeyDown`) — reading it clears it, so call this at most once per frame.
 	 */
 	getAxes() {
 		let forward = 0;
@@ -43,10 +52,13 @@ export class KeyboardInput {
 			else if (LEFT_KEYS.has(code)) strafe -= 1;
 			else if (RUN_KEYS.has(code)) running = true;
 		}
+		const jumpRequested = this._jumpRequested;
+		this._jumpRequested = false;
 		return {
 			forward: Math.max(-1, Math.min(1, forward)),
 			strafe: Math.max(-1, Math.min(1, strafe)),
 			running,
+			jumpRequested,
 		};
 	}
 
@@ -55,5 +67,6 @@ export class KeyboardInput {
 		this._target.removeEventListener('keydown', this._onKeyDown);
 		this._target.removeEventListener('keyup', this._onKeyUp);
 		this._keys.clear();
+		this._jumpRequested = false;
 	}
 }
