@@ -15,13 +15,15 @@ here (blast radius rule — if a change needs more than that, it's not a world-s
   `terrain.js`, plus `loadedCount`/`getCoveredAreaKm2()`/`everGeneratedCount`/
   `getCumulativeCoveredAreaKm2()` for World Coverage reporting and `disposeAll()` for teardown.
   Does not evict chunks that fall out of range yet — see `DECISIONS.md` ADR-0003.
-- **`water.js`** — sea-level water. `createWater(waterLevelMeters)` returns one large
-  Gerstner-wave-shaded `THREE.Mesh` plane; `updateWater(mesh, cameraPosition, elapsedSeconds)`
-  re-centers it on the camera and advances the wave animation (call every frame);
-  `disposeWater(mesh)` releases its geometry/material. Deliberately **not** per-chunk and **not**
-  a `ChunkManager`-owned concept — a single plane at a fixed sea level already floods `terrain.js`'s
-  low points into natural lakes/coastline with no terrain changes needed. See `DECISIONS.md`
-  ADR-0005 for the full reasoning and alternatives considered.
+- **`water.js`** — sea-level water. `createWater(waterLevelMeters)` returns one large flat
+  `THREE.Mesh` plane whose fragment shader fakes wave motion via an analytic ripple normal (no
+  vertex displacement — see `DECISIONS.md` ADR-0048, fixed a lake-shoreline flicker a real Gerstner
+  vertex displacement caused over shallow water); `updateWater(mesh, cameraPosition,
+  elapsedSeconds)` re-centers it on the camera and advances the ripple animation (call every
+  frame); `disposeWater(mesh)` releases its geometry/material. Deliberately **not** per-chunk and
+  **not** a `ChunkManager`-owned concept — a single plane at a fixed sea level already floods
+  `terrain.js`'s low points into natural lakes/coastline with no terrain changes needed. See
+  `DECISIONS.md` ADR-0005 for the full reasoning and alternatives considered.
 - **`rivers.js`** — one deterministic downhill-flow river, traced (not carved) over `terrain.js`'s
   height field. `generateRiverPath({seed, sampleHeightMeters, seaLevelMeters, ...})` walks
   steepest-descent from the highest point near the origin down to sea level, returning
