@@ -2246,3 +2246,70 @@ flee/alert). No new tech debt — `packAlertRadiusMeters`/`packmateFleePositions
 additive parameters; every existing call site without them (there are none left, since
 `spawnConfiguredAnimals` now always passes `ANIMAL_CONFIG.PACK_ALERT_RADIUS_METERS`) would still work
 unchanged if a future spawn omitted it.
+
+## ADR-0030: Third wolf at `berkalp` — verifies chained (3-hop) pack-alert propagation
+
+**Context:** ADR-0029's own Consequence section explicitly left "the current pack-alert scope is
+2-wolf-only tested (no test exists yet for 3+ animals reacting in a chain)" as real, scoped-out
+follow-up work, repeated in every run's "Next step" since run 29. `game3d.js`'s tick loop already
+builds each animal's `packmateFleePositions` generically from *every other* `state.animals` entry's
+`isFleeing` getter (`state.animals.filter((other) => other !== animal && other.isFleeing)`, added by
+ADR-0029) — nothing in that loop or in `createWolf`/`update()` assumes exactly 2 animals. This meant
+the flagged gap could be closed as a config-only change (no code edit at all), the clear next atomic
+FAZ 6 slice: no other higher-priority syntax/blocking-bug/perf/memory-leak/tech-debt issue was found
+this run's Session Snapshot (`node --check` clean on every file, no file over the 600-line cap,
+desktop/mobile smoke tests byte-identical to run 29's own numbers).
+
+**Decision:** Added `berkalp-wolf-3` to `ANIMAL_CONFIG.SPAWNS`, reusing the same already-downloaded
+`WOLF_MODEL_URL` (no new asset, no human manual-download step needed). Positioned at offset
+`(56, -6)`, patrolling to `(56, -26)` — deliberately chosen so it sits ~14.4m from `berkalp-wolf-2`
+(inside `PACK_ALERT_RADIUS_METERS`, 20m) but ~28.8m from `berkalp-wolf-1` (outside it), so a real
+3-hop chain (wolf-1 flees the player -> wolf-2 pack-flees off wolf-1 -> wolf-3 pack-flees off wolf-2,
+one frame later, per ADR-0029's own documented one-frame-lag asymmetry) is the *only* path that can
+ever bring wolf-3 into `isFleeing`. The new patrol line (`x=56`, `z` from -6 to -26) was checked
+against both existing wolves' lines and the `berkalp` guard NPCs' own ±12m patrol zone for overlap —
+none found.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- `node --check` clean on `config.js` (the only touched file besides docs).
+- Full smoke test on both device classes: `"Spawned 3 FAZ 6 animal(s)."` on both (up from 2), zero
+  console/page errors, every terrain/settlement/NPC count byte-identical to run 29
+  (`"...444 terrain chunks resident (~111.00 km²)..."` desktop, `"...25 terrain chunks
+  resident...(~6.25 km²)..."` mobile, `"Spawned 10 FAZ 5 NPC(s)."` both) — confirms the new spawn is
+  additive only, nothing else regressed.
+- **A direct-call unit-style chain test** via a temporary debug hook (`window.__debugGame3DState =
+  state`, reverted before commit — confirmed via `git diff` showing zero net change to the committed
+  `game3d.js`), calling all three wolves' `update(delta, playerPosition, packmateFleePositions)`
+  directly with controlled synthetic arguments across 3 successive simulated frames, mirroring
+  exactly how `game3d.js`'s real tick loop builds each frame's `packmateFleePositions`:
+  1. Baseline (player 5000m away, no packmate positions): all three `isFleeing === false`.
+  2. Distance check confirmed the live fixture's real spawn-time distances matched the config
+     comment's math: wolf1↔wolf2 ≈14.42m, wolf2↔wolf3 ≈14.42m, wolf1↔wolf3 ≈28.84m.
+  3. Frame 1 (player placed ~1.4m from wolf-1, empty `packmateFleePositions` for everyone — nobody
+     has fled yet this frame): wolf-1 `isFleeing → true` (direct trigger); wolf-3 stayed `false`.
+     Wolf-2 also read `true` this frame — not via the pack path, but because at this spacing
+     (14.4m apart) the same player position that triggers wolf-1 directly is coincidentally also
+     within wolf-2's own independent 15m direct-trigger radius; a real, harmless overlap of the two
+     wolves' spacing, not a pack-logic bug (confirmed by inspecting `update()`'s direct-trigger term
+     in isolation).
+  4. Frame 2 (wolf-2 now given wolf-1's actual post-frame-1 position as its packmate list; wolf-3
+     still given nothing): wolf-3 stayed `false` — confirms wolf-3 does not react merely because
+     *some* animal somewhere is fleeing; it needs its own in-range packmate to actually flag
+     fleeing first.
+  5. Frame 3 (wolf-3 now given wolf-2's actual post-frame-2 position): wolf-3 `isFleeing → true` —
+     the 3-hop chain completes exactly one frame after wolf-2's own pack-flee, matching ADR-0029's
+     documented one-frame propagation lag.
+  6. **Negative control:** re-ran frame 3's exact setup but handed wolf-3 wolf-1's position (≈28.8m,
+     outside its 20m radius) instead of wolf-2's — wolf-3 stayed `false`, ruling out a bug where any
+     array entry (regardless of distance) would trigger the flee.
+  - Zero console/page errors during the entire test.
+
+**Consequence:** The pack-alert mechanism is now verified to genuinely chain across 3+ animals, not
+just directly-adjacent pairs — closing the exact gap ADR-0029 flagged. Desktop draw calls grow from
+~463 to ~468 (18.7% of the 2500 budget), triangles from ~3.676M to ~3.679M (73.6% of the 5M budget);
+mobile triangles grow from ~212,816 to ~215,564 (43.1% of the 500K budget) — both negligible, no
+budget concern. No new tech debt: `berkalp-wolf-3` follows the exact same `SPAWNS` shape every other
+wolf/NPC entry uses, consumed generically by the existing `spawnConfiguredAnimals`/tick-loop code
+with no special-casing. Real remaining FAZ 6 work, unchanged by this run: the other 3 animal types
+(horses, carts, dogs/cats, birds) still need a human manual-download step each; FAZ 5's own
+player/pack-awareness gap for NPCs remains untouched.

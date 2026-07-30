@@ -40,22 +40,26 @@ KayKit, etc.) are used for `assets/`.
   one.** All five runs reuse `player.js`'s Mixamo FBX-loading/scale-correction/animation-retargeting
   pipeline — see DECISIONS.md
   ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024. **FAZ 6 (Hayvanlar) started run 26, patrol
-  added run 27, flee added run 28, pack-alert added run 29:** a first pass of 2 static, idling wolves
-  (`gameplay/animals.js`, new module) at the `berkalp` (House Stark/Winterfell) kingdom seat, loaded
-  via `AssetLoader.loadModel`'s glTF/GLB path (previously unused dead code — this is the first system
-  to actually exercise it) rather than `loadFBXModel`; run 27 gave both wolves a 20m waypoint patrol,
-  reusing `gameplay/npc.js`'s already-proven `patrolWaypoints` pattern (copied, not shared — see
-  DECISIONS.md ADR-0026's "why duplicate" reasoning); run 28 gave both wolves player-awareness — a
-  wolf within 15m of the player overrides idle/patrol and runs straight away at 4.5 m/s until safe;
-  run 29 gave them pack-awareness — a wolf within 20m of an already-fleeing packmate also flees (away
-  from the player, not the packmate), and (same run) moved the FAZ 5/6 spawn-resolution wiring out of
-  `game3d.js` into `npc.js`/`animals.js` to fix a 600-line-cap regression that run's own Session
-  Snapshot caught. See "This Run (run 29)" below and DECISIONS.md ADR-0025/ADR-0026/ADR-0027/
-  ADR-0028/ADR-0029.
-- **Last Update:** 2026-07-30 (run 29)
-- **Last Commit:** run 29's FAZ 6 pack-alert flee — `gameplay/animals.js`'s `createWolf` gained
-  `packAlertRadiusMeters` and an `isFleeing` getter, `update()` gained a `packmateFleePositions`
-  argument, `config.js`'s `ANIMAL_CONFIG` gained `PACK_ALERT_RADIUS_METERS` — DECISIONS.md ADR-0029.
+  added run 27, flee added run 28, pack-alert added run 29, 3rd wolf + chain verification run 30:**
+  a first pass of 2 static, idling wolves (`gameplay/animals.js`, new module) at the `berkalp` (House
+  Stark/Winterfell) kingdom seat, loaded via `AssetLoader.loadModel`'s glTF/GLB path (previously
+  unused dead code — this is the first system to actually exercise it) rather than `loadFBXModel`;
+  run 27 gave both wolves a 20m waypoint patrol, reusing `gameplay/npc.js`'s already-proven
+  `patrolWaypoints` pattern (copied, not shared — see DECISIONS.md ADR-0026's "why duplicate"
+  reasoning); run 28 gave both wolves player-awareness — a wolf within 15m of the player overrides
+  idle/patrol and runs straight away at 4.5 m/s until safe; run 29 gave them pack-awareness — a wolf
+  within 20m of an already-fleeing packmate also flees (away from the player, not the packmate), and
+  (same run) moved the FAZ 5/6 spawn-resolution wiring out of `game3d.js` into `npc.js`/`animals.js`
+  to fix a 600-line-cap regression that run's own Session Snapshot caught; **run 30 added a 3rd wolf
+  (`berkalp-wolf-3`, config-only, reuses the same downloaded model) and verified the previously-
+  untested 3-hop pack-alert chain actually propagates** (wolf-1 flees the player -> wolf-2 pack-flees
+  off wolf-1 -> wolf-3 pack-flees off wolf-2, one frame later) via a direct-call test with a
+  negative control — see DECISIONS.md ADR-0030. See "This Run (run 29)"/"This Run (run 30)" below
+  and DECISIONS.md ADR-0025/ADR-0026/ADR-0027/ADR-0028/ADR-0029/ADR-0030.
+- **Last Update:** 2026-07-30 (run 30)
+- **Last Commit:** run 30's FAZ 6 3rd wolf + chain verification — `config.js`'s
+  `ANIMAL_CONFIG.SPAWNS` gained `berkalp-wolf-3` (config-only, no code change), verifying the 3-hop
+  pack-alert chain (wolf-1 -> wolf-2 -> wolf-3) actually propagates — DECISIONS.md ADR-0030.
   Preceded in the same run by ADR-0028's `game3d.js` line-count fix (spawn-resolution loops moved
   into `gameplay/npc.js`'s new `spawnConfiguredNPCs` / `gameplay/animals.js`'s new
   `spawnConfiguredAnimals`).
@@ -186,15 +190,15 @@ Triangles<500K, TextureMem<512MB.
   boot-preview radius further should watch the triangle ceiling, not draw calls. Verified via
   headless Chromium, not just computed: console confirms `"Placed 14 kingdom-seat settlements; 444
   terrain chunks resident (~111.00 km²) after grounding them"`, zero page errors.
-- **`gameplay/animals.js` (added run 26):** 2 wolves × 5 draw calls each (one per glTF primitive —
-  body/fur/claws/eyes/teeth; the bundled non-skinned "Circle" mesh is stripped before it ever
-  reaches the scene, see DECISIONS.md ADR-0025) = 10 draw calls, 2,748 triangles/wolf × 2 = 5,496
-  triangles. Desktop total grows to **~463 draw calls (18.5% of budget) / ~3.676M triangles (73.5%
-  of budget)** — both still comfortably clear, the addition is under 0.3% of either budget on its
-  own. Same 10 draw calls/5,496 triangles also apply on mobile (animal spawning isn't gated by
-  device class, same as NPCs) — mobile total grows to ~212,816 triangles (42.6% of the mobile
-  budget, up from 41.5%). Verified via headless Chromium: console confirms `"Spawned 2 FAZ 6
-  animal(s)."` on both device classes, zero page errors. **Patrol (run 27) adds zero new draw
+- **`gameplay/animals.js` (added run 26, 3rd wolf added run 30):** 3 wolves × 5 draw calls each (one
+  per glTF primitive — body/fur/claws/eyes/teeth; the bundled non-skinned "Circle" mesh is stripped
+  before it ever reaches the scene, see DECISIONS.md ADR-0025) = 15 draw calls, 2,748 triangles/wolf
+  × 3 = 8,244 triangles. Desktop total grows to **~468 draw calls (18.7% of budget) / ~3.679M
+  triangles (73.6% of budget)** — both still comfortably clear, the addition is under 0.1% of either
+  budget on its own. Same 15 draw calls/8,244 triangles also apply on mobile (animal spawning isn't
+  gated by device class, same as NPCs) — mobile total grows to ~215,564 triangles (43.1% of the
+  mobile budget, up from 42.6%). Verified via headless Chromium: console confirms `"Spawned 3 FAZ 6
+  animal(s)."` (up from 2) on both device classes, zero page errors. **Patrol (run 27) adds zero new draw
   calls/triangles** — same 2 `SkinnedMesh` instances, just a second clip (`walkAction`) loaded per
   wolf and a per-frame position/rotation update; no new GPU resources. **Flee (run 28) likewise adds
   zero new draw calls/triangles** — one more clip (`fleeAction`) loaded per wolf and a per-frame
@@ -2851,6 +2855,101 @@ run — the `spawnConfigured*` extraction reduces coupling (each gameplay file n
 wiring) rather than adding any, and `packAlertRadiusMeters`/`packmateFleePositions` are both optional,
 additive parameters with no call site left passing neither.
 
+## This Run (2026-07-30, run 30)
+
+**Session Snapshot taken at start of run:**
+- Container started with `HEAD` detached at `d464234` (run 29's final commit) while the local `main`
+  ref was stale at `38e09e7` — the same recurring container-restart artifact runs 18 and 29 already
+  documented. Confirmed `38e09e7` was a strict ancestor via `git merge-base --is-ancestor`, ran
+  `git checkout -B main origin/main` after a fresh `git fetch origin main` confirmed `origin/main`
+  already matched `d464234` exactly — the remote push had genuinely already succeeded, only this
+  container's local branch ref hadn't caught up. No commits rewritten, no force-push used.
+- Read `3D_GAME_PROGRESS.md` in full (Current Status, World Coverage, Performance Budget, Known
+  Issues, run 27-29's logs), `git log -10 --oneline`, and DECISIONS.md's last 5 ADRs (0025-0029).
+  `ARCHITECTURE.md` was last touched this same day (run 29) — no 7-day re-read needed.
+- **World scale re-verified against the instruction's 100-150 km² band — already correct, no change
+  made (twenty-fourth straight run).** Re-derived from `src/3d/config.js` directly:
+  `METERS_PER_MAP_UNIT: 1.75`, 25×22 chunk grid × 500m chunks = 137.5 km², inside the 100-150 km²
+  band. No config change needed.
+- **`node --check` on every `.js` file under `src/` (excluding vendored `three.js`/addons), plus
+  `script.js`/`service-worker.js`: all clean.** No file over the 600-line cap (`game3d.js` sits at
+  552 lines, the closest to the ceiling).
+- **Live smoke-tested the baseline itself before touching anything** (both device classes, headless
+  Chromium via `python3 -m http.server` + Playwright, `hasTouch`/`isMobile` context flags for the
+  mobile pass): zero console/page errors, every count byte-identical to run 29's own documented
+  numbers (`"...444 terrain chunks resident (~111.00 km²)..."` desktop, `"...25 terrain chunks
+  resident...(~6.25 km²)..."` mobile, `"Spawned 10 FAZ 5 NPC(s)."` and `"Spawned 2 FAZ 6
+  animal(s)."` both). No syntax errors, no blocking bugs, no perf-budget overrun, no memory-leak
+  regression, no missing regression test found beyond the one already flagged below.
+- No new tech debt found this run beyond what run 29 already flagged. Per the task's own priority
+  order, with no higher-priority item (syntax/blocking-bug/perf/memory-leak/tech-debt/missing-test)
+  found, and desktop World Coverage already clearing the FAZ 3/10 80% gate (mobile's lower coverage
+  is a deliberate, documented perf-budget tradeoff, not a bug — see Known Issues), the next item is
+  the active phase's (FAZ 6) own flagged open sub-task: **"a 3rd animal's chained pack-alert
+  propagation is unverified"** (ADR-0029's Consequence, repeated in run 29's own "Next step").
+
+**Decision and work this run (one atomic change — DECISIONS.md ADR-0030):**
+
+Added `berkalp-wolf-3` to `ANIMAL_CONFIG.SPAWNS` (`src/3d/config.js`) — config-only, reusing the
+already-downloaded `WOLF_MODEL_URL`, no new asset, no code change to `game3d.js`/`animals.js` (the
+tick loop's `packmateFleePositions` construction was already generic over `state.animals`, built by
+ADR-0029). Positioned deliberately (~14.4m from `berkalp-wolf-2`, ~28.8m from `berkalp-wolf-1`) so a
+genuine 3-hop pack-alert chain is the only path that can bring it into `isFleeing`. See ADR-0030 for
+the exact reasoning and the full verification method.
+
+**Regression guard:** `node --check` clean on `config.js`. Full smoke test on both device classes
+after the change: `"Spawned 3 FAZ 6 animal(s)."` (up from 2) on both, zero console/page errors, every
+other count (terrain chunks, settlements, NPCs, river/waterfalls) byte-identical to run 29 — confirms
+this is a purely additive spawn with no regression to any existing system.
+
+**Chain-propagation verification (the actual point of this run's work, not just "nothing broke"):**
+a temporary debug hook (`window.__debugGame3DState = state`, reverted before commit — confirmed via
+`git diff` showing zero net change to the committed `game3d.js`) let a Playwright script call all
+three wolves' `update(delta, playerPosition, packmateFleePositions)` directly across 3 simulated
+frames, mirroring exactly how `game3d.js`'s real tick loop builds each frame's
+`packmateFleePositions` argument:
+1. Baseline (player far away, no packmate positions): all three `isFleeing === false`.
+2. Confirmed the live fixture's actual spawn-time distances matched `config.js`'s doc-comment math
+   (wolf1↔wolf2 ≈14.42m, wolf2↔wolf3 ≈14.42m, wolf1↔wolf3 ≈28.84m) — the test wasn't accidentally
+   exercising the wrong geometry.
+3. Frame 1 (player near wolf-1, nobody's packmate list populated yet): wolf-1 fled directly; wolf-3
+   correctly stayed calm. (Wolf-2 also read `true` this frame, but via its own independent direct
+   15m player-trigger — an expected, harmless overlap of the two wolves' 14.4m spacing, not a
+   pack-logic artifact; confirmed by inspecting the direct-trigger term in isolation.)
+4. Frame 2 (wolf-2 given wolf-1's real post-frame-1 position; wolf-3 given nothing): wolf-3 stayed
+   `false` — it doesn't react to "someone, somewhere" fleeing, only to its own in-range packmate.
+5. Frame 3 (wolf-3 given wolf-2's real post-frame-2 position): wolf-3 `isFleeing → true` — the chain
+   completes exactly one frame after wolf-2's own pack-flee, matching ADR-0029's documented one-frame
+   lag.
+6. **Negative control:** repeated frame 3's setup but handed wolf-3 wolf-1's (out-of-range, ~28.8m)
+   position instead of wolf-2's — wolf-3 stayed `false`, ruling out a bug where any packmate entry
+   regardless of distance would trigger flee.
+Zero console/page errors throughout.
+
+- Updated `DECISIONS.md` (new ADR-0030), this file's Current Status, Performance Budget Status, and
+  Known Issues sections, and this section. `ARCHITECTURE.md`/`gameplay/README.md` needed no edit —
+  neither hardcodes a wolf count, both already describe `ANIMAL_CONFIG.SPAWNS` generically.
+
+**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new ADR-0030), `3D_GAME_PROGRESS.md`
+(this file). 3 files — well within the ≤25-file chained-run budget; the code change itself is one
+9-line config entry (well under the ≤1200-new-line chained-run budget), the rest is documentation.
+One commit.
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged from run 29, re-verified via the same headless-
+Chromium console-log method. This run's change (one more wolf) touches neither terrain nor
+streaming. The 100-150 km² world-scale target itself was re-verified unchanged against
+`src/3d/config.js` at the start of this run — no config change was needed or made.**
+
+**Next step for the next run:** FAZ 6's pack-alert mechanism is now verified to chain across 3+
+animals, not just adjacent pairs — the one gap ADR-0029 flagged is closed. Real remaining FAZ 6
+work: the other 3 animal types (horses, carts, dogs/cats, birds — none downloaded, each needs a
+human manual-download step, see Known Issues). Real remaining FAZ 5 work (still open, untouched this
+run): a dialogue/interaction system, player/pack-awareness for NPCs (guards don't flee/alert — could
+reuse this run's/ADR-0029's exact pattern if wanted). FAZ 4's own remaining gap (no gravity/jump/
+wall-collider physics) also remains open. No new tech debt this run — `berkalp-wolf-3` is a plain
+`SPAWNS` entry, the same shape every other wolf/NPC uses, consumed by already-generic code.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -2944,18 +3043,22 @@ additive parameters with no call site left passing neither.
   gaps are honest, scoped-out ones (see
   DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024's "Alternatives considered"),
   not accidental.
-- **FAZ 6's wolves exist at only one seat, with no real pathfinding AI.** 2 wolves at
+- **FAZ 6's wolves exist at only one seat, with no real pathfinding AI.** 3 wolves at
   `berkalp` (`ANIMAL_CONFIG.SPAWNS`). **~~static/idle only, no wander~~ — landed run 27**
   (`gameplay/animals.js`'s patrol support, copied from `gameplay/npc.js`'s proven pattern, see
-  DECISIONS.md ADR-0026) — both wolves patrol a 20m line. **~~no player-reaction (flee/aggro)~~ —
+  DECISIONS.md ADR-0026) — all wolves patrol a 20m line. **~~no player-reaction (flee/aggro)~~ —
   landed run 28** (DECISIONS.md ADR-0027) — a wolf within 15m of the player now overrides idle/patrol
   and runs straight away at 4.5 m/s until safe, no hysteresis distance. **~~no herd reaction (the
   second wolf doesn't react to the first one fleeing)~~ — landed run 29** (DECISIONS.md ADR-0029) —
   a wolf within `PACK_ALERT_RADIUS_METERS` (20m) of an already-fleeing packmate now also flees, still
   running away from the player (the actual threat), not the packmate; verified with both a live
   proximity smoke test and a direct-call unit test isolating the pack-only trigger path (see "This
-  Run (run 29)" below). Only ever tested with 2 wolves — a 3rd animal's chained pack-alert
-  propagation is unverified. The other 3 FAZ 6 animal types (horses, carts, dogs/cats, birds) have no
+  Run (run 29)" below). **~~Only ever tested with 2 wolves — a 3rd animal's chained pack-alert
+  propagation is unverified~~ — landed run 30** (DECISIONS.md ADR-0030) — a 3rd wolf
+  (`berkalp-wolf-3`, config-only, same downloaded model) was added specifically to test this, and a
+  direct-call 3-frame chain test (plus a negative control) confirmed a wolf outside any single
+  wolf's direct pack-alert range still flees once its own in-range packmate starts fleeing — see
+  "This Run (run 30)" below. The other 3 FAZ 6 animal types (horses, carts, dogs/cats, birds) have no
   downloaded asset yet — each needs a human manual-download step (see below), same constraint every
   future asset addition faces. `npc.js`'s and `animals.js`'s patrol/turn movement logic is still
   duplicated across 2 files (deliberate, see ADR-0026's "why duplicate" — revisit extraction only at

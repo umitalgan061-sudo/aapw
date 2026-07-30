@@ -384,11 +384,17 @@ export const ANIMAL_CONFIG = Object.freeze({
 	STRIP_CHILD_NAMES: Object.freeze(['Circle']),
 	/** Placements, each anchored to a `world/settlements.js` kingdom-seat id and offset from that
 	 * castle's keep center (in meters) — same convention as `NPC_CONFIG.SPAWNS`, but offset further
-	 * out (40-48m vs. NPCs' 12m) so a wolf reads as roaming just outside the walls rather than
-	 * standing in the guards' own spot. Both wolves at `berkalp` (House Stark/Winterfell — the
-	 * direwolf is Stark's own sigil, a deliberate lore fit, not an arbitrary seat pick). Both patrol
-	 * (run 27) a short 20m line, in different spots and along different axes from each other so
-	 * their paths don't cross or overlap the guard NPCs' own ±12m patrol zone at the same seat. */
+	 * out (40-56m vs. NPCs' 12m) so a wolf reads as roaming just outside the walls rather than
+	 * standing in the guards' own spot. All three wolves at `berkalp` (House Stark/Winterfell — the
+	 * direwolf is Stark's own sigil, a deliberate lore fit, not an arbitrary seat pick). All patrol
+	 * a short 20m line, in different spots and along different axes from each other so their paths
+	 * don't cross or overlap the guard NPCs' own ±12m patrol zone at the same seat, or each other's
+	 * lines. `berkalp-wolf-3` (added run 30, config-only, reuses the same already-downloaded
+	 * `WOLF_MODEL_URL` — no new asset) is placed within `PACK_ALERT_RADIUS_METERS` (20m) of
+	 * `berkalp-wolf-2`'s spawn (~14.4m) but outside it from `berkalp-wolf-1`'s spawn (~28.8m),
+	 * deliberately so a chained pack-alert (wolf-1 flees the player -> wolf-2 pack-flees off wolf-1
+	 * -> wolf-3 pack-flees off wolf-2, one frame later) is the only path that reaches wolf-3 — see
+	 * DECISIONS.md ADR-0030 for the live verification this was added to run. */
 	SPAWNS: Object.freeze([
 		Object.freeze({
 			id: 'berkalp-wolf-1',
@@ -405,6 +411,14 @@ export const ANIMAL_CONFIG = Object.freeze({
 			offsetZMeters: -18,
 			rotationYRadians: Math.PI * 0.5,
 			patrol: Object.freeze({ toOffsetXMeters: 48, toOffsetZMeters: -38 }),
+		}),
+		Object.freeze({
+			id: 'berkalp-wolf-3',
+			seatId: 'berkalp',
+			offsetXMeters: 56,
+			offsetZMeters: -6,
+			rotationYRadians: Math.PI * 0.5,
+			patrol: Object.freeze({ toOffsetXMeters: 56, toOffsetZMeters: -26 }),
 		}),
 	]),
 });
