@@ -3064,3 +3064,94 @@ addition), no file over the line cap. Same not-wired-into-CI caveat as every pri
 FAZ 5's NPCs still have no equivalent persisted coverage for an analogous future player/pack-aware
 behavior, but none exists yet to test (real, correctly-scoped-out remaining gap, not this run's
 scope).
+
+## ADR-0043: Persisted regression check for `gameplay/npc.js`'s waypoint-patrol logic; split `smokeTestGame3D.js`
+
+**Status:** Accepted (run 38).
+
+**Context:** Session Snapshot found the same recurring container-restart pattern documented in
+prior runs' "Repo-continuity note" — `HEAD` detached at `origin/main`'s tip (`f0065a3`), local
+`main` still at the pre-3D `38e09e7`. `git checkout main` (before fetching) briefly desynced the
+working tree from the index via an intermediate `git update-ref` — caught immediately via `git
+status` before anything was staged/committed, fixed with `git reset --hard origin/main` (safe:
+`origin/main` already matched the detached commit, confirmed via `git fetch` first, no commits
+rewritten, nothing of value discarded). With that resolved, priorities 1-5 (syntax, blocking bugs,
+perf budget, memory leaks, tech debt) were all clean (`node --check` on every `src/3d/**` file,
+`scripts/checkAssetsManifest.js` clean, all 6 existing smoke checks passing). Priority 6 (missing
+smoke test/regression) still had one real gap: `gameplay/npc.js`'s waypoint-patrol movement
+(run 22, ADR-0021) — the core movement logic all 11+ patrolling NPCs depend on, and the pattern
+`gameplay/animals.js`'s wolves independently copied (ADR-0026) — had zero persisted coverage,
+only ever eyeballed live in a running scene. This is the same gap ADR-0038/ADR-0040/ADR-0041/
+ADR-0042 already established the pattern for closing on other gameplay-critical modules.
+
+**Decision:** Added a seventh check, `checkNpcPatrol`, to the smoke suite. Adding it in place
+would have pushed `scripts/smokeTestGame3D.js` from 552 to over 600 lines (this project's
+per-file cap), so this run first split that file: `scripts/game3dSmokeChecks.js` (new, 495 lines)
+now holds all 7 check functions (moved verbatim) plus their shared `NAV_TIMEOUT_MS`/
+`GAME3D_READY_TIMEOUT_MS`/`loadAndCollectErrors` helpers; `scripts/smokeTestGame3D.js` (now 143
+lines) keeps only the static-file-server/Playwright-bootstrap infrastructure and `require()`s the
+checks module. Mirrors the same "extract into a focused module, moved verbatim" pattern ADR-0028
+established for `game3d.js`'s NPC/animal spawn-resolution loops.
+
+`checkNpcPatrol` drives one real `createNPC` controller (loading an actual downloaded Mixamo FBX
+via a real `AssetLoader`, same in-page dynamic-`import()` pattern as `checkWolfPackAlert`) through
+the exact 2-waypoint shape `spawnConfiguredNPCs` builds in production: `patrolWaypoints[0]` equal
+to the NPC's own spawn point, `patrolWaypoints[1]` a real far point (10, 10) reached via a
+groundCollider whose height varies with `z` (so ground-resampling mid-walk is actually observable,
+not just coincidentally correct at a constant height). Writing this test surfaced a real (if
+cosmetic) timing quirk: `update()`'s `pauseTimer` starts pre-loaded to `pauseSeconds`
+*unconditionally*, before the first distance-to-waypoint check ever runs — so every patrolling NPC
+idles a full `pauseSeconds`, "arrives" at waypoint 0 (its own spawn point — a no-op), idles a
+*second* full `pauseSeconds`, and only then takes its first real step. Every subsequent lap's pause
+is the correct single `pauseSeconds` — only the very first lap is doubled. Not a gameplay-breaking
+bug (no NPC gets stuck, no wrong position), out of this test-only sub-task's scope to fix, but
+asserted against directly (`idleDurationOk`, tolerant to ±5 frames) so it's documented and visible
+rather than silently relied upon. Other assertions: `startedMoving` (confirms the double-idle
+eventually ends), `midWalkYTracksGround` (ground height resamples during the walk, not just at
+waypoints), `arrivedExactly` (position snaps to the exact target, not "close enough"),
+`finalYTracksGround`, `turnedTowardTravel` (yaw converges toward `atan2(dx, dz)` within the
+turn-rate-limited lerp).
+
+**Alternatives considered:**
+- *Fix the double-idle-before-first-lap quirk in the same run* — rejected: out of scope for a
+  test-only sub-task per this project's "refactor only for bug/perf/readability/architecture"
+  rule; it's cosmetic (a one-time extra ~3s idle per NPC at world boot, never visible again), not a
+  reported bug, and changing production movement logic deserves its own dedicated, narrowly-scoped
+  sub-task with its own verification — not a drive-by inside a smoke-test-coverage task.
+- *Keep `smokeTestGame3D.js` as one file and accept going over 600 lines* — rejected outright by
+  this project's own hard per-file cap (Golden Rule #7); the split is a mechanical, verbatim move
+  with no logic change, same risk profile as ADR-0028's precedent.
+- *Assert exact frame counts throughout (matching `checkJumpArc`'s ballistic-formula precision)* —
+  rejected for the idle-duration assertion specifically: the exact frame the floating-point
+  `pauseTimer` crosses zero isn't the behavior being guarded (unlike `integrateJumpArc`'s pure
+  closed-form arc), so a tight tolerance would make this check fragile to irrelevant floating-point
+  noise. The waypoint-arrival assertions still use exact equality (`=== 10`), since the code's own
+  `distance <= step` snap-to-target branch guarantees that exactly, same reasoning as
+  `checkSettlementCollider`'s exact-equality walker assertion.
+
+**Verified:** `node --check` clean on both `scripts/smokeTestGame3D.js` (143 lines) and
+`scripts/game3dSmokeChecks.js` (495 lines) — both under the 600-line cap. All 7 checks PASS
+against the real repo (headless Chromium via Playwright). **Failure path verified with a real
+injected bug** (temporarily changing the walk branch's `model.position.y =
+groundCollider.getGroundHeight(...)` to a hardcoded `model.position.y = 0` in
+`gameplay/npc.js`) — the new check correctly failed on exactly `midWalkYTracksGround` (the one
+assertion that samples height *during* the walk, not at a waypoint snap), while
+`arrivedExactly`/`finalYTracksGround` stayed true (the separate waypoint-snap branch, untouched by
+the injected bug, independently resamples height on arrival — correctly isolating that this is a
+different code path), and all 6 other checks stayed PASS. Restored `npc.js` immediately after;
+`diff` against a pre-edit backup confirmed a byte-identical restore, `node --check` afterward
+stayed clean.
+
+**Memory-leak checklist:** N/A — extends an existing one-shot Node CLI script; the one test NPC's
+`AnimationMixer`/model resources are never added to a live render loop, and the whole page (and
+its `AssetLoader`/THREE resources) closes at the end of the check, same disposal story as every
+other in-page check in this suite.
+
+**Consequence:** The smoke suite now has 7 committed checks (2D shell boot, 3D-mode boot,
+settlement collider, jump/gravity arc, interaction controller, wolf flee/pack-alert, NPC waypoint
+patrol), each with a demonstrated real failure path, split across 2 files (both under the line
+cap) instead of 1. No `gameplay/npc.js` change at all (test-only addition — the double-idle quirk
+is documented, not fixed). Same not-wired-into-CI caveat as every prior `scripts/` ADR. The
+analogous gap for `gameplay/animals.js`'s own patrol movement (as opposed to its already-tested
+flee/pack-alert behavior) remains open — real, correctly out of this run's scope, a candidate for
+a future run's priority-6 pass.
