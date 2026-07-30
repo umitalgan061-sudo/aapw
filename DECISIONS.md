@@ -2113,3 +2113,136 @@ clip loaded). Real remaining FAZ 6 work: the other 3 animal types (still need hu
 steps) and any herd/pack reaction. FAZ 5's own player-awareness/dialogue gap for NPCs remains
 untouched, a separate and larger scope. No new tech debt — the `update(delta, playerPosition)`
 signature change is additive (an optional parameter) and contained to `animals.js`'s one caller.
+
+## ADR-0028: Move FAZ 5/6 spawn-resolution wiring out of `game3d.js` into `npc.js`/`animals.js`
+
+**Context:** Run 29's Session Snapshot re-checked every Golden Rule before picking up new work (per
+the task's own priority order, tech debt ranks above a new feature) and found `src/3d/game3d.js` at
+**610 lines — over the project's 600-line-per-file cap** (Golden Rule 7), a real, previously-uncaught
+regression: no run's own self-review had re-measured `wc -l` against the cap since early on, and the
+file crept past it gradually across runs 20-28 (each FAZ 5/6 spawn addition was individually small,
+but cumulative). `git log`/`3D_GAME_PROGRESS.md` confirmed this was genuinely new information, not a
+previously-flagged-and-deferred item. Per the task's priority order (tech debt above "active phase's
+missing subtask" and "new feature"), fixing this took priority over starting any new FAZ 6 slice
+outright — but see ADR-0029 below for why the herd-reaction feature was still done in the same run
+after the fix created enough headroom.
+
+**Decision:** Extracted `game3d.js`'s two largest inline blocks — the FAZ 5 NPC spawn-resolution loop
+(seat lookup, patrol-waypoint construction, `createNPC` call, ~55 lines) and the FAZ 6 animal
+equivalent (~46 lines) — into `gameplay/npc.js`'s new `spawnConfiguredNPCs({assetLoader, npcConfig,
+seatsById, sampleGroundY, groundCollider})` and `gameplay/animals.js`'s new `spawnConfiguredAnimals`
+(same shape), each returning the already-`Promise.all`'d, already-`.filter(Boolean)`'d array of
+loaded controllers exactly as the inline code did. `game3d.js` keeps only the two setup values every
+spawn needs (`seatsById`, `sampleClampedGroundY`, both shared across NPCs *and* animals, so they stay
+in the orchestrator rather than being duplicated into both gameplay files) and now calls one function
+per system instead of inlining the loop. No behavior change: same console warning on an unknown
+`seatId`, same parallel loading, same returned controller shape. `game3d.js` dropped from 610 to 552
+lines — back under the cap with headroom.
+
+**Why into `npc.js`/`animals.js` rather than a new `gameplay/spawner.js`:** each system already owns
+its own `create*` function and is the only consumer of its own spawn config shape (`NPC_CONFIG.
+SPAWNS` vs. `ANIMAL_CONFIG.SPAWNS` are structurally similar but not identical, and diverge further
+once `packAlertRadiusMeters` — ADR-0029 — is NPC-config-agnostic). A shared `spawner.js` would need
+either a config-shape abstraction (premature — only 2 consumers) or per-system branching inside one
+file, no simpler than what each file already had. Keeping `spawnConfigured*` next to its own `create*`
+function matches this folder's existing "no cross-file coupling until a 3rd real consumer" convention
+(see ADR-0026's own reasoning for the same call). `game3d.js` importing `spawnConfiguredNPCs`/
+`spawnConfiguredAnimals` instead of `createNPC`/`createWolf` directly is the only import-surface
+change.
+
+**Verified:**
+- `node --check` clean on all 4 touched JS files (`config.js`, `game3d.js`, `gameplay/npc.js`,
+  `gameplay/animals.js`).
+- `wc -l` re-confirmed every touched file is under the 600-line cap after the change: `game3d.js` 552,
+  `config.js` 440, `gameplay/animals.js` 299 (includes ADR-0029's pack-flee addition below),
+  `gameplay/npc.js` 260.
+- Manual read-through confirms `spawnConfiguredNPCs`/`spawnConfiguredAnimals`'s bodies are a verbatim
+  move of the prior inline code (same variable names, same order of operations, same config field
+  reads) — not a rewrite, so the risk of an accidental behavior change from this refactor alone is
+  effectively zero. A full headless-Chromium smoke test after both this and ADR-0029's change (see
+  ADR-0029's own Verified section) confirms `"Spawned 10 FAZ 5 NPC(s)."` / `"Spawned 2 FAZ 6
+  animal(s)."` unchanged from run 28.
+
+**Consequence:** `game3d.js` is a thinner orchestrator now — it wires config + shared helpers into
+each gameplay system's own spawn function rather than performing the spawn resolution itself, closer
+to the target architecture's "system per folder" intent. `gameplay/README.md` updated with both new
+functions' signatures. No new tech debt; this pass *reduces* it. Flagging for future runs: re-check
+`wc -l` against the 600-line cap as part of every Session Snapshot from now on (not just when a file
+"looks long"), so this doesn't silently recur — `config.js` (440) and `gameplay/animals.js` (299,
+post-ADR-0029) both still have real headroom, but a future run adding a 4th animal type or a dialogue
+system should watch both.
+
+## ADR-0029: Wolves gain a first pack/herd reaction — packmate-triggered flee
+
+**Context:** ADR-0027's own Consequence section explicitly left "herd/pack reaction (the second wolf
+doesn't react to the first one fleeing)" as real, scoped-out remaining FAZ 6 work, repeated verbatim
+in every run's "Next step" since run 28. With ADR-0028's extraction freeing up headroom under the
+600-line cap on every touched file, and no other higher-priority syntax/blocking-bug/perf/memory-leak
+issue found this run's Session Snapshot, this was the clear next atomic FAZ 6 slice — small, already
+scoped by name in the progress file, and directly reuses run 28's own proven flee mechanics rather
+than introducing a new movement system.
+
+**Decision:** `createWolf` gained an optional `packAlertRadiusMeters` parameter and its returned
+controller gained a read-only `isFleeing` getter (backed by a new `currentlyFleeing` closure
+variable, written once per `update()` call). `update()`'s signature grew a third optional argument,
+`packmateFleePositions` — an array of `{x, z}` positions the caller collects from every *other*
+animal's `isFleeing` getter. Each frame, a wolf not already triggered by its own
+`fleeTriggerRadiusMeters` check now also flees if any position in `packmateFleePositions` is within
+`packAlertRadiusMeters` (20m, config'd in `ANIMAL_CONFIG`) of its own position. Critically, the flee
+*direction* is always computed away from the player, never away from the alerting packmate — a
+pack-alerted wolf is reacting to "the same threat my packmate is fleeing," not to the packmate itself,
+so reusing the existing player-relative direction math (unchanged from ADR-0027) was both the
+simplest implementation and the more plausible in-fiction behavior. The pack check is skipped
+entirely when `playerPosition` is falsy (defensive — the direction math needs it regardless of which
+branch triggered flee; without this guard a pack-triggered flee with no known player position would
+divide by `Infinity` and produce a `NaN` velocity).
+
+`game3d.js`'s tick loop now builds each animal's `packmateFleePositions` immediately before calling
+its `update()`, by filtering `state.animals` for every other entry's `isFleeing` getter. This is
+O(n²) per frame over `state.animals` and deliberately sequential (not a separate pre-pass) — an
+animal processed later in the array sees its earlier packmates' *this-frame* fleeing state, while one
+processed earlier still sees only last frame's state for animals not yet updated. This asymmetry is
+harmless at today's 2-wolf count (both directions converge within the same or next frame) and was
+chosen over a two-pass "compute all flee states, then move everyone" structure because it needed no
+new per-frame array allocation beyond the small `.filter().map()` already required, and no wolf's
+own movement decision depends on a *precise* single-frame-accurate packmate state — a one-frame lag
+in a herd-alert reaction is imperceptible and not a correctness bug the way it would be for, e.g.,
+`game3d.js`'s own player-vs-camera positional math.
+
+**Why player-relative direction, not away-from-packmate or averaged:** an away-from-packmate vector
+would send a pack-alerted wolf running *toward* the actual threat if the packmate happened to be
+between it and the player — the opposite of the intended behavior. An averaged "away from the nearest
+threat-or-alerting-packmate" vector was considered and rejected as unearned complexity for a
+first-pass reaction with only 2 wolves ever tested together; revisit if/when the animal count grows
+enough that pack members regularly end up on the far side of an alerting packmate from the player.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- `node --check` clean on all 4 touched JS files.
+- Full smoke test on both device classes: `"Spawned 2 FAZ 6 animal(s)."` on both, zero console/page
+  errors, `"Spawned 10 FAZ 5 NPC(s)."` and all terrain/settlement counts byte-identical to run 28 —
+  confirms ADR-0028's refactor and this ADR's new parameter are both behavior-preserving for every
+  path that doesn't touch pack-alert.
+- **A live pack-trigger test via a temporary debug hook** (`window.__debugGame3DState = state`,
+  reverted before commit — confirmed via `git diff` showing zero net change to the committed
+  `game3d.js`): teleported the player to within `berkalp-wolf-1`'s 15m flee-trigger radius only
+  (`berkalp-wolf-2` left at its normal patrol distance, >20m from wolf-1 at that moment). Sampled
+  every 1.5s: wolf-1 fled immediately (distance-to-player climbing, matching ADR-0027's own
+  baseline); wolf-2's `isFleeing` flipped `true` and its own distance-to-wolf-1 stayed inside the 20m
+  `packAlertRadiusMeters` band during the window it reacted, confirming the pack trigger fires only
+  once the two wolves are actually close enough, not unconditionally the instant either one flees.
+  A second sample with the player instead placed near wolf-2 (not wolf-1) confirmed the symmetric
+  case — wolf-1 pack-flees off wolf-2's direct trigger — ruling out an accidental one-directional
+  bug from the array-filter's iteration order.
+
+**Consequence:** FAZ 6's wolves are now feature-complete at first-pass pack-awareness scope: they
+load, idle, patrol, flee from the player directly, and flee from a nearby fleeing packmate. Real
+remaining FAZ 6 work, narrowed but not closed: the other 3 animal types (horses, carts, dogs/cats,
+birds — still need a human manual-download step each) and the current pack-alert scope is 2-wolf-only
+tested (no test exists yet for 3+ animals reacting in a chain, since only 2 wolves are spawned
+anywhere in `ANIMAL_CONFIG.SPAWNS`) — a future run adding a 3rd wolf/animal to the same seat should
+re-verify chained pack-alert propagation, not assume it "just works" from this ADR's 2-wolf test
+alone. FAZ 5's own player/pack-awareness gap for NPCs remains untouched (guards still don't
+flee/alert). No new tech debt — `packAlertRadiusMeters`/`packmateFleePositions` are both optional,
+additive parameters; every existing call site without them (there are none left, since
+`spawnConfiguredAnimals` now always passes `ANIMAL_CONFIG.PACK_ALERT_RADIUS_METERS`) would still work
+unchanged if a future spawn omitted it.

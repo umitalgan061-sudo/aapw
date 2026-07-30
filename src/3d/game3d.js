@@ -21,7 +21,9 @@
  * `resolveCameraCollision` pulling it in front of any terrain/castle it would otherwise clip
  * through — see DECISIONS.md ADR-0016, ADR-0017, and ADR-0018. FAZ 5 (in progress, run 20): a
  * first pass of static, idling NPCs (`gameplay/npc.js`) reusing the same Mixamo FBX pipeline
- * stands near the `stannis` kingdom seat — see ADR-0019.
+ * stands near the `stannis` kingdom seat — see ADR-0019. FAZ 5/6 NPC and animal spawn-resolution
+ * wiring now lives in `gameplay/npc.js`'s `spawnConfiguredNPCs` / `gameplay/animals.js`'s
+ * `spawnConfiguredAnimals` (run 29), not this file — see ADR-0028.
  * See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
@@ -36,8 +38,8 @@ import { createGroundCollider } from './physics.js';
 import { KeyboardInput } from './input.js';
 import { TouchJoystick } from './ui/touchJoystick.js';
 import { createPlayer } from './gameplay/player.js';
-import { createNPC } from './gameplay/npc.js';
-import { createWolf } from './gameplay/animals.js';
+import { spawnConfiguredNPCs } from './gameplay/npc.js';
+import { spawnConfiguredAnimals } from './gameplay/animals.js';
 import { createWater, updateWater, disposeWater } from './world/water.js';
 import {
 	generateRiverPath,
@@ -409,106 +411,37 @@ export async function initGame3D() {
 		);
 		state.controls.update();
 
-		// FAZ 5: NPCs at kingdom-seat settlements (see config.js's NPC_CONFIG doc comment). Loaded
-		// after the player (same "keep the loading overlay up for every character download" reasoning
-		// as the player itself) and in parallel via Promise.all, not a sequential loop, since no NPC
-		// depends on another finishing first. A `spawn.patrol` entry (run 22, pilot on 2 of 6 NPCs —
-		// see DECISIONS.md ADR-0021) adds a 2nd world-space waypoint the NPC walks a straight line
-		// to/from; NPCs without one stay static/idle-only, unchanged from run 20/21.
+		// FAZ 5/6: NPCs and wild animals at kingdom-seat settlements. Loaded after the player (same
+		// "keep the loading overlay up for every character download" reasoning as the player itself).
+		// Spawn resolution itself (seat lookup, patrol-waypoint construction, per-spawn model loading)
+		// lives in `gameplay/npc.js`'s `spawnConfiguredNPCs` / `gameplay/animals.js`'s
+		// `spawnConfiguredAnimals` (run 29, DECISIONS.md ADR-0028) — moved out of this file to keep it
+		// under the project's 600-line cap and let each gameplay system own its own spawn wiring.
 		const seatsById = new Map(state.settlementSeats.map((seat) => [seat.id, seat]));
 		// Same sea-level-clamp convention world/settlements.js's own placement uses (see
-		// world/README.md's "Sea level" convention), so an NPC never ends up sitting below the water
-		// plane if an offset happens to land somewhere lower than the keep itself.
+		// world/README.md's "Sea level" convention), so a spawned character never ends up sitting
+		// below the water plane if an offset happens to land somewhere lower than the keep itself.
 		const sampleClampedGroundY = (worldX, worldZ) => Math.max(
 			state.groundCollider.getGroundHeight(worldX, worldZ),
 			WORLD_DEFAULTS.WATER_LEVEL_METERS + SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
 		);
-		const npcs = await Promise.all(
-			NPC_CONFIG.SPAWNS.map(async (spawn) => {
-				const seat = seatsById.get(spawn.seatId);
-				if (!seat) {
-					console.warn(`[game3d] NPC spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
-					return null;
-				}
-				const worldX = seat.x + spawn.offsetXMeters;
-				const worldZ = seat.z + spawn.offsetZMeters;
-				const groundY = sampleClampedGroundY(worldX, worldZ);
-				const patrolWaypoints = spawn.patrol
-					? [
-							{ x: worldX, z: worldZ },
-							{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
-						]
-					: undefined;
-				return createNPC({
-					assetLoader,
-					modelUrl: spawn.modelUrl,
-					idleAnimationUrl: NPC_CONFIG.IDLE_ANIMATION_URL,
-					worldX,
-					worldZ,
-					groundY,
-					rotationYRadians: spawn.rotationYRadians,
-					name: spawn.id,
-					displayName: spawn.displayName,
-					nameTagWidthMeters: NPC_CONFIG.NAME_TAG_WIDTH_METERS,
-					nameTagHeightMeters: NPC_CONFIG.NAME_TAG_HEIGHT_METERS,
-					nameTagVerticalOffsetMeters: NPC_CONFIG.NAME_TAG_VERTICAL_OFFSET_METERS,
-					groundCollider: patrolWaypoints ? state.groundCollider : undefined,
-					walkAnimationUrl: patrolWaypoints ? NPC_CONFIG.WALK_ANIMATION_URL : undefined,
-					patrolWaypoints,
-					speedMps: NPC_CONFIG.PATROL_SPEED_MPS,
-					pauseSeconds: NPC_CONFIG.PATROL_PAUSE_SECONDS,
-					turnRateRadiansPerSecond: NPC_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
-				});
-			}),
-		);
-		state.npcs = npcs.filter(Boolean);
+		state.npcs = await spawnConfiguredNPCs({
+			assetLoader,
+			npcConfig: NPC_CONFIG,
+			seatsById,
+			sampleGroundY: sampleClampedGroundY,
+			groundCollider: state.groundCollider,
+		});
 		for (const npc of state.npcs) state.scene.add(npc.object3D);
 		console.info(`[game3d] Spawned ${state.npcs.length} FAZ 5 NPC(s).`);
 
-		// FAZ 6: wild animals (wolf only, see config.js's ANIMAL_CONFIG doc comment). Same seat-anchored
-		// spawn resolution as the NPC block above, loaded in parallel the same way. A `spawn.patrol`
-		// entry (run 27, same shape as NPC_CONFIG's) adds a 2nd world-space waypoint the animal walks a
-		// straight line to/from; animals without one stay idle-only when not fleeing. `groundCollider`
-		// is now always passed (run 28) — flee (below) needs ground-height sampling regardless of
-		// whether this spawn also patrols.
-		const wolves = await Promise.all(
-			ANIMAL_CONFIG.SPAWNS.map(async (spawn) => {
-				const seat = seatsById.get(spawn.seatId);
-				if (!seat) {
-					console.warn(`[game3d] Animal spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
-					return null;
-				}
-				const worldX = seat.x + spawn.offsetXMeters;
-				const worldZ = seat.z + spawn.offsetZMeters;
-				const patrolWaypoints = spawn.patrol
-					? [
-							{ x: worldX, z: worldZ },
-							{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
-						]
-					: undefined;
-				return createWolf({
-					assetLoader,
-					modelUrl: ANIMAL_CONFIG.WOLF_MODEL_URL,
-					idleClipName: ANIMAL_CONFIG.IDLE_CLIP_NAME,
-					stripChildNames: ANIMAL_CONFIG.STRIP_CHILD_NAMES,
-					worldX,
-					worldZ,
-					groundY: sampleClampedGroundY(worldX, worldZ),
-					rotationYRadians: spawn.rotationYRadians,
-					name: spawn.id,
-					groundCollider: state.groundCollider,
-					walkClipName: patrolWaypoints ? ANIMAL_CONFIG.WALK_CLIP_NAME : undefined,
-					patrolWaypoints,
-					speedMps: ANIMAL_CONFIG.PATROL_SPEED_MPS,
-					pauseSeconds: ANIMAL_CONFIG.PATROL_PAUSE_SECONDS,
-					turnRateRadiansPerSecond: ANIMAL_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
-					fleeClipName: ANIMAL_CONFIG.FLEE_CLIP_NAME,
-					fleeTriggerRadiusMeters: ANIMAL_CONFIG.FLEE_TRIGGER_RADIUS_METERS,
-					fleeSpeedMps: ANIMAL_CONFIG.FLEE_SPEED_MPS,
-				});
-			}),
-		);
-		state.animals = wolves.filter(Boolean);
+		state.animals = await spawnConfiguredAnimals({
+			assetLoader,
+			animalConfig: ANIMAL_CONFIG,
+			seatsById,
+			sampleGroundY: sampleClampedGroundY,
+			groundCollider: state.groundCollider,
+		});
 		for (const animal of state.animals) state.scene.add(animal.object3D);
 		console.info(`[game3d] Spawned ${state.animals.length} FAZ 6 animal(s).`);
 
@@ -533,7 +466,16 @@ export async function initGame3D() {
 			// player.update() above already moved player.object3D synchronously this frame, so this
 			// read is current — safe to feed into each animal's flee-awareness check below.
 			const playerPos = state.player.object3D.position;
-			for (const animal of state.animals) animal.update(delta, playerPos);
+			// Pack awareness (run 29, DECISIONS.md ADR-0029): each animal gets the positions of every
+			// *other* animal already flagged `isFleeing` this frame. O(n²) over `state.animals` — fine
+			// at today's 2-wolf count (see ADR-0029's Consequence for the revisit threshold if the
+			// animal count grows a lot in a future run).
+			for (const animal of state.animals) {
+				const packmateFleePositions = state.animals
+					.filter((other) => other !== animal && other.isFleeing)
+					.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z }));
+				animal.update(delta, playerPos, packmateFleePositions);
+			}
 			state.camera.position.x += playerPos.x - previousTargetX;
 			state.camera.position.z += playerPos.z - previousTargetZ;
 			state.controls.target.set(playerPos.x, playerPos.y + PLAYER_CONFIG.CAMERA_TARGET_HEIGHT_METERS, playerPos.z);

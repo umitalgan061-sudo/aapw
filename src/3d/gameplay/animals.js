@@ -4,7 +4,12 @@
  * between 2+ world-space points, reusing `npc.js`'s already-proven `patrolWaypoints` shape/behavior
  * — see DECISIONS.md ADR-0026). Run 28 adds player-awareness: a wolf within `fleeTriggerRadiusMeters`
  * of the player overrides its idle/patrol state and runs directly away instead (see DECISIONS.md
- * ADR-0027) — still no real pathfinding/obstacle-avoidance, just a straight-line flee vector.
+ * ADR-0027) — still no real pathfinding/obstacle-avoidance, just a straight-line flee vector. Run 29
+ * adds a first pack/herd reaction (`packAlertRadiusMeters` — see DECISIONS.md ADR-0029): a wolf not
+ * yet close enough to the player still flees if a packmate within that radius is already fleeing.
+ * Run 29 also moves `game3d.js`'s inline spawn-resolution loop into this module's
+ * `spawnConfiguredAnimals` (DECISIONS.md ADR-0028), so `game3d.js` stays under the project's 600-line
+ * cap and this folder owns its own spawn wiring, same as `npc.js`'s `spawnConfiguredNPCs`.
  * @module gameplay/animals
  */
 
@@ -58,7 +63,11 @@ function stripNamedChildren(object3D, names) {
  *   `playerPosition` passed to `update()` overrides idle/patrol and runs directly away. `null`/
  *   `undefined` disables flee entirely (static/patrol-only animal).
  * @param {number} [options.fleeSpeedMps]
- * @returns {Promise<{object3D: THREE.Object3D, update: (delta: number, playerPosition?: {x: number, z: number}) => void, dispose: () => void}>}
+ * @param {number} [options.packAlertRadiusMeters] A wolf not yet within `fleeTriggerRadiusMeters` of
+ *   the player still flees if a packmate within this distance is already fleeing (`update()`'s
+ *   `packmateFleePositions` argument) — see DECISIONS.md ADR-0029. `null`/`undefined` disables pack
+ *   awareness (this wolf only ever flees from its own direct player-proximity check).
+ * @returns {Promise<{object3D: THREE.Object3D, isFleeing: boolean, update: (delta: number, playerPosition?: {x: number, z: number}, packmateFleePositions?: {x: number, z: number}[]) => void, dispose: () => void}>}
  */
 export async function createWolf({
 	assetLoader,
@@ -79,6 +88,7 @@ export async function createWolf({
 	fleeClipName,
 	fleeTriggerRadiusMeters,
 	fleeSpeedMps = 4.5,
+	packAlertRadiusMeters,
 }) {
 	const model = await assetLoader.loadModel(modelUrl, { fallbackColor: 0x5a5148, fallbackSize: 1.2 });
 	stripNamedChildren(model, stripChildNames);
@@ -132,22 +142,51 @@ export async function createWolf({
 	// Patrol state — unused (and never advanced) when isPatrolling is false.
 	let waypointIndex = 0;
 	let pauseTimer = isPatrolling ? pauseSeconds : 0;
+	// Read by this frame's other wolves (via the `isFleeing` getter below) to build their own
+	// `packmateFleePositions` — see DECISIONS.md ADR-0029. Starts false; only `update()` writes it.
+	let currentlyFleeing = false;
 
 	return {
 		object3D: model,
+
+		/** Whether this wolf is currently fleeing (player-triggered or pack-alerted) — read by the
+		 * caller to build other animals' `packmateFleePositions` for the next `update()` call. */
+		get isFleeing() {
+			return currentlyFleeing;
+		},
 
 		/**
 		 * @param {number} delta Seconds since the last frame.
 		 * @param {{x: number, z: number}} [playerPosition] Current player world position — only read
 		 *   when this animal can flee (see `fleeTriggerRadiusMeters`).
+		 * @param {{x: number, z: number}[]} [packmateFleePositions] World positions of other animals
+		 *   already fleeing this frame — see `packAlertRadiusMeters`. Omit/empty for no pack reaction.
 		 */
-		update(delta, playerPosition) {
+		update(delta, playerPosition, packmateFleePositions) {
 			const dxFromPlayer = playerPosition ? model.position.x - playerPosition.x : Infinity;
 			const dzFromPlayer = playerPosition ? model.position.z - playerPosition.z : Infinity;
 			const distanceFromPlayer = Math.hypot(dxFromPlayer, dzFromPlayer);
-			const isFleeing = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters;
+			const isFleeingFromPlayer = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters;
 
-			if (isFleeing) {
+			// Pack awareness (run 29, DECISIONS.md ADR-0029): only checked when not already triggered
+			// directly (cheap early-out) and only when playerPosition is known (the flee direction
+			// below is always "away from the player," so a pack-alerted flee still needs it — see
+			// this function's own JSDoc for why player-relative, not packmate-relative).
+			let isFleeingFromPack = false;
+			if (canFlee && !isFleeingFromPlayer && playerPosition && packAlertRadiusMeters != null && packmateFleePositions) {
+				for (const packmatePosition of packmateFleePositions) {
+					const dx = model.position.x - packmatePosition.x;
+					const dz = model.position.z - packmatePosition.z;
+					if (Math.hypot(dx, dz) < packAlertRadiusMeters) {
+						isFleeingFromPack = true;
+						break;
+					}
+				}
+			}
+
+			currentlyFleeing = isFleeingFromPlayer || isFleeingFromPack;
+
+			if (currentlyFleeing) {
 				// Straight-line flight directly away from the player — no pathfinding/obstacle-avoidance,
 				// the smallest thing that earns "flees" (same scope discipline as patrol's own "straight
 				// line between waypoints, no pathfinding" — see DECISIONS.md ADR-0021/ADR-0026).
@@ -199,4 +238,62 @@ export async function createWolf({
 			AssetLoader.disposeObject3D(model);
 		},
 	};
+}
+
+/**
+ * Resolves and loads every configured animal spawn (`config.js`'s `ANIMAL_CONFIG.SPAWNS`) against a
+ * kingdom-seat lookup, in parallel — moved out of `game3d.js` (run 29, DECISIONS.md ADR-0028) to
+ * keep that file a thin orchestrator, mirroring `npc.js`'s own `spawnConfiguredNPCs`. A spawn
+ * referencing an unknown `seatId` is skipped with a console warning, not thrown — matches
+ * `game3d.js`'s prior inline behavior exactly. Only wolves exist so far (see `ANIMAL_CONFIG`'s doc
+ * comment) — a future animal type would branch on a per-spawn "kind" field here, not duplicate this
+ * function.
+ * @param {object} options
+ * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
+ * @param {typeof import('../config.js').ANIMAL_CONFIG} options.animalConfig
+ * @param {Map<string, {id: string, x: number, z: number}>} options.seatsById
+ * @param {(worldX: number, worldZ: number) => number} options.sampleGroundY
+ * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
+ * @returns {Promise<Awaited<ReturnType<typeof createWolf>>[]>} Already filtered — no `null` entries.
+ */
+export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsById, sampleGroundY, groundCollider }) {
+	const animals = await Promise.all(
+		animalConfig.SPAWNS.map(async (spawn) => {
+			const seat = seatsById.get(spawn.seatId);
+			if (!seat) {
+				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
+				return null;
+			}
+			const worldX = seat.x + spawn.offsetXMeters;
+			const worldZ = seat.z + spawn.offsetZMeters;
+			const patrolWaypoints = spawn.patrol
+				? [
+						{ x: worldX, z: worldZ },
+						{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
+					]
+				: undefined;
+			return createWolf({
+				assetLoader,
+				modelUrl: animalConfig.WOLF_MODEL_URL,
+				idleClipName: animalConfig.IDLE_CLIP_NAME,
+				stripChildNames: animalConfig.STRIP_CHILD_NAMES,
+				worldX,
+				worldZ,
+				groundY: sampleGroundY(worldX, worldZ),
+				rotationYRadians: spawn.rotationYRadians,
+				name: spawn.id,
+				groundCollider,
+				walkClipName: patrolWaypoints ? animalConfig.WALK_CLIP_NAME : undefined,
+				patrolWaypoints,
+				speedMps: animalConfig.PATROL_SPEED_MPS,
+				pauseSeconds: animalConfig.PATROL_PAUSE_SECONDS,
+				turnRateRadiansPerSecond: animalConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+				fleeClipName: animalConfig.FLEE_CLIP_NAME,
+				fleeTriggerRadiusMeters: animalConfig.FLEE_TRIGGER_RADIUS_METERS,
+				fleeSpeedMps: animalConfig.FLEE_SPEED_MPS,
+				packAlertRadiusMeters: animalConfig.PACK_ALERT_RADIUS_METERS,
+			});
+		}),
+	);
+	return animals.filter(Boolean);
 }

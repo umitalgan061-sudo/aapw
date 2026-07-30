@@ -10,6 +10,10 @@
  *    resampling and shortest-path yaw-turn pattern. No pathfinding/collision avoidance — a straight
  *    line between caller-supplied points, same "don't build a full behavior tree in one run" scope
  *    `3D_GAME_PROGRESS.md`'s FAZ 5 roadmap and DECISIONS.md ADR-0019/ADR-0021 call for.
+ *
+ * `spawnConfiguredNPCs` (run 29, DECISIONS.md ADR-0028) resolves `config.js`'s `NPC_CONFIG.SPAWNS`
+ * against kingdom seats and loads every NPC in parallel — moved here from `game3d.js` to keep that
+ * file under the project's 600-line cap.
  * @module gameplay/npc
  */
 
@@ -197,4 +201,60 @@ export async function createNPC({
 			AssetLoader.disposeObject3D(model);
 		},
 	};
+}
+
+/**
+ * Resolves and loads every configured NPC spawn (`config.js`'s `NPC_CONFIG.SPAWNS`) against a
+ * kingdom-seat lookup, in parallel — moved out of `game3d.js` (run 29, DECISIONS.md ADR-0028) to
+ * keep that file a thin orchestrator, per this folder's own ownership convention (see
+ * `gameplay/README.md`). A spawn referencing an unknown `seatId` is skipped with a console warning,
+ * not thrown — matches `game3d.js`'s prior inline behavior exactly.
+ * @param {object} options
+ * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
+ * @param {typeof import('../config.js').NPC_CONFIG} options.npcConfig
+ * @param {Map<string, {id: string, x: number, z: number}>} options.seatsById
+ * @param {(worldX: number, worldZ: number) => number} options.sampleGroundY
+ * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
+ * @returns {Promise<Awaited<ReturnType<typeof createNPC>>[]>} Already filtered — no `null` entries.
+ */
+export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, sampleGroundY, groundCollider }) {
+	const npcs = await Promise.all(
+		npcConfig.SPAWNS.map(async (spawn) => {
+			const seat = seatsById.get(spawn.seatId);
+			if (!seat) {
+				console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
+				return null;
+			}
+			const worldX = seat.x + spawn.offsetXMeters;
+			const worldZ = seat.z + spawn.offsetZMeters;
+			const groundY = sampleGroundY(worldX, worldZ);
+			const patrolWaypoints = spawn.patrol
+				? [
+						{ x: worldX, z: worldZ },
+						{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
+					]
+				: undefined;
+			return createNPC({
+				assetLoader,
+				modelUrl: spawn.modelUrl,
+				idleAnimationUrl: npcConfig.IDLE_ANIMATION_URL,
+				worldX,
+				worldZ,
+				groundY,
+				rotationYRadians: spawn.rotationYRadians,
+				name: spawn.id,
+				displayName: spawn.displayName,
+				nameTagWidthMeters: npcConfig.NAME_TAG_WIDTH_METERS,
+				nameTagHeightMeters: npcConfig.NAME_TAG_HEIGHT_METERS,
+				nameTagVerticalOffsetMeters: npcConfig.NAME_TAG_VERTICAL_OFFSET_METERS,
+				groundCollider: patrolWaypoints ? groundCollider : undefined,
+				walkAnimationUrl: patrolWaypoints ? npcConfig.WALK_ANIMATION_URL : undefined,
+				patrolWaypoints,
+				speedMps: npcConfig.PATROL_SPEED_MPS,
+				pauseSeconds: npcConfig.PATROL_PAUSE_SECONDS,
+				turnRateRadiansPerSecond: npcConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+			});
+		}),
+	);
+	return npcs.filter(Boolean);
 }

@@ -368,6 +368,14 @@ export const ANIMAL_CONFIG = Object.freeze({
 	FLEE_TRIGGER_RADIUS_METERS: 15,
 	/** Faster than `PATROL_SPEED_MPS` (2.2) — a fleeing sprint, not a patrol trot. */
 	FLEE_SPEED_MPS: 4.5,
+	/** First FAZ 6 herd/pack reaction (run 29, see DECISIONS.md ADR-0029): a wolf not yet within its
+	 * own `FLEE_TRIGGER_RADIUS_METERS` of the player still flees if a packmate within this many
+	 * meters is *already* fleeing. Sized larger than `FLEE_TRIGGER_RADIUS_METERS` (15) so it's a real
+	 * pack-awareness radius, not a coincidence of the two overlapping — the two `berkalp` wolves'
+	 * patrol lines (see SPAWNS below) can come within ~0-20m of each other at closest approach, so
+	 * this comfortably covers a realistic "saw my packmate bolt" distance without reading as
+	 * telepathic pack-wide panic across the whole seat. */
+	PACK_ALERT_RADIUS_METERS: 20,
 	/** The source file bundles a flat, non-skinned "Circle" mesh (a Blender shadow-catcher disc) as
 	 * a sibling of the wolf's own skinned meshes at the scene root — confirmed via the `.gltf` JSON
 	 * (`meshes[5].name === 'Circle'`), not part of the animal itself. `gameplay/animals.js` strips
