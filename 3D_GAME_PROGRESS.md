@@ -3163,6 +3163,64 @@ physics) also remains open. No new tech debt this run — the `gameplay/interact
 *reduces* coupling (same reasoning ADR-0028 already established), and `displayName` on the NPC
 controller is a plain additive field no existing caller needs to change for.
 
+## This Run (2026-07-30, run 34)
+
+**Session Snapshot re-taken at container boot:** found `HEAD` detached at run 33's own final commit
+(`64519ee`) with local `main` still pointing at the pre-3D-mode commit (`38e09e7`) — the exact
+recurring container-restart pattern documented in this file's "Repo-continuity note" (runs 18, 29,
+30). Confirmed `origin/main` already matched the detached `HEAD` (the push had succeeded); fast-
+forwarded local `main` (`git checkout main && git merge 64519ee --ff-only`) — no rewrite, no force,
+strictly a stale-local-ref fix. `node --check` re-verified clean on every non-vendor `.js` file
+(zero failures across `src/3d/**`, `script.js`, `service-worker.js`), no file over the 600-line cap
+(`game3d.js` still the largest at 574), both `assets_manifest.json`/`manifest.json` valid JSON.
+World scale re-derived from `config.js` once more — still 137.5 km², no change needed (twenty-eighth
+straight confirmation).
+
+**Decision and work this run (one atomic change — DECISIONS.md ADR-0034):** With no syntax error,
+blocking bug, perf-budget overrun, or memory leak found, and no run-length-appropriate tech-debt
+item open besides the one already called out by name in Known Issues, picked that item per the
+priority order (5. Technical debt, ahead of 6. missing coverage / 7-9 feature work): "no automated
+check that `assets_manifest.json` matches `assets/`." Added `scripts/checkAssetsManifest.js` (new
+`scripts/` directory) — a dependency-free Node script that hard-fails on a manifest entry pointing
+at a missing file or an unregistered `.fbx`/`.glb` on disk, and soft-warns (non-fatal) on
+unreferenced texture/sidecar files. See ADR-0034 for the full design and alternatives considered.
+
+**Regression guard:** `node --check scripts/checkAssetsManifest.js` clean. Ran against the real repo
+state: exit 0, all 12 manifest entries resolve, all `.fbx`/`.glb` files on disk registered, 20
+expected sidecar files (wolf/dragon textures + the wolf's unused `.gltf`/`.bin` alternate encoding
+of its already-registered `.glb`) correctly reported as non-fatal warnings. Both hard-fail paths
+independently verified against temporary test fixtures (a manifest copy with one entry's `file`
+pointed at a nonexistent path; a throwaway empty `.fbx` dropped into `assets/models/characters/`) —
+each correctly exited 1 with the specific offending path listed; both fixtures were removed/restored
+before commit, confirmed via `git status --short` showing no unintended tracked-file diff. Full
+project smoke test unaffected by this subtask (a new dev-tooling script only, never imported by any
+browser-loaded file) — no `game3d.js`/browser-facing file was touched, so no re-run of the
+headless-Chromium checks was needed for this specific change; existing figures (444/25 terrain
+chunks, both device classes) stand unchanged from run 33.
+
+**Memory-leak checklist:** N/A — this subtask adds a one-shot Node CLI script (no browser runtime
+code, no event listeners, no `THREE.*` object allocation, no long-lived state); process exits
+immediately after `main()` returns.
+
+- Updated `DECISIONS.md` (new ADR-0034), `ARCHITECTURE.md` (new `scripts/checkAssetsManifest.js`
+  entry), this file's Known Issues section (marked resolved) and this section.
+
+**Files changed this run:** `scripts/checkAssetsManifest.js` (new), `ARCHITECTURE.md`,
+`DECISIONS.md` (new ADR-0034), `3D_GAME_PROGRESS.md` (this file). 4 files, 129 new lines of code
+(the script itself) plus documentation. One commit.
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged from run 33 (this subtask is a dev-tooling script,
+touches no terrain/streaming/rendering code).**
+
+**Next step for the next run:** this run's budget/time allowed for a chained second subtask — see
+below for whether one landed. If this is genuinely the last entry in this run's chain, the next
+run should return to FAZ 5/6's remaining real gaps (unchanged from run 33's "Next step": dialogue
+content, `berk`/`olena`/`twin` NPCs, NPC player/pack-awareness reconsideration, the other 3 FAZ 6
+animal types, FAZ 4's gravity/jump/wall-collider physics) — all of these need either a content/
+design decision or a human manual-download step, not a mechanical fix, so the priority-order scan
+should re-run fresh at the top (syntax/bugs/perf/leaks/debt) before jumping straight to any of them.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -3304,9 +3362,13 @@ controller is a plain additive field no existing caller needs to change for.
   and Free3D's download flow doesn't trigger via automated browser clicks either (per the wolf/
   dragon commit message). If a later phase needs a new character/creature/animation, mark it here
   as "insan onayı gerekli — manuel indirme" and stop; do not attempt to fetch it automatically.
-- **`assets_manifest.json` is hand-maintained, no automated check that it matches `assets/`.**
-  Low risk today (12 files, in sync as of this run), but flag as tech debt if the asset count grows without a
-  script to diff `assets/**` against the manifest.
+- **~~`assets_manifest.json` is hand-maintained, no automated check that it matches `assets/`~~ —
+  fixed run 34 (`scripts/checkAssetsManifest.js`).** A dependency-free Node script hard-fails if any
+  manifest entry points at a missing file, or if any `.fbx`/`.glb` on disk isn't registered
+  (unregistered license/source would go untracked); soft-warns (non-fatal) on texture/sidecar files
+  that legitimately ship without their own entry. Run manually — `node
+  scripts/checkAssetsManifest.js` — after touching `assets/` or the manifest; not wired into CI
+  (none exists in this repo). See DECISIONS.md ADR-0034.
 - **No visual loading progress bar yet.** `AssetLoader` already emits `EVENTS.ASSET_PROGRESS`
   with a `ratio` — there's just no UI listening yet since there's no HTML page for the 3D mode
   until Phase 1. Wire a real progress bar into `game3d.html`'s loading screen as part of Phase 1

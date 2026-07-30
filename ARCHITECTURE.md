@@ -673,3 +673,17 @@ HUD/inventory/debug panels)
   still works (see the Regression Guard smoke-test list in the system instructions and this file's
   "This Run" sections).
 - **Failure mode:** unchanged by the 3D mode; see the existing code for its own error handling.
+
+## `scripts/checkAssetsManifest.js` — asset manifest consistency check (tooling, run 34)
+
+- **Depends on:** `assets_manifest.json` and the real contents of `assets/`. Plain Node `fs` only —
+  no npm dependency, no build step (consistent with this repo having no `package.json`).
+- **Used by:** a human or a future run, invoked manually (`node scripts/checkAssetsManifest.js`)
+  after adding/removing any file under `assets/` or any entry in `assets_manifest.json`. Not wired
+  into a CI pipeline or git hook — this repo has neither today (see ADR-0034's Consequence).
+- **Critical path:** no — a dev-time consistency check, not runtime code. Never imported by
+  `game3d.js`/`index.html`/any browser-loaded file.
+- **Failure mode:** exits 1 (with a listed reason) if a manifest entry points at a file that
+  doesn't exist, or if a `.fbx`/`.glb` file on disk isn't registered in the manifest. Exits 0 (with
+  non-fatal warnings for expected texture/sidecar files) otherwise. See ADR-0034 for the full
+  design/alternatives.

@@ -2474,3 +2474,57 @@ to have solved. No new tech debt: the extraction into `gameplay/interaction.js` 
 plain additive field no existing caller needs to change for. Real remaining FAZ 5 work: actual
 dialogue content/branching, 3 kingdom seats still without any NPC (`berk`, `olena`, `twin`), and
 player/pack-awareness for NPCs (still needs its own design reconsideration per run 32's note).
+
+## ADR-0034: `scripts/checkAssetsManifest.js` — automated `assets_manifest.json` vs. `assets/` consistency check
+
+**Status:** Accepted (run 34).
+
+**Context:** `3D_GAME_PROGRESS.md`'s Known Issues had flagged since early on that
+`assets_manifest.json` is hand-maintained with "no automated check that it matches `assets/`." At
+12 manifest entries / 32 real files this was low risk, but the note itself said to flag it as real
+tech debt once the asset count grows — and per this run's priority order (technical debt ranks
+above missing-coverage and new-feature work when nothing higher-priority is open), this was the
+correct next atomic subtask: no syntax errors, no blocking bugs, budgets/coverage all unchanged and
+healthy, no memory leak found.
+
+**Decision:** Added `scripts/checkAssetsManifest.js`, a small dependency-free Node script (plain
+`fs`, no npm install needed) that:
+1. **Hard-fails** if any manifest entry's `file` path doesn't exist on disk (typo'd path / entry
+   for an asset that was never actually added).
+2. **Hard-fails** if any `.fbx`/`.glb` file on disk (the two formats this project's code actually
+   loads — see `assetLoader.js`'s `loadFBXModel`/`loadModel`) isn't referenced by any manifest
+   entry (an asset dropped in without its source/license ever being recorded).
+3. **Soft-warns** (does not fail) on any other unreferenced file under `assets/` — texture/sidecar
+   files (`.png`/`.jpg`/`.jpeg`) and glTF's `.bin` buffer routinely ship alongside a registered
+   primary model file without needing their own manifest entry, and are expected to appear here.
+
+**Alternatives considered:**
+- *Hard-fail on every unregistered file, no soft-warning tier* — rejected: would force every wolf/
+  dragon texture PNG (20 files today) into the manifest as a fake individual "asset" with no
+  source info beyond "ships inside the model's already-registered zip," adding noise without adding
+  real license-tracking value.
+- *Only check manifest-file→disk existence, skip the disk→manifest direction* — rejected: catches
+  fewer real mistakes. The actual regression this is meant to prevent is a *new* asset landing in
+  `assets/` (e.g. a future manual Mixamo/Free3D download) without a human remembering to also add
+  its manifest entry — that's a disk→manifest gap, not a manifest→disk one.
+- *A `.gltf` companion to the manifest (declarative allowlist of expected sidecar files)* —
+  rejected as speculative: the soft-warning tier already reports the exact same information without
+  needing a second file to keep in sync.
+
+**Verified:** `node --check scripts/checkAssetsManifest.js` passes. Ran clean against the real
+repo state (exit 0, 12/12 manifest entries resolve, all `.fbx`/`.glb` files on disk registered, 20
+expected sidecar files listed as warnings). Both hard-fail paths independently verified against a
+temporary copy of the manifest / a temporary dummy file (restored before commit, confirmed via
+`git status --short` showing no unintended tracked-file changes): a manifest entry pointed at a
+nonexistent path correctly exits 1 and lists it; an unregistered `.fbx` dropped into
+`assets/models/characters/` correctly exits 1 and lists it as unregistered. Script is 129 lines,
+well under the 600-line-per-file cap.
+
+**Consequence:** Future runs (or the project owner) can run
+`node scripts/checkAssetsManifest.js` after adding/removing any asset file or manifest entry and
+get an immediate, precise answer instead of a manual `diff`-by-eye. Not wired into any CI/git-hook
+yet (no CI pipeline or package.json exists in this repo — see the "no npm/build step" project
+convention noted throughout `3D_GAME_PROGRESS.md`'s Asset Sources table); running it is a manual
+step for now. A future run could add a lightweight pre-commit hook if that friction becomes real,
+but that would be speculative today with only one contributor pattern (manual asset drops) actually
+exercising this path.
