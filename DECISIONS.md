@@ -4731,3 +4731,64 @@ twice (ADR-0028, ADR-0059). FAZ 7's tooling blocker is now lifted but the phase 
 unstarted; FAZ 3's "LOD gap" is confirmed to need a different (procedural-geometry) approach than
 `gltfpack`/`gltf-transform`, not currently justified by any measured perf need (unchanged conclusion
 from ADR-0015/ADR-0032).
+
+## ADR-0065: Grow the world-event flavor pool from 12 to 14 entries
+
+**Status:** Accepted (run 49, sub-task 2 — chained after ADR-0064 per this run's budget/time still
+being available).
+
+**Context:** After ADR-0064's dialogue-pilot growth, `gameplayConfig.js` sits at 566/600 lines — only
+34 lines of headroom, likely one growth away from needing a file split (flagged in ADR-0064's own
+"Consequences"). Rather than force another dialogue-pilot NPC pair into a file that's about to need
+architectural work, this run rotates to priority 9.5 (EventBus/world-event content), last grown run
+47 (`gameplay/worldEvents.js`'s `WORLD_EVENTS`, ADR-0061) — 2 runs stale by this project's own
+established "alternate 9/9.5 once both have been touched" rotation logic (see ADR-0063's own
+reasoning for the same rotation the other direction).
+
+`gameplay/worldEvents.js` itself is only 95/600 lines — comfortable headroom, no split needed.
+
+**Decision:** `WORLD_EVENTS` gains 2 new original entries: `watch_horn` (a single distant horn blast
+from the north — Night's Watch/Wall-adjacent ambiance, distinct from the existing `wolf_howl`/
+`dragon_shadow` "something in the distance" entries) and `tourney_announce` (a herald announcing a
+jousting tournament at a neighboring seat — festive/political ambiance, distinct from the existing
+`feast_fires`). Both original writing, not adapted from the show, same constraint every asset in this
+project already follows. No code touched outside the data array — `createWorldEventSystem` already
+picks uniformly at random from whatever `WORLD_EVENTS` contains.
+
+**Reasoning:**
+- **Why these two specifically:** scanned the existing 12 for thematic gaps — nothing referenced the
+  Wall/Night's Watch (despite `jon-guard-1`'s dialogue greeting existing) or tournaments/jousting (a
+  classic Westeros staple with zero prior representation in either the 2D `RANDOM_EVENTS` port
+  source or this pool).
+- **2, not more:** same small-batch-per-run precedent ADR-0056 (first 8) and ADR-0061 (8→12) both
+  established for this exact pool.
+- **Why not extend the dialogue pilot again instead:** `gameplayConfig.js` has only 34/600 lines of
+  headroom left post-ADR-0064; spending it on a second dialogue-pilot growth in the same run reduces
+  the safety margin before a forced split, whereas `worldEvents.js` has ample room and hasn't been
+  touched in 2 runs.
+
+**Verified:**
+- `node --check` clean on the one touched file (`worldEvents.js`).
+- Line count: `worldEvents.js` 97/600 (up from 95/600) — trivial growth, no split pressure.
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`): **all 12** checks PASS, identical
+  to the pre-change baseline — `checkWorldEvents` asserts the mechanism generically (fire timing,
+  payload shape, determinism, dispose) against whatever the pool currently contains, not fixed
+  ids/count, so it needed no changes.
+- **Real headless-Chromium proof of the new content specifically:** a one-off Playwright script
+  booted the live `game3d.html` page (zero console/page errors), then drove the real
+  `createWorldEventSystem` (seed 7) with repeated large time deltas until both new ids
+  (`watch_horn`/`tourney_announce`) were actually observed coming out of the real pool (not asserted
+  against array internals), then emitted `watch_horn`'s real payload through a real `EventBus` into a
+  real `WorldEventToast` instance. Screenshot confirms the toast's real icon/title/desc render over
+  the live scene (castle, player, night sky). Zero console/page errors throughout.
+
+**Alternatives considered:**
+- *Add 4+ entries in one batch* — rejected, same small-batch precedent as above.
+- *Reuse a 2D `RANDOM_EVENTS` title/description verbatim* — rejected: the 2D entries are written
+  around a stat-effect payload (gold/army/morale deltas) this pool intentionally has none of; original
+  ambiance-only writing keeps the tone consistent with the existing 12.
+
+**Consequences:** World-event pool now has 14 entries, still comfortably under any practical size
+limit for a `Math.floor(random() * WORLD_EVENTS.length)` pick. `worldEvents.js` has 503 lines of
+headroom before its own 600-line cap. FAZ 8's event system remains flavor-only (no stat effects, no
+per-kingdom economy hook) — unchanged design boundary from ADR-0056.
