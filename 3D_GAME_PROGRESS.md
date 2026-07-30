@@ -4022,6 +4022,54 @@ cat/bird still need a human manual-download step — mark "insan onayı gerekli"
 FAZ 7 (dragons — `verdant_wyrm` model ready, no code started yet); or the priority-9.5 world-events/
 EventBus-expansion task from this run's own instructions, not yet reached.
 
+## This Run (2026-07-30, run 40)
+
+**Session Snapshot at container boot:** `HEAD` was detached at run 39's final commit (`6092de4`,
+ADR-0047's horse addition) with a stale local `main`/`origin/main` cached ref pointing at a much
+older pre-3D-mode commit — a fresh `git fetch origin main` showed the real remote `main` already
+matched the detached `HEAD` exactly (force-updated the stale cached ref, no actual divergence or
+lost work), then `git branch -f main origin/main && git checkout main` reattached cleanly. Read
+`3D_GAME_PROGRESS.md`'s tail, `git log -10`, and `DECISIONS.md`'s last 3 ADRs (0046/0047 and this
+run's own).
+
+**Priority-order override, this run only:** the run's own instructions carried a pre-ranked
+override — priority 1 (spawn) already verified fixed by the project owner (commit `5ba86de`,
+skipped per instruction), so priority 1.5 (lake-water flicker) was this run's first sub-task, ahead
+of the normal priority scan.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0048):** Confirmed the root cause before writing
+any code: `world/water.js`'s Gerstner vertex displacement moves each vertex up to ~1.01m vertically
+(3 summed waves, steepness 0.18/0.12/0.08), but lakes are just terrain sitting under
+`WORLD_DEFAULTS.WATER_LEVEL_METERS` (6m) — no separate lake system exists — and the run-16 profiling
+already on record shows the shallowest real seat (`jon`/Castle Black) sampling at exactly 6.00m, far
+shallower than the wave's own amplitude. Fixed by moving all wave *motion* from the vertex shader to
+the fragment shader: vertices now stay at their flat authored grid position (geometrically
+immovable, so water can never separate from the ground beneath it, at any depth including zero), and
+a new `rippleNormal()` fakes the moving-water look via an analytic bump normal driven by
+`vWorldPosition.xz`/`uTime`, feeding the same fresnel/specular shading the old per-vertex normal did.
+Public API (`createWater`/`updateWater`/`disposeWater`, all uniforms) unchanged — no caller needed
+to change. See ADR-0048 for the full alternatives-considered reasoning (steepness reduction and a
+larger lake-depth threshold were both considered and rejected as the primary fix).
+
+**Regression guard:** `node --check` clean. Full committed smoke suite — all 8 checks PASS,
+including a real shader-compile catch mid-development (an early version of the fix broke
+`#include <fog_vertex>`'s implicit `mvPosition` dependency; the 3D-mode boot check caught it
+immediately as a `THREE.WebGLProgram: Shader Error`, fixed before commit). **Root-cause proof:** a
+throwaway in-page probe sampled the real water plane's `geometry.attributes.position` at `t=0` and
+`t=5s` — `maxDelta: 0` across all 16,641 vertex components, quantitatively confirming the geometry
+is now time-invariant (the pre-fix shader would show a nonzero delta up to ~1.01m here). Real
+headless-Chromium boot screenshot (Playwright, ~2s post-ready) — zero console/page errors, scene
+renders correctly.
+
+**Memory-leak checklist:** N/A — shader-internals-only change, no new per-frame allocation,
+listener, or timer; `createWater`/`updateWater`/`disposeWater`'s object lifecycle is unchanged.
+
+**Files changed this sub-task:** `src/3d/world/water.js`, `DECISIONS.md` (new ADR-0048),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~70 changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 80.7% (111.00 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a shader fix touches no terrain/streaming/chunk logic.**
+
 ## Known Issues / Tech Debt
 
 - **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s

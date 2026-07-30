@@ -3454,3 +3454,77 @@ for whoever picks it up next: the real fix likely needs either `renderer.info`-b
 added first (so the next attempt can verify actual, not estimated, triangle/draw-call cost) or a
 smaller, more conservative radius bump than 10 -> 11 with the same dual-verification rigor ADR-0014
 used.
+
+## ADR-0048: Fix lake-water flicker by moving wave motion from the vertex shader to the fragment shader
+
+**Status:** Accepted (run 40, first sub-task).
+
+**Context:** The project owner reported the run's own priority-1.5 item: `world/water.js`'s single
+sea-level plane (ADR-0005) visibly flickered over lake surfaces. Root cause confirmed by re-reading
+the shader before touching anything (BİLMEME KURALI — measure, don't guess): the plane's Gerstner
+vertex displacement (three summed waves, steepness 0.18/0.12/0.08 at wavelengths 22/14/9m) moves
+each vertex up to `sum(steepness_i / k_i)` ≈ 0.63 + 0.27 + 0.11 ≈ 1.01m vertically. Over the deep
+sea this reads fine, but lakes are not a separate system — they're just terrain low enough to sit
+under `WORLD_DEFAULTS.WATER_LEVEL_METERS` (6m), per `water.js`'s own module doc, and the
+`3D_GAME_PROGRESS.md` run-16 profiling already on record shows the shallowest real kingdom seat
+(`jon`/Castle Black) sampling at exactly 6.00m — i.e. some lake terrain sits centimeters below water
+level, far shallower than the wave's own ~1m amplitude. Every frame the wave trough dips below such
+a lake bed and the crest rises above it, so the shoreline's terrain geometrically pops in and out of
+view against the water plane — a real geometric mismatch, not a GPU z-fighting artifact, but reading
+as "flicker" either way.
+
+**Decision:** Removed the Gerstner vertex displacement entirely — the plane's vertices now stay at
+their authored flat-grid position (with `#include <fog_vertex>` still wired via an explicit
+`mvPosition`, since the old code relied on the same variable already existing from the displacement
+math). Wave *motion* is faked entirely in the fragment shader instead: `rippleNormal()` derives an
+analytic bump normal from three summed sine ripples over `vWorldPosition.xz` and `uTime` (same
+"tuned by eye, not physically derived" spirit the old Gerstner constants used), which drives the
+existing fresnel/specular shading exactly as the old per-vertex normal did. Net effect: water still
+visibly moves/sparkles, but the plane can never geometrically separate from the ground beneath it at
+any depth, including zero. `uTime`/`uCameraPosition`/`uShallowColor`/`uDeepColor`/`uSunDirection`
+uniforms and the `createWater`/`updateWater`/`disposeWater` public API are unchanged — this is a
+shader-internals-only change; no caller in `game3d.js` needed to change.
+
+**Verified:**
+- `node --check src/3d/world/water.js` clean.
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`) — all 8 checks PASS, including the
+  3D-mode boot check (zero console/page errors — the shader compiles; an earlier iteration of this
+  fix briefly broke `#include <fog_vertex>`'s implicit `mvPosition` dependency and this same check
+  caught it immediately as a `THREE.WebGLProgram: Shader Error`).
+- **Root-cause proof, not just a visual spot-check:** a throwaway in-page probe (real `createWater`/
+  `updateWater` from `/src/3d/world/water.js`, run over HTTP against the actual served file, same
+  pattern `game3dSmokeChecks.js` uses for its isolated checks) sampled the water plane's
+  `geometry.attributes.position` array at `t=0` and `t=5s`. Result: `maxDelta: 0` across all 16,641
+  vertices (5,547 grid points × 3 components) — the geometry is now provably time-invariant, which
+  is the direct, quantitative negation of the bug (the old shader would show a nonzero max delta up
+  to ~1.01m here). `maxDeltaFromInitial: 0` too, confirming `updateWater` itself never touches
+  vertex Y.
+- Real headless-Chromium boot screenshot of `game3d.html` (Playwright, ~2s after the loading screen
+  hid) — zero console/page errors, player/castle render correctly at night, consistent with
+  ADR-0046's spawn point; no regression to the existing render path.
+
+**Alternatives considered:**
+- *Reduce Gerstner steepness significantly* (the run's own "simplest" suggestion) — rejected as the
+  primary fix: it shrinks the flicker window but can't eliminate it for a lake bed sitting literal
+  centimeters below water level (`jon`'s measured 6.00m case) without shrinking steepness so far the
+  sea itself goes visually flat. The fragment-only approach removes the failure mode at any depth,
+  including zero, so there's no remaining shallow-water edge case to tune around.
+- *Grow the lake depth threshold* — not viable as a config knob: this project has no explicit "lake"
+  entity or depth parameter (ADR-0005 - lakes are an emergent side effect of FBM terrain height vs.
+  `WATER_LEVEL_METERS`, not authored). Doing this for real would mean reshaping `terrain.js`'s noise
+  output near shorelines, a materially larger and riskier change than a shader-internals swap for
+  the same result.
+- *Keep per-vertex Gerstner but clamp displacement near the shore* — would need each water vertex to
+  know the local terrain height under it (a `terrain.js` height-sampler call per vertex, per frame,
+  in a vertex shader with no access to that CPU-side sampler) — real GPU-side terrain-height lookup
+  (e.g. a heightmap texture sample) is a much larger change than this project's "smallest change
+  that removes the actual failure mode" bias supports for an atomic sub-task.
+
+**Consequences:** Water no longer has real per-vertex wave silhouette (e.g. a wave crest visibly
+lifting above the mean plane height at a distance) — it's a flat plane with fragment-only shading
+motion, same trade-off `sky.js`'s procedural skybox and other "fake it in the shader, not the
+geometry" systems in this project already make. Acceptable: the previous version was already "tuned
+by eye, not physically derived" per its own comment, not a rendering feature anything else depends
+on. If a future run wants real geometric waves back (e.g. for a boat/physics system that needs an
+actual water height field), it will need the heightmap-lookup approach flagged above, done as its
+own scoped sub-task with real perf measurement, not a revert of this fix.

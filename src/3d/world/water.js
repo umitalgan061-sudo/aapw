@@ -1,9 +1,18 @@
 /**
- * Sea-level water: one large Gerstner-wave-shaded plane, fixed at `WORLD_DEFAULTS.WATER_LEVEL_METERS`
- * and re-centered on the camera's XZ position every frame (same technique `sky.js` uses for its
- * skybox sphere) so it always extends to the horizon without needing per-chunk geometry or a
- * load/unload lifecycle. See DECISIONS.md ADR-0005 for why this is one plane, not per-chunk water,
- * and why `terrain.js` needed no changes for lakes/coastline to appear.
+ * Sea-level water: one large plane, fixed at `WORLD_DEFAULTS.WATER_LEVEL_METERS` and re-centered
+ * on the camera's XZ position every frame (same technique `sky.js` uses for its skybox sphere) so
+ * it always extends to the horizon without needing per-chunk geometry or a load/unload lifecycle.
+ * See DECISIONS.md ADR-0005 for why this is one plane, not per-chunk water, and why `terrain.js`
+ * needed no changes for lakes/coastline to appear.
+ *
+ * The surface never moves vertically — see DECISIONS.md ADR-0048. An earlier version displaced
+ * vertices with real Gerstner waves (up to ~1m), which read fine over the deep sea but flickered
+ * over shallow lakes (some only centimeters below `WORLD_DEFAULTS.WATER_LEVEL_METERS`): the wave
+ * trough would dip below the lake bed and the crest would rise above it, so the shoreline's
+ * terrain popped in and out of view every frame. Wave *motion* is now faked entirely in the
+ * fragment shader (a shifting analytic bump normal drives the fresnel/specular look) — the plane's
+ * geometry stays flat, so water can never geometrically part from the lake bed beneath it,
+ * regardless of how shallow that lake is.
  *
  * Participates in `scene.fog` (`fog.js`) via three.js's `fog_pars_vertex`/`fog_vertex`/
  * `fog_pars_fragment`/`fog_fragment` chunks (`material.fog: true` alone does nothing for a custom
@@ -15,67 +24,41 @@
 import * as THREE from 'three';
 
 const WATER_VERTEX_SHADER = /* glsl */ `
-	uniform float uTime;
 	varying vec3 vWorldPosition;
-	varying vec3 vNormal;
 	#include <fog_pars_vertex>
 
-	// Classic Gerstner (trochoidal) wave: displaces position and accumulates tangent/binormal so a
-	// real per-vertex normal can be derived, instead of faking it with a flat plane normal.
-	vec3 gerstnerWave(vec4 wave, vec3 p, inout vec3 tangent, inout vec3 binormal) {
-		float steepness = wave.z;
-		float wavelength = wave.w;
-		float k = 6.28318530718 / wavelength;
-		float c = sqrt(9.8 / k);
-		vec2 d = normalize(wave.xy);
-		float f = k * (dot(d, p.xz) - c * uTime);
-		float a = steepness / k;
-
-		tangent += vec3(
-			-d.x * d.x * steepness * sin(f),
-			d.x * steepness * cos(f),
-			-d.x * d.y * steepness * sin(f)
-		);
-		binormal += vec3(
-			-d.x * d.y * steepness * sin(f),
-			d.y * steepness * cos(f),
-			-d.y * d.y * steepness * sin(f)
-		);
-		return vec3(d.x * a * cos(f), a * sin(f), d.y * a * cos(f));
-	}
-
 	void main() {
-		vec3 gridPoint = position;
-		vec3 tangent = vec3(1.0, 0.0, 0.0);
-		vec3 binormal = vec3(0.0, 0.0, 1.0);
-		vec3 displaced = gridPoint;
-		// Three waves at different direction/wavelength/steepness — enough to read as "water", not
-		// a single repeating ripple. Tuned by eye, not physically derived.
-		displaced += gerstnerWave(vec4(1.0, 0.6, 0.18, 22.0), gridPoint, tangent, binormal);
-		displaced += gerstnerWave(vec4(-0.7, 1.0, 0.12, 14.0), gridPoint, tangent, binormal);
-		displaced += gerstnerWave(vec4(0.3, -0.8, 0.08, 9.0), gridPoint, tangent, binormal);
-
-		vec3 worldPos = (modelMatrix * vec4(displaced, 1.0)).xyz;
+		vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
 		vWorldPosition = worldPos;
-		vNormal = normalize(cross(binormal, tangent));
-
-		vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
+		vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
 		gl_Position = projectionMatrix * mvPosition;
 		#include <fog_vertex>
 	}
 `;
 
 const WATER_FRAGMENT_SHADER = /* glsl */ `
+	uniform float uTime;
 	uniform vec3 uShallowColor;
 	uniform vec3 uDeepColor;
 	uniform vec3 uSunDirection;
 	uniform vec3 uCameraPosition;
 	varying vec3 vWorldPosition;
-	varying vec3 vNormal;
 	#include <fog_pars_fragment>
 
+	// Fakes moving-water shading without ever displacing the (flat) vertex grid: three sine ripples
+	// at different direction/frequency/speed perturb an otherwise-flat-up normal, the same "tuned by
+	// eye" spirit the old Gerstner waves used, just fragment-only so shallow water can never part
+	// from the ground under it (DECISIONS.md ADR-0048).
+	vec3 rippleNormal(vec2 worldXZ, float time) {
+		float r1 = sin(dot(worldXZ, vec2(0.85, 0.51)) + time * 1.3);
+		float r2 = sin(dot(worldXZ, vec2(-0.6, 0.9)) * 1.6 - time * 0.9);
+		float r3 = sin(dot(worldXZ, vec2(0.25, -0.7)) * 2.4 + time * 1.8);
+		vec2 slope = vec2(r1 + r2 * 0.6, r3 + r2 * 0.4) * 0.05;
+		return normalize(vec3(slope.x, 1.0, slope.y));
+	}
+
 	void main() {
-		vec3 normal = normalize(vNormal);
+		vec3 normal = rippleNormal(vWorldPosition.xz, uTime);
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
 
 		// Fresnel-ish: nearer grazing angles read lighter/more reflective, straight-down reads deep.
@@ -149,9 +132,9 @@ export function createWater(waterLevelMeters) {
 }
 
 /**
- * Re-centers the water plane's XZ on the camera (keeping its fixed sea-level Y), advances its
- * Gerstner animation time, and updates the specular-highlight camera-position uniform. Call once
- * per frame.
+ * Re-centers the water plane's XZ on the camera (keeping its fixed sea-level Y), advances the
+ * fragment-only ripple animation time, and updates the specular-highlight camera-position uniform.
+ * Call once per frame.
  * @param {THREE.Mesh} waterMesh
  * @param {THREE.Vector3} cameraPosition
  * @param {number} elapsedSeconds
