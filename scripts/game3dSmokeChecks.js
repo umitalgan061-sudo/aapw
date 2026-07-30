@@ -484,6 +484,96 @@ async function checkNpcPatrol(browser, baseUrl) {
 	return { name: 'NPC waypoint patrol (gameplay/npc.js)', ok, details };
 }
 
+/**
+ * Regression guard for `gameplay/animals.js`'s `createWolf` waypoint-patrol movement (run 27,
+ * DECISIONS.md ADR-0026) — as opposed to `checkWolfPackAlert` above, which already covers its
+ * flee/pack-alert behavior. `patrolWaypoints` handling was copied (not shared) from
+ * `gameplay/npc.js`'s `checkNpcPatrol`-covered logic, so this replays the same scenario shape on a
+ * real `createWolf` controller with flee disabled (no `fleeClipName`/`fleeTriggerRadiusMeters`
+ * passed, so `canFlee` is false and the patrol branch is the only one that can ever run) —
+ * confirming the copy stayed behaviorally identical to its already-tested original, not just that
+ * it compiles.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkWolfPatrol(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createWolf } = await import('/src/3d/gameplay/animals.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { ANIMAL_CONFIG } = await import('/src/3d/config.js');
+
+			const assetLoader = new AssetLoader();
+			const groundCollider = { getGroundHeight: (x, z) => 5 + z * 0.1 };
+			const delta = 1 / 60;
+
+			const wolf = await createWolf({
+				assetLoader,
+				modelUrl: ANIMAL_CONFIG.WOLF_MODEL_URL,
+				idleClipName: ANIMAL_CONFIG.IDLE_CLIP_NAME,
+				stripChildNames: ANIMAL_CONFIG.STRIP_CHILD_NAMES,
+				worldX: 0,
+				worldZ: 0,
+				groundY: groundCollider.getGroundHeight(0, 0),
+				groundCollider,
+				walkClipName: ANIMAL_CONFIG.WALK_CLIP_NAME,
+				// Matches `spawnConfiguredAnimals`'s own shape: waypoint 0 is the spawn point itself.
+				patrolWaypoints: [{ x: 0, z: 0 }, { x: 10, z: 10 }],
+				speedMps: ANIMAL_CONFIG.PATROL_SPEED_MPS,
+				pauseSeconds: ANIMAL_CONFIG.PATROL_PAUSE_SECONDS,
+				turnRateRadiansPerSecond: ANIMAL_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+				// No fleeClipName/fleeTriggerRadiusMeters -> canFlee is false; update()'s flee branch
+				// can never trigger even if a playerPosition were passed (it never is here).
+			});
+
+			// Same double-idle-before-first-lap quirk `checkNpcPatrol` documents — this is the copied
+			// (not shared) code path, so it inherits it identically.
+			const maxIdleFrames = Math.ceil((ANIMAL_CONFIG.PATROL_PAUSE_SECONDS * 2 + 1) / delta);
+			let idleFrames = 0;
+			while (idleFrames < maxIdleFrames && wolf.object3D.position.x === 0 && wolf.object3D.position.z === 0) {
+				wolf.update(delta);
+				idleFrames++;
+			}
+			const startedMoving = wolf.object3D.position.x > 0 || wolf.object3D.position.z > 0;
+			const idleSecondsBeforeMove = idleFrames * delta;
+			const expectedIdleSeconds = ANIMAL_CONFIG.PATROL_PAUSE_SECONDS * 2;
+			const idleDurationOk = Math.abs(idleSecondsBeforeMove - expectedIdleSeconds) <= delta * 5;
+
+			const midWalkExpectedY = groundCollider.getGroundHeight(wolf.object3D.position.x, wolf.object3D.position.z);
+			const midWalkYTracksGround = Math.abs(wolf.object3D.position.y - midWalkExpectedY) < 1e-9;
+			const notFleeingDuringPatrol = !wolf.isFleeing;
+
+			let arriveFrames = 0;
+			while (
+				arriveFrames < 5000 &&
+				!(wolf.object3D.position.x === 10 && wolf.object3D.position.z === 10)
+			) {
+				wolf.update(delta);
+				arriveFrames++;
+			}
+			const arrivedExactly = wolf.object3D.position.x === 10 && wolf.object3D.position.z === 10;
+			const finalYTracksGround = Math.abs(wolf.object3D.position.y - groundCollider.getGroundHeight(10, 10)) < 1e-9;
+			const expectedYaw = Math.PI / 4;
+			const turnedTowardTravel = Math.abs(wolf.object3D.rotation.y - expectedYaw) < 0.05;
+
+			return {
+				startedMoving, idleDurationOk, midWalkYTracksGround, notFleeingDuringPatrol,
+				arrivedExactly, finalYTracksGround, turnedTowardTravel,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'same double-idle-before-first-lap quirk as NPC patrol (copied code), never flees with no ' +
+			'flee config, ground height resamples mid-walk, arrives exactly at target, turned toward travel'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'wolf waypoint patrol (gameplay/animals.js)', ok, details };
+}
+
 module.exports = {
 	check2DShell,
 	check3DMode,
@@ -492,4 +582,5 @@ module.exports = {
 	checkInteractionController,
 	checkWolfPackAlert,
 	checkNpcPatrol,
+	checkWolfPatrol,
 };

@@ -12,7 +12,7 @@
  * printing). The actual per-feature assertions live in `game3dSmokeChecks.js` (split out this
  * run — see that file's header comment for why) — see its own comment for what each check
  * guards against: 2D shell load (informational), 3D mode boot, settlement collider, jump/gravity
- * arc, interaction controller, wolf flee/pack-alert, and (new this run) NPC waypoint patrol.
+ * arc, interaction controller, wolf flee/pack-alert, NPC waypoint patrol, and wolf waypoint patrol.
  *
  * Requires Playwright's Chromium browser (dev-only tooling — this repo intentionally has no
  * `package.json`/build step for the *deployed* site; this script is never loaded by a browser or
@@ -123,6 +123,7 @@ async function main() {
 		results.push(await checks.checkInteractionController(browser, baseUrl));
 		results.push(await checks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await checks.checkNpcPatrol(browser, baseUrl));
+		results.push(await checks.checkWolfPatrol(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();

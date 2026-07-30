@@ -3155,3 +3155,57 @@ is documented, not fixed). Same not-wired-into-CI caveat as every prior `scripts
 analogous gap for `gameplay/animals.js`'s own patrol movement (as opposed to its already-tested
 flee/pack-alert behavior) remains open — real, correctly out of this run's scope, a candidate for
 a future run's priority-6 pass.
+
+## ADR-0044: Persisted regression check for `gameplay/animals.js`'s wolf waypoint-patrol movement
+
+**Status:** Accepted (run 38, second chained sub-task).
+
+**Context:** With ADR-0043 (NPC waypoint-patrol regression check) landed and pushed this same run,
+priorities 1-5 remained clean (`node --check` on every touched file, budgets unaffected — test-only
+changes). Priority 6's own remaining candidate, flagged explicitly by this run's first sub-task
+("the analogous gap for `gameplay/animals.js`'s own patrol movement... remains open"): the wolf
+patrol branch inside `createWolf` is a copy (not a shared import — see ADR-0026's "why duplicate")
+of `gameplay/npc.js`'s already-tested patrol logic, but `checkWolfPackAlert` (ADR-0042) only
+exercises the flee/pack-alert branches, never the plain patrol-walk branch itself. Zero persisted
+coverage of wolf patrol movement existed before this sub-task.
+
+**Decision:** Added an 8th check, `checkWolfPatrol`, to `scripts/game3dSmokeChecks.js` (now 586
+lines — still under the 600-line cap, but close; a 9th check of similar size would need a further
+split). Mirrors `checkNpcPatrol`'s exact scenario shape (2 waypoints, waypoint 0 = spawn point,
+target (10, 10), a z-varying groundCollider) on a real `createWolf` controller, with
+`fleeClipName`/`fleeTriggerRadiusMeters` both omitted so `canFlee` is `false` and the flee branch
+can never fire regardless of any `playerPosition` — isolating the patrol branch specifically.
+Confirms the copied logic stayed behaviorally identical to its already-verified original,
+including inheriting the same double-idle-before-first-lap quirk ADR-0043 documented (asserted
+here too, same loose tolerance) — a useful cross-check that the two copies haven't silently
+drifted apart from each other.
+
+**Alternatives considered:**
+- *Refactor `npc.js`/`animals.js`'s patrol logic into one shared helper instead of testing both
+  copies* — rejected, same reasoning ADR-0026 already gave and this project's "refactor only for
+  bug/perf/readability/architecture" rule reinforces: the duplication is small, intentional, and
+  each file owns its own concern; a shared extraction is only justified at a 3rd consumer, and
+  doing it inside a test-coverage sub-task would be unrelated scope creep.
+- *Skip the `notFleeingDuringPatrol` assertion since flee is already covered by ADR-0042* — kept
+  it anyway: it's a one-line free assertion that specifically the *no flee config passed* path
+  behaves correctly (as opposed to ADR-0042's own flee-triggered scenarios), a distinct
+  configuration this suite hadn't exercised.
+
+**Verified:** `node --check` clean on both files (144-line runner, 586-line checks module, both
+under the cap). All 8 checks PASS against the real repo. **Failure path verified with a real
+injected bug** (temporarily changing the patrol-walk branch's `model.position.y =
+groundCollider.getGroundHeight(...)` to a hardcoded `model.position.y = 0` in
+`gameplay/animals.js`) — the new check correctly failed on exactly `midWalkYTracksGround`, while
+`arrivedExactly`/`finalYTracksGround` stayed true (same independent waypoint-snap-branch
+resampling as ADR-0043's equivalent finding) and all 7 other checks (including
+`checkWolfPackAlert`) stayed PASS. Restored `animals.js` immediately after; `diff` against a
+pre-edit backup confirmed a byte-identical restore, `node --check` afterward stayed clean.
+
+**Memory-leak checklist:** N/A — extends an existing one-shot Node CLI script; the one test wolf's
+`AnimationMixer`/model resources are never added to a live render loop, and the whole page closes
+at the end of the check.
+
+**Consequence:** The smoke suite now has 8 committed checks, each with a demonstrated real failure
+path. No `gameplay/animals.js` change at all (test-only addition). `scripts/game3dSmokeChecks.js`
+is close enough to the 600-line cap (586/600) that the next new check will likely need a further
+split (e.g. by system — movement checks vs. boot/collider checks) rather than another append.
