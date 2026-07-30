@@ -1997,3 +1997,56 @@ deliberately out of scope this pass: patrol/wander AI, the other 3 animal types 
 (horses, carts, dogs/cats, birds — none downloaded yet, would need a human manual-download step per
 `3D_GAME_PROGRESS.md`'s Known Issues), and player-awareness (flee/aggro). No new tech debt — this
 pass fixed one latent gap (`loadModel`'s missing `.animations`) rather than adding one.
+
+## ADR-0026: FAZ 6 wolves gain waypoint patrol, reusing NPC_CONFIG's proven `patrol` shape
+
+**Context:** Run 26 landed 2 static/idling wolves and explicitly flagged patrol as the cheapest next
+FAZ 6 slice: `gameplay/npc.js` already has a proven waypoint-patrol implementation (ADR-0021), the
+wolf glTF's `02_walk_Armature_0` clip was already downloaded and confirmed present (via the `.gltf`
+JSON sidecar) but unused, and no higher-priority syntax/blocking-bug/perf/memory issue was found in
+this run's Session Snapshot (git state was clean this time — local `main` already matched
+`origin/main` exactly, no detached-HEAD/stale-ref repair needed, unlike several prior runs).
+
+**Decision:** Extended `gameplay/animals.js`'s `createWolf` with the same optional
+`groundCollider`/`walkClipName`/`patrolWaypoints`/`speedMps`/`pauseSeconds`/
+`turnRateRadiansPerSecond` parameters and straight-line-between-waypoints/idle-pause/turn-toward
+update logic `gameplay/npc.js`'s `createNPC` already uses — copied rather than extracted into a
+shared helper module. **Why duplicate instead of share:** the two call sites differ in loader
+(`loadFBXModel` vs. `loadModel`), clip lookup (`mixer.clipAction(idleSource.animations[0])` for FBX
+vs. `THREE.AnimationClip.findByName(model.animations, name)` for glTF), and NPC-only concerns
+(name-tag sprites, Mixamo scale correction) — a shared helper would need to either take on those
+differences as parameters (churning both files' signatures for a ~30-line body) or become an
+awkward partial abstraction. `npc.js` is a stable, tested FAZ 5 system; touching it now to extract
+shared logic would widen this run's blast radius into an unrelated, already-working phase for a
+readability win, not a bug/perf fix — against this project's own "refactor only for bug/perf/
+readability/architecture" rule read narrowly (a second, still-small consumer doesn't yet outweigh
+the regression risk to a proven system). Revisit if a *third* consumer needs the same pattern.
+
+`ANIMAL_CONFIG` gained `WALK_CLIP_NAME` (`02_walk_Armature_0`, confirmed via the `.gltf` JSON, not
+guessed), `PATROL_SPEED_MPS` (2.2 — faster than `NPC_CONFIG`'s 1.4, a wolf's trot vs. a guard's
+walk), `PATROL_PAUSE_SECONDS` (3, same as NPCs), `PATROL_TURN_RATE_RADIANS_PER_SECOND` (4, same as
+NPCs — no reason to differ at this scope), and a `patrol` field on both `SPAWNS` entries: each walks
+a 20m line, in a different spot and along a different axis from the other (`berkalp-wolf-1` east-
+west, `berkalp-wolf-2` north-south) so their paths don't cross each other or overlap the guard NPCs'
+own ±12m patrol zone at the same `berkalp` seat. `game3d.js`'s wolf-spawn block gained the same
+`spawn.patrol` → `patrolWaypoints` resolution `NPC_CONFIG`'s own spawn loop already does (copied, not
+shared, for the same reason above — the two loops build slightly different option objects for
+`createWolf` vs. `createNPC`).
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- `node --check` clean on all 3 touched files (`config.js`, `game3d.js`, `gameplay/animals.js`).
+- Full smoke test on both device classes: `"Spawned 2 FAZ 6 animal(s)."` on both, zero new console/
+  page errors, all pre-existing counts (444/25 chunks, 14 settlements, 10 NPCs) unchanged.
+- **A position-over-time check via a temporary debug hook** (`window.__debugGame3DState = state`,
+  added only for this test and reverted before commit — confirmed via `git diff` showing zero net
+  change to the committed `game3d.js`): both wolves moved 13.40m over an 8-second sample window
+  (identical for both — expected, both use the same speed/pause constants), confirming patrol is
+  genuinely driving position, not just switching animations in place.
+
+**Consequence:** FAZ 6's first animal type now patrols instead of standing still. Negligible perf
+impact — same 2 `SkinnedMesh`+`AnimationMixer` instances as run 26, just with one more clip
+(`walkAction`) loaded per patrolling wolf; no new draw calls/triangles. Real remaining FAZ 6 work:
+the other 3 animal types (horses, carts, dogs/cats, birds — none downloaded, human manual-download
+step needed for each), and player-awareness (flee/aggro) for the wolf. No new tech debt — the
+duplication-vs-shared-helper tradeoff above was made deliberately, not accidentally, and is
+explicitly flagged for revisit at a third consumer.

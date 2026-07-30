@@ -465,8 +465,10 @@ export async function initGame3D() {
 		for (const npc of state.npcs) state.scene.add(npc.object3D);
 		console.info(`[game3d] Spawned ${state.npcs.length} FAZ 5 NPC(s).`);
 
-		// FAZ 6: wild animals (first pass — wolf only, see config.js's ANIMAL_CONFIG doc comment).
-		// Same seat-anchored spawn resolution as the NPC block above, loaded in parallel the same way.
+		// FAZ 6: wild animals (wolf only, see config.js's ANIMAL_CONFIG doc comment). Same seat-anchored
+		// spawn resolution as the NPC block above, loaded in parallel the same way. A `spawn.patrol`
+		// entry (run 27, same shape as NPC_CONFIG's) adds a 2nd world-space waypoint the animal walks a
+		// straight line to/from; animals without one stay static/idle-only.
 		const wolves = await Promise.all(
 			ANIMAL_CONFIG.SPAWNS.map(async (spawn) => {
 				const seat = seatsById.get(spawn.seatId);
@@ -476,6 +478,12 @@ export async function initGame3D() {
 				}
 				const worldX = seat.x + spawn.offsetXMeters;
 				const worldZ = seat.z + spawn.offsetZMeters;
+				const patrolWaypoints = spawn.patrol
+					? [
+							{ x: worldX, z: worldZ },
+							{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
+						]
+					: undefined;
 				return createWolf({
 					assetLoader,
 					modelUrl: ANIMAL_CONFIG.WOLF_MODEL_URL,
@@ -486,6 +494,12 @@ export async function initGame3D() {
 					groundY: sampleClampedGroundY(worldX, worldZ),
 					rotationYRadians: spawn.rotationYRadians,
 					name: spawn.id,
+					groundCollider: patrolWaypoints ? state.groundCollider : undefined,
+					walkClipName: patrolWaypoints ? ANIMAL_CONFIG.WALK_CLIP_NAME : undefined,
+					patrolWaypoints,
+					speedMps: ANIMAL_CONFIG.PATROL_SPEED_MPS,
+					pauseSeconds: ANIMAL_CONFIG.PATROL_PAUSE_SECONDS,
+					turnRateRadiansPerSecond: ANIMAL_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
 				});
 			}),
 		);

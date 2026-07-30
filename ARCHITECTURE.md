@@ -61,9 +61,10 @@ the way it is.
   run 22, and the flat `SPAWNS` list mapping a kingdom-seat id + world offset to a Mixamo character
   FBX for each NPC, with an optional `patrol` field — 10 entries across 9 seats, all patrolling, as
   of run 25 — see `gameplay/npc.js` and ADR-0019/ADR-0020/ADR-0021/ADR-0023/ADR-0024), and (added
-  FAZ 6, run 26) `ANIMAL_CONFIG` (wolf model URL, idle clip name, the `STRIP_CHILD_NAMES` list for
-  the source file's bundled non-skinned decoration mesh, and a `SPAWNS` list — same seat+offset
-  shape as `NPC_CONFIG.SPAWNS` — see `gameplay/animals.js` and ADR-0025).
+  FAZ 6, run 26, patrol added run 27) `ANIMAL_CONFIG` (wolf model URL, idle+walk clip names, patrol
+  speed/pause/turn-rate constants, the `STRIP_CHILD_NAMES` list for the source file's bundled
+  non-skinned decoration mesh, and a `SPAWNS` list — same seat+offset+optional-`patrol` shape as
+  `NPC_CONFIG.SPAWNS` — see `gameplay/animals.js` and ADR-0025/ADR-0026).
 - **Critical path:** yes — every system imports constants from here.
 - **Failure mode:** N/A (static data only).
 
@@ -378,15 +379,16 @@ the way it is.
   name-tag above its head. No real AI, dialogue, or player-driven interaction yet — real future FAZ 5
   work, not built speculatively now.
 
-## `src/3d/gameplay/animals.js` — Wild animals, wolf first pass (FAZ 6, run 26)
+## `src/3d/gameplay/animals.js` — Wild animals, wolf (FAZ 6, run 26; patrol added run 27)
 
 - **Depends on:** `three` (vendored), `assetLoader.js` (`loadModel` — dynamic-imports `GLTFLoader`,
   and the static `disposeObject3D` helper on teardown). Does not import `config.js` directly, same
   "caller wires config together" convention as `gameplay/npc.js`: `game3d.js` resolves
   `ANIMAL_CONFIG.SPAWNS` entries against `world/settlements.js`'s seat data and passes the final
-  `modelUrl`/`idleClipName`/`stripChildNames`/`worldX`/`worldZ`/`groundY` in.
-- **Used by:** `game3d.js` (`createWolf`, `update()` called every frame to advance the idle
-  `AnimationMixer`, `dispose()` on `pagehide`).
+  `modelUrl`/`idleClipName`/`stripChildNames`/`worldX`/`worldZ`/`groundY` in, plus (run 27, for
+  patrolling entries) `groundCollider`/`walkClipName`/`patrolWaypoints`.
+- **Used by:** `game3d.js` (`createWolf`, `update()` called every frame — keeps the idle/walk mixer
+  ticking and, for patrolling wolves, advances position/rotation — `dispose()` on `pagehide`).
 - **Critical path:** no — a load failure degrades the same way `npc.js`'s does: `assetLoader`'s
   existing L1 silent-fallback substitutes a placeholder box (no animation, but no crash); a
   wholesale creation failure propagates to `game3d.js`'s top-level try/catch (L3).
@@ -396,10 +398,17 @@ the way it is.
   via the `.gltf` JSON sidecar, not guessed. `createWolf` removes any root child whose name is in
   `ANIMAL_CONFIG.STRIP_CHILD_NAMES` (disposing its geometry/material first) before adding the model
   to the scene, so it doesn't render as a stray flat disc near the wolf's feet.
-- **Scope, deliberately minimal:** static/idling only, no patrol/AI/player-awareness and no name-tag
-  — the same starting scope `gameplay/npc.js` itself had in run 20 before those landed in later
-  runs. Real future FAZ 6 work (patrol, other animal types — horses/carts/dogs/birds per the
-  roadmap), not built speculatively now.
+- **Movement, when `patrolWaypoints` is supplied (run 27, ADR-0026):** a straight line to the next
+  point (index wraps via modulo — 2 points ping-pong, 3+ loop), pausing to idle at each one — the
+  same update logic `gameplay/npc.js`'s `createNPC` uses, copied rather than extracted into a shared
+  module (see ADR-0026's "why duplicate" reasoning: differing loaders/clip-lookup APIs between the
+  two files, and not wanting to widen this run's blast radius into the already-stable FAZ 5 system
+  for a readability-only win). Omitting `patrolWaypoints` (the default) keeps the run-26 static-idle
+  behavior byte-for-byte.
+- **Scope, deliberately minimal (extended ADR-0026):** loads, retargets, positions, idles, and (both
+  wolves, run 27) walks a scripted 2-point patrol. No real AI, player-awareness, or name-tag yet —
+  real future FAZ 6 work (other animal types — horses/carts/dogs/birds per the roadmap; each needs a
+  human manual-download step), not built speculatively now.
 
 ## `src/3d/gameplay/` (folder) — Playable characters, NPCs, animals, future dragons/combat/etc.
 
@@ -502,15 +511,16 @@ the way it is.
   not part of the per-frame loop), the playable character (`gameplay/player.js`, loaded async
   *after* the rest of the scene — see `computeCameraRelativeMove` below), 10 static/patrolling NPCs
   (`gameplay/npc.js`, loaded async in parallel right after the player — added FAZ 5, run 20, see
-  ADR-0019), 2 static idling wolves (`gameplay/animals.js`, loaded async right after the NPCs — FAZ
-  6, run 26, see ADR-0025), and the `requestAnimationFrame` render loop (which now also drives
-  `keyboardInput.getAxes()`, `computeCameraRelativeMove()`, `player.update()`, each NPC's and
-  animal's `update()` (keeps their idle mixers ticking), the chase-camera translation, `controls.
+  ADR-0019), 2 patrolling wolves (`gameplay/animals.js`, loaded async right after the NPCs — FAZ 6,
+  run 26, patrol added run 27, see ADR-0025/ADR-0026), and the `requestAnimationFrame` render loop
+  (which now also drives `keyboardInput.getAxes()`, `computeCameraRelativeMove()`, `player.update()`,
+  each NPC's and animal's `update()` (keeps their idle/walk mixers ticking and, for patrolling
+  entries, advances position/rotation), the chase-camera translation, `controls.
   update()`, `streamAroundOrbitTarget()`, `updateDayNightLighting()`, `updateAuroraSky()`,
   `updateFog()`, `updateWater()`, and (ADR-0018) `collectCameraCollidables()` +
   `camera.js`'s `resolveCameraCollision()` each frame — see `world/chunkManager.js`, `lighting.js`,
   `fog.js`, `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009/
-  ADR-0011/ADR-0013/ADR-0016/ADR-0018/ADR-0019/ADR-0025).
+  ADR-0011/ADR-0013/ADR-0016/ADR-0018/ADR-0019/ADR-0025/ADR-0026).
 - **`collectCameraCollidables(state, worldX, worldZ)` (module-local, added ADR-0018):** builds the
   small candidate list `resolveCameraCollision` raycasts against each frame — the player's current
   terrain chunk + its 8 immediate neighbors (via `chunkManager.getLoadedChunkMesh`, sufficient
