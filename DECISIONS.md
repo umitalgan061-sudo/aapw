@@ -2349,3 +2349,60 @@ all 6 downloaded characters are placed at least once, several twice) or a new Mi
 (human manual-download step, per every prior ADR's same constraint). No new tech debt — `xaro-guard-1`
 is a plain `SPAWNS` entry, the same shape every other single-NPC seat already uses. FAZ 5's other two
 real gaps (a dialogue/interaction system; player/pack-awareness for NPCs) remain untouched by this run.
+
+## ADR-0032: FAZ 5 first-pass interaction affordance — proximity prompt only, no dialogue yet
+
+**Context:** FAZ 5's own Known Issues entry has flagged "no dialogue/interaction system (clicking/
+approaching an NPC does nothing beyond seeing its tag)" since run 20, repeated in every subsequent
+run's "Next step." With run 31's kingdom-seat NPC gap narrowed and no other higher-priority syntax/
+blocking-bug/perf/memory-leak/tech-debt issue found this run's Session Snapshot, this was the next
+real FAZ 5 item. A full dialogue system (branching content, per-NPC lines, a UI panel) is
+substantial, multi-decision work — not a single atomic, reviewable slice. Deliberately scoped this
+run down to the smallest real step: the player-facing *affordance* that something is interactable,
+with no actual interaction logic behind it yet (no keypress handling, no dialogue content, no
+per-NPC identity). This mirrors how `ui/touchJoystick.js` (FAZ 4) and `gameplay/npc.js`'s name tags
+(FAZ 5, ADR-0022) were each shipped as one focused capability rather than a whole system at once.
+
+**Decision:** Added `INTERACTION_CONFIG` (`config.js`, one constant: `PROMPT_RADIUS_METERS: 6`,
+tighter than `NPC_CONFIG`'s 12m keep-clearance offset — a "standing right next to them" cue) and a
+new `ui/interactionPrompt.js` module, `InteractionPrompt`, following `ui/touchJoystick.js`'s exact
+DOM-ownership pattern (own `<div>`, own CSS class, own `dispose()`). Unlike `TouchJoystick`,
+`InteractionPrompt` is instantiated unconditionally (`game3d.js`'s `initGame3D()`, alongside the
+player) — relevant on every device class, not gated by `isCoarsePointerDevice()`. `game3d.js`'s tick
+loop computes, once per frame right after `playerPos` is read, whether the player is within
+`PROMPT_RADIUS_METERS` of *any* `state.npcs` entry (a plain `.some()` over the existing array, no
+new per-frame allocation beyond what the pack-alert loop already does two lines below) and calls
+`setVisible()` with the result; `InteractionPrompt.setVisible()` no-ops when the value hasn't
+changed, avoiding a redundant DOM write every frame. The prompt shows the same static text
+("E - Selamla") regardless of which NPC (or how many) triggered it — no per-NPC branching, since
+there's no dialogue content yet to differentiate by. Registered in `service-worker.js`'s
+`GAME3D_SHELL_FILES` alongside every other currently-imported 3D module.
+
+**Why not wire an actual "E" keypress yet:** a keypress with no dialogue content to open would just
+be dead input-handling code with nothing to verify against — the affordance (visual cue) is the
+complete, independently valuable, and independently testable unit; the keypress+content step is a
+separate future decision (what should the dialogue system's data shape even look like — deserves its
+own ADR, not bundled in here as an afterthought).
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- `node --check` clean on all 4 touched JS files (`config.js`, `game3d.js`, `interactionPrompt.js`,
+  `service-worker.js`); no file over the 600-line cap (`game3d.js` now 564 lines).
+- Full smoke test on both device classes: zero console/page errors, every existing count
+  (terrain/settlements/NPCs/animals/river/waterfalls) byte-identical to run 31's own numbers —
+  confirms this is purely additive.
+- **A direct-manipulation DOM test** via a temporary debug hook (`window.__debugGame3DState = state`,
+  reverted before commit — confirmed via `git diff` showing zero net change to the committed
+  `game3d.js`): confirmed `.g3d-interaction-prompt` exists in the DOM with the `hidden` attribute set
+  by default; teleported the player 500m from every NPC and ran the exact same any-NPC-within-radius
+  computation `game3d.js`'s tick loop uses — the element's `hidden` attribute stayed present; then
+  teleported the player to 2m from an NPC and re-ran it — `hidden` was removed. Both transitions
+  verified against the real DOM element, not just the boolean math in isolation.
+
+**Consequence:** FAZ 5 now has a visible "something's here" cue, closing half of the flagged
+dialogue/interaction gap — the other half (actual interaction logic and content) remains real,
+open, and *not* pretended to be solved by this prompt alone. No new tech debt: `InteractionPrompt`
+follows `TouchJoystick`'s proven shape exactly, and the tick-loop distance check is the same
+`.some()`/`Math.hypot` pattern already used one function away for animal flee triggers. Desktop/
+mobile draw calls and triangles are unaffected (a DOM element, not a Three.js mesh). Real remaining
+FAZ 5 work: the actual dialogue system (content + keypress handling) and NPC player/pack-awareness;
+3 kingdom seats (`berk`, `olena`, `twin`) still lack any NPC.

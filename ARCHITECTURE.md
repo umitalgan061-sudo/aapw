@@ -315,12 +315,36 @@ the way it is.
   `{forward, strafe, running}` (continuous, not discrete, since it's an analog stick), never reads
   `OrbitControls`/`camera` directly. See `ui/README.md`.
 
-## `src/3d/ui/` (folder) — On-screen UI (joystick today; future HUD/inventory/dialogue/debug panels)
+## `src/3d/ui/interactionPrompt.js` — Proximity interaction affordance (FAZ 5 first pass, run 32)
 
-- **Depends on:** `config.js` only. Only this folder plus `config.js` should be touched for a
-  UI-system change (blast radius rule) — see `ui/README.md`.
+- **Depends on:** nothing beyond the DOM — no `config.js` import (unlike `touchJoystick.js`); the
+  proximity radius (`INTERACTION_CONFIG.PROMPT_RADIUS_METERS`) is read by `game3d.js`'s own tick
+  loop, not by this file, since the distance math itself lives in `game3d.js`, not here. Appends
+  its own DOM (`<div class="g3d-interaction-prompt">`, styled via `game3d.css`) to a container
+  element (`document.body` by default).
+- **Used by:** `game3d.js` — instantiated unconditionally (not gated by device class, unlike
+  `touchJoystick.js`), `setVisible()` called once per frame from the tick loop with the result of
+  an any-NPC-within-radius check, disposed on `pagehide`.
+- **Critical path:** no — a static text affordance with no game-state consequence; if it fails to
+  construct, the player simply doesn't see the "someone's nearby" cue (no interaction *logic* exists
+  yet to be blocked either way — see Consequence below).
+- **Failure mode:** none expected — plain DOM creation, no external data, no async work, cannot
+  throw under normal use.
+- **Deliberately narrow scope:** shows a static string, always the same text, regardless of which
+  NPC triggered it or how many are in range — no per-NPC identity, no key-press handling, no
+  dialogue content. This is the "someone is interactable" affordance only; a real dialogue/
+  interaction *system* (open on keypress, NPC-specific content) is separate, still-open FAZ 5 work
+  — see DECISIONS.md ADR-0032 and 3D_GAME_PROGRESS.md's Known Issues.
+
+## `src/3d/ui/` (folder) — On-screen UI (joystick + interaction prompt today; future HUD/inventory/
+dialogue/debug panels)
+
+- **Depends on:** `config.js` (only `touchJoystick.js` actually imports it; `interactionPrompt.js`
+  does not). Only this folder plus `config.js` should be touched for a UI-system change (blast
+  radius rule) — see `ui/README.md`.
 - **Used by:** `game3d.js`.
-- **Critical path:** varies per file — see `touchJoystick.js`'s own entry above.
+- **Critical path:** varies per file — see `touchJoystick.js`'s and `interactionPrompt.js`'s own
+  entries above.
 - **Failure mode:** varies per file.
 
 ## `src/3d/gameplay/player.js` — Playable character (FAZ 4)

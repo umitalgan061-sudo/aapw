@@ -449,6 +449,16 @@ export const TOUCH_JOYSTICK_CONFIG = Object.freeze({
 	RUN_THRESHOLD_RATIO: 0.75,
 });
 
+/** FAZ 5 first pass (run 32): a proximity *affordance* only — `ui/interactionPrompt.js` shows a
+ * static "E - Selamla" prompt when the player is near any NPC. No key handling or dialogue content
+ * exists yet; this only tells the player something is interactable, deliberately scoped smaller
+ * than a real dialogue system (see 3D_GAME_PROGRESS.md Known Issues, DECISIONS.md ADR-0032). */
+export const INTERACTION_CONFIG = Object.freeze({
+	/** Closer than `NPC_CONFIG`'s 12m keep-clearance offset — a "standing right next to them" cue,
+	 * not a "somewhere in this courtyard" one. */
+	PROMPT_RADIUS_METERS: 6,
+});
+
 /** LocalStorage/sessionStorage keys owned by the 3D mode. Never reuse or collide with 2D game keys. */
 export const STORAGE_KEYS = Object.freeze({
 	QUALITY_SETTING: 'westeros3d_quality',

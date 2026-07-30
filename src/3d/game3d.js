@@ -32,11 +32,12 @@ import * as THREE from 'three';
 import { gameEvents } from './eventBus.js';
 import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
-import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, PLAYER_CONFIG, NPC_CONFIG, ANIMAL_CONFIG } from './config.js';
+import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, PLAYER_CONFIG, NPC_CONFIG, ANIMAL_CONFIG, INTERACTION_CONFIG } from './config.js';
 import { ChunkManager } from './world/chunkManager.js';
 import { createGroundCollider } from './physics.js';
 import { KeyboardInput } from './input.js';
 import { TouchJoystick } from './ui/touchJoystick.js';
+import { InteractionPrompt } from './ui/interactionPrompt.js';
 import { createPlayer } from './gameplay/player.js';
 import { spawnConfiguredNPCs } from './gameplay/npc.js';
 import { spawnConfiguredAnimals } from './gameplay/animals.js';
@@ -392,6 +393,7 @@ export async function initGame3D() {
 		state.player = player;
 		state.keyboardInput = keyboardInput;
 		state.touchJoystick = touchJoystick;
+		state.interactionPrompt = new InteractionPrompt();
 		// A player now exists — panning the target would just get overwritten next frame (the
 		// camera chases the player instead), so free-pan is no longer meaningful. See camera.js.
 		state.controls.enablePan = false;
@@ -466,6 +468,15 @@ export async function initGame3D() {
 			// player.update() above already moved player.object3D synchronously this frame, so this
 			// read is current — safe to feed into each animal's flee-awareness check below.
 			const playerPos = state.player.object3D.position;
+			// FAZ 5 interaction affordance (run 32, ADR-0032): show the prompt once the player is
+			// within range of *any* NPC — no per-NPC identity tracking needed yet since there's no
+			// dialogue content to open per-NPC, just a "someone is nearby" cue.
+			const nearAnyNpc = state.npcs.some((npc) => {
+				const dx = npc.object3D.position.x - playerPos.x;
+				const dz = npc.object3D.position.z - playerPos.z;
+				return Math.hypot(dx, dz) < INTERACTION_CONFIG.PROMPT_RADIUS_METERS;
+			});
+			state.interactionPrompt.setVisible(nearAnyNpc);
 			// Pack awareness (run 29, DECISIONS.md ADR-0029): each animal gets the positions of every
 			// *other* animal already flagged `isFleeing` this frame. O(n²) over `state.animals` — fine
 			// at today's 2-wolf count (see ADR-0029's Consequence for the revisit threshold if the
@@ -522,6 +533,7 @@ export async function initGame3D() {
 			unbindResize();
 			state.keyboardInput.dispose();
 			state.touchJoystick?.dispose();
+			state.interactionPrompt.dispose();
 			state.player.dispose();
 			state.npcs.forEach((npc) => npc.dispose());
 			state.animals.forEach((animal) => animal.dispose());

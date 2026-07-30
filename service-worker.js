@@ -39,6 +39,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/physics.js',
     './src/3d/input.js',
     './src/3d/ui/touchJoystick.js',
+    './src/3d/ui/interactionPrompt.js',
     './src/3d/gameplay/player.js',
     './src/3d/gameplay/npc.js',
     './src/3d/gameplay/animals.js',

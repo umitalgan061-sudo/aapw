@@ -1,9 +1,9 @@
 # `src/3d/ui/`
 
-Owns on-screen UI the player interacts with directly — the touch joystick today, and (future
-phases) HUD/inventory/dialogue/debug panels. Only this folder and `src/3d/config.js` should be
-touched when working on a system here (blast radius rule); UI modules render their own DOM, they
-don't reach into `world/`, `gameplay/`, or Three.js scene internals.
+Owns on-screen UI the player interacts with directly — the touch joystick and interaction prompt
+today, and (future phases) HUD/inventory/dialogue/debug panels. Only this folder and
+`src/3d/config.js` should be touched when working on a system here (blast radius rule); UI modules
+render their own DOM, they don't reach into `world/`, `gameplay/`, or Three.js scene internals.
 
 ## Files
 
@@ -14,13 +14,20 @@ don't reach into `world/`, `gameplay/`, or Three.js scene internals.
   same `{forward, strafe, running}` shape as `input.js`'s `KeyboardInput.getAxes()` (continuous
   -1..1 here, since it's an analog stick) — `game3d.js`'s `combineAxes()` merges the two so
   keyboard and joystick input never fight each other. `dispose()` removes the DOM and listeners.
+- **`interactionPrompt.js`** — proximity interaction affordance (FAZ 5 first pass, run 32).
+  `new InteractionPrompt(container?)` appends a single `<div>` (styled via `game3d.css`), hidden by
+  default. `setVisible(boolean)` toggles it, no-op if called with the value it's already showing
+  (avoids a redundant DOM write every frame — `game3d.js`'s tick loop calls this once per frame).
+  `dispose()` removes the DOM. Deliberately dumb: always the same static text, no per-NPC identity,
+  no key-press handling — `game3d.js` owns the actual any-NPC-within-radius distance check.
 
 ## Conventions
 
-- **Instantiate conditionally, not unconditionally.** `game3d.js` only creates a `TouchJoystick`
-  when `isCoarsePointerDevice()` is true — desktop never gets an idle joystick DOM node sitting
-  around. A module here should stay cheap/inert until actually constructed, not self-gate on
-  device type internally.
+- **Instantiate conditionally when the feature is device-specific, unconditionally otherwise.**
+  `game3d.js` only creates a `TouchJoystick` when `isCoarsePointerDevice()` is true — desktop never
+  gets an idle joystick DOM node sitting around. `InteractionPrompt` is the opposite case: relevant
+  on every device class, so `game3d.js` always constructs it. Either way, a module here should stay
+  cheap/inert until actually constructed, not self-gate on device type internally.
 - **No camera/gameplay imports.** Like `input.js`, modules here return input-local axes or emit UI
   events — they never read `OrbitControls`/`camera` or gameplay objects directly, so a future UI
   system (HUD, dialogue) can't accidentally couple to a specific camera or character implementation.

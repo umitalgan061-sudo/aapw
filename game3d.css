@@ -98,3 +98,19 @@ html, body {
   border: 1px solid rgba(232, 212, 160, 0.6);
   pointer-events: none;
 }
+
+.g3d-interaction-prompt {
+  position: fixed;
+  left: 50%;
+  bottom: max(140px, calc(env(safe-area-inset-bottom, 0px) + 140px));
+  transform: translateX(-50%);
+  z-index: 15;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(10, 6, 2, 0.6);
+  border: 1px solid rgba(200, 150, 10, 0.5);
+  color: #e8d4a0;
+  font-size: 14px;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
