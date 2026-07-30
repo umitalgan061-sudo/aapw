@@ -4113,3 +4113,95 @@ left (599/600) — the very next line added there needs a real extraction first,
 trimming. The curated 8-event list is static content, not data-driven from `script.js`'s own
 `RANDOM_EVENTS` — a future run could grow the pool or vary it, but 8 was enough to prove the
 mechanism without over-scoping this sub-task.
+
+## ADR-0057: Extract `PLAYER_CONFIG`/`NPC_CONFIG`/`ANIMAL_CONFIG`/`INTERACTION_CONFIG` into a new `gameplay/gameplayConfig.js`
+
+**Status:** Accepted (run 43).
+
+**Context:** This run's priority scan (re-scanning fresh, as every run's own "Next step" note asks)
+found no syntax errors, no blocking bugs, no measured performance-budget overrun, and no missing
+regression coverage. The one concrete, repeatedly-flagged, actionable item was tech debt (priority
+6): `config.js` sat at 599/600 lines — flagged in run 41's and run 42's own "Next step" notes as
+"effectively no headroom left... the very next addition needs a real extraction, not careful
+trimming." Before picking this run's next item, a real next-step candidate was checked first (FAZ
+7 dragons — `verdant_wyrm.glb`, the manifest's own "FAZ 7 first-pick candidate"): a direct glTF
+JSON parse of the file (no mesh-editing tool exists in this sandbox — `npx gltf-transform`/
+`gltfpack` both failed, no network access to fetch either package, no Blender) measured it at
+**1,005,412 triangles** — ~19x `ivory_stallion`'s 52,310 and ~350x the wolf's 2,876, and alone would
+exceed the *entire* mobile triangle budget (500K) for one static, unrigged background creature. FAZ
+7 is correctly blocked pending a human decimation pass (documented in 3D_GAME_PROGRESS.md's Known
+Issues, not attempted here) — this run picked the tech-debt item instead, rather than force a
+performance-budget violation just to make progress on the next roadmap phase.
+
+**Decision:** Move `PLAYER_CONFIG`, `NPC_CONFIG`, `ANIMAL_CONFIG`, and `INTERACTION_CONFIG` out of
+`config.js` verbatim into a new `src/3d/gameplay/gameplayConfig.js`. `config.js` drops from 599 to
+171 lines; the new file is 444. `TOUCH_JOYSTICK_CONFIG` — physically sitting between `ANIMAL_CONFIG`
+and `INTERACTION_CONFIG` in the old file, but owned by `ui/touchJoystick.js`, not gameplay — stays in
+`config.js` (caught by the smoke test's first run: a `pageerror` on the missing export, fixed by
+moving it back before committing — see Verified below).
+
+**Reasoning:**
+- **Verbatim move, not a rewrite** — same precedent `ADR-0028` (moving `game3d.js`'s spawn loops
+  into `npc.js`/`animals.js`) and `ADR-0052` (`sceneManager.js`'s extraction) both used. Lower risk
+  than restructuring the config shape while also relocating it.
+- **A new `gameplay/gameplayConfig.js`, not a nested `config/` folder or per-system config files:**
+  matches the exact precedent `gameplay/worldEvents.js`'s local `WORLD_EVENTS` list and
+  `debug/freeCamera.js`'s local `FAR_PLANE_METERS` already set (give the owning folder its own
+  config) — but as one shared file, not four, since all four blocks are genuinely gameplay-owned
+  and already cross-reference each other in comments (e.g. `NPC_CONFIG`'s idle/walk URLs reused from
+  `PLAYER_CONFIG`) — one file avoids a real import cycle between four near-empty modules for no
+  reader benefit.
+- **`TOUCH_JOYSTICK_CONFIG` stays in `config.js`:** it configures `ui/touchJoystick.js`, a UI-folder
+  file, not a `gameplay/`-folder one — moving it into `gameplayConfig.js` would violate the same
+  folder-ownership rule this extraction exists to uphold. Its physical position in the old file
+  (between `ANIMAL_CONFIG` and `INTERACTION_CONFIG`) was incidental, not evidence it belonged there.
+- **Why this over growing `WORLD_EVENTS`' pool or starting FAZ 7 dragons directly:** both were live
+  options per run 42's own "Next step" note, but neither is a *tech-debt fix* — priority 6 outranks
+  priority 9/9.5 in the task's own order, and this item was concrete/actionable/already flagged
+  twice, unlike "grow the event pool" (explicitly "don't treat as automatically the next pick").
+  FAZ 7 additionally turned out to be blocked (see Context) once actually checked, not just
+  deprioritized.
+
+**Verified:**
+- `node --check` clean on all 8 touched files: `config.js`, `gameplay/gameplayConfig.js` (new),
+  `game3d.js`, `sceneManager.js`, `gameplay/player.js`, `gameplay/animals.js` (JSDoc type-path
+  fix only), `gameplay/npc.js` (JSDoc type-path fix only), `scripts/game3dSmokeChecks.js` (4 dynamic
+  `import()` path updates).
+- **Caught a real self-introduced regression before committing:** the first full smoke-suite run
+  after the extraction failed with `pageerror: The requested module '../config.js' does not provide
+  an export named 'TOUCH_JOYSTICK_CONFIG'` — `TOUCH_JOYSTICK_CONFIG` had been swept into the moved
+  line range by mistake (it physically sat between `ANIMAL_CONFIG` and `INTERACTION_CONFIG`). Fixed
+  by moving it back to `config.js`; full 12/12 smoke suite passed clean on the re-run — exactly the
+  kind of mistake the project's own "self-review before commit" rule exists to catch.
+  `ui/touchJoystick.js`'s import was never touched and needed no change once the constant was back
+  in `config.js`.
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`): all 12 checks PASS, including the
+  full page-boot check (`game3d.html` loads, `GAME_READY phase1-scene` fires, zero console/page
+  errors) that would have caught the missing-export regression on its own even without manually
+  reading the failure.
+- **Real headless-Chromium screenshot**, not just a clean console: booted `game3d.html`, waited for
+  the loading overlay to hide, screenshotted — player character standing beside `umit`'s castle
+  wall under the night sky, matching the expected boot state exactly, no visual regression from the
+  config split.
+- Line counts re-measured after the fix: `config.js` 171/600, `gameplay/gameplayConfig.js` 444/600,
+  `game3d.js` 457/600 (unchanged net — one import line split into two) — all comfortably under cap.
+
+**Alternatives considered:**
+- *Extract only `NPC_CONFIG` (by far the largest single block) and leave the rest* — rejected: would
+  still leave `PLAYER_CONFIG`/`ANIMAL_CONFIG`/`INTERACTION_CONFIG` config split across two files by
+  an arbitrary size cutoff rather than by ownership, a worse-organized outcome for a similar amount
+  of work.
+- *A nested `src/3d/gameplay/config/` folder* — rejected: this project's target architecture
+  (`ARCHITECTURE.md`) keeps every folder flat; `sceneManager.js`'s own ADR-0052 already rejected
+  nesting for the same "half-migrated, confusing layout" reason.
+- *Start FAZ 7 (dragons) instead, since it's next in the roadmap* — rejected once checked: the only
+  ready dragon asset needs a decimation pass this sandbox cannot perform (see Context) — using it
+  as-is would be a real, measured performance-budget violation, not a small atomic step.
+
+**Consequences:** `config.js` (171/600) and `gameplay/gameplayConfig.js` (444/600) both now have
+real headroom — a future FAZ 7 dragon config (once the asset is decimated) has a natural home in
+the latter. `gameplay/npc.js`'s and `gameplay/animals.js`'s JSDoc `@param {typeof import(...)}`
+type-path comments now point at `./gameplayConfig.js` instead of `../config.js` — cosmetic
+(JSDoc-only, no runtime effect) but left stale would have misdirected the next reader. FAZ 7 remains
+blocked on a human decimation step, now clearly documented (3D_GAME_PROGRESS.md Known Issues)
+instead of silently retried by a future run.

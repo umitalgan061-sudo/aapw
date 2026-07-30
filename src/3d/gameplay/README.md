@@ -7,6 +7,13 @@ a system here (blast radius rule).
 
 ## Files
 
+- **`gameplayConfig.js`** — this folder's own config/constants: `PLAYER_CONFIG`, `NPC_CONFIG`,
+  `ANIMAL_CONFIG`, `INTERACTION_CONFIG`. Moved out of `../config.js` verbatim (run 43, DECISIONS.md
+  ADR-0057) once that file hit the project's 600-line cap with no headroom left for a future
+  addition (e.g. FAZ 7's dragon config, once its only ready asset's ~1M-triangle mesh is decimated
+  — see 3D_GAME_PROGRESS.md's Known Issues). `../config.js` keeps everything core/world/UI-owned
+  (`WORLD_DEFAULTS`, `WORLD_SCALE`, `SETTLEMENT_CONFIG`, `TOUCH_JOYSTICK_CONFIG`, ...) — this file
+  is just the gameplay-owned slice, matching the blast-radius rule below.
 - **`player.js`** — the playable character (FAZ 4). `createPlayer({assetLoader, groundCollider,
   spawn})` loads `PLAYER_CONFIG.MODEL_URL` (Mixamo `peasant_girl.fbx`) plus its three skin-less
   idle/walking/running animation clips (`PLAYER_CONFIG.ANIMATION_URLS`, retargeted onto the

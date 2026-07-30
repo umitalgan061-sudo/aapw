@@ -4465,6 +4465,69 @@ dialogue-tree/quest system (priority 9, larger scope, still untouched). `game3d.
 lines, `config.js` at 599/600 — effectively no headroom left; the next addition there needs a real
 extraction, not careful trimming.
 
+## This Run (2026-07-30, run 43)
+
+**Session Snapshot at container boot:** `HEAD` was detached at run 42's final commit (`d944dbb`,
+ADR-0056's world-event system) — `git fetch origin main` + `git ls-remote origin` both confirmed the
+real remote `main` already matched `HEAD` exactly (local `main`'s cached ref was just stale, same
+"cache staleness, not real divergence" pattern flagged every run since 40). As a one-time safety
+measure before touching anything, pushed the exact current `HEAD` to a throwaway remote branch
+(`3d-rpg-mode-recovery`) to rule out data loss before confirming it was unnecessary — deleted it
+right after `git fetch` proved `origin/main` already had every commit; no actual risk existed,
+purely an abundance-of-caution check given how many runs' worth of history (51 commits) sits behind
+a single local ref. `git checkout -B main origin/main` reattached cleanly, zero divergence/lost work.
+Both explicitly-named priority items (1.5 lake-water flicker, 1.7 F4 debug free-camera) were already
+landed (run 40, ADR-0048/ADR-0049) — confirmed via `git log` and skipped per the "already verified,
+don't redo" rule. Full smoke suite (12 checks) re-run as a fresh regression-guard baseline — all
+PASS before any new work.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0057):** priority scan found no syntax error/
+blocking bug/perf overrun/memory leak, no missing regression coverage. Before picking priority 9
+(FAZ 7 dragons — the natural next roadmap item, asset supposedly "ready"), checked it first rather
+than assuming: a direct glTF JSON parse of `verdant_wyrm.glb` (no mesh-editing tool available in
+this sandbox — `npx gltf-transform`/`gltfpack` both failed with no network access to fetch either
+package, no Blender) measured **1,005,412 triangles** for one static, unrigged, unanimated creature
+— ~19x `ivory_stallion`'s 52,310, ~350x the wolf's 2,876, and alone bigger than the *entire* mobile
+triangle budget (500K). Using it as-is would be a real, measured performance-budget violation, not a
+small atomic step — correctly flagged as blocked (needs a human decimation pass) rather than forced
+through. Picked priority 6 (tech debt) instead: `config.js` sat at 599/600 lines, flagged in run 41's
+and run 42's own "Next step" notes as having "effectively no headroom left." Moved `PLAYER_CONFIG`/
+`NPC_CONFIG`/`ANIMAL_CONFIG`/`INTERACTION_CONFIG` out verbatim into a new `gameplay/gameplayConfig.js`
+— `config.js`: 599 -> 171 lines; new file: 444 lines. `TOUCH_JOYSTICK_CONFIG` (physically sandwiched
+between `ANIMAL_CONFIG` and `INTERACTION_CONFIG` in the old file, but owned by `ui/touchJoystick.js`,
+not gameplay) stays in `config.js` — see ADR-0057 for the full reasoning.
+
+**Regression guard:** `node --check` clean on all 8 touched code files. **Caught and fixed a real
+self-introduced regression before committing:** the first full smoke-suite run after the extraction
+failed — `pageerror: The requested module '../config.js' does not provide an export named
+'TOUCH_JOYSTICK_CONFIG'` — because that constant had been accidentally swept into the moved line
+range. Fixed by moving it back to `config.js`; re-ran the full suite clean. Full committed smoke
+suite — **all 12 checks PASS** (including the page-boot check that caught the regression on its
+own). **Real headless-Chromium screenshot:** `game3d.html` booted, loading overlay hidden, player
+character standing beside `umit`'s castle wall under the night sky — matches the expected boot
+state exactly, zero console/page errors, no visual regression from the config split.
+
+**Files changed this sub-task:** `src/3d/config.js`, `src/3d/gameplay/gameplayConfig.js` (new),
+`src/3d/game3d.js`, `src/3d/sceneManager.js`, `src/3d/gameplay/player.js`, `src/3d/gameplay/animals.js`
+(JSDoc type-path fix only), `src/3d/gameplay/npc.js` (JSDoc type-path fix only),
+`scripts/game3dSmokeChecks.js`, `src/3d/gameplay/README.md`, `ARCHITECTURE.md`, `DECISIONS.md` (new
+ADR-0057), `3D_GAME_PROGRESS.md` (this file). 12 files, ~460 new/changed lines (mostly the moved
+config block + ADR-0057's own write-up). One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5% (6.25 km² /
+137.5 km²) mobile — a config-location-only refactor, touches no terrain/streaming/chunk logic.**
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **FAZ 7 (dragons)
+remains blocked**, now clearly documented rather than silently retried: `verdant_wyrm.glb` (the
+manifest's "first-pick candidate") is ~1M triangles, needs a real decimation/retopology pass this
+sandbox cannot perform (no Blender, no network access to fetch `gltf-transform`/`gltfpack`) — flag
+this to the project owner as "insan onayı gerekli" if FAZ 7 is to start; don't re-measure it again
+without a decimated asset in hand. `config.js` (171/600) and `gameplay/gameplayConfig.js` (444/600)
+both have real headroom now — a future dragon config has a natural home in the latter once unblocked.
+Other open items unchanged: FAZ 5/6's cart/dog-cat/bird gap (needs a human manual-download step);
+FAZ 5's real dialogue-tree/quest system (priority 9, larger scope, still untouched); the world-event
+system's flavor pool could still grow (ADR-0056's own note, not automatically the next pick).
+
 ## Known Issues / Tech Debt
 
 - **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s
@@ -4646,6 +4709,20 @@ extraction, not careful trimming.
   and Free3D's download flow doesn't trigger via automated browser clicks either (per the wolf/
   dragon commit message). If a later phase needs a new character/creature/animation, mark it here
   as "insan onayı gerekli — manuel indirme" and stop; do not attempt to fetch it automatically.
+- **FAZ 7 (dragons) is blocked on decimation, not just "no code started" — checked run 43, not
+  assumed.** `assets/models/creatures/dragons/verdant_wyrm.glb` (the manifest's own "FAZ 7 first-pick
+  candidate", "ready-to-use appearance") is a single mesh of **1,005,412 triangles** (measured via a
+  direct glTF JSON chunk parse, not the manifest's own "unmeasured" note) — ~19x `ivory_stallion`'s
+  52,310 and ~350x the wolf's 2,876, and bigger alone than the entire mobile triangle budget (500K).
+  No mesh-simplification tool is available in this sandbox (`npx gltf-transform`/`gltfpack` both
+  failed — no network access to fetch either package — and no Blender is installed), so this cannot
+  be fixed by a future run without one. **"insan onayı gerekli"**: a human needs to decimate/retopo
+  `verdant_wyrm.glb` (or provide an already-low-poly dragon asset) before FAZ 7 can start responsibly
+  — do not add it to the scene as-is, and do not re-attempt the measurement without a decimated file
+  in hand (see DECISIONS.md ADR-0057's Context for the exact numbers). The other dragon models in
+  the same folder are the same or worse (`auric_dragon`/`frostscale_dragon`/`spiked_serpent` all
+  similarly AI-generated, un-decimated; `reference_dragon_v1/v2/v3` are already flagged in the
+  manifest itself as "WAY over budget").
 - **~~`assets_manifest.json` is hand-maintained, no automated check that it matches `assets/`~~ —
   fixed run 34 (`scripts/checkAssetsManifest.js`).** A dependency-free Node script hard-fails if any
   manifest entry points at a missing file, or if any `.fbx`/`.glb` on disk isn't registered

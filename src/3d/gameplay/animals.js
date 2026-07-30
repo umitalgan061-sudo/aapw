@@ -19,7 +19,7 @@ import { AssetLoader } from '../assetLoader.js';
 /**
  * Removes any direct child of `object3D` whose name is in `names`, disposing its GPU resources.
  * Used to strip the wolf glTF's bundled non-skinned "Circle" ground-shadow-catcher disc — see
- * `config.js`'s `ANIMAL_CONFIG.STRIP_CHILD_NAMES` doc comment for why it exists in the source file.
+ * `gameplay/gameplayConfig.js`'s `ANIMAL_CONFIG.STRIP_CHILD_NAMES` doc comment for why it exists in the source file.
  * @param {THREE.Object3D} object3D
  * @param {string[]} names
  */
@@ -246,7 +246,7 @@ export async function createWolf({
 }
 
 /**
- * Resolves and loads every configured animal spawn (`config.js`'s `ANIMAL_CONFIG.SPAWNS`) against a
+ * Resolves and loads every configured animal spawn (`gameplayConfig.js`'s `ANIMAL_CONFIG.SPAWNS`) against a
  * kingdom-seat lookup, in parallel — moved out of `game3d.js` (run 29, DECISIONS.md ADR-0028) to
  * keep that file a thin orchestrator, mirroring `npc.js`'s own `spawnConfiguredNPCs`. A spawn
  * referencing an unknown `seatId` is skipped with a console warning, not thrown — matches
@@ -261,7 +261,7 @@ export async function createWolf({
  * a 3rd species needs its own knobs.
  * @param {object} options
  * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
- * @param {typeof import('../config.js').ANIMAL_CONFIG} options.animalConfig
+ * @param {typeof import('./gameplayConfig.js').ANIMAL_CONFIG} options.animalConfig
  * @param {Map<string, {id: string, x: number, z: number}>} options.seatsById
  * @param {(worldX: number, worldZ: number) => number} options.sampleGroundY
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider

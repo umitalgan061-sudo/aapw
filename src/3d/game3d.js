@@ -35,7 +35,8 @@ import * as THREE from 'three';
 import { gameEvents } from './eventBus.js';
 import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
-import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, PLAYER_CONFIG, NPC_CONFIG, ANIMAL_CONFIG, INTERACTION_CONFIG } from './config.js';
+import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG } from './config.js';
+import { PLAYER_CONFIG, NPC_CONFIG, ANIMAL_CONFIG, INTERACTION_CONFIG } from './gameplay/gameplayConfig.js';
 import { KeyboardInput } from './input.js';
 import { TouchJoystick } from './ui/touchJoystick.js';
 import { InteractionPrompt } from './ui/interactionPrompt.js';
@@ -229,8 +230,8 @@ export async function initGame3D() {
 		// gate createScene() already uses for the mobile chunk-radius split, so both mobile-only
 		// behaviors agree on what counts as "mobile" from one signal.
 		const touchJoystick = isCoarsePointerDevice() ? new TouchJoystick() : null;
-		// Converted from map units (not stored pre-converted in config.js, to avoid a
-		// config.js -> world/settlements.js import cycle) — see PLAYER_CONFIG.SPAWN_MAP_X/
+		// Converted from map units (not stored pre-converted in gameplayConfig.js, to avoid a
+		// gameplayConfig.js -> world/settlements.js import cycle) — see PLAYER_CONFIG.SPAWN_MAP_X/
 		// SPAWN_MAP_Y's doc comment and DECISIONS.md ADR-0046 for why the spawn point lives next
 		// to a kingdom seat instead of the world origin.
 		const spawnWorld = mapToWorldXZ(

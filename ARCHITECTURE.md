@@ -47,29 +47,50 @@ the way it is.
   per the project's error-handling hierarchy).
 - **Failure mode:** emits `asset:error`, logs, substitutes a placeholder. Never throws to callers.
 
-## `src/3d/config.js` — Config/constants
+## `src/3d/config.js` — Config/constants (core/world/UI)
 
 - **Depends on:** nothing.
-- **Used by:** every system. No magic numbers should live outside this file.
+- **Used by:** every core/world/UI system. No magic numbers should live outside this file or
+  `gameplay/gameplayConfig.js` below.
 - **Contains:** vendor/asset paths, quality presets, `WORLD_DEFAULTS` (FOV/near/far/target FPS),
   storage keys, event names, `WORLD_SCALE`/`CHUNK_CONFIG` (the kingdom-bounding-box-derived
   world size and 500m chunk grid; bounding box from `DECISIONS.md` ADR-0001, scale corrected down
   to a ≤150 km² target by ADR-0004 — always check ADR-0004 for the current numbers, not ADR-0001),
   `SETTLEMENT_CONFIG` (castle keep/tower/roof dimensions for `world/settlements.js`, added FAZ 3 —
-  see ADR-0013), and (added FAZ 4) `PLAYER_CONFIG` (character/animation asset URLs, walk/run
-  speeds, turn rate, animation crossfade duration, spawn point, chase-camera framing/distance
-  limits — see ADR-0016), `TOUCH_JOYSTICK_CONFIG` (drag radius, dead zone, run threshold for
-  `ui/touchJoystick.js` — see ADR-0017), and (added FAZ 5, run 20, extended run 21/22) `NPC_CONFIG`
-  (idle/walk animation URLs reused from `PLAYER_CONFIG`, patrol speed/pause/turn-rate constants added
-  run 22, and the flat `SPAWNS` list mapping a kingdom-seat id + world offset to a Mixamo character
-  FBX for each NPC, with an optional `patrol` field — 10 entries across 9 seats, all patrolling, as
-  of run 25 — see `gameplay/npc.js` and ADR-0019/ADR-0020/ADR-0021/ADR-0023/ADR-0024), and (added
-  FAZ 6, run 26, patrol added run 27, flee added run 28) `ANIMAL_CONFIG` (wolf model URL, idle/walk/
-  flee clip names, patrol speed/pause/turn-rate constants, flee trigger-radius/speed constants, the
-  `STRIP_CHILD_NAMES` list for the source file's bundled non-skinned decoration mesh, and a `SPAWNS`
-  list — same seat+offset+optional-`patrol` shape as `NPC_CONFIG.SPAWNS` — see `gameplay/animals.js`
-  and ADR-0025/ADR-0026/ADR-0027).
-- **Critical path:** yes — every system imports constants from here.
+  see ADR-0013), and `TOUCH_JOYSTICK_CONFIG` (drag radius, dead zone, run threshold for
+  `ui/touchJoystick.js` — see ADR-0017). **`PLAYER_CONFIG`/`NPC_CONFIG`/`ANIMAL_CONFIG`/
+  `INTERACTION_CONFIG` moved out to `gameplay/gameplayConfig.js` (run 43, ADR-0057)** — see that
+  file's own entry below for what each contains.
+- **Critical path:** yes — every core/world/UI system imports constants from here.
+- **Failure mode:** N/A (static data only).
+
+## `src/3d/gameplay/gameplayConfig.js` — Config/constants (gameplay-owned)
+
+- **Depends on:** nothing.
+- **Used by:** `game3d.js`, `sceneManager.js` (`PLAYER_CONFIG` only), `gameplay/player.js`
+  (`PLAYER_CONFIG`), and (as a runtime parameter, not a static import — see `gameplay/npc.js`'s and
+  `gameplay/animals.js`'s own entries) `spawnConfiguredNPCs`/`spawnConfiguredAnimals`.
+- **Contains:** (added FAZ 4) `PLAYER_CONFIG` (character/animation asset URLs, walk/run speeds,
+  turn rate, animation crossfade duration, spawn point, chase-camera framing/distance limits — see
+  ADR-0016), (added FAZ 5, run 20, extended run 21/22) `NPC_CONFIG` (idle/walk animation URLs
+  reused from `PLAYER_CONFIG`, patrol speed/pause/turn-rate constants added run 22, and the flat
+  `SPAWNS` list mapping a kingdom-seat id + world offset to a Mixamo character FBX for each NPC,
+  with an optional `patrol` field — 14 entries across 13 seats, all patrolling, as of run 34 — see
+  `gameplay/npc.js` and ADR-0019/ADR-0020/ADR-0021/ADR-0023/ADR-0024/ADR-0036), (added FAZ 6, run
+  26, patrol added run 27, flee added run 28) `ANIMAL_CONFIG` (wolf model URL, idle/walk/flee clip
+  names, patrol speed/pause/turn-rate constants, flee trigger-radius/speed constants, the
+  `STRIP_CHILD_NAMES` list for the source file's bundled non-skinned decoration mesh, and a
+  `SPAWNS` list — same seat+offset+optional-`patrol` shape as `NPC_CONFIG.SPAWNS` — see
+  `gameplay/animals.js` and ADR-0025/ADR-0026/ADR-0027/ADR-0047), and (added FAZ 5, run 32-33,
+  per-NPC content run 40) `INTERACTION_CONFIG` (proximity-prompt radius, greeting template, and
+  `GREETINGS_BY_NPC_ID` — see `gameplay/interaction.js` and ADR-0032/ADR-0033/ADR-0051).
+- **Extracted from `config.js` (run 43, ADR-0057):** `config.js` reached its 600-line cap with zero
+  headroom (599/600, flagged across 2 prior runs' "Next step" notes) — these 4 gameplay-owned
+  blocks moved out verbatim (not a rewrite), leaving `config.js` at ~171 lines and this new file at
+  ~444, both comfortably under the cap. `TOUCH_JOYSTICK_CONFIG` stayed in `config.js` (it's
+  `ui/touchJoystick.js`'s config, not gameplay's, despite sitting between `ANIMAL_CONFIG` and
+  `INTERACTION_CONFIG` in the old file).
+- **Critical path:** yes — every gameplay system that reads config from here.
 - **Failure mode:** N/A (static data only).
 
 ## `game3d.html` / `game3d.css` — 3D mode's own page
@@ -396,7 +417,7 @@ toast today; future HUD/inventory/debug panels)
 ## `src/3d/gameplay/player.js` — Playable character (FAZ 4; jump/gravity added run 36)
 
 - **Depends on:** `three` (vendored, dynamic-imports `FBXLoader` via `assetLoader.js`),
-  `config.js` (`PLAYER_CONFIG`), `assetLoader.js` (`loadFBXModel`, and the static
+  `gameplay/gameplayConfig.js` (`PLAYER_CONFIG`), `assetLoader.js` (`loadFBXModel`, and the static
   `disposeObject3D` helper on teardown), `physics.js` (`integrateJumpArc`, run 36 — the one
   `import` this module has of `physics.js` itself; `groundCollider`/`settlementCollider` remain
   dependency-injected, not imported, per `gameplay/README.md`'s Conventions). Takes `groundCollider`
@@ -567,7 +588,8 @@ toast today; future HUD/inventory/debug panels)
 ## `src/3d/gameplay/` (folder) — Playable characters, NPCs, animals, world events, future
 dragons/combat/etc.
 
-- **Depends on:** `eventBus.js`, `physics.js`, `input.js`, `config.js`, `assetLoader.js`. Only
+- **Depends on:** `eventBus.js`, `physics.js`, `input.js`, `assetLoader.js`, and this folder's own
+  `gameplayConfig.js` (run 43, ADR-0057 — moved out of `config.js`). Only
   these plus this folder itself should be touched for a gameplay-system change (blast radius rule)
   — see `gameplay/README.md`.
 - **Used by:** `game3d.js`.
@@ -699,7 +721,8 @@ dragons/combat/etc.
 
 ## `src/3d/sceneManager.js` — Scene bootstrap factory (run 40, ADR-0052)
 
-- **Depends on:** `three` (vendored), `config.js`, `world/chunkManager.js`, `physics.js` (ground +
+- **Depends on:** `three` (vendored), `config.js`, `gameplay/gameplayConfig.js` (`PLAYER_CONFIG`
+  only, run 43), `world/chunkManager.js`, `physics.js` (ground +
   settlement colliders), `world/water.js` (`createWater` only), `world/rivers.js`
   (`generateRiverPath`/`createRiverMesh`/`detectWaterfalls`/`createWaterfallMesh`), `world/
   settlements.js` (`createSettlements` only), `camera.js` (`createOrbitCamera` only), `debug/
@@ -725,7 +748,8 @@ dragons/combat/etc.
 ## `src/3d/game3d.js` — Entry point / tick loop and lifecycle wiring
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
-  `sceneManager.js` (`createScene`/`isCoarsePointerDevice`/`worldToChunkCoord`, run 40, ADR-0052),
+  `gameplay/gameplayConfig.js` (`PLAYER_CONFIG`/`NPC_CONFIG`/`ANIMAL_CONFIG`/`INTERACTION_CONFIG`,
+  run 43, ADR-0057), `sceneManager.js` (`createScene`/`isCoarsePointerDevice`/`worldToChunkCoord`, run 40, ADR-0052),
   `input.js`, `ui/touchJoystick.js`, `gameplay/player.js`, `gameplay/npc.js` (added FAZ 5, run 20),
   `gameplay/animals.js` (added FAZ 6, run 26), `world/water.js` (`updateWater`/`disposeWater`),
   `world/rivers.js` (`disposeRiverMesh`/`disposeWaterfallMesh`), `world/settlements.js`

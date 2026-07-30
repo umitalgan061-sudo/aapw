@@ -10,7 +10,8 @@
  */
 
 import * as THREE from 'three';
-import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, PLAYER_CONFIG } from './config.js';
+import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG } from './config.js';
+import { PLAYER_CONFIG } from './gameplay/gameplayConfig.js';
 import { ChunkManager } from './world/chunkManager.js';
 import { createGroundCollider, createSettlementCollider } from './physics.js';
 import { createWater } from './world/water.js';

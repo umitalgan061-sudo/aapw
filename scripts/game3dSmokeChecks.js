@@ -85,7 +85,7 @@ async function checkJumpArc(browser, baseUrl) {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
 		result = await page.evaluate(async () => {
 			const { integrateJumpArc } = await import('/src/3d/physics.js');
-			const { PLAYER_CONFIG } = await import('/src/3d/config.js');
+			const { PLAYER_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
 			const gravity = PLAYER_CONFIG.GRAVITY_MPS2;
 			const jumpSpeed = PLAYER_CONFIG.JUMP_SPEED_MPS;
 			const delta = 1 / 60;
@@ -256,7 +256,7 @@ async function checkWolfPackAlert(browser, baseUrl) {
 		result = await page.evaluate(async () => {
 			const { createWolf } = await import('/src/3d/gameplay/animals.js');
 			const { AssetLoader } = await import('/src/3d/assetLoader.js');
-			const { ANIMAL_CONFIG } = await import('/src/3d/config.js');
+			const { ANIMAL_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
 
 			const assetLoader = new AssetLoader();
 			const groundCollider = { getGroundHeight: () => 10 };
@@ -361,7 +361,7 @@ async function checkNpcPatrol(browser, baseUrl) {
 		result = await page.evaluate(async () => {
 			const { createNPC } = await import('/src/3d/gameplay/npc.js');
 			const { AssetLoader } = await import('/src/3d/assetLoader.js');
-			const { NPC_CONFIG } = await import('/src/3d/config.js');
+			const { NPC_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
 
 			const assetLoader = new AssetLoader();
 			// Height varies with z so ground-resampling during the walk (not just at spawn/waypoints)
@@ -458,7 +458,7 @@ async function checkWolfPatrol(browser, baseUrl) {
 		result = await page.evaluate(async () => {
 			const { createWolf } = await import('/src/3d/gameplay/animals.js');
 			const { AssetLoader } = await import('/src/3d/assetLoader.js');
-			const { ANIMAL_CONFIG } = await import('/src/3d/config.js');
+			const { ANIMAL_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
 
 			const assetLoader = new AssetLoader();
 			const groundCollider = { getGroundHeight: (x, z) => 5 + z * 0.1 };

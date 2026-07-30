@@ -6,7 +6,7 @@
  */
 
 import * as THREE from 'three';
-import { PLAYER_CONFIG } from '../config.js';
+import { PLAYER_CONFIG } from './gameplayConfig.js';
 import { AssetLoader } from '../assetLoader.js';
 import { integrateJumpArc } from '../physics.js';
 
