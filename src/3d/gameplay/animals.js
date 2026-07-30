@@ -141,7 +141,12 @@ export async function createWolf({
 
 	// Patrol state — unused (and never advanced) when isPatrolling is false.
 	let waypointIndex = 0;
-	let pauseTimer = isPatrolling ? pauseSeconds : 0;
+	// Starts at 0, not `pauseSeconds` (fixed run 38, DECISIONS.md ADR-0045) — same fix as
+	// `gameplay/npc.js`'s identical copied logic. `patrolWaypoints[0]` is always this animal's own
+	// spawn point (see `spawnConfiguredAnimals`), so the very first `update()` call resolves it as an
+	// immediate zero-distance "arrival" (a no-op) and *then* starts the real `pauseSeconds` dwell
+	// before the first actual step, instead of idling a second, redundant full cycle first.
+	let pauseTimer = 0;
 	// Read by this frame's other wolves (via the `isFleeing` getter below) to build their own
 	// `packmateFleePositions` — see DECISIONS.md ADR-0029. Starts false; only `update()` writes it.
 	let currentlyFleeing = false;

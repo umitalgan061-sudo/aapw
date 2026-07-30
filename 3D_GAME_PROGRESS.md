@@ -69,10 +69,12 @@ KayKit, etc.) are used for `assets/`.
   negative control — see DECISIONS.md ADR-0030. See "This Run (run 29)"/"This Run (run 30)" below
   and DECISIONS.md ADR-0025/ADR-0026/ADR-0027/ADR-0028/ADR-0029/ADR-0030.
 - **Last Update:** 2026-07-30 (run 38)
-- **Last Commit:** run 38's second chained sub-task — persisted wolf waypoint-patrol regression
-  check (`scripts/game3dSmokeChecks.js`'s `checkWolfPatrol`, DECISIONS.md ADR-0044). Preceded
-  (same run) by sub-task 1: the NPC waypoint-patrol regression check (`checkNpcPatrol`, ADR-0043),
-  which also split `scripts/smokeTestGame3D.js` into a thin runner + a new
+- **Last Commit:** run 38's third chained sub-task — fixed the double-idle-before-first-lap patrol
+  timing quirk in both `gameplay/npc.js` and `gameplay/animals.js` (DECISIONS.md ADR-0045),
+  updating sub-tasks 1/2's own new regression checks to assert the corrected timing. Preceded
+  (same run) by sub-task 2: the wolf waypoint-patrol regression check (`checkWolfPatrol`,
+  ADR-0044), and sub-task 1: the NPC waypoint-patrol regression check (`checkNpcPatrol`,
+  ADR-0043), which also split `scripts/smokeTestGame3D.js` into a thin runner + a new
   `scripts/game3dSmokeChecks.js` holding all check functions (the runner was at 552 lines; adding
   a new check in place would have exceeded the 600-line cap). See "This Run (run 38)" below.
   Preceded by run 37's persisted wolf flee/pack-alert regression check
@@ -3827,25 +3829,75 @@ file). 4 files, ~95 new lines (the new check). No change to `gameplay/animals.js
 (test-only addition). One commit, rebased onto 2 rounds of parallel `origin/main` asset-commit
 pushes, then pushed.
 
-**World Coverage (after sub-task 2, final for this run): 80.7% (111.00 km² / 137.5 km²) desktop;
-4.5% (6.25 km² / 137.5 km²) mobile — unchanged, both sub-tasks were test-tooling only.**
+**World Coverage (after sub-task 2): 80.7% (111.00 km² / 137.5 km²) desktop; 4.5% (6.25 km² /
+137.5 km²) mobile — unchanged, both sub-tasks were test-tooling only.**
 
-**Regression guard, both sub-tasks combined — final state:** `scripts/smokeTestGame3D.js` (144
-lines) + `scripts/game3dSmokeChecks.js` (586 lines), 8 checks total, all PASS, both files under the
-600-line cap. `node --check` clean across every non-vendor `.js` file in the repo.
+**Sub-task 3 — priority scan:** re-ran the full priority order after sub-task 2's push. No syntax
+error, blocking bug, perf-budget overrun, or memory leak. Priority 6 now had no remaining gap —
+both patrol regression checks (sub-tasks 1/2) plus the pre-existing 6 checks cover every landed
+gameplay-critical system. The only concrete, already-scoped item left at a *lower* priority number
+than 7 (World Coverage) or 8 (active-phase feature work) was priority 5 in spirit: a small, already
+-fully-documented tech debt item — the double-idle-before-first-lap patrol quirk both sub-tasks 1
+and 2 explicitly flagged as "out of this test-only sub-task's scope" but real and fixable. Picked
+as sub-task 3, since it's smaller and lower-risk than starting a World Coverage or new-feature
+sub-task with whatever time/budget remained.
+
+**Sub-task 3 — decision and work (DECISIONS.md ADR-0045):** Changed `gameplay/npc.js`'s and
+`gameplay/animals.js`'s identical `pauseTimer` initialization from `isPatrolling ? pauseSeconds :
+0` to a flat `0` (one line each, same reasoning comment in both). This makes the first `update()`
+call resolve `patrolWaypoints[0]`'s zero-distance "arrival" (it's always the entity's own spawn
+point) immediately instead of after a wasted `pauseSeconds` idle, so the real dwell only happens
+once before the first lap — matching every later lap's timing. Updated sub-tasks 1/2's own
+`checkNpcPatrol`/`checkWolfPatrol` to assert the corrected single-pause-cycle timing instead of
+merely documenting the old double-idle.
+
+**Regression guard — verified with real injected bugs in both directions:** `node --check` clean
+on all 4 changed files. All 8 checks PASS with the fix. Temporarily reverted `pauseTimer` back to
+`pauseSeconds` in `npc.js` alone — `checkNpcPatrol` correctly failed (`startedMoving`/
+`idleDurationOk`) while all 7 other checks, including `checkWolfPatrol`, stayed PASS. Restored,
+confirmed byte-identical, then repeated the same revert/verify/restore cycle for `animals.js` alone
+— `checkWolfPatrol` correctly failed while `checkNpcPatrol` (now fixed) stayed PASS. This confirms
+the two files' fixes and their tests are independently verified, not accidentally coupled.
+
+**Memory-leak checklist:** N/A — a single local-variable initial-value change; no new allocation,
+listener, or timer.
+
+**Files changed this sub-task:** `src/3d/gameplay/npc.js`, `src/3d/gameplay/animals.js`,
+`scripts/game3dSmokeChecks.js` (updated assertions in the 2 patrol checks), `DECISIONS.md` (new
+ADR-0045), `3D_GAME_PROGRESS.md` (this file). 5 files, ~10 net new lines (a one-line fix plus a
+short explanatory comment in each of the 2 gameplay files; the test file's changes are edits to
+existing lines, not additions). One commit, direct push to `main` (rebased against any further
+parallel `origin/main` asset pushes, same as sub-tasks 1/2).
+
+**World Coverage (final for this run, after all 3 sub-tasks): 80.7% (111.00 km² / 137.5 km²)
+desktop; 4.5% (6.25 km² / 137.5 km²) mobile — unchanged across the whole run; every sub-task was
+test-tooling or a movement-timing fix, none touched terrain/streaming/rendering.**
+
+**Regression guard, all 3 sub-tasks combined — final state:** `scripts/smokeTestGame3D.js` (144
+lines) + `scripts/game3dSmokeChecks.js` (587 lines), 8 checks total, all PASS, every touched file
+under the 600-line cap. `node --check` clean across every non-vendor `.js` file in the repo.
+`node scripts/checkAssetsManifest.js` clean (only expected sidecar-texture warnings).
+
+**Run totals (3 chained sub-tasks):** ~9 files touched across the run (`scripts/
+smokeTestGame3D.js`, `scripts/game3dSmokeChecks.js`, `src/3d/gameplay/npc.js`, `src/3d/gameplay/
+animals.js`, `DECISIONS.md`, `3D_GAME_PROGRESS.md` — well under the 25-file cap) and roughly
+650-700 new/changed lines of actual code (the 2 new check functions plus the 1-line-plus-comment
+fix in each gameplay file; `DECISIONS.md`/`3D_GAME_PROGRESS.md` prose is documentation, not code),
+comfortably inside the 1200-line budget. 3 commits, each individually regression-guarded with a
+real injected-bug verification and pushed directly to `main` (each rebased against 1-2 rounds of
+a parallel session's concurrent asset-adding commits — never conflicting, since that session only
+ever touched `assets/`/`assets_manifest.json`).
 
 **Next step for the next run:** re-scan the priority order fresh, as always — don't assume this
-list is exhaustive without re-deriving it. Priority 6 now has no known remaining gap on any landed
-gameplay system (2D shell, 3D boot, settlement collider, jump/gravity, interaction state machine,
-wolf flee/pack-alert, NPC patrol, wolf patrol all have persisted, injected-bug-verified coverage).
-The most likely next landing spots: priority 7 (World Coverage — 80.7%/4.5% has been flat since
-run 15, a real, long-standing gap); priority 8 (FAZ 5's real dialogue content, FAZ 6's other 3
-animal types — each needs a human manual-download step, mark "insan onayı gerekli" and stop if
-attempted, or the cosmetic double-idle-before-first-lap patrol quirk both this run's sub-tasks
-documented but didn't fix — now present identically in both `npc.js` and `animals.js`); or
-`scripts/game3dSmokeChecks.js` itself nearing its own 600-line cap (586/600) — a 9th check will
-likely need a further split before it can be added, worth flagging as tech debt (priority 5) if a
-future run tries to add one without checking first.
+list is exhaustive without re-deriving it. Priorities 1-6 are all clean with no known remaining
+gap on any landed gameplay system, and the one priority-5-adjacent item found this run (the
+double-idle patrol quirk) is now fixed in both files. The most likely next landing spots: priority
+7 (World Coverage — 80.7%/4.5% has been flat since run 15, a real, long-standing gap, and the
+largest concrete remaining priority above "new feature"); priority 8 (FAZ 5's real dialogue
+content, or FAZ 6's other 3 animal types — each needs a human manual-download step, mark "insan
+onayı gerekli" and stop if attempted); or `scripts/game3dSmokeChecks.js` nearing its own 600-line
+cap (587/600) — a 9th check will likely need a further split before it can be added, worth
+flagging as tech debt (priority 5) if a future run tries to add one without checking first.
 
 ## Known Issues / Tech Debt
 
@@ -3959,16 +4011,17 @@ future run tries to add one without checking first.
   a fixed clock/route regardless of where the player is, deliberately not real
   behavior-tree AI. All remaining gaps are honest, scoped-out ones (see
   DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031/ADR-0032/ADR-0033's
-  "Alternatives considered"), not accidental. **Newly documented, not fixed, run 38 (DECISIONS.md
-  ADR-0043/ADR-0044):** every patrolling NPC's *and* wolf's `update()` idles a full `pauseSeconds`
-  before its first distance-to-waypoint check ever runs, so it idles *two* full `pauseSeconds`
-  cycles (not one) before taking its first real step (waypoint 0 is always its own spawn point — a
-  no-op "arrival"). Present identically in both `gameplay/npc.js` (confirmed run 38 sub-task 1) and
-  `gameplay/animals.js` (confirmed run 38 sub-task 2 — same copied-not-shared code, same quirk).
-  Cosmetic only (a one-time extra ~3s/~3s-per-species idle at world boot; every later lap's pause is
-  correct), but a real, findable-by-a-player quirk if a future run wants to fix it — small, isolated
-  change to each file's `pauseTimer` initialization, e.g. don't pre-load it until the first waypoint
-  is actually reached. Fixing one file without the other would leave them inconsistent again.
+  "Alternatives considered"), not accidental. **~~Every patrolling NPC's and wolf's `update()`
+  idled a full `pauseSeconds` before its first distance-to-waypoint check ever ran, so it idled
+  *two* full `pauseSeconds` cycles (not one) before its first real step~~ — documented run 38
+  sub-tasks 1/2 (DECISIONS.md ADR-0043/ADR-0044), fixed run 38 sub-task 3 (ADR-0045).** `pauseTimer`
+  now starts at 0 in both `gameplay/npc.js` and `gameplay/animals.js` (identical one-line fix in
+  both, since it was present identically in both — same copied-not-shared code), so the
+  zero-distance "arrival" at waypoint 0 (always the entity's own spawn point) resolves immediately
+  on the first `update()` call and the real `pauseSeconds` dwell only happens once, matching every
+  later lap. Verified via reverting each file independently and confirming its own
+  already-updated regression check (`checkNpcPatrol`/`checkWolfPatrol`) catches the regression
+  while the other stays PASS.
 - **FAZ 6's wolves exist at only one seat, with no real pathfinding AI.** 3 wolves at
   `berkalp` (`ANIMAL_CONFIG.SPAWNS`). **~~static/idle only, no wander~~ — landed run 27**
   (`gameplay/animals.js`'s patrol support, copied from `gameplay/npc.js`'s proven pattern, see

@@ -3209,3 +3209,65 @@ at the end of the check.
 path. No `gameplay/animals.js` change at all (test-only addition). `scripts/game3dSmokeChecks.js`
 is close enough to the 600-line cap (586/600) that the next new check will likely need a further
 split (e.g. by system — movement checks vs. boot/collider checks) rather than another append.
+
+## ADR-0045: Fix the double-idle-before-first-lap patrol timing quirk
+
+**Status:** Accepted (run 38, third chained sub-task).
+
+**Context:** ADR-0043 and ADR-0044 (this same run's first two sub-tasks) each documented — but
+deliberately did not fix, as test-only sub-tasks — a real, cosmetic timing quirk shared by
+`gameplay/npc.js`'s and `gameplay/animals.js`'s identical (copied, not shared — ADR-0026) patrol
+logic: `pauseTimer` started pre-loaded to `pauseSeconds` *before* the first distance-to-waypoint
+check ever ran. Since `patrolWaypoints[0]` is always the entity's own spawn point (both
+`spawnConfiguredNPCs` and `spawnConfiguredAnimals` build it that way), the very first `update()`
+call's "arrival" at waypoint 0 is a zero-distance no-op — but because `pauseTimer` was already
+primed, that no-op arrival was preceded by a full, wasted `pauseSeconds` idle, then followed by a
+*second* full `pauseSeconds` idle before the real first step. Every later lap's pause was already
+correct (one `pauseSeconds` per waypoint). Both prior ADRs flagged this as "a real, findable-by-a-
+player quirk if a future run wants to fix it" and this run's own priority scan, after landing
+sub-task 2, found no higher-priority item — a proper priority-6 gap had just closed, and this
+small, well-scoped, already-documented fix was the natural next atomic sub-task rather than
+reaching for a larger/riskier priority-7/8 item.
+
+**Decision:** Changed `let pauseTimer = isPatrolling ? pauseSeconds : 0;` to `let pauseTimer = 0;`
+in both `gameplay/npc.js` and `gameplay/animals.js` (identical one-line change, same reasoning
+comment in both — the `isPatrolling` conditional was removable since the patrol code block that
+reads `pauseTimer` never executes at all when `isPatrolling` is false, so the value is simply
+unused in that case regardless). With `pauseTimer` starting at 0, the first `update()` call
+immediately takes the `else` branch, resolves the zero-distance "arrival" at waypoint 0 instantly,
+advances `waypointIndex` to 1, and *then* sets `pauseTimer = pauseSeconds` for the real dwell —
+exactly matching every subsequent lap's timing. Updated both `checkNpcPatrol` and `checkWolfPatrol`
+(ADR-0043/ADR-0044) to assert the fixed single-pause-cycle timing (`expectedIdleSeconds =
+PATROL_PAUSE_SECONDS`, not `* 2`) instead of merely documenting the old double-idle behavior.
+
+**Alternatives considered:**
+- *Guard the waypoint-0 case specially instead of changing `pauseTimer`'s initial value* (e.g. skip
+  index 0 entirely, start `waypointIndex` at 1) — rejected: changes the loop's own semantics
+  (`waypointIndex % patrolWaypoints.length` behavior for 2-vs-3+-point patrols) for a fix that's
+  really about `pauseTimer`'s starting value, not the waypoint list itself. The one-line
+  `pauseTimer` fix is strictly smaller and doesn't touch the patrol-advance logic at all.
+- *Only fix one file, leave the other as documented-but-not-fixed* — rejected per both ADR-0043's
+  and ADR-0044's own closing notes: "fixing one file without the other would leave them
+  inconsistent again." Both files get the identical fix in the same sub-task.
+
+**Verified:** `node --check` clean on all 4 changed files (`npc.js` 268 lines, `animals.js` 304
+lines, `game3dSmokeChecks.js` 587 lines, `smokeTestGame3D.js` unchanged this sub-task) — all under
+the 600-line cap. All 8 checks PASS with the fix and the updated assertions. **Regression verified
+in both directions:** (1) real injected bug — temporarily reverted `pauseTimer` to
+`pauseSeconds` in `npc.js`, then separately in `animals.js` — each time, the corresponding
+already-updated check (`checkNpcPatrol`/`checkWolfPatrol`) correctly failed on
+`startedMoving`/`idleDurationOk` (the capped idle-wait loop never saw movement within one pause
+cycle's worth of frames, since the reverted code needed two), while every other check — including
+the *other* file's now-still-fixed patrol check — stayed PASS, confirming the two files' fixes are
+independently verified, not coupled. Restored each file immediately after its own test; `diff`
+against pre-edit backups confirmed byte-identical restores each time, `node --check` stayed clean
+throughout.
+
+**Memory-leak checklist:** N/A — the change is a single local-variable initial value in an existing
+function; no new allocation, listener, or timer of any kind.
+
+**Consequence:** Every patrolling NPC and wolf now idles exactly `pauseSeconds` before its first
+lap, matching every later lap — the double-idle quirk (present since run 22/27) is gone from both
+files. World Coverage unchanged (movement-timing fix, no terrain/streaming/rendering touched). No
+other system depends on the old double-idle timing (nothing in `game3d.js` or elsewhere reads
+`pauseTimer`/patrol state directly).

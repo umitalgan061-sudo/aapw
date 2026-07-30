@@ -389,14 +389,14 @@ async function checkWolfPackAlert(browser, baseUrl) {
  * shape `gameplay/npc.js`'s own `spawnConfiguredNPCs` builds: `patrolWaypoints[0]` equal to the
  * spawn position itself, `patrolWaypoints[1]` the real far point.
  *
- * Writing this check surfaced a real (if cosmetic) timing quirk: `update()`'s `pauseTimer` starts
- * pre-loaded to `pauseSeconds` unconditionally, *before* the first distance-to-waypoint check ever
- * runs — so every patrolling NPC idles a full `pauseSeconds`, "arrives" at waypoint 0 (its own
- * spawn point — a no-op), idles a *second* full `pauseSeconds`, and only then takes its first real
- * step. Net effect: a ~2x-`pauseSeconds` idle before an NPC's first lap, not 1x. Not a gameplay
- * bug (every subsequent lap's pause is the correct single `pauseSeconds`) and out of this
- * test-only sub-task's scope to change — documented here and asserted against directly, so a
- * future fix (or accidental regression of the double-idle itself) is visible either way.
+ * Originally surfaced (and, for one run, merely documented) a timing quirk: `update()`'s
+ * `pauseTimer` used to start pre-loaded to `pauseSeconds` unconditionally, before the first
+ * distance-to-waypoint check ever ran — so every patrolling NPC idled a full `pauseSeconds`,
+ * "arrived" at waypoint 0 (its own spawn point — a no-op), idled a *second* full `pauseSeconds`,
+ * and only then took its first real step. Fixed run 38 (DECISIONS.md ADR-0045) — `pauseTimer` now
+ * starts at 0, so the zero-distance "arrival" at waypoint 0 resolves immediately on the first
+ * `update()` call and the real `pauseSeconds` dwell only happens once, same as every later lap.
+ * This check asserts the fixed (single-pause-cycle) timing directly.
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */
 async function checkNpcPatrol(browser, baseUrl) {
@@ -431,9 +431,9 @@ async function checkNpcPatrol(browser, baseUrl) {
 				turnRateRadiansPerSecond: NPC_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
 			});
 
-			// Advance frame-by-frame until the NPC actually leaves (0, 0) — see the double-idle quirk
-			// documented above. A generous cap (2 pause cycles + 1 extra second) bounds the loop.
-			const maxIdleFrames = Math.ceil((NPC_CONFIG.PATROL_PAUSE_SECONDS * 2 + 1) / delta);
+			// Advance frame-by-frame until the NPC actually leaves (0, 0). A generous cap (1 pause
+			// cycle + 1 extra second) bounds the loop.
+			const maxIdleFrames = Math.ceil((NPC_CONFIG.PATROL_PAUSE_SECONDS + 1) / delta);
 			let idleFrames = 0;
 			while (idleFrames < maxIdleFrames && npc.object3D.position.x === 0 && npc.object3D.position.z === 0) {
 				npc.update(delta);
@@ -441,8 +441,8 @@ async function checkNpcPatrol(browser, baseUrl) {
 			}
 			const startedMoving = npc.object3D.position.x > 0 || npc.object3D.position.z > 0;
 			const idleSecondsBeforeMove = idleFrames * delta;
-			const expectedIdleSeconds = NPC_CONFIG.PATROL_PAUSE_SECONDS * 2;
-			// Loose tolerance (5 frames) — this asserts "roughly 2 pause cycles", not frame-perfect
+			const expectedIdleSeconds = NPC_CONFIG.PATROL_PAUSE_SECONDS;
+			// Loose tolerance (5 frames) — this asserts "roughly 1 pause cycle", not frame-perfect
 			// timing, since the exact frame the float `pauseTimer` crosses 0 isn't the point being
 			// guarded here.
 			const idleDurationOk = Math.abs(idleSecondsBeforeMove - expectedIdleSeconds) <= delta * 5;
@@ -478,8 +478,8 @@ async function checkNpcPatrol(browser, baseUrl) {
 	}
 	const ok = Object.values(result).every(Boolean);
 	const details = ok
-		? 'idles ~2 pause cycles before first lap (documented quirk), ground height resamples ' +
-			'mid-walk, arrives exactly at target with correct final height and turned toward travel direction'
+		? 'idles exactly 1 pause cycle before first lap, ground height resamples mid-walk, ' +
+			'arrives exactly at target with correct final height and turned toward travel direction'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
 	return { name: 'NPC waypoint patrol (gameplay/npc.js)', ok, details };
 }
@@ -492,7 +492,8 @@ async function checkNpcPatrol(browser, baseUrl) {
  * real `createWolf` controller with flee disabled (no `fleeClipName`/`fleeTriggerRadiusMeters`
  * passed, so `canFlee` is false and the patrol branch is the only one that can ever run) —
  * confirming the copy stayed behaviorally identical to its already-tested original, not just that
- * it compiles.
+ * it compiles — including the run-38 `pauseTimer`-starts-at-0 fix (DECISIONS.md ADR-0045), applied
+ * to this file identically to `gameplay/npc.js`'s.
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */
 async function checkWolfPatrol(browser, baseUrl) {
@@ -528,9 +529,9 @@ async function checkWolfPatrol(browser, baseUrl) {
 				// can never trigger even if a playerPosition were passed (it never is here).
 			});
 
-			// Same double-idle-before-first-lap quirk `checkNpcPatrol` documents — this is the copied
-			// (not shared) code path, so it inherits it identically.
-			const maxIdleFrames = Math.ceil((ANIMAL_CONFIG.PATROL_PAUSE_SECONDS * 2 + 1) / delta);
+			// Single-pause-cycle timing, same fix as `checkNpcPatrol` — this is the copied (not shared)
+			// code path, so it inherits the fix identically.
+			const maxIdleFrames = Math.ceil((ANIMAL_CONFIG.PATROL_PAUSE_SECONDS + 1) / delta);
 			let idleFrames = 0;
 			while (idleFrames < maxIdleFrames && wolf.object3D.position.x === 0 && wolf.object3D.position.z === 0) {
 				wolf.update(delta);
@@ -538,7 +539,7 @@ async function checkWolfPatrol(browser, baseUrl) {
 			}
 			const startedMoving = wolf.object3D.position.x > 0 || wolf.object3D.position.z > 0;
 			const idleSecondsBeforeMove = idleFrames * delta;
-			const expectedIdleSeconds = ANIMAL_CONFIG.PATROL_PAUSE_SECONDS * 2;
+			const expectedIdleSeconds = ANIMAL_CONFIG.PATROL_PAUSE_SECONDS;
 			const idleDurationOk = Math.abs(idleSecondsBeforeMove - expectedIdleSeconds) <= delta * 5;
 
 			const midWalkExpectedY = groundCollider.getGroundHeight(wolf.object3D.position.x, wolf.object3D.position.z);
@@ -568,7 +569,7 @@ async function checkWolfPatrol(browser, baseUrl) {
 	}
 	const ok = Object.values(result).every(Boolean);
 	const details = ok
-		? 'same double-idle-before-first-lap quirk as NPC patrol (copied code), never flees with no ' +
+		? 'idles exactly 1 pause cycle before first lap (same fix as NPC patrol), never flees with no ' +
 			'flee config, ground height resamples mid-walk, arrives exactly at target, turned toward travel'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
 	return { name: 'wolf waypoint patrol (gameplay/animals.js)', ok, details };

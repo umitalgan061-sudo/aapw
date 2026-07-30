@@ -150,7 +150,12 @@ export async function createNPC({
 
 	// Patrol state — unused (and never advanced) when isPatrolling is false.
 	let waypointIndex = 0;
-	let pauseTimer = isPatrolling ? pauseSeconds : 0;
+	// Starts at 0, not `pauseSeconds` (fixed run 38, DECISIONS.md ADR-0045) — `patrolWaypoints[0]` is
+	// always this NPC's own spawn point (see `spawnConfiguredNPCs`), so the very first `update()` call
+	// resolves it as an immediate zero-distance "arrival" (a no-op) and *then* starts the real
+	// `pauseSeconds` dwell before the first actual step. Pre-loading this to `pauseSeconds` would idle
+	// a second, redundant full cycle before that first arrival ever gets checked.
+	let pauseTimer = 0;
 
 	return {
 		object3D: model,
