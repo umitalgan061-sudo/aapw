@@ -4998,3 +4998,43 @@ gap. FAZ 5's choice-branching pilot still covers 4 of 14 NPCs (`jon-guard-1` del
 feel like the obvious next rotation target. The world-event pool (12 entries now) could still grow
 further, or gain a UI cooldown/queue if events ever start overlapping visually (not yet observed).
 FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download step.
+
+**Sub-task 2 — decision and work (DECISIONS.md ADR-0062), continued in the same session immediately
+after sub-task 1's commit+push (this run's own chaining protocol, budget/time still available):**
+priority re-scan repeated, nothing new found — rotated back to priority 9 (FAZ 5's dialogue-choice
+pilot) after sub-task 1 covered priority 9.5. Grew `gameplayConfig.js`'s `CHOICES_BY_NPC_ID` from 4 to
+6 of 14 NPCs, adding `cersei-guard-1` (Lannister) and `stannis-guard-1` (Baratheon) — both already had
+distinctive greeting-line flavor to build a natural follow-up on, and both add house diversity
+(previously Targaryen/Stark/Martell/Qarth-adjacent only) rather than repeating an already-covered
+house. Config/content-only; zero code touched in `dialogueBox.js`/`interaction.js`/`game3d.js`.
+
+**Regression guard:** `node --check` clean. Full committed smoke suite — all 12 checks PASS,
+identical to the pre-change baseline. **Real headless-Chromium proof of the new content:**
+instantiated the real `DialogueBox`/`InteractionPrompt`/`createInteractionController` with the actual
+`INTERACTION_CONFIG` inside the live `game3d.html` page, opened `stannis-guard-1`'s dialogue —
+screenshot shows the real greeting plus both new choice labels; selected choice 1 — second screenshot
+shows that choice's own real response text, choice list emptied, hint reverted, real scene (castle,
+player, night sky) rendered behind the dialogue box. Zero console/page errors in either state.
+
+**Files changed this sub-task:** `src/3d/gameplay/gameplayConfig.js`, `DECISIONS.md` (new ADR-0062),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~50 new/changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a dialogue-content-only addition touches no terrain/streaming/chunk
+logic.**
+
+**Run totals (2 chained sub-tasks, run 47):** 6 files touched across both sub-tasks
+(`src/3d/gameplay/worldEvents.js`, `src/3d/gameplay/gameplayConfig.js`, `DECISIONS.md`,
+`3D_GAME_PROGRESS.md` — DECISIONS.md/3D_GAME_PROGRESS.md counted once each despite being touched in
+both sub-tasks) and ~189 new/changed lines total (well under the 1200-line/25-file budget). 2
+commits, each regression-guarded (12/12 smoke suite + a real headless-Chromium screenshot of the new
+content specifically) and pushed directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **FAZ 7 still blocked**
+(re-confirmed run 47, tooling gap unchanged). **FAZ 3's LOD gap remains tooling-blocked**, same class
+of gap. FAZ 5's choice-branching pilot now covers 6 of 14 NPCs (`umit`, `berkalp`, `doran`, `xaro`,
+`cersei`, `stannis`); 8 remain (`jon-guard-1` deliberately excluded, 7 others — `ziya`/`balon`/
+`robin`/`berk`/`olena`/`twin`/`stannis-guard-2` — no fresh reason yet to extend to, though
+`stannis-guard-2`'s own greeting line ("İkinci nöbetçi benim, gözüm hep tepede...") is already
+flavor-rich enough to be a natural next pick). The world-event pool (12 entries) could still grow
+further. FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download step.

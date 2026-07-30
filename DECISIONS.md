@@ -4516,3 +4516,55 @@ WORLD_EVENTS.length)` already generalizes to any array length).
 **Consequences:** The world-event flavor pool is now 12 entries (was 8), still config-only with no
 per-kingdom economy/stats hook (unchanged design boundary from ADR-0056). FAZ 3's LOD gap and FAZ 7
 remain open, both re-confirmed (not just assumed) still tooling-blocked this run.
+
+## ADR-0062: Grow the dialogue-choice pilot from 4 to 6 of 14 NPCs
+
+**Status:** Accepted (run 47, sub-task 2).
+
+**Context:** Continued in the same session, same budget, immediately after sub-task 1's commit+push
+(ADR-0061, this run's own chaining protocol). Fresh priority re-scan repeated: no new syntax error/
+blocking bug/perf regression/memory leak/tech debt since sub-task 1. FAZ 7/FAZ 3's LOD gap remain
+tooling-blocked (unchanged, already re-confirmed this run). With priority 9.5 (world-event pool) just
+grown in sub-task 1, this sub-task rotates back to priority 9 (FAZ 5's own still-open pilot-growth
+note) — same proven, low-risk, config-only mechanism ADR-0058/ADR-0060 already established, extended
+a 3rd time.
+
+**Decision:** `gameplayConfig.js`'s `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` gains 2 more entries:
+`cersei-guard-1` (Lannister, King's Landing) and `stannis-guard-1` (Baratheon, the first NPC ever
+placed in run 20). Both chosen because their existing `GREETINGS_BY_NPC_ID` lines are already
+distinctive and lore-rich enough to hang a natural follow-up question on ("borç öder" -> Lannister
+gold; "Kral Stannis'in adaleti" -> Baratheon justice/legitimacy) — same selection criterion ADR-0058/
+ADR-0060 used. No code in `ui/dialogueBox.js`, `gameplay/interaction.js`, or `game3d.js` touched — the
+branching mechanism itself is unchanged; this is config/content only.
+
+**Reasoning:**
+- **2 more, not all remaining 8:** same "pilot small, extend later, review each batch carefully for
+  Turkish prose quality" precedent ADR-0058/ADR-0060 both already established.
+- **House diversity over seat-count:** `cersei-guard-1`/`stannis-guard-1` add Lannister and Baratheon
+  to the pilot's house coverage (previously Targaryen/Stark/Martell/Qarth-adjacent only) — spreads the
+  hand-written content across more of the map's real lore identity rather than clustering.
+- **Why not extend a 3rd house-repeat seat (e.g. `twin-guard-1`, also Lannister) instead:** rejected —
+  `cersei-guard-1` already covers the Lannister flavor; a 2nd Lannister entry in the same batch would
+  read as redundant rather than adding new ground, unlike `stannis-guard-1`'s genuinely new house.
+
+**Verified:**
+- `node --check` clean on the one touched file.
+- Line count: `gameplayConfig.js` 521/600 (up from 499/600) — comfortable headroom remains.
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`): **all 12 checks PASS**, identical to
+  the pre-change baseline.
+- **Real headless-Chromium proof of the new content specifically:** instantiated the real
+  `DialogueBox`/`InteractionPrompt`/`createInteractionController` with the actual
+  `INTERACTION_CONFIG` inside the live `game3d.html` page, opened `stannis-guard-1`'s dialogue —
+  screenshot shows the real greeting plus both new numbered choice labels; selected choice 1 — second
+  screenshot shows that choice's own real response text, choice list emptied, hint reverted to "E /
+  Esc - Kapat", with the real scene (castle, player, night sky) rendered behind it. Zero console/page
+  errors in either state.
+
+**Alternatives considered:**
+- *Extend to all 8 remaining NPCs* — rejected, same reasoning as ADR-0058/ADR-0060.
+- *Grow the world-event pool again instead* — rejected this sub-task specifically to rotate back to
+  priority 9 after sub-task 1 already covered priority 9.5.
+
+**Consequences:** 6 of 14 NPCs now have real branching content; 8 remain (`jon-guard-1` deliberately
+excluded, 7 others no fresh reason yet). `gameplayConfig.js` has 22 fewer lines of headroom but is
+still well under the 600-line cap.
