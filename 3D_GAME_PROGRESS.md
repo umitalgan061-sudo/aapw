@@ -38,25 +38,29 @@ KayKit, etc.) are used for `assets/`.
   `balon`, `robin`, `jon`), config-only, by reusing already-downloaded character models — no new
   asset. **10 NPCs total, all patrolling with a name tag, 9 of 14 kingdom seats now have at least
   one.** All five runs reuse `player.js`'s Mixamo FBX-loading/scale-correction/animation-retargeting
-  pipeline — see "This Run (run 25)" below and DECISIONS.md
-  ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024.
-- **Last Update:** 2026-07-30 (run 25)
-- **Last Commit:** run 25's FAZ 5 seat extension — `config.js`'s `NPC_CONFIG.SPAWNS` gained 4 new
-  entries (`ziya-guard-1`, `balon-guard-1`, `robin-guard-1`, `jon-guard-1`), each reusing an
-  already-downloaded/precached Mixamo character file with a `patrol` field from the start —
-  DECISIONS.md ADR-0024 (see "This Run (run 25)" below). Zero new assets, zero code changes; run 24
-  was the patrol-to-all-6 extension (DECISIONS.md ADR-0023).
+  pipeline — see DECISIONS.md
+  ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024. **FAZ 6 (Hayvanlar) started run 26:** a
+  first pass of 2 static, idling wolves (`gameplay/animals.js`, new module) at the `berkalp` (House
+  Stark/Winterfell) kingdom seat, loaded via `AssetLoader.loadModel`'s glTF/GLB path (previously
+  unused dead code — this is the first system to actually exercise it) rather than `loadFBXModel`.
+  See "This Run (run 26)" below and DECISIONS.md ADR-0025.
+- **Last Update:** 2026-07-30 (run 26)
+- **Last Commit:** run 26's FAZ 6 first pass — new `src/3d/gameplay/animals.js` (`createWolf`), a new
+  `ANIMAL_CONFIG` in `config.js`, a one-line `assetLoader.js` fix so `loadModel` exposes
+  `gltf.animations` the way `loadFBXModel` already does, `game3d.js` wiring (spawn/update/dispose),
+  and a `service-worker.js` precache entry for the wolf `.glb` — DECISIONS.md ADR-0025 (see "This Run
+  (run 26)" below). Run 25 was the FAZ 5 seat extension (DECISIONS.md ADR-0024).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (nineteenth straight run).** A prior run (see "This Run (run 5)" below,
+  correct, no change made (twentieth straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
   **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20,
-  21, 22, 23, and 24 each re-verified this without changes needed. This run's Session Snapshot
+  21, 22, 23, 24, and 25 each re-verified this without changes needed. This run's Session Snapshot
   re-derived the numbers from `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more
   and again confirmed they match ADR-0004 exactly — no config change made. **If you are a future run
   and the operator's brief again asserts the old 4278 km² target is still live: it is not. Re-derive
   from `config.js` yourself (as this run did) rather than trusting the brief's own numbers — this has
   now been independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20, 21,
-  22, 23, 24, and 25.**
+  22, 23, 24, 25, and 26.**
 - **Repo-continuity note (run 18):** this run's Session Snapshot found the container's git working
   tree in a `HEAD` state detached at run 17's own final commit (`d9a3260`), while the local `main`
   branch ref and `origin/main` were both still pointing at the pre-3D-mode commit
@@ -110,10 +114,12 @@ the two paths differ and stay different by design (same device-branching pattern
 chunks, re-verified via the same headless-Chromium console-log method (`"...444 terrain chunks
 resident (~111.00 km²)..."` desktop, `"...25 terrain chunks resident...(~6.25 km²)..."` mobile,
 byte-identical to run 16). Still unchanged by run 19 (camera wall-avoidance is a per-frame render
-adjustment, not a terrain/streaming change) and by run 20 (FAZ 5's NPCs are 2 more characters, not
+adjustment, not a terrain/streaming change), by run 20 (FAZ 5's NPCs are 2 more characters, not
 terrain — same `"444 terrain chunks resident"` desktop / `"25 terrain chunks resident"` mobile log
-lines re-confirmed byte-identical this run) — same figures re-confirmed via an identical console-log
-check each time.**
+lines re-confirmed byte-identical this run), and by run 26 (FAZ 6's 2 wolves are 2 more characters,
+same reasoning — `"444 terrain chunks resident"` desktop / `"25 terrain chunks resident"` mobile
+re-confirmed byte-identical again) — same figures re-confirmed via an identical console-log check
+each time.**
 
 - **Target area (100-150 km² band) re-verified this run — still correct, no change made.** Same
   re-derivation every run performs: `src/3d/config.js`'s `WORLD_SCALE.METERS_PER_MAP_UNIT` is 1.75
@@ -163,6 +169,15 @@ Triangles<500K, TextureMem<512MB.
   boot-preview radius further should watch the triangle ceiling, not draw calls. Verified via
   headless Chromium, not just computed: console confirms `"Placed 14 kingdom-seat settlements; 444
   terrain chunks resident (~111.00 km²) after grounding them"`, zero page errors.
+- **`gameplay/animals.js` (added run 26):** 2 wolves × 5 draw calls each (one per glTF primitive —
+  body/fur/claws/eyes/teeth; the bundled non-skinned "Circle" mesh is stripped before it ever
+  reaches the scene, see DECISIONS.md ADR-0025) = 10 draw calls, 2,748 triangles/wolf × 2 = 5,496
+  triangles. Desktop total grows to **~463 draw calls (18.5% of budget) / ~3.676M triangles (73.5%
+  of budget)** — both still comfortably clear, the addition is under 0.3% of either budget on its
+  own. Same 10 draw calls/5,496 triangles also apply on mobile (animal spawning isn't gated by
+  device class, same as NPCs) — mobile total grows to ~212,816 triangles (42.6% of the mobile
+  budget, up from 41.5%). Verified via headless Chromium: console confirms `"Spawned 2 FAZ 6
+  animal(s)."` on both device classes, zero page errors.
 - **`world/settlements.js` (added run 14):** 3 draw calls total (one `InstancedMesh` per castle
   part — keeps/towers/roofs — covering all 14 kingdom seats, not 3-per-castle), ~2,520 triangles
   total. On its own, negligible against both budgets. On **mobile**, settlement force-grounding is
@@ -396,7 +411,11 @@ Triangles<500K, TextureMem<512MB.
   headless Chromium'da gerçek bir yakın-çekim ekran görüntüsüyle doğrulandı. Diyalog/etkileşim
   sistemi hâlâ yok — sadece görsel bir etiket, bilinçli olarak kapsam dışı (bkz. ADR-0022).
 
-### FAZ 6 — Hayvanlar (pending)
+### FAZ 6 — Hayvanlar (in progress, started run 26)
+- [x] Kurt (vahşi, statik/idle — run 26) — `gameplay/animals.js`'s `createWolf`, `berkalp` (Stark)
+  kingdom seatinde 2 adet, glTF/GLB (`AssetLoader.loadModel`) ile yüklenip idle klibi döngüde
+  oynatılıyor. Devriye/AI/oyuncu-farkındalığı yok — bilinçli olarak `gameplay/npc.js`'in run 20'deki
+  aynı başlangıç kapsamı. Bkz. DECISIONS.md ADR-0025.
 - [ ] Atlar (binilebilir, NavMesh) (`animals.js`)
 - [ ] At arabaları (spline takip)
 - [ ] Köpek/kedi (flee/follow)
@@ -2446,6 +2465,94 @@ how `gameplay/npc.js` started in run 20) would be a comparably-scoped new slice 
 value than another NPC-seat config tweak. No new tech debt this run — a pure config extension
 reusing already-established patterns.
 
+## This Run (2026-07-30, run 26)
+
+**Session Snapshot taken at start of run** (per protocol):
+- Read this file, `git log -10 --oneline`, and DECISIONS.md's last 3 ADRs (ADR-0022/0023/0024)
+  before doing anything else.
+- **Git state at boot:** `HEAD` detached at run 25's own final commit (`5297817`), local `main`
+  stale at the pre-3D-mode commit (`38e09e7`) — the same recurring container-restart pattern flagged
+  at run 18. `git ls-remote --heads origin` confirmed `origin/main` was already at `5297817` (no
+  data loss, matching the detached `HEAD` exactly) — only this container's local refs were stale.
+  Fixed with `git fetch origin main && git checkout -B main origin/main` (a clean reset onto the
+  already-correct remote tip, not a merge — safe since local `main` had zero unique commits to
+  preserve).
+- **The operator brief's own "4278 km² target, previously invalidated" framing is stale** (see
+  Current Status above) — `src/3d/config.js` already shows the corrected 137.5 km² scale from
+  ADR-0004, re-confirmed by 19 prior runs. Re-derived it myself from `config.js` rather than
+  trusting the brief, per the standing instruction in this file's own text: still correct, no change
+  made.
+- No syntax errors, no open regression list, no memory-leak reports, no perf-budget breach — checked
+  via `node --check` on every non-vendored `src/3d/**/*.js` file plus `script.js`/`service-worker.js`
+  before starting (all clean). Per the task's priority order (syntax → blocking bugs → perf → memory
+  → tech debt → regression coverage → World Coverage → active-phase sub-task → new feature), nothing
+  above "active-phase sub-task" needed attention, so this run picked up run 25's own explicit
+  recommendation: start FAZ 6 (Hayvanlar) with a first-pass wolf.
+
+**Done:**
+- **`src/3d/assetLoader.js`:** `loadModel` (glTF/GLB loader, previously unused by any caller —
+  confirmed via `grep` before touching it) now sets `gltf.scene.animations = gltf.animations` before
+  returning — `GLTFLoader` keeps clips as a separate top-level array, unlike `FBXLoader`, which
+  already attaches them to the group it returns (why `gameplay/npc.js` can already read
+  `idleSource.animations[0]`). One line, makes both loaders' outputs usable the same way.
+- **`src/3d/config.js`:** new `ANIMAL_CONFIG` — `WOLF_MODEL_URL`, `IDLE_CLIP_NAME` (confirmed exact
+  against the source `.gltf` JSON sidecar, not guessed), `STRIP_CHILD_NAMES` (`['Circle']` — the
+  source file bundles a non-skinned shadow-catcher disc as a scene-root sibling of the wolf's real
+  meshes, confirmed the same way), and a 2-entry `SPAWNS` list at the `berkalp` (Stark) seat.
+- **New `src/3d/gameplay/animals.js`:** `createWolf(...)`, matching `gameplay/npc.js`'s
+  `{object3D, update(delta), dispose()}` shape and its run-20 static/idle-only starting scope. A
+  `stripNamedChildren` helper removes the bundled decoration mesh (disposing its GPU resources)
+  before the model joins the scene.
+- **`src/3d/game3d.js`:** imports `createWolf`/`ANIMAL_CONFIG`, spawns `ANIMAL_CONFIG.SPAWNS` in
+  parallel right after the NPC block (same seat-resolution/ground-clamping helpers reused, not
+  duplicated), updates each animal's mixer every frame, disposes them on `pagehide`.
+- **`service-worker.js`:** added `./src/3d/gameplay/animals.js` and the wolf's single `.glb` (its
+  buffer/textures are embedded, no separate entries needed) to `GAME3D_SHELL_FILES` for offline use.
+- **`ARCHITECTURE.md`:** new `gameplay/animals.js` Depends-On/Used-By/Critical-Path/Failure-Mode
+  section, `assetLoader.js`/`config.js`/`game3d.js`'s own entries updated to mention it.
+- **`src/3d/gameplay/README.md`:** documented `animals.js` alongside `npc.js`.
+- **Regression guard:** `node --check` clean on all 4 touched/new source files plus
+  `service-worker.js`; JSON-validated `manifest.json`/`assets_manifest.json` (unchanged, still valid).
+- **Real tests, not assumed correct from the code alone** (headless Chromium via Playwright,
+  `http-server` serving the repo root):
+  1. Pre-change regression baseline matched run 25's own documented numbers exactly (444/25 chunks,
+     14 settlements, 10 NPCs, zero errors).
+  2. Post-change full smoke test on both device classes: `"Spawned 2 FAZ 6 animal(s)."` on both
+     desktop and touch-emulated (`hasTouch: true, isMobile: true`) contexts, zero new console/page
+     errors, all pre-existing counts unchanged (confirms this is purely additive).
+  3. **A scene-graph + bone-animation check via a temporary debug hook**
+     (`window.__debugGame3DState = state`, added only for this test and reverted before commit —
+     confirmed via `git diff` showing zero net change to the committed `game3d.js`): both wolves
+     loaded real `SkinnedMesh` geometry (zero placeholder fallbacks), the bundled "Circle" mesh was
+     confirmed absent from both, and a before/after sample across all 49 skeleton bones over 1.5s
+     found 31 with a real position/quaternion delta (chest, head, jaw, ears, eyelids, tail) —
+     the idle clip is genuinely animating, not frozen on frame 0.
+- Updated `DECISIONS.md` (new ADR-0025), this file's FAZ 6 roadmap checklist, Performance Budget
+  Status, Known Issues, and this section.
+
+**Files changed this run:** `src/3d/assetLoader.js`, `src/3d/config.js`, `src/3d/gameplay/animals.js`
+(new), `src/3d/game3d.js`, `service-worker.js`, `ARCHITECTURE.md`, `src/3d/gameplay/README.md`,
+`DECISIONS.md` (new ADR-0025), `3D_GAME_PROGRESS.md` (this file). 9 files — within the ≤20-file run
+budget; well under ≤800 new lines (the new `animals.js` module is ~75 lines, `ANIMAL_CONFIG` ~35
+lines, the rest are small wiring edits plus doc updates). One commit (the whole FAZ 6 first-pass
+slice is one atomic, revertable unit).
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged from run 25, re-verified via the same headless-
+Chromium console-log method. This run added 2 animals, not terrain. The 100-150 km² world-scale
+target itself was re-verified unchanged against `src/3d/config.js` at the start of this run (see
+Session Snapshot above) — no config change was needed or made.**
+
+**Next step for the next run:** FAZ 6 now has one real animal type (wolf, static/idle, 2 instances)
+out of four the roadmap lists (horses, carts, dogs/cats, birds — none downloaded, all would need a
+human manual-download step, see Known Issues). Cheapest next FAZ 6 slice: give the 2 existing wolves
+a wander/patrol behavior reusing `gameplay/npc.js`'s already-proven `patrolWaypoints` pattern (the
+wolf glTF's `02_walk_Armature_0` clip is already available and unused) — this is genuinely a
+same-scope repeat of what NPCs did in run 22, not new territory. Real remaining FAZ 5 work (still
+open, untouched this run): a dialogue/interaction system, player-awareness/reactive behavior. FAZ
+4's own remaining gap (no gravity/jump/wall-collider physics) also remains open. No new tech debt
+this run — the one latent gap found (`loadModel`'s missing `.animations`) was fixed, not deferred.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -2539,6 +2646,11 @@ reusing already-established patterns.
   gaps are honest, scoped-out ones (see
   DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024's "Alternatives considered"),
   not accidental.
+- **FAZ 6's wolves are static/idle only, one seat, no wander/AI/player-awareness.** 2 wolves at
+  `berkalp` (`ANIMAL_CONFIG.SPAWNS`), same deliberately-minimal starting scope `gameplay/npc.js`
+  itself had at run 20 (see DECISIONS.md ADR-0025's "Alternatives considered"). The other 3 FAZ 6
+  animal types (horses, carts, dogs/cats, birds) have no downloaded asset yet — each needs a human
+  manual-download step (see below), same constraint every future asset addition faces.
 - **~~No touch joystick for FAZ 4 movement~~ — landed run 18 (`ui/touchJoystick.js`).** Mobile-class
   devices now get an on-screen joystick alongside keyboard (`input.js`) support — see DECISIONS.md
   ADR-0017. Verified via a Playwright-simulated drag (Pointer Events treat mouse and touch drags

@@ -34,7 +34,12 @@ the way it is.
   run 20) `gameplay/npc.js` (both use `loadFBXModel` and the shared static
   `correctMixamoFbxScale(model)` helper — Mixamo FBX exports store geometry in centimeters;
   `FBXLoader` stashes the file's own conversion factor in `userData.unitScaleFactor` but doesn't
-  apply it, so this one static method does, rather than two independently hand-copied blocks).
+  apply it, so this one static method does, rather than two independently hand-copied blocks); and
+  (added FAZ 6, run 26) `gameplay/animals.js` (uses `loadModel` — the wolf's glTF/GLB needs no
+  Mixamo-style scale correction, its source file is already real-world-meter scale). `loadModel`
+  itself was extended run 26 to stash `gltf.animations` onto the returned scene's own `.animations`
+  property, the same convention `FBXLoader` already followed for FBX groups — previously discarded,
+  since nothing had needed a GLTF model's animation clips until now.
 - **Critical path:** no — falls back to a placeholder box mesh on load failure (L1 silent fallback
   per the project's error-handling hierarchy).
 - **Failure mode:** emits `asset:error`, logs, substitutes a placeholder. Never throws to callers.
@@ -54,8 +59,11 @@ the way it is.
   `ui/touchJoystick.js` — see ADR-0017), and (added FAZ 5, run 20, extended run 21/22) `NPC_CONFIG`
   (idle/walk animation URLs reused from `PLAYER_CONFIG`, patrol speed/pause/turn-rate constants added
   run 22, and the flat `SPAWNS` list mapping a kingdom-seat id + world offset to a Mixamo character
-  FBX for each NPC, with an optional `patrol` field — 6 entries across 5 seats, 2 of them patrolling,
-  as of run 22 — see `gameplay/npc.js` and ADR-0019/ADR-0020/ADR-0021).
+  FBX for each NPC, with an optional `patrol` field — 10 entries across 9 seats, all patrolling, as
+  of run 25 — see `gameplay/npc.js` and ADR-0019/ADR-0020/ADR-0021/ADR-0023/ADR-0024), and (added
+  FAZ 6, run 26) `ANIMAL_CONFIG` (wolf model URL, idle clip name, the `STRIP_CHILD_NAMES` list for
+  the source file's bundled non-skinned decoration mesh, and a `SPAWNS` list — same seat+offset
+  shape as `NPC_CONFIG.SPAWNS` — see `gameplay/animals.js` and ADR-0025).
 - **Critical path:** yes — every system imports constants from here.
 - **Failure mode:** N/A (static data only).
 
@@ -370,13 +378,37 @@ the way it is.
   name-tag above its head. No real AI, dialogue, or player-driven interaction yet — real future FAZ 5
   work, not built speculatively now.
 
-## `src/3d/gameplay/` (folder) — Playable characters, NPCs, future dragons/animals/combat/etc.
+## `src/3d/gameplay/animals.js` — Wild animals, wolf first pass (FAZ 6, run 26)
+
+- **Depends on:** `three` (vendored), `assetLoader.js` (`loadModel` — dynamic-imports `GLTFLoader`,
+  and the static `disposeObject3D` helper on teardown). Does not import `config.js` directly, same
+  "caller wires config together" convention as `gameplay/npc.js`: `game3d.js` resolves
+  `ANIMAL_CONFIG.SPAWNS` entries against `world/settlements.js`'s seat data and passes the final
+  `modelUrl`/`idleClipName`/`stripChildNames`/`worldX`/`worldZ`/`groundY` in.
+- **Used by:** `game3d.js` (`createWolf`, `update()` called every frame to advance the idle
+  `AnimationMixer`, `dispose()` on `pagehide`).
+- **Critical path:** no — a load failure degrades the same way `npc.js`'s does: `assetLoader`'s
+  existing L1 silent-fallback substitutes a placeholder box (no animation, but no crash); a
+  wholesale creation failure propagates to `game3d.js`'s top-level try/catch (L3).
+- **Failure mode:** a GLTF load failure is caught inside `assetLoader.loadModel` itself (L1).
+- **`stripNamedChildren` helper:** the wolf's source glTF bundles a non-skinned "Circle" mesh (a
+  Blender shadow-catcher disc) as a scene-root sibling of the wolf's own skinned meshes — confirmed
+  via the `.gltf` JSON sidecar, not guessed. `createWolf` removes any root child whose name is in
+  `ANIMAL_CONFIG.STRIP_CHILD_NAMES` (disposing its geometry/material first) before adding the model
+  to the scene, so it doesn't render as a stray flat disc near the wolf's feet.
+- **Scope, deliberately minimal:** static/idling only, no patrol/AI/player-awareness and no name-tag
+  — the same starting scope `gameplay/npc.js` itself had in run 20 before those landed in later
+  runs. Real future FAZ 6 work (patrol, other animal types — horses/carts/dogs/birds per the
+  roadmap), not built speculatively now.
+
+## `src/3d/gameplay/` (folder) — Playable characters, NPCs, animals, future dragons/combat/etc.
 
 - **Depends on:** `eventBus.js`, `physics.js`, `input.js`, `config.js`, `assetLoader.js`. Only
   these plus this folder itself should be touched for a gameplay-system change (blast radius rule)
   — see `gameplay/README.md`.
 - **Used by:** `game3d.js`.
-- **Critical path:** varies per file — see `player.js`'s and `npc.js`'s own entries above.
+- **Critical path:** varies per file — see `player.js`'s, `npc.js`'s, and `animals.js`'s own
+  entries above.
 - **Failure mode:** varies per file.
 
 ## `src/3d/sky.js` — Aurora skybox
@@ -458,8 +490,9 @@ the way it is.
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
   `world/chunkManager.js`, `physics.js` (ground collider, feeds `world/rivers.js`/
   `world/settlements.js` too), `input.js`, `ui/touchJoystick.js`, `gameplay/player.js`,
-  `gameplay/npc.js` (added FAZ 5, run 20), `world/water.js`, `world/rivers.js`,
-  `world/settlements.js`, `camera.js`, `sky.js`, `stars.js`, `lighting.js`, `fog.js`.
+  `gameplay/npc.js` (added FAZ 5, run 20), `gameplay/animals.js` (added FAZ 6, run 26),
+  `world/water.js`, `world/rivers.js`, `world/settlements.js`, `camera.js`, `sky.js`, `stars.js`,
+  `lighting.js`, `fog.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
   lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance
@@ -467,16 +500,17 @@ the way it is.
   aurora sky mesh, the water plane, the static river mesh and its waterfall curtain meshes
   (`world/rivers.js`), the 14 kingdom-seat settlements (`world/settlements.js`, all generated once,
   not part of the per-frame loop), the playable character (`gameplay/player.js`, loaded async
-  *after* the rest of the scene — see `computeCameraRelativeMove` below), 2 static idling NPCs
+  *after* the rest of the scene — see `computeCameraRelativeMove` below), 10 static/patrolling NPCs
   (`gameplay/npc.js`, loaded async in parallel right after the player — added FAZ 5, run 20, see
-  ADR-0019), and the `requestAnimationFrame` render loop (which now also drives
-  `keyboardInput.getAxes()`, `computeCameraRelativeMove()`, `player.update()`, each NPC's
-  `update()` (keeps its idle mixer ticking), the chase-camera translation, `controls.
+  ADR-0019), 2 static idling wolves (`gameplay/animals.js`, loaded async right after the NPCs — FAZ
+  6, run 26, see ADR-0025), and the `requestAnimationFrame` render loop (which now also drives
+  `keyboardInput.getAxes()`, `computeCameraRelativeMove()`, `player.update()`, each NPC's and
+  animal's `update()` (keeps their idle mixers ticking), the chase-camera translation, `controls.
   update()`, `streamAroundOrbitTarget()`, `updateDayNightLighting()`, `updateAuroraSky()`,
   `updateFog()`, `updateWater()`, and (ADR-0018) `collectCameraCollidables()` +
   `camera.js`'s `resolveCameraCollision()` each frame — see `world/chunkManager.js`, `lighting.js`,
   `fog.js`, `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009/
-  ADR-0011/ADR-0013/ADR-0016/ADR-0018/ADR-0019).
+  ADR-0011/ADR-0013/ADR-0016/ADR-0018/ADR-0019/ADR-0025).
 - **`collectCameraCollidables(state, worldX, worldZ)` (module-local, added ADR-0018):** builds the
   small candidate list `resolveCameraCollision` raycasts against each frame — the player's current
   terrain chunk + its 8 immediate neighbors (via `chunkManager.getLoadedChunkMesh`, sufficient

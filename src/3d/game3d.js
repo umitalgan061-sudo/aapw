@@ -30,13 +30,14 @@ import * as THREE from 'three';
 import { gameEvents } from './eventBus.js';
 import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
-import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, PLAYER_CONFIG, NPC_CONFIG } from './config.js';
+import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, PLAYER_CONFIG, NPC_CONFIG, ANIMAL_CONFIG } from './config.js';
 import { ChunkManager } from './world/chunkManager.js';
 import { createGroundCollider } from './physics.js';
 import { KeyboardInput } from './input.js';
 import { TouchJoystick } from './ui/touchJoystick.js';
 import { createPlayer } from './gameplay/player.js';
 import { createNPC } from './gameplay/npc.js';
+import { createWolf } from './gameplay/animals.js';
 import { createWater, updateWater, disposeWater } from './world/water.js';
 import {
 	generateRiverPath,
@@ -464,6 +465,34 @@ export async function initGame3D() {
 		for (const npc of state.npcs) state.scene.add(npc.object3D);
 		console.info(`[game3d] Spawned ${state.npcs.length} FAZ 5 NPC(s).`);
 
+		// FAZ 6: wild animals (first pass — wolf only, see config.js's ANIMAL_CONFIG doc comment).
+		// Same seat-anchored spawn resolution as the NPC block above, loaded in parallel the same way.
+		const wolves = await Promise.all(
+			ANIMAL_CONFIG.SPAWNS.map(async (spawn) => {
+				const seat = seatsById.get(spawn.seatId);
+				if (!seat) {
+					console.warn(`[game3d] Animal spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
+					return null;
+				}
+				const worldX = seat.x + spawn.offsetXMeters;
+				const worldZ = seat.z + spawn.offsetZMeters;
+				return createWolf({
+					assetLoader,
+					modelUrl: ANIMAL_CONFIG.WOLF_MODEL_URL,
+					idleClipName: ANIMAL_CONFIG.IDLE_CLIP_NAME,
+					stripChildNames: ANIMAL_CONFIG.STRIP_CHILD_NAMES,
+					worldX,
+					worldZ,
+					groundY: sampleClampedGroundY(worldX, worldZ),
+					rotationYRadians: spawn.rotationYRadians,
+					name: spawn.id,
+				});
+			}),
+		);
+		state.animals = wolves.filter(Boolean);
+		for (const animal of state.animals) state.scene.add(animal.object3D);
+		console.info(`[game3d] Spawned ${state.animals.length} FAZ 6 animal(s).`);
+
 		let frameId;
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
@@ -482,6 +511,7 @@ export async function initGame3D() {
 			const previousTargetZ = state.controls.target.z;
 			state.player.update(delta, moveDirection, axes.running);
 			for (const npc of state.npcs) npc.update(delta);
+			for (const animal of state.animals) animal.update(delta);
 			const playerPos = state.player.object3D.position;
 			state.camera.position.x += playerPos.x - previousTargetX;
 			state.camera.position.z += playerPos.z - previousTargetZ;
@@ -531,6 +561,7 @@ export async function initGame3D() {
 			state.touchJoystick?.dispose();
 			state.player.dispose();
 			state.npcs.forEach((npc) => npc.dispose());
+			state.animals.forEach((animal) => animal.dispose());
 			state.controls.dispose();
 			state.chunkManager.disposeAll();
 			disposeAuroraSky(state.sky);

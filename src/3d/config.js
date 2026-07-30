@@ -332,6 +332,46 @@ export const NPC_CONFIG = Object.freeze({
 	]),
 });
 
+/** Wild animals (FAZ 6, first pass — see `gameplay/animals.js`). Only the wolf is wired up so far;
+ * the `wolf` glTF (`assets_manifest.json`) was already downloaded for this phase (run 20's era) and
+ * sat unused until this pass. Modeled after `NPC_CONFIG`'s seat-anchored spawn shape, but animals
+ * get no name tag and (first pass) no patrol — static/idling only, same scope `gameplay/npc.js`
+ * itself started at in run 20 before patrol/name-tags landed in later runs. */
+export const ANIMAL_CONFIG = Object.freeze({
+	WOLF_MODEL_URL: 'assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
+	/** Exact glTF animation-clip name (`THREE.AnimationClip.findByName`) — confirmed against the
+	 * source file's own `.gltf` JSON sidecar, not guessed: `01_Run_Armature_0`, `02_walk_Armature_0`,
+	 * `03_creep_Armature_0`, `04_Idle_Armature_0`, `05_site_Armature_0`. Only idle is used this pass. */
+	IDLE_CLIP_NAME: '04_Idle_Armature_0',
+	/** The source file bundles a flat, non-skinned "Circle" mesh (a Blender shadow-catcher disc) as
+	 * a sibling of the wolf's own skinned meshes at the scene root — confirmed via the `.gltf` JSON
+	 * (`meshes[5].name === 'Circle'`), not part of the animal itself. `gameplay/animals.js` strips
+	 * any root child with this name before adding the model to the scene, so it doesn't render as a
+	 * stray flat disc floating near the wolf's feet on real terrain. */
+	STRIP_CHILD_NAMES: Object.freeze(['Circle']),
+	/** Static placements, each anchored to a `world/settlements.js` kingdom-seat id and offset from
+	 * that castle's keep center (in meters) — same convention as `NPC_CONFIG.SPAWNS`, but offset
+	 * further out (40m vs. NPCs' 12m) so a wolf reads as roaming just outside the walls rather than
+	 * standing in the guards' own spot. First pass: 2 wolves at `berkalp` (House Stark/Winterfell —
+	 * the direwolf is Stark's own sigil, a deliberate lore fit, not an arbitrary seat pick). */
+	SPAWNS: Object.freeze([
+		Object.freeze({
+			id: 'berkalp-wolf-1',
+			seatId: 'berkalp',
+			offsetXMeters: 40,
+			offsetZMeters: -30,
+			rotationYRadians: 0,
+		}),
+		Object.freeze({
+			id: 'berkalp-wolf-2',
+			seatId: 'berkalp',
+			offsetXMeters: 48,
+			offsetZMeters: -18,
+			rotationYRadians: Math.PI * 0.5,
+		}),
+	]),
+});
+
 /** On-screen touch joystick (FAZ 4, mobile input). See `src/3d/ui/touchJoystick.js`. */
 export const TOUCH_JOYSTICK_CONFIG = Object.freeze({
 	/** Radius, in CSS pixels, the knob can be dragged from the base's center before clamping. */

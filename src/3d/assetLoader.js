@@ -90,6 +90,11 @@ export class AssetLoader {
 
 	/**
 	 * Load a GLTF/GLB model. Falls back to a simple colored box if the file is missing or invalid.
+	 * `GLTFLoader` returns clips as a separate top-level `gltf.animations` array, not attached to
+	 * `gltf.scene` — this stashes them onto the returned scene's own `.animations` (an `Object3D`
+	 * property that defaults to `[]`) the same way `FBXLoader` already does for FBX groups, so
+	 * callers can use `THREE.AnimationClip.findByName(model.animations, ...)` regardless of which
+	 * loader produced the model (see `gameplay/animals.js`, FAZ 6).
 	 * @param {string} url
 	 * @param {object} [options]
 	 * @param {number} [options.fallbackColor]
@@ -101,6 +106,7 @@ export class AssetLoader {
 			const loader = await this._getGLTFLoader();
 			const gltf = await loader.loadAsync(url);
 			this.events.emit(EVENTS.ASSET_LOADED, { url, type: 'model' });
+			gltf.scene.animations = gltf.animations;
 			return gltf.scene;
 		} catch (error) {
 			console.error(`[AssetLoader] loadModel("${url}") failed, using placeholder box.`, error);

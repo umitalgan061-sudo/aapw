@@ -1916,3 +1916,84 @@ existing 6 already used well under budget (see `3D_GAME_PROGRESS.md`'s Performan
 not re-profiled in full this run since the existing NPC-count headroom was already documented as
 comfortable and 10 is not a step-change in scale. No new tech debt — a pure config extension
 reusing the exact patterns ADR-0020/ADR-0021/ADR-0023 already established.
+
+## ADR-0025: FAZ 6 first pass — 2 static/idling wolves via a new `gameplay/animals.js`
+
+**Context:** Run 25's "Next step" flagged FAZ 5's cheap "reuse an existing model" NPC slices as
+exhausted for house diversity, and pointed at FAZ 6 (Hayvanlar) instead: the `wolf` glTF/GLB
+(Free3D/3dhaupt, rigged, Walk/Run/Sit/Creep/Idle clips) was already downloaded and registered in
+`assets_manifest.json` since an earlier parallel-work merge, but no code had ever loaded it. This
+run's Session Snapshot re-confirmed the world-scale target (still 137.5 km², inside the 100-150 km²
+band — the operator brief's own "4278 km²" reference is stale, twentieth straight run to
+re-derive and reconfirm the correct number from `config.js` itself) and found no higher-priority
+bug/regression/perf/memory issue open, so per the task's own priority order (syntax → blocking bugs
+→ perf → memory → tech debt → regression coverage → World Coverage → active-phase sub-task → new
+feature) this run picked up run 25's own recommendation as the next real work item.
+
+**Decision:** New `src/3d/gameplay/animals.js`, matching `gameplay/npc.js`'s run-20 starting scope
+exactly (static/idling only, no patrol/AI/name-tag yet — earn those in a later run the same way NPC
+patrol/name-tags landed in runs 22/23, not all at once). `createWolf({assetLoader, modelUrl,
+idleClipName, stripChildNames, worldX, worldZ, groundY, rotationYRadians, name})` loads the wolf via
+`assetLoader.loadModel` (glTF/GLB, not FBX — a new `AssetLoader.loadModel` code path actually
+exercised for the first time; every prior consumer used `loadFBXModel`). Two config/code findings
+made along the way, not assumed:
+- **`loadModel` never exposed animation clips.** `GLTFLoader` returns `gltf.animations` as a
+  separate top-level array, not attached to `gltf.scene` — unlike `FBXLoader`, which already sets
+  `object.animations` on the group it returns (why `npc.js` can already do
+  `idleSource.animations[0]`). Nothing had needed a GLTF model's clips before this run (`loadModel`
+  itself was unused prior to this change — confirmed via `grep`), so the gap was latent, not a
+  regression. Fixed by one line in `assetLoader.js`: `gltf.scene.animations = gltf.animations;`
+  before returning, mirroring `FBXLoader`'s own convention so `gameplay/animals.js` can use the
+  identical `THREE.AnimationClip.findByName(model.animations, ...)` pattern regardless of loader.
+- **The source file bundles a stray "Circle" mesh.** Inspecting the `.gltf` JSON sidecar (not
+  guessed): `meshes[5].name === 'Circle'`, a flat, non-skinned disc at the scene root, sibling to
+  the wolf's 5 real skinned meshes — almost certainly a Blender shadow-catcher plane left in the
+  export. Left in, it would render as a stray flat disc near the wolf's feet on real terrain (the
+  file has no camera/lighting setup of its own to hide it in, unlike wherever it was originally
+  authored). `ANIMAL_CONFIG.STRIP_CHILD_NAMES` (`['Circle']`) + a new `stripNamedChildren` helper in
+  `animals.js` removes any root child by name (disposing its geometry/material) before the model is
+  added to the scene.
+
+**Placement:** `ANIMAL_CONFIG.SPAWNS` — 2 wolves at `berkalp` (House Stark/Winterfell), offset 40m/
+48m from the keep center, deliberately further out than `NPC_CONFIG`'s 12m NPC offset so a wolf
+reads as roaming near the walls rather than standing in a guard's own spot. `berkalp` was picked
+for a deliberate lore fit (the direwolf is House Stark's own sigil — Turkish `berkalp`'s in-game
+`sigil` is 🐺 in `script.js`'s `INIT_KINGDOMS`), not an arbitrary seat choice, the same reasoning
+ADR-0024 used for Jon Snow's distinct Night's Watch name-tag. No scale correction was needed or
+applied — checked the `.gltf` JSON's accessor bounds first rather than assuming: the wolf's own
+mesh bounds are ~1.32m (nose-to-tail) x ~0.57m (height), already a plausible real-world wolf size,
+unlike Mixamo's FBX exports which need a ~0.01 centimeter-to-meter correction.
+
+**Alternatives considered:** (a) patrol from the start, like ADR-0024 did for its 4 new NPCs — but
+`gameplay/npc.js` itself proved out static-then-patrol as two separate runs (ADR-0019 then
+ADR-0021), and this is animals' *first* run touching movement at all, not an established pattern
+yet to extend; keeping this pass static-only mirrors that same incremental discipline rather than
+skipping straight to the more complex behavior on an unproven new module. (b) a name-tag, like NPCs
+get — rejected: wild animals don't have names in this game's fiction, a name-tag would be a
+thematic mismatch, not just extra scope.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- `node --check` clean on all 4 touched/new source files (`config.js`, `assetLoader.js`,
+  `game3d.js`, `gameplay/animals.js`); `service-worker.js` also checked.
+- Full smoke test on both device classes (desktop full-preview, mobile-emulated
+  `hasTouch/isMobile`): `"Spawned 2 FAZ 6 animal(s)."` on both, zero console/page errors, identical
+  pre-existing chunk/settlement/NPC counts (444/25 chunks, 14 settlements, 10 NPCs) — confirming
+  this change is additive-only.
+- **A scene-graph + bone-animation check via a temporary debug hook** (`window.__debugGame3DState =
+  state`, added only for this test and reverted before commit — confirmed via `git diff` showing
+  zero net change to the committed `game3d.js`): both wolves loaded real `SkinnedMesh` geometry
+  (zero `userData.isPlaceholder` fallbacks), the "Circle" child was confirmed absent from both
+  (`stripNamedChildren` working), each exposed all 5 source animation clips via `.animations`, and a
+  before/after bone-transform sample across all 49 skeleton bones over a 1.5s window found 31 bones
+  with a real quaternion/position delta (chest, head, jaw, ears, eyelids, tail) — the idle clip is
+  genuinely playing, not frozen on its first frame.
+
+**Consequence:** FAZ 6 (Hayvanlar) has a first real slice — 2 wolves, static/idling, real rigged
+geometry and animation. `assetLoader.loadModel`'s GLTF code path is now actually exercised by the
+project for the first time (previously dead code). Negligible perf impact: +10 draw calls (2748
+triangles/wolf × 2, excluding the stripped disc) against the desktop budget's existing ~453 draw
+calls/~3.67M triangles — both budgets still comfortably clear. Real remaining FAZ 6 work, all
+deliberately out of scope this pass: patrol/wander AI, the other 3 animal types the roadmap lists
+(horses, carts, dogs/cats, birds — none downloaded yet, would need a human manual-download step per
+`3D_GAME_PROGRESS.md`'s Known Issues), and player-awareness (flee/aggro). No new tech debt — this
+pass fixed one latent gap (`loadModel`'s missing `.animations`) rather than adding one.

@@ -27,6 +27,14 @@ a system here (blast radius rule).
   No movement, AI, or interaction — the caller (`game3d.js`) supplies the exact world position and
   ground height (already sampled once for the settlement it stands near), this module only loads
   and idles.
+- **`animals.js`** — wild animals, wolf first pass (FAZ 6, run 26). `createWolf({assetLoader,
+  modelUrl, idleClipName, stripChildNames, worldX, worldZ, groundY, rotationYRadians, name})` loads
+  the wolf glTF/GLB (`AssetLoader.loadModel`, no Mixamo-style scale correction needed — the source
+  file is already real-world-meter scale), strips any bundled non-skinned decoration mesh named in
+  `stripChildNames` (the wolf file ships a stray "Circle" shadow-catcher disc as a scene-root
+  sibling of its own skinned meshes), plays the named idle clip on loop, and returns the same
+  `{object3D, update(delta), dispose()}` shape `npc.js` does. Same starting scope `npc.js` itself
+  had in run 20: static/idling only, no movement/AI/interaction/name-tag yet.
 
 ## Conventions
 

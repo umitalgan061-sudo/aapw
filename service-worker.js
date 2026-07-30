@@ -18,10 +18,11 @@ const SHELL_FILES = [
 ];
 
 // 3D mode's own app shell — precached separately (own cache.addAll call, own catch) so a failure
-// here can never block the 2D shell above from installing. FAZ 4 (this run) is the first system
-// to actually fetch a character/animation asset (peasant_girl + its 3 clips) — those are precached
-// below alongside the code that loads them. FAZ 5/6/7's NPC/animal/dragon assets still aren't
-// fetched by any code yet, so they stay out of this list until those phases actually load them.
+// here can never block the 2D shell above from installing. FAZ 4 was the first system to actually
+// fetch a character/animation asset (peasant_girl + its 3 clips); FAZ 5 added the 6 shared-skeleton
+// NPC character FBXes; FAZ 6 (this run) adds the wolf glTF/GLB — a single self-contained .glb file,
+// its buffer/textures are embedded, so no separate .bin/texture entries are needed here. FAZ 7's
+// dragon asset still isn't fetched by any code yet, so it stays out of this list until that phase does.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -40,6 +41,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/ui/touchJoystick.js',
     './src/3d/gameplay/player.js',
     './src/3d/gameplay/npc.js',
+    './src/3d/gameplay/animals.js',
     './src/3d/world/terrain.js',
     './src/3d/world/chunkManager.js',
     './src/3d/world/water.js',
@@ -64,7 +66,8 @@ const GAME3D_SHELL_FILES = [
     './assets/models/characters/dreyar.fbx',
     './assets/models/characters/paladin_wprop_j_nordstrom.fbx',
     './assets/models/characters/erika_archer.fbx',
-    './assets/models/characters/uriel_a_plotexia.fbx'
+    './assets/models/characters/uriel_a_plotexia.fbx',
+    './assets/models/animals/wolf/Wolf-Blender-2.82a.glb'
 ];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
