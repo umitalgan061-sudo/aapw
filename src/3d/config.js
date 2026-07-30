@@ -283,6 +283,52 @@ export const NPC_CONFIG = Object.freeze({
 			displayName: 'Martell Muhafızı',
 			patrol: Object.freeze({ toOffsetXMeters: -12, toOffsetZMeters: -12 }),
 		}),
+		Object.freeze({
+			id: 'ziya-guard-1',
+			modelUrl: 'assets/models/characters/arissa.fbx',
+			seatId: 'ziya',
+			offsetXMeters: 12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+			// Seat extension (run 25) — reuses an already-downloaded/precached model (no new asset), same
+			// spawn geometry as every other guard (see DECISIONS.md ADR-0020/ADR-0023 for why this is safe
+			// to reuse unmodified across any kingdom seat: identical shared castle template).
+			displayName: 'Tyrell Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: 12, toOffsetZMeters: -12 }),
+		}),
+		Object.freeze({
+			id: 'balon-guard-1',
+			modelUrl: 'assets/models/characters/paladin_wprop_j_nordstrom.fbx',
+			seatId: 'balon',
+			offsetXMeters: -12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+			displayName: 'Greyjoy Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: -12, toOffsetZMeters: -12 }),
+		}),
+		Object.freeze({
+			id: 'robin-guard-1',
+			modelUrl: 'assets/models/characters/erika_archer.fbx',
+			seatId: 'robin',
+			offsetXMeters: 12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+			displayName: 'Arryn Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: 12, toOffsetZMeters: -12 }),
+		}),
+		Object.freeze({
+			id: 'jon-guard-1',
+			modelUrl: 'assets/models/characters/uriel_a_plotexia.fbx',
+			seatId: 'jon',
+			offsetXMeters: -12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+			// 'jon' (Jon Snow) is titled "Duvar Muhafızı" (Wall Guardian) in script.js's INIT_KINGDOMS —
+			// a distinct Night's Watch label instead of another plain 'Stark Muhafızı' (already used at
+			// berkalp/Winterfell), since Jon's seat is thematically the Wall, not Winterfell itself.
+			displayName: 'Gece Nöbeti Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: -12, toOffsetZMeters: -12 }),
+		}),
 	]),
 });
 

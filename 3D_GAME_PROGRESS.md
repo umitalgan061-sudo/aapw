@@ -27,35 +27,36 @@ KayKit, etc.) are used for `assets/`.
   wall-collider *physics* — a player can still walk through a castle wall, only the *camera* now
   avoids clipping) is a deliberately separate future item, not blocking FAZ 4's own gate. **FAZ 5
   (Kalabalık/NPC) started run 20, extended run 21, patrol added run 22, name-tag UI added run 23,
-  patrol extended to all 6 NPCs run 24:** run 20 placed a first pass of 2 static, idling NPCs
-  (`gameplay/npc.js`) at the Stannis Baratheon kingdom seat; run 21 extended `NPC_CONFIG.SPAWNS`
-  (config-only, no code change) to 4 more seats (`umit`, `cersei`, `berkalp`, `doran`), one NPC each,
-  using the 4 remaining downloaded Mixamo character files; run 22 piloted a waypoint-patrol system
-  (`gameplay/npc.js`'s `patrolWaypoints`) on the 2 `stannis` NPCs; run 23 gave all 6 NPCs a billboard
-  name-tag (`gameplay/npc.js`'s `createNameTagSprite`) showing a house-flavored Turkish name above
-  their heads; run 24 extended the run-22 patrol pattern (config-only, same proven geometry) to the
-  other 4 NPCs, so **all 6 NPCs now patrol** a 24m back-and-forth line with idle pauses, directional
-  turning, and a name tag. All 6 downloaded characters are in active use, 5 of 14 kingdom seats have
-  at least one NPC. All four runs reuse `player.js`'s Mixamo FBX-loading/scale-correction/
-  animation-retargeting pipeline — see "This Run (run 24)" below and DECISIONS.md
-  ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023.
-- **Last Update:** 2026-07-30 (run 24)
-- **Last Commit:** run 24's FAZ 5 patrol extension — `config.js`'s `NPC_CONFIG.SPAWNS` gained a
-  `patrol` field on the 4 previously-static NPCs (`umit-guard-1`, `cersei-guard-1`,
-  `berkalp-guard-1`, `doran-guard-1`), reusing ADR-0021's exact geometry — DECISIONS.md ADR-0023
-  (see "This Run (run 24)" below). Zero code changes; run 23 was the name-tag UI (DECISIONS.md
-  ADR-0022).
+  patrol extended to all 6 NPCs run 24, 4 more seats added run 25:** run 20 placed a first pass of 2
+  static, idling NPCs (`gameplay/npc.js`) at the Stannis Baratheon kingdom seat; run 21 extended
+  `NPC_CONFIG.SPAWNS` (config-only, no code change) to 4 more seats (`umit`, `cersei`, `berkalp`,
+  `doran`), one NPC each, using the 4 remaining downloaded Mixamo character files; run 22 piloted a
+  waypoint-patrol system (`gameplay/npc.js`'s `patrolWaypoints`) on the 2 `stannis` NPCs; run 23
+  gave all 6 NPCs a billboard name-tag (`gameplay/npc.js`'s `createNameTagSprite`) showing a
+  house-flavored Turkish name above their heads; run 24 extended the run-22 patrol pattern
+  (config-only, same proven geometry) to the other 4 NPCs; run 25 added 4 more NPCs (`ziya`,
+  `balon`, `robin`, `jon`), config-only, by reusing already-downloaded character models — no new
+  asset. **10 NPCs total, all patrolling with a name tag, 9 of 14 kingdom seats now have at least
+  one.** All five runs reuse `player.js`'s Mixamo FBX-loading/scale-correction/animation-retargeting
+  pipeline — see "This Run (run 25)" below and DECISIONS.md
+  ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024.
+- **Last Update:** 2026-07-30 (run 25)
+- **Last Commit:** run 25's FAZ 5 seat extension — `config.js`'s `NPC_CONFIG.SPAWNS` gained 4 new
+  entries (`ziya-guard-1`, `balon-guard-1`, `robin-guard-1`, `jon-guard-1`), each reusing an
+  already-downloaded/precached Mixamo character file with a `patrol` field from the start —
+  DECISIONS.md ADR-0024 (see "This Run (run 25)" below). Zero new assets, zero code changes; run 24
+  was the patrol-to-all-6 extension (DECISIONS.md ADR-0023).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (seventeenth straight run).** A prior run (see "This Run (run 5)" below,
+  correct, no change made (nineteenth straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
   **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20,
-  21, 22, and 23 each re-verified this without changes needed. This run's Session Snapshot
+  21, 22, 23, and 24 each re-verified this without changes needed. This run's Session Snapshot
   re-derived the numbers from `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more
   and again confirmed they match ADR-0004 exactly — no config change made. **If you are a future run
   and the operator's brief again asserts the old 4278 km² target is still live: it is not. Re-derive
   from `config.js` yourself (as this run did) rather than trusting the brief's own numbers — this has
   now been independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20, 21,
-  22, 23, and 24.**
+  22, 23, 24, and 25.**
 - **Repo-continuity note (run 18):** this run's Session Snapshot found the container's git working
   tree in a `HEAD` state detached at run 17's own final commit (`d9a3260`), while the local `main`
   branch ref and `origin/main` were both still pointing at the pre-3D-mode commit
@@ -357,24 +358,27 @@ Triangles<500K, TextureMem<512MB.
   idle/walking/running klipleri aynı Mixamo iskeletine retarget edilip `THREE.AnimationMixer` ile
   hıza göre crossfade ediliyor.
 
-### FAZ 5 — Kalabalık/NPC (in progress, started run 20, extended run 21, patrol added run 22, name-tag UI added run 23, patrol extended to all 6 NPCs run 24)
+### FAZ 5 — Kalabalık/NPC (in progress, started run 20, extended run 21, patrol added run 22, name-tag UI added run 23, patrol extended to all 6 NPCs run 24, 4 more seats added run 25)
 - [~] Statik/idle NPC'ler (`gameplay/npc.js`) — **ilk pas (run 20):** `stannis` kalesi yanında 2
   NPC (`paladin_j_nordstrom`, `arissa`), `player.js`'in aynı Mixamo FBX/retarget hattı yeniden
   kullanılarak yükleniyor. Literal "instanced" değil (`THREE.InstancedMesh` iskeletsel animasyon
   başına ayrı state gerektirdiği için bu ölçekte uygun değil) — her NPC kendi `SkinnedMesh`'i ve
   `AnimationMixer`'ı ile ayrı ayrı yükleniyor. **İkinci pas (run 21, config-only):** `NPC_CONFIG.
   SPAWNS` 6 girdiye çıkarıldı — `umit` (`dreyar`), `cersei` (`paladin_wprop_j_nordstrom`), `berkalp`
-  (`erika_archer`), `doran` (`uriel_a_plotexia`), her biri 1 NPC. 14 krallık koltuğundan 5'inde
-  artık en az 1 NPC var, indirilen 6 karakter dosyasının tamamı kullanımda. Bkz. DECISIONS.md
-  ADR-0019/ADR-0020.
-- [x] Waypoint/patrol — **pilot (run 22) + tüm NPC'lere genişletildi (run 24), tam bir Behavior Tree
-  değil:** `gameplay/npc.js`'in `createNPC`'i isteğe bağlı `patrolWaypoints` alıyor — verilirse NPC
-  2+ dünya-uzayı nokta arasında düz bir çizgide yürüyor (indeks modulo ile sarılıyor — 2 nokta
-  gidiş-geliş, 3+ döngü), her noktada `PATROL_PAUSE_SECONDS` kadar idle bekliyor, `player.js`'in aynı
-  zemin-yükseklik yeniden-örnekleme ve en-kısa-yol dönüş mantığını yeniden kullanıyor. **Artık 6
-  NPC'nin tamamı** 24m gidiş-geliş devriyesi yürüyor (run 24, config-only — `umit`/`cersei`/
-  `berkalp`/`doran` guard'larına ADR-0021'in `stannis` için kanıtladığı aynı geometri: offsetZ
-  işareti ters çevrildi, offsetX değişmedi — bkz. DECISIONS.md ADR-0023). Gerçek AI/oyuncu-
+  (`erika_archer`), `doran` (`uriel_a_plotexia`), her biri 1 NPC. **Üçüncü pas (run 25, config-only,
+  yeni asset indirmeden):** `ziya` (`arissa`, tekrar kullanım), `balon` (`paladin_wprop_j_nordstrom`,
+  tekrar kullanım), `robin` (`erika_archer`, tekrar kullanım), `jon` (`uriel_a_plotexia`, tekrar
+  kullanım) — 14 krallık koltuğundan 9'unda artık en az 1 NPC var (5'ten yükseldi), 10 NPC toplam
+  (6'dan yükseldi). Bkz. DECISIONS.md ADR-0019/ADR-0020/ADR-0024.
+- [x] Waypoint/patrol — **pilot (run 22) + tüm NPC'lere genişletildi (run 24), yeni eklenen 4 NPC de
+  baştan dahil (run 25), tam bir Behavior Tree değil:** `gameplay/npc.js`'in `createNPC`'i isteğe
+  bağlı `patrolWaypoints` alıyor — verilirse NPC 2+ dünya-uzayı nokta arasında düz bir çizgide
+  yürüyor (indeks modulo ile sarılıyor — 2 nokta gidiş-geliş, 3+ döngü), her noktada
+  `PATROL_PAUSE_SECONDS` kadar idle bekliyor, `player.js`'in aynı zemin-yükseklik yeniden-örnekleme
+  ve en-kısa-yol dönüş mantığını yeniden kullanıyor. **Artık 10 NPC'nin tamamı** 24m gidiş-geliş
+  devriyesi yürüyor — ilk 6'sı run 24'te genişletildi (ADR-0021'in `stannis` için kanıtladığı aynı
+  geometri: offsetZ işareti ters çevrildi, offsetX değişmedi — bkz. DECISIONS.md ADR-0023), run
+  25'te eklenen 4 yeni NPC ise baştan patrol'lü doğdu (bkz. ADR-0024). Gerçek AI/oyuncu-
   farkındalığı/çok-noktalı rota henüz yok — bilinçli olarak kapsam dışı (bkz. ADR-0021'in
   "Alternatives considered" bölümü).
 - [x] Idle animasyon döngüsü — `peasant_girl`'in `idle.fbx`'i her NPC'nin paylaşılan iskeletine
@@ -384,8 +388,9 @@ Triangles<500K, TextureMem<512MB.
 - [x] İsim etiketi (name-tag) UI — **run 23:** `gameplay/npc.js`'in `createNameTagSprite`'ı, canvas'a
   çizilmiş metinden bir `THREE.CanvasTexture` + `THREE.SpriteMaterial` billboard'u, NPC modelinin
   başının üstünde (`NPC_CONFIG.NAME_TAG_VERTICAL_OFFSET_METERS`, 2.1m) çocuk nesne olarak duruyor.
-  Tüm 6 NPC artık ev-temalı bir Türkçe isim gösteriyor (`'Baratheon Muhafızı I/II'`,
-  `'Targeryan/Lannister/Stark/Martell Muhafızı'`). Gerçek bir ölçek hatası bulunup düzeltildi: sprite
+  Tüm NPC'ler (run 25 itibarıyla 10) ev-temalı bir Türkçe isim gösteriyor (`'Baratheon Muhafızı I/II'`,
+  `'Targeryan/Lannister/Stark/Martell/Tyrell/Greyjoy/Arryn Muhafızı'`, `'Gece Nöbeti Muhafızı'`).
+  Gerçek bir ölçek hatası bulunup düzeltildi: sprite
   ilk halinde FBX modelinin ~0.01'lik Mixamo cm→m ölçek düzeltmesinden miras aldığı için görünmez
   kalıyordu — `model.scale.x`'in tersiyle çarpılarak (bkz. DECISIONS.md ADR-0022) düzeltildi,
   headless Chromium'da gerçek bir yakın-çekim ekran görüntüsüyle doğrulandı. Diyalog/etkileşim
@@ -2365,6 +2370,82 @@ start: the `wolf` glTF/GLB model is already downloaded and registered in `assets
 unused by any code yet. No new tech debt this run — a pure config extension of an already-verified
 pattern, no new parameters or code paths.
 
+## This Run (2026-07-30, run 25)
+
+**Session Snapshot taken at start of run** (per protocol, triggered by a live "Devam et" — continue
+— request rather than a scheduled firing):
+- Confirmed git state: `main` already matched a fresh `git fetch origin main`'s `origin/main`
+  exactly (`b86c863`, run 24's own final commit) — no detached-HEAD/stale-tracking-ref issue.
+- **World scale re-verified from `src/3d/config.js` directly, per the now-eighteen-run-old standing
+  skepticism rule:** `WORLD_SCALE.METERS_PER_MAP_UNIT` is `1.75`, `CHUNK_CONFIG.GRID_COLUMNS`/
+  `GRID_ROWS` are `25`/`22` → 137.5 km², inside the 100-150 km² band, matching ADR-0004. **No config
+  change made.**
+- `node --check` clean on every non-vendor `.js` file (baseline). `git status` clean, nothing
+  uncommitted at session start.
+- **Ran a full regression smoke test (Playwright/headless Chromium, repo served via `python3 -m
+  http.server`) before writing any new code**, per the Regression Guard — 2D game (only the same
+  pre-existing, already-documented sandbox network limitations), 3D desktop (444 chunks, 14
+  settlements), 3D mobile-emulated (25 chunks, `"Spawned 6 FAZ 5 NPC(s)."`) all passed clean,
+  matching run 24's own baseline exactly.
+- World Coverage before this run: 80.7% desktop / 4.5% mobile (unchanged from run 24).
+- With FAZ 5's patrol pattern now on all 6 NPCs (run 24) and world-scale/syntax/perf/leaks/debt/
+  coverage all clear, the highest-priority remaining item under the task-priority order (active
+  phase's incomplete subtask, before starting a new feature/phase) was FAZ 5's own explicitly-
+  flagged gap: "9 of 14 kingdom seats still have zero NPCs — a further seat needs either a second
+  NPC reusing an already-placed model (no new asset) or a new Mixamo/Free3D download." The reuse
+  path needs no human step, so it was this run's pick over starting FAZ 6.
+
+**Done:**
+- **Added 4 new `NPC_CONFIG.SPAWNS` entries** (`config.js`) — `ziya-guard-1` (Tyrell, reuses
+  `arissa.fbx`), `balon-guard-1` (Greyjoy, reuses `paladin_wprop_j_nordstrom.fbx`), `robin-guard-1`
+  (Arryn, reuses `erika_archer.fbx`), `jon-guard-1` (Stark/Night's Watch, reuses
+  `uriel_a_plotexia.fbx`) — chosen for house diversity among the 9 remaining candidate seats.
+  `Night King`'s seat was deliberately excluded (a special antagonist entity, not a normal ruling
+  house — a generic guard there would be thematically wrong, not just descoped). All 4 got a
+  `displayName` and a `patrol` field from the start (patrol is now the established default, not a
+  later follow-up). **Zero new asset files, zero code changes** — all 4 reused FBX files were
+  already precached in `service-worker.js` since run 20/21, and `game3d.js`'s NPC-loading loop
+  already handles any number of `SPAWNS` entries generically. See DECISIONS.md ADR-0024.
+- **Regression guard:** `node --check` clean on `config.js` (the only touched source file).
+- **Real tests, not assumed correct from the code alone:**
+  1. Pre-change regression baseline (see Session Snapshot above): zero new errors.
+  2. Post-change full smoke test: 3D desktop and mobile-emulated both `"Spawned 10 FAZ 5 NPC(s)."`
+     (up from 6), identical chunk/settlement counts, zero console/page errors; 2D game unchanged.
+  3. **A scene-graph + position-over-time check via a temporary debug hook**
+     (`window.__debugGame3DState = state`, added only for this test and reverted before commit —
+     confirmed via `git diff` showing zero net change to the committed `game3d.js`): confirmed all
+     10 NPCs loaded real geometry (zero `userData.isPlaceholder` fallbacks — every reused FBX
+     fetched/parsed correctly a second time), all 10 gained exactly one name-tag sprite, and all 10
+     moved ~4.1m over an 8-second sample window (patrol confirmed working on the 4 new seats' own
+     local terrain).
+- Updated `DECISIONS.md` (new ADR-0024), this file's FAZ 5 roadmap checklist, Known Issues, and this
+  section.
+
+**Files changed this run:** `src/3d/config.js`, `DECISIONS.md` (new ADR-0024), `3D_GAME_PROGRESS.md`
+(this file). 3 files, well within the ≤800-line/≤20-file run budget (~46 hand-written config lines,
+plus doc updates). One commit (the 4 spawn entries are one atomic, revertable unit — all following
+the same already-established pattern).
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged from run 24, re-verified via the same headless-
+Chromium console-log method. This run added NPCs, not terrain. The 100-150 km² world-scale target
+itself was re-verified unchanged against `src/3d/config.js` at the start of this run (see Session
+Snapshot above) — no config change was needed or made.**
+
+**Next step for the next run:** FAZ 5's cheap "reuse an existing model" slices are now genuinely
+exhausted for house diversity — 5 seats remain NPC-less (`berk`, `olena`, `twin` — all same house as
+an already-represented seat — plus `Xaro` and the deliberately-excluded `Night King`); any of these
+would just duplicate a house already on the map, still config-only if wanted, but lower value than
+before. Real remaining FAZ 5 work: (a) a dialogue/interaction system (clicking/approaching an NPC
+does nothing beyond seeing its name tag), (b) player-awareness/reactive behavior — an NPC patrols
+regardless of where the player is, real behavior-tree territory. FAZ 4's own remaining gap (no
+gravity/jump/wall-collider physics) also remains open and untouched. **Recommend the next run
+seriously consider starting FAZ 6 (Hayvanlar)** — the `wolf` glTF/GLB model is already downloaded,
+registered in `assets_manifest.json`, and unused by any code; a first-pass static/idle wolf (mirroring
+how `gameplay/npc.js` started in run 20) would be a comparably-scoped new slice with more roadmap
+value than another NPC-seat config tweak. No new tech debt this run — a pure config extension
+reusing already-established patterns.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -2440,21 +2521,24 @@ pattern, no new parameters or code paths.
   never permanently shrunk. **Still open:** this only fixes what the *camera* can see through — the
   *player* can still walk through castle walls (no player-side collider yet, separate future work,
   see the settlements LOD/collider item below).
-- **FAZ 5's NPCs exist at only 5 of 14 kingdom seats, with no dialogue/interaction.**
-  `NPC_CONFIG.SPAWNS` places 6 NPCs across `stannis` (2), `umit`, `cersei`, `berkalp`, and `doran`
-  (1 each) — the other 9 kingdom seats have none. All 6 downloaded Mixamo character files are now in
-  use; a further seat needs either a second NPC reusing an already-placed model or a new Mixamo/
+- **FAZ 5's NPCs exist at only 9 of 14 kingdom seats, with no dialogue/interaction.**
+  `NPC_CONFIG.SPAWNS` places 10 NPCs across `stannis` (2), `umit`, `cersei`, `berkalp`, `doran`,
+  `ziya`, `balon`, `robin`, and `jon` (1 each) — `berk`, `olena`, `twin`, `Xaro`, and `Night King`
+  (deliberately excluded, see DECISIONS.md ADR-0024) still have none. **~~9 of 14 seats have zero
+  NPCs~~ — narrowed to 5 in run 25** (4 more seats added by reusing already-downloaded models, no new
+  asset — see DECISIONS.md ADR-0024). A further seat now needs either a second NPC reusing an
+  already-placed model (lower value — would duplicate a house already represented) or a new Mixamo/
   Free3D download (human manual-download step). **~~Patrol-only-at-2-of-6~~ — landed run 24**
-  (config-only extension of ADR-0021's proven geometry to the remaining 4 NPCs, see DECISIONS.md
-  ADR-0023) — **all 6 NPCs now patrol** a 24m back-and-forth line with idle pauses and directional
-  turning. **~~No name-tag UI~~ — landed run 23** (`gameplay/npc.js`'s `createNameTagSprite`, a
-  billboard `THREE.Sprite` above each NPC's head, see DECISIONS.md ADR-0022) — all 6 NPCs now show a
-  house-flavored Turkish name tag. No NPC reacts to the player's presence — patrol runs on a fixed
-  clock/route regardless of where the player is, deliberately not real behavior-tree AI, and there is
-  still no dialogue/interaction system (clicking/approaching an NPC does nothing beyond seeing its
-  tag). All remaining gaps are honest, scoped-out ones (see
-  DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023's "Alternatives considered"), not
-  accidental.
+  (config-only extension of ADR-0021's proven geometry, see DECISIONS.md ADR-0023) — **all 10 NPCs
+  now patrol** a 24m back-and-forth line with idle pauses and directional turning. **~~No name-tag
+  UI~~ — landed run 23** (`gameplay/npc.js`'s `createNameTagSprite`, a billboard `THREE.Sprite`
+  above each NPC's head, see DECISIONS.md ADR-0022) — all 10 NPCs now show a house-flavored Turkish
+  name tag. No NPC reacts to the player's presence — patrol runs on a fixed clock/route regardless of
+  where the player is, deliberately not real behavior-tree AI, and there is still no dialogue/
+  interaction system (clicking/approaching an NPC does nothing beyond seeing its tag). All remaining
+  gaps are honest, scoped-out ones (see
+  DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024's "Alternatives considered"),
+  not accidental.
 - **~~No touch joystick for FAZ 4 movement~~ — landed run 18 (`ui/touchJoystick.js`).** Mobile-class
   devices now get an on-screen joystick alongside keyboard (`input.js`) support — see DECISIONS.md
   ADR-0017. Verified via a Playwright-simulated drag (Pointer Events treat mouse and touch drags

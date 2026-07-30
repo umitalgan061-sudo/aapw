@@ -1857,3 +1857,62 @@ Mixamo/Free3D download requiring the documented human manual-download step), no 
 system, and no player-awareness/reactive behavior (patrol runs on a fixed route regardless of player
 position — deliberately still out of scope, real behavior-tree territory). No new tech debt — this
 is a pure config extension of an already-verified pattern, no new parameters or code paths.
+
+## ADR-0024: FAZ 5 NPCs extended to 4 more kingdom seats by reusing already-downloaded models (9/14 seats now have NPCs)
+
+**Context:** With FAZ 5's patrol pattern now applied to all 6 existing NPCs (ADR-0023) and world
+scale/syntax/perf/memory all clear this run (run 25), the next-cheapest open FAZ 5 gap — flagged by
+runs 20/21/23/24 — was "9 of 14 kingdom seats still have zero NPCs... a further seat needs either a
+second NPC reusing an already-placed model, or a new Mixamo/Free3D download." The latter needs a
+human manual-download step this agent cannot perform; the former needs no new asset at all.
+
+**Decision:** Added 4 new `NPC_CONFIG.SPAWNS` entries, one each at `ziya` (Tyrell), `balon`
+(Greyjoy), `robin` (Arryn), and `jon` (Stark, at the Wall) — chosen for house diversity (4 houses not
+yet represented by any NPC: Tyrell, Greyjoy, Arryn, and a second Stark presence distinct from
+`berkalp`/Winterfell) rather than picking arbitrarily from the remaining 9 candidate seats (`ziya`,
+`berk`, `olena`, `balon`, `robin`, `jon`, `twin`, `Xaro`, `Night King`). Each reuses one of the 6
+already-downloaded Mixamo character FBX files (`arissa`, `paladin_wprop_j_nordstrom`,
+`erika_archer`, `uriel_a_plotexia` — the same files already placed once each at `stannis`/`cersei`/
+`berkalp`/`doran`), all already precached in `service-worker.js`'s `GAME3D_SHELL_FILES` since run
+20/21, so this needed **zero new asset files and zero code changes** — `game3d.js`'s NPC-loading
+loop and `createNPC` already handle any number of `SPAWNS` entries generically. Gave all 4 a `patrol`
+field from the start (unlike the original static-then-patrol-later staging of ADR-0019→ADR-0021→
+ADR-0023) since patrol is now the proven, established default for every NPC, not a separate future
+step. `jon`'s `displayName` is `'Gece Nöbeti Muhafızı'` (Night's Watch Guard), not another generic
+`'Stark Muhafızı'` — `script.js`'s `INIT_KINGDOMS` titles Jon Snow's seat "Duvar Muhafızı" (Wall
+Guardian), a distinct Night's Watch identity from Winterfell's own Stark guard already placed by
+ADR-0020.
+
+**Why not all remaining 9 seats in one run:** `Night King`'s seat (`territory: 0`, a special
+antagonist entity, not a normal ruling house) doesn't fit the "kingdom-seat guard" concept this
+system models — placing a generic guard there would be thematically wrong, not just a scope
+decision, so it's excluded outright rather than deferred. Of the other 8 real candidates
+(`ziya`/`berk`/`olena` are all `:Tyrell`, `twin` is a second `:Lannister`, `Xaro` is a distant Essos
+seat), picking 4 for house diversity keeps this run's slice reviewable and the still-open list
+short and honest, rather than dumping all 8 into one commit — same "keep it atomic" reasoning
+ADR-0021 used to justify piloting patrol on 2 NPCs before extending to the rest.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- Pre-change regression baseline: 3D desktop (444 chunks, 14 settlements, `"Spawned 6 FAZ 5
+  NPC(s)."`), 3D mobile-emulated (25 chunks), 2D game (only the same pre-existing, already-
+  documented sandbox network limitations) — matching run 24's own baseline exactly.
+- Post-change full smoke test on both device classes: `"Spawned 10 FAZ 5 NPC(s)."` (up from 6), zero
+  new console/page errors; 2D game unchanged.
+- **A scene-graph + position-over-time check via a temporary debug hook** (`window.__debugGame3DState
+  = state`, added only for this test and reverted before commit — confirmed via `git diff` showing
+  zero net change to the committed `game3d.js`): confirmed all 10 NPCs loaded real geometry (zero
+  `userData.isPlaceholder` fallbacks — i.e. every reused FBX actually fetched and parsed correctly a
+  second time, not silently falling back), all 10 gained exactly one name-tag sprite each, and all 10
+  moved ~4.1m over an 8-second sample window (patrol confirmed working on 4 new seats' own local
+  terrain, not just the 6 already-proven ones).
+- `node --check` on `config.js` (the only touched source file): clean.
+
+**Consequence:** 9 of 14 kingdom seats now have at least one NPC (up from 5), 10 NPCs total (up from
+6), all patrolling with a name tag. Still-open FAZ 5 work, narrowed but not closed: 5 seats remain
+NPC-less (`berk`, `olena`, `twin`, `Xaro`, and `Night King` deliberately excluded — see above); no
+dialogue/interaction system; no player-awareness/reactive behavior. Negligible perf impact — 4 more
+`SkinnedMesh`+`AnimationMixer`+`Sprite` instances at the same low-poly Mixamo character scale the
+existing 6 already used well under budget (see `3D_GAME_PROGRESS.md`'s Performance Budget Status);
+not re-profiled in full this run since the existing NPC-count headroom was already documented as
+comfortable and 10 is not a step-change in scale. No new tech debt — a pure config extension
+reusing the exact patterns ADR-0020/ADR-0021/ADR-0023 already established.
