@@ -4219,6 +4219,55 @@ tested against a known-bad case (the old shader, a broken toggle), treat it as u
 proven — this run's mistake and fix are exactly that pattern; apply it to every future "Verified"
 bullet, not just this file's water/camera checks.
 
+## This Run (2026-07-30, run 41)
+
+**Session Snapshot at container boot:** `HEAD` was detached at run 40's final commit (`8e8d7cb`,
+ADR-0051's per-NPC dialogue) with a stale local `main` cached ref pointing at a much older
+pre-3D-mode commit (same pattern run 40 itself hit at boot) — `git fetch origin main` confirmed the
+real remote `main` already matched the detached `HEAD` exactly, no divergence or lost work, then
+`git checkout -B main origin/main` reattached cleanly. Both of this run's own pre-ranked priority
+items — 1.5 (lake-water flicker) and 1.7 (F4 debug free-camera) — were already landed in run 40
+(commits `2dfc85f`/`7642de6`, ADR-0048/ADR-0049), confirmed via `git log --oneline -10` and this
+file's own run-40 entry, including the exact "multiple kingdom seats visible via F4" real
+headless-Chromium proof this run's own instructions asked for. Both skipped per the "already
+verified, don't redo" rule. Re-ran the full smoke suite as a fresh regression-guard baseline before
+any new work: one `3D mode` timeout on the very first run (confirmed cold-start flake, not a
+regression — an immediate second run passed all 10/10 checks).
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0052):** priority scan found no syntax error/
+blocking bug/perf overrun/memory leak. Priority 8 (World Coverage) is next per run 40's own "Next
+step", but its own prerequisite (real `renderer.info`-based triangle/draw-call instrumentation,
+flagged as missing by both ADR-0047 and ADR-0049) doesn't exist yet — building it (an F2 debug
+panel, already planned in `ARCHITECTURE.md`'s target layout) is really priority 6 (tech debt/missing
+tooling) in its own right. But `game3d.js` sat at the project's 600-line cap exactly, with no room
+for even a small F2 hookup. This sub-task is the prerequisite extraction: `game3d.js`'s
+`createScene`/`isCoarsePointerDevice`/`worldToChunkCoord` moved verbatim into a new `sceneManager.js`
+(setup-time factories only; every `update*`/`dispose*` call stayed in `game3d.js`'s own tick loop/
+teardown chain, since those are what actually call them every frame). `game3d.js`: 600 -> 433 lines.
+A full move into the target `core/` folder was considered and deferred — every other "core" module
+(`eventBus.js`, `state.js`, `assetLoader.js`, `config.js`, `input.js`) is still flat at `src/3d/`, so
+nesting only this file would be a half-migrated layout, not a cleaner one. See ADR-0052 for the full
+per-import breakdown and alternatives considered.
+
+**Regression guard:** `node --check` clean on both files. `wc -l`: `game3d.js` 433 lines,
+`sceneManager.js` 187 lines — both comfortably under the 600-line cap. Full committed smoke suite —
+all 10 checks PASS, zero regressions (including `checkFreeCamera`, proving the F4 camera — now
+constructed inside `sceneManager.js` — still works identically). `node scripts/
+checkAssetsManifest.js` — clean (no asset files touched, unaffected).
+
+**Memory-leak checklist:** N/A — pure code relocation, no change to what's created, when it's
+created, or when it's disposed; the same objects are constructed in the same order with the same
+lifetimes, just from a different file.
+
+**Files changed this sub-task:** `src/3d/sceneManager.js` (new), `src/3d/game3d.js`,
+`ARCHITECTURE.md`, `DECISIONS.md` (new ADR-0052), `3D_GAME_PROGRESS.md` (this file). 5 files, ~440
+new/changed lines (mostly the moved code's own doc comments, carried over verbatim). One commit,
+direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 80.7% (111.00 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a pure code-organization refactor touches no terrain/streaming/chunk
+logic or values.**
+
 ## Known Issues / Tech Debt
 
 - **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s

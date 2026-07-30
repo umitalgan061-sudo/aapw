@@ -3739,3 +3739,85 @@ line as `greetingTemplate` rather than its own line, since `game3d.js` sits at t
   own precedents (`displayName`, name tags) already operate at per-seat granularity even for shared
   houses; a coarser per-house dialogue map would be a step backward in that established convention,
   not a simplification of it.
+
+## ADR-0052: Extract `game3d.js`'s `createScene`/`isCoarsePointerDevice`/`worldToChunkCoord` into a new `sceneManager.js`
+
+**Status:** Accepted (run 41, first sub-task).
+
+**Context:** Fresh Session Snapshot at container boot: `HEAD` was detached at run 40's final commit
+(`8e8d7cb`, ADR-0051's per-NPC dialogue) with a stale local `main` cached ref pointing at a much
+older pre-3D-mode commit — `git fetch origin main` showed the real remote `main` already matched
+the detached `HEAD` exactly (force-updated the stale ref, no actual divergence or lost work, same
+pattern run 40's own snapshot hit), then `git checkout -B main origin/main` reattached cleanly. Both
+of this run's own pre-ranked priority items (1.5 lake-water flicker, 1.7 F4 debug free-camera) were
+already landed in run 40 (ADR-0048/ADR-0049), verified via `git log` and `3D_GAME_PROGRESS.md`'s
+run-40 entry — skipped per the "already done" rule, no rework. Re-ran the full priority scan from
+scratch: no syntax error, no blocking bug (smoke suite's one `3D mode` timeout on first run was
+confirmed cold-start flake, not a regression — a second run passed all 10 checks). Priority 8 (World
+Coverage, flat at 80.7%/4.5% since run 15) is next per `3D_GAME_PROGRESS.md`'s run-40 "Next step",
+but ADR-0047/ADR-0049 both already found the same real blocker: this project has no `renderer.info`-
+based instrumentation to measure a chunk-radius bump's real (not estimated) triangle/draw-call cost
+before committing to it — an F2/F3 debug/profiling panel (already planned in this doc's target
+layout, `debug/README.md`'s own "not yet built" note) is the actual prerequisite, making it priority
+6 (tech debt / missing tooling) in its own right, not just a priority-8 nice-to-have. But `game3d.js`
+sits at the project's 600-line-per-file cap exactly (confirmed via `wc -l`, matching ADR-0049's own
+closing note that "the next run touching it for anything beyond a pure line-for-line swap will need
+to extract something first") — any F2 panel hookup (an import, a `createPerfPanel()` call, an
+`update()` call in the tick loop, a `dispose()` call in the teardown chain) needs at least a few net
+new lines there. This sub-task is that extraction, done as its own atomic, separately-verified step
+before the F2 panel sub-task that depends on it.
+
+**Decision:** New `src/3d/sceneManager.js` holds `createScene(canvas)` (the whole renderer/scene/
+camera/terrain-boot-preview/water/sky/stars/lighting/river/waterfalls/settlements/colliders/F4-
+camera setup, moved verbatim — not rewritten) plus its two small dependencies,
+`isCoarsePointerDevice()` and `worldToChunkCoord()`, both now exported so `game3d.js`'s own
+remaining per-frame call sites (`collectCameraCollidables`, `streamAroundOrbitTarget`, the
+`touchJoystick` gate in `initGame3D`) import a single shared definition instead of a second copy.
+`game3d.js` keeps every `update*`/`dispose*` half of the same modules (`updateWater`/`disposeWater`,
+`disposeRiverMesh`/`disposeWaterfallMesh`, `disposeSettlements`, `resolveCameraCollision`,
+`updateAuroraSky`/`disposeAuroraSky`, etc.) since those are only ever called from the tick loop/
+teardown chain this file owns — the split is "setup-time factories" vs. "per-frame/lifecycle calls
+against what they returned", not an arbitrary line count cut. Result: `game3d.js` dropped from 600
+to 433 lines (167 lines of headroom); `sceneManager.js` is a new 187-line file, comfortably under
+the cap.
+
+**Not a move into the target `core/` folder:** `ARCHITECTURE.md`'s planned layout groups
+`Engine/Renderer/SceneManager/AssetManager/EventBus/Config/Time/Input/SaveSystem` under `core/`, and
+"SceneManager" is this file's own natural name for that slot. Nesting *only* this one file into a
+new `src/3d/core/` while `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`, and `input.js`
+all stay flat at `src/3d/` would leave a half-migrated, inconsistent layout — worse than the current
+flat one, not better. `sceneManager.js` stays flat, matching `camera.js`/`physics.js`/`sky.js`'s
+existing sibling convention. A full `core/`/`world/`/`gameplay/`/`ui/`/`debug/` reorg touching all of
+those flat files' import paths is real future work, but it's a big, multi-file (`>8` files —
+blast-radius rule) change that deserves its own dedicated, carefully-scoped task, not a side effect
+of freeing 170 lines for an unrelated debug panel.
+
+**Verified:**
+- `node --check` clean on both `game3d.js` and `sceneManager.js`.
+- `wc -l`: `game3d.js` 433 lines (was 600, exactly at cap), `sceneManager.js` 187 lines. Both well
+  under the 600-line cap.
+- Every import was individually re-derived, not just carried over wholesale: `ChunkManager`,
+  `createGroundCollider`/`createSettlementCollider`, `createWater` (but not `updateWater`/
+  `disposeWater`), `generateRiverPath`/`createRiverMesh`/`detectWaterfalls`/`createWaterfallMesh`
+  (but not `disposeRiverMesh`/`disposeWaterfallMesh`), `createSettlements` (but not
+  `disposeSettlements`/`mapToWorldXZ`), `createOrbitCamera` (but not `resolveCameraCollision`),
+  `createFreeCameraController`, and the `create*`-only half of `sky.js`/`stars.js`/`lighting.js`/
+  `fog.js` moved to `sceneManager.js`; their `update*`/`dispose*` counterparts, plus `mapToWorldXZ`
+  and `resolveCameraCollision`, stayed in `game3d.js`'s own import list. A stray `ChunkManager` JSDoc
+  type reference (no longer imported in `game3d.js`) was caught and fixed to the fully-qualified
+  `import('./world/chunkManager.js').ChunkManager` form `camera.js`'s `OrbitControls` type reference
+  already used as precedent, not left dangling.
+- Full committed smoke suite — all 10 checks PASS, zero regressions (`checkFreeCamera` in particular
+  confirms the F4 camera — now constructed inside `sceneManager.js` instead of `game3d.js` — still
+  behaves identically).
+- `node scripts/checkAssetsManifest.js` — clean, unaffected (no asset files touched).
+
+**Alternatives considered:**
+- *Extract only enough to add the F2 panel's few new lines (e.g. pull just the settlement-grounding
+  loop out)* — rejected: a partial, arbitrary-feeling cut for the sole purpose of hitting a line
+  count would be a worse factoring than the real "setup vs. per-frame" seam `createScene` already
+  has, and would still leave `game3d.js` near the cap again after the very next small addition.
+- *Bump the file-size cap instead of extracting* — rejected outright: the 600-line cap is one of
+  this project's own Golden Rules (not a soft guideline), and `game3d.js` genuinely mixes two
+  concerns (one-time scene construction, ongoing tick-loop/lifecycle ownership) that a real module
+  boundary describes better than a bigger number would.

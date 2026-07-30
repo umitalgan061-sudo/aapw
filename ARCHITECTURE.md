@@ -632,14 +632,41 @@ HUD/inventory/debug panels)
 - **No GPU resources of its own:** `THREE.FogExp2` is plain JS data (color + density), not a
   GPU-backed resource — no `dispose*()` needed, unlike every mesh-owning system in this file.
 
-## `src/3d/game3d.js` — Entry point / scene bootstrap
+## `src/3d/sceneManager.js` — Scene bootstrap factory (run 40, ADR-0052)
+
+- **Depends on:** `three` (vendored), `config.js`, `world/chunkManager.js`, `physics.js` (ground +
+  settlement colliders), `world/water.js` (`createWater` only), `world/rivers.js`
+  (`generateRiverPath`/`createRiverMesh`/`detectWaterfalls`/`createWaterfallMesh`), `world/
+  settlements.js` (`createSettlements` only), `camera.js` (`createOrbitCamera` only), `debug/
+  freeCamera.js`, `sky.js`/`stars.js`/`lighting.js`/`fog.js` (their `create*` factories only).
+- **Used by:** `game3d.js` (`createScene(canvas)` once at boot; `isCoarsePointerDevice()` and
+  `worldToChunkCoord()` also reused by `game3d.js`'s own per-frame chunk-coordinate lookups).
+- **Critical path:** yes — builds the `WebGLRenderer`/`Scene`/`PerspectiveCamera`/`OrbitControls`,
+  the F4 debug free-camera controller, the aurora sky/starfield/water meshes, the day/night lights,
+  the one-time boot-preview terrain neighborhood, the static river + waterfall meshes, the 14
+  kingdom-seat settlements and their colliders. Pure setup — no per-frame `update()` logic lives
+  here; `game3d.js`'s tick loop owns every `update*`/`dispose*` call against what this returns.
+- **Extracted from `game3d.js` (ADR-0052):** `game3d.js` hit the project's 600-line-per-file cap:
+  moving `createScene`/`isCoarsePointerDevice`/`worldToChunkCoord` here (verbatim logic, not a
+  rewrite) dropped it to 433 lines. A full move into a nested `core/` folder (per this doc's target
+  layout) was considered and deferred — every other "core" module (`eventBus.js`, `state.js`,
+  `assetLoader.js`, `config.js`, `input.js`) is still flat at `src/3d/`, so nesting only this one
+  file would leave a half-migrated, confusing layout; this file stays flat, matching `camera.js`/
+  `physics.js`/`sky.js`'s existing sibling convention, until a real full reorg is scoped as its own
+  task.
+- **Failure mode:** same as `game3d.js` before this split — any throw inside `createScene()`
+  propagates up to `initGame3D()`'s existing top-level try/catch (L3), unchanged behavior.
+
+## `src/3d/game3d.js` — Entry point / tick loop and lifecycle wiring
 
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
-  `world/chunkManager.js`, `physics.js` (ground collider, feeds `world/rivers.js`/
-  `world/settlements.js` too), `input.js`, `ui/touchJoystick.js`, `gameplay/player.js`,
-  `gameplay/npc.js` (added FAZ 5, run 20), `gameplay/animals.js` (added FAZ 6, run 26),
-  `world/water.js`, `world/rivers.js`, `world/settlements.js`, `camera.js`, `sky.js`, `stars.js`,
-  `lighting.js`, `fog.js`.
+  `sceneManager.js` (`createScene`/`isCoarsePointerDevice`/`worldToChunkCoord`, run 40, ADR-0052),
+  `input.js`, `ui/touchJoystick.js`, `gameplay/player.js`, `gameplay/npc.js` (added FAZ 5, run 20),
+  `gameplay/animals.js` (added FAZ 6, run 26), `world/water.js` (`updateWater`/`disposeWater`),
+  `world/rivers.js` (`disposeRiverMesh`/`disposeWaterfallMesh`), `world/settlements.js`
+  (`disposeSettlements`/`mapToWorldXZ`), `camera.js` (`resolveCameraCollision`), `sky.js`,
+  `stars.js`, `lighting.js`, `fog.js` (their `update*`/`dispose*` halves only — the `create*`
+  factories moved into `sceneManager.js`, ADR-0052).
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
   lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance
@@ -704,12 +731,13 @@ HUD/inventory/debug panels)
   module stays safe to import from non-browser contexts (tests). In practice a player-load failure
   is unlikely to reach this outer catch at all — `assetLoader.loadFBXModel`'s own L1 fallback
   already substitutes a placeholder box for a missing/corrupt FBX.
-- **Device-class chunk radius (ADR-0010):** `createScene()` picks the one-time boot preview radius
-  via `isCoarsePointerDevice()` (`window.matchMedia('(pointer: coarse)')`, try/caught to `false`) —
-  `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` on desktop-class devices, the mobile-budget
-  `STREAM_RADIUS_CHUNKS` on touch-primary ones. Fixes a real gap: every prior run grew the preview
-  radius under a "desktop-only" comment that nothing actually enforced at runtime, so a real phone
-  was silently loading the full desktop chunk count and blowing the mobile triangle budget.
+- **Device-class chunk radius (ADR-0010):** `sceneManager.js`'s `createScene()` picks the one-time
+  boot preview radius via `isCoarsePointerDevice()` (`window.matchMedia('(pointer: coarse)')`,
+  try/caught to `false`) — `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` on desktop-class devices, the
+  mobile-budget `STREAM_RADIUS_CHUNKS` on touch-primary ones. Fixes a real gap: every prior run grew
+  the preview radius under a "desktop-only" comment that nothing actually enforced at runtime, so a
+  real phone was silently loading the full desktop chunk count and blowing the mobile triangle
+  budget.
 
 ## 2D game (`index.html`, `script.js`, `style.css`, `service-worker.js`)
 
