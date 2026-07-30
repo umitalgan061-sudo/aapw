@@ -34,6 +34,16 @@
  *     `g3d-loading-error` (the `EVENTS.GAME_ERROR` handler), if neither happens before the timeout,
  *     or if any uncaught page exception / `console.error` occurs during load (the 3D mode has no
  *     external-CDN dependency, so unlike the 2D shell above, an error here is always real).
+ *   - **Settlement collider (`physics.js`'s `createSettlementCollider`, added run 35 — see
+ *     DECISIONS.md ADR-0037) — a real regression guard, not just a load check.** Dynamic-imports
+ *     `physics.js`/`config.js` in-page (same import map `game3d.html` already uses, so `three`-
+ *     adjacent resolution matches the real app exactly) and replays the same three assertions
+ *     ADR-0037's manual verification used: a point at a synthetic castle's exact center is pushed to
+ *     precisely the keep's half-extent; a far point is an exact no-op; and 3000 simulated per-frame
+ *     forward steps walking straight at the keep center from 60m away come to rest exactly at the
+ *     keep's half-extent, never penetrating further. Guards against a future edit to `physics.js`
+ *     or `config.js`'s `SETTLEMENT_CONFIG` silently breaking castle collision (e.g. reintroducing
+ *     the exact zero-distance edge-case bug ADR-0037 found and fixed).
  *
  * Usage: `node scripts/smokeTestGame3D.js`
  * Exit codes: 0 = 3D mode passed (2D shell informational-only). 1 = the 3D-mode check (or the 2D
@@ -180,6 +190,55 @@ async function check3DMode(browser, baseUrl) {
 	return { name: '3D mode (game3d.html)', ok, details };
 }
 
+/**
+ * Replays ADR-0037's manual collider verification as a persisted, always-run regression check.
+ * Runs entirely in-page via dynamic `import()` against the real modules over HTTP (not a separate
+ * unit-test harness) so it exercises the exact same module resolution the live game uses.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkSettlementCollider(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createSettlementCollider } = await import('/src/3d/physics.js');
+			const { SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
+
+			const seats = [{ id: 'test-castle', x: 1000, z: 500, groundY: 10 }];
+			const collider = createSettlementCollider(seats, SETTLEMENT_CONFIG);
+			const expectedHalfExtent = SETTLEMENT_CONFIG.KEEP_WIDTH_METERS / 2 + 0.4;
+
+			const center = collider.resolveXZ(1000, 500);
+			const centerDist = Math.hypot(center.x - 1000, center.z - 500);
+			const centerOk = Math.abs(centerDist - expectedHalfExtent) < 1e-6;
+
+			const far = collider.resolveXZ(5000, 5000);
+			const farOk = far.x === 5000 && far.z === 5000;
+
+			let x = 1000;
+			let z = 560;
+			for (let i = 0; i < 3000; i++) {
+				const resolved = collider.resolveXZ(x, z - 0.05);
+				x = resolved.x;
+				z = resolved.z;
+			}
+			const walkerDist = Math.hypot(x - 1000, z - 500);
+			const walkerOk = Math.abs(walkerDist - expectedHalfExtent) < 1e-6;
+
+			return { centerOk, centerDist, farOk, walkerOk, walkerDist, expectedHalfExtent };
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = result.centerOk && result.farOk && result.walkerOk;
+	const details = ok
+		? `castle-center push=${result.centerDist.toFixed(2)}m, far point unchanged, ` +
+			`3000-step walker stopped at ${result.walkerDist.toFixed(2)}m (expected ${result.expectedHalfExtent}m)`
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'settlement collider (physics.js)', ok, details };
+}
+
 async function main() {
 	const playwright = loadPlaywright();
 	if (!playwright) {
@@ -200,6 +259,7 @@ async function main() {
 	try {
 		results.push(await check2DShell(browser, baseUrl));
 		results.push(await check3DMode(browser, baseUrl));
+		results.push(await checkSettlementCollider(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();

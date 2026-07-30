@@ -3417,6 +3417,51 @@ well within this run's budget. One commit.
 137.5 km²) on mobile-class devices — unchanged from run 34 (this sub-task adds horizontal collision
 logic only, touches no terrain/streaming/rendering geometry or chunk count).**
 
+**Second chained sub-task within this same run (per the operator's "don't stop after one" rule —
+regression guard and smoke test both passed and budget/time remained):** re-scanned the priority
+order fresh after ADR-0037's collider was committed and pushed. Priorities 1-5 still empty; landed
+on priority 6, missing smoke-test/regression coverage — `scripts/smokeTestGame3D.js` verifies the
+game boots cleanly but had zero assertions about the settlement collider this run's first sub-task
+just added, leaving a future regression in it with nothing to catch it.
+
+**Decision and work (DECISIONS.md ADR-0038):** Extended `scripts/smokeTestGame3D.js` with a third
+check, `checkSettlementCollider`, reusing the same headless-Chromium session already opened for the
+existing `game3d.html` check. It dynamic-`import()`s `physics.js`/`config.js` in-page (real import
+map, real module resolution) and replays ADR-0037's own manual verification as a permanent,
+always-run assertion: a synthetic castle-center point resolves to exactly the keep's half-extent; a
+far point is an exact no-op; a 3000-step simulated walker approaching from 60m away stops at exactly
+the keep's half-extent.
+
+**Regression guard — verified with the real bug, not just reasoning:** `node --check` clean (280
+lines, under the 600-line cap). All 3 checks (2D shell, 3D mode, settlement collider) PASS against
+the real repo. Then re-injected the exact zero-distance/box-disable bug ADR-0037 had fixed
+(temporarily, via a one-line `if (false && ...)` in `physics.js`) — the new check correctly failed
+with the wrong resolved distances, exit code 1, while the other two checks stayed PASS (confirming
+an isolated, non-cascading failure signal). Restored `physics.js` immediately after; `diff` against
+a pre-edit backup confirmed a byte-identical restore, and the final `git status`/`git diff --stat`
+show zero net change to that file from this sub-task.
+
+**Memory-leak checklist:** N/A — this sub-task only extends an existing one-shot Node CLI script
+(server + browser both explicitly closed before `process.exit`, same as ADR-0035's original design);
+no new long-lived browser-side state.
+
+**Files changed this sub-task:** `scripts/smokeTestGame3D.js`, `ARCHITECTURE.md`, `DECISIONS.md`
+(new ADR-0038), `3D_GAME_PROGRESS.md` (this file). 4 files, ~60 new lines of code (the new check)
+plus documentation. One commit, separate from the ADR-0037 sub-task's commit.
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged (this sub-task is test-tooling only, touches no
+terrain/streaming/rendering code).**
+
+**Cumulative for this chained execution (run 35's two sub-tasks):** 2 atomic sub-tasks, 2 commits,
+7 distinct files touched total (`src/3d/physics.js`, `src/3d/gameplay/player.js`,
+`src/3d/game3d.js`, `scripts/smokeTestGame3D.js`, `ARCHITECTURE.md`, `DECISIONS.md`,
+`3D_GAME_PROGRESS.md`) — well within the ≤25-file/≤1200-new-line chained-run budget (combined new
+code across both sub-tasks is ~155 lines; the remainder is documentation). Each sub-task passed its
+own independent regression guard before its own commit, and each included a real fault-injection
+test (the zero-distance tower edge case for ADR-0037; the same bug re-injected to prove ADR-0038's
+new check actually catches it).
+
 **Next step for the next run:** re-scan the priority order fresh, as always. FAZ 3's one remaining
 item is LOD (still no measured perf need behind it — don't treat "the roadmap has an unchecked box"
 as equivalent to "there's a perf problem to fix"). Real higher-value remaining gaps, unchanged from

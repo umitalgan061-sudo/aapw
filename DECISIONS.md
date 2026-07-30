@@ -2741,3 +2741,51 @@ item is LOD only, still correctly unstarted (no measured need). No new tech debt
 reuses `SETTLEMENT_CONFIG` as its single source of truth (no duplicated geometry constants), stays
 under the 600-line cap on every touched file, and `settlementCollider` is optional everywhere it's
 threaded through, so no existing caller/test shape was broken.
+
+## ADR-0038: Extend `scripts/smokeTestGame3D.js` with a settlement-collider regression check
+
+**Status:** Accepted (run 35, second chained sub-task).
+
+**Context:** With ADR-0037's collider landed, regression-guarded, and pushed, a fresh priority-order
+re-scan (per the operator's "don't stop after one" chained-subtask rule) found priorities 1-5 still
+empty and landed on priority 6, missing smoke-test/regression coverage: `scripts/smokeTestGame3D.js`
+(ADR-0035) verifies the game *boots* cleanly, but has no assertion at all about the settlement
+collider ADR-0037 just added — a future edit to `physics.js` or `config.js`'s `SETTLEMENT_CONFIG`
+could silently reintroduce ADR-0037's own zero-distance edge-case bug (or a different regression)
+with nothing catching it beyond a human happening to notice.
+
+**Decision:** Added a third check, `checkSettlementCollider`, to `scripts/smokeTestGame3D.js`.
+Rather than a new file/harness, it runs in the same headless-Chromium session already used for
+`check3DMode`, navigating to `game3d.html` and dynamic-`import()`ing `physics.js`/`config.js`
+directly in-page (exercising the real import map / module resolution the live game uses, not a
+separate mocked environment). Replays exactly ADR-0037's own manual verification: a point at a
+synthetic castle's center must resolve to precisely the keep's half-extent; a far point must be an
+exact no-op; a 3000-step simulated per-frame walker approaching from 60m away must stop at exactly
+the keep's half-extent. All three are floating-point-exact assertions (`=== `/tight epsilon), not
+fuzzy thresholds, since the underlying math is itself exact arithmetic with no accumulated
+randomness.
+
+**Alternatives considered:**
+- *A separate `scripts/testPhysics.js`* — rejected: `smokeTestGame3D.js` already owns "the one
+  committed regression check," already starts a browser + static server, and already has the exact
+  import-map-aware page context this check needs; a second script would duplicate that
+  infrastructure for no isolation benefit (this check has no interaction with the other two beyond
+  sharing one `browser` instance).
+- *Assert only the walker (most direct proof), skip the center/far-point checks as redundant* —
+  rejected: the center-point and far-point assertions are cheap and each independently pin down a
+  different failure mode (an inverted box condition vs. a collider that fires when it shouldn't) —
+  keeping the walker check alone would leave a narrower, less diagnostic failure signal on a
+  regression.
+
+**Verified:** `node --check scripts/smokeTestGame3D.js` clean (280 lines, under the 600-line cap).
+Ran clean against the real repo: all 3 checks PASS. **Failure path verified with the exact real bug
+ADR-0037 fixed**, re-injected temporarily (`if (false && ...)` disabling the keep-box push-out) —
+the new check correctly reported `FAIL` with the wrong resolved distances (`centerDist: 0`,
+`walkerDist: ~90` instead of the expected `17.4`), exit code 1; the other two checks stayed PASS
+(confirming the failure is isolated to the collider check, not a false-positive cascade). Restored
+`physics.js` immediately after; `diff` against a pre-edit backup confirmed a byte-identical restore.
+
+**Consequence:** `scripts/smokeTestGame3D.js` now guards both "does the game boot" and "does the
+castle collider still work correctly," with a demonstrated real failure path for the newer check.
+No new file, no new dependency, no file over the line cap. Same not-wired-into-CI caveat as
+ADR-0034/ADR-0035 (no CI pipeline exists in this repo) — still a manual step.

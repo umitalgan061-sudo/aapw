@@ -695,12 +695,15 @@ HUD/inventory/debug panels)
   non-fatal warnings for expected texture/sidecar files) otherwise. See ADR-0034 for the full
   design/alternatives.
 
-## `scripts/smokeTestGame3D.js` — persisted regression-guard smoke test (tooling, run 34)
+## `scripts/smokeTestGame3D.js` — persisted regression-guard smoke test (tooling, run 34, extended run 35)
 
 - **Depends on:** Playwright's Chromium (dev-only, not a repo dependency — see ADR-0035), a local
-  static file server it starts itself (plain Node `http`), and `game3d.html`'s existing
+  static file server it starts itself (plain Node `http`), `game3d.html`'s existing
   `#game3d-loading` / `g3d-loading-hidden` / `g3d-loading-error` DOM contract (see the `game3d.html`
-  entry above) — no code change to that contract was needed, this script only observes it.
+  entry above) — no code change to that contract was needed, this script only observes it — and,
+  since run 35, `physics.js`'s `createSettlementCollider` + `config.js`'s `SETTLEMENT_CONFIG`
+  (dynamic-`import()`ed in-page over the same HTTP server, exercising real module resolution rather
+  than a separate unit-test harness).
 - **Used by:** a human or a future run, invoked manually (`node scripts/smokeTestGame3D.js`) as the
   Regression Guard's smoke test, replacing the ad-hoc throwaway Playwright script every prior run
   wrote fresh. Not wired into CI (none exists in this repo).
@@ -709,5 +712,8 @@ HUD/inventory/debug panels)
   (`phase1-scene`) DOM signal within 60s, reaches its `GAME_ERROR` signal instead, or throws any
   uncaught page exception / logs any `console.error` during load — verified against a real injected
   failure, see ADR-0035. The 2D shell (`index.html`) check is informational-only (see ADR-0035 for
-  why) and only fails this script if the page fails to navigate at all. Exits 2 (distinct from a
-  real failure) if Playwright itself isn't resolvable in the current environment.
+  why) and only fails this script if the page fails to navigate at all. The settlement-collider check
+  (run 35, ADR-0038) exits 1 if a synthetic castle-center point, a far point, or a 3000-step simulated
+  walker don't resolve to the exact expected distances — verified against a real injected failure
+  (the same zero-distance edge case ADR-0037 fixed), see ADR-0038. Exits 2 (distinct from a real
+  failure) if Playwright itself isn't resolvable in the current environment.
