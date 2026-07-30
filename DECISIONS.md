@@ -3271,3 +3271,91 @@ lap, matching every later lap — the double-idle quirk (present since run 22/27
 files. World Coverage unchanged (movement-timing fix, no terrain/streaming/rendering touched). No
 other system depends on the old double-idle timing (nothing in `game3d.js` or elsewhere reads
 `pauseTimer`/patrol state directly).
+
+## ADR-0046: Move player spawn from the world origin to next to the `umit` kingdom seat
+
+**Status:** Accepted (run 39, first sub-task).
+
+**Context:** The project owner played the 3D mode directly (movement/physics/camera all confirmed
+working — W walked, Space jumped) and reported seeing none of the 14 kingdom seats/castles, 14
+NPCs, or 3 wolves anywhere. Root-caused by hand: `PLAYER_CONFIG.SPAWN_X_METERS`/`SPAWN_Z_METERS`
+placed the player at the world origin `(0, 0)` — `mapToWorldXZ`'s convention for the *center* of
+`WORLD_SCALE.MAP_BOUNDS`, the padded kingdom-seat bounding box, not any seat itself. Every one of
+`world/settlements.js`'s 14 `KINGDOM_SEATS` sits 2.5-6km from that center (closest is `stannis` at
+~2.57km, `cersei` at ~3.28km; `umit` — the project owner's own kingdom seat — at ~4.04km); `fog.js`'s
+`FogExp2` (`FOG_DENSITY_DAY` 0.0004 / `FOG_DENSITY_NIGHT` 0.00055) makes anything past roughly
+2.8-3.8km impossible to make out. The player spawned in what looked like an empty world with no
+visible destination and no compass/minimap (FAZ 8, not built yet) to point toward one. Not a code
+bug — every system it touches (movement, physics, chunk streaming, settlement placement) was
+already verified working correctly in isolation; this was a game-design/discoverability gap.
+
+**Decision:** Added `PLAYER_CONFIG.SPAWN_MAP_X`/`SPAWN_MAP_Y` (`3885`/`5404`) — 2D-map units, the
+same coordinate space `KINGDOM_SEATS`' `mapX`/`mapY` already use — instead of pre-converted world
+meters, to avoid a `config.js` -> `world/settlements.js` import cycle (`mapToWorldXZ` lives in the
+latter) and to stay self-documenting/re-derivable the same way `WORLD_SCALE`'s own doc comment
+already asks of `MAP_BOUNDS`. This is `umit` (Ümit Targeryan, `mapX:3885`/`mapY:5370` — the
+project owner's own kingdom seat, the most narratively meaningful choice of the seats considered)
+offset ~34 map units (≈60m) in `+mapY`. `game3d.js` now imports `mapToWorldXZ` from
+`world/settlements.js` (already imported `createSettlements`/`disposeSettlements` from the same
+module) and converts `SPAWN_MAP_X`/`SPAWN_MAP_Y` through it via `WORLD_SCALE.MAP_BOUNDS`/
+`METERS_PER_MAP_UNIT` right before calling `createPlayer`, replacing the old direct
+`SPAWN_X_METERS`/`SPAWN_Z_METERS` reads (both constants removed — no other caller referenced them).
+`gameplay/player.js`'s `spawn` parameter default changed from those removed constants to a literal
+`{ x: 0, z: 0 }`, since `game3d.js` — the only real caller — always passes `spawn` explicitly; the
+default only matters to a hypothetical future caller that omits it.
+
+The +60m offset (not spawning exactly on the seat's own `mapX`/`mapY`) matters for two reasons:
+(1) `SETTLEMENT_CONFIG`'s settlement collider (`physics.js`'s `createSettlementCollider`) reaches
+≈35m from the keep center at its farthest corner tower — spawning any closer risks the player's
+very first frame being an unwanted collider-resolution pop; (2) the `+mapY`/`+worldZ` direction
+specifically (not `-mapY`, not `+`/`-mapX`) puts the castle in the default chase camera's forward
+view: `game3d.js` starts the camera at `player position + CAMERA_INITIAL_OFFSET_METERS` (`{x:0,
+y:3.2, z:7}`, i.e. behind the player on `+Z`) with `controls.target` on the player, so the camera's
+view direction is toward `-Z` from spawn — exactly where `umit`'s castle sits at `+60m` on the `Z`
+axis from it.
+
+**Alternatives considered:**
+- *Spawn at `cersei` (closest seat to the map-bounds center, ~3.28km) instead of `umit`* —
+  considered since it needs less new travel distance if a future minimap/compass makes distant seats
+  reachable anyway, but rejected for this fix: `umit` is the project owner's own named kingdom, the
+  more meaningful spawn location for a personal, single-player passion project, and the actual
+  distance-to-origin no longer matters once the player spawns *at* the seat directly rather than
+  merely near the world's geometric center.
+- *Change `WORLD_SCALE.MAP_BOUNDS`/re-center the padded bounding box on `umit` instead* — rejected:
+  the task instructions explicitly called this out as unnecessary/riskier — it would shift chunk
+  `(0,0)`'s world position and everywhere else that assumes the current origin convention
+  (`world/chunkManager.js`, the boot-preview radius, every other seat's relative position), for a
+  problem a single spawn-point change already fixes in complete isolation.
+- *A minimap/compass/F3-panel fix instead of relocating spawn* — valuable (flagged as this run's
+  likely next sub-task) but doesn't fix the actual root cause by itself: even with perfect
+  directional info, the nearest seat is still 2.5+ km away, past the fog horizon, several real
+  minutes of on-foot walking before anything becomes visible. Spawn relocation is the smaller,
+  atomic, immediately-effective fix; a discovery aid is complementary, not a substitute.
+
+**Verified:** `node --check` clean on `config.js`, `gameplay/player.js`, `game3d.js`. Full committed
+smoke suite (`node scripts/smokeTestGame3D.js`) — all 8 checks PASS, zero regressions (settlement
+collider, jump arc, interaction controller, wolf flee/pack-alert, NPC/wolf patrol all unaffected —
+none of them read `PLAYER_CONFIG.SPAWN_*` or depend on the player's specific spawn coordinates).
+**Real headless-Chromium screenshot** (Playwright, `game3d.html`, ~1.5s after `GAME_READY`
+`phase1-scene`) confirms the fix visually, not just "no error": the console-logged spawn position
+was `(577.5, 10.4, 4058.3)` — matching the hand-computed `mapToWorldXZ(3885, 5404, ...)` conversion
+exactly — and the captured frame shows the player character standing on real terrain with one of
+`umit`'s castle corner towers filling most of the view directly ahead, well within visible range
+(this sandbox's known SwiftShader software-rendering caveat applies to *frame rate*, not geometry/
+texture correctness — see 3D_GAME_PROGRESS.md's Known Issues). This is the first run able to submit
+actual visual proof of a settlement being visible at spawn, not just a coordinate-math claim.
+
+**Memory-leak checklist:** N/A — a spawn-coordinate constant and one `mapToWorldXZ` call added at
+scene-init time; no new per-frame allocation, listener, or timer.
+
+**Consequence:** The player now spawns standing just outside `umit`'s castle gate, with a corner
+tower immediately visible, instead of alone in an empty field with the nearest landmark kilometers
+beyond the fog horizon. World Coverage unchanged (all 444 desktop terrain chunks / ~111 km² already
+load identically regardless of spawn point — see `world/settlements.js`'s per-seat force-load loop
+in `game3d.js`, which already ran for every seat on desktop before this fix). The other 13 seats are
+still 2.5-6km away and still undiscoverable without walking there blind — a compass/minimap (FAZ 8)
+remains real, separately-tracked future work, not solved by this fix. Mobile-class devices benefit
+too: `game3d.js`'s per-seat chunk force-load is desktop-only (ADR-0013), but `umit`'s neighborhood
+now loads immediately anyway via the ordinary player-position chunk-streaming path
+(`streamAroundOrbitTarget`), since streaming follows wherever the player actually is, not the world
+origin.

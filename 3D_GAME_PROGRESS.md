@@ -3899,8 +3899,76 @@ onayı gerekli" and stop if attempted); or `scripts/game3dSmokeChecks.js` nearin
 cap (587/600) — a 9th check will likely need a further split before it can be added, worth
 flagging as tech debt (priority 5) if a future run tries to add one without checking first.
 
+## This Run (2026-07-30, run 39)
+
+**Session Snapshot at container boot:** repo working tree clean but `HEAD` was detached at run
+38's own final commit (`dca186d`, ADR-0045's patrol double-idle fix) — same recurring
+container-restart pattern documented in this file's "Repo-continuity note" (runs 18/29/30/34/36/
+37/38). `git fetch origin main` confirmed `origin/main` already matched the detached `HEAD`
+exactly (it had also picked up 3 further `feat(assets)` dragon-model commits from a parallel
+session since run 38). `git checkout -B main origin/main` reattached cleanly. Read `3D_GAME_PROGRESS.md`'s
+tail, `git log -10`, and `DECISIONS.md`'s last 3 ADRs (0044/0045 and this run's own).
+
+**Priority-order override, this run only:** the run's own instructions carried an urgent,
+pre-ranked override ahead of the normal priority scan — the project owner had played the 3D mode
+directly and found none of the 14 kingdom seats, 14 NPCs, or 3 wolves visible from spawn, with the
+root cause already hand-derived (spawn at the world origin vs. every kingdom seat sitting 2.5-6km
+away, beyond `fog.js`'s visibility range). Verified the math independently before touching any code
+(`WORLD_SCALE.MAP_BOUNDS` center is `(3555, 3085)` map units; closest seat `stannis` at ~2.57km,
+`cersei` at ~3.28km, `umit` — the project owner's own kingdom — at ~4.04km; `fog.js`'s
+`FOG_DENSITY_DAY`/`FOG_DENSITY_NIGHT` confirmed at `0.0004`/`0.00055`) — confirmed correct, not a
+code bug, a spawn/discoverability gap, exactly as diagnosed. Took this as sub-task 1, ahead of the
+normal priority-order scan.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0046):** Added `PLAYER_CONFIG.SPAWN_MAP_X`/
+`SPAWN_MAP_Y` (`3885`/`5404` — 2D-map units, `umit`'s own seat offset ~60m in `+mapY`) to
+`config.js`, replacing the old `SPAWN_X_METERS`/`SPAWN_Z_METERS` (both `0`, the world origin).
+`game3d.js` now imports `mapToWorldXZ` from `world/settlements.js` (already imported
+`createSettlements`/`disposeSettlements` from the same module) and converts the new map-unit
+constants to world meters right before `createPlayer`, instead of reading pre-converted meters
+directly — keeps `config.js` free of a `world/settlements.js` import cycle and keeps the spawn
+point re-derivable the same way `WORLD_SCALE.MAP_BOUNDS`'s own doc comment already expects.
+`gameplay/player.js`'s `spawn` default changed to a literal `{x:0, z:0}` (its only real caller,
+`game3d.js`, always passes `spawn` explicitly). See ADR-0046 for the full "why `umit`, why +60m,
+why that direction" reasoning and alternatives considered.
+
+**Regression guard:** `node --check` clean on all 3 changed files. Full committed smoke suite
+(`node scripts/smokeTestGame3D.js`) — all 8 checks PASS, zero regressions (none of them read
+`PLAYER_CONFIG.SPAWN_*` or depend on specific spawn coordinates). **Real headless-Chromium
+screenshot** (Playwright, `game3d.html`, ~1.5s after `GAME_READY` `phase1-scene`) — not a throwaway,
+kept as this run's verification artifact — confirms the fix visually: console-logged spawn position
+`(577.5, 10.4, 4058.3)` matches the hand-computed `mapToWorldXZ(3885, 5404, ...)` conversion
+exactly, and the captured frame shows the player standing on real terrain with one of `umit`'s
+castle corner towers filling most of the view directly ahead — the first run able to submit actual
+visual proof of a settlement being visible at spawn, not just a coordinate-math claim.
+
+**Memory-leak checklist:** N/A — a spawn-coordinate constant change plus one `mapToWorldXZ` call at
+scene-init time; no new per-frame allocation, listener, or timer.
+
+**Files changed this sub-task:** `src/3d/config.js`, `src/3d/game3d.js`, `src/3d/gameplay/
+player.js`, `DECISIONS.md` (new ADR-0046), `3D_GAME_PROGRESS.md` (this file). 5 files, ~40 new/
+changed lines. One commit, direct push to `main`.
+
+**World Coverage (after sub-task 1): 80.7% (111.00 km² / 137.5 km²) desktop; 4.5% (6.25 km² /
+137.5 km²) mobile — unchanged (spawn-point-only change; all 444 desktop terrain chunks already
+loaded per-seat regardless of spawn point — see `game3d.js`'s pre-existing per-seat force-load
+loop, ADR-0013). Mobile benefits indirectly: `umit`'s chunk neighborhood, previously outside both
+the mobile boot-preview and the desktop-only per-seat force-load, now loads immediately via the
+ordinary player-position chunk-streaming path, since streaming follows the player wherever they
+actually are, not the world origin.
+
 ## Known Issues / Tech Debt
 
+- **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s
+  visibility range, so the game looked completely empty on boot~~ — fixed run 39 (`config.js`'s
+  `PLAYER_CONFIG.SPAWN_MAP_X`/`SPAWN_MAP_Y`, DECISIONS.md ADR-0046).** The world origin is
+  `mapToWorldXZ`'s convention for the *center* of the padded kingdom-seat bounding box, not any
+  seat itself — every real kingdom seat sits well outside `fog.js`'s ~2.8-3.8km FogExp2 visibility
+  range from there. The player now spawns ~60m from `umit` (the project owner's own kingdom seat),
+  verified with a real headless-Chromium screenshot showing a castle tower immediately in view, not
+  just "no console error". **Still open:** the other 13 seats remain 2.5-6km away with no compass/
+  minimap (FAZ 8) to guide the player toward them — a real, separately-tracked future gap, not
+  solved by this fix.
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
   ADR-0009's Consequence section.
 - **~~Waterfalls need a steep-height-drop detector~~ — landed run 12 (`detectWaterfalls`/

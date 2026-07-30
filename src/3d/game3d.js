@@ -52,7 +52,7 @@ import {
 	createWaterfallMesh,
 	disposeWaterfallMesh,
 } from './world/rivers.js';
-import { createSettlements, disposeSettlements } from './world/settlements.js';
+import { createSettlements, disposeSettlements, mapToWorldXZ } from './world/settlements.js';
 import { createOrbitCamera, resolveCameraCollision } from './camera.js';
 import { createAuroraSky, updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { createStarfield, updateStarfield, disposeStarfield } from './stars.js';
@@ -390,11 +390,21 @@ export async function initGame3D() {
 		// gate createScene() already uses for the mobile chunk-radius split, so both mobile-only
 		// behaviors agree on what counts as "mobile" from one signal.
 		const touchJoystick = isCoarsePointerDevice() ? new TouchJoystick() : null;
+		// Converted from map units (not stored pre-converted in config.js, to avoid a
+		// config.js -> world/settlements.js import cycle) — see PLAYER_CONFIG.SPAWN_MAP_X/
+		// SPAWN_MAP_Y's doc comment and DECISIONS.md ADR-0046 for why the spawn point lives next
+		// to a kingdom seat instead of the world origin.
+		const spawnWorld = mapToWorldXZ(
+			PLAYER_CONFIG.SPAWN_MAP_X,
+			PLAYER_CONFIG.SPAWN_MAP_Y,
+			WORLD_SCALE.MAP_BOUNDS,
+			WORLD_SCALE.METERS_PER_MAP_UNIT,
+		);
 		const player = await createPlayer({
 			assetLoader,
 			groundCollider: state.groundCollider,
 			settlementCollider: state.settlementCollider,
-			spawn: { x: PLAYER_CONFIG.SPAWN_X_METERS, z: PLAYER_CONFIG.SPAWN_Z_METERS },
+			spawn: { x: spawnWorld.x, z: spawnWorld.z },
 		});
 		state.scene.add(player.object3D);
 		state.player = player;

@@ -19,7 +19,10 @@ import { integrateJumpArc } from '../physics.js';
  *   `physics.js`'s `createSettlementCollider` (FAZ 3's "Basit ... collider") — optional so this
  *   module still works in any future context with no settlements (e.g. a unit test) without a
  *   caller needing to fabricate one; movement simply isn't blocked by castles when omitted.
- * @param {{x: number, z: number}} [options.spawn] World-space spawn point.
+ * @param {{x: number, z: number}} [options.spawn] World-space spawn point. `game3d.js` always
+ *   passes this explicitly (converted from `PLAYER_CONFIG.SPAWN_MAP_X`/`SPAWN_MAP_Y` via
+ *   `mapToWorldXZ`); the world-origin default below only covers a hypothetical future caller
+ *   (e.g. a unit test) that omits it.
  * @returns {Promise<{
  *   object3D: THREE.Object3D,
  *   update: (delta: number, moveDirectionXZ: {x: number, z: number}, isRunning: boolean, jumpRequested?: boolean) => void,
@@ -30,7 +33,7 @@ export async function createPlayer({
 	assetLoader,
 	groundCollider,
 	settlementCollider = null,
-	spawn = { x: PLAYER_CONFIG.SPAWN_X_METERS, z: PLAYER_CONFIG.SPAWN_Z_METERS },
+	spawn = { x: 0, z: 0 },
 }) {
 	const model = await assetLoader.loadFBXModel(PLAYER_CONFIG.MODEL_URL, {
 		fallbackColor: 0x4a90d9,

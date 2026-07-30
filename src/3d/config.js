@@ -158,10 +158,22 @@ export const PLAYER_CONFIG = Object.freeze({
 	 * `JUMP_SPEED_MPS² / (2 * -GRAVITY_MPS2)` ≈ 1.2m, a small hop over uneven ground/steps,
 	 * not a platformer-scale jump. */
 	JUMP_SPEED_MPS: 7,
-	/** World-space spawn point — the world origin, always inside the boot-preview area on both
-	 * desktop and mobile (see CHUNK_CONFIG), so the player never spawns on an unloaded chunk. */
-	SPAWN_X_METERS: 0,
-	SPAWN_Z_METERS: 0,
+	/** Spawn point, in 2D-map units — same coordinate space as `world/settlements.js`'s
+	 * `KINGDOM_SEATS` (`mapX`/`mapY`), converted to world-space meters via `mapToWorldXZ` at
+	 * `game3d.js`'s call site (not here, to avoid a `config.js` -> `world/settlements.js` import
+	 * cycle). ~34 map units (≈60m) south (+mapY) of `umit` (Ümit Targeryan, mapX:3885/mapY:5370 —
+	 * the project owner's own kingdom seat): far enough that the player doesn't spawn overlapping
+	 * `SETTLEMENT_CONFIG`'s settlement collider (whose corner towers reach ≈35m from the keep
+	 * center), and on the +mapY/+worldZ side so the castle sits in the default chase camera's
+	 * forward (-Z) view on the very first rendered frame (camera starts at `player position +
+	 * CAMERA_INITIAL_OFFSET_METERS`, i.e. behind the player on +Z, looking back toward -Z).
+	 * Previously this was the world origin (0, 0) — the padded kingdom bounding box's *center*
+	 * (`WORLD_SCALE.MAP_BOUNDS`), which put every one of the 14 kingdom seats 2.5-6km away, well
+	 * beyond `fog.js`'s FogExp2 practical visibility (~3.8km day / ~2.8km night at
+	 * FOG_DENSITY_DAY/NIGHT) — the player spawned in what looked like an empty world with no
+	 * settlement, NPC, or animal visible or reachable. See DECISIONS.md ADR-0046. */
+	SPAWN_MAP_X: 3885,
+	SPAWN_MAP_Y: 5404,
 	/** Height above the player's feet the chase camera's `OrbitControls.target` is held at, so the
 	 * camera looks at roughly chest/head height instead of the ground at the player's feet. */
 	CAMERA_TARGET_HEIGHT_METERS: 1.5,
