@@ -406,6 +406,108 @@ async function checkInteractionController(browser, baseUrl) {
 	return { name: 'interaction controller (gameplay/interaction.js)', ok, details };
 }
 
+/**
+ * Regression guard for `gameplay/animals.js`'s `createWolf` flee/pack-alert logic (run 29/30,
+ * DECISIONS.md ADR-0029/ADR-0030) — this had zero persisted coverage until now, only ever verified
+ * ad hoc via a temporary debug hook reverted before each of those runs' commits (see ADR-0029's and
+ * ADR-0030's own "Verified" sections). Same in-page dynamic-`import()` pattern as the other
+ * module-level checks, but this one drives 3 real `createWolf` controllers (loading the actual
+ * `Wolf-Blender-2.82a.glb` via a real `AssetLoader` against this script's own local static server —
+ * the same file `check3DMode`'s full boot already loads 3 copies of, so this adds no new asset) with
+ * a fake `groundCollider` and directly-controlled `packmateFleePositions` arguments, replaying
+ * ADR-0030's exact chain scenario: wolf1 flees the player directly; wolf2 (out of the player's own
+ * trigger radius, but within pack range of wolf1) pack-flees one frame later; wolf3 (out of pack
+ * range of wolf1, but within pack range of wolf2) only pack-flees a further frame after that — plus
+ * ADR-0030's negative control (wolf3 given wolf1's out-of-range position instead of wolf2's stays
+ * calm) and ADR-0029's core design assertion that a pack-alerted wolf flees *away from the player*,
+ * not away from the packmate that alerted it.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkWolfPackAlert(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createWolf } = await import('/src/3d/gameplay/animals.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { ANIMAL_CONFIG } = await import('/src/3d/config.js');
+
+			const assetLoader = new AssetLoader();
+			const groundCollider = { getGroundHeight: () => 10 };
+			const delta = 1 / 60;
+
+			/** @param {number} worldX @param {number} worldZ */
+			function spawnWolf(worldX, worldZ, name) {
+				return createWolf({
+					assetLoader,
+					modelUrl: ANIMAL_CONFIG.WOLF_MODEL_URL,
+					idleClipName: ANIMAL_CONFIG.IDLE_CLIP_NAME,
+					stripChildNames: ANIMAL_CONFIG.STRIP_CHILD_NAMES,
+					worldX,
+					worldZ,
+					groundY: 10,
+					name,
+					groundCollider,
+					fleeClipName: ANIMAL_CONFIG.FLEE_CLIP_NAME,
+					fleeTriggerRadiusMeters: ANIMAL_CONFIG.FLEE_TRIGGER_RADIUS_METERS,
+					fleeSpeedMps: ANIMAL_CONFIG.FLEE_SPEED_MPS,
+					packAlertRadiusMeters: ANIMAL_CONFIG.PACK_ALERT_RADIUS_METERS,
+				});
+			}
+
+			// wolf1-wolf2 = 18m (inside the 20m pack radius), wolf1-wolf3 = 34m (outside),
+			// wolf2-wolf3 = 16m (inside) — the only path from the player to wolf3 is via wolf2.
+			const wolf1 = await spawnWolf(10, 0, 'test-wolf-1');
+			const wolf2 = await spawnWolf(10, 18, 'test-wolf-2');
+			const wolf3 = await spawnWolf(10, 34, 'test-wolf-3');
+			const player = { x: 0, z: 0 }; // 10m from wolf1 (<15m trigger), ~20.6m from wolf2, ~35.1m from wolf3.
+
+			// Baseline: nobody has ever been near the player or a fleeing packmate.
+			wolf1.update(delta, { x: 5000, z: 5000 }, []);
+			wolf2.update(delta, { x: 5000, z: 5000 }, []);
+			wolf3.update(delta, { x: 5000, z: 5000 }, []);
+			const baselineCalm = !wolf1.isFleeing && !wolf2.isFleeing && !wolf3.isFleeing;
+
+			// Frame 1: player approaches wolf1 only. wolf2/wolf3 get no packmate positions yet.
+			const wolf2StartX = wolf2.object3D.position.x;
+			wolf1.update(delta, player, []);
+			wolf2.update(delta, player, []);
+			wolf3.update(delta, player, []);
+			const wolf1FleesDirect = wolf1.isFleeing;
+			const wolf2CalmFrame1 = !wolf2.isFleeing;
+			const wolf3CalmFrame1 = !wolf3.isFleeing;
+
+			// Frame 2: wolf2 now told wolf1 is fleeing (within its 20m pack radius) -> should pack-flee.
+			// wolf3 is only told about wolf1 (34m away, outside range) -> negative control, must stay calm.
+			const wolf1Position = { x: wolf1.object3D.position.x, z: wolf1.object3D.position.z };
+			wolf2.update(delta, player, [wolf1Position]);
+			wolf3.update(delta, player, [wolf1Position]);
+			const wolf2PackFlees = wolf2.isFleeing;
+			const wolf2FleesAwayFromPlayer = wolf2.object3D.position.x > wolf2StartX; // away from player (0,0), not away from wolf1 (same x as wolf2 — that path wouldn't move x at all)
+			const wolf3StaysCalmOnOutOfRangePackmate = !wolf3.isFleeing;
+
+			// Frame 3: wolf3 now told wolf2 is fleeing (16m away, inside range) -> chain completes.
+			const wolf2Position = { x: wolf2.object3D.position.x, z: wolf2.object3D.position.z };
+			wolf3.update(delta, player, [wolf2Position]);
+			const wolf3ChainFlees = wolf3.isFleeing;
+
+			return {
+				baselineCalm, wolf1FleesDirect, wolf2CalmFrame1, wolf3CalmFrame1, wolf2PackFlees,
+				wolf2FleesAwayFromPlayer, wolf3StaysCalmOnOutOfRangePackmate, wolf3ChainFlees,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'baseline calm, direct flee, pack-flee chains wolf1->wolf2->wolf3 one hop/frame, ' +
+			'flee direction stays player-relative, out-of-range packmate correctly ignored'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'wolf flee/pack-alert (gameplay/animals.js)', ok, details };
+}
+
 async function main() {
 	const playwright = loadPlaywright();
 	if (!playwright) {
@@ -429,6 +531,7 @@ async function main() {
 		results.push(await checkSettlementCollider(browser, baseUrl));
 		results.push(await checkJumpArc(browser, baseUrl));
 		results.push(await checkInteractionController(browser, baseUrl));
+		results.push(await checkWolfPackAlert(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();

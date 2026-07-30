@@ -68,16 +68,14 @@ KayKit, etc.) are used for `assets/`.
   off wolf-1 -> wolf-3 pack-flees off wolf-2, one frame later) via a direct-call test with a
   negative control — see DECISIONS.md ADR-0030. See "This Run (run 29)"/"This Run (run 30)" below
   and DECISIONS.md ADR-0025/ADR-0026/ADR-0027/ADR-0028/ADR-0029/ADR-0030.
-- **Last Update:** 2026-07-30 (run 36)
-- **Last Commit:** run 36's second sub-task, extending `scripts/smokeTestGame3D.js` with a
-  jump/gravity-arc regression check (DECISIONS.md ADR-0040). Preceded by run 36's first sub-task,
-  FAZ 4's gravity/jump physics (`physics.js`'s `integrateJumpArc`, ADR-0039 — closes FAZ 4's last
-  named mechanical gap); run 35's player-vs-castle collider + its own smoke-test extension
+- **Last Update:** 2026-07-30 (run 37)
+- **Last Commit:** run 37's persisted wolf flee/pack-alert regression check
+  (`scripts/smokeTestGame3D.js`'s `checkWolfPackAlert`, DECISIONS.md ADR-0042). Preceded by run 36's
+  three chained sub-tasks: FAZ 4's gravity/jump physics (ADR-0039 — closes FAZ 4's last named
+  mechanical gap), its own smoke-test extension (ADR-0040), and the interaction-controller
+  regression check (ADR-0041); run 35's player-vs-castle collider + its own smoke-test extension
   (ADR-0037/ADR-0038); run 34's asset-manifest check, persisted smoke test, and the last 3 FAZ 5
-  NPC seats (ADR-0034/ADR-0035/ADR-0036); run 33's FAZ 5 dialogue open/close (`ui/dialogueBox.js` +
-  `gameplay/interaction.js`, ADR-0033); run 32's FAZ 5 interaction affordance (ADR-0032); run 31's
-  FAZ 5 11th NPC (`xaro-guard-1` at `Xaro`/Qarth, ADR-0031); run 30's FAZ 6 3rd wolf + pack-alert
-  chain verification (ADR-0030). See "This Run (run 36)" below for full details.
+  NPC seats (ADR-0034/ADR-0035/ADR-0036). See "This Run (run 37)" below for full details.
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
   correct, no change made (twenty-seventh straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
@@ -90,7 +88,7 @@ KayKit, etc.) are used for `assets/`.
   did) rather than trusting the brief's own numbers — this has now been independently re-confirmed
   across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
   31, and 32.**
-- **Repo-continuity note (recurs — run 18, run 29, run 30):** run 18's Session Snapshot found the
+- **Repo-continuity note (recurs — run 18, run 29, run 30, run 36, run 37):** run 18's Session Snapshot found the
   container's git working tree in a `HEAD` state detached at that run's own prior final commit, while
   the local `main` branch ref and `origin/main` were both still pointing at the pre-3D-mode commit
   (`38e09e7`) — i.e. `main` had silently fallen behind every run's actual work by one run's worth of
@@ -3640,6 +3638,78 @@ candidate for a future run, same reasoning as this run's third sub-task. A fresh
 next run may land on any of these or on a newly-introduced gap — don't assume this list is
 exhaustive without re-deriving it.
 
+## This Run (2026-07-30, run 37)
+
+**Session Snapshot at container boot:** repo working tree clean but `HEAD` was detached at run 36's
+own final commit (`74fec3e`, ADR-0041's interaction-controller smoke test), with local `main` still
+pointing at the pre-3D-mode commit (`38e09e7`) — the same recurring container-restart pattern
+documented in this file's "Repo-continuity note" (runs 18/29/30/34/36). `git fetch origin main`
+confirmed `origin/main` already matched the detached `HEAD` exactly (the push had genuinely
+succeeded; only this container's local ref/tracking branch was stale) — `git checkout main && git
+reset --hard origin/main` brought local `main` in line, losslessly (verified beforehand: local
+`main`'s own 2 pre-3D commits are a strict content subset of `origin/main`'s history — a byte
+`diff` on `service-worker.js`/`ios-pwa-fix.css` confirmed `origin/main` is a superset, not a
+divergent rewrite, so no work was ever at risk). Re-read `3D_GAME_PROGRESS.md`'s Current
+Status/World Coverage/Performance Budget and `DECISIONS.md`'s last 3 ADRs (0039/0040/0041). `node
+--check` clean on every non-vendor `.js` file, no file over the 600-line cap, `node
+scripts/checkAssetsManifest.js` exits 0, and `node scripts/smokeTestGame3D.js` PASS on all 5
+existing checks — taken as this run's pre-subtask Regression Guard baseline. World scale re-derived
+once more from `config.js` — still 137.5 km², no change (thirtieth straight confirmation).
+
+**Priority-order scan:** no syntax error, blocking bug, perf-budget overrun, or memory leak found.
+No fresh tech-debt item beyond what runs 34-36 already closed. Priority 6 (missing smoke-test/
+regression coverage) — flagged as the likely next candidate by run 36's own "Next step" note — was
+confirmed still open: `gameplay/animals.js`'s wolf flee (ADR-0027) and pack-alert/chain-propagation
+(ADR-0029/ADR-0030) logic had zero persisted coverage, only ever verified ad hoc via a temporary
+debug hook reverted before each of those runs' commits. Picked as this run's atomic sub-task — same
+priority-6 pattern as run 36's third sub-task, just on the one gameplay-critical module that still
+lacked it.
+
+**Decision and work (DECISIONS.md ADR-0042):** Added a sixth check, `checkWolfPackAlert`, to
+`scripts/smokeTestGame3D.js`. Spawns 3 real `createWolf` controllers (via a real `AssetLoader`
+loading the actual `Wolf-Blender-2.82a.glb` from the script's own local static server — no new
+asset/dependency, the same file `check3DMode`'s full boot already loads 3 copies of) at hand-picked
+distances (18m/34m/16m) chosen to cleanly isolate each causal path, then direct-calls `update()`
+across 3 synthetic frames replaying ADR-0030's exact manually-verified chain scenario: wolf1 flees
+the player directly; wolf2 pack-flees only once told wolf1 is fleeing; wolf3 stays calm on an
+out-of-range packmate (negative control) but chain-flees once told about in-range wolf2 a frame
+later; plus a new assertion that a pack-alerted wolf's flee direction stays player-relative (moves
+away from the player), not packmate-relative — regression-testing ADR-0029's core design decision,
+not just its "does it flee at all" outcome. See ADR-0042 for full alternatives considered.
+
+**Regression guard — verified with a real injected bug, not just reasoning:** `node --check` clean
+(552 lines, under the 600-line cap). All 6 checks PASS against the real repo. Injected a real bug —
+changed `isFleeingFromPack = true` to `isFleeingFromPack = false` in `gameplay/animals.js` — the new
+check correctly failed on exactly the pack-path assertions (`wolf2PackFlees`,
+`wolf2FleesAwayFromPlayer`, `wolf3ChainFlees`), while the direct-flee/baseline/negative-control
+assertions in the same check and all 5 other checks stayed PASS (isolated, non-cascading failure
+signal). Restored `animals.js` immediately after; `diff` against a pre-edit backup confirmed a
+byte-identical restore, `node --check` on it afterward stayed clean.
+
+**Memory-leak checklist:** N/A — extends an existing one-shot Node CLI script; the 3 test wolves'
+`AnimationMixer`/model resources are never added to a live render loop, and the whole page (with its
+`AssetLoader`/THREE resources) closes at the end of the check.
+
+**Files changed this sub-task:** `scripts/smokeTestGame3D.js`, `DECISIONS.md` (new ADR-0042),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~95 new lines of code (the new check) plus
+documentation. One commit. No change to `gameplay/animals.js` itself (test-only addition).
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged (this sub-task is test-tooling only, touches no
+terrain/streaming/rendering code).**
+
+**Next step for the next run:** re-scan the priority order fresh, as always.
+`scripts/smokeTestGame3D.js` now has 6 checks covering every gameplay-critical system landed so far
+except FAZ 5's NPC patrol logic (`gameplay/npc.js`) itself, which remains a plausible priority-6
+candidate (NPCs have no flee/pack-awareness yet, so there's nothing analogous to this run's chain
+test to write for them beyond a basic patrol-waypoint regression check). Real higher-value remaining
+gaps, unchanged from run 36's own assessment: FAZ 5's actual dialogue content and NPC
+player/pack-awareness (content-design decisions), FAZ 6's other 3 animal types (each needs a human
+manual-download step — mark as "insan onayı gerekli" and stop if attempted), FAZ 3's LOD (no measured
+perf need yet), `touchJoystick.js`'s missing jump control, and jump feel tuning. A fresh
+priority-order scan next run may land on any of these or on a newly-introduced gap — don't assume
+this list is exhaustive without re-deriving it.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -3768,7 +3838,10 @@ exhaustive without re-deriving it.
   (`berkalp-wolf-3`, config-only, same downloaded model) was added specifically to test this, and a
   direct-call 3-frame chain test (plus a negative control) confirmed a wolf outside any single
   wolf's direct pack-alert range still flees once its own in-range packmate starts fleeing — see
-  "This Run (run 30)" below. The other 3 FAZ 6 animal types (horses, carts, dogs/cats, birds) have no
+  "This Run (run 30)" below. **~~Flee/pack-alert had no persisted regression coverage, only ad hoc
+  debug-hook verification~~ — fixed run 37** (`scripts/smokeTestGame3D.js`'s `checkWolfPackAlert`,
+  DECISIONS.md ADR-0042) — replays the exact run-30 chain scenario as a committed, always-run
+  assertion, with a demonstrated real failure path. The other 3 FAZ 6 animal types (horses, carts, dogs/cats, birds) have no
   downloaded asset yet — each needs a human manual-download step (see below), same constraint every
   future asset addition faces. `npc.js`'s and `animals.js`'s patrol/turn movement logic is still
   duplicated across 2 files (deliberate, see ADR-0026's "why duplicate" — revisit extraction only at

@@ -2989,3 +2989,78 @@ allocation, discarded when the page closes.
 boot, settlement collider, jump/gravity arc, interaction controller), each with a demonstrated real
 failure path. No new file, no `gameplay/interaction.js` change at all (test-only addition), no file
 over the line cap. Same not-wired-into-CI caveat as every prior `scripts/` ADR.
+
+## ADR-0042: Persisted regression check for `gameplay/animals.js`'s wolf flee/pack-alert chain
+
+**Status:** Accepted (run 37).
+
+**Context:** Session Snapshot found `main`'s local branch ref stale again (same recurring
+container-restart pattern documented in the "Repo-continuity note" — `HEAD` detached at run 36's
+`74fec3e`, local `main` still at the pre-3D `38e09e7`; `git fetch origin main` confirmed
+`origin/main` already matched the detached commit, so `git checkout main && git reset --hard
+origin/main` was safe and lossless — no commits rewritten). With that resolved, priorities 1-5
+(syntax, blocking bugs, perf budget, memory leaks, tech debt) were all clean (`node --check` on
+every `src/3d/**` file, both smoke-test scripts pass, budgets comfortably under both device
+ceilings), landing on priority 6 again: `gameplay/animals.js`'s wolf flee (run 28, ADR-0027) and
+pack-alert/chain-propagation logic (run 29/30, ADR-0029/ADR-0030) — real gameplay-critical behavior
+— had zero persisted coverage. Both ADRs' own "Verified" sections used a temporary debug hook
+(`window.__debugGame3DState`) reverted before commit; nothing has guarded either behavior against
+regression since. This is the exact gap ADR-0038/ADR-0040/ADR-0041 already established the pattern
+for closing on `physics.js`/`gameplay/interaction.js` — `gameplay/animals.js` was the one
+gameplay-critical module still missing it.
+
+**Decision:** Added a sixth check, `checkWolfPackAlert`, to `scripts/smokeTestGame3D.js`. Unlike
+`checkInteractionController` (which could use plain fakes because its collaborators are injected),
+`createWolf` calls `assetLoader.loadModel()` directly, so this check constructs a real `AssetLoader`
+and loads the real `Wolf-Blender-2.82a.glb` from this script's own local static server — the same
+file `check3DMode`'s full boot already loads 3 copies of, so no new asset/dependency. Three wolf
+controllers are spawned at hand-picked distances (wolf1↔wolf2 = 18m, inside the 20m pack radius;
+wolf1↔wolf3 = 34m, outside; wolf2↔wolf3 = 16m, inside) — deliberately cleaner geometry than the real
+`berkalp` spawns' 14.4m/28.8m spacing (ADR-0030's own notes flagged that spacing as producing a
+"harmless" but check-complicating overlap where the player position that triggers wolf1 directly
+also happens to fall inside wolf2's own independent direct-trigger radius). `update()` is then
+direct-called across 3 synthetic frames with hand-built `packmateFleePositions` arguments, replaying
+ADR-0030's exact manually-verified scenario: baseline calm; wolf1 flees the player directly; wolf2
+stays calm until told wolf1 is fleeing, then pack-flees; wolf3 stays calm when only told about
+out-of-range wolf1 (the negative control) but pack-flees once told about in-range wolf2 one frame
+later. A further assertion checks wolf2's post-pack-flee `x` position increased (away from the
+player at the origin) rather than staying put (which is what an away-from-the-alerting-packmate bug
+would produce, since wolf1 and wolf2 share the same `x`) — regression-testing ADR-0029's core design
+decision that pack-alerted flee direction is always player-relative, never packmate-relative.
+
+**Alternatives considered:**
+- *Fake the model/animation loading to avoid the real `AssetLoader` round-trip* — rejected:
+  `createWolf` has no injection point for its loader (unlike `interaction.js`'s
+  `dialogueBox`/`interactionPrompt`), and the real `.glb` is already served locally with no network
+  dependency, so faking it would mean either changing `animals.js`'s API for a test-only reason (not
+  justified — see this project's refactor-only-for-bug/perf/readability/architecture rule) or
+  duplicating `createWolf`'s internals in the test, which risks testing a fiction instead of the real
+  code path.
+- *Reuse the real `berkalp` spawn distances from `ANIMAL_CONFIG.SPAWNS` instead of hand-picked ones*
+  — rejected: those exact distances (14.4m/28.8m) create the direct-trigger/pack-trigger overlap
+  ADR-0030 itself called out as "harmless" for gameplay but which would make a persisted assertion
+  either weaker (can't cleanly attribute wolf2's flee to the pack path alone) or require restating
+  that overlap's reasoning in the test every time it's read. Clean synthetic distances isolate each
+  causal path unambiguously.
+
+**Verified:** `node --check scripts/smokeTestGame3D.js` clean (552 lines, under the 600-line cap).
+All 6 checks PASS against the real repo. **Failure path verified with a real injected bug**
+(temporarily changing `isFleeingFromPack = true` to `isFleeingFromPack = false` in
+`gameplay/animals.js`) — the new check correctly failed on exactly the pack-path assertions
+(`wolf2PackFlees`, `wolf2FleesAwayFromPlayer`, `wolf3ChainFlees` all `false`), while
+`wolf1FleesDirect`/`baselineCalm`/the negative control stayed `true` and the other 5 checks stayed
+PASS. Restored `animals.js` immediately after; `diff` against a pre-edit backup confirmed a
+byte-identical restore, and `node --check` afterward stayed clean.
+
+**Memory-leak checklist:** N/A — extends an existing one-shot Node CLI script; the 3 test wolves'
+`AnimationMixer`/model resources are never added to a live render loop and the whole page (and its
+`AssetLoader`/THREE resources) closes at the end of the check, same disposal story as every other
+in-page check in this script.
+
+**Consequence:** `scripts/smokeTestGame3D.js` now has 6 committed checks (2D shell boot, 3D-mode
+boot, settlement collider, jump/gravity arc, interaction controller, wolf flee/pack-alert), each with
+a demonstrated real failure path. No new file, no `gameplay/animals.js` change at all (test-only
+addition), no file over the line cap. Same not-wired-into-CI caveat as every prior `scripts/` ADR.
+FAZ 5's NPCs still have no equivalent persisted coverage for an analogous future player/pack-aware
+behavior, but none exists yet to test (real, correctly-scoped-out remaining gap, not this run's
+scope).
