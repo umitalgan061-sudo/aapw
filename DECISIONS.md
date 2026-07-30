@@ -3359,3 +3359,98 @@ too: `game3d.js`'s per-seat chunk force-load is desktop-only (ADR-0013), but `um
 now loads immediately anyway via the ordinary player-position chunk-streaming path
 (`streamAroundOrbitTarget`), since streaming follows wherever the player actually is, not the world
 origin.
+
+## ADR-0047: Add `umit-horse-1` — FAZ 6's first non-wolf animal, a static/idle horse prop
+
+**Status:** Accepted (run 39, second sub-task).
+
+**Context:** After sub-task 1 (ADR-0046) landed, re-ran the priority scan. No syntax error,
+blocking bug, perf-budget overrun, or memory leak. Priority 6 (tech debt) had nothing new beyond
+`scripts/game3dSmokeChecks.js` sitting at 587/600 lines (already flagged by run 38, monitored, not
+yet actionable — no new check was needed this sub-task). Priority 7 (missing smoke-test/regression
+coverage) had no gap: all 8 existing checks still cover every landed gameplay-critical system.
+Priority 8 (World Coverage, flat at 80.7%/4.5% since run 15) was considered — `CHUNK_CONFIG.
+PHASE1_PREVIEW_RADIUS_CHUNKS` (10) could be bumped to 11 (441 -> 529 chunks) to push desktop
+coverage to ~96.2% — but computed against ADR-0014's own triangle-budget math, R=11 leaves only
+~0.31M triangles of headroom under the desktop 5M ceiling (vs. R=10's ~1.02M), a materially tighter
+margin than ADR-0014's own "leave real headroom for FAZ 4+'s future draw calls" reasoning called
+for, with FAZ 7 (dragons) and FAZ 6's remaining animal types/vegetation still ahead and no
+`renderer.info` instrumentation in this repo to measure real (not estimated) triangle/draw-call
+counts before committing to it. Judged too large/uncertain a step to land safely as one atomic
+sub-task without better measurement tooling — deferred, flagged below for a future run with either
+more budget or real render-stat instrumentation. Priority 9 (active phase's missing sub-task) had a
+concrete, zero-risk, already-asset-ready candidate: FAZ 6's roadmap explicitly lists horse/cart/
+dog-cat/bird as the remaining animal types, and `ivory_stallion.glb` was manually added and already
+in `assets_manifest.json`, `assets/models/animals/`. Picked as sub-task 2.
+
+**Decision:** Added `ANIMAL_CONFIG.HORSE_MODEL_URL` (`assets/models/animals/ivory_stallion.glb`)
+and one new `SPAWNS` entry, `umit-horse-1`, at `umit` (the same seat the player now spawns next to
+per ADR-0046 — deliberate, so the fix and this addition reinforce each other) offset `(-30, 0)`
+meters from the keep center: outside `SETTLEMENT_CONFIG`'s collider (the keep box's half-width is
+17m, `|x|=30` clears it; the nearest corner tower center is `hypot(30-20, 0-20) = 22.36m` away,
+clear of its 6.5m radius) and clear of `umit-guard-1`'s own ±12m patrol zone. `ivory_stallion.glb`
+is geometry-only per `assets_manifest.json` — no texture, no rig, no animation clips — so this is a
+static/idle-only first pass, matching the exact scope precedent `gameplay/animals.js`'s wolves
+themselves started at in run 26 before patrol (run 27)/flee (run 28) were added later once there
+was something (a rig) to animate.
+
+`gameplay/animals.js`'s `spawnConfiguredAnimals` — previously hardcoding `animalConfig.
+WOLF_MODEL_URL`/`FLEE_CLIP_NAME`/`FLEE_TRIGGER_RADIUS_METERS`/`PACK_ALERT_RADIUS_METERS` for every
+spawn — now reads a per-spawn `modelUrl` override (default `WOLF_MODEL_URL`, so the 3 existing wolf
+entries are unaffected) and a per-spawn `canFlee` flag (default `true`, same reasoning), gating the
+flee/pack-alert parameters to `undefined` when `false`. `createWolf` (the shared controller every
+animal uses, name notwithstanding) already null-guards every animation-clip lookup
+(`THREE.AnimationClip.findByName` against `idleClipName`/`walkClipName`/`fleeClipName` all return
+`null` safely if no match, or if `model.animations` is empty) — so the horse loading through the
+exact same function as the wolves, with an empty animation array, was already a real, working path,
+not one this sub-task had to build from scratch. `canFlee: false` matters anyway: without it, a
+rigless model within `FLEE_TRIGGER_RADIUS_METERS` of the player would still *move* (position
+translation runs independent of animation) with no walk/run cycle to sell it — sliding across the
+ground rather than looking broken-but-inert, which the static-first-pass scope explicitly avoids.
+
+**Alternatives considered:**
+- *Bump `PHASE1_PREVIEW_RADIUS_CHUNKS` for World Coverage instead* — this run's own priority order
+  ranks priority 8 above priority 9, so this was the "correct" next pick by the letter of the
+  ordering. Deferred anyway (see Context above) because the actual headroom math came out
+  meaningfully tighter than ADR-0014's own precedent judged safe, and this run has no better
+  instrumentation to verify the real (not estimated) triangle/draw-call cost before committing. A
+  wrong call here is expensive to unwind (every chunk ever generated stays resident — ADR-0003 — so
+  overshooting the budget isn't a one-frame mistake). Flagged explicitly below as still open,
+  highest-priority remaining item, not silently skipped.
+- *A `kind: 'horse'` field + per-species config lookup table*, instead of two ad hoc per-spawn
+  overrides (`modelUrl`, `canFlee`) — cleaner in the abstract, but this is exactly one exception so
+  far; building a lookup table for a single case is speculative generality this project's own "don't
+  design for hypothetical future requirements" rule argues against. Revisit if/when a 3rd
+  differently-shaped animal (cart? bird, which likely needs a totally different movement model
+  entirely — flight, not ground patrol) actually arrives.
+- *Give the horse a `patrol` field anyway, using position-only movement with no animation* — rejected:
+  a model visibly gliding across the ground with stiff legs reads as broken, not "static prop,"
+  undermining the very "no half-finished implementations" rule this project holds itself to. Static/
+  idle-only is the honest, fully-working scope for a rigless asset; patrol is real future work once
+  it's rigged (flagged in `HORSE_MODEL_URL`'s own doc comment).
+
+**Verified:** `node --check` clean on `config.js` (570 lines) and `gameplay/animals.js` (311 lines),
+both comfortably under the 600-line cap. Full committed smoke suite — all 8 checks PASS, zero
+regressions (the wolf flee/pack-alert and patrol checks construct their own isolated `createWolf`
+instances directly, never call `spawnConfiguredAnimals`, so they're unaffected by its signature
+staying backward-compatible). Real headless-Chromium boot (`game3d.html`) console-confirms `"Spawned
+4 FAZ 6 animal(s)."` (previously 3) with zero console/page errors — the GLB loaded successfully, not
+silently falling back to the placeholder box `AssetLoader.loadModel` uses on a real failure. A
+direct in-page `spawnConfiguredAnimals` call (same real-module-resolution pattern
+`game3dSmokeChecks.js`'s checks already use) confirms `umit-horse-1`'s resolved position is finite,
+outside the keep box, and `22.36m` clear of the nearest corner tower (`> 6.5m` radius) — matches the
+hand-computed clearance exactly.
+
+**Memory-leak checklist:** N/A — one more `Promise.all` entry through an existing, already-verified
+load/dispose path (`createWolf`'s `dispose()` already covers any animal instance uniformly); no new
+per-frame allocation, listener, or timer.
+
+**Consequence:** FAZ 6 now has 2 of its 4 remaining animal types placed (wolf, horse); cart and dog/
+cat/bird still need their own manual-download step (mark "insan onayı gerekli" if a future run
+reaches for one — no such asset is in `assets_manifest.json` yet). World Coverage unchanged (80.7%/
+4.5% desktop/mobile — this sub-task added one character, not terrain). **World Coverage (priority 8)
+remains this run's single largest deferred item** — flagged explicitly, not silently passed over,
+for whoever picks it up next: the real fix likely needs either `renderer.info`-based instrumentation
+added first (so the next attempt can verify actual, not estimated, triangle/draw-call cost) or a
+smaller, more conservative radius bump than 10 -> 11 with the same dual-verification rigor ADR-0014
+used.

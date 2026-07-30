@@ -250,9 +250,15 @@ export async function createWolf({
  * kingdom-seat lookup, in parallel — moved out of `game3d.js` (run 29, DECISIONS.md ADR-0028) to
  * keep that file a thin orchestrator, mirroring `npc.js`'s own `spawnConfiguredNPCs`. A spawn
  * referencing an unknown `seatId` is skipped with a console warning, not thrown — matches
- * `game3d.js`'s prior inline behavior exactly. Only wolves exist so far (see `ANIMAL_CONFIG`'s doc
- * comment) — a future animal type would branch on a per-spawn "kind" field here, not duplicate this
- * function.
+ * `game3d.js`'s prior inline behavior exactly. Wolves were the only animal through run 38; run 39
+ * (DECISIONS.md ADR-0047) added a per-spawn `modelUrl` override (default `animalConfig.
+ * WOLF_MODEL_URL`, so every pre-existing wolf `SPAWNS` entry is unaffected) and a per-spawn
+ * `canFlee` flag (default `true`, same reasoning) for `umit-horse-1` — a rigless/animation-less
+ * model that has no walk/flee clips to run and no `patrol` field, so it should never enter the
+ * flee/pack-alert branches at all, not just fail to find a matching clip name silently. A "kind"
+ * field / per-species lookup table would be cleaner if a 3rd non-wolf-shaped animal shows up, but
+ * two per-spawn overrides is still the smaller change for exactly one exception so far — revisit if
+ * a 3rd species needs its own knobs.
  * @param {object} options
  * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
  * @param {typeof import('../config.js').ANIMAL_CONFIG} options.animalConfig
@@ -277,9 +283,10 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 						{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
 					]
 				: undefined;
+			const canFlee = spawn.canFlee !== false;
 			return createWolf({
 				assetLoader,
-				modelUrl: animalConfig.WOLF_MODEL_URL,
+				modelUrl: spawn.modelUrl ?? animalConfig.WOLF_MODEL_URL,
 				idleClipName: animalConfig.IDLE_CLIP_NAME,
 				stripChildNames: animalConfig.STRIP_CHILD_NAMES,
 				worldX,
@@ -293,10 +300,10 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 				speedMps: animalConfig.PATROL_SPEED_MPS,
 				pauseSeconds: animalConfig.PATROL_PAUSE_SECONDS,
 				turnRateRadiansPerSecond: animalConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
-				fleeClipName: animalConfig.FLEE_CLIP_NAME,
-				fleeTriggerRadiusMeters: animalConfig.FLEE_TRIGGER_RADIUS_METERS,
+				fleeClipName: canFlee ? animalConfig.FLEE_CLIP_NAME : undefined,
+				fleeTriggerRadiusMeters: canFlee ? animalConfig.FLEE_TRIGGER_RADIUS_METERS : undefined,
 				fleeSpeedMps: animalConfig.FLEE_SPEED_MPS,
-				packAlertRadiusMeters: animalConfig.PACK_ALERT_RADIUS_METERS,
+				packAlertRadiusMeters: canFlee ? animalConfig.PACK_ALERT_RADIUS_METERS : undefined,
 			});
 		}),
 	);

@@ -410,8 +410,20 @@ export const NPC_CONFIG = Object.freeze({
  * DECISIONS.md ADR-0026. Player-awareness (run 28, flee): a wolf within `FLEE_TRIGGER_RADIUS_METERS`
  * of the player overrides its idle/patrol state and runs directly away instead — see DECISIONS.md
  * ADR-0027. `NPC_CONFIG`'s guards have no equivalent yet (still open FAZ 5 work, out of this scope). */
+/** `ivory_stallion.glb` — geometry-only (no texture, no rig, no animation clips), per
+ * `assets_manifest.json`'s own notes. `spawnConfiguredAnimals` still loads it through the same
+ * `createWolf` controller every other animal uses: `THREE.AnimationClip.findByName` against an
+ * empty `model.animations` array safely returns `null` (see `createWolf`'s `idleAction`/
+ * `walkAction`/`fleeAction` construction, each already null-guarded), so the horse simply renders
+ * static/idle with no crossfade — a real, working first pass, not a placeholder. Declared outside
+ * `ANIMAL_CONFIG` (not inline in its `SPAWNS` entry below) so both can reference the same constant
+ * without a self-referential object literal. Needs rigging before a real walk/flee animation is
+ * possible — see DECISIONS.md ADR-0047. */
+const HORSE_MODEL_URL = 'assets/models/animals/ivory_stallion.glb';
+
 export const ANIMAL_CONFIG = Object.freeze({
 	WOLF_MODEL_URL: 'assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
+	HORSE_MODEL_URL,
 	/** Exact glTF animation-clip names (`THREE.AnimationClip.findByName`) — confirmed against the
 	 * source file's own `.gltf` JSON sidecar, not guessed: `01_Run_Armature_0`, `02_walk_Armature_0`,
 	 * `03_creep_Armature_0`, `04_Idle_Armature_0`, `05_site_Armature_0`. Idle/walk/run are used. */
@@ -490,6 +502,24 @@ export const ANIMAL_CONFIG = Object.freeze({
 			offsetZMeters: -6,
 			rotationYRadians: Math.PI * 0.5,
 			patrol: Object.freeze({ toOffsetXMeters: 56, toOffsetZMeters: -26 }),
+		}),
+		/** FAZ 6's first non-wolf animal (run 39, DECISIONS.md ADR-0047) — a static, idle-only horse
+		 * at `umit` (the same seat the player now spawns next to, ADR-0046), reusing the already-
+		 * downloaded `HORSE_MODEL_URL`. No `patrol` field and `canFlee: false` (no flee/pack-alert
+		 * branches at all — `HORSE_MODEL_URL` has no animation clips to run them with regardless, and
+		 * a rigless model sliding across the ground with no walk cycle would look broken, unlike the
+		 * wolves' fully-animated patrol/flee). Offset (-30, 0) keeps it outside `SETTLEMENT_CONFIG`'s
+		 * collider (reaches ≈35m from keep center at its farthest corner tower, but the box half-width
+		 * is only 17m and this offset's |x|=30 clears both) and clear of `umit-guard-1`'s own 12m
+		 * patrol zone. */
+		Object.freeze({
+			id: 'umit-horse-1',
+			seatId: 'umit',
+			modelUrl: HORSE_MODEL_URL,
+			canFlee: false,
+			offsetXMeters: -30,
+			offsetZMeters: 0,
+			rotationYRadians: Math.PI * 0.5,
 		}),
 	]),
 });

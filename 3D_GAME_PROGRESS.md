@@ -3957,6 +3957,71 @@ the mobile boot-preview and the desktop-only per-seat force-load, now loads imme
 ordinary player-position chunk-streaming path, since streaming follows the player wherever they
 actually are, not the world origin.
 
+**Sub-task 2 — priority scan:** re-ran the full priority order after sub-task 1's push. No syntax
+error, blocking bug, memory leak, or new tech debt beyond `scripts/game3dSmokeChecks.js`'s
+already-monitored 587/600 lines. No missing smoke-test/regression coverage (priority 7). Priority 8
+(World Coverage, flat 80.7%/4.5% since run 15) was seriously considered — bumping
+`CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` 10 -> 11 would push desktop coverage to ~96.2% — but the
+triangle-budget headroom at R=11 computed out meaningfully tighter than ADR-0014's own precedent
+judged safe (~0.31M triangles of margin under the 5M desktop ceiling vs. R=10's ~1.02M), with no
+`renderer.info`-based instrumentation in this repo to verify the real (not estimated) cost first.
+Deferred rather than risk landing an unmeasured perf regression — see DECISIONS.md ADR-0047's
+Context/Consequence for the full reasoning, flagged as this run's single largest deferred item, not
+silently skipped. Priority 9 (active phase's missing sub-task) had a concrete, zero-risk,
+already-asset-ready candidate instead: FAZ 6's roadmap-listed horse type, with `ivory_stallion.glb`
+already manually downloaded and in `assets_manifest.json`. Picked as sub-task 2.
+
+**Sub-task 2 — decision and work (DECISIONS.md ADR-0047):** Added `ANIMAL_CONFIG.HORSE_MODEL_URL`
+and a new `umit-horse-1` spawn entry — a static/idle-only horse at `umit` (the same seat the player
+now spawns next to per sub-task 1, deliberately reinforcing it), offset `(-30, 0)`m from the keep
+center (outside the settlement collider: keep box half-width 17m, nearest tower center 22.36m away
+vs. its 6.5m radius). `ivory_stallion.glb` is geometry-only (no rig/animation clips) per
+`assets_manifest.json` — `gameplay/animals.js`'s `spawnConfiguredAnimals` gained a per-spawn
+`modelUrl` override (default `WOLF_MODEL_URL`, existing wolves unaffected) and a per-spawn
+`canFlee` flag (default `true`) so the horse skips the flee/pack-alert branches entirely instead of
+sliding across the ground with no animation to sell the movement.
+
+**Regression guard:** `node --check` clean on `config.js` (570 lines) and `gameplay/animals.js`
+(311 lines). Full smoke suite — all 8 checks PASS, zero regressions (the wolf checks build their
+own isolated `createWolf` instances directly, never call `spawnConfiguredAnimals`). Real
+headless-Chromium boot confirms `"Spawned 4 FAZ 6 animal(s)"` (previously 3) with zero console/page
+errors — the GLB loaded successfully, not silently falling back to `AssetLoader`'s placeholder box.
+A direct in-page `spawnConfiguredAnimals` call confirmed `umit-horse-1`'s resolved position is
+finite, outside the keep box, and 22.36m clear of the nearest tower — matching the hand-computed
+clearance exactly.
+
+**Memory-leak checklist:** N/A — one more entry through `createWolf`'s existing, already-verified
+load/dispose path; no new per-frame allocation, listener, or timer.
+
+**Files changed this sub-task:** `src/3d/config.js`, `src/3d/gameplay/animals.js`, `DECISIONS.md`
+(new ADR-0047), `3D_GAME_PROGRESS.md` (this file). 4 files, ~60 new lines. One commit, direct push
+to `main`.
+
+**World Coverage (final for this run, after both sub-tasks): 80.7% (111.00 km² / 137.5 km²)
+desktop; 4.5% (6.25 km² / 137.5 km²) mobile — unchanged across the whole run (a spawn-point change
+and one new character, neither touched terrain/streaming). Remains this run's single largest
+deferred item — see sub-task 2's priority scan above for why, and the "Next step" note below for
+what a future run attempting it should have ready first.**
+
+**Run totals (2 chained sub-tasks):** 9 files touched (`src/3d/config.js`, `src/3d/game3d.js`,
+`src/3d/gameplay/player.js`, `src/3d/gameplay/animals.js`, `DECISIONS.md`, `3D_GAME_PROGRESS.md` —
+well under the 25-file cap) and ~290 new/changed lines total (well under the 1200-line budget). 2
+commits, each regression-guarded (full smoke suite + a real headless-Chromium boot/screenshot or
+direct in-page verification) and pushed directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. The most likely next
+landing spot is priority 8, World Coverage — genuinely the largest remaining gap, flat since run 15,
+now deferred twice (run 38 flagged it as an option without acting, this run computed the actual
+tradeoff and found it too tight to land safely without better instrumentation). A future run
+attempting it should either (a) add lightweight `renderer.info`-based triangle/draw-call logging to
+`game3d.js`'s boot-time `console.info` calls first, so the real cost is measured, not estimated, or
+(b) pick a smaller, more conservative step than 10 -> 11 (e.g. asymmetric preview shape matching the
+actual 25x22 grid aspect ratio, rather than a square, might cover more real area per triangle spent).
+Other open candidates: priority 9's remaining FAZ 5/6 gaps (real per-NPC dialogue content; cart/dog-
+cat/bird still need a human manual-download step — mark "insan onayı gerekli" and stop if attempted);
+FAZ 7 (dragons — `verdant_wyrm` model ready, no code started yet); or the priority-9.5 world-events/
+EventBus-expansion task from this run's own instructions, not yet reached.
+
 ## Known Issues / Tech Debt
 
 - **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s
@@ -4108,9 +4173,13 @@ actually are, not the world origin.
   "This Run (run 30)" below. **~~Flee/pack-alert had no persisted regression coverage, only ad hoc
   debug-hook verification~~ — fixed run 37** (`scripts/smokeTestGame3D.js`'s `checkWolfPackAlert`,
   DECISIONS.md ADR-0042) — replays the exact run-30 chain scenario as a committed, always-run
-  assertion, with a demonstrated real failure path. The other 3 FAZ 6 animal types (horses, carts, dogs/cats, birds) have no
-  downloaded asset yet — each needs a human manual-download step (see below), same constraint every
-  future asset addition faces. `npc.js`'s and `animals.js`'s patrol/turn movement logic is still
+  assertion, with a demonstrated real failure path. **~~Only wolves exist, no other animal type~~ —
+  narrowed run 39** (`umit-horse-1`, a static/idle horse at `umit`, reusing the manually-added
+  `ivory_stallion.glb` — see DECISIONS.md ADR-0047). Geometry-only (no rig/animation clips), so it's
+  static/idle-only, not patrolling/fleeing — matches wolves' own run-26 starting scope before rigged
+  animation enabled patrol/flee later. Cart, dog/cat, and bird still have no downloaded asset — each
+  needs a human manual-download step (see below), same constraint every future asset addition faces.
+  `npc.js`'s and `animals.js`'s patrol/turn movement logic is still
   duplicated across 2 files (deliberate, see ADR-0026's "why duplicate" — revisit extraction only at
   a 3rd consumer). NPCs have no equivalent player/pack-awareness yet — a real, still-open FAZ 5 gap
   (could reuse this run's exact pattern if a future run wants it).
