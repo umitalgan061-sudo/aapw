@@ -20,15 +20,17 @@ a system here (blast radius rule).
   gravity/jumping and no wall/collider avoidance yet — ground-height snapping only (see
   `physics.js`'s own doc comment for why).
 - **`npc.js`** — static, idling non-player characters (FAZ 5, run 20). `createNPC({assetLoader,
-  modelUrl, idleAnimationUrl, worldX, worldZ, groundY, rotationYRadians, name})` loads any of the
-  6 shared-skeleton Mixamo character FBXes (`NPC_CONFIG.SPAWNS`), corrects its scale the same way
-  `player.js` does (via `AssetLoader.correctMixamoFbxScale`, shared rather than duplicated), plays
-  `peasant_girl`'s retargeted idle clip on loop, and returns `{object3D, update(delta), dispose()}`.
-  No movement, AI, or interaction — the caller supplies the exact world position and ground height
-  (already sampled once for the settlement it stands near), this module only loads and idles.
-  `spawnConfiguredNPCs({assetLoader, npcConfig, seatsById, sampleGroundY, groundCollider})` (run 29)
-  resolves every `NPC_CONFIG.SPAWNS` entry against a kingdom-seat map and loads them all in
-  parallel — `game3d.js` calls this instead of looping over `NPC_CONFIG.SPAWNS` itself.
+  modelUrl, idleAnimationUrl, worldX, worldZ, groundY, rotationYRadians, name, displayName})` loads
+  any of the 6 shared-skeleton Mixamo character FBXes (`NPC_CONFIG.SPAWNS`), corrects its scale the
+  same way `player.js` does (via `AssetLoader.correctMixamoFbxScale`, shared rather than
+  duplicated), plays `peasant_girl`'s retargeted idle clip on loop, and returns `{object3D,
+  displayName, update(delta), dispose()}`. No movement, AI, or interaction *logic* of its own — the
+  caller supplies the exact world position and ground height (already sampled once for the
+  settlement it stands near), this module only loads, idles, and (run 33) exposes `displayName` so
+  `gameplay/interaction.js` can address it by name. `spawnConfiguredNPCs({assetLoader, npcConfig,
+  seatsById, sampleGroundY, groundCollider})` (run 29) resolves every `NPC_CONFIG.SPAWNS` entry
+  against a kingdom-seat map and loads them all in parallel — `game3d.js` calls this instead of
+  looping over `NPC_CONFIG.SPAWNS` itself.
 - **`animals.js`** — wild animals, wolf (FAZ 6, run 26; patrol run 27; flee run 28; pack-alert run
   29). `createWolf({assetLoader, modelUrl, idleClipName, stripChildNames, worldX, worldZ, groundY,
   rotationYRadians, name, groundCollider, walkClipName, patrolWaypoints, speedMps, pauseSeconds,
@@ -55,6 +57,15 @@ a system here (blast radius rule).
   yet. `spawnConfiguredAnimals({assetLoader, animalConfig, seatsById, sampleGroundY,
   groundCollider})` (run 29) mirrors `npc.js`'s `spawnConfiguredNPCs` — resolves
   `ANIMAL_CONFIG.SPAWNS` against kingdom seats and loads them all in parallel.
+- **`interaction.js`** — proximity-prompt/dialogue-box state machine (FAZ 5, run 33).
+  `createInteractionController({interactionPrompt, dialogueBox, greetingTemplate, radiusMeters})`
+  returns `{update(npcs, playerPos), handleKeyDown(event)}`. `update()` finds the nearest in-range
+  NPC each frame, shows `ui/interactionPrompt.js` when one exists and no dialogue is open, and
+  auto-closes an open dialogue if its NPC is no longer the nearest one (whether the player or the
+  NPC moved). `handleKeyDown()` toggles `ui/dialogueBox.js` open/closed on `KeyE` (ignoring
+  `event.repeat`, so holding the key doesn't rapid-fire) and closes it on `Escape`. Extracted from
+  `game3d.js` to stay under the 600-line cap (DECISIONS.md ADR-0033) — the same reasoning
+  `spawnConfiguredNPCs`/`spawnConfiguredAnimals` already used (ADR-0028).
 
 ## Conventions
 

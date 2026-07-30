@@ -82,7 +82,7 @@ function createNameTagSprite(text, widthMeters, heightMeters) {
  * @param {number} [options.speedMps]
  * @param {number} [options.pauseSeconds] Idle dwell time at each waypoint before moving to the next.
  * @param {number} [options.turnRateRadiansPerSecond]
- * @returns {Promise<{object3D: THREE.Object3D, update: (delta: number) => void, dispose: () => void}>}
+ * @returns {Promise<{object3D: THREE.Object3D, displayName: (string|null), update: (delta: number) => void, dispose: () => void}>}
  */
 export async function createNPC({
 	assetLoader,
@@ -154,6 +154,9 @@ export async function createNPC({
 
 	return {
 		object3D: model,
+		// FAZ 5 interaction (run 33, ADR-0033): exposed so game3d.js's dialogue affordance can
+		// address this NPC by name without a separate lookup back into NPC_CONFIG.SPAWNS.
+		displayName: displayName ?? null,
 
 		/** @param {number} delta Seconds since the last frame. */
 		update(delta) {

@@ -40,11 +40,14 @@ KayKit, etc.) are used for `assets/`.
   yet represented, reusing `dreyar.fbx` a second time** — see DECISIONS.md ADR-0031; **run 32 added a
   first-pass interaction affordance (`ui/interactionPrompt.js`) — a static "E - Selamla" prompt shown
   when the player is within 6m of any NPC, no keypress handling or dialogue content yet** — see
-  DECISIONS.md ADR-0032. **11 NPCs total, all patrolling with a name tag, 10 of 14 kingdom seats now
-  have at least one, and a proximity prompt now shows near any of them.** All runs reuse
+  DECISIONS.md ADR-0032; **run 33 wired the actual keypress — pressing E while the prompt shows opens
+  `ui/dialogueBox.js` with a generic greeting naming the NPC (`gameplay/interaction.js`'s new
+  controller), Escape or E again closes it, walking out of range auto-closes it** — see DECISIONS.md
+  ADR-0033. **11 NPCs total, all patrolling with a name tag, 10 of 14 kingdom seats now have at least
+  one, and pressing E near any of them now opens a (still content-free) greeting.** All runs reuse
   `player.js`'s Mixamo FBX-loading/scale-correction/animation-retargeting pipeline — see
   DECISIONS.md
-  ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031/ADR-0032. **FAZ 6 (Hayvanlar) started run 26, patrol
+  ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031/ADR-0032/ADR-0033. **FAZ 6 (Hayvanlar) started run 26, patrol
   added run 27, flee added run 28, pack-alert added run 29, 3rd wolf + chain verification run 30:**
   a first pass of 2 static, idling wolves (`gameplay/animals.js`, new module) at the `berkalp` (House
   Stark/Winterfell) kingdom seat, loaded via `AssetLoader.loadModel`'s glTF/GLB path (previously
@@ -61,24 +64,27 @@ KayKit, etc.) are used for `assets/`.
   off wolf-1 -> wolf-3 pack-flees off wolf-2, one frame later) via a direct-call test with a
   negative control — see DECISIONS.md ADR-0030. See "This Run (run 29)"/"This Run (run 30)" below
   and DECISIONS.md ADR-0025/ADR-0026/ADR-0027/ADR-0028/ADR-0029/ADR-0030.
-- **Last Update:** 2026-07-30 (run 32)
-- **Last Commit:** run 32's FAZ 5 interaction affordance — new `ui/interactionPrompt.js` +
-  `config.js`'s new `INTERACTION_CONFIG`, `game3d.js`'s tick loop shows a static prompt within 6m of
-  any NPC — DECISIONS.md ADR-0032. Preceded by run 31's FAZ 5 11th NPC (`config.js`'s
-  `NPC_CONFIG.SPAWNS` gained `xaro-guard-1` at the `Xaro`/Qarth kingdom seat, config-only, reuses
-  `dreyar.fbx` — ADR-0031) and run 30's FAZ 6 3rd wolf + chain verification (`ANIMAL_CONFIG.SPAWNS`
-  gained `berkalp-wolf-3`, verifying the 3-hop pack-alert chain actually propagates — ADR-0030).
+- **Last Update:** 2026-07-30 (run 33)
+- **Last Commit:** run 33's FAZ 5 dialogue open/close — new `ui/dialogueBox.js` +
+  `gameplay/interaction.js` (extracted from `game3d.js` to stay under the 600-line cap), `npc.js`'s
+  returned controller gained a `displayName` field, pressing E near an NPC now opens a generic
+  greeting, Escape or E again closes it, walking out of range auto-closes it — DECISIONS.md
+  ADR-0033. Preceded by run 32's FAZ 5 interaction affordance (new `ui/interactionPrompt.js` +
+  `config.js`'s `INTERACTION_CONFIG` — ADR-0032), run 31's FAZ 5 11th NPC (`xaro-guard-1` at the
+  `Xaro`/Qarth kingdom seat — ADR-0031), and run 30's FAZ 6 3rd wolf + chain verification
+  (`berkalp-wolf-3`, verifying the 3-hop pack-alert chain actually propagates — ADR-0030).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (twenty-sixth straight run).** A prior run (see "This Run (run 5)" below,
+  correct, no change made (twenty-seventh straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
   **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20,
-  21, 22, 23, 24, 25, 26, 27, 28, 29, 30, and 31 each re-verified this without changes needed. This
-  run's Session Snapshot re-derived the numbers from `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`,
-  25x22 grid) once more and again confirmed they match ADR-0004 exactly — no config change made.
-  **If you are a future run and the operator's brief again asserts the old 4278 km² target is still
-  live: it is not. Re-derive from `config.js` yourself (as this run did) rather than trusting the
-  brief's own numbers — this has now been independently re-confirmed across runs 3, 4, 5, 7, 9, 11,
-  14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, and 31.**
+  21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, and 32 each re-verified this without changes needed.
+  This run's Session Snapshot re-derived the numbers from `src/3d/config.js`
+  (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more and again confirmed they match ADR-0004
+  exactly — no config change made. **If you are a future run and the operator's brief again asserts
+  the old 4278 km² target is still live: it is not. Re-derive from `config.js` yourself (as this run
+  did) rather than trusting the brief's own numbers — this has now been independently re-confirmed
+  across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+  31, and 32.**
 - **Repo-continuity note (recurs — run 18, run 29, run 30):** run 18's Session Snapshot found the
   container's git working tree in a `HEAD` state detached at that run's own prior final commit, while
   the local `main` branch ref and `origin/main` were both still pointing at the pre-3D-mode commit
@@ -3077,6 +3083,86 @@ collider physics) also remains open. No new tech debt this run — `InteractionP
 `TouchJoystick`'s proven shape exactly, and the tick-loop distance check reuses the same
 `.some()`/`Math.hypot` pattern already used one function away for animal flee triggers.
 
+## This Run (2026-07-30, run 33)
+
+**Fourth chained sub-task within the same execution as runs 30-32** (continued past run 32's commit
+since its regression guard and smoke test both passed and budget/time remained — per the operator's
+explicit "complete the next sub-task too, don't stop" instruction for this run).
+
+**Session Snapshot re-taken at the start of this sub-task:** `node --check` still clean on every
+`.js` file, no file over the 600-line cap, both device-class smoke tests byte-identical to run 32's
+own numbers. World scale re-verified — still 137.5 km², no change needed (twenty-seventh straight
+confirmation). With no higher-priority syntax/blocking-bug/perf/memory-leak/tech-debt issue found,
+the next item was FAZ 5's other half of "no dialogue/interaction system": run 32 shipped the
+proximity affordance, but pressing E still did nothing.
+
+**Decision and work this run (one atomic change — DECISIONS.md ADR-0033):** Wired the actual
+keypress. `gameplay/npc.js`'s `createNPC` now exposes `displayName` on its returned object (a
+minimal, additive field). New `ui/dialogueBox.js` (same DOM-ownership pattern as
+`interactionPrompt.js`/`touchJoystick.js`). `config.js`'s `INTERACTION_CONFIG` gained
+`GREETING_TEMPLATE` (one generic `{name}`-templated line, not real per-NPC content). New
+`gameplay/interaction.js` (`createInteractionController`) owns the actual state machine — nearest-
+NPC tracking, `KeyE` open/close toggle (`event.repeat`-guarded), `Escape` close, and distance-based
+auto-close. This was extracted into its own module *after* an inline version pushed `game3d.js` to
+615 lines (over the 600-line cap) — caught by this run's own re-check before committing, and fixed
+the same way ADR-0028 fixed an identical regression: move the self-contained logic to its own file.
+`game3d.js` settled at 574 lines after the extraction.
+
+**Regression guard:** `node --check` clean on all 6 touched/new files (`config.js`, `game3d.js`,
+`gameplay/npc.js`, `gameplay/interaction.js` [new], `ui/dialogueBox.js` [new], `service-worker.js`).
+Full smoke test on both device classes: zero console/page errors, every existing count byte-
+identical to run 32's own numbers — confirms this is purely additive.
+
+**Keypress-flow verification (the actual point of this run's work):** a temporary debug hook
+(`window.__debugGame3DState = state`, reverted before commit — confirmed via `git diff` showing
+zero net change to the committed `game3d.js`) let a Playwright script drive **real**
+`page.keyboard.press()` events (not direct function calls) through a 5-step open/close/open/
+Escape-close/reopen sequence, checking the dialogue box's actual DOM `hidden` attribute and its text
+content after each step. All 5 steps matched the intended toggle. A captured real-event log
+confirmed `event.repeat` was `false` for every distinct press, and a synthetic `repeat: true` call
+confirmed a simulated held-key repeat is correctly ignored.
+
+**A false alarm worth recording (see ADR-0033's own account in full):** an earlier version of this
+same test — without re-teleporting the player before each step — intermittently showed the final
+"reopen" step failing. Debug logging traced this to *correct* auto-close behavior: the target NPC
+patrols on a fixed route and, over the test's real elapsed wall-clock time, walked far enough from
+the stationary test player to exit the 6m interaction radius on its own. Re-running with the player
+re-teleported next to the NPC's current position before each step (removing patrol drift as a
+confound) reproduced the correct toggle every time. Not a bug — recorded in ADR-0033 so a future run
+re-investigating a similar report doesn't have to re-derive this explanation from scratch.
+
+- Updated `DECISIONS.md` (new ADR-0033), `ARCHITECTURE.md` (new `gameplay/interaction.js` and
+  `ui/dialogueBox.js` entries, updated `npc.js`/`interactionPrompt.js` entries), `src/3d/ui/README.md`
+  and `src/3d/gameplay/README.md` (new file entries), this file's Current Status and Known Issues
+  sections, and this section.
+
+**Files changed this run:** `src/3d/config.js`, `src/3d/game3d.js`, `src/3d/gameplay/npc.js`,
+`src/3d/gameplay/interaction.js` (new), `src/3d/ui/dialogueBox.js` (new), `game3d.css`,
+`service-worker.js`, `ARCHITECTURE.md`, `src/3d/ui/README.md`, `src/3d/gameplay/README.md`,
+`DECISIONS.md` (new ADR-0033), `3D_GAME_PROGRESS.md` (this file). 12 files — the code change itself
+is under 150 new lines across 5 files; the rest is documentation. One commit.
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged from run 32 (this run's change is a DOM overlay + a
+keydown listener, not a Three.js mesh, and touches neither terrain nor streaming).**
+
+**Cumulative for this chained execution (runs 30+31+32+33 combined):** 4 atomic sub-tasks, 4
+commits, ~14 distinct files touched total across the whole chain — within the ≤25-file/
+≤1200-new-line chained-run budget (combined new code across all four sub-tasks is roughly 250-300
+lines; the remainder is documentation). Each sub-task passed its own independent regression guard
+and smoke test before committing, and one (this one) caught and fixed its own 600-line-cap
+regression before committing rather than after.
+
+**Next step for the next run:** FAZ 5's remaining real gaps: actual dialogue *content*
+(per-NPC personality/branching/reply options/quest hooks — a real content-design decision, not a
+config constant), 3 kingdom seats still without any NPC (`berk`, `olena`, `twin`), and player/pack-
+awareness for NPCs (still needs its own design reconsideration, per run 32's note — a guard fleeing
+the player character reads narratively odd). FAZ 6's remaining real gap: the other 3 animal types,
+each needing a human manual-download step. FAZ 4's own remaining gap (no gravity/jump/wall-collider
+physics) also remains open. No new tech debt this run — the `gameplay/interaction.js` extraction
+*reduces* coupling (same reasoning ADR-0028 already established), and `displayName` on the NPC
+controller is a plain additive field no existing caller needs to change for.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -3152,8 +3238,8 @@ collider physics) also remains open. No new tech debt this run — `InteractionP
   never permanently shrunk. **Still open:** this only fixes what the *camera* can see through — the
   *player* can still walk through castle walls (no player-side collider yet, separate future work,
   see the settlements LOD/collider item below).
-- **FAZ 5's NPCs exist at only 10 of 14 kingdom seats, with no dialogue system (a proximity
-  affordance exists since run 32, but no keypress handling or content behind it yet).**
+- **FAZ 5's NPCs exist at only 10 of 14 kingdom seats, with no real dialogue content (open/close
+  now works since run 33, but the greeting itself is one generic line, not per-NPC content).**
   `NPC_CONFIG.SPAWNS` places 11 NPCs across `stannis` (2), `umit`, `cersei`, `berkalp`, `doran`,
   `ziya`, `balon`, `robin`, `jon`, and `Xaro` (1 each) — `berk`, `olena`, `twin`, and `Night King`
   (deliberately excluded, see DECISIONS.md ADR-0024) still have none. **~~9 of 14 seats have zero
@@ -3168,12 +3254,16 @@ collider physics) also remains open. No new tech debt this run — `InteractionP
   (`gameplay/npc.js`'s `createNameTagSprite`, a billboard `THREE.Sprite` above each NPC's head, see
   DECISIONS.md ADR-0022) — all 11 NPCs now show a house-flavored Turkish name tag. **~~No
   interaction affordance at all~~ — first pass landed run 32** (`ui/interactionPrompt.js`, a static
-  "E - Selamla" prompt shown within 6m of any NPC — see DECISIONS.md ADR-0032). **Still no real
-  dialogue system:** no keypress opens anything, no NPC-specific content exists, the prompt is
-  identical regardless of which/how-many NPCs are nearby. No NPC reacts to the player's presence —
-  patrol runs on a fixed clock/route regardless of where the player is, deliberately not real
+  "E - Selamla" prompt shown within 6m of any NPC — see DECISIONS.md ADR-0032). **~~No keypress
+  handling~~ — landed run 33** (`gameplay/interaction.js`'s new controller, DECISIONS.md ADR-0033):
+  pressing E while the prompt shows opens `ui/dialogueBox.js` with a generic greeting naming the
+  NPC (via its `displayName`), Escape or E again closes it, and walking out of range — the
+  player's or the patrolling NPC's own movement, either counts — auto-closes it. **Still no real
+  dialogue system:** the greeting is one static template, identical for every NPC, no branching, no
+  reply options, no quest hooks. No NPC reacts to the player's presence otherwise — patrol runs on
+  a fixed clock/route regardless of where the player is, deliberately not real
   behavior-tree AI. All remaining gaps are honest, scoped-out ones (see
-  DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031/ADR-0032's
+  DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031/ADR-0032/ADR-0033's
   "Alternatives considered"), not accidental.
 - **FAZ 6's wolves exist at only one seat, with no real pathfinding AI.** 3 wolves at
   `berkalp` (`ANIMAL_CONFIG.SPAWNS`). **~~static/idle only, no wander~~ — landed run 27**

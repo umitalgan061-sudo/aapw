@@ -1,9 +1,12 @@
 # `src/3d/ui/`
 
-Owns on-screen UI the player interacts with directly — the touch joystick and interaction prompt
-today, and (future phases) HUD/inventory/dialogue/debug panels. Only this folder and
+Owns on-screen UI the player interacts with directly — the touch joystick, interaction prompt, and
+dialogue box today, and (future phases) HUD/inventory/debug panels. Only this folder and
 `src/3d/config.js` should be touched when working on a system here (blast radius rule); UI modules
-render their own DOM, they don't reach into `world/`, `gameplay/`, or Three.js scene internals.
+render their own DOM, they don't reach into `world/`, `gameplay/`, or Three.js scene internals — the
+one exception is that `gameplay/interaction.js` (not this folder) owns the distance math/keypress
+logic that decides *when* to call these modules' methods, per the "no camera/gameplay imports"
+convention below.
 
 ## Files
 
@@ -17,9 +20,14 @@ render their own DOM, they don't reach into `world/`, `gameplay/`, or Three.js s
 - **`interactionPrompt.js`** — proximity interaction affordance (FAZ 5 first pass, run 32).
   `new InteractionPrompt(container?)` appends a single `<div>` (styled via `game3d.css`), hidden by
   default. `setVisible(boolean)` toggles it, no-op if called with the value it's already showing
-  (avoids a redundant DOM write every frame — `game3d.js`'s tick loop calls this once per frame).
-  `dispose()` removes the DOM. Deliberately dumb: always the same static text, no per-NPC identity,
-  no key-press handling — `game3d.js` owns the actual any-NPC-within-radius distance check.
+  (avoids a redundant DOM write every frame). `dispose()` removes the DOM. Deliberately dumb: always
+  the same static text, no per-NPC identity, no key-press handling of its own —
+  `gameplay/interaction.js` (run 33) owns the actual distance/keypress logic that calls this.
+- **`dialogueBox.js`** — generic-greeting dialogue box (FAZ 5, run 33). `new DialogueBox(container?)`
+  appends a `<div>` with a text `<p>` and a static "E / Esc - Kapat" hint `<p>` (styled via
+  `game3d.css`), hidden by default. `show(text)` sets the text and un-hides; `hide()` no-ops if
+  already hidden. `isVisible` getter, `dispose()` removes the DOM. Same "dumb DOM only" split as
+  `interactionPrompt.js` — `gameplay/interaction.js` decides what text to show and when.
 
 ## Conventions
 

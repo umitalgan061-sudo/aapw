@@ -38,9 +38,11 @@ import { createGroundCollider } from './physics.js';
 import { KeyboardInput } from './input.js';
 import { TouchJoystick } from './ui/touchJoystick.js';
 import { InteractionPrompt } from './ui/interactionPrompt.js';
+import { DialogueBox } from './ui/dialogueBox.js';
 import { createPlayer } from './gameplay/player.js';
 import { spawnConfiguredNPCs } from './gameplay/npc.js';
 import { spawnConfiguredAnimals } from './gameplay/animals.js';
+import { createInteractionController } from './gameplay/interaction.js';
 import { createWater, updateWater, disposeWater } from './world/water.js';
 import {
 	generateRiverPath,
@@ -447,6 +449,18 @@ export async function initGame3D() {
 		for (const animal of state.animals) state.scene.add(animal.object3D);
 		console.info(`[game3d] Spawned ${state.animals.length} FAZ 6 animal(s).`);
 
+		state.dialogueBox = new DialogueBox();
+		// Owns the nearest-NPC tracking, keypress handling, and distance-based auto-close — see
+		// `gameplay/interaction.js` (extracted from here to stay under the 600-line cap, ADR-0033).
+		state.interaction = createInteractionController({
+			interactionPrompt: state.interactionPrompt,
+			dialogueBox: state.dialogueBox,
+			greetingTemplate: INTERACTION_CONFIG.GREETING_TEMPLATE,
+			radiusMeters: INTERACTION_CONFIG.PROMPT_RADIUS_METERS,
+		});
+		const handleInteractKeyDown = (event) => state.interaction.handleKeyDown(event);
+		window.addEventListener('keydown', handleInteractKeyDown);
+
 		let frameId;
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
@@ -468,15 +482,9 @@ export async function initGame3D() {
 			// player.update() above already moved player.object3D synchronously this frame, so this
 			// read is current — safe to feed into each animal's flee-awareness check below.
 			const playerPos = state.player.object3D.position;
-			// FAZ 5 interaction affordance (run 32, ADR-0032): show the prompt once the player is
-			// within range of *any* NPC — no per-NPC identity tracking needed yet since there's no
-			// dialogue content to open per-NPC, just a "someone is nearby" cue.
-			const nearAnyNpc = state.npcs.some((npc) => {
-				const dx = npc.object3D.position.x - playerPos.x;
-				const dz = npc.object3D.position.z - playerPos.z;
-				return Math.hypot(dx, dz) < INTERACTION_CONFIG.PROMPT_RADIUS_METERS;
-			});
-			state.interactionPrompt.setVisible(nearAnyNpc);
+			// FAZ 5 interaction (run 32-33, ADR-0032/ADR-0033): nearest-NPC tracking, prompt
+			// visibility, and dialogue auto-close all live in `gameplay/interaction.js`.
+			state.interaction.update(state.npcs, playerPos);
 			// Pack awareness (run 29, DECISIONS.md ADR-0029): each animal gets the positions of every
 			// *other* animal already flagged `isFleeing` this frame. O(n²) over `state.animals` — fine
 			// at today's 2-wolf count (see ADR-0029's Consequence for the revisit threshold if the
@@ -534,6 +542,8 @@ export async function initGame3D() {
 			state.keyboardInput.dispose();
 			state.touchJoystick?.dispose();
 			state.interactionPrompt.dispose();
+			window.removeEventListener('keydown', handleInteractKeyDown);
+			state.dialogueBox.dispose();
 			state.player.dispose();
 			state.npcs.forEach((npc) => npc.dispose());
 			state.animals.forEach((animal) => animal.dispose());

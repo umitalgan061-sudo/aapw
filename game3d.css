@@ -114,3 +114,31 @@ html, body {
   pointer-events: none;
   backdrop-filter: blur(4px);
 }
+
+.g3d-dialogue-box {
+  position: fixed;
+  left: 50%;
+  bottom: max(140px, calc(env(safe-area-inset-bottom, 0px) + 140px));
+  transform: translateX(-50%);
+  z-index: 16;
+  width: min(420px, calc(100vw - 48px));
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: rgba(10, 6, 2, 0.75);
+  border: 1px solid rgba(200, 150, 10, 0.5);
+  color: #e8d4a0;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-dialogue-box-text {
+  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.g3d-dialogue-box-hint {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.7;
+}

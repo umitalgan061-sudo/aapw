@@ -318,33 +318,48 @@ the way it is.
 ## `src/3d/ui/interactionPrompt.js` — Proximity interaction affordance (FAZ 5 first pass, run 32)
 
 - **Depends on:** nothing beyond the DOM — no `config.js` import (unlike `touchJoystick.js`); the
-  proximity radius (`INTERACTION_CONFIG.PROMPT_RADIUS_METERS`) is read by `game3d.js`'s own tick
-  loop, not by this file, since the distance math itself lives in `game3d.js`, not here. Appends
-  its own DOM (`<div class="g3d-interaction-prompt">`, styled via `game3d.css`) to a container
-  element (`document.body` by default).
-- **Used by:** `game3d.js` — instantiated unconditionally (not gated by device class, unlike
-  `touchJoystick.js`), `setVisible()` called once per frame from the tick loop with the result of
-  an any-NPC-within-radius check, disposed on `pagehide`.
+  proximity radius (`INTERACTION_CONFIG.PROMPT_RADIUS_METERS`) and the distance math are read/
+  computed by `gameplay/interaction.js` (run 33), not by this file. Appends its own DOM
+  (`<div class="g3d-interaction-prompt">`, styled via `game3d.css`) to a container element
+  (`document.body` by default).
+- **Used by:** `game3d.js` (instantiated unconditionally, not gated by device class, unlike
+  `touchJoystick.js`) and `gameplay/interaction.js`'s controller, which calls `setVisible()` once per
+  frame — hidden while a dialogue is open, shown when an NPC is in range and no dialogue is active.
+  Disposed on `pagehide`.
 - **Critical path:** no — a static text affordance with no game-state consequence; if it fails to
-  construct, the player simply doesn't see the "someone's nearby" cue (no interaction *logic* exists
-  yet to be blocked either way — see Consequence below).
+  construct, the player simply doesn't see the "someone's nearby" cue.
 - **Failure mode:** none expected — plain DOM creation, no external data, no async work, cannot
   throw under normal use.
 - **Deliberately narrow scope:** shows a static string, always the same text, regardless of which
-  NPC triggered it or how many are in range — no per-NPC identity, no key-press handling, no
-  dialogue content. This is the "someone is interactable" affordance only; a real dialogue/
-  interaction *system* (open on keypress, NPC-specific content) is separate, still-open FAZ 5 work
-  — see DECISIONS.md ADR-0032 and 3D_GAME_PROGRESS.md's Known Issues.
+  NPC triggered it or how many are in range — no per-NPC identity of its own (that lives in
+  `gameplay/interaction.js`/`ui/dialogueBox.js` now, run 33).
 
-## `src/3d/ui/` (folder) — On-screen UI (joystick + interaction prompt today; future HUD/inventory/
-dialogue/debug panels)
+## `src/3d/ui/dialogueBox.js` — Generic-greeting dialogue box (FAZ 5, run 33)
+
+- **Depends on:** nothing beyond the DOM — no `config.js` import; `gameplay/interaction.js` passes
+  in the already-built greeting string. Appends its own DOM
+  (`<div class="g3d-dialogue-box">` with a text `<p>` and a static "E / Esc - Kapat" hint `<p>`,
+  styled via `game3d.css`) to a container element (`document.body` by default).
+- **Used by:** `gameplay/interaction.js`'s controller — `show(text)`/`hide()` called from its
+  `openDialogue`/`closeDialogue` helpers, `isVisible` getter available if a future caller needs it
+  (unused today). Disposed on `pagehide` (`game3d.js`).
+- **Critical path:** no — a static text panel with no game-state consequence.
+- **Failure mode:** none expected — plain DOM creation, cannot throw under normal use.
+- **Deliberately narrow scope:** one generic greeting line, always the same template regardless of
+  which NPC — no branching, no reply options, no per-NPC personality. A real dialogue *system*
+  (content/branching/quest hooks) is separate, still-open FAZ 5 work — see DECISIONS.md ADR-0033 and
+  3D_GAME_PROGRESS.md's Known Issues.
+
+## `src/3d/ui/` (folder) — On-screen UI (joystick + interaction prompt + dialogue box today; future
+HUD/inventory/debug panels)
 
 - **Depends on:** `config.js` (only `touchJoystick.js` actually imports it; `interactionPrompt.js`
-  does not). Only this folder plus `config.js` should be touched for a UI-system change (blast
-  radius rule) — see `ui/README.md`.
-- **Used by:** `game3d.js`.
-- **Critical path:** varies per file — see `touchJoystick.js`'s and `interactionPrompt.js`'s own
-  entries above.
+  and `dialogueBox.js` do not — their config values are read by `gameplay/interaction.js` instead
+  and passed in as plain arguments). Only this folder plus `config.js` should be touched for a
+  UI-system change (blast radius rule) — see `ui/README.md`.
+- **Used by:** `game3d.js` directly (`touchJoystick.js`, `interactionPrompt.js`, `dialogueBox.js`
+  instantiation) and `gameplay/interaction.js` (calls `interactionPrompt`/`dialogueBox` methods).
+- **Critical path:** varies per file — see each file's own entry above.
 - **Failure mode:** varies per file.
 
 ## `src/3d/gameplay/player.js` — Playable character (FAZ 4)
@@ -368,7 +383,7 @@ dialogue/debug panels)
   non-deterministic session to session, expected) but its ground-height sampling still goes
   through the same seeded `physics.js` collider every other system uses.
 
-## `src/3d/gameplay/npc.js` — Static + patrolling NPCs (FAZ 5, run 20; extended to 5 seats/6 NPCs run 21, ADR-0020; waypoint patrol added run 22, pilot on 2 of 6, ADR-0021; name-tag billboards added run 23, ADR-0022; spawn-resolution wiring moved in from `game3d.js` run 29, ADR-0028)
+## `src/3d/gameplay/npc.js` — Static + patrolling NPCs (FAZ 5, run 20; extended to 5 seats/6 NPCs run 21, ADR-0020; waypoint patrol added run 22, pilot on 2 of 6, ADR-0021; name-tag billboards added run 23, ADR-0022; spawn-resolution wiring moved in from `game3d.js` run 29, ADR-0028; `displayName` exposed on the returned controller run 33, ADR-0033)
 
 - **Depends on:** `three` (vendored, dynamic-imports `FBXLoader` via `assetLoader.js`),
   `assetLoader.js` (`loadFBXModel`, `AssetLoader.correctMixamoFbxScale` — static helper shared with
@@ -386,7 +401,9 @@ dialogue/debug panels)
   otherwise shrinks a naively child-parented sprite's position/size to near-invisibility).
 - **Used by:** `game3d.js` (`spawnConfiguredNPCs` once at boot; `update()` called every frame per NPC
   — keeps the idle/walk mixer ticking and, for patrolling NPCs, advances position/rotation —
-  `dispose()` on `pagehide`).
+  `dispose()` on `pagehide`). The returned controller's `displayName` field (run 33) is read by
+  `gameplay/interaction.js` to build a greeting without a separate lookup back into
+  `NPC_CONFIG.SPAWNS`.
 - **Critical path:** no — a load failure degrades the same way `player.js`'s does: `assetLoader`'s
   existing L1 silent-fallback substitutes a placeholder box (no animation, but no crash) rather than
   throwing; `initGame3D`'s own try/catch is the backstop for anything else.
@@ -404,9 +421,11 @@ dialogue/debug panels)
   "patrol," not a behavior tree (see ADR-0021's "Alternatives considered"). Omitting
   `patrolWaypoints` (the default) keeps the run-20/21 static-idle behavior byte-for-byte.
 - **Scope, deliberately minimal (ADR-0019, extended ADR-0021/ADR-0022):** loads, retargets, positions,
-  idles, (for 2 of 6 NPCs) walks a scripted 2-point patrol, and (all 6, run 23) shows a billboard
-  name-tag above its head. No real AI, dialogue, or player-driven interaction yet — real future FAZ 5
-  work, not built speculatively now.
+  idles, (all 11, run 24) walks a scripted patrol, and shows a billboard name-tag above its head. No
+  real AI or player-awareness (patrol runs on a fixed clock regardless of the player) — a proximity
+  prompt + generic greeting dialogue exist since run 32/33 (see `ui/interactionPrompt.js`,
+  `ui/dialogueBox.js`, `gameplay/interaction.js`), but this file itself has no interaction logic —
+  it only exposes `displayName` for the interaction system to read.
 
 ## `src/3d/gameplay/animals.js` — Wild animals, wolf (FAZ 6, run 26; patrol run 27; flee run 28; pack-alert run 29, ADR-0029; spawn-resolution wiring moved in from `game3d.js` run 29, ADR-0028)
 
@@ -456,14 +475,39 @@ dialogue/debug panels)
   future FAZ 6 work (other animal types — horses/carts/dogs/birds per the roadmap; each needs a
   human manual-download step), not built speculatively now.
 
+## `src/3d/gameplay/interaction.js` — Proximity-prompt/dialogue-box state machine (FAZ 5, run 33)
+
+- **Depends on:** nothing beyond the two UI objects passed into `createInteractionController`
+  (`interactionPrompt`, `dialogueBox` — see `ui/interactionPrompt.js`/`ui/dialogueBox.js`) and plain
+  config values (`greetingTemplate`, `radiusMeters`) passed as arguments — no static `import` of
+  `config.js` or the UI modules themselves, consistent with `npc.js`/`animals.js`'s "receive
+  everything as a parameter" convention (ADR-0028).
+- **Used by:** `game3d.js` — `update(npcs, playerPos)` called once per tick-loop frame,
+  `handleKeyDown(event)` forwarded from a single `window.addEventListener('keydown', ...)` added at
+  init and removed on `pagehide`.
+- **Critical path:** no — a UI/state-machine layer with no effect on terrain/streaming/rendering; a
+  failure here would only mean the prompt/dialogue stop responding, not a scene crash.
+- **Failure mode:** none expected — pure JS state tracking and `Math.hypot` distance checks, no
+  external data, no async work, cannot throw under normal use.
+- **Extracted from `game3d.js` (run 33):** inlining this logic directly in `game3d.js`'s
+  `initGame3D()` pushed the file to 615 lines, over the project's 600-line-per-file cap — the same
+  situation ADR-0028 already hit once for spawn-resolution loops. Same fix: move the self-contained
+  logic into its own module. `game3d.js` now only wires the controller to the tick loop and the
+  `keydown` listener.
+- **Auto-close semantics:** `update()` recomputes the nearest in-range NPC every frame; if the
+  currently-open dialogue's NPC is no longer that nearest NPC (whether because the *player* moved
+  away, or because the *NPC* patrolled away — both look identical from this module's point of view),
+  the dialogue auto-closes. See DECISIONS.md ADR-0033's "false alarm" note — this was verified
+  against a real patrolling NPC, not just assumed correct from the distance math.
+
 ## `src/3d/gameplay/` (folder) — Playable characters, NPCs, animals, future dragons/combat/etc.
 
 - **Depends on:** `eventBus.js`, `physics.js`, `input.js`, `config.js`, `assetLoader.js`. Only
   these plus this folder itself should be touched for a gameplay-system change (blast radius rule)
   — see `gameplay/README.md`.
 - **Used by:** `game3d.js`.
-- **Critical path:** varies per file — see `player.js`'s, `npc.js`'s, and `animals.js`'s own
-  entries above.
+- **Critical path:** varies per file — see `player.js`'s, `npc.js`'s, `animals.js`'s, and
+  `interaction.js`'s own entries above.
 - **Failure mode:** varies per file.
 
 ## `src/3d/sky.js` — Aurora skybox

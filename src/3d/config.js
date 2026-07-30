@@ -449,14 +449,19 @@ export const TOUCH_JOYSTICK_CONFIG = Object.freeze({
 	RUN_THRESHOLD_RATIO: 0.75,
 });
 
-/** FAZ 5 first pass (run 32): a proximity *affordance* only — `ui/interactionPrompt.js` shows a
- * static "E - Selamla" prompt when the player is near any NPC. No key handling or dialogue content
- * exists yet; this only tells the player something is interactable, deliberately scoped smaller
- * than a real dialogue system (see 3D_GAME_PROGRESS.md Known Issues, DECISIONS.md ADR-0032). */
+/** FAZ 5 (run 32-33): `ui/interactionPrompt.js` shows a proximity *affordance* ("E - Selamla") when
+ * the player is near any NPC; pressing E while it's showing opens `ui/dialogueBox.js` with a single
+ * generic greeting line built from `GREETING_TEMPLATE` (run 33, DECISIONS.md ADR-0033) — still no
+ * real per-NPC dialogue content/branching/replies, deliberately scoped smaller than a full dialogue
+ * system (see 3D_GAME_PROGRESS.md Known Issues). */
 export const INTERACTION_CONFIG = Object.freeze({
 	/** Closer than `NPC_CONFIG`'s 12m keep-clearance offset — a "standing right next to them" cue,
 	 * not a "somewhere in this courtyard" one. */
 	PROMPT_RADIUS_METERS: 6,
+	/** `{name}` is replaced with the NPC's `displayName` — see `game3d.js`'s `openDialogue`. One
+	 * generic line for every NPC; not a real per-character/per-house greeting yet (that needs actual
+	 * dialogue-writing, a separate future decision, not a config constant). */
+	GREETING_TEMPLATE: '{name}: Uzak yollardan mı geliyorsun, yabancı?',
 });
 
 /** LocalStorage/sessionStorage keys owned by the 3D mode. Never reuse or collide with 2D game keys. */

@@ -2406,3 +2406,71 @@ follows `TouchJoystick`'s proven shape exactly, and the tick-loop distance check
 mobile draw calls and triangles are unaffected (a DOM element, not a Three.js mesh). Real remaining
 FAZ 5 work: the actual dialogue system (content + keypress handling) and NPC player/pack-awareness;
 3 kingdom seats (`berk`, `olena`, `twin`) still lack any NPC.
+
+## ADR-0033: FAZ 5 dialogue open/close — "E" opens a generic greeting, walking away auto-closes it
+
+**Context:** ADR-0032's proximity prompt closed half of FAZ 5's long-flagged "no dialogue/interaction
+system" gap — the affordance that something is interactable — but explicitly left the other half
+open: no keypress opens anything, no content exists behind the cue. With no higher-priority syntax/
+blocking-bug/perf/memory-leak/tech-debt issue found this run's Session Snapshot, and the kingdom-seat
+NPC gap (run 31) and FAZ 6 pack-alert gap (run 30) both already closed, this was the natural next
+FAZ 5 slice: wire the actual keypress, still deliberately short of a *real* dialogue system (no
+branching, no per-NPC personality/content, no reply options — those need real dialogue-writing, a
+separate future decision this run doesn't make on the project owner's behalf).
+
+**Decision:**
+- `gameplay/npc.js`'s `createNPC` return object gained a `displayName` field (the value it already
+  received as a constructor option, previously only used internally to build the name-tag sprite) —
+  a minimal, backward-compatible addition so callers can address an NPC by name without a separate
+  lookup back into `NPC_CONFIG.SPAWNS`.
+- New `ui/dialogueBox.js` (`DialogueBox`), following `ui/touchJoystick.js`/`ui/interactionPrompt.js`'s
+  exact DOM-ownership pattern: one `<div>` with a text line and a static "E / Esc - Kapat" hint,
+  `show(text)`/`hide()`/`dispose()`.
+- `config.js`'s `INTERACTION_CONFIG` gained `GREETING_TEMPLATE` — one generic line with a literal
+  `{name}` placeholder, the same text for every NPC (no per-character content yet).
+- **New `gameplay/interaction.js`** (`createInteractionController`) — owns the actual state machine:
+  nearest-in-range-NPC tracking, `KeyE` open/close toggle, `Escape` close, and *distance-based
+  auto-close* (if the player or the NPC moves far enough apart that the previously-active NPC is no
+  longer the nearest in-range one, the dialogue closes on its own next frame, rather than leaving a
+  stale box open with no one nearby). This was extracted into its own module rather than inlined in
+  `game3d.js` — the inline version pushed `game3d.js` to 615 lines, over the project's 600-line cap;
+  extracting it (same reasoning ADR-0028 used for spawn-resolution loops) brought it back to 574.
+  `game3d.js` now only instantiates the controller, forwards `keydown` events to it, and calls one
+  `update(npcs, playerPos)` per tick.
+- `event.repeat` is checked first in `handleKeyDown` — without it, holding "E" down would rapid-fire
+  open/close on every OS key-repeat interval instead of toggling once per physical press.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- `node --check` clean on all 6 touched/new files; no file over the 600-line cap (`game3d.js` 574,
+  down from an intermediate 615 before the `gameplay/interaction.js` extraction — caught by this
+  run's own `wc -l` re-check, the standing checklist item run 29 established).
+- Full smoke test on both device classes: zero console/page errors, every existing count
+  (terrain/settlements/NPCs/animals/river/waterfalls) byte-identical to run 32's own numbers.
+- **A real-keyboard-event test** via a temporary debug hook (`window.__debugGame3DState = state`,
+  reverted before commit — confirmed via `git diff` showing zero net change to the committed
+  `game3d.js`): teleported the player next to an NPC and drove `page.keyboard.press('KeyE')` (a real
+  synthesized keyboard event, not a direct function call) through 5 steps — open, close, open,
+  Escape-close, reopen — confirming the toggle and the DOM text (`"{displayName}: ..."`) at each
+  step. Also confirmed via a captured real-event log that `event.repeat` was `false` for every
+  distinct press (ruling out an OS-level repeat-flag misread) and, via a synthetic `repeat: true`
+  call, that a simulated held-key repeat is correctly ignored.
+- **A false alarm worth recording:** an earlier version of the same 5-step test (without re-
+  teleporting the player before each step) intermittently showed the final "reopen" step failing.
+  Debug logging traced this to the *real* auto-close path firing correctly — the target NPC
+  (`stannis-guard-1`) patrols on a fixed route and, over the test's real elapsed wall-clock time,
+  walked far enough from the stationary test player to fall outside `PROMPT_RADIUS_METERS` (6m) on
+  its own, independent of anything the player did. Re-running with the player re-teleported next to
+  the NPC's *current* position before each step (removing patrol drift as a confound) reproduced the
+  correct toggle every time. This is correct, intentional behavior (a conversation should end if the
+  person you're talking to walks away), not a bug — recorded here so a future run re-investigating a
+  similar "sometimes E doesn't reopen it" report starts from this explanation instead of re-deriving
+  it from scratch.
+
+**Consequence:** FAZ 5 now has an actual open/close interaction loop, though still content-free (one
+static line, no branching, no replies) — a real dialogue *system* (per-NPC content, options, a data
+shape for future quest hooks) remains open, separate, future work, not something this run pretends
+to have solved. No new tech debt: the extraction into `gameplay/interaction.js` *reduces* coupling
+(the same reasoning ADR-0028 already established), and `displayName` on the NPC controller is a
+plain additive field no existing caller needs to change for. Real remaining FAZ 5 work: actual
+dialogue content/branching, 3 kingdom seats still without any NPC (`berk`, `olena`, `twin`), and
+player/pack-awareness for NPCs (still needs its own design reconsideration per run 32's note).
