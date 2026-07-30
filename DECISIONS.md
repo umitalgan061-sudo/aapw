@@ -3528,3 +3528,86 @@ by eye, not physically derived" per its own comment, not a rendering feature any
 on. If a future run wants real geometric waves back (e.g. for a boat/physics system that needs an
 actual water height field), it will need the heightmap-lookup approach flagged above, done as its
 own scoped sub-task with real perf measurement, not a revert of this fix.
+
+## ADR-0049: Add a debug/editor free-fly camera (F4), separate from the chase camera
+
+**Status:** Accepted (run 40, second sub-task).
+
+**Context:** The project owner's own instructions carried a pre-ranked request (priority 1.7, this
+run) with the root cause already hand-derived: they'd temporarily hand-edited
+`PLAYER_CONFIG.CAMERA_MAX_DISTANCE_METERS` (40 -> 5000) locally to test seeing the whole world at
+once, confirmed all 14 kingdom seats are already in the scene at boot (`world/settlements.js`'s
+`KINGDOM_SEATS.forEach`, one shared `InstancedMesh` triple, 3 draw calls — not gated behind
+streaming/chunk-loading), and found the real limiting factor is `WORLD_DEFAULTS.FAR_PLANE` (2000m)
+— the camera's own projection matrix hard-clips anything beyond it, before fog even applies.
+Verified independently before writing code (BİLMEME KURALI): computed distances from the player's
+`umit`-adjacent spawn (ADR-0046) to the other 13 kingdom seats via `mapToWorldXZ` — 4.06km-9.93km
+away, all comfortably past 2000m, confirming the diagnosis. The instructions explicitly asked *not*
+to change `FAR_PLANE`/`CAMERA_MAX_DISTANCE_METERS` for real gameplay (perf-budget reasons — a larger
+far plane means more geometry in the frustum every frame, at 60-120fps desktop / 30-60fps mobile
+targets) and instead wanted a separate, permanent debug/editor free-fly camera.
+
+**Decision:** New `src/3d/debug/` folder (already planned in `ARCHITECTURE.md`'s target layout) with
+`freeCamera.js`. F4 toggles a second `THREE.PerspectiveCamera` — not the normal chase camera
+detached/repurposed — with its own far plane (`FAR_PLANE_METERS` = 20000, well past
+`WORLD_DEFAULTS.FAR_PLANE`'s real 2000m gameplay value, which is untouched) and unrestricted WASD
+flight (true 6DOF: forward/right vectors both include pitch, so looking down and flying forward
+descends) plus drag-to-look (mousedown+mousemove+mouseup — the spec's "pointer lock veya sürükleme"
+either-is-fine option; drag chosen over pointer lock since it needs no special browser permission
+and is trivially scriptable for verification). `game3d.js`'s tick loop calls
+`freeCamera.update(delta)` every frame (a no-op while inactive) and renders with
+`freeCamera.camera` instead of `camera` while active — the normal chase camera, `OrbitControls`,
+and player keep updating exactly as before underneath, completely unaffected (satisfies "FAZ 4'ün
+chase-cam'ını hiç etkilememeli"). The only other `game3d.js` touch is a one-line fog-density
+override (`if (state.freeCamera.active) state.scene.fog.density = 0;`, right after the existing
+`updateFog()` call) so distant terrain isn't fogged out at a density tuned for the 2000m gameplay
+far plane — restored automatically the instant `freeCamera.active` goes false, since `updateFog()`
+recomputes real day/night density every frame regardless.
+
+**Verified:**
+- `node --check` clean on `debug/freeCamera.js` and `game3d.js`. `game3d.js` sits at exactly 600
+  lines (the project's own file-size cap) after this change — every addition was written as small
+  as it could be (single-line comments, reusing `input.js`'s existing `KeyboardInput` rather than
+  duplicating WASD-reading logic, self-registering F4/resize/mouse listeners inside
+  `freeCamera.js` itself instead of wiring them from `game3d.js`) specifically to fit under it
+  without needing an extraction refactor of the working chase-cam tick-loop code.
+- Full committed smoke suite — all 8 checks PASS, zero regressions (none of them touch the camera
+  toggle path; the 3D-mode boot check confirms zero console/page errors with the new module wired
+  in).
+- **Real headless-Chromium verification, exactly as instructed:** Playwright script navigated to
+  `game3d.html`, waited for `GAME_READY`, screenshotted the normal chase-cam view (confirms
+  baseline unaffected), pressed F4, drag-looked ~45° toward the kingdom-seat cluster (computed
+  offline from `KINGDOM_SEATS`' map coordinates — most seats sit 4-8km west/northwest of the
+  player's `umit` spawn), held W+Shift (run) for 4 seconds to fly up and toward the cluster, then
+  drag-looked steeply downward, and screenshotted again. Result: **at least 8 distinct castle
+  models are simultaneously visible in one frame** (several kingdom-seat clusters with
+  house-colored roof markers, well past the "en az 2-3 farklı kale" bar), against a visibly
+  extended horizon (terrain and multiple lakes render far past the normal 2000m far plane) — zero
+  console/page errors both before and after the F4 toggle.
+
+**Alternatives considered:**
+- *Reuse/detach the normal `camera`/`controls` instead of a second camera object* — rejected:
+  `OrbitControls.update()` recomputes its internal spherical offset from `(camera.position -
+  target)` every call, clamped to `CAMERA_MIN_DISTANCE_METERS`/`CAMERA_MAX_DISTANCE_METERS` (3-40m)
+  — if the free camera's position were written into the same `camera` object, the very next
+  `controls.update()` call (still running every frame for the underlying chase-cam simulation)
+  would snap it back within 40m of the player, fighting the free-fly movement every single frame.
+  A second, fully independent camera object sidesteps this with zero interaction between the two
+  systems, which also happens to be the more literal reading of "tamamen ayrı bir kamera/mod."
+- *Pointer lock instead of drag-to-look* — both were explicitly acceptable per the request. Drag
+  was chosen: pointer lock requires a real user gesture and OS-level permission a headless-browser
+  verification script can't reliably obtain, whereas drag-to-look is exactly `page.mouse.down()` +
+  `move()` + `up()`, directly scriptable for the real verification this ADR itself needed to run.
+- *Permanently raise `WORLD_DEFAULTS.FAR_PLANE`/`CAMERA_MAX_DISTANCE_METERS` instead of a separate
+  camera* — exactly what the request explicitly ruled out (real perf-budget cost on every frame of
+  normal play, for a need that's dev-only) and consistent with run 39's own ADR-0047 finding that
+  this project has no `renderer.info`-based instrumentation yet to safely verify a real gameplay
+  frustum change's triangle/draw-call cost before committing to it.
+
+**Consequences:** A second `PerspectiveCamera` and one extra `KeyboardInput` instance exist for the
+lifetime of the page (both cheap — no geometry, no textures), disposed together via
+`freeCamera.dispose()` in the existing `pagehide` teardown chain. `game3d.js` is now at the
+project's 600-line cap exactly — any future addition to this file needs either a genuine trim or an
+extraction, not more inline growth. No F2/F3 debug/profiling panels exist yet; `debug/README.md`
+documents the conventions this module already follows (renders instead of the normal camera, never
+touches gameplay-perf constants, fully disposable) for whoever builds those next.

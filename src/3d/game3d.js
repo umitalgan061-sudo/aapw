@@ -54,6 +54,7 @@ import {
 } from './world/rivers.js';
 import { createSettlements, disposeSettlements, mapToWorldXZ } from './world/settlements.js';
 import { createOrbitCamera, resolveCameraCollision } from './camera.js';
+import { createFreeCameraController } from './debug/freeCamera.js';
 import { createAuroraSky, updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { createStarfield, updateStarfield, disposeStarfield } from './stars.js';
 import { createDayNightLighting, updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
@@ -99,7 +100,7 @@ function isCoarsePointerDevice() {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, settlementCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, freeCamera: {camera: THREE.PerspectiveCamera, active: boolean, update: (delta: number) => void, dispose: () => void}, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, settlementCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -124,6 +125,8 @@ function createScene(canvas) {
 		minDistance: PLAYER_CONFIG.CAMERA_MIN_DISTANCE_METERS,
 		maxDistance: PLAYER_CONFIG.CAMERA_MAX_DISTANCE_METERS,
 	});
+	// F4 debug free-fly camera (debug/README.md, ADR-0049) — self-contained, never touches `controls`.
+	const freeCamera = createFreeCameraController({ sourceCamera: camera, domElement: canvas });
 
 	const sky = createAuroraSky();
 	scene.add(sky);
@@ -210,7 +213,7 @@ function createScene(canvas) {
 	const settlementCollider = createSettlementCollider(settlementsResult.seats, SETTLEMENT_CONFIG);
 
 	return {
-		renderer, scene, camera, controls, chunkManager, groundCollider, settlementCollider, sky, stars, water, river, waterfalls,
+		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, settlementCollider, sky, stars, water, river, waterfalls,
 		settlements: settlementsResult.group,
 		// Exposed (not just the settlements.group mesh) so initGame3D can place FAZ 5 NPCs relative to
 		// a named kingdom seat's real world position/ground height without re-deriving mapToWorldXZ.
@@ -526,10 +529,14 @@ export async function initGame3D() {
 				WORLD_DEFAULTS.DAY_LENGTH_SECONDS,
 				WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO,
 			);
-			updateAuroraSky(state.sky, state.camera.position, elapsedSeconds, dayNight);
-			updateStarfield(state.stars, state.camera.position, dayNight.nightFactor);
+			// F4 debug free-cam (ADR-0049): no-op while inactive; `viewCamera` is what renders below.
+			state.freeCamera.update(delta);
+			const viewCamera = state.freeCamera.active ? state.freeCamera.camera : state.camera;
+			updateAuroraSky(state.sky, viewCamera.position, elapsedSeconds, dayNight);
+			updateStarfield(state.stars, viewCamera.position, dayNight.nightFactor);
 			updateFog(state.scene.fog, dayNight);
-			updateWater(state.water, state.camera.position, elapsedSeconds);
+			if (state.freeCamera.active) state.scene.fog.density = 0; // see debug/README.md's Conventions.
+			updateWater(state.water, viewCamera.position, elapsedSeconds);
 
 			// Wall-avoidance: pull the camera in front of any terrain/castle occluding the line from
 			// the player to it. Applied last (after sky/stars/water already used the true free-orbit
@@ -549,7 +556,7 @@ export async function initGame3D() {
 				PLAYER_CONFIG.CAMERA_COLLISION_MIN_DISTANCE_METERS,
 			);
 			state.camera.position.copy(resolvedPosition);
-			state.renderer.render(state.scene, state.camera);
+			state.renderer.render(state.scene, viewCamera);
 			state.camera.position.set(desiredCameraX, desiredCameraY, desiredCameraZ);
 		};
 		tick();
@@ -566,6 +573,7 @@ export async function initGame3D() {
 			state.npcs.forEach((npc) => npc.dispose());
 			state.animals.forEach((animal) => animal.dispose());
 			state.controls.dispose();
+			state.freeCamera.dispose();
 			state.chunkManager.disposeAll();
 			disposeAuroraSky(state.sky);
 			disposeStarfield(state.stars);

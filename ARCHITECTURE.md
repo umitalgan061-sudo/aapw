@@ -533,6 +533,31 @@ HUD/inventory/debug panels)
   `interaction.js`'s own entries above.
 - **Failure mode:** varies per file.
 
+## `src/3d/debug/freeCamera.js` — F4 debug/editor free-fly camera (run 40, ADR-0049)
+
+- **Depends on:** `three` (vendored), `input.js` (`KeyboardInput`, reused as-is for WASD reading —
+  no gameplay import cycle, `input.js` is already camera-agnostic core infrastructure).
+- **Used by:** `game3d.js`'s tick loop only (`controller.update(delta)` every frame; renders with
+  `controller.camera` instead of the normal camera while `controller.active`).
+- **Critical path:** no — a dev/debug tool, entirely optional; the normal chase camera/player/
+  `OrbitControls` never call into this module or know it exists.
+- **Failure mode:** if `dispose()` isn't called on teardown, its `window`-level `keydown`/
+  `mouseup`/`mousemove`/`resize` listeners and its own `KeyboardInput` leak — `game3d.js`'s
+  `pagehide` handler already calls it, same as every other system's teardown.
+- **Design (ADR-0049):** a *second* `THREE.PerspectiveCamera` (its own much larger `far`,
+  `FAR_PLANE_METERS` = 20000 vs. `WORLD_DEFAULTS.FAR_PLANE`'s real-gameplay 2000), not a detached/
+  reused main camera — so toggling it never disturbs `OrbitControls`' own internal spherical state
+  (which would otherwise fight any external repositioning on the very next `controls.update()`
+  call and snap back within `PLAYER_CONFIG.CAMERA_MAX_DISTANCE_METERS`). The chase camera, player,
+  and `OrbitControls` all keep updating normally underneath every frame regardless of which camera
+  is being rendered — F4 only changes which camera `game3d.js` hands to `renderer.render()`, plus a
+  one-line fog-density override in `game3d.js`'s own tick loop (not here — fog is scene-wide state
+  `game3d.js` already owns/updates every frame via `fog.js`) so distant terrain isn't fogged out at
+  the far-plane-relative density tuned for the 2000m gameplay far plane. Self-registers its own F4
+  keydown listener, drag-to-look (mousedown+mousemove+mouseup), and window-resize handler — nothing
+  in `game3d.js` needs its own F4-handling code beyond creating the controller and calling
+  `update()`/`dispose()`.
+
 ## `src/3d/sky.js` — Aurora skybox
 
 - **Depends on:** `three` (vendored) only. Deliberately does not import `config.js` — its GLSL is

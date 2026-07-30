@@ -4070,6 +4070,71 @@ listener, or timer; `createWater`/`updateWater`/`disposeWater`'s object lifecycl
 **World Coverage (unchanged this sub-task): 80.7% (111.00 km² / 137.5 km²) desktop; 4.5%
 (6.25 km² / 137.5 km²) mobile — a shader fix touches no terrain/streaming/chunk logic.**
 
+**Sub-task 2 — decision and work (DECISIONS.md ADR-0049):** Priority 1.7 per this run's own
+pre-ranked override: a debug/editor free-fly camera (F4), requested to inspect the whole world
+(e.g. multiple kingdom seats at once) without touching real-gameplay perf budgets
+(`WORLD_DEFAULTS.FAR_PLANE`/`PLAYER_CONFIG.CAMERA_MAX_DISTANCE_METERS`). New `src/3d/debug/`
+folder (already planned in `ARCHITECTURE.md`'s target layout), `freeCamera.js`:
+`createFreeCameraController({sourceCamera, domElement})` returns a self-contained controller — its
+own `THREE.PerspectiveCamera` (far = 20000m), its own F4 keydown/drag-to-look/resize listeners, and
+`update(delta)`/`dispose()`. `game3d.js` only needed to create it, call `update(delta)` once per
+frame, render with `freeCamera.camera` instead of `camera` while `.active`, and override
+`scene.fog.density` to 0 while active (one line, right after the existing per-frame `updateFog()`
+call — restores itself automatically once inactive since `updateFog()` recomputes real density
+every frame). The normal chase camera/`OrbitControls`/player keep running underneath, completely
+unaware — verified by design, not just claimed (see ADR-0049's "why a second camera object, not a
+detached/reused main one" reasoning: `OrbitControls.update()` would otherwise fight any external
+camera-position write every single frame).
+
+**Regression guard:** `node --check` clean on both changed/new files. `game3d.js` sits at exactly
+600 lines (the project's own file-size cap) — every addition was kept as small as possible
+specifically to land this without an extraction refactor of the working, proven chase-cam tick-loop
+code (reused `input.js`'s existing `KeyboardInput` rather than duplicating WASD-reading logic;
+self-registered listeners inside `freeCamera.js` itself). Full committed smoke suite — all 8 checks
+PASS, zero regressions. **Real headless-Chromium verification, exactly as instructed:** booted
+`game3d.html`, screenshotted the normal chase-cam view first (baseline, confirmed unaffected),
+pressed F4, drag-looked ~45° toward the kingdom-seat cluster (computed offline from
+`world/settlements.js`'s `KINGDOM_SEATS` map coordinates — most seats sit 4-8km west/northwest of
+the player's `umit` spawn, ADR-0046), flew W+Shift (run) for 4 seconds, drag-looked steeply
+downward, screenshotted again. **Result: at least 8 distinct castle models are simultaneously
+visible in one frame** — several kingdom-seat clusters with house-colored roof markers, well past
+the "en az 2-3 farklı kale" bar — against a visibly extended horizon (terrain and multiple lakes
+render far past the normal 2000m far plane, with clean, non-flickering shorelines — a live
+incidental confirmation of this same run's sub-task 1 fix). Zero console/page errors before or
+after the F4 toggle.
+
+**Memory-leak checklist:** the free camera's `THREE.PerspectiveCamera` and `KeyboardInput` instance
+(plus its own `keydown`/`mousedown`/`mouseup`/`mousemove`/`resize` listeners) are all created once
+at scene setup and released together via `freeCamera.dispose()`, wired into the existing `pagehide`
+teardown chain alongside every other system's cleanup. No per-frame allocation in the inactive
+(no-op) path; the active path allocates no new objects either (reuses module-scope scratch
+`THREE.Euler`/`Vector3`s, same pattern `camera.js`'s `resolveCameraCollision` already uses).
+
+**Files changed this sub-task:** `src/3d/debug/freeCamera.js` (new), `src/3d/debug/README.md`
+(new), `src/3d/game3d.js`, `ARCHITECTURE.md`, `DECISIONS.md` (new ADR-0049), `3D_GAME_PROGRESS.md`
+(this file). 6 files, ~290 new/changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 80.7% (111.00 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a new debug-only camera touches no terrain/streaming/chunk logic.**
+
+**Run totals (2 chained sub-tasks, run 40):** 9 files touched across both sub-tasks
+(`src/3d/world/water.js`, `src/3d/world/README.md`, `src/3d/debug/freeCamera.js`,
+`src/3d/debug/README.md`, `src/3d/game3d.js`, `ARCHITECTURE.md`, `DECISIONS.md`,
+`3D_GAME_PROGRESS.md` — well under the 25-file cap) and ~430 new/changed lines total (well under
+the 1200-line budget). 3 commits (one drive-by docs fix + the two sub-tasks), each
+regression-guarded (full smoke suite + a real headless-Chromium screenshot or quantitative in-page
+probe) and pushed directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always — priorities 1/1.5/1.7
+are now all resolved. Likely next landing spots: priority 8 (World Coverage, flat at 80.7%/4.5%
+since run 15, deferred twice already — see run 39's ADR-0047 Context for what a safe attempt needs:
+either `renderer.info`-based triangle/draw-call instrumentation first, or a smaller step than
+`PHASE1_PREVIEW_RADIUS_CHUNKS` 10 -> 11); priority 9's remaining FAZ 5/6 gaps (real per-NPC dialogue
+content; cart/dog-cat/bird still need a human manual-download step); FAZ 7 (dragons —
+`verdant_wyrm` model ready, no code started); or the priority-9.5 world-events/EventBus-expansion
+task, not yet reached across 2 runs now. `game3d.js` is at the 600-line cap exactly — the next run
+touching it for anything beyond a pure line-for-line swap will need to extract something first.
+
 ## Known Issues / Tech Debt
 
 - **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s
