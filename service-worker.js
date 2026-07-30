@@ -39,6 +39,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/input.js',
     './src/3d/ui/touchJoystick.js',
     './src/3d/gameplay/player.js',
+    './src/3d/gameplay/npc.js',
     './src/3d/world/terrain.js',
     './src/3d/world/chunkManager.js',
     './src/3d/world/water.js',
@@ -57,7 +58,9 @@ const GAME3D_SHELL_FILES = [
     './assets/models/characters/peasant_girl.fbx',
     './assets/animations/peasant_girl/idle.fbx',
     './assets/animations/peasant_girl/walking.fbx',
-    './assets/animations/peasant_girl/running.fbx'
+    './assets/animations/peasant_girl/running.fbx',
+    './assets/models/characters/paladin_j_nordstrom.fbx',
+    './assets/models/characters/arissa.fbx'
 ];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];

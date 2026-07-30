@@ -31,14 +31,10 @@ export async function createPlayer({
 		fallbackSize: 1.8,
 	});
 
-	// Mixamo FBX exports store geometry in centimeters; FBXLoader itself does not auto-convert (it
-	// only stashes the file's own scale factor in userData) — correct it here rather than guessing
-	// a hardcoded 0.01, so a differently-scaled future character asset still comes out right.
-	const unitScaleFactor = model.userData.unitScaleFactor || 1;
-	const metersPerFbxUnit = unitScaleFactor / 100;
-	if (Math.abs(metersPerFbxUnit - 1) > 1e-6) {
-		model.scale.setScalar(metersPerFbxUnit);
-	}
+	// Mixamo FBX exports store geometry in centimeters; correct it here rather than guessing a
+	// hardcoded 0.01, so a differently-scaled future character asset still comes out right. Shared
+	// with gameplay/npc.js via AssetLoader.correctMixamoFbxScale (added run 20) — see its doc comment.
+	AssetLoader.correctMixamoFbxScale(model);
 
 	const mixer = new THREE.AnimationMixer(model);
 	/** @type {Record<string, THREE.AnimationAction>} */

@@ -16,34 +16,38 @@ KayKit, etc.) are used for `assets/`.
 - **Active Phase:** FAZ 1 ✅ TAMAMLANDI, FAZ 2 substantially complete (water/day-night/fog/rivers/
   waterfalls/stars all live; only postfx-gated god rays remain, deferred to FAZ 9 by design). FAZ 3
   (Kaleler/Yerleşimler) substantially complete (settlements + PBR textures; LOD/colliders still
-  deferred to FAZ 4 — see runs 14-16, DECISIONS.md ADR-0013/ADR-0015). **FAZ 4 (Oynanabilir
-  Karakter) roadmap now fully implemented (run 19):** a playable character (`gameplay/
-  player.js`) loads `peasant_girl.fbx` + its idle/walking/running clips, moves via WASD/arrows
-  (`input.js`) or an on-screen joystick on touch-primary devices (`ui/touchJoystick.js`, run 18)
-  relative to the camera, snaps to real terrain height (`physics.js`), and the existing
-  `OrbitControls` instance becomes its chase camera with wall-avoidance raycasting (`camera.js`'s
-  `resolveCameraCollision`, new run 19) pulling it in front of any terrain/castle it would
-  otherwise clip through — see "This Run (run 19)" below and DECISIONS.md ADR-0016/ADR-0017/
-  ADR-0018. The remaining FAZ 4-adjacent gap (no gravity/jump/wall-collider *physics* — a player can
-  still walk through a castle wall, only the *camera* now avoids clipping) is a deliberately
-  separate future item, not blocking FAZ 4's own gate.
-- **Last Update:** 2026-07-29 (run 19)
-- **Last Commit:** run 19's camera wall-avoidance — new `resolveCameraCollision` (`camera.js`),
-  `PLAYER_CONFIG.CAMERA_COLLISION_MARGIN_METERS`/`CAMERA_COLLISION_MIN_DISTANCE_METERS`
-  (`config.js`), `ChunkManager.getLoadedChunkMesh` (`world/chunkManager.js`), and
-  `collectCameraCollidables()`/apply-then-restore wiring in `game3d.js`'s tick loop, DECISIONS.md
-  ADR-0018 (see "This Run (run 19)" below); run 18 was the touch joystick (`ui/touchJoystick.js`,
-  `TOUCH_JOYSTICK_CONFIG`, DECISIONS.md ADR-0017).
+  deferred — see runs 14-16, DECISIONS.md ADR-0013/ADR-0015). **FAZ 4 (Oynanabilir Karakter)
+  roadmap fully implemented (runs 17-19):** a playable character (`gameplay/player.js`) loads
+  `peasant_girl.fbx` + its idle/walking/running clips, moves via WASD/arrows (`input.js`) or an
+  on-screen joystick on touch-primary devices (`ui/touchJoystick.js`, run 18) relative to the
+  camera, snaps to real terrain height (`physics.js`), and the existing `OrbitControls` instance
+  becomes its chase camera with wall-avoidance raycasting (`camera.js`'s `resolveCameraCollision`,
+  run 19) pulling it in front of any terrain/castle it would otherwise clip through — see
+  DECISIONS.md ADR-0016/ADR-0017/ADR-0018. The remaining FAZ 4-adjacent gap (no gravity/jump/
+  wall-collider *physics* — a player can still walk through a castle wall, only the *camera* now
+  avoids clipping) is a deliberately separate future item, not blocking FAZ 4's own gate. **FAZ 5
+  (Kalabalık/NPC) started run 20:** a first pass of 2 static, idling NPCs (`gameplay/npc.js`)
+  stands near the Stannis Baratheon kingdom seat, reusing `player.js`'s Mixamo FBX-loading/
+  scale-correction/animation-retargeting pipeline — see "This Run (run 20)" below and DECISIONS.md
+  ADR-0019.
+- **Last Update:** 2026-07-30 (run 20)
+- **Last Commit:** run 20's FAZ 5 first-pass NPCs — new `gameplay/npc.js` (`createNPC`), new
+  `NPC_CONFIG` (`config.js`), new shared `AssetLoader.correctMixamoFbxScale` static helper
+  (factored out of `gameplay/player.js`, removing duplication), `settlementSeats` now exposed from
+  `game3d.js`'s scene state, and the NPC load/update/dispose wiring in `game3d.js`, DECISIONS.md
+  ADR-0019 (see "This Run (run 20)" below); run 19 was chase-camera wall-avoidance (`camera.js`'s
+  `resolveCameraCollision`, DECISIONS.md ADR-0018).
 - **World scale re-verified this run against the instruction's 100-150 km² band — already
-  correct, no change made (eleventh straight run).** A prior run (see "This Run (run 5)" below,
+  correct, no change made (thirteenth straight run).** A prior run (see "This Run (run 5)" below,
   DECISIONS.md ADR-0004) corrected the world scale from an un-completable 4278 km² down to
-  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, 17, and 18 each
-  re-verified this without changes needed. This run's Session Snapshot re-derived the numbers from
-  `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more and again confirmed they
-  match ADR-0004 exactly — no config change made. **If you are a future run and the operator's
-  brief again asserts the old 4278 km² target is still live: it is not. Re-derive from `config.js`
-  yourself (as this run did) rather than trusting the brief's own numbers — this has now been
-  independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, 18, and 19.**
+  **137.5 km²**, inside the 100-150 km² target band; runs 4, 7, 9, 11, 14, 15, 16, 17, 18, and 19
+  each re-verified this without changes needed. This run's Session Snapshot re-derived the numbers
+  from `src/3d/config.js` (`METERS_PER_MAP_UNIT: 1.75`, 25x22 grid) once more and again confirmed
+  they match ADR-0004 exactly — no config change made. **If you are a future run and the
+  operator's brief again asserts the old 4278 km² target is still live: it is not. Re-derive from
+  `config.js` yourself (as this run did) rather than trusting the brief's own numbers — this has
+  now been independently re-confirmed across runs 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, 18, 19, and
+  20.**
 - **Repo-continuity note (run 18):** this run's Session Snapshot found the container's git working
   tree in a `HEAD` state detached at run 17's own final commit (`d9a3260`), while the local `main`
   branch ref and `origin/main` were both still pointing at the pre-3D-mode commit
@@ -70,16 +74,17 @@ KayKit, etc.) are used for `assets/`.
   `manifest.json`/`assets_manifest.json` are valid JSON, no references to any 3D mode exist yet in
   `index.html` beyond the additive "🎮 3D Dünya" toolbar button.
 - **Manually-added assets:** all recorded in `assets_manifest.json` with source/license.
-  - **Characters (FAZ 4) — `peasant_girl.fbx` now actually loaded by code (run 17).**
+  - **Characters (FAZ 4) — `peasant_girl.fbx` loaded by code since run 17.**
     `gameplay/player.js` loads the rigged base mesh + `assets/animations/peasant_girl/
     {idle,walking,running}.fbx` (skin-less clips, walking/running use "In Place" so root motion is
     driven by player-controller code — confirmed working: the character doesn't visibly slide
     while playing the walk/run clip, `player.js` itself drives all translation) via the newly
     vendored `FBXLoader` and retargets them onto the mesh's own skeleton via `AnimationMixer` — see
-    DECISIONS.md ADR-0016. The 6 more T-pose Mixamo characters (`arissa`, `dreyar`, `erika_archer`,
-    `paladin_j_nordstrom`, `paladin_wprop_j_nordstrom`, `uriel_a_plotexia`) still aren't loaded by
-    any code yet (they share the same skeleton/clips as `peasant_girl` for whenever FAZ 5's NPCs or
-    a future player-model choice needs them).
+    DECISIONS.md ADR-0016. **2 of the 6 more T-pose Mixamo characters now also loaded (FAZ 5, run
+    20):** `paladin_j_nordstrom.fbx` and `arissa.fbx`, as static idling NPCs (`gameplay/npc.js`,
+    DECISIONS.md ADR-0019) reusing `peasant_girl`'s retargeted idle clip. `dreyar`, `erika_archer`,
+    `paladin_wprop_j_nordstrom`, and `uriel_a_plotexia` still aren't loaded by any code yet (same
+    shared skeleton/clips, available for future NPC placements with no new asset download needed).
   - **Creatures:** `wolf` (Free3D/3dhaupt, rigged glTF/GLB with walk/run/sit/creep/idle clips, for
     FAZ 6) and `black_dragon` (Free3D, rigged FBX with baked walk/run/idle/jump/wing-open/fly
     clips, for FAZ 7 — an original design, explicitly not a "Drogon" replica; see the manifest's
@@ -96,8 +101,10 @@ the two paths differ and stay different by design (same device-branching pattern
 chunks, re-verified via the same headless-Chromium console-log method (`"...444 terrain chunks
 resident (~111.00 km²)..."` desktop, `"...25 terrain chunks resident...(~6.25 km²)..."` mobile,
 byte-identical to run 16). Still unchanged by run 19 (camera wall-avoidance is a per-frame render
-adjustment, not a terrain/streaming change) — same figures re-confirmed via an identical console-log
-check.**
+adjustment, not a terrain/streaming change) and by run 20 (FAZ 5's NPCs are 2 more characters, not
+terrain — same `"444 terrain chunks resident"` desktop / `"25 terrain chunks resident"` mobile log
+lines re-confirmed byte-identical this run) — same figures re-confirmed via an identical console-log
+check each time.**
 
 - **Target area (100-150 km² band) re-verified this run — still correct, no change made.** Same
   re-derivation every run performs: `src/3d/config.js`'s `WORLD_SCALE.METERS_PER_MAP_UNIT` is 1.75
@@ -323,12 +330,12 @@ Triangles<500K, TextureMem<512MB.
 - [ ] Basit LOD/collider — not attempted this pass; castles are a fixed triangle count regardless of
   camera distance, and nothing collides with them yet (no player exists until FAZ 4).
 
-### FAZ 4 — Oynanabilir Karakter (in progress, started run 17)
-- [~] 3. şahıs kamera — **chase-cam kısmı bitti** (mevcut `OrbitControls` yeniden kullanılıyor,
-  `game3d.js` her frame kamera+target'ı oyuncunun hareket deltası kadar öteliyor — bkz.
-  DECISIONS.md ADR-0016). **Raycast duvar önleme henüz yok** — gerçek bir SpringArm rig'i ayrı,
-  daha büyük bir iş; bu run'ın bütçesi hareket/animasyon/kamera-takip işine gitti (ADR-0016'nın
-  "Alternatives considered" bölümüne bkz.).
+### FAZ 4 — Oynanabilir Karakter ✅ TAMAMLANDI (run 17-19)
+- [x] 3. şahıs kamera — chase-cam (mevcut `OrbitControls` yeniden kullanılıyor, `game3d.js` her
+  frame kamera+target'ı oyuncunun hareket deltası kadar öteliyor — bkz. DECISIONS.md ADR-0016) +
+  **raycast duvar önleme (`camera.js`'in `resolveCameraCollision`'ı, run 19, bkz. ADR-0018)** —
+  kamera artık arazi/kaleyi kesip geçmiyor, `controls.target`'tan ışın atıp önündeki yüzeye kadar
+  çekiliyor, sonraki frame'de kullanıcının gerçek zoom mesafesi geri yükleniyor.
 - [x] WASD + touch joystick (`input.js` + `ui/touchJoystick.js` + `gameplay/player.js`) —
   WASD/ok tuşları + Shift-koşu ve dokunmatik cihazlarda ekran üstü joystick (run 18, DECISIONS.md
   ADR-0017), her ikisi de `game3d.js`'in `combineAxes()`'i ile birleştirilip
@@ -342,10 +349,16 @@ Triangles<500K, TextureMem<512MB.
   idle/walking/running klipleri aynı Mixamo iskeletine retarget edilip `THREE.AnimationMixer` ile
   hıza göre crossfade ediliyor.
 
-### FAZ 5 — Kalabalık/NPC (pending)
-- [ ] Instanced NPC'ler (`npc.js`)
-- [ ] Waypoint/patrol (Behavior Tree)
-- [ ] Idle/walk cycle
+### FAZ 5 — Kalabalık/NPC (in progress, started run 20)
+- [~] Statik/idle NPC'ler (`gameplay/npc.js`) — **ilk pas (run 20):** `stannis` kalesi yanında 2
+  NPC (`paladin_j_nordstrom`, `arissa`), `player.js`'in aynı Mixamo FBX/retarget hattı yeniden
+  kullanılarak yükleniyor. Literal "instanced" değil (`THREE.InstancedMesh` iskeletsel animasyon
+  başına ayrı state gerektirdiği için bu ölçekte uygun değil) — her NPC kendi `SkinnedMesh`'i ve
+  `AnimationMixer`'ı ile ayrı ayrı yükleniyor. Bkz. DECISIONS.md ADR-0019.
+- [ ] Waypoint/patrol (Behavior Tree) — henüz başlanmadı, bu run'ın bilinçli olarak kapsam dışı
+  bıraktığı iş (bkz. ADR-0019'un "Alternatives considered" bölümü).
+- [x] Idle animasyon döngüsü — `peasant_girl`'in `idle.fbx`'i her NPC'nin paylaşılan iskeletine
+  retarget edilip döngüsel oynatılıyor; walk cycle bu ilk pasta gerekmiyor (NPC'ler statik).
 
 ### FAZ 6 — Hayvanlar (pending)
 - [ ] Atlar (binilebilir, NavMesh) (`animals.js`)
@@ -1884,6 +1897,120 @@ FBX-loading/retargeting pattern for the 6 already-downloaded T-pose Mixamo chara
 `uriel_a_plotexia`), which all share `peasant_girl`'s skeleton and can reuse its idle/walking/
 running clips via retargeting. No new tech debt this run.
 
+## This Run (2026-07-30, run 20)
+
+**Session Snapshot taken at start of run** (per protocol):
+- Confirmed git state (already fixed before this session started, per the operator's own note):
+  `main` at `28f4cad` (run 19's own final commit), matching a fresh `git fetch origin main`'s
+  `origin/main` exactly — no detached-`HEAD`/stale-tracking-ref issue this run, unlike runs 5/17/18/
+  19. Read this file's last ~400 lines, `ARCHITECTURE.md` in full, and `DECISIONS.md`'s last 3 ADRs
+  (ADR-0016/0017/0018) before doing anything else, per protocol.
+- **World scale re-verified from `src/3d/config.js` directly (not the operator brief), per the
+  now-thirteen-run-old standing skepticism rule:** `WORLD_SCALE.METERS_PER_MAP_UNIT` is `1.75`,
+  `CHUNK_CONFIG.GRID_COLUMNS`/`GRID_ROWS` are `25`/`22` → 137.5 km² grid-nominal / ~129.8 km² real
+  bounds — already inside the requested 100-150 km² band, exactly matching ADR-0004. **No config
+  change made** — the operator brief's restated "4278 km²" premise does not match the repository's
+  actual state, same conclusion runs 3/4/5/7/9/11/14/15/16/17/18/19 already reached.
+- `node --check` clean on every non-vendor `.js` file (baseline, before any edits this run).
+- **Ran a full regression smoke test (Playwright/headless Chromium, repo served via `python3 -m
+  http.server`) before writing any new code**, per the Regression Guard — 2D game (only the same
+  pre-existing, already-documented sandbox network limitations — `firebase is not defined`, blocked
+  external requests, nothing new), 3D desktop (441→444 terrain chunks after settlement grounding, 14
+  settlements, river/waterfalls, zero errors), 3D mobile-emulated (25 chunks, mobile-budget path,
+  zero errors) all passed clean. Confirmed run 19's wall-avoidance work is stable before building on
+  top of it.
+- World Coverage before this run: 80.7% desktop / 4.5% mobile (unchanged from run 19).
+- With syntax/bugs/perf/leaks/debt/world-scale/coverage all clear (coverage is already past FAZ
+  3/10's 80% gate) and FAZ 4's own roadmap fully closed out as of run 19, the highest-priority
+  remaining item was run 19's own "next step" note: start **FAZ 5 (NPC)**, reusing `gameplay/
+  player.js`'s FBX-loading/retargeting pattern for the 6 already-downloaded T-pose Mixamo
+  characters.
+
+**Done:**
+- **New `AssetLoader.correctMixamoFbxScale(model)` static method** (`assetLoader.js`) — the
+  centimeter-to-meter FBX scale correction `gameplay/player.js` already had, extracted so
+  `gameplay/npc.js` (this run) doesn't hand-copy the same block a second time; `player.js` now calls
+  the shared method too (behavior unchanged, verified via the same smoke test below).
+- **New `src/3d/gameplay/npc.js`** (`createNPC`) — loads a Mixamo character FBX + `peasant_girl`'s
+  skin-less idle clip (shared skeleton, no bone remapping), corrects its scale via the new shared
+  helper, positions it at a caller-supplied `(worldX, worldZ, groundY)`, plays the idle clip on loop
+  via `THREE.AnimationMixer`, and returns the same `{object3D, update(delta), dispose()}` shape
+  `player.js`'s `createPlayer` returns, minus movement. No AI/pathing/interaction — deliberately
+  atomic, see DECISIONS.md ADR-0019.
+- **New `NPC_CONFIG`** (`config.js`) — `IDLE_ANIMATION_URL` (reused from `PLAYER_CONFIG`) and a flat
+  `SPAWNS` list, each entry mapping a `seatId` (a `world/settlements.js` kingdom-seat id) + world
+  offset + `modelUrl` to one static NPC. This run's list: 2 entries at `stannis` (`paladin_j_
+  nordstrom.fbx`, `arissa.fbx` — the two smallest of the 6 available character files, a deliberate
+  offline-precache-size choice — see ADR-0019).
+- **`world/settlements.js`'s seat data now exposed from `game3d.js`'s scene state
+  (`settlementSeats`)** — `createScene`'s return value gained this field (was already computed
+  internally for the existing desktop grounding loop, just not returned) so `initGame3D` can resolve
+  `NPC_CONFIG.SPAWNS`' `seatId`s against real, already-sampled world positions without re-deriving
+  `mapToWorldXZ` a second time.
+- **`game3d.js` wiring:** after the player loads and its camera framing is set, resolves each
+  `NPC_CONFIG.SPAWNS` entry's seat, re-samples ground height at the NPC's own offset position
+  (clamped above sea level, same convention `world/settlements.js` itself uses), and loads both NPCs
+  in parallel via `Promise.all` (loading overlay stays up for their FBX downloads too, same reasoning
+  as the player). The tick loop calls each NPC's `update(delta)` every frame (keeps the idle mixer
+  animating); `pagehide` teardown disposes them.
+- **`service-worker.js`:** `GAME3D_SHELL_FILES` gained `./src/3d/gameplay/npc.js`,
+  `./assets/models/characters/paladin_j_nordstrom.fbx`, and `./assets/models/characters/arissa.fbx`
+  — now that code actually loads them (same "precache once actually fetched" rule run 17 established
+  for `peasant_girl.fbx`).
+- **Regression guard:** `node --check` clean on `config.js`, `assetLoader.js`, `gameplay/player.js`,
+  `gameplay/npc.js` (new), `game3d.js`, `service-worker.js`.
+- **Real tests, not assumed correct from the code alone:**
+  1. Pre-change baseline (see Session Snapshot above): full regression pass, zero new errors.
+  2. **A standalone in-browser behavioral test of `createNPC`** (real vendored `FBXLoader`/
+     `AnimationMixer`, loaded through the same `game3d.html` import map, not a mocked stand-in):
+     loaded `paladin_j_nordstrom.fbx` + `peasant_girl`'s `idle.fbx` with an explicit test position/
+     rotation — the returned object's name/position/rotation exactly matched the input,
+     `userData.isPlaceholder` was `false` (a real FBX loaded, not the `AssetLoader` fallback box),
+     the model contained 2 real meshes including a `SkinnedMesh`, 5 consecutive `update()` calls and
+     `dispose()` both completed without throwing, zero console/page errors. All 10 assertions passed.
+  3. Post-change full regression smoke test: 3D desktop (444 chunks, new `"Spawned 2 FAZ 5 NPC(s)"`
+     log line) and 3D mobile-emulated (25 chunks, same NPC-spawn line) both zero console/page errors;
+     2D game unchanged (same pre-existing sandbox-only errors as the baseline, not new).
+  4. **A live-scene check via a temporary debug hook** (`window.__debugGame3DState = state`, added
+     only for this test and reverted before commit — confirmed via `git diff` showing zero trace of
+     it in the committed `game3d.js`): both NPCs present in `state.scene`'s graph by name at the
+     exact expected world positions (seat center + configured offset, to the centimeter). A camera
+     moved to frame one NPC up close (lighting temporarily brightened for screenshot visibility only)
+     rendered a clearly humanoid, armored character standing on the terrain — not a placeholder box.
+  5. Offline-precache check: after one online visit to `index.html`, `caches.open('westeros-shell-
+     v1')` contains all 3 new files — confirms none would 404 on a subsequent offline visit to
+     `game3d.html`.
+- Updated `DECISIONS.md` (new ADR-0019), `ARCHITECTURE.md` (new `gameplay/npc.js` entry; updated
+  `assetLoader.js`, `config.js`, `world/settlements.js`, `gameplay/` folder, `game3d.js` entries),
+  this file's Current Status/Roadmap (FAZ 4 checklist corrected to reflect run 19's actual completed
+  state, FAZ 5 checklist started)/World Coverage/Known Issues and this section.
+
+**Files changed this run:** `src/3d/assetLoader.js`, `src/3d/config.js`, `src/3d/gameplay/npc.js`
+(new), `src/3d/gameplay/player.js`, `src/3d/gameplay/README.md`, `src/3d/game3d.js`,
+`service-worker.js`, `DECISIONS.md`, `ARCHITECTURE.md`, `3D_GAME_PROGRESS.md` (this file). 10 files,
+well within this run's ≤800-line/≤20-file budget (~179 hand-written new lines of code across
+`assetLoader.js`/`config.js`/`game3d.js`/`gameplay/npc.js`/`service-worker.js`, plus doc updates —
+`gameplay/player.js`'s own edit is a net removal, not addition). One commit (the shared
+scale-correction helper, the NPC module, its
+config, and the `game3d.js` wiring are one atomic, revertable unit — none of the pieces are
+independently useful without the others).
+
+**World Coverage:** unchanged at 80.7% desktop (111.00 km² / 137.5 km²) / 4.5% mobile (6.25 km² /
+137.5 km²) — this run added 2 characters, not terrain.
+
+**Next step for the next run:** FAZ 5's own still-open sub-tasks are real, scoped gaps, not
+accidental ones: (a) NPC movement/patrol (waypoint following or a small behavior tree — the run
+brief for this run explicitly scoped this out as "don't try to build full AI/behavior-tree in one
+run," so it remains genuinely unstarted, not silently skipped), (b) NPCs only exist at 1 of 14
+kingdom seats (`stannis`) — the other 13 have none yet, and 4 of the 6 downloaded character files
+(`dreyar`, `erika_archer`, `paladin_wprop_j_nordstrom`, `uriel_a_plotexia`) are still unused and
+need no new asset download to place, and (c) no player-NPC interaction/dialogue/name-tag UI yet.
+Any of these three is a reasonable next slice on its own — extending `NPC_CONFIG.SPAWNS` to more
+seats is the cheapest (config-only, no new code), while patrol/dialogue are real new systems. FAZ
+4's own remaining gap (no gravity/jump/wall-collider physics) also remains open and un-touched this
+run, same status as run 19 left it. No new tech debt this run — the one refactor made
+(`AssetLoader.correctMixamoFbxScale`) removes duplication rather than adding it.
+
 ## Known Issues / Tech Debt
 
 - **~~No river-path concept~~ — a first pass landed run 10 (`world/rivers.js`).** See DECISIONS.md
@@ -1959,6 +2086,12 @@ running clips via retargeting. No new tech debt this run.
   never permanently shrunk. **Still open:** this only fixes what the *camera* can see through — the
   *player* can still walk through castle walls (no player-side collider yet, separate future work,
   see the settlements LOD/collider item below).
+- **FAZ 5's NPCs are static/idle-only, at 1 of 14 kingdom seats.** `gameplay/npc.js` (run 20)
+  intentionally has no movement/patrol/AI, and `NPC_CONFIG.SPAWNS` only places 2 NPCs at `stannis` —
+  the other 13 kingdom seats have none, and 4 of the 6 downloaded Mixamo character files (`dreyar`,
+  `erika_archer`, `paladin_wprop_j_nordstrom`, `uriel_a_plotexia`) remain unused. Both are honest,
+  scoped-out gaps (see DECISIONS.md ADR-0019's "Alternatives considered"), not accidental — extending
+  `NPC_CONFIG.SPAWNS` to more seats needs no new code, only config entries.
 - **~~No touch joystick for FAZ 4 movement~~ — landed run 18 (`ui/touchJoystick.js`).** Mobile-class
   devices now get an on-screen joystick alongside keyboard (`input.js`) support — see DECISIONS.md
   ADR-0017. Verified via a Playwright-simulated drag (Pointer Events treat mouse and touch drags

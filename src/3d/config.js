@@ -175,6 +175,44 @@ export const PLAYER_CONFIG = Object.freeze({
 	CAMERA_COLLISION_MIN_DISTANCE_METERS: 1.5,
 });
 
+/** First-pass static NPCs (FAZ 5, run 20): reuse the 6 already-downloaded Mixamo character FBXes
+ * (T-pose, sharing `peasant_girl`'s skeleton, per `assets_manifest.json`'s notes) and
+ * `peasant_girl`'s skin-less idle clip, retargeted the same way `gameplay/player.js` retargets its
+ * own clips. Standing/idling only — no movement/AI/dialogue yet, see `gameplay/npc.js` and
+ * DECISIONS.md ADR-0019. */
+export const NPC_CONFIG = Object.freeze({
+	/** Skin-less idle clip retargeted onto every NPC (shared Mixamo skeleton, no bone remapping). */
+	IDLE_ANIMATION_URL: PLAYER_CONFIG.ANIMATION_URLS.idle,
+	/** Static placements, each anchored to a `world/settlements.js` kingdom-seat id and offset from
+	 * that castle's keep center (in meters) so the NPC clears the keep's own footprint
+	 * (`SETTLEMENT_CONFIG.KEEP_WIDTH_METERS` is 34, so a 12m offset stands comfortably outside the
+	 * wall) instead of intersecting it. Deliberately just 2 for this first pass, and deliberately
+	 * the two smallest of the 6 available character files (`arissa.fbx` ~6.6MB, `paladin_j_
+	 * nordstrom.fbx` ~8.6MB) rather than the two largest (`erika_archer.fbx` ~18.7MB, `uriel_a_
+	 * plotexia.fbx` ~13MB) — every model here gets offline-precached in `service-worker.js`, so
+	 * asset weight is a real, not theoretical, cost. Picked `stannis` as the seat: it's the kingdom
+	 * capital closest to the player's world-origin spawn point, easiest to reach for manual/future
+	 * verification without adding a dedicated fast-travel debug tool this run doesn't need. */
+	SPAWNS: Object.freeze([
+		Object.freeze({
+			id: 'stannis-guard-1',
+			modelUrl: 'assets/models/characters/paladin_j_nordstrom.fbx',
+			seatId: 'stannis',
+			offsetXMeters: 12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+		}),
+		Object.freeze({
+			id: 'stannis-guard-2',
+			modelUrl: 'assets/models/characters/arissa.fbx',
+			seatId: 'stannis',
+			offsetXMeters: -12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+		}),
+	]),
+});
+
 /** On-screen touch joystick (FAZ 4, mobile input). See `src/3d/ui/touchJoystick.js`. */
 export const TOUCH_JOYSTICK_CONFIG = Object.freeze({
 	/** Radius, in CSS pixels, the knob can be dragged from the base's center before clamping. */

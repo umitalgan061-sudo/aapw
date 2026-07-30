@@ -30,7 +30,11 @@ the way it is.
   requested. `FBXLoader.js` itself vendors two more transitive deps (`vendor/three/addons/libs/
   fflate.module.js`, `vendor/three/addons/curves/NURBSCurve.js` + `NURBSUtils.js`) — never imported
   by anything in this project directly, only by `FBXLoader.js` itself.
-- **Used by:** `game3d.js` (`assetLoader` singleton export); `gameplay/player.js` (`loadFBXModel`).
+- **Used by:** `game3d.js` (`assetLoader` singleton export); `gameplay/player.js` and (added FAZ 5,
+  run 20) `gameplay/npc.js` (both use `loadFBXModel` and the shared static
+  `correctMixamoFbxScale(model)` helper — Mixamo FBX exports store geometry in centimeters;
+  `FBXLoader` stashes the file's own conversion factor in `userData.unitScaleFactor` but doesn't
+  apply it, so this one static method does, rather than two independently hand-copied blocks).
 - **Critical path:** no — falls back to a placeholder box mesh on load failure (L1 silent fallback
   per the project's error-handling hierarchy).
 - **Failure mode:** emits `asset:error`, logs, substitutes a placeholder. Never throws to callers.
@@ -46,8 +50,10 @@ the way it is.
   `SETTLEMENT_CONFIG` (castle keep/tower/roof dimensions for `world/settlements.js`, added FAZ 3 —
   see ADR-0013), and (added FAZ 4) `PLAYER_CONFIG` (character/animation asset URLs, walk/run
   speeds, turn rate, animation crossfade duration, spawn point, chase-camera framing/distance
-  limits — see ADR-0016), and `TOUCH_JOYSTICK_CONFIG` (drag radius, dead zone, run threshold for
-  `ui/touchJoystick.js` — see ADR-0017).
+  limits — see ADR-0016), `TOUCH_JOYSTICK_CONFIG` (drag radius, dead zone, run threshold for
+  `ui/touchJoystick.js` — see ADR-0017), and (added FAZ 5, run 20) `NPC_CONFIG` (idle-animation URL
+  reused from `PLAYER_CONFIG`, and the flat `SPAWNS` list mapping a kingdom-seat id + world offset to
+  a Mixamo character FBX for each static NPC — see `gameplay/npc.js` and ADR-0019).
 - **Critical path:** yes — every system imports constants from here.
 - **Failure mode:** N/A (static data only).
 
@@ -171,7 +177,11 @@ the way it is.
   `WORLD_SCALE` bounding box.
 - **Used by:** `game3d.js` (`createSettlements`/`disposeSettlements`) — one `THREE.Group` holding 3
   `InstancedMesh`es (keeps/towers/roofs, one per castle *part*, not one per castle) covering all 14
-  kingdom seats, generated once at scene bootstrap like `world/rivers.js`.
+  kingdom seats, generated once at scene bootstrap like `world/rivers.js`. Its `seats` return value
+  (id/name/world x,z/groundY) is also exposed on `game3d.js`'s scene state as `settlementSeats`
+  (added FAZ 5, run 20) so `NPC_CONFIG.SPAWNS` entries can resolve a `seatId` to a real, already-
+  sampled world position without re-deriving `mapToWorldXZ` themselves — see `gameplay/npc.js` and
+  ADR-0019.
 - **Critical path:** no — purely visual/geographic; a pathological height field would at worst
   place castles at an unusual (but still sea-level-clamped) height, never throw.
 - **Failure mode:** none currently guarded — pure synchronous math over a caller-provided height
@@ -322,13 +332,39 @@ the way it is.
   non-deterministic session to session, expected) but its ground-height sampling still goes
   through the same seeded `physics.js` collider every other system uses.
 
-## `src/3d/gameplay/` (folder) — Playable characters, future NPCs/dragons/animals/combat/etc.
+## `src/3d/gameplay/npc.js` — Static, idling NPCs (FAZ 5, run 20)
+
+- **Depends on:** `three` (vendored, dynamic-imports `FBXLoader` via `assetLoader.js`),
+  `assetLoader.js` (`loadFBXModel`, `AssetLoader.correctMixamoFbxScale` — new static helper this
+  run, factored out of `gameplay/player.js` so both modules share one Mixamo-scale-correction
+  implementation instead of two hand-copied ones — and `disposeObject3D` on teardown). Does not
+  import `config.js` directly — the caller (`game3d.js`) resolves `NPC_CONFIG.SPAWNS` entries
+  against `world/settlements.js`'s seat data and passes the final `modelUrl`/`idleAnimationUrl`/
+  `worldX`/`worldZ`/`groundY` in, matching `player.js`'s "caller wires config/dependencies together"
+  convention.
+- **Used by:** `game3d.js` (`createNPC`, `update()` called every frame — keeps the idle animation
+  mixer ticking even though the NPC doesn't move — `dispose()` on `pagehide`).
+- **Critical path:** no — a load failure degrades the same way `player.js`'s does: `assetLoader`'s
+  existing L1 silent-fallback substitutes a placeholder box (no animation, but no crash) rather than
+  throwing; `initGame3D`'s own try/catch is the backstop for anything else.
+- **Failure mode:** same profile as `gameplay/player.js` — an FBX load failure is caught inside
+  `assetLoader.loadFBXModel` itself (L1); a wholesale creation failure propagates to `game3d.js`'s
+  top-level try/catch (L3).
+- **Determinism note:** unlike the player, an NPC's position is **not** real-time-input-driven — it's
+  a fixed `(worldX, worldZ, groundY)` the caller computes once at load time from
+  `NPC_CONFIG.SPAWNS`' static offsets and `world/settlements.js`'s deterministic seat placement, so
+  (unlike the player) an NPC's position is itself fully deterministic given the same seed/config, not
+  just its ground-height sampling.
+- **Scope, deliberately minimal (ADR-0019):** loads, retargets, positions, and idles. No movement,
+  pathing, AI, or player interaction yet — real future FAZ 5 work, not built speculatively now.
+
+## `src/3d/gameplay/` (folder) — Playable characters, NPCs, future dragons/animals/combat/etc.
 
 - **Depends on:** `eventBus.js`, `physics.js`, `input.js`, `config.js`, `assetLoader.js`. Only
   these plus this folder itself should be touched for a gameplay-system change (blast radius rule)
   — see `gameplay/README.md`.
 - **Used by:** `game3d.js`.
-- **Critical path:** varies per file — see `player.js`'s own entry above.
+- **Critical path:** varies per file — see `player.js`'s and `npc.js`'s own entries above.
 - **Failure mode:** varies per file.
 
 ## `src/3d/sky.js` — Aurora skybox
@@ -410,8 +446,8 @@ the way it is.
 - **Depends on:** `three` (vendored), `eventBus.js`, `state.js`, `assetLoader.js`, `config.js`,
   `world/chunkManager.js`, `physics.js` (ground collider, feeds `world/rivers.js`/
   `world/settlements.js` too), `input.js`, `ui/touchJoystick.js`, `gameplay/player.js`,
-  `world/water.js`, `world/rivers.js`, `world/settlements.js`, `camera.js`, `sky.js`, `stars.js`,
-  `lighting.js`, `fog.js`.
+  `gameplay/npc.js` (added FAZ 5, run 20), `world/water.js`, `world/rivers.js`,
+  `world/settlements.js`, `camera.js`, `sky.js`, `stars.js`, `lighting.js`, `fog.js`.
 - **Used by:** `game3d.html` only (calls `initGame3D()`).
 - **Critical path:** yes — owns the `WebGLRenderer`/`Scene`/`PerspectiveCamera`, the day/night
   lights (`lighting.js`), the scene fog (`fog.js`), resize handling, the `OrbitControls` instance
@@ -419,14 +455,16 @@ the way it is.
   aurora sky mesh, the water plane, the static river mesh and its waterfall curtain meshes
   (`world/rivers.js`), the 14 kingdom-seat settlements (`world/settlements.js`, all generated once,
   not part of the per-frame loop), the playable character (`gameplay/player.js`, loaded async
-  *after* the rest of the scene — see `computeCameraRelativeMove` below), and the
-  `requestAnimationFrame` render loop (which now also drives `keyboardInput.getAxes()`,
-  `computeCameraRelativeMove()`, `player.update()`, the chase-camera translation, `controls.
+  *after* the rest of the scene — see `computeCameraRelativeMove` below), 2 static idling NPCs
+  (`gameplay/npc.js`, loaded async in parallel right after the player — added FAZ 5, run 20, see
+  ADR-0019), and the `requestAnimationFrame` render loop (which now also drives
+  `keyboardInput.getAxes()`, `computeCameraRelativeMove()`, `player.update()`, each NPC's
+  `update()` (keeps its idle mixer ticking), the chase-camera translation, `controls.
   update()`, `streamAroundOrbitTarget()`, `updateDayNightLighting()`, `updateAuroraSky()`,
   `updateFog()`, `updateWater()`, and (ADR-0018) `collectCameraCollidables()` +
   `camera.js`'s `resolveCameraCollision()` each frame — see `world/chunkManager.js`, `lighting.js`,
   `fog.js`, `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009/
-  ADR-0011/ADR-0013/ADR-0016/ADR-0018).
+  ADR-0011/ADR-0013/ADR-0016/ADR-0018/ADR-0019).
 - **`collectCameraCollidables(state, worldX, worldZ)` (module-local, added ADR-0018):** builds the
   small candidate list `resolveCameraCollision` raycasts against each frame — the player's current
   terrain chunk + its 8 immediate neighbors (via `chunkManager.getLoadedChunkMesh`, sufficient

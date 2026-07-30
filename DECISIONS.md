@@ -1402,3 +1402,137 @@ collider on castles themselves) remain future work, not touched by this run. Wor
 unchanged (80.7% desktop / 4.5% mobile — this run added a camera behavior, not terrain). No new
 tech debt: the one new `ChunkManager` method (`getLoadedChunkMesh`) is a straightforward accessor
 matching its class's existing style, not a workaround.
+
+## ADR-0019: FAZ 5 first-pass NPCs — static, idling, placed via `world/settlements.js`'s seat data, reusing `player.js`'s Mixamo FBX pipeline
+
+**Date:** 2026-07-30
+
+**Decision:** New `gameplay/npc.js` (`createNPC`) and new `NPC_CONFIG` (`config.js`). Each NPC
+loads one of the 6 already-downloaded, shared-Mixamo-skeleton character FBXes, corrects its scale
+via a newly-extracted `AssetLoader.correctMixamoFbxScale` (a static helper factored out of
+`player.js`'s own scale-correction block so both modules use one implementation, not two hand-copied
+ones), plays `peasant_girl`'s retargeted idle clip on loop via `THREE.AnimationMixer`, and stands at
+a fixed world position — no movement, pathing, AI, or interaction. `game3d.js` resolves each
+`NPC_CONFIG.SPAWNS` entry's `seatId` against `world/settlements.js`'s already-computed
+`settlementSeats` (exposed from `createScene`'s return value for the first time this run) to get a
+real, ground-sampled world position, adds an `(offsetXMeters, offsetZMeters)` so the NPC stands
+beside the keep instead of inside it, and loads both NPCs in parallel via `Promise.all` after the
+player (same "keep the loading overlay up for every character download" reasoning `player.js`
+already established). This run picked exactly 2 NPCs at one seat (`stannis`) — `paladin_j_nordstrom`
+(armored, guard-like) and `arissa` (the two smallest of the 6 available character files by disk
+size) — standing near the Stannis Baratheon castle.
+
+**Reasoning:**
+- **Priority-ordered:** Session Snapshot re-confirmed the world-scale target (137.5 km², unchanged,
+  thirteenth straight run re-deriving it from `config.js` directly and rejecting the operator brief's
+  stale premise — see Session Snapshot below), zero syntax errors (`node --check` on every non-vendor
+  file, baseline), and a full regression smoke test (2D game, 3D desktop — 444 chunks/14 settlements/
+  river/waterfalls, 3D mobile-emulated — 25 chunks, offline precache) passed clean, zero new errors,
+  before any new code was written. World Coverage (80.7% desktop / 4.5% mobile) remains past FAZ
+  3/10's 80% gate. FAZ 4's own roadmap was already fully closed out as of run 19 (ADR-0018's
+  Consequence), so with syntax/bugs/perf/leaks/debt/coverage/FAZ-4-sub-tasks all clear, the next
+  viable phase per 3D_GAME_PROGRESS.md's own "next step" note was FAZ 5 (NPC).
+- **Why static/idling-only, not movement or AI, for this first pass:** the run brief explicitly
+  calls for "one or two NPCs standing/idling ... keep it atomic, don't try to build full AI/
+  behavior-tree in one run." A wandering-patrol or dialogue system would pull in pathfinding,
+  interaction/input handling, and UI (dialogue box) — three separate, each individually-sized
+  concerns — in one commit. Landing the FBX-loading/placement half alone first (mirroring how
+  `world/settlements.js` shipped modular-primitive geometry before `world/materials.js` added PBR
+  texturing as a separate run) keeps this commit atomic and revertable on its own.
+- **Reusing `player.js`'s idle clip, not a separate NPC-specific animation file:** all 6 non-
+  `peasant_girl` characters share her Mixamo skeleton (confirmed by `assets_manifest.json`'s own
+  per-character notes, e.g. "Shares Mixamo standard skeleton — reuses peasant_girl's idle/walking/
+  running animation clips via retargeting"), so `AnimationMixer.clipAction` retargets the same
+  skin-less `idle.fbx` clip onto any of them with zero bone remapping — exactly the assumption
+  `3D_GAME_PROGRESS.md`'s run-19 "next step" note flagged as the reason to reuse `player.js`'s
+  pattern rather than building a second animation pipeline.
+- **`AssetLoader.correctMixamoFbxScale` extracted as a shared static method, not duplicated:**
+  `npc.js` needs the exact same centimeter-to-meter correction `player.js` already has. Copy-pasting
+  the block a second time would mean a future fix (e.g. a differently-scaled asset needing different
+  handling) has to be applied in two places and could silently drift. Moving it onto `AssetLoader`
+  (which already owns `disposeObject3D`, the other cross-cutting Mixamo/FBX-adjacent static helper)
+  matches that module's existing "shared static helpers for FBX-loading callers" role rather than
+  inventing a new home for it.
+- **Placed via `world/settlements.js`'s seat data, not a hand-picked raw world coordinate:** every
+  other system that places something in this world by "which kingdom" (settlements themselves) goes
+  through `mapToWorldXZ`/the seat's sampled `groundY` — reusing `settlementSeats` (now exposed from
+  `createScene`) means the NPC always stands on real, correctly-clamped-above-sea-level ground next
+  to a real castle, with zero new coordinate math to get wrong. The NPC's own offset position is
+  still independently re-sampled against `groundCollider.getGroundHeight` (not just copying the
+  seat's keep-center `groundY`), since terrain height genuinely varies across even a 12m offset.
+- **Picked the two smallest character files (`arissa.fbx` ~6.6MB, `paladin_j_nordstrom.fbx`
+  ~8.6MB), not the two largest (`erika_archer.fbx` ~18.7MB, `uriel_a_plotexia.fbx` ~13MB):** every
+  model this loads becomes a required offline-PWA precache entry (`service-worker.js`'s
+  `GAME3D_SHELL_FILES`, same rule run 17 established for `peasant_girl.fbx`) — asset weight is a
+  real download-size and precache-time cost, not a theoretical one, so minimizing it for a first pass
+  (while more NPCs are still easy to add later) was a real, not premature, size-consciousness
+  decision. `paladin_j_nordstrom` was chosen over `dreyar` (also ~7.3MB, smaller than paladin) for
+  the second slot's thematic fit as a settlement guard, at a ~1.3MB size cost judged acceptable
+  since it's still well under half the size of either large file avoided.
+- **`stannis` chosen as the seat, not `umit` (the player's likely "home" kingdom) or a random one:**
+  it's the kingdom-seat closest to the player's world-origin spawn point among all 14 (measured
+  ~2566m vs. the next-closest at ~2924m), making it the easiest seat to reach for a future manual/
+  real-device playtest without this run needing to build a dedicated fast-travel/debug-teleport tool
+  it doesn't otherwise need.
+
+**Alternatives considered:**
+- *A generic "spawn N random NPCs across all settlements" system.* Rejected for this first pass —
+  "random" would need a seeded PRNG stream (this project's own determinism rule) wired through a
+  whole new placement-distribution algorithm, more machinery than "stand at these 2 explicit spots"
+  needs to prove the FBX-retargeting pipeline works for a non-player character at all.
+  `NPC_CONFIG.SPAWNS` being a flat, explicit list is intentionally the simplest thing that could
+  possibly generalize later (more entries, not a rewrite) once there's a real reason for more NPCs.
+- *Giving NPCs a wandering/patrol behavior immediately.* Rejected — the run brief explicitly scopes
+  this out ("don't try to build full AI/behavior-tree in one run"), and idling is sufficient to prove
+  and ship the actually-hard part (loading/retargeting a second character's worth of Mixamo assets
+  onto a shared skeleton) on its own.
+- *A brand-new `NPC_CONFIG.IDLE_ANIMATION_URL` pointing at a dedicated NPC idle clip.* Rejected —
+  no such clip exists in `assets/`, and downloading one requires the interactive Mixamo login this
+  cloud agent cannot perform (see `3D_GAME_PROGRESS.md`'s "Any future Mixamo/Free3D asset needs a
+  human step" note); reusing `peasant_girl`'s already-downloaded, already-licensed idle clip needs no
+  new asset and is exactly what `assets_manifest.json`'s own per-character notes already assume will
+  happen.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- **Pre-change regression baseline:** full smoke test (2D game — only the known, pre-existing
+  sandbox network limitations, `firebase is not defined`/blocked requests, nothing new; 3D desktop —
+  441→444 chunks after settlement grounding, 14 settlements, river/waterfalls; 3D mobile-emulated —
+  25 chunks), zero new errors, confirming run 19's wall-avoidance work is stable before building on
+  top of it.
+- **A standalone in-browser behavioral test of `createNPC` itself** (real vendored `FBXLoader`/
+  `AnimationMixer`, loaded through the same `game3d.html` import map, not a mocked stand-in): loaded
+  `paladin_j_nordstrom.fbx` + `peasant_girl`'s `idle.fbx` with an explicit test position/rotation,
+  asserted — the returned `object3D` exists, its `name`/`position`/`rotation.y` exactly match the
+  given input, `userData.isPlaceholder` is `false` (a real FBX loaded, not the `AssetLoader` fallback
+  box), the model contains 2 real meshes including a `SkinnedMesh` (confirms actual retargeted
+  geometry, not an empty group), 5 consecutive `update()` calls (idle mixer ticking) and `dispose()`
+  both complete without throwing, and zero console/page errors throughout. All 10 assertions passed.
+- **Post-change full regression smoke test:** 3D desktop (444 chunks, `"Spawned 2 FAZ 5 NPC(s)"` in
+  the console) and 3D mobile-emulated (25 chunks, same NPC-spawn log line) both zero console/page
+  errors; 2D game unchanged (same pre-existing sandbox-only errors as the baseline, not new).
+- **A live-scene, non-mocked check via a temporary debug hook** (`window.__debugGame3DState = state`,
+  added only for this test and reverted before commit — confirmed via `git diff` showing zero trace
+  of it in the committed `game3d.js`): both NPCs are present in `state.scene`'s graph by name
+  (`scene.getObjectByName(...) === npc.object3D`), at the exact expected world positions (seat
+  center + configured offset, matching `NPC_CONFIG.SPAWNS`' `offsetXMeters`/`offsetZMeters` to the
+  centimeter). A camera moved to frame one NPC up close (with lighting temporarily brightened for
+  screenshot visibility only) rendered a clearly humanoid, armored character model standing on the
+  terrain — not a placeholder box, not an empty/invisible node.
+- **Offline-precache check:** after one online visit to `index.html`, `caches.open('westeros-shell-
+  v1')` contains `./src/3d/gameplay/npc.js`, `./assets/models/characters/paladin_j_nordstrom.fbx`,
+  and `./assets/models/characters/arissa.fbx` — confirms none of the three new files would 404 on a
+  subsequent offline visit to `game3d.html`.
+- `node --check` on every file touched this run (`config.js`, `assetLoader.js`, `gameplay/player.js`,
+  `gameplay/npc.js` (new), `game3d.js`, `service-worker.js`): clean.
+
+**Consequence:** FAZ 5 (NPC) has a real, verified first slice: 2 static NPCs load, retarget, idle,
+and render correctly at a real kingdom seat, on both desktop and mobile-emulated device classes, with
+zero regressions to the 2D game or any existing 3D system. World Coverage is unchanged (this run
+added characters, not terrain — 80.7% desktop / 4.5% mobile, same as run 19). Still-open FAZ 5 work,
+honestly flagged rather than silently assumed: no movement/patrol/AI, no player-NPC interaction or
+dialogue, no name/health UI, and only 1 of 14 kingdom seats has any NPCs yet (the other 5 downloaded
+character files — `dreyar`, `erika_archer`, `paladin_wprop_j_nordstrom`, `uriel_a_plotexia` — remain
+unused, available for future NPC placements without any new asset download). No new tech debt: the
+one refactor this run made (`AssetLoader.correctMixamoFbxScale`) removes duplication rather than
+adding it, and `settlementSeats` being exposed from `createScene`'s return value is a straightforward
+new field on an existing return object, not a workaround.

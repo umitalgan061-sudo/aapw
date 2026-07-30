@@ -19,7 +19,9 @@
  * (`ui/touchJoystick.js`) relative to the camera's facing, snaps to ground height (`physics.js`),
  * and the same `OrbitControls` instance becomes its chase camera, with `camera.js`'s
  * `resolveCameraCollision` pulling it in front of any terrain/castle it would otherwise clip
- * through — see DECISIONS.md ADR-0016, ADR-0017, and ADR-0018.
+ * through — see DECISIONS.md ADR-0016, ADR-0017, and ADR-0018. FAZ 5 (in progress, run 20): a
+ * first pass of static, idling NPCs (`gameplay/npc.js`) reusing the same Mixamo FBX pipeline
+ * stands near the `stannis` kingdom seat — see ADR-0019.
  * See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
@@ -28,12 +30,13 @@ import * as THREE from 'three';
 import { gameEvents } from './eventBus.js';
 import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
-import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, PLAYER_CONFIG } from './config.js';
+import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, PLAYER_CONFIG, NPC_CONFIG } from './config.js';
 import { ChunkManager } from './world/chunkManager.js';
 import { createGroundCollider } from './physics.js';
 import { KeyboardInput } from './input.js';
 import { TouchJoystick } from './ui/touchJoystick.js';
 import { createPlayer } from './gameplay/player.js';
+import { createNPC } from './gameplay/npc.js';
 import { createWater, updateWater, disposeWater } from './world/water.js';
 import {
 	generateRiverPath,
@@ -90,7 +93,7 @@ function isCoarsePointerDevice() {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
  */
 function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -198,7 +201,11 @@ function createScene(canvas) {
 
 	return {
 		renderer, scene, camera, controls, chunkManager, groundCollider, sky, stars, water, river, waterfalls,
-		settlements: settlementsResult.group, lights, clock, elapsedSeconds: 0, lastStreamChunk: null,
+		settlements: settlementsResult.group,
+		// Exposed (not just the settlements.group mesh) so initGame3D can place FAZ 5 NPCs relative to
+		// a named kingdom seat's real world position/ground height without re-deriving mapToWorldXZ.
+		settlementSeats: settlementsResult.seats,
+		lights, clock, elapsedSeconds: 0, lastStreamChunk: null,
 		// Reused every frame by resolveCameraCollision() — a fresh Raycaster per frame would be
 		// needless garbage for a purely synchronous, single-frame query.
 		cameraCollisionRaycaster: new THREE.Raycaster(),
@@ -401,6 +408,45 @@ export async function initGame3D() {
 		);
 		state.controls.update();
 
+		// FAZ 5 first pass: static, idling NPCs at a kingdom-seat settlement (see config.js's
+		// NPC_CONFIG doc comment for why `stannis`/these two specific models). Loaded after the
+		// player (same "keep the loading overlay up for every character download" reasoning as the
+		// player itself) and in parallel via Promise.all, not a sequential loop, since neither NPC
+		// depends on the other finishing first.
+		const seatsById = new Map(state.settlementSeats.map((seat) => [seat.id, seat]));
+		const npcs = await Promise.all(
+			NPC_CONFIG.SPAWNS.map(async (spawn) => {
+				const seat = seatsById.get(spawn.seatId);
+				if (!seat) {
+					console.warn(`[game3d] NPC spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
+					return null;
+				}
+				const worldX = seat.x + spawn.offsetXMeters;
+				const worldZ = seat.z + spawn.offsetZMeters;
+				// Sampled at the NPC's own offset position, not just reused from the seat's keep-center
+				// groundY — same sea-level-clamp convention world/settlements.js's own placement uses
+				// (see world/README.md's "Sea level" convention), so an NPC never ends up sitting below
+				// the water plane if its offset happens to land somewhere lower than the keep itself.
+				const groundY = Math.max(
+					state.groundCollider.getGroundHeight(worldX, worldZ),
+					WORLD_DEFAULTS.WATER_LEVEL_METERS + SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
+				);
+				return createNPC({
+					assetLoader,
+					modelUrl: spawn.modelUrl,
+					idleAnimationUrl: NPC_CONFIG.IDLE_ANIMATION_URL,
+					worldX,
+					worldZ,
+					groundY,
+					rotationYRadians: spawn.rotationYRadians,
+					name: spawn.id,
+				});
+			}),
+		);
+		state.npcs = npcs.filter(Boolean);
+		for (const npc of state.npcs) state.scene.add(npc.object3D);
+		console.info(`[game3d] Spawned ${state.npcs.length} FAZ 5 NPC(s).`);
+
 		let frameId;
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
@@ -418,6 +464,7 @@ export async function initGame3D() {
 			const previousTargetX = state.controls.target.x;
 			const previousTargetZ = state.controls.target.z;
 			state.player.update(delta, moveDirection, axes.running);
+			for (const npc of state.npcs) npc.update(delta);
 			const playerPos = state.player.object3D.position;
 			state.camera.position.x += playerPos.x - previousTargetX;
 			state.camera.position.z += playerPos.z - previousTargetZ;
@@ -466,6 +513,7 @@ export async function initGame3D() {
 			state.keyboardInput.dispose();
 			state.touchJoystick?.dispose();
 			state.player.dispose();
+			state.npcs.forEach((npc) => npc.dispose());
 			state.controls.dispose();
 			state.chunkManager.disposeAll();
 			disposeAuroraSky(state.sky);

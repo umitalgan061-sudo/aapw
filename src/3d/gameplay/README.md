@@ -19,6 +19,14 @@ a system here (blast radius rule).
   heading, and crossfades idle/walking/running based on speed and the `isRunning` flag. No
   gravity/jumping and no wall/collider avoidance yet — ground-height snapping only (see
   `physics.js`'s own doc comment for why).
+- **`npc.js`** — static, idling non-player characters (FAZ 5, run 20). `createNPC({assetLoader,
+  modelUrl, idleAnimationUrl, worldX, worldZ, groundY, rotationYRadians, name})` loads any of the
+  6 shared-skeleton Mixamo character FBXes (`NPC_CONFIG.SPAWNS`), corrects its scale the same way
+  `player.js` does (via `AssetLoader.correctMixamoFbxScale`, shared rather than duplicated), plays
+  `peasant_girl`'s retargeted idle clip on loop, and returns `{object3D, update(delta), dispose()}`.
+  No movement, AI, or interaction — the caller (`game3d.js`) supplies the exact world position and
+  ground height (already sampled once for the settlement it stands near), this module only loads
+  and idles.
 
 ## Conventions
 

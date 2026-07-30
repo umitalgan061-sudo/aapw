@@ -126,6 +126,22 @@ export class AssetLoader {
 		}
 	}
 
+	/**
+	 * Mixamo FBX exports store geometry in centimeters; `FBXLoader` itself does not auto-convert
+	 * this — it only stashes the file's own conversion factor in `userData.unitScaleFactor`. Shared
+	 * by `gameplay/player.js` and `gameplay/npc.js` (both load Mixamo character FBXes) so the
+	 * correction lives in one place rather than two independently hand-copied blocks, and any future
+	 * Mixamo-sourced model gets it for free too.
+	 * @param {THREE.Object3D} model
+	 */
+	static correctMixamoFbxScale(model) {
+		const unitScaleFactor = model.userData.unitScaleFactor || 1;
+		const metersPerFbxUnit = unitScaleFactor / 100;
+		if (Math.abs(metersPerFbxUnit - 1) > 1e-6) {
+			model.scale.setScalar(metersPerFbxUnit);
+		}
+	}
+
 	/** @private */
 	_createPlaceholder(color, size) {
 		const geometry = new THREE.BoxGeometry(size, size, size);
