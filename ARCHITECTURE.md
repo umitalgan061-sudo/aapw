@@ -68,8 +68,9 @@ the way it is.
 
 - **Depends on:** nothing.
 - **Used by:** `game3d.js`, `sceneManager.js` (`PLAYER_CONFIG` only), `gameplay/player.js`
-  (`PLAYER_CONFIG`), and (as a runtime parameter, not a static import — see `gameplay/npc.js`'s and
-  `gameplay/animals.js`'s own entries) `spawnConfiguredNPCs`/`spawnConfiguredAnimals`.
+  (`PLAYER_CONFIG`), and (as a runtime parameter, not a static import — see `gameplay/npc.js`'s,
+  `gameplay/animals.js`'s, and `gameplay/interaction.js`'s own entries) `spawnConfiguredNPCs`/
+  `spawnConfiguredAnimals`/`createInteractionController`.
 - **Contains:** (added FAZ 4) `PLAYER_CONFIG` (character/animation asset URLs, walk/run speeds,
   turn rate, animation crossfade duration, spawn point, chase-camera framing/distance limits — see
   ADR-0016), (added FAZ 5, run 20, extended run 21/22) `NPC_CONFIG` (idle/walk animation URLs
@@ -82,8 +83,10 @@ the way it is.
   `STRIP_CHILD_NAMES` list for the source file's bundled non-skinned decoration mesh, and a
   `SPAWNS` list — same seat+offset+optional-`patrol` shape as `NPC_CONFIG.SPAWNS` — see
   `gameplay/animals.js` and ADR-0025/ADR-0026/ADR-0027/ADR-0047), and (added FAZ 5, run 32-33,
-  per-NPC content run 40) `INTERACTION_CONFIG` (proximity-prompt radius, greeting template, and
-  `GREETINGS_BY_NPC_ID` — see `gameplay/interaction.js` and ADR-0032/ADR-0033/ADR-0051).
+  per-NPC content run 40, choice branching run 44) `INTERACTION_CONFIG` (proximity-prompt radius,
+  greeting template, `GREETINGS_BY_NPC_ID`, and `CHOICES_BY_NPC_ID` — a 2-of-14-NPC pilot of
+  `{label, response}` choice lists — see `gameplay/interaction.js` and ADR-0032/ADR-0033/ADR-0051/
+  ADR-0058).
 - **Extracted from `config.js` (run 43, ADR-0057):** `config.js` reached its 600-line cap with zero
   headroom (599/600, flagged across 2 prior runs' "Next step" notes) — these 4 gameplay-owned
   blocks moved out verbatim (not a rewrite), leaving `config.js` at ~171 lines and this new file at
@@ -369,21 +372,23 @@ the way it is.
   NPC triggered it or how many are in range — no per-NPC identity of its own (that lives in
   `gameplay/interaction.js`/`ui/dialogueBox.js` now, run 33).
 
-## `src/3d/ui/dialogueBox.js` — Generic-greeting dialogue box (FAZ 5, run 33)
+## `src/3d/ui/dialogueBox.js` — Per-NPC dialogue box (FAZ 5, run 33; choice branching run 44)
 
 - **Depends on:** nothing beyond the DOM — no `config.js` import; `gameplay/interaction.js` passes
-  in the already-built greeting string. Appends its own DOM
-  (`<div class="g3d-dialogue-box">` with a text `<p>` and a static "E / Esc - Kapat" hint `<p>`,
-  styled via `game3d.css`) to a container element (`document.body` by default).
-- **Used by:** `gameplay/interaction.js`'s controller — `show(text)`/`hide()` called from its
-  `openDialogue`/`closeDialogue` helpers, `isVisible` getter available if a future caller needs it
-  (unused today). Disposed on `pagehide` (`game3d.js`).
+  in the already-built greeting string (and, run 44, an optional choice-label array). Appends its
+  own DOM (`<div class="g3d-dialogue-box">` with a text `<p>`, a `<div class="g3d-dialogue-box-
+  choices">`, and a hint `<p>`, styled via `game3d.css`) to a container element (`document.body` by
+  default).
+- **Used by:** `gameplay/interaction.js`'s controller — `show(text, choiceLabels?)`/`hide()` called
+  from its `openDialogue`/`selectChoice`/`closeDialogue` helpers, `isVisible` getter available if a
+  future caller needs it (unused today). Disposed on `pagehide` (`game3d.js`).
 - **Critical path:** no — a static text panel with no game-state consequence.
 - **Failure mode:** none expected — plain DOM creation, cannot throw under normal use.
-- **Deliberately narrow scope:** one generic greeting line, always the same template regardless of
-  which NPC — no branching, no reply options, no per-NPC personality. A real dialogue *system*
-  (content/branching/quest hooks) is separate, still-open FAZ 5 work — see DECISIONS.md ADR-0033 and
-  3D_GAME_PROGRESS.md's Known Issues.
+- **Deliberately narrow scope still:** run 44 (ADR-0058) added a numbered-choice list and hint
+  swap, but only 2 of 14 NPCs have any choices configured, each choice produces exactly one static
+  response line, and there's no further branching, no reply-to-a-reply, no quest hooks, no
+  persistence. A real dialogue *tree*/quest system is separate, still-open FAZ 5 work — see
+  DECISIONS.md ADR-0033/ADR-0058 and 3D_GAME_PROGRESS.md's Known Issues.
 
 ## `src/3d/ui/worldEventToast.js` — World-event toast card (run 42, ADR-0056)
 
@@ -539,13 +544,13 @@ toast today; future HUD/inventory/debug panels)
   future FAZ 6 work (other animal types — horses/carts/dogs/birds per the roadmap; each needs a
   human manual-download step), not built speculatively now.
 
-## `src/3d/gameplay/interaction.js` — Proximity-prompt/dialogue-box state machine (FAZ 5, run 33)
+## `src/3d/gameplay/interaction.js` — Proximity-prompt/dialogue-box state machine (FAZ 5, run 33; choice branching run 44)
 
 - **Depends on:** nothing beyond the two UI objects passed into `createInteractionController`
   (`interactionPrompt`, `dialogueBox` — see `ui/interactionPrompt.js`/`ui/dialogueBox.js`) and plain
-  config values (`greetingTemplate`, `radiusMeters`) passed as arguments — no static `import` of
-  `config.js` or the UI modules themselves, consistent with `npc.js`/`animals.js`'s "receive
-  everything as a parameter" convention (ADR-0028).
+  config values (`greetingTemplate`, `greetingsByNpcId`, `choicesByNpcId`, `radiusMeters`) passed as
+  arguments — no static `import` of `config.js`/`gameplayConfig.js` or the UI modules themselves,
+  consistent with `npc.js`/`animals.js`'s "receive everything as a parameter" convention (ADR-0028).
 - **Used by:** `game3d.js` — `update(npcs, playerPos)` called once per tick-loop frame,
   `handleKeyDown(event)` forwarded from a single `window.addEventListener('keydown', ...)` added at
   init and removed on `pagehide`.
@@ -563,6 +568,12 @@ toast today; future HUD/inventory/debug panels)
   away, or because the *NPC* patrolled away — both look identical from this module's point of view),
   the dialogue auto-closes. See DECISIONS.md ADR-0033's "false alarm" note — this was verified
   against a real patrolling NPC, not just assumed correct from the distance math.
+- **Choice branching (run 44, ADR-0058):** if the opened NPC's id has a `choicesByNpcId` entry, its
+  choice labels are shown alongside the greeting and `activeChoices` holds that array until one is
+  picked; `Digit1`/`Digit2`/`Digit3` (`DIALOGUE_CHOICE_KEY_CODES`) then selects by index, showing
+  that choice's own response and clearing `activeChoices` (a second digit press or `E` afterward
+  behaves exactly like any no-choices NPC). An id with no entry never sets `activeChoices`, so this
+  is fully backward-compatible with every pre-run-44 NPC.
 
 ## `src/3d/gameplay/worldEvents.js` — Periodic world-flavor events (run 42, ADR-0056)
 

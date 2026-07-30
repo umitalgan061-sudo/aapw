@@ -137,6 +137,16 @@ html, body {
   line-height: 1.4;
 }
 
+.g3d-dialogue-box-choices:not(:empty) {
+  margin: 0 0 8px;
+}
+
+.g3d-dialogue-box-choice {
+  margin: 4px 0;
+  font-size: 14px;
+  color: #f0d9a0;
+}
+
 .g3d-dialogue-box-hint {
   margin: 0;
   font-size: 11px;

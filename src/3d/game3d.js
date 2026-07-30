@@ -311,6 +311,7 @@ export async function initGame3D() {
 			interactionPrompt: state.interactionPrompt,
 			dialogueBox: state.dialogueBox,
 			greetingTemplate: INTERACTION_CONFIG.GREETING_TEMPLATE, greetingsByNpcId: INTERACTION_CONFIG.GREETINGS_BY_NPC_ID,
+			choicesByNpcId: INTERACTION_CONFIG.CHOICES_BY_NPC_ID,
 			radiusMeters: INTERACTION_CONFIG.PROMPT_RADIUS_METERS,
 		});
 		const handleInteractKeyDown = (event) => state.interaction.handleKeyDown(event);

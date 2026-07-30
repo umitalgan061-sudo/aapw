@@ -4205,3 +4205,94 @@ type-path comments now point at `./gameplayConfig.js` instead of `../config.js` 
 (JSDoc-only, no runtime effect) but left stale would have misdirected the next reader. FAZ 7 remains
 blocked on a human decimation step, now clearly documented (3D_GAME_PROGRESS.md Known Issues)
 instead of silently retried by a future run.
+
+## ADR-0058: First real dialogue-choice branching, piloted on 2 of 14 NPCs
+
+**Status:** Accepted (run 44).
+
+**Context:** User said "Devam et" (continue) after run 43's tech-debt commit. Re-scanning the
+priority order: no new syntax error/blocking bug/perf overrun/memory leak since run 43's smoke
+baseline. FAZ 7 (dragons) is still blocked on the decimation gap documented in ADR-0057/
+3D_GAME_PROGRESS.md — re-checking it again without a decimated asset in hand would just repeat the
+same measurement for no new information. Priority 9 (active phase's incomplete sub-task) has one
+concrete, still-open FAZ 5 item: "gerçek dialogue-tree/quest sistemi" — every prior run correctly
+deferred it as "larger scope, still untouched" rather than rushing a half-built quest/persistence
+system. This run scoped the *smallest real slice* of that larger feature instead of either
+skipping it again or overbuilding it: one level of player choice (pick 1 of 2 options, each with
+its own response), on a small pilot subset of NPCs, with no quest/inventory/persistence/stat
+consequences at all — the same "prove the mechanism on 2 of N first" pattern this project already
+used for waypoint patrol (run 22, ADR-0021) and per-NPC greetings before scaling to all 14 (ADR-0051).
+
+**Decision:** `ui/dialogueBox.js`'s `show(text, choiceLabels?)` renders an optional numbered choice
+list and swaps its hint text accordingly. `gameplay/interaction.js`'s `createInteractionController`
+gains an optional `choicesByNpcId` parameter; when the just-opened NPC has a non-empty entry, its
+choice labels are shown and `Digit1`/`Digit2`/`Digit3` (capped at 3, `DIALOGUE_CHOICE_KEY_CODES`)
+select one, replacing the shown text with that choice's own response. `gameplayConfig.js`'s
+`INTERACTION_CONFIG.CHOICES_BY_NPC_ID` seeds exactly 2 NPCs: `umit-guard-1` (the player's home
+seat, 2 choices about dragons/the lord) and `berkalp-guard-1` (the Stark seat where the wolves
+already patrol — one choice deliberately ties into that existing wolf-lore flavor). Every other NPC
+has no entry and keeps the exact pre-run-44 greeting-then-close-on-`E` behavior.
+
+**Reasoning:**
+- **Two NPCs, not all 14, and two choices each, not more:** matches this project's own repeated
+  "pilot small, extend later" precedent rather than writing 14×N lines of untested dialogue content
+  in one sub-task — a scope failure this project's own rules explicitly warn against ("don't design
+  for hypothetical future requirements", "small atomic steps"). `umit`/`berkalp` were picked because
+  they're the two seats with the most existing flavor/lore already written (dragon lineage at
+  `umit`, direwolves patrolling at `berkalp`) — a choice referencing content that already exists in
+  the world (the wolves) reads better than an arbitrary pick.
+- **Digit1/2/3 keys, not arrow-key+Enter navigation:** every existing keybinding in this project's
+  3D mode (`E`, `Escape`, `WASD`, `F2`/`F4`) is a single discrete key, never a 2-step
+  navigate-then-confirm sequence — a numbered-choice convention is simpler to implement, simpler to
+  test, and consistent with that existing style. Capped at 3 codes since 2-3 choices is this pilot's
+  entire scope; extending the cap is a one-line change if a future NPC needs more.
+- **No quest/inventory/stat/persistence hooks, matching `gameplay/worldEvents.js`'s own precedent
+  (ADR-0056):** the 3D world still has no economy/quest system for a choice to meaningfully affect —
+  inventing one now to make the choices "matter" would be speculative FAZ-8 work with no product
+  behind it yet, the same reasoning ADR-0056 already used for its own flavor-event pool.
+- **A second digit press (or `E`) after a choice is picked just closes, doesn't re-offer choices:**
+  `activeChoices` is cleared the instant one is picked — prevents a confusing "I already answered,
+  why is it asking again" loop, and keeps the state machine a strict one-shot branch, not a
+  re-enterable menu.
+
+**Verified:**
+- `node --check` clean on all 5 touched code files: `ui/dialogueBox.js`, `gameplay/interaction.js`,
+  `gameplay/gameplayConfig.js`, `game3d.js`, `scripts/game3dSmokeChecks.js`.
+- Extended `checkInteractionController` (`scripts/game3dSmokeChecks.js`) with 6 new assertions: a
+  greeting with choices shows both labels; picking choice 2 shows its own distinct response and
+  clears the choice list; an out-of-range digit (3, with only 2 choices configured) is a no-op;
+  pressing a second digit after a choice is already consumed is a no-op; `E` still closes mid-choice
+  (before any digit is pressed); an NPC with no `choicesByNpcId` entry at all behaves exactly like
+  before (empty choice list, plain greeting). Full committed smoke suite — **all 12 checks PASS**.
+- **Real headless-Chromium screenshots**, not just the fake-stub unit test: instantiated the real
+  `DialogueBox`/`InteractionPrompt`/`createInteractionController` (not synthetic stand-ins) inside
+  the live `game3d.html` page, opened `umit-guard-1`'s dialogue — screenshot shows the real greeting
+  text plus both numbered choice labels and the "1/2 - Seç, Esc - Kapat" hint, rendered with the
+  project's existing dialogue-box styling. Selected choice 2 (`Digit2`) — second screenshot shows
+  the chosen response text, the choice list now empty, and the hint reverted to "E / Esc - Kapat".
+  Zero console/page errors in either state.
+- Line counts: `ui/dialogueBox.js` 75/600, `gameplay/interaction.js` 109/600, `gameplayConfig.js`
+  475/600, `game3d.js` 458/600 — all comfortably under cap. **`scripts/game3dSmokeChecks.js` is now
+  at 596/600 — flagged for the next run that touches it, real headroom is nearly gone.**
+
+**Alternatives considered:**
+- *Roll this out to all 14 NPCs immediately* — rejected: 14× the dialogue-writing effort in one
+  sub-task, no way to verify quality/tone consistency across that much new Turkish prose without
+  rushing it, and no established need yet for every NPC to have branching (some, like `jon-guard-1`'s
+  ominous one-liner, arguably read better staying a single line).
+- *Add real quest-state consequences to at least one choice (e.g. an item, a flag)* — rejected, same
+  reasoning ADR-0056 used: no inventory/quest system exists yet for a consequence to plug into;
+  building a minimal one just to give this pilot "stakes" would be scope creep far beyond a single
+  atomic sub-task.
+- *Arrow-key navigation + Enter to confirm, mirroring desktop-game menu conventions* — rejected:
+  more state to track (a hovered index) and more code for zero real benefit at only 2-3 choices;
+  direct number keys are simpler and just as discoverable via the on-screen hint.
+
+**Consequences:** `gameplayConfig.js`'s `CHOICES_BY_NPC_ID` is now the natural home for extending
+this pilot to more NPCs or deeper branches (still capped at 3 choices per level without a
+`DIALOGUE_CHOICE_KEY_CODES` change). `scripts/game3dSmokeChecks.js` is at 596/600 lines — the very
+next check added there needs a real extraction (a 3rd sibling file, following the same run-40
+split that produced `game3dSmokeChecksScene.js`) before it fits, not careful trimming. No
+touch/mobile equivalent exists for the new `Digit1`/`Digit2`/`Digit3` keys (dialogue interaction was
+already keyboard/desktop-only before this change — `ui/touchJoystick.js` has no interact button of
+its own — so this doesn't newly regress mobile, it just doesn't extend the existing gap either).

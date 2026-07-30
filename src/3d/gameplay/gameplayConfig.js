@@ -441,4 +441,35 @@ export const INTERACTION_CONFIG = Object.freeze({
 		'olena-guard-1': '{name}: Olena Hanım keskin dilinden ödün vermez. Sözlerine dikkat et.',
 		'twin-guard-1': '{name}: İkiz Kuleler\'in gölgesinde yürüyorsun. Burada her adım izlenir.',
 	}),
+	/** FAZ 5's first real branching pilot (run 44, DECISIONS.md ADR-0058): 2 of 14 NPCs
+	 * (`umit-guard-1`, `berkalp-guard-1` — the player's home seat and the Stark seat the wolves
+	 * already patrol at) get 2 numbered choices after their greeting; picking one (Digit1/Digit2 —
+	 * see `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response
+	 * line, replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry
+	 * here — an absent/empty array means the old greeting-then-close-on-E behavior, unchanged. Not a
+	 * real dialogue tree/quest system yet (no further branching, no state/persistence, no stat
+	 * effects) — proves the mechanism on a small pilot first, same "pilot on 2 of N" precedent
+	 * `NPC_CONFIG.SPAWNS`' own patrol rollout (run 22) already established for this project. */
+	CHOICES_BY_NPC_ID: Object.freeze({
+		'umit-guard-1': Object.freeze([
+			Object.freeze({
+				label: 'Ejderhalar hâlâ var mı?',
+				response: '{name}: Yıllardır kimse görmedi, ama Targeryan kanı bu surlarda hâlâ akıyor. Umutlanmak günah değil.',
+			}),
+			Object.freeze({
+				label: 'Ümit Targeryan nerede?',
+				response: '{name}: Lordumuz surların içinde, danışmanlarıyla meşgul. Onu rahatsız etmeni tavsiye etmem.',
+			}),
+		]),
+		'berkalp-guard-1': Object.freeze([
+			Object.freeze({
+				label: 'Kışın geldiğini nereden biliyorsun?',
+				response: '{name}: Stark\'ın sözü boşuna değildir. Rüzgar kuzeyden esmeye başladı mı, biz hazır demektir.',
+			}),
+			Object.freeze({
+				label: 'Kurtlar neden bu kadar yakın dolaşıyor?',
+				response: '{name}: Direwolf bizim kanımızdandır. Onlar buradaysa, biz de güvende demektir.',
+			}),
+		]),
+	}),
 });

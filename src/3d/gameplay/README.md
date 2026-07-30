@@ -64,13 +64,19 @@ a system here (blast radius rule).
   yet. `spawnConfiguredAnimals({assetLoader, animalConfig, seatsById, sampleGroundY,
   groundCollider})` (run 29) mirrors `npc.js`'s `spawnConfiguredNPCs` — resolves
   `ANIMAL_CONFIG.SPAWNS` against kingdom seats and loads them all in parallel.
-- **`interaction.js`** — proximity-prompt/dialogue-box state machine (FAZ 5, run 33).
-  `createInteractionController({interactionPrompt, dialogueBox, greetingTemplate, radiusMeters})`
-  returns `{update(npcs, playerPos), handleKeyDown(event)}`. `update()` finds the nearest in-range
-  NPC each frame, shows `ui/interactionPrompt.js` when one exists and no dialogue is open, and
-  auto-closes an open dialogue if its NPC is no longer the nearest one (whether the player or the
-  NPC moved). `handleKeyDown()` toggles `ui/dialogueBox.js` open/closed on `KeyE` (ignoring
-  `event.repeat`, so holding the key doesn't rapid-fire) and closes it on `Escape`. Extracted from
+- **`interaction.js`** — proximity-prompt/dialogue-box state machine (FAZ 5, run 33; choice
+  branching added run 44). `createInteractionController({interactionPrompt, dialogueBox,
+  greetingTemplate, greetingsByNpcId, choicesByNpcId, radiusMeters})` returns `{update(npcs,
+  playerPos), handleKeyDown(event)}`. `update()` finds the nearest in-range NPC each frame, shows
+  `ui/interactionPrompt.js` when one exists and no dialogue is open, and auto-closes an open
+  dialogue if its NPC is no longer the nearest one (whether the player or the NPC moved).
+  `handleKeyDown()` toggles `ui/dialogueBox.js` open/closed on `KeyE` (ignoring `event.repeat`, so
+  holding the key doesn't rapid-fire) and closes it on `Escape`. If the opened NPC has a
+  `choicesByNpcId` entry (2 of 14 NPCs today — see `gameplayConfig.js`'s `CHOICES_BY_NPC_ID`,
+  DECISIONS.md ADR-0058), the greeting is shown alongside its numbered choice labels; `Digit1`/
+  `Digit2`/`Digit3` then picks one, replacing the shown text with that choice's own response and
+  clearing the choice list (a second digit press or `E` afterward just closes, same as any other
+  NPC) — still no further branching/quest hooks, one response per choice. Extracted from
   `game3d.js` to stay under the 600-line cap (DECISIONS.md ADR-0033) — the same reasoning
   `spawnConfiguredNPCs`/`spawnConfiguredAnimals` already used (ADR-0028).
 - **`worldEvents.js`** — periodic world-flavor events (FAZ 8 early piece, priority 9.5, run 42).

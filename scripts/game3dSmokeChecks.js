@@ -155,7 +155,12 @@ async function checkInteractionController(browser, baseUrl) {
 
 			function makeFakes(extraOptions = {}) {
 				const prompt = { visible: null, setVisible(v) { this.visible = v; } };
-				const dialogue = { shown: null, show(text) { this.shown = text; }, hide() { this.shown = null; } };
+				const dialogue = {
+					shown: null,
+					shownChoices: null,
+					show(text, choices = []) { this.shown = text; this.shownChoices = choices; },
+					hide() { this.shown = null; this.shownChoices = null; },
+				};
 				const controller = createInteractionController({
 					interactionPrompt: prompt,
 					dialogueBox: dialogue,
@@ -219,9 +224,60 @@ async function checkInteractionController(browser, baseUrl) {
 			t9.controller.handleKeyDown({ code: 'KeyE', repeat: false });
 			const unmappedIdFallsBackToTemplate = t9.dialogue.shown === 'Selam, Unknown NPC!';
 
+			// run 44 (ADR-0058): choice-branching pilot. Greeting shows 2 numbered choice labels;
+			// picking one (Digit1/Digit2) replaces the shown text with that choice's own response and
+			// clears the choice list; E/Escape still close from either state.
+			const choiceNpc = { object3D: { position: { x: 10, z: 0 }, name: 'choice-guard-1' }, displayName: 'Choice NPC' };
+			const choicesByNpcId = {
+				'choice-guard-1': [
+					{ label: 'İlk soru?', response: '{name} diyor ki: ilk cevap.' },
+					{ label: 'İkinci soru?', response: '{name} diyor ki: ikinci cevap.' },
+				],
+			};
+
+			const t10 = makeFakes({ choicesByNpcId });
+			t10.controller.update([choiceNpc], near);
+			t10.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			const greetingOffersChoiceLabels = t10.dialogue.shown === 'Selam, Choice NPC!'
+				&& JSON.stringify(t10.dialogue.shownChoices) === JSON.stringify(['İlk soru?', 'İkinci soru?']);
+
+			const t11 = makeFakes({ choicesByNpcId });
+			t11.controller.update([choiceNpc], near);
+			t11.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			t11.controller.handleKeyDown({ code: 'Digit2', repeat: false });
+			const secondChoiceShowsItsOwnResponse = t11.dialogue.shown === 'Choice NPC diyor ki: ikinci cevap.'
+				&& t11.dialogue.shownChoices.length === 0;
+
+			const t12 = makeFakes({ choicesByNpcId });
+			t12.controller.update([choiceNpc], near);
+			t12.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			t12.controller.handleKeyDown({ code: 'Digit3', repeat: false }); // only 2 choices exist — no-op
+			const outOfRangeDigitIgnored = t12.dialogue.shown === 'Selam, Choice NPC!' && t12.dialogue.shownChoices.length === 2;
+
+			const t13 = makeFakes({ choicesByNpcId });
+			t13.controller.update([choiceNpc], near);
+			t13.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			t13.controller.handleKeyDown({ code: 'Digit1', repeat: false });
+			t13.controller.handleKeyDown({ code: 'Digit2', repeat: false }); // choice already consumed — no-op
+			const secondDigitAfterChoiceConsumedIgnored = t13.dialogue.shown === 'Choice NPC diyor ki: ilk cevap.';
+
+			const t14 = makeFakes({ choicesByNpcId });
+			t14.controller.update([choiceNpc], near);
+			t14.controller.handleKeyDown({ code: 'KeyE', repeat: false }); // choices offered, not yet picked
+			t14.controller.handleKeyDown({ code: 'KeyE', repeat: false }); // E still closes mid-choice
+			const eClosesWhileChoicesOffered = t14.dialogue.shown === null;
+
+			const t15 = makeFakes({ greetingsByNpcId: { 'test-guard-1': '{name} diyor ki: özel selam!' } });
+			t15.controller.update([namedNpc], near); // no choicesByNpcId entry for this id at all
+			t15.controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			const noChoicesEntryBehavesLikeBefore = t15.dialogue.shown === 'Named NPC diyor ki: özel selam!'
+				&& t15.dialogue.shownChoices.length === 0;
+
 			return {
 				farHidesPrompt, nearShowsPrompt, eOpensDialogue, eAgainCloses, escapeCloses,
 				walkingAwayAutoCloses, repeatIgnored, perNpcGreetingUsed, unmappedIdFallsBackToTemplate,
+				greetingOffersChoiceLabels, secondChoiceShowsItsOwnResponse, outOfRangeDigitIgnored,
+				secondDigitAfterChoiceConsumedIgnored, eClosesWhileChoicesOffered, noChoicesEntryBehavesLikeBefore,
 			};
 		});
 	} finally {
@@ -230,7 +286,8 @@ async function checkInteractionController(browser, baseUrl) {
 	const ok = Object.values(result).every(Boolean);
 	const details = ok
 		? 'far hides prompt, near shows it, E opens/closes, Escape closes, walking away auto-closes, key-repeat ignored, ' +
-			'per-NPC greeting lookup + fallback-to-template both correct'
+			'per-NPC greeting lookup + fallback-to-template both correct, choice-branching pilot (offer/select/' +
+			'out-of-range/already-consumed/E-closes-mid-choice/no-entry-unaffected) all correct'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
 	return { name: 'interaction controller (gameplay/interaction.js)', ok, details };
 }

@@ -2,10 +2,11 @@
  * Fixed-position DOM dialogue box (FAZ 5, run 33 — the second step of the interaction system after
  * `ui/interactionPrompt.js`'s proximity affordance). Same DOM-ownership pattern as
  * `ui/touchJoystick.js`/`ui/interactionPrompt.js`: renders its own DOM rather than a canvas draw, no
- * render-budget cost. Deliberately still minimal — one static, generic greeting line per NPC (built
- * from its `displayName`, not real per-character dialogue content/branching yet), no options/replies.
- * `game3d.js` owns the open/close *decision* (keypress, distance-based auto-close); this class only
- * owns the DOM.
+ * render-budget cost. Greeting content is per-NPC (`gameplay/interaction.js` looks it up), and (run
+ * 44, DECISIONS.md ADR-0058) an optional numbered choice list can follow the greeting on a pilot
+ * subset of NPCs — still no persistence/quest hooks, one response per choice, no further branching.
+ * `game3d.js`/`gameplay/interaction.js` own the open/close/selection *decision* (keypress,
+ * distance-based auto-close); this class only owns the DOM.
  * @module ui/dialogueBox
  */
 
@@ -22,10 +23,14 @@ export class DialogueBox {
 		this._textEl.className = 'g3d-dialogue-box-text';
 		this._el.appendChild(this._textEl);
 
-		const hintEl = document.createElement('p');
-		hintEl.className = 'g3d-dialogue-box-hint';
-		hintEl.textContent = 'E / Esc - Kapat';
-		this._el.appendChild(hintEl);
+		this._choicesEl = document.createElement('div');
+		this._choicesEl.className = 'g3d-dialogue-box-choices';
+		this._el.appendChild(this._choicesEl);
+
+		this._hintEl = document.createElement('p');
+		this._hintEl.className = 'g3d-dialogue-box-hint';
+		this._hintEl.textContent = 'E / Esc - Kapat';
+		this._el.appendChild(this._hintEl);
 
 		this._el.hidden = true;
 		container.appendChild(this._el);
@@ -35,9 +40,21 @@ export class DialogueBox {
 	/**
 	 * Shows the box with the given text, replacing whatever was shown before.
 	 * @param {string} text
+	 * @param {string[]} [choiceLabels] Numbered choice labels rendered below the text (this method
+	 *   adds the "1)"/"2)" prefix itself — callers pass the bare label). Omit/empty for a plain
+	 *   response with no choices, which also reverts the hint back to "E / Esc - Kapat".
 	 */
-	show(text) {
+	show(text, choiceLabels = []) {
 		this._textEl.textContent = text;
+		this._choicesEl.replaceChildren(
+			...choiceLabels.map((label, index) => {
+				const choiceEl = document.createElement('p');
+				choiceEl.className = 'g3d-dialogue-box-choice';
+				choiceEl.textContent = `${index + 1}) ${label}`;
+				return choiceEl;
+			}),
+		);
+		this._hintEl.textContent = choiceLabels.length > 0 ? '1/2 - Seç, Esc - Kapat' : 'E / Esc - Kapat';
 		this._visible = true;
 		this._el.hidden = false;
 	}

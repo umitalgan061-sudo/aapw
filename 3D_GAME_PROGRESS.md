@@ -4528,6 +4528,57 @@ Other open items unchanged: FAZ 5/6's cart/dog-cat/bird gap (needs a human manua
 FAZ 5's real dialogue-tree/quest system (priority 9, larger scope, still untouched); the world-event
 system's flavor pool could still grow (ADR-0056's own note, not automatically the next pick).
 
+## This Run (2026-07-30, run 44)
+
+**Session Snapshot at container boot:** continued directly from run 43 in the same session (user
+sent "Devam et" — continue). `HEAD`/`main`/`origin/main` all already at run 43's commit (`5a949a6`),
+no ref-staleness this time. Full smoke suite (12 checks) re-run as a fresh regression-guard baseline
+— all PASS before any new work.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0058):** priority scan found no new syntax
+error/blocking bug/perf overrun/memory leak. FAZ 7 (dragons) re-confirmed still blocked (no new
+information since run 43's measurement — didn't re-check without a decimated asset in hand).
+Priority 9's one concrete open item is FAZ 5's real dialogue-tree/quest system, previously deferred
+every run as "larger scope." Scoped the smallest real slice instead of skipping or overbuilding it:
+one level of player choice (pick 1 of 2 numbered options via `Digit1`/`Digit2`, each with its own
+response line), piloted on 2 of 14 NPCs (`umit-guard-1`, `berkalp-guard-1`) — no quest/inventory/
+persistence/stat consequences, matching `gameplay/worldEvents.js`'s own "port the pattern, not a
+speculative mechanic" precedent (ADR-0056). `ui/dialogueBox.js`'s `show()` gained an optional
+`choiceLabels` parameter (numbered list + hint swap); `gameplay/interaction.js` gained an optional
+`choicesByNpcId` parameter and a small `activeChoices`/`selectChoice` state addition; every NPC
+without a `CHOICES_BY_NPC_ID` entry (12 of 14) is provably unaffected — see ADR-0058's Verified
+section for the exact regression assertion.
+
+**Regression guard:** `node --check` clean on all 5 touched code files. Extended
+`checkInteractionController`'s persisted regression check with 6 new assertions (choice offer,
+selection, out-of-range digit, already-consumed digit, `E`-closes-mid-choice, no-entry-unaffected).
+Full committed smoke suite — **all 12 checks PASS**. **Real headless-Chromium screenshots** (not
+just the fake-stub unit test): instantiated the real `DialogueBox`/`InteractionPrompt`/
+`createInteractionController` inside the live `game3d.html` page, opened `umit-guard-1`'s real
+dialogue — first screenshot shows the greeting plus both numbered choices and the "1/2 - Seç, Esc -
+Kapat" hint; selected choice 2, second screenshot shows that choice's own response text, the choice
+list now empty, and the hint reverted to "E / Esc - Kapat." Zero console/page errors in either state.
+
+**Files changed this sub-task:** `src/3d/ui/dialogueBox.js`, `src/3d/gameplay/interaction.js`,
+`src/3d/gameplay/gameplayConfig.js`, `src/3d/game3d.js`, `scripts/game3dSmokeChecks.js`, `game3d.css`,
+`src/3d/ui/README.md`, `src/3d/gameplay/README.md`, `ARCHITECTURE.md`, `DECISIONS.md` (new
+ADR-0058), `3D_GAME_PROGRESS.md` (this file). 11 files, ~260 new/changed lines. One commit, direct
+push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5% (6.25 km² /
+137.5 km²) mobile — a gameplay/UI-only addition, touches no terrain/streaming/chunk logic.**
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **FAZ 7 still
+blocked** (see run 43's note — unchanged, don't re-measure without a decimated asset). FAZ 5's
+choice-branching pilot could extend to more of the remaining 12 NPCs, or grow past 1 level (a reply
+leading to a further choice) — both real options, neither automatically the next pick without a
+fresh reason, same caution ADR-0055/ADR-0056 already flagged for their own "grow it further"
+temptations. **`scripts/game3dSmokeChecks.js` is at 596/600 lines — the very next check added there
+needs a real extraction first** (a 3rd sibling file, following the exact run-40 precedent that
+produced `game3dSmokeChecksScene.js`), flagging this now so a future run doesn't accidentally blow
+the cap adding "just one more assertion." Other open items unchanged: FAZ 5/6's cart/dog-cat/bird
+gap (needs a human manual-download step); the world-event system's flavor pool could still grow.
+
 ## Known Issues / Tech Debt
 
 - **~~Player spawned at the world origin — 2.5-6km from every kingdom seat, beyond `fog.js`'s
@@ -4647,8 +4698,13 @@ system's flavor pool could still grow (ADR-0056's own note, not automatically th
   patrolling NPC's own movement, either counts — auto-closes it. **~~The greeting was one static
   template, identical for every NPC~~ — fixed run 40** (`config.js`'s `INTERACTION_CONFIG.
   GREETINGS_BY_NPC_ID`, DECISIONS.md ADR-0051) — all 14 NPCs now speak their own hand-written,
-  house-flavored line. **Still no real dialogue system:** no branching, no reply options, no quest
-  hooks — one static line per NPC, not a tree. No NPC reacts to the player's presence otherwise —
+  house-flavored line. **~~No branching/reply options at all~~ — first pilot landed run 44**
+  (`gameplayConfig.js`'s `INTERACTION_CONFIG.CHOICES_BY_NPC_ID`, DECISIONS.md ADR-0058): 2 of 14
+  NPCs (`umit-guard-1`, `berkalp-guard-1`) offer 2 numbered choices after their greeting, each with
+  its own response line. **Still no real dialogue *tree*/quest system:** one level deep only (no
+  reply-to-a-reply), 12 of 14 NPCs still have no choices at all, and no quest hooks/persistence/stat
+  consequences exist for any choice yet — a real quest system remains separate, still-open FAZ 5/8
+  work. No NPC reacts to the player's presence otherwise —
   patrol runs on a fixed clock/route regardless of where the player is, deliberately not real
   behavior-tree AI. All remaining gaps are honest, scoped-out ones (see
   DECISIONS.md ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031/ADR-0032/ADR-0033/

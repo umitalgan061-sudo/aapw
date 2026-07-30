@@ -7,35 +7,63 @@
  * content landed run 40 (`INTERACTION_CONFIG.GREETINGS_BY_NPC_ID`, DECISIONS.md ADR-0051) —
  * `openDialogue` looks its speaker up by `object3D.name` (already carried as each NPC's spawn `id`
  * — see `gameplay/npc.js`'s `createNPC`), falling back to the old generic template for any id with
- * no entry. Still deliberately no branching/replies/quest hooks — one static line per NPC.
+ * no entry. Run 44 (DECISIONS.md ADR-0058) adds an optional single-level choice branch on top of
+ * the greeting for a small pilot subset of NPCs (`INTERACTION_CONFIG.CHOICES_BY_NPC_ID`) — picking
+ * a numbered choice (Digit1/Digit2/Digit3) shows that choice's own response line; still no further
+ * branching/quest hooks, and every NPC with no `CHOICES_BY_NPC_ID` entry keeps the old
+ * greeting-then-close-on-E behavior unchanged.
  * @module gameplay/interaction
  */
+
+/** Digit-key `event.code` values mapped to choice array indices, in order. Caps the pilot at 3
+ * simultaneous choices — plenty for a first branching pass; extend if a future NPC needs more. */
+const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
 
 /**
  * @param {object} options
  * @param {{setVisible: (visible: boolean) => void}} options.interactionPrompt
- * @param {{show: (text: string) => void, hide: () => void}} options.dialogueBox
+ * @param {{show: (text: string, choiceLabels?: string[]) => void, hide: () => void}} options.dialogueBox
  * @param {string} options.greetingTemplate Contains a literal `{name}` placeholder. Fallback only.
  * @param {Object<string, string>} [options.greetingsByNpcId] Keyed by NPC id (`object3D.name`),
- *   each containing a literal `{name}` placeholder — see `config.js`'s `GREETINGS_BY_NPC_ID`.
+ *   each containing a literal `{name}` placeholder — see `gameplayConfig.js`'s `GREETINGS_BY_NPC_ID`.
+ * @param {Object<string, {label: string, response: string}[]>} [options.choicesByNpcId] Keyed by
+ *   NPC id, each entry a small ordered list of `{label, response}` (`response` may also contain a
+ *   literal `{name}` placeholder) — see `gameplayConfig.js`'s `CHOICES_BY_NPC_ID`. An id with no
+ *   entry (or an empty array) never offers choices — same greeting-then-close-on-E as before.
  * @param {number} options.radiusMeters
  * @returns {{update: (npcs: Array<{object3D: import('three').Object3D, displayName: (string|null)}>, playerPos: {x: number, z: number}) => void, handleKeyDown: (event: KeyboardEvent) => void}}
  */
-export function createInteractionController({ interactionPrompt, dialogueBox, greetingTemplate, greetingsByNpcId = {}, radiusMeters }) {
+export function createInteractionController({ interactionPrompt, dialogueBox, greetingTemplate, greetingsByNpcId = {}, choicesByNpcId = {}, radiusMeters }) {
 	let activeNpc = null;
 	let nearestNpc = null;
+	// Non-null only between opening a dialogue that has choices and one of them being picked (or the
+	// dialogue closing) — cleared by `selectChoice`/`closeDialogue` so a second key press never
+	// re-triggers a choice already consumed.
+	let activeChoices = null;
+	let activeNpcName = null;
 
 	function openDialogue(npc) {
 		activeNpc = npc;
 		interactionPrompt.setVisible(false);
-		const name = npc.displayName ?? 'Yabancı';
+		activeNpcName = npc.displayName ?? 'Yabancı';
 		const template = greetingsByNpcId[npc.object3D.name] ?? greetingTemplate;
-		dialogueBox.show(template.replace('{name}', name));
+		const choices = choicesByNpcId[npc.object3D.name];
+		activeChoices = choices && choices.length > 0 ? choices : null;
+		dialogueBox.show(template.replace('{name}', activeNpcName), activeChoices?.map((choice) => choice.label) ?? []);
 	}
 
 	function closeDialogue() {
 		activeNpc = null;
+		activeChoices = null;
+		activeNpcName = null;
 		dialogueBox.hide();
+	}
+
+	/** @param {number} index Into `activeChoices` — caller already validated it's in range. */
+	function selectChoice(index) {
+		const { response } = activeChoices[index];
+		activeChoices = null; // consumed — a further key press can no longer pick a(nother) choice
+		dialogueBox.show(response.replace('{name}', activeNpcName));
 	}
 
 	return {
@@ -65,6 +93,13 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 			if (event.code === 'Escape') {
 				if (activeNpc) closeDialogue();
 				return;
+			}
+			if (activeChoices) {
+				const index = DIALOGUE_CHOICE_KEY_CODES.indexOf(event.code);
+				if (index !== -1 && index < activeChoices.length) {
+					selectChoice(index);
+					return;
+				}
 			}
 			if (event.code !== 'KeyE') return;
 			if (activeNpc) closeDialogue();

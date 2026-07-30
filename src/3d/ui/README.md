@@ -23,11 +23,14 @@ convention below.
   (avoids a redundant DOM write every frame). `dispose()` removes the DOM. Deliberately dumb: always
   the same static text, no per-NPC identity, no key-press handling of its own —
   `gameplay/interaction.js` (run 33) owns the actual distance/keypress logic that calls this.
-- **`dialogueBox.js`** — generic-greeting dialogue box (FAZ 5, run 33). `new DialogueBox(container?)`
-  appends a `<div>` with a text `<p>` and a static "E / Esc - Kapat" hint `<p>` (styled via
-  `game3d.css`), hidden by default. `show(text)` sets the text and un-hides; `hide()` no-ops if
-  already hidden. `isVisible` getter, `dispose()` removes the DOM. Same "dumb DOM only" split as
-  `interactionPrompt.js` — `gameplay/interaction.js` decides what text to show and when.
+- **`dialogueBox.js`** — per-NPC dialogue box (FAZ 5, run 33; choice branching added run 44).
+  `new DialogueBox(container?)` appends a `<div>` with a text `<p>`, a `<div>` for numbered choices,
+  and a hint `<p>` (styled via `game3d.css`), hidden by default. `show(text, choiceLabels?)` sets the
+  text, renders `choiceLabels` (if any) as `"1) ..."`/`"2) ..."` lines and switches the hint to
+  "1/2 - Seç, Esc - Kapat", or clears the choices and reverts the hint to "E / Esc - Kapat" when
+  `choiceLabels` is omitted/empty; `hide()` no-ops if already hidden. `isVisible` getter, `dispose()`
+  removes the DOM. Same "dumb DOM only" split as `interactionPrompt.js` — `gameplay/interaction.js`
+  decides what text/choices to show and when, and which numbered choice was picked.
 - **`worldEventToast.js`** — toast card for `gameplay/worldEvents.js`'s periodic events (run 42).
   `new WorldEventToast({eventsBus, eventName, container?})` appends a hidden `<div>` and
   self-subscribes to `eventName` on `eventsBus` (the *one* exception to "own DOM only, caller
