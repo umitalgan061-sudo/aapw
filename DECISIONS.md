@@ -3932,3 +3932,86 @@ the option (620 draw calls flags over-budget under the 500 mobile cap but would 
   standing lesson (from run 40's self-caught mistake) is explicit that a positive-path check proves
   nothing about whether it *would* catch a break; this run applied that lesson rather than repeating
   the exact failure mode it exists to prevent.
+
+## ADR-0055: Grow `PHASE1_PREVIEW_RADIUS_CHUNKS` 10 -> 11 using F2/F4's real measured headroom
+
+**Status:** Accepted (run 42, first sub-task).
+
+**Context:** Run 41's own "Next step" flagged priority 8 (World Coverage, flat at 80.7% desktop
+since run 15) as finally unblocked — F2's `renderer.info` instrumentation (ADR-0053) existed, but
+that run deliberately left the actual radius bump undone, calling it "a separate, real-headroom-
+dependent decision, not automatically safe just because the instrumentation now exists." This run
+did that measurement rather than guessing: the F2 panel's own boot-time reading only samples
+whatever the chase camera happens to be looking at (a few hundred thousand triangles, nowhere near
+a worst case), so a throwaway headless-Chromium script combined it with F4 (already `far`=20000m,
+ADR-0049) — fly to altitude, pitch the camera down, and read `renderer.info` while looking down at
+most/all of the loaded chunk square at once, the closest this project can get to a real "most
+chunks visible simultaneously" reading without a from-scratch synthetic benchmark.
+
+**Decision:** `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (`config.js`) changes from 10 to 11 — the
+desktop-only boot-preview square grows from 21x21 (441 chunks) to 23x23 (529 chunks).
+`STREAM_RADIUS_CHUNKS` (mobile path) is untouched, same device branch as every prior radius change.
+
+**Reasoning:**
+- **Measured at the old radius (10) first, to calibrate against ADR-0014's own estimate:** the
+  aerial F2 reading at radius 10 showed **320 draw calls / 2,186,879 triangles** — well under
+  ADR-0014's hand-computed "~3.61M terrain triangles alone" ceiling estimate (that estimate assumed
+  every chunk's full triangle count always counts; the real measured number is lower, likely because
+  even a wide-angle aerial shot doesn't fit literally every one of 441 chunks inside the camera
+  frustum at once). This is real evidence the old estimate was conservative, not proof the true
+  worst case is exactly this number — flagged explicitly, not overclaimed.
+- **Radius 11 chosen over 12, deliberately conservative:** 12 would make the boot-preview square
+  (25x25 = 625 chunks) wider than `CHUNK_CONFIG.GRID_COLUMNS` (25) and taller than `GRID_ROWS` (22)
+  — since `loadSquare` has no bounds clamp, some of those chunks would generate real terrain outside
+  the padded kingdom bounding box `WORLD_SCALE.MAP_BOUNDS` actually spans, inflating the World
+  Coverage numerator with area outside the designed 137.5 km² world (and could read >100% coverage,
+  a confusing, hard-to-defend number). Radius 11 (23x23 = 529 chunks = 132.25 km²) stays under the
+  137.5 km² target with a clean, honest percentage, and every real kingdom seat's center chunk was
+  already inside radius 10's square (ADR-0014), so radius 11 keeps that margin, not tightens it.
+- **Verified the new radius's real cost before committing to it, not after:** a second aerial F2
+  reading at radius 11 showed **351 draw calls (14.0% of the 2500 desktop budget) / 2,440,831
+  triangles (48.8% of the 5,000,000 desktop budget)** — both comfortably clear, leaving real
+  headroom (not just estimated) for FAZ 7's still-unstarted dragons and any future vegetation
+  instancing.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the math alone:**
+- `node --check src/3d/config.js` clean; file is 597/600 lines (comment tightened to fit the note
+  without pushing past the cap — see run 41's own flag that this file's headroom was thin).
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`) — all 11 checks PASS, zero
+  regressions.
+- Console confirms `"[sceneManager] Loaded 529 terrain chunks (~132.25 km²) ... (desktop-class
+  device — full preview radius)"` then `"Placed 14 kingdom-seat settlements; 529 terrain chunks
+  resident (~132.25 km²) after grounding them"` — 529, not 529+3 like radius 10's Night King
+  spillover, because the wider square now fully contains that seat's grounding neighborhood too.
+  Zero `pageerror`/`console.error`.
+- Real headless-Chromium screenshots: the normal boot/chase-cam view is unaffected (player + castle
+  render identically to before); the F4+F2 aerial view shows the perf panel's live numbers above
+  and at least 4 distinct castle silhouettes plus a river simultaneously in frame, over an
+  unmistakably wider visible area than radius 10's equivalent shot, zero console/page errors either
+  frame.
+- Mobile path re-confirmed untouched by inspecting `sceneManager.js`'s device branch (unchanged this
+  run) — not re-run headless this time, since no line touching the mobile branch changed and every
+  prior radius-bump ADR (ADR-0014) already re-verified this exact branch is unaffected by this
+  constant.
+
+**Alternatives considered:**
+- *Radius 12 or higher, to push coverage further above the already-cleared 80% gate* — rejected per
+  the Reasoning section above: it starts loading terrain outside the designed 137.5 km² world
+  extent, which is a real design inconsistency (not just a cosmetic one), for a gate that's already
+  satisfied. Nothing in the priority order requires maximizing coverage past the gate at the cost of
+  a clean, defensible number.
+- *Merge/instance terrain chunk geometry to afford a much larger radius safely* — still not needed:
+  draw calls are 14% of budget at the new radius, same "no measured draw-call problem" conclusion
+  ADR-0014 reached, now re-confirmed with a real (not estimated) number.
+- *Trust ADR-0014's original hand-computed triangle-per-chunk estimate instead of measuring* —
+  rejected: this run's whole point was to stop estimating now that F2 exists; the measured numbers
+  differ meaningfully from the estimate (see Reasoning), so estimating again would have thrown away
+  the very instrumentation run 41 built for exactly this decision.
+
+**Consequences:** Desktop World Coverage moves from 80.7% (111.00 km² / 137.5 km²) to **96.2%
+(132.25 km² / 137.5 km²)**. Mobile World Coverage is unchanged (4.5%, 25 chunks / 6.25 km², by
+design — `STREAM_RADIUS_CHUNKS` untouched). Desktop performance: measured 351/2500 draw calls
+(14.0%), 2,440,831/5,000,000 triangles (48.8%) from the widest real viewing angle tested — real
+headroom remains for FAZ 7 dragons and future vegetation instancing, though this is an empirical
+near-worst-case reading from one flight path, not an exhaustive proof no camera angle could ever
+exceed it.

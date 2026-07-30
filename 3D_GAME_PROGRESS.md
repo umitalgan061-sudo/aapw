@@ -145,9 +145,11 @@ KayKit, etc.) are used for `assets/`.
 
 ## World Coverage
 
-**World Coverage: 80.7% (111.00 km² / 137.5 km² target) on desktop-class devices — clears the FAZ
-3/10 80% gate; 4.5% (6.25 km² / 137.5 km²) on mobile-class devices, unchanged — see below for why
-the two paths differ and stay different by design (same device-branching pattern as ADR-0010).**
+**World Coverage: 96.2% (132.25 km² / 137.5 km² target) on desktop-class devices — grown from 80.7%
+at run 42 (`PHASE1_PREVIEW_RADIUS_CHUNKS` 10 -> 11, DECISIONS.md ADR-0055, using F2/F4's real
+measured headroom, not an estimate); 4.5% (6.25 km² / 137.5 km²) on mobile-class devices, unchanged
+— see below for why the two paths differ and stay different by design (same device-branching
+pattern as ADR-0010).**
 **Unchanged by run 17 — FAZ 4's player addition doesn't generate or force-load any new terrain
 chunks, re-verified via the same headless-Chromium console-log method (`"...444 terrain chunks
 resident (~111.00 km²)..."` desktop, `"...25 terrain chunks resident...(~6.25 km²)..."` mobile,
@@ -171,14 +173,15 @@ check each time.**
   22 grid of 500m x 500m chunks = 137.5 km²** (550 total chunk slots). Confirmed identical to
   ADR-0004/ADR-0013 — the earlier "4278 km²" target this instruction set once warned about does not
   exist anywhere in this codebase; nothing to revert.
-- **Covered area (boot baseline, desktop-class): 111.00 km²** (up from 80.25 km²) — `CHUNK_CONFIG.
-  PHASE1_PREVIEW_RADIUS_CHUNKS` bumped from 8 to 10 this run (17x17/289 chunks -> 21x21/441 chunks),
-  **plus 3 more** force-loaded to ground the Night King seat (whose chunk sits exactly on the new
-  square's edge) — see DECISIONS.md ADR-0014. Radius 10 was computed, not guessed: it's the smallest
-  radius that puts every one of the 14 real kingdom seats' center chunk inside the boot-preview
-  square itself. 444 total resident chunks / 550 (80.7%), verified via the same headless-Chromium
-  console-log method every prior run has used (`"Placed 14 kingdom-seat settlements; 444 terrain
-  chunks resident (~111.00 km²) after grounding them"`).
+- **Covered area (boot baseline, desktop-class): 132.25 km²** (up from 111.00 km²) — `CHUNK_CONFIG.
+  PHASE1_PREVIEW_RADIUS_CHUNKS` bumped from 10 to 11 at run 42 (21x21/441 chunks -> 23x23/529
+  chunks) — see DECISIONS.md ADR-0055. Unlike radius 10's Night King spillover, no extra grounding
+  chunks were needed this time (that seat's grounding neighborhood now fits fully inside the wider
+  square). 529 total resident chunks / 550 (96.2%), verified via headless Chromium (`"Placed 14
+  kingdom-seat settlements; 529 terrain chunks resident (~132.25 km²) after grounding them"`).
+  Radius 11, not 12: 12 would make the boot-preview square (25x25) wider/taller than `GRID_COLUMNS`
+  (25) and `GRID_ROWS` (22), generating real terrain outside the designed 137.5 km² world extent
+  (`loadSquare` has no bounds clamp) — see ADR-0055's Reasoning for why that was rejected.
 - **Mobile-class boot baseline is unchanged at 25 chunks (~6.25 km², 4.5% of 550 slots) — this run's
   change is desktop-only.** `PHASE1_PREVIEW_RADIUS_CHUNKS` is never read on touch-primary devices
   (they use `STREAM_RADIUS_CHUNKS` instead, per ADR-0010's device branch) — re-verified via the same
@@ -191,27 +194,30 @@ check each time.**
   static baseline above.
 - Per the project's phase-gate rules, FAZ 3 and FAZ 10 cannot be marked DONE below 80% coverage
   (crisis exception: fix critical bugs/perf first, then resume geographic growth). **The coverage
-  gate itself is now clear on desktop (80.7%)**, but FAZ 3 is **not** being marked DONE this run —
-  its PBR-materials and LOD/collider sub-tasks (see Roadmap below) are still open, and FAZ 10
-  (Performans) hasn't been started at all.
+  gate itself is clear on desktop (96.2% as of run 42, was 80.7%)**, but FAZ 3 is **not** being
+  marked DONE — its PBR-materials and LOD/collider sub-tasks (see Roadmap below) are still open,
+  and FAZ 10 (Performans) hasn't been started at all.
 
 ## Performance Budget Status
 
 Desktop budget: DrawCalls<2500, Triangles<5M, TextureMem<2GB. Mobile: DrawCalls<500,
 Triangles<500K, TextureMem<512MB.
 
-- **Current desktop-class boot scene (444 chunks, up from 321 this run — `PHASE1_PREVIEW_RADIUS_
-  CHUNKS` bumped 8 -> 10, see World Coverage above and DECISIONS.md ADR-0014):** 444 terrain draw
-  calls (one per chunk mesh — no merging/instancing yet, flagged below) + 3 more for `world/
-  settlements.js`'s `InstancedMesh`es (keeps/towers/roofs) + a handful more for sky/water/river/
-  waterfalls/stars ≈ **453 total draw calls**, ~3.64M terrain triangles (444 × 8192) plus ~2,520
-  settlement triangles (14 keeps + 56 towers + 56 roofs, all low-poly primitives) plus ~33.7K sky/
-  water triangles (unchanged from run 6) ≈ **~3.67M triangles total**. Comfortably inside the
-  **desktop** budget (73.4% of triangle budget, 18.1% of draw-call budget) — triangles are now the
-  tighter of the two budgets (26.6% headroom left vs. 81.9% on draw calls); a future run growing the
-  boot-preview radius further should watch the triangle ceiling, not draw calls. Verified via
-  headless Chromium, not just computed: console confirms `"Placed 14 kingdom-seat settlements; 444
-  terrain chunks resident (~111.00 km²) after grounding them"`, zero page errors.
+- **Current desktop-class boot scene (529 chunks, up from 444 — `PHASE1_PREVIEW_RADIUS_CHUNKS`
+  bumped 10 -> 11 at run 42, DECISIONS.md ADR-0055):** figures below are a **real F2 (`renderer.
+  info`) measurement**, not a hand-computed estimate — taken from an F4 high-altitude view chosen to
+  keep most/all of the loaded chunk square in frame at once (the boot camera's own default view only
+  samples whichever few chunks it happens to be looking at, far below any real worst case). Measured
+  **351 draw calls (14.0% of budget) / 2,440,831 triangles (48.8% of budget)** — both comfortably
+  clear, and triangles remain the tighter of the two budgets by a wide margin (51.2% headroom left
+  vs. 86.0% on draw calls). This is an empirical near-worst-case reading from one flight path, not
+  an exhaustive proof — see ADR-0055's own caveat. Verified via headless Chromium, not just
+  computed: console confirms `"Placed 14 kingdom-seat settlements; 529 terrain chunks resident
+  (~132.25 km²) after grounding them"`, zero page errors. **Note on the bullets below:** they
+  document each system's own incremental cost on top of run 29's old 453-draw-call/~3.67M-triangle
+  baseline (since superseded) — the 351/2,440,831 figures above are a fresh, real, *whole-scene*
+  measurement including every one of those systems already, not a number to add the bullets on top
+  of again.
 - **`gameplay/animals.js` (added run 26, 3rd wolf added run 30):** 3 wolves × 5 draw calls each (one
   per glTF primitive — body/fur/claws/eyes/teeth; the bundled non-skinned "Circle" mesh is stripped
   before it ever reaches the scene, see DECISIONS.md ADR-0025) = 15 draw calls, 2,748 triangles/wolf
@@ -4345,6 +4351,65 @@ cart/dog-cat/bird gap (needs a human manual-download step); FAZ 7 (dragons — `
 no code started); priority-9.5 world-events/EventBus expansion (not yet reached across 3 runs now).
 `game3d.js` is at 442/600 lines and `config.js` at 597/600 — both have some headroom now, but
 `config.js`'s is thin; a future addition there may need its own extraction first.
+
+## This Run (2026-07-30, run 42)
+
+**Session Snapshot at container boot:** `HEAD` was detached at run 41's final commit (`70980b5`,
+ADR-0054's F2 regression coverage), local `main` cached ref stale (same pattern every run since 40
+hits) — `git fetch origin main` confirmed real remote `main` already matched `HEAD` exactly, then
+`git checkout -B main origin/main` reattached cleanly, zero divergence/lost work. Both of this run's
+own pre-ranked priority items — 1.5 (lake-water flicker) and 1.7 (F4 debug free-camera) — were
+already landed in run 40 (ADR-0048/ADR-0049), and this run's own new instruction (1.7's "debug free
+camera") had also already shipped, so both were skipped per the "already verified, don't redo" rule,
+confirmed via `git log --oneline -10` and run 40/41's own entries. Full smoke suite (11 checks)
+re-run as a fresh regression-guard baseline — all PASS before any new work.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0055):** priority scan found no syntax error/
+blocking bug/perf overrun/memory leak, and no missing regression coverage. Priority 8 (World
+Coverage, flat at 80.7% desktop since run 15) was next, and — unlike every prior run that considered
+it — finally had its real prerequisite: run 41's F2 panel plus the existing F4 free-camera. Wrote a
+throwaway headless-Chromium script (not committed) combining both: F4 to altitude, pitch the camera
+down, F2 to read `renderer.info` while looking down at the *entire* loaded chunk square at once —
+the closest approximation this project can get to a real worst-case reading, instead of either the
+boot camera's narrow sample or a hand-computed per-chunk estimate. Measured radius 10's real cost
+(320 draw calls / 2,186,879 triangles — well under ADR-0014's own conservative estimate), then
+picked radius 11 (not 12, to avoid loading terrain outside the designed 137.5 km² extent — see
+ADR-0055's Reasoning) and re-measured to confirm the new cost before committing: **351 draw calls
+(14.0%) / 2,440,831 triangles (48.8%)**, both comfortably clear. `config.js`'s
+`PHASE1_PREVIEW_RADIUS_CHUNKS`: 10 -> 11.
+
+**Regression guard:** `node --check src/3d/config.js` clean, file at 597/600 lines (comment written
+tight to avoid pushing past the cap, per run 41's own flag that this file's headroom was thin). Full
+committed smoke suite — all 11 checks PASS, zero regressions. **Real headless-Chromium proof:**
+normal boot/chase-cam screenshot unaffected (player + castle render identically); F4+F2 aerial
+screenshot shows the perf panel's live numbers plus at least 4 distinct castle silhouettes and a
+river simultaneously in frame, over a visibly wider area than the same shot at radius 10; console
+confirms `"Loaded 529 terrain chunks (~132.25 km²) ... (desktop-class device — full preview
+radius)"` then `"Placed 14 kingdom-seat settlements; 529 terrain chunks resident (~132.25 km²)
+after grounding them"` (no extra grounding spillover this time, unlike radius 10's +3 for Night
+King); zero console/page errors in any of the four screenshots taken (radius 10 boot, radius 10
+aerial, radius 11 boot, radius 11 aerial).
+
+**Memory-leak checklist:** N/A — a single config constant changed; no new listeners/DOM
+nodes/GPU resources beyond the terrain chunks `ChunkManager` already knew how to load/dispose.
+
+**Files changed this sub-task:** `src/3d/config.js`, `DECISIONS.md` (new ADR-0055),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~110 new/changed lines (mostly ADR-0055's own
+reasoning/verification prose). One commit, direct push to `main`.
+
+**World Coverage (after this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop — up from 80.7%
+(111.00 km²); 4.5% (6.25 km² / 137.5 km²) mobile, unchanged (`STREAM_RADIUS_CHUNKS` untouched, same
+device branch as every prior radius change).**
+
+**Next step for the next run:** re-scan the priority order fresh, as always. World Coverage's own
+gate (80%) has been clear since run 29 and is now comfortably ahead of it (96.2%) — a future run
+should not treat "grow it further" as automatically the next priority-8 pick without a fresh reason
+(e.g. new content changing the real measured headroom); radius 12+ was deliberately rejected this
+run for loading terrain outside the designed world extent (ADR-0055). Other open items unchanged:
+FAZ 5/6's cart/dog-cat/bird gap (needs a human manual-download step); FAZ 7 (dragons —
+`verdant_wyrm` ready, no code started); priority-9.5 world-events/EventBus expansion (not yet
+reached across 4 runs now — likely the best next pick if no higher-priority regression/bug turns
+up). `game3d.js` is at 442/600 lines, `config.js` at 597/600 (still thin headroom).
 
 ## Known Issues / Tech Debt
 
