@@ -1729,3 +1729,87 @@ terrain). Still-open FAZ 5 work: no player-NPC interaction/dialogue/name-tag UI,
 the player is — real behavior-tree territory, deliberately still out of scope). No new tech debt —
 `createNPC`'s new parameters are all optional with the pre-existing behavior as the default, so
 nothing about the static-NPC code path changed.
+
+## ADR-0022: FAZ 5 NPC name-tag billboards (`gameplay/npc.js`'s `createNameTagSprite`), not full dialogue/interaction
+
+**Context:** `3D_GAME_PROGRESS.md`'s FAZ 5 roadmap and the Known Issues list have long flagged "no
+player-NPC interaction/dialogue/name-tag UI yet" as an honest, scoped-out gap (see ADR-0019's
+Alternatives). With world scale, syntax, perf, and memory all clear this run (run 23) and FAZ 5's
+patrol sub-task already having a real pilot (ADR-0021), the name-tag half of that gap was the next
+concrete, small, testable slice — real dialogue/interaction is a much larger system (needs UI state,
+input handling, and a real "what can this NPC say" data model) and stays out of scope for one run.
+
+**Decision:** Give every `NPC_CONFIG.SPAWNS` entry with a `displayName` field a billboard name-tag —
+a `THREE.Sprite` with a canvas-rendered text texture, added as a child of the NPC's loaded FBX model
+at `NAME_TAG_VERTICAL_OFFSET_METERS` (2.1m) above its local origin (the model's feet). All 6 current
+NPCs got a house-flavored Turkish `displayName` (`'Baratheon Muhafızı I'`/`'II'` for the two `stannis`
+guards since they share a house, `'Targeryan Muhafızı'`/`'Lannister Muhafızı'`/`'Stark Muhafızı'`/
+`'Martell Muhafızı'` for the other four, derived from each spawn's `seatId` matching `script.js`'s
+`INIT_KINGDOMS` house names) — config-only additions, `SPAWNS`' shape otherwise unchanged.
+
+**A real bug found and fixed before this shipped, not assumed correct from the code alone:** the
+first implementation set the sprite's local `position`/`scale` directly to the intended real-world
+meters (2.1m height, 2.4m x 0.6m size) — reasonable-looking code that rendered as a near-invisible
+speck in the actual headless-Chromium smoke test. Root cause, confirmed by reading the vendored
+sprite vertex shader (`vendor/three/three.module.js`'s `vertex$1` for `ShaderLib.sprite`): a
+`THREE.Sprite` billboards (drops rotation) but still fully inherits its **parent's translation and
+scale** — both the sprite's `mvPosition` and its on-screen `scale` are derived from its own
+`modelMatrix`, which composes the parent's transform in. Since the tag is parented under the FBX
+`model`, and `AssetLoader.correctMixamoFbxScale` had just set that model's `scale` to ~0.01 (Mixamo
+FBX files are authored in centimeters), the tag's local "2.1m"/"2.4m x 0.6m" values were themselves
+being multiplied by 0.01 in the render matrix — landing at ~2cm above the feet and ~2cm x 0.6cm in
+size, invisible in practice. Fixed by dividing the tag's local position/scale by the model's own
+`scale.x` (`inverseParentScale = 1 / model.scale.x`) before assigning them, canceling the parent's
+scale out so the tag's *effective world-space* size/height match the real-meter constants regardless
+of the FBX's own unit scale. Verified via a temporary debug hook (`window.__debugGame3DState = state`,
+reverted before commit, same pattern ADR-0020/ADR-0021 used) that teleported the player + camera
+target next to a live NPC and screenshotted it: "Baratheon Muhafızı I" renders legibly, centered
+above the character's head, both before and after a patrol-turn (confirming the sprite still faces
+the camera through the parent's rotation, as expected — only scale needed correcting, not rotation).
+
+**Why parent it under `model` at all, instead of adding it as a scene-level sibling that tracks
+position each frame:** simpler and just as correct once the scale bug above is fixed — a child
+automatically inherits the model's *position* every frame for free (no extra per-frame code needed
+in `update()`, unlike the patrol-position logic which does need one), and a `Sprite`'s billboard
+shader already discards inherited *rotation* for its own facing, so a parent's yaw changes (patrol
+turning) never rotate the tag out of billboard alignment — only its position needs to (and does)
+follow the parent. The only inheritance that needed correcting was scale, handled above.
+
+**Alternatives considered:**
+- *DOM-based name tags (an HTML overlay positioned via `camera.project()`), like a typical web game
+  HUD nametag.* Rejected — this project's `ui/README.md` explicitly scopes `src/3d/ui/` to DOM-only
+  modules that never reach into scene/gameplay internals; a per-frame `camera.project()` position
+  sync for 6 (soon possibly more) NPCs would need exactly that coupling. An in-scene `Sprite` is a
+  natural fit for `gameplay/npc.js`, which already owns the NPC's Three.js object graph, and gets
+  real depth-testing (a tag correctly hides behind a wall/hill) for free — a DOM overlay would not.
+- *Always-visible regardless of distance vs. a proximity/LOD gate.* Rejected for now — real
+  world-space `Sprite` scale already means a tag shrinks naturally with distance like the character
+  itself (see the size/scale explanation above), and 6 sprites total is negligible against every
+  performance budget in this project. Revisit only if/when NPC count grows enough that distant, tiny
+  tags become visual clutter — not a real problem yet.
+- *A generic "billboard label" utility shared with a future UI system (health bars, quest markers),
+  built now.* Rejected as premature abstraction — `createNameTagSprite` is ~20 lines local to
+  `gameplay/npc.js`; extracting a shared utility before a second, different caller exists just adds
+  indirection this project's own quality rules (KISS, no speculative abstraction) argue against.
+
+**Verified via headless Chromium (Playwright), not assumed correct from the code alone:**
+- Pre-change regression baseline: 3D desktop (444 chunks, 14 settlements, `"Spawned 6 FAZ 5 NPC(s)."`),
+  3D mobile-emulated (25 chunks), 2D game (only the same pre-existing, already-documented sandbox
+  network limitations) — all matching run 22's own baseline exactly.
+- Post-change full smoke test on both device classes: identical log lines, zero new console/page
+  errors; 2D game unchanged.
+- **A scene-graph check via the same temporary debug hook every recent run has used:** confirmed
+  every NPC with a `displayName` gained exactly one `THREE.Sprite` child (`object3D.traverse` counting
+  `node.isSprite`), and a close-range screenshot (camera + player teleported next to a live NPC via
+  the debug hook, reverted before commit) shows the rendered tag text matching its config exactly.
+- `node --check` on all 3 touched files (`config.js`, `game3d.js`, `gameplay/npc.js`): clean. JSON-
+  validated `manifest.json`/`assets_manifest.json` (unchanged this run).
+
+**Consequence:** FAZ 5's "no name-tag UI" gap is closed for all 6 currently-placed NPCs; the harder
+half of the original gap (real dialogue/interaction, and player-awareness driving what a tag shows)
+remains open and out of scope, same as before. `NPC_CONFIG.SPAWNS`' `displayName` field is optional
+and additive — any future spawn entry that omits it just gets no tag, matching the pre-existing
+static/idle-only default pattern the `patrol` field already established (ADR-0021). No change to
+World Coverage (this run added NPC UI, not terrain) or to the World Coverage's underlying world-scale
+numbers, which were re-verified unchanged against the 100-150 km² band per this run's Session
+Snapshot (see `3D_GAME_PROGRESS.md`'s "This Run" section below) before any of this work began.

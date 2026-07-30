@@ -17,6 +17,40 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
 
 /**
+ * Builds a billboard name-tag sprite from canvas-rendered text. A `THREE.Sprite` always faces the
+ * camera in view space — it only inherits its parent's *position*, not rotation — so this stays
+ * legible even while a patrolling NPC turns. Real-world-space `scale` (meters, not pixels) means it
+ * shrinks with distance like any other object, needing no separate LOD/culling at this NPC count.
+ * See DECISIONS.md ADR-0022.
+ * @param {string} text
+ * @param {number} widthMeters
+ * @param {number} heightMeters
+ * @returns {THREE.Sprite}
+ */
+function createNameTagSprite(text, widthMeters, heightMeters) {
+	const canvas = document.createElement('canvas');
+	canvas.width = 512;
+	canvas.height = 128;
+	const ctx = canvas.getContext('2d');
+	ctx.fillStyle = 'rgba(12, 9, 6, 0.6)';
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	ctx.font = 'bold 52px Georgia, serif';
+	ctx.fillStyle = '#f0d9a0';
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+	const texture = new THREE.CanvasTexture(canvas);
+	texture.colorSpace = THREE.SRGBColorSpace;
+	// depthWrite: false — a flat label shouldn't occlude geometry behind it in the depth buffer;
+	// depthTest stays on (the default) so the tag still hides correctly behind real terrain/walls.
+	const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+	const sprite = new THREE.Sprite(material);
+	sprite.scale.set(widthMeters, heightMeters, 1);
+	return sprite;
+}
+
+/**
  * Loads one NPC's model (+ idle, and optionally walk, clips), places it, and returns a small
  * controller object.
  * @param {object} options
@@ -29,6 +63,12 @@ import { AssetLoader } from '../assetLoader.js';
  *   same `physics.js` ground collider (+ sea-level clamp) every other placement system uses.
  * @param {number} [options.rotationYRadians]
  * @param {string} [options.name] Assigned to the loaded `Object3D` (useful for debugging/tests).
+ * @param {string} [options.displayName] If set, a billboard name-tag sprite is added above the
+ *   NPC's head (see `createNameTagSprite`). Omit for no tag.
+ * @param {number} [options.nameTagWidthMeters]
+ * @param {number} [options.nameTagHeightMeters]
+ * @param {number} [options.nameTagVerticalOffsetMeters] Height, in meters above the model's local
+ *   origin (its feet), the tag is centered at.
  * @param {{getGroundHeight: (x: number, z: number) => number}} [options.groundCollider] Required
  *   only when `patrolWaypoints` is passed — resamples ground height every frame while walking, same
  *   as `player.js`'s own movement.
@@ -49,6 +89,10 @@ export async function createNPC({
 	groundY,
 	rotationYRadians = 0,
 	name,
+	displayName,
+	nameTagWidthMeters = 2.4,
+	nameTagHeightMeters = 0.6,
+	nameTagVerticalOffsetMeters = 2.1,
 	groundCollider,
 	walkAnimationUrl,
 	patrolWaypoints,
@@ -61,6 +105,23 @@ export async function createNPC({
 	if (name) model.name = name;
 	model.position.set(worldX, groundY, worldZ);
 	model.rotation.y = rotationYRadians;
+
+	if (displayName) {
+		// The tag is parented under `model`, which carries the Mixamo cm->m scale correction just
+		// applied above (`AssetLoader.correctMixamoFbxScale`, typically ~0.01) — a child's local
+		// position/size gets multiplied by that same parent scale in the render matrix (confirmed
+		// against the vendored sprite vertex shader, which derives both from modelMatrix). Dividing
+		// by it here cancels that out so the tag's real-world size/height stay in actual meters
+		// regardless of the model's own FBX unit scale. See DECISIONS.md ADR-0022.
+		const inverseParentScale = model.scale.x !== 0 ? 1 / model.scale.x : 1;
+		const nameTag = createNameTagSprite(
+			displayName,
+			nameTagWidthMeters * inverseParentScale,
+			nameTagHeightMeters * inverseParentScale,
+		);
+		nameTag.position.set(0, nameTagVerticalOffsetMeters * inverseParentScale, 0);
+		model.add(nameTag);
+	}
 
 	const mixer = new THREE.AnimationMixer(model);
 	const idleSource = await assetLoader.loadFBXModel(idleAnimationUrl);

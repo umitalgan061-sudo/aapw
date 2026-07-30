@@ -334,7 +334,7 @@ the way it is.
   non-deterministic session to session, expected) but its ground-height sampling still goes
   through the same seeded `physics.js` collider every other system uses.
 
-## `src/3d/gameplay/npc.js` — Static + patrolling NPCs (FAZ 5, run 20; extended to 5 seats/6 NPCs run 21, ADR-0020; waypoint patrol added run 22, pilot on 2 of 6, ADR-0021)
+## `src/3d/gameplay/npc.js` — Static + patrolling NPCs (FAZ 5, run 20; extended to 5 seats/6 NPCs run 21, ADR-0020; waypoint patrol added run 22, pilot on 2 of 6, ADR-0021; name-tag billboards added run 23, ADR-0022)
 
 - **Depends on:** `three` (vendored, dynamic-imports `FBXLoader` via `assetLoader.js`),
   `assetLoader.js` (`loadFBXModel`, `AssetLoader.correctMixamoFbxScale` — static helper shared with
@@ -342,7 +342,11 @@ the way it is.
   the caller (`game3d.js`) resolves `NPC_CONFIG.SPAWNS` entries against `world/settlements.js`'s seat
   data and passes the final `modelUrl`/`idleAnimationUrl`/`worldX`/`worldZ`/`groundY` in, matching
   `player.js`'s "caller wires config/dependencies together" convention. Patrolling NPCs (run 22) also
-  receive `groundCollider`/`walkAnimationUrl`/`patrolWaypoints` from the caller, the same way.
+  receive `groundCollider`/`walkAnimationUrl`/`patrolWaypoints` from the caller, the same way. A
+  `displayName` (run 23) gets a `createNameTagSprite`-built `THREE.Sprite` (canvas-rendered text,
+  `THREE.CanvasTexture`) added as a child of the model — see ADR-0022 for the parent-scale correction
+  this required (`AssetLoader.correctMixamoFbxScale`'s ~0.01 model scale otherwise shrinks a naively
+  child-parented sprite's position/size to near-invisibility).
 - **Used by:** `game3d.js` (`createNPC`, `update()` called every frame — keeps the idle/walk mixer
   ticking and, for patrolling NPCs, advances position/rotation — `dispose()` on `pagehide`).
 - **Critical path:** no — a load failure degrades the same way `player.js`'s does: `assetLoader`'s
@@ -361,9 +365,10 @@ the way it is.
   pathfinding/obstacle-avoidance/player-awareness — deliberately the smallest thing that earns
   "patrol," not a behavior tree (see ADR-0021's "Alternatives considered"). Omitting
   `patrolWaypoints` (the default) keeps the run-20/21 static-idle behavior byte-for-byte.
-- **Scope, deliberately minimal (ADR-0019, extended ADR-0021):** loads, retargets, positions, idles,
-  and (for 2 of 6 NPCs) walks a scripted 2-point patrol. No real AI, dialogue, or player interaction
-  yet — real future FAZ 5 work, not built speculatively now.
+- **Scope, deliberately minimal (ADR-0019, extended ADR-0021/ADR-0022):** loads, retargets, positions,
+  idles, (for 2 of 6 NPCs) walks a scripted 2-point patrol, and (all 6, run 23) shows a billboard
+  name-tag above its head. No real AI, dialogue, or player-driven interaction yet — real future FAZ 5
+  work, not built speculatively now.
 
 ## `src/3d/gameplay/` (folder) — Playable characters, NPCs, future dragons/animals/combat/etc.
 

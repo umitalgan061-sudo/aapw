@@ -194,6 +194,14 @@ export const NPC_CONFIG = Object.freeze({
 	PATROL_PAUSE_SECONDS: 3,
 	/** Slower turn than the player's (10) — a deliberate, unhurried guard-turn, not snappy input response. */
 	PATROL_TURN_RATE_RADIANS_PER_SECOND: 4,
+	/** Billboard name-tag sprite size, in real world-space meters (not screen-space px) — it shrinks
+	 * with camera distance like any other object, so no separate LOD/culling is needed yet at 6 NPCs.
+	 * See `gameplay/npc.js`'s `createNameTagSprite` and DECISIONS.md ADR-0022. */
+	NAME_TAG_WIDTH_METERS: 2.4,
+	NAME_TAG_HEIGHT_METERS: 0.6,
+	/** Height, in meters above the NPC model's own local origin (its feet), the tag is centered at —
+	 * clears every downloaded Mixamo character's head after the shared scale correction. */
+	NAME_TAG_VERTICAL_OFFSET_METERS: 2.1,
 	/** Static placements, each anchored to a `world/settlements.js` kingdom-seat id and offset from
 	 * that castle's keep center (in meters) so the NPC clears the keep's own footprint
 	 * (`SETTLEMENT_CONFIG.KEEP_WIDTH_METERS` is 34, so a 12m offset stands comfortably outside the
@@ -215,6 +223,7 @@ export const NPC_CONFIG = Object.freeze({
 			offsetXMeters: 12,
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
+			displayName: 'Baratheon Muhafızı I',
 			// Pilot for the FAZ 5 waypoint-patrol sub-task (run 22): walks a straight 24m line to
 			// (12, -12) and back, staying at the same 16.97m radial distance from the keep center as
 			// the static spawn point already does — no new wall-clearance risk (see DECISIONS.md
@@ -228,6 +237,7 @@ export const NPC_CONFIG = Object.freeze({
 			offsetXMeters: -12,
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
+			displayName: 'Baratheon Muhafızı II',
 			patrol: Object.freeze({ toOffsetXMeters: -12, toOffsetZMeters: -12 }),
 		}),
 		Object.freeze({
@@ -237,6 +247,7 @@ export const NPC_CONFIG = Object.freeze({
 			offsetXMeters: 12,
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
+			displayName: 'Targeryan Muhafızı',
 		}),
 		Object.freeze({
 			id: 'cersei-guard-1',
@@ -245,6 +256,7 @@ export const NPC_CONFIG = Object.freeze({
 			offsetXMeters: 12,
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
+			displayName: 'Lannister Muhafızı',
 		}),
 		Object.freeze({
 			id: 'berkalp-guard-1',
@@ -253,6 +265,7 @@ export const NPC_CONFIG = Object.freeze({
 			offsetXMeters: -12,
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
+			displayName: 'Stark Muhafızı',
 		}),
 		Object.freeze({
 			id: 'doran-guard-1',
@@ -261,6 +274,7 @@ export const NPC_CONFIG = Object.freeze({
 			offsetXMeters: -12,
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
+			displayName: 'Martell Muhafızı',
 		}),
 	]),
 });
