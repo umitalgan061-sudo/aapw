@@ -217,7 +217,15 @@ export const NPC_CONFIG = Object.freeze({
 	 * weight remains a real, tracked cost (~64MB across all 6 FBX files). Run 31 adds an 11th NPC at
 	 * `Xaro` (Qarth) — a house not yet represented by any NPC — reusing `dreyar.fbx` a second time
 	 * (already placed once at `umit`), same zero-new-asset/zero-new-code reasoning as ADR-0024's
-	 * 4-seat extension. */
+	 * 4-seat extension. Run 34 covers the last 3 real kingdom seats (`berk`/`olena`/`twin` — all 3
+	 * belong to a house already represented elsewhere: Tyrell at `ziya`, Lannister at `cersei` —
+	 * per the "lower value than a new house, but still real coverage" note left by run 33; a genuinely
+	 * *new* house isn't available since run 31's `Xaro` addition already used the last one. Reuses
+	 * already-downloaded/precached models, same displayName convention as the house's existing
+	 * guard (a real-world army routinely has more than one soldier sharing the same generic title;
+	 * `jon`'s distinct "Duvar Muhafızı" is the deliberate exception for a *thematically* distinct
+	 * seat, not the rule). `Night King` remains the one deliberately excluded seat (ADR-0024) — every
+	 * other real kingdom seat now has at least one NPC. */
 	SPAWNS: Object.freeze([
 		Object.freeze({
 			id: 'stannis-guard-1',
@@ -340,6 +348,36 @@ export const NPC_CONFIG = Object.freeze({
 			offsetZMeters: 12,
 			rotationYRadians: Math.PI,
 			displayName: 'Qarth Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: 12, toOffsetZMeters: -12 }),
+		}),
+		Object.freeze({
+			id: 'berk-guard-1',
+			modelUrl: 'assets/models/characters/paladin_j_nordstrom.fbx',
+			seatId: 'berk',
+			offsetXMeters: 12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+			displayName: 'Tyrell Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: 12, toOffsetZMeters: -12 }),
+		}),
+		Object.freeze({
+			id: 'olena-guard-1',
+			modelUrl: 'assets/models/characters/arissa.fbx',
+			seatId: 'olena',
+			offsetXMeters: -12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+			displayName: 'Tyrell Muhafızı',
+			patrol: Object.freeze({ toOffsetXMeters: -12, toOffsetZMeters: -12 }),
+		}),
+		Object.freeze({
+			id: 'twin-guard-1',
+			modelUrl: 'assets/models/characters/paladin_wprop_j_nordstrom.fbx',
+			seatId: 'twin',
+			offsetXMeters: 12,
+			offsetZMeters: 12,
+			rotationYRadians: Math.PI,
+			displayName: 'Lannister Muhafızı',
 			patrol: Object.freeze({ toOffsetXMeters: 12, toOffsetZMeters: -12 }),
 		}),
 	]),

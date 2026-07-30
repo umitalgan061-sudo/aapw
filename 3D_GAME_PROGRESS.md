@@ -43,11 +43,13 @@ KayKit, etc.) are used for `assets/`.
   DECISIONS.md ADR-0032; **run 33 wired the actual keypress — pressing E while the prompt shows opens
   `ui/dialogueBox.js` with a generic greeting naming the NPC (`gameplay/interaction.js`'s new
   controller), Escape or E again closes it, walking out of range auto-closes it** — see DECISIONS.md
-  ADR-0033. **11 NPCs total, all patrolling with a name tag, 10 of 14 kingdom seats now have at least
-  one, and pressing E near any of them now opens a (still content-free) greeting.** All runs reuse
-  `player.js`'s Mixamo FBX-loading/scale-correction/animation-retargeting pipeline — see
+  ADR-0033; **run 34 added the last 3 seats (`berk`/`olena`/`twin`), a config-only addition reusing
+  already-downloaded models — see DECISIONS.md ADR-0036.** **14 NPCs total, all patrolling with a
+  name tag, every real kingdom seat (13 of 14 — `Night King` deliberately excluded, ADR-0024) now
+  has at least one, and pressing E near any of them now opens a (still content-free) greeting.** All
+  runs reuse `player.js`'s Mixamo FBX-loading/scale-correction/animation-retargeting pipeline — see
   DECISIONS.md
-  ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031/ADR-0032/ADR-0033. **FAZ 6 (Hayvanlar) started run 26, patrol
+  ADR-0019/ADR-0020/ADR-0021/ADR-0022/ADR-0023/ADR-0024/ADR-0031/ADR-0032/ADR-0033/ADR-0036. **FAZ 6 (Hayvanlar) started run 26, patrol
   added run 27, flee added run 28, pack-alert added run 29, 3rd wolf + chain verification run 30:**
   a first pass of 2 static, idling wolves (`gameplay/animals.js`, new module) at the `berkalp` (House
   Stark/Winterfell) kingdom seat, loaded via `AssetLoader.loadModel`'s glTF/GLB path (previously
@@ -3254,24 +3256,67 @@ in a `finally` block before `process.exit`), no long-lived browser-side state of
 terrain/streaming/rendering code; the smoke test's own PASS output for `game3d.html` re-confirms
 the 3D mode still boots to `GAME_READY` cleanly).**
 
-**Cumulative for this chained execution (run 34's two sub-tasks):** 2 atomic sub-tasks, 2 commits,
-7 distinct files touched total (`scripts/checkAssetsManifest.js`, `scripts/smokeTestGame3D.js`,
-`ARCHITECTURE.md`, `DECISIONS.md`, `3D_GAME_PROGRESS.md`, plus the fast-forward of `main` itself) —
-well within the ≤25-file/≤1200-new-line chained-run budget (combined new code is ~350 lines across
-the two scripts; the remainder is documentation). Each sub-task passed its own independent
-regression guard (including, this run, two real fault-injection tests — a bad manifest path/an
-unregistered model file for ADR-0034, a thrown error inside `initGame3D` for ADR-0035) before its
-own commit.
+**Third chained sub-task within this same run:** with both readily-available tech-debt/coverage gaps
+closed (ADR-0034/ADR-0035), re-scanned the priority order fresh once more — still no syntax error,
+blocking bug, perf-budget overrun, memory leak, or open tech-debt item — landing on priority 8,
+missing subtask of the active phase: FAZ 5's own Known Issues named exactly one remaining mechanical
+(non-content-decision) gap, the 3 kingdom seats (`berk`/`olena`/`twin`) still without any NPC.
 
-**Next step for the next run:** both readily-available tech-debt/coverage gaps this run's scan
-turned up are now closed. Priority-order should re-run fresh from the top again (it will very likely
-land on priority 8, "missing subtask of the active phase") at FAZ 5/6's remaining real gaps
-(unchanged from run 33: dialogue content, `berk`/`olena`/`twin` NPCs, NPC player/pack-awareness
-reconsideration, the other 3 FAZ 6 animal types, FAZ 4's gravity/jump/wall-collider physics) — all
-of these need either a content/design decision or a human manual-download step, not a mechanical
-fix. A future run could also wire `scripts/checkAssetsManifest.js` and `scripts/smokeTestGame3D.js`
-into a lightweight pre-commit hook if that friction becomes real, but that would be speculative
-today (see both ADRs' Consequence sections).
+**Decision and work (DECISIONS.md ADR-0036):** Added 3 entries to `config.js`'s `NPC_CONFIG.SPAWNS`
+— `berk-guard-1`, `olena-guard-1`, `twin-guard-1` — each reusing an already-downloaded/precached
+character model (no new asset), the same offset/rotation/patrol geometry every other entry already
+uses, and each house's existing guard displayName (`berk`/`olena` are both Tyrell, already
+represented at `ziya`; `twin` is Lannister, already represented at `cersei` — the last genuinely
+*new* house was already used by run 31's `Xaro`). Zero code change — `game3d.js`/`gameplay/npc.js`'s
+existing generic spawn-resolution loop (ADR-0028) picks up new `SPAWNS` entries automatically.
+
+**Regression guard:** `node --check src/3d/config.js` clean (520 lines, under the 600-line cap).
+`node scripts/checkAssetsManifest.js` (this run's own sub-task 1) still exits 0 — no new asset files,
+nothing new to register. `node scripts/smokeTestGame3D.js` (this run's own sub-task 2) passed both
+before and after this change, run twice for confidence — the 3D-mode check specifically asserts zero
+`console.error`, and `assetLoader.js`'s FBX-load fallback always logs a `console.error` on any load
+failure before substituting a placeholder box, so a clean pass is direct evidence all 3 new model
+references actually resolved, not merely that nothing crashed. (An ad-hoc supplementary diagnostic
+script attempting to also capture the exact "Spawned N FAZ 5 NPC(s)" console line intermittently
+timed out launching a 3rd headless Chromium instance back-to-back in the same session — a resource/
+timing artifact of the diagnostic itself, not the app; the actual committed smoke test's repeated,
+consistent PASS results are the real evidence and were treated as authoritative.)
+
+**Memory-leak checklist:** N/A — purely additive static config data (frozen objects in an
+already-frozen array), no new event listener, timer, or long-lived allocation.
+
+- Updated `DECISIONS.md` (new ADR-0036), this file's Current Status and Known Issues sections, and
+  this section. `ARCHITECTURE.md` needed no change — its existing `NPC_CONFIG`/`spawnConfiguredNPCs`
+  entries already describe the mechanism generically, not a specific NPC count.
+
+**Files changed this sub-task:** `src/3d/config.js`, `DECISIONS.md` (new ADR-0036),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~30 new lines of config plus documentation. One commit.
+
+**World Coverage: 80.7% (111.00 km² / 137.5 km²) on desktop-class devices; 4.5% (6.25 km² /
+137.5 km²) on mobile-class devices — unchanged (3 more characters is not a terrain/streaming
+change, same reasoning every prior NPC-adding run already established).**
+
+**Cumulative for this chained execution (run 34's three sub-tasks):** 3 atomic sub-tasks, 3 commits,
+9 distinct files touched total (`scripts/checkAssetsManifest.js`, `scripts/smokeTestGame3D.js`,
+`src/3d/config.js`, `ARCHITECTURE.md`, `DECISIONS.md`, `3D_GAME_PROGRESS.md`, plus the fast-forward
+of `main` itself) — well within the ≤25-file/≤1200-new-line chained-run budget (combined new code
+is ~380 lines across all three sub-tasks; the remainder is documentation). Each sub-task passed its
+own independent regression guard before its own commit — two of the three included a real
+fault-injection test (a bad manifest path/an unregistered model file for ADR-0034, a thrown error
+inside `initGame3D` for ADR-0035), and the third (ADR-0036) relied on the now-committed smoke test
+from sub-task 2, run twice.
+
+**Next step for the next run:** all readily-available tech-debt/coverage/mechanical-gap items this
+run's scans turned up are now closed. A fresh priority-order scan next run will very likely land on
+FAZ 5/6's remaining *real* gaps, each needing either a content-design decision or a human
+manual-download step, not a mechanical fix: FAZ 5's actual dialogue content (per-NPC personality/
+branching/reply options/quest hooks) and NPC player/pack-awareness (needs its own design
+reconsideration — a guard fleeing the player character reads narratively odd, per run 32's note);
+FAZ 6's other 3 animal types (horses, carts, dogs/cats, birds — each needs a human manual-download
+step); FAZ 4's own remaining gap (no gravity/jump/wall-collider physics). A future run could also
+wire `scripts/checkAssetsManifest.js` and `scripts/smokeTestGame3D.js` into a lightweight
+pre-commit hook if that friction becomes real, but that would be speculative today (see both ADRs'
+Consequence sections).
 
 ## Known Issues / Tech Debt
 
@@ -3348,17 +3393,18 @@ today (see both ADRs' Consequence sections).
   never permanently shrunk. **Still open:** this only fixes what the *camera* can see through — the
   *player* can still walk through castle walls (no player-side collider yet, separate future work,
   see the settlements LOD/collider item below).
-- **FAZ 5's NPCs exist at only 10 of 14 kingdom seats, with no real dialogue content (open/close
+- **FAZ 5's NPCs exist at 13 of 14 kingdom seats now, with no real dialogue content (open/close
   now works since run 33, but the greeting itself is one generic line, not per-NPC content).**
-  `NPC_CONFIG.SPAWNS` places 11 NPCs across `stannis` (2), `umit`, `cersei`, `berkalp`, `doran`,
-  `ziya`, `balon`, `robin`, `jon`, and `Xaro` (1 each) — `berk`, `olena`, `twin`, and `Night King`
-  (deliberately excluded, see DECISIONS.md ADR-0024) still have none. **~~9 of 14 seats have zero
-  NPCs~~ — narrowed to 5 in run 25, narrowed to 4 in run 31** (run 25: 4 more seats added by reusing
+  `NPC_CONFIG.SPAWNS` places 14 NPCs across `stannis` (2), `umit`, `cersei`, `berkalp`, `doran`,
+  `ziya`, `balon`, `robin`, `jon`, `Xaro`, `berk`, `olena`, and `twin` (1 each) — only `Night King`
+  (deliberately excluded, see DECISIONS.md ADR-0024) still has none. **~~9 of 14 seats have zero
+  NPCs~~ — narrowed to 5 in run 25, narrowed to 4 in run 31, narrowed to 0 (excluding the
+  deliberately-excluded `Night King`) in run 34** (run 25: 4 more seats added by reusing
   already-downloaded models, no new asset, DECISIONS.md ADR-0024; run 31: `Xaro`, a house not yet
-  represented, added the same way — see DECISIONS.md ADR-0031). The 3 remaining seats (`berk`,
-  `olena`, `twin`) need either a second NPC reusing an already-placed model (lower value — would
-  duplicate a house already represented) or a new Mixamo/Free3D download (human manual-download
-  step). **~~Patrol-only-at-2-of-6~~ — landed run 24** (config-only extension of ADR-0021's proven
+  represented, added the same way — see DECISIONS.md ADR-0031; **run 34: the last 3 seats
+  (`berk`/`olena`/`twin`) added, each reusing an already-downloaded model and its house's existing
+  guard displayName — see DECISIONS.md ADR-0036**). **Every real kingdom seat now has at least one
+  NPC.** **~~Patrol-only-at-2-of-6~~ — landed run 24** (config-only extension of ADR-0021's proven
   geometry, see DECISIONS.md ADR-0023) — **all 11 NPCs now patrol** a 24m back-and-forth line with
   idle pauses and directional turning. **~~No name-tag UI~~ — landed run 23**
   (`gameplay/npc.js`'s `createNameTagSprite`, a billboard `THREE.Sprite` above each NPC's head, see

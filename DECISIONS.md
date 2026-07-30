@@ -2600,3 +2600,55 @@ manual step for now. The 2D shell's own real regression coverage remains exactly
 this script (a human/future-run visual check plus this script's crash/navigation guard) — deep 2D
 interaction testing (clicking "OYNAT", etc.) is still blocked by this sandbox's network restrictions
 and remains explicitly out of scope, same as every prior run's note on this.
+
+## ADR-0036: FAZ 5 NPCs at the last 3 real kingdom seats (`berk`/`olena`/`twin`)
+
+**Status:** Accepted (run 34, third chained sub-task).
+
+**Context:** With both this run's technical-debt (ADR-0034) and missing-coverage (ADR-0035) items
+paid down, a fresh priority-order scan again found no syntax error/blocking bug/perf overrun/memory
+leak/tech debt open, so priority 8 (missing subtask of the active phase) was next. FAZ 5's own
+Known Issues named exactly one remaining mechanical (non-content-decision) gap: 3 of 14 real
+kingdom seats — `berk`, `olena`, `twin` (`Night King` is separately, deliberately excluded per
+ADR-0024) — still had zero NPCs.
+
+**Decision:** Added 3 entries to `config.js`'s `NPC_CONFIG.SPAWNS` — `berk-guard-1`
+(`paladin_j_nordstrom.fbx`), `olena-guard-1` (`arissa.fbx`), `twin-guard-1`
+(`paladin_wprop_j_nordstrom.fbx`) — all 3 reusing already-downloaded/precached models (no new asset
+download), same offset/rotation/patrol-geometry shape every other `SPAWNS` entry already uses (see
+ADR-0021/ADR-0023's proven wall-clearance math), and `game3d.js`/`gameplay/npc.js`'s existing
+generic spawn-resolution loop (`spawnConfiguredNPCs`, ADR-0028) requiring zero code change — purely
+additive config. `berk`/`olena` are both House Tyrell (already represented at `ziya`) and `twin` is
+House Lannister (already represented at `cersei`) — the last available *new* house was already used
+by run 31's `Xaro` addition, so this is explicitly the "lower value than a new house, but still real
+coverage" option ADR-0031/run 33's notes already flagged as the only remaining option short of a
+human manual-download step. Reused each seat's house's existing guard displayName ("Tyrell
+Muhafızı"/"Lannister Muhafızı") rather than inventing a numbering scheme — precedent (`jon`'s
+distinct "Duvar Muhafızı") is reserved for a *thematically* distinct seat, not merely a repeated
+house, and multiple guards sharing one generic title across different locations reads naturally
+(an army routinely has more than one soldier with the same rank/title).
+
+**Alternatives considered:**
+- *Invent a numbering convention (`Tyrell Muhafızı II`/`III`) across different seats* — rejected:
+  the existing "I"/"II" convention (`stannis-guard-1`/`stannis-guard-2`) was established specifically
+  for two guards at the *same* seat; extending it across different seats would require retroactively
+  renaming `ziya-guard-1`'s already-stable, previously-tested entry to "I" for consistency, an
+  unnecessary risk to a working entry for a cosmetic reason.
+- *Wait for a human manual-download step to give these seats a visually distinct model instead* —
+  rejected as unnecessarily blocking: nothing about the last-3-seats gap actually requires a new
+  asset (unlike a genuinely new house or animal type would), and the existing 6 character models are
+  already reused 2-3 times each elsewhere with no reported issue.
+
+**Verified:** `node --check src/3d/config.js` passes (520 lines, under the 600-line cap).
+`node scripts/checkAssetsManifest.js` still exits 0 (no new asset files were added, nothing to
+register). `node scripts/smokeTestGame3D.js` (ADR-0035, run this same session) passes both before
+and after this change — the 3D-mode check specifically asserts zero `console.error`, and
+`assetLoader.js`'s FBX-load fallback path always logs a `console.error` on any load failure before
+substituting a placeholder box, so a clean pass is direct evidence all 3 new NPC model references
+resolved successfully, not merely that nothing crashed.
+
+**Consequence:** 13 of 14 real kingdom seats now have at least one NPC (`Night King` remains the one
+deliberately excluded seat). No new tech debt — purely additive config entries following an already-
+proven shape; no new code path, no new asset, no file over the line cap. Real remaining FAZ 5 gaps
+are unchanged and require either a content-design decision (real dialogue content/branching) or a
+design reconsideration (NPC player/pack-awareness) — not a mechanical fix like this one was.
