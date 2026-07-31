@@ -4852,3 +4852,55 @@ more dialogue-pilot growth rounds (4 NPCs remain: `berk-guard-1`/`olena-guard-1`
 the deliberately-excluded `jon-guard-1`) before needing another split. `dialogueChoices.js` itself has
 467 lines of headroom. No behavior change for players — this is purely an internal file-organization
 fix.
+
+## ADR-0067: Grow the dialogue-choice pilot from 10 to 12 of 14 NPCs
+
+**Status:** Accepted (run 50, sub-task 2 — chained after ADR-0066 per this run's budget/time still
+being available).
+
+**Context:** After ADR-0066's split, `dialogueChoices.js` has 467/600 lines of headroom and
+`gameplayConfig.js` has 144/600 — both comfortably able to take the next dialogue-pilot growth round
+that ADR-0066's own "Consequences" flagged as ready. Priority order re-checked fresh: no syntax
+error, no blocking bug, no perf-budget overrun, no memory leak, World Coverage unchanged past its
+gate — nothing outranks priority 9 this round.
+
+**Decision:** Grew `dialogueChoices.js`'s `CHOICES_BY_NPC_ID` from 10 to 12 of 14 NPCs, adding
+`berk-guard-1` and `olena-guard-1` — both House Tyrell seats (per `NPC_CONFIG.SPAWNS`'s run-34
+placement, sharing `ziya-guard-1`'s "Tyrell Muhafızı"-family flavor), the pilot's remaining
+not-yet-covered *houses* being effectively exhausted (every real kingdom seat's house already has at
+least one choice-pilot NPC; `berk`/`olena` add a second and third Tyrell voice, `twin-guard-1`
+remains the one genuinely uncovered NPC — Lannister, already voiced via `cersei-guard-1`). Both
+choice pairs are original writing derived from each NPC's existing `GREETINGS_BY_NPC_ID` line
+(`berk-guard-1`'s "verimli topraklar/sınırsız olmayan misafirperverlik", `olena-guard-1`'s "keskin
+dil") — same per-NPC, house-flavored approach every prior round used. Config-only; zero changes to
+`interaction.js`/`dialogueBox.js`/`game3d.js`.
+
+**Verified:**
+- `node --check` clean on `dialogueChoices.js`/`gameplayConfig.js`. Line counts: `dialogueChoices.js`
+  156/600, `gameplayConfig.js` 456/600 (JSDoc-only touch) — both still comfortable.
+- Full committed smoke suite: all **12** checks PASS, identical to the pre-change baseline.
+- **Real headless-Chromium proof of the new content specifically:** a one-off Playwright script
+  booted the live `game3d.html` page (zero console/page errors), then instantiated the real
+  `DialogueBox`/`InteractionPrompt`/`createInteractionController` with the actual
+  `INTERACTION_CONFIG` for both new ids, reading state off the instance's own scoped DOM refs (not a
+  global `document.querySelector`, which would hit the real running game's own hidden dialogue box —
+  same pitfall run 49 already flagged and avoided). For each NPC: greeting text, both numbered choice
+  labels, and (after simulating a `Digit1` press) that choice's own response text with the hint
+  reverted to "E / Esc - Kapat" all matched the authored content exactly. A screenshot of
+  `berk-guard-1`'s response confirms it renders over the real scene (castle, player, night sky).
+  Zero console/page errors throughout.
+
+**Memory-leak checklist:** N/A — config-only content addition to a frozen object literal, no new
+allocation/listener/timer; the one-off verification script's own `DialogueBox`/`InteractionPrompt`/
+`createInteractionController` instances were scratch/throwaway, appended to and removed from a
+disposable scratch DOM node, not part of the committed app.
+
+**Files changed this sub-task:** `src/3d/gameplay/dialogueChoices.js`, `src/3d/gameplay/
+gameplayConfig.js` (JSDoc count-only), `DECISIONS.md` (this ADR), `3D_GAME_PROGRESS.md`. 4 files,
+~35 new/changed lines.
+
+**Consequences:** Dialogue-choice pilot now covers 12 of 14 NPCs. `twin-guard-1` is the one
+remaining not-yet-covered NPC (`jon-guard-1` stays deliberately excluded) — a future round can add it
+alone or pair it with a fresh line for an already-covered NPC if a natural second-choice idea comes
+up; there's no third same-house pairing left to reach for. `dialogueChoices.js` now has 444/600 lines
+of headroom.

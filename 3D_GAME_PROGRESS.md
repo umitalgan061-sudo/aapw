@@ -5262,13 +5262,51 @@ budget). One commit, direct push to `main`.
 (6.25 km² / 137.5 km²) mobile — a config-file-boundary refactor touches no terrain/streaming/chunk
 logic.**
 
-**Next step for the next run:** re-scan the priority order fresh, as always. `gameplayConfig.js` now
-has 144/600 lines of headroom (was 34); `dialogueChoices.js` has 467/600. FAZ 5's choice-branching
-pilot still covers 10 of 14 NPCs; the next 2-NPC growth (`berk-guard-1`/`olena-guard-1` or
-`twin-guard-1`, `jon-guard-1` still deliberately excluded) can now proceed directly in
-`dialogueChoices.js` without needing another split first. World-event pool remains at 14 entries,
-`worldEvents.js` has 503/600 headroom. FAZ 7's tooling blocker (gltfpack/gltf-transform) was reported
-lifted run 49 — still unconfirmed by a real decimation pass; a future run picking up FAZ 7 as its
-active phase should do that first. FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download
-step; `ivory_stallion.glb` remains geometry-only/unrigged, usable only as a static prop until a human
-rigs it.
+**Sub-task 2 — decision and work (DECISIONS.md ADR-0067):** budget/time still available after
+sub-task 1's commit+push, so chained straight into the next priority-order item. `dialogueChoices.js`
+had 467/600 lines of headroom post-split, so grew `CHOICES_BY_NPC_ID` from 10 to 12 of 14 NPCs,
+adding `berk-guard-1` and `olena-guard-1` (both House Tyrell seats, sharing `ziya-guard-1`'s flavor
+family — the pilot's remaining not-yet-covered *houses* are effectively exhausted, so this round adds
+Tyrell voice depth rather than new-house coverage; `twin-guard-1` is now the one genuinely uncovered
+NPC left, `jon-guard-1` still deliberately excluded). Config-only; zero changes to
+`interaction.js`/`dialogueBox.js`/`game3d.js`.
+
+**Regression guard:** `node --check` clean. Full committed smoke suite — all **12** checks PASS,
+identical to the pre-change baseline. **Real headless-Chromium proof of the new content
+specifically:** a one-off Playwright script booted the live `game3d.html` page (zero console/page
+errors), then instantiated the real `DialogueBox`/`InteractionPrompt`/`createInteractionController`
+with the actual `INTERACTION_CONFIG` for both new ids, reading state off the instance's own scoped
+DOM refs (not a global `document.querySelector`, which would hit the real running game's own hidden
+dialogue box — the same pitfall run 49 flagged). Both NPCs' real greeting, both numbered choice
+labels, and (after a simulated `Digit1` press) that choice's own response text with the hint reverted
+to "E / Esc - Kapat" all matched exactly. Screenshot of `berk-guard-1`'s response confirms it renders
+over the real scene (castle, player, night sky). Zero console/page errors throughout.
+
+**Memory-leak checklist:** N/A — config-only content addition to a frozen object literal; the one-off
+verification script's own controller/UI instances were scratch/throwaway on a disposable DOM node.
+
+**Files changed this sub-task:** `src/3d/gameplay/dialogueChoices.js`, `src/3d/gameplay/
+gameplayConfig.js` (JSDoc count-only), `DECISIONS.md` (new ADR-0067), `3D_GAME_PROGRESS.md` (this
+file). 4 files, ~35 new/changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a dialogue-content-only addition touches no terrain/streaming/chunk
+logic.**
+
+**Run totals (2 chained sub-tasks, run 50):** 5 files touched across both sub-tasks
+(`src/3d/gameplay/gameplayConfig.js`, `src/3d/gameplay/dialogueChoices.js`, `DECISIONS.md`,
+`3D_GAME_PROGRESS.md` counted once each despite being touched in both sub-tasks) and ~300
+new/moved/changed lines total (well under the 1200-line/25-file budget). 2 commits, each
+regression-guarded (12/12 smoke suite; sub-task 1 verified via unchanged behavior + existing
+behavioral check per ADR-0059's pure-refactor precedent, sub-task 2 verified via a real
+headless-Chromium screenshot of its new content specifically) and pushed directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. FAZ 5's choice-branching
+pilot now covers 12 of 14 NPCs; only `twin-guard-1` remains genuinely uncovered (`jon-guard-1` stays
+deliberately excluded) — a future round can add it alone, no natural pairing partner left.
+`dialogueChoices.js` has 444/600 lines of headroom, `gameplayConfig.js` has 144/600. World-event pool
+remains at 14 entries, `worldEvents.js` has 503/600 headroom. FAZ 7's tooling blocker
+(gltfpack/gltf-transform) was reported lifted run 49 — still unconfirmed by a real decimation pass; a
+future run picking up FAZ 7 as its active phase should do that first. FAZ 5/6's cart/dog-cat/bird gap
+still needs a human manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged, usable
+only as a static prop until a human rigs it.
