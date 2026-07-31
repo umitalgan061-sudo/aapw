@@ -2518,6 +2518,23 @@
       "deprecated": false,
       "replacedBy": null,
       "notes": "Batch-imported 2026-07-31 from Sketchfab download \"⚔️ Viking\" by blaeksprut. Rig/animation status not verified — treat as static geometry until inspected."
+    },
+    {
+      "id": "veg_realistic_grass_ground_cover",
+      "file": "assets/models/vegetation/grass_ground_cover.fbx",
+      "type": "vegetation_model",
+      "source": "Free 3D asset site (\"Gerçekçi Çim\" / Realistic Grass listing, Ücretsiz/free tier)",
+      "sourceUrl": "unknown — downloaded manually by project owner from a free-tier 3D asset listing, exact page URL not retained",
+      "license": "Free/Ücretsiz tier download (owner-confirmed at download time — see CREDITS.md)",
+      "version": 1,
+      "format": "Autodesk FBX (.fbx)",
+      "rigged": false,
+      "animated": false,
+      "hasMaterial": true,
+      "polygons": "unmeasured",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Requested 2026-07-31 by project owner specifically to be used as real ground-cover vegetation (replacing/supplementing the procedural vertex-color grass look in world/terrain.js). NOT YET WIRED INTO CODE — see GOVERNANCE.md \"Zemin çim kullanımı\" rule for the routine's implementation instructions (InstancedMesh scatter over grass-colored/low-elevation terrain, seeded, budget-aware)."
     }
   ]
 }

@@ -121,3 +121,7 @@ Third-party assets used in this private, unpublished project. Attribution kept p
 - **Woodrat** by Poly by Google — Sketchfab — CC-BY 4.0 (Google Poly asset — attribution in CREDITS.md)
 - **Zebra** by Quaternius — Sketchfab — CC0 (publisher catalog-wide public domain policy)
 - **⚔️ Viking** by blaeksprut — Sketchfab — Sketchfab free/downloadable license (owner-confirmed at download time — attribution in CREDITS.md)
+
+## 2026-07-31 grass ground-cover asset
+
+- **Gerçekçi Çim / Realistic Grass** — free-tier download from a free 3D asset site, owner-confirmed free license at download time. Used as real ground-cover vegetation (see GOVERNANCE.md).
