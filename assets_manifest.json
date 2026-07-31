@@ -194,6 +194,42 @@
       "deprecated": false,
       "replacedBy": null,
       "notes": "ÖNEMLİ: Bu jenerik/orijinal bir ejderha tasarımıdır (3dhaupt'un kendi yaratımı), HBO/Game of Thrones'un 'Drogon' karakterinin kopyası DEĞİLDİR — o modeli kasıtlı olarak reddettik (telifli karakter replikası riski). FAZ 7 (Ejderhalar) için kullan. Manually downloaded by project owner (bu sitenin indirme akışı otomatik tıklamayla tetiklenmiyor)."
+    },
+    {
+      "id": "dragon_reference_v1_decimated",
+      "file": "assets/models/creatures/dragons/reference_dragon_v1_decimated.glb",
+      "type": "creature_model",
+      "source": "Derived from dragon_reference_v1 via gltf-transform 4.4.2 CLI — weld, simplify (ratio 0.0099, error 0.06), resize (textures to 512x512), prune.",
+      "sourceUrl": "https://hitem3d.ai",
+      "license": "Hitem3d generation license (same as dragon_reference_v1 — this is a decimated derivative, not a new generation)",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "rigged": false,
+      "animated": false,
+      "hasMaterial": true,
+      "polygons": "19,630 triangles, 1.6MB decimated",
+      "vertices": 16163,
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Derived from reference_dragon_v1 via the same gltf-transform 4.4.2 pipeline as ADR-0070: weld → simplify (ratio 0.0099, error 0.06) → resize to 512x512 textures → prune. Verified output size: 1.6MB, 19,630 triangles; texture dimensions resized to 512x512."
+    },
+    {
+      "id": "dragon_reference_v3_decimated",
+      "file": "assets/models/creatures/dragons/reference_dragon_v3_decimated.glb",
+      "type": "creature_model",
+      "source": "Derived from dragon_reference_v3 via gltf-transform 4.4.2 CLI — weld, simplify (ratio 0.0099, error 0.06), resize (textures to 512x512), prune.",
+      "sourceUrl": "https://hitem3d.ai",
+      "license": "Hitem3d generation license (same as dragon_reference_v3 — this is a decimated derivative, not a new generation)",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "rigged": false,
+      "animated": false,
+      "hasMaterial": true,
+      "polygons": "19,744 triangles, 1.5MB decimated",
+      "vertices": 11986,
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Derived from reference_dragon_v3 via the same gltf-transform 4.4.2 pipeline as ADR-0070: weld → simplify (ratio 0.0099, error 0.06) → resize to 512x512 textures → prune. Verified output size: 1.5MB, 19,744 triangles; texture dimensions resized to 512x512."
     }
   ]
 }
