@@ -6059,3 +6059,73 @@ Decision point 3).
   linearly blending two parameter sets) is directly reusable for any future animal reaction that
   needs to feel eased rather than snapped, if `gameplay/animals.js`'s existing binary flee trigger
   ever needs a softer version.
+
+## ADR-0078: Real-frame perf snapshot tooling + first CATCH_UP.md entry — closing two long-standing GOVERNANCE.md reporting gaps
+
+**Status:** Accepted (run 59).
+
+**Risk Seviyesi:** LOW. Justification: dev-only tooling + documentation, zero changes to any
+gameplay/world/rendering code path; the one refactor (extracting `devServerHelper.js`) is a verbatim
+move with an unchanged smoke-test result (15/15 PASS before and after); trivially reversible (delete
+the two new scripts/files, revert `smokeTestGame3D.js`'s two require lines).
+
+**Context:** Run 59's mandatory Session Snapshot (GOVERNANCE.md §20) — `git fetch origin main` +
+`git checkout -B main origin/main` per §8.14, then a fresh `node --check` sweep (50 files, clean) and
+`scripts/smokeTestGame3D.js` (15/15 PASS) confirmed the baseline is healthy — turned up two rules
+GOVERNANCE.md §13 has required since run 56's consolidation that had never actually been executed in
+any of runs 1-58: `perf_log.csv` (required *every* run) and `CATCH_UP.md` (required every ~10 runs)
+both simply didn't exist yet. Run 58's own "Next step" also misstated the FAZ 5 dialogue-choice pilot
+as "4/14" when `gameplay/dialogueChoices.js`'s own header comment and GOVERNANCE.md §17 both already
+said 13/14 (all seats but the deliberately-excluded `jon-guard-1`) — a stale-copy error, not a real
+gap, corrected in this run's own progress-file entry rather than repeated forward. With FAZ 5's pilot
+confirmed already complete and FAZ 6's animal gap blocked on a human manual-download step (per
+`QUESTIONS_FOR_OWNER.md`), this run's most well-scoped, valuable increment was closing the two real
+reporting gaps rather than guessing at a new FAZ 7 evasive-flight scope this run couldn't fully
+verify visually in the time available.
+
+**Decision:**
+
+1. **`scripts/collectPerfSnapshot.js`** boots the real `game3d.html` scene (not a fake renderer, unlike
+   the existing `checkPerfPanel` smoke check which only tests the panel's own throttle/format logic),
+   waits for the real `GAME_READY`/loading-screen-hidden signal, activates the F2 panel via the same
+   `window` keydown dispatch every existing smoke check already uses, lets it render real frames for
+   3 seconds, then parses the panel's own live DOM text (FPS, draw calls, triangles, geometry/texture
+   counts) plus Chromium's `performance.memory.usedJSHeapSize` where available. One CSV line
+   (`date,run,fps,drawCalls,triangles,geometries,textures,jsHeapUsedMB`) is appended to
+   `perf_log.csv`, created with a header on first run. No dashboard/graph, per GOVERNANCE.md §13 —
+   raw data only, deferred until §16's "30-commit performance trend graph" activation condition
+   (30+ rows) is met.
+2. **`scripts/devServerHelper.js`** — `smokeTestGame3D.js`'s static-file-server + Playwright-resolution
+   helpers, extracted verbatim so `collectPerfSnapshot.js` doesn't duplicate them a third time (the
+   next script needing a headless `game3d.html` boot reuses this too). `smokeTestGame3D.js` now
+   imports from it; behavior unchanged (confirmed by re-running the full suite before/after).
+3. **`CATCH_UP.md`**, first entry — a ~9-sentence, jargon-free summary of the whole project's current
+   state (not just this run's delta, since no entry has ever existed before), covering terrain/roads/
+   castles/NPCs/dialogue/wolves/dragon-awareness/day-night, and the two biggest known open gaps
+   (manual-download-blocked animals, dragon not yet a real threat).
+
+**Alternatives considered:**
+- **Reading `renderer.info` directly via a custom `page.evaluate` hook instead of the F2 panel's DOM
+  text.** Rejected: would need its own way to reach the live `renderer` instance (not currently
+  exposed on `window` for non-debug builds — a deliberate choice, not an oversight, to avoid leaking
+  internals) and would duplicate `perfPanel.js`'s own budget-comparison logic. Reading the panel's own
+  already-correct, already-tested output is simpler and exercises the real debug tool end-to-end
+  (proof the F2 panel itself works against a real scene, not just the synthetic fake-renderer test).
+- **Skipping `jsHeapUsedMB` entirely (non-standard API).** Kept, with a `null` fallback: free extra
+  signal on the Chromium engine this project's own smoke suite already targets, harmless elsewhere.
+
+**Verification:** `node --check` on all three changed/new `.js` files. Full `scripts/smokeTestGame3D.js`
+re-run after the `devServerHelper.js` refactor — still 15/15 PASS, confirming the extraction changed
+no behavior. `collectPerfSnapshot.js` run for real against this run's own `main`: sampled
+`fps=2, drawCalls=46, triangles=393467, geometries=44, textures=17, jsHeapUsedMB=347` — draw
+calls/triangles are far under the desktop budget (2500/5,000,000); the low FPS is expected/documented
+software-rendering-in-headless-Chromium noise (see the script's own header comment), not a real-device
+number, and not comparable to GOVERNANCE.md §4's 60-120 desktop target until a second run's row exists
+to compare against.
+
+**Consequence:** `perf_log.csv` and `CATCH_UP.md` now exist and are current; every future run's DoD
+checklist (§8.1) can actually satisfy the perf-log line item instead of silently skipping it, and
+every 10th run has a real file to append to instead of starting from scratch. No gameplay/world/
+rendering behavior changed. **Gelecek Faz Etkisi:** none — this is reporting/tooling infrastructure,
+orthogonal to every FAZ. World Evolution Report and other run-59 metrics are otherwise unchanged from
+run 58 (see `3D_GAME_PROGRESS.md`).

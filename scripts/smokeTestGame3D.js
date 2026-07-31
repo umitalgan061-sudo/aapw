@@ -8,8 +8,9 @@
  * this project's own priority order as missing smoke-test/regression coverage (a real, committed
  * check outranks writing another feature). This script is that committed check.
  *
- * This file is just the infrastructure (static file server + Playwright bootstrap + result
- * printing). The actual per-feature assertions live in `game3dSmokeChecksScene.js` (page/scene-
+ * This file is just the orchestration (result printing over each check) — the static file server
+ * and Playwright bootstrap it uses live in `devServerHelper.js` (run 59, shared with
+ * `collectPerfSnapshot.js`). The actual per-feature assertions live in `game3dSmokeChecksScene.js` (page/scene-
  * level: 2D shell load, 3D mode boot, water vertex-shader-has-no-displacement, F4 debug camera, F2
  * debug/profiling panel, world-event system), `game3dSmokeChecks.js` (per-entity gameplay:
  * settlement collider, jump/gravity arc, interaction controller), and `game3dSmokeChecksMovement.js`
@@ -28,80 +29,10 @@
  * shell's own navigation) failed. 2 = Playwright unavailable in this environment.
  */
 
-const http = require('http');
-const path = require('path');
-const fs = require('fs');
 const sceneChecks = require('./game3dSmokeChecksScene.js');
 const checks = require('./game3dSmokeChecks.js');
 const movementChecks = require('./game3dSmokeChecksMovement.js');
-
-const ROOT = path.resolve(__dirname, '..');
-
-const MIME_TYPES = {
-	'.html': 'text/html; charset=utf-8',
-	'.js': 'text/javascript; charset=utf-8',
-	'.css': 'text/css; charset=utf-8',
-	'.json': 'application/json; charset=utf-8',
-	'.png': 'image/png',
-	'.jpg': 'image/jpeg',
-	'.jpeg': 'image/jpeg',
-	'.glb': 'model/gltf-binary',
-	'.gltf': 'model/gltf+json',
-	'.fbx': 'application/octet-stream',
-	'.bin': 'application/octet-stream',
-	'.svg': 'image/svg+xml',
-	'.ico': 'image/x-icon',
-	'.webmanifest': 'application/manifest+json',
-};
-
-/**
- * Starts a plain static file server over the repo root on an OS-assigned free port. No external
- * dependency — this is the only "network" involved, entirely local (127.0.0.1).
- * @returns {Promise<import('http').Server>}
- */
-function startStaticServer() {
-	const server = http.createServer((req, res) => {
-		try {
-			const urlPath = decodeURIComponent(req.url.split('?')[0]);
-			const filePath = path.join(ROOT, urlPath === '/' ? '/index.html' : urlPath);
-			if (!filePath.startsWith(ROOT)) {
-				res.writeHead(403);
-				res.end('Forbidden');
-				return;
-			}
-			if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-				res.writeHead(404);
-				res.end('Not found');
-				return;
-			}
-			const ext = path.extname(filePath).toLowerCase();
-			res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-			fs.createReadStream(filePath).pipe(res);
-		} catch (error) {
-			res.writeHead(500);
-			res.end(String(error));
-		}
-	});
-	return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
-
-/**
- * Resolves Playwright without assuming it's a local project dependency (this repo has none by
- * design). Tries plain `require('playwright')` first (works if installed locally or already on
- * Node's module path), then a common global-install location as a fallback.
- * @returns {object|null} The Playwright module, or null if unavailable anywhere tried.
- */
-function loadPlaywright() {
-	const candidates = ['playwright', '/opt/node22/lib/node_modules/playwright'];
-	for (const id of candidates) {
-		try {
-			return require(id);
-		} catch (error) {
-			// Try the next candidate.
-		}
-	}
-	return null;
-}
+const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
 	const playwright = loadPlaywright();

@@ -6158,3 +6158,88 @@ deleted rather than left dangling with no remote counterpart. `STABLE_TAGS.md` l
 run; a future run should retry once (in case this was transient) but not assume a tag will ever land
 if it fails again — that's worth the project owner's attention if the stable-tag checkpoint habit
 matters to them, since no session so far can actually push one.
+
+## This Run (2026-07-31, run 59)
+
+**Fresh Session Snapshot at container boot:** `git status` showed a detached `HEAD` at run 58's final
+commit (`c5a0a9a`) with local `main` stale; `git fetch origin main` confirmed `origin/main` matched
+exactly (no concurrent-session divergence); `git checkout -B main origin/main` synced local `main`
+per §8.14 before any work started. `GOVERNANCE.md`/`CREDITS.md` already exist (created run 56,
+current) — the scheduler's stored prompt asks for them as a first sub-task, but recreating either
+would overwrite a real, up-to-date file with a redundant duplicate. No changes made to either.
+
+**Sub-task — priority items 2-8 fresh re-scan:** full `node --check` sweep (50 `.js` files under
+`src/`/`scripts/`) — clean. Full `scripts/smokeTestGame3D.js` — 15/15 PASS on `origin/main` before any
+new code. No new blocking bug, performance regression, memory-leak signal, or tech-debt growth.
+**Correction to run 58's own "Next step" note:** it described "FAZ 5's dialogue-choice pilot (4/14)"
+as an open gap — but `gameplay/dialogueChoices.js`'s own header comment (grown through run 51) and
+GOVERNANCE.md §17 both already say 13/14 (every seat but the deliberately-excluded `jon-guard-1`,
+ADR-0058). That was a stale copy-paste in run 58's summary, not a real gap — corrected here rather
+than repeated forward again.
+
+**Sub-task — closing two long-standing GOVERNANCE.md §13 reporting gaps (DECISIONS.md ADR-0078):**
+neither `perf_log.csv` (required every run since run 56's consolidation) nor `CATCH_UP.md` (required
+every ~10 runs) had ever actually been created across runs 1-58. With FAZ 5's pilot confirmed already
+done and FAZ 6's animal gap still blocked on a human manual-download step (`QUESTIONS_FOR_OWNER.md`),
+this run closed the two real gaps instead of guessing at a bigger, harder-to-verify FAZ 7 scope:
+- `scripts/collectPerfSnapshot.js` (new) boots the real `game3d.html` scene, activates the F2 debug
+  panel, samples its live FPS/draw-calls/triangles/geometry+texture-count output after 3s of real
+  rendering, and appends one CSV line to `perf_log.csv` (created with a header on first run).
+- `scripts/devServerHelper.js` (new) — `smokeTestGame3D.js`'s static-server + Playwright-bootstrap
+  helpers extracted verbatim so the new script doesn't duplicate them; `smokeTestGame3D.js` updated to
+  import from it instead.
+- `CATCH_UP.md` (new), first entry — a jargon-free, ~9-sentence summary of the whole project's current
+  state (terrain/roads/castles/NPCs/dialogue/wolves/dragon-awareness/day-night + the two biggest open
+  gaps), since no prior entry ever existed to build on.
+
+**Verification:** `node --check` clean on all 3 changed/new files. `scripts/smokeTestGame3D.js`
+re-run after the `devServerHelper.js` refactor — still 15/15 PASS (unchanged behavior, confirmed).
+`collectPerfSnapshot.js` run for real: `fps=2, drawCalls=46, triangles=393467, geometries=44,
+textures=17, jsHeapUsedMB=347` — draw calls/triangles far under the desktop budget (2500/5,000,000);
+the low FPS is documented, expected headless-software-rendering noise (see the script's own header
+comment), not a real-device number. No screenshot captured this run (pure tooling/reporting, no visual
+change to verify against §8.5's standard).
+
+**Memory-leak checklist:** N/A — no new listeners/timers/DOM nodes/GPU resources added to the live
+game; `collectPerfSnapshot.js` and `devServerHelper.js` are dev-only Node scripts that open/close
+their own Playwright page and HTTP server per run, nothing persists.
+
+**Files changed this run:** `scripts/collectPerfSnapshot.js` (new), `scripts/devServerHelper.js`
+(new), `scripts/smokeTestGame3D.js` (refactored to import the extracted helper), `perf_log.csv` (new,
+1 data row), `CATCH_UP.md` (new, 1 entry), `DECISIONS.md` (ADR-0078), `3D_GAME_PROGRESS.md` (this
+file). No file near the 600-line cap.
+
+**World Evolution Report (delta vs. run 58):**
+
+| Metric | Run 58 | Run 59 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged |
+| Kingdom seats w/ real castle models | 7 | 7 | unchanged |
+| Dragons (spawned) | 1 (circling + notice + reactive flight) | 1 (unchanged) | unchanged |
+| NPCs with dialogue-choice branching | 13/14 (run 58's "4/14" note was stale) | 13/14 | unchanged (corrected) |
+| World-event flavor pool | 16 | 16 | unchanged |
+| Smoke suite | 15/15 | 15/15 | unchanged |
+| ADRs | 77 | 78 | +1 |
+| perf_log.csv rows | 0 (never existed) | 1 | +1 (new) |
+| CATCH_UP.md entries | 0 (never existed) | 1 | +1 (new) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged |
+| Tech debt count | unchanged | unchanged | +0 |
+
+**Oyuncu fark eder mi:** no — this run is pure tooling/reporting infrastructure, zero gameplay/world/
+rendering change. Indirect benefit: future runs' perf regressions are now actually detectable
+run-over-run instead of unmeasured, and the project owner has a real, current catch-up doc waiting for
+them.
+
+**Next step for the next run:** re-scan the priority order fresh, as always (§8.14: `git fetch`
+before starting). FAZ 7's evasive/diving dragon flight (leaving the circle, real path-back planning +
+terrain collision) is still the next concrete FAZ 7 increment, un-started. FAZ 6's cart/dog-cat/bird
+gap remains blocked on the human manual-asset-download step. `perf_log.csv` now has exactly 1 row —
+every future run should append its own (`node scripts/collectPerfSnapshot.js run<N>`) so it actually
+accumulates toward §16's 30-row trend-graph activation condition. No blocking bugs, syntax errors, or
+regressions found this run.
+
+**Addendum:** did not attempt `git tag stable-YYYY-MM-DD-HHmm` this run — run 58 already documented
+that this container's git remote rejects tag pushes (`HTTP 403`) as a likely environment-level
+restriction, and its own note says a future run should retry "once" (already done, by run 58 itself)
+"but not assume a tag will ever land if it fails again." Retrying every run without a real reason to
+believe it's now fixed would just be repeating a known-failing action.
