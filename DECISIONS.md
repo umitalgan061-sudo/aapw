@@ -5309,3 +5309,116 @@ parameter (backward compatible — every existing call site, including the smoke
 `checkDragonFlight`, is unaffected by omitting it). The dragon's actual behavior (path, speed,
 animation) is unchanged; a future sub-task can build reactive flight behavior on top of this same
 proximity signal, the same way pack-alert was later built on top of the wolves' flee trigger.
+
+## ADR-0073: Terrain ground color read as brown/orange instead of grass — unclamped height fraction + a curve/saturation fix
+
+**Status:** Accepted (run 54).
+
+**Context:** Top-priority bug report this run (operator-supplied, with a real F4-camera screenshot):
+the ground in `world/terrain.js`'s procedurally-generated, vertex-colored terrain reads as flat
+brown/orange, never distinctly green/grass, at the real default boot state. Reproduced independently
+before touching any code: a real headless-Chromium boot of `game3d.html`, screenshotted at the
+default third-person spawn view and via an F4 bird's-eye pass, showed exactly this — a uniform
+khaki/brown ground with no visible green anywhere, matching the report precisely.
+
+**Root-cause investigation (not assumed from the report alone):** `createTerrainChunk` blends
+`LOW_COLOR` (grass, was `0x2c4a1e`) toward `HIGH_COLOR` (bare rock, `0x6b6152`) via
+`blended.copy(LOW_COLOR).lerp(HIGH_COLOR, y / maxHeightMeters)`, with no clamp on the blend
+fraction. Traced whether this could actually go negative/>1 (the report's suspected mechanism,
+extrapolation past the two colors): `sampleHeightMeters`'s value-noise `noise2D` is smoothstep-
+interpolated between four lattice values each already in `[0, 1)` (`hash/LATTICE_MASK`), and a
+smoothstep-weighted interpolation of values within `[0, 1)` cannot leave that range; `fbm2D` then
+takes a weighted average of several such octaves (dividing by `maxAmplitude`), which likewise cannot
+leave `[0, 1)`. So for *this* noise implementation, `y / maxHeightMeters` was already always in
+`[0, 1)` — the unclamped-extrapolation mechanism, checked directly rather than assumed, was not
+actually happening today. The clamp is still added (see Decision) as real defensive correctness for
+any future noise/octave change, per the project's own reasoning in the report — just not, by itself,
+what was producing the brown ground.
+
+The actual dominant cause, found by inspecting `lighting.js`'s day/night keyframes against
+`WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO` (0.3, the ratio every fresh page load boots at — i.e.
+exactly what the operator's F4 test saw): at ratio 0.3 the scene is just past the 0.27 "sunrise"
+keyframe, where `hemiSky` is `0x7d5a4a` (a warm brown-tan, not neutral white) blending toward `0.5`
+noon's `0xffe8c0` (warm cream) — `HemisphereLight`'s sky-facing contribution on the mostly-upward-
+facing terrain normals is itself a warm brown/tan color at boot, not neutral. Multiplied against the
+original `LOW_COLOR` (a dark, fairly desaturated olive `0x2c4a1e`), the result reads as brown/khaki
+rather than a recognizable green — confirmed by directly reading real rendered canvas screenshots
+(not computed/assumed), both close-up (default view) and wide (F4 bird's-eye), both showing a
+uniform brown/khaki ground with zero green anywhere.
+
+**Decision:** Three changes to `world/terrain.js`, all applied together (per the report's own
+prioritization — clamp first, since it's a real correctness fix regardless of today's noise
+behavior, then the color/curve tuning, checked against real screenshots after each):
+1. Clamp the blend fraction: `const heightFraction = THREE.MathUtils.clamp(y / maxHeightMeters, 0, 1)`
+   — defensive; guards `THREE.Color.lerp` against ever extrapolating past `LOW_COLOR`/`HIGH_COLOR`
+   if a future noise/octave change ever produces height outside `[0, maxHeightMeters]`, even though
+   today's value-noise FBM (see Context) never does.
+2. `LOW_COLOR` brightened/more saturated: `0x2c4a1e` → `0x3d6b28` — reads as grass under the warm
+   dawn hemisphere light this project's own lighting.js already boots into, not just under neutral
+   white light.
+3. A new `HEIGHT_COLOR_BLEND_EXPONENT` (1.5) applied to the clamped fraction before the lerp
+   (`Math.pow(heightFraction, 1.5)`) — biases the low/high blend curve toward `LOW_COLOR`, so a
+   vertex needs a higher fraction of `maxHeightMeters` before rock starts blending in. Grass now
+   reads as the dominant color across more of the height range instead of a linear 50/50 split at
+   the midpoint, which matters most right around the player's spawn/kingdom-seat elevations.
+
+**Water/shoreline check (report's item 4):** worked out by hand against the new curve —
+`WORLD_DEFAULTS.WATER_LEVEL_METERS` is 6 of `DEFAULT_MAX_HEIGHT_METERS` 24, so right at the waterline
+`heightFraction = 0.25`, curved to `0.25^1.5 ≈ 0.125` — still deep in `LOW_COLOR` territory (≈
+`rgb(67,106,45)`), so the shoreline now blends from a clearly green bank into `water.js`'s shallow
+teal (`0x6fd6c9`) with no harsh color jump; if anything the new curve makes shorelines read *more*
+green than before (the old linear blend put more rock-gray this close to the waterline), not less.
+Terrain color is baked per-vertex independent of the water plane (see `water.js`'s own module doc,
+ADR-0005) — this sub-task touched no water/settlement code, so no other system needed changes.
+
+**Verified:**
+- `node --check` clean on `world/terrain.js` (193/600 lines, well under the cap).
+- Full committed smoke suite: 14/14 PASS, unchanged (`terrain.js` isn't exercised by name in any
+  smoke check today, but nothing it feeds — settlement collider, jump/gravity arc, NPC/wolf
+  patrol ground-height sampling, dragon flight — regressed).
+- **Real headless-Chromium proof, before vs. after, same exact camera framing each time (not just a
+  visual impression — a direct pixel-for-pixel-comparable pair):**
+  - Default third-person spawn view (the real default boot state, `START_TIME_OF_DAY_RATIO` 0.3 —
+    exactly what the operator's own F4 test booted into): before, uniform flat brown/orange ground;
+    after, the identical camera framing (same castle wall, same player pose, same sky) now shows a
+    clearly distinct dark olive-green ground.
+  - F4 bird's-eye pass (same drag-up/fly-forward/drag-down maneuver both times, landing on the same
+    lake shapes and castle silhouette): before, a single flat khaki-brown wash across the entire
+    visible area with no readable height variation; after, unmistakably green with visible
+    darker/lighter mottling from the FBM height blend, and clean (non-jarring) transitions into the
+    lakes' teal water.
+  - True deep night (`ratio ≈ 0.8`, reached by really waiting ~360 real seconds — not simulated/
+    accelerated, after an accelerated-clock (`performance.now()` override) verification attempt
+    proved unreliable for this and was abandoned in favor of a real wait): the scene is
+    near-completely black. This is `lighting.js`'s own existing keyframe design at full night
+    (`sunIntensity: 0.05`, `hemiIntensity: 0.25`, both very dark) — unrelated to and unchanged by
+    this sub-task; there simply isn't enough light at true midnight to usefully judge ground color
+    either before or after this fix. The report's own request to check "day and night" is satisfied
+    by dawn (the real default boot condition, and the condition the original report was made under)
+    plus the F4 daylight pass; true midnight is confirmed a non-issue rather than untested.
+
+**Memory-leak checklist:** no listeners/timers/DOM touched — pure per-vertex color-math change
+inside existing geometry construction, same object lifecycle `disposeTerrainChunk` already owns.
+
+**Alternatives considered:**
+- *Fix only the lighting (`lighting.js`'s dawn hemisphere color) instead of the terrain colors.*
+  Rejected — out of scope for a report specifically about `terrain.js`'s own color blend, and would
+  also shift the color of every other vertex-colored/lit surface (rock, any future foliage) at dawn,
+  a much larger blast radius for a fix the report scoped to two named constants and one blend line.
+- *A steeper exponent (2 or higher) to push rock even further toward peak-only.* Rejected as
+  overcorrection without evidence it was needed — 1.5 already produced a clearly, unambiguously
+  green result in the real before/after screenshots; a future run can push further if a real
+  screenshot ever shows too little rock variation at the actual kingdom-seat elevations.
+- *Sampling actual rendered pixel RGB values via `gl.readPixels` for a numeric before/after diff,*
+  instead of visual screenshot comparison. Attempted first — returned all-zero/transparent samples
+  because the WebGL context isn't configured with `preserveDrawingBuffer`, so the backbuffer is
+  already cleared by the time an in-page `evaluate()` call can read it after a frame presents.
+  Visual screenshot comparison (same camera framing, before vs. after) was used instead — a real,
+  reproducible check, just not a numeric one.
+
+**Consequence:** The ground now reads as grass across the low/mid elevation band under the real
+default boot lighting, matching the report's ask. `HEIGHT_COLOR_BLEND_EXPONENT` is a new named
+constant any future terrain-color tuning pass should adjust rather than re-deriving the curve
+inline. The clamp is now real defensive correctness for `y / maxHeightMeters`, independent of
+whether today's specific noise implementation needs it. No terrain/streaming/chunk logic changed —
+World Coverage is unaffected (96.2% desktop / 4.5% mobile, unchanged).

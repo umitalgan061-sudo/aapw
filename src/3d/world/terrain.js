@@ -95,8 +95,13 @@ function fbm2D(noise2D, x, y, { octaves = 5, lacunarity = 2, gain = 0.5 } = {}) 
 	return sum / maxAmplitude;
 }
 
-const LOW_COLOR = new THREE.Color(0x2c4a1e);
+const LOW_COLOR = new THREE.Color(0x3d6b28);
 const HIGH_COLOR = new THREE.Color(0x6b6152);
+/** Exponent applied to the clamped low/high blend fraction before it drives the `LOW_COLOR`->
+ * `HIGH_COLOR` lerp (see `createTerrainChunk`). >1 biases the curve toward `LOW_COLOR` (grass) —
+ * a vertex needs a higher fraction of `maxHeightMeters` before rock starts blending in, so grass
+ * reads as the dominant color across more of the height range instead of a linear 50/50 split. */
+const HEIGHT_COLOR_BLEND_EXPONENT = 1.5;
 /** World-units-per-noise-cell; tuned by eye so a single chunk shows a few rolling hills, not one giant bump or pure static. */
 const NOISE_SCALE = 0.006;
 /** Default peak height variation, in meters. Exported so callers that need to sample this same
@@ -155,7 +160,12 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		const y = sampleHeightMeters(worldX, worldZ, maxHeightMeters);
 		position.setY(i, y);
 
-		blended.copy(LOW_COLOR).lerp(HIGH_COLOR, y / maxHeightMeters);
+		// Clamp before the curve: `sampleHeightMeters` is mathematically bounded to [0, maxHeightMeters)
+		// by the FBM's own weighted-average-of-noise-in-[0,1) construction, but nothing upstream
+		// *guarantees* that for every future noise function/octave config, and an unclamped fraction
+		// here would let `THREE.Color.lerp` extrapolate past LOW_COLOR/HIGH_COLOR into unintended hues.
+		const heightFraction = THREE.MathUtils.clamp(y / maxHeightMeters, 0, 1);
+		blended.copy(LOW_COLOR).lerp(HIGH_COLOR, Math.pow(heightFraction, HEIGHT_COLOR_BLEND_EXPONENT));
 		colors[i * 3] = blended.r;
 		colors[i * 3 + 1] = blended.g;
 		colors[i * 3 + 2] = blended.b;

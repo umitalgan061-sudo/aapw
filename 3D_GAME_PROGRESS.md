@@ -5679,3 +5679,72 @@ using one of the still-unrigged Meshy models (`verdant_wyrm`, `spiked_serpent`) 
 dialogue pilot (13/14, `jon-guard-1` deliberately excluded) and the world-event pool (16 entries,
 501/600 headroom) both still have no fresh, non-filler growth available. FAZ 5/6's cart/dog-cat/bird
 gap still needs a human manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged.
+
+## This Run (2026-07-31, run 54)
+
+**Fresh Session Snapshot at container boot:** local `main` was again stale (pointing at the
+pre-3D-mode 2-commit "Westeros PWA site" history) while `HEAD` was detached at run 53's final
+commit (`3b43cdc`, dragon player-awareness) — same harmless drift runs 40/47-53 already documented,
+confirmed harmless again this run: `git fetch origin main` updated the local `origin/main` tracking
+ref forward to that same `3b43cdc` (a real remote force-update landing on this exact commit, not
+data loss — verified via `git branch -r --contains`/`git rev-parse` before touching anything), then
+`git checkout -B main origin/main` reattached cleanly.
+
+**Priority #1 — terrain ground color (DECISIONS.md ADR-0073):** the operator's own top-priority item
+this run, with a real F4-camera screenshot attached to the prompt. Reproduced independently first
+(a real headless-Chromium boot + screenshot, both default view and F4 bird's-eye) before touching
+code — confirmed a uniform flat brown/khaki ground, zero green anywhere, exactly matching the report.
+Investigated the report's own suspected root cause (unclamped `y / maxHeightMeters` letting
+`THREE.Color.lerp` extrapolate past `LOW_COLOR`/`HIGH_COLOR`) by tracing the actual noise math, not
+assuming it: today's value-noise FBM is mathematically bounded to `[0, 1)` by construction (each
+octave is a smoothstep interpolation of lattice values already in `[0, 1)`, and the FBM sum is a
+weighted average of those), so the fraction was never actually leaving `[0, 1]` today — the real
+dominant cause was `lighting.js`'s dawn `HemisphereLight` color (`0x7d5a4a`, warm brown-tan, not
+neutral) at the real default boot ratio (0.3) multiplying against an already fairly dark/desaturated
+`LOW_COLOR`. Fixed all three of the report's requested changes together: (1) added the clamp anyway
+as real defensive correctness for any future noise change, (2) brightened/saturated `LOW_COLOR`
+(`0x2c4a1e` -> `0x3d6b28`), (3) added a `HEIGHT_COLOR_BLEND_EXPONENT` (1.5) power curve on the
+clamped fraction so grass dominates a wider low/mid elevation band instead of a linear 50/50 split.
+Worked out the water/shoreline interaction by hand (waterline sits at `heightFraction ≈ 0.25`, curved
+to `≈0.125`, still deep in `LOW_COLOR` territory) — no ugly seam against `water.js`'s shallow teal.
+
+**Real headless-Chromium proof, before vs. after, identical camera framing each time:** both the
+default third-person spawn view (the real default boot state — exactly what the operator's F4 test
+booted into) and an F4 bird's-eye pass (same drag-up/fly-forward/drag-down maneuver, landing on the
+same lake shapes/castle silhouette both times) went from a single flat brown/khaki wash to
+unmistakably green with visible darker/lighter height-based mottling. An attempted accelerated-clock
+trick (`performance.now()` override, to sweep noon/night quickly) proved unreliable for this specific
+verification and was abandoned in favor of a real, unaccelerated ~360-second wait to confirm true
+deep night: that turned out near-completely black, which is `lighting.js`'s own existing full-night
+keyframe design (`sunIntensity: 0.05`, `hemiIntensity: 0.25`) — unrelated to and unchanged by this
+fix, and confirmed a non-issue (not enough light to judge ground color either way) rather than left
+untested. **`node --check` clean** (`terrain.js` 193/600 lines). **Smoke suite: 14/14 PASS**,
+unchanged.
+
+**Files changed this sub-task:** `src/3d/world/terrain.js` (the fix itself), `DECISIONS.md` (new
+ADR-0073), `3D_GAME_PROGRESS.md` (this file). 3 files, ~90 new/changed lines — well under the
+1200-line/25-file budget. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a per-vertex color-math change touches no terrain/streaming/chunk
+generation logic.**
+
+**Budget/time check after sub-task 1:** the terrain-color investigation (confirming the report's
+suspected mechanism wasn't actually the live cause, finding the real one, and building/rebuilding
+real-screenshot verification tooling after an accelerated-clock approach proved unreliable) took
+substantially longer real time than a typical single sub-task here. Given the real time already
+spent on this run reaching a fully-verified fix for the operator's own explicit #1 priority, and
+this project's own rule to verify before committing rather than rush, this run stops its chain after
+this one sub-task rather than starting the much larger FAZ 3 real-castle-model item (#1.5, ~7 models,
+GLTFLoader + procedural-material integration, at least 7 kingdom-seat swaps) fresh with reduced time
+remaining — that item is better started at the top of its own run's budget than partway through this
+one's, matching the same reasoning prior runs used to defer rather than rush a multi-step item.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **Terrain ground color
+is now fixed and real-screenshot-verified** (ADR-0073) — the next item in the stored priority order
+is #1.5, the real manual-downloaded castle models (`castle_brickstone_citadel` and 6 others, all
+`hasMaterial: false`, unused in `src/`): load via `GLTFLoader`, apply `materials.js`'s
+`createStoneMaterial`/`createRoofMaterial` technique per-model, swap in for at least 7 kingdom seats
+in place of the FAZ 3 procedural placeholder, theme-match (e.g. `icebound_citadel` -> a northern
+seat), update `hasMaterial` in the manifest, verify with a real screenshot, ADR. No blocking bugs,
+syntax errors, or regressions found this run beyond the terrain-color item itself.
