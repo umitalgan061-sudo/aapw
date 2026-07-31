@@ -290,10 +290,10 @@
       "rigged": false,
       "animated": false,
       "hasMaterial": true,
-      "polygons": "unmeasured, ~81.3MB raw — WAY over budget, see notes",
+      "polygons": "1,986,672 triangles (measured, run 52 via `gltf-transform inspect`), 85.24MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "⚠️ TEKNİK BORÇ: Generated from the project owner's own reference image of a generic stock 3D dragon render (not an HBO/show screenshot — verified, no copyright concern from the source image itself). But at ~81MB this single asset alone blows the entire desktop texture-memory budget (<2GB total, this is >4% of it for ONE prop) many times over relative to its likely on-screen importance. MUST be decimated (target: <5MB, <20K triangles) and have its texture(s) downscaled/compressed before any real use — do not load as-is in game3d.js. Three near-duplicate variants exist (v1/v2/v3) from repeated generation attempts; only one is likely needed after decimation, the others are candidates for deletion once the best one is identified."
+      "notes": "⚠️ MISLABELED (found run 52, confirmed by real headless-Chromium render through the project's own AssetLoader/GLTFLoader — not assumed from the filename): despite the `dragon_reference_v1` id/filename, this file's actual geometry is a fully-textured fantasy castle/gatehouse (keep, twin corner towers, conical roofs, a banner, a wooden drawbridge) — NOT a dragon, and NOT the same asset as dragon_reference_v2/v3 (those two really are the same ornate gold dragon as each other, confirmed by render — see their own notes). Likely a batch-download/organizing mixup during the original manual asset step, not a code bug. Do not use this file for any FAZ 7 dragon work. Its castle content may still be useful for FAZ 3 (it already has baked material/texture, unlike the 7 geometry-only `castle_*` entries below), but that is a separate, not-yet-made product decision — left as-is, unconsumed by code, until a human or a future run deliberately decides to use it as a castle asset under a correctly-labeled id. Still needs its own decimation (~2M triangles, two 4096x4096 PNGs) before any real use either way."
     },
     {
       "id": "dragon_reference_v2",
@@ -307,10 +307,27 @@
       "rigged": false,
       "animated": false,
       "hasMaterial": true,
-      "polygons": "unmeasured, ~82.9MB raw — WAY over budget, see dragon_reference_v1 notes",
+      "polygons": "1,997,140 triangles (measured, run 52), 86.89MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Second generation attempt from the same reference image as dragon_reference_v1. Same tech debt (needs decimation/compression before use) and same 'not an HBO screenshot' provenance note applies."
+      "notes": "CONFIRMED (run 52, real headless-Chromium render): a real, fully-textured ornate gold/bronze dragon — the correct FAZ 7 reference model (dragon_reference_v1's id/filename is misleading, see its own note; v1 is actually an unrelated castle). Same tech debt as before (needs decimation/compression before use) — now resolved: see `dragon_reference_v2_decimated` below, produced this run and verified to render correctly at 19,762 triangles / 1.67MB, well inside the <20K tri / <5MB target. Kept at full size here for provenance/re-decimation if a different ratio is ever needed; the decimated file is the one any future FAZ 7 code should actually load."
+    },
+    {
+      "id": "dragon_reference_v2_decimated",
+      "file": "assets/models/creatures/dragons/reference_dragon_v2_decimated.glb",
+      "type": "creature_model",
+      "source": "Derived from dragon_reference_v2 (Hitem3d) via gltf-transform 4.4.2 CLI — weld, simplify (ratio 0.0099, error 0.06), resize (textures to 512x512), prune. Produced and verified run 52 (DECISIONS.md ADR-0070).",
+      "sourceUrl": "https://hitem3d.ai",
+      "license": "Hitem3d generation license (same as dragon_reference_v2 — this is a decimated derivative, not a new generation)",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "rigged": false,
+      "animated": false,
+      "hasMaterial": true,
+      "polygons": "19,762 triangles, 1.67MB — inside the <20K tri / <5MB target from dragon_reference_v1's original notes",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Production-ready decimated dragon reference model — the file any future FAZ 7 spawn/AI code should actually load, not the ~2M-triangle originals. Verified via a real headless-Chromium render through the project's own AssetLoader.loadModel (not the placeholder-box fallback), zero console/page errors, silhouette/texture still clearly reads as the same dragon after a ~99% triangle reduction and ~98% file-size reduction. Not rigged/animated — FAZ 7 will still need to add a skeleton or procedural wing-flap/flight animation separately, same gap `dragon_verdant_wyrm`'s notes already flag for its own model."
     },
     {
       "id": "dragon_reference_v3",
@@ -324,10 +341,10 @@
       "rigged": false,
       "animated": false,
       "hasMaterial": true,
-      "polygons": "unmeasured, ~81.1MB raw — WAY over budget, see dragon_reference_v1 notes",
+      "polygons": "1,994,462 triangles (measured, run 52), 85.09MB raw",
       "deprecated": false,
-      "replacedBy": null,
-      "notes": "Third generation attempt from the same reference image as dragon_reference_v1/v2. Same tech debt applies. Whoever picks up FAZ 7 should compare all three, pick the best topology/silhouette, decimate+compress it, and mark the other two 'deprecated'/delete them — keeping all three at full size long-term is not viable."
+      "replacedBy": "dragon_reference_v2_decimated",
+      "notes": "CONFIRMED (run 52, real render): the same ornate gold dragon as dragon_reference_v2 (not v1 — v1 is an unrelated castle, see its own note), a third generation attempt from the same reference image. dragon_reference_v2 was picked as the one to decimate (arbitrary tie-break between two near-identical successful generations, v2 tried first); this file is now superseded by dragon_reference_v2_decimated and not needed further. Kept for provenance rather than deleted this run — a future cleanup pass may delete v1/v3's full-size originals once FAZ 7 actually ships and nobody has needed to re-decimate at a different ratio."
     },
     {
       "id": "castle_brickstone_citadel",

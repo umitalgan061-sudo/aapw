@@ -493,7 +493,15 @@ Triangles<500K, TextureMem<512MB.
 - [ ] Köpek/kedi (flee/follow)
 - [ ] Kuşlar (Boids)
 
-### FAZ 7 — Ejderhalar (pending)
+### FAZ 7 — Ejderhalar (pending — asset now ready, no code started)
+- **Run 52: tooling blocker genuinely confirmed resolved (not just "reported lifted") — a real
+  decimation pass now exists.** `assets/models/creatures/dragons/reference_dragon_v2_decimated.glb`
+  (19,762 triangles, 1.67MB, verified via real headless-Chromium `AssetLoader.loadModel`, see
+  DECISIONS.md ADR-0070) is ready for FAZ 7's first spawn/AI sub-task to load. **Same run found
+  `reference_dragon_v1.glb` — named by runs 49-51 as "the" file to decimate — is actually a
+  mislabeled castle model, not a dragon; use `v2`/`v2_decimated`, not `v1`.** No rigging/animation
+  yet (the decimated mesh has no skeleton); still needs one of: a skeleton + Mixamo-style retarget,
+  or procedural wing-flap/flight bone animation, before "Kanat çırpma animasyonu" below is possible.
 - [ ] Devriye AI (`dragon.js`)
 - [ ] Kanat çırpma animasyonu
 - [ ] Ateş nefesi parçacığı
@@ -5415,3 +5423,108 @@ unconfirmed by a real decimation pass; a future run picking up FAZ 7 as its acti
 that first, on `reference_dragon_v1.glb` (82MB). FAZ 5/6's cart/dog-cat/bird gap still needs a human
 manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged, usable only as a static
 prop until a human rigs it.
+
+## This Run (2026-07-31, run 52)
+
+**Fresh Session Snapshot at container boot:** `git status`/`git log -3` showed `HEAD` and local
+`main` both already at run 51's final commit (`60e99f4`, dialogue-choice pilot 12->13 of 14) —
+working tree clean, no detached-HEAD drift this time.
+
+**This run's own stored prompt again asked for 2 items already shipped 12 runs ago:** lake-water
+flicker (fixed run 40, ADR-0048) and an F4 debug free-fly camera (shipped run 40, ADR-0049) — the
+orchestrator's own message for this run states these were already independently re-confirmed
+(smoke suite's `checkWaterVertexShaderStatic`/`checkFreeCamera` both PASS), so this run did not
+redo that verification — consistent with runs 44-51's own repeated findings.
+
+**Fresh priority re-scan performed directly, not trusted from prior notes:** `node --check` clean on
+every `src/3d/**/*.js`/`scripts/*.js` file. Full smoke suite: **12/12 PASS** on a clean re-run — one
+earlier pass showed a `game3d.html` "timeout" outcome, re-ran immediately and got a clean 12/12; this
+matches the project's own documented "FPS/headless-rendering timing is non-representative in this
+sandbox" pattern, not a real regression (not touched further). No file near the 600-line cap
+(`gameplayConfig.js` largest at 456/600 — unchanged). World Coverage unchanged past its gate (96.2%
+desktop / 4.5% mobile). **Investigated the mobile-vs-desktop World Coverage gap the orchestrator
+flagged as worth checking:** confirmed via `config.js`/DECISIONS.md ADR-0010/ADR-0013 that
+`STREAM_RADIUS_CHUNKS: 2` (25 chunks, ~204,800 triangles baseline) is a deliberate, already-documented
+mobile perf-budget ceiling, not an oversight — the mobile triangle budget (<500K) is already ~41-43%
+consumed by terrain alone before NPCs/wolves/settlements are added, so growing the mobile boot radius
+further would need real budget headroom analysis of its own, not a config bump; left alone this run
+per the operator's own "skip if already-intentional" guidance. Priority 9 (dialogue pilot) has no
+free growth left (`jon-guard-1` deliberately excluded). Priority 9.5 (world-events) was grown twice in
+the last two runs — rotating past it this run rather than adding a third low-differentiation entry.
+That leaves priority 10: runs 49-51 each named the same next step — confirm FAZ 7's gltfpack/
+gltf-transform tooling blocker with a real decimation pass, not just a version-check.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0070):** confirmed both `gltfpack` 1.2 and
+`@gltf-transform/cli` 4.4.2 actually run in this sandbox now (network access confirmed working, not
+assumed). `gltfpack`'s texture-compression flags (`-tc`/`-tw`) turned out unusable here (its `npx`
+Node build has no native WebP/KTX2 support — found by actually running it, not assumed), so used
+`gltf-transform`'s CLI pipeline instead: `weld` → `simplify --ratio 0.0099 --error 0.06` → `resize
+--width 512 --height 512` → `prune`, deliberately avoiding Draco/Meshopt/KTX2/WebP compression since
+`assetLoader.js` only ever constructs a vanilla `GLTFLoader` (no decoder registered for any of
+those). **Before decimating, rendered all three `reference_dragon_v1/v2/v3.glb` files through the
+real `AssetLoader.loadModel` in a headless-Chromium scene — a step no prior run (49-51) had actually
+done — and found `reference_dragon_v1.glb` is not a dragon at all: it's a fully-textured fantasy
+castle/gatehouse, confirmed by screenshot.** `v2`/`v3` really are the same ornate gold dragon as
+each other (also confirmed by screenshot). Every run from 49-51 that named `v1` as "the" file to
+decimate for FAZ 7 was working from an unverified assumption about the filename. Decimated `v2`
+instead: 1,997,140 triangles / 86.89MB -> 19,762 triangles / 1.67MB (inside the manifest's own <20K
+tri / <5MB target), saved as `reference_dragon_v2_decimated.glb` and registered in
+`assets_manifest.json`. Also corrected `assets_manifest.json`'s `dragon_reference_v1/v2/v3` entries:
+real measured triangle counts (previously "unmeasured"), the mislabeling finding on `v1` (left
+unconsumed by code — using its castle content is a separate, not-this-run's product decision), and
+`v3` marked `replacedBy: dragon_reference_v2_decimated`. **This is prep/asset work only — FAZ 7 still
+has 0% code**; no spawn point, AI, rigging, or animation was added.
+
+**Regression guard:** `node -e "JSON.parse(...)"` confirms `assets_manifest.json` still valid JSON.
+`node scripts/checkAssetsManifest.js` — OK, 33 entries all resolve, the new `.glb` is registered
+(would otherwise hard-fail as unregistered). Full committed smoke suite — all **12** checks PASS
+(asset/manifest-only change, no gameplay code touched, so no new/changed check needed). **Real
+headless-Chromium proof:** one script booted the live `game3d.html` page, built an independent
+scratch `THREE.Scene`/`WebGLRenderer` in-page, and loaded `reference_dragon_v2_decimated.glb`
+through the real, unmodified `AssetLoader.loadModel` — `isPlaceholder: false`, `meshCount: 1`,
+`triCount: 19762` (matching `gltf-transform inspect`'s own count exactly), zero console/page errors,
+screenshot confirms the dragon's silhouette/texture still reads clearly after decimation. A second
+script rendered `v1`/`v2`/`v3`/`verdant_wyrm`/`auric_dragon` for the mislabeling investigation
+itself — all loaded as real meshes, zero console/page errors across all five.
+
+**Memory-leak checklist:** N/A — asset/manifest-only change, no new runtime code path in the
+committed app; every verification script's renderer/scene/loader instance was scratch/throwaway in
+its own one-off Node process, not part of the committed app.
+
+**Files changed this sub-task:** `assets_manifest.json` (5 entries edited, 1 new entry added),
+`assets/models/creatures/dragons/reference_dragon_v2_decimated.glb` (new, 1.67MB binary),
+`DECISIONS.md` (new ADR-0070), `3D_GAME_PROGRESS.md` (this file, including the FAZ 7 roadmap
+section above). 4 files, ~70 changed lines of text plus one new 1.67MB binary asset. One commit,
+direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — asset-prep work touches no terrain/streaming/chunk logic. Confirmed
+this run (see Sub-task 1 above) that the mobile figure is a deliberate, already-documented perf-
+budget ceiling, not an overlooked gap.**
+
+**Budget/time check:** 1 sub-task landed (~70 changed text lines + one 1.67MB binary asset, 4 files)
+— well under the 1200-line/25-file budget. The mislabeled-asset investigation and the decimation
+pipeline trial-and-error (gltfpack's texture-compression limits, ratio tuning to land under 20K
+triangles) consumed real time/tool-call budget for a single sub-task, and FAZ 7's actual next step
+(rigging/animation + a first spawn/AI pass) is a substantially larger, multi-sub-task effort better
+started fresh next run than squeezed in here. Stopping this run's chain at 1 sub-task rather than
+reaching for lower-value filler (e.g. a third world-event pool growth).
+
+**Run totals (1 sub-task, run 52):** 4 files touched (`assets_manifest.json`, one new `.glb` binary
+asset, `DECISIONS.md`, `3D_GAME_PROGRESS.md`), ~70 changed text lines + 1.67MB binary. 1 commit,
+regression-guarded (12/12 smoke suite + `checkAssetsManifest.js` + real headless-Chromium proof of
+the new asset loading correctly) and pushed directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **FAZ 7's tooling
+blocker is now genuinely confirmed resolved** (real decimation pass done, not just a version check)
+and a real, verified, budget-compliant dragon model (`dragon_reference_v2_decimated`, 19,762
+triangles / 1.67MB) is ready to consume. **FAZ 7 still has 0% code** — the next FAZ 7 sub-task
+should add a first spawn point + basic AI (or rigging/animation first, if a skeleton-less mesh isn't
+usable for whatever the first AI pass needs) using `dragon_reference_v2_decimated`, *not*
+`reference_dragon_v1.glb` (confirmed mislabeled — it's a castle, see ADR-0070). `reference_dragon_
+v1.glb`'s real castle content is flagged as a possible future FAZ 3 asset but intentionally not
+acted on — a human or a future run should make that call deliberately. FAZ 5's dialogue pilot (13/14,
+`jon-guard-1` deliberately excluded) and the world-event pool (16 entries, 501/600 headroom) both
+have no fresh, non-filler growth available right now. FAZ 5/6's cart/dog-cat/bird gap still needs a
+human manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged, usable only as a
+static prop until a human rigs it.

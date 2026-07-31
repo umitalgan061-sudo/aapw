@@ -5000,3 +5000,114 @@ remaining NPC without a choice entry, deliberately excluded (ADR-0058's "Alterna
 A future round has no further same-pilot growth available without either revisiting that exclusion
 or adding a second choice pair to an already-covered NPC. `dialogueChoices.js` now has 433/600 lines
 of headroom.
+
+## ADR-0070: Real FAZ 7 dragon-decimation pass — and a mislabeled-asset bug found in the process
+
+**Status:** Accepted (run 52).
+
+**Context:** Fresh full priority re-scan: `node --check` clean on every `src/3d/**/*.js`/
+`scripts/*.js` file (verified directly, not assumed from prior notes); full committed smoke suite
+already at 12/12 (one run showed a `game3d.html` timeout on a first pass — re-ran clean immediately
+after, confirmed as this sandbox's known headless-rendering timing flakiness, not a real regression,
+same class of noise prior runs' "FPS not reliably measurable" note already flags); no file near the
+600-line cap (`gameplayConfig.js` largest at 456/600); World Coverage unchanged past its gate (96.2%
+desktop / 4.5% mobile — re-confirmed intentional and already documented, ADR-0010/ADR-0013's mobile
+triangle-budget constraint, not a bug: `STREAM_RADIUS_CHUNKS` is a hard perf-budget choice, not an
+oversight, so left alone this run per the operator's own "skip if already-intentional" guidance).
+Priority 9's dialogue-choice pilot has no free growth left (`jon-guard-1` deliberately excluded, run
+51). Priority 9.5 (world-events) still has headroom but was grown twice in the last two runs (50,
+51) — diminishing-returns filler by this point. That left priority 10 (new feature/next phase):
+runs 49-51 each flagged the same concrete, well-defined next step — confirm FAZ 7's gltfpack/
+gltf-transform tooling blocker (reported lifted run 49, never actually exercised) by running a real
+decimation pass on the reference dragon asset(s) before any FAZ 7 spawn/AI code is written.
+
+**Decision:** Confirmed both `gltfpack` (1.2, via `npx`) and `@gltf-transform/cli` (4.4.2) install
+and run in this sandbox. `gltfpack`'s own texture-compression flags (`-tc`/`-tw`) turned out to be
+unusable here — its `npx`-installed Node build has no native WebP/KTX2 support in this environment
+(confirmed by actually running it, not assumed) — so the working pipeline used is `gltf-transform`'s
+CLI instead: `weld` → `simplify --ratio 0.0099 --error 0.06` → `resize --width 512 --height 512` →
+`prune`. Output deliberately avoids Draco/Meshopt/KTX2/WebP compression entirely (`--compress false`
+equivalent — plain quantized glTF only) because `assetLoader.js`'s `AssetLoader` only ever
+constructs a vanilla `GLTFLoader` — no `DRACOLoader`, no `KTX2Loader`, no `setMeshoptDecoder` call
+anywhere in this codebase — so a compressed output would silently fail to load in the real game.
+`KHR_mesh_quantization` (which plain `simplify`/`resize` still use) is safe: it's natively supported
+by the vendored `GLTFLoader.js` (confirmed by grep — `KHR_MESH_QUANTIZATION` is a built-in extension
+handler, not one requiring an external decoder).
+
+**A real bug was found, not just tooling confirmed:** before picking a file to decimate, this run
+rendered all three "reference dragon" variants (`reference_dragon_v1/v2/v3.glb`) through the actual
+`AssetLoader.loadModel` in a real headless-Chromium scene — a step no prior run had actually done
+(prior notes only checked file size/manifest fields, never rendered the content). **`reference_
+dragon_v1.glb` is not a dragon.** Its geometry is a fully-textured fantasy castle/gatehouse (keep,
+twin corner towers, conical roofs, banner, wooden drawbridge) — confirmed by screenshot, not
+inferred. `reference_dragon_v2.glb` and `v3.glb` really are the same ornate gold/bronze dragon as
+each other (also confirmed by screenshot) — so the manifest's old "three near-duplicate dragon
+generation attempts" description was only 2/3 correct; v1 is an unrelated, mislabeled asset, most
+likely a batch-download/organizing mixup during the original manual asset step, not a code bug.
+Every run from 49 through 51 that named `reference_dragon_v1.glb` (82MB) as "the" file to decimate
+for FAZ 7 was working from that same unverified assumption. Picked `reference_dragon_v2.glb`
+instead (arbitrary tie-break vs. v3 — both are the same successful generation, v2 tried first).
+
+Ran the pipeline on `reference_dragon_v2.glb` (1,997,140 triangles, 86.89MB, two 4096x4096 PNGs):
+output is 19,762 triangles / 1.67MB (a ~99% triangle cut, ~98% file-size cut) — inside the
+manifest's own `<20K tri / <5MB` target. Saved as `assets/models/creatures/dragons/
+reference_dragon_v2_decimated.glb` and registered in `assets_manifest.json` as `dragon_reference_
+v2_decimated`, the file any future FAZ 7 spawn/AI code should actually load. `assets_manifest.json`
+also corrected: `dragon_reference_v1`'s notes now carry the mislabeling finding (its castle content
+left alone, unconsumed by code, until a human/future run deliberately decides to use it as a
+correctly-labeled castle asset — not this run's call to make); `dragon_reference_v2`/`v3`'s notes
+now record their real, measured triangle counts (previously "unmeasured") and confirmed dragon
+identity; `v3` marked `replacedBy: dragon_reference_v2_decimated` since it's a redundant duplicate
+of the file that was actually decimated.
+
+**This is prep/asset work only — FAZ 7 still has 0% code.** No spawn point, no AI, no rigging/
+animation was added this run; the decimated model has no skeleton (same gap `dragon_verdant_wyrm`'s
+own manifest notes already flag). That remains a separate, larger future sub-task.
+
+**Verified:**
+- `node -e "JSON.parse(...)"` confirms `assets_manifest.json` is still valid JSON.
+- `node scripts/checkAssetsManifest.js` — OK, 33 entries all resolve to real files, the new `.glb`
+  is registered (would otherwise hard-fail as an unregistered primary model file).
+- Full committed smoke suite: all **12** checks PASS (asset/manifest-only change — no gameplay code
+  touched, so no new/changed check needed).
+- **Real headless-Chromium proof, not just gltf-transform's own report:** a one-off Playwright
+  script booted the live `game3d.html` page (for real, deployed module-resolution paths), then built
+  an independent scratch `THREE.Scene`/`WebGLRenderer` in-page and loaded `reference_dragon_v2_
+  decimated.glb` through the real, unmodified `AssetLoader.loadModel` (not a fallback placeholder —
+  `isPlaceholder: false`, `meshCount: 1`, `triCount: 19762`, matching `gltf-transform inspect`'s own
+  count exactly). Zero console/page errors. A screenshot confirms the dragon's silhouette/texture
+  still reads clearly as the same dragon after decimation. A second one-off script rendered all of
+  `v1`/`v2`/`v3`/`verdant_wyrm`/`auric_dragon` for the mislabeling investigation itself — all loaded
+  as real meshes (`isPlaceholder: false`), zero console/page errors across all five.
+
+**Memory-leak checklist:** N/A — asset/manifest-only change, no new runtime code path in the
+committed app; every verification script's renderer/scene/loader instance was scratch/throwaway in
+its own one-off Node process, not part of the committed app.
+
+**Alternatives considered:**
+- *Decimate all three v1/v2/v3 files as originally planned, without first rendering them.* Rejected
+  once the v1 render came back as a castle — decimating and shipping a mislabeled asset under a
+  `dragon_*` id would have propagated the error into FAZ 7 itself instead of catching it here.
+- *Delete `reference_dragon_v1.glb`/`v3.glb` (the two now-unneeded originals) this run.* Rejected as
+  overreach for an atomic sub-task — v1's real content (a castle) may still have product value under
+  a correctly-labeled id, and deleting 170MB+ of source assets is a decision better left to a human
+  or a future run with a clearer mandate, not bundled into a tooling-verification pass.
+- *Use `gltfpack` instead of `gltf-transform` for the whole pipeline (matches the tool named in
+  prior runs' notes).* Rejected once `-tc`/`-tw` both failed in this sandbox (no native texture-
+  compression support in the `npx` Node build) — `gltf-transform`'s CLI achieved the same simplify/
+  resize/prune result without needing texture compression at all, and produces plain, vanilla-
+  `GLTFLoader`-compatible output by default.
+
+**Files changed this sub-task:** `assets_manifest.json` (5 entries edited, 1 new entry added),
+`assets/models/creatures/dragons/reference_dragon_v2_decimated.glb` (new, 1.67MB), `DECISIONS.md`
+(this ADR), `3D_GAME_PROGRESS.md`. 4 files (3 tracked-in-git + this doc), ~1.67MB of new binary
+asset plus ~70 changed lines of manifest/doc text.
+
+**Consequences:** FAZ 7's tooling blocker is now genuinely confirmed resolved (not just "reported
+lifted"), and a real, correctly-verified, budget-compliant dragon model is ready for FAZ 7 spawn/AI
+code to consume whenever that phase actually starts (still a separate, larger sub-task — rigging/
+animation, a spawn point, and basic AI all remain 0% done). The `dragon_reference_v1` mislabeling is
+now documented so no future run repeats runs 49-51's assumption. `reference_dragon_v1.glb`'s real
+content (a castle) is flagged as a possible future FAZ 3 asset but intentionally not acted on this
+run — a human or a future run should make that call deliberately, not inherit it as a side effect of
+a dragon-decimation task.
