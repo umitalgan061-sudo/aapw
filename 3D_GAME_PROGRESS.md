@@ -6149,3 +6149,12 @@ collision) than this run's. Items 2-8 came back clean again this run; FAZ 5's di
 (4/14) and FAZ 6's cart/dog-cat/bird gap (blocked on a human manual-asset-download step, per
 `QUESTIONS_FOR_OWNER.md`) remain the other open, well-scoped options. No blocking bugs, syntax
 errors, or regressions found this run.
+
+**Addendum:** attempted the usual end-of-run `git tag stable-YYYY-MM-DD-HHmm` (GOVERNANCE.md §8.11) —
+this container's git remote rejects tag pushes specifically (`HTTP 403` on `git push origin
+<tag>`, while the same session's branch push to `main` moments earlier succeeded normally), an
+environment-level restriction, not a repo/permissions issue this run caused. The local-only tag was
+deleted rather than left dangling with no remote counterpart. `STABLE_TAGS.md` left unchanged this
+run; a future run should retry once (in case this was transient) but not assume a tag will ever land
+if it fails again — that's worth the project owner's attention if the stable-tag checkpoint habit
+matters to them, since no session so far can actually push one.
