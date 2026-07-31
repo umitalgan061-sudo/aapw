@@ -322,7 +322,12 @@ Triangles<500K, TextureMem<512MB.
   (`createTerrainChunk`/`disposeTerrainChunk`), vertex-colored (grass→rock by height), no texture
   needed yet. "Ridged/erosion" shaping and a literal "long valley" carve are deferred; current
   terrain is generic rolling FBM (confirmed to tile seamlessly across chunk borders, since noise
-  is sampled in world-space coordinates, not per-chunk-local ones).
+  is sampled in world-space coordinates, not per-chunk-local ones). **~~No macro-scale relief (no
+  single point read as "the mountain"/"a hill", just uniform rolling noise everywhere)~~ — fixed run
+  55** (`MACRO_RELIEF_FEATURES`, 1 mountain + 2 hills, additive on top of the FBM, see DECISIONS.md
+  ADR-0075): all 3 features are fixed, hand-picked, and placed with a hard-zero falloff radius well
+  short of every one of the 14 kingdom seats, so the world now has real macro topography with the
+  14 seats provably (not just measured) untouched.
 - [x] `src/3d/world/chunkManager.js` — `ChunkManager` (`loadChunk`/`unloadChunk`/`loadSquare`/
   `disposeAll`, plus `getCoveredAreaKm2()`/`getCumulativeCoveredAreaKm2()` for World Coverage).
   `game3d.js` loads a `CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS` (6 → 13x13 = 169 chunks)
@@ -5795,3 +5800,75 @@ run. The remaining 7 kingdom seats (`berk`, `olena`, `stannis`, `robin`, `twin`,
 King`) still use the FAZ 3 procedural castle — a natural future sub-task if more real models are
 ever sourced, but not blocking (FAZ 3's own procedural system is a real, intentional first pass, not
 a placeholder bug). No blocking bugs, syntax errors, or regressions found this run.
+
+## This Run (2026-07-31, run 55)
+
+**Fresh Session Snapshot at container boot:** `git status`/`git log -10` showed `HEAD` and local
+`main` both already at run 54's final commit — clean tree, no drift to reconcile.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0075):** GOVERNANCE.md §18 priority #1, "Arazi
+makro relıyefi (küçük tepe + büyük dağ)". Before touching `world/terrain.js`, ran the required
+**Arazi Değişikliği Güvenlik Kontrolü (§8.4) BEFORE** the change via a new standalone script,
+`scripts/terrainSeatSafetyCheck.js` (samples the real, live `createHeightSampler` at all 14
+`KINGDOM_SEATS` coordinates, checks raw height vs. `WORLD_DEFAULTS.WATER_LEVEL_METERS` and local
+slope vs. a documented 35° threshold): 14/14 PASS, `jon` sitting at just 0.004m above sea level
+(matching the project's own already-flagged tight margin there) — the exact baseline any change had
+to leave untouched.
+
+Added `MACRO_RELIEF_FEATURES` to `world/terrain.js`: 3 fixed, hand-picked world-space "dome" bumps
+(1 mountain, radius 1300m/amplitude 150m; 2 hills, radius 500-550m/amplitude 40-45m), summed
+additively inside `createHeightSampler` on top of the existing fine-detail FBM — so
+`createTerrainChunk` and `world/rivers.js` both see the combined field through the one shared
+function, no second copy. Each dome's falloff hits an exact, literal 0 at its own `radiusMeters`
+(not an asymptotic near-zero), and every feature's radius is smaller than its distance to the
+nearest kingdom seat (Xaro, in all 3 cases) by 850-2760m of margin — a mathematical guarantee the
+14 seats are unaffected, not just a measured one. Ran `terrainSeatSafetyCheck.js` again **AFTER**
+the change: 14/14 PASS, every seat's height/slope numbers identical to 3 decimal places, `jon`'s
+0.004m margin exactly preserved.
+
+**Verified:** `node --check` clean on `world/terrain.js` (194→260/600 lines) and
+`scripts/terrainSeatSafetyCheck.js` (new, 188 lines). Full committed smoke suite: **14/14 PASS**,
+unchanged. Real headless-Chromium boot of `game3d.html`, zero console/page errors: default
+third-person spawn view (this particular boot landed in the night portion of the day/night cycle —
+pre-existing `lighting.js` behavior, unrelated to this sub-task) plus two F4 debug free-fly camera
+screenshots (real `F4` activation, real WASD+Shift-run flight + mouse-drag pitch toward the new
+mountain/hill cluster, not a teleport) both showing an unmistakable large ridge/peak silhouette
+rising well above the surrounding rolling terrain, with a lake visible past its base. F2 perf-panel
+reading after boot: 45 draw calls / 2,500 budget, 391,069 triangles / 5,000,000 budget — both far
+under budget, as expected (only vertex Y-values changed on already-existing geometry; no new
+meshes, no segment-count change). World Coverage unaffected (96.2% desktop / 4.5% mobile — no
+streaming/chunk-count logic touched).
+
+**Deterministic regression snapshot (§8.9):** no procedural-generator checksum fixture exists yet
+in this repo (checked — none found); ADR-0075 itself records the exact before/after numbers at the
+mountain's own center (`sampleHeightMeters(2600, 2200)`: ≈13.76m → `163.75613522580645`, seed 1337)
+and at all 14 seats (all exactly 0.0m delta) as this change's deterministic-snapshot record.
+
+**Design decision logged, not guessed (§14):** no existing code defines a canonical "walkable
+slope" threshold for this project. `terrainSeatSafetyCheck.js` uses 35° as a documented, deliberately
+conservative placeholder, logged to the new `QUESTIONS_FOR_OWNER.md` for the project owner to
+confirm/adjust once a real slope-based movement system or playtest exists to calibrate against.
+
+**Memory-leak checklist:** `sampleMacroReliefMeters` is a pure function closed only over the frozen
+`MACRO_RELIEF_FEATURES` constant array — no listeners/timers/DOM. `createTerrainChunk`'s/
+`disposeTerrainChunk`'s geometry/material lifecycle is unchanged; no new disposable resources.
+
+**Files changed this sub-task:** `src/3d/world/terrain.js`, `scripts/terrainSeatSafetyCheck.js`
+(new), `QUESTIONS_FOR_OWNER.md` (new), `DECISIONS.md` (ADR-0075), `3D_GAME_PROGRESS.md` (this file).
+5 files. One commit.
+
+**Technical debt:** no new debt introduced (pure additive height-math change, no TODO/HACK/
+placeholder left behind). The "Known Issues / Tech Debt" section above currently lists **31**
+top-level open/historical entries (counted directly, `awk` over that section's `- ` lines) — this
+project has never actually maintained a single running integer counter in this file despite
+GOVERNANCE.md §12's wording (every prior run instead wrote a narrative "no new tech debt this run"
+line); this run's count is that literal bullet count, unchanged by this sub-task, offered as the
+best-available single integer per §12 rather than a newly-invented number.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Terrain macro relief
+(ADR-0075) is done and real-screenshot-verified this run. GOVERNANCE.md §18 priority #2 ("Yol ağı —
+patika + at arabası yolu") is next in line and has genuinely no code yet (`src/3d/world/` has no
+`roads.js`, confirmed by `terrainSeatSafetyCheck.js`'s own runtime check this run) — and now has a
+real mountain (ADR-0075) to route around once it's built, giving GOVERNANCE.md §8.10's "yol dağın
+dik yamacından düz geçmez" rule a genuine test case for the first time. No blocking bugs, syntax
+errors, or regressions found this run.

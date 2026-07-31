@@ -4,6 +4,11 @@
  * or textures — this is deliberately "geography first, polish later" (see 3D_GAME_PROGRESS.md's
  * World Coverage section): cheap enough to generate hundreds of chunks, detail arrives later.
  *
+ * On top of that fine-detail FBM, `MACRO_RELIEF_FEATURES` layers a few large, low-frequency
+ * hill/mountain "domes" (see DECISIONS.md ADR-0075) so the world reads as having real macro
+ * topography, not just uniform rolling noise at a single scale — see `sampleMacroReliefMeters`'s
+ * own doc comment for the exact shape and the kingdom-seat safety margins it was placed with.
+ *
  * Chunk grid convention (shared with `CHUNK_CONFIG` in `config.js`): chunk `(chunkX, chunkZ)` is
  * centered at world position `(chunkX * size, 0, chunkZ * size)`, so chunk `(0, 0)` sits centered
  * on the world origin. A future chunk-manager/streaming system should reuse this convention
@@ -95,6 +100,59 @@ function fbm2D(noise2D, x, y, { octaves = 5, lacunarity = 2, gain = 0.5 } = {}) 
 	return sum / maxAmplitude;
 }
 
+/**
+ * Macro-scale relief: a few large, low-frequency "dome" bumps layered on top of the fine-detail FBM
+ * noise (see `createHeightSampler`) so the world reads as having real macro topography — a couple
+ * of small hills and one large mountain — instead of uniform noise-bumpiness at a single scale.
+ * Fixed, hand-picked world-space centers (not derived from `seed`'s PRNG at runtime): a rejection-
+ * sampling loop against the 14 kingdom seats would need the exact same seat-avoidance reasoning
+ * anyway, and fixed constants are simpler to audit/adjust than an algorithm whose output depends on
+ * seat data this module has no reason to import (`world/terrain.js` sits below `world/settlements.js`
+ * in this project's layering — see this module's own doc comment — so it must not depend on it).
+ * Centers were chosen with `scripts/terrainSeatSafetyCheck.js` (GOVERNANCE.md §8.4's "Arazi
+ * Değişiklik Güvenlik Kontrolü") run before and after, confirming every one of the 14 seats stays
+ * exactly as far above water and exactly as walkable as before this layer was added — each feature's
+ * `radiusMeters` is smaller than its own distance to the nearest kingdom seat by a wide margin (the
+ * dome contributes exactly 0 beyond `radiusMeters`, not just a small numerical amount), so every seat
+ * is mathematically guaranteed unaffected, not merely measured-and-hoped-unaffected.
+ * Purely additive, in real meters — deliberately NOT scaled by `maxHeightMeters` (that parameter
+ * governs only the fine-detail FBM's amplitude; a mountain's real height must not shrink just
+ * because some future caller asks `sampleHeightMeters` for a flatter local detail pass).
+ * @type {{x: number, z: number, radiusMeters: number, amplitudeMeters: number}[]}
+ */
+const MACRO_RELIEF_FEATURES = Object.freeze([
+	// Mountain. Nearest seat (Xaro, world (4611, 3596)) is 2448m from this center — 1148m of margin
+	// beyond the dome's own 1300m falloff radius.
+	Object.freeze({ x: 2600, z: 2200, radiusMeters: 1300, amplitudeMeters: 150 }),
+	// Hill A. Nearest seat (Xaro) is 1353m from this center — 853m margin beyond its 500m radius.
+	Object.freeze({ x: 3400, z: 4200, radiusMeters: 500, amplitudeMeters: 45 }),
+	// Hill B. Nearest seat (Xaro) is 3314m from this center — 2764m margin beyond its 550m radius.
+	Object.freeze({ x: 3000, z: 700, radiusMeters: 550, amplitudeMeters: 40 }),
+]);
+
+/**
+ * Sums every `MACRO_RELIEF_FEATURES` dome's contribution at one world-space point. Each dome uses
+ * the same smoothstep ease `createValueNoise2D`'s own lattice interpolation uses (`t*t*(3-2*t)`) so
+ * it rises/falls with a rounded, natural-looking profile rather than a hard cone, and is exactly 0
+ * for any point at or beyond `radiusMeters` from that feature's center — not an asymptotic
+ * approach-to-zero, a literal zero, which is what makes the kingdom-seat safety margins above exact
+ * rather than approximate.
+ * @param {number} worldX
+ * @param {number} worldZ
+ * @returns {number} Additive height in meters, always >= 0.
+ */
+function sampleMacroReliefMeters(worldX, worldZ) {
+	let total = 0;
+	for (const feature of MACRO_RELIEF_FEATURES) {
+		const distance = Math.hypot(worldX - feature.x, worldZ - feature.z);
+		if (distance >= feature.radiusMeters) continue;
+		const t = 1 - distance / feature.radiusMeters;
+		const eased = t * t * (3 - 2 * t);
+		total += feature.amplitudeMeters * eased;
+	}
+	return total;
+}
+
 const LOW_COLOR = new THREE.Color(0x3d6b28);
 const HIGH_COLOR = new THREE.Color(0x6b6152);
 /** Exponent applied to the clamped low/high blend fraction before it drives the `LOW_COLOR`->
@@ -117,18 +175,27 @@ export const DEFAULT_MAX_HEIGHT_METERS = 24;
  * matches whatever `createTerrainChunk` would bake at that point (both derive from the same
  * `noise2D`/`fbm2D` calls) — used by `world/rivers.js` to trace a path over the *actual* terrain
  * a chunk would render, not an approximation of it.
+ *
+ * Also layers in `MACRO_RELIEF_FEATURES`' large-scale hill/mountain domes on top of the fine-detail
+ * FBM (added, not blended/replacing — see that constant's own doc comment). Every consumer of this
+ * sampler (`createTerrainChunk`, `world/rivers.js`'s downhill trace) automatically sees the macro
+ * relief through this one shared function, so chunk geometry and any height query elsewhere always
+ * agree — no second, potentially-drifting copy of the macro layer.
  * @param {number} seed
  * @param {{octaves?: number, lacunarity?: number, gain?: number}} [fbmOptions] Forwarded to
  *   `fbm2D`. Default (5 octaves, matching `createTerrainChunk`) is what chunk geometry actually
  *   renders; a caller that needs the terrain's *macro* shape without its finest bumps (e.g.
  *   `world/rivers.js` picking a downhill flow direction — see DECISIONS.md ADR-0009 for why) can
- *   pass fewer octaves for a low-pass-filtered version of the same underlying noise field.
+ *   pass fewer octaves for a low-pass-filtered version of the same underlying noise field. The
+ *   macro-relief domes are unaffected by this option either way — they're a separate additive term,
+ *   not another FBM octave.
  * @returns {(worldX: number, worldZ: number, maxHeightMeters?: number) => number}
  */
 export function createHeightSampler(seed, fbmOptions) {
 	const noise2D = createValueNoise2D(seed);
 	return function sampleHeightMeters(worldX, worldZ, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS) {
-		return fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE, fbmOptions) * maxHeightMeters;
+		const fineDetailMeters = fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE, fbmOptions) * maxHeightMeters;
+		return fineDetailMeters + sampleMacroReliefMeters(worldX, worldZ);
 	};
 }
 

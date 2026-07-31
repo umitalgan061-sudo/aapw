@@ -5540,3 +5540,201 @@ available for a future re-decimation at a different ratio if one is ever needed.
 still explore per-seat rotation variety (every real model currently loads at its own default
 orientation) or a lighter decimation ratio for `umit`'s seat specifically (the player's own home,
 visited most) — not blocking, just not this sub-task's scope.
+
+## ADR-0075: Terrain macro relief — hills + a mountain, layered additively on the fine-detail FBM
+
+**Status:** Accepted (run 55).
+
+**Risk Seviyesi:** MEDIUM. Justification: this touches `world/terrain.js`'s `createHeightSampler`,
+the single shared height function every other world/gameplay system reads terrain height through
+(`createTerrainChunk`, `world/rivers.js`'s downhill trace, `world/settlements.js`'s castle ground
+placement, NPC/animal/dragon ground-height snapping) — a wide blast radius in principle, which is
+exactly why GOVERNANCE.md §8.4 makes height-sampler changes subject to a mandatory before/after
+safety check at all. Not HIGH: the change is purely additive (existing FBM math untouched), adds no
+new geometry/topology (draw calls/triangle count unaffected — same `PlaneGeometry` segment counts,
+only vertex Y values differ), and — critically — is *provably*, not just measured, zero-impact at
+every one of the 14 kingdom seats (see Decision below: each dome's falloff hits an exact, literal 0
+at `radiusMeters`, and every feature's radius is smaller than its distance to the nearest seat by a
+wide margin). The full existing smoke suite (14/14) and the new dedicated safety-check script both
+confirm this empirically on top of the mathematical guarantee.
+
+**Context:** GOVERNANCE.md §18 priority #1 — "Arazi makro relıyefi (küçük tepe + büyük dağ)". Per
+the project's own most recent progress notes, `world/terrain.js`'s height field was a single-scale
+5-octave FBM (`NOISE_SCALE` 0.006, `DEFAULT_MAX_HEIGHT_METERS` 24) — real rolling variation at the
+"hill-sized" scale the noise cell size already produces, but no distinct large-scale landmark: no
+single point in the ~137.5km² world reads as "the mountain" or "a hill" the way a real landscape
+does, just uniform bumpiness repeated everywhere at the same frequency.
+
+**Decision:** Added `MACRO_RELIEF_FEATURES` — 3 fixed, hand-picked world-space "dome" bumps (1
+mountain + 2 hills), summed additively onto the existing FBM output inside `createHeightSampler`
+(so every consumer — `createTerrainChunk`, `world/rivers.js` — sees the same combined field through
+the one shared function, no second copy to drift):
+
+| Feature | Center (x, z) | Radius | Amplitude | Nearest seat | Clearance (center→seat) | Margin beyond radius |
+|---|---|---|---|---|---|---|
+| Mountain | (2600, 2200) | 1300m | 150m | Xaro (4611, 3596) | 2448m | 1148m |
+| Hill A | (3400, 4200) | 500m | 45m | Xaro (4611, 3596) | 1353m | 853m |
+| Hill B | (3000, 700) | 550m | 40m | Xaro (4611, 3596) | 3314m | 2764m |
+
+Each dome uses the same smoothstep ease (`t²(3−2t)`) `createValueNoise2D`'s own lattice
+interpolation already uses, evaluated on `1 − distance/radiusMeters`: this produces a rounded,
+natural-looking rise/fall and — the property this whole safety argument leans on — is *exactly* 0
+for any point at or beyond `radiusMeters`, not an asymptotic near-zero. Since every feature's radius
+is smaller than its distance to the nearest kingdom seat (the table's last column), the dome
+contributes *precisely* 0.0 at all 14 seats — a mathematical guarantee, confirmed (not just assumed)
+by the safety-check script below returning byte-identical numbers before and after.
+
+Centers are fixed constants, not derived by querying `world/settlements.js`'s `KINGDOM_SEATS` at
+runtime — `world/terrain.js` sits below `world/settlements.js` in this project's layering (terrain
+has no reason to import settlement data; settlements already take `sampleHeightMeters` as a
+parameter), so a rejection-sampling placement algorithm would invert that layering for no real
+benefit over hand-picked constants verified once against the real seat coordinates.
+
+**Arazi Değişikliği Güvenlik Kontrolü (GOVERNANCE.md §8.4), run before AND after — new persisted
+script `scripts/terrainSeatSafetyCheck.js`:** samples the real, live `createHeightSampler` output
+(via the same in-page dynamic-`import()`-over-a-real-static-server pattern
+`scripts/game3dSmokeChecks.js` already established, not a Node-side reimplementation) at all 14
+real `KINGDOM_SEATS` coordinates (mapped through the live `mapToWorldXZ`), and asserts (1) raw
+sampled height stays above `WORLD_DEFAULTS.WATER_LEVEL_METERS` and (2) local slope (central
+difference, ±2m) stays under a documented walkable threshold. Item 3 (road-network connectivity)
+was checked, not assumed skippable: `src/3d/world/` has no `roads.js` yet, confirmed by the script
+itself at runtime — "yol ağı" is GOVERNANCE.md §18 priority #2, a future, not-yet-built subtask, so
+this item legitimately does not apply yet (logged explicitly by the script, not silently omitted).
+
+Results, 14/14 PASS both times, **every seat's height and slope numbers identical to 3 decimal
+places before and after** (confirming the "exact zero beyond radius" claim empirically, not just
+mathematically):
+
+```
+seat            height(m)  marginAboveWater(m)  slope(deg)  result   (BEFORE == AFTER, both runs)
+umit               16.190              10.190      1.075  PASS
+berkalp             8.729               2.729      5.423  PASS
+ziya               14.276               8.276      2.526  PASS
+berk               14.097               8.097      5.436  PASS
+olena              12.909               6.909      4.770  PASS
+cersei              8.094               2.094      2.128  PASS
+stannis             7.975               1.975      3.575  PASS
+doran              14.936               8.936      1.857  PASS
+balon              14.009               8.009      2.457  PASS
+robin              12.322               6.322      4.365  PASS
+jon                 6.004               0.004      1.830  PASS
+twin               13.121               7.121      7.903  PASS
+Xaro               11.245               5.245      4.593  PASS
+Night King         14.630               8.630      5.290  PASS
+```
+
+`jon` — already flagged in `3D_GAME_PROGRESS.md`/`config.js` as sitting within about a meter of sea
+level — kept its exact pre-existing 0.004m margin, unchanged. This is the seat this whole
+zero-contribution design was most important for: any measurable macro-relief bleed at `jon` would
+have flooded it.
+
+**Walkable-slope threshold logged, not assumed (GOVERNANCE.md §14):** no existing code in this
+project defines a canonical "walkable slope" — `physics.js`'s ground-height snap follows terrain
+regardless of steepness, so there is no engine-enforced value to reuse. `terrainSeatSafetyCheck.js`
+uses 35° as a deliberately conservative placeholder (stricter than Unity's default
+`CharacterController.slopeLimit` of 45° or Unreal's default `WalkableFloorAngle` of ~44.7°) and this
+choice is logged to the new `QUESTIONS_FOR_OWNER.md` as a temporary default per §14, since it is a
+real design decision (what counts as "too steep to walk" for this game), not an API fact.
+
+**Sample height-field deltas (for a future `scripts/checkAssetsManifest.js`-style fixture, none
+exists yet — GOVERNANCE.md §8.9 — so this ADR itself is the deterministic-snapshot record for this
+change, seed 1337):** at the mountain's own center `(2600, 2200)`, `sampleHeightMeters(2600, 2200)`
+now returns exactly `163.75613522580645` (fine-detail FBM ≈13.76m + the full 150m dome at its own
+center, where `eased = 1`) — up from ≈13.76m before this change. This is the expected, intentional
+delta this change exists to make, not a regression. At every one of the 14 seat coordinates listed
+in the table above, the delta is exactly 0.0m (see above).
+
+**Verified:**
+- `node --check` clean on `world/terrain.js` (260/600 lines) and the new
+  `scripts/terrainSeatSafetyCheck.js` (188 lines).
+- Full committed smoke suite: **14/14 PASS**, unchanged (ran immediately after the edit — see
+  results above the safety-check table in this run's own verification log).
+- `scripts/terrainSeatSafetyCheck.js`: 14/14 PASS before AND after, numbers identical (see table).
+- **Real headless-Chromium visual proof, zero console/page errors both times:** booted the real
+  `game3d.html`. Default third-person spawn view: no regression, renders normally (this particular
+  boot landed in the night portion of the day/night cycle — `lighting.js`'s own existing behavior,
+  unrelated to and unchanged by this sub-task, so the ground/mountain colors read dark in that
+  screenshot; the F4 views below show the relief clearly regardless of lighting). F4 debug free-fly
+  camera, activated for real via a real `F4` keydown, flown (real WASD + Shift-run + mouse-drag
+  pitch, not a teleport) from the player's real spawn point toward the mountain/hill cluster: two
+  screenshots at different distances both show an unmistakable large ridge/peak silhouette rising
+  well above the surrounding rolling terrain, with a lake visible past its base — a real, distinct
+  macro landform, not a rolling-noise bump. Zero console/page errors across the whole flight in all
+  3 screenshots.
+- **Performance budget (F2 panel, real `renderer.info` read after boot):** 45 draw calls / 2,500
+  budget, 391,069 triangles / 5,000,000 budget — both far under the desktop cap. Expected: this
+  change only rewrites vertex Y-values on already-existing `PlaneGeometry` chunks (same `segments`,
+  same chunk grid, no new meshes), so triangle/draw-call count could not have changed by
+  construction; the F2 reading confirms that expectation rather than discovering a surprise.
+- **Memory-leak checklist:** `sampleMacroReliefMeters` is a pure function (no closures over
+  mutable state beyond the frozen `MACRO_RELIEF_FEATURES` constant array, no listeners/timers/DOM).
+  `createTerrainChunk`/`disposeTerrainChunk`'s geometry/material lifecycle is completely unchanged —
+  this sub-task added no new disposable resources anywhere.
+
+**Alternatives considered:**
+- *A runtime rejection-sampling placement algorithm (seeded random candidate positions, reject any
+  within a margin of a real kingdom seat) instead of fixed hand-picked constants.* Rejected — would
+  need `world/terrain.js` to import `world/settlements.js`'s `KINGDOM_SEATS`, inverting this
+  project's own world-module layering (terrain is lower-level; settlements already receives
+  `sampleHeightMeters` as a parameter, not the other way around) for no real benefit: fixed constants
+  verified once against the real seat coordinates via `terrainSeatSafetyCheck.js` are exactly as
+  safe and far simpler to audit than an algorithm whose output would need re-verifying on every seed
+  change anyway.
+- *A single additional low-frequency FBM octave applied globally (a 6th, much-larger-wavelength
+  octave layered into the existing `fbm2D` sum) instead of a few discrete fixed-position domes.*
+  Rejected for this pass — a global low-frequency octave affects *every* point in the world by some
+  nonzero amount (FBM noise has no exact-zero region the way this ADR's dome falloff does), which
+  would have meant re-deriving a safe amplitude bound against `jon`'s 0.004m margin analytically
+  (the noise function's actual min/max over the relevant area) rather than getting a *literal* zero
+  at every seat for free. Fixed-position domes with a hard cutoff radius give the strongest,
+  simplest-to-verify safety property for this specific "don't ever touch the 14 already-placed
+  seats" constraint; a low-frequency global octave remains a reasonable *alternative* direction for
+  a future macro-relief pass once/if the seat set itself is expected to change.
+- *A larger `DEFAULT_MAX_HEIGHT_METERS` (raising the whole FBM's amplitude uniformly) instead of
+  distinct macro features.* Rejected — that would make the *entire* world uniformly bumpier at the
+  same frequency (more extreme rolling hills everywhere), not "a mountain here, a couple of hills
+  there" macro topography as the task asked for, and would shift every seat's height (including
+  `jon`'s razor-thin margin) instead of leaving all 14 provably untouched.
+
+**Consequence:** The world now has one clearly-distinct large mountain and two smaller hills, all
+outside any existing seat/patrol/spawn area, layered on top of (not replacing) the existing
+fine-detail rolling noise. `world/terrain.js` grew from 194 to 260 lines (still well under the
+600-line cap). No triangle/draw-call/World-Coverage change (96.2%/4.5% area numbers untouched — no
+streaming/chunk-count logic was touched). A new standalone regression tool,
+`scripts/terrainSeatSafetyCheck.js`, now exists for any *future* terrain/height-sampler change to
+reuse (per its own module doc, run before AND after any such edit) instead of each future run
+re-deriving this same check from scratch.
+
+**Gelecek Faz Etkisi (future-phase impact):**
+- **FAZ 9 (post-fx/`postfx.js`, not started):** a real mountain silhouette is exactly the kind of
+  landmark volumetric light/god-rays (already flagged as deferred FAZ 9 scope, see
+  3D_GAME_PROGRESS.md's Known Issues) reads best against — no dependency either direction, just a
+  better subject for that future pass once it starts.
+- **FAZ 10 (Performans/quality presets):** no impact on triangle/draw-call budgets (see Verified).
+  One thing a future FAZ 10 pass should keep in mind: the mountain's peak (~174m above its base) is
+  taller than anything in this world before now, so a future draw-distance/fog-tuning pass should
+  sanity-check it doesn't clip unnaturally at `QUALITY_PRESETS`' shorter `drawDistance` values on
+  lower quality tiers — not verified in this sub-task (out of scope; no quality-tier switching UI
+  exists yet to test against), flagged for whoever picks up FAZ 10.
+- **Future settlements (GOVERNANCE.md §11 — new seats beyond the current 14):** any future new
+  settlement's elevation/slope check must query `sampleHeightMeters`, which already includes this
+  macro layer automatically (single shared function, no special-casing needed) — but a future
+  settlement placed carelessly near `(2600, 2200)`, `(3400, 4200)`, or `(3000, 700)` could now land
+  on a real steep slope where none existed before. §11's own "uygun rakım kontrolü" (appropriate-
+  elevation check) requirement already covers this; this ADR is the record of *why* that check now
+  actually has real steep terrain to catch, where before it had almost none.
+- **Roads (GOVERNANCE.md §18 priority #2, not started):** previously near-moot — §8.10's "Ana yol
+  eğime duyarlı rota seçer, dağın dik yamacından düz geçmez" rule had almost no real steep terrain
+  to violate. This mountain is now a genuine test case for that rule once the road system exists;
+  no road code was written or needs to be written by this sub-task.
+- **Rivers (`world/rivers.js`, existing):** automatically consistent with §8.10's "nehir dağın
+  içinden delip geçmez" by construction, not by new code — `generateRiverPath`'s downhill-only walk
+  reads the same shared `sampleHeightMeters`, so it already cannot climb the new mountain; it can at
+  most be deflected around it, which is correct river behavior. The seed-1337 river's exact traced
+  shape may differ slightly from before this change wherever its search/walk radius (up to 2800m
+  from the origin) overlapped the mountain's influence zone — an expected, intentional consequence
+  of a real height-field change (GOVERNANCE.md §8.9), not a regression; no committed smoke check
+  asserts the river's exact path/shape (confirmed — searched `scripts/*.js` for "river"/"waterfall",
+  no matches), so nothing in the regression suite could have silently broken here.
+- **Vegetation (not started):** whenever it lands, it should sample height the same shared way
+  everything else here does, and will then automatically respect the new relief with no extra work.
