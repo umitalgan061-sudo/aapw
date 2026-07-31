@@ -5215,3 +5215,60 @@ picking up FAZ 7 as its active phase should start with a real decimation pass on
 the same tooling. FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download step;
 `ivory_stallion.glb` (horse) is confirmed geometry-only/untextured/unrigged per `assets_manifest.json`
 — usable only as a static prop, not an animated FAZ 6 animal, until a human rigs it.
+
+## This Run (2026-07-31, run 50)
+
+**Fresh Session Snapshot at container boot:** `HEAD` was detached at run 49's final commit
+(`3ed3ecb`) with a stale local `main` still pointing at the old pre-3D-mode commit (`38e09e7`) — same
+harmless pattern runs 40/47/48/49 already documented. `git fetch origin` then `git checkout -B main
+origin/main` reattached cleanly (nothing at risk — nothing had been pushed off `main`).
+
+**This run's own stored prompt again asked for 2 items already shipped 10 runs ago:** lake-water
+flicker (fixed run 40, ADR-0048) and an F4 debug free-fly camera (shipped run 40, ADR-0049) —
+re-confirmed, not assumed: `git log`/`DECISIONS.md` both still show them landed, and the committed
+smoke suite's `checkWaterVertexShaderStatic`/`checkFreeCamera` both still PASS (ran the full 12-check
+suite fresh before touching anything). Same stale-prompt situation runs 44-49 already flagged.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0066):** fresh full priority re-scan: `node
+--check` clean on every `src/3d/**/*.js`/`scripts/*.js` file; no blocking bug; full smoke suite
+already at 12/12; World Coverage unchanged past its gate. Priority 6 (tech debt) had one concrete,
+already-flagged item: run 49's own "Next step" note recorded `gameplayConfig.js` at 566/600 lines —
+only 34 headroom left, one dialogue-pilot growth away from the 600-line cap, and run 49 itself named
+the split as "a reasonable next priority-9 sub-task, done before the content growth that needs it."
+Moved `INTERACTION_CONFIG.CHOICES_BY_NPC_ID`'s full object literal (10 NPCs, verbatim, zero content
+changes) out of `gameplayConfig.js` into a new sibling file, `gameplay/dialogueChoices.js`, re-exported
+back through `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` so every existing caller (`game3d.js`,
+`gameplay/interaction.js`) needed zero changes — a pure file-boundary refactor, same "verbatim move"
+precedent ADR-0059 already established for this project's smoke-check files.
+
+**Regression guard:** `node --check` clean on both touched files. Full committed smoke suite — all
+**12** checks PASS, identical names/details/order to the pre-split baseline, including
+`checkInteractionController`'s own choice-branching pilot assertions (offer/select/out-of-range/
+already-consumed/E-closes-mid-choice) — confirms the split changed no runtime behavior, only file
+boundaries. Per ADR-0059's own precedent, a pure verbatim-move refactor with an unchanged, already-
+passing behavioral smoke check needs no new headless-Chromium screenshot (nothing new to see —
+identical dialogue content renders through an identical code path); the existing
+`checkInteractionController` check already proves the choice mechanism live.
+
+**Memory-leak checklist:** N/A — file-boundary-only refactor, no new allocation/listener/timer, no
+change to any object's lifecycle.
+
+**Files changed this sub-task:** `src/3d/gameplay/gameplayConfig.js` (566 -> 456 lines),
+`src/3d/gameplay/dialogueChoices.js` (new, 133 lines), `DECISIONS.md` (new ADR-0066),
+`3D_GAME_PROGRESS.md` (this file). 4 files, ~150 new/moved lines (well under the 1200-line/25-file
+budget). One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a config-file-boundary refactor touches no terrain/streaming/chunk
+logic.**
+
+**Next step for the next run:** re-scan the priority order fresh, as always. `gameplayConfig.js` now
+has 144/600 lines of headroom (was 34); `dialogueChoices.js` has 467/600. FAZ 5's choice-branching
+pilot still covers 10 of 14 NPCs; the next 2-NPC growth (`berk-guard-1`/`olena-guard-1` or
+`twin-guard-1`, `jon-guard-1` still deliberately excluded) can now proceed directly in
+`dialogueChoices.js` without needing another split first. World-event pool remains at 14 entries,
+`worldEvents.js` has 503/600 headroom. FAZ 7's tooling blocker (gltfpack/gltf-transform) was reported
+lifted run 49 — still unconfirmed by a real decimation pass; a future run picking up FAZ 7 as its
+active phase should do that first. FAZ 5/6's cart/dog-cat/bird gap still needs a human manual-download
+step; `ivory_stallion.glb` remains geometry-only/unrigged, usable only as a static prop until a human
+rigs it.

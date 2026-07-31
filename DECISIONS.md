@@ -4792,3 +4792,63 @@ picks uniformly at random from whatever `WORLD_EVENTS` contains.
 limit for a `Math.floor(random() * WORLD_EVENTS.length)` pick. `worldEvents.js` has 503 lines of
 headroom before its own 600-line cap. FAZ 8's event system remains flavor-only (no stat effects, no
 per-kingdom economy hook) — unchanged design boundary from ADR-0056.
+
+## ADR-0066: Split `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` out of `gameplayConfig.js` into `gameplay/dialogueChoices.js`
+
+**Status:** Accepted (run 50, sub-task 1).
+
+**Context:** Fresh Session Snapshot (this run's stored prompt asked for lake-water-flicker and an F4
+debug free-fly camera — both re-confirmed already shipped run 40, ADR-0048/ADR-0049; same stale-prompt
+situation runs 44-49 already flagged, not re-actioned). Full 12-check smoke suite re-run clean before
+touching anything. No syntax error (`node --check` clean on every `src/3d/**/*.js`/`scripts/*.js`
+file), no blocking bug, no perf-budget overrun, no memory leak. Priority 6 (tech debt) had one
+concrete, already-flagged item: run 49's own "Next step" note recorded `gameplayConfig.js` at
+566/600 lines — only 34 headroom left, and its own biggest remaining growth driver
+(`CHOICES_BY_NPC_ID`, ~30 lines per 2-NPC pair) would blow the 600-line cap on the very next
+dialogue-pilot growth. Same "split before the next content growth needs it" precedent ADR-0059 (this
+project's own prior `game3dSmokeChecks.js` split) already established, and run 49 itself flagged this
+exact split as "a reasonable next priority-9 sub-task, done before the content growth that needs it."
+
+**Decision:** Moved `CHOICES_BY_NPC_ID`'s full object literal (10 NPCs, verbatim, no content changes)
+out of `gameplayConfig.js`'s `INTERACTION_CONFIG` into a new sibling file,
+`gameplay/dialogueChoices.js`, exporting `CHOICES_BY_NPC_ID` directly. `gameplayConfig.js` now
+imports it and assigns it back as `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` (shorthand property), so
+every existing caller (`game3d.js`'s `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` read,
+`gameplay/interaction.js`'s consumption of the resolved config object) needed zero changes — this is
+a pure file-boundary change, not a public-shape change. `GREETINGS_BY_NPC_ID` (much smaller, ~1 line
+per entry) stays in `gameplayConfig.js` — only the heavier, faster-growing block moved.
+
+**Reasoning:**
+- **Split by growth driver, not evenly:** `CHOICES_BY_NPC_ID` (10 entries × ~10 lines = ~103 lines)
+  was the single largest and fastest-growing block in the file; moving it alone recovers the most
+  headroom for the least churn, versus e.g. also moving `NPC_CONFIG.SPAWNS` (14 entries but only
+  ~6 lines each, growing slower) unnecessarily.
+- **Verbatim move, re-exported to preserve shape:** matches ADR-0059's "verbatim move, not a
+  rewrite" rule — no dialogue text, key, or structure changed, only which file declares it.
+- **Why now, not deferred:** identical timing argument to ADR-0059 — the debt was already flagged in
+  writing (run 49's "Next step"), and deferring until the next 2-NPC growth actually needs it would
+  force a rushed split under pressure instead of a clean preemptive one.
+
+**Verified:**
+- `node --check` clean on both touched files: `gameplayConfig.js`, `dialogueChoices.js` (new).
+- Line counts re-measured: `gameplayConfig.js` 456/600 (was 566/600), `dialogueChoices.js` 133/600
+  (new file). Both now have comfortable headroom.
+- Full committed smoke suite (`node scripts/smokeTestGame3D.js`): all **12** checks PASS, identical
+  names/details/order to the pre-split run, including `checkInteractionController`'s own
+  choice-branching pilot assertions (offer/select/out-of-range/already-consumed/E-closes-mid-choice)
+  — confirms the split changed no runtime behavior, only file boundaries.
+
+**Alternatives considered:**
+- *Also split `GREETINGS_BY_NPC_ID` out at the same time* — rejected: it's only ~16 lines total (1
+  line/entry) and growing far slower than `CHOICES_BY_NPC_ID`; splitting it now would be premature
+  churn for headroom the file doesn't need yet (ADR-0059's own precedent split only the block that
+  was actually the pressure point).
+- *Trim comments instead of extracting* — rejected, same reasoning ADR-0059 already rejected it for:
+  this project's docstrings carry real WHY-content, and trimming buys only a few lines before the
+  cap is hit again on the next 2-NPC growth.
+
+**Consequences:** `gameplayConfig.js` now has 144 lines of real headroom — comfortably covers several
+more dialogue-pilot growth rounds (4 NPCs remain: `berk-guard-1`/`olena-guard-1`/`twin-guard-1`, plus
+the deliberately-excluded `jon-guard-1`) before needing another split. `dialogueChoices.js` itself has
+467 lines of headroom. No behavior change for players — this is purely an internal file-organization
+fix.
