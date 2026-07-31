@@ -125,3 +125,16 @@ Third-party assets used in this private, unpublished project. Attribution kept p
 ## 2026-07-31 grass ground-cover asset
 
 - **Gerçekçi Çim / Realistic Grass** — free-tier download from a free 3D asset site, owner-confirmed free license at download time. Used as real ground-cover vegetation (see GOVERNANCE.md).
+
+## 2026-07-31 second batch (converted OBJ/FBX from archives)
+
+- **building_components_4** — free OBJ download, converted to GLB — see manifest for details
+- **hand_statue_prop** — free OBJ download, converted to GLB — see manifest for details
+- **shark** — free OBJ download, converted to GLB — see manifest for details
+- **winter_tree** — free OBJ download, converted to GLB — see manifest for details
+- **wall_segment_muro** — free OBJ download, converted to GLB — see manifest for details
+- **unidentified_prop_t1** — free OBJ download, converted to GLB — see manifest for details
+- **small_wooden_house** — free OBJ download, converted to GLB — see manifest for details
+- **AncientGreekCity [GameReadyPack]** (arches, pillars, stairs, statues, garden flowers) — free asset pack, owner-confirmed free license at download time — geometry only, textures deliberately excluded for size reasons
+- **sword_narsil_style** — Sword_FBX free download (owner-confirmed free at download time)
+- **medieval_house_pack** — Medieval House Asset Pack (free download, owner-confirmed free at download time)

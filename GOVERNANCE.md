@@ -222,18 +222,47 @@ modelinin zeminde kullanılmasını özellikle istedi.
 görevleriyle (makro-relyef, yol ağı, kale dokulandırma) AYNI seviyede —
 proje sahibi doğrudan istedi, sıradaki ilk uygun alt görev olarak ele alınmalı.
 
-## 22. 2026-07-31 Downloads Taraması — Kısıtlı Kabul
+## 22. 2026-07-31 Downloads Taraması — Kısıtlı Kabul (iki geçiş)
 
-Proje sahibi bugün (31 Temmuz) Downloads klasörüne çok büyük bir hacimde
-(200+ dosya, bazıları 1GB'a yakın) çeşitli 3D asset indirdi. Bunların büyük
-çoğunluğu (mimari kitleri, .blend/.rar/.7z arşivleri, dev boyutlu tekil .glb/
-.gltf dosyaları, isimsiz/tema-dışı texture'lar) **bilinçli olarak İÇE
-AKTARILMADI** — bkz. §14'teki yeni boyut/format kapısı. Sadece şunlar
+Proje sahibi 31 Temmuz'da Downloads klasörüne çok büyük bir hacimde (200+
+dosya, bazıları 1GB'a yakın) çeşitli 3D asset indirdi. İki ayrı geçişte
 işlendi:
-- 116 adet küçük/orta boyutlu Sketchfab asset'i (hayvan/bitki/yerleşim/
-  karakter/prop) — zaten `assets_manifest.json`'da kayıtlı, ayrı bir commit
-  setinde.
-- Bu bölümdeki çim modeli (§21).
-Geri kalan büyük arşiv/format-dışı dosyalar için proje sahibiyle ayrıca
-konuşulup, gerekirse decimate/dönüştürme sonrası tekil tekil değerlendirilmeli
-— toplu, doğrulanmamış bir içe aktarma YAPILMADI.
+
+**1. geçiş:** 116 adet küçük/orta boyutlu Sketchfab asset'i (hayvan/bitki/
+yerleşim/karakter/prop, `.glb`) + gerçek çim modeli (§21, `Grass.fbx`).
+
+**2. geçiş — `.obj`/`.rar`/`.7z` dönüştürme:** Sistemde bulunan `7z.exe`
+(ArcGIS Pro ile gelen) ve `WinRAR/UnRAR.exe` ile arşivler açılıp içerikleri
+tek tek kontrol edildi; `npx obj2gltf` ile OBJ→GLB dönüştürüldü. Sonuç:
+- **36 yeni asset eklendi:** 7 tekil OBJ dosyası (settlements/props/animals/
+  vegetation), AncientGreekCity [GameReadyPack] arşivinden 27 mimari/heykel/
+  çiçek OBJ'i (SADECE geometri — pakette orijinal 16-67MB'lık ham texture'lar
+  bilinçli olarak alınmadı, `castle_*` modellerindeki gibi prosedürel malzeme
+  bekliyor), Sword_FBX.rar'dan hazır bir FBX+texture, Medieval_House_Asset_
+  Pack_All_Files.7z'den paketin hazır FBX varyantı (pakette ayrıca çok daha
+  büyük bir .blend ve bir .obj varyantı da vardı, sadece FBX alındı).
+- **`SUPER_TERRAIN_obj.rar` bilinçli olarak DIŞLANDI** — format uygun (OBJ)
+  olsa da, statik/baked bir terrain mesh'i projenin prosedürel arazi
+  mimarisiyle (`world/terrain.js`, seeded noise, tek gerçek kaynak
+  `sampleHeightMeters`) doğrudan çelişiyor; format değil, mimari uyumsuzluk
+  sebebiyle atlandı.
+- **`.blend` / `.max` dosyaları dönüştürülemedi** — bu makinede ne Blender ne
+  3ds Max kurulu, headless/CLI-only güvenilir bir alternatif yok. Etkilenen:
+  12 tekil `.blend` dosyası (BodyMaleTemplate, Buffalo, CoastScan,
+  FreeAllBLEND, Mongoose, bridge1, castle, female_blender_5.0, low_poly_lion,
+  pine_realistic, riggedcat, son), `CHARACTER.max`, ve ~30 arşiv (çoğu
+  "...BLENDER.rar" adında, içeriği sadece `.blend` olduğu spot-check'lerle
+  doğrulandı — `Blender_File.rar`, `Viking_Sword_Blend.rar`,
+  `MedievalPackSTY.rar`, `Medieval_Market_Asset_Pack.7z`,
+  `Ancient_Assets_Pack.7z`, `Ancient_Columns_Blend.7z`,
+  `MY_REALISTIC_GRASS_ASSISSTANCE.rar` dahil). `Wolf3.1.rar` sadece doku+Maya
+  rig dosyası içeriyordu, örgü/mesh yoktu — atlandı. `textures.rar` tek bir
+  ilgisiz doku içeriyordu — atlandı. `Solar_System_Asset_Pack.7z` temaya
+  tamamen yabancı (güneş sistemi) — kontrol edilmeden atlandı. Kasıtlı ikinci
+  kopyalar (proje sahibinin kendisinin belirttiği yanlışlıkla 2. indirmeler:
+  `AncientHouseV5BLENDER (1).rar`, `Ancient_Assets_Pack (1).7z`,
+  `Free_templeBLENDER (1).rar`, `Free_tower22BLENDER (1)/(2).rar`,
+  `terrain_obj (1).zip`) hiç dokunulmadı.
+- Bu blocked listedeki içerik Blender kurulursa (veya proje sahibi başka bir
+  yolla .blend/.max dosyalarını GLTF/FBX'e export ederse) ileride tekrar
+  değerlendirilebilir — kalıcı red değil, sadece araç eksikliği.
