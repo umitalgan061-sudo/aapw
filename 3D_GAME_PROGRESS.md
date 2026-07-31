@@ -5348,3 +5348,70 @@ now has 16 entries, `worldEvents.js` has 501/600 headroom. FAZ 7's tooling block
 future run picking up FAZ 7 as its active phase should do that first. FAZ 5/6's cart/dog-cat/bird gap
 still needs a human manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged, usable
 only as a static prop until a human rigs it.
+
+## This Run (2026-07-31, run 51)
+
+**Fresh Session Snapshot at container boot:** `git status`/`git log -10` showed `HEAD` and local
+`main` both already at run 50's final commit (`21353c2`, world-event pool 14->16) — no detached-HEAD
+drift this time, nothing to fast-forward.
+
+**This run's own stored prompt again asked for 2 items already shipped 11 runs ago:** lake-water
+flicker (fixed run 40, ADR-0048) and an F4 debug free-fly camera (shipped run 40, ADR-0049) —
+re-confirmed via `git log`/`DECISIONS.md` and the committed smoke suite's
+`checkWaterVertexShaderStatic`/`checkFreeCamera`, both still PASS. Same stale-prompt situation runs
+44-50 already flagged; no new work needed for either.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0069):** fresh full priority re-scan: `node
+--check` clean on every `src/3d/**/*.js`/`scripts/*.js` file; full smoke suite already at 12/12; no
+blocking bug; World Coverage unchanged past its gate; no file near its 600-line cap (largest
+non-vendor file is `gameplayConfig.js` at 456/600) so no tech-debt split pressure. Priority 9 (active
+phase's incomplete sub-task) had one concrete item, already named by run 50's own "Next step" note:
+`twin-guard-1`, the one remaining NPC without a dialogue-choice pilot entry. Grew
+`dialogueChoices.js`'s `CHOICES_BY_NPC_ID` from 12 to 13 of 14 NPCs, adding `twin-guard-1` with a
+crossing/toll-flavored choice pair derived from its existing greeting line. Config-only; zero changes
+to `interaction.js`/`dialogueBox.js`/`game3d.js`.
+
+**Regression guard:** `node --check` clean. Full committed smoke suite — all **12** checks PASS,
+identical to the pre-change baseline. **Real headless-Chromium proof of the new content
+specifically:** a one-off Playwright script booted the live `game3d.html` page (zero console/page
+errors), then instantiated the real `DialogueBox`/`InteractionPrompt`/`createInteractionController`
+with the actual `INTERACTION_CONFIG` for `twin-guard-1`, reading state off the instance's own scoped
+DOM refs. Greeting text, both numbered choice labels, and (after simulating a `Digit2` press) that
+choice's own response text with the hint reverted to "E / Esc - Kapat" all matched the authored
+content exactly. Screenshot confirms the response renders over the real page. Zero console/page
+errors throughout.
+
+**Memory-leak checklist:** N/A — config-only content addition to a frozen object literal; the one-off
+verification script's own UI/controller instances were scratch/throwaway on a disposable DOM node.
+
+**Files changed this sub-task:** `src/3d/gameplay/dialogueChoices.js`, `DECISIONS.md` (new
+ADR-0069), `3D_GAME_PROGRESS.md` (this file). 3 files, ~15 new/changed lines. One commit, direct
+push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a dialogue-content-only addition touches no terrain/streaming/chunk
+logic.**
+
+**Budget/time check:** 1 sub-task landed (~15 lines, 3 files) — well under the 1200-line/25-file
+budget, and the dialogue-choice pilot's only remaining growth (`jon-guard-1`) is a deliberate
+exclusion, not a free next step. Stopping this run's chain here rather than reaching for a
+lower-value filler task (e.g. re-pairing an already-covered NPC with a second choice) — the next
+substantive priority-order item (FAZ 7's dragon-model decimation pass, priority 9 once FAZ 7 becomes
+the active phase) needs a real tool run and its own verification, better started fresh next run than
+squeezed in at the end of this one.
+
+**Run totals (1 sub-task, run 51):** 3 files touched (`src/3d/gameplay/dialogueChoices.js`,
+`DECISIONS.md`, `3D_GAME_PROGRESS.md`), ~15 new/changed lines. 1 commit, regression-guarded (12/12
+smoke suite + a real headless-Chromium screenshot of the new content specifically) and pushed
+directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. FAZ 5's choice-branching
+pilot now covers 13 of 14 NPCs; `jon-guard-1` is the only NPC left without an entry, and it's a
+deliberate exclusion (ADR-0058) — no further pilot growth is "free" without either revisiting that
+exclusion or adding a second choice pair to an NPC that already has one. `dialogueChoices.js` has
+433/600 lines of headroom. World-event pool still at 16 entries, `worldEvents.js` has 501/600
+headroom. FAZ 7's tooling blocker (gltfpack/gltf-transform) was reported lifted run 49 — still
+unconfirmed by a real decimation pass; a future run picking up FAZ 7 as its active phase should do
+that first, on `reference_dragon_v1.glb` (82MB). FAZ 5/6's cart/dog-cat/bird gap still needs a human
+manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged, usable only as a static
+prop until a human rigs it.

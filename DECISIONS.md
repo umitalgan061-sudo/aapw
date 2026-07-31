@@ -4951,3 +4951,52 @@ or `ui/worldEventToast.js`.
 **Consequences:** World-event pool now has 16 entries. `worldEvents.js` has 501/600 lines of headroom
 before its own 600-line cap — no split pressure. FAZ 8's event system remains flavor-only, unchanged
 design boundary from ADR-0056.
+
+## ADR-0069: Grow the dialogue-choice pilot from 12 to 13 of 14 NPCs (`twin-guard-1`)
+
+**Status:** Accepted (run 51).
+
+**Context:** Fresh Session Snapshot re-confirmed this run's own stored prompt again asked for 2 items
+already shipped 11 runs ago: lake-water flicker (fixed run 40, ADR-0048) and the F4 debug free-fly
+camera (shipped run 40, ADR-0049) — `git log` and the committed smoke suite's
+`checkWaterVertexShaderStatic`/`checkFreeCamera` both still PASS, so neither needed any new work.
+Full priority re-scan: `node --check` clean on every `src/3d/**/*.js`/`scripts/*.js` file, no
+blocking bug, full smoke suite already at 12/12, World Coverage unchanged past its gate, no new tech
+debt (no file near its 600-line cap forcing a split). Priority 9 (active phase's incomplete
+sub-task) had one concrete, already-flagged item: run 50's own "Next step" note recorded
+`twin-guard-1` as "the one remaining not-yet-covered NPC" in the dialogue-choice pilot
+(`jon-guard-1` stays deliberately excluded per ADR-0058).
+
+**Decision:** Grew `dialogueChoices.js`'s `CHOICES_BY_NPC_ID` from 12 to 13 of 14 NPCs, adding
+`twin-guard-1` — the Twins' own distinct Lannister-house seat (per `NPC_CONFIG.SPAWNS`'s run-34
+placement), voiced with a crossing/toll flavor derived from its existing `GREETINGS_BY_NPC_ID` line
+("İkiz Kuleler'in gölgesinde yürüyorsun. Burada her adım izlenir.") rather than reusing
+`cersei-guard-1`'s gold-mine angle — same per-NPC, house-flavored approach every prior round used.
+Config-only; zero changes to `interaction.js`/`dialogueBox.js`/`game3d.js`.
+
+**Verified:**
+- `node --check` clean on `dialogueChoices.js`. Line count: 167/600 (was 156) — comfortable headroom.
+- Full committed smoke suite: all **12** checks PASS, identical to the pre-change baseline.
+- **Real headless-Chromium proof of the new content specifically:** a one-off Playwright script
+  booted the live `game3d.html` page (zero console/page errors), then instantiated the real
+  `DialogueBox`/`InteractionPrompt`/`createInteractionController` with the actual
+  `INTERACTION_CONFIG` for `twin-guard-1`, reading state off the instance's own scoped DOM refs (not
+  a global `document.querySelector`, same pitfall runs 49/50 already flagged and avoided). The
+  greeting text, both numbered choice labels, and (after simulating a `Digit2` press) that choice's
+  own response text with the hint reverted to "E / Esc - Kapat" all matched the authored content
+  exactly. A screenshot of the rendered response confirms it draws over the real page. Zero
+  console/page errors throughout.
+
+**Memory-leak checklist:** N/A — config-only content addition to a frozen object literal, no new
+allocation/listener/timer; the one-off verification script's own `DialogueBox`/`InteractionPrompt`/
+`createInteractionController` instances were scratch/throwaway, appended to and removed from a
+disposable scratch DOM node, not part of the committed app.
+
+**Files changed this sub-task:** `src/3d/gameplay/dialogueChoices.js`, `DECISIONS.md` (this ADR),
+`3D_GAME_PROGRESS.md`. 3 files, ~15 new/changed lines.
+
+**Consequences:** Dialogue-choice pilot now covers 13 of 14 NPCs — `jon-guard-1` is the only
+remaining NPC without a choice entry, deliberately excluded (ADR-0058's "Alternatives considered").
+A future round has no further same-pilot growth available without either revisiting that exclusion
+or adding a second choice pair to an already-covered NPC. `dialogueChoices.js` now has 433/600 lines
+of headroom.
