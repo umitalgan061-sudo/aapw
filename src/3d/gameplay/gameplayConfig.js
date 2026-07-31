@@ -475,6 +475,15 @@ export const DRAGON_CONFIG = Object.freeze({
 				desc: 'Gökyüzünde gerçek bir ejderha süzülüyor — kalenin üzerinde daireler çiziyor.',
 				color: '#c8430a',
 			}),
+			/** FAZ 7 reactive flight (run 58, DECISIONS.md ADR-0077): the actual behavior change on top
+			 * of run 54's awareness-only notice. While the player stays inside `noticeRadiusMeters`
+			 * above, the dragon eases (over `reactiveTransitionSeconds`) from its calm patrol into flying
+			 * the same circle faster and banking harder, then eases back once the player leaves — still
+			 * no diving/chasing/pathfinding (that's a bigger future step), just a felt reaction to being
+			 * noticed. See `gameplay/dragons.js`'s `createDragon` doc comment for the exact blend math. */
+			reactiveSpeedMultiplier: 1.6,
+			reactiveBankAngleRadians: 0.65,
+			reactiveTransitionSeconds: 1.2,
 		}),
 	]),
 });

@@ -135,6 +135,7 @@ async function main() {
 		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));
 		results.push(await movementChecks.checkDragonFlight(browser, baseUrl));
 		results.push(await movementChecks.checkDragonNotice(browser, baseUrl));
+		results.push(await movementChecks.checkDragonReactiveFlight(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();

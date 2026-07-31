@@ -5955,3 +5955,107 @@ carries. `ROAD_COMFORT_GRADE_DEGREES`/the 20° hard ceiling are logged, not fina
   preset (always rendered in full) — a future FAZ 10 pass could consider simplifying/thinning the
   ribbon at lower quality tiers the same way terrain draw distance already scales, though at today's
   +2,398 triangles this is nowhere close to being a real budget concern yet.
+
+## ADR-0077: Dragon reactive flight — eased speed/bank blend on top of the existing notice trigger
+
+**Status:** Accepted (run 58).
+
+**Risk Seviyesi:** LOW. Justification: purely additive to one existing, already-isolated gameplay
+module (`gameplay/dragons.js`) with no new files, no new render objects, no change to any other
+system's data (terrain/roads/settlements/NPCs/animals untouched); the new behavior is off by default
+(all new `createDragon` parameters default to no-op values — a dragon spawned without the new
+`reactiveSpeedMultiplier`/`reactiveBankAngleRadians` fields behaves exactly as before) and trivially
+reversible by removing the three new fields from `gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS` entry.
+
+**Context:** GOVERNANCE.md §18 priority #9 (FAZ 7) — run 54's ADR-0072 gave the dragon
+player-awareness (an edge-triggered one-shot notice) but explicitly left "the flight path itself...
+untouched by it (no diving/chasing/fleeing)". This run is the next real increment in that same
+"awareness before behavior change" sequence FAZ 6's wolves already went through (flee trigger, then
+pack-alert). Items 2-8 of the priority order were re-checked fresh first (per run 57's own
+recommendation and GOVERNANCE.md §8.14's concurrency check): a full `node --check` sweep (50 files,
+clean), `scripts/smokeTestGame3D.js` (14/14 PASS on the current `origin/main`, unchanged going in),
+and no new tech-debt/performance/memory-leak signal since run 57 — so this run moved on to item 9.
+
+**Değişiklik Etki Analizi (GOVERNANCE.md §8.4, written before code):** affected systems —
+`gameplay/dragons.js` (`createDragon`'s per-frame `update()`, `spawnConfiguredDragons`'s pass-through
+of three new optional spawn fields), `gameplayConfig.js` (`DRAGON_CONFIG.SPAWNS[0]`, three new
+fields on the one existing `umit-dragon-1` spawn). Not affected: `game3d.js`'s own dragon
+spawn/update wiring (unchanged call shape — `update(delta, playerPosition)` already existed),
+any other gameplay system, World Coverage, performance budget (no new draw calls/geometry — same
+model, same one `Fly` clip, only per-frame `angle`/`rotation.z` math changes). Risk: a wrong blend
+computation could make the dragon visibly snap or reverse direction — mitigated by a new dedicated
+smoke check (`checkDragonReactiveFlight`, see below) asserting the exact calm and fully-saturated
+reactive angular speed/bank values via real position math, not just "no crash". **Gelecek Faz Etkisi:**
+this is still not diving/chasing/pathfinding — a future run adding real evasive/aggressive flight
+paths would build on top of this same `reactiveBlend` state (see Consequence) rather than replacing
+it.
+
+**Decision:**
+
+1. **A continuous, eased blend (0-1), not a binary on/off switch.** `createDragon`'s `update()` now
+   tracks a `reactiveBlend` value that moves linearly toward `1` while the player is inside
+   `noticeRadiusMeters` and toward `0` while outside, at a rate of `1 / reactiveTransitionSeconds`
+   per second (default 1.5s to fully transition either way). Both the circling angular speed
+   (`speedMps / circleRadiusMeters` at blend 0, `speedMps * reactiveSpeedMultiplier /
+   circleRadiusMeters` at blend 1) and the visual bank angle (`bankAngleRadians` at blend 0,
+   `reactiveBankAngleRadians` at blend 1) are linearly interpolated by this same blend value every
+   frame — an instant snap would read as a teleport/glitch, not a reaction.
+
+2. **Reused the existing notice distance check, not a second one.** The same `isInRadius` boolean
+   that already drives the edge-triggered notice emit now also drives the reactive blend target —
+   one distance computation per frame, not two. This slightly changes *when* in the frame the check
+   runs (against the dragon's position as of the end of the previous frame, rather than after this
+   frame's own move) — a physically negligible difference for a continuously-simulated circling
+   body, and confirmed not to change either existing dragon smoke check's assertions (both still
+   pass unmodified).
+
+3. **New parameters default to fully backward-compatible no-ops.** `reactiveSpeedMultiplier` defaults
+   to `1`, `reactiveBankAngleRadians` defaults to `bankAngleRadians` (i.e., no change) — a dragon
+   spawned without these fields (or any dragon predating this run) behaves identically to before.
+   Only `umit-dragon-1` (the one real configured spawn) was given real reactive values
+   (`reactiveSpeedMultiplier: 1.6`, `reactiveBankAngleRadians: 0.65`, `reactiveTransitionSeconds:
+   1.2`) — this run's own engineering judgment (noticeably faster/steeper without looking erratic),
+   not derived from any real-world reference; logged as a candidate for `QUESTIONS_FOR_OWNER.md` only
+   if a future playtest finds it reads as too subtle or too dramatic (not logged this run — no
+   existing project convention for tuning purely cosmetic AI-reaction feel, unlike ADR-0075/0076's
+   walkability-affecting slope thresholds, which is why those got a question and this doesn't).
+
+**Alternatives considered:**
+- **A discrete state machine (CALM/ALERT) instead of a continuous blend.** Rejected: a hard state
+  switch would either snap instantly (visually jarring) or need its own separate easing logic
+  layered on top — the continuous blend already *is* that easing, with one state variable instead of
+  two.
+- **A real evasive/diving flight path change.** Deferred, not rejected — a genuinely new flight
+  path (leaving the circle) is materially more scope (path planning back to the circle, collision
+  against `world/terrain.js`, a second smoke-test class of assertions) than "fly the same circle
+  faster and banked harder," which was enough to make the existing awareness trigger feel like it
+  does something. A natural next FAZ 7 increment, not this run's.
+
+**Verification:** `node --check` on both changed files; full `scripts/smokeTestGame3D.js` 15/15 PASS
+(14 previous + new `checkDragonReactiveFlight`, which asserts calm bank/speed while the player is far
+every frame, the blend saturating to the *exact* reactive bank angle and angular speed — measured via
+real position math, not assumed — after sustained proximity, and easing back to the exact calm
+baseline after the player leaves). Real headless-Chromium boot of `game3d.html` (player spawn near
+`umit`) shows the "Ejderha Görüldü!" notice toast firing live in-game shortly after boot — confirms
+the shared `isInRadius` code path this ADR's reactive blend also depends on is genuinely exercised
+during normal play, not just in the synthetic smoke-test harness (a wide-shot screenshot of the
+subtle bank-angle/speed change itself wasn't captured — at 90m altitude/150m radius from the default
+ground-level camera the dragon isn't in frame at boot without moving the F4 free-camera into the sky,
+and the smoke check's exact-math assertions are a stronger proof for this specific numeric behavior
+than a screenshot would be).
+
+**Consequence:** The one configured dragon (`umit-dragon-1`) now visibly reacts to the player's
+presence — faster, harder-banked circling while noticed, easing back to a calm patrol once the
+player leaves — without any new assets, draw calls, or changes to any other system. Still no
+diving/chasing/fleeing/pathfinding; the circle itself is unchanged, only how fast and how banked the
+dragon flies it. `QUESTIONS_FOR_OWNER.md` unchanged this run (no new product-decision question — see
+Decision point 3).
+
+**Gelecek Faz Etkisi (future-phase impact):**
+- **FAZ 7 (this dragon, future runs):** the `reactiveBlend` state is a natural hook for a later
+  "fully alert" tier (e.g., breaking from the circle) once that's in scope — read the existing blend
+  value instead of adding a second parallel state variable.
+- **FAZ 6 (animals):** the same eased-blend pattern (continuous 0-1 state driven by a distance check,
+  linearly blending two parameter sets) is directly reusable for any future animal reaction that
+  needs to feel eased rather than snapped, if `gameplay/animals.js`'s existing binary flee trigger
+  ever needs a softer version.

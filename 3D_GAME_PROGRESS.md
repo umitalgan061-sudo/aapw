@@ -6064,3 +6064,88 @@ review) or FAZ 7 dragon / FAZ 5-6 (item 9). **Before starting that next sub-task
 origin main` and diff against the locally-known last commit** — cheap insurance against repeating
 this run's own collision if another session is active concurrently. No blocking bugs, syntax errors,
 or regressions found this run.
+
+## This Run (2026-07-31, run 58)
+
+**Fresh Session Snapshot at container boot:** `git status`/`git log -10` showed a detached `HEAD` at
+run 57's final commit (`06a95e3`, the concurrency-check/GOVERNANCE.md §8.14 addition), while local
+`main` still pointed at a stale 2-commit history from this container's original clone. `git fetch
+origin main` confirmed `origin/main` matched the detached commit exactly (no concurrent-session
+divergence this time — unlike run 57); `git checkout -B main origin/main` brought local `main` back
+in sync before any other work started, per §8.14's own new rule.
+
+**Governance/CREDITS.md housekeeping:** the scheduler's stored prompt asks for `GOVERNANCE.md` +
+`CREDITS.md` to be created as a first sub-task — both already exist (created run 56, commit
+`6ed47d5`), already contain every rule this run's prompt listed (including the run-57-added §8.14
+concurrency rule), and are current. No changes made — recreating either would have overwritten a
+real, up-to-date file with a redundant duplicate of itself.
+
+**Sub-task — priority items 2-8 fresh re-scan:** a full `node --check` sweep across every `.js` file
+under `src/` and `scripts/` (50 files) — clean, no syntax errors. Full `scripts/smokeTestGame3D.js` —
+14/14 PASS on `origin/main` before any new code, confirming the baseline (terrain macro-relief, road
+network, ground color, castle textures, all landed by prior runs) is genuinely healthy going in. No
+new blocking bug, performance regression, memory-leak signal, or tech-debt growth found — the "Known
+Issues / Tech Debt" section's count is unchanged from prior runs.
+
+**Sub-task — FAZ 7 dragon reactive flight (priority item 9; DECISIONS.md ADR-0077):** the concrete
+next FAZ 7 step run 54/55's own "Next step" notes both named. `gameplay/dragons.js`'s `createDragon`
+now blends the circling dragon's angular speed and visual bank angle from a calm baseline toward a
+faster/harder-banked "reactive" state while the player stays inside the existing `noticeRadiusMeters`
+(reusing that same distance check, not a second one), easing back down once the player leaves — a
+continuous 0-1 blend over `reactiveTransitionSeconds` (not an instant snap), still no
+diving/chasing/pathfinding. `gameplayConfig.js`'s one real spawn (`umit-dragon-1`) was given real
+values (`reactiveSpeedMultiplier: 1.6`, `reactiveBankAngleRadians: 0.65`,
+`reactiveTransitionSeconds: 1.2`); the three new `createDragon` parameters all default to no-op
+values, so this is fully backward-compatible with any dragon spawn that doesn't set them.
+
+**Verification:** `node --check` clean on both changed files. A new smoke check,
+`checkDragonReactiveFlight` (`scripts/game3dSmokeChecksMovement.js`), pins the player at the exact
+center of the dragon's own circle (always exactly `circleRadiusMeters` away, regardless of the
+dragon's current angle — decouples "in range" from the dragon's own motion) versus far away, and
+asserts: calm bank angle + calm angular speed every frame while far (measured via real position math,
+not assumed); the blend saturating to the *exact* reactive bank angle and angular speed after
+sustained proximity; and both easing back to the exact calm baseline after the player leaves. Full
+suite now 15/15 PASS. A real headless-Chromium boot of `game3d.html` (two screenshots, ~6s and ~10s
+after navigation) shows the world rendering correctly at night near the `umit` player spawn — castle,
+player model, starfield — with the "Ejderha Görüldü!" notice toast already fired, live proof the
+shared `isInRadius` proximity check this ADR's reactive blend also depends on is genuinely exercised
+during normal play. The subtle bank-angle/speed change itself wasn't separately screenshotted (the
+dragon circles at 90m altitude/150m radius, out of the default ground-level camera's frame without
+manually flying the F4 free-camera into the sky) — the smoke check's exact position/angle math is a
+stronger, more precise proof for this specific numeric behavior than a screenshot would be.
+
+**Memory-leak checklist:** `createDragon`'s `dispose()` (unchanged — `mixer.stopAllAction()` +
+`AssetLoader.disposeObject3D(model)`) already covers everything this run added — the new
+`reactiveBlend`/`calmAngularSpeedRadiansPerSecond`/`reactiveAngularSpeedRadiansPerSecond` are plain
+closure-local numbers, not listeners/timers/GPU resources, so nothing new needs releasing.
+
+**Files changed this run:** `src/3d/gameplay/dragons.js`, `src/3d/gameplay/gameplayConfig.js`,
+`scripts/game3dSmokeChecksMovement.js`, `scripts/smokeTestGame3D.js`, `DECISIONS.md` (ADR-0077),
+`3D_GAME_PROGRESS.md` (this file). No files near the 600-line cap (`dragons.js` is now ~230 lines).
+
+**World Evolution Report (delta vs. run 57):**
+
+| Metric | Run 57 | Run 58 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged |
+| Kingdom seats w/ real castle models | 7 | 7 | unchanged |
+| Dragons (spawned) | 1 (circling + notice) | 1 (circling + notice + **reactive flight**) | +1 behavior |
+| NPCs with dialogue-choice branching | 4/14 | 4/14 | unchanged |
+| World-event flavor pool | 16 | 16 | unchanged |
+| Smoke suite | 14/14 | 15/15 | +1 check |
+| ADRs | 76 | 77 | +1 |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged |
+| Tech debt count | unchanged | unchanged | +0 |
+
+**Oyuncu fark eder mi:** yes, directly — anyone who lingers near the `umit` dragon's notice radius
+will now see it visibly speed up and bank harder while they're close, then ease back to its calm
+patrol once they walk away, instead of circling identically whether noticed or not.
+
+**Next step for the next run:** re-scan the priority order fresh, as always (§8.14: `git fetch`
+before starting). FAZ 7's dragon now has awareness + a first reactive-flight response; a natural next
+increment (not started this run) is a real evasive/diving path change (leaving the circle briefly)
+rather than just flying the same circle faster — bigger scope (path-back-to-circle planning, terrain
+collision) than this run's. Items 2-8 came back clean again this run; FAZ 5's dialogue-choice pilot
+(4/14) and FAZ 6's cart/dog-cat/bird gap (blocked on a human manual-asset-download step, per
+`QUESTIONS_FOR_OWNER.md`) remain the other open, well-scoped options. No blocking bugs, syntax
+errors, or regressions found this run.

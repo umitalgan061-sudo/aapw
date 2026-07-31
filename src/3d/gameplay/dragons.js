@@ -10,8 +10,14 @@
  * one-shot "notice" event through the shared `EventBus` when the player enters `noticeRadiusMeters`
  * of the dragon's real, current 3D position — the flight path itself is still untouched by it (no
  * diving/chasing/fleeing), same "awareness before behavior change" order FAZ 6's wolves went
- * through (flee trigger existed before pack-alert). `game3d.js` wires this in the same
- * spawn-then-per-frame-update shape every other gameplay system already uses.
+ * through (flee trigger existed before pack-alert). Run 58 (DECISIONS.md ADR-0077) adds the actual
+ * behavior change on top of that awareness: while the player stays inside `noticeRadiusMeters`, the
+ * circle itself doesn't change (still no diving/chasing/pathfinding — that's a bigger future step),
+ * but the dragon eases into flying its existing circle faster and banking harder, then eases back to
+ * the calm baseline once the player leaves — a smoothly-blended "reaction", not an instant snap, and
+ * still fully deterministic (driven only by `isInRadius` + elapsed `delta`, no `Math.random()`).
+ * `game3d.js` wires this in the same spawn-then-per-frame-update shape every other gameplay system
+ * already uses.
  * @module gameplay/dragons
  */
 
@@ -49,6 +55,18 @@ import { AssetLoader } from '../assetLoader.js';
  * @param {{icon: string, title: string, desc: string, color: string}} [options.noticeToast] Payload
  *   emitted as-is — matches `ui/worldEventToast.js`'s existing `_show(event)` shape, so no new UI
  *   widget is needed for this first player-awareness pass.
+ * @param {number} [options.reactiveSpeedMultiplier] Run 58 (ADR-0077) reactive flight: while the
+ *   player is inside `noticeRadiusMeters`, the circling angular speed eases toward
+ *   `speedMps * reactiveSpeedMultiplier / circleRadiusMeters` instead of the calm baseline. Defaults
+ *   to `1` (no reaction) — same "omit to disable" convention `noticeRadiusMeters` already uses, so a
+ *   dragon can have awareness without reactive flight, but not the reverse (reacting requires
+ *   knowing the player is near in the first place).
+ * @param {number} [options.reactiveBankAngleRadians] Bank angle eased toward while the player is
+ *   inside range, replacing the calm `bankAngleRadians`. Defaults to `bankAngleRadians` (no change).
+ * @param {number} [options.reactiveTransitionSeconds] How long, in seconds, easing from calm to
+ *   reactive (or back) takes — a linear blend, not an instant snap, so the speed-up/bank-in reads as
+ *   a reaction rather than a teleport. Defaults to `1.5`. Ignored if reactive params are both at
+ *   their no-op defaults.
  * @returns {Promise<{object3D: THREE.Object3D, update: (delta: number, playerPosition?: {x: number, y: number, z: number}) => void, dispose: () => void}>}
  */
 export async function createDragon({
@@ -69,6 +87,9 @@ export async function createDragon({
 	eventsBus,
 	eventName,
 	noticeToast,
+	reactiveSpeedMultiplier = 1,
+	reactiveBankAngleRadians = bankAngleRadians,
+	reactiveTransitionSeconds = 1.5,
 }) {
 	const model = await assetLoader.loadFBXModel(modelUrl, {
 		fallbackColor: 0x2a2a2a,
@@ -86,11 +107,18 @@ export async function createDragon({
 	// Angular speed, not linear — constant so a shorter/longer radius never changes how fast the
 	// dragon completes one lap in the same tuned "majestic patrol" feel (see DRAGON_CONFIG's own
 	// speed/radius comment for the resulting ~0.08 rad/s at the default spawn).
-	const angularSpeedRadiansPerSecond = speedMps / circleRadiusMeters;
+	const calmAngularSpeedRadiansPerSecond = speedMps / circleRadiusMeters;
+	const reactiveAngularSpeedRadiansPerSecond = (speedMps * reactiveSpeedMultiplier) / circleRadiusMeters;
 	let angle = startAngleRadians;
 
+	// Run 58 (ADR-0077) reactive flight: 0 = calm baseline, 1 = fully reactive (faster + harder
+	// bank). Eased linearly toward its target each frame rather than snapped, so the reaction reads
+	// as the dragon actually responding, not teleporting between two fixed states. Starts at 0 (calm)
+	// — same "never assumed" convention `playerWasInNoticeRadius` below already follows.
+	let reactiveBlend = 0;
+
 	/** Places `model` at the current `angle` on its circle and orients it along the direction of travel. */
-	function applyPose() {
+	function applyPose(currentBankAngleRadians) {
 		const x = centerX + circleRadiusMeters * Math.sin(angle);
 		const z = centerZ + circleRadiusMeters * Math.cos(angle);
 		model.position.set(x, centerY, z);
@@ -100,9 +128,9 @@ export async function createDragon({
 		// per-frame position delta since the path itself is a closed-form circle.
 		const tangentX = Math.cos(angle);
 		const tangentZ = -Math.sin(angle);
-		model.rotation.set(0, Math.atan2(tangentX, tangentZ), bankAngleRadians);
+		model.rotation.set(0, Math.atan2(tangentX, tangentZ), currentBankAngleRadians);
 	}
-	applyPose();
+	applyPose(bankAngleRadians);
 
 	const canNotice = Boolean(noticeRadiusMeters != null && eventsBus && eventName && noticeToast);
 	// Starts false: the very first `update()` call (typically seconds after boot) does its own
@@ -119,20 +147,40 @@ export async function createDragon({
 		 *   only read when this dragon has player-awareness configured (`noticeRadiusMeters`).
 		 */
 		update(delta, playerPosition) {
-			angle += angularSpeedRadiansPerSecond * delta;
-			applyPose();
-			mixer.update(delta);
-
+			// Distance check (and the notice edge-trigger it already drove) now runs first, against
+			// the dragon's position as of the end of the previous frame — same real distance the
+			// original run-54 check used, just also reused below to pick this frame's reactive blend
+			// target instead of only firing the one-shot notice event.
+			let isInRadius = false;
 			if (canNotice && playerPosition) {
 				const dx = model.position.x - playerPosition.x;
 				const dy = model.position.y - playerPosition.y;
 				const dz = model.position.z - playerPosition.z;
-				const isInRadius = Math.hypot(dx, dy, dz) < noticeRadiusMeters;
+				isInRadius = Math.hypot(dx, dy, dz) < noticeRadiusMeters;
 				if (isInRadius && !playerWasInNoticeRadius) {
 					eventsBus.emit(eventName, noticeToast);
 				}
 				playerWasInNoticeRadius = isInRadius;
 			}
+
+			// Run 58 (ADR-0077): ease `reactiveBlend` linearly toward 1 (in radius) or 0 (not) over
+			// `reactiveTransitionSeconds`, then use it to blend both the angular speed and the bank
+			// angle between their calm and reactive values for this frame's move.
+			const blendTarget = isInRadius ? 1 : 0;
+			if (reactiveTransitionSeconds > 0) {
+				const blendStep = delta / reactiveTransitionSeconds;
+				if (reactiveBlend < blendTarget) reactiveBlend = Math.min(blendTarget, reactiveBlend + blendStep);
+				else if (reactiveBlend > blendTarget) reactiveBlend = Math.max(blendTarget, reactiveBlend - blendStep);
+			} else {
+				reactiveBlend = blendTarget;
+			}
+			const angularSpeedRadiansPerSecond = calmAngularSpeedRadiansPerSecond +
+				(reactiveAngularSpeedRadiansPerSecond - calmAngularSpeedRadiansPerSecond) * reactiveBlend;
+			const currentBankAngleRadians = bankAngleRadians + (reactiveBankAngleRadians - bankAngleRadians) * reactiveBlend;
+
+			angle += angularSpeedRadiansPerSecond * delta;
+			applyPose(currentBankAngleRadians);
+			mixer.update(delta);
 		},
 
 		/** Stops all animation actions and releases the model's GPU resources. */
@@ -158,6 +206,9 @@ export async function createDragon({
  *   `createDragon`'s own doc comment. Omit to spawn every configured dragon with awareness disabled.
  * @param {string} [options.eventName] `EVENTS.WORLD_EVENT_TRIGGERED`.
  * @returns {Promise<Awaited<ReturnType<typeof createDragon>>[]>} Already filtered — no `null` entries.
+ *   Each spawn's own `reactiveSpeedMultiplier`/`reactiveBankAngleRadians`/`reactiveTransitionSeconds`
+ *   (run 58, ADR-0077) are passed straight through to `createDragon` — omitted per-spawn fields fall
+ *   back to `createDragon`'s own no-op defaults (calm flight, unaffected by the player).
  */
 export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsById, sampleGroundY, eventsBus, eventName }) {
 	const dragons = await Promise.all(
@@ -184,6 +235,9 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				eventsBus,
 				eventName,
 				noticeToast: spawn.noticeToast,
+				reactiveSpeedMultiplier: spawn.reactiveSpeedMultiplier,
+				reactiveBankAngleRadians: spawn.reactiveBankAngleRadians,
+				reactiveTransitionSeconds: spawn.reactiveTransitionSeconds,
 			});
 		}),
 	);

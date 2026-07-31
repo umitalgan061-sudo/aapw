@@ -495,10 +495,120 @@ async function checkDragonNotice(browser, baseUrl) {
 	return { name: 'dragon player-awareness notice trigger (gameplay/dragons.js)', ok, details };
 }
 
+/**
+ * Regression guard for `gameplay/dragons.js`'s reactive flight (run 58, DECISIONS.md ADR-0077) — the
+ * behavior change layered on top of run 54's awareness-only notice. Drives a real `createDragon`
+ * controller with the player pinned exactly at the circle's own center (so its distance to the
+ * dragon is always exactly `circleRadiusMeters`, regardless of where the dragon currently is on its
+ * circle — decouples "is the player in range" from the dragon's own motion, so the test can hold one
+ * state constant across many frames) versus pinned far away (always out of range regardless of the
+ * dragon's position), and asserts: while far, both bank angle and angular speed stay at their calm
+ * values every frame (no reaction); sustained proximity eases the blend up to fully reactive (bank
+ * angle reaches `reactiveBankAngleRadians` exactly, angular speed matches
+ * `speedMps * reactiveSpeedMultiplier / circleRadiusMeters` — measured via the actual angle traveled
+ * between two consecutive frames, not assumed); and the player leaving eases it back down to exactly
+ * the calm baseline. Angle is recovered from position via `atan2(x - centerX, z - centerZ)` — the
+ * exact inverse of `createDragon`'s own `applyPose` parameterization — comparing two frames close
+ * together, so no unwrapping is needed.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkDragonReactiveFlight(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createDragon } = await import('/src/3d/gameplay/dragons.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { EventBus } = await import('/src/3d/eventBus.js');
+			const { DRAGON_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+
+			const assetLoader = new AssetLoader();
+			const eventsBus = new EventBus();
+			const centerX = 500;
+			const centerZ = 1000;
+			const centerY = 50;
+			const circleRadiusMeters = 100;
+			const speedMps = 12;
+			const bankAngleRadians = 0.3;
+			const reactiveSpeedMultiplier = 2;
+			const reactiveBankAngleRadians = 0.9;
+			const calmAngularSpeed = speedMps / circleRadiusMeters;
+			const reactiveAngularSpeed = (speedMps * reactiveSpeedMultiplier) / circleRadiusMeters;
+
+			const dragon = await createDragon({
+				assetLoader,
+				modelUrl: DRAGON_CONFIG.MODEL_URL,
+				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
+				scale: DRAGON_CONFIG.SCALE,
+				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
+				centerX, centerZ, centerY, circleRadiusMeters,
+				speedMps,
+				bankAngleRadians,
+				noticeRadiusMeters: 150, // > circleRadiusMeters, so "player at center" below is always inside
+				eventsBus,
+				eventName: 'test:dragonReactive',
+				noticeToast: { icon: '🐉', title: 'test', desc: 'test', color: '#000000' },
+				reactiveSpeedMultiplier,
+				reactiveBankAngleRadians,
+				reactiveTransitionSeconds: 1.0,
+			});
+
+			const delta = 1 / 60;
+			// Always exactly circleRadiusMeters from the dragon, whatever its current angle — pins
+			// "in radius" true regardless of flight position.
+			const playerNear = { x: centerX, y: centerY, z: centerZ };
+			// Always far, whatever the dragon's current angle.
+			const playerFar = { x: centerX, y: centerY, z: centerZ + 1e6 };
+			const angleOf = () => Math.atan2(dragon.object3D.position.x - centerX, dragon.object3D.position.z - centerZ);
+
+			dragon.update(delta, playerFar);
+			const bankStaysCalmWhileFar1 = Math.abs(dragon.object3D.rotation.z - bankAngleRadians) < 1e-12;
+			const angleA = angleOf();
+			dragon.update(delta, playerFar);
+			const bankStaysCalmWhileFar2 = Math.abs(dragon.object3D.rotation.z - bankAngleRadians) < 1e-12;
+			const angleB = angleOf();
+			const calmSpeedMatches = Math.abs((angleB - angleA) - calmAngularSpeed * delta) < 1e-9;
+
+			for (let i = 0; i < 200; i++) dragon.update(delta, playerNear);
+			const bankReachesReactive = Math.abs(dragon.object3D.rotation.z - reactiveBankAngleRadians) < 1e-9;
+			dragon.update(delta, playerNear);
+			const angleC = angleOf();
+			dragon.update(delta, playerNear);
+			const angleD = angleOf();
+			const bankStaysReactive = Math.abs(dragon.object3D.rotation.z - reactiveBankAngleRadians) < 1e-9;
+			const reactiveSpeedMatches = Math.abs((angleD - angleC) - reactiveAngularSpeed * delta) < 1e-9;
+
+			for (let i = 0; i < 200; i++) dragon.update(delta, playerFar);
+			const bankReturnsToCalm = Math.abs(dragon.object3D.rotation.z - bankAngleRadians) < 1e-9;
+			const angleE = angleOf();
+			dragon.update(delta, playerFar);
+			const angleF = angleOf();
+			const calmSpeedRestored = Math.abs((angleF - angleE) - calmAngularSpeed * delta) < 1e-9;
+
+			return {
+				bankStaysCalmWhileFar1, bankStaysCalmWhileFar2, calmSpeedMatches,
+				bankReachesReactive, bankStaysReactive, reactiveSpeedMatches,
+				bankReturnsToCalm, calmSpeedRestored,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'while far: calm bank angle + calm angular speed every frame; sustained proximity eases ' +
+			'bank angle and angular speed up to their exact reactive values; player leaving eases both ' +
+			'back down to the exact calm baseline'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'dragon reactive flight (gameplay/dragons.js, ADR-0077)', ok, details };
+}
+
 module.exports = {
 	checkWolfPackAlert,
 	checkNpcPatrol,
 	checkWolfPatrol,
 	checkDragonFlight,
 	checkDragonNotice,
+	checkDragonReactiveFlight,
 };
