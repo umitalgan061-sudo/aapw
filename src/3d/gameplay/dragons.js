@@ -5,8 +5,12 @@
  * the unrigged Meshy/Hitem3d reference dragons (see `gameplayConfig.js`'s `DRAGON_CONFIG` doc
  * comment and DECISIONS.md ADR-0071). Deliberately the smallest thing that reads as "a dragon
  * patrols the sky": a closed circular path at constant altitude, no ground collision, no
- * pathfinding, no player-awareness — same scope discipline `gameplay/animals.js`'s first
- * straight-line patrol pass set for FAZ 6. `game3d.js` wires this in the same
+ * pathfinding — same scope discipline `gameplay/animals.js`'s first straight-line patrol pass set
+ * for FAZ 6. Run 54 (DECISIONS.md ADR-0072) adds the first player-awareness: an edge-triggered
+ * one-shot "notice" event through the shared `EventBus` when the player enters `noticeRadiusMeters`
+ * of the dragon's real, current 3D position — the flight path itself is still untouched by it (no
+ * diving/chasing/fleeing), same "awareness before behavior change" order FAZ 6's wolves went
+ * through (flee trigger existed before pack-alert). `game3d.js` wires this in the same
  * spawn-then-per-frame-update shape every other gameplay system already uses.
  * @module gameplay/dragons
  */
@@ -34,7 +38,18 @@ import { AssetLoader } from '../assetLoader.js';
  * @param {number} [options.bankAngleRadians] Constant visual roll while circling.
  * @param {number} [options.startAngleRadians] Initial position on the circle (radians).
  * @param {string} [options.name] Assigned to the loaded `Object3D` (useful for debugging/tests).
- * @returns {Promise<{object3D: THREE.Object3D, update: (delta: number) => void, dispose: () => void}>}
+ * @param {number} [options.noticeRadiusMeters] Player-awareness (run 54, ADR-0072): when the player
+ *   comes within this many meters of the dragon's real, current 3D position, `eventsBus.emit(
+ *   eventName, noticeToast)` fires once — edge-triggered, re-arms only after the player leaves the
+ *   radius again. Omit (along with `eventsBus`/`eventName`/`noticeToast`) to disable entirely — the
+ *   controller then never reads `update()`'s `playerPosition` argument at all.
+ * @param {import('../eventBus.js').EventBus} [options.eventsBus]
+ * @param {string} [options.eventName] `EVENTS.WORLD_EVENT_TRIGGERED`, passed in rather than imported
+ *   — same options-over-import precedent `gameplay/worldEvents.js` itself uses.
+ * @param {{icon: string, title: string, desc: string, color: string}} [options.noticeToast] Payload
+ *   emitted as-is — matches `ui/worldEventToast.js`'s existing `_show(event)` shape, so no new UI
+ *   widget is needed for this first player-awareness pass.
+ * @returns {Promise<{object3D: THREE.Object3D, update: (delta: number, playerPosition?: {x: number, y: number, z: number}) => void, dispose: () => void}>}
  */
 export async function createDragon({
 	assetLoader,
@@ -50,6 +65,10 @@ export async function createDragon({
 	bankAngleRadians = 0,
 	startAngleRadians = 0,
 	name,
+	noticeRadiusMeters,
+	eventsBus,
+	eventName,
+	noticeToast,
 }) {
 	const model = await assetLoader.loadFBXModel(modelUrl, {
 		fallbackColor: 0x2a2a2a,
@@ -85,14 +104,35 @@ export async function createDragon({
 	}
 	applyPose();
 
+	const canNotice = Boolean(noticeRadiusMeters != null && eventsBus && eventName && noticeToast);
+	// Starts false: the very first `update()` call (typically seconds after boot) does its own
+	// real distance check before deciding whether the player already started inside the radius —
+	// never assumed true/false up front.
+	let playerWasInNoticeRadius = false;
+
 	return {
 		object3D: model,
 
-		/** @param {number} delta Seconds since the last frame. */
-		update(delta) {
+		/**
+		 * @param {number} delta Seconds since the last frame.
+		 * @param {{x: number, y: number, z: number}} [playerPosition] Current player world position —
+		 *   only read when this dragon has player-awareness configured (`noticeRadiusMeters`).
+		 */
+		update(delta, playerPosition) {
 			angle += angularSpeedRadiansPerSecond * delta;
 			applyPose();
 			mixer.update(delta);
+
+			if (canNotice && playerPosition) {
+				const dx = model.position.x - playerPosition.x;
+				const dy = model.position.y - playerPosition.y;
+				const dz = model.position.z - playerPosition.z;
+				const isInRadius = Math.hypot(dx, dy, dz) < noticeRadiusMeters;
+				if (isInRadius && !playerWasInNoticeRadius) {
+					eventsBus.emit(eventName, noticeToast);
+				}
+				playerWasInNoticeRadius = isInRadius;
+			}
 		},
 
 		/** Stops all animation actions and releases the model's GPU resources. */
@@ -114,9 +154,12 @@ export async function createDragon({
  * @param {typeof import('./gameplayConfig.js').DRAGON_CONFIG} options.dragonConfig
  * @param {Map<string, {id: string, x: number, z: number}>} options.seatsById
  * @param {(worldX: number, worldZ: number) => number} options.sampleGroundY
+ * @param {import('../eventBus.js').EventBus} [options.eventsBus] Player-awareness (ADR-0072) — see
+ *   `createDragon`'s own doc comment. Omit to spawn every configured dragon with awareness disabled.
+ * @param {string} [options.eventName] `EVENTS.WORLD_EVENT_TRIGGERED`.
  * @returns {Promise<Awaited<ReturnType<typeof createDragon>>[]>} Already filtered — no `null` entries.
  */
-export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsById, sampleGroundY }) {
+export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsById, sampleGroundY, eventsBus, eventName }) {
 	const dragons = await Promise.all(
 		dragonConfig.SPAWNS.map(async (spawn) => {
 			const seat = seatsById.get(spawn.seatId);
@@ -137,6 +180,10 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				speedMps: spawn.speedMps,
 				bankAngleRadians: spawn.bankAngleRadians,
 				name: spawn.id,
+				noticeRadiusMeters: spawn.noticeRadiusMeters,
+				eventsBus,
+				eventName,
+				noticeToast: spawn.noticeToast,
 			});
 		}),
 	);

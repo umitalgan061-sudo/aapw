@@ -314,6 +314,10 @@ export async function initGame3D() {
 			dragonConfig: DRAGON_CONFIG,
 			seatsById,
 			sampleGroundY: sampleClampedGroundY,
+			// Player-awareness (run 54, ADR-0072): reuses the same EventBus + toast UI
+			// `gameplay/worldEvents.js`'s ambient flavor events already fire through.
+			eventsBus: gameEvents,
+			eventName: EVENTS.WORLD_EVENT_TRIGGERED,
 		});
 		for (const dragon of state.dragons) state.scene.add(dragon.object3D);
 		console.info(`[game3d] Spawned ${state.dragons.length} FAZ 7 dragon(s).`);
@@ -381,9 +385,9 @@ export async function initGame3D() {
 					.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z }));
 				animal.update(delta, playerPos, packmateFleePositions);
 			}
-			// FAZ 7 dragons (run 53): a closed-form circling flight path, no player-awareness — see
-			// `gameplay/dragons.js`'s own doc comment for why this is deliberately the smallest first pass.
-			for (const dragon of state.dragons) dragon.update(delta);
+			// FAZ 7 dragons (run 53 flight path, run 54 player-awareness) — see `gameplay/dragons.js`'s
+			// own doc comment. `playerPos` already reflects this frame's post-movement position (set above).
+			for (const dragon of state.dragons) dragon.update(delta, playerPos);
 			state.camera.position.x += playerPos.x - previousTargetX;
 			state.camera.position.z += playerPos.z - previousTargetZ;
 			state.controls.target.set(playerPos.x, playerPos.y + PLAYER_CONFIG.CAMERA_TARGET_HEIGHT_METERS, playerPos.z);

@@ -449,6 +449,32 @@ export const DRAGON_CONFIG = Object.freeze({
 			/** Constant visual roll (radians) into the turn while circling — a circling dragon banks
 			 * continuously, unlike the wolves' straight-line patrol which never needs one. */
 			bankAngleRadians: 0.35,
+			/** FAZ 7 player-awareness (run 54, DECISIONS.md ADR-0072): the first thing beyond a static
+			 * flight path — a one-shot "you're near the real dragon" notice, edge-triggered (fires once
+			 * on crossing from outside to inside this many meters of the dragon's real, current 3D
+			 * position — not the seat/circle-center — and re-arms once the player leaves it), same
+			 * edge-triggered shape `gameplay/animals.js`'s `fleeTriggerRadiusMeters` already
+			 * established for wolves. Sized to comfortably cover the whole circle's real distance range
+			 * from a player standing near `umit` (spawns ~60m from the seat, ADR-0046; the dragon's own
+			 * distance from that spot varies roughly 90-210m over one lap, by the law of cosines against
+			 * a 150m-radius circle) — so it's a real "welcome, look up" moment shortly after boot, not a
+			 * random flavor line. */
+			noticeRadiusMeters: 220,
+			/** Distinct from `gameplay/worldEvents.js`'s existing `dragon_shadow` ambient flavor entry
+			 * ("a shadow passed — or did you imagine it?") — that one is a random, disconnected line;
+			 * this one is a *real* proximity trigger tied to the actual dragon's position, so its own
+			 * copy says so plainly instead of reusing the same "was it real?" uncertainty. Reuses
+			 * `ui/worldEventToast.js`'s existing `{icon, title, desc, color}` shape/UI rather than
+			 * building a second toast widget — see `gameplay/dragons.js`'s own doc comment for why this
+			 * is emitted through the same `EVENTS.WORLD_EVENT_TRIGGERED` bus event `worldEvents.js`
+			 * already uses. */
+			noticeToast: Object.freeze({
+				id: 'dragon_sighted_real',
+				icon: '🐉',
+				title: 'Ejderha Görüldü!',
+				desc: 'Gökyüzünde gerçek bir ejderha süzülüyor — kalenin üzerinde daireler çiziyor.',
+				color: '#c8430a',
+			}),
 		}),
 	]),
 });

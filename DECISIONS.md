@@ -5222,3 +5222,90 @@ option is available to any future FBX asset with the same subfolder-texture layo
 decimated reference dragon (`dragon_reference_v2_decimated`) and the unrigged Meshy models
 (`verdant_wyrm`, `spiked_serpent`, `auric_dragon`, `frostscale_dragon`) remain available, unused, for
 a future second/third dragon once rigged — not blocking, just not this sub-task's job.
+
+## ADR-0072: Dragon player-awareness — an edge-triggered "notice" toast, reusing the world-event bus/UI
+
+**Status:** Accepted (run 54).
+
+**Context:** Continuing the same run's chain after ADR-0071 shipped FAZ 7's first dragon (a static
+circling flight path, no player-awareness — deliberately deferred there as its own atomic sub-task).
+ADR-0071's own "Next step" named this exact item as the natural follow-up, mirroring how FAZ 6's
+wolves grew (static idle → waypoint patrol → flee-trigger → pack-alert, each its own run/ADR) and
+FAZ 5's NPCs (static idle → waypoint patrol → dialogue) — awareness is added incrementally, after
+the underlying entity already exists and works, not bundled into its first pass.
+
+**Decision:** Added an edge-triggered "notice" event: when the player comes within
+`DRAGON_CONFIG.SPAWNS[0].noticeRadiusMeters` (220m) of the dragon's real, current 3D position (not
+the seat/circle-center — the dragon moves), `gameplay/dragons.js`'s `createDragon` controller emits
+once through the shared `EventBus`, using the exact same `EVENTS.WORLD_EVENT_TRIGGERED` event name
+and `{icon, title, desc, color}` payload shape `gameplay/worldEvents.js`'s ambient flavor events
+already use — so `ui/worldEventToast.js` displays it with zero new UI code. Edge-triggered (fires
+once on entry, not every frame while inside, re-arms only after the player leaves the radius) —
+same shape `gameplay/animals.js`'s `fleeTriggerRadiusMeters` already established, tracked via one
+`playerWasInNoticeRadius` boolean per dragon, mirroring the wolves' `currentlyFleeing`.
+
+**Deliberately still not touching the flight itself:** no diving, no chasing, no speed change, no
+landing — the dragon keeps circling exactly as ADR-0071 shipped it. This sub-task is player-*aware*
+of, not player-*reactive* to, matching the same order FAZ 6's wolves went through (a flee trigger
+existed as its own run before pack-alert built on top of it).
+
+**A deliberate content distinction, not a duplicate:** `gameplay/worldEvents.js`'s existing
+`dragon_shadow` ambient entry ("a shadow passed — or did you imagine it?") is a random, positionless
+flavor line, unrelated to any real dragon position. This new toast is a genuine proximity trigger
+tied to the actual `black_dragon` entity's real position, so its copy says so plainly ("Gökyüzünde
+**gerçek** bir ejderha süzülüyor...") instead of reusing the same uncertain "was it real?" framing —
+now that a real dragon exists, the two read as intentionally different in tone, not redundant.
+
+**`noticeRadiusMeters` (220m) sizing:** the player spawns ~60m from `umit` (ADR-0046); the dragon's
+own distance from that spot varies roughly 90-210m over one lap (law of cosines against a 150m-radius
+circle centered on the same seat) — so 220m comfortably covers the whole circle from a player near
+spawn, making this fire as a "welcome, look up" moment shortly after boot (confirmed live, not just
+unit-tested — see Verified below) rather than needing the player to specifically seek the dragon out.
+
+**Verified:**
+- `node --check` clean on every touched file (`gameplay/dragons.js`, `gameplay/gameplayConfig.js`,
+  `game3d.js`, `scripts/game3dSmokeChecksMovement.js`, `scripts/smokeTestGame3D.js`). All stay under
+  the 600-line cap (`dragons.js` 191/600, `gameplayConfig.js` 532/600, `game3d.js` 480/600,
+  `game3dSmokeChecksMovement.js` 504/600).
+- Full committed smoke suite grew to **14** checks (added `checkDragonNotice`) — all PASS, including
+  the 13 pre-existing ones (notably `checkDragonFlight`, which calls `dragon.update(delta)` with no
+  `playerPosition` argument at all — confirming the new optional parameter is fully backward
+  compatible). The new check drives a real `createDragon` (`speedMps: 0`, parking it at a known fixed
+  position) against a real `EventBus`: asserts no emit while far, exactly one emit on entry, no
+  re-fire while still inside, no fire on exit, a re-fire on a later re-entry, that a dragon spawned
+  with no `noticeRadiusMeters` never emits regardless of `playerPosition`, and that omitting
+  `playerPosition` entirely never throws.
+- **Real headless-Chromium proof of the live integration, not just the isolated unit check:** booted
+  the real `game3d.html`, waited for the real boot sequence (terrain/settlements/player/dragon) to
+  finish, and read the real DOM: `.g3d-event-toast` was visible with the real title "Ejderha
+  Görüldü!" and the real description text, with zero console/page errors — the player's real spawn
+  point is close enough to the dragon's real starting position that the notice fires within the
+  first few seconds of a real boot, not just in a scripted test scenario. Screenshot confirms the
+  toast rendering over the live scene.
+
+**Memory-leak checklist:** no new listeners/timers/DOM beyond what `ui/worldEventToast.js` already
+owned and disposes (unchanged — this sub-task only adds a second *emitter* onto the same existing
+bus event, not a new subscriber). `createDragon`'s own state (`playerWasInNoticeRadius`) is a single
+boolean closed over by the returned controller, released the same way as every other per-dragon
+closure variable when `dispose()`'s existing `AssetLoader.disposeObject3D`/`mixer.stopAllAction()`
+path runs — no new cleanup surface.
+
+**Alternatives considered:**
+- *A new dedicated UI widget for dragon sightings, separate from `WorldEventToast`.* Rejected — the
+  existing toast already does exactly this job (icon + title + desc + auto-dismiss), and building a
+  second one would duplicate `ui/worldEventToast.js`'s DOM/dispose logic for no behavioral gain.
+- *Continuous re-fire while the player stays inside the radius (once per N seconds), instead of
+  edge-triggered once-per-entry.* Rejected as spammy for a stationary/patrolling player standing near
+  their own castle — an edge-triggered one-shot (matching wolves' flee trigger) reads as a real
+  "notice" moment, not a nagging repeated alert.
+- *React to the notice by changing the flight path (e.g., the dragon banks toward the player).*
+  Rejected as scope creep for this sub-task — flagged as a real future step, but a bigger one
+  (steering behavior, not just an event emission) better scoped on its own.
+
+**Consequence:** FAZ 7's dragon is no longer purely decorative — the world now reacts to the
+player's real proximity to it, through the same EventBus/toast machinery every other ambient event
+already uses. `createDragon`'s `update()` signature gained an optional second `playerPosition`
+parameter (backward compatible — every existing call site, including the smoke suite's
+`checkDragonFlight`, is unaffected by omitting it). The dragon's actual behavior (path, speed,
+animation) is unchanged; a future sub-task can build reactive flight behavior on top of this same
+proximity signal, the same way pack-alert was later built on top of the wolves' flee trigger.

@@ -5607,24 +5607,75 @@ well under the 1200-line/25-file budget. One commit, direct push to `main`.
 **World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
 (6.25 km² / 137.5 km²) mobile — a gameplay-entity addition touches no terrain/streaming/chunk logic.**
 
-**Budget/time check:** 1 sub-task landed (~330 lines, 9 files) — under budget, but this sub-task
-covered real ground (FAZ 7's first code, 2 real bugs found+fixed via live rendering, a new smoke
-check, an ADR) and consumed a meaningful share of this run's real time budget between the FBX
-inspection, the texture-path fix, and the screenshot debugging. Stopping this run's chain here rather
-than reaching for a second, lower-value filler task — the next substantive FAZ 7 step (player-
-awareness/notice radius, or a second dragon/creature once a Meshy model is rigged) is better scoped
-as its own atomic sub-task next run.
+**Budget/time check after sub-task 1:** 1 sub-task landed (~330 lines, 9 files) — well under budget,
+with real time/token headroom left, so continued the chain (operator explicitly said to continue)
+into the next FAZ 7 item sub-task 1's own "Next step" named: player-awareness.
 
-**Run totals (1 sub-task, run 53):** 9 files touched, ~330 new/changed lines. 1 commit,
-regression-guarded (13/13 smoke suite, `checkAssetsManifest.js`, real headless-Chromium proof of the
-dragon rendering/flying/texturing correctly) and pushed directly to `main`.
+**Sub-task 2 — decision and work (DECISIONS.md ADR-0072):** re-scanned the priority order: `node
+--check` clean; 13/13 smoke suite still green; no blocking bug; no file near its 600-line cap. FAZ 7
+is still the active phase (just started sub-task 1); its own next concrete item is player-awareness
+— a notice/roar radius, mirroring `gameplay/animals.js`'s `fleeTriggerRadiusMeters` pattern.
+`gameplay/dragons.js`'s `createDragon` gained an edge-triggered "notice" trigger: when the player
+comes within `noticeRadiusMeters` (220m) of the dragon's real, current 3D position, it emits once
+through the shared `EventBus`, reusing `EVENTS.WORLD_EVENT_TRIGGERED`'s exact `{icon, title, desc,
+color}` payload shape — so `ui/worldEventToast.js` displays it with zero new UI code. Edge-triggered
+(fires once on entry, re-arms only after the player leaves the radius) — same shape wolves' flee
+trigger already established. Deliberately does not touch the flight path itself (no diving/chasing)
+— awareness before reactive behavior, same order FAZ 6's wolves went through (flee trigger, then
+pack-alert on top of it, as separate runs). Content is a real proximity trigger, written to read
+distinctly from `worldEvents.js`'s existing random `dragon_shadow` flavor line ("was it real?") —
+this one says plainly "Gökyüzünde **gerçek** bir ejderha süzülüyor..." since now a real dragon exists.
+
+**Regression guard:** `node --check` clean on every touched file; all stay under the 600-line cap
+(`dragons.js` 191/600, `gameplayConfig.js` 532/600, `game3d.js` 480/600,
+`game3dSmokeChecksMovement.js` 504/600). Full committed smoke suite grew to **14** checks (added
+`checkDragonNotice`) — all PASS, including `checkDragonFlight` unchanged (confirms the new optional
+`playerPosition` parameter is backward compatible — that check never passes one). The new check
+drives a real `createDragon` (parked at a fixed position via `speedMps: 0`) against a real
+`EventBus`: no emit while far, exactly one emit on entry, no re-fire while still inside, no fire on
+exit, re-fires on a later re-entry, a dragon with no `noticeRadiusMeters` never emits, and omitting
+`playerPosition` never throws. **Real headless-Chromium proof of the live integration:** booted the
+real `game3d.html`, waited for the full real boot sequence, and read the real DOM —
+`.g3d-event-toast` was visible with the real "Ejderha Görüldü!" title/description, zero console/page
+errors; the player's real spawn point is close enough to the dragon's real starting position that
+the notice fires within the first few seconds of a real boot. Screenshot confirms it rendering over
+the live scene.
+
+**Memory-leak checklist:** no new listeners/timers/DOM — this only adds a second emitter onto the
+same existing `WorldEventToast` subscription; `createDragon`'s new `playerWasInNoticeRadius` is a
+single boolean released the same way every other per-dragon closure variable already is on dispose.
+
+**Files changed this sub-task:** `src/3d/gameplay/dragons.js`, `src/3d/gameplay/gameplayConfig.js`,
+`src/3d/game3d.js`, `scripts/game3dSmokeChecksMovement.js` (+`checkDragonNotice`),
+`scripts/smokeTestGame3D.js` (registers it), `DECISIONS.md` (new ADR-0072), `3D_GAME_PROGRESS.md`
+(this file). 7 files, ~230 new/changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a gameplay-behavior addition touches no terrain/streaming/chunk logic.**
+
+**Budget/time check after sub-task 2:** 2 sub-tasks landed (~560 combined lines, 9+7 files touched
+across both — still comfortably under the 1200-line/25-file budget). Both sub-tasks together covered
+substantial real ground for FAZ 7 (first spawn, first flight AI, first player-awareness, 2 real bugs
+found+fixed, 2 new smoke checks, 2 ADRs) and a meaningful share of real time between the FBX
+inspection, the texture-path fix, and two rounds of headless-Chromium verification. Stopping this
+run's chain here — the next substantive FAZ 7 step (reactive flight behavior building on this
+proximity signal, or a second dragon/creature once a Meshy model is rigged) is better scoped as its
+own atomic sub-task in a future run, same reasoning sub-task 1 used to defer this one.
+
+**Run totals (2 sub-tasks, run 53):** 11 files touched across both sub-tasks (`3D_GAME_PROGRESS.md`/
+`DECISIONS.md` counted once each despite being touched in both), ~560 new/changed lines total — well
+under the 1200-line/25-file budget. 2 commits, each regression-guarded (12/12 -> 13/13 -> 14/14 smoke
+suite progression, `checkAssetsManifest.js`, real headless-Chromium proof each time) and pushed
+directly to `main`.
 
 **Next step for the next run:** re-scan the priority order fresh, as always. **FAZ 7 now has a first
-real dragon** (`umit-dragon-1`, circling `umit` at 90m/150m-radius, `black_dragon` model) — no longer
-0% code, but still a first pass: one dragon, one seat, no player-awareness, no combat/mount
-interaction, no takeoff/landing. A natural next FAZ 7 sub-task is player-awareness (a notice/roar
-radius, mirroring `gameplay/animals.js`'s flee-trigger pattern) or a second dragon using one of the
-still-unrigged Meshy models (`verdant_wyrm`, `spiked_serpent`) once rigged. FAZ 5's dialogue pilot
-(13/14, `jon-guard-1` deliberately excluded) and the world-event pool (16 entries, 501/600 headroom)
-both still have no fresh, non-filler growth available. FAZ 5/6's cart/dog-cat/bird gap still needs a
-human manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged.
+real dragon with player-awareness** (`umit-dragon-1`, circling `umit` at 90m/150m-radius,
+`black_dragon` model, fires a real "Ejderha Görüldü!" toast within notice range) — no longer 0% code,
+but still early: one dragon, one seat, awareness only (no reactive flight/diving/chasing), no
+combat/mount interaction, no takeoff/landing. A natural next FAZ 7 sub-task is reactive flight
+behavior building on the now-existing proximity signal (the dragon banks/dives toward a noticed
+player, mirroring how pack-alert was later built on top of wolves' flee trigger), or a second dragon
+using one of the still-unrigged Meshy models (`verdant_wyrm`, `spiked_serpent`) once rigged. FAZ 5's
+dialogue pilot (13/14, `jon-guard-1` deliberately excluded) and the world-event pool (16 entries,
+501/600 headroom) both still have no fresh, non-filler growth available. FAZ 5/6's cart/dog-cat/bird
+gap still needs a human manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged.

@@ -392,9 +392,113 @@ async function checkDragonFlight(browser, baseUrl) {
 	return { name: 'dragon circling flight (gameplay/dragons.js)', ok, details };
 }
 
+/**
+ * Regression guard for `gameplay/dragons.js`'s player-awareness "notice" trigger (run 54,
+ * DECISIONS.md ADR-0072) — the first FAZ 7 behavior beyond a static flight path. Drives a real
+ * `createDragon` controller with `speedMps: 0` (angular speed is `speedMps / circleRadiusMeters`, so
+ * this parks the dragon at a fixed, known position instead of adding flight-position math on top of
+ * the thing under test) and a real `EventBus`, then asserts the emit is edge-triggered: fires once
+ * when the player first enters `noticeRadiusMeters` of the dragon's real position, does NOT re-fire
+ * on a second `update()` call while still inside, does NOT fire on exit, and DOES fire again on a
+ * second, later entry (re-arms) — same edge-triggered shape `gameplay/animals.js`'s
+ * `fleeTriggerRadiusMeters` already established for wolves. Also confirms a dragon spawned with no
+ * `noticeRadiusMeters` never emits regardless of `playerPosition`, and that omitting
+ * `playerPosition` entirely (as `checkDragonFlight`'s own calls already do) never throws.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkDragonNotice(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createDragon } = await import('/src/3d/gameplay/dragons.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { EventBus } = await import('/src/3d/eventBus.js');
+			const { DRAGON_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+
+			const assetLoader = new AssetLoader();
+			const eventsBus = new EventBus();
+			const eventName = 'test:dragonNotice';
+			const noticeToast = { icon: '🐉', title: 'test', desc: 'test', color: '#000000' };
+			const emitted = [];
+			eventsBus.on(eventName, (payload) => emitted.push(payload));
+
+			// speedMps: 0 -> angular speed 0 -> parks the dragon at its start position (centerX,
+			// centerY, centerZ + circleRadiusMeters) = (0, 0, 100), so this test drives playerPosition
+			// against a known-fixed dragon position instead of also tracking flight motion.
+			const dragon = await createDragon({
+				assetLoader,
+				modelUrl: DRAGON_CONFIG.MODEL_URL,
+				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
+				scale: DRAGON_CONFIG.SCALE,
+				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
+				centerX: 0, centerZ: 0, centerY: 0, circleRadiusMeters: 100,
+				speedMps: 0,
+				noticeRadiusMeters: 50,
+				eventsBus, eventName, noticeToast,
+			});
+
+			const delta = 1 / 60;
+			dragon.update(delta, { x: 0, y: 0, z: 500 }); // far — no emit
+			const noEmitWhileFar = emitted.length === 0;
+
+			dragon.update(delta, { x: 0, y: 0, z: 120 }); // distance 20 < 50 — enters, should emit once
+			const emittedOnEntry = emitted.length === 1 && emitted[0] === noticeToast;
+
+			dragon.update(delta, { x: 0, y: 0, z: 110 }); // still inside — must NOT re-fire
+			const noReFireWhileInside = emitted.length === 1;
+
+			dragon.update(delta, { x: 0, y: 0, z: 500 }); // exits — must NOT fire on exit
+			const noFireOnExit = emitted.length === 1;
+
+			dragon.update(delta, { x: 0, y: 0, z: 130 }); // re-enters — should fire again (re-armed)
+			const reFiresOnReEntry = emitted.length === 2;
+
+			// A second dragon with no noticeRadiusMeters configured must never emit, and omitting
+			// playerPosition on an awareness-enabled dragon must never throw.
+			const disabledEmitted = [];
+			eventsBus.on('test:dragonNoticeDisabled', (payload) => disabledEmitted.push(payload));
+			const disabledDragon = await createDragon({
+				assetLoader,
+				modelUrl: DRAGON_CONFIG.MODEL_URL,
+				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
+				scale: DRAGON_CONFIG.SCALE,
+				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
+				centerX: 0, centerZ: 0, centerY: 0, circleRadiusMeters: 100,
+				speedMps: 0,
+				// No noticeRadiusMeters/eventsBus/eventName/noticeToast — awareness disabled.
+			});
+			disabledDragon.update(delta, { x: 0, y: 0, z: 100 }); // exactly at the dragon's own position
+			let noThrowOnMissingPlayerPosition = true;
+			try {
+				disabledDragon.update(delta);
+			} catch (error) {
+				noThrowOnMissingPlayerPosition = false;
+			}
+			const disabledDragonNeverEmits = disabledEmitted.length === 0;
+
+			return {
+				noEmitWhileFar, emittedOnEntry, noReFireWhileInside, noFireOnExit, reFiresOnReEntry,
+				disabledDragonNeverEmits, noThrowOnMissingPlayerPosition,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'edge-triggered: no emit while far, emits once on entry, no re-fire while still inside, no ' +
+			'fire on exit, re-fires on a later re-entry; a dragon with no noticeRadiusMeters never ' +
+			'emits; omitting playerPosition never throws'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'dragon player-awareness notice trigger (gameplay/dragons.js)', ok, details };
+}
+
 module.exports = {
 	checkWolfPackAlert,
 	checkNpcPatrol,
 	checkWolfPatrol,
 	checkDragonFlight,
+	checkDragonNotice,
 };
