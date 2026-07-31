@@ -5989,3 +5989,78 @@ models are ever sourced/downloaded (same manual-download-step constraint ADR-007
 second, thinner "patika" road tier (this run's own deferred scope, see `QUESTIONS_FOR_OWNER.md`) is
 also available as a smaller, well-scoped follow-up. No blocking bugs, syntax errors, or regressions
 found this run.
+
+## This Run (2026-07-31, run 57)
+
+**Fresh Session Snapshot at container boot:** `git status`/`git log -10` initially showed a detached
+`HEAD` at what turned out to be run 55's final commit (terrain macro relief), while local `main`
+pointed at a stale, unrelated 2-commit history — a stale local `origin/main` remote-tracking ref (this
+container's clone predated a same-day push from a concurrent session). `git fetch origin main`
+confirmed the *real* remote already matched the detached commit; a temporary safety branch was made
+and then removed once confirmed unneeded, and local `main` was brought back in sync
+(`git checkout -B main origin/main`) before any other work started.
+
+**Sub-task 1 (built, then discarded — see below):** GOVERNANCE.md §18 priority #2, "Yol ağı." Built a
+full, independent road-network implementation (`world/roads.js`: Prim's MST + a custom A* over a
+150m grid, cost-penalized by slope, refusing underwater/too-steep steps; wired into
+`sceneManager.js`/`game3d.js`; a 15th smoke check added to `smokeTestGame3D.js`'s own suite plus a
+synthetic obstacle-course test; ADR drafted as ADR-0076). All of it passed its own verification
+(15/15 smoke suite, terrain safety unaffected, real headless-Chromium screenshots showing the ribbon
+correctly bending across terrain between `umit` and `doran`).
+
+**Before pushing, `git fetch origin main` surfaced a real conflict:** a *different*, concurrent
+session had independently built and already merged its own road-network implementation for this same
+GOVERNANCE.md priority item — also under this run's own "run 56" numbering, also citing "ADR-0076"
+(commit `92d1c69`, plus a follow-up `ef99d4e` stable-tag commit) — while this session was working from
+an older snapshot of `main` and had no way to see it. Both sessions picked up the same top-of-list
+priority item within the same short window and did the work twice, independently.
+
+**Resolution:** verified the other session's already-merged implementation directly rather than
+assuming either version was better by default — ran its own `scripts/roadNetworkSafetyCheck.js`
+(connectivity 14/14, all 13 edges under its own grade threshold, a real mountain-avoidance stress test
+on actual terrain data showing a 620m detour around the macro-relief mountain, a river-non-collision
+check) and this repo's main `node scripts/smokeTestGame3D.js` (14/14 PASS, unchanged) against the
+merged code — both genuinely pass. Since a real, working, tested implementation of this exact feature
+was already live on `main`, this session's own duplicate implementation was **not pushed** — pushing
+it would have created a second, conflicting `world/roads.js`/`ADR-0076`/scene-wiring on top of an
+already-shipped feature, exactly the kind of redundant-abstraction/wasted-effort outcome GOVERNANCE.md
+exists to prevent. The duplicate commit was kept on a local-only branch
+(`my-road-network-duplicate-9aab548`, not pushed) purely as a recoverable reference, not as project
+history. `main` was reset to the real, already-merged `origin/main` state.
+
+**Sub-task 2 — fresh scan, priority #2 onward:** with the road network already done (by the other
+session), re-ran the priority order from GOVERNANCE.md §18 starting at item 2 ("Syntax hataları"): a
+full `node --check` sweep across every `.js` file under `src/` and `scripts/` — all clean, none new.
+Item 3 ("Blocking buglar") and the smoke-test/regression layer: `node scripts/smokeTestGame3D.js`
+14/14 PASS on the current merged code, no blocking bugs found. No stable-tag checkpoint created this
+run (GOVERNANCE.md §8.11) — the repo's actual on-disk state after this session's `main` reset is
+byte-identical to what the other session already tagged (`stable-2026-07-31-0915`), so a second tag
+at the same commit would be a redundant duplicate entry, not new information.
+
+**A structural finding worth flagging (reported to the project owner this run, not silently
+absorbed):** two automated sessions running in an overlapping window both picked the same
+GOVERNANCE.md top-priority item and independently built full, working implementations of it — a real
+race condition in how this project's "continuous autonomous development" is currently scheduled, not
+a one-off fluke (this session had to actively detect it via `git fetch` before pushing, rather than
+being told about it). No GOVERNANCE.md rule currently addresses concurrent-session coordination
+(claiming a priority item before starting it, or checking `origin/main` for very-recent commits
+before beginning a sub-task) — worth the project owner's attention if multiple sessions are expected
+to keep running in overlapping windows, since this class of collision will keep recurring and wasting
+a full sub-task's worth of engineering effort each time it happens undetected.
+
+**Files changed this run:** `3D_GAME_PROGRESS.md` (this file) only — no application code, since the
+one real code contribution this run attempted was superseded by already-merged work. One commit.
+
+**World Coverage (unchanged): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5% (6.25 km² / 137.5 km²)
+mobile.** **Smoke test: 14/14 PASS** (the merged codebase's own suite — this run added no new check,
+having discarded its own draft one alongside the rest of the duplicate implementation). **Technical
+debt:** unchanged from the other session's own run-56 count — this run neither added nor resolved any.
+
+**Next step for the next run:** re-scan the priority order fresh, as always — GOVERNANCE.md §18's
+full "1.x" cluster (macro relief, roads, ground color, castle textures) is now genuinely done (all
+four, real-verified). Move to item 2 onward: this run's own syntax/blocking-bug sweep came back clean,
+so the next real work is items 4-8 (performance/memory-leak/tech-debt/smoke-test/World-Coverage
+review) or FAZ 7 dragon / FAZ 5-6 (item 9). **Before starting that next sub-task, run `git fetch
+origin main` and diff against the locally-known last commit** — cheap insurance against repeating
+this run's own collision if another session is active concurrently. No blocking bugs, syntax errors,
+or regressions found this run.

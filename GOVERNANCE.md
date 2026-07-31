@@ -137,6 +137,20 @@ biri patlarsa tüm oyun çökmez, sadece o alt sistem loglanıp devre dışı ka
 yazılan/dokunulan alt sistemlerde uygulanır; mevcutları zorla geriye dönük sarma — fırsat
 çıktıkça ekle.
 
+### 8.14 Eşzamanlılık Kontrolü (run 57'de eklendi)
+Birden fazla otonom oturum aynı anda çalışıyor olabilir (aynı GOVERNANCE.md öncelik listesinden
+aynı maddeyi paralel seçip iki kere yapma riski — run 57'de gerçekten yaşandı: iki oturum
+bağımsız olarak aynı yol-ağı özelliğini inşa etti, biri push etmeden önce fark edip kendi
+kopyasını attı). Bir alt göreve BAŞLAMADAN ÖNCE `git fetch origin main` (veya ana dal adı neyse)
+çalıştırılır ve sonucu yerel bilinen son commit ile karşılaştırılır; `origin` ileri gitmişse önce
+`git merge --ff-only`/`git checkout -B main origin/main` ile senkronize olunur ve
+`3D_GAME_PROGRESS.md`'nin en son "This Run" girdisi okunarak o an gerçekten hangi öncelik
+maddesinin hâlâ yapılmamış olduğu teyit edilir — liste sırası tek başına yeterli değildir,
+başka bir oturum aynı anda üstündeki maddeyi bitirmiş olabilir. Commit atmadan HEMEN ÖNCE de
+aynı `git fetch` tekrarlanır (bir alt görev sürerken de başka bir oturum push etmiş olabilir);
+çakışma varsa GOVERNANCE.md/kod hangi sürümün gerçek çalışan+doğrulanmış olduğu karşılaştırılıp
+karar verilir, iki rakip kopya asla aynı anda push edilmez.
+
 ---
 
 ## 9. ADR / Kayıt Standardı
