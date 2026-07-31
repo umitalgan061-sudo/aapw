@@ -17,6 +17,7 @@ import { createGroundCollider, createSettlementCollider } from './physics.js';
 import { createWater } from './world/water.js';
 import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMesh } from './world/rivers.js';
 import { createSettlements } from './world/settlements.js';
+import { buildRoadNetwork } from './world/roads.js';
 import { createOrbitCamera } from './camera.js';
 import { createFreeCameraController } from './debug/freeCamera.js';
 import { createAuroraSky } from './sky.js';
@@ -62,7 +63,7 @@ export function worldToChunkCoord(worldCoord, chunkSizeMeters) {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, freeCamera: {camera: THREE.PerspectiveCamera, active: boolean, update: (delta: number) => void, dispose: () => void}, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, settlementCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, freeCamera: {camera: THREE.PerspectiveCamera, active: boolean, update: (delta: number) => void, dispose: () => void}, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, settlementCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, roads: THREE.Group, roadEdges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
  */
 export function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -174,9 +175,26 @@ export function createScene(canvas) {
 	// see physics.js's createSettlementCollider doc comment for the box+circle shape this uses.
 	const settlementCollider = createSettlementCollider(settlementsResult.seats, SETTLEMENT_CONFIG);
 
+	// GOVERNANCE.md §18 priority #2: a road network (minimum spanning tree, 13 edges) connecting all
+	// 14 kingdom seats, each edge routed by world/roads.js's slope-aware A* over the same real,
+	// combined (fine-FBM + macro-relief) height field every other world system already reads through
+	// `groundCollider.getGroundHeight` — see DECISIONS.md ADR-0076.
+	const roadsResult = buildRoadNetwork({
+		seats: settlementsResult.seats,
+		sampleHeightMeters: groundCollider.getGroundHeight,
+	});
+	scene.add(roadsResult.group);
+	console.info(
+		`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ` +
+			`${settlementsResult.seats.length} kingdom seats, ${(roadsResult.totalLengthMeters / 1000).toFixed(2)} km total, ` +
+			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.`,
+	);
+
 	return {
 		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, settlementCollider, sky, stars, water, river, waterfalls,
 		settlements: settlementsResult.group,
+		roads: roadsResult.group,
+		roadEdges: roadsResult.edges,
 		// Exposed (not just the settlements.group mesh) so initGame3D can place FAZ 5 NPCs relative to
 		// a named kingdom seat's real world position/ground height without re-deriving mapToWorldXZ.
 		settlementSeats: settlementsResult.seats,

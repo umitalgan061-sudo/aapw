@@ -382,6 +382,16 @@ Triangles<500K, TextureMem<512MB.
   alanıyla sınırlı (`maxRiverRadiusMeters`) — birden fazla nehir/streaming entegrasyonu gelecek iş.
   Gerçek üstten-görünüm ekran görüntüsüyle doğrulandı (kaynak→deniz ağzı işaretçileriyle).
   Detaylar: DECISIONS.md ADR-0009.
+- [x] Yol ağı — **run 56** (`world/roads.js` + `world/roadPathfinder.js`, DECISIONS.md ADR-0076):
+  14 krallık koltuğunu bağlayan minimum spanning tree topolojisi (13 kenar, Prim algoritması), her
+  kenar gerçek eğime-duyarlı bir grid A* ile yönlendiriliyor (`terrain.js`'in aynı birleşik yükseklik
+  alanı üzerinde — ince FBM + ADR-0075'in makro relıyefi), tek birleştirilmiş toprak-rengi şerit
+  mesh olarak render ediliyor (ağ başına 1 draw call). Yol ağı geçerliliği yeni
+  `scripts/roadNetworkSafetyCheck.js` ile doğrulandı: bağlantı (14/14 koltuk), eğim (en dik kenar
+  11.1°, 20° eşiğinin altında), dağ-kaçınma stres testi (düz çizgi dağ merkezinden 0m, gerçek
+  rotalanmış yol 620m uzaktan geçiyor), nehir çakışmaması (hiçbir yol noktası nehre 25m'den yakın
+  değil). Tek görsel katman (patika/at arabası ayrımı henüz yok — `QUESTIONS_FOR_OWNER.md`'ye
+  loglandı).
 - [x] Şelale (nehir yükseklik farkına göre) — `detectWaterfalls(points)` nehrin izlenmiş yolundaki
   dik segmentleri işaretliyor (`dropMeters >= 2.5` VE `slope >= 0.06`, bu dünyanın gerçek nehir
   verisine karşı ölçülmüş eşikler — bkz. DECISIONS.md ADR-0011), `createWaterfallMesh` her birinde
@@ -4936,6 +4946,14 @@ step; the world-event system's flavor pool could still grow.
 - Sky, water, weather, AI, physics, audio, UI, save-bridge — none of the *unstarted* ones exist yet
   (terrain/sky/water/settlements now do — see the Roadmap above for what's live per phase).
   This is expected; Phase 0 was architecture-only by design.
+- **`world/roads.js`'s road network (run 56, ADR-0076) is one visual tier only** — a single "at
+  arabası yolu" (cart road) ribbon style for all 13 network edges, no separate thinner "patika"
+  (footpath) tier, and no bridge mesh for the (currently zero, but not provably always-zero for a
+  future seed/topology change) case where a road edge crosses `world/rivers.js`'s river at a single
+  point — both deliberately deferred scope, not bugs (see ADR-0076's Decision/Consequence and
+  `QUESTIONS_FOR_OWNER.md`'s new entry). No gameplay system (player/NPC/animal/cart movement) is
+  road-aware yet either — the network is real, rendered geometry with no behavioral hook-up beyond
+  that, matching this run's task scope.
 
 ## Asset Sources (CC0 / CC-BY / MIT — no HBO/show media)
 
@@ -5872,3 +5890,102 @@ patika + at arabası yolu") is next in line and has genuinely no code yet (`src/
 real mountain (ADR-0075) to route around once it's built, giving GOVERNANCE.md §8.10's "yol dağın
 dik yamacından düz geçmez" rule a genuine test case for the first time. No blocking bugs, syntax
 errors, or regressions found this run.
+
+## This Run (2026-07-31, run 56)
+
+**Fresh Session Snapshot at container boot:** `git status`/`git log -10` showed `HEAD` and local
+`main` both already at run 55's final commit (`965c1e1`, terrain macro relief) — clean tree, no
+drift to reconcile.
+
+**Priority #2 — road network (DECISIONS.md ADR-0076):** GOVERNANCE.md §18's "Yol ağı (patika + at
+arabası yolu)". Confirmed the priority list first, since run 54's log already claimed priority #3
+(terrain ground color) resolved via ADR-0073 — verified that claim by reading `DECISIONS.md`'s
+ADR-0073 directly rather than trusting the note secondhand, confirmed genuinely done — so this run's
+actual next un-done item was priority #2, unchanged from run 55's own "Next step" pointer.
+
+Built two new files under the `world/` target architecture (GOVERNANCE.md §3): `world/
+roadPathfinder.js` (a standalone, pure, THREE-free grid A* pathfinder — 8-directional, 60m cells, a
+padded 700m search corridor around each seat pair's straight line, movement cost scaled by a cubic
+penalty above a 10° "comfort grade" so steep terrain is increasingly, never infinitely, expensive)
+and `world/roads.js` (MST topology over the 14 `KINGDOM_SEATS` via Prim's algorithm on raw Euclidean
+distance — 13 edges, all seats connected, no cycles — each edge routed through the pathfinder, then
+rendered as one merged dirt-tan ribbon mesh, one draw call for the whole network). Wired into
+`sceneManager.js` (built right after the settlement collider, alongside where rivers/settlements
+already get created) and `game3d.js`'s `pagehide` teardown (new `disposeRoadNetwork`).
+
+**Değişiklik Etki Analizi (§8.4), written before code:** this reads `world/terrain.js`'s existing
+combined height field (fine FBM + ADR-0075's macro relief) but writes no new math into it — purely
+additive new geometry, same "wide blast radius in principle, narrow in practice" shape ADR-0075's own
+risk assessment used, but with no height-sampler code touched at all this time (see ADR-0076's own
+Risk Seviyesi reasoning for why this landed MEDIUM, not LOW or HIGH).
+
+**A real, measured finding, not assumed:** none of the 13 real MST edges is forced anywhere near
+ADR-0075's mountain (closest: `umit`->`Xaro`, 1589m from the mountain's center, 289m outside its own
+1300m falloff radius) — a direct consequence of ADR-0075's own seat-safety design (every macro-relief
+feature was placed with a wide margin beyond the nearest seat). Rather than report an absence of
+evidence for this run's explicit "must visibly avoid the mountain's steep face" requirement, the new
+`scripts/roadNetworkSafetyCheck.js` runs the *exact same* `findSlopeAwarePath` function against a
+synthetic pair of points chosen so their straight line crosses directly over the mountain's center:
+the straight line's closest approach to the mountain center is **0m** (passes through the peak); the
+real router's returned path stays **620m** away at closest approach, with a max grade of only 11.2°
+— direct, quantitative, reproducible proof the algorithm works, even though today's specific seat
+layout never actually needs it to.
+
+**Verified:**
+- `node --check` clean on all 5 touched/new files (`world/roads.js` 201/600, `world/roadPathfinder.js`
+  301/600, `sceneManager.js` 206/600, `game3d.js` 499/600, `scripts/roadNetworkSafetyCheck.js` new,
+  273 lines).
+- Full committed smoke suite: **14/14 PASS both before and after** (confirmed via a real `git stash`
+  before/after comparison, not inferred from the diff).
+- New `scripts/roadNetworkSafetyCheck.js`: all 4 checks PASS — connectivity (13 edges, 14/14 seats),
+  per-edge grade (steepest real edge 11.1°, `doran`->`ziya`, all under the 20° hard ceiling), the
+  mountain-avoidance stress test (see above), river non-collision (no road point ever within 25m of
+  the traced river's polyline). Total network length: 20.23km.
+- **Real headless-Chromium visual proof, zero console/page errors across every run:** default
+  third-person spawn view (this boot again landed in the night portion of the day/night cycle, same
+  pre-existing `lighting.js` behavior ADR-0075 already flagged as unrelated). A real F4 activation +
+  WASD/Shift-run flight + mouse-drag pitch climbing to altitude above the player's own seat, then
+  pitching toward vertical, produced a clear bird's-eye screenshot showing the actual tan road ribbon
+  running out from `umit`'s seat, visibly curving around several lake patches instead of cutting
+  straight through them. A second F4 flight toward the mountain/hill cluster (after correcting a
+  test-script-only mistake found mid-session — the free camera inherits the normal chase camera's
+  mildly downward pitch on activation, and a long forward flight without first leveling it dives the
+  camera under the terrain surface, reading as a blank sky screenshot with no error; documented as a
+  Root Cause / Prevention note in ADR-0076, not a product bug) produced a clear mountain-silhouette
+  screenshot at real altitude.
+- **Performance budget (F2 panel, real `renderer.info`, before/after via `git stash`):** draw calls
+  **43 -> 44** (+1), triangles **374,685 -> 377,083** (+2,398), geometries **41 -> 42** (+1) — both
+  far under the 2,500-draw-call/5,000,000-triangle desktop budget. World Coverage unaffected (96.2%
+  desktop / 4.5% mobile — no terrain/streaming/chunk logic touched).
+- **Memory-leak checklist:** new `disposeRoadNetwork` (geometry + material of the one merged mesh),
+  called from `game3d.js`'s existing `pagehide` block. `world/roadPathfinder.js` is a pure module —
+  no listeners/timers/DOM, nothing else to dispose.
+
+**Design decisions logged, not guessed (§14):** two new `QUESTIONS_FOR_OWNER.md` entries — the road
+grade thresholds (10° soft / 20° hard, gentler than run 55's 35° foot-walkable default per this
+task's own suggested range, not derived from real-world civil-engineering standards) and whether a
+second, thinner "patika" tier is wanted (this run shipped one tier only — see ADR-0076's Decision).
+
+**Files changed this sub-task:** `src/3d/world/roads.js` (new), `src/3d/world/roadPathfinder.js`
+(new), `scripts/roadNetworkSafetyCheck.js` (new), `src/3d/sceneManager.js`, `src/3d/game3d.js`,
+`DECISIONS.md` (new ADR-0076), `QUESTIONS_FOR_OWNER.md` (2 new entries), `3D_GAME_PROGRESS.md` (this
+file, including a new Known Issues bullet for the deferred second tier/bridge geometry). 8 files. One
+commit.
+
+**Technical debt:** the "Known Issues / Tech Debt" section's bullet count grew **31 -> 32** — one new
+bullet added for this run's own deferred scope (single road tier, no bridge geometry at a future
+road/river crossing), counted the same literal-bullet-count way run 55 did (still the best-available
+single integer per GOVERNANCE.md §12, this project having never actually maintained a separately
+tracked running counter).
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **Road network (ADR-0076)
+is done and real-screenshot-verified this run.** Re-confirmed priority #3 (terrain ground color) is
+already resolved (ADR-0073, run 54) — not re-opened. GOVERNANCE.md §18 priority #4 ("Gerçek kale
+modellerini dokulandır") is next in line and is genuinely partial, not done: 7 of 14 kingdom seats
+(`umit`, `jon`, `cersei`, `balon`, `ziya`, `berkalp`, `doran`) got real decimated castle models run 54
+(ADR-0074); the remaining 7 (`berk`, `olena`, `stannis`, `robin`, `twin`, `Xaro`, `Night King`) still
+use the FAZ 3 procedural box-keep/tower/roof placeholder — a natural next sub-task if more real castle
+models are ever sourced/downloaded (same manual-download-step constraint ADR-0074 already noted). A
+second, thinner "patika" road tier (this run's own deferred scope, see `QUESTIONS_FOR_OWNER.md`) is
+also available as a smaller, well-scoped follow-up. No blocking bugs, syntax errors, or regressions
+found this run.

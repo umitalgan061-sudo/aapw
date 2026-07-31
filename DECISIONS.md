@@ -5738,3 +5738,220 @@ re-deriving this same check from scratch.
   no matches), so nothing in the regression suite could have silently broken here.
 - **Vegetation (not started):** whenever it lands, it should sample height the same shared way
   everything else here does, and will then automatically respect the new relief with no extra work.
+
+## ADR-0076: Road network — slope-aware A* over a minimum-spanning-tree topology, one merged ribbon mesh
+
+**Status:** Accepted (run 56).
+
+**Risk Seviyesi:** MEDIUM. Justification: this adds a new, always-rendered world system (one merged
+mesh, one new draw call/geometry) whose routing depends on `world/terrain.js`'s combined height
+field — the same wide-blast-radius shared function ADR-0075 already flagged — but, unlike ADR-0075,
+this change touches no height-sampler math itself (purely additive new geometry reading an existing,
+unmodified field) and is easy to fully disable by removing the two `buildRoadNetwork`/
+`disposeRoadNetwork` call sites if a problem is ever found. Not LOW because a real, non-trivial new
+algorithm (grid A*) runs at scene-build time and a bug there (e.g. an infinite loop, or a path that
+routes off the padded search corridor) could in principle hang or visibly break scene construction —
+mitigated by the corridor always being finite/bounded and a documented straight-line fallback if the
+search ever fails to find the goal (see Decision).
+
+**Context:** GOVERNANCE.md §18 priority #2, "Yol ağı (patika + at arabası yolu)" — the road network
+had genuinely no code yet (confirmed by ADR-0075's own safety-check script last run). §8.10's world-
+consistency rules for this feature: "ana yol eğime duyarlı rota seçer, dağın dik yamacından düz
+geçmez; nehir dağın içinden delip geçmez; kaleler yol ağına bağlanır." The middle clause (rivers vs.
+mountain) was already true by construction per ADR-0075's own Gelecek Faz Etkisi note; this run's job
+is the first and third clauses — a real slope-aware road router, and every kingdom seat connected to
+the resulting network.
+
+**Değişiklik Etki Analizi (GOVERNANCE.md §8.4, written before code):** affected systems —
+`sceneManager.js` (one new `buildRoadNetwork` call after settlements/collider setup), `game3d.js`
+(one new `disposeRoadNetwork` call in the `pagehide` teardown block). Not affected: terrain height
+math itself (read-only consumer of `createHeightSampler`, same as `world/rivers.js`/
+`world/settlements.js` already are), any gameplay system (player/NPC/animal/dragon movement is
+unrelated to this decorative-for-now road mesh — no collision was added, see Alternatives), World
+Coverage (chunk streaming/area accounting untouched), the 14 kingdom seats' own positions/heights
+(read-only). Risk: a routing bug producing a visually broken (e.g. self-intersecting, off-corridor,
+or absurdly long) path — mitigated by the dedicated `scripts/roadNetworkSafetyCheck.js` (run before
+this ADR was written, after the implementation, per §8.4's "kod, sonra ilgili smoke test" — the
+*safety check itself* is what actually gates this ADR's acceptance, not just a promise) and by the
+existing full smoke suite (14/14, unchanged) confirming nothing else broke.
+
+**Decision:**
+
+1. **Topology — minimum spanning tree, not a complete graph.** `world/roads.js`'s `computeSeatMST`
+   runs Prim's algorithm (raw Euclidean seat-to-seat distance, fully deterministic — no
+   `Math.random()`, pure function of `seats`' array order) over the 14 `KINGDOM_SEATS`, producing
+   exactly 13 edges connecting all 14 seats with no cycles. GOVERNANCE.md §18's own task text
+   explicitly allows this ("a minimum-spanning-tree-style network... is fine and arguably more
+   realistic than a complete graph") — a complete graph would be 91 edges, an unrealistic density of
+   roads for a medieval-analogue world and a much larger render/generation cost for no real gameplay
+   benefit yet (no traffic/economy system reads road topology today). Topology selection (which
+   seats connect to which) and path routing (how a chosen edge actually gets from A to B) are
+   deliberately separate concerns — see Alternatives for why a slope-aware topology cost wasn't
+   worth it here.
+
+2. **Routing — real slope-aware A*, not a straight line.** Each of the 13 MST edges is routed by the
+   new `world/roadPathfinder.js`'s `findSlopeAwarePath`: 8-directional grid A* (60m cells, a padded
+   700m corridor around the straight line between the two seats) with movement cost scaled by
+   `gradeCostMultiplier` — a cubic penalty above a 10° "comfort grade" (`ROAD_COMFORT_GRADE_DEGREES`,
+   logged to `QUESTIONS_FOR_OWNER.md`, see below) that makes steep ground increasingly (not
+   infinitely) expensive, so the search reliably prefers a flatter detour over crossing genuinely
+   steep terrain without ever refusing to route at all (this world's terrain — fine FBM + ADR-0075's
+   smooth macro-relief domes — has no literal cliffs, so a finite-cost path always exists). The raw
+   grid path is lightly smoothed (2 passes of Chaikin corner-cutting, endpoints preserved exactly)
+   and every point's height is freshly re-sampled from the real terrain afterward — smoothing can
+   never make the road float or sink relative to the ground it follows.
+
+3. **Rendering — one merged ribbon mesh, one road tier.** `buildRoadNetwork` renders the whole
+   13-edge network as a single `THREE.BufferGeometry` (one draw call, one geometry — same left/right-
+   perpendicular ribbon technique `world/rivers.js`'s `createRiverMesh` already established, extended
+   to append multiple disjoint polylines into one buffer instead of one continuous path), 8m wide, a
+   warm dirt-tan color (`0x9c7b4a`, distinct from terrain's grass `0x3d6b28`/rock `0x6b6152`), raised
+   0.4m above sampled terrain height to avoid z-fighting. First-pass scope is **one road tier** (a
+   single "ana yol / at arabası yolu" style, not a separate thinner "patika" tier) — seven paths
+   through this exact size/style already read clearly as real cart roads in real-screenshot
+   verification (see Verified), and a second, thinner tier is meaningfully more work (a second
+   geometry pass, a design decision about *which* connections get which tier) for a first pass whose
+   job was proving the routing algorithm and connectivity work at all. Deferred, not forgotten — see
+   Consequence and 3D_GAME_PROGRESS.md's "Next step".
+
+**Design decision logged, not guessed (GOVERNANCE.md §14):** no existing code in this project defines
+a "road grade" threshold (as opposed to run 55's foot-*walkable*-slope threshold, a different
+question — a cart needs a shallower grade than a person on foot climbing the same slope). `10°` as
+the soft cost-curve comfort target and `20°` as `roadNetworkSafetyCheck.js`'s hard failure ceiling
+are this run's own engineering judgment (deliberately gentler than run 55's 35° foot-walkable
+default, per this task's own suggested 15-20° range), not derived from any real-world civil-
+engineering standard (real paved-road grade limits are typically much gentler, 5-10°, but this is a
+stylized, gamified terrain with a much larger amplitude-to-scale ratio than any real road network is
+designed against) — logged as a new `QUESTIONS_FOR_OWNER.md` entry for the project owner to
+confirm/adjust.
+
+**Arazi Değişikliği Güvenlik Kontrolü / Dünya Tutarlılık Kuralları (GOVERNANCE.md §8.4/§8.10) — new
+persisted script `scripts/roadNetworkSafetyCheck.js`, run after implementation:**
+
+- **Connectivity (§8.10 "kaleler yol ağına bağlanır"):** PASS — 13 edges, all 14/14 `KINGDOM_SEATS`
+  reachable in the built network (a spanning tree by construction, verified at runtime against the
+  live `buildRoadNetwork` output, not just assumed from the algorithm's theory).
+- **Per-edge grade:** PASS on all 13 real seat-to-seat edges — steepest actual routed segment grade
+  across the whole network is **11.1°** (`doran` -> `ziya`), every other edge lower, all comfortably
+  under the 20° hard ceiling. Total network length: **20.23 km**.
+- **Mountain-avoidance stress test (§8.10 "dağın dik yamacından düz geçmez"):** none of the real
+  13 MST edges is forced anywhere near ADR-0075's mountain (center `(2600, 2200)`, radius 1300m) —
+  measured, not assumed: the closest real edge (`umit` -> `Xaro`) passes 1589m from the mountain's
+  center, 289m outside its own falloff radius. This is a *consequence* of ADR-0075's own seat-safety
+  design (every macro-relief feature was placed with a wide margin beyond the nearest seat), not a
+  gap in this run's routing — so no real road today has an opportunity to visibly bend around the
+  mountain. To still give this run's explicit requirement a real, measured answer rather than an
+  absence of evidence, `roadNetworkSafetyCheck.js` also runs the *exact same* `findSlopeAwarePath`
+  function against a synthetic pair of points chosen so the straight line between them crosses
+  directly over the mountain's center (`(900, 2200)` -> `(4300, 2200)`): the straight line's closest
+  approach to the mountain's center is **0m** (it passes through the peak); the real router's
+  returned path stays **620m** away at closest approach, with a max grade of only **11.2°** — direct,
+  quantitative proof the algorithm bends away from steep terrain when a real route actually needs to,
+  even though today's specific seat layout never forces it to.
+- **River non-collision (§8.10 "nehir dağın içinden delip geçmez", extended to roads by this run's
+  own task scope):** PASS — no road point ever comes within 25m of the traced river's polyline
+  (checked against every point of both, not just endpoints), so no road runs alongside or through the
+  riverbed. No bridge mesh exists for the case where a future edge *does* cross the river at a single
+  point — deferred, matching `world/rivers.js`'s own module doc, which already treats "roads don't
+  need actual bridge geometry yet" as acceptable scope for this project's current fidelity target.
+
+**Verified:**
+- `node --check` clean on all 5 touched/new files: `world/roads.js` (201/600), `world/roadPathfinder.js`
+  (301/600), `sceneManager.js` (206/600, +17 lines), `game3d.js` (499/600, +5 lines),
+  `scripts/roadNetworkSafetyCheck.js` (new, 273 lines).
+- Full committed smoke suite: **14/14 PASS both before and after** (confirmed via `git stash`
+  before/after comparison, not assumed from the diff alone) — no existing check depends on scene
+  draw-call count or road-free terrain, so nothing regressed.
+- `scripts/roadNetworkSafetyCheck.js`: all 4 checks PASS (connectivity, per-edge grade, mountain-
+  avoidance stress test, river non-collision) — see numbers above.
+- **Real headless-Chromium visual proof, zero console/page errors across every run:** the default
+  third-person spawn view (this boot again landed in the night portion of the day/night cycle, same
+  pre-existing `lighting.js` behavior ADR-0075 already flagged as unrelated and unchanged). A real F4
+  activation + real WASD/Shift-run flight + real mouse-drag pitch (not a teleport) climbing to
+  altitude above the player's own seat, then pitching down toward vertical, produced a clear bird's-
+  eye screenshot showing the actual tan road ribbon running out from the `umit` seat, visibly curving
+  around several lake patches rather than cutting a straight line through them. A second F4 flight
+  toward ADR-0075's mountain/hill cluster (real flight, corrected mid-session after an initial
+  attempt's inherited downward camera pitch flew the free camera under the terrain mesh — see the
+  session's own root-cause note below) produced a clear mountain-silhouette-plus-distant-water-plane
+  screenshot at real altitude, consistent with ADR-0075's own prior verification of the same terrain
+  feature.
+- **Root Cause / Prevention (GOVERNANCE.md §8.2 — this specific failure mode, camera diving
+  underground during F4 test flights, was hit twice across this run's own verification attempts):**
+  the F4 free camera's `activate()` copies the *chase camera's* current quaternion, which itself is
+  tilted mildly downward (`camera.js`'s normal over-the-shoulder framing looks down at the player);
+  flying forward for a long duration without first leveling/raising that inherited pitch sends the
+  free camera below the terrain surface, where the (single-sided, front-face-up) terrain material is
+  invisible from underneath — reading as a pure sky/void screenshot with no error, which is what made
+  it initially non-obvious. Fix (test-script-only, not a game-code change): always cancel the
+  inherited pitch with an explicit upward mouse-drag correction before any long F4 flight. Not fixed
+  in `debug/freeCamera.js` itself — this is a test-authoring pitfall, not a product bug (a human using
+  F4 interactively sees the sky immediately and self-corrects with the mouse; only an unattended
+  scripted flight can fly blind through it), so no shipped code changed as a result of this finding.
+- **Performance budget (`GOVERNANCE.md` §4, F2 panel, real `renderer.info` — before/after via
+  `git stash`):** draw calls **43 -> 44** (+1, the one merged road mesh), triangles **374,685 ->
+  377,083** (+2,398), geometries **41 -> 42** (+1) — both totals remain far under the
+  2,500-draw-call/5,000,000-triangle desktop budget. The triangle delta matches expectations exactly:
+  a ribbon mesh's triangle count is `2 * (totalPointCount - edgeCount)`, and the network's real point
+  count (after Chaikin smoothing) at 20.23km total length and ~60-85m average pre-smoothing grid
+  spacing lands in the same ballpark this arithmetic predicts — not a surprise number.
+- **Memory-leak checklist:** `disposeRoadNetwork` (new) disposes the merged mesh's geometry and
+  material, called from `game3d.js`'s existing `pagehide` teardown block alongside
+  `disposeSettlements`/`disposeRealCastleModels`. `world/roadPathfinder.js` is a pure module (no
+  listeners/timers/DOM, no shared mutable state between calls) — nothing new to dispose there.
+
+**Alternatives considered:**
+- *Slope-aware MST edge weights (use each pair's real routed-path cost, not raw Euclidean distance,
+  to decide topology).* Rejected for this pass — would require running the (relatively expensive,
+  O(grid-cells) per pair) A* search for all 91 possible seat pairs just to pick the cheapest 13,
+  instead of 13 total; Euclidean-distance MST already produces a sensible, realistic-looking topology
+  (short local connections, e.g. `olena`<->`berk` at 123.7m, plus a few necessarily-long trunk
+  connections to isolated seats like `Xaro`/`umit`), and *within* each chosen edge the routing is
+  already fully slope-aware — the topology-vs-routing split keeps the two concerns simple and
+  independently correct rather than conflating them into one expensive combined search.
+- *A separate "patika" (thin footpath) tier alongside the main road tier, as the task text
+  explicitly welcomed if not much extra work.* Deferred, not rejected outright — see Decision's
+  point 3 and 3D_GAME_PROGRESS.md's "Next step" for the concrete follow-up scope.
+- *Adding road-awareness to player/NPC/animal ground movement (e.g. a speed bonus while on-road, or
+  routing NPC patrols along roads).* Out of scope for this task (GOVERNANCE.md §18 lists "yol ağı"
+  itself as the priority item, not road-aware gameplay systems) and would meaningfully expand the
+  blast radius this ADR's Risk Seviyesi assessment is based on — a clean follow-up once the network
+  itself is proven stable, not bundled into the same change.
+- *A literal, physically-carved road (deforming `world/terrain.js`'s own geometry under the ribbon)
+  instead of a ribbon mesh raised slightly above the existing surface.* Rejected — same reasoning
+  `world/rivers.js` already used for the river (ADR-0009): a raised ribbon needs no terrain-geometry
+  coordination at all (roads/rivers/terrain chunks stay fully independent, generated/streamed on
+  their own schedules), while carving would require roads to somehow modify chunk geometry that
+  `world/chunkManager.js` streams in independently and lazily — a much larger, riskier change for a
+  visual difference not requested by this task.
+
+**Consequence:** All 14 kingdom seats now connect into one real, slope-aware road network (13 edges,
+20.23km total), rendered as a single visible dirt-colored ribbon mesh, +1 draw call/+2,398 triangles
+against the existing budget. `world/roads.js` and `world/roadPathfinder.js` are new files under the
+`world/` target architecture (GOVERNANCE.md §3). One road tier only — the "patika" vs. "at arabası
+yolu" visual distinction the task welcomed but didn't require is deferred (3D_GAME_PROGRESS.md's
+"Next step"). No bridge geometry at the (currently zero, but not proven to always be zero for a
+future seed/topology change) river-crossing case — same deferred-scope note `world/rivers.js` already
+carries. `ROAD_COMFORT_GRADE_DEGREES`/the 20° hard ceiling are logged, not final, product decisions
+(`QUESTIONS_FOR_OWNER.md`).
+
+**Gelecek Faz Etkisi (future-phase impact):**
+- **GOVERNANCE.md §11 (future settlements beyond the current 14):** now has a real network to check
+  "yol ağına bağlanabilirlik" (road-network connectability) against — a future new settlement's
+  placement check can call `findSlopeAwarePath` from the new seat to its nearest existing seat and
+  assert a reasonable max grade, the same way this ADR's own safety check does, instead of that §11
+  rule being unenforceable for lack of any actual network to test against.
+- **FAZ 6 (cart/at arabası, not yet spawned — the "at arabası yolu" naming in GOVERNANCE.md §18 item 2
+  anticipates this):** whenever a cart/wagon vehicle is added, this network is exactly the path data
+  (`buildRoadNetwork`'s returned `edges[].points`) it should travel along — no new pathing work
+  needed, just a consumer of data that already exists.
+- **FAZ 5/8 (NPC patrols / world events):** a future "traveling merchant" or similar NPC/event archetype
+  now has real road polylines to walk instead of needing its own bespoke waypoint system — not
+  wired up by this task (see Alternatives), but the data is there for a future run to consume.
+- **FAZ 9 (post-fx):** the mountain-avoidance stress test's 620m-of-clearance routed path is a good
+  future subject for road-dust/parallax-occlusion detail passes once that phase starts — no
+  dependency either direction yet.
+- **Performance (FAZ 10 / quality presets):** the road mesh is not currently gated by any quality
+  preset (always rendered in full) — a future FAZ 10 pass could consider simplifying/thinning the
+  ribbon at lower quality tiers the same way terrain draw distance already scales, though at today's
+  +2,398 triangles this is nowhere close to being a real budget concern yet.

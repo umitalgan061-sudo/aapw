@@ -13,7 +13,10 @@
  * together, a starfield (`stars.js`) fades in over the same night state, distance fog (`fog.js`)
  * — synced to the same day/night state — fades terrain into the horizon, and one static river
  * (`world/rivers.js`) traces a deterministic downhill path from high ground near the origin down
- * to sea level, with vertical "curtain" meshes marking its steepest (waterfall-grade) segments.
+ * to sea level, with vertical "curtain" meshes marking its steepest (waterfall-grade) segments. A
+ * slope-aware road network (`world/roads.js`, run 56, DECISIONS.md ADR-0076) connects all 14
+ * kingdom seats via a minimum-spanning-tree of A*-routed cart roads, rendered as one merged dirt-
+ * colored ribbon mesh.
  * FAZ 4 (in progress): a playable character (`gameplay/player.js`) spawns at the world origin,
  * moves via WASD/arrow keys (`input.js`) or an on-screen joystick on touch-primary devices
  * (`ui/touchJoystick.js`) relative to the camera's facing, snaps to ground height (`physics.js`),
@@ -51,6 +54,7 @@ import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.js';
 import { disposeRiverMesh, disposeWaterfallMesh } from './world/rivers.js';
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.js';
+import { disposeRoadNetwork } from './world/roads.js';
 import { resolveCameraCollision } from './camera.js';
 import { updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { updateStarfield, disposeStarfield } from './stars.js';
@@ -475,6 +479,7 @@ export async function initGame3D() {
 			state.waterfalls.forEach(disposeWaterfallMesh);
 			disposeSettlements(state.settlements);
 			disposeRealCastleModels(state.realCastles);
+			disposeRoadNetwork(state.roads);
 			disposeDayNightLighting(state.scene, state.lights);
 			state.renderer.dispose();
 		}, { once: true });
