@@ -73,11 +73,18 @@ export class AssetLoader {
 	 * @param {object} [options]
 	 * @param {number} [options.fallbackColor]
 	 * @param {number} [options.fallbackSize]
+	 * @param {string} [options.resourcePath] Overrides where `FBXLoader` looks for the textures an
+	 *   FBX's embedded material references resolve to — needed when those textures live in a
+	 *   subfolder of the FBX's own directory (`FBXLoader`'s default is the FBX file's own directory,
+	 *   via its base `Loader.setPath`; see `gameplay/dragons.js`'s `black_dragon` load, whose
+	 *   textures live in a `textures/` subfolder — found via 404s in a real headless-Chromium run,
+	 *   not assumed). Omit for the default (same directory as `url`), matching every prior caller.
 	 * @returns {Promise<THREE.Group>}
 	 */
-	async loadFBXModel(url, { fallbackColor = 0xff00ff, fallbackSize = 1 } = {}) {
+	async loadFBXModel(url, { fallbackColor = 0xff00ff, fallbackSize = 1, resourcePath } = {}) {
 		try {
 			const loader = await this._getFBXLoader();
+			loader.setResourcePath(resourcePath ?? '');
 			const object3D = await loader.loadAsync(url);
 			this.events.emit(EVENTS.ASSET_LOADED, { url, type: 'fbx' });
 			return object3D;

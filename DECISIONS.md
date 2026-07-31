@@ -5111,3 +5111,114 @@ now documented so no future run repeats runs 49-51's assumption. `reference_drag
 content (a castle) is flagged as a possible future FAZ 3 asset but intentionally not acted on this
 run — a human or a future run should make that call deliberately, not inherit it as a side effect of
 a dragon-decimation task.
+
+## ADR-0071: FAZ 7's first dragon — spawn point + circling-flight AI, using `black_dragon` (not the decimated reference models)
+
+**Status:** Accepted (run 53).
+
+**Context:** Priority re-scan: `node --check` clean; full smoke suite already at 12/12 before this
+sub-task; no blocking bug; World Coverage unchanged past its gate; no file within 50 lines of the
+600-line cap. Run 52's own "Next step" note named the concrete next item: FAZ 7 (0%
+code) should get a first spawn point + basic AI now that its tooling blocker is confirmed resolved
+(ADR-0070). Two asset choices existed: the newly-decimated `dragon_reference_v2_decimated.glb`
+(19,762 tri, but `rigged: false`/`animated: false` — no skeleton) and `black_dragon`
+(`Dragon_Baked_Actions_fbx_7.4_binary.fbx`, Free3D, manually downloaded and explicitly flagged in
+`assets_manifest.json` as "FAZ 7 için kullan" — `rigged: true`, `animated: true`).
+
+**Decision:** Used `black_dragon`, not the decimated reference model — it already has a real
+skeleton and baked animation clips, so a first flight pass needs zero rigging work. Loaded it
+through a real headless-Chromium page (not assumed from the manifest) via `AssetLoader.
+loadFBXModel` to get ground truth before writing any config, and found two real discrepancies:
+
+1. **The manifest's `animationClips` list was wrong.** It claimed `["Run cycle", "Walk cycle",
+   "Idle", "Jump", "Open Wings", "Fly"]` (6 clips); the file actually has 4:
+   `Armature|Walk_New`, `Armature|Run_New`, `Armature|Idel_New` (sic, a typo in the source asset
+   itself), `Armature|Fly_New`. No `Jump`/`Open Wings` clip exists. Corrected in `assets_manifest.
+   json` this run.
+2. **The FBX's embedded material references its textures by bare filename**
+   (`Dragon_ground_color.jpg`, ...), which `FBXLoader` resolves relative to the FBX's own directory
+   by default — but the real files live in a `textures/` subfolder, so every texture 404'd and the
+   dragon rendered untextured. Fixed by adding an optional `resourcePath` parameter to `AssetLoader.
+   loadFBXModel` (defaults to `''`, i.e. unchanged behavior for every existing caller —
+   `player.js`/`npc.js`'s Mixamo loads never pass it) and passing `DRAGON_CONFIG.
+   TEXTURES_RESOURCE_PATH` for this one model.
+3. Also confirmed the model's own `userData.unitScaleFactor` is `1` — unlike the Mixamo characters,
+   this FBX doesn't carry a usable cm-to-m conversion factor, so `AssetLoader.
+   correctMixamoFbxScale` is a no-op for it. Its raw bounding box measured ~7684x4546x9777 units; a
+   manual `DRAGON_CONFIG.SCALE` (`20 / 9776.5626 ≈ 0.0020457`) brings its largest raw dimension down
+   to a chosen `TARGET_MAX_DIMENSION_METERS` of 20 — a large, dramatic flying creature, bigger than
+   the wolf/horse/NPCs already in the world, but not absurdly oversized against a ~150m circling
+   radius above a kingdom seat.
+
+**AI scope — deliberately the smallest thing that reads as "a dragon patrols the sky":** a single
+dragon (`umit-dragon-1`) circles at a fixed altitude (90m above `umit`'s own ground height, the
+player's own seat — ADR-0046) around a 150m-radius closed circle, looping the real `Fly` clip, with
+a constant visual bank (`bankAngleRadians: 0.35`) into the turn. No ground collision (it never
+touches ground), no pathfinding, no player-awareness, no landing/takeoff state machine — same scope
+discipline `gameplay/animals.js`'s first straight-line patrol pass (run 27) set for FAZ 6, and
+`gameplay/npc.js`'s original static-idle pass (run 20) before that. New module `gameplay/dragons.js`
+(`createDragon`/`spawnConfiguredDragons`), matching the `{object3D, update(delta), dispose()}`
+shape and per-spawn-config wiring every other gameplay system here already uses; `DRAGON_CONFIG`
+added to `gameplayConfig.js`; `game3d.js` wires spawn/update/dispose in the same 3 places NPCs/
+animals already are.
+
+**A rendering surprise, checked and confirmed not a bug:** a first screenshot of the flying dragon
+came back looking like a flat black silhouette. Traced this down to real texture-pixel sampling
+(drew the loaded diffuse texture to a scratch 2D canvas and read pixel values directly), not
+assumed: the actual RGB values are genuinely near-black (~15-40 out of 255) — `black_dragon` is
+exactly what its name says, a very dark/near-black-scaled dragon skin, not a broken/missing texture.
+A brighter three-point lighting rig in the verification screenshot (not a game-code change — the
+live game's own day/night `lighting.js` already varies sun intensity) shows clear wing-membrane
+fold detail, talons, and tail spikes once lit well; the model itself is correct.
+
+**Verified:**
+- `node --check` clean on every touched file (`game3d.js`, `gameplay/gameplayConfig.js`,
+  `gameplay/dragons.js`, `assetLoader.js`, `scripts/game3dSmokeChecksMovement.js`,
+  `scripts/smokeTestGame3D.js`). All touched files stay under the 600-line cap (`game3d.js` 476/600,
+  `gameplayConfig.js` 500/600, `dragons.js` 137/600, `game3dSmokeChecksMovement.js` 400/600).
+- `node scripts/checkAssetsManifest.js` — OK, 33 entries all resolve.
+- Full committed smoke suite, now **13** checks (added `checkDragonFlight` to
+  `game3dSmokeChecksMovement.js`) — all PASS, including the 12 pre-existing ones unchanged. The new
+  check drives a real `createDragon` controller (real FBX load, real `AssetLoader`) and asserts: not
+  a placeholder mesh, has a resolved texture (guards the `resourcePath` fix specifically), stays
+  exactly on-radius and level every sampled frame for a full lap, and closes the loop back to its
+  start position within floating-point tolerance.
+- **Real headless-Chromium proof:** booted `game3d.html` for real module-resolution paths, built an
+  independent scratch `THREE.Scene`/`WebGLRenderer` in-page (same pattern ADR-0070 used), loaded the
+  real dragon via the real `createDragon`, advanced its `Fly` animation and circular-path update for
+  1.5 simulated seconds, waited for the real texture image to finish decoding (found by a first,
+  premature screenshot coming back black before the async texture load had completed — not the
+  dark-skin finding above, a separate timing issue only affecting this one-shot verification script;
+  the live game's continuous render loop is unaffected since it just picks up the texture on
+  whatever frame it lands), then rendered and screenshotted: a clearly dragon-shaped, winged,
+  textured creature in flight, mid-flap pose, zero console/page errors throughout.
+
+**Memory-leak checklist:** `createDragon`'s `dispose()` stops the `AnimationMixer` and calls
+`AssetLoader.disposeObject3D` (same pattern every other gameplay controller here uses); `game3d.js`'s
+`pagehide` cleanup calls `state.dragons.forEach((dragon) => dragon.dispose())`, added alongside the
+existing NPC/animal dispose calls.
+
+**Alternatives considered:**
+- *Use `dragon_reference_v2_decimated.glb` (this project's own freshly-decimated model, ADR-0070)
+  instead of `black_dragon`.* Rejected for this first pass — it has no skeleton/animation at all, so
+  using it would mean either a rigid, non-animated flying mesh (visually worse than a real flapping
+  Fly clip) or bundling a rigging/animation task into this same sub-task, a substantially bigger
+  scope. `black_dragon` gets a first *real* flying dragon shipped now; the decimated reference model
+  remains available for a future second dragon/creature once it's rigged.
+- *Player-awareness (flee/notice, like `gameplay/animals.js`'s wolves) on this first pass.* Rejected
+  as scope creep — FAZ 7 has 0% code; landing a circling-flight pass first, then adding
+  player-awareness as its own atomic sub-task, matches how FAZ 5 (static idle → waypoint patrol →
+  dialogue) and FAZ 6 (static idle → patrol → flee → pack-alert) both grew incrementally here.
+- *Fix `assets_manifest.json`'s wrong `animationClips`/texture-path issues in a separate sub-task.*
+  Rejected — both were found *while* building this exact feature (not a pre-existing, independently
+  discovered bug) and are small, directly load-bearing corrections for the dragon this sub-task
+  ships; splitting them out would just mean re-deriving the same real-render findings twice.
+
+**Consequence:** FAZ 7 now has a first, real, flying, animated, textured dragon in the world — 0%
+code no longer applies, though this remains a first pass: one dragon, one seat, no player-awareness,
+no combat/mount interaction, no takeoff/landing. `AssetLoader.loadFBXModel`'s new `resourcePath`
+option is available to any future FBX asset with the same subfolder-texture layout.
+`assets_manifest.json`'s `black_dragon` entry now has verified-accurate `animationClips`. The
+decimated reference dragon (`dragon_reference_v2_decimated`) and the unrigged Meshy models
+(`verdant_wyrm`, `spiked_serpent`, `auric_dragon`, `frostscale_dragon`) remain available, unused, for
+a future second/third dragon once rigged — not blocking, just not this sub-task's job.

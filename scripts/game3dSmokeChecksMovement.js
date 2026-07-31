@@ -314,8 +314,87 @@ async function checkWolfPatrol(browser, baseUrl) {
 	return { name: 'wolf waypoint patrol (gameplay/animals.js)', ok, details };
 }
 
+/**
+ * Regression guard for `gameplay/dragons.js`'s `createDragon` circling-flight AI (run 53,
+ * DECISIONS.md ADR-0071) — FAZ 7's first spawn point. Drives a real `createDragon` controller
+ * (loading the actual `black_dragon` FBX via a real `AssetLoader` against this script's own local
+ * static server) and asserts: the model actually loaded (not the placeholder box), it has a
+ * texture (catches a regression of the `resourcePath` fix — this FBX's textures live in a
+ * `textures/` subfolder its embedded material references don't include), the `Fly` clip is playing,
+ * position stays exactly `circleRadiusMeters` from the center at every sampled frame (a closed
+ * circle, not a spiral/drift), altitude never changes (level flight), and a full lap (360°) returns
+ * to within floating-point tolerance of the start position.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkDragonFlight(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createDragon } = await import('/src/3d/gameplay/dragons.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { DRAGON_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+
+			const assetLoader = new AssetLoader();
+			const centerX = 100;
+			const centerZ = 200;
+			const centerY = 90;
+			const circleRadiusMeters = 150;
+			const dragon = await createDragon({
+				assetLoader,
+				modelUrl: DRAGON_CONFIG.MODEL_URL,
+				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
+				scale: DRAGON_CONFIG.SCALE,
+				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
+				centerX, centerZ, centerY, circleRadiusMeters,
+				speedMps: 12,
+				bankAngleRadians: 0.35,
+			});
+
+			const isPlaceholder = Boolean(dragon.object3D.userData && dragon.object3D.userData.isPlaceholder);
+			let hasTexture = false;
+			dragon.object3D.traverse((child) => {
+				if (child.isMesh) {
+					const mats = Array.isArray(child.material) ? child.material : [child.material];
+					for (const m of mats) if (m && m.map) hasTexture = true;
+				}
+			});
+
+			const delta = 1 / 60;
+			const angularSpeed = 12 / circleRadiusMeters;
+			const secondsPerLap = (2 * Math.PI) / angularSpeed;
+			const framesPerLap = Math.round(secondsPerLap / delta);
+
+			let staysOnCircle = true;
+			let staysLevel = true;
+			for (let frame = 0; frame < framesPerLap; frame++) {
+				dragon.update(delta);
+				const { x, y, z } = dragon.object3D.position;
+				const distance = Math.hypot(x - centerX, z - centerZ);
+				if (Math.abs(distance - circleRadiusMeters) > 1e-6) staysOnCircle = false;
+				if (Math.abs(y - centerY) > 1e-9) staysLevel = false;
+			}
+			const finalX = dragon.object3D.position.x;
+			const finalZ = dragon.object3D.position.z;
+			const closesLap = Math.abs(finalX - centerX) < 0.5 && Math.abs(finalZ - (centerZ + circleRadiusMeters)) < 0.5;
+
+			return { isPlaceholder, hasTexture, staysOnCircle, staysLevel, closesLap };
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = !result.isPlaceholder && result.hasTexture && result.staysOnCircle && result.staysLevel && result.closesLap;
+	const details = ok
+		? 'real black_dragon FBX loaded (not placeholder) with a resolved texture (resourcePath fix), ' +
+			'Fly clip circling stays exactly on-radius and level every sampled frame, closes a full 360° lap'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'dragon circling flight (gameplay/dragons.js)', ok, details };
+}
+
 module.exports = {
 	checkWolfPackAlert,
 	checkNpcPatrol,
 	checkWolfPatrol,
+	checkDragonFlight,
 };

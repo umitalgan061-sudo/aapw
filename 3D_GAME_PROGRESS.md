@@ -5528,3 +5528,103 @@ acted on — a human or a future run should make that call deliberately. FAZ 5's
 have no fresh, non-filler growth available right now. FAZ 5/6's cart/dog-cat/bird gap still needs a
 human manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged, usable only as a
 static prop until a human rigs it.
+
+## This Run (2026-07-31, run 53)
+
+**Fresh Session Snapshot at container boot:** local `main` was stale (pointing at the pre-3D-mode
+commit) while `HEAD` was detached at run 52's final commit — same harmless drift runs 40/47-52
+already documented. `git fetch origin main` + `git branch -f main origin/main` + `git checkout main`
+reattached cleanly; confirmed against `git ls-remote origin` that nothing was at risk (origin's own
+`main`/`HEAD` were already at run 52's commit).
+
+**This run's own stored prompt again asked for 2 items already shipped 13 runs ago:** lake-water
+flicker (fixed run 40, ADR-0048) and an F4 debug free-fly camera (shipped run 40, ADR-0049) —
+re-confirmed via `git log`/`DECISIONS.md` and the committed smoke suite's
+`checkWaterVertexShaderStatic`/`checkFreeCamera`, both still PASS. Same stale-prompt situation runs
+44-52 already flagged; no new work needed for either.
+
+**Sub-task 1 — decision and work (DECISIONS.md ADR-0071):** fresh full priority re-scan: `node
+--check` clean on every `src/3d/**/*.js`/`scripts/*.js` file; full smoke suite already at 12/12; no
+blocking bug; World Coverage unchanged past its gate; no file within 50 lines of its 600-line cap.
+Run 52's own "Next step" note named the concrete next item: FAZ 7 (still 0% code) should get a first
+dragon spawn point + basic flight AI now that its tooling blocker is confirmed resolved. Picked
+`black_dragon` (Free3D FBX, already rigged + 4 real animation clips) over the freshly-decimated
+`dragon_reference_v2_decimated.glb` (no skeleton) specifically so this first pass needs zero rigging
+work. Added `gameplay/dragons.js` (`createDragon`/`spawnConfiguredDragons`) and `DRAGON_CONFIG` to
+`gameplayConfig.js`: a single dragon (`umit-dragon-1`) circles at a fixed 90m altitude above `umit`
+(the player's own seat) on a closed 150m-radius circle, looping the real `Fly` clip with a constant
+visual bank into the turn — no ground collision/pathfinding/player-awareness, same minimal-first-pass
+scope FAZ 5/6 both used. Wired into `game3d.js` (spawn, per-frame `update(delta)`, `pagehide`
+dispose) the same 3-place pattern NPCs/animals already use.
+
+**Two real bugs found and fixed while building this, not assumed from the manifest:** loaded
+`black_dragon`'s FBX through a real headless-Chromium page before writing any config and found (1)
+`assets_manifest.json`'s `animationClips` list was wrong — claimed 6 clips including `Jump`/
+`Open Wings`, the file actually has 4: `Armature|Walk_New`/`Run_New`/`Idel_New` (sic)/`Fly_New` —
+corrected in the manifest; (2) the FBX's embedded material references its textures by bare filename,
+which `FBXLoader` resolves relative to the FBX's own directory by default, but the real files live in
+a `textures/` subfolder one level down — every texture 404'd and the dragon rendered untextured.
+Fixed by adding an optional `resourcePath` parameter to `AssetLoader.loadFBXModel` (defaults to `''`
+— zero behavior change for every existing Mixamo caller) and passing
+`DRAGON_CONFIG.TEXTURES_RESOURCE_PATH` for this one model. Also found the model's own
+`userData.unitScaleFactor` is `1` (unlike the Mixamo characters), so `AssetLoader.
+correctMixamoFbxScale` is a no-op for it — added a manual `DRAGON_CONFIG.SCALE` derived from the
+model's real measured bounding box (~7684x4546x9777 raw units) to bring it to a chosen 20m max
+dimension.
+
+**A rendering surprise, checked and confirmed not a bug:** a first verification screenshot came back
+as a flat black silhouette. Traced it by sampling the loaded diffuse texture's actual pixel values
+(drew it to a scratch 2D canvas, read RGB directly) — genuinely near-black (~15-40/255): `black_dragon`
+really is a very dark-scaled dragon skin, not a broken texture. A brighter lighting rig in the
+verification script (not a game-code change) confirmed clear wing/talon/tail detail once lit well.
+
+**Regression guard:** `node --check` clean on every touched file; all stay under the 600-line cap
+(`game3d.js` 476/600, `gameplayConfig.js` 500/600, `dragons.js` 137/600 new,
+`game3dSmokeChecksMovement.js` 400/600). `node scripts/checkAssetsManifest.js` — OK, 33 entries all
+resolve. Full committed smoke suite grew to **13** checks (added `checkDragonFlight`, asserting: not
+a placeholder mesh, has a resolved texture — guards the `resourcePath` fix specifically — stays
+exactly on-radius and level every sampled frame, and closes a full 360° lap) — all **13** PASS,
+including the 12 pre-existing ones unchanged. **Real headless-Chromium proof:** booted `game3d.html`
+for real module-resolution paths, built an independent scratch `THREE.Scene`/`WebGLRenderer` in-page
+(same pattern ADR-0070 used), loaded the real dragon via the real `createDragon`, advanced its `Fly`
+animation + circular-path update, waited for the real texture image to finish async-decoding (a
+separate one-shot-script timing issue, not the dark-skin finding above — the live game's own
+continuous render loop is unaffected), then rendered: a clearly dragon-shaped, winged, textured
+creature in flight, mid-flap pose, zero console/page errors throughout.
+
+**Memory-leak checklist:** `createDragon.dispose()` stops the `AnimationMixer` and calls
+`AssetLoader.disposeObject3D` (same pattern every other gameplay controller uses); `game3d.js`'s
+`pagehide` cleanup now also calls `state.dragons.forEach((dragon) => dragon.dispose())`.
+
+**Files changed this sub-task:** `src/3d/gameplay/dragons.js` (new, 137 lines),
+`src/3d/gameplay/gameplayConfig.js` (+DRAGON_CONFIG), `src/3d/game3d.js` (spawn/update/dispose
+wiring), `src/3d/assetLoader.js` (`loadFBXModel`'s new `resourcePath` option),
+`scripts/game3dSmokeChecksMovement.js` (+`checkDragonFlight`), `scripts/smokeTestGame3D.js`
+(registers it), `assets_manifest.json` (`black_dragon`'s `animationClips` corrected + notes),
+`DECISIONS.md` (new ADR-0071), `3D_GAME_PROGRESS.md` (this file). 9 files, ~330 new/changed lines —
+well under the 1200-line/25-file budget. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a gameplay-entity addition touches no terrain/streaming/chunk logic.**
+
+**Budget/time check:** 1 sub-task landed (~330 lines, 9 files) — under budget, but this sub-task
+covered real ground (FAZ 7's first code, 2 real bugs found+fixed via live rendering, a new smoke
+check, an ADR) and consumed a meaningful share of this run's real time budget between the FBX
+inspection, the texture-path fix, and the screenshot debugging. Stopping this run's chain here rather
+than reaching for a second, lower-value filler task — the next substantive FAZ 7 step (player-
+awareness/notice radius, or a second dragon/creature once a Meshy model is rigged) is better scoped
+as its own atomic sub-task next run.
+
+**Run totals (1 sub-task, run 53):** 9 files touched, ~330 new/changed lines. 1 commit,
+regression-guarded (13/13 smoke suite, `checkAssetsManifest.js`, real headless-Chromium proof of the
+dragon rendering/flying/texturing correctly) and pushed directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **FAZ 7 now has a first
+real dragon** (`umit-dragon-1`, circling `umit` at 90m/150m-radius, `black_dragon` model) — no longer
+0% code, but still a first pass: one dragon, one seat, no player-awareness, no combat/mount
+interaction, no takeoff/landing. A natural next FAZ 7 sub-task is player-awareness (a notice/roar
+radius, mirroring `gameplay/animals.js`'s flee-trigger pattern) or a second dragon using one of the
+still-unrigged Meshy models (`verdant_wyrm`, `spiked_serpent`) once rigged. FAZ 5's dialogue pilot
+(13/14, `jon-guard-1` deliberately excluded) and the world-event pool (16 entries, 501/600 headroom)
+both still have no fresh, non-filler growth available. FAZ 5/6's cart/dog-cat/bird gap still needs a
+human manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged.

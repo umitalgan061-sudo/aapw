@@ -190,10 +190,10 @@
       "vertices": 19400,
       "rigged": true,
       "animated": true,
-      "animationClips": ["Run cycle", "Walk cycle", "Idle", "Jump", "Open Wings", "Fly"],
+      "animationClips": ["Armature|Walk_New", "Armature|Run_New", "Armature|Idel_New", "Armature|Fly_New"],
       "deprecated": false,
       "replacedBy": null,
-      "notes": "ÖNEMLİ: Bu jenerik/orijinal bir ejderha tasarımıdır (3dhaupt'un kendi yaratımı), HBO/Game of Thrones'un 'Drogon' karakterinin kopyası DEĞİLDİR — o modeli kasıtlı olarak reddettik (telifli karakter replikası riski). FAZ 7 (Ejderhalar) için kullan. Manually downloaded by project owner (bu sitenin indirme akışı otomatik tıklamayla tetiklenmiyor)."
+      "notes": "ÖNEMLİ: Bu jenerik/orijinal bir ejderha tasarımıdır (3dhaupt'un kendi yaratımı), HBO/Game of Thrones'un 'Drogon' karakterinin kopyası DEĞİLDİR — o modeli kasıtlı olarak reddettik (telifli karakter replikası riski). FAZ 7 (Ejderhalar) için kullan — run 53'te ilk spawn+uçuş AI'ı için kullanıldı (gameplay/dragons.js, DECISIONS.md ADR-0071). animationClips run 53'te gerçek headless-Chromium render ile düzeltildi: eski liste (\"Run cycle\"/\"Walk cycle\"/\"Idle\"/\"Jump\"/\"Open Wings\"/\"Fly\") dosyanın gerçek klip adlarıyla eşleşmiyordu — gerçek dosyada sadece 4 klip var, \"Jump\"/\"Open Wings\" hiç yok. Ayrıca kaynak FBX'in gömülü doku referansları (Dragon_ground_color.jpg vb.) `textures/` alt klasöründe, FBXLoader'ın varsayılan çözümleme dizini (FBX'in kendi dizini) değil — AssetLoader.loadFBXModel'e yeni `resourcePath` seçeneği eklendi (run 53) bu yüzden. Manually downloaded by project owner (bu sitenin indirme akışı otomatik tıklamayla tetiklenmiyor)."
     },
     {
       "id": "elven_warrior",

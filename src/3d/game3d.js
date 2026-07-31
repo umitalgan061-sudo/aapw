@@ -36,7 +36,7 @@ import { gameEvents } from './eventBus.js';
 import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
 import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG } from './config.js';
-import { PLAYER_CONFIG, NPC_CONFIG, ANIMAL_CONFIG, INTERACTION_CONFIG } from './gameplay/gameplayConfig.js';
+import { PLAYER_CONFIG, NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG, INTERACTION_CONFIG } from './gameplay/gameplayConfig.js';
 import { KeyboardInput } from './input.js';
 import { TouchJoystick } from './ui/touchJoystick.js';
 import { InteractionPrompt } from './ui/interactionPrompt.js';
@@ -45,6 +45,7 @@ import { WorldEventToast } from './ui/worldEventToast.js';
 import { createPlayer } from './gameplay/player.js';
 import { spawnConfiguredNPCs } from './gameplay/npc.js';
 import { spawnConfiguredAnimals } from './gameplay/animals.js';
+import { spawnConfiguredDragons } from './gameplay/dragons.js';
 import { createInteractionController } from './gameplay/interaction.js';
 import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.js';
@@ -304,6 +305,19 @@ export async function initGame3D() {
 		for (const animal of state.animals) state.scene.add(animal.object3D);
 		console.info(`[game3d] Spawned ${state.animals.length} FAZ 6 animal(s).`);
 
+		// FAZ 7 (run 53): first dragon, circling a kingdom seat at a fixed altitude — see
+		// `gameplay/dragons.js` and DECISIONS.md ADR-0071. Same spawn-wiring shape as NPCs/animals
+		// above; altitude is ground-height-relative, not absolute, so `sampleClampedGroundY` is reused
+		// even though a flying creature never touches the ground itself.
+		state.dragons = await spawnConfiguredDragons({
+			assetLoader,
+			dragonConfig: DRAGON_CONFIG,
+			seatsById,
+			sampleGroundY: sampleClampedGroundY,
+		});
+		for (const dragon of state.dragons) state.scene.add(dragon.object3D);
+		console.info(`[game3d] Spawned ${state.dragons.length} FAZ 7 dragon(s).`);
+
 		state.dialogueBox = new DialogueBox();
 		// Owns the nearest-NPC tracking, keypress handling, and distance-based auto-close — see
 		// `gameplay/interaction.js` (extracted from here to stay under the 600-line cap, ADR-0033).
@@ -367,6 +381,9 @@ export async function initGame3D() {
 					.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z }));
 				animal.update(delta, playerPos, packmateFleePositions);
 			}
+			// FAZ 7 dragons (run 53): a closed-form circling flight path, no player-awareness — see
+			// `gameplay/dragons.js`'s own doc comment for why this is deliberately the smallest first pass.
+			for (const dragon of state.dragons) dragon.update(delta);
 			state.camera.position.x += playerPos.x - previousTargetX;
 			state.camera.position.z += playerPos.z - previousTargetZ;
 			state.controls.target.set(playerPos.x, playerPos.y + PLAYER_CONFIG.CAMERA_TARGET_HEIGHT_METERS, playerPos.z);
@@ -427,6 +444,7 @@ export async function initGame3D() {
 			state.player.dispose();
 			state.npcs.forEach((npc) => npc.dispose());
 			state.animals.forEach((animal) => animal.dispose());
+			state.dragons.forEach((dragon) => dragon.dispose());
 			state.controls.dispose();
 			state.freeCamera.dispose();
 			state.perfPanel.dispose();

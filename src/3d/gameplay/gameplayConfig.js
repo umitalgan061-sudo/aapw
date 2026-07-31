@@ -403,6 +403,56 @@ export const ANIMAL_CONFIG = Object.freeze({
 	]),
 });
 
+/** FAZ 7 (run 53), first pass: a single dragon flying a fixed circle above `umit` (the player's own
+ * seat, ADR-0046) — see `gameplay/dragons.js` and DECISIONS.md ADR-0071. Picked `black_dragon`
+ * (Free3D, `assets_manifest.json`) over the unrigged Meshy/Hitem3d reference models (`verdant_wyrm`,
+ * `dragon_reference_v2_decimated`, ...) specifically because it already ships a real skeleton +
+ * baked animation clips — no rigging work needed for a first flight pass. The manifest's own
+ * `animationClips` list (`"Run cycle"`, `"Walk cycle"`, `"Idle"`, `"Jump"`, `"Open Wings"`, `"Fly"`)
+ * turned out to not match the file's real clip names — confirmed by actually loading it through
+ * `AssetLoader.loadFBXModel` in a headless-Chromium page (not assumed from the manifest text): the
+ * file really has 4 clips, `Armature|Walk_New`, `Armature|Run_New`, `Armature|Idel_New` (sic — typo
+ * in the source asset itself, not this project's), `Armature|Fly_New`. No `Jump`/`Open Wings` clip
+ * exists. `assets_manifest.json`'s entry was corrected this run to match. */
+export const DRAGON_CONFIG = Object.freeze({
+	MODEL_URL: 'assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx',
+	/** The FBX's embedded material references its textures by bare filename (e.g.
+	 * `Dragon_ground_color.jpg`), which `FBXLoader` resolves relative to the FBX file's own directory
+	 * by default — but the real files live one level down, in `textures/`. Passed as
+	 * `AssetLoader.loadFBXModel`'s `resourcePath` option. Found via real 404s in a headless-Chromium
+	 * run (see `gameplay/dragons.js`), not assumed. */
+	TEXTURES_RESOURCE_PATH: 'assets/models/creatures/dragon/textures/',
+	FLY_CLIP_NAME: 'Armature|Fly_New',
+	/** Unlike the Mixamo characters (`PLAYER_CONFIG`/`NPC_CONFIG`), this FBX's own
+	 * `userData.unitScaleFactor` is already `1` (confirmed the same headless-render way as the clip
+	 * names above) — `AssetLoader.correctMixamoFbxScale` is therefore a no-op for it, so this needs
+	 * its own manual scale instead of relying on that shared helper. The file's raw bounding box
+	 * measured ~7684x4546x9777 units; `SCALE` brings its largest raw dimension down to
+	 * `TARGET_MAX_DIMENSION_METERS` below (20 / 9776.5626 ≈ 0.0020457) — a large, dramatic flying
+	 * creature (bigger than the wolf/horse/NPCs) without hand-guessing a factor. */
+	SCALE: 20 / 9776.562514437788,
+	TARGET_MAX_DIMENSION_METERS: 20,
+	/** World-space circling flight, centered on a `world/settlements.js` kingdom-seat id + a fixed
+	 * altitude above that seat's own ground height (not absolute Y — keeps clearance consistent even
+	 * though `sampleGroundY` varies slightly across the terrain under the flight path). No ground
+	 * collision/pathfinding — the smallest thing that reads as "a dragon patrolling the sky above a
+	 * castle," same scope discipline `gameplay/animals.js`'s straight-line patrol/flee already set. */
+	SPAWNS: Object.freeze([
+		Object.freeze({
+			id: 'umit-dragon-1',
+			seatId: 'umit',
+			altitudeMeters: 90,
+			circleRadiusMeters: 150,
+			/** Tangential speed around the circle; combined with `circleRadiusMeters` this gives an
+			 * angular speed of speed/radius ≈ 0.08 rad/s — a slow, majestic patrol, not a dive-bomb. */
+			speedMps: 12,
+			/** Constant visual roll (radians) into the turn while circling — a circling dragon banks
+			 * continuously, unlike the wolves' straight-line patrol which never needs one. */
+			bankAngleRadians: 0.35,
+		}),
+	]),
+});
+
 /** FAZ 5 (run 32-33, per-NPC content run 40): `ui/interactionPrompt.js` shows a proximity
  * *affordance* ("E - Selamla") when the player is near any NPC; pressing E while it's showing opens
  * `ui/dialogueBox.js` with that NPC's own greeting — see DECISIONS.md ADR-0033 (the open/close
