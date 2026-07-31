@@ -50,7 +50,7 @@ import { createInteractionController } from './gameplay/interaction.js';
 import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.js';
 import { disposeRiverMesh, disposeWaterfallMesh } from './world/rivers.js';
-import { disposeSettlements, mapToWorldXZ } from './world/settlements.js';
+import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.js';
 import { resolveCameraCollision } from './camera.js';
 import { updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { updateStarfield, disposeStarfield } from './stars.js';
@@ -151,6 +151,7 @@ function collectCameraCollidables(state, worldX, worldZ) {
 		}
 	}
 	for (const part of state.settlements.children) _cameraCollidables.push(part);
+	for (const realCastle of state.realCastles.children) _cameraCollidables.push(realCastle);
 	return _cameraCollidables;
 }
 
@@ -221,6 +222,18 @@ export async function initGame3D() {
 
 		const state = createScene(canvas);
 		const unbindResize = bindResize(state);
+
+		// FAZ 3: real, decimated Meshy AI castle models at 7 kingdom seats (DECISIONS.md ADR-0074),
+		// replacing the procedural keep/tower/roof `createSettlements` already skipped for these same
+		// seats (see `world/settlements.js`'s `CASTLE_MODEL_ASSIGNMENTS`). Loaded after the scene but
+		// before the player/loading-overlay hide, same "keep the overlay up for every model download"
+		// reasoning the player/NPC/animal/dragon spawns below already use.
+		state.realCastles = await spawnRealCastleModels({
+			assetLoader,
+			seats: state.settlementSeats,
+			seed: WORLD_DEFAULTS.WORLD_SEED,
+		});
+		state.scene.add(state.realCastles);
 
 		// FAZ 4: playable character. Loaded after the terrain/sky/water scene so the loading overlay
 		// (hidden only once GAME_READY's "phase1-scene" fires below) stays up for the ~6MB of
@@ -461,6 +474,7 @@ export async function initGame3D() {
 			if (state.river) disposeRiverMesh(state.river);
 			state.waterfalls.forEach(disposeWaterfallMesh);
 			disposeSettlements(state.settlements);
+			disposeRealCastleModels(state.realCastles);
 			disposeDayNightLighting(state.scene, state.lights);
 			state.renderer.dispose();
 		}, { once: true });

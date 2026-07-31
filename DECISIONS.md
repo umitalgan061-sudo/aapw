@@ -5422,3 +5422,121 @@ constant any future terrain-color tuning pass should adjust rather than re-deriv
 inline. The clamp is now real defensive correctness for `y / maxHeightMeters`, independent of
 whether today's specific noise implementation needs it. No terrain/streaming/chunk logic changed —
 World Coverage is unaffected (96.2% desktop / 4.5% mobile, unchanged).
+
+## ADR-0074: Real castle models at 7 kingdom seats — decimated first, then integrated
+
+**Status:** Accepted (run 54).
+
+**Context:** Priority #1.5: `assets_manifest.json`'s 7 manually-downloaded real castle models
+(`castle_brickstone_citadel`, `castle_on_a_rock`, `castle_emerald_citadel`,
+`castle_fortress_of_the_crown`, `castle_greystone_castle`, `castle_icebound_citadel`,
+`castle_walled_city_fortress`) were all `hasMaterial: false` and unreferenced anywhere in `src/` —
+every kingdom seat still used FAZ 3's procedural box-keep/cylinder-tower/cone-roof placeholder
+(`world/settlements.js`), even though real, textured-by-material (if not by baked texture) castle
+geometry had been sitting unused in the repo since an earlier manual asset-download step.
+
+**A real performance blocker found before writing any integration code, not assumed:** rendered all
+7 raw `.glb` files through the real `GLTFLoader` in a headless-Chromium page and measured actual
+triangle counts (not the manifest's old "unmeasured, ~X MB raw" placeholders): 144,084 to 478,460
+triangles each, ~2.49M combined — each file is a single merged mesh (`meshCount: 1`), no LOD, no
+submesh split between walls/roof. `debug/perfPanel.js`'s desktop budget is 5,000,000 triangles total,
+and a real headless boot measured 337,993 triangles already in use at the default boot-preview state
+alone (terrain chunks + player + NPCs/animals/dragon) — adding 2.49M more from 7 *always-rendered*
+static settlement models (not streamed/culled the way terrain chunks are) would have been a real,
+measurable regression against priority item 4 (performance budget), not a hypothetical one. Loading
+the raw files as-is was rejected before writing any settlement-integration code.
+
+**Decision:** Decimated all 7 models first, as their own discrete step, using the exact pipeline
+DECISIONS.md ADR-0070 already proved works in this sandbox: `gltf-transform weld` -> `simplify
+--ratio 0.08 --error 0.03` -> `prune` (no `--overwrite` flag — that CLI has none; an earlier attempt
+using one silently no-opped every file until caught and fixed). Result: 11,526-38,260 triangles per
+model (~199K combined, a 92-97% cut per file), 138.97 KB-688.48 KB per file (90-95% size cut from
+the 2.5-11.5MB originals) — comfortably inside the desktop triangle budget even added on top of the
+already-measured 337,993 baseline. Saved as `<name>_decimated.glb` alongside each original (same
+convention ADR-0070 established for the dragon), registered as 7 new `assets_manifest.json` entries;
+the 7 originals' own entries gained a measured triangle count (were "unmeasured") and `replacedBy`
+pointing at their decimated counterpart, kept for provenance/re-decimation exactly like
+`dragon_reference_v2`'s note already does.
+
+Then wired the decimated models into `world/settlements.js`: a new `CASTLE_MODEL_ASSIGNMENTS`
+constant names 7 `{seatId, assetId, file}` triples (theme-matched — see Consequence); `createSettlements`
+now excludes those 7 seats from its procedural `InstancedMesh` construction (sizing the mesh to
+exactly the remaining 7 procedural seats, not leaving unwritten identity-matrix instances rendering
+phantom castles at the origin) while still returning their `{id, x, z, groundY}` in `seats` (needed
+by the settlement collider and any future NPC/gameplay placement at those same seats). A new async
+`spawnRealCastleModels({assetLoader, seats, seed})` loads each assigned file via the existing
+`AssetLoader.loadModel` (already handles GLTF/GLB with a graceful placeholder-box fallback — no new
+loader code needed), replaces the model's own material with a seeded `createStoneMaterial` (uv
+`repeat` computed against a shared `REAL_CASTLE_FOOTPRINT_METERS` target, the same "repeat
+proportional to real size" approach `createSettlements` already used for the procedural keep),
+uniformly scales each model so its largest bounding-box dimension hits that target footprint (~46m,
+close to the procedural castle's own ~40m tower-to-tower spread so the shared settlement collider
+radius stays a reasonable approximation), and positions it so the model's own lowest point rests
+exactly on `sampleHeightMeters`'s real terrain height at that seat — not a guessed flat height.
+Wired into `game3d.js`'s async init sequence (same "keep the loading overlay up for every model
+download" spot NPCs/animals/dragons already use), added to the F4 chase-camera collision list
+(`collectCameraCollidables`) alongside the procedural settlements group, and disposed (new
+`disposeRealCastleModels`, reusing `world/materials.js`'s `disposeCastleMaterial`) in the same
+`pagehide` cleanup block as everything else.
+
+**Theme-matched seat assignments** (mirroring the report's own `icebound_citadel` -> northern-seat
+example): `jon` (northernmost seat by map coordinate) <- `castle_icebound_citadel_decimated`;
+`umit` (the player's own home seat) <- `castle_walled_city_fortress_decimated` (the manifest's own
+largest/most-detailed model, matching its "major/capital settlement" note); `cersei` (this world's
+reigning "crown" character) <- `castle_fortress_of_the_crown_decimated` (the manifest's own
+"King's Landing equivalent" note); `balon` (House Greyjoy, Iron Islands) <- `castle_castle_on_a_rock
+_decimated` (coastal/cliffside theme); `ziya` (House Tyrell, green/gold rose sigil) <-
+`castle_emerald_citadel_decimated`; `berkalp` (House Stark, grey/direwolf) <-
+`castle_greystone_castle_decimated`; `doran` (House Martell/Dorne, sandstone architecture) <-
+`castle_brickstone_citadel_decimated`. The remaining 7 seats (`berk`, `olena`, `stannis`, `robin`,
+`twin`, `Xaro`, `Night King`) keep the unchanged procedural castle.
+
+**Verified:**
+- `node --check` clean on every touched file (`world/settlements.js` 319/600, `game3d.js` 494/600).
+- `node -e "JSON.parse(...)"` + `node scripts/checkAssetsManifest.js` — valid JSON, all 40 entries
+  (33 + 7 new `_decimated` entries) resolve to real files.
+- Full committed smoke suite: 14/14 PASS, unchanged — notably `checkSettlementCollider`, which
+  depends on `seats`' positions/count being correct, still reports the exact same `17.40m` push
+  distance as before this change (the 7 excluded seats still get correct `{x, z, groundY}` from the
+  same `KINGDOM_SEATS.forEach` loop, just skip the procedural `InstancedMesh` writes).
+- **Real headless-Chromium proof, not just gltf-transform's own report:** rendered each of the 7
+  decimated files independently through the real `GLTFLoader` and screenshotted them in isolation —
+  all 7 read clearly as their named castle (towers, walls, crenellations, banners/flags on
+  `fortress_of_the_crown`); `icebound_citadel`'s jagged/spiky look was checked against its own
+  un-decimated bounding box (already a naturally flat, ~0.36-height-ratio shape before any
+  simplification) and confirmed to be the model's own ice-formation geometry, not a decimation
+  artifact. Then booted the real, live `game3d.html` end-to-end: zero console/page errors: a
+  screenshot at the real default spawn view shows a visibly different, more detailed, irregular
+  fortress silhouette directly behind the player at `umit`'s seat (replacing the old flat-topped
+  procedural box), and an F4 wide-angle pass confirms the same real castle silhouette on the horizon
+  from a distance with the FAZ 7 dragon visible circling nearby, unaffected by this change.
+
+**Memory-leak checklist:** `spawnRealCastleModels`'s models are disposed via
+`disposeRealCastleModels` (new — geometry + `disposeCastleMaterial` per model, mirroring
+`disposeSettlements`'s existing pattern) in the same `pagehide` block `disposeSettlements` already
+runs in. No new event listeners/timers/DOM.
+
+**Alternatives considered:**
+- *Ship the raw, un-decimated models.* Rejected outright once the real triangle-count measurement
+  (2.49M combined) came back — would have meaningfully eaten into the desktop triangle budget for 7
+  *always-rendered* static props, a real, measured performance regression risk, not a stylistic
+  preference.
+- *Split walls vs. roof onto separate materials, matching the procedural castles' 2-material look.*
+  Rejected — every real model is a single merged mesh with no submesh/material-group separation to
+  target (confirmed by inspecting `meshCount`/material names on every one of the 7 files, not
+  assumed); one uniform stone material applied to the whole model is the only option without a
+  separate, out-of-scope re-authoring/UV-remapping pass on the source geometry.
+- *Keep the procedural `InstancedMesh` sized at all 14 seats and just leave the 7 real-model seats'
+  instance matrices at their default identity transform.* Rejected — an uninitialized `InstancedMesh`
+  slot renders a real (if degenerate/at-origin) instance, not nothing; sizing the mesh to exactly the
+  7 remaining procedural seats is both correct and avoids 7 phantom keeps stacked at the world
+  origin.
+
+**Consequence:** 7 of 14 kingdom seats now show real, decimated, seeded-stone-material castle models
+instead of the FAZ 3 procedural placeholder; the other 7 are unchanged. `assets_manifest.json` grew
+from 33 to 40 entries. World Coverage is unaffected (96.2% desktop / 4.5% mobile — no
+terrain/streaming/chunk logic touched). The 7 raw originals remain in the repo, unused by code,
+available for a future re-decimation at a different ratio if one is ever needed. A future pass could
+still explore per-seat rotation variety (every real model currently loads at its own default
+orientation) or a lighter decimation ratio for `umit`'s seat specifically (the player's own home,
+visited most) — not blocking, just not this sub-task's scope.

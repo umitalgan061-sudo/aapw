@@ -356,10 +356,25 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~7.5MB raw",
+      "polygons": "438,250 triangles (measured, run 54), ~7.5MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_brickstone_citadel_decimated",
+      "notes": "AI-generated castle, geometry only (no texture — needs a procedural PBR material, same technique FAZ 3 already built for its settlement system). One of 7 castle variants added this batch for visual variety alongside the existing procedural kingdom-seat settlements. Kept at full size for provenance/re-decimation; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074)."
+    },
+    {
+      "id": "castle_brickstone_citadel_decimated",
+      "file": "assets/models/settlements/castles/brickstone_citadel_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "35,052 triangles (measured), 420.84 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated castle, geometry only (no texture — needs a procedural PBR material, same technique FAZ 3 already built for its settlement system). One of 7 castle variants added this batch for visual variety alongside the existing procedural kingdom-seat settlements."
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_brickstone_citadel (same pipeline as DECISIONS.md ADR-0070's dragon decimation). Assigned to the `doran` kingdom seat (DECISIONS.md ADR-0074) — Dornish sandstone/brick architecture theme match. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file."
     },
     {
       "id": "castle_on_a_rock",
@@ -371,10 +386,25 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~6.9MB raw",
+      "polygons": "403,870 triangles (measured, run 54), ~6.9MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_castle_on_a_rock_decimated",
+      "notes": "AI-generated castle on a rocky outcrop, geometry only. Good candidate for a coastal/cliffside kingdom seat. Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074)."
+    },
+    {
+      "id": "castle_castle_on_a_rock_decimated",
+      "file": "assets/models/settlements/castles/castle_on_a_rock_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "32,270 triangles (measured), 384.26 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated castle on a rocky outcrop, geometry only. Good candidate for a coastal/cliffside kingdom seat."
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_on_a_rock. Assigned to the `balon` (Greyjoy) kingdom seat (DECISIONS.md ADR-0074) — Iron Islands coastal/rock theme match. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file."
     },
     {
       "id": "castle_emerald_citadel",
@@ -386,10 +416,25 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~5.9MB raw",
+      "polygons": "342,614 triangles (measured, run 54), ~5.9MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_emerald_citadel_decimated",
+      "notes": "AI-generated castle, green/emerald theme, geometry only. Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074)."
+    },
+    {
+      "id": "castle_emerald_citadel_decimated",
+      "file": "assets/models/settlements/castles/emerald_citadel_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "27,382 triangles (measured), 327.01 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated castle, green/emerald theme, geometry only."
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_emerald_citadel. Assigned to the `ziya` (Tyrell) kingdom seat (DECISIONS.md ADR-0074) — House Tyrell's own green/gold rose sigil theme match. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file."
     },
     {
       "id": "castle_fortress_of_the_crown",
@@ -401,10 +446,25 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~7.7MB raw",
+      "polygons": "446,828 triangles (measured, run 54), ~7.7MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_fortress_of_the_crown_decimated",
+      "notes": "AI-generated grand fortress, geometry only. Good candidate for a capital/throne-seat kingdom (e.g. King's Landing equivalent). Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074)."
+    },
+    {
+      "id": "castle_fortress_of_the_crown_decimated",
+      "file": "assets/models/settlements/castles/fortress_of_the_crown_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "35,746 triangles (measured), 428.89 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated grand fortress, geometry only. Good candidate for a capital/throne-seat kingdom (e.g. King's Landing equivalent)."
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_fortress_of_the_crown. Assigned to the `cersei` (Lannister) kingdom seat (DECISIONS.md ADR-0074) — the manifest's own King's Landing/capital-seat suggestion, and cersei is this world's actual reigning-crown character in canon. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file."
     },
     {
       "id": "castle_greystone_castle",
@@ -416,10 +476,25 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~2.5MB raw",
+      "polygons": "144,084 triangles (measured, run 54), ~2.5MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_greystone_castle_decimated",
+      "notes": "AI-generated grey stone castle, geometry only, smallest of the batch. Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074)."
+    },
+    {
+      "id": "castle_greystone_castle_decimated",
+      "file": "assets/models/settlements/castles/greystone_castle_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "11,526 triangles (measured), 138.97 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated grey stone castle, geometry only, smallest of the batch."
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_greystone_castle. Assigned to the `berkalp` (Stark) kingdom seat (DECISIONS.md ADR-0074) — grey stone matches House Stark's own grey/direwolf theme. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file."
     },
     {
       "id": "castle_icebound_citadel",
@@ -431,10 +506,25 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~4.0MB raw",
+      "polygons": "234,716 triangles (measured, run 54), ~4.0MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_icebound_citadel_decimated",
+      "notes": "AI-generated ice/frost-themed castle, geometry only. Good candidate for a northern kingdom seat (e.g. Winterfell equivalent). Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074)."
+    },
+    {
+      "id": "castle_icebound_citadel_decimated",
+      "file": "assets/models/settlements/castles/icebound_citadel_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "18,746 triangles (measured), 224.08 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated ice/frost-themed castle, geometry only. Good candidate for a northern kingdom seat (e.g. Winterfell equivalent)."
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_icebound_citadel. Assigned to the `jon` kingdom seat (DECISIONS.md ADR-0074) — this project's own manifest note's exact suggested match (northernmost seat by map coordinate, character 'Jon Snow'/Stark = the Wall/North in canon). Visually reads as jagged ice-spike/frost formations rather than traditional stone crenellations even before decimation — a real render, checked directly, not a decimation artifact; the source model's own low bounding-box height (~0.36 of its footprint) confirms a naturally flat/spiky ice-formation shape. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial) still reads fine over this geometry — the material's job is surface shading, not silhouette. Not baked into this file."
     },
     {
       "id": "castle_walled_city_fortress",
@@ -446,10 +536,25 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~11.0MB raw",
+      "polygons": "478,460 triangles (measured, run 54), ~11.0MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_walled_city_fortress_decimated",
+      "notes": "AI-generated walled city with fortress, geometry only, largest of the castle batch — likely the most detailed, good for a major/capital settlement. Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074)."
+    },
+    {
+      "id": "castle_walled_city_fortress_decimated",
+      "file": "assets/models/settlements/castles/walled_city_fortress_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "38,260 triangles (measured), 688.48 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated walled city with fortress, geometry only, largest of the castle batch — likely the most detailed, good for a major/capital settlement."
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_walled_city_fortress. Assigned to the `umit` kingdom seat (DECISIONS.md ADR-0074) — the player's own home seat, and this manifest's own largest/most-detailed entry, matching the note's 'major/capital settlement' suggestion. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file."
     },
     {
       "id": "animal_ivory_stallion",

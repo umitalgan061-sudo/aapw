@@ -5732,19 +5732,66 @@ generation logic.**
 **Budget/time check after sub-task 1:** the terrain-color investigation (confirming the report's
 suspected mechanism wasn't actually the live cause, finding the real one, and building/rebuilding
 real-screenshot verification tooling after an accelerated-clock approach proved unreliable) took
-substantially longer real time than a typical single sub-task here. Given the real time already
-spent on this run reaching a fully-verified fix for the operator's own explicit #1 priority, and
-this project's own rule to verify before committing rather than rush, this run stops its chain after
-this one sub-task rather than starting the much larger FAZ 3 real-castle-model item (#1.5, ~7 models,
-GLTFLoader + procedural-material integration, at least 7 kingdom-seat swaps) fresh with reduced time
-remaining — that item is better started at the top of its own run's budget than partway through this
-one's, matching the same reasoning prior runs used to defer rather than rush a multi-step item.
+substantially longer real time than a typical single sub-task here. The operator explicitly asked to
+continue past this run's initial stopping point, so the chain proceeded into sub-task 2 below rather
+than ending here.
 
-**Next step for the next run:** re-scan the priority order fresh, as always. **Terrain ground color
-is now fixed and real-screenshot-verified** (ADR-0073) — the next item in the stored priority order
-is #1.5, the real manual-downloaded castle models (`castle_brickstone_citadel` and 6 others, all
-`hasMaterial: false`, unused in `src/`): load via `GLTFLoader`, apply `materials.js`'s
-`createStoneMaterial`/`createRoofMaterial` technique per-model, swap in for at least 7 kingdom seats
-in place of the FAZ 3 procedural placeholder, theme-match (e.g. `icebound_citadel` -> a northern
-seat), update `hasMaterial` in the manifest, verify with a real screenshot, ADR. No blocking bugs,
-syntax errors, or regressions found this run beyond the terrain-color item itself.
+**Sub-task 2 — decision and work (DECISIONS.md ADR-0074):** priority #1.5 — the 7 real,
+manually-downloaded castle models (`castle_brickstone_citadel` and 6 others), all `hasMaterial:
+false`, unreferenced anywhere in `src/`. Measured their real triangle counts through the actual
+`GLTFLoader` before writing any integration code (not trusting the manifest's old "unmeasured"
+placeholders): 144K-478K triangles each, ~2.49M combined, each a single merged mesh — loading them
+raw would have meaningfully eaten into the 5,000,000-triangle desktop budget `debug/perfPanel.js`
+already enforces, for 7 *always-rendered* static props (not streamed/culled like terrain). Decimated
+all 7 first, as their own step, reusing DECISIONS.md ADR-0070's exact proven `gltf-transform weld ->
+simplify --ratio 0.08 --error 0.03 -> prune` pipeline (an early attempt with an `--overwrite` flag
+silently no-opped every file — that flag doesn't exist for this CLI — caught and fixed before
+trusting any output). Result: 11.5K-38K triangles per model, ~199K combined, 90-95% smaller files.
+
+Wired the 7 decimated models into `world/settlements.js`: a new `CASTLE_MODEL_ASSIGNMENTS` constant
+theme-matches each to a seat (`jon` <- ice/frost citadel [northernmost seat], `umit` [the player's
+own seat] <- the largest/most-detailed model, `cersei` <- fortress of the crown [King's Landing
+equivalent], `balon`/Greyjoy <- castle on a rock, `ziya`/Tyrell <- emerald citadel, `berkalp`/Stark
+<- greystone castle, `doran`/Martell <- brickstone citadel); `createSettlements` now excludes those
+7 seats from its procedural `InstancedMesh` (correctly sized to the remaining 7, not left with
+unwritten phantom-castle instances at the origin) while still returning their real `{x, z, groundY}`;
+a new async `spawnRealCastleModels` loads each via the existing `AssetLoader.loadModel`, applies a
+seeded `createStoneMaterial` (same technique the procedural castles use), scales each to a shared
+~46m footprint (close to the procedural castle's own ~40m spread, so the existing settlement
+collider stays a reasonable approximation), and rests it on the real terrain height at its seat.
+Wired into `game3d.js`'s async init sequence, the F4 chase-camera collision list, and `pagehide`
+disposal (new `disposeRealCastleModels`).
+
+**Verified:** `node --check` clean (`settlements.js` 319/600, `game3d.js` 494/600). Manifest grew
+33 -> 40 entries, still valid JSON, `checkAssetsManifest.js` OK. Full smoke suite: 14/14 PASS
+unchanged — `checkSettlementCollider` reports the exact same `17.40m` as before, confirming the 7
+excluded seats still resolve correct positions. Each of the 7 decimated models individually rendered
+and screenshotted through the real `GLTFLoader` — all read clearly as their named castle.
+**Real headless-Chromium proof of the live integration:** booted the real `game3d.html`, zero
+console/page errors; a screenshot at the real default spawn view shows a visibly different, more
+detailed, irregular fortress silhouette directly behind the player at `umit`'s seat (replacing the
+old flat-topped procedural box); an F4 wide-angle pass confirms the same silhouette on the horizon
+from a distance, with the FAZ 7 dragon still circling nearby, unaffected.
+
+**Files changed this sub-task:** `src/3d/world/settlements.js`, `src/3d/game3d.js`,
+`assets_manifest.json` (+7 entries), 7 new `assets/models/settlements/castles/*_decimated.glb`
+files, `DECISIONS.md` (ADR-0074), `3D_GAME_PROGRESS.md`. 6 tracked-code/doc files + 7 binary assets.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — settlement-model swaps touch no terrain/streaming/chunk logic.**
+
+**Performance:** ~199K real-castle triangles added (measured), combined with the ~338K baseline
+measured at boot-preview state — both comfortably inside the 5,000,000 desktop / 500,000 mobile
+triangle budgets `debug/perfPanel.js` already enforces. No new draw-call-heavy pattern (7 individual
+meshes, not instanced, but a small, fixed, one-time count).
+
+**Run totals (2 sub-tasks, run 54):** terrain-color fix (ADR-0073) + real castle-model integration
+(ADR-0074). Two commits, each regression-guarded (14/14 smoke suite unchanged both times) and pushed
+directly to `main`.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. **Terrain ground color**
+(ADR-0073) **and 7 real castle models** (ADR-0074) are both done and real-screenshot-verified this
+run. The remaining 7 kingdom seats (`berk`, `olena`, `stannis`, `robin`, `twin`, `Xaro`, `Night
+King`) still use the FAZ 3 procedural castle — a natural future sub-task if more real models are
+ever sourced, but not blocking (FAZ 3's own procedural system is a real, intentional first pass, not
+a placeholder bug). No blocking bugs, syntax errors, or regressions found this run.

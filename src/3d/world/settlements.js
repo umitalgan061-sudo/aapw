@@ -49,6 +49,35 @@ export const KINGDOM_SEATS = Object.freeze([
 const STONE_COLOR = new THREE.Color(0x8a8578);
 
 /**
+ * Real, decimated Meshy AI castle models (DECISIONS.md ADR-0074) — replace the procedural
+ * keep/tower/roof at these 7 seats. Each `file` is a `gltf-transform weld -> simplify -> prune`
+ * output (see `assets_manifest.json`'s own `_decimated` entries), not the raw multi-hundred-K-
+ * triangle original — see that ADR for why the raw files would blow the desktop triangle budget on
+ * their own. Thematic seat matches: `jon` (northernmost seat) <- ice/frost citadel, `umit` (player's
+ * own seat, largest/most-detailed model) <- walled city fortress, `cersei` (this world's reigning
+ * "crown" character) <- fortress of the crown, `balon` (Greyjoy/Iron Islands) <- castle on a rock,
+ * `ziya` (Tyrell, green/gold rose sigil) <- emerald citadel, `berkalp` (Stark, grey/direwolf) <-
+ * greystone castle, `doran` (Martell/Dorne, sandstone) <- brickstone citadel. The remaining 7 seats
+ * keep the procedural castle unchanged.
+ */
+export const CASTLE_MODEL_ASSIGNMENTS = Object.freeze([
+	Object.freeze({ seatId: 'jon', assetId: 'castle_icebound_citadel_decimated', file: 'assets/models/settlements/castles/icebound_citadel_decimated.glb' }),
+	Object.freeze({ seatId: 'umit', assetId: 'castle_walled_city_fortress_decimated', file: 'assets/models/settlements/castles/walled_city_fortress_decimated.glb' }),
+	Object.freeze({ seatId: 'cersei', assetId: 'castle_fortress_of_the_crown_decimated', file: 'assets/models/settlements/castles/fortress_of_the_crown_decimated.glb' }),
+	Object.freeze({ seatId: 'balon', assetId: 'castle_castle_on_a_rock_decimated', file: 'assets/models/settlements/castles/castle_on_a_rock_decimated.glb' }),
+	Object.freeze({ seatId: 'ziya', assetId: 'castle_emerald_citadel_decimated', file: 'assets/models/settlements/castles/emerald_citadel_decimated.glb' }),
+	Object.freeze({ seatId: 'berkalp', assetId: 'castle_greystone_castle_decimated', file: 'assets/models/settlements/castles/greystone_castle_decimated.glb' }),
+	Object.freeze({ seatId: 'doran', assetId: 'castle_brickstone_citadel_decimated', file: 'assets/models/settlements/castles/brickstone_citadel_decimated.glb' }),
+]);
+
+/** Target footprint (largest horizontal bounding-box dimension), in meters, real castle models are
+ * uniformly scaled to — close to the procedural castle's own ~40m tower-to-tower spread
+ * (`SETTLEMENT_CONFIG.TOWER_CORNER_OFFSET_METERS` 20 * 2) so `physics.js`'s settlement collider
+ * (sized from the same procedural constants, applied uniformly to every seat) stays a reasonable
+ * approximation for these seats too, without needing a per-seat collider radius. */
+const REAL_CASTLE_FOOTPRINT_METERS = 46;
+
+/**
  * Converts a 2D-map coordinate (same space as `INIT_KINGDOMS`' `x`/`y`) to a world-space `(x, z)`
  * in meters. The padded kingdom bounding box's *center* (`mapBounds`) maps to the world origin
  * `(0, 0)` — the same origin `world/chunkManager.js`'s chunk `(0, 0)` is centered on — so this
@@ -104,8 +133,13 @@ export function createSettlements({ sampleHeightMeters, seaLevelMeters, mapBound
 		MIN_GROUND_CLEARANCE_METERS,
 	} = settlementConfig;
 
-	const seatCount = KINGDOM_SEATS.length;
-	const towerCount = seatCount * 4;
+	// Seats in CASTLE_MODEL_ASSIGNMENTS get a real model instead (spawnRealCastleModels, loaded
+	// async by the caller) — excluded here so the procedural InstancedMesh count matches exactly
+	// what it actually places, not the full 14 (an InstancedMesh sized larger than the matrices
+	// actually written to it would render leftover identity-matrix instances at the world origin).
+	const realModelSeatIds = new Set(CASTLE_MODEL_ASSIGNMENTS.map((assignment) => assignment.seatId));
+	const proceduralSeatCount = KINGDOM_SEATS.length - realModelSeatIds.size;
+	const towerCount = proceduralSeatCount * 4;
 
 	const keepGeometry = new THREE.BoxGeometry(KEEP_WIDTH_METERS, KEEP_HEIGHT_METERS, KEEP_DEPTH_METERS);
 	const towerGeometry = new THREE.CylinderGeometry(TOWER_RADIUS_TOP_METERS, TOWER_RADIUS_BOTTOM_METERS, TOWER_HEIGHT_METERS, 8);
@@ -119,7 +153,7 @@ export function createSettlements({ sampleHeightMeters, seaLevelMeters, mapBound
 	const stoneMaterial = createStoneMaterial({ seed, baseColor: STONE_COLOR, repeat: stoneRepeat });
 	const roofMaterial = createRoofMaterial({ seed: seed + 1, repeat: roofRepeat });
 
-	const keepMesh = new THREE.InstancedMesh(keepGeometry, stoneMaterial, seatCount);
+	const keepMesh = new THREE.InstancedMesh(keepGeometry, stoneMaterial, proceduralSeatCount);
 	const towerMesh = new THREE.InstancedMesh(towerGeometry, stoneMaterial, towerCount);
 	const roofMesh = new THREE.InstancedMesh(roofGeometry, roofMaterial, towerCount);
 	keepMesh.name = 'settlements-keeps';
@@ -129,15 +163,21 @@ export function createSettlements({ sampleHeightMeters, seaLevelMeters, mapBound
 	const dummy = new THREE.Object3D();
 	const roofColor = new THREE.Color();
 	const seats = [];
+	let keepIndex = 0;
 	let towerIndex = 0;
 
-	KINGDOM_SEATS.forEach((seat, seatIndex) => {
+	KINGDOM_SEATS.forEach((seat) => {
 		const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, mapBounds, metersPerMapUnit);
 		const groundY = Math.max(sampleHeightMeters(x, z), seaLevelMeters + MIN_GROUND_CLEARANCE_METERS);
 
+		seats.push({ id: seat.id, name: seat.name, x, z, groundY });
+
+		if (realModelSeatIds.has(seat.id)) return; // real model placed separately — see spawnRealCastleModels.
+
 		dummy.position.set(x, groundY + KEEP_HEIGHT_METERS / 2, z);
 		dummy.updateMatrix();
-		keepMesh.setMatrixAt(seatIndex, dummy.matrix);
+		keepMesh.setMatrixAt(keepIndex, dummy.matrix);
+		keepIndex++;
 
 		roofColor.set(seat.color);
 		const cornerOffsets = [
@@ -161,8 +201,6 @@ export function createSettlements({ sampleHeightMeters, seaLevelMeters, mapBound
 
 			towerIndex++;
 		}
-
-		seats.push({ id: seat.id, name: seat.name, x, z, groundY });
 	});
 
 	keepMesh.instanceMatrix.needsUpdate = true;
@@ -175,6 +213,72 @@ export function createSettlements({ sampleHeightMeters, seaLevelMeters, mapBound
 	group.add(keepMesh, towerMesh, roofMesh);
 
 	return { group, seats };
+}
+
+/**
+ * Loads the real castle models named in `CASTLE_MODEL_ASSIGNMENTS`, applies a seeded stone
+ * material (`world/materials.js`'s `createStoneMaterial` — same technique/look as the procedural
+ * castles, just sized to each model's own real footprint), scales each to
+ * `REAL_CASTLE_FOOTPRINT_METERS`, and positions it at its assigned seat's real `(x, groundY, z)`
+ * (from `createSettlements`'s returned `seats`, so real models sit on the same terrain height the
+ * procedural castles use — see `world/README.md`'s "Sea level" convention). Async because it goes
+ * through `AssetLoader.loadModel` — call after `createSettlements` and add the returned group to
+ * the scene the same way `gameplay/npc.js`'s/`gameplay/dragons.js`'s spawn functions are awaited in
+ * `game3d.js`'s init sequence, not from `sceneManager.js`'s synchronous `createScene`.
+ * @param {object} options
+ * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
+ * @param {{id: string, x: number, z: number, groundY: number}[]} options.seats `createSettlements`'s returned `seats`.
+ * @param {number} options.seed Same world seed every other procedural generator here uses, offset
+ *   so each model's stone material tiles independently rather than all sharing one canvas texture.
+ * @returns {Promise<THREE.Group>} One group containing all successfully-loaded real castles —
+ *   already positioned/scaled/materialed, ready to `scene.add()`.
+ */
+export async function spawnRealCastleModels({ assetLoader, seats, seed }) {
+	const seatsById = new Map(seats.map((seat) => [seat.id, seat]));
+	const group = new THREE.Group();
+	group.name = 'settlements-real-castles';
+
+	const box = new THREE.Box3();
+	const size = new THREE.Vector3();
+	const center = new THREE.Vector3();
+
+	await Promise.all(CASTLE_MODEL_ASSIGNMENTS.map(async (assignment, index) => {
+		const seat = seatsById.get(assignment.seatId);
+		if (!seat) {
+			console.warn(`[settlements] spawnRealCastleModels: no seat found for id "${assignment.seatId}", skipping.`);
+			return;
+		}
+
+		const model = await assetLoader.loadModel(assignment.file, { fallbackColor: 0x8a8578, fallbackSize: REAL_CASTLE_FOOTPRINT_METERS });
+
+		box.setFromObject(model);
+		box.getSize(size);
+		box.getCenter(center);
+		const largestDimension = Math.max(size.x, size.y, size.z) || 1;
+		const scale = REAL_CASTLE_FOOTPRINT_METERS / largestDimension;
+
+		// Repeat tuned the same way createSettlements does (texture tile vs. real meters), against
+		// this model's own post-scale real-world footprint rather than the procedural keep's fixed
+		// KEEP_WIDTH_METERS — each model is a different real size before scaling.
+		const stoneRepeat = Math.max(2, Math.round(REAL_CASTLE_FOOTPRINT_METERS / 11));
+		const stoneMaterial = createStoneMaterial({ seed: seed + 2 + index, baseColor: STONE_COLOR, repeat: stoneRepeat });
+		model.traverse((node) => {
+			if (node.isMesh) node.material = stoneMaterial;
+		});
+
+		model.scale.setScalar(scale);
+		// Center horizontally on the seat and rest the model's own lowest point on the ground —
+		// these Meshy AI exports aren't guaranteed to have their origin at their own base.
+		model.position.set(
+			seat.x - center.x * scale,
+			seat.groundY - box.min.y * scale,
+			seat.z - center.z * scale,
+		);
+		model.userData.kingdomSeatId = seat.id;
+		group.add(model);
+	}));
+
+	return group;
 }
 
 /**
@@ -193,5 +297,23 @@ export function disposeSettlements(group) {
 			disposedMaterials.add(mesh.material);
 			disposeCastleMaterial(mesh.material);
 		}
+	}
+}
+
+/**
+ * Disposes every real castle model `spawnRealCastleModels` loaded (geometry + its own
+ * `createStoneMaterial` instance/maps — each model got a unique one, unlike the procedural
+ * castles' shared `InstancedMesh` material, since `disposeCastleMaterial` is safe to call once per
+ * mesh here with no dedup needed). Call on scene teardown, alongside `disposeSettlements`.
+ * @param {THREE.Group} group `spawnRealCastleModels`'s returned group.
+ */
+export function disposeRealCastleModels(group) {
+	for (const model of group.children) {
+		model.traverse((node) => {
+			if (node.isMesh) {
+				node.geometry.dispose();
+				disposeCastleMaterial(node.material);
+			}
+		});
 	}
 }
