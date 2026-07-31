@@ -4904,3 +4904,50 @@ remaining not-yet-covered NPC (`jon-guard-1` stays deliberately excluded) — a 
 alone or pair it with a fresh line for an already-covered NPC if a natural second-choice idea comes
 up; there's no third same-house pairing left to reach for. `dialogueChoices.js` now has 444/600 lines
 of headroom.
+
+## ADR-0068: Grow the world-event flavor pool from 14 to 16 entries
+
+**Status:** Accepted (run 50, sub-task 3 — chained after ADR-0067 per this run's budget/time still
+being available).
+
+**Context:** After ADR-0067's dialogue-pilot growth, `dialogueChoices.js`/`gameplayConfig.js` both
+have comfortable headroom (444/600 and 144/600), so no split pressure forces a rotation away from
+priority 9 this time. Still, `gameplay/worldEvents.js`'s own pool (priority 9.5) was last grown run
+49 (ADR-0065, 12 -> 14) — one run stale by this project's established "alternate 9/9.5 once both have
+been touched in the same recent window" rotation (see ADR-0063/ADR-0065's own reasoning for the same
+rotation each direction), and this run had already touched priority 9 twice (the split in ADR-0066,
+the content growth in ADR-0067). Rotating to 9.5 keeps both tracks moving rather than exhausting one
+in a single run.
+
+**Decision:** Grew `WORLD_EVENTS` from 14 to 16 entries, adding `ship_sighted` (a sail spotted on the
+horizon — previously unrepresented naval/coastal flavor, a natural fit given `balon-guard-1`'s Iron
+Islands seat already exists in the world) and `blacksmith_hammer` (rhythmic hammering heard from a
+keep — previously unrepresented everyday-village-life flavor, distinct from the already-covered
+guard/patrol/ceremonial events). Config-only; zero changes to `createWorldEventSystem`'s mechanism
+or `ui/worldEventToast.js`.
+
+**Verified:**
+- `node --check` clean on `worldEvents.js`. Line count: 99/600 (was 97) — comfortable headroom.
+- Full committed smoke suite: all **12** checks PASS, identical to the pre-change baseline
+  (`checkWorldEvents` asserts the mechanism generically against whatever the pool contains, not a
+  fixed count/ids, so it needed no changes).
+- **Real headless-Chromium proof of the new content specifically:** a one-off Playwright script
+  booted the live `game3d.html` page (zero console/page errors), then drove the real
+  `createWorldEventSystem` (seed 7) with repeated large time deltas until both new ids
+  (`ship_sighted`/`blacksmith_hammer`) were actually observed coming out of the real pool (not
+  asserted against array internals — took 368 update() calls), then emitted `ship_sighted`'s real
+  payload through a real `EventBus` into a real `WorldEventToast` instance (constructed with the
+  actual `{eventsBus, eventName, container}` shape, self-subscribing exactly as `game3d.js` wires it).
+  Screenshot confirms the toast's real icon/title/desc render over the live scene (castle, player,
+  night sky). Zero console/page errors throughout.
+
+**Alternatives considered:**
+- *Add 4+ entries in one batch* — rejected, same small-batch precedent every prior world-event
+  growth round used.
+- *Pick events with a stat-effect angle (e.g. hinting at a coming raid)* — rejected: FAZ 8's event
+  system is deliberately flavor-only (ADR-0056's own design boundary, reaffirmed by ADR-0061/0065) —
+  no per-kingdom economy hook exists yet for a stat-bearing event to attach to.
+
+**Consequences:** World-event pool now has 16 entries. `worldEvents.js` has 501/600 lines of headroom
+before its own 600-line cap — no split pressure. FAZ 8's event system remains flavor-only, unchanged
+design boundary from ADR-0056.

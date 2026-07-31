@@ -5301,11 +5301,49 @@ regression-guarded (12/12 smoke suite; sub-task 1 verified via unchanged behavio
 behavioral check per ADR-0059's pure-refactor precedent, sub-task 2 verified via a real
 headless-Chromium screenshot of its new content specifically) and pushed directly to `main`.
 
+**Sub-task 3 — decision and work (DECISIONS.md ADR-0068):** budget/time still available after
+sub-task 2's commit+push, so chained straight into a third sub-task. `dialogueChoices.js`/
+`gameplayConfig.js` both had comfortable headroom (no split pressure forcing a rotation), but this
+run had already touched priority 9 twice, so rotated to priority 9.5 (world events — last grown run
+49, one run stale by this project's established alternation). Grew `gameplay/worldEvents.js`'s
+`WORLD_EVENTS` from 14 to 16 entries, adding `ship_sighted` (naval/coastal flavor, previously
+unrepresented, a natural fit given `balon-guard-1`'s Iron Islands seat) and `blacksmith_hammer`
+(everyday-village-life flavor, also previously unrepresented). Config-only; zero changes to
+`createWorldEventSystem`'s mechanism or `ui/worldEventToast.js`.
+
+**Regression guard:** `node --check` clean. Full committed smoke suite — all **12** checks PASS,
+identical to the pre-change baseline. **Real headless-Chromium proof of the new content
+specifically:** a one-off Playwright script booted the live `game3d.html` page (zero console/page
+errors), drove the real `createWorldEventSystem` (seed 7) with repeated large deltas until both new
+ids were actually observed coming out of the real pool (368 update() calls, not asserted against
+array internals), then emitted `ship_sighted`'s real payload through a real `EventBus` into a real
+`WorldEventToast` instance (constructed the same `{eventsBus, eventName, container}` way `game3d.js`
+wires it) — screenshot confirms the toast's real icon/title/desc render over the live scene. Zero
+console/page errors throughout.
+
+**Memory-leak checklist:** N/A — config-only content addition to a frozen array literal; the one-off
+verification script's own `EventBus`/`WorldEventToast`/system instances were scratch/throwaway.
+
+**Files changed this sub-task:** `src/3d/gameplay/worldEvents.js`, `DECISIONS.md` (new ADR-0068),
+`3D_GAME_PROGRESS.md` (this file). 3 files, ~10 new/changed lines. One commit, direct push to `main`.
+
+**World Coverage (unchanged this sub-task): 96.2% (132.25 km² / 137.5 km²) desktop; 4.5%
+(6.25 km² / 137.5 km²) mobile — a flavor-event-content-only addition touches no terrain/streaming/
+chunk logic.**
+
+**Run totals (3 chained sub-tasks, run 50):** 6 files touched across all three sub-tasks
+(`src/3d/gameplay/gameplayConfig.js`, `src/3d/gameplay/dialogueChoices.js` (new),
+`src/3d/gameplay/worldEvents.js`, `DECISIONS.md`, `3D_GAME_PROGRESS.md` — the latter two counted
+once each despite being touched in all three sub-tasks) and ~310 new/moved/changed lines total (well
+under the 1200-line/25-file budget). 3 commits, each regression-guarded (12/12 smoke suite every
+time; sub-tasks 2 and 3 additionally verified via real headless-Chromium screenshots of that
+sub-task's new content specifically) and pushed directly to `main`.
+
 **Next step for the next run:** re-scan the priority order fresh, as always. FAZ 5's choice-branching
-pilot now covers 12 of 14 NPCs; only `twin-guard-1` remains genuinely uncovered (`jon-guard-1` stays
+pilot covers 12 of 14 NPCs; only `twin-guard-1` remains genuinely uncovered (`jon-guard-1` stays
 deliberately excluded) — a future round can add it alone, no natural pairing partner left.
 `dialogueChoices.js` has 444/600 lines of headroom, `gameplayConfig.js` has 144/600. World-event pool
-remains at 14 entries, `worldEvents.js` has 503/600 headroom. FAZ 7's tooling blocker
+now has 16 entries, `worldEvents.js` has 501/600 headroom. FAZ 7's tooling blocker
 (gltfpack/gltf-transform) was reported lifted run 49 — still unconfirmed by a real decimation pass; a
 future run picking up FAZ 7 as its active phase should do that first. FAZ 5/6's cart/dog-cat/bird gap
 still needs a human manual-download step; `ivory_stallion.glb` remains geometry-only/unrigged, usable
