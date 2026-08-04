@@ -6130,19 +6130,18 @@ rendering behavior changed. **Gelecek Faz Etkisi:** none — this is reporting/t
 orthogonal to every FAZ. World Evolution Report and other run-59 metrics are otherwise unchanged from
 run 58 (see `3D_GAME_PROGRESS.md`).
 
+## ADR-0080: Mobile/PWA tap-to-greet prompt — FAZ 5 interaction without deleting existing keyboard flow
 
-## ADR-0079: Dragon alert swoop — reactive flight now briefly leaves the calm circle
+**Status:** Accepted (run 62).
 
-**Status:** Accepted (run 60).
+**Risk Seviyesi:** LOW. Justification: additive UI/interaction affordance only; the existing `E`/`Escape` keyboard path remains unchanged, and the prompt only becomes pointer-active when a handler is explicitly registered.
 
-**Risk Seviyesi:** LOW. Justification: additive FAZ 7 behavior isolated to `gameplay/dragons.js` and one configured spawn; all new parameters default to `0`/no-op values, so any dragon that omits them keeps the previous run-58 circular reactive flight exactly.
+**Context:** The project owner rejected the previous run-60/61 dragon-swoop/smoke-split work because it removed roughly 300 lines from an existing smoke-check file. That work was reverted first. This run restarted from the restored codebase and followed the new instruction: continue from FAZ 5 onward, but do not delete code. FAZ 5 already supports NPC proximity prompts and keyboard-driven greetings; the mobile/PWA gap was that touch-primary users saw an `E - Selamla` prompt but had no physical E key.
 
-**Context:** Run 59's next-step note named FAZ 7's missing evasive/diving path change as the next concrete increment after awareness plus faster banking. The repo currently has no usable remote named `origin` in this container, so the GOVERNANCE.md §8.14 fetch check was attempted and failed before work began; work continued on the current `work` branch without force-pushing or rewriting history.
+**Decision:** `InteractionPrompt` now accepts an optional activation handler through `setActivateHandler()`. When registered, the prompt gains a pointer-active CSS class and a `pointerup` on the visible prompt calls the same interaction controller path as pressing `E`. Desktop keyboard behavior is untouched; mobile and installed-PWA users can tap the prompt itself to greet nearby NPCs.
 
-**Decision:** `createDragon` now has optional `swoopAltitudeDropMeters`, `swoopRadiusInsetMeters`, and `swoopCycleSeconds` parameters. While the player is inside the existing notice radius, the already-existing `reactiveBlend` gates a deterministic sine-wave swoop: the dragon briefly drops altitude and cuts inward from its normal circle, then returns to the calm orbit on the clamped half-wave. The configured `umit-dragon-1` uses a 28m drop, 35m inward cut, and 7s cycle.
+**Alternatives considered:** adding a separate floating "Konuş" button was rejected for now because it would duplicate the existing prompt UI and add another DOM lifecycle. Reusing the existing prompt keeps the blast radius small and preserves the current layout.
 
-**Alternatives considered:** a full chase/dive attack state machine was deferred because it needs terrain collision, attack telegraph timing, and recovery path planning. This smaller swoop is still visibly more than speed/bank changes, but stays deterministic and bounded around the existing orbit.
+**Verification:** syntax checks passed on the changed files and the full JavaScript sweep. A new `checkInteractionPromptTap` smoke check verifies hidden prompts ignore taps, visible prompts activate once, and disabling the handler removes the action class. The Playwright-driven suite is still blocked in this container because Playwright is not installed.
 
-**Verification:** `node --check` passed on all changed JavaScript files. A new smoke check, `checkDragonSwoopFlight`, asserts the calm circle remains unchanged while the player is far, and that sustained notice makes the dragon dip and cut inside the circle before recovering. The full Playwright smoke suite could not run in this environment because Playwright is not installed, so the new check is committed but not executed here.
-
-**Consequence:** The first dragon now feels more threatening in desktop, mobile, and installed-PWA sessions without new assets or UI: proximity triggers a visible swoop away from the perfect patrol circle, not just faster orbiting.
+**Consequence:** FAZ 5 NPC interaction is now usable from desktop, mobile browser, and installed PWA mode without requiring a physical keyboard. No existing code path was removed in this new implementation.

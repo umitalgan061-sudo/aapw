@@ -115,6 +115,19 @@ html, body {
   backdrop-filter: blur(4px);
 }
 
+
+.g3d-interaction-prompt.g3d-interaction-prompt-action {
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.g3d-interaction-prompt.g3d-interaction-prompt-action:active {
+  background: rgba(42, 26, 6, 0.82);
+  border-color: rgba(232, 212, 160, 0.82);
+}
+
 .g3d-dialogue-box {
   position: fixed;
   left: 50%;

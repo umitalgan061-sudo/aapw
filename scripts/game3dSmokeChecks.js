@@ -295,8 +295,50 @@ async function checkInteractionController(browser, baseUrl) {
 	return { name: 'interaction controller (gameplay/interaction.js)', ok, details };
 }
 
+
+async function checkInteractionPromptTap(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { InteractionPrompt } = await import('/src/3d/ui/interactionPrompt.js');
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			const prompt = new InteractionPrompt(container);
+			let activations = 0;
+			prompt.setActivateHandler(() => { activations++; });
+
+			prompt.setVisible(false);
+			prompt._el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+			const hiddenTapIgnored = activations === 0;
+
+			prompt.setVisible(true);
+			prompt._el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+			const visibleTapActivates = activations === 1;
+			const actionClassApplied = prompt._el.classList.contains('g3d-interaction-prompt-action');
+
+			prompt.setActivateHandler(null);
+			prompt._el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+			const nullHandlerDisablesTap = activations === 1 && !prompt._el.classList.contains('g3d-interaction-prompt-action');
+
+			prompt.dispose();
+			container.remove();
+			return { hiddenTapIgnored, visibleTapActivates, actionClassApplied, nullHandlerDisablesTap };
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'prompt tap only activates while visible and handler-enabled; disabling the handler removes the action class'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'interaction prompt tap activation (ui/interactionPrompt.js)', ok, details };
+}
+
 module.exports = {
 	checkSettlementCollider,
 	checkJumpArc,
 	checkInteractionController,
+	checkInteractionPromptTap,
 };
