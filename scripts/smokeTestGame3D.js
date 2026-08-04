@@ -61,6 +61,7 @@ async function main() {
 		results.push(await checks.checkSettlementCollider(browser, baseUrl));
 		results.push(await checks.checkJumpArc(browser, baseUrl));
 		results.push(await checks.checkInteractionController(browser, baseUrl));
+		results.push(await checks.checkInteractionPromptTap(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));

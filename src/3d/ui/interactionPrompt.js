@@ -17,6 +17,13 @@ export class InteractionPrompt {
 		this._el.className = 'g3d-interaction-prompt';
 		this._el.textContent = 'E - Selamla';
 		this._el.hidden = true;
+		this._activateHandler = null;
+		this._onPointerUp = (event) => {
+			if (!this._activateHandler || !this._visible) return;
+			event.preventDefault();
+			this._activateHandler();
+		};
+		this._el.addEventListener('pointerup', this._onPointerUp);
 		container.appendChild(this._el);
 		this._visible = false;
 	}
@@ -28,6 +35,18 @@ export class InteractionPrompt {
 		if (visible === this._visible) return; // avoid a redundant DOM write every frame
 		this._visible = visible;
 		this._el.hidden = !visible;
+	}
+
+
+	/**
+	 * Optional touch/click activation hook (FAZ 5 mobile/PWA follow-up): desktop users can still use
+	 * the keyboard prompt text, while touch-primary users can tap the same visible prompt to trigger
+	 * the interaction without needing a physical E key.
+	 * @param {(() => void) | null} handler
+	 */
+	setActivateHandler(handler) {
+		this._activateHandler = handler;
+		this._el.classList.toggle('g3d-interaction-prompt-action', Boolean(handler));
 	}
 
 	dispose() {

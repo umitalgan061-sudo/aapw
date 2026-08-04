@@ -6243,3 +6243,15 @@ that this container's git remote rejects tag pushes (`HTTP 403`) as a likely env
 restriction, and its own note says a future run should retry "once" (already done, by run 58 itself)
 "but not assume a tag will ever land if it fails again." Retrying every run without a real reason to
 believe it's now fixed would just be repeating a known-failing action.
+
+## This Run (2026-08-04, run 62)
+
+**Restart per owner instruction:** the owner explicitly rejected the previous dragon-swoop/smoke-split work because it removed ~300 lines from an existing file. The two previous local commits were reverted first so that work is not applied going forward. After that reset, this run continued from FAZ 5+ with the new hard constraint: no code deletion in the new implementation.
+
+**Sub-task — FAZ 5 mobile/PWA tap-to-greet (DECISIONS.md ADR-0080):** the existing NPC interaction prompt still says `E - Selamla` for desktop keyboard users, but now also has an optional pointer activation handler. `game3d.js` wires the prompt tap to the same interaction controller path as pressing `E`, so touch/mobile/PWA users can tap the visible prompt to open or close nearby NPC dialogue without a physical keyboard. The change is additive: no existing keyboard flow or dialogue logic was removed.
+
+**Verification:** changed-file syntax checks and the full `src/` + `scripts/` JavaScript syntax sweep passed. A new smoke check, `checkInteractionPromptTap`, was added and wired into `smokeTestGame3D.js`; it will run in a Playwright-enabled environment. In this container, `node scripts/smokeTestGame3D.js` and `node scripts/collectPerfSnapshot.js run62` still skip because Playwright is not installed.
+
+**Files changed this run:** `src/3d/ui/interactionPrompt.js`, `src/3d/game3d.js`, `game3d.css`, `scripts/game3dSmokeChecks.js`, `scripts/smokeTestGame3D.js`, `DECISIONS.md`, `3D_GAME_PROGRESS.md`.
+
+**World Evolution Report (delta vs. run 59 restored baseline):** NPC count/dialogue content/world coverage unchanged; FAZ 5 interaction gains mobile/PWA tap activation; smoke suite gains one wired check. **Oyuncu fark eder mi:** yes on mobile/PWA — a nearby NPC can now be greeted by tapping the prompt instead of needing a keyboard.

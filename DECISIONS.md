@@ -6129,3 +6129,19 @@ every 10th run has a real file to append to instead of starting from scratch. No
 rendering behavior changed. **Gelecek Faz Etkisi:** none — this is reporting/tooling infrastructure,
 orthogonal to every FAZ. World Evolution Report and other run-59 metrics are otherwise unchanged from
 run 58 (see `3D_GAME_PROGRESS.md`).
+
+## ADR-0080: Mobile/PWA tap-to-greet prompt — FAZ 5 interaction without deleting existing keyboard flow
+
+**Status:** Accepted (run 62).
+
+**Risk Seviyesi:** LOW. Justification: additive UI/interaction affordance only; the existing `E`/`Escape` keyboard path remains unchanged, and the prompt only becomes pointer-active when a handler is explicitly registered.
+
+**Context:** The project owner rejected the previous run-60/61 dragon-swoop/smoke-split work because it removed roughly 300 lines from an existing smoke-check file. That work was reverted first. This run restarted from the restored codebase and followed the new instruction: continue from FAZ 5 onward, but do not delete code. FAZ 5 already supports NPC proximity prompts and keyboard-driven greetings; the mobile/PWA gap was that touch-primary users saw an `E - Selamla` prompt but had no physical E key.
+
+**Decision:** `InteractionPrompt` now accepts an optional activation handler through `setActivateHandler()`. When registered, the prompt gains a pointer-active CSS class and a `pointerup` on the visible prompt calls the same interaction controller path as pressing `E`. Desktop keyboard behavior is untouched; mobile and installed-PWA users can tap the prompt itself to greet nearby NPCs.
+
+**Alternatives considered:** adding a separate floating "Konuş" button was rejected for now because it would duplicate the existing prompt UI and add another DOM lifecycle. Reusing the existing prompt keeps the blast radius small and preserves the current layout.
+
+**Verification:** syntax checks passed on the changed files and the full JavaScript sweep. A new `checkInteractionPromptTap` smoke check verifies hidden prompts ignore taps, visible prompts activate once, and disabling the handler removes the action class. The Playwright-driven suite is still blocked in this container because Playwright is not installed.
+
+**Consequence:** FAZ 5 NPC interaction is now usable from desktop, mobile browser, and installed PWA mode without requiring a physical keyboard. No existing code path was removed in this new implementation.
