@@ -484,6 +484,9 @@ export const DRAGON_CONFIG = Object.freeze({
 			reactiveSpeedMultiplier: 1.6,
 			reactiveBankAngleRadians: 0.65,
 			reactiveTransitionSeconds: 1.2,
+			swoopAltitudeDropMeters: 28,
+			swoopRadiusInsetMeters: 35,
+			swoopCycleSeconds: 7,
 		}),
 	]),
 });

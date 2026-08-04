@@ -6129,3 +6129,20 @@ every 10th run has a real file to append to instead of starting from scratch. No
 rendering behavior changed. **Gelecek Faz Etkisi:** none — this is reporting/tooling infrastructure,
 orthogonal to every FAZ. World Evolution Report and other run-59 metrics are otherwise unchanged from
 run 58 (see `3D_GAME_PROGRESS.md`).
+
+
+## ADR-0079: Dragon alert swoop — reactive flight now briefly leaves the calm circle
+
+**Status:** Accepted (run 60).
+
+**Risk Seviyesi:** LOW. Justification: additive FAZ 7 behavior isolated to `gameplay/dragons.js` and one configured spawn; all new parameters default to `0`/no-op values, so any dragon that omits them keeps the previous run-58 circular reactive flight exactly.
+
+**Context:** Run 59's next-step note named FAZ 7's missing evasive/diving path change as the next concrete increment after awareness plus faster banking. The repo currently has no usable remote named `origin` in this container, so the GOVERNANCE.md §8.14 fetch check was attempted and failed before work began; work continued on the current `work` branch without force-pushing or rewriting history.
+
+**Decision:** `createDragon` now has optional `swoopAltitudeDropMeters`, `swoopRadiusInsetMeters`, and `swoopCycleSeconds` parameters. While the player is inside the existing notice radius, the already-existing `reactiveBlend` gates a deterministic sine-wave swoop: the dragon briefly drops altitude and cuts inward from its normal circle, then returns to the calm orbit on the clamped half-wave. The configured `umit-dragon-1` uses a 28m drop, 35m inward cut, and 7s cycle.
+
+**Alternatives considered:** a full chase/dive attack state machine was deferred because it needs terrain collision, attack telegraph timing, and recovery path planning. This smaller swoop is still visibly more than speed/bank changes, but stays deterministic and bounded around the existing orbit.
+
+**Verification:** `node --check` passed on all changed JavaScript files. A new smoke check, `checkDragonSwoopFlight`, asserts the calm circle remains unchanged while the player is far, and that sustained notice makes the dragon dip and cut inside the circle before recovering. The full Playwright smoke suite could not run in this environment because Playwright is not installed, so the new check is committed but not executed here.
+
+**Consequence:** The first dragon now feels more threatening in desktop, mobile, and installed-PWA sessions without new assets or UI: proximity triggers a visible swoop away from the perfect patrol circle, not just faster orbiting.

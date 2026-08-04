@@ -67,6 +67,12 @@ import { AssetLoader } from '../assetLoader.js';
  *   reactive (or back) takes — a linear blend, not an instant snap, so the speed-up/bank-in reads as
  *   a reaction rather than a teleport. Defaults to `1.5`. Ignored if reactive params are both at
  *   their no-op defaults.
+ * @param {number} [options.swoopAltitudeDropMeters] Run 60 (ADR-0079): maximum altitude drop
+ *   while fully reactive and on the positive swoop wave. Defaults to `0` (no swoop).
+ * @param {number} [options.swoopRadiusInsetMeters] Run 60 (ADR-0079): maximum inward cut from the
+ *   calm circle radius while fully reactive and on the positive swoop wave. Defaults to `0`.
+ * @param {number} [options.swoopCycleSeconds] Duration of one deterministic alert-swoop wave. The
+ *   negative half-wave is clamped to zero so the dragon recovers to the calm circle between dips.
  * @returns {Promise<{object3D: THREE.Object3D, update: (delta: number, playerPosition?: {x: number, y: number, z: number}) => void, dispose: () => void}>}
  */
 export async function createDragon({
@@ -90,6 +96,9 @@ export async function createDragon({
 	reactiveSpeedMultiplier = 1,
 	reactiveBankAngleRadians = bankAngleRadians,
 	reactiveTransitionSeconds = 1.5,
+	swoopAltitudeDropMeters = 0,
+	swoopRadiusInsetMeters = 0,
+	swoopCycleSeconds = 6,
 }) {
 	const model = await assetLoader.loadFBXModel(modelUrl, {
 		fallbackColor: 0x2a2a2a,
@@ -116,12 +125,17 @@ export async function createDragon({
 	// as the dragon actually responding, not teleporting between two fixed states. Starts at 0 (calm)
 	// — same "never assumed" convention `playerWasInNoticeRadius` below already follows.
 	let reactiveBlend = 0;
+	let swoopPhaseRadians = 0;
 
 	/** Places `model` at the current `angle` on its circle and orients it along the direction of travel. */
 	function applyPose(currentBankAngleRadians) {
-		const x = centerX + circleRadiusMeters * Math.sin(angle);
-		const z = centerZ + circleRadiusMeters * Math.cos(angle);
-		model.position.set(x, centerY, z);
+		const swoopWave = Math.max(0, Math.sin(swoopPhaseRadians));
+		const swoopAmount = reactiveBlend * swoopWave;
+		const currentRadiusMeters = circleRadiusMeters - swoopRadiusInsetMeters * swoopAmount;
+		const currentY = centerY - swoopAltitudeDropMeters * swoopAmount;
+		const x = centerX + currentRadiusMeters * Math.sin(angle);
+		const z = centerZ + currentRadiusMeters * Math.cos(angle);
+		model.position.set(x, currentY, z);
 		// Tangent direction of a circle parameterized by (sin, cos) is (cos, -sin) — the same
 		// atan2(dx, dz) yaw convention every other gameplay system here already uses (see
 		// `gameplay/animals.js`'s `turnToward`), just derived analytically instead of from a
@@ -177,6 +191,9 @@ export async function createDragon({
 			const angularSpeedRadiansPerSecond = calmAngularSpeedRadiansPerSecond +
 				(reactiveAngularSpeedRadiansPerSecond - calmAngularSpeedRadiansPerSecond) * reactiveBlend;
 			const currentBankAngleRadians = bankAngleRadians + (reactiveBankAngleRadians - bankAngleRadians) * reactiveBlend;
+			if (swoopCycleSeconds > 0 && (swoopAltitudeDropMeters > 0 || swoopRadiusInsetMeters > 0)) {
+				swoopPhaseRadians = (swoopPhaseRadians + (Math.PI * 2 * delta) / swoopCycleSeconds) % (Math.PI * 2);
+			}
 
 			angle += angularSpeedRadiansPerSecond * delta;
 			applyPose(currentBankAngleRadians);
@@ -238,6 +255,9 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				reactiveSpeedMultiplier: spawn.reactiveSpeedMultiplier,
 				reactiveBankAngleRadians: spawn.reactiveBankAngleRadians,
 				reactiveTransitionSeconds: spawn.reactiveTransitionSeconds,
+				swoopAltitudeDropMeters: spawn.swoopAltitudeDropMeters,
+				swoopRadiusInsetMeters: spawn.swoopRadiusInsetMeters,
+				swoopCycleSeconds: spawn.swoopCycleSeconds,
 			});
 		}),
 	);

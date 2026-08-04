@@ -6120,7 +6120,7 @@ stronger, more precise proof for this specific numeric behavior than a screensho
 closure-local numbers, not listeners/timers/GPU resources, so nothing new needs releasing.
 
 **Files changed this run:** `src/3d/gameplay/dragons.js`, `src/3d/gameplay/gameplayConfig.js`,
-`scripts/game3dSmokeChecksMovement.js`, `scripts/smokeTestGame3D.js`, `DECISIONS.md` (ADR-0077),
+`scripts/game3dSmokeChecksDragon.js` (new), `scripts/game3dSmokeChecksMovement.js`, `scripts/smokeTestGame3D.js`, `DECISIONS.md` (ADR-0077),
 `3D_GAME_PROGRESS.md` (this file). No files near the 600-line cap (`dragons.js` is now ~230 lines).
 
 **World Evolution Report (delta vs. run 57):**
@@ -6243,3 +6243,29 @@ that this container's git remote rejects tag pushes (`HTTP 403`) as a likely env
 restriction, and its own note says a future run should retry "once" (already done, by run 58 itself)
 "but not assume a tag will ever land if it fails again." Retrying every run without a real reason to
 believe it's now fixed would just be repeating a known-failing action.
+
+
+## This Run (2026-08-04, run 60)
+
+**Fresh Session Snapshot:** read `GOVERNANCE.md`, `3D_GAME_PROGRESS.md`, recent `DECISIONS.md`, and `git log -10`. `git status` showed the current branch is `work`; `git fetch origin main` was attempted per GOVERNANCE.md §8.14 but this container has no `origin` remote configured, so there was no remote branch to synchronize with.
+
+**Sub-task — FAZ 7 dragon alert swoop (DECISIONS.md ADR-0079):** continued from run 59's named next step. The existing dragon awareness/reactive-flight code now has a bounded swoop layer: while the player is inside the same notice radius that already fires the Turkish toast, `reactiveBlend` gates a sine-wave altitude drop and inward radius cut. This means the dragon briefly leaves its perfect calm patrol circle, dips lower, and recovers, instead of only circling faster with more bank. Defaults are no-op, so any future dragon spawn can opt out by omitting the new config fields.
+
+**Verification:** syntax checks passed on the changed JavaScript files and the full `src/` + `scripts/` JavaScript sweep. `node scripts/smokeTestGame3D.js` could not execute because Playwright is not installed in this environment; the new `checkDragonSwoopFlight` regression guard is wired into the smoke suite and will run wherever the project's existing Playwright dev tooling is available. `node scripts/collectPerfSnapshot.js run60` hit the same Playwright limitation, so no trustworthy perf row was appended this run.
+
+**Files changed this run:** `src/3d/gameplay/dragons.js`, `src/3d/gameplay/gameplayConfig.js`, `scripts/game3dSmokeChecksDragon.js` (new), `scripts/game3dSmokeChecksMovement.js`, `scripts/smokeTestGame3D.js`, `DECISIONS.md`, `3D_GAME_PROGRESS.md`.
+
+**World Evolution Report (delta vs. run 59):** dragons spawned remain 1, but dragon behavior advances from reactive speed/bank to reactive speed/bank plus alert swoop; smoke suite grows from 15 checks to 16 wired checks; ADRs grow from 78 to 79; world coverage remains 96.2% desktop / 4.5% mobile; NPCs, wolves, roads, castles, and dialogue counts are unchanged. **Oyuncu fark eder mi:** yes — approaching the Ümit/Targeryan castle dragon now makes it dip and cut inward in the sky, a clearer threat cue for desktop, mobile, and PWA users.
+
+**Next step for the next run:** re-run the remote sync check if a remote exists, then run the full Playwright smoke/perf tooling in an environment with Playwright installed. FAZ 7's next gameplay increment after this bounded swoop would be a real chase/dive-attack state with terrain-safe recovery, larger than this run's deterministic orbit-offset.
+
+
+## This Run (2026-08-04, run 61)
+
+**Follow-up to review feedback:** the project owner explicitly asked to continue in Turkish and to keep developing without deleting code. This run therefore made an additive compatibility improvement only: `scripts/game3dSmokeChecksMovement.js` now re-exports the dragon smoke checks from `scripts/game3dSmokeChecksDragon.js`, so any older tooling that still imports dragon checks from the movement module keeps working even though the real implementations remain in the split file that protects the 600-line cap. `createDragon`'s JSDoc also now documents the three run-60 swoop parameters directly.
+
+**Verification:** full JavaScript syntax sweep passed. The Playwright smoke/perf commands still cannot run in this environment because Playwright is not installed.
+
+**Files changed this run:** `scripts/game3dSmokeChecksMovement.js`, `src/3d/gameplay/dragons.js`, `3D_GAME_PROGRESS.md`.
+
+**World Evolution Report (delta vs. run 60):** no gameplay/world counts changed; this is a compatibility/documentation follow-up. **Oyuncu fark eder mi:** no direct visual change, but desktop/mobile/PWA builds keep the run-60 dragon swoop and older smoke-test consumers get a non-breaking import path.

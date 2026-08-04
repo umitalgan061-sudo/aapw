@@ -32,6 +32,7 @@
 const sceneChecks = require('./game3dSmokeChecksScene.js');
 const checks = require('./game3dSmokeChecks.js');
 const movementChecks = require('./game3dSmokeChecksMovement.js');
+const dragonChecks = require('./game3dSmokeChecksDragon.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
@@ -64,9 +65,10 @@ async function main() {
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));
-		results.push(await movementChecks.checkDragonFlight(browser, baseUrl));
-		results.push(await movementChecks.checkDragonNotice(browser, baseUrl));
-		results.push(await movementChecks.checkDragonReactiveFlight(browser, baseUrl));
+		results.push(await dragonChecks.checkDragonFlight(browser, baseUrl));
+		results.push(await dragonChecks.checkDragonNotice(browser, baseUrl));
+		results.push(await dragonChecks.checkDragonReactiveFlight(browser, baseUrl));
+		results.push(await dragonChecks.checkDragonSwoopFlight(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();
