@@ -6255,3 +6255,85 @@ believe it's now fixed would just be repeating a known-failing action.
 **Files changed this run:** `src/3d/ui/interactionPrompt.js`, `src/3d/game3d.js`, `game3d.css`, `scripts/game3dSmokeChecks.js`, `scripts/smokeTestGame3D.js`, `DECISIONS.md`, `3D_GAME_PROGRESS.md`.
 
 **World Evolution Report (delta vs. run 59 restored baseline):** NPC count/dialogue content/world coverage unchanged; FAZ 5 interaction gains mobile/PWA tap activation; smoke suite gains one wired check. **Oyuncu fark eder mi:** yes on mobile/PWA — a nearby NPC can now be greeted by tapping the prompt instead of needing a keyboard.
+
+## This Run (2026-08-05, run 63)
+
+**Session Snapshot found a real, off-scope security issue before anything else:** `git fetch origin
+main` + `git checkout -B main origin/main` (§8.14) landed on `ba3ec35` (already the true `origin/main`
+tip — this container's local `main` ref was just stale from a prior restart, same recurring pattern
+noted in runs 18/29/30/36/37). Reading that history top-to-bottom (not just `git log -10`, per this
+run's own Session Snapshot discipline) turned up three commits from 2026-08-03
+(`7d4a66a`/`70bb43b`/`cb28d48`) that have nothing to do with the 3D RPG: a standalone
+`ndvi_nvidia.py` NVIDIA-embeddings test script, and a `.env` committing a **plaintext
+`NVIDIA_API_KEY` directly into `main`**. Both files were still tracked at `HEAD` — i.e. shipping in
+every fresh clone, today, not just buried in old history.
+
+**Sub-task 1 — remove the leaked key + unrelated script from the tracked tree (DECISIONS.md
+ADR-0081):** `git rm` both files, `.gitignore`'d `.env`, logged the full rationale (including what
+this run deliberately did *not* do — rewrite history or rotate the key, both owner-only/
+higher-risk actions) in ADR-0081, and added an entry to `QUESTIONS_FOR_OWNER.md` spelling out the two
+required owner actions. Notified the project owner directly and immediately (not deferred to this
+run's end-of-run summary) given key-leak remediation is time-sensitive. Committed in two steps
+(`97dd74b` file removal, `2fb48d3` docs) and pushed straight away rather than batching behind further
+work.
+
+**Sub-task 2 — perf log entry (GOVERNANCE.md §13, required every run):** this container has
+Playwright working this run (unlike run 62, where it was unavailable) — the full
+`scripts/smokeTestGame3D.js` suite ran for real: **16/16 PASS**, including a genuine zero-console-error
+`game3d.html` boot (the 2D shell's 10 console/page errors are the same pre-existing, documented,
+non-blocking ones noted in the script's own header — unrelated to this run's changes).
+`node scripts/collectPerfSnapshot.js run63` appended a second `perf_log.csv` row:
+`fps=2, drawCalls=46, triangles=393467, geometries=44, textures=17, jsHeapUsedMB=347` — identical to
+run 59's row (expected: zero gameplay/rendering code changed between the two), draw calls/triangles
+still far under the 2500/5,000,000 desktop budget.
+
+**Verification:** no `.js` files changed by sub-task 1 (docs + non-code file removal only), so
+`node --check` doesn't apply to that commit; a full syntax sweep of every `src/`+`scripts/` `.js` file
+was still run as this run's baseline check and is clean. Sub-task 2 is itself the verification step
+(the real smoke suite + perf snapshot).
+
+**Session Quality Gate (§8.6):** stopping here after 2 sub-tasks rather than chaining into FAZ 7's
+evasive-flight increment. Confidence on the security fix + perf log: 5/5, both small, well-verified,
+already pushed. Confidence on *also* starting FAZ 7's dive/path-back/terrain-collision work in the
+context budget left this run: honestly not a 4+ — that feature needs its own focused
+Değişiklik Etki Analizi (§8.4) and visual verification pass (§8.5), not a rushed tack-on after a
+security triage. Deferring it whole to the next run is the more honest call than a half-verified
+attempt now.
+
+**Memory-leak checklist:** N/A — no listeners/timers/DOM/GPU resources added; both sub-tasks are
+file-tree/docs/CI-script changes only.
+
+**Files changed this run:** `.env` (removed), `ndvi_nvidia.py` (removed), `.gitignore`, `DECISIONS.md`
+(ADR-0081), `QUESTIONS_FOR_OWNER.md`, `perf_log.csv` (+1 row), `3D_GAME_PROGRESS.md` (this file).
+
+**World Evolution Report (delta vs. run 62):**
+
+| Metric | Run 62 | Run 63 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged |
+| Kingdom seats w/ real castle models | 7 | 7 | unchanged |
+| Dragons (spawned) | 1 | 1 | unchanged |
+| NPCs with dialogue-choice branching | 13/14 | 13/14 | unchanged |
+| Smoke suite | 15/15 (Playwright unavailable, not run for real) | 16/16 (ran for real this container) | +1 check, now verified live |
+| ADRs | 80 | 81 | +1 |
+| perf_log.csv rows | 1 | 2 | +1 |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged |
+| Tech debt count | unchanged | unchanged | +0 |
+| Known secrets in tracked tree | 1 (`.env`, undiscovered) | 0 | **-1 (fixed this run)** |
+
+**Oyuncu fark eder mi:** no gameplay/visual change. Real-world impact instead: a live API key is no
+longer shipping in the repo's tracked tree, and the project owner has been notified to rotate it.
+
+**Next step for the next run:** FAZ 7's evasive/diving dragon flight (leaving the circle, real
+path-back planning + terrain collision) is still the next concrete, un-started FAZ 7 increment — give
+it its own full run rather than a tacked-on partial attempt. FAZ 6's cart/dog-cat/bird gap remains
+blocked on the human manual-asset-download step (`QUESTIONS_FOR_OWNER.md`). World Coverage (4.5%
+mobile) is well under GOVERNANCE.md §12's 98% dynamic-priority threshold and hasn't moved in several
+runs — worth a dedicated investigation run into what "coverage" actually measures and why mobile is
+so much lower than desktop, since repeated no-change deltas across many runs (59→62→63) suggest either
+a stale/unmaintained metric or a real, unaddressed gap. **Two items now sitting in
+`QUESTIONS_FOR_OWNER.md` need the human owner specifically, not another autonomous run:** the leaked
+key (rotate + decide on history rewrite) and the blocked animal assets.
+
+**Addendum:** did not attempt `git tag stable-YYYY-MM-DD-HHmm` this run either — same known `HTTP 403`
+tag-push rejection documented since run 58, no new reason to believe it's fixed.
