@@ -500,6 +500,22 @@ export const DRAGON_CONFIG = Object.freeze({
 			diveLateralPullFraction: 0.3,
 			diveTransitionSeconds: 0.8,
 			minAltitudeAboveGroundMeters: 12,
+			/** FAZ 7 continuous chase (run 66, DECISIONS.md ADR-0085): the dragon's circle center
+			 * itself now travels to the player instead of staying tethered to this seat forever —
+			 * see `gameplay/dragons.js`'s `createDragon` doc comment for the full travel/blend/
+			 * terrain-following math. Sits deliberately between `alarmRadiusMeters` (110, the dive)
+			 * and `noticeRadiusMeters` (220, the toast): wide enough that lingering near the castle
+			 * gets you chased, narrow enough that being spotted from across the valley doesn't.
+			 * Like `alarmRadiusMeters` it must clear `altitudeMeters` (90) to ever trigger; 160
+			 * leaves ~132m of horizontal slack (sqrt(160²-90²)). Speed beats
+			 * `PLAYER_CONFIG.RUN_SPEED_MPS` (6.5) so fleeing buys distance but not escape, and the
+			 * ring tightens 150m -> 55m so an engaged dragon visibly closes in. Time-boxed at 18s,
+			 * re-arming only once the player leaves the radius — harried, then left alone. */
+			pursuitRadiusMeters: 160,
+			pursuitCenterSpeedMps: 10,
+			pursuitCircleRadiusMeters: 55,
+			pursuitTransitionSeconds: 2.5,
+			pursuitMaxSeconds: 18,
 		}),
 	]),
 });

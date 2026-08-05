@@ -6641,3 +6641,99 @@ regressions found.
 
 **Addendum:** did not attempt `git tag stable-YYYY-MM-DD-HHmm` this run — same known `HTTP 403`
 tag-push rejection documented since run 58, no new reason to believe it's fixed.
+
+## This Run (2026-08-05, run 66 — continued)
+
+The run continued past its first sub-task on an explicit "devam et" from the project owner, so the
+Session Quality Gate's stop-after-one decision above was superseded. Two more sub-tasks landed.
+
+**Sub-task 2 — stale doc-comment fix (`gameplayConfig.js`, no ADR — a one-line documentation
+correction):** runs 64/65 both flagged the `CHOICES_BY_NPC_ID` doc comment's "12 of 14" as stale.
+**Verified rather than trusted:** counted both maps directly — `dialogueChoices.js` has 13 entries
+(`stannis` carries two guards, `stannis-guard-1`/`-guard-2`, which is what made "12" look right from
+a seat-count perspective) against 14 `NPC_CONFIG.SPAWNS` ids, with `jon-guard-1` the deliberate
+ADR-0058 exclusion. Run 65's flag was correct; comment now reads 13, matching `dialogueChoices.js`'s
+own already-correct one. Own commit.
+
+**Sub-task 3 — FAZ 7 continuous chase (DECISIONS.md ADR-0085), the increment runs 64 and 65 both
+flagged as deserving its own scoped run:** the dive (ADR-0082) re-aims every frame but blends off a
+circle permanently welded to the dragon's home seat, capped at `diveLateralPullFraction` — so the
+dragon had a hard floor on how close it could ever get and could not follow a player who walked away.
+Rather than abandoning the circle (which forfeits the free, path-planning-less "return home" this
+module is built around — the reason ADR-0082 deferred this), **the circle's center now travels**: at a
+bounded `pursuitCenterSpeedMps` toward the player while engaged and back home when not, with the ring
+tightening (150m -> 55m), cruise altitude following terrain under the moving center, and the whole
+engagement time-boxed at 18s with an edge-triggered re-arm once the player leaves. Tangential speed is
+now held constant as the radius changes (angular speed derived per-frame) so a closing dragon doesn't
+appear to slow down. Run 64's terrain-safety clamp was hoisted out of the dive branch to apply to
+every frame's final position, since the ordinary circling pose now flies over arbitrary terrain too.
+
+**Verification (sub-task 3):** full `node --check` sweep clean (0 failures);
+`checkServiceWorkerCache.js` + `checkAssetsManifest.js` both OK. Full smoke suite **18/18 PASS**
+(new `checkDragonPursuit`), zero console/page errors. **All four pre-existing dragon checks passed
+unchanged after the refactor and before any config was added** — backward compatibility measured, not
+assumed. **Live-world safety analysis:** the hoisted clamp is a *measured* no-op for existing
+behavior — at `umit`'s seat the dragon cruises at Y=106.19 while the worst terrain on its 150m home
+circle demands only Y=28.66 (Y=32.91 anywhere within 600m; world peak terrain 160.98m), so the calm
+patrol's shipped visuals are unchanged. **End-to-end trajectory, real terrain + real shipped config,
+40 simulated seconds:** 185.5m -> 115.3m (t=8s, engaging) -> ~70m held through t=12-24s (committed,
+~60m above ground) -> 207.2m (t=28s, exhausted, heading home) -> exactly 150m radius again by t=32s;
+closest approach 65.7m, minimum ground clearance 58.8m vs. the 12m floor. **Visual (§8.5, 2 angles +
+before/after):** purpose-built render with the real model/terrain/config — wide isometric before
+(on the 150m home circle, separated from the player marker, Y=106.2), same angle engaged at t=14s
+(beside the marker, radius 96.9m, Y=75), a second low ground-level angle on that engaged moment
+(banking directly overhead), and wide isometric after giving up (back to exactly 150m, Y=106.2). The
+live `game3d.html` was separately booted and screenshotted: clean boot, real notice toast firing,
+zero console errors.
+
+**Session Quality Gate (§8.6):** stopping after 3 sub-tasks. Confidence: 4/5 — the mechanism itself is
+strongly evidenced (18/18 suite, exact-value assertions, a measured no-op proof for the one behavior
+change that could have regressed calm flight, and an end-to-end trajectory against the real world).
+The missing point is deliberate and named in ADR-0085: the 18s / 10 m/s / 55m tuning is engineering
+judgment against that trajectory, never felt by a human at real frame rates, so whether the encounter
+reads as thrilling or merely annoying is genuinely open. "6 ay sonra hâlâ net mi": yes — ADR-0085
+records why the center travels at a bounded speed rather than a blend (a lerp would teleport the
+circle), why the circle was kept at all, and why the clamp moved.
+
+**Memory-leak checklist:** no new listeners/timers/DOM nodes/GPU resources — the pursuit tier adds
+only scalar state (`currentCenterX/Z/Y`, `pursuitBlend`, `pursuitElapsedSeconds`, `pursuitExhausted`)
+to an existing controller. `dispose()` needed no change and remains correct. The scratchpad
+verification scripts open/close their own Playwright page and static server per run.
+
+**Files changed (sub-tasks 2-3):** `src/3d/gameplay/dragons.js` (344 -> 502 lines),
+`src/3d/gameplay/gameplayConfig.js` (557 -> 573), `scripts/game3dSmokeChecksDragonDive.js`
+(167 -> ~310), `scripts/smokeTestGame3D.js` (+1 line), `GOVERNANCE.md` (§17 roadmap line),
+`DECISIONS.md` (ADR-0085), `perf_log.csv` (+1 row), `3D_GAME_PROGRESS.md` (this file). No file near
+the 600-line cap; `gameplayConfig.js` at 573 is the closest and should be split before it grows much
+further.
+
+**World Evolution Report (delta vs. run 66's first sub-task):**
+
+| Metric | Earlier this run | End of run 66 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged |
+| Kingdom seats w/ real castle models | 7 | 7 | unchanged |
+| Dragons (spawned) | 1 (notice + reactive + dive) | 1 (**+ continuous chase, time-boxed**) | behavior increment |
+| Max distance a dragon can leave its seat | 0m (permanently tethered) | ~180m + ring radius | **new capability** |
+| NPCs with dialogue-choice branching | 13/14 | 13/14 | unchanged (doc comment corrected) |
+| Smoke suite | 17/17 | **18/18** | +1 check |
+| ADRs | 84 | 85 | +1 |
+| perf_log.csv rows | 5 | 6 | +1 |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged |
+| Tech debt count | unchanged | unchanged | +0 |
+
+**Oyuncu fark eder mi:** yes — this is the most player-visible change in several runs. Anyone who
+lingers near `umit`'s castle now gets genuinely hunted: the dragon leaves its castle, closes to ~65m,
+tightens and drops to circle overhead for up to 18 seconds, then breaks off and flies home. Running
+away no longer guarantees escape (10 m/s vs. the player's 6.5 m/s) but does change the encounter's
+shape. Still no attack or damage — the dragon menaces and withdraws; there is no health/damage system
+for it to hook into yet.
+
+**Next step for the next run:** FAZ 7's natural successor is now a real attack (fire-breath or a
+strafing pass off the already-existing engaged state and ~70m committed distance) — but the actual
+blocker is that no health/damage system exists anywhere in this project, so that is a FAZ-level
+design decision, not a dragon-movement one, and belongs in `QUESTIONS_FOR_OWNER.md` before code.
+`gameplayConfig.js` at 573/600 should be split before it grows much further. A human playtest of the
+18s / 10 m/s / 55m chase tuning is the one thing this run's evidence genuinely cannot substitute for.
+FAZ 6's cart/dog-cat/bird gap remains blocked on the human manual-asset-download step. No blocking
+bugs, syntax errors, or regressions found.

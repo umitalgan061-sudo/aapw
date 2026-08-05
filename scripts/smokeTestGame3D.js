@@ -72,6 +72,7 @@ async function main() {
 		results.push(await movementChecks.checkDragonNotice(browser, baseUrl));
 		results.push(await movementChecks.checkDragonReactiveFlight(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonDive(browser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonPursuit(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();

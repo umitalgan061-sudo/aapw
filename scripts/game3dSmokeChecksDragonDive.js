@@ -164,4 +164,159 @@ async function checkDragonDive(browser, baseUrl) {
 	return { name: 'dragon dive/swoop reaction (gameplay/dragons.js, ADR-0082)', ok, details };
 }
 
-module.exports = { checkDragonDive };
+/**
+ * Regression guard for `gameplay/dragons.js`'s continuous chase (run 66, DECISIONS.md ADR-0085) —
+ * the tier that finally lets the dragon leave its home seat, by traveling the whole circle rather
+ * than pulling a bounded fraction off a fixed one.
+ *
+ * Every sub-scene parks the dragon's angle with `speedMps: 0` (same trick the dive check above and
+ * `game3dSmokeChecksMovement.js`'s dragon checks already use) and `startAngleRadians: 0`, which puts
+ * the dragon at exactly `(centerX, centerY, centerZ + radius)`. That makes the two otherwise-internal
+ * values directly readable off `object3D.position` without exposing them: with the radius held
+ * constant, `centerZ === position.z - radius` reads the traveling center; with the center held still
+ * (`pursuitCenterSpeedMps: 0`), `radius === position.z - centerZ` reads the easing radius. Asserts:
+ * - the center travels toward the player at exactly `pursuitCenterSpeedMps` — a real speed limit,
+ *   not a lerp that would teleport the circle when the player is far;
+ * - the circle radius eases toward `pursuitCircleRadiusMeters` while engaged;
+ * - the engagement is time-boxed: past `pursuitMaxSeconds` the dragon disengages and travels back,
+ *   landing *exactly* on its home center (the snap-when-closer-than-one-step branch, so "home" is a
+ *   real equality rather than an asymptote), and does not re-engage while the player stays put;
+ * - leaving `pursuitRadiusMeters` re-arms it, and re-entering starts a fresh engagement;
+ * - the terrain-safety clamp now applies to ordinary circling too, not just diving (run 66 hoisted
+ *   it out of the dive branch) — a dragon with no dive configured at all still gets pushed up above
+ *   a too-high `sampleGroundY`;
+ * - pursuit is fully opt-in: with no `pursuitRadiusMeters` the center never moves, however close the
+ *   player stands.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkDragonPursuit(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createDragon } = await import('/src/3d/gameplay/dragons.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { DRAGON_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+
+			const assetLoader = new AssetLoader();
+			const centerX = 0;
+			const centerZ = 0;
+			const centerY = 100;
+			const circleRadiusMeters = 100;
+			const delta = 0.1;
+			// Flat ground at 0 with a cruise altitude equal to centerY, so terrain-following is a
+			// no-op here and these assertions isolate the *horizontal* travel/radius behavior.
+			const flatGround = () => 0;
+			const base = {
+				assetLoader,
+				modelUrl: DRAGON_CONFIG.MODEL_URL,
+				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
+				scale: DRAGON_CONFIG.SCALE,
+				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
+				centerX, centerZ, centerY, circleRadiusMeters,
+				speedMps: 0,
+				startAngleRadians: 0,
+				minAltitudeAboveGroundMeters: 10,
+				cruiseAltitudeAboveGroundMeters: centerY,
+			};
+			// Directly under the dragon's parked position (0, 100, 100): 3D distance 100, inside the
+			// 150m pursuit radius below.
+			const playerNear = { x: 0, y: 0, z: circleRadiusMeters };
+			const playerFar = { x: 5000, y: 0, z: 5000 };
+			const approxEqual = (a, b, tolerance = 1e-6) => Math.abs(a - b) < tolerance;
+
+			// --- Center travel at a bounded speed (radius held constant so position.z reads it). ---
+			const travelDragon = await createDragon({
+				...base,
+				sampleGroundY: flatGround,
+				pursuitRadiusMeters: 150,
+				pursuitCenterSpeedMps: 10,
+				pursuitCircleRadiusMeters: circleRadiusMeters, // no tightening — isolates travel
+				pursuitMaxSeconds: 1000,
+			});
+			for (let i = 0; i < 10; i++) travelDragon.update(delta, playerNear); // 1.0s engaged
+			// Center should have advanced exactly 10 m/s * 1.0s = 10m toward the player's z=100.
+			const centerTraveledAtBoundedSpeed = approxEqual(travelDragon.object3D.position.z, circleRadiusMeters + 10);
+			for (let i = 0; i < 10; i++) travelDragon.update(delta, playerNear); // 1.0s more
+			const centerKeepsClosing = approxEqual(travelDragon.object3D.position.z, circleRadiusMeters + 20);
+			travelDragon.dispose();
+
+			// --- Radius tightening (center pinned still so position.z reads the radius). ---
+			const tightenDragon = await createDragon({
+				...base,
+				sampleGroundY: flatGround,
+				pursuitRadiusMeters: 150,
+				pursuitCenterSpeedMps: 0, // center never moves — isolates the radius blend
+				pursuitCircleRadiusMeters: 50,
+				pursuitTransitionSeconds: 1,
+				pursuitMaxSeconds: 1000,
+			});
+			for (let i = 0; i < 5; i++) tightenDragon.update(delta, playerNear); // 0.5s -> blend 0.5
+			const radiusHalfwayTightened = approxEqual(tightenDragon.object3D.position.z, 75);
+			for (let i = 0; i < 20; i++) tightenDragon.update(delta, playerNear); // fully engaged
+			const radiusFullyTightened = approxEqual(tightenDragon.object3D.position.z, 50);
+			tightenDragon.dispose();
+
+			// --- Time-box, exact return home, no re-engage while the player stays put, re-arm. ---
+			const timeboxDragon = await createDragon({
+				...base,
+				sampleGroundY: flatGround,
+				pursuitRadiusMeters: 150,
+				pursuitCenterSpeedMps: 10,
+				pursuitCircleRadiusMeters: circleRadiusMeters,
+				pursuitMaxSeconds: 1,
+			});
+			for (let i = 0; i < 10; i++) timeboxDragon.update(delta, playerNear); // 1.0s -> exhausts
+			const engagedBeforeTimeout = timeboxDragon.object3D.position.z > circleRadiusMeters;
+			// Player never leaves, so the dragon must stay disengaged and travel all the way home.
+			for (let i = 0; i < 100; i++) timeboxDragon.update(delta, playerNear);
+			const returnedExactlyHome = timeboxDragon.object3D.position.z === circleRadiusMeters;
+			// Still exhausted (player never left the radius) — must not have started over.
+			for (let i = 0; i < 20; i++) timeboxDragon.update(delta, playerNear);
+			const noReEngageWhilePlayerStays = timeboxDragon.object3D.position.z === circleRadiusMeters;
+			// Leaving the radius re-arms it; coming back starts a fresh engagement.
+			timeboxDragon.update(delta, playerFar);
+			for (let i = 0; i < 5; i++) timeboxDragon.update(delta, playerNear);
+			const reArmsAfterPlayerLeaves = timeboxDragon.object3D.position.z > circleRadiusMeters;
+			timeboxDragon.dispose();
+
+			// --- Terrain clamp applies to ordinary circling, not just diving (run 66 hoist). ---
+			const highGroundDragon = await createDragon({
+				...base,
+				sampleGroundY: () => 500, // far above the dragon's own 100m cruise altitude
+				// No alarmRadiusMeters/pursuitRadiusMeters at all — pure circling.
+			});
+			highGroundDragon.update(delta, playerNear);
+			const circlingClampedAboveTerrain = approxEqual(highGroundDragon.object3D.position.y, 510);
+			highGroundDragon.dispose();
+
+			// --- Pursuit fully opt-in. ---
+			const noPursuitDragon = await createDragon({ ...base, sampleGroundY: flatGround });
+			for (let i = 0; i < 200; i++) noPursuitDragon.update(delta, playerNear);
+			const pursuitDisabledByDefault = noPursuitDragon.object3D.position.x === centerX &&
+				noPursuitDragon.object3D.position.z === centerZ + circleRadiusMeters;
+			noPursuitDragon.dispose();
+
+			return {
+				centerTraveledAtBoundedSpeed, centerKeepsClosing, radiusHalfwayTightened,
+				radiusFullyTightened, engagedBeforeTimeout, returnedExactlyHome,
+				noReEngageWhilePlayerStays, reArmsAfterPlayerLeaves, circlingClampedAboveTerrain,
+				pursuitDisabledByDefault,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'circle center travels toward the player at exactly pursuitCenterSpeedMps (speed-limited, ' +
+			'not a teleporting lerp); radius eases to pursuitCircleRadiusMeters; engagement is ' +
+			'time-boxed and returns exactly to the home center; no re-engage while the player stays ' +
+			'inside, re-arms once they leave; terrain clamp now guards ordinary circling too (not ' +
+			'just diving); pursuit fully disabled by default'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'dragon continuous chase (gameplay/dragons.js, ADR-0085)', ok, details };
+}
+
+module.exports = { checkDragonDive, checkDragonPursuit };

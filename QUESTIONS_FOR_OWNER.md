@@ -46,3 +46,20 @@ instead of guessed at silently. Newest entry at the bottom.
   container's remote has separately rejected other force-style pushes (tag pushes, run 58) so the
   rewrite's own push may need to happen from the owner's own machine. **Temporary default used:** key
   treated as compromised, history left untouched, tree cleaned.
+
+- **(run 66, ADR-0085) Should the dragon ever actually *hurt* the player — i.e. does this project
+  want a health/damage system at all?** FAZ 7's dragon now genuinely hunts (leaves its castle, closes
+  to ~65m, circles overhead for up to 18s, gives up). The obvious next increment is an attack, but
+  that is blocked on a question no run should answer unilaterally: there is **no health, damage,
+  death, or respawn concept anywhere in this codebase**, and adding one is a project-shaping decision
+  (it implies combat, failure states, probably saves) far beyond "make the dragon better". **Temporary
+  default used:** the dragon menaces and withdraws, dealing no damage — a threat that is never lethal.
+  Revisit before any attack/fire-breath work starts.
+
+- **(run 66, ADR-0085) Does the chase *feel* right at real frame rates — 18s engagement, 10 m/s
+  pursuit speed, 55m tightened ring?** These were tuned against a 40-second simulated trajectory
+  against the real terrain, which proves the mechanism but cannot tell you whether being chased reads
+  as thrilling or merely annoying. Note 10 m/s deliberately beats `PLAYER_CONFIG.RUN_SPEED_MPS` (6.5),
+  so a player cannot simply outrun it — only outlast it or break line of distance. **Temporary
+  defaults used:** `pursuitMaxSeconds: 18`, `pursuitCenterSpeedMps: 10`, `pursuitCircleRadiusMeters:
+  55` in `DRAGON_CONFIG.SPAWNS[0]` — all three are single-number edits if a playtest says otherwise.

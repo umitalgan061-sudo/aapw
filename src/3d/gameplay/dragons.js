@@ -25,6 +25,19 @@
  * actually left, only how far the rendered position is pulled off it, so "returning to the circle"
  * needs no separate path-planning: easing the dive blend back to 0 always lands exactly on the
  * ordinary circling pose.
+ * Run 66 (DECISIONS.md ADR-0085) adds the real continuous chase runs 64/65 both flagged as the
+ * natural next increment: instead of pulling the dragon a bounded fraction off a circle that stays
+ * anchored to its home seat forever, the *circle itself* now travels — its center moves toward the
+ * player at a bounded speed (`pursuitCenterSpeedMps`) while engaged, tightening its radius and
+ * following terrain altitude as it goes, then travels back home the same way once the dragon
+ * disengages. That keeps every property this module's earlier passes were built around (the dragon
+ * is always exactly on a well-defined circle, so "return home" needs no path-planning, and every
+ * value is still a pure function of `delta` + the player's position, so it stays deterministic)
+ * while removing the one thing that made the dive stop short of a real chase: the dragon can now
+ * actually reach the player, anywhere in the world, instead of being permanently tethered to its
+ * seat. Engagement is time-boxed (`pursuitMaxSeconds`) and re-arms only after the player leaves
+ * `pursuitRadiusMeters`, the same edge-trigger shape the notice event already uses — so a dragon
+ * harries the player and then breaks off, rather than following them across the map forever.
  * `game3d.js` wires this in the same spawn-then-per-frame-update shape every other gameplay system
  * already uses, wrapped in a try/catch (GOVERNANCE.md §8.13 safe mode) since run 64 also touches
  * that call site.
@@ -102,9 +115,49 @@ import { AssetLoader } from '../assetLoader.js';
  * @param {number} [options.diveTransitionSeconds] How long, in seconds, easing into (or out of) the
  *   dive takes — same linear-blend shape `reactiveTransitionSeconds` uses, just for position instead
  *   of speed/bank. Defaults to `1`.
- * @param {number} [options.minAltitudeAboveGroundMeters] Terrain-safety floor: the dive's blended
+ * @param {number} [options.minAltitudeAboveGroundMeters] Terrain-safety floor: the dragon's final
  *   altitude is never allowed to end up below `sampleGroundY(x, z) + minAltitudeAboveGroundMeters`
- *   for the dragon's *actual* (post-blend) (x, z) that frame. Defaults to `10`.
+ *   for its *actual* (post-blend) (x, z) that frame. Defaults to `10`. Applied to every frame's
+ *   final position whenever `sampleGroundY` is available (run 66) — not only while diving, as it
+ *   was when run 64 first introduced it: once the circle center can travel (see
+ *   `pursuitRadiusMeters` below) the ordinary circling pose flies over arbitrary terrain too, so
+ *   clamping only the dive would leave the much more common case unguarded.
+ * @param {number} [options.pursuitRadiusMeters] Run 66 (ADR-0085) continuous chase: while the
+ *   player is within this many meters of the dragon's real position, the dragon *engages* — its
+ *   circle center travels toward the player at `pursuitCenterSpeedMps`, the circle tightens toward
+ *   `pursuitCircleRadiusMeters`, and its cruise altitude starts following the terrain under the
+ *   moving center. Omit (along with `sampleGroundY`) to disable entirely, same "omit to disable"
+ *   convention every earlier tier uses — a dragon can dive without pursuing, but pursuing requires
+ *   `sampleGroundY` for the traveling circle's own terrain-following/safety math. Meant to sit
+ *   between `alarmRadiusMeters` and `noticeRadiusMeters`: wide enough that a player who lingers
+ *   gets chased, narrow enough that merely being seen from across the valley doesn't start one.
+ * @param {number} [options.pursuitCenterSpeedMps] How fast the circle center itself travels, in
+ *   m/s — toward the player while engaged, back toward the home center once disengaged. Bounded
+ *   *speed*, deliberately not a blend fraction: a fraction-of-the-remaining-distance lerp would
+ *   teleport the whole circle whenever the player moved a long way in one frame, whereas a speed
+ *   limit means the dragon genuinely falls behind a sprinting player and has to close the gap.
+ *   Defaults to `10` (vs. `PLAYER_CONFIG.RUN_SPEED_MPS`'s 6.5 — a dragon outruns a running player,
+ *   but not instantly).
+ * @param {number} [options.pursuitCircleRadiusMeters] Circle radius eased toward while engaged,
+ *   replacing the calm `circleRadiusMeters` — a tighter ring directly over the player reads as
+ *   stalking rather than patrolling. Defaults to `circleRadiusMeters` (no tightening). Tangential
+ *   speed (`speedMps`) is held constant as this changes, so a tighter circle is flown *faster* in
+ *   angular terms rather than the dragon appearing to slow down as it closes in.
+ * @param {number} [options.pursuitTransitionSeconds] Ease time, in seconds, for the radius/altitude
+ *   blend into and out of pursuit — same linear-blend shape `reactiveTransitionSeconds`/
+ *   `diveTransitionSeconds` already use. Defaults to `2`. Note the *center's* travel is speed-
+ *   limited rather than blended (see `pursuitCenterSpeedMps`), so this governs only the shape of
+ *   the circle, not how fast the chase itself closes.
+ * @param {number} [options.pursuitMaxSeconds] How long a single engagement may last before the
+ *   dragon gives up and heads home. Defaults to `20`. Once exhausted it will not re-engage until
+ *   the player has left `pursuitRadiusMeters` at least once — the same edge-trigger/re-arm shape
+ *   `noticeRadiusMeters` already uses — so a player who stands their ground gets harried and then
+ *   left alone, instead of being followed across the map indefinitely.
+ * @param {number} [options.cruiseAltitudeAboveGroundMeters] The dragon's cruise height *above the
+ *   terrain under its circle center*, used while pursuing so a chase up a mountainside climbs with
+ *   it instead of flying into the slope. Omit to keep the fixed `centerY` at all times (exact
+ *   pre-run-66 behavior). `spawnConfiguredDragons` passes each spawn's own `altitudeMeters` — the
+ *   same number `centerY` was resolved from at spawn — so the two agree by construction at home.
  * @returns {Promise<{object3D: THREE.Object3D, update: (delta: number, playerPosition?: {x: number, y: number, z: number}) => void, dispose: () => void}>}
  */
 export async function createDragon({
@@ -134,6 +187,12 @@ export async function createDragon({
 	diveLateralPullFraction = 0.35,
 	diveTransitionSeconds = 1,
 	minAltitudeAboveGroundMeters = 10,
+	pursuitRadiusMeters,
+	pursuitCenterSpeedMps = 10,
+	pursuitCircleRadiusMeters = circleRadiusMeters,
+	pursuitTransitionSeconds = 2,
+	pursuitMaxSeconds = 20,
+	cruiseAltitudeAboveGroundMeters,
 }) {
 	const clampedDiveLateralPullFraction = Math.min(1, Math.max(0, diveLateralPullFraction));
 	const model = await assetLoader.loadFBXModel(modelUrl, {
@@ -149,12 +208,23 @@ export async function createDragon({
 	const flyAction = flyClip ? mixer.clipAction(flyClip) : null;
 	if (flyAction) flyAction.play();
 
-	// Angular speed, not linear — constant so a shorter/longer radius never changes how fast the
-	// dragon completes one lap in the same tuned "majestic patrol" feel (see DRAGON_CONFIG's own
-	// speed/radius comment for the resulting ~0.08 rad/s at the default spawn).
-	const calmAngularSpeedRadiansPerSecond = speedMps / circleRadiusMeters;
-	const reactiveAngularSpeedRadiansPerSecond = (speedMps * reactiveSpeedMultiplier) / circleRadiusMeters;
+	// Tangential speed is the tuned constant (see DRAGON_CONFIG's own speed/radius comment for the
+	// resulting ~0.08 rad/s at the default spawn's 150m radius); angular speed is derived from it
+	// against the circle's *current* radius each frame. With no pursuit configured the radius never
+	// changes, so this is arithmetically identical to the fixed `speedMps / circleRadiusMeters`
+	// run 53 used — it only starts to matter once run 66's pursuit tightens the circle, where
+	// holding tangential (not angular) speed constant is what stops a closing dragon from appearing
+	// to slow down as its ring shrinks.
+	const calmAngularSpeedFor = (radiusMeters) => speedMps / radiusMeters;
+	const reactiveAngularSpeedFor = (radiusMeters) => (speedMps * reactiveSpeedMultiplier) / radiusMeters;
 	let angle = startAngleRadians;
+
+	// Run 66 (ADR-0085) pursuit: the circle's center is no longer fixed at the spawn seat. These
+	// track where it actually is right now; `centerX`/`centerZ`/`centerY` stay the immutable "home"
+	// values the center travels back to on disengage.
+	let currentCenterX = centerX;
+	let currentCenterZ = centerZ;
+	let currentCenterY = centerY;
 
 	// Run 58 (ADR-0077) reactive flight: 0 = calm baseline, 1 = fully reactive (faster + harder
 	// bank). Eased linearly toward its target each frame rather than snapped, so the reaction reads
@@ -164,12 +234,22 @@ export async function createDragon({
 	// Run 64 (ADR-0082) dive: 0 = on-circle, 1 = fully at the (terrain-clamped) dive target. Same
 	// starts-at-0, eased-not-snapped shape as `reactiveBlend` above.
 	let diveBlend = 0;
+	// Run 66 (ADR-0085) pursuit: 0 = home-shaped circle (calm radius/altitude), 1 = fully engaged
+	// (tightened radius, terrain-following cruise altitude). Same starts-at-0, eased-not-snapped
+	// shape as the two blends above. The circle *center*'s travel is deliberately not driven by this
+	// — it moves at a bounded speed instead, see `pursuitCenterSpeedMps`'s doc comment.
+	let pursuitBlend = 0;
+	let pursuitElapsedSeconds = 0;
+	// Set once an engagement burns through `pursuitMaxSeconds`; blocks re-engaging until the player
+	// leaves `pursuitRadiusMeters`, the same edge-trigger/re-arm shape `playerWasInNoticeRadius`
+	// below already uses for the notice event.
+	let pursuitExhausted = false;
 
 	/** Places `model` at the current `angle` on its circle and orients it along the direction of travel. */
-	function applyPose(currentBankAngleRadians) {
-		const x = centerX + circleRadiusMeters * Math.sin(angle);
-		const z = centerZ + circleRadiusMeters * Math.cos(angle);
-		model.position.set(x, centerY, z);
+	function applyPose(currentBankAngleRadians, radiusMeters) {
+		const x = currentCenterX + radiusMeters * Math.sin(angle);
+		const z = currentCenterZ + radiusMeters * Math.cos(angle);
+		model.position.set(x, currentCenterY, z);
 		// Tangent direction of a circle parameterized by (sin, cos) is (cos, -sin) — the same
 		// atan2(dx, dz) yaw convention every other gameplay system here already uses (see
 		// `gameplay/animals.js`'s `turnToward`), just derived analytically instead of from a
@@ -178,10 +258,11 @@ export async function createDragon({
 		const tangentZ = -Math.sin(angle);
 		model.rotation.set(0, Math.atan2(tangentX, tangentZ), currentBankAngleRadians);
 	}
-	applyPose(bankAngleRadians);
+	applyPose(bankAngleRadians, circleRadiusMeters);
 
 	const canNotice = Boolean(noticeRadiusMeters != null && eventsBus && eventName && noticeToast);
 	const canDive = Boolean(alarmRadiusMeters != null && typeof sampleGroundY === 'function');
+	const canPursue = Boolean(pursuitRadiusMeters != null && typeof sampleGroundY === 'function');
 	// Starts false: the very first `update()` call (typically seconds after boot) does its own
 	// real distance check before deciding whether the player already started inside the radius —
 	// never assumed true/false up front.
@@ -202,7 +283,7 @@ export async function createDragon({
 			// target (and, run 64, the dive-alarm target) instead of only firing the one-shot notice
 			// event.
 			let distanceToPlayer = null;
-			if (playerPosition && (canNotice || canDive)) {
+			if (playerPosition && (canNotice || canDive || canPursue)) {
 				const dx = model.position.x - playerPosition.x;
 				const dy = model.position.y - playerPosition.y;
 				const dz = model.position.z - playerPosition.z;
@@ -229,14 +310,74 @@ export async function createDragon({
 			} else {
 				reactiveBlend = blendTarget;
 			}
-			const angularSpeedRadiansPerSecond = calmAngularSpeedRadiansPerSecond +
-				(reactiveAngularSpeedRadiansPerSecond - calmAngularSpeedRadiansPerSecond) * reactiveBlend;
+			// Run 66 (ADR-0085) pursuit engagement. `isEngaged` gates both the center's travel target
+			// and the radius/altitude blend below. Exhaustion re-arms only on the player actually
+			// leaving the radius, so a stationary player can't be chased forever.
+			let isEngaged = false;
+			if (canPursue && distanceToPlayer != null) {
+				const isInPursuitRadius = distanceToPlayer < pursuitRadiusMeters;
+				if (!isInPursuitRadius) {
+					pursuitExhausted = false; // left the radius — re-arm for a future engagement.
+					pursuitElapsedSeconds = 0;
+				} else if (!pursuitExhausted) {
+					pursuitElapsedSeconds += delta;
+					if (pursuitElapsedSeconds >= pursuitMaxSeconds) pursuitExhausted = true;
+					else isEngaged = true;
+				}
+			}
+
+			// The circle center travels at a bounded speed toward the player while engaged, and back
+			// toward its immutable home center otherwise. Speed-limited rather than blended so a
+			// sprinting player really does open a gap the dragon has to close (see
+			// `pursuitCenterSpeedMps`'s doc comment for why a lerp would teleport the circle instead).
+			if (canPursue) {
+				const targetCenterX = isEngaged && playerPosition ? playerPosition.x : centerX;
+				const targetCenterZ = isEngaged && playerPosition ? playerPosition.z : centerZ;
+				const toTargetX = targetCenterX - currentCenterX;
+				const toTargetZ = targetCenterZ - currentCenterZ;
+				const distanceToTarget = Math.hypot(toTargetX, toTargetZ);
+				const maxStep = pursuitCenterSpeedMps * delta;
+				if (distanceToTarget > maxStep && distanceToTarget > 0) {
+					currentCenterX += (toTargetX / distanceToTarget) * maxStep;
+					currentCenterZ += (toTargetZ / distanceToTarget) * maxStep;
+				} else {
+					// Close enough to land exactly on the target this frame — snapping here (rather
+					// than overshooting by the leftover step) is what makes "fully returned home"
+					// an exact equality again, not an asymptote that never quite arrives.
+					currentCenterX = targetCenterX;
+					currentCenterZ = targetCenterZ;
+				}
+			}
+
+			// Radius/altitude ease into and out of the engaged shape.
+			const pursuitBlendTarget = isEngaged ? 1 : 0;
+			if (pursuitTransitionSeconds > 0) {
+				const pursuitStep = delta / pursuitTransitionSeconds;
+				if (pursuitBlend < pursuitBlendTarget) pursuitBlend = Math.min(pursuitBlendTarget, pursuitBlend + pursuitStep);
+				else if (pursuitBlend > pursuitBlendTarget) pursuitBlend = Math.max(pursuitBlendTarget, pursuitBlend - pursuitStep);
+			} else {
+				pursuitBlend = pursuitBlendTarget;
+			}
+			const currentCircleRadiusMeters = circleRadiusMeters +
+				(pursuitCircleRadiusMeters - circleRadiusMeters) * pursuitBlend;
+			// While pursuing, cruise altitude follows the terrain under the *moving* center rather
+			// than staying pinned to the home seat's own ground height — otherwise a chase up a
+			// mountainside would fly straight into the slope (the final safety clamp below would
+			// still catch it, but as an emergency floor, not as flight that reads as deliberate).
+			if (canPursue && cruiseAltitudeAboveGroundMeters != null) {
+				const terrainFollowingCenterY = sampleGroundY(currentCenterX, currentCenterZ) + cruiseAltitudeAboveGroundMeters;
+				currentCenterY = centerY + (terrainFollowingCenterY - centerY) * pursuitBlend;
+			}
+
+			const calmAngular = calmAngularSpeedFor(currentCircleRadiusMeters);
+			const reactiveAngular = reactiveAngularSpeedFor(currentCircleRadiusMeters);
+			const angularSpeedRadiansPerSecond = calmAngular + (reactiveAngular - calmAngular) * reactiveBlend;
 			const currentBankAngleRadians = bankAngleRadians + (reactiveBankAngleRadians - bankAngleRadians) * reactiveBlend;
 
 			angle += angularSpeedRadiansPerSecond * delta;
-			applyPose(currentBankAngleRadians); // pure on-circle pose — the dive below blends *away*
-			// from this, never replaces the underlying path, so easing back to diveBlend 0 always
-			// lands exactly here again.
+			applyPose(currentBankAngleRadians, currentCircleRadiusMeters); // pure on-circle pose — the
+			// dive below blends *away* from this, never replaces the underlying path, so easing back
+			// to diveBlend 0 always lands exactly here again.
 
 			// Run 64 (ADR-0082): brief dive off the circle when the player is much closer than
 			// `noticeRadiusMeters` (inside the smaller `alarmRadiusMeters`), easing back the same way
@@ -258,16 +399,23 @@ export async function createDragon({
 				// it — a swoop toward them, not a teleport to stand on top of them.
 				const diveTargetX = circleX + (playerPosition.x - circleX) * clampedDiveLateralPullFraction;
 				const diveTargetZ = circleZ + (playerPosition.z - circleZ) * clampedDiveLateralPullFraction;
-				const diveTargetY = centerY - diveDropMeters;
+				const diveTargetY = currentCenterY - diveDropMeters;
 				const blendedX = circleX + (diveTargetX - circleX) * diveBlend;
 				const blendedZ = circleZ + (diveTargetZ - circleZ) * diveBlend;
-				const blendedY = centerY + (diveTargetY - centerY) * diveBlend;
-				// Terrain-collision safety floor: never let the dive put the dragon below the real
-				// ground under its *new* (x, z), plus a clearance margin. Re-sampled every frame (the
-				// position moves every frame while diving), not just once at the dive's start.
-				const groundY = sampleGroundY(blendedX, blendedZ);
-				const safeY = Math.max(blendedY, groundY + minAltitudeAboveGroundMeters);
-				model.position.set(blendedX, safeY, blendedZ);
+				const blendedY = currentCenterY + (diveTargetY - currentCenterY) * diveBlend;
+				model.position.set(blendedX, blendedY, blendedZ);
+			}
+
+			// Terrain-collision safety floor: never let the dragon end a frame below the real ground
+			// under its *final* (x, z), plus a clearance margin. Re-sampled every frame (the position
+			// moves every frame), and applied to the finished position rather than inside the dive
+			// branch as run 64 originally had it — since run 66 the ordinary circling pose flies over
+			// arbitrary terrain too (the center travels), so clamping only the dive would leave the
+			// far more common case unguarded. Unchanged for any dragon with no `sampleGroundY`.
+			if (typeof sampleGroundY === 'function') {
+				const groundY = sampleGroundY(model.position.x, model.position.z);
+				const minY = groundY + minAltitudeAboveGroundMeters;
+				if (model.position.y < minY) model.position.y = minY;
 			}
 
 			mixer.update(delta);
@@ -298,10 +446,12 @@ export async function createDragon({
  * @returns {Promise<Awaited<ReturnType<typeof createDragon>>[]>} Already filtered — no `null` entries.
  *   Each spawn's own `reactiveSpeedMultiplier`/`reactiveBankAngleRadians`/`reactiveTransitionSeconds`
  *   (run 58, ADR-0077) and `alarmRadiusMeters`/`diveDropMeters`/`diveLateralPullFraction`/
- *   `diveTransitionSeconds`/`minAltitudeAboveGroundMeters` (run 64, ADR-0082) are passed straight
+ *   `diveTransitionSeconds`/`minAltitudeAboveGroundMeters` (run 64, ADR-0082) and
+ *   `pursuitRadiusMeters`/`pursuitCenterSpeedMps`/`pursuitCircleRadiusMeters`/
+ *   `pursuitTransitionSeconds`/`pursuitMaxSeconds` (run 66, ADR-0085) are passed straight
  *   through to `createDragon` — omitted per-spawn fields fall back to `createDragon`'s own no-op
  *   defaults (calm flight, unaffected by the player). `sampleGroundY` itself is always passed
- *   through too (run 64), needed for the dive's own terrain-safety clamp.
+ *   through too (run 64), needed for the dive's and the traveling circle's terrain-safety clamp.
  */
 export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsById, sampleGroundY, eventsBus, eventName }) {
 	const dragons = await Promise.all(
@@ -337,6 +487,14 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				diveLateralPullFraction: spawn.diveLateralPullFraction,
 				diveTransitionSeconds: spawn.diveTransitionSeconds,
 				minAltitudeAboveGroundMeters: spawn.minAltitudeAboveGroundMeters,
+				pursuitRadiusMeters: spawn.pursuitRadiusMeters,
+				pursuitCenterSpeedMps: spawn.pursuitCenterSpeedMps,
+				pursuitCircleRadiusMeters: spawn.pursuitCircleRadiusMeters,
+				pursuitTransitionSeconds: spawn.pursuitTransitionSeconds,
+				pursuitMaxSeconds: spawn.pursuitMaxSeconds,
+				// The same number `centerY` above was resolved from — passed separately so the
+				// traveling circle can re-derive its cruise altitude over new terrain (run 66).
+				cruiseAltitudeAboveGroundMeters: spawn.altitudeMeters,
 			});
 		}),
 	);

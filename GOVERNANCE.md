@@ -233,8 +233,10 @@ göreve geçilir.
 
 FAZ 0-1 TAMAMLANDI. FAZ 2 ~%95. FAZ 3 ~%90. FAZ 4 TAMAMLANDI. FAZ 5: NPC diyalog 13/14.
 FAZ 6: kurt tamam, at/araba/köpek-kedi/kuş kaldı. FAZ 7: ilk ejderha (fark etme + reaktif
-uçuş + kısa dalış/swoop var, run 64/ADR-0082; gerçek kovalama/saldırı yok). FAZ 8: dünya
-olayları büyüyor. FAZ 9-10 başlamadı.
+uçuş + dalış/swoop + **gerçek sürekli kovalama** var — run 66/ADR-0085: ejderha artık
+kalesini terk edip oyuncuyu 18 saniye boyunca kovalıyor, sonra vazgeçip dönüyor; saldırı/
+hasar hâlâ yok, sağlık/hasar sistemi olmadığı için). FAZ 8: dünya olayları büyüyor.
+FAZ 9-10 başlamadı.
 
 ## 18. Görev Öncelik Sırası (güncel)
 

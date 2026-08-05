@@ -6518,3 +6518,149 @@ cost when off" contract every other `debug/` file here already holds to.
 - **No enforcement yet:** if this monitoring ever shows real devices routinely crossing
   `STORAGE_WARN_FRACTION`, an eviction/enforcement policy (deliberately rejected above as its own
   scope) would become the natural next step — not guessed at now.
+
+---
+
+## ADR-0085: Dragon continuous chase — the circle itself travels, instead of a bounded pull off a fixed one
+
+**Status:** Accepted (run 66).
+
+**Risk Seviyesi:** MEDIUM. Justification: this is the first change that lets a gameplay entity leave
+its spawn neighborhood entirely and fly over arbitrary, un-pre-validated terrain — a genuinely new
+class of movement for this project, unlike ADR-0077/ADR-0082 which only ever perturbed a path
+anchored to a known-good seat. Mitigated by an always-applied terrain-safety clamp (see Decision
+point 4), a hard engagement time-box, and a `spawnConfiguredDragons` call site already wrapped in
+`game3d.js`'s try/catch safe mode (GOVERNANCE.md §8.13). Fully reversible: every new parameter is
+opt-in, so deleting the five `pursuit*` fields from `DRAGON_CONFIG.SPAWNS` restores exact
+pre-run-66 behavior without touching `dragons.js` at all.
+
+**Context:** Runs 64 and 65 both closed their notes by flagging the same open increment: the dive
+(ADR-0082) reads as chase-*like* but structurally is not one. Its target is recomputed from the
+player's live position every frame, so it already "re-aims" — but the circle it blends away from
+stays welded to the dragon's home seat forever, and the blend is capped at
+`diveLateralPullFraction` (0.3). The dragon therefore has a hard, permanent floor on how close it
+can ever get, and cannot follow a player who simply walks away. Run 64's own ADR named the fix
+("breaks from the circle entirely") and deliberately deferred it as deserving its own scoped run.
+
+The obvious implementation — abandon the circle and fly a free pursuit vector — is exactly what
+ADR-0082 rejected, because it forfeits the property the whole module is built on: while the dragon
+is always exactly on a closed circle, "return home" is free (ease the blend to 0), needs no
+path-planning, and can never strand the dragon somewhere it has no route back from.
+
+**Decision:** Keep the circle; move the circle. Rather than the dragon leaving its path, the path's
+*center* travels.
+
+1. **A speed-limited traveling center.** While engaged, `currentCenterX/Z` moves toward the player's
+   live position at `pursuitCenterSpeedMps` (10 m/s shipped, vs. `PLAYER_CONFIG.RUN_SPEED_MPS`'s
+   6.5); while disengaged it travels back toward the immutable home center the same way. Deliberately
+   a **speed limit, not a blend fraction**: a `lerp(home, player, blend)` would teleport the entire
+   circle whenever the player covered ground in one frame, whereas a bounded step means a sprinting
+   player genuinely opens a gap the dragon then has to close — which is what makes it read as a
+   chase rather than as attachment. The final step snaps exactly onto the target when the remaining
+   distance is under one step, so "fully returned home" is a real equality, not an asymptote.
+2. **A tightening ring.** `pursuitCircleRadiusMeters` (150m -> 55m shipped) eases in over
+   `pursuitTransitionSeconds`, so an engaged dragon visibly closes in rather than merely relocating.
+   Tangential speed (`speedMps`) is now held constant while the radius changes — angular speed is
+   derived per-frame as `speedMps / currentRadius` instead of being fixed at spawn — so a shrinking
+   ring is flown *faster* angularly rather than making the dragon appear to slow down as it closes.
+   With no pursuit configured the radius never changes and this is arithmetically identical to run
+   53's fixed value.
+3. **Terrain-following cruise altitude.** While pursuing, the cruise height is re-derived as
+   `sampleGroundY(currentCenter) + cruiseAltitudeAboveGroundMeters` and blended in, so a chase up a
+   mountainside climbs with the slope instead of flying into it. `spawnConfiguredDragons` passes each
+   spawn's own `altitudeMeters` — the same number `centerY` was resolved from — so the two agree by
+   construction at home and the blend is a no-op there.
+4. **The terrain-safety clamp is hoisted out of the dive branch** and now applies to every frame's
+   final position whenever `sampleGroundY` is available. Run 64 clamped only while diving, which was
+   sufficient when the circle was pinned over known-good ground; once the center can travel, the
+   ordinary circling pose flies over arbitrary terrain too, so clamping only the dive would have left
+   the far more common case unguarded.
+5. **Time-boxed engagement with an edge-triggered re-arm.** `pursuitMaxSeconds` (18s shipped) caps a
+   single engagement; once exhausted the dragon disengages and will not re-engage until the player
+   has left `pursuitRadiusMeters` at least once — the same edge-trigger/re-arm shape
+   `playerWasInNoticeRadius` already uses for the notice event. Without this, a player who stands
+   still would be circled indefinitely, and a player who runs would be followed across the entire
+   map — neither is a fight, just harassment.
+
+**Alternatives considered:**
+- **Free pursuit vector, abandoning the circle.** Rejected — see Context. Forfeits the free,
+  provably-correct "return home" this module's earlier passes were designed around, and would need
+  real path-planning plus a stuck/stranded recovery path that nothing in this project has yet.
+- **Raising `diveLateralPullFraction` toward 1.0 instead of adding a tier.** Rejected: it would let
+  the dragon reach the player only when the player happens to stand near the *existing* circle, which
+  is the actual limitation — the tether, not the pull depth. It also has no notion of giving up.
+- **Driving the center with a blend fraction like the other two tiers.** Rejected for the teleport
+  behavior described in Decision point 1; the inconsistency with `reactiveBlend`/`diveBlend` is
+  deliberate and documented at the parameter's own doc comment.
+- **A cooldown timer after exhaustion instead of a leave-the-radius re-arm.** Rejected as a second
+  timing concept for no benefit — the edge-trigger shape already exists in this file and gives the
+  player a clear, legible way to end an engagement (get away), rather than an invisible countdown.
+
+**Verification:** `node --check` clean across `src/`+`scripts/` (full sweep, 0 failures).
+`checkServiceWorkerCache.js` and `checkAssetsManifest.js` both OK. Full `scripts/smokeTestGame3D.js`
+— **18/18 PASS**, zero console/page errors, up from 17 (the new `checkDragonPursuit`). Critically,
+**all four pre-existing dragon checks (circling, notice, reactive flight, dive) passed unchanged
+after the refactor and before any config was added** — confirming backward compatibility was
+measured, not assumed.
+
+The new `checkDragonPursuit` (`scripts/game3dSmokeChecksDragonDive.js`) parks the dragon's angle
+(`speedMps: 0`, `startAngleRadians: 0`) so the two otherwise-internal values become directly readable
+off `object3D.position`: holding the radius constant makes `position.z - radius` the traveling
+center, and pinning the center (`pursuitCenterSpeedMps: 0`) makes `position.z - centerZ` the easing
+radius. It asserts the exact 10 m/s travel distance, the halfway and fully-eased radius values,
+exhaustion after `pursuitMaxSeconds`, exact-equality return to the home center, no re-engagement
+while the player stays inside, re-arming once they leave, the hoisted clamp firing on plain circling
+with no dive configured, and pursuit being fully opt-in.
+
+**Live-world safety analysis (scratchpad script, not committed — same convention prior runs' evidence
+follows):** the hoisted clamp is a **measured no-op for existing behavior**, not a hoped-for one. At
+`umit`'s seat (578, 3999; ground 16.19m) the dragon cruises at Y=106.19, while the worst terrain
+anywhere on its 150m home circle demands only Y=28.66 — and only Y=32.91 anywhere within 600m of the
+seat. World-wide peak terrain is 160.98m, so even a chase onto the highest ground in Westeros cruises
+at ~251m under terrain-following. The clamp is a genuine emergency floor that never fires in ordinary
+play; the shipped visible behavior of the calm patrol is therefore byte-identical to run 65's.
+
+**End-to-end trajectory against the real terrain and the real shipped config** (40 simulated seconds,
+player held at the seat + 60m where the real player spawns): distance-to-player 185.5m at t=0 (calm,
+horizontal radius exactly 150) -> 115.3m at t=8s (engaging, ring tightening to 100) -> holds ~70m
+through t=12-24s (committed, altitude down to ~60m above ground) -> 207.2m at t=28s (exhausted at 18s,
+heading home) -> exactly 150m radius again by t=32s. Closest approach 65.7m; minimum clearance above
+real ground 58.8m, far above the 12m floor (`terrainFloorRespected: true`); zero console errors.
+
+**Visual verification (GOVERNANCE.md §8.5 — 2 camera angles + before/after):** a purpose-built render
+using the real dragon model, the real terrain sampler, and the unmodified shipped config, with the
+player position marked. Wide isometric before (dragon on its 150m home circle, clearly separated from
+the player marker, Y=106.2) vs. the same angle engaged at t=14s (dragon beside the marker, radius from
+seat 96.9m, Y=75) vs. a second low ground-level angle on that same engaged moment (dragon banking
+directly above the marker) vs. wide isometric after giving up (back to exactly 150m radius, Y=106.2,
+on the far side from the player). Zero console errors throughout. The live `game3d.html` was
+separately booted and screenshotted to confirm no regression to ordinary play (clean boot, the real
+`Ejderha Görüldü!` notice toast still firing, zero console errors) — the chase itself is not visible
+in that capture because the default chase camera frames the player, not the sky.
+
+**Consequence:** A player who lingers near `umit`'s castle is now genuinely hunted for up to 18
+seconds — the dragon leaves its castle, closes to ~65m, tightens and drops to circle overhead, then
+breaks off and flies home. Running away no longer guarantees safety (10 m/s beats 6.5 m/s) but does
+change the geometry of the encounter, and outlasting or escaping the engagement ends it cleanly. FAZ
+7 moves from "a dragon reacts to you" to "a dragon comes after you." Still **no attack, no damage, no
+combat** — the dragon menaces and withdraws; there is no health/damage system in this project yet for
+it to hook into.
+
+**Gelecek Faz Etkisi (future-phase impact):**
+- **FAZ 7 (combat / real threat):** the traveling circle is the natural attachment point for a future
+  attack — a fire-breath or strafing pass would trigger off the already-existing engaged state and
+  the ~70m committed distance, needing no further movement work. A damage/health system remains the
+  actual blocker, not dragon movement.
+- **FAZ 6 (animals):** the same "travel the base path's origin at a bounded speed, keep the path
+  shape" pattern is directly reusable for any future land animal that should follow the player beyond
+  its patrol (a wolf pack tracking rather than fleeing) — and unlike `animals.js`'s existing flee
+  logic, which replaces its path outright, it keeps a guaranteed route home.
+- **World streaming:** the dragon can now travel up to `pursuitCenterSpeedMps * pursuitMaxSeconds`
+  (~180m) from its seat, plus its ring radius. That is well inside the loaded-chunk neighborhood
+  around a player it is by definition chasing, so no streaming change is needed today — but a future
+  dragon with a much longer `pursuitMaxSeconds`, or one that pursues across chunk boundaries far from
+  any settlement, should re-check that assumption rather than inherit it.
+- **Human playtest note:** the 18s/10 m/s/55m numbers are this run's engineering judgment tuned
+  against the trajectory above, not playtested by a person. Whether the encounter reads as thrilling
+  or merely annoying at real frame rates is exactly the kind of question only a human can answer —
+  logged rather than guessed at.
