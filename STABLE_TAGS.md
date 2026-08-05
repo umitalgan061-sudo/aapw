@@ -82,3 +82,13 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   gone. `service-worker.js` precaches the three new modules (`SHELL_CACHE` v3->v4). `git push origin
   main` succeeded (`8376b68`). Local tag only — `git push origin <tag>` still rejected with
   `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-1004` — run 72 sub-task 1 end: dragon dive telegraph (ADR-0093) — a wing-flap
+  warning beat before the swoop starts, decoupled from the dive's own position blend via a new
+  `diveTelegraphBlend` and a plain elapsed-time gate on `diveBlend`'s own target. New regression
+  check `checkDragonDiveTelegraph` isolates the cue-fires-while-position-holds property, the
+  eventually-reaches-the-same-dived-position property, and the retreat-cancels-the-dive property
+  (21/21 smoke suite passing). Zero console/page errors on real headless boot; perf bit-identical to
+  run71b on every GPU-submission metric (46 draw calls / 393,231 triangles / 44 geometries / 17
+  textures). `scripts/game3dSmokeChecksDragonDive.js` now 598/600 (fresh WARN, flagged as next run's
+  real forcing signal to split). `git push origin main` succeeded (`cffd49c`). Local tag only —
+  `git push origin <tag>` still rejected with `HTTP 403` (same known issue since run 58).
