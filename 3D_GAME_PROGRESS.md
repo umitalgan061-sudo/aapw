@@ -6737,3 +6737,140 @@ design decision, not a dragon-movement one, and belongs in `QUESTIONS_FOR_OWNER.
 18s / 10 m/s / 55m chase tuning is the one thing this run's evidence genuinely cannot substitute for.
 FAZ 6's cart/dog-cat/bird gap remains blocked on the human manual-asset-download step. No blocking
 bugs, syntax errors, or regressions found.
+
+## This Run (2026-08-05, run 67)
+
+**Fresh Session Snapshot at container boot:** `GOVERNANCE.md` read in full (already complete, no
+changes needed). `3D_GAME_PROGRESS.md`'s run 65-66 entries, `DECISIONS.md`'s last 3 ADRs
+(0082-0084), and `QUESTIONS_FOR_OWNER.md` (2 owner-only items pending: leaked-key rotation, blocked
+animal assets — neither actionable by this run) all read for context. `git log -10` showed `HEAD`
+detached at run 66's final commit (`b9cd77b`); `git fetch origin main` + `git checkout -B main
+origin/main` synced local `main` to `origin/main` (same recurring container-restart pattern
+documented since run 18).
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`) — clean. `node
+scripts/checkAssetsManifest.js` — OK (40 entries). Full `scripts/smokeTestGame3D.js` — **17/17
+PASS** before any new code.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-11 clean, no new evidence to doubt prior runs'
+own re-verification. Item 4/1.7 ("gerçek kale modellerini dokulandır") — this run's scheduler prompt
+specifically asked whether the remaining 7/14 un-modeled seats are actionable or blocked-on-manual
+-download like FAZ 6. Checked directly: grepped every `creature_model`/`settlement_model` entry in
+`assets_manifest.json` for anything castle-shaped and still unconsumed by `world/settlements.js` —
+found `dragon_reference_v1`, flagged mislabeled since run 52 (its real content is a fantasy
+castle/gatehouse, not a dragon) and explicitly left unconsumed pending "a human or a future run"
+deciding to use it (see its own manifest note). This is genuinely actionable (already on disk, not
+blocked on a download step) — picked as this run's sub-task over item 12 (FAZ 7's dragon continuous
+-chase increment, still real further scope but not picked this run at the time — see the
+concurrency note below for what happened to that item in parallel).
+
+**Sub-task 1 — 8th real castle model, `twin` kingdom seat (DECISIONS.md ADR-0086):** decimated
+`reference_dragon_v1.glb` (1,986,672 tri, 85.24MB) via `gltf-transform weld -> simplify --ratio
+0.0099 --error 0.06 -> resize 512x512 -> prune` (ADR-0070's ratio, not ADR-0074's 0.08 — this
+source's ~2M-triangle scale needed the steeper cut) into `gatehouse_reference_decimated.glb`
+(19,630 tri, 635KB — inside the same range the other 7 decimated castles already land in). New
+`assets_manifest.json` entry (`castle_reference_gatehouse_decimated`), `dragon_reference_v1`'s own
+entry updated with a `replacedBy` pointer and a note recording this run's use.
+`world/settlements.js`'s `CASTLE_MODEL_ASSIGNMENTS` grew an 8th `{seatId: 'twin', ...}` entry — the
+model's own wooden-drawbridge/gatehouse silhouette fits the Twins' existing river-crossing dialogue
+flavor (`dialogueChoices.js`'s `twin-guard-1`) closer than any of the other 6 remaining seats would
+have. `service-worker.js`'s `GAME3D_SHELL_FILES` gained the new file path; `SHELL_CACHE` bumped
+v2->v3 so existing installs' stale cache gets swept by the existing `activate` cleanup instead of
+accumulating. `CREDITS.md` updated (Hitem3d section, asset-count summary table).
+
+**Concurrency collision (GOVERNANCE.md §8.14) — caught before push, resolved cleanly:** the
+pre-commit `git fetch origin main` (run right before staging, per §8.14's own procedure) found
+`origin/main` had moved 2 commits ahead of what this run started from — another session had, in
+parallel, independently picked item 12 (FAZ 7's dragon continuous chase, ADR-0085) *and*
+independently made the exact same one-line "12 of 14" -> "13 of 14" doc-comment fix this run had
+also queued as a planned second sub-task. Resolved by: `git stash` this run's uncommitted work,
+`git checkout -B main origin/main` to take the real upstream state, `git stash pop` to reapply on
+top (Git flagged 4 real content conflicts: `3D_GAME_PROGRESS.md`, `DECISIONS.md`, `perf_log.csv`,
+`gameplayConfig.js`). Resolution: the doc-comment fix was dropped from this run entirely (already
+correctly done upstream, no need to re-litigate identical content); this run's new ADR was
+renumbered `ADR-0085` -> `ADR-0086` (the other session's dragon-chase ADR claimed 0085 first,
+confirmed by commit order) and every self-reference to it across `settlements.js`,
+`assets_manifest.json`, `CREDITS.md`, and `service-worker.js` was corrected to match; `perf_log.csv`
+kept the upstream session's own already-appended row (`run66b`) and this run's fresh post-merge
+snapshot was appended separately (below) rather than overwriting it. No feature work was lost or
+duplicated on `main` — this is the same class of collision run 57 first documented, resolved the
+same way (sync before commit, never force-push over a diverged remote).
+
+**Verification (post-merge, reflecting both this run's castle work and the other session's dragon
+-chase work together):** `node --check` clean across every changed file and the full `src/`+
+`scripts/` sweep — no regressions from either change set or the merge itself. `assets_manifest.json`
+re-validated as JSON. `node scripts/checkAssetsManifest.js` — OK (41 entries, up from 40). `node
+scripts/checkServiceWorkerCache.js` — OK. Full `scripts/smokeTestGame3D.js` re-run after the merge
+— **18/18 PASS** (17 pre-existing + the other session's new `checkDragonPursuit`), including the
+real `game3d.html` boot with **zero console/page errors** — meaningful evidence for this run's own
+change specifically: `assetLoader.js` logs `console.error` on any model load failure before falling
+back to a placeholder box, so a broken decimation output would have shown up as a smoke-test
+failure, and it didn't. **Visual proof (§8.5) for this run's own sub-task:** a standalone THREE.js
+scene (same isolated-render convention ADR-0074/ADR-0082 already established as sufficient for this
+project) loaded the real decimated glb through the real `GLTFLoader`, applied the real
+`createStoneMaterial`, and rendered it from a wide angle (full silhouette — keep, twin towers,
+conical roofs, a flag — against a reference ground plane) and a close angle (crenellated wall,
+tower, and the wooden drawbridge clearly visible, procedural stone crosshatch texture rendering
+correctly over the decimated geometry) — 2 screenshots, zero console/page errors during the render.
+Not committed to the repo (established convention). `node scripts/collectPerfSnapshot.js run67` —
+real sampled line appended to `perf_log.csv` after the merge (reflects both change sets together).
+
+**Session Quality Gate (§8.6):** confidence 5/5 — a real, scoped, previously-ambiguous gap (was
+item 1.7 blocked like FAZ 6, or actionable?) resolved with a direct repo-wide check rather than
+assumed either way, verified through the same pipeline/verification standard ADR-0074 already
+established, with real before/after smoke-test + visual evidence, *and* a real concurrent-session
+collision caught and resolved correctly rather than silently overwritten. Stopping here after 1
+substantive sub-task (the planned second sub-task turned out to already be done upstream). "6 ay
+sonra hâlâ net mi" check: yes — ADR-0086 spells out exactly why the ratio differs from ADR-0074's,
+why `hasMaterial: true` differs from the other 7 decimated entries, and explicitly confirms (not
+just assumes) the remaining 6 seats are genuinely blocked now, not just unexamined.
+
+**Memory-leak checklist:** no new listeners/timers. The new castle model goes through
+`spawnRealCastleModels`'s existing generic load/scale/material/position path and
+`disposeRealCastleModels`'s existing generic per-child geometry/material dispose loop — both already
+iterate `group.children` without any per-seat special-casing, so the 8th entry is covered by the
+same dispose logic as the existing 7 with no code change needed there.
+
+**Files changed this run:** `assets_manifest.json`, `service-worker.js`, `src/3d/world/settlements.js`,
+`CREDITS.md`, `DECISIONS.md` (ADR-0086), `perf_log.csv` (+1 row), `3D_GAME_PROGRESS.md` (this file).
+New binary asset: `assets/models/settlements/castles/gatehouse_reference_decimated.glb` (635KB).
+`gameplayConfig.js` was touched only as part of the merge conflict resolution above — no net content
+change from this run once the duplicate doc-comment edit was dropped. No file near the 600-line cap.
+
+**World Evolution Report (delta vs. run 66, after merging both this run's and the concurrent
+session's work):**
+
+| Metric | Run 66 | Run 67 (merged) | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged |
+| Kingdom seats w/ real castle models | 7 | **8** | **+1 (`twin`, this run)** |
+| Dragons (spawned) | 1 (notice + reactive + dive) | 1 (**+ continuous chase, time-boxed** — other session, ADR-0085) | behavior increment |
+| NPCs with dialogue-choice branching | 13/14 | 13/14 | unchanged (doc-comment corrected, other session) |
+| Smoke suite | 17/17 | **18/18** | +1 check (other session's `checkDragonPursuit`) |
+| ADRs | 84 | **86** | +2 (ADR-0085 dragon chase, ADR-0086 8th castle) |
+| perf_log.csv rows | 5 | 7 | +2 (both sessions appended) |
+| Manifest entries | 40 | 41 | +1 (this run) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (deliberate constant) |
+| Tech debt count | unchanged | unchanged | +0 |
+
+**Oyuncu fark eder mi:** evet. Two independent, additive player-visible changes landed together
+this run: (1) a player walking to the `twin` (Twin Lannister) seat now sees a real, decimated,
+stone-textured castle with a distinct gatehouse/drawbridge silhouette instead of the generic
+procedural keep+4-towers shape every other un-modeled seat still has; (2) anyone lingering near
+`umit`'s castle now gets genuinely hunted by the dragon (the other session's continuous-chase work
+— see its own ADR-0085 entry above for full detail). Neither change conflicts with or diminishes the
+other.
+
+**Next step for the next run:** the remaining 6 seats (`berk`, `olena`, `stannis`, `robin`, `Xaro`,
+`Night King`) are now confirmed genuinely blocked on a real manual castle-asset download — this run's
+repo-wide check found no other unused/mislabeled reusable asset anywhere in `assets_manifest.json`, so
+a future run should not re-scan for a hidden one without new evidence. FAZ 7's dragon's own natural
+successor (per the other session's own "Next step" note above) is a real attack, blocked on a
+FAZ-level health/damage-system design decision that belongs in `QUESTIONS_FOR_OWNER.md` before code,
+not a movement increment. FAZ 6's cart/dog-cat/bird gap remains blocked on the human manual-asset
+-download step. No blocking bugs, syntax errors, or regressions found from either this run's or the
+concurrent session's work, together or separately.
+
+**Addendum:** attempted `git tag stable-2026-08-05-HHMM` (see below for the actual attempt/outcome)
+— same known `HTTP 403` tag-push rejection documented since run 58 unless this run's own attempt
+below says otherwise.

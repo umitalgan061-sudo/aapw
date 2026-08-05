@@ -320,8 +320,8 @@
       "hasMaterial": true,
       "polygons": "1,986,672 triangles (measured, run 52 via `gltf-transform inspect`), 85.24MB raw",
       "deprecated": false,
-      "replacedBy": null,
-      "notes": "⚠️ MISLABELED (found run 52, confirmed by real headless-Chromium render through the project's own AssetLoader/GLTFLoader — not assumed from the filename): despite the `dragon_reference_v1` id/filename, this file's actual geometry is a fully-textured fantasy castle/gatehouse (keep, twin corner towers, conical roofs, a banner, a wooden drawbridge) — NOT a dragon, and NOT the same asset as dragon_reference_v2/v3 (those two really are the same ornate gold dragon as each other, confirmed by render — see their own notes). Likely a batch-download/organizing mixup during the original manual asset step, not a code bug. Do not use this file for any FAZ 7 dragon work. Its castle content may still be useful for FAZ 3 (it already has baked material/texture, unlike the 7 geometry-only `castle_*` entries below), but that is a separate, not-yet-made product decision — left as-is, unconsumed by code, until a human or a future run deliberately decides to use it as a castle asset under a correctly-labeled id. Still needs its own decimation (~2M triangles, two 4096x4096 PNGs) before any real use either way.",
+      "replacedBy": "castle_reference_gatehouse_decimated",
+      "notes": "⚠️ MISLABELED (found run 52, confirmed by real headless-Chromium render through the project's own AssetLoader/GLTFLoader — not assumed from the filename): despite the `dragon_reference_v1` id/filename, this file's actual geometry is a fully-textured fantasy castle/gatehouse (keep, twin corner towers, conical roofs, a banner, a wooden drawbridge) — NOT a dragon, and NOT the same asset as dragon_reference_v2/v3 (those two really are the same ornate gold dragon as each other, confirmed by render — see their own notes). Likely a batch-download/organizing mixup during the original manual asset step, not a code bug. Do not use this file for any FAZ 7 dragon work. **Used run 67 (DECISIONS.md ADR-0086):** decimated into `castle_reference_gatehouse_decimated` and wired into `world/settlements.js`'s `CASTLE_MODEL_ASSIGNMENTS` as the `twin` kingdom seat's real castle (the model's own wooden-drawbridge/gatehouse silhouette fits the Twins' river-crossing dialogue flavor already in `dialogueChoices.js`), bringing real-castle coverage from 7/14 to 8/14. Kept at full size here for provenance/re-decimation, same convention every other `castle_*`/`dragon_reference_v2` original already follows.",
       "dateAdded": "2026-07-30"
     },
     {
@@ -601,6 +601,22 @@
       "replacedBy": null,
       "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_walled_city_fortress. Assigned to the `umit` kingdom seat (DECISIONS.md ADR-0074) — the player's own home seat, and this manifest's own largest/most-detailed entry, matching the note's 'major/capital settlement' suggestion. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file.",
       "dateAdded": "2026-07-31"
+    },
+    {
+      "id": "castle_reference_gatehouse_decimated",
+      "file": "assets/models/settlements/castles/gatehouse_reference_decimated.glb",
+      "type": "settlement_model",
+      "source": "Hitem3d (image-to-3D generation) — decimated via gltf-transform, run 67",
+      "sourceUrl": "https://hitem3d.ai",
+      "license": "Hitem3d generation license — verify the account's plan terms before any public/commercial use (irrelevant for this private repo)",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": true,
+      "polygons": "19,630 triangles (measured), 635KB — inside the same range every other decimated castle already lands in (11.5K-38K tri, 138KB-688KB)",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "gltf-transform weld -> simplify --ratio 0.0099 --error 0.06 (same ratio as ADR-0070's dragon decimation, not ADR-0074's 0.08 — this source has ~4-5x the triangle count of the 7 castle_* originals, so the same 0.08 ratio would have overshot the desktop triangle budget target; 0.0099 lands this file in the same final triangle range those 7 did) -> resize 512x512 (source had two 4096x4096 PNGs, ADR-0070 precedent for a textured source) -> prune pass on dragon_reference_v1 (mislabeled asset, see its own manifest note — real content is a fantasy castle/gatehouse with keep/twin corner towers/conical roofs/a wooden drawbridge, not a dragon). Assigned to the `twin` kingdom seat (DECISIONS.md ADR-0086) — the model's own drawbridge/gatehouse silhouette fits the Twins' river-crossing toll flavor already in `dialogueChoices.js`'s `twin-guard-1` entry. `hasMaterial: true` unlike the other 7 decimated castle entries: this source came with a baked PBR texture (unlike those 7's geometry-only Meshy originals), but `world/settlements.js`'s `spawnRealCastleModels` overwrites every loaded model's material with the same seeded `createStoneMaterial` regardless — the baked texture ships in the file (harmless, ~1MB) but is not actually rendered, same as it would be discarded if stripped instead. Real, deterministic stone material applied at runtime, not the baked one.",
+      "dateAdded": "2026-08-05"
     },
     {
       "id": "animal_ivory_stallion",

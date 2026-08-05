@@ -80,10 +80,11 @@ yok.
 
 | Asset ID | Tür | Eklendi |
 |---|---|---|
-| `dragon_reference_v1` | Ejderha referans modeli | 2026-07-30 |
+| `dragon_reference_v1` | Yanlış etiketlenmiş — gerçek içeriği bir kale/kapı yapısı (ADR-0086) | 2026-07-30 |
 | `dragon_reference_v2` | Ejderha referans modeli | 2026-07-30 |
 | `dragon_reference_v2_decimated` | `dragon_reference_v2`'den türetilmiş (gltf-transform 4.4.2, ADR-0070) | 2026-07-31 |
 | `dragon_reference_v3` | Ejderha referans modeli | 2026-07-30 |
+| `castle_reference_gatehouse_decimated` | `dragon_reference_v1`'den türetilmiş, `twin` kale koltuğuna atandı (gltf-transform 4.4.2, ADR-0086) | 2026-08-05 |
 
 ---
 
@@ -94,8 +95,8 @@ yok.
 | Adobe Mixamo | 10 |
 | Free3D (Dennis Haupt / 3dhaupt) | 2 |
 | Meshy AI (orijinal + decimated türevler dahil) | 24 |
-| Hitem3d (orijinal + 1 decimated türev dahil) | 4 |
-| **Toplam** | **40** |
+| Hitem3d (orijinal + 2 decimated türev dahil) | 5 |
+| **Toplam** | **41** |
 
 Gerçek HBO Game of Thrones görsel/ses materyali bu projede kullanılmamıştır ve
 kullanılmayacaktır (bkz. `GOVERNANCE.md` — TEK KISIT).

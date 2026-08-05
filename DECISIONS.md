@@ -6664,3 +6664,124 @@ it to hook into.
   against the trajectory above, not playtested by a person. Whether the encounter reads as thrilling
   or merely annoying at real frame rates is exactly the kind of question only a human can answer —
   logged rather than guessed at.
+## ADR-0086: 8th real castle model — reusing the mislabeled `dragon_reference_v1` asset for the `twin` kingdom seat
+
+**Status:** Accepted (run 67).
+
+**Risk Seviyesi:** LOW. Justification: additive only — one new `CASTLE_MODEL_ASSIGNMENTS` entry
+following ADR-0074's exact, already-proven code path (`spawnRealCastleModels` already handles an
+arbitrary-shaped loaded model generically: bounding-box scale/center, material override, ground
+placement). No terrain/height-sampler/road/noise code touched, so GOVERNANCE.md §8.4's terrain
+impact-analysis process does not apply here (this is a settlement-model swap, not a terrain change);
+the 14-seat terrain-safety/road-connectivity invariants are unaffected because `twin`'s `(x, z)`
+position and ground height are unchanged — only which mesh renders there changes. Reversible by
+deleting the one new `CASTLE_MODEL_ASSIGNMENTS` entry (the seat falls back to its procedural castle
+automatically, same as any of the other 6 not-yet-covered seats already do).
+
+**Context:** Priority item 1.7 ("gerçek kale modellerini dokulandır") has been at 7/14 kingdom seats
+since ADR-0074 (run 54) — GOVERNANCE.md's own priority-order note for this run explicitly asked
+whether the remaining 7 seats are actually actionable or blocked on a manual asset-download step
+(like the still-blocked FAZ 6 animal assets). Checked `assets_manifest.json` for any castle-shaped
+asset not yet consumed by `world/settlements.js`: all 7 purpose-made `castle_*` Meshy AI models were
+already used by ADR-0074. But `dragon_reference_v1` — flagged mislabeled since run 52's manifest
+audit — is a fully-textured fantasy castle/gatehouse (keep, twin corner towers, conical roofs, a
+banner, a wooden drawbridge), sitting completely unused in the repo (confirmed still unconsumed by
+any code, via grep). Its own manifest note from run 52 explicitly left this as "a separate,
+not-yet-made product decision... until a human or a future run deliberately decides to use it as a
+castle asset" — this run makes that call. This is a genuinely different situation from the FAZ 6
+animals: the asset is already downloaded and on disk, not blocked on any manual step.
+
+**Decision:**
+1. Decimated `assets/models/creatures/dragons/reference_dragon_v1.glb` (1,986,672 triangles,
+   85.24MB, two 4096x4096 PNGs) via `gltf-transform weld -> simplify --ratio 0.0099 --error 0.06 ->
+   resize --width 512 --height 512 -> prune` (`@gltf-transform/cli` 4.4.2, confirmed working via
+   `npx` in this sandbox per ADR-0070's precedent) — **not** ADR-0074's `--ratio 0.08`: that ratio
+   was calibrated against the 7 castle originals' much smaller 144K-478K triangle range, so applying
+   it here (starting from ~2M triangles, 4-14x larger) would have overshot to ~159K triangles,
+   blowing well past the desktop triangle budget headroom this feature is supposed to respect. Used
+   ADR-0070's dragon-decimation ratio instead, since that source was the *same original asset batch*
+   at the same ~2M triangle scale. Result: `assets/models/settlements/castles/
+   gatehouse_reference_decimated.glb`, 19,630 triangles / 635KB — squarely inside the 11.5K-38K
+   triangle / 138KB-688KB range ADR-0074's own 7 decimated files already landed in.
+2. New `assets_manifest.json` entry `castle_reference_gatehouse_decimated` (`hasMaterial: true`,
+   unlike the other 7 decimated castle entries — this source's baked texture is harmless dead weight
+   at runtime, not actually rendered, since `spawnRealCastleModels` overwrites every loaded model's
+   material with the seeded `createStoneMaterial` regardless of what the file itself carries — noted
+   explicitly in the entry so a future reader isn't confused about why `hasMaterial` differs from its
+   siblings). `dragon_reference_v1`'s own entry updated: `replacedBy` now points at the new decimated
+   id, notes appended (not rewritten) recording this run's use, kept at full size for provenance per
+   the same convention every other original in this manifest already follows.
+3. `world/settlements.js`'s `CASTLE_MODEL_ASSIGNMENTS` grew an 8th entry: `twin` (Twin Lannister) <-
+   the new decimated gatehouse. Theme match: the model's own wooden drawbridge and gatehouse
+   silhouette fits `dialogueChoices.js`'s existing `twin-guard-1` flavor text almost exactly ("Her
+   geçiş bir borçtur... Nehrin iki yakası da bizimdir" — a river-crossing toll, the Twins' own
+   canonical identity) — a much closer thematic fit than any of the 6 other remaining un-modeled
+   seats would have gotten from a generic gatehouse shape.
+4. `service-worker.js`'s `GAME3D_SHELL_FILES` gained the new file's path (verified via
+   `scripts/checkServiceWorkerCache.js`, unchanged this run — its existing generic scan already
+   requires this); `SHELL_CACHE` bumped `v2` -> `v3` so existing installs' now-stale old cache is
+   swept by the `activate` handler's existing `KEEP`-array cleanup instead of silently accumulating
+   alongside the new one (quota-consciousness, following on from ADR-0084's monitoring work). No
+   `MEDIA_CACHE` change — unrelated to this fix.
+5. `gameplayConfig.js`'s stale "12 of 14 NPCs" dialogue-choice doc-comment corrected to "13 of 14"
+   (flagged leftover from run 66's own "Next step" note) — `dialogueChoices.js`'s own doc comment
+   already said 13 correctly (12 kingdom-seat guards + the extra `stannis-guard-2`); only the
+   re-exporting file's comment had drifted. No code/behavior change, comment-only.
+
+**Alternatives considered:**
+- **Leave `dragon_reference_v1` unused and treat all remaining 7 seats as blocked, same as FAZ 6.**
+  Rejected: unlike the animals (genuinely nothing on disk, requires a real manual download this
+  environment cannot perform), this asset is already present and its notes explicitly deferred this
+  exact decision to "a human or a future run" — this run is that decision point, and using
+  already-downloaded content needs no new manual step.
+- **Rename the `dragon_reference_v1` id/file to something castle-themed for clarity.** Rejected:
+  the id is already flagged unambiguously (⚠️ MISLABELED note, present since run 52) and referenced
+  by that exact id/filename across multiple prior ADRs' text in this same file — renaming would only
+  break searchability of that history for no functional benefit. The new, correctly-named
+  `castle_reference_gatehouse_decimated` output is the id any new code actually consumes.
+- **Assign the new model to a different seat (any of the other 6 un-modeled seats).** Rejected in
+  favor of `twin`: the drawbridge/gatehouse shape is a much stronger visual/narrative match for the
+  Twins' existing river-crossing dialogue flavor than for `olena`/`berk` (Reach/garden flavor),
+  `stannis`/`robin` (justice/height flavor), or `Xaro`/`Night King` (Qarth/Others flavor, arguably a
+  worse fit for a generic medieval-stone gatehouse than any Reach or Vale seat).
+
+**Verification:** `node --check` clean on all 4 changed JS/service-worker files
+(`world/settlements.js`, `gameplayConfig.js`, `service-worker.js`, plus the full `src/`+`scripts/`
+sweep). `python3 -c "json.load(...)"` confirms `assets_manifest.json` stays valid JSON.
+`node scripts/checkAssetsManifest.js` — OK (41 entries, up from 40, all resolve). `node
+scripts/checkServiceWorkerCache.js` — OK (43 JS files, 21 referenced model assets, all present).
+Full `scripts/smokeTestGame3D.js` — **17/17 PASS**, including the real `game3d.html` boot with
+**zero console/page errors** — meaningful evidence here specifically: `assetLoader.js`'s
+`loadModel()` calls `console.error` on any load failure before falling back to a placeholder box, so
+a genuinely broken glb (corrupt decimation output, bad path, etc.) would have shown up as a smoke
+-test failure, not passed silently. **Visual verification (§8.5):** a standalone, self-contained
+THREE.js scene (same "isolated render, not the live game3d.html scene graph" alternative ADR-0074's
+own castle verification and ADR-0082's dragon-dive verification both already established as
+sufficient evidence for this project) loaded the real decimated glb through the real `GLTFLoader`,
+applied the real `createStoneMaterial` the runtime code actually uses, and rendered it from a wide
+angle (full castle silhouette against a reference ground plane — keep, twin towers, conical roofs, a
+flag) and a close angle (crenellated wall + tower + the wooden drawbridge clearly visible, with the
+procedural stone crosshatch material rendering correctly over the decimated geometry) — 2 screenshots
+total, zero console/page errors during the render. Not committed to the repo (this project's own
+established convention).
+
+**Consequence:** Real-castle coverage moves from 7/14 to 8/14 kingdom seats. The remaining 6
+(`berk`, `olena`, `stannis`, `robin`, `Xaro`, `Night King`) are now confirmed genuinely blocked — a
+repo-wide check found no further unused/mislabeled castle-shaped asset anywhere in
+`assets_manifest.json`, so closing the gap further needs a real new manual asset-download step, the
+same blocker FAZ 6's animals already have (not actionable by an unattended run). `gameplayConfig.js`'s
+stale doc-comment is fixed. No behavior change for any of the other 13 already-placed seats.
+
+**Gelecek Faz Etkisi (future-phase impact):**
+- **Priority item 1.7:** now explicitly confirmed blocked-on-manual-download for its last 6 seats,
+  same status/wording as FAZ 6 — a future run should not re-scan `assets_manifest.json` for another
+  hidden reusable asset without new evidence one exists (this run's grep was thorough: every
+  `creature_model`/`settlement_model`-typed entry was checked, not just the ones with "castle" in
+  the name).
+- **PWA offline footprint (GOVERNANCE.md §15):** one more ~635KB precached model is negligible
+  against the multi-MB dragon/castle set ADR-0083/ADR-0084 already established monitoring for; no
+  new quota concern.
+- **FAZ 6/future assets:** if a human ever manually downloads a new castle-shaped or otherwise
+  reusable-but-mislabeled asset, the same `checkServiceWorkerCache.js`/`checkAssetsManifest.js` pair
+  will catch a missing manifest/cache entry automatically, same as every asset addition since
+  ADR-0083.

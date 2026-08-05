@@ -49,16 +49,20 @@ export const KINGDOM_SEATS = Object.freeze([
 const STONE_COLOR = new THREE.Color(0x8a8578);
 
 /**
- * Real, decimated Meshy AI castle models (DECISIONS.md ADR-0074) — replace the procedural
- * keep/tower/roof at these 7 seats. Each `file` is a `gltf-transform weld -> simplify -> prune`
+ * Real, decimated castle models (DECISIONS.md ADR-0074, ADR-0086) — replace the procedural
+ * keep/tower/roof at these 8 seats. Each `file` is a `gltf-transform weld -> simplify -> prune`
  * output (see `assets_manifest.json`'s own `_decimated` entries), not the raw multi-hundred-K-
- * triangle original — see that ADR for why the raw files would blow the desktop triangle budget on
+ * triangle original — see ADR-0074 for why the raw files would blow the desktop triangle budget on
  * their own. Thematic seat matches: `jon` (northernmost seat) <- ice/frost citadel, `umit` (player's
  * own seat, largest/most-detailed model) <- walled city fortress, `cersei` (this world's reigning
  * "crown" character) <- fortress of the crown, `balon` (Greyjoy/Iron Islands) <- castle on a rock,
  * `ziya` (Tyrell, green/gold rose sigil) <- emerald citadel, `berkalp` (Stark, grey/direwolf) <-
- * greystone castle, `doran` (Martell/Dorne, sandstone) <- brickstone citadel. The remaining 7 seats
- * keep the procedural castle unchanged.
+ * greystone castle, `doran` (Martell/Dorne, sandstone) <- brickstone citadel, `twin` (the Twins'
+ * river-crossing toll flavor, see `dialogueChoices.js`) <- a mislabeled Meshy/Hitem3d asset
+ * (`dragon_reference_v1`, real content is a gatehouse with a wooden drawbridge — ADR-0086). The
+ * remaining 6 seats keep the procedural castle unchanged, still blocked on a new manually-downloaded
+ * castle-shaped asset (no further unused/mislabeled asset like `dragon_reference_v1` remains in the
+ * manifest — confirmed by ADR-0086's own repo-wide check).
  */
 export const CASTLE_MODEL_ASSIGNMENTS = Object.freeze([
 	Object.freeze({ seatId: 'jon', assetId: 'castle_icebound_citadel_decimated', file: 'assets/models/settlements/castles/icebound_citadel_decimated.glb' }),
@@ -68,6 +72,7 @@ export const CASTLE_MODEL_ASSIGNMENTS = Object.freeze([
 	Object.freeze({ seatId: 'ziya', assetId: 'castle_emerald_citadel_decimated', file: 'assets/models/settlements/castles/emerald_citadel_decimated.glb' }),
 	Object.freeze({ seatId: 'berkalp', assetId: 'castle_greystone_castle_decimated', file: 'assets/models/settlements/castles/greystone_castle_decimated.glb' }),
 	Object.freeze({ seatId: 'doran', assetId: 'castle_brickstone_citadel_decimated', file: 'assets/models/settlements/castles/brickstone_citadel_decimated.glb' }),
+	Object.freeze({ seatId: 'twin', assetId: 'castle_reference_gatehouse_decimated', file: 'assets/models/settlements/castles/gatehouse_reference_decimated.glb' }),
 ]);
 
 /** Target footprint (largest horizontal bounding-box dimension), in meters, real castle models are

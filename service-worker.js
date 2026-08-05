@@ -6,7 +6,7 @@
 
 const SW_VERSION = 'westeros-media-v4';
 const MEDIA_CACHE = 'westeros-media-v4';
-const SHELL_CACHE = 'westeros-shell-v2';
+const SHELL_CACHE = 'westeros-shell-v3';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -31,12 +31,18 @@ const SHELL_FILES = [
 // dragon/dialogue-choice gameplay files, both road files) and 3 asset groups (the dragon FBX +
 // textures, the horse glb, all 7 real castle glbs) were being fetched over the network on every
 // load with no offline fallback at all, silently, because a missing cache entry fails open (network
-// request) rather than throwing — see `scripts/game3dSmokeChecksServiceWorkerCache.js` for the new
-// regression check this run added so this can't silently drift again (asserts every `src/3d/**/*.js`
-// file and every settlements/dragon/horse asset path referenced from `gameplayConfig.js`/
-// `settlements.js` is present in this exact list). Cache names bumped (v1->v2 shell, v3->v4 media)
-// so every existing install actually re-fetches this file and its new entries instead of quietly
-// keeping a stale, incomplete `SHELL_CACHE`.
+// request) rather than throwing — see `scripts/checkServiceWorkerCache.js` for the standing
+// regression check that prevents this from silently drifting again (asserts every `src/3d/**/*.js`
+// file and every model asset path referenced from anywhere under `src/3d/` is present in this exact
+// list). Cache names bumped (v1->v2 shell, v3->v4 media) so every existing install actually
+// re-fetches this file and its new entries instead of quietly keeping a stale, incomplete
+// `SHELL_CACHE`.
+//
+// run 67 (DECISIONS.md ADR-0086): added the 8th real castle model (`gatehouse_reference_decimated
+// .glb`, the `twin` kingdom seat) once `world/settlements.js`'s `CASTLE_MODEL_ASSIGNMENTS` grew a
+// new entry. `SHELL_CACHE` bumped v2->v3 so existing installs actually clean up the old, now-stale
+// cache entry set rather than accumulating it alongside the new one (the `activate` handler's
+// `KEEP`-array cleanup deletes the unreferenced old cache automatically).
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -112,7 +118,8 @@ const GAME3D_SHELL_FILES = [
     './assets/models/settlements/castles/castle_on_a_rock_decimated.glb',
     './assets/models/settlements/castles/emerald_citadel_decimated.glb',
     './assets/models/settlements/castles/greystone_castle_decimated.glb',
-    './assets/models/settlements/castles/brickstone_citadel_decimated.glb'
+    './assets/models/settlements/castles/brickstone_citadel_decimated.glb',
+    './assets/models/settlements/castles/gatehouse_reference_decimated.glb'
 ];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
