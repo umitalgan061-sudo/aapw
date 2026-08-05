@@ -54,3 +54,10 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   Zero console/page errors on real headless boot, perf bit-identical to run 69 on every GPU-submission
   metric. `git push origin main` succeeded (`147aeed`). Local tag only — `git push origin <tag>` still
   rejected with `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-0745` — run 70 end (2nd sub-task): new standing guard
+  `scripts/checkPwaInstallability.js` (ADR-0090) closes GOVERNANCE.md §15's "Periyodik Platform
+  Kontrolü" rule, unenforced for 14 runs — `npm audit` confirmed N/A (no npm dependency in this
+  repo), PWA installability now machine-checked, WebGL already covered by the existing smoke suite.
+  19/19 smoke suite passing, zero console/page errors, perf bit-identical to sub-task 1. `git push
+  origin main` succeeded (`868d427`). Local tag only — `git push origin <tag>` still rejected with
+  `HTTP 403` (same known issue since run 58).
