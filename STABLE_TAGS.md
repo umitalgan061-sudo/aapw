@@ -101,3 +101,13 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   the precache scope (still 46 JS files); `game3dSmokeChecksDragonDive.js`'s 598/600 WARN is gone,
   only `gameplayConfig.js`'s 579/600 remains. `git push origin main` succeeded (`da097ed`). Local tag
   only — `git push origin <tag>` still rejected with `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-1202` — run 73 end: FAZ 11 "asker" archetype, real combat-stance reaction for
+  every guard NPC (ADR-0096) — player proximity now turns a guard to face them and freezes any
+  in-progress patrol in place (resuming the same lap on retreat), idle clip eases to a faster
+  time-scale as the tension cue (no dedicated clip needed, same trick as the dragon wing-flap
+  telegraph, ADR-0089). New regression check `checkNpcCombatStance` (22/22 smoke suite passing, was
+  21/21). Zero console/page errors on real headless boot; perf bit-identical to run72b on every
+  GPU-submission metric (46 draw calls / 393,231 triangles / 44 geometries / 17 textures).
+  `gameplayConfig.js` now 597/600 (fresh WARN, next run's real forcing signal to split if touched
+  again). `git push origin main` succeeded (`c1ba8d6`). Local tag only — `git push origin <tag>`
+  still rejected with `HTTP 403` (same known issue since run 58).
