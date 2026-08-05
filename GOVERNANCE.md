@@ -126,6 +126,17 @@ açıklanmadıysa).
 Her çalıştırma sonunda Oturum Kalite Kapısı geçildiyse ve oyun sorunsuz açılıyorsa:
 `git tag stable-YYYY-MM-DD-HHmm` atılır, `STABLE_TAGS.md`'ye tek satır not düşülür.
 
+**Bilinen ortam kısıtı (run 58'den beri, run 76'da GOVERNANCE.md'ye kayıtlı hale getirildi):**
+bu container'ın remote'unda `git push origin <tag>` tutarlı biçimde `HTTP 403` ile reddediliyor
+(branch push'ları — `git push origin main` — sorunsuz çalışıyor, sadece tag push engelli). Bu artık
+her çalıştırmada yeniden keşfedilecek yeni bir bulgu değil, bilinen ve kalıcı bir kısıt: kontrol
+noktası için **yerel tag + `STABLE_TAGS.md` girdisi yeterli sayılır**; `git push origin <tag>`
+yine de denenir (maliyeti düşük, bir olası ileride-düzeltme'yi kaçırmamak için) ama başarısız
+olması bu maddeyi engellemez/DONE'u bloklamaz — sonucu artık sürpriz sayılmıyor. Bu, proje
+sahibi için düzeltilebilecek bir izin boşluğu
+olabilir (bkz. `3D_GAME_PROGRESS.md` run 56/57 notları) — dilerse `QUESTIONS_FOR_OWNER.md`'ye
+taşınabilir, ama bir "soru" değil salt bilgi olduğundan orada tutulmuyor.
+
 ### 8.12 Kural Seti Bakımı
 Her ~20 çalıştırmada bir (veya bir FAZ tamamlanınca) kısa bir "kural konsolidasyonu" alt
 görevi çalıştırılır: artık geçersiz/çelişen `GOVERNANCE.md` maddeleri işaretlenir/güncellenir,
