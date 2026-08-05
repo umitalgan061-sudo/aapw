@@ -6956,3 +6956,105 @@ guard is standalone (nothing imports it, no other script invokes it), and no `sr
 manifest entry, or service-worker cache entry references anything added here. Partial rollback is
 also safe — deleting only `checkSmokeCheckRegistry.js` leaves a valid, under-cap split, and reverting
 only the split leaves a guard that would then correctly fail on the restored 614-line file.
+
+## ADR-0088: New standing guard `checkDialogueChoicesShape.js` — the last of run 68's three named smoke-coverage gaps
+
+**Status:** Accepted (run 69).
+
+**Risk Seviyesi:** LOW. Justification: purely additive dev tooling — one new `scripts/` file, no
+existing file modified except doc/log updates. `src/` is completely untouched; the perf snapshot's
+GPU-submission numbers (draw calls, triangles, geometries, textures) are bit-identical to run 68's.
+Fully reversible: `git revert` deletes the one new file and restores the doc/log lines; nothing else
+references it (not wired into `smokeTestGame3D.js`, not imported by any other script or by `src/`).
+
+**Context:** Run 68's "Next step for the next run" named three smoke-coverage gaps: `world/roads.js`
+geometry, `world/rivers.js`, and `gameplay/dialogueChoices.js`'s data shape. The first two already had
+standing guards this run discovered while surveying the gap (`roadNetworkSafetyCheck.js` covers road
+connectivity/grade/river-non-collision; `terrainSeatSafetyCheck.js` covers seat safety) — so only the
+third gap, `dialogueChoices.js`, was real. That file's `CHOICES_BY_NPC_ID` is hand-written, purely
+data-shaped content with three invariants nothing at runtime enforces: every key must be a real NPC id,
+every NPC's choice count must fit inside `interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` keybinding
+array (currently 3 slots), and every response must carry the `{name}` substitution placeholder the
+file's own header documents as the convention. None of these would throw or fail the Playwright smoke
+suite if broken — a bad entry just silently falls back to the old greeting-only behavior for that NPC
+(see the file's own header comment) — so a broken entry could ship and nobody would notice until a
+human happened to read that NPC's dialogue in-game.
+
+**Decision:** Add `scripts/checkDialogueChoicesShape.js`, a fourth standing static guard alongside
+`checkAssetsManifest.js` / `checkServiceWorkerCache.js` / `checkSmokeCheckRegistry.js` (same
+"hand-maintained list/content, cheap automated cross-check" precedent, same regex-over-source-text
+approach `checkServiceWorkerCache.js` and `checkSmokeCheckRegistry.js` already use for files that are
+real browser ES modules and therefore not `require`-able from this CommonJS script). It cross-references
+three files as source of truth rather than hard-coding any of their values: NPC ids come from parsing
+`gameplayConfig.js`'s `NPC_CONFIG.SPAWNS` block (explicitly bounded to exclude `ANIMAL_CONFIG`/
+`DRAGON_CONFIG` ids, which are not NPCs), the keybinding slot count comes from parsing
+`interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` array literal, and the choice content comes from parsing
+`dialogueChoices.js`'s `CHOICES_BY_NPC_ID` object body. Standalone, not wired into `smokeTestGame3D.js`
+— run manually each session alongside the other three standing guards, same convention this project has
+followed since `checkAssetsManifest.js`.
+
+**Alternatives considered:**
+- *Skip it — the smoke suite's `interaction controller` check already exercises the choice-branching
+  pilot end to end.* Rejected: that check drives one specific NPC (`umit-guard-1`, per its own smoke
+  test setup) through the offer/select/close flow to prove the *mechanism* works, but it cannot catch a
+  content bug in one of the other 12 NPCs' data (a typo'd id, a response missing `{name}`, a 4th
+  unreachable choice) — proving the machinery works once is not the same as validating all the content
+  that flows through it.
+- *Actually `require()` the file after stripping `export`/converting to CommonJS on the fly.* Rejected:
+  fragile (a second, informal parser for ES-module syntax, duplicating work Node's own loader already
+  does correctly) for no real gain over the text-regex approach every sibling guard in this project
+  already uses successfully.
+- *Fold this into `checkSmokeCheckRegistry.js`.* Rejected: that guard's own scope is explicitly the
+  600-line cap plus the smoke-runner's own wiring — a different concern (test-suite integrity) from
+  dialogue-content shape. Keeping them separate matches this project's existing one-concern-per-guard
+  pattern (assets, service-worker cache, smoke registry, now dialogue content).
+
+**Consequence:**
+- No production behavior change whatsoever — `src/` untouched, perf bit-identical to run 68 on every
+  GPU-submission metric.
+- A fifth standing static guard for future runs to run alongside the existing four.
+- Any future run that adds/edits a `CHOICES_BY_NPC_ID` entry (e.g. finally closing the "13/14" gap,
+  FAZ 5 priority item) gets an immediate, specific failure message instead of a silent content bug if it
+  typos an id, exceeds the 3-choice keybinding limit, or forgets the `{name}` placeholder.
+- **Gelecek Faz Etkisi:** positive, non-blocking. FAZ 5's remaining 14th NPC entry and any future
+  dialogue-tree/quest-hook work (this file's own header notes it is "not a real dialogue tree/quest
+  system yet") will be checked by this guard the moment it's written, before it ever reaches a human
+  playtest.
+
+**Etkilenen sistemler:** `scripts/` dev tooling only (new file). No `src/` module, asset, or
+`service-worker.js` entry touched — GOVERNANCE.md §8.4's terrain impact-analysis process and the
+14-seat safety check do not apply (nothing here is terrain/height/noise/world-scale), no cache version
+bump needed (dev-only script, never loaded by a browser or referenced from `index.html`/`game3d.html`).
+
+**Verification (GOVERNANCE.md §8.1):**
+- `node --check` clean across all 49 `src/`+`scripts/` files (excluding vendor), before and after.
+- New guard run clean against the real repo: `13 NPC entries all resolve to real NPC ids, all choices
+  within the 3-slot keybinding limit, all labels/responses non-empty, all responses carry "{name}".
+  Pilot coverage: 13/14 real NPCs` — matches the hand-counted "13/14" figure this project's docs have
+  cited since run 51, now machine-verified rather than merely asserted.
+- Negative-controlled four ways on a scratch copy (each restored and re-verified clean afterward, `diff`
+  confirmed byte-identical to the original): (1) renaming an NPC key to a nonexistent id →
+  correctly FAILs "not a real id in NPC_CONFIG.SPAWNS"; (2) adding a whole extra fake-id entry →
+  correctly FAILs the same way (also proves parsing multiple entries independently); (3) stripping the
+  literal `{name}` token from a response while leaving the rest of the sentence intact → correctly
+  FAILs "missing the {name} placeholder" (the first attempt at this test accidentally left `{name}` in
+  place via a different part of the string and correctly reported OK — confirming the check is not a
+  rubber stamp, it genuinely reads the content); (4) blanking a label to `''` → correctly FAILs "empty
+  label".
+- Other three standing guards re-run clean: `checkAssetsManifest.js` OK (41 entries), `checkServiceWorkerCache.js`
+  OK (43 JS files), `checkSmokeCheckRegistry.js` OK (18 checks / 5 modules / 49 files within cap, 1 WARN
+  unchanged from run 68 — `gameplayConfig.js` 573/600, not this run's concern).
+- Full smoke suite: **18/18 PASS**, zero console/page errors on real headless boot of `game3d.html`
+  (2D shell's pre-existing 11 non-blocking sandbox-network errors unchanged, documented since run 65).
+- **Görsel kanıt (§8.5):** no visual change is possible — this run added a dev-tooling script that is
+  never loaded by a browser and touches no `src/` file, same category as ADR-0087. Primary evidence is
+  the parse-correctness + negative-control proof above, stated explicitly per that precedent rather than
+  silently skipped; the smoke suite's own real-headless-boot zero-console-error result (captured above)
+  is the confirmatory boot proof that nothing broke.
+- **Performans (§4):** 46 draw calls (budget <2500), 393,231 triangles (budget <5M), 44 geometries, 17
+  textures — bit-identical to run 68 on every field except heap (326MB run68 -> 368MB run69, normal GC
+  noise, well within either desktop or mobile budget).
+
+**Geri alma planı:** `git revert` the single commit. Deletes `scripts/checkDialogueChoicesShape.js` and
+restores the doc/log lines. Nothing else depends on it — standalone, not imported or required by any
+other file.

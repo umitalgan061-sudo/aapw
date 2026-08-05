@@ -7089,3 +7089,105 @@ Attempted `git tag stable-2026-08-05-<HHmm> && git push origin <tag>` — as in 
 tag was created locally but its push was rejected with **HTTP 403**. No new evidence this run that
 it's fixed; it remains a remote-permissions issue outside this container's control, and it does not
 block the `main` push.
+
+## This Run (2026-08-05, run 69)
+
+**Fresh Session Snapshot at container boot:** `GOVERNANCE.md` read in full (already complete and
+comprehensive — the scheduled prompt's "first create GOVERNANCE.md" instruction was already satisfied
+by a prior run; no changes needed this run). `3D_GAME_PROGRESS.md`'s run 67-68 entries, `DECISIONS.md`'s
+last 3 ADRs (0085-0087, pre-existing at session start — this run's own work becomes ADR-0088),
+`STABLE_TAGS.md`,
+`CATCH_UP.md`, and `QUESTIONS_FOR_OWNER.md` in full (5 entries, all still open/owner-only — leaked
+NVIDIA key rotation, two run-56 road/slope tuning defaults, the health/damage-system question blocking
+dragon attack work, and dragon chase feel) all read for context. **Detached HEAD found at session
+start** (`HEAD` at `5ec85f6`, local `main` stale at the pre-3D-mode `38e09e7` — a fresh container clone
+apparently checked out a commit directly rather than a branch): `git fetch origin main` confirmed
+`origin/main` was actually at `5ec85f6` too (matching `HEAD`, i.e. nothing was lost or out of sync —
+only the local branch pointer was stale), then `git checkout -B main origin/main` recovered a proper
+`main` branch tracking `origin/main` cleanly, same recovery GOVERNANCE.md §8.14 and prior runs 18/67
+document for this exact situation.
+
+**Baseline regression guard (before any change):** full `node --check` sweep over `src/`+`scripts/`
+excluding `src/3d/vendor/` — 48 files, all clean. All four existing standing guards clean:
+`checkAssetsManifest.js` OK (41 entries), `checkServiceWorkerCache.js` OK, `checkSmokeCheckRegistry.js`
+OK (18 checks / 5 modules / 48 files, gameplayConfig.js 573/600 WARN unchanged), `terrainSeatSafetyCheck.js`
+PASS 14/14, `roadNetworkSafetyCheck.js` PASS 20.23km. Full smoke suite **18/18 PASS**, zero console/page
+errors on real headless boot.
+
+**Sub-task 1 (only sub-task this run): `scripts/checkDialogueChoicesShape.js` — the last of run 68's
+three named smoke-coverage gaps (DECISIONS.md ADR-0088).** Run 68's own "Next step" section named three
+gaps: `world/roads.js`, `world/rivers.js`, and `dialogueChoices.js`'s data shape. Survey at the start of
+this run found the first two already covered (`roadNetworkSafetyCheck.js` handles road
+connectivity/grade/river-non-collision; `terrainSeatSafetyCheck.js` handles seat safety) — so only the
+third was a real gap. New guard cross-references `NPC_CONFIG.SPAWNS` (real NPC ids),
+`DIALOGUE_CHOICE_KEY_CODES` (keybinding slot count), and `CHOICES_BY_NPC_ID` itself (the content), all
+parsed from their real source files rather than any value being hard-coded, so the guard cannot silently
+drift out of sync with the files it checks. Full details, alternatives, and verification: ADR-0088.
+
+**DoD status:** `node --check` clean (49 files now). Smoke suite 18/18 PASS before and after — unchanged,
+as expected for a change that added a standalone script nothing else calls. Visual evidence: none
+possible (dev-tooling-only change, same category as ADR-0087 — see ADR-0088's explicit statement of
+this rather than a silent skip). Performance: bit-identical draw calls/triangles/geometries/textures to
+run 68 (46 / 393,231 / 44 / 17), heap 368MB (normal GC noise vs. run 68's 326MB, still well within
+budget). Tech debt counter: **0** (unchanged — this run neither introduced nor closed any). Progress doc
+updated (this entry). ADR written (ADR-0088). Committed. Console clean (0 errors on real headless boot,
+2D shell's pre-existing 11 non-blocking sandbox-network errors unchanged/documented since run 65).
+
+**Memory-leak checklist (§2.8 / GOVERNANCE.md Altın Kural 8):** no new listeners, timers, DOM nodes,
+geometries, or materials — this run added **zero `src/` code**. The one new `scripts/` file is dev-only
+Node tooling never loaded by a browser; it allocates nothing beyond file reads via `fs.readFileSync` and
+exits. Confirmed empirically: `perf_log.csv`'s `run69` GPU-submission numbers (draw calls, triangles,
+geometries, textures) are bit-identical to `run68`'s.
+
+**Session Quality Gate (§8.6):** confidence 5/5 after this 1 sub-task. Stopping here deliberately, per
+this project's established "quality over quantity" norm (same call runs 67/68 made): the remaining
+priority-list items are either confirmed still blocked this run re-verified nothing changed
+(6 remaining castle seats + all FAZ 6 animals — manual asset download only; dragon attack — open
+health/damage owner question) or would mean starting a fresh, larger content/behavior task (FAZ 5's 14th
+NPC dialogue entry, FAZ 7 dragon polish) in the same run as landing a new regression guard for exactly
+that kind of content — better to let the new guard exist on its own commit first, so it validates its
+own next real use case cleanly rather than being entangled with the content change it was built to
+check.
+
+**Files changed this run:** `scripts/checkDialogueChoicesShape.js` (**new**, static guard),
+`DECISIONS.md` (ADR-0088), `perf_log.csv` (+1 row, `run69`), `3D_GAME_PROGRESS.md` (this entry). **No
+`src/` file, no asset, no `service-worker.js` entry, no terrain/height/noise/world-scale code touched.**
+
+**World Evolution Report (delta vs. run 68):**
+
+| Metric | Run 68 | Run 69 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged (re-verified PASS) |
+| Kingdom seats w/ real castle models | 8 | 8 | unchanged (remaining 6 confirmed blocked) |
+| Dragons (spawned) | 1 | 1 | unchanged |
+| NPCs with dialogue-choice branching | 13/14 | 13/14 | unchanged (now machine-verified, not just counted) |
+| Smoke suite | 18/18 | 18/18 | unchanged **by design — proven, not assumed** |
+| Standing static guards | 4 | **5** | +1 (`checkDialogueChoicesShape.js`) |
+| Files over the 600-line cap | 0 | 0 | unchanged |
+| ADRs | 87 | **88** | +1 (ADR-0088) |
+| perf_log.csv rows | 8 | **9** | +1 |
+| Manifest entries | 41 | 41 | unchanged (no new assets) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (deliberate constant) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no runtime code touched) |
+
+**Oyuncu fark eder mi:** hayır, ve bu bilinçli — tıpkı run 68 gibi. Bu çalıştırma da tek satır oyun kodu
+değiştirmedi; `src/` hiç ellenmedi, perf ölçümü run 68 ile GPU tarafında bit-bazında aynı (46 draw call,
+393.231 üçgen). Kazanç yine dolaylı ama gerçek: artık `dialogueChoices.js`'e (13/14 NPC'nin diyalog
+seçenekleri) yanlışlıkla bozuk bir girdi eklenirse — geçersiz NPC id'si, klavye kısayolunun erişemeyeceği
+4. bir seçenek, ya da `{name}` yer tutucusu unutulmuş bir cevap — bu artık sessizce oyuna girmeyecek,
+anında ve belirli bir hata mesajıyla yakalanacak. FAZ 5'in kalan 14. NPC girdisi (jon-guard-1 hariç,
+kasıtlı) bir sonraki çalıştırmada eklenirse bu koruma altında olacak.
+
+**Next step for the next run:** smoke-coverage gaps are now closed on all three fronts run 68 named.
+Genuinely unblocked options, in the order this run would rank them: (1) **FAZ 7 dragon flight/behavior
+polish that deals no damage** — still open and explicitly not blocked (only the attack is, on the
+health/damage question in `QUESTIONS_FOR_OWNER.md`); (2) **FAZ 5's 14th NPC dialogue-choice entry**
+(13/14, `jon-guard-1` deliberately excluded per ADR-0058 — the remaining gap is genuinely zero, not a
+missed one); (3) `gameplayConfig.js`'s 573/600 WARN — still not itself a violation, but the file that
+finally needs a new config block there should split it by subsystem first, per ADR-0087's stated
+condition. Confirmed still blocked, do not start: the remaining 6 castle seats and all FAZ 6 animals
+(manual human asset download), and any dragon attack/fire-breath work (owner decision pending).
+
+**Addendum:** `git commit` and `git push origin main` outcomes, plus the stable-tag attempt, are
+recorded in `STABLE_TAGS.md`.
