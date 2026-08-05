@@ -8013,3 +8013,104 @@ bugs, syntax errors, or regressions found this run.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 74 — scheduled autonomous routine)
+
+**Session Snapshot:** `GOVERNANCE.md` (already existed — created run ~67, this run's earlier "create
+it" instruction was a stale/repeated copy of an already-completed one-time step, confirmed by its
+presence + content before doing anything else; `CREDITS.md` likewise already existed), `3D_GAME_PROGRESS.md`
+(this file), `git log -10`, `DECISIONS.md` last 3 ADRs (0094/0095/0096), `QUESTIONS_FOR_OWNER.md` (7
+entries, all still open/unresolved, none this run could close), git detached-HEAD state found at
+session start (`HEAD` matched `origin/main` exactly) — reattached to a real local `main` tracking
+branch before doing anything else. `git fetch origin main`: up to date, no concurrent-session drift
+(GOVERNANCE.md §8.14).
+
+**Baseline health re-verification (before picking a sub-task):** `node --check` clean on every file
+under `src/` and `scripts/`. Full smoke suite: **22/22 PASS**. All 7 standing guards clean:
+`checkAssetsManifest` (41), `checkCreatureSpeciesConfig` (15, 9 awaiting-model/6 partial-existing),
+`checkDialogueChoicesShape` (13/14), `checkPwaInstallability` (OK), `checkServiceWorkerCache` (47 JS
+files), `checkSmokeCheckRegistry` (56 files, only the pre-existing `gameplayConfig.js` 597/600 WARN),
+`terrainSeatSafetyCheck`/`roadNetworkSafetyCheck` (14/14 seats, 13/13 edges). Confirms GOVERNANCE.md
+§18 priority items 1-11 all still genuinely healthy — no fresh work surfaced there.
+
+### Sub-task 1: Grow the world-event flavor pool from 16 to 18 entries (DECISIONS.md ADR-0097)
+
+**Re-confirmed items 12-13 still blocked, not assumed:** re-scanned `assets/models/characters/`
+against every import in `creatureSpeciesConfig.js`/`gameplayConfig.js` — the same 5 orphaned `.glb`
+files from ADR-0096's audit remain, none newly added, none maps cleanly to a named archetype without
+guessing. Also confirmed `dialogueChoices.js`'s "13/14" is a deliberate, ADR-0058-documented exclusion
+(`jon-guard-1`), not a real gap — closing it would contradict a standing decision. That leaves item 14
+("Yeni özellik"). `gameplay/worldEvents.js`'s flavor pool (FAZ 8) is this project's own established
+low-risk growth track for that bucket (grown 4→8→12→14→16 across five prior rounds, ADR-0061/0063/
+0065/0068) — continued the exact same pattern.
+
+Added `white_raven` (Citadel white raven announcing a season change — distinct from the existing
+generic `raven`/record-keeping `maester_raven`) and `iron_bank` (rumor of an Iron Bank debt-collector
+— the pool's first political/economic-tension flavor). Both original text, no HBO material referenced.
+Full ADR detail (context/decision/alternatives/verification): ADR-0097.
+
+**DoD status:** `node --check` clean on the one changed file (`worldEvents.js`, 99→101/600 lines).
+Smoke suite **22/22 PASS before and after**, byte-identical on every other check (`checkWorldEvents`
+asserts the mechanism generically, not fixed ids/count). All 7 standing guards re-run clean and
+unaffected. Performance: `perf_log.csv`'s `run74` row bit-identical to `run73` on every GPU-submission
+metric (46 draw calls, 393,231 triangles, 44 geometries, 17 textures) — expected, config-only content
+with zero new scene objects. **Görsel Doğrulama (§8.5):** a one-off Playwright script (same technique
+ADR-0068 established) booted the real `game3d.html`, drove the real `createWorldEventSystem` (seed 7)
+until both new ids were actually observed from the real pool (27 `update()` calls, real payloads
+matched source exactly), then rendered `white_raven`'s real payload through a real `WorldEventToast`
+— screenshot confirms the toast's icon/title/desc rendered over the live scene (castle silhouette,
+player model, starlit sky), zero console/page errors throughout. Memory-leak checklist: no new
+listener/timer/DOM node in production code (the toast/EventBus instances created in the one-off proof
+script are not committed — dev-only, same as ADR-0068's own proof script). Tech debt counter: **0**
+(unchanged). No `QUESTIONS_FOR_OWNER.md` entry needed — flavor text carries no tunable numeric value.
+This file updated (this entry). ADR written (ADR-0097). Console clean.
+
+**AI Self-Review 2. Geçiş (§8.3):** re-checked both new ids against all 16 existing ones for
+collision/thematic overlap before committing — none found; confirmed the two descriptions keep this
+pool's established open-ended/ambiguous tone rather than stating a hard game-state fact; confirmed
+`worldEvents.js`'s header comment needed no update (it doesn't track a live count inline, unlike
+`dialogueChoices.js`'s header, which does and was correctly left alone since this sub-task didn't
+touch that file).
+
+**Session Quality Gate (GOVERNANCE.md §8.6) after 1 sub-task:** confidence **5/5** — small, additive,
+fully reversible, zero mechanism change, backed by the same real-pool-draw proof technique this
+project has used for every prior growth of this exact list, and every standing guard + the full smoke
+suite re-ran byte-identical. No "6 months from now" ambiguity: ADR-0097 records the exact reasoning
+for both picks and the one alternative (`wildling_rumor`) considered and deliberately not used.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| `WORLD_EVENTS` pool size | 16 | **18** | +2 (`white_raven`, `iron_bank`) |
+| `worldEvents.js` line count | 99/600 | **101/600** | +2, comfortable headroom |
+| Smoke suite | 22/22 | 22/22 | unchanged (mechanism-generic check) |
+| ADRs | 96 | **97** | +1 (ADR-0097) |
+| perf_log.csv rows | 16 | **17** | +1 (`run74`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (deliberate constant) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (config-only, no scene objects) |
+
+**Oyuncu fark eder mi:** evet, ama küçük bir dozda — dünya artık ara sıra iki yeni olay daha
+gösterebilir (bir Citadel kuzgunu mevsim değişimini duyuruyor, ya da Demir Banka'dan bir tahsildarın
+geldiği fısıldanıyor), oyuncunun periyodik olarak gördüğü ortam-zenginleştirme kartlarına iki yeni
+çeşit ekliyor; hiçbir mekanik/davranış değişmedi.
+
+**Not chaining a second sub-task this run.** Per §8.7's run-level time ceiling and §19's "well-scoped,
+not rushed" discipline: every other priority item was re-confirmed blocked or intentionally excluded at
+this run's own start (see baseline re-verification above) — a second same-run addition to the same
+small flavor-text list would start drifting from "well-scoped increment" toward "padding," which
+GOVERNANCE.md's own precedent (every prior world-event growth ADR) treats as a reason to stop, not
+push further.
+
+**Next step for the next run:** re-scan the priority order fresh, as always — nothing about this run's
+own findings changes GOVERNANCE.md §18's order. `gameplayConfig.js`'s 597/600 remains the one
+line-count watch-item in the repo (unaffected by this run, since `worldEvents.js` is a separate file)
+— the next change that touches it should split it first, same precedent as ever. Confirmed still
+blocked, unchanged from run 73: the remaining 6 castle seats and all FAZ 6 animals needing real rigged
+models, dragon attack/fire-breath (owner decision pending), `erkek-insan`/`kadin-insan`/`koylu`'s
+optional differentiation (no design reason to invent one yet). No blocking bugs, syntax errors, or
+regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

@@ -8147,3 +8147,90 @@ don't call for a combat-stance reaction, only asker's does).
 `playerPos`-read reorder in `game3d.js`, the `asker` prose update in `creatureSpeciesConfig.js`, the
 new smoke check, and this ADR/`QUESTIONS_FOR_OWNER.md` entry. Nothing else references any of it —
 every other NPC/animal/dragon system is untouched.
+
+## ADR-0097: Grow the world-event flavor pool from 16 to 18 entries
+
+**Status:** Accepted (run 74).
+
+**Risk Seviyesi:** LOW. Config/data-only addition to a frozen array; zero changes to
+`createWorldEventSystem`'s mechanism, `ui/worldEventToast.js`, or any call site. Fully reversible:
+`git revert` removes the two new objects and this ADR entry, nothing else references either id.
+
+**Context:** Session Snapshot at run start: `GOVERNANCE.md` §18 priority items 1-11 (terrain/roads/
+ground color/castle textures/syntax/bugs/perf/memory/tech debt/smoke test/world coverage) all
+re-verified healthy — full smoke suite 22/22 PASS, all 7 standing guards (`checkAssetsManifest`,
+`checkCreatureSpeciesConfig`, `checkDialogueChoicesShape`, `checkPwaInstallability`,
+`checkServiceWorkerCache`, `checkSmokeCheckRegistry`, `terrainSeatSafetyCheck`/
+`roadNetworkSafetyCheck`) clean, `git fetch origin main` confirmed no concurrent-session drift
+(GOVERNANCE.md §8.14). Item 12 (remaining FAZ 6/7 work) and item 13 (other FAZ 11 species) are both
+still blocked on manual asset uploads the owner hasn't made — re-confirmed by re-checking
+`assets/models/characters/` against every `creatureSpeciesConfig.js`/`gameplayConfig.js` import: the
+same 5 orphaned `.glb` files from ADR-0096's audit (`casual_confidence`, `ionic_grace`,
+`elven_warrior`, `verdant_knight`, `wooden_legion`) remain unmapped, none newly added, none maps
+cleanly to a named archetype without guessing (GOVERNANCE.md's "Bilmeme kuralı"). Also confirmed:
+`dialogueChoices.js`'s "13 of 14" NPC coverage is not a gap — its own header comment and ADR-0058
+document `jon-guard-1`'s exclusion as a deliberate design choice ("its ominous one-liner reads better
+staying a single line"), so adding it would contradict a standing decision, not close one. That
+leaves item 14 ("Yeni özellik"). `gameplay/worldEvents.js`'s flavor pool (FAZ 8, ADR-0056) is the
+established, low-risk growth track for exactly this bucket — grown 4→8 (ADR-0061)→12 (ADR-0063,
+implicit)→14 (ADR-0065)→16 (ADR-0068) across five prior rounds, each a small (+2 typical) batch of
+thematically-distinct, previously-unrepresented flavor, same shape this run continues. No terrain/
+height/noise/world-scale change — the Arazi Değişikliği Güvenlik Kontrolü doesn't apply. **Gelecek
+Faz Etkisi:** none — FAZ 8 stays flavor-only (ADR-0056's design boundary, reaffirmed by every prior
+growth ADR), no stat/quest/persistence hook added, nothing any not-yet-started phase depends on.
+
+**Decision:** `WORLD_EVENTS` grows from 16 to 18 entries, adding `white_raven` (a Citadel white raven
+announcing the changing of the season — distinct from the existing `raven` entry, which is a generic
+"message from a distant castle," and from `maester_raven`, which is about record-keeping, not an
+announcement) and `iron_bank` (rumor of an Iron Bank debt-collector arriving — previously
+unrepresented political/economic-tension flavor, distinct from every existing guard/patrol/
+ceremonial/everyday-life event). Both are original text, not derived from any HBO material — in
+keeping with this project's one hard constraint (no real HBO görsel/ses indirme). Same small-batch
+size every prior growth round (ADR-0065/0068) used.
+
+**Alternatives considered:**
+- *Add 4+ entries in one batch.* Rejected — same precedent ADR-0068 already rejected this for.
+- *Give the new events a stat-effect angle (e.g. the Iron Bank rumor hinting at a coming debt call).*
+  Rejected: FAZ 8 remains deliberately flavor-only (ADR-0056), no per-kingdom economy hook exists in
+  the 3D world for a stat-bearing event to attach to — same reasoning ADR-0068 already used.
+- *Pick `wildling_rumor` instead of `iron_bank` (a rumor of wildlings beyond the Wall, playing off the
+  `Night King` seat already in `KINGDOM_SEATS`).* Considered equally valid; `iron_bank` was chosen
+  because it opens an entirely new theme (political/economic tension) the pool had zero representation
+  of, whereas a wildling rumor would sit closer to the existing `watch_horn`/`wolf_howl` "danger from
+  the north" cluster. Not rejected as wrong — a legitimate future addition if the pool grows again.
+
+**Verified:**
+- `node --check` clean on `worldEvents.js`. Line count: 101/600 (was 99) — comfortable headroom.
+- Full committed smoke suite: all **22** checks PASS, identical to the pre-change baseline
+  (`checkWorldEvents` asserts the mechanism generically against whatever the pool contains, not a
+  fixed count/ids — needed no changes, same as every prior growth round).
+- All 7 standing guards re-run clean and unaffected (none touch `worldEvents.js`'s content):
+  `checkAssetsManifest` (41, unchanged), `checkCreatureSpeciesConfig` (15, unchanged),
+  `checkDialogueChoicesShape` (13/14, unchanged), `checkPwaInstallability` (unchanged),
+  `checkServiceWorkerCache` (47 JS files — no new file added, only an existing file edited, so no
+  precache-list change needed), `checkSmokeCheckRegistry` (56 JS files within cap, same pre-existing
+  `gameplayConfig.js` 597/600 WARN, untouched by this change), `terrainSeatSafetyCheck`/
+  `roadNetworkSafetyCheck` (14/14 seats, unchanged — no terrain/road file touched).
+- **Real headless-Chromium proof of the new content specifically** (same technique ADR-0068
+  established): a one-off Playwright script booted the live `game3d.html` page (zero console/page
+  errors), drove the real `createWorldEventSystem` (seed 7) with repeated large time deltas until both
+  new ids (`white_raven`/`iron_bank`) were actually observed coming out of the real pool (not asserted
+  against array internals — took 27 update() calls), confirmed both real payloads match the source
+  exactly, then rendered `white_raven`'s real payload through a real `WorldEventToast` instance.
+  Screenshot confirms the toast's real icon/title/desc render over the live scene (castle, player,
+  starlit night sky). Zero console/page errors throughout.
+- **AI Self-Review 2. Geçiş (§8.3):** re-read the diff before committing — confirmed neither new id
+  collides with any of the 16 existing ones, confirmed both descriptions read as ambiguous/atmospheric
+  rather than stating a concrete game-state fact (matching every existing entry's "haberci mi, yoksa
+  devriye mi?"-style open-endedness where one exists), confirmed the module's JSDoc header needed no
+  update (it doesn't track a live entry count, unlike `dialogueChoices.js`'s header).
+- Tech debt counter: **0** (unchanged). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+
+**Consequences:** World-event pool now has 18 entries. `worldEvents.js` has 499/600 lines of headroom
+before its own 600-line cap — no split pressure. FAZ 8's event system remains flavor-only, unchanged
+design boundary from ADR-0056. No `QUESTIONS_FOR_OWNER.md` entry needed — unlike a gameplay-tuning
+constant, flavor-text content carries no numeric value a future playtest would need to recalibrate.
+
+**Geri alma planı:** `git revert` the single commit. Removes the two new `WORLD_EVENTS` objects and
+this ADR entry. Nothing else references either id — `ui/worldEventToast.js` and every smoke check
+consume the pool generically.
