@@ -15,3 +15,8 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   headless-Chromium screenshot proof. GOVERNANCE.md §15's PWA section now fully closed (cache-
   completeness run 65 + quota monitoring this run). Local tag only — `git push origin <tag>` still
   rejected with `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-0550` — run 66 end (3 sub-tasks): F2 storage-quota monitoring (ADR-0084),
+  stale doc-comment fix, and FAZ 7 continuous chase (ADR-0085 — the dragon now leaves its castle to
+  hunt the player, time-boxed at 18s). 18/18 smoke suite, zero console errors, two-angle visual +
+  real-terrain trajectory evidence. Local tag only — `git push origin <tag>` still rejected with
+  `HTTP 403` (same known issue since run 58).
