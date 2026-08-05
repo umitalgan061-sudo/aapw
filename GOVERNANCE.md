@@ -241,7 +241,14 @@ FAZ 6: kurt tamam, at/araba/köpek-kedi/kuş kaldı. FAZ 7: ilk ejderha (fark et
 uçuş + dalış/swoop + **gerçek sürekli kovalama** var — run 66/ADR-0085: ejderha artık
 kalesini terk edip oyuncuyu 18 saniye boyunca kovalıyor, sonra vazgeçip dönüyor; saldırı/
 hasar hâlâ yok, sağlık/hasar sistemi olmadığı için). FAZ 8: dünya olayları büyüyor.
-FAZ 9-10 başlamadı.
+FAZ 9-10 başlamadı. **FAZ 11 (run 72, ADR-0095, sahibin canlı çalıştırma dışı canlı istek): Canlı
+Çeşitliliği** — her canlı türü için karakteristik hareket/davranış planı `src/3d/gameplay/
+creatureSpeciesConfig.js`'deki `CREATURE_SPECIES` registry'sinde veri olarak kayıtlı (15 tür: kedi,
+köpek, kral, ejderha, asker, kuş, ceylan, geyik, erkek/kadın insan, köylü + önerilen at/kuzgun/koyun/
+yaban domuzu). Modeller sahip tarafından ileride yüklenecek — her tür kendi modeli gelince ayrı bir
+alt görev olarak (kendi ADR'si + gerçek modelle smoke test + görsel kanıtla) uygulanır; bu registry
+sadece ortak referans/plan, henüz hiçbir runtime kodu import etmiyor. Detay için o dosyanın kendi
+header'ına ve ADR-0095'e bakılır.
 
 ## 18. Görev Öncelik Sırası (güncel)
 
@@ -257,7 +264,8 @@ FAZ 9-10 başlamadı.
 10. Smoke test
 11. World Coverage
 12. FAZ 7 ejderha / FAZ 5-6
-13. Yeni özellik
+13. FAZ 11 canlı türleri — model yüklendikçe, tür başına tek alt görev (bkz. `creatureSpeciesConfig.js`)
+14. Yeni özellik
 
 ## 19. Çalıştırma İçinde Zincirleme
 

@@ -7783,3 +7783,92 @@ syntax errors, or regressions found this run.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 72 continued — live owner request, outside the routine's own sub-task chain)
+
+**Context:** The project owner made a live request (not via the scheduled autonomous routine):
+characteristic movement/behavior coding for a list of living beings — kedi (cat), köpek (dog), kral
+(king), ejderha (dragon, already done), asker (soldier), kuş (bird), ceylan (gazelle), geyik (deer),
+erkek/kadın insan (human male/female), köylü (villager, already partially covered) — explicitly "no
+rush, just get it into the plan and have it eventually done," offering that either starting the code
+now or adding it to the rules was acceptable, and inviting additional species suggestions. Models will
+be uploaded later by the owner (the same manual-human-asset-download pattern every prior FAZ 5/6/7
+asset already followed).
+
+**FAZ 11 (Canlı Çeşitliliği) added (DECISIONS.md ADR-0095):** Registered as a new roadmap phase in
+`GOVERNANCE.md` §17/§18 (item 13 in the priority list) and captured as real, verified scaffolding
+rather than prose alone: a new data-only `src/3d/gameplay/creatureSpeciesConfig.js` (`CREATURE_SPECIES`
+registry, 306 lines) records, per species, its `characteristicMovement` design (what makes it move/
+read differently from every other one), a first-pass `speedProfile`, and `behaviorTags` naming which
+composable primitives (existing — `patrol`/`flee-on-approach`/`pack-alert`/`flying-circle`/`dive`/
+`pursuit` — or newly-named — `flock`/`herd-bound`/`pounce`/`approach-friendly`/`escort-formation`/
+`regal-idle`/`combat-stance`) its eventual implementation should draw from. 15 entries: the owner's
+11 plus 4 suggested additions with their own reasoning noted inline — **at** (horse, already
+partially exists as a static/rigless `ANIMAL_CONFIG.SPAWNS` entry, `umit-horse-1`), **kuzgun** (raven,
+a strong Westeros/GoT thematic fit), **koyun** (sheep, a calm contrast to skittish gazelle/deer), and
+**yaban domuzu** (boar, this project's first "charges instead of flees" wild animal, explicitly gated
+on no real attack/damage mechanic existing — same caution `QUESTIONS_FOR_OWNER.md`'s dragon
+health/damage question already established).
+
+**Deliberately NOT a runtime behavior engine yet.** No `create<Species>()` function exists anywhere,
+and nothing in `game3d.js` imports this file. This follows the project's own established precedent
+against premature shared abstraction (`gameplay/animals.js`'s wolf patrol is a *copy* of `npc.js`'s
+pattern, not a shared function, per DECISIONS.md ADR-0026's "why duplicate" reasoning) and its DoD's
+own requirement for real visual evidence against a real model — building generic behavior code against
+zero real models to test it would be exactly the kind of guessed-API risk GOVERNANCE.md's "Bilmeme
+kuralı" warns against, just at framework scale instead of one function signature. Each species becomes
+its own real future sub-task once its model is uploaded, with its own ADR/smoke-check/visual proof —
+the registry is the shared spec those sub-tasks implement against, not a substitute for them.
+
+A new standing structural guard, `scripts/checkCreatureSpeciesConfig.js`, was added *now* rather than
+deferred — this project's own `checkSmokeCheckRegistry.js` exists specifically because unchecked
+hand-maintained lists drift silently (GOVERNANCE.md §8.2's own case study), and a 15-entry registry
+that will grow one species at a time over many future runs is exactly the shape that benefits from
+catching a typo'd `status` or missing field immediately.
+
+**DoD status:** `node --check` clean on both new files and `service-worker.js`, plus a full 56-file
+repo sweep. `checkCreatureSpeciesConfig.js` run against the real registry: **OK, 15 entries all
+valid** (9 awaiting-model, 6 partial-existing) — and its *failure* path was deliberately verified too
+(not just the success path): a temporarily-corrupted copy with an invalid `category` value correctly
+reported the exact violation and exited 1, then the real file was restored and re-verified clean.
+`checkServiceWorkerCache.js` caught the new file as missing from the offline precache list on its
+first run (a real, working negative signal) — fixed by adding the entry and bumping `SHELL_CACHE`
+v4->v5; re-run: **OK, 47 JS files** precached. All other 4 standing guards re-run clean and
+unaffected. Visual evidence: not applicable — zero scene objects created, nothing to render; the
+guard's pass/fail (including the deliberately-tested failure path) is the correctness proof for a
+data-only change, same reasoning `checkAssetsManifest.js`/`checkDialogueChoicesShape.js` already
+established for their own domains. No perf snapshot taken — no render-path change. Tech debt counter:
+**0** (unchanged — `status: 'awaiting-model'` is an explicit, tracked state, not a silent shortcut).
+This file updated (this entry). ADR written (ADR-0095). Committed. Console clean (n/a — no browser
+involved in this sub-task's own verification).
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| Roadmap phases | FAZ 0-10 | **FAZ 0-11** | +1 (FAZ 11 registered) |
+| Planned creature species (data-only) | 0 | **15** | +15 (9 awaiting-model, 6 partial-existing) |
+| Standing static guards | 6 | **7** | +1 (`checkCreatureSpeciesConfig.js`) |
+| Files (JS, repo-wide) | 54 | **56** | +2 (registry + guard) |
+| JS files precached by the service worker | 46 | **47** | +1 |
+| ADRs | 94 | **95** | +1 (ADR-0095) |
+| Smoke suite (Playwright) | 21/21 | 21/21 | unchanged -- this sub-task added no runtime behavior |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged |
+| Tech debt count | 0 | **0** | unchanged |
+
+**Oyuncu fark eder mi:** hayır — henüz hiçbir yeni canlı sahnede görünmüyor, modeller yüklenene kadar
+görünmeyecek de. Bu sub-task tamamen "gelecekte ne inşa edileceğinin" planı ve iskeleti.
+
+**Next step:** modeller yüklendiğinde, her tür kendi alt görevi olarak ele alınır — `creatureSpeciesConfig.js`'deki
+kendi `characteristicMovement`/`behaviorTags` girdisi başlangıç noktası, ama gerçek model/animasyon
+setiyle karşılaşınca değerler (hız, tetik yarıçapı) yeniden doğrulanır/ayarlanır ve o alt görevin kendi
+ADR'sinde kayda geçer. Öncelik sırası: modeli önceden kısmen var olan (`at`, gerçek yürüyüş/kaçış için
+rigli bir model gerekiyor) ve mevcut sistemle en çok örtüşen (`asker`/`kral` — mevcut Muhafız NPC
+altyapısına en yakın) muhtemelen en düşük ek-iş gerektirenler. `gameplayConfig.js`'in 579/600 satırı
+hâlâ tek line-count watch-item'ı. Confirmed still blocked: remaining 6 castle seats, FAZ 6 animals
+needing real rigged models, dragon attack/fire-breath (owner decision pending). No blocking bugs,
+syntax errors, or regressions found.
+
+**Addendum:** committed separately from the routine's own sub-task 1/2 commits (this was a live
+owner-initiated addition, not part of the routine's automated chain) — see git log for the exact
+commit hash.

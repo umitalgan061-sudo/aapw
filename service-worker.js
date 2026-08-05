@@ -6,7 +6,7 @@
 
 const SW_VERSION = 'westeros-media-v4';
 const MEDIA_CACHE = 'westeros-media-v4';
-const SHELL_CACHE = 'westeros-shell-v4';
+const SHELL_CACHE = 'westeros-shell-v5';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -52,6 +52,13 @@ const SHELL_FILES = [
 // reasoning as the run 65/67 entries above: `SHELL_CACHE` bumped v3->v4 so an existing install
 // replaces its now-incomplete entry set wholesale instead of mixing the new `dragons.js` facade
 // with a cache that has no modules to re-export from.
+//
+// run 72 (DECISIONS.md ADR-0095): added `gameplay/creatureSpeciesConfig.js` (FAZ 11 planning
+// scaffold — see that file's own header). Not imported by any runtime code yet, but
+// `checkServiceWorkerCache.js`'s own standing guard treats every file under `src/3d/` as something
+// an offline install must be able to load, so it's precached here from the start rather than added
+// later once a real species implementation actually imports it. `SHELL_CACHE` bumped v4->v5, same
+// reasoning as every entry above.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -75,6 +82,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/ui/dialogueBox.js',
     './src/3d/ui/worldEventToast.js',
     './src/3d/gameplay/gameplayConfig.js',
+    './src/3d/gameplay/creatureSpeciesConfig.js',
     './src/3d/gameplay/dialogueChoices.js',
     './src/3d/gameplay/player.js',
     './src/3d/gameplay/npc.js',

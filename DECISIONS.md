@@ -7882,3 +7882,134 @@ indirection layer would have been.
 `game3dSmokeChecksDragonDive.js`, deletes `game3dSmokeChecksDragonPursuit.js`, and reverts
 `smokeTestGame3D.js`'s `require` line and two call sites. No other file references either check
 module directly.
+
+---
+
+## ADR-0095: FAZ 11 — Creature species behavior registry, planning scaffold ahead of real models
+
+**Date:** 2026-08-05 (run 72, live owner request)
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: pure data/config addition plus one static-structural check
+script. Nothing runtime-imports `creatureSpeciesConfig.js` yet (confirmed by grep — `game3d.js` and
+every existing gameplay module are untouched), so this change cannot alter any current in-game
+behavior. Fully reversible: `git revert` removes the new config file, the new check script, the
+`service-worker.js` precache entry + version bump, and this ADR/roadmap prose; nothing depends on any
+of it.
+
+**Context:** The project owner asked (live, not via the autonomous routine) for characteristic
+movement/behavior coding for each of a list of living beings — kedi (cat), köpek (dog), kral (king),
+ejderha (dragon, already done), asker (soldier), kuş (bird), ceylan (gazelle), geyik (deer), erkek
+insan / kadın insan (human male/female), köylü (villager, already partially covered by the NPC
+system) — explicitly "no rush, just get it into the plan and have it eventually done," and offered
+that either starting the code now or adding it to the rules was acceptable. Real models for these
+will be uploaded later by the owner, same manual-human-step pattern every prior FAZ 5/6/7 asset
+already followed (`assets_manifest.json`'s own notes).
+
+**Değişiklik Etki Analizi (GOVERNANCE.md §8.4):** Not a terrain/height/noise/world-scale change, so
+the Arazi Değişikliği Güvenlik Kontrolü doesn't apply. Affected systems: a new
+`src/3d/gameplay/creatureSpeciesConfig.js` (data-only, zero imports from any runtime file), a new
+`scripts/checkCreatureSpeciesConfig.js` (standing structural guard), `service-worker.js` (one
+precache entry, version bump). No existing gameplay module, ADR, or asset changed. **Gelecek Faz
+Etkisi:** this *is* the future-phase groundwork — FAZ 11 (Canlı Çeşitliliği). Every future one-species
+sub-task (once its model is uploaded) implements against this registry's `characteristicMovement`/
+`behaviorTags` spec rather than inventing its own answer independently, the same role
+`DRAGON_CONFIG.SPAWNS`'s tuned values already play for FAZ 7's own incremental history.
+
+**Decision:**
+1. **Register the plan as a new roadmap phase, FAZ 11 (Canlı Çeşitliliği), in `3D_GAME_PROGRESS.md`,
+   and as a new item in `GOVERNANCE.md`'s §18 priority list** — the durable, always-read record every
+   future run's Session Snapshot picks up, so the request survives across container restarts.
+2. **Also start the coding, scoped to what can be done responsibly without a real model**: a
+   data-only `CREATURE_SPECIES` registry (`creatureSpeciesConfig.js`) capturing, per species, its
+   `characteristicMovement` design (the actual decision — what makes each species move/read
+   differently from every other one), a first-pass `speedProfile`, and `behaviorTags` naming which
+   composable primitives (existing or newly-named) its future implementation should draw from.
+3. **Deliberately NOT build a generic runtime "creature behavior engine"** on top of this registry.
+   This project's own established precedent argues against it: `gameplay/animals.js`'s wolf patrol
+   is a *copy* of `npc.js`'s pattern, not a shared function (DECISIONS.md ADR-0026's own "why
+   duplicate" reasoning), and every FAZ 6/7 addition has been built and verified against a real,
+   already-loaded model — never spun up as a speculative abstraction first. Building a generic engine
+   now, against zero real models to test it, would violate GOVERNANCE.md's own "Bilmeme kuralı" (don't
+   guess an API you're not sure of) at the scale of an entire behavior framework instead of one
+   function signature. Each species gets its own real `create<Species>()` as its own future sub-task,
+   once its model exists — with its own ADR, its own smoke check against the real model, and its own
+   headless-boot visual proof, exactly like every prior animal/NPC/dragon addition.
+4. **Add a standing structural guard now** (`checkCreatureSpeciesConfig.js`), not deferred until the
+   registry is "done" — this project's own `checkSmokeCheckRegistry.js` exists specifically because a
+   hand-maintained list left unchecked drifts silently (GOVERNANCE.md §8.2's own case study,
+   `game3dSmokeChecksMovement.js` sitting over budget for four runs before anyone noticed). A 15-entry
+   registry that will grow one species at a time over many future runs is exactly the shape that
+   benefits from catching a typo'd `status` or a missing `speedProfile` field immediately rather than
+   whenever a human happens to re-read the whole file.
+5. **Proposed 4 additional species beyond the owner's own list**, each noted in the registry with its
+   own reasoning: **at** (horse — already partially exists, `ANIMAL_CONFIG.SPAWNS`'s `umit-horse-1`,
+   rigless/static today), **kuzgun** (raven — a strong Westeros/GoT thematic fit, Night's Watch message
+   ravens), **koyun** (sheep — a calm village/farm animal, contrasts with the skittish gazelle/deer),
+   **yaban domuzu** (boar — the project's first "charges instead of flees" wild-animal behavior,
+   explicitly gated on no real attack/damage mechanic existing, same caution
+   `QUESTIONS_FOR_OWNER.md`'s health/damage question already established for the dragon).
+
+**Alternatives considered:**
+- *Build the full runtime behavior system now, using placeholder box geometry (`AssetLoader`'s
+  existing `fallbackColor`/`fallbackSize` mechanism, already used when a real model fails to load).*
+  Rejected: this project's DoD requires real visual evidence (§8.5) and a real smoke check driving the
+  actual model — a placeholder-box "cat" pouncing at a placeholder-box "player" proves nothing about
+  whether the eventual real model's animation clips/scale/rig even support the designed behavior, and
+  risks locking in wrong assumptions (clip names, root-motion-vs-in-place, bone structure) that would
+  then need rework once the real model arrives — the same category of risk `ANIMAL_CONFIG.HORSE_MODEL_URL`'s
+  own doc comment already flags (a rigless model that can't run the walk/flee code that was written
+  for it in advance).
+- *Only add the roadmap prose, no code at all.* Rejected: the owner explicitly offered code-now as an
+  acceptable option, and a data-only, zero-runtime-risk config registry is genuinely useful groundwork
+  (a concrete spec to implement against later) at effectively zero risk — nothing runtime-facing
+  changes.
+- *Skip the standing guard until the registry has grown larger.* Rejected: cheaper to add now, before
+  any entry needs retrofitting, and this project's own root-cause history (§8.2) specifically argues
+  against "we'll add the check later."
+
+**Consequence:**
+- A new `src/3d/gameplay/creatureSpeciesConfig.js` (306 lines) and
+  `scripts/checkCreatureSpeciesConfig.js` (122 lines) exist, neither touching any current gameplay
+  behavior.
+- `service-worker.js`'s `SHELL_CACHE` bumped v4->v5 (47 JS files precached now, was 46) so an existing
+  offline install picks up the new file — even though nothing imports it yet, `checkServiceWorkerCache.js`'s
+  own guard treats every `src/3d/**/*.js` file as something offline mode must be able to load.
+- Every future FAZ 11 sub-task (one species, once its model is uploaded) has a concrete spec to
+  implement against and a guard that catches registry drift as more entries are added.
+- No existing smoke check, ADR, or in-game behavior changed. Draw calls/triangles/geometry/texture
+  counts are unaffected (no scene object was created).
+
+**Etkilenen sistemler:** `src/3d/gameplay/creatureSpeciesConfig.js` (new), `scripts/checkCreatureSpeciesConfig.js`
+(new), `service-worker.js` (precache list + version bump), `3D_GAME_PROGRESS.md` (new FAZ 11 roadmap
+section), `GOVERNANCE.md` (§18 priority list). No other file.
+
+**Verification (GOVERNANCE.md §8.1):**
+- `node --check` clean on both new files and `service-worker.js`, plus a full 56-file repo sweep.
+- `checkCreatureSpeciesConfig.js` run against the real registry: **OK, 15 species entries all valid**
+  (9 awaiting-model, 6 partial-existing). Deliberately verified the *failure* path too, not just the
+  success path: a temporarily-corrupted copy (invalid `category` value) was run through the same
+  script and correctly reported the exact violation and exited 1, then the real file was restored and
+  re-verified clean — proving the guard actually guards, not just that it runs.
+- `checkServiceWorkerCache.js`: caught the new file as missing from the precache list on the first
+  run (a real, working negative signal, not assumed) — `FAIL: 1 src/3d JS file(s) missing`. Fixed by
+  adding the entry + version bump; re-run: **OK, 47 JS files** precached.
+- All other 4 standing guards re-run clean, unaffected: `checkAssetsManifest.js` (41 entries,
+  unchanged), `checkDialogueChoicesShape.js` (13/14, unchanged), `checkPwaInstallability.js`
+  (unchanged), `checkSmokeCheckRegistry.js` (21 smoke checks unchanged — this new check is not part
+  of the Playwright smoke suite, it's a standalone standing guard like its 5 siblings; 56 JS files
+  within the cap, only `gameplayConfig.js`'s pre-existing 579/600 WARN).
+- **Görsel kanıt (§8.5):** not applicable — a config/data-only addition with zero scene objects
+  created has nothing to render or screenshot; the structural guard's pass/fail (including the
+  deliberately-tested failure path above) is the correctness proof for this kind of change, the same
+  reasoning `checkAssetsManifest.js`/`checkDialogueChoicesShape.js` already established for their own
+  data-only domains.
+- **Performans (§4):** no perf snapshot taken — no scene object created, so no GPU-submission metric
+  can move; this sub-task doesn't touch the render path at all.
+- Tech debt counter: **0** (unchanged). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND` — the registry's
+  `status: 'awaiting-model'` field is an explicit, documented, tracked state, not a silent shortcut.
+
+**Geri alma planı:** `git revert` the single commit. Removes both new files, reverts
+`service-worker.js`'s precache entry and version bump, and the roadmap/priority-list prose additions.
+Nothing else references any of it.
