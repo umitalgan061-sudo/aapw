@@ -221,3 +221,13 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   to run76-80. `git push origin main` succeeded (`e3572d4`). Local tag only — `git push origin <tag>`
   still rejected, same `HTTP 403`/`send-pack: unexpected disconnect` standing block since run 58
   (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
+- `stable-2026-08-05-2035` — run 82 end (2nd sub-task of the same chained run): the five inline
+  safe-mode try/catch blocks extracted into `src/3d/safeMode.js`, `game3d.js` 571/600 -> 538/600 and
+  `checkSmokeCheckRegistry.js`'s approaching-the-cap WARN cleared (ADR-0105). Behavior-preserving:
+  smoke suite 22/22 PASS, all 8 standing guards clean, `perf_log.csv` `run82` bit-identical to
+  run76-81, 2 screenshots visually identical to run 81's pair. Error paths re-proven rather than
+  assumed — the injection harness was extended from 4 to 5 subsystems (dragons added because the
+  refactor rewrote that run-64 call site) and all 5 passed with zero uncaught `pageerror`.
+  `SHELL_CACHE` bumped v6->v7 for the new precached module. `git push origin main` succeeded
+  (`0c8ab50`). Local tag only — `git push origin <tag>` still rejected, same `HTTP 403` standing
+  block since run 58.
