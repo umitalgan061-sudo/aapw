@@ -6422,3 +6422,99 @@ behavior change at all for anyone who stays online, and none for 2D-shell-only u
   section; the precached set is now larger, ~11MB dragon textures + 7 castle glbs + the dragon FBX
   itself all added, so this is worth a dedicated future check once real device storage-quota data is
   available to compare against, not guessed at here).
+
+---
+
+## ADR-0084: PWA offline storage-quota monitoring — F2 panel's fifth line
+
+**Status:** Accepted (run 66).
+
+**Risk Seviyesi:** LOW. Justification: purely additive read-only instrumentation inside an
+existing, already-inactive-by-default debug tool (`debug/perfPanel.js`, F2). Never runs unless a
+human explicitly opens the panel; feature-detected so unsupported browsers just show a fallback
+string instead of throwing; touches no gameplay, rendering, terrain, or save-relevant state.
+
+**Context:** GOVERNANCE.md §15 ("PWA Cache Versiyonlama") names two distinct pieces: cache
+*invalidation/versioning* and offline *storage-quota monitoring*. Run 65 (ADR-0083) closed the
+first — `GAME3D_SHELL_FILES` now precaches every real `src/3d` module and asset the game loads, with
+a version bump so existing installs re-fetch it, plus `checkServiceWorkerCache.js` as a standing
+regression guard against future drift. The second piece — actually surfacing how much of the
+browser's storage quota this now-larger precache set (dragon FBX + ~11MB of textures, the horse
+glb, 7 real castle `_decimated.glb` models, on top of the 2D shell's own assets) is consuming — was
+explicitly flagged as still open in that ADR's own "Gelecek Faz Etkisi" note and remained unstarted
+going into this run. No code anywhere in this repo had ever called `navigator.storage.estimate()`
+before this run (confirmed via a repo-wide grep for "storage.estimate"/"StorageManager" turning up
+nothing).
+
+**Decision:**
+1. **`debug/perfPanel.js`** (the existing F2 panel, not a new tool — same "extend, don't duplicate"
+   reasoning `checkServiceWorkerCache.js` itself followed off `checkAssetsManifest.js`) gains a
+   fifth readout line: `Storage: <usage> / <quota> MB (<percent>%)`, sourced from
+   `navigator.storage.estimate()`. Feature-detected once at panel creation (`canEstimateStorage`) —
+   unsupported browsers show `Storage: unsupported (no navigator.storage.estimate)` instead of
+   throwing.
+2. **Polled on its own coarse timer** (`STORAGE_REFRESH_INTERVAL_SECONDS = 5`), independent of the
+   existing 0.25s render-stat DOM-write throttle — disk usage doesn't move frame-to-frame the way
+   draw calls/triangles do, so reusing the fast timer would just be needless async-call overhead for
+   a number that almost never changes between reads. The very first active `update()` call fires an
+   immediate measurement (`sinceStorageRefresh` starts at `Infinity`) rather than making a human wait
+   up to 5s after opening the panel to see any number at all.
+3. **Warned the same way over-budget draw-calls/triangles already are:** a trailing `" !"` once
+   usage crosses `STORAGE_WARN_FRACTION` (0.8) of the reported quota — see
+   `QUESTIONS_FOR_OWNER.md`-style reasoning inline in the constant's own comment for why 0.8 and not
+   1.0 (eviction risk starts before usage literally equals quota).
+4. Guarded against overlapping in-flight requests (`storageEstimateInFlight`) and a rejected promise
+   (`.catch` sets a `"estimate() failed"` line rather than leaving a stale/empty one or throwing) —
+   same fail-open spirit GOVERNANCE.md §8.13's safe-mode rule asks of gameplay subsystems, applied
+   here to a debug-tool async call instead.
+5. **`scripts/game3dSmokeChecksScene.js`'s existing `checkPerfPanel`** (guards ADR-0053) extended
+   rather than duplicated: asserts the synchronous "measuring…" placeholder immediately after the
+   first active update (proven by reading the DOM with no `await` in between — the real
+   `navigator.storage.estimate()` promise cannot have resolved yet), the real resolved
+   `usage / quota MB (%)` line after actually waiting for it, and the unsupported-fallback string on
+   a separate instance built with `navigator.storage` stubbed to `undefined` via
+   `Object.defineProperty` (restored immediately after) — real headless Chromium supports the API,
+   so the fallback branch needs an explicit stub to exercise at all.
+
+**Alternatives considered:**
+- **A new, separate debug panel/keybind just for storage.** Rejected: one more global keydown
+  listener and DOM element for a single line of text that belongs next to the panel's other
+  resource-budget numbers (draw calls, triangles, geometries, textures) — F2 is already "the
+  resource-budget panel," storage quota is one more resource budget, not a new category.
+- **Polling on every `update()` call (no separate coarse timer).** Rejected: `renderer.info` reads
+  are free (already-computed GPU counters); `navigator.storage.estimate()` is a real async
+  browser-storage query. Calling it 4-60 times/second for a number that changes maybe once per
+  session would be pure waste, and on some browsers `estimate()` is documented as potentially
+  I/O-bound rather than instant.
+- **Enforcing a hard quota limit (refusing to cache more once past some threshold).** Rejected as
+  out of scope: this ADR is the *monitoring* half GOVERNANCE.md §15 asks for; enforcement would mean
+  deciding what to evict and when, a real product/engineering decision with no existing project
+  precedent to reuse, better scoped as its own future piece once real usage data from this
+  monitoring exists to reason from.
+
+**Verification:** `node --check` clean on `debug/perfPanel.js` and
+`scripts/game3dSmokeChecksScene.js`. Full `scripts/smokeTestGame3D.js` — **17/17 PASS**, zero
+console/page errors, including the extended F2 check's new storage-line assertions running against
+real headless Chromium (not a mock) — confirms `navigator.storage.estimate()` genuinely resolves in
+this environment, not just that the fallback path type-checks. A separate one-off Playwright script
+(scratchpad, not committed — same convention prior runs' screenshot evidence already follows) booted
+the real `game3d.html`, pressed F2, waited past both timers, and confirmed the live panel read
+`Storage: 0.0 / 951 MB (0%)` with zero console errors — screenshot attached to this run's summary.
+
+**Consequence:** Any human debugging why a device is slow to install/update the PWA, or wondering
+how close the now-much-larger precache set (run 65) is to a device's storage quota, can now check
+directly via F2 instead of guessing or reaching for browser devtools' own (differently-scoped)
+storage inspector. No behavior change for anyone who never opens the panel — same "debug tool, zero
+cost when off" contract every other `debug/` file here already holds to.
+
+**Gelecek Faz Etkisi (future-phase impact):**
+- **Periyodik Platform Kontrolü (GOVERNANCE.md §15, ~every 20-30 runs):** that check can now read a
+  real number here instead of having nothing to check at all for the "storage kotası" part of that
+  rule.
+- **Future asset growth (FAZ 6 animals, more castles, future dragons):** as the precache set keeps
+  growing, this is now the standing instrument to notice if a device's real quota (which varies a
+  lot by browser/available disk, unlike the fixed desktop/mobile *perf* budgets above it) is ever
+  actually at risk, rather than only finding out when `cache.addAll` starts silently failing.
+- **No enforcement yet:** if this monitoring ever shows real devices routinely crossing
+  `STORAGE_WARN_FRACTION`, an eviction/enforcement policy (deliberately rejected above as its own
+  scope) would become the natural next step — not guessed at now.

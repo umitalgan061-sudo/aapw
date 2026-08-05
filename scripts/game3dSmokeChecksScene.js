@@ -204,6 +204,14 @@ async function checkFreeCamera(browser, baseUrl) {
  * `isMobileClass: true` really switches to `MOBILE_BUDGET`, not just accepting the option and
  * ignoring it (620 draw calls flags over-budget on mobile's 500 cap but would not on desktop's
  * 2500 one, so this also proves the budget object itself is being read, not hardcoded).
+ *
+ * Run 66 (ADR-0084) also guards the storage-quota line: an immediate "measuring…" placeholder on
+ * the first active `update()` (before `navigator.storage.estimate()`'s promise has had a chance to
+ * resolve — proven by reading the DOM synchronously right after the call, no `await` in between),
+ * the real resolved `usage / quota MB (%)` line once it does resolve, and the feature-detected
+ * "unsupported" fallback on a separate instance with `navigator.storage` stubbed away (real
+ * headless Chromium does support the API, so the fallback path needs this explicit stub to exercise
+ * at all).
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */
 async function checkPerfPanel(browser, baseUrl) {
@@ -238,10 +246,24 @@ async function checkPerfPanel(browser, baseUrl) {
 			const writesAfterThrottleInterval = text1.includes('Draw calls: 100 / 2500 (Desktop)')
 				&& text1.includes('Triangles: 200,000 / 5,000,000 (Desktop)')
 				&& text1.includes('Geometries: 5') && text1.includes('Textures: 3');
+			// Run 66 (ADR-0084): the first active update() already kicked off
+			// navigator.storage.estimate() (its own timer starts at Infinity), but no `await` has
+			// happened since — the promise cannot have resolved yet, so the DOM must still show the
+			// synchronous "measuring…" placeholder, not a stale-empty or already-resolved value.
+			const storageShowsMeasuringBeforeResolve = text1.includes('Storage: measuring…');
 
 			fakeRenderer.info.render.calls = 3000; // over DESKTOP_BUDGET.maxDrawCalls (2500).
 			panel.update(0.3); // past the throttle again (reset after the last write).
 			const overBudgetFlagged = el.textContent.includes('/ 2500 (Desktop) !');
+
+			// Give navigator.storage.estimate()'s real promise a turn to resolve, then force one more
+			// DOM write (past the render-stat throttle again) to pick up the now-resolved storageLine
+			// — the storage timer itself won't refire for STORAGE_REFRESH_INTERVAL_SECONDS, so this
+			// is reading the *first* resolved estimate, not triggering a second request.
+			await new Promise((resolve) => setTimeout(resolve, 150));
+			panel.update(0.3);
+			const text2 = el.textContent;
+			const storageResolvedWithRealNumbers = /Storage: \d+\.\d \/ \d+ MB \(\d+%\)( !)?$/.test(text2);
 
 			window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F2' }));
 			const deactivatedOnSecondF2 = panel.active === false;
@@ -260,9 +282,24 @@ async function checkPerfPanel(browser, baseUrl) {
 			const mobileBudgetUsed = mobileEl.textContent.includes('/ 500 (Mobile) !');
 			mobilePanel.dispose();
 
+			// Run 66 (ADR-0084): feature-detection fallback. Real headless Chromium does support
+			// navigator.storage.estimate(), so the "unsupported" branch needs an explicit stub to
+			// exercise at all — a third instance, created while the stub is in place, restored
+			// immediately after so it can't affect any other check.
+			const originalStorage = navigator.storage;
+			Object.defineProperty(navigator, 'storage', { value: undefined, configurable: true });
+			const noStoragePanel = createPerfPanel({ renderer: fakeRenderer, isMobileClass: false });
+			const noStorageEl = document.querySelector('.g3d-perf-panel');
+			window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F2' }));
+			noStoragePanel.update(0.3);
+			const unsupportedFallbackShown = noStorageEl.textContent.includes('Storage: unsupported (no navigator.storage.estimate)');
+			noStoragePanel.dispose();
+			Object.defineProperty(navigator, 'storage', { value: originalStorage, configurable: true });
+
 			return {
 				inactiveInitially, hiddenInitially, noWriteWhileInactive, activatedOnF2, domVisibleOnActivate,
 				throttledNoWriteBelowInterval, writesAfterThrottleInterval, overBudgetFlagged,
+				storageShowsMeasuringBeforeResolve, storageResolvedWithRealNumbers, unsupportedFallbackShown,
 				deactivatedOnSecondF2, hiddenAfterSecondF2, disposedRemovesDom, mobileBudgetUsed,
 			};
 		});
@@ -272,9 +309,9 @@ async function checkPerfPanel(browser, baseUrl) {
 	await page.close();
 	const ok = result && Object.values(result).every((value) => value === true);
 	const details = ok
-		? 'inactive by default, no-ops while inactive, F2 activates/deactivates, refresh-throttled writes, over-budget flag, dispose removes DOM, isMobileClass swaps in the mobile budget'
+		? 'inactive by default, no-ops while inactive, F2 activates/deactivates, refresh-throttled writes, over-budget flag, dispose removes DOM, isMobileClass swaps in the mobile budget, storage-quota line measures-then-resolves with real numbers, unsupported fallback shown when navigator.storage is stubbed away'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
-	return { name: 'F2 debug/profiling panel (debug/perfPanel.js, ADR-0053)', ok, details };
+	return { name: 'F2 debug/profiling panel (debug/perfPanel.js, ADR-0053/ADR-0084)', ok, details };
 }
 
 /**

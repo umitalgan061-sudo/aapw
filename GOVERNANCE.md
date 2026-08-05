@@ -208,7 +208,9 @@ göreve geçilir.
 - **PWA Cache Versiyonlama:** 3D mod asset sayısı büyüdükçe service worker
   cache-invalidation (versiyon numarası, eski cache temizliği) ve offline depolama kotası
   izlemesi tanımlanır — 2D oyunun service worker'ı daha önce zaten denetlenmişti, bu onu 3D
-  asset'lerine genişletir.
+  asset'lerine genişletir. **Her iki yarı da tamamlandı:** cache-tamlığı run 65'te
+  (`checkServiceWorkerCache.js`, ADR-0083), kota izlemesi run 66'da (F2 panelinin
+  `navigator.storage.estimate()` satırı, ADR-0084) — ikisi de kalıcı regresyon korumasıyla.
 - **Periyodik Platform Kontrolü:** ~ayda bir (20-30 çalıştırmada bir) `npm audit`, PWA hâlâ
   kurulabiliyor mu, WebGL bekleneni veriyor mu kontrol edilir.
 

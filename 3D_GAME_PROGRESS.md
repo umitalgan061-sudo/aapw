@@ -6549,3 +6549,95 @@ regressions found.
 
 **Addendum:** did not attempt `git tag stable-YYYY-MM-DD-HHmm` this run either — same known `HTTP 403`
 tag-push rejection documented since run 58, no new reason to believe it's fixed.
+
+## This Run (2026-08-05, run 66)
+
+**Fresh Session Snapshot at container boot:** `GOVERNANCE.md` read in full — already contains every
+rule this run's scheduler prompt listed verbatim (the prompt's "create GOVERNANCE.md/CREDITS.md
+first" step was a no-op again, same as run 65 found — both files complete, run 57-ish origin per git
+history). `3D_GAME_PROGRESS.md`'s run 65 entry, `DECISIONS.md`'s last 3 ADRs (0081-0083), and
+`QUESTIONS_FOR_OWNER.md` (2 owner-only items pending: leaked-key rotation, blocked animal assets —
+neither actionable by this run) all read for context. `git log -10` showed `HEAD` detached at run
+65's final commit (`8d130b6`); `git fetch origin main` showed a "forced update" of the
+remote-tracking ref (local `main` was still at the pre-3D-mode `38e09e7`, same recurring
+container-restart pattern documented since run 18/29/30/36/37) — `git checkout -B main origin/main`
+synced local `main` to match `origin/main` exactly, no lossy operation.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`) — clean. Full
+`scripts/smokeTestGame3D.js` — **17/17 PASS** before any new code.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-11 clean per the baseline sweep and prior runs'
+own re-verification (no new evidence to doubt them). Item 12 (FAZ 7/5-6): FAZ 7's dragon "real
+continuous chase" increment (flagged by run 64/65 as deserving its own scoped run) remains real
+further scope, **not what this run picked** — a lower-risk, explicitly-flagged-as-still-open gap
+from run 65's own "Gelecek Faz Etkisi" note surfaced first (see below). FAZ 6 remains blocked on the
+human asset-download step.
+
+**Sub-task — PWA offline storage-quota monitoring (DECISIONS.md ADR-0084; GOVERNANCE.md §15 "PWA
+Cache Versiyonlama," the "izlenmesi" half run 65/ADR-0083 explicitly left open):** extended the
+existing F2 debug/profiling panel (`debug/perfPanel.js`) with a fifth readout line —
+`Storage: <usage> / <quota> MB (<percent>%)` — sourced from `navigator.storage.estimate()`, polled
+on its own coarse 5s timer (independent of the panel's existing 0.25s render-stat throttle),
+feature-detected (unsupported browsers show a fallback string instead of throwing), and flagged with
+the same `" !"` convention the draw-call/triangle budgets already use once usage crosses 80% of the
+reported quota. A repo-wide grep confirmed no code anywhere had ever called `navigator.storage`
+before this run — a genuine gap, not a duplicate of anything.
+
+**Verification:** `node --check` clean on both changed files (`debug/perfPanel.js`,
+`scripts/game3dSmokeChecksScene.js`). Full `scripts/smokeTestGame3D.js` re-run after the change —
+**17/17 PASS**, zero console errors — including the extended F2 check's new assertions (the
+synchronous "measuring…" placeholder before the real promise can have resolved, the resolved
+`usage / quota MB (%)` line after actually waiting for it, and the unsupported-fallback string on a
+`navigator.storage`-stubbed instance) running against real headless Chromium, not a mock. **Real
+visual proof** (screenshot, this run's summary): a one-off Playwright script (scratchpad, not
+committed) booted the real `game3d.html`, pressed F2, waited past both timers, and captured the live
+panel reading `Storage: 0.0 / 951 MB (0%)` next to the player/castle scene, zero console errors.
+
+**Session Quality Gate (§8.6):** stopping here after 1 sub-task. Confidence: 5/5 — a small, precisely
+-scoped, explicitly-flagged-as-open gap, closed with both a real-browser proof (not just a passing
+mock assertion) and a regression check extension so the new line can't silently regress. "6 ay sonra
+hâlâ net mi" check: yes — ADR-0084 spells out exactly why the timer is separate from the render-stat
+one, why 0.8 not 1.0 for the warn threshold, and explicitly scopes out enforcement (eviction policy)
+as a distinct future decision rather than conflating it with this run's monitoring-only scope.
+
+**Memory-leak checklist:** no new persistent listeners/timers/DOM nodes — the storage timer is a
+per-frame delta accumulator (same pattern the existing render-stat throttle already uses), not a
+`setInterval`; the in-flight-guard (`storageEstimateInFlight`) prevents overlapping async requests
+from piling up; `dispose()` needed no changes since nothing new was added outside the existing
+`el`/`onKeyDown` lifecycle already covered.
+
+**Files changed this run:** `src/3d/debug/perfPanel.js`, `src/3d/debug/README.md`,
+`scripts/game3dSmokeChecksScene.js`, `GOVERNANCE.md` (§15 status note only), `DECISIONS.md`
+(ADR-0084), `perf_log.csv` (+1 row), `3D_GAME_PROGRESS.md` (this file). No file near the 600-line
+cap (`perfPanel.js` now 157/600, `game3dSmokeChecksScene.js` largest at ~410/600).
+
+**World Evolution Report (delta vs. run 65):**
+
+| Metric | Run 65 | Run 66 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged |
+| Kingdom seats w/ real castle models | 7 | 7 | unchanged |
+| Dragons (spawned) | 1 (notice + reactive + dive) | 1 (unchanged behavior) | unchanged |
+| NPCs with dialogue-choice branching | 13/14 | 13/14 | unchanged |
+| Smoke suite | 17/17 | 17/17 (assertions extended, same count) | +assertions, same check count |
+| ADRs | 83 | 84 | +1 |
+| perf_log.csv rows | 4 | 5 | +1 |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged |
+| Tech debt count | unchanged | unchanged | +0 |
+| PWA offline observability | cache-completeness only | cache-completeness + live storage-quota readout | **new this run** |
+
+**Oyuncu fark eder mi:** no — this is a debug-only F2 tool no ordinary player ever opens; zero
+difference for anyone who never presses F2. Useful for whoever (owner or a future run) needs to
+reason about how close the PWA's growing offline footprint is to a device's real storage quota.
+
+**Next step for the next run:** FAZ 7's dragon is still ready for its next real increment (continuous
+chase beyond the existing bounded dive) whenever a run wants to give it the dedicated scope runs
+64/65 already flagged it deserves. `gameplayConfig.js`'s stale "12 of 14" doc-comment (should say 13)
+remains a trivial one-line fix for whoever next touches that file (not touched this run either — out
+of this sub-task's scope). GOVERNANCE.md §15's PWA section is now fully closed (both cache-
+completeness and quota-monitoring done); no further open item there. FAZ 6's cart/dog-cat/bird gap
+remains blocked on the human manual-asset-download step. No blocking bugs, syntax errors, or
+regressions found.
+
+**Addendum:** did not attempt `git tag stable-YYYY-MM-DD-HHmm` this run — same known `HTTP 403`
+tag-push rejection documented since run 58, no new reason to believe it's fixed.
