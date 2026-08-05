@@ -6871,6 +6871,7 @@ not a movement increment. FAZ 6's cart/dog-cat/bird gap remains blocked on the h
 -download step. No blocking bugs, syntax errors, or regressions found from either this run's or the
 concurrent session's work, together or separately.
 
-**Addendum:** attempted `git tag stable-2026-08-05-HHMM` (see below for the actual attempt/outcome)
-— same known `HTTP 403` tag-push rejection documented since run 58 unless this run's own attempt
-below says otherwise.
+**Addendum:** `git commit`/`git push origin main` both succeeded (see `STABLE_TAGS.md` for the
+one-line record). Attempted `git tag stable-2026-08-05-0606 && git push origin
+stable-2026-08-05-0606` — the tag was created locally but the push failed with the same `HTTP 403`
+rejection documented since run 58; no new evidence this run that it's fixed.
