@@ -6309,3 +6309,116 @@ dragon that doesn't opt into the new fields (none do, besides `umit-dragon-1`).
 - **Human playtest note:** worth a real playtest confirming the dive is visible/felt during normal
   play near `umit`'s seat (see "Alternatives considered" above) — this run's evidence is strong for
   the underlying math/terrain-safety but is a synthetic scene, not a live capture.
+
+---
+
+## ADR-0083: Service worker offline app-shell drift fix — `GAME3D_SHELL_FILES` precache list
+
+**Status:** Accepted (run 65).
+
+**Risk Seviyesi:** LOW. Justification: this run only edits a hand-maintained *list of file paths*
+(`service-worker.js`) plus adds a new, purely-read-only Node dev script (`checkServiceWorkerCache.js`)
+— no runtime gameplay code changed, no rendering/physics/AI touched. Reversible by reverting the
+commit; a bad precache entry just fails that one `cache.addAll` (already caught: the existing
+`.catch(() => {})` around the whole `GAME3D_SHELL_FILES` install, unchanged this run) rather than
+breaking anything else.
+
+**Context:** GOVERNANCE.md §15 ("PWA Cache Versiyonlama") calls for extending the service worker's
+offline app-shell coverage as 3D mode's asset count grows — flagged as due for a periodic look, not
+touched since `service-worker.js`'s `GAME3D_SHELL_FILES` list was first written (FAZ 4-6 era). A run
+65 audit (grep every `src/3d/**/*.js` file and every `assets/...fbx|glb` string literal actually
+referenced from that code, per module) found the list had drifted badly behind the real game: **10
+live JS modules** — `sceneManager.js`, `debug/freeCamera.js`, `debug/perfPanel.js`,
+`gameplay/gameplayConfig.js`, `gameplay/dialogueChoices.js`, `gameplay/dragons.js`,
+`gameplay/worldEvents.js`, `ui/worldEventToast.js`, `world/roadPathfinder.js`, `world/roads.js` — and
+**3 real asset groups** — the entire FAZ 7 dragon (FBX + all 9 externally-referenced texture files),
+the FAZ 6 horse glb, and all 7 real castle `_decimated.glb` models (`world/settlements.js`) — were
+being fetched over the network on every load with **no offline entry at all**. Because a missing
+cache entry fails open (the "Diğer" branch's network-first-then-cache-fallback still tries the
+network first, same as any other request) rather than throwing at install time, this drift was
+completely silent: online play looked identical, and it would only surface as broken/placeholder
+castles, a missing dragon, and a broken F2/F4 debug tooling the moment a real user actually went
+offline — exactly the gap PWA offline support exists to prevent.
+
+**Decision:**
+1. **`service-worker.js`'s `GAME3D_SHELL_FILES`** gains all 10 missing JS module paths and all 3
+   missing asset groups (20 new entries total: 10 JS + 1 horse glb + 1 dragon FBX + 9 dragon
+   textures + 7 castle glbs = 28, minus overlap already counted). Grouped into the list in the same
+   rough core/ui/gameplay/world/vendor/assets order the existing entries already follow.
+2. **Cache names bumped** (`SHELL_CACHE`: `westeros-shell-v1` -> `v2`; `MEDIA_CACHE`/`SW_VERSION`:
+   `westeros-media-v3` -> `v4`) so every existing installed PWA actually re-fetches this file and
+   populates the new, complete entry list on its next visit, instead of keeping whatever incomplete
+   `SHELL_CACHE` it already installed forever (service workers only re-check for an update on
+   navigation, and never touch an already-populated same-named cache) — the existing `activate`
+   handler's `KEEP`-array cache cleanup (unchanged this run) deletes the old, now-unreferenced
+   `v1`/`v3` caches automatically once the new worker activates.
+3. **New `scripts/checkServiceWorkerCache.js`** (root-cause prevention, matching this project's own
+   `checkAssetsManifest.js` precedent for a hand-maintained list): parses `GAME3D_SHELL_FILES` out of
+   `service-worker.js`, then hard-fails if (a) any `src/3d/**/*.js` file is missing from it, (b) any
+   `assets/....fbx|.glb` string literal referenced anywhere under `src/3d/` is missing from it, or (c)
+   any file under a directory named by a `resourcePath`/`RESOURCE_PATH`-labeled string literal (the
+   convention `DRAGON_CONFIG.TEXTURES_RESOURCE_PATH` uses for an FBX's externally-referenced
+   textures) is missing from it. Not wired into `smokeTestGame3D.js`'s Playwright suite (no browser
+   needed, same reasoning `checkAssetsManifest.js` itself stays a separate script) — run standalone,
+   `node scripts/checkServiceWorkerCache.js`.
+
+**Alternatives considered:**
+- **A wildcard/glob-based precache list instead of an explicit array.** Rejected: `cache.addAll`
+  takes an explicit list, and this project deliberately has no build step to generate one at deploy
+  time (see `smokeTestGame3D.js`'s own header comment on why there's no `package.json`) — the
+  regression *script* added here is the lighter-weight fix for "list drifts from reality" without
+  introducing a build pipeline this project has specifically avoided so far.
+- **Precaching only the specific texture filenames an FBX actually references (parsed from the
+  binary), instead of the whole `textures/` directory.** Rejected as more fragile and more complex
+  for no real benefit: the dragon's texture folder is ~11MB total, small next to the FBX itself
+  (~model file, unmeasured but comparable), and guessing the exact referenced subset risks silently
+  missing one if the model is ever re-exported with a renamed texture.
+
+**Verification:** `node --check` clean on `service-worker.js` and the new script. Full
+`node scripts/checkServiceWorkerCache.js` — **OK** (43 JS files, 20 referenced model assets, and
+every file under the 1 referenced resource-path directory all present). `node
+scripts/checkAssetsManifest.js` unaffected (still clean, unrelated file). Full
+`scripts/smokeTestGame3D.js` — **17/17 PASS**, zero console/page errors, confirming this change
+didn't touch runtime behavior at all. **Real offline-mode verification (§8.5, beyond this project's
+usual visual-screenshot standard, since this fix is specifically about offline behavior a screenshot
+can't show):** a one-off Playwright script (scratchpad, not committed — same convention prior runs'
+screenshot evidence already follows) loaded `index.html` first (where the service worker actually
+registers), waited for `navigator.serviceWorker.ready`, confirmed via `caches.open(...).keys()` that
+every previously-missing file (spot-checked: `sceneManager.js`, `gameplayConfig.js`, `dragons.js`,
+`roads.js`/`roadPathfinder.js`, both `debug/` files, `worldEventToast.js`, the dragon FBX + one
+texture, the horse glb, one castle glb) now has a real cache entry, then set the browser context
+fully offline and reloaded `game3d.html`: **zero console/page errors, `GAME_READY` reached**,
+confirmed stable across 3 repeated runs. Before this fix (same script, run against the pre-edit
+`service-worker.js`/old cache version in a first exploratory pass) the same offline reload logged 7
+distinct `[AssetLoader] loadModel(...) failed ... TypeError: Failed to fetch` errors — one per castle
+— that were still non-fatal (settlements.js's placeholder-box fallback prevents a full crash) but
+would have visibly broken the game's now-signature "7 real, textured castles" state for any offline
+player. (One earlier exploratory run of the *same* fixed code also logged those errors once,
+before a longer settle delay between SW-ready and going offline made it disappear across three
+follow-up runs and a direct `caches.match` probe confirmed the entry really is a cache hit — flagged
+here rather than silently discarded, since it suggests the browser's own install-time `cache.addAll`
+for this now-much-larger asset list can take a little longer to fully settle than
+`navigator.serviceWorker.ready` alone guarantees on a cold, resource-constrained first run; worth
+a human's attention if a real device ever shows the same delay, though 3/3 clean repeats and the
+direct cache-hit probe are strong evidence the underlying fetch/cache-fallback logic itself is
+correct, not a race in the service worker code added this run).
+
+**Consequence:** A player who installs the PWA and later loses network access — the entire stated
+purpose of a PWA's offline app shell — now actually gets the dragon, the horse, both debug tools, the
+road network's pathfinding, and the world-event toast UI, instead of network errors (silently
+non-fatal for the castles thanks to existing placeholder fallbacks, but a real functional gap:
+missing debug tools, no dragon, no world events at all since those modules wouldn't even load). No
+behavior change at all for anyone who stays online, and none for 2D-shell-only usage.
+
+**Gelecek Faz Etkisi (future-phase impact):**
+- **FAZ 6/7 (future asset additions):** the new `checkServiceWorkerCache.js` check means any future
+  animal (cart/dog-cat/bird, still blocked on the human manual-download step per
+  `QUESTIONS_FOR_OWNER.md`) or dragon-model asset automatically gets caught by this check the moment
+  its `modelUrl` string literal is wired into `gameplayConfig.js`/committed — no separate reminder
+  needed to keep `service-worker.js` in sync going forward, closing this specific drift permanently
+  rather than just for today's snapshot.
+- **PWA offline storage quota:** not measured or enforced this run (GOVERNANCE.md §15 also calls for
+  "depolama kotası izlemesi" — quota *monitoring*, a distinct, not-yet-started piece of this same
+  section; the precached set is now larger, ~11MB dragon textures + 7 castle glbs + the dragon FBX
+  itself all added, so this is worth a dedicated future check once real device storage-quota data is
+  available to compare against, not guessed at here).

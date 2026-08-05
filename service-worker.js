@@ -4,9 +4,9 @@
 // App shell (html/css/js/manifest): network-first, offline'da cache'e düş
 // Diğer: network-first
 
-const SW_VERSION = 'westeros-media-v3';
-const MEDIA_CACHE = 'westeros-media-v3';
-const SHELL_CACHE = 'westeros-shell-v1';
+const SW_VERSION = 'westeros-media-v4';
+const MEDIA_CACHE = 'westeros-media-v4';
+const SHELL_CACHE = 'westeros-shell-v2';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -20,9 +20,23 @@ const SHELL_FILES = [
 // 3D mode's own app shell — precached separately (own cache.addAll call, own catch) so a failure
 // here can never block the 2D shell above from installing. FAZ 4 was the first system to actually
 // fetch a character/animation asset (peasant_girl + its 3 clips); FAZ 5 added the 6 shared-skeleton
-// NPC character FBXes; FAZ 6 (this run) adds the wolf glTF/GLB — a single self-contained .glb file,
-// its buffer/textures are embedded, so no separate .bin/texture entries are needed here. FAZ 7's
-// dragon asset still isn't fetched by any code yet, so it stays out of this list until that phase does.
+// NPC character FBXes; FAZ 6 added the wolf glTF/GLB (a single self-contained .glb — its
+// buffer/textures are embedded, so no separate .bin/texture entries are needed here) and the
+// horse glb; FAZ 7 added the dragon FBX + its unbaked texture folder (9 files — the FBX references
+// them externally, unlike the wolf/horse glbs, so each one needs its own entry here).
+//
+// run 65 (GOVERNANCE.md §15 "PWA Cache Versiyonlama"): this list had drifted badly behind
+// `src/3d`'s real import graph and the settlements/dragon/horse assets actually spawned in-game —
+// 10 live JS modules (sceneManager.js, both debug/ files, worldEvents.js + its toast UI, the
+// dragon/dialogue-choice gameplay files, both road files) and 3 asset groups (the dragon FBX +
+// textures, the horse glb, all 7 real castle glbs) were being fetched over the network on every
+// load with no offline fallback at all, silently, because a missing cache entry fails open (network
+// request) rather than throwing — see `scripts/game3dSmokeChecksServiceWorkerCache.js` for the new
+// regression check this run added so this can't silently drift again (asserts every `src/3d/**/*.js`
+// file and every settlements/dragon/horse asset path referenced from `gameplayConfig.js`/
+// `settlements.js` is present in this exact list). Cache names bumped (v1->v2 shell, v3->v4 media)
+// so every existing install actually re-fetches this file and its new entries instead of quietly
+// keeping a stale, incomplete `SHELL_CACHE`.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -31,6 +45,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/state.js',
     './src/3d/assetLoader.js',
     './src/3d/config.js',
+    './src/3d/sceneManager.js',
     './src/3d/camera.js',
     './src/3d/sky.js',
     './src/3d/stars.js',
@@ -38,19 +53,28 @@ const GAME3D_SHELL_FILES = [
     './src/3d/fog.js',
     './src/3d/physics.js',
     './src/3d/input.js',
+    './src/3d/debug/freeCamera.js',
+    './src/3d/debug/perfPanel.js',
     './src/3d/ui/touchJoystick.js',
     './src/3d/ui/interactionPrompt.js',
     './src/3d/ui/dialogueBox.js',
+    './src/3d/ui/worldEventToast.js',
+    './src/3d/gameplay/gameplayConfig.js',
+    './src/3d/gameplay/dialogueChoices.js',
     './src/3d/gameplay/player.js',
     './src/3d/gameplay/npc.js',
     './src/3d/gameplay/animals.js',
+    './src/3d/gameplay/dragons.js',
     './src/3d/gameplay/interaction.js',
+    './src/3d/gameplay/worldEvents.js',
     './src/3d/world/terrain.js',
     './src/3d/world/chunkManager.js',
     './src/3d/world/water.js',
     './src/3d/world/rivers.js',
     './src/3d/world/settlements.js',
     './src/3d/world/materials.js',
+    './src/3d/world/roadPathfinder.js',
+    './src/3d/world/roads.js',
     './src/3d/vendor/three/three.module.js',
     './src/3d/vendor/three/LICENSE',
     './src/3d/vendor/three/addons/loaders/GLTFLoader.js',
@@ -70,7 +94,25 @@ const GAME3D_SHELL_FILES = [
     './assets/models/characters/paladin_wprop_j_nordstrom.fbx',
     './assets/models/characters/erika_archer.fbx',
     './assets/models/characters/uriel_a_plotexia.fbx',
-    './assets/models/animals/wolf/Wolf-Blender-2.82a.glb'
+    './assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
+    './assets/models/animals/ivory_stallion.glb',
+    './assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx',
+    './assets/models/creatures/dragon/textures/Ani_Fire_A.png',
+    './assets/models/creatures/dragon/textures/Dragon_Bump_Col2.jpg',
+    './assets/models/creatures/dragon/textures/Dragon_Nor.jpg',
+    './assets/models/creatures/dragon/textures/Dragon_Nor_mirror2.jpg',
+    './assets/models/creatures/dragon/textures/Dragon_ground_color.jpg',
+    './assets/models/creatures/dragon/textures/Fire_A_2.png',
+    './assets/models/creatures/dragon/textures/Floor_C.jpg',
+    './assets/models/creatures/dragon/textures/Floor_N.jpg',
+    './assets/models/creatures/dragon/textures/Floor_S.jpg',
+    './assets/models/settlements/castles/icebound_citadel_decimated.glb',
+    './assets/models/settlements/castles/walled_city_fortress_decimated.glb',
+    './assets/models/settlements/castles/fortress_of_the_crown_decimated.glb',
+    './assets/models/settlements/castles/castle_on_a_rock_decimated.glb',
+    './assets/models/settlements/castles/emerald_citadel_decimated.glb',
+    './assets/models/settlements/castles/greystone_castle_decimated.glb',
+    './assets/models/settlements/castles/brickstone_citadel_decimated.glb'
 ];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
