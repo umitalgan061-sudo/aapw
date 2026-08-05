@@ -8563,3 +8563,108 @@ without forcing another split soon.
 file, the original `checkDialogueChoicesShape.js` parsing logic, and `service-worker.js`'s previous
 precache list/cache version — nothing else in the repo references the 5 new files' paths directly
 (all access is through the `gameplayConfig.js` barrel), so no other file needs a matching revert.
+
+## ADR-0101: Grow the world-event flavor pool from 20 to 22 entries, adding its first celestial-omen entry distinct from `falling_star` and its first unambiguous slice-of-life/routine entry
+
+**Status:** Accepted (run 78).
+
+**Risk Seviyesi:** LOW. Config/data-only addition to a frozen array; zero changes to
+`createWorldEventSystem`'s mechanism, `ui/worldEventToast.js`, or any call site. Fully reversible:
+`git revert` removes the two new objects and this ADR entry, nothing else references either id.
+
+**Context:** Session Snapshot at run start (2026-08-05, run 78 — scheduled autonomous routine): read
+`GOVERNANCE.md` in full (already fully consolidated as of run 76's first pass, §8.12, next
+consolidation due ~run 96 — not yet reached), `3D_GAME_PROGRESS.md`'s last "This Run" entry (run 77),
+`DECISIONS.md`'s last 3 ADRs (0098/0099/0100), `QUESTIONS_FOR_OWNER.md` in full (7 entries, all still
+open, none resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`CREDITS.md` tails. This run's incoming instruction asked for a one-time
+`GOVERNANCE.md` bootstrap — found it already fully created and current (matches the instruction's own
+rule list line-for-line, run 76 already did this), so that step was a no-op confirmation rather than a
+fresh write; `CREDITS.md`/`assets_manifest.json` `dateAdded` coverage were likewise already complete
+(both governance items were done in an earlier run, before this exact instruction text existed as
+worded). `git fetch origin main` confirmed local `main` (`1950c52`) already matched `origin/main` — no
+concurrent session to reconcile with (GOVERNANCE.md §8.14), re-confirmed a second time immediately
+before this commit.
+
+**Priority re-scan (GOVERNANCE.md §18), fresh:** full `node --check` sweep (61 files) clean. Full
+smoke suite: **22/22 PASS** (this run's own pre-change baseline). All 8 standing guards clean:
+`checkSmokeCheckRegistry` (22 checks/6 modules, 61 files within cap, zero WARN since run 77's split),
+`checkAssetsManifest` (41 entries, expected sidecar-texture note), `checkCreatureSpeciesConfig` (15
+entries, 9 awaiting-model/6 partial-existing, unchanged), `checkDialogueChoicesShape` (13/14, a
+deliberate ADR-0058 exclusion, not a gap), `checkPwaInstallability` (OK), `checkServiceWorkerCache` (52
+JS files), `terrainSeatSafetyCheck`/`roadNetworkSafetyCheck` (14/14 seats, 13/13 edges). Items 1-11 all
+reconfirmed healthy, no fresh regression. Item 12 (FAZ 6/7 assets) and item 13 (FAZ 11 species):
+re-checked `assets/models/` against every `creatureSpeciesConfig.js`/`gameplayConfig.js` import —
+nothing new uploaded since run 74's audit. No design reason surfaced for anything else in items 1-13.
+That leaves item 14 ("Yeni özellik"). `gameplay/worldEvents.js`'s flavor pool remains this project's
+established, low-risk, repeatedly re-used growth track for exactly this bucket (grown
+4→8→12→14→16→18→20 across seven prior rounds, ADR-0061/0063/0065/0068/0097/0098 — each landing the
+run immediately after a prior growth round has direct precedent, same as this one). No terrain/
+height/noise/world-scale change — the Arazi Değişikliği Güvenlik Kontrolü doesn't apply. **Gelecek
+Faz Etkisi:** none — FAZ 8 stays flavor-only (ADR-0056's design boundary, reaffirmed by every prior
+growth ADR including this one), no stat/quest/persistence hook added.
+
+**Decision:** `WORLD_EVENTS` grows from 20 to 22 entries, adding `red_comet` (a kızıl kuyruklu yıldız
+lingering in the sky for days, read by some as a dynastic omen) and `hunting_party` (a hunting party
+returning to a castle gate with the day's game slung over their horses). Both are original text, not
+derived from any HBO material — this project's one hard constraint. `red_comet` is deliberately
+distinct from the existing `falling_star` (a single fleeting private streak, ambiguous tone) — a
+comet lingers over multiple nights and is explicitly framed as a dynastic/prophetic omen, a different
+narrative weight (foreboding tied to bloodlines, not a passing private moment). `hunting_party` fills
+a genuinely unrepresented tone: every existing entry reads as routine-but-charged (`guard_change`,
+`blacksmith_hammer`), celebratory (`feast_fires`, `tourney_announce`), mysterious/ambiguous
+(`horse_gallop`, `watch_horn`), or dangerous-but-uncertain (`wildling_rumor`, `dragon_shadow`), but
+none is a plain, unambiguous, low-stakes slice of daily castle life with no tension at all —
+`hunting_party` is this pool's first entry with that register.
+
+**Alternatives considered:**
+- *Add 4+ entries in one batch.* Rejected — same precedent ADR-0065/0068/0097/0098 already rejected
+  this for; the established batch size is +2.
+- *Pick a market/harvest theme instead of `hunting_party`.* Rejected — ADR-0098 already rejected a
+  harvest/market pick for overlapping with the existing `trade_caravan`/`feast_fires`/`tourney_announce`
+  commerce-or-celebration cluster; `hunting_party` reads closer to `blacksmith_hammer`'s routine-craft
+  register but is distinct in stakes (returning with game vs. an ambiguous "weapons or horseshoes?"
+  question) — genuinely unrepresented, not a near-duplicate of any of the 20 existing entries.
+- *Reuse `falling_star`'s existing slot for a comet instead of adding a new one.* Rejected — the two
+  phenomena read differently in-world (a single streak vs. a lingering multi-night presence) and
+  `falling_star` already has its own established, distinct tone; conflating them would lose both.
+- *Give `red_comet` a lingering multi-toast/multi-day display instead of the shared one-shot
+  `WorldEventToast` every other entry uses.* Rejected: scope creep on a config-only content addition —
+  no per-entry duration/persistence mechanism exists anywhere else in the pool to justify inventing one
+  now (same reasoning ADR-0098 used for `mourning_bells`).
+
+**Verified:**
+- `node --check` clean on `worldEvents.js`. Line count: 105/600 (was 103) — comfortable headroom.
+- Full committed smoke suite: all **22** checks PASS, identical before and after (`checkWorldEvents`
+  asserts the mechanism generically against whatever the pool contains, needed no changes).
+- All 8 standing guards re-run clean and unaffected (none touch `worldEvents.js`'s content).
+- **Real headless-Chromium proof of the new content specifically** (same technique ADR-0097/0098
+  established): a one-off Playwright script (`devServerHelper.js`'s shared static-server + Playwright
+  bootstrap, not committed — dev-only, same as every prior round's own proof script) booted the live
+  `game3d.html` page (zero console/page errors throughout, `game3d-loading` element reached
+  `g3d-loading-hidden`), drove the real `createWorldEventSystem` (seed 7) with repeated large time
+  deltas until BOTH new ids (`red_comet`/`hunting_party`) were actually observed coming out of the real
+  22-entry pool (27 `update()` calls), confirmed both real payloads match the source exactly, then
+  rendered each real payload through a real `WorldEventToast` instance. Two screenshots confirm each
+  toast's real icon/title/desc/border-color render correctly over the live scene (castle silhouette,
+  player model, starlit night sky). Zero console/page errors throughout.
+- **AI Self-Review 2. Geçiş (§8.3):** re-read the diff before committing — confirmed neither new id
+  collides with any of the 20 existing ones; confirmed `red_comet`'s "dynastic omen" framing and
+  `hunting_party`'s castle-gate framing stay generic fantasy vocabulary already established in this
+  project's own settlement/seat naming, not sourced from any HBO-specific material; confirmed the two
+  new colors (`#9c2a1e`, `#5a7a3a`) don't collide with any of the 20 existing entries' colors; confirmed
+  the module's JSDoc header needed no update (it doesn't track a live entry count).
+- Tech debt counter: **0** (unchanged). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+
+**Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` only. No other file changed.
+
+**Consequences:** World-event pool now has 22 entries, with its first explicit celestial-omen entry
+distinct from `falling_star` (`red_comet`) and its first entirely low-stakes, tension-free routine
+entry (`hunting_party`). `worldEvents.js` has 495/600 lines of headroom before its own 600-line cap —
+no split pressure. FAZ 8's event system remains flavor-only, unchanged design boundary from ADR-0056.
+No `QUESTIONS_FOR_OWNER.md` entry needed — flavor-text content carries no numeric value a future
+playtest would need to recalibrate, same reasoning ADR-0097/0098 already used.
+
+**Geri alma planı:** `git revert` the single commit. Removes the two new `WORLD_EVENTS` objects and
+this ADR entry. Nothing else references either id — `ui/worldEventToast.js` and every smoke check
+consume the pool generically.

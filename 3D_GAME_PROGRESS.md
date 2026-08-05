@@ -8456,3 +8456,99 @@ regressions found this run.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 78 — scheduled autonomous routine)
+
+**Session Snapshot done first, per GOVERNANCE.md §20:** read `GOVERNANCE.md` in full. This run's
+incoming instruction opened with "first create GOVERNANCE.md" as a one-time critical bootstrap step —
+found it already fully created (301 lines) and current, matching the instruction's own rule list
+line-for-line (run 76 already did this in an earlier firing of this same recurring instruction, before
+this session existed), so that step was a no-op confirmation, not a fresh write. Same for the
+instruction's `CREDITS.md`/`assets_manifest.json` `dateAdded`-coverage asks — both already complete
+(`CREDITS.md` 102 lines, 41 assets across 4 sources; every manifest entry already carries `dateAdded`,
+confirmed via a small Python walk of the JSON, zero missing). Also read `3D_GAME_PROGRESS.md`'s last
+"This Run" entry (run 77), `DECISIONS.md`'s last 3 ADRs (0098/0099/0100), `QUESTIONS_FOR_OWNER.md` in
+full (7 entries, all still open, none resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv`/
+`CATCH_UP.md`/`RULES_CHANGELOG.md` tails. Session started on a detached `HEAD` at `1950c52` (run 77's
+final commit); `git checkout main && git pull` then `git fetch origin main` confirmed local `main`
+already matched `origin/main` — no concurrent session to reconcile with (GOVERNANCE.md §8.14).
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`, excluding vendor) —
+clean, 61 files. Full `scripts/smokeTestGame3D.js` — **22/22 PASS**, 0 FAIL, before any new code. All
+8 standing guards clean, zero WARN (run 77's split resolved the only standing watch-item).
+`perf_log.csv` `run78` baseline row sampled: 46 draw calls / 393,231 triangles / 44 geometries / 17
+textures — bit-identical to run75-77, as expected with no scene change yet.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 (terrain macro relief, road network, ground color,
+castle texturing) confirmed already done in prior runs. Items 5-6 (syntax/blocking bugs): clean, none
+found. Items 7-11 (performance/memory/tech-debt/smoke-test/coverage): all healthy, unchanged from run
+77. Item 12 (dragon attack, FAZ 5-6 animals) and item 13 (FAZ 11 species) remain blocked exactly as
+run 77 recorded — owner decision pending in `QUESTIONS_FOR_OWNER.md` for the former, real rigged
+models not on disk for the latter (re-confirmed: no new files under `assets/models/` since run 74's
+audit). No line-count watch-item exists (run 77 resolved the only one). That leaves item 14 ("Yeni
+özellik"). `gameplay/worldEvents.js`'s flavor pool remains this project's established, low-risk,
+repeatedly re-used growth track for exactly this bucket — picked as this run's sub-task, same as runs
+74/75 picked it for the identical reason (no other item on the list was actionable without an owner
+decision or missing assets).
+
+### Sub-task 1: Grow `gameplay/worldEvents.js`'s flavor pool from 20 to 22 entries (DECISIONS.md ADR-0101)
+
+Added `red_comet` (a kızıl kuyruklu yıldız lingering in the sky for days, read as a dynastic omen —
+distinct from the existing `falling_star`'s single fleeting streak) and `hunting_party` (a hunting
+party returning to a castle gate with the day's game) — the pool's first entirely low-stakes,
+tension-free slice-of-life entry. Both original text, no HBO material. Full reasoning, alternatives
+considered, and color-collision check in ADR-0101.
+
+**DoD status:** `node --check` clean on `worldEvents.js` (105/600 lines, was 103). Smoke suite
+**22/22 PASS** after (unchanged — `checkWorldEvents` asserts the mechanism generically). All 8
+standing guards re-run clean, unaffected. **Real headless-Chromium proof:** an uncommitted, dev-only
+Playwright script booted live `game3d.html` (zero console/page errors, `game3d-loading` reached
+`g3d-loading-hidden`), drove the real `createWorldEventSystem` (seed 7) until both new ids came out of
+the real 22-entry pool (27 `update()` calls), confirmed both payloads match source exactly, then
+rendered each through a real `WorldEventToast` — two screenshots confirm correct icon/title/desc/
+border-color over the live scene (castle silhouette, player model, starlit sky). Memory-leak
+checklist: n/a, no listener/timer/DOM/geometry touched (data-only). Tech debt counter: **0**
+(unchanged). ADR-0101 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** re-checked both new ids don't collide with any of the 20 existing
+ones or their colors; confirmed `red_comet`/`hunting_party`'s framing stays generic fantasy vocabulary,
+not HBO-specific; confirmed `worldEvents.js`'s JSDoc header needed no update (doesn't track a live
+count).
+
+**Session Quality Gate (GOVERNANCE.md §8.6) after 1 sub-task:** confidence **5/5** — low-risk,
+config-only content addition with a real (if soft) forcing reason — every other backlog item is
+genuinely blocked on an owner decision or missing assets, and this pool's growth is this project's own
+established, repeatedly-reused release valve for exactly that situation. Both new entries were checked
+against every existing one for tone/theme/color collision before being written, and proven with a real
+render, not just a config-shape assertion. No "6 months from now" ambiguity: ADR-0101 records the same
+reasoning template ADR-0097/0098 already established, so a future run finding 22 entries won't need to
+guess why any of the last four were added.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| `WORLD_EVENTS` entries | 20 | **22** | +2 (`red_comet`, `hunting_party`) |
+| `worldEvents.js` lines | 103/600 | **105/600** | +2, comfortable headroom |
+| ADR headers in `DECISIONS.md` | 100 | **101** | +1 (ADR-0101) |
+| `perf_log.csv` rows | 21 | **22** | +1 (`run78`) |
+| Smoke suite | 22/22 | **22/22** | unchanged |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no scene objects touched) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ve dolaylı — periyodik olay bildirimlerinden ikisi artık
+yeni: bazen gökyüzünde günlerce asılı kalan kızıl bir kuyruklu yıldız haberi, bazen de kaleye dönen bir
+av birliği haberi görecek. Dünyanın kendisi (arazi/yol/kale/NPC/hayvan) değişmedi.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. No line-count watch-item
+remains. Still blocked, unchanged from run 77: the remaining 6 castle seats and all FAZ 6 animals
+needing real rigged models, dragon attack/fire-breath (owner decision pending in
+`QUESTIONS_FOR_OWNER.md`), `erkek-insan`/`kadin-insan`/`koylu` differentiation (no design reason to
+invent one). `WORLD_EVENTS` now sits at 22 entries — a genuinely new, unrepresented theme will need to
+be invented again for any further growth (this run's two, `red_comet`/`hunting_party`, were themselves
+invented fresh, not drawn from any pre-existing "considered but not chosen" list). No blocking bugs,
+syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

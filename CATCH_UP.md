@@ -6,6 +6,26 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 78 itibarıyla (2026-08-05)
+
+Run 68'den bu yana en görünür değişiklik nöbetçiler: artık sadece konuşmuyorlar, yaklaştığında seni
+fark ediyor, sana dönüyor ve duruşu gerilip tetikte bekliyorlar (henüz saldırmıyorlar, sadece fark
+ettiklerini gösteriyorlar). Ejderha tarafında da yeni bir ayrıntı var: artık üstüne dalmadan hemen
+önce kanat çırpışını hızlandırıp seni uyarıyor — yani dalış artık habersiz gelmiyor, küçük bir "dikkat
+et" anı var. Haritadaki gerçek, dokulu kale sayısı değişmedi (8'de kaldı) ama periyodik "dünya
+haberleri" bildirimleri büyümeye devam etti — kızıl bir kuyruklu yıldız, dönen bir av birliği, Demir
+Banka'nın tahsildarı, Duvar ötesinden söylentiler, yas çanları gibi yeni haberler eklendi (toplam 22
+oldu). FAZ 11 adıyla gelecekte eklenecek hayvanlar (at, kuzgun, koyun, yaban domuzu…) için bir plan
+listesi hazırlandı ama henüz hiçbiri oyunda görünmüyor — gerçek 3D modelleri yüklenmeden bu bir kâğıt
+üzerinde plan olarak kalacak. Perde arkasında: tekrar tekrar başarısız olan bir otomatik test (ağ
+bağlantısına duyarlıydı) kalıcı olarak düzeltildi, birkaç büyümüş kod dosyası (ejderha kodu, oyun
+ayarları) daha küçük parçalara bölündü — oyunda hiçbir şey değişmedi, sadece kod daha bakımlı hâle
+geldi. Açık kalan en büyük konular hâlâ aynı: ejderhanın gerçekten zarar verip veremeyeceği (sana
+sorulmuş bir soru), at/araba/köpek-kedi/kuş gibi hayvanlar için gerçek 3D model bekleniyor, ve NVIDIA
+API anahtarını iptal etme hâlâ senin yapman gereken bir iş.
+
+---
+
 ## Run 68 itibarıyla (2026-08-05)
 
 Run 59'dan bu yana en büyük değişiklik ejderha: artık sadece kalesinin üstünde daire çizip seni fark
