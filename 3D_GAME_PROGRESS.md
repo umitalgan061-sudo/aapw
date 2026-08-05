@@ -8349,3 +8349,110 @@ genuinely new theme would have to be invented. No blocking bugs, syntax errors, 
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 77 — scheduled autonomous routine)
+
+**Session Snapshot done first, per GOVERNANCE.md §20:** read `GOVERNANCE.md` in full — already fully
+consolidated as of run 76's first rule-consolidation pass (§8.12), nothing new to add, next
+consolidation due ~run 96 — `3D_GAME_PROGRESS.md`'s last "This Run" entry (run 76), `DECISIONS.md`'s
+last 3 ADRs (0097/0098/0099), `QUESTIONS_FOR_OWNER.md` in full (7 entries, all still open, none
+resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv` tails, `CREDITS.md`. Session started
+on a detached `HEAD` at `8d702e9` (run 76's final commit); `git checkout main && git fetch origin main`
+confirmed local `main` already matched `origin/main` at that same commit — no concurrent session to
+reconcile with, no unrelated-history symptom this time.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`, excluding vendor) —
+clean, 56 files. Full `scripts/smokeTestGame3D.js` — **22/22 PASS**, 0 FAIL, before any new code. All
+8 standing guards clean; the one standing WARN was `checkSmokeCheckRegistry.js` flagging
+`src/3d/gameplay/gameplayConfig.js` at 597/600 lines, unchanged since run 71 first named it as a
+non-forcing watch-item.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 (terrain macro relief, road network, ground
+color, castle texturing) confirmed already done in prior runs. Items 5-6 (syntax/blocking bugs):
+clean, none found. Item 9 (dragon attack) and the FAZ 6/11 items are still blocked exactly as run 76
+recorded (owner decision pending / real rigged models not on disk). `gameplayConfig.js`'s 597/600 —
+3 lines of headroom — finally became the forcing reason GOLDEN RULE 6 requires: multiple currently-
+blocked-but-eventually-unblocking features (dragon attack, new NPC/animal spawns) would each need to
+add config here, and any one of them would blow the 600-line cap immediately. Picked this as the
+run's sub-task, ahead of those still-blocked items.
+
+### Sub-task 1: Split `gameplay/gameplayConfig.js` by domain (DECISIONS.md ADR-0100)
+
+Split the 597-line file into `playerConfig.js` (71 lines, `PLAYER_CONFIG`), `npcConfig.js` (238
+lines, `NPC_CONFIG`), `animalConfig.js` (128 lines, `ANIMAL_CONFIG`), `dragonConfig.js` (130 lines,
+`DRAGON_CONFIG`), `interactionConfig.js` (62 lines, `INTERACTION_CONFIG`) — `gameplayConfig.js`
+itself reduced to a 31-line re-export barrel. Every value/comment carried over verbatim, pure code
+motion, same "domain file + thin barrel" precedent `gameplay/dragons.js` set at run 71 (ADR-0092)
+and `gameplay/dialogueChoices.js` set at run 50 (ADR-0066). Every one of the 13 existing importers
+uses named imports from the barrel path, so **zero import sites needed to change** (verified by
+repo-wide grep before/after).
+
+**Caught by actually running the guards, not assumed safe:** `scripts/checkDialogueChoicesShape.js`
+(a standing regression guard) parsed `gameplayConfig.js` as text, bounded between the literal
+strings `'export const NPC_CONFIG'`/`'export const ANIMAL_CONFIG'` — that bound broke the instant
+`ANIMAL_CONFIG` moved to a different file, hard-failing loudly (`could not locate ... bounds`) rather
+than silently passing. Fixed by pointing it at `npcConfig.js` directly. `service-worker.js`'s
+`GAME3D_SHELL_FILES` (hand-maintained precache list) got the 5 new files added, `SHELL_CACHE` bumped
+v5->v6 — same treatment run 71/72's additions already received.
+
+**DoD status:** `node --check` clean on all touched files plus a full 61-file sweep (56->61) before
+and after. Smoke suite **22/22 PASS** after (unchanged count — pure relocation, no behavior change).
+All 8 standing guards re-run clean after the `checkDialogueChoicesShape.js` fix — zero WARN now
+(the 597/600 line that started this sub-task is gone, replaced by 5 files each well under 250 lines).
+`checkServiceWorkerCache.js`: 52 JS files precached (was 47). `terrainSeatSafetyCheck`/
+`roadNetworkSafetyCheck` unaffected (no terrain/road code touched), still 14/14 and 13/13 clean.
+Console clean. **Görsel doğrulama:** not applicable — no scene/material/geometry code touched; the
+smoke suite's own real-headless dragon/NPC/animal spawn checks (which load the moved config through
+the exact import chain the game uses) are the real proof nothing was dropped/corrupted in the move,
+and they passed identically to the pre-split baseline. `perf_log.csv` `run77` row: 46 draw calls /
+393,231 triangles / 44 geometries / 17 textures — bit-identical to run75/run76, as expected for a
+config-only change touching zero scene objects. Memory-leak checklist: n/a, no listener/timer/DOM/
+geometry in any touched file. Tech debt counter: **0** (unchanged). ADR-0100 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** the split's one real risk was silent data loss/typo during
+relocation — mitigated by copying content verbatim (no retyping) and by the full smoke suite
+exercising every moved config value through real code paths (dragon spawn position/scale, NPC
+spawn/patrol geometry, wolf/horse placement, dialogue text) rather than only checking the files
+parse. Also grepped the whole repo for any other text-parser of `gameplayConfig.js`'s internals
+beyond `checkDialogueChoicesShape.js` (found none) before considering the sub-task done.
+
+**Session Quality Gate (GOVERNANCE.md §8.6) after 1 sub-task:** confidence **5/5** — pure, low-risk
+code motion with a real forcing reason (not a cosmetic refactor), the one thing that could have
+silently broken (the text-parsing guard) was caught by actually running it rather than assumed safe,
+and the full smoke suite plus every standing guard re-ran clean. No "6 months from now" ambiguity:
+the barrel-re-export shape is self-documenting and matches two prior precedents in this same
+codebase, so a future run finding 5 config files next to `gameplayConfig.js` won't need to guess why.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| `gameplay/gameplayConfig.js` lines | 597/600 (WARN) | **31/600** | -566, now a barrel |
+| New `gameplay/*Config.js` files | 0 | **5** (71-238 lines each) | +5 files |
+| `src/`+`scripts/` JS file count | 56 | **61** | +5 |
+| `checkSmokeCheckRegistry.js` WARNs | 1 | **0** | resolved |
+| Smoke suite | 22/22 | **22/22** | unchanged (no behavior change) |
+| `service-worker.js` precached JS files | 47 | **52** | +5 |
+| `SHELL_CACHE` version | v5 | **v6** | bumped |
+| ADR headers in `DECISIONS.md` | 99 | **100** | +1 (ADR-0100) |
+| `perf_log.csv` rows | 20 | **21** | +1 (`run77`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no scene objects touched) |
+
+**Oyuncu fark eder mi:** hayır — bu çalıştırmada oyunun kendisinde hiçbir görsel/davranışsal şey
+değişmedi (saf config dosya taşıma). Değer dolaylı ama gerçek: `NPC_CONFIG`/`ANIMAL_CONFIG`/
+`DRAGON_CONFIG` artık her biri ~470-540 satır boşluğa sahip, yani FAZ 6'nın kalan hayvanları
+(at/araba/köpek-kedi/kuş), FAZ 7'nin ejderha saldırı sistemi (sahip kararı gelince) ve FAZ 11'in
+tür-bazlı implementasyonları önümüzdeki birçok run boyunca yeni bir bölme zorlamadan büyüyebilir.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. No line-count watch-item
+remains (the split resolved the only one). Still blocked, unchanged from run 76: the remaining 6
+castle seats and all FAZ 6 animals needing real rigged models, dragon attack/fire-breath (owner
+decision pending in `QUESTIONS_FOR_OWNER.md`), `erkek-insan`/`kadin-insan`/`koylu` differentiation
+(no design reason to invent one). `WORLD_EVENTS`'s "previously considered" idea bank is exhausted as
+of run 75 — a genuinely new theme would need inventing. No blocking bugs, syntax errors, or
+regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

@@ -29,7 +29,7 @@
  *
  * Checks performed:
  *   1. HARD FAIL — every `CHOICES_BY_NPC_ID` key must match a real `id: '...'` inside
- *      `gameplayConfig.js`'s `NPC_CONFIG.SPAWNS` list (catches a stale/typo'd NPC id).
+ *      `npcConfig.js`'s `NPC_CONFIG.SPAWNS` list (catches a stale/typo'd NPC id).
  *   2. HARD FAIL — every NPC's choice array length must be <= `interaction.js`'s
  *      `DIALOGUE_CHOICE_KEY_CODES.length` (catches a choice no keypress could ever reach).
  *   3. HARD FAIL — every choice's `label` and `response` must be non-empty after trimming.
@@ -48,23 +48,24 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const DIALOGUE_CHOICES_PATH = path.join(ROOT, 'src/3d/gameplay/dialogueChoices.js');
-const GAMEPLAY_CONFIG_PATH = path.join(ROOT, 'src/3d/gameplay/gameplayConfig.js');
+// run 77 (DECISIONS.md ADR-0100): `NPC_CONFIG` moved out of `gameplayConfig.js` into its own file,
+// `npcConfig.js`, once the former hit 597/600 lines — see that file's header for the full split.
+// `npcConfig.js` declares only `NPC_CONFIG` (no sibling `ANIMAL_CONFIG`/`DRAGON_CONFIG` block to
+// bound against anymore), so every `id: '...'` in the file is now a real NPC id.
+const NPC_CONFIG_PATH = path.join(ROOT, 'src/3d/gameplay/npcConfig.js');
 const INTERACTION_PATH = path.join(ROOT, 'src/3d/gameplay/interaction.js');
 
 /**
- * Extracts every real NPC id from `gameplayConfig.js`'s `NPC_CONFIG.SPAWNS` block only — the file also
- * declares `ANIMAL_CONFIG`/`DRAGON_CONFIG` ids (e.g. `berkalp-wolf-1`, `umit-dragon-1`) that are not
- * NPCs and must not be accepted as valid `CHOICES_BY_NPC_ID` keys.
- * @param {string} source Full text of `gameplayConfig.js`.
+ * Extracts every real NPC id from `npcConfig.js`'s `NPC_CONFIG.SPAWNS` list.
+ * @param {string} source Full text of `npcConfig.js`.
  * @returns {string[]} NPC ids, in file order.
  */
 function parseNpcIds(source) {
 	const start = source.indexOf('export const NPC_CONFIG');
-	const end = source.indexOf('export const ANIMAL_CONFIG');
-	if (start === -1 || end === -1 || end <= start) {
-		throw new Error('could not locate NPC_CONFIG...ANIMAL_CONFIG bounds in gameplayConfig.js — has the file been restructured?');
+	if (start === -1) {
+		throw new Error('could not locate `export const NPC_CONFIG` in npcConfig.js — has the file been restructured?');
 	}
-	const npcBlock = source.slice(start, end);
+	const npcBlock = source.slice(start);
 	const ids = [];
 	for (const match of npcBlock.matchAll(/id:\s*'([\w-]+)'/g)) ids.push(match[1]);
 	return ids;
@@ -111,7 +112,7 @@ function parseChoicesByNpcId(source) {
 }
 
 function main() {
-	for (const p of [DIALOGUE_CHOICES_PATH, GAMEPLAY_CONFIG_PATH, INTERACTION_PATH]) {
+	for (const p of [DIALOGUE_CHOICES_PATH, NPC_CONFIG_PATH, INTERACTION_PATH]) {
 		if (!fs.existsSync(p)) {
 			console.error(`[checkDialogueChoicesShape] FAIL: expected file not found at ${path.relative(ROOT, p)}`);
 			process.exit(1);
@@ -119,14 +120,14 @@ function main() {
 	}
 
 	const dialogueSource = fs.readFileSync(DIALOGUE_CHOICES_PATH, 'utf8');
-	const gameplayConfigSource = fs.readFileSync(GAMEPLAY_CONFIG_PATH, 'utf8');
+	const npcConfigSource = fs.readFileSync(NPC_CONFIG_PATH, 'utf8');
 	const interactionSource = fs.readFileSync(INTERACTION_PATH, 'utf8');
 
 	let npcIds;
 	let choiceSlotCount;
 	let npcEntries;
 	try {
-		npcIds = parseNpcIds(gameplayConfigSource);
+		npcIds = parseNpcIds(npcConfigSource);
 		choiceSlotCount = parseChoiceSlotCount(interactionSource);
 		npcEntries = parseChoicesByNpcId(dialogueSource);
 	} catch (error) {

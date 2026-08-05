@@ -8439,3 +8439,127 @@ quietly acquiring an external runtime dependency that would break the offline-PW
 **Geri alma planı:** `git revert` this single commit. That restores `loadAndCollectErrors(browser,
 url)` and both original call sites; the only consequence is the return of the ~13s wait and its
 intermittent timeout.
+
+## ADR-0100: Split `gameplay/gameplayConfig.js` by domain (597/600 -> 5 files + a thin re-export barrel)
+
+**Status:** Accepted (run 77).
+
+**Risk Seviyesi:** LOW. Pure code motion — every constant's value, key order, comment, and
+`Object.freeze` nesting is unchanged; only which file each one lives in changed. Fully reversible:
+`git revert` restores the single-file shape.
+
+**Context:** Session Snapshot at run start (2026-08-05, run 77): read `GOVERNANCE.md` in full (rules
+already fully consolidated as of run 76's pass, §8.12, next due ~run 96), `3D_GAME_PROGRESS.md`'s
+last "This Run" entry (run 76), `DECISIONS.md`'s last 3 ADRs (0097/0098/0099), `QUESTIONS_FOR_OWNER.md`
+in full (7 entries, all still open, none resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv`
+tails, `CREDITS.md`. `git fetch origin main` confirmed local `HEAD` (after resyncing off a detached
+state at the same commit) matched `origin/main` at `8d702e9`.
+
+**Baseline regression guard:** full `node --check` sweep — clean, 56 files (excluding vendor). Full
+`scripts/smokeTestGame3D.js` — 22/22 PASS before any new code. All 8 standing guards clean; the one
+standing WARN was `checkSmokeCheckRegistry.js` flagging `gameplayConfig.js` at 597/600 lines —
+"approaching the cap, plan a split before adding to it" — unchanged since run 71 first named it as a
+non-forcing watch-item (GOLDEN RULE 6: no reason to refactor without a forcing bug/perf/readability/
+architecture reason).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 (terrain macro relief, road network, ground
+color, castle texturing) confirmed already done in prior runs. Items 5-6 (syntax/blocking bugs):
+clean, none found. The forcing reason GOLDEN RULE 6 requires finally arrived this run:
+`gameplayConfig.js` sits at 597/600 — only 3 lines of headroom, and every remaining open FAZ item
+that could plausibly touch this file (FAZ 7 dragon attack/health, once `QUESTIONS_FOR_OWNER.md`'s
+open question resolves; any new `NPC_CONFIG`/`ANIMAL_CONFIG` spawn) would blow the cap immediately.
+Splitting it now, while nothing depends on new headroom yet, is strictly lower-risk than splitting it
+under pressure mid-feature later. This is architecture-driven refactor per Altın Kural 6/7, not a new
+feature — picked ahead of the blocked items (dragon attack needs an owner decision; new castle-seat
+NPCs/animals need real rigged models neither of which exist on disk).
+
+**Decision:** Split `gameplayConfig.js` by domain into 5 files — `playerConfig.js` (`PLAYER_CONFIG`,
+71 lines), `npcConfig.js` (`NPC_CONFIG`, 238 lines), `animalConfig.js` (`ANIMAL_CONFIG` + the local
+`HORSE_MODEL_URL`, 128 lines), `dragonConfig.js` (`DRAGON_CONFIG`, 130 lines), `interactionConfig.js`
+(`INTERACTION_CONFIG`, 62 lines) — with `gameplayConfig.js` itself reduced to a 31-line re-export
+barrel (`export { X } from './xConfig.js'` x5). Every value, doc comment, and freeze nesting carried
+over verbatim; nothing was rewritten, only relocated. `npcConfig.js` imports `PLAYER_CONFIG` from
+`playerConfig.js` (for `IDLE_ANIMATION_URL`/`WALK_ANIMATION_URL`, unchanged from before) and
+`interactionConfig.js` imports `CHOICES_BY_NPC_ID` from the existing `dialogueChoices.js`, exactly as
+`gameplayConfig.js` did before.
+
+This is the same "give each domain its own file, re-export through a thin barrel" precedent
+`gameplay/dragons.js` already set at run 71 (ADR-0092, 600/600 -> `dragonController.js` +
+`dragonFlightMath.js` + `dragonSpawns.js`, `dragons.js` staying as the facade) and
+`gameplay/dialogueChoices.js` set even earlier (run 50, ADR-0066, pulled out of this same file at
+566/600). Because every one of `gameplayConfig.js`'s 13 existing importers uses named imports
+(`import { PLAYER_CONFIG, ... } from './gameplayConfig.js'` or `'./gameplay/gameplayConfig.js'` from
+outside the folder), the barrel re-export means **zero import sites needed to change** — verified by
+grep across `src/`+`scripts/` before and after; the only production-code touch beyond the 5 new files
+plus the reduced `gameplayConfig.js` was none at all.
+
+**Non-obvious fix required:** `scripts/checkDialogueChoicesShape.js` (run 69, a standing regression
+guard) parsed `gameplayConfig.js` as **text**, slicing between the literal strings
+`'export const NPC_CONFIG'` and `'export const ANIMAL_CONFIG'` to bound its NPC-id extraction — a
+dev-tool-only necessity since `gameplayConfig.js` is a real browser ES module, not `require`-able
+from this CommonJS script (same reason `checkServiceWorkerCache.js` parses `service-worker.js` as
+text). That bound broke immediately once `ANIMAL_CONFIG` moved to a different file — caught by
+actually running the guard after the split, not assumed safe. Fixed by pointing the script at
+`npcConfig.js` directly and simplifying the bound (that file now contains only `NPC_CONFIG`, so no
+second marker is needed to stop at). Confirms why "run every guard after a refactor, not just the
+ones that look related" matters — this failure was mechanical, not logical, but would have shipped a
+silently-broken regression guard (still exiting 0 the moment `ANIMAL_CONFIG` no longer existed to
+find? No — it hard-failed loudly with `could not locate ... bounds`, which is what caught it; the
+concerning miss would have been a *silent* false-pass, not this one).
+
+**Service worker:** `service-worker.js`'s `GAME3D_SHELL_FILES` (a hand-maintained precache list,
+`checkServiceWorkerCache.js` HARD-FAILs on drift) needed the 5 new files added — the same treatment
+run 71's `dragons.js` split and run 72's `creatureSpeciesConfig.js` addition already received.
+`SHELL_CACHE` bumped v5->v6 so an existing installed PWA actually re-fetches the new file set instead
+of quietly keeping a stale, now-broken shell (the old cached `gameplayConfig.js` re-exports from 5
+files a stale cache doesn't have).
+
+**DoD status:** `node --check` clean on all 6 touched/new `gameplay/` files, `service-worker.js`, and
+`scripts/checkDialogueChoicesShape.js`, plus a full 61-file repo sweep (56 -> 61, +5 new files), both
+before and after. Smoke suite **22/22 PASS** after (same count as before — pure config relocation, no
+behavior changed). All 8 standing guards re-run clean after the `checkDialogueChoicesShape.js` fix,
+including `checkServiceWorkerCache.js` (now 52 JS files precached, up from 47) and
+`checkSmokeCheckRegistry.js` (61 files, zero WARN — the 597/600 line that started this is gone,
+replaced by 5 files all well under 250 lines each). `terrainSeatSafetyCheck`/`roadNetworkSafetyCheck`
+unaffected (no terrain/road code touched), both still 14/14 and 13/13 clean. Console clean.
+**Görsel doğrulama:** not applicable — no scene/material/geometry code touched, nothing renders
+differently; the smoke suite's own real-headless dragon/NPC/animal spawn checks (which load
+`DRAGON_CONFIG`/`NPC_CONFIG`/`ANIMAL_CONFIG` through the exact import chain players use) are the
+actual proof the split didn't drop or corrupt any config data, and they passed byte-for-byte
+identically to the pre-split baseline. **Memory-leak checklist:** none — no listener/timer/DOM/
+geometry/material in any touched file; this is data-only. **Tech debt counter:** 0 (unchanged).
+**AI Self-Review 2. Geçiş:** the split's one real risk was silent data loss/typo during relocation —
+mitigated by copying content verbatim (no retyping) and by the full smoke suite exercising every
+moved config value through real code paths (dragon spawn position/scale, NPC spawn/patrol geometry,
+wolf/horse spawn placement, dialogue greeting/choice text) rather than only checking the file parses.
+
+**Etkilenen sistemler:** `src/3d/gameplay/gameplayConfig.js` (reduced to barrel),
+`playerConfig.js`/`npcConfig.js`/`animalConfig.js`/`dragonConfig.js`/`interactionConfig.js` (new),
+`scripts/checkDialogueChoicesShape.js` (updated to read the new file), `service-worker.js`
+(precache list + cache version). No importer outside these files changed. No world data, no asset,
+no runtime behavior.
+
+**Gelecek Faz Etkisi:** positive. `NPC_CONFIG`/`ANIMAL_CONFIG`/`DRAGON_CONFIG` each now have ~470-540
+lines of headroom before hitting the 600-line cap again, so FAZ 6's remaining animals (horse/cart/
+dog-cat/bird), FAZ 7's dragon attack system (once `QUESTIONS_FOR_OWNER.md`'s health/damage question
+resolves), and FAZ 11's per-species implementations can all grow their own config block substantially
+without forcing another split soon.
+
+**Alternatives considered:**
+- *Do nothing yet, since 597/600 is a WARN not a FAIL.* Rejected — the WARN has been visible since
+  run 71 with no forcing reason until now; the forcing reason (3 lines of headroom, multiple blocked-
+  but-eventually-unblocking features that would each need to add config) has now arrived, and
+  splitting proactively with a clean baseline is safer than splitting reactively mid-feature.
+- *Split into fewer, larger groupings (e.g. one "characters" file for PLAYER_CONFIG+NPC_CONFIG).*
+  Rejected — `dragons.js`'s run-71 precedent and `dialogueChoices.js`'s run-50 precedent both split
+  by single top-level export, which keeps each file's blast radius obvious from its name; a merged
+  grouping would recreate a smaller version of the same eventual-cap problem for two domains that
+  don't share change reasons (a dragon config edit has no reason to touch a wolf config file).
+- *Move `SPAWNS` arrays only, leaving the smaller tuning constants in `gameplayConfig.js`.* Rejected
+  — `NPC_CONFIG.SPAWNS` alone is ~155 of `NPC_CONFIG`'s ~225 lines, so this would have deferred, not
+  solved, the cap problem, and split a single logical config object across two files for no benefit.
+
+**Geri alma planı:** `git revert` this single commit. That restores the single `gameplayConfig.js`
+file, the original `checkDialogueChoicesShape.js` parsing logic, and `service-worker.js`'s previous
+precache list/cache version — nothing else in the repo references the 5 new files' paths directly
+(all access is through the `gameplayConfig.js` barrel), so no other file needs a matching revert.

@@ -6,7 +6,7 @@
 
 const SW_VERSION = 'westeros-media-v4';
 const MEDIA_CACHE = 'westeros-media-v4';
-const SHELL_CACHE = 'westeros-shell-v5';
+const SHELL_CACHE = 'westeros-shell-v6';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -59,6 +59,14 @@ const SHELL_FILES = [
 // an offline install must be able to load, so it's precached here from the start rather than added
 // later once a real species implementation actually imports it. `SHELL_CACHE` bumped v4->v5, same
 // reasoning as every entry above.
+//
+// run 77 (DECISIONS.md ADR-0100): `gameplay/gameplayConfig.js` reached 597/600 lines and was split
+// by domain into `playerConfig.js` + `npcConfig.js` + `animalConfig.js` + `dragonConfig.js` +
+// `interactionConfig.js` (`gameplayConfig.js` itself stays, now as the re-exporting barrel every
+// caller still imports) — same pattern as the run 71/ADR-0092 `dragons.js` split above. The 5 new
+// modules are precached here alongside it, same reasoning as that entry: without them an offline
+// install would fetch `gameplayConfig.js` from cache and then fail on its 5 uncached
+// `export ... from` targets. `SHELL_CACHE` bumped v5->v6.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -82,6 +90,11 @@ const GAME3D_SHELL_FILES = [
     './src/3d/ui/dialogueBox.js',
     './src/3d/ui/worldEventToast.js',
     './src/3d/gameplay/gameplayConfig.js',
+    './src/3d/gameplay/playerConfig.js',
+    './src/3d/gameplay/npcConfig.js',
+    './src/3d/gameplay/animalConfig.js',
+    './src/3d/gameplay/dragonConfig.js',
+    './src/3d/gameplay/interactionConfig.js',
     './src/3d/gameplay/creatureSpeciesConfig.js',
     './src/3d/gameplay/dialogueChoices.js',
     './src/3d/gameplay/player.js',
