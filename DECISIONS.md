@@ -6145,3 +6145,46 @@ run 58 (see `3D_GAME_PROGRESS.md`).
 **Verification:** syntax checks passed on the changed files and the full JavaScript sweep. A new `checkInteractionPromptTap` smoke check verifies hidden prompts ignore taps, visible prompts activate once, and disabling the handler removes the action class. The Playwright-driven suite is still blocked in this container because Playwright is not installed.
 
 **Consequence:** FAZ 5 NPC interaction is now usable from desktop, mobile browser, and installed PWA mode without requiring a physical keyboard. No existing code path was removed in this new implementation.
+
+## ADR-0081: Remove leaked NVIDIA API key + unrelated script from tracked tree
+
+**Status:** Accepted (run 63).
+
+**Risk Seviyesi:** HIGH (secret exposure), remediation itself LOW risk.
+
+**Context:** Run 63's mandatory Session Snapshot (`git fetch origin main` + `git checkout -B main
+origin/main` per §8.14) surfaced three commits already merged into `main` via PR #1
+(`7d4a66a`/`70bb43b`/`cb28d48`, dated 2026-08-03, same author as the repo owner) that are unrelated
+to the westeros-pwa 3D RPG: `ndvi_nvidia.py`, a standalone NVIDIA embeddings/chat-completions test
+script, and `.env`, which committed a live-looking plaintext `NVIDIA_API_KEY` directly into the
+repository. Both files were still present and tracked at `HEAD` when this run started — i.e. the key
+is exposed in the current working tree, not just old history.
+
+**Decision:** `git rm` both `.env` and `ndvi_nvidia.py` from the tracked tree and add `.env` to
+`.gitignore` so it cannot be re-added by accident. This stops the plaintext key from being present in
+every future checkout/clone of `main`. It does **not** purge the key from git history — `70bb43b`
+still contains it in past commits, which `git rm` cannot undo. Rewriting history (`git filter-repo`
+or an interactive rebase + force-push) is a separate, destructive, hard-to-reverse operation that
+needs the repo owner's explicit go-ahead, so it was not attempted here; flagged instead in
+`QUESTIONS_FOR_OWNER.md` and via a direct notification.
+
+**Alternatives considered:**
+- **Leave it and only notify.** Rejected: the key would keep shipping in every fresh clone/checkout
+  of `main` (including this container's own future runs) until someone removed it — no reason to
+  delay the low-risk half of the fix (tree removal) while waiting on the human-only half (rotation +
+  possible history purge).
+- **Rewrite git history now to fully scrub the key.** Rejected for this run: force-pushing a rewritten
+  `main` is exactly the kind of hard-to-reverse, outward-facing action that needs owner confirmation
+  first, and this repo's remote is also known (run 58) to reject tag pushes — history-rewrite push
+  behavior here is untested and risking it unattended is not worth it.
+
+**Verification:** `git status` confirms both files are removed from the tracked tree and `.env` is
+now git-ignored; `git cat-file -e HEAD:.env` / `:ndvi_nvidia.py` (pre-fix) confirmed they were
+present at `HEAD` before this commit. No `.js` files touched, so `node --check` is not applicable to
+this commit; the existing smoke suite is unaffected (neither file is referenced by any game code).
+
+**Consequence:** Fresh clones of `main` from this commit forward no longer contain the plaintext key
+or the unrelated script. **The key itself must still be treated as compromised and rotated/revoked by
+the repo owner** — it remains recoverable from git history (`70bb43b`) until that history is
+separately purged, which this run deliberately did not do without confirmation. **Gelecek Faz Etkisi:**
+none — orthogonal to all FAZ work, pure repo-hygiene/security fix.

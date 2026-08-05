@@ -32,3 +32,17 @@ instead of guessed at silently. Newest entry at the bottom.
   tier noted in `3D_GAME_PROGRESS.md`'s "Next step". Revisit if/when a real product need for the
   visual distinction comes up (e.g. a future quest or NPC dialogue that references "the footpath"
   specifically).
+
+- **(run 63, ADR-0081) 🔴 Security: leaked NVIDIA API key — needs owner action, not something this
+  run could resolve unattended.** Commit `70bb43b` ("Create .env", 2026-08-03) committed a
+  plaintext `NVIDIA_API_KEY` straight to `main`, alongside an unrelated `ndvi_nvidia.py` test script
+  — neither has anything to do with the westeros-pwa 3D RPG. Both were still tracked at `HEAD` when
+  this run started (i.e. the key ships in every fresh clone of `main` today). This run removed both
+  files from the tracked tree and `.gitignore`'d `.env` (see DECISIONS.md ADR-0081), but deliberately
+  did **not** rewrite git history to purge the key from `70bb43b`, and obviously cannot rotate the
+  key itself. **Two owner actions needed:** (1) rotate/revoke this key at NVIDIA's API console — treat
+  it as compromised regardless of the repo being private; (2) decide whether `main`'s history should
+  be rewritten (`git filter-repo` + force-push) to remove `70bb43b`'s blob entirely, given this
+  container's remote has separately rejected other force-style pushes (tag pushes, run 58) so the
+  rewrite's own push may need to happen from the owner's own machine. **Temporary default used:** key
+  treated as compromised, history left untouched, tree cleaned.
