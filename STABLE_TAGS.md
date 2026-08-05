@@ -231,3 +231,11 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `SHELL_CACHE` bumped v6->v7 for the new precached module. `git push origin main` succeeded
   (`0c8ab50`). Local tag only — `git push origin <tag>` still rejected, same `HTTP 403` standing
   block since run 58.
+- `stable-2026-08-05-2118` — run 83 end: `safeMode.js`'s dispose()/disposeOnError()-throws gap
+  closed (ADR-0105's own documented follow-up), ADR-0106. New committed regression coverage
+  (`game3dSmokeChecksSafeMode.js`, 2 checks) instead of a throwaway proof — full suite 24/24 PASS
+  (was 22/22), all 8 standing guards clean, `perf_log.csv` `run83` bit-identical to run76-82
+  (46/393,231/44/17, no scene object touched), 2 screenshots visually consistent with prior runs'
+  pairs (expected — pure code-hygiene change). `git push origin main` succeeded (`bcac4e0`). Local
+  tag only — `git push origin <tag>` still rejected, same `HTTP 403` standing block since run 58
+  (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
