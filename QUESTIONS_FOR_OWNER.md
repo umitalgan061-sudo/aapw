@@ -63,3 +63,15 @@ instead of guessed at silently. Newest entry at the bottom.
   so a player cannot simply outrun it — only outlast it or break line of distance. **Temporary
   defaults used:** `pursuitMaxSeconds: 18`, `pursuitCenterSpeedMps: 10`, `pursuitCircleRadiusMeters:
   55` in `DRAGON_CONFIG.SPAWNS[0]` — all three are single-number edits if a playtest says otherwise.
+
+- **(run 73, ADR-0096) Does the guard combat-stance reaction (turn-to-face + faster idle tempo) feel
+  right at the chosen radius/speed, or too subtle/too aggressive?** No existing project value answered
+  "how close before a guard notices you as a possible threat" or "how much faster should its idle read
+  as tense" — `INTERACTION_CONFIG.PROMPT_RADIUS_METERS` (6m) answers a different question (dialogue
+  range). **Temporary defaults used:** `NPC_CONFIG.COMBAT_STANCE_TRIGGER_RADIUS_METERS = 10` (larger
+  than the 6m dialogue range, so the guard visibly notices before you're close enough to talk),
+  `COMBAT_STANCE_IDLE_TIME_SCALE = 1.5` (matches `dragonController.js`'s own wing-flap telegraph
+  default, ADR-0089, for consistency between the codebase's two no-dedicated-clip tension cues),
+  `COMBAT_STANCE_TRANSITION_SECONDS = 0.3` (a near-instant ease, since this models a stationary human's
+  posture snapping to attention rather than an airborne creature's momentum). All three are
+  single-number edits in `gameplayConfig.js` if a playtest says otherwise.

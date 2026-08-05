@@ -386,10 +386,13 @@ export async function initGame3D() {
 			// Jump is keyboard-only for now (`touchJoystick.js` has no jump button yet — see
 			// 3D_GAME_PROGRESS.md Known Issues) — read straight off `keyboardAxes`, not the merged `axes`.
 			state.player.update(delta, moveDirection, axes.running, keyboardAxes.jumpRequested);
-			for (const npc of state.npcs) npc.update(delta);
 			// player.update() above already moved player.object3D synchronously this frame, so this
-			// read is current — safe to feed into each animal's flee-awareness check below.
+			// read is current — safe to feed into each NPC's combat-stance check and each animal's
+			// flee-awareness check below.
 			const playerPos = state.player.object3D.position;
+			// Run 73 (ADR-0096): playerPos feeds each NPC's combat-stance proximity check — see
+			// `gameplay/npc.js`'s `createNPC` doc comment.
+			for (const npc of state.npcs) npc.update(delta, playerPos);
 			// FAZ 5 interaction (run 32-33, ADR-0032/ADR-0033): nearest-NPC tracking, prompt
 			// visibility, and dialogue auto-close all live in `gameplay/interaction.js`.
 			state.interaction.update(state.npcs, playerPos);

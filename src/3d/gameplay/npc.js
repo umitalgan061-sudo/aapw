@@ -14,11 +14,58 @@
  * `spawnConfiguredNPCs` (run 29, DECISIONS.md ADR-0028) resolves `gameplayConfig.js`'s `NPC_CONFIG.SPAWNS`
  * against kingdom seats and loads every NPC in parallel — moved here from `game3d.js` to keep that
  * file under the project's 600-line cap.
+ *
+ * **Combat-stance** (run 73, FAZ 11 "asker" archetype, DECISIONS.md ADR-0096): when the player comes
+ * within `combatStanceTriggerRadiusMeters`, a guard turns to face them and holds its ground (pausing
+ * any patrol) instead of idling/walking obliviously, and its idle clip eases to a faster time-scale —
+ * the same "reuse an existing clip at an altered speed as a tension cue" trick
+ * `gameplay/dragonController.js`'s wing-flap telegraph already established (ADR-0089), since no
+ * dedicated combat-stance animation clip exists. Opt-in via config (omit either radius param to keep
+ * a static/patrolling NPC exactly as before) — `spawnConfiguredNPCs` wires every real spawn to
+ * `NPC_CONFIG`'s combat-stance values uniformly, since every current spawn is a guard archetype.
  * @module gameplay/npc
  */
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+
+/**
+ * Eases a 0..1 blend linearly toward `targetBlend`, one frame's worth. Deliberately a local copy of
+ * `gameplay/dragonFlightMath.js`'s `easeBlendToward` rather than an import — same "why duplicate"
+ * reasoning DECISIONS.md ADR-0026 already established for this project (that module's own name/doc
+ * frame it as dragon-flight-specific even though the arithmetic is generic; copying keeps `npc.js`'s
+ * own combat-stance logic self-contained instead of reaching into a sibling system's file for nine
+ * lines of math). A non-positive `transitionSeconds` means "no easing configured": the blend snaps to
+ * the target.
+ * @param {number} currentBlend @param {number} targetBlend @param {number} delta
+ * @param {number} transitionSeconds @returns {number}
+ */
+function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
+	if (transitionSeconds > 0) {
+		const step = delta / transitionSeconds;
+		if (currentBlend < targetBlend) return Math.min(targetBlend, currentBlend + step);
+		if (currentBlend > targetBlend) return Math.max(targetBlend, currentBlend - step);
+		return currentBlend;
+	}
+	return targetBlend;
+}
+
+/**
+ * Turns `model` toward `targetYaw`, rate-limited by `turnRateRadiansPerSecond` — the exact
+ * shortest-path yaw-turn expression this file's own patrol-walk branch already used inline, factored
+ * out so the new combat-stance facing (below) can share it instead of duplicating the wraparound math
+ * a third time.
+ * @param {THREE.Object3D} model @param {number} targetYaw @param {number} turnRateRadiansPerSecond
+ * @param {number} delta
+ */
+function turnTowardYaw(model, targetYaw, turnRateRadiansPerSecond, delta) {
+	const turnStep = turnRateRadiansPerSecond * delta;
+	model.rotation.y = THREE.MathUtils.lerp(
+		model.rotation.y,
+		model.rotation.y + THREE.MathUtils.euclideanModulo(targetYaw - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI,
+		Math.min(1, turnStep),
+	);
+}
 
 /**
  * Builds a billboard name-tag sprite from canvas-rendered text. A `THREE.Sprite` always faces the
@@ -82,7 +129,15 @@ function createNameTagSprite(text, widthMeters, heightMeters) {
  * @param {number} [options.speedMps]
  * @param {number} [options.pauseSeconds] Idle dwell time at each waypoint before moving to the next.
  * @param {number} [options.turnRateRadiansPerSecond]
- * @returns {Promise<{object3D: THREE.Object3D, displayName: (string|null), update: (delta: number) => void, dispose: () => void}>}
+ * @param {number} [options.combatStanceTriggerRadiusMeters] Run 73 (ADR-0096) combat-stance: how
+ *   close, in meters, `update()`'s `playerPosition` argument needs to be before this NPC turns to
+ *   face the player and holds its ground (pausing any patrol). Omit to disable the feature entirely
+ *   (a static or patrolling NPC behaves exactly as before this run added it).
+ * @param {number} [options.combatStanceIdleTimeScale] Idle-clip playback speed at full alert (see
+ *   `combatStanceTriggerRadiusMeters`). Only meaningful when that param is also set.
+ * @param {number} [options.combatStanceTransitionSeconds] Full 0->1 ease duration for the alert blend
+ *   driving the time-scale cue above. Only meaningful when `combatStanceTriggerRadiusMeters` is set.
+ * @returns {Promise<{object3D: THREE.Object3D, displayName: (string|null), update: (delta: number, playerPosition?: {x: number, z: number}) => void, dispose: () => void}>}
  */
 export async function createNPC({
 	assetLoader,
@@ -103,6 +158,9 @@ export async function createNPC({
 	speedMps = 1.4,
 	pauseSeconds = 3,
 	turnRateRadiansPerSecond = 4,
+	combatStanceTriggerRadiusMeters,
+	combatStanceIdleTimeScale = 1.5,
+	combatStanceTransitionSeconds = 0.3,
 }) {
 	const model = await assetLoader.loadFBXModel(modelUrl, { fallbackColor: 0x9c6b30, fallbackSize: 1.8 });
 	AssetLoader.correctMixamoFbxScale(model);
@@ -157,15 +215,50 @@ export async function createNPC({
 	// a second, redundant full cycle before that first arrival ever gets checked.
 	let pauseTimer = 0;
 
+	// Combat-stance state (run 73, ADR-0096) — unused (and never advanced) when
+	// combatStanceTriggerRadiusMeters is undefined, same opt-in shape as patrol state above.
+	const combatStanceEnabled = combatStanceTriggerRadiusMeters != null;
+	let alertBlend = 0;
+
 	return {
 		object3D: model,
 		// FAZ 5 interaction (run 33, ADR-0033): exposed so game3d.js's dialogue affordance can
 		// address this NPC by name without a separate lookup back into NPC_CONFIG.SPAWNS.
 		displayName: displayName ?? null,
 
-		/** @param {number} delta Seconds since the last frame. */
-		update(delta) {
-			if (isPatrolling) {
+		/**
+		 * @param {number} delta Seconds since the last frame.
+		 * @param {{x: number, z: number}} [playerPosition] Current player world position — only read
+		 *   when this NPC's combat-stance is enabled (see `combatStanceTriggerRadiusMeters`); omit or
+		 *   pass `undefined` for any NPC that doesn't need it, same as `packmateFleePositions` is
+		 *   optional on `gameplay/animals.js`'s wolf `update()`.
+		 */
+		update(delta, playerPosition) {
+			let isAlert = false;
+			if (combatStanceEnabled) {
+				const distanceToPlayer = playerPosition
+					? Math.hypot(model.position.x - playerPosition.x, model.position.z - playerPosition.z)
+					: Infinity;
+				isAlert = distanceToPlayer <= combatStanceTriggerRadiusMeters;
+				alertBlend = easeBlendToward(alertBlend, isAlert ? 1 : 0, delta, combatStanceTransitionSeconds);
+				// Same "1 + (multiplier - 1) * blend" expression `dragonController.js`'s wingFlapTimeScale
+				// already uses (ADR-0089) — blend 0 lands exactly on 1 (unmodified speed), blend 1 lands
+				// exactly on combatStanceIdleTimeScale.
+				if (idleAction) idleAction.timeScale = 1 + (combatStanceIdleTimeScale - 1) * alertBlend;
+				// Exposed the same way dragonController.js exposes its own blends — a smoke check can
+				// assert this directly instead of reaching into idleAction's timeScale.
+				model.userData.combatStanceBlend = alertBlend;
+			}
+
+			if (isAlert) {
+				// Holds its ground and turns to face the threat instead of continuing any patrol —
+				// deliberately skips the waypoint-advance branch below entirely, so a mid-walk NPC
+				// resumes its lap from exactly where it paused once the player leaves range.
+				const dx = playerPosition.x - model.position.x;
+				const dz = playerPosition.z - model.position.z;
+				if (dx !== 0 || dz !== 0) turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, delta);
+				playAction(idleAction);
+			} else if (isPatrolling) {
 				if (pauseTimer > 0) {
 					pauseTimer -= delta;
 					playAction(idleAction);
@@ -188,13 +281,7 @@ export async function createNPC({
 						model.position.z += (dz / distance) * step;
 						model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
 
-						const targetYaw = Math.atan2(dx, dz);
-						const turnStep = turnRateRadiansPerSecond * delta;
-						model.rotation.y = THREE.MathUtils.lerp(
-							model.rotation.y,
-							model.rotation.y + THREE.MathUtils.euclideanModulo(targetYaw - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI,
-							Math.min(1, turnStep),
-						);
+						turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, delta);
 						playAction(walkAction);
 					}
 				}
@@ -260,6 +347,9 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 				patrolWaypoints,
 				speedMps: npcConfig.PATROL_SPEED_MPS,
 				pauseSeconds: npcConfig.PATROL_PAUSE_SECONDS,
+				combatStanceTriggerRadiusMeters: npcConfig.COMBAT_STANCE_TRIGGER_RADIUS_METERS,
+				combatStanceIdleTimeScale: npcConfig.COMBAT_STANCE_IDLE_TIME_SCALE,
+				combatStanceTransitionSeconds: npcConfig.COMBAT_STANCE_TRANSITION_SECONDS,
 				turnRateRadiansPerSecond: npcConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
 			});
 		}),

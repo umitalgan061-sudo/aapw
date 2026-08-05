@@ -93,6 +93,24 @@ export const NPC_CONFIG = Object.freeze({
 	PATROL_PAUSE_SECONDS: 3,
 	/** Slower turn than the player's (10) — a deliberate, unhurried guard-turn, not snappy input response. */
 	PATROL_TURN_RATE_RADIANS_PER_SECOND: 4,
+	/** Run 73 (FAZ 11 "asker" archetype, DECISIONS.md ADR-0096) combat-stance: how close the player
+	 * needs to be before a guard NPC turns to face them and holds its ground (pausing any patrol)
+	 * instead of continuing its normal idle/patrol behavior. Larger than `INTERACTION_CONFIG`'s
+	 * `PROMPT_RADIUS_METERS` (6) — a guard should visibly notice the player's approach before
+	 * dialogue range, not exactly at it. First-pass value, `QUESTIONS_FOR_OWNER.md` entry recorded. */
+	COMBAT_STANCE_TRIGGER_RADIUS_METERS: 10,
+	/** Idle-clip time-scale multiplier at full alert (a faster, tenser idle loop) — the same
+	 * "reuse an existing clip at an altered playback speed as a tension cue, since no dedicated
+	 * clip exists" trick `gameplay/dragonController.js`'s wing-flap telegraph already established
+	 * (ADR-0089), applied here to a guard's posture instead of a dragon's wingbeat. Matches that
+	 * ADR's own default multiplier (1.5) for consistency between this codebase's two no-dedicated-
+	 * clip tension cues. */
+	COMBAT_STANCE_IDLE_TIME_SCALE: 1.5,
+	/** Full 0->1 ease duration for the alert blend that drives the time-scale cue above — quicker
+	 * than any of `dragonController.js`'s blends (which model an airborne creature's momentum),
+	 * since this models a stationary human's posture snapping to attention, expected to read as
+	 * near-instant rather than gradual. */
+	COMBAT_STANCE_TRANSITION_SECONDS: 0.3,
 	/** Billboard name-tag sprite size, in real world-space meters (not screen-space px) — it shrinks
 	 * with camera distance like any other object, so no separate LOD/culling is needed yet at 6 NPCs.
 	 * See `gameplay/npc.js`'s `createNameTagSprite` and DECISIONS.md ADR-0022. */

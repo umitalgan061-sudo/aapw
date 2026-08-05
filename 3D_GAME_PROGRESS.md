@@ -7872,3 +7872,144 @@ syntax errors, or regressions found.
 **Addendum:** committed separately from the routine's own sub-task 1/2 commits (this was a live
 owner-initiated addition, not part of the routine's automated chain) — see git log for the exact
 commit hash.
+
+## This Run (2026-08-05, run 73 — scheduled autonomous routine)
+
+**Session Snapshot done first, per GOVERNANCE.md §20:** read `GOVERNANCE.md` (already existed —
+created in a prior run, this run confirmed it, no missing content, no changes needed to it), tail of
+this file, `git log -10`, `QUESTIONS_FOR_OWNER.md`, `DECISIONS.md`'s last 3 ADRs (ADR-0093/0094/0095).
+`git fetch origin main` (GOVERNANCE.md §8.14 concurrency check) confirmed local `HEAD` already matched
+`origin/main` — no concurrent session to reconcile with.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 (terrain macro-relief, road network, ground color,
+castle textures) reconfirmed already done via prior runs' own re-verification notes, no new evidence
+to doubt any of them. `node --check` swept clean across all 56 JS files; full smoke suite ran
+**21/21 PASS** as this run's own baseline (items 5-6: no syntax errors, no blocking bugs). Item 7
+(performance): `perf_log.csv`'s prior rows all bit-identical on GPU-submission metrics, no drift. Item
+8 (memory leak): no open leak noted in any recent run. Item 9 (tech debt): counter at 0. Item 10 (smoke
+test): the suite itself is the guard, already green. Item 11 (World Coverage): 96.2%/4.5% reconfirmed
+as `STREAM_RADIUS_CHUNKS`'s own deliberate mobile constant (re-verified many times, see this file's own
+prior entries). Item 12 (FAZ 7 dragon / FAZ 5-6): dragon attack work stays blocked on the
+health/damage owner decision; FAZ 6 animals (at/araba/köpek-kedi/kuş) stay blocked on rigged-model
+uploads. Item 13 (FAZ 11 species): a read-only audit (`Explore` agent) of every `assets/models/`
+character/animal file against `src/3d/**/*.js` imports found 5 fully orphaned `.glb` character files
+(`elven_warrior.glb`, `verdant_knight.glb`, `wooden_legion.glb`, `ionic_grace.glb`,
+`casual_confidence.glb` — none map to any named FAZ 11 species without guessing which archetype each
+should become, so left alone rather than force a match) and confirmed the horse (`ivory_stallion.glb`)
+is genuinely static/idle-only (rigless model, `canFlee: false`, no `patrol` field — matches
+`creatureSpeciesConfig.js`'s own `at` entry note exactly). The one real, well-scoped, no-new-asset
+opportunity: `asker` (soldier)'s registry entry named its own gap explicitly — "eksik olan tek şey
+`combat-stance` tepkisi" — against a model that's already loaded, textured, and animated for every one
+of the 14 guard NPCs.
+
+### Sub-task 1: FAZ 11 "asker" — real combat-stance reaction for every guard NPC (DECISIONS.md ADR-0096)
+
+**Değişiklik Etki Analizi written before code** (GOVERNANCE.md §8.4) — see ADR-0096's own section;
+not a terrain/height/noise/world-scale change, so the Arazi Değişikliği Güvenlik Kontrolü doesn't
+apply. Affected systems limited to `gameplay/npc.js`, `gameplay/gameplayConfig.js`, `game3d.js`'s
+3-line `playerPos` reorder, and `gameplay/creatureSpeciesConfig.js`'s prose (no schema change).
+
+**What shipped:** every configured guard NPC now turns to face the player and holds its ground
+(freezing any in-progress patrol exactly where it paused, resuming the same lap once the player
+retreats) once the player comes within `NPC_CONFIG.COMBAT_STANCE_TRIGGER_RADIUS_METERS` (10m,
+first-pass default). No dedicated combat-stance animation clip exists on the shared Mixamo skeleton,
+so — following GOVERNANCE.md's "Bilmeme kuralı" rather than guessing a clip name — the existing idle
+clip eases to a faster time-scale instead (`COMBAT_STANCE_IDLE_TIME_SCALE`, 1.5x default), the exact
+same "reuse an existing clip at an altered speed as a tension cue" trick
+`gameplay/dragonController.js`'s wing-flap telegraph already established (ADR-0089). The pre-existing
+inline yaw-turn expression was factored into a shared `turnTowardYaw` helper so the new facing logic
+reuses it instead of writing a third copy. `easeBlendToward` was duplicated locally in `npc.js` rather
+than imported from `dragonFlightMath.js` (ADR-0026's own "why duplicate" precedent).
+
+**AI Self-Review 2. Geçiş (§8.3):** re-read the diff as a second pass before committing — confirmed
+the movement-freeze/facing decision gates on the raw per-frame distance test (`isAlert`), not the
+eased blend, matching `dragonController.js`'s own precedent of a boolean proximity gate separate from
+its smoothed cosmetic blend (see ADR-0096's Decision point 5 for the reasoning); confirmed a
+patrolling NPC's `waypointIndex`/`pauseTimer` state is genuinely untouched while alert (the whole
+patrol branch is skipped, not reset), so resume-from-pause was a real property to test, not an
+assumption — and the new smoke check proves it by walking the NPC all the way to its original target
+after a retreat.
+
+**Regression caught during this sub-task, not shipped:** the smoke check's first draft used the same
+short frame budget for both the alert-blend settle (0.3s + margin) and the turn-to-face convergence —
+but `turnTowardYaw`'s lerp-based turn (turn-rate-as-lerp-fraction, an existing, pre-this-run
+expression) converges on an exponential-decay schedule far slower than the blend settle, so the first
+run of the new check failed its own `turnedToFacePlayer` assertion (rotation hadn't converged yet, not
+a real behavior bug — confirmed by re-running with a generous 2.5s frame budget, which passed cleanly
+and matches the margin `checkNpcPatrol`'s own pre-existing test already uses for the same turn
+expression). Root Cause: the test conflated two different convergence schedules; Prevention: the fixed
+check now uses two separately-reasoned frame budgets (`blendSettleFrames` vs. `turnSettleFrames`) so
+this doesn't recur when either constant changes independently. No production code was ever wrong here
+— test-only Root Cause Analysis (GOVERNANCE.md §8.2 still applies to a test asserting incorrectly).
+
+**DoD status:** `node --check` clean on all 5 changed/new files (`npc.js`, `gameplayConfig.js`,
+`game3d.js`, `creatureSpeciesConfig.js`, `game3dSmokeChecksMovement.js`) plus `smokeTestGame3D.js`
+(registration line only), plus a full 56-file repo sweep. Smoke suite **21/21 PASS before this
+sub-task, 22/22 PASS after** (21 pre-existing unchanged + 1 new `checkNpcCombatStance`), zero
+regressions on any pre-existing check. `checkSmokeCheckRegistry.js`: **22 smoke checks across 6
+modules** (was 21), 56 files within the cap — `gameplayConfig.js` now **597/600** (was 579), a fresh
+WARN and this project's only remaining line-count watch-item (no split performed — a WARN alone is not
+a forcing reason, Altın Kural 6). All 6 other standing guards re-run clean:
+`checkCreatureSpeciesConfig.js` (15 entries still valid), `checkAssetsManifest.js` (41, unchanged),
+`checkDialogueChoicesShape.js` (13/14, unchanged), `checkPwaInstallability.js` (unchanged),
+`checkServiceWorkerCache.js` (47 JS files — no new `src/3d` file added, only edits, so no precache
+change needed), `terrainSeatSafetyCheck.js`/`roadNetworkSafetyCheck.js` (14/14 seats, 13/13 edges,
+unchanged). Performance: `perf_log.csv`'s `run73` row bit-identical to `run72b` on every
+GPU-submission metric (46 draw calls, 393,231 triangles, 44 geometries, 17 textures) — expected, a
+behavior-only change on already-loaded models touches no render path. Visual evidence: not applicable
+in the headless-screenshot sense (see ADR-0096) — the frame-by-frame position/rotation/blend
+assertions against a real loaded model are the correctness proof, same reasoning every
+dragon-reaction ADR already used. Memory-leak checklist: no new listener/timer/DOM node; `dispose()`
+already covered by the pre-existing `AssetLoader.disposeObject3D` + `mixer.stopAllAction()` path, no
+new resource type introduced. Tech debt counter: **0** (unchanged — no `TEMP`/`HACK`/`FIXME`/
+`WORKAROUND`). `QUESTIONS_FOR_OWNER.md` entry written for the 3 first-pass tuning constants. This file
+updated (this entry). ADR written (ADR-0096). Committed. Console clean (3D mode boot check: zero
+console/page errors).
+
+**Session Quality Gate (GOVERNANCE.md §8.6) after 1 sub-task:** confidence **5/5** — the change is
+small, opt-in, fully reversible, backed by a real smoke check against a real model (including a
+caught-and-fixed test-only regression, which is itself evidence the check is doing real work rather
+than rubber-stamping), and every standing guard re-ran clean. No "6 months from now" ambiguity: the
+ADR records the exact reasoning for every tuning constant and the exact alternatives rejected.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| FAZ 11 species with zero remaining implementation gap | 0 | **1** (`asker`) | +1 |
+| Smoke suite | 21/21 | **22/22** | +1 check (`checkNpcCombatStance`) |
+| `NPC_CONFIG` fields | 8 | **11** | +3 (combat-stance radius/time-scale/transition) |
+| `gameplay/npc.js` line count | ~213 | **~358** | +145 (combat-stance logic + 2 shared helpers) |
+| `gameplayConfig.js` line count (cap watch-item) | 579/600 | **597/600** | +18, still under cap |
+| Files (JS, repo-wide) | 56 | 56 | unchanged (no new file — only edits to 5 existing + 1 check module already counted) |
+| ADRs | 95 | **96** | +1 (ADR-0096) |
+| `QUESTIONS_FOR_OWNER.md` entries | 6 | **7** | +1 |
+| perf_log.csv rows | 15 | **16** | +1 (`run73`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (deliberate constant) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (behavior-only change) |
+
+**Oyuncu fark eder mi:** evet — bu run'da ilk kez, bir muhafız NPC'ye 10m içine girdiğinde artık fark
+edilir bir tepki var: NPC oyuncuya döner, olduğu yerde durur (devriyedeyse donar), ve idle animasyonu
+gözle görülür biçimde daha hızlı/gergin oynar. Küçük ama gerçek, ilk defa "seni fark etti" hissi veren
+bir detay — önceki 14 muhafızın hepsi oyuncu ne kadar yaklaşırsa yaklaşsın tamamen tepkisizdi.
+
+**Not chaining a second sub-task this run.** Per §8.7's run-level time ceiling and §19's "well-scoped,
+not rushed" discipline: the remaining priority-13 items (other FAZ 11 species) are all genuinely
+blocked on asset uploads (confirmed by this run's own audit, not assumed), and forcing a second
+same-run change onto a codebase this well-tested risks diluting the quality bar rather than adding
+real value — one solid, fully-verified sub-task is a complete, honest unit of work for this run.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. `gameplayConfig.js`'s
+597/600 is now the file closest to a forcing split — the next config addition to that file should
+split it first (same by-subsystem precedent ADR-0087/ADR-0092/ADR-0094 already established) rather
+than push it over. `erkek-insan`/`kadin-insan`/`koylu` (also `partial-existing` in
+`creatureSpeciesConfig.js`) could receive the same opt-in `combatStanceTriggerRadiusMeters` cheaply if
+a future run finds a real design reason to give them one — none was invented this run since their own
+registry notes don't call for it. Confirmed still blocked: the remaining 6 castle seats and all FAZ 6
+animals needing real rigged models (5 orphaned character `.glb` files exist but none maps cleanly to a
+named archetype without guessing), dragon attack/fire-breath (owner decision pending). No blocking
+bugs, syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

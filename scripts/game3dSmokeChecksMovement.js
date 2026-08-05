@@ -1,6 +1,7 @@
 /**
  * game3dSmokeChecksMovement.js — ground-movement AI check functions run by `smokeTestGame3D.js`:
- * waypoint patrol and flee/pack-alert for the entities that walk on the terrain (wolves, NPCs).
+ * waypoint patrol, flee/pack-alert, and (run 73) combat-stance for the entities that walk on the
+ * terrain (wolves, NPCs).
  *
  * Originally split out of `game3dSmokeChecks.js` (run 40, was 596/600 lines) — same "extract into a
  * focused module, moved verbatim" pattern `game3dSmokeChecksScene.js` used, see DECISIONS.md ADR-0028
@@ -123,6 +124,124 @@ async function checkWolfPackAlert(browser, baseUrl) {
 			'flee direction stays player-relative, out-of-range packmate correctly ignored'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
 	return { name: 'wolf flee/pack-alert (gameplay/animals.js)', ok, details };
+}
+
+/**
+ * Regression guard for `gameplay/npc.js`'s `createNPC` combat-stance logic (run 73, FAZ 11 "asker"
+ * archetype, DECISIONS.md ADR-0096) — the alert-blend easing, idle time-scale cue, player-facing turn,
+ * and patrol-freeze/resume behavior, on two real `createNPC` controllers (static and patrolling) with
+ * a real downloaded Mixamo FBX, the same in-page dynamic-`import()` pattern every sibling check in
+ * this file already uses.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkNpcCombatStance(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createNPC } = await import('/src/3d/gameplay/npc.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { NPC_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+
+			const assetLoader = new AssetLoader();
+			const delta = 1 / 60;
+			const farPlayer = { x: 1000, z: 1000 };
+
+			// --- Static NPC: alert blend, idle time-scale cue, and player-facing turn. ---
+			const staticNpc = await createNPC({
+				assetLoader,
+				modelUrl: NPC_CONFIG.SPAWNS[0].modelUrl,
+				idleAnimationUrl: NPC_CONFIG.IDLE_ANIMATION_URL,
+				worldX: 0,
+				worldZ: 0,
+				groundY: 0,
+				turnRateRadiansPerSecond: NPC_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+				combatStanceTriggerRadiusMeters: NPC_CONFIG.COMBAT_STANCE_TRIGGER_RADIUS_METERS,
+				combatStanceIdleTimeScale: NPC_CONFIG.COMBAT_STANCE_IDLE_TIME_SCALE,
+				combatStanceTransitionSeconds: NPC_CONFIG.COMBAT_STANCE_TRANSITION_SECONDS,
+			});
+
+			staticNpc.update(delta, farPlayer);
+			const baselineCalm = staticNpc.object3D.userData.combatStanceBlend === 0;
+			const baselineFacingUnchanged = staticNpc.object3D.rotation.y === 0;
+
+			// 5m away, inside the 10m trigger radius -> expected yaw = atan2(5, 0) = PI/2. The alert
+			// blend itself settles within COMBAT_STANCE_TRANSITION_SECONDS, but `turnTowardYaw`'s
+			// lerp-based turn converges on its own, slower, per-frame-fraction schedule (same
+			// TURN_RATE_RADIANS_PER_SECOND-as-a-lerp-fraction shape `checkNpcPatrol` already runs many
+			// frames to let converge) — 2.5s is comfortably past both.
+			const nearPlayer = { x: 5, z: 0 };
+			const blendSettleFrames = Math.ceil((NPC_CONFIG.COMBAT_STANCE_TRANSITION_SECONDS + 0.5) / delta);
+			const turnSettleFrames = Math.ceil(2.5 / delta);
+			for (let i = 0; i < turnSettleFrames; i++) staticNpc.update(delta, nearPlayer);
+			const alertBlendReachesOne = staticNpc.object3D.userData.combatStanceBlend === 1;
+			const turnedToFacePlayer = Math.abs(staticNpc.object3D.rotation.y - Math.PI / 2) < 0.05;
+
+			for (let i = 0; i < blendSettleFrames; i++) staticNpc.update(delta, farPlayer);
+			const alertBlendReturnsToZero = staticNpc.object3D.userData.combatStanceBlend === 0;
+			staticNpc.dispose();
+
+			// --- Patrolling NPC: alert freezes movement in place, calm resumes the same lap. ---
+			const patrolNpc = await createNPC({
+				assetLoader,
+				modelUrl: NPC_CONFIG.SPAWNS[0].modelUrl,
+				idleAnimationUrl: NPC_CONFIG.IDLE_ANIMATION_URL,
+				walkAnimationUrl: NPC_CONFIG.WALK_ANIMATION_URL,
+				worldX: 0,
+				worldZ: 0,
+				groundY: 0,
+				groundCollider: { getGroundHeight: () => 0 },
+				patrolWaypoints: [{ x: 0, z: 0 }, { x: 10, z: 10 }],
+				speedMps: NPC_CONFIG.PATROL_SPEED_MPS,
+				pauseSeconds: NPC_CONFIG.PATROL_PAUSE_SECONDS,
+				turnRateRadiansPerSecond: NPC_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+				combatStanceTriggerRadiusMeters: NPC_CONFIG.COMBAT_STANCE_TRIGGER_RADIUS_METERS,
+				combatStanceIdleTimeScale: NPC_CONFIG.COMBAT_STANCE_IDLE_TIME_SCALE,
+				combatStanceTransitionSeconds: NPC_CONFIG.COMBAT_STANCE_TRANSITION_SECONDS,
+			});
+
+			// Clear the initial pause cycle and walk partway toward (10, 10), calm the whole time.
+			const pauseFrames = Math.ceil((NPC_CONFIG.PATROL_PAUSE_SECONDS + 0.5) / delta);
+			for (let i = 0; i < pauseFrames; i++) patrolNpc.update(delta, farPlayer);
+			for (let i = 0; i < 60; i++) patrolNpc.update(delta, farPlayer); // ~1s of walking, still short of the 14.14m leg
+			const midWalkX = patrolNpc.object3D.position.x;
+			const midWalkZ = patrolNpc.object3D.position.z;
+			const wasMoving = midWalkX > 0 || midWalkZ > 0;
+
+			// Player closes to combat range -> position must freeze exactly where it was.
+			const nearPatrolPlayer = { x: midWalkX, z: midWalkZ };
+			for (let i = 0; i < 60; i++) patrolNpc.update(delta, nearPatrolPlayer);
+			const frozeInPlace = patrolNpc.object3D.position.x === midWalkX && patrolNpc.object3D.position.z === midWalkZ;
+			const alertWhilePatrolling = patrolNpc.object3D.userData.combatStanceBlend === 1;
+
+			// Player retreats -> the lap resumes from exactly where it paused, same target as before.
+			let resumeFrames = 0;
+			while (
+				resumeFrames < 5000 &&
+				!(patrolNpc.object3D.position.x === 10 && patrolNpc.object3D.position.z === 10)
+			) {
+				patrolNpc.update(delta, farPlayer);
+				resumeFrames++;
+			}
+			const resumedAndArrived = patrolNpc.object3D.position.x === 10 && patrolNpc.object3D.position.z === 10;
+			patrolNpc.dispose();
+
+			return {
+				baselineCalm, baselineFacingUnchanged, alertBlendReachesOne, turnedToFacePlayer,
+				alertBlendReturnsToZero, wasMoving, frozeInPlace, alertWhilePatrolling, resumedAndArrived,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'static NPC alert-blend eases to exactly 1 and back to 0, turns to face the player at the ' +
+			'expected yaw; a patrolling NPC freezes exactly in place while alert and resumes the same ' +
+			'lap (arriving at the original target) once the player retreats'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'NPC combat-stance (gameplay/npc.js, run 73)', ok, details };
 }
 
 /**
@@ -325,4 +444,5 @@ module.exports = {
 	checkWolfPackAlert,
 	checkNpcPatrol,
 	checkWolfPatrol,
+	checkNpcCombatStance,
 };

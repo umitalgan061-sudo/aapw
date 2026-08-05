@@ -16,7 +16,7 @@
  * - `game3dSmokeChecks.js` — non-movement per-entity gameplay: settlement collider, jump/gravity arc,
  *   interaction controller, interaction-prompt tap.
  * - `game3dSmokeChecksMovement.js` — ground-movement AI: wolf flee/pack-alert, NPC waypoint patrol,
- *   wolf waypoint patrol.
+ *   wolf waypoint patrol, NPC combat-stance.
  * - `game3dSmokeChecksDragonFlight.js` — dragon baseline flight/awareness: circling flight, notice
  *   trigger, reactive flight.
  * - `game3dSmokeChecksDragonDive.js` — dragon path deviations: dive/swoop, continuous chase,
@@ -77,6 +77,7 @@ async function main() {
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));
+		results.push(await movementChecks.checkNpcCombatStance(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonFlight(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonNotice(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonReactiveFlight(browser, baseUrl));

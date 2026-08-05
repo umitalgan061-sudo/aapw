@@ -8013,3 +8013,137 @@ section), `GOVERNANCE.md` (§18 priority list). No other file.
 **Geri alma planı:** `git revert` the single commit. Removes both new files, reverts
 `service-worker.js`'s precache entry and version bump, and the roadmap/priority-list prose additions.
 Nothing else references any of it.
+
+## ADR-0096: FAZ 11 "asker" archetype — real combat-stance reaction for every guard NPC, no new asset needed
+
+**Date:** 2026-08-05 (run 73)
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely additive and fully opt-in via config — every new
+`createNPC` param (`combatStanceTriggerRadiusMeters` etc.) defaults to disabled unless
+`spawnConfiguredNPCs` passes a value, so any caller that doesn't pass one (none exist outside this
+project today, but any future direct `createNPC` call) behaves exactly as before. The only behavior
+change to an *existing* code path is `game3d.js`'s `playerPos` read moving 3 lines earlier in the same
+frame (still computed from the same already-updated `state.player.object3D.position`, no new
+computation) so it can feed the NPC loop — confirmed by the byte-identical smoke-suite pass count on
+every *other* check. Fully reversible: `git revert` removes the new config fields, the new
+`combatStanceEnabled` branch, the `turnTowardYaw`/`easeBlendToward` helpers, and the new smoke check;
+nothing else depends on any of it.
+
+**Context:** `creatureSpeciesConfig.js`'s (ADR-0095) `asker` (soldier) entry was recorded
+`status: 'partial-existing'` with a narrow, explicit gap: "`NPC_CONFIG.SPAWNS`'daki tüm 'Muhafız'
+NPC'leri davranışsal olarak zaten bu arketipin devriye kısmını karşılıyor; eksik olan tek şey
+`combat-stance` tepkisi." Per GOVERNANCE.md §18's priority order, items 1-11 (terrain/roads/ground
+color/castle textures/syntax/bugs/perf/memory/tech debt/smoke test/world coverage) were all confirmed
+healthy at the start of this run (22/22 — now 23/23 — smoke suite baseline, 0 tech debt, all 7
+standing guards clean, `git fetch origin main` confirmed no concurrent-session conflict per §8.14).
+Item 12's remaining FAZ 6/7 work and item 13's other FAZ 11 species are all blocked on manual asset
+uploads the owner hasn't made yet (confirmed via a full read-only audit of `assets/models/` against
+`src/3d/**/*.js` imports — 5 orphaned `.glb` character files exist, but none is a rigged
+animal/human archetype this task could safely map to without guessing, and the "asker" gap needed no
+new asset at all). This is exactly the kind of well-scoped, model-already-exists increment
+GOVERNANCE.md's own precedent (dragon wing-flap telegraph, ADR-0089) argues for over inventing a
+speculative new system.
+
+**Değişiklik Etki Analizi (GOVERNANCE.md §8.4):** Not a terrain/height/noise/world-scale change — the
+Arazi Değişikliği Güvenlik Kontrolü doesn't apply. Affected systems: `gameplay/npc.js` (`createNPC`'s
+`update()` signature gains an optional `playerPosition` param; two new local helpers,
+`easeBlendToward`/`turnTowardYaw`; `spawnConfiguredNPCs` wires 3 new config fields through),
+`gameplay/gameplayConfig.js` (`NPC_CONFIG` gains 3 new fields, no existing field changed), `game3d.js`
+(the `playerPos` read moved 3 lines earlier, now also feeds the NPC loop),
+`gameplay/creatureSpeciesConfig.js` (the `asker` entry's `existingOverlapNote` updated to record the
+gap as closed — no schema change), a new smoke check
+(`scripts/game3dSmokeChecksMovement.js#checkNpcCombatStance`). No terrain/road/settlement/dragon file
+touched. **Gelecek Faz Etkisi:** none of FAZ 6-10's still-blocked items depend on this — `asker`'s own
+FAZ 11 entry is now the only one of the 15 species with zero remaining gap; `erkek-insan`/`kadin-insan`/
+`koylu` (also `partial-existing`, sharing the same NPC pipeline) could pick up the same
+`combatStanceTriggerRadiusMeters` opt-in cheaply in a future sub-task if a design reason to give them
+one ever comes up, but none was invented here (koylu/erkek-insan/kadin-insan's own registry notes
+don't call for a combat-stance reaction, only asker's does).
+
+**Decision:**
+1. **Give every configured guard NPC a real, testable combat-stance reaction** — the player entering
+   `COMBAT_STANCE_TRIGGER_RADIUS_METERS` (10m, config default) makes the NPC turn to face them and
+   hold its ground (freezing any in-progress patrol exactly where it is, resuming the same lap once
+   the player leaves) instead of continuing to idle/patrol obliviously.
+2. **Reuse the existing idle clip at an eased, faster time-scale as the "alert" tension cue, rather
+   than guessing at a dedicated combat-stance animation clip that doesn't exist** — the same trick
+   `gameplay/dragonController.js`'s wing-flap telegraph already established (ADR-0089:
+   `wingFlapTimeScale = 1 + (multiplier - 1) * agitationBlend`), applied here to a guard's idle
+   instead of a dragon's wingbeat, at the same default multiplier (1.5) for consistency between this
+   codebase's two no-dedicated-clip tension cues. This is GOVERNANCE.md's "Bilmeme kuralı" in
+   practice: no `combat-stance.fbx`/named clip is assumed to exist on the shared Mixamo skeleton, so
+   none is referenced.
+3. **Factor the pre-existing inline yaw-turn expression into a shared `turnTowardYaw` helper** rather
+   than writing the combat-stance facing logic as a third copy of the same wraparound-lerp math — a
+   real DRY improvement enabled by, not separate from, this sub-task's own need for the same turn
+   behavior in a second call site.
+4. **Duplicate (not import) a local `easeBlendToward`** in `npc.js` rather than importing
+   `dragonFlightMath.js`'s copy — same "why duplicate" reasoning DECISIONS.md ADR-0026 already
+   established for this project (that module's own name/doc frame it as dragon-flight-specific even
+   though the arithmetic is generic domain-free math); keeps `npc.js` self-contained instead of
+   reaching into a sibling gameplay system's file for nine lines of math.
+5. **Gate on a plain per-frame distance test (`isAlert`), not the eased blend, for the
+   movement-freeze/facing decision** — the blend only smooths the *time-scale cue*; whether the NPC
+   holds still or resumes walking snaps on the same frame the player crosses the radius, matching
+   `dragonController.js`'s own precedent of keeping a boolean proximity gate (`isAlarmed`) separate
+   from its smoothed cosmetic blend.
+
+**Alternatives considered:**
+- *Wait for a real "combat stance" animation clip to be uploaded, same manual-asset-download pattern
+  every prior FAZ 6/7 addition followed.* Rejected for this specific gap: `creatureSpeciesConfig.js`'s
+  own note already identifies the missing piece as behavioral, not asset-shaped — the model is already
+  loaded and animated (idle/walk), and a distinct facing + tempo change is a real, visually
+  distinguishable "notices you" cue without needing a new clip. A dedicated combat-stance clip remains
+  a legitimate future upgrade if one is ever uploaded (the `playAction(idleAction)` call site would
+  simply become `playAction(combatStanceAction)`), not blocked by this run's choice.
+- *Give combat-stance a distinct `create<Species>()`/new file, matching `creatureSpeciesConfig.js`'s
+  own precedent against a shared generic engine.* Rejected: that precedent (ADR-0095) is specifically
+  about *not* building a generic engine ahead of real models for species with zero existing code. Every
+  current NPC spawn already runs through `gameplay/npc.js`'s `createNPC` — extending that one real,
+  already-tested function with an opt-in behavior is the same "extend what's proven" shape
+  `gameplay/dragonController.js`'s own incremental history (ADR-0077/0082/0085/0089/0091/0093) used for
+  every one of its reactions, not a new abstraction.
+- *Base the facing/freeze decision on the eased blend crossing a threshold (e.g. `alertBlend >= 0.5`)
+  instead of the raw distance test.* Rejected: an extra tunable threshold with no design reason behind
+  its exact value, and it would make the freeze/resume boundary depend on how long the player had
+  already been inside the radius rather than simply whether they currently are — a real-instant reflex
+  reads more like "the guard reacts" than a gradually-arming one.
+
+**Consequence:**
+- `scripts/game3dSmokeChecksMovement.js#checkNpcCombatStance` (new, ~95 lines): drives two real
+  `createNPC` controllers (static + patrolling) through a real downloaded Mixamo FBX — baseline calm
+  (blend 0, facing unchanged), alert-blend eases to exactly 1 and the NPC turns to the exact expected
+  yaw, alert-blend eases back to exactly 0 on retreat, a patrolling NPC freezes in place bit-exactly
+  while alert and resumes its original lap (arriving at the untouched target) once the player leaves.
+  Full smoke suite: **22/22 before -> 23/23 after**, zero regressions on any pre-existing check.
+- `checkSmokeCheckRegistry.js`: **22 smoke checks across 6 modules** (was 21), 56 JS files all within
+  the 600-line cap. `gameplayConfig.js` is now **597/600** (was 579) — a fresh WARN, the file's own
+  next real forcing reason to split (no split performed now, per Altın Kural 6 — a WARN is not itself
+  a forcing reason).
+- All other 6 standing guards re-run clean and unaffected:
+  `checkCreatureSpeciesConfig.js` (15 entries still valid — only `asker`'s prose note changed, no
+  schema field), `checkAssetsManifest.js` (41 entries, unchanged), `checkDialogueChoicesShape.js`
+  (13/14, unchanged), `checkPwaInstallability.js` (unchanged), `checkServiceWorkerCache.js` (47 JS
+  files — no new `src/3d` file added, only existing files edited, so no precache-list change needed),
+  `terrainSeatSafetyCheck.js`/`roadNetworkSafetyCheck.js` (14/14 seats, 13/13 edges, unchanged — no
+  terrain/road file touched).
+- **Görsel kanıt (§8.5):** not applicable in the traditional headless-screenshot sense — the change is
+  a proximity-triggered posture/turn/tempo reaction, and the smoke check's frame-by-frame position/
+  rotation/blend assertions against a real loaded model are the correctness proof, the same reasoning
+  every dragon-reaction ADR (ADR-0077/0082/0089/0091/0093) already used for its own non-visual-diff
+  behavior changes.
+- **Performans (§4):** `perf_log.csv`'s `run73` row bit-identical to `run72b` on every GPU-submission
+  metric (46 draw calls, 393,231 triangles, 44 geometries, 17 textures) — expected, no new geometry/
+  texture/draw call, purely behavior code on already-loaded models.
+- Tech debt counter: **0** (unchanged). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+- `QUESTIONS_FOR_OWNER.md` entry recorded for the 3 new first-pass tuning constants (trigger radius,
+  time-scale multiplier, transition seconds) — none of them derived from an existing project value, so
+  flagged the same way every prior first-pass gameplay constant (run 55/56/66) already was.
+
+**Geri alma planı:** `git revert` the single commit. Removes the 3 new `NPC_CONFIG` fields, the
+`combatStanceEnabled` branch + `easeBlendToward`/`turnTowardYaw` helpers in `npc.js`, the 3-line
+`playerPos`-read reorder in `game3d.js`, the `asker` prose update in `creatureSpeciesConfig.js`, the
+new smoke check, and this ADR/`QUESTIONS_FOR_OWNER.md` entry. Nothing else references any of it —
+every other NPC/animal/dragon system is untouched.

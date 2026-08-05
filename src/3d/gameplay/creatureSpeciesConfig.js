@@ -141,8 +141,12 @@ export const CREATURE_SPECIES = Object.freeze({
 		behaviorTags: Object.freeze(['patrol', 'combat-stance']),
 		status: 'partial-existing',
 		existingOverlapNote:
-			'`NPC_CONFIG.SPAWNS`\'daki tüm "Muhafız" NPC\'leri davranışsal olarak zaten bu arketipin ' +
-			'devriye kısmını karşılıyor; eksik olan tek şey `combat-stance` tepkisi.',
+			'Run 73 (DECISIONS.md ADR-0096): `combat-stance` tepkisi artık `NPC_CONFIG.SPAWNS`\'daki tüm ' +
+			'"Muhafız" NPC\'lerinde gerçek — oyuncu `COMBAT_STANCE_TRIGGER_RADIUS_METERS` (10m) içine ' +
+			'girince NPC oyuncuya döner, devriyesini/duruşunu dondurur, idle klibi ' +
+			'`COMBAT_STANCE_IDLE_TIME_SCALE` (1.5x) hızında oynar (özel bir klip yok, mevcut klibin hızı ' +
+			'gerilim ipucu olarak kullanılıyor — `dragonController.js`\'nin kanat-çırpma telgrafı, ' +
+			'ADR-0089, ile aynı yöntem). Bu arketip artık tamamen kapsanıyor; kalan hiçbir şey yok.',
 	}),
 	kus: Object.freeze({
 		id: 'kus',
