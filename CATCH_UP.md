@@ -6,6 +6,25 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 68 itibarıyla (2026-08-05)
+
+Run 59'dan bu yana en büyük değişiklik ejderha: artık sadece kalesinin üstünde daire çizip seni fark
+etmekle kalmıyor, gerçekten avlıyor. Yaklaştığında önce daha hızlı ve daha keskin dönmeye başlıyor,
+sonra üstüne doğru dalış yapıyor, ve en sonunda kalesini tamamen terk edip peşine düşüyor — koşarak
+kaçamazsın, çünkü senden hızlı; ancak 18 saniye dayanırsan vazgeçip evine dönüyor. Henüz sana zarar
+vermiyor: oyunda hâlâ can/hasar diye bir şey yok ve bunun eklenip eklenmeyeceği sana sorulmuş bir
+soru (bkz. `QUESTIONS_FOR_OWNER.md`) — yani ejderha korkutuyor ama öldürmüyor. Haritada gerçek,
+dokulu kale sayısı 7'den 8'e çıktı (İkizler'e, ahşap köprülü kapı kulesi olan bir kale kondu). Oyun
+artık internetsiz de düzgün açılıyor: daha önce çevrimdışı önbelleğe alınan dosya listesi eksikti,
+tamamlandı, ve telefonun oyuna ne kadar yer ayırdığını F2 panelinden görebiliyorsun. Telefonda
+NPC'lerle konuşmak için artık klavye gerekmiyor, ekrandaki "konuş" uyarısına dokunman yeterli.
+Perde arkasında ise otomatik test sayısı 15'ten 18'e çıktı ve testlerin kendisi de artık denetleniyor
+— yani ileride biri yanlışlıkla bir testi silerse fark edilecek, sessizce geçmeyecek. Son olarak bir
+güvenlik notu: repoya yanlışlıkla girmiş bir API anahtarı bulundu ve dosyalardan temizlendi, ama o
+anahtarı NVIDIA tarafında iptal etmen gerekiyor — bunu senden başkası yapamaz.
+
+---
+
 ## Run 59 itibarıyla (2026-07-31)
 
 Bu, bu dosyanın ilk girdisi — proje aslında 58 çalıştırma boyunca büyümüş, ama kimse ara sıra

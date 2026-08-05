@@ -3,9 +3,13 @@
  * (run 64, DECISIONS.md ADR-0082).
  *
  * Split into its own file rather than added to `game3dSmokeChecksMovement.js` (already 614/600
- * lines going into this run — see that file's own header for the original split precedent this
- * follows) so this run doesn't grow an already-over-budget file further. `smokeTestGame3D.js` calls
- * this file's export alongside every other check module's.
+ * lines going into run 64 — see that file's own header for the original split precedent this
+ * follows) so that run didn't grow an already-over-budget file further. Run 68 (DECISIONS.md
+ * ADR-0087) then cleared that violation properly, moving the three baseline dragon flight/awareness
+ * checks into `game3dSmokeChecksDragonFlight.js`; this file's scope is unchanged and is now the
+ * *path-deviation* half of dragon coverage (dive/swoop ADR-0082, continuous chase ADR-0085) against
+ * that sibling's nominal-flight half. `smokeTestGame3D.js` calls this file's exports alongside every
+ * other check module's.
  * @module scripts/game3dSmokeChecksDragonDive
  */
 
@@ -19,7 +23,7 @@ const NAV_TIMEOUT_MS = 15000;
  * the first real path deviation layered on top of run 58's speed/bank-only reaction (ADR-0077).
  * Drives a real `createDragon` controller with `speedMps: 0` (parks the dragon at a fixed, known
  * position — same trick `checkDragonNotice`/`checkDragonReactiveFlight` in
- * `game3dSmokeChecksMovement.js` already use) and asserts:
+ * `game3dSmokeChecksDragonFlight.js` already use) and asserts:
  * - while the player is outside `alarmRadiusMeters`, the dragon stays exactly on its circle (no
  *   position blend at all, `diveBlend` never leaves 0);
  * - sustained proximity inside `alarmRadiusMeters` eases the dragon off the circle, pulled partway
@@ -170,7 +174,7 @@ async function checkDragonDive(browser, baseUrl) {
  * than pulling a bounded fraction off a fixed one.
  *
  * Every sub-scene parks the dragon's angle with `speedMps: 0` (same trick the dive check above and
- * `game3dSmokeChecksMovement.js`'s dragon checks already use) and `startAngleRadians: 0`, which puts
+ * `game3dSmokeChecksDragonFlight.js`'s dragon checks already use) and `startAngleRadians: 0`, which puts
  * the dragon at exactly `(centerX, centerY, centerZ + radius)`. That makes the two otherwise-internal
  * values directly readable off `object3D.position` without exposing them: with the radius held
  * constant, `centerZ === position.z - radius` reads the traveling center; with the center held still

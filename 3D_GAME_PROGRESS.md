@@ -6875,3 +6875,217 @@ concurrent session's work, together or separately.
 one-line record). Attempted `git tag stable-2026-08-05-0606 && git push origin
 stable-2026-08-05-0606` — the tag was created locally but the push failed with the same `HTTP 403`
 rejection documented since run 58; no new evidence this run that it's fixed.
+
+---
+
+## This Run (2026-08-05, run 68)
+
+**Fresh Session Snapshot at container boot:** `GOVERNANCE.md` read in full (already complete, no
+changes needed). `3D_GAME_PROGRESS.md`'s run 66-67 entries, `DECISIONS.md`'s last 3 ADRs (0084-0086),
+and `QUESTIONS_FOR_OWNER.md` in full (5 entries, of which 4 are open and owner-only: leaked NVIDIA
+key rotation, the two run-56 road/slope tuning defaults now effectively settled-until-playtest, the
+health/damage-system question that blocks dragon attack work, and dragon chase feel) all read for
+context. **No detached HEAD this run** — unlike runs 18/67, `git status` came up on `main`, clean
+tree, `HEAD` == `origin/main` == `392bee2`, so the usual `git checkout -B main origin/main` recovery
+was not needed. `git fetch origin main` at session start confirmed `origin/main` had not moved past
+run 67's final commit.
+
+**Baseline regression guard (before any change):** full `node --check` sweep over `src/`+`scripts/`
+excluding `src/3d/vendor/` — **48 files, all clean**. `node scripts/checkAssetsManifest.js` — OK (41
+entries). `node scripts/checkServiceWorkerCache.js` — OK. `node scripts/terrainSeatSafetyCheck.js` —
+PASS 14/14 seats. `node scripts/roadNetworkSafetyCheck.js` — PASS (20.23km, 13 edges). Full
+`node scripts/smokeTestGame3D.js` — **18/18 PASS**, matching run 67's recorded state, with the whole
+stdout captured to a file so it could be diffed against the post-change run rather than merely
+compared by count.
+
+*Environment note for future runs:* the very first smoke invocation of the session failed with
+`page.goto: Timeout 15000ms exceeded` on `check2DShell` (`index.html`), then passed on every
+subsequent run. `index.html` pulls external resources this sandbox cannot reach, and they occasionally
+hang to the navigation timeout instead of failing fast. This is **environment flakiness, not a
+regression** — the same check's own non-blocking error counter fluctuates 10-11 between runs for the
+same reason. A one-off `check2DShell` timeout should be re-run once before it is treated as real.
+
+**Priority re-scan (GOVERNANCE.md §18):**
+- Items 1-3 (terrain macro-relief, road network, ground color): DONE (ADR-0075/0076), and both
+  standing world guards re-verified green above — no evidence to reopen.
+- Item 4 / 1.7 (real castle models): 8/14. Run 67 established with a repo-wide check that the
+  remaining 6 seats are genuinely blocked on a manual human asset download; per that finding this run
+  did **not** re-scan for a hidden asset, as instructed.
+- Item 5 (syntax errors): clean — 48/48 `node --check`.
+- Item 6 (blocking bugs): none — 18/18 smoke, zero console/page errors on a real boot.
+- Item 7 (performance): within budget, unchanged (see the perf table below).
+- Item 8 (memory leaks): no new listeners/timers/geometry this run (see checklist below).
+- **Item 9 (teknik borç): a live, unambiguous violation was waiting — picked as this run's work.**
+  `scripts/game3dSmokeChecksMovement.js` was **614 lines, over GOVERNANCE.md Altın Kural 7's 600-line
+  cap**. Not a projection: it had been over the cap since run 64, which *noticed it, wrote it into two
+  file headers, and routed around it* rather than fixing it. Highest-value clearly-actionable item
+  available.
+- Items 10-13: not reached, deliberately (see Session Quality Gate).
+
+**Sub-task 1 — split the 614-line smoke-check file and make the cap machine-enforced (DECISIONS.md
+ADR-0087).** Treated as a GOVERNANCE.md §8.2 **recurrence** (occurrence 1: `game3dSmokeChecks.js` at
+596/600 in run 40; occurrence 2: this file at 614/600 in run 64, worked around; occurrence 3: run 67
+hand-flagging `gameplayConfig.js` at 573/600), so **Root Cause / Prevention / Regression Test were
+written before the code**, in the ADR. Root cause: the 600-line cap is prose in `GOVERNANCE.md` whose
+only enforcement is somebody choosing to run `wc -l` and choosing to act — unlike every other
+invariant this project actually holds (asset manifest, service-worker cache, terrain seats, road
+grades), each of which has a script that exits non-zero. Run 64 proves that even *noticing* doesn't
+reliably produce a fix while the cheaper option (start another file) exists.
+
+What shipped:
+1. **Thematic split, not a line-count cut.** The three dragon checks moved to a new
+   `scripts/game3dSmokeChecksDragonFlight.js` (329 lines); the three ground-movement checks stayed in
+   `game3dSmokeChecksMovement.js` (328 lines). The dragon checks had only ever landed there because
+   it was the newest check file in runs 53/54/58 — the split therefore also restores the file to the
+   waypoint-patrol/flee scope its own header always claimed. Follows run 38/40's established
+   thin-runner + focused-module precedent (ADR-0028) rather than inventing a structure. Rejected
+   alternative: folding them into `game3dSmokeChecksDragonDive.js` would have hit ~612 lines, i.e.
+   created a fresh violation while fixing the old one.
+2. **Every moved function moved verbatim** — zero edits to any assertion, tolerance, scenario,
+   timeout, or reported check `name` in the same commit as the move.
+3. **New standing guard `scripts/checkSmokeCheckRegistry.js`** (197 lines) — the Regression Test half
+   of the RCA. Pure static/`require` inspection, no Playwright, so it runs anywhere Node does. It
+   enforces the 600-line cap across `src/`+`scripts/` (hard fail >600, non-fatal WARN from 540 so a
+   run gets advance notice), **and** cross-checks the smoke registry in both directions: every
+   exported `checkXxx` must be invoked exactly once by `smokeTestGame3D.js`, every invocation must
+   resolve to a real export, and the raw `results.push(` count must equal what the parser understood
+   (so the guard fails loudly rather than under-reporting if it ever stops understanding the runner).
+4. **`gameplayConfig.js` (573/600) deliberately NOT split** — see the Verification section for the
+   reasoning and the condition for revisiting.
+
+**Verification — the refactor's central claim, proven three independent ways.** "18/18 still passes"
+is explicitly *not* sufficient evidence here: a check dropped from the runner's registry also drops
+its own line from the output, so the suite would keep printing an all-green run while covering less.
+So:
+- **(a) Byte-identity of the moved code.** `sed -n '317,605p'` of the pre-split file (recovered via
+  `git show HEAD:`) `diff`s **byte-identical** against the new file's body (289 lines, zero
+  differences); `sed -n '16,315p'` `diff`s **byte-identical** against the retained file's body (300
+  lines, zero differences). The functions were not retyped — they were extracted with `sed`, so
+  identity is structural rather than a matter of care.
+- **(b) Check names + registry, compared directly.** The 18 reported check-`name` string literals
+  across all modules are identical before and after. The runner's 18 invocations are identical in
+  both **name and order**, with exactly 3 lines differing anywhere in the registry — the module
+  prefix of the 3 moved checks (`movementChecks.` -> `dragonFlightChecks.`). Both counts were derived
+  from the file text independently of running the suite.
+- **(c) Full suite stdout diffed before vs after.** The entire captured output differs in exactly one
+  byte: `check2DShell`'s non-blocking external-fetch error counter (10 vs 11). That check lives in
+  `game3dSmokeChecksScene.js`, which `git diff --name-only` confirms this run never touched, and its
+  own header documents the counter as sandbox-network noise. With that single number normalized, the
+  before and after outputs are **identical** — same 18 checks, same names, same details, same order.
+
+**Verification — the new guard is not a no-op.** Negative-controlled three ways on a scratch copy,
+restoring and re-verifying green after each: (1) deleting one check from the runner → correctly FAILs
+with `exports check 'checkDragonNotice' but smokeTestGame3D.js never invokes it` — i.e. it catches
+exactly the silent-drop hazard this refactor risked; (2) padding a file to 628 lines → correctly FAILs
+on the cap, meaning **this guard would have caught the 614-line violation on day one of run 64**; (3)
+rewriting a call into a shape the parser can't read → correctly FAILs on parse-completeness. That
+third control was added during the AI Self-Review 2nd pass (§8.3), which found the gap: without it, a
+check invoked in an unrecognized shape would have been invisible to both cross-checks and would have
+silently lowered the count without failing anything.
+
+**Verification — remaining DoD items.** `node --check` clean across all 48 files after the change.
+Smoke suite **18/18 PASS before → 18/18 PASS after**. All four standing guards green:
+`checkAssetsManifest` OK (41 entries), `checkServiceWorkerCache` OK, `terrainSeatSafetyCheck` PASS
+14/14, `roadNetworkSafetyCheck` PASS (20.23km), plus the new `checkSmokeCheckRegistry` OK (18 checks /
+5 modules / 48 files within cap, 1 WARN). **Görsel kanıt (§8.5):** for a dev-tooling-only refactor the
+primary visual-proof obligation is the before/after check-name+count identity in (a)-(c) above —
+stated explicitly here rather than silently skipped, per the DoD. Confirmatory real-boot evidence was
+captured anyway: headless Chromium booted the real `game3d.html` and screenshotted **2 camera angles**
+(default player camera — terrain, player character, castle silhouette, stars, and the Turkish "Ejderha
+Görüldü!" toast all rendering; then F4 debug free-cam flown to a different pose) with **0 console/page
+errors across the entire session**. Screenshots not committed (established convention).
+`node scripts/collectPerfSnapshot.js run68` — real sampled line appended to `perf_log.csv`.
+
+**Decision recorded: `gameplayConfig.js` (573/600) left unsplit this run.** Run 67 flagged it as
+"should be watched"; this run judged a split not yet warranted and says so explicitly rather than
+leaving it ambiguous. It is under the cap, so it is not a violation, and Altın Kural 6 permits
+refactors only for bug/perf/readability/architecture reasons. Its blast radius is also materially
+wider than this run's test-file split: its five `Object.freeze` blocks are imported **33 times across
+14 files** (`game3d.js`, `sceneManager.js`, `config.js`, five `gameplay/` modules, and four
+smoke-check modules that import `ANIMAL_CONFIG`/`NPC_CONFIG`/`DRAGON_CONFIG` *inside* `page.evaluate`),
+and new module paths would additionally need adding to `service-worker.js`'s `GAME3D_SHELL_FILES`
+precache list — a much bigger change than the one this run just spent its verification budget proving
+safe, and doing both at once would blur the evidence for each. Decisive factor: **it is now
+machine-watched.** The new guard WARNs on it today and hard-fails at 601, so the run that genuinely
+needs the room will be told — which is precisely the mechanism whose absence let a 614-line file sit
+untouched for four runs. **Condition for revisiting:** the first run whose own work would push it past
+600 splits it then, by subsystem, as its own scoped sub-task.
+
+**Session Quality Gate (§8.6):** confidence **5/5**. A real, standing, four-runs-old governance
+violation was closed at its source rather than routed around for a fifth time; the highest risk in
+the change (silently dropping a check from the project's only regression guard) was addressed with
+three independent proofs rather than trusting a green suite; the self-review pass found and closed a
+real gap in this run's own new guard; and the root cause — an unenforceable prose rule — was fixed
+permanently, not just its latest symptom. "6 ay sonra hâlâ net mi" check: yes — ADR-0087 records the
+three-occurrence history, why the cut fell where it did, the arithmetic that killed the obvious
+alternative, and an explicit named condition for splitting `gameplayConfig.js`. **Stopping after 1
+substantive sub-task**, per this project's established quality-over-quantity norm: the remaining
+priority items are either confirmed blocked (item 4's 6 castles, FAZ 6 animals — manual download;
+dragon attack — the open health/damage owner question), or would mean starting a fresh feature after
+a refactor whose whole value rests on the verification above being unmuddied.
+
+**Memory-leak checklist (§2.8):** no new listeners, timers, DOM nodes, geometries, or materials — this
+run added **zero `src/` code**. The two new `scripts/` files are dev-only Node tooling never loaded by
+a browser; `checkSmokeCheckRegistry.js` allocates nothing beyond file reads and `require`s and exits.
+The moved check functions keep their existing `try { ... } finally { await page.close(); }` structure
+verbatim, so every Playwright page they open is still closed on both the success and failure paths.
+Confirmed empirically: `perf_log.csv`'s `run68` heap sample (326MB) is identical to `run67`'s.
+
+**Files changed this run:** `scripts/smokeTestGame3D.js` (require + 3 call sites re-routed, header
+rewritten to list all five check modules and the split history),
+`scripts/game3dSmokeChecksMovement.js` (614 -> 328 lines, header rewritten),
+`scripts/game3dSmokeChecksDragonFlight.js` (**new**, 329 lines),
+`scripts/game3dSmokeChecksDragonDive.js` (3 stale cross-references to the moved checks' old home
+corrected — doc comments only), `scripts/checkSmokeCheckRegistry.js` (**new**, 197 lines),
+`DECISIONS.md` (ADR-0087), `perf_log.csv` (+1 row), `CATCH_UP.md`, `STABLE_TAGS.md`,
+`3D_GAME_PROGRESS.md` (this file). **No `src/` file, no asset, no `service-worker.js` entry, no
+terrain/height/noise/world-scale code touched.** Every JS file in the repo is now under the 600-line
+cap, machine-verified.
+
+**World Evolution Report (delta vs. run 67):**
+
+| Metric | Run 67 | Run 68 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged (re-verified PASS) |
+| Kingdom seats w/ real castle models | 8 | 8 | unchanged (remaining 6 confirmed blocked) |
+| Dragons (spawned) | 1 (notice + reactive + dive + chase) | 1 | unchanged |
+| NPCs with dialogue-choice branching | 13/14 | 13/14 | unchanged |
+| Smoke suite | 18/18 | 18/18 | unchanged **by design — proven, not assumed** |
+| Smoke check modules | 4 | **5** | +1 (thematic split, ADR-0087) |
+| Standing static guards | 3 | **4** | +1 (`checkSmokeCheckRegistry.js`) |
+| Files over the 600-line cap | **1 (614 lines)** | **0** | **-1 (violation cleared)** |
+| Largest JS file | 614 (`...ChecksMovement.js`) | 573 (`gameplayConfig.js`) | -41 lines |
+| ADRs | 86 | **87** | +1 (ADR-0087) |
+| perf_log.csv rows | 7 | 8 | +1 |
+| Manifest entries | 41 | 41 | unchanged (no new assets) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (deliberate constant) |
+| Tech debt count | 1 | **0** | **-1** |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no runtime code touched) |
+
+**Oyuncu fark eder mi:** **hayır — ve bu bilinçli.** Bu çalıştırma tek satır oyun kodu değiştirmedi;
+`src/` hiç ellenmedi ve perf ölçümü run 67 ile bit-bazında aynı çıktı (46 draw call, 393.231 üçgen),
+ki bu zaten beklenen sonuç *ve* hiçbir şeyin farklı yüklenmediğinin bağımsız bir kanıtı. Oyuncunun
+gördüğü dünya tamamen aynı. Kazanç dolaylı ama gerçek: oyunun tek otomatik regresyon koruması olan
+duman testi artık iki dengeli, sınır altı dosyaya bölündü (bir sonraki ejderha kontrolü ve bir sonraki
+devriye kontrolü artık nereye yazılacağı belli), ve daha önemlisi 600-satır kuralı ile testlerin
+kayıtlı olup olmadığı artık makine tarafından denetleniyor — yani gelecekteki bir çalıştırma yanlışlıkla
+bir kontrolü silerse, test yeşil görünmeye devam edemeyecek. Yani oyuncu bugün bir şey fark etmez, ama
+ileride sessizce bozulan bir özelliği fark etme ihtimali düştü.
+
+**Next step for the next run:** the cleanest genuinely-unblocked options, in the order this run would
+rank them: (1) **smoke coverage gaps** — the suite now has room on both dragon and ground-movement
+sides, and there is still no persisted check for `world/roads.js` geometry, `world/rivers.js`, or the
+`dialogueChoices.js` data shape; (2) **FAZ 7 dragon flight/behavior polish that deals no damage** —
+still open and explicitly *not* blocked (only the *attack* is, on the health/damage question); (3)
+FAZ 5's 14th NPC dialogue-choice entry (13/14). Confirmed still blocked, do not start: the remaining 6
+castle seats and all FAZ 6 animals (manual human asset download), and any dragon attack/fire-breath
+work (owner decision on whether a health/damage system should exist at all). Also worth knowing: the
+new guard currently WARNs that `gameplayConfig.js` is 573/600 — the next run that needs to add a
+config block there should split it by subsystem first, as its own sub-task, per ADR-0087's stated
+condition.
+
+**Addendum:** `git commit` and `git push origin main` outcomes are recorded in `STABLE_TAGS.md`.
+Attempted `git tag stable-2026-08-05-<HHmm> && git push origin <tag>` — as in every run since 58, the
+tag was created locally but its push was rejected with **HTTP 403**. No new evidence this run that
+it's fixed; it remains a remote-permissions issue outside this container's control, and it does not
+block the `main` push.

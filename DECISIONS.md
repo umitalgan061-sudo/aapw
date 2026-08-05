@@ -6785,3 +6785,174 @@ stale doc-comment is fixed. No behavior change for any of the other 13 already-p
   reusable-but-mislabeled asset, the same `checkServiceWorkerCache.js`/`checkAssetsManifest.js` pair
   will catch a missing manifest/cache entry automatically, same as every asset addition since
   ADR-0083.
+
+---
+
+## ADR-0087: Split the 614-line `game3dSmokeChecksMovement.js` + make the 600-line cap and the smoke registry machine-checked
+
+**Status:** Accepted (run 68).
+
+**Risk Seviyesi:** MEDIUM. Justification: the change itself is a pure code *move* with zero
+production-code impact (`src/` is completely untouched this run — the perf snapshot is bit-identical
+to run 67's, see below), which on its own would be LOW. It is rated MEDIUM because of *what* it
+refactors: `smokeTestGame3D.js` and its check modules are this project's **only** automated
+regression guard, so a botched split — one dropped check — would silently reduce coverage while the
+suite still printed a green run, and every future run would trust that green. That specific failure
+mode is what the verification below (and the new permanent guard) is built to make impossible.
+Fully reversible: `git revert` restores the single 614-line file, since nothing outside the four
+`scripts/` files changed.
+
+**Context:** `scripts/game3dSmokeChecksMovement.js` was **614 lines — a live, standing violation of
+GOVERNANCE.md Altın Kural 7** ("Dosya 600 satırı geçmezse iyi, geçerse böl"), not a projection.
+
+This is a **recurrence**, so GOVERNANCE.md §8.2 applies and the Root Cause / Prevention / Regression
+Test analysis is written below *before* the fix rather than after:
+
+- **Occurrence 1 (run 40):** `game3dSmokeChecks.js` reached 596/600 and was split into
+  `game3dSmokeChecksScene.js` + `game3dSmokeChecksMovement.js`.
+- **Occurrence 2 (run 64):** `game3dSmokeChecksMovement.js` reached 614/600. Run 64 *noticed this and
+  wrote it down in two separate file headers* ("already at 614/600 going into this run") — then
+  routed around it, putting its new check in a fourth file rather than fixing the file that was
+  already over. The violation survived runs 64, 65, 66 and 67 untouched.
+- **Occurrence 3 (run 67):** flagged `gameplayConfig.js` at 573/600 as "should be watched" — again by
+  hand, again with nothing to make the watching happen.
+
+**Root cause:** the 600-line cap is prose in `GOVERNANCE.md`. Its only enforcement mechanism is a
+human or agent choosing to run `wc -l` over the tree and choosing to act on the result. Every other
+invariant this project actually holds — asset-manifest integrity, service-worker cache completeness,
+terrain seat safety, road connectivity — is enforced by a script that exits non-zero. The cap was
+not, so it was enforced only when somebody happened to look, and run 64 proves that even *looking*
+does not reliably produce a fix when the cheaper option (start another file) is available.
+
+**Prevention + Regression Test:** make the cap a machine check that fails, alongside a second guard
+for the risk this very refactor introduces (see Decision point 3).
+
+**Decision:**
+
+1. **Split by theme, not by line count.** The three dragon checks (`checkDragonFlight`,
+   `checkDragonNotice`, `checkDragonReactiveFlight`) moved into a new
+   `scripts/game3dSmokeChecksDragonFlight.js`; the three ground-movement checks
+   (`checkWolfPackAlert`, `checkNpcPatrol`, `checkWolfPatrol`) stayed. This is not an arbitrary cut
+   to get under 600: the dragon checks had accreted into a file whose own header describes it as the
+   *waypoint-patrol/flee* module, purely because it was the newest check file when runs 53/54/58
+   needed somewhere to put them. The split therefore also **restores the file to the scope it always
+   claimed**. Result: 328 and 329 lines — both comfortably under the cap, with room for the next
+   check on either side. Follows the established precedent (run 38/40's thin-runner + focused-module
+   extraction, DECISIONS.md ADR-0028) rather than inventing a new structure.
+
+2. **Every moved function moved verbatim** — no assertion, tolerance, scenario, timeout, or reported
+   check `name` string was edited in the same commit as the move. Proven mechanically, not by
+   eyeball: `sed -n '317,605p'` of the pre-split file `diff`s byte-identical against the new file's
+   body, and `sed -n '16,315p'` `diff`s byte-identical against the retained one (289 and 300 lines
+   respectively, zero differences).
+
+3. **New permanent guard `scripts/checkSmokeCheckRegistry.js`** — the Regression Test half of the RCA
+   above, and the reason this refactor is safe to repeat. Pure static/`require` inspection, no
+   Playwright needed, so it runs anywhere Node does. Two independent jobs:
+   - **The 600-line cap**, swept over all of `src/` + `scripts/` (excluding `src/3d/vendor/`): hard
+     failure over 600, plus a non-fatal WARN from 540 up so a run gets advance notice instead of
+     discovering a breach after the fact. This is exactly the by-hand signal runs 64 and 67 had to
+     produce manually; it now happens automatically. It currently WARNs on `gameplayConfig.js`
+     (573/600) — reproducing run 67's own manual observation without anyone having to look.
+   - **Runner/registry agreement, in both directions**: every `checkXxx` a check module exports must
+     be invoked exactly once by `smokeTestGame3D.js` (nothing orphaned), and every function the
+     runner invokes must really be exported by the module it names (nothing dangling). Plus a
+     parse-completeness assertion: the number of raw `results.push(` sites must equal the number the
+     parser understood as `alias.checkFn(...)`, so the guard fails loudly if it ever stops
+     understanding the runner rather than quietly under-reporting.
+
+   The second job exists because of a property specific to this suite: **a check dropped from the
+   registry also drops its own line from the output**, so the suite would keep printing an all-PASS
+   run while covering less. "18/18 PASS" cannot, by itself, prove nothing was lost — only an
+   independent count can. That is a permanent hazard for every future refactor here, not just this
+   one.
+
+4. **`gameplayConfig.js` (573/600) deliberately NOT split this run.** It is under the cap, so it is
+   not a violation, and Altın Kural 6 permits refactors only for bug/perf/readability/architecture
+   reasons. Splitting it is also a materially wider blast radius than this run's test-file split: its
+   five `Object.freeze` config blocks are imported 33 times across 14 files (`game3d.js`,
+   `sceneManager.js`, `config.js`, five `gameplay/` modules, and four smoke-check modules that import
+   `ANIMAL_CONFIG`/`NPC_CONFIG`/`DRAGON_CONFIG` *inside* `page.evaluate`), and new module paths would
+   additionally have to be added to `service-worker.js`'s `GAME3D_SHELL_FILES` precache list. Doing
+   that speculatively, in the same run as a structural refactor of the only regression guard, would
+   blur the evidence for both. Decisive factor: **it is now machine-watched.** The guard WARNs today
+   and hard-fails at 601, so the run that genuinely needs the room will be told, which is precisely
+   the mechanism whose absence let the 614-line file sit for four runs. **Condition for revisiting:**
+   the first run whose work would push it past 600 splits it then, by subsystem, as its own scoped
+   sub-task.
+
+**Alternatives considered:**
+- *Leave it, split later.* Rejected: this is the option runs 64-67 effectively took, and the file was
+  still 614 lines four runs on. It is a standing violation of an explicit Golden Rule.
+- *Move the three dragon checks into the existing `game3dSmokeChecksDragonDive.js`.* Rejected on
+  arithmetic: 322 + ~290 = ~612 lines, i.e. it would have created a *new* cap violation while fixing
+  the old one.
+- *Split `game3dSmokeChecksMovement.js` mechanically in half at line ~307.* Rejected: it would have
+  produced two files under the cap with no coherent meaning, and left the dragon/patrol confusion in
+  place. The thematic cut fixes the naming problem for free.
+- *Raise the 600-line cap.* Rejected: not this run's call to make unilaterally, and the cap is not the
+  problem — the absence of enforcement is.
+- *Fold the registry/cap guard into `smokeTestGame3D.js` itself.* Rejected: that would make it
+  require Playwright and a browser to answer a question that is purely static. Kept standalone, same
+  shape as its `checkAssetsManifest.js` / `checkServiceWorkerCache.js` siblings.
+
+**Consequence:**
+- No production behavior change whatsoever. `src/` was not touched this run; `perf_log.csv`'s `run68`
+  row is bit-identical to `run67`'s on every GPU-submission metric (46 draw calls, 393,231 triangles,
+  44 geometries, 17 textures), which is the expected result and a useful cross-check that nothing
+  loaded differently.
+- The smoke suite still runs the same 18 checks, in the same order, with the same names.
+- Both halves of the split have real headroom, so the next dragon check and the next patrol check
+  each have an obvious, correctly-scoped home — the pressure that produced run 64's workaround is gone.
+- One more standing guard for future runs to run alongside the existing three
+  (`checkAssetsManifest.js`, `checkServiceWorkerCache.js`, `checkSmokeCheckRegistry.js`).
+- The cap now fails builds project-wide, which will eventually force a `gameplayConfig.js` split. That
+  is intended.
+
+**Etkilenen sistemler:** `scripts/` dev tooling only — `smokeTestGame3D.js` (require + 3 call sites
+re-routed, header rewritten to list all five check modules), `game3dSmokeChecksMovement.js` (dragon
+checks removed, header rewritten), `game3dSmokeChecksDragonFlight.js` (new),
+`game3dSmokeChecksDragonDive.js` (three stale cross-references to the moved checks' old home
+corrected), `checkSmokeCheckRegistry.js` (new). **No `src/` file, no asset, no terrain/height/noise/
+world-scale code, and no `service-worker.js` entry is touched** — `scripts/` is dev-only tooling that
+is never loaded by a browser and is not part of the PWA shell, so GOVERNANCE.md §8.4's terrain
+impact-analysis process and the 14-seat safety check do not apply, and no cache version bump is
+needed. **Future-phase impact:** positive and non-blocking — FAZ 5/6/7 work all adds checks to these
+modules, and both halves now have room; the new guard makes a future run's accidental check-drop
+impossible to miss.
+
+**Verification (GOVERNANCE.md §8.1):**
+- `node --check` clean across all 48 `src/`+`scripts/` files (excluding vendor), before and after.
+- Smoke suite **18/18 PASS before, 18/18 PASS after**. Stronger than a count match: the full suite
+  stdout was captured to a file before and after and `diff`ed. The only differing byte in the entire
+  output is `check2DShell`'s non-blocking external-fetch error counter (10 vs 11) — that check lives
+  in `game3dSmokeChecksScene.js`, a file this run never touched, and its own header already documents
+  the counter as sandbox-network noise. With that one number normalized, the two runs' outputs are
+  **identical**: same 18 checks, same names, same details strings, same order.
+- Independent registry proof (not derived from the suite passing): the 18 reported check-`name`
+  literals across all modules are identical before and after; the runner's 18 invocations are
+  identical in name and order, with exactly 3 lines differing — the module prefix of the 3 moved
+  checks.
+- New guard negative-controlled three ways on a scratch copy, to prove it is not a no-op: (1)
+  deleting one check from the runner → correctly FAILs with "exports check `checkDragonNotice` but
+  smokeTestGame3D.js never invokes it", i.e. it catches precisely the silent-drop hazard this ADR is
+  about; (2) padding a file to 628 lines → correctly FAILs on the cap; (3) rewriting a call into a
+  shape the parser cannot read → correctly FAILs on parse-completeness. Tree restored and re-verified
+  green after each.
+- `checkAssetsManifest.js` OK (41 entries), `checkServiceWorkerCache.js` OK, `checkSmokeCheckRegistry.js`
+  OK (18 checks / 5 modules / 48 files within cap).
+- **Görsel kanıt (§8.5):** for a dev-tooling-only refactor the primary evidence is the before/after
+  output identity above, stated explicitly rather than silently skipped. Confirmatory real-boot proof
+  was still captured: headless Chromium booted the real `game3d.html` and screenshotted 2 camera
+  angles (default player camera showing terrain/player/castle silhouette/stars and the Turkish
+  "Ejderha Görüldü!" toast; F4 debug free-cam flown to a different pose) with **0 console/page errors**
+  across the whole session.
+- **Performans (§4):** 46 draw calls (budget <2500), 393,231 triangles (budget <5M) — unchanged from
+  run 67, as expected for a change that touches no runtime code.
+
+**Geri alma planı:** `git revert` the single commit. It restores the 614-line file, re-points the
+runner's 3 call sites, and deletes both new files. Nothing else depends on either new file: the new
+guard is standalone (nothing imports it, no other script invokes it), and no `src/` module, asset
+manifest entry, or service-worker cache entry references anything added here. Partial rollback is
+also safe — deleting only `checkSmokeCheckRegistry.js` leaves a valid, under-cap split, and reverting
+only the split leaves a guard that would then correctly fail on the restored 614-line file.

@@ -6,9 +6,11 @@
  * `game3dSmokeChecks.js` extraction already established. Split by theme, not arbitrarily: this file
  * covers "does the page/scene itself boot and render correctly" (2D shell load, 3D mode boot, the
  * water shader's vertex-displacement invariant, the F4 debug camera); `game3dSmokeChecks.js` keeps
- * the per-entity gameplay
- * checks (settlement collider, jump arc, interaction, wolf/NPC patrol). `smokeTestGame3D.js` calls
- * both files' exports — see its own comment for the combined check list.
+ * the non-movement per-entity gameplay checks (settlement collider, jump arc, interaction).
+ * `smokeTestGame3D.js` calls every check module's exports — see its own comment for the current
+ * module list and the combined check list, which is the authoritative one; run 68 (DECISIONS.md
+ * ADR-0087) split the check modules again and this header's per-file breakdown is a summary, not
+ * the registry.
  *
  * Every function here takes `(browser, baseUrl)` and returns `Promise<{name, ok, details}>`. See
  * each function's own comment for what it guards against.

@@ -10,15 +10,21 @@
  *
  * This file is just the orchestration (result printing over each check) — the static file server
  * and Playwright bootstrap it uses live in `devServerHelper.js` (run 59, shared with
- * `collectPerfSnapshot.js`). The actual per-feature assertions live in `game3dSmokeChecksScene.js` (page/scene-
- * level: 2D shell load, 3D mode boot, water vertex-shader-has-no-displacement, F4 debug camera, F2
- * debug/profiling panel, world-event system), `game3dSmokeChecks.js` (per-entity gameplay:
- * settlement collider, jump/gravity arc, interaction controller), and `game3dSmokeChecksMovement.js`
- * (waypoint-patrol/flee-AI: wolf flee/pack-alert, NPC waypoint patrol, wolf waypoint patrol), and
- * `game3dSmokeChecksDragonDive.js` (run 64: dragon dive/swoop reaction) — split across four files
- * (run 40, again once `game3dSmokeChecks.js` hit 596/600 lines, again run 64 since
- * `game3dSmokeChecksMovement.js` was already at 614/600 going into that run) — see each file's own
- * header comment for why.
+ * `collectPerfSnapshot.js`). The actual per-feature assertions live in five focused check modules:
+ * - `game3dSmokeChecksScene.js` — page/scene level: 2D shell load, 3D mode boot, water
+ *   vertex-shader-has-no-displacement, F4 debug camera, F2 debug/profiling panel, world-event system.
+ * - `game3dSmokeChecks.js` — non-movement per-entity gameplay: settlement collider, jump/gravity arc,
+ *   interaction controller, interaction-prompt tap.
+ * - `game3dSmokeChecksMovement.js` — ground-movement AI: wolf flee/pack-alert, NPC waypoint patrol,
+ *   wolf waypoint patrol.
+ * - `game3dSmokeChecksDragonFlight.js` — dragon baseline flight/awareness: circling flight, notice
+ *   trigger, reactive flight.
+ * - `game3dSmokeChecksDragonDive.js` — dragon path deviations: dive/swoop, continuous chase.
+ *
+ * The split history: run 40 (`game3dSmokeChecks.js` hit 596/600), run 64 (a fifth check module rather
+ * than growing `game3dSmokeChecksMovement.js`, already at 614/600), run 68 (that 614-line violation
+ * finally fixed at its source by moving its three dragon checks out — DECISIONS.md ADR-0087). See each
+ * file's own header comment for why. Every module is under this project's 600-line cap.
  *
  * Requires Playwright's Chromium browser (dev-only tooling — this repo intentionally has no
  * `package.json`/build step for the *deployed* site; this script is never loaded by a browser or
@@ -34,6 +40,7 @@
 const sceneChecks = require('./game3dSmokeChecksScene.js');
 const checks = require('./game3dSmokeChecks.js');
 const movementChecks = require('./game3dSmokeChecksMovement.js');
+const dragonFlightChecks = require('./game3dSmokeChecksDragonFlight.js');
 const dragonDiveChecks = require('./game3dSmokeChecksDragonDive.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
@@ -68,9 +75,9 @@ async function main() {
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));
-		results.push(await movementChecks.checkDragonFlight(browser, baseUrl));
-		results.push(await movementChecks.checkDragonNotice(browser, baseUrl));
-		results.push(await movementChecks.checkDragonReactiveFlight(browser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonFlight(browser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonNotice(browser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonReactiveFlight(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonDive(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonPursuit(browser, baseUrl));
 	} finally {

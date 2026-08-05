@@ -9,8 +9,10 @@
  * this run (was 596/600 lines; the next check added here wouldn't have fit): the waypoint-patrol/
  * flee/pack-alert movement-AI checks (wolf flee/pack-alert, NPC waypoint patrol, wolf waypoint
  * patrol) moved into `game3dSmokeChecksMovement.js`. This file now keeps only the non-movement
- * per-entity checks: settlement collider, jump arc, interaction controller. `smokeTestGame3D.js`
- * calls all three files' exports — see its own comment for the combined check list.
+ * per-entity checks: settlement collider, jump arc, interaction controller, interaction-prompt tap.
+ * There are now five check modules in total (run 68's split added `game3dSmokeChecksDragonFlight.js`
+ * — DECISIONS.md ADR-0087); `smokeTestGame3D.js` calls every one of their exports and its own header
+ * carries the authoritative module + check list.
  *
  * Every function here takes `(browser, baseUrl)` and returns `Promise<{name, ok, details}>`. See
  * each function's own comment for what it guards against.
