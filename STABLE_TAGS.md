@@ -20,3 +20,10 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   hunt the player, time-boxed at 18s). 18/18 smoke suite, zero console errors, two-angle visual +
   real-terrain trajectory evidence. Local tag only — `git push origin <tag>` still rejected with
   `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-0606` — run 67 end: 8th real castle model for the `twin` kingdom seat
+  (ADR-0086, reusing a previously-mislabeled/unused asset — real-castle coverage 7/14 -> 8/14),
+  merged cleanly on top of a concurrent session's FAZ 7 dragon continuous-chase work (ADR-0085,
+  caught via the pre-commit `git fetch` and resolved per GOVERNANCE.md §8.14, no work lost). 18/18
+  smoke suite passing, zero console errors, standalone two-angle visual proof of the new model.
+  Local tag only — `git push origin <tag>` still rejected with `HTTP 403` (same known issue since
+  run 58).
