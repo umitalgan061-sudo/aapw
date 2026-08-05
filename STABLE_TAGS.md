@@ -191,3 +191,25 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   tag only — `git push origin <tag>` still rejected, `HTTP 403` then `send-pack: unexpected
   disconnect` on the same call — same standing block since run 58 (GOVERNANCE.md §8.11: a local tag +
   this entry satisfies the checkpoint).
+- `stable-2026-08-05-1950` — run 80 end: one sub-task, gave `umit-guard-1` a 3rd dialogue choice
+  and fixed `ui/dialogueBox.js`'s hint text, hardcoded to `'1/2 - Seç, Esc - Kapat'` since run 44
+  (DECISIONS.md ADR-0103). `interaction.js`'s 3rd choice slot (`Digit3`) has been reachable since
+  run 44 (ADR-0058) but no NPC had ever used it; the hint-text fix is a real latent-bug fix, proven
+  byte-identical for the other 13 existing 2-choice NPCs via a real-render regression check, not
+  just asserted. Deliberately diversified away from a 5th consecutive `worldEvents.js` flavor-pool
+  growth round (runs 74/75/78/79) after run 79's own note flagged that repetition risk. `node
+  --check` clean (69 files). Smoke suite **22/22 PASS** before and after. `checkDialogueChoicesShape`
+  OK (13/14 pilot coverage unchanged — grew an existing entry, not NPC count). All 8 standing guards
+  clean, zero WARN beyond the pre-existing expected `checkAssetsManifest` note. Real headless-Chromium
+  proof: an existing 2-choice NPC (`berkalp-guard-1`) confirmed to still render the exact
+  pre-existing hint string; `umit-guard-1` confirmed to render all 3 real choices with hint
+  `'1/2/3 - Seç, Esc - Kapat'`, and picking the 3rd shows its real response and reverts the hint to
+  `'E / Esc - Kapat'`. Two screenshots at distinct camera angles (default boot camera + real F4
+  free-cam drag) both show the 3-choice box correctly rendered over the live scene (castle
+  silhouette, player model, starlit sky, a real `WorldEventToast` mid-flight in both — proving the
+  scene keeps ticking underneath). `perf_log.csv` `run80` row bit-identical to run76-79 on every GPU
+  metric (46 draw calls / 393,231 triangles / 44 geometries / 17 textures) — expected, no scene
+  object touched (pure UI-string + data-array change). `git push origin main` succeeded (`68c678a`).
+  Local tag only — `git push origin <tag>` still rejected, `HTTP 403` then `send-pack: unexpected
+  disconnect` on the same call — same standing block since run 58 (GOVERNANCE.md §8.11: a local tag
+  + this entry satisfies the checkpoint).
