@@ -48,6 +48,17 @@
  * baseline the same way every earlier reaction here already does. Purely cosmetic — no new radius,
  * trigger, or state, and still no health/damage/attack (see `QUESTIONS_FOR_OWNER.md`'s open
  * question on whether this project wants one at all).
+ * Run 71 (DECISIONS.md ADR-0091) gives the *end* of an engagement its own distinct read, the same
+ * way run 70 gave its escalation one: run 66's `pursuitExhausted` flag (set once a chase burns
+ * through `pursuitMaxSeconds` while the player is still inside `pursuitRadiusMeters`) already
+ * distinguishes "gave up on a timer" from an ordinary disengage (the player simply outran/outlasted
+ * the radius before the timer ever ran out — `pursuitExhausted` never becomes true in that case at
+ * all). Until now both cases eased the circle back home through identical bank-angle math, so a
+ * player could never actually tell which one happened. A new `giveUpBlend` — eased toward 1 only
+ * while `pursuitExhausted` is true, back to 0 once the player finally leaves the radius and re-arms
+ * it — now steepens the bank angle a beat further, over its own (deliberately snappier) transition
+ * time, layered on top of whatever the existing reactive-blend bank already is. Still no new
+ * position/radius/trigger and still no health/damage/attack.
  * @module gameplay/dragons
  */
 
@@ -160,6 +171,24 @@ import { AssetLoader } from '../assetLoader.js';
  *   the player has left `pursuitRadiusMeters` at least once — the same edge-trigger/re-arm shape
  *   `noticeRadiusMeters` already uses — so a player who stands their ground gets harried and then
  *   left alone, instead of being followed across the map indefinitely.
+ * @param {number} [options.giveUpBankAngleMultiplier] Run 71 (ADR-0091) give-up cue: while
+ *   `pursuitExhausted` is true (an engagement burned through `pursuitMaxSeconds` — as opposed to an
+ *   *ordinary* disengage, where the player simply leaves `pursuitRadiusMeters` before the timer ever
+ *   runs out, and `pursuitExhausted` never becomes true at all), the bank angle is steepened to
+ *   `reactiveBankAngleRadians * giveUpBankAngleMultiplier` — layered on top of whatever the ordinary
+ *   reactive-blend bank already is, via `giveUpBlend` (see below) — instead of the plain reactive
+ *   bank a distance-triggered disengage keeps. Defaults to `1.6`: a visibly harder roll than
+ *   ordinary reactive flight, reading as a decisive "breaking off" turn rather than a smooth glide
+ *   away. A dragon with `bankAngleRadians`/`reactiveBankAngleRadians` both left at `0` (no banking
+ *   configured at all) sees no visible cue from this either — same "derives from what's already
+ *   configured, adds no bank of its own out of nothing" reasoning `agitatedWingFlapMultiplier`'s
+ *   default already follows for its own base values.
+ * @param {number} [options.giveUpTransitionSeconds] How long, in seconds, `giveUpBlend` takes to
+ *   ease toward 1 (on giving up) or back to 0 (once the player leaves `pursuitRadiusMeters` and
+ *   re-arms a future engagement) — same linear-ease shape every other blend in this module already
+ *   uses. Defaults to `0.6`, deliberately snappier than `reactiveTransitionSeconds` (1.5),
+ *   `diveTransitionSeconds` (1), and `pursuitTransitionSeconds` (2 by default here) — a "decisive
+ *   break-off" reads faster than the smoother reactions those govern, not slower.
  * @param {number} [options.cruiseAltitudeAboveGroundMeters] The dragon's cruise height *above the
  *   terrain under its circle center*, used while pursuing so a chase up a mountainside climbs with
  *   it instead of flying into the slope. Omit to keep the fixed `centerY` at all times (exact
@@ -208,6 +237,8 @@ export async function createDragon({
 	pursuitCircleRadiusMeters = circleRadiusMeters,
 	pursuitTransitionSeconds = 2,
 	pursuitMaxSeconds = 20,
+	giveUpBankAngleMultiplier = 1.6,
+	giveUpTransitionSeconds = 0.6,
 	cruiseAltitudeAboveGroundMeters,
 	agitatedWingFlapMultiplier = 1.5,
 }) {
@@ -261,6 +292,13 @@ export async function createDragon({
 	// leaves `pursuitRadiusMeters`, the same edge-trigger/re-arm shape `playerWasInNoticeRadius`
 	// below already uses for the notice event.
 	let pursuitExhausted = false;
+	// Run 71 (ADR-0091) give-up cue: 0 = no give-up cue, 1 = fully at the steepened give-up bank
+	// angle. Eased toward 1 only while `pursuitExhausted` is true and back to 0 once the player
+	// leaves `pursuitRadiusMeters` (the same event that resets `pursuitExhausted` itself) — an
+	// ordinary disengage, where the player leaves before the timer ever exhausts, never sets
+	// `pursuitExhausted` true at all, so this blend never leaves 0 for that case. Same starts-at-0,
+	// eased-not-snapped shape as `reactiveBlend`/`diveBlend`/`pursuitBlend` above.
+	let giveUpBlend = 0;
 
 	/** Places `model` at the current `angle` on its circle and orients it along the direction of travel. */
 	function applyPose(currentBankAngleRadians, radiusMeters) {
@@ -343,6 +381,21 @@ export async function createDragon({
 				}
 			}
 
+			// Run 71 (ADR-0091) give-up cue: eases toward 1 while `pursuitExhausted` is true (the
+			// dragon gave up mid-engagement, the timer ran out while the player was still inside
+			// `pursuitRadiusMeters`) and back toward 0 once the player actually leaves the radius —
+			// distinct from an *ordinary* disengage, where the player leaves before the timer ever
+			// exhausts and `pursuitExhausted` never becomes true in the first place, so this blend
+			// stays exactly 0 for that case.
+			const giveUpBlendTarget = pursuitExhausted ? 1 : 0;
+			if (giveUpTransitionSeconds > 0) {
+				const giveUpStep = delta / giveUpTransitionSeconds;
+				if (giveUpBlend < giveUpBlendTarget) giveUpBlend = Math.min(giveUpBlendTarget, giveUpBlend + giveUpStep);
+				else if (giveUpBlend > giveUpBlendTarget) giveUpBlend = Math.max(giveUpBlendTarget, giveUpBlend - giveUpStep);
+			} else {
+				giveUpBlend = giveUpBlendTarget;
+			}
+
 			// The circle center travels at a bounded speed toward the player while engaged, and back
 			// toward its immutable home center otherwise. Speed-limited rather than blended so a
 			// sprinting player really does open a gap the dragon has to close (see
@@ -389,7 +442,14 @@ export async function createDragon({
 			const calmAngular = calmAngularSpeedFor(currentCircleRadiusMeters);
 			const reactiveAngular = reactiveAngularSpeedFor(currentCircleRadiusMeters);
 			const angularSpeedRadiansPerSecond = calmAngular + (reactiveAngular - calmAngular) * reactiveBlend;
-			const currentBankAngleRadians = bankAngleRadians + (reactiveBankAngleRadians - bankAngleRadians) * reactiveBlend;
+			const reactiveBankAngleThisFrame = bankAngleRadians + (reactiveBankAngleRadians - bankAngleRadians) * reactiveBlend;
+			// Run 71 (ADR-0091) give-up cue: layered on top of the ordinary reactive-blend bank above,
+			// via `giveUpBlend` — a plain distance-triggered disengage never moves this past 0, so it
+			// keeps exactly the reactive bank it already had; only a timeout-driven give-up steepens it
+			// further.
+			const giveUpBankAngleRadians = reactiveBankAngleRadians * giveUpBankAngleMultiplier;
+			const currentBankAngleRadians = reactiveBankAngleThisFrame +
+				(giveUpBankAngleRadians - reactiveBankAngleThisFrame) * giveUpBlend;
 
 			angle += angularSpeedRadiansPerSecond * delta;
 			applyPose(currentBankAngleRadians, currentCircleRadiusMeters); // pure on-circle pose — the
@@ -444,6 +504,10 @@ export async function createDragon({
 			const wingFlapTimeScale = 1 + (agitatedWingFlapMultiplier - 1) * agitationBlend;
 			if (flyAction) flyAction.timeScale = wingFlapTimeScale;
 			model.userData.wingFlapTimeScale = wingFlapTimeScale;
+			// Run 71 (ADR-0091) give-up cue: exposed the same way `wingFlapTimeScale` already is, so
+			// regression tests (and any future debug tooling) can read it without reaching into the
+			// bank-angle math above.
+			model.userData.giveUpBlend = giveUpBlend;
 
 			mixer.update(delta);
 		},
@@ -476,7 +540,8 @@ export async function createDragon({
  *   `diveTransitionSeconds`/`minAltitudeAboveGroundMeters` (run 64, ADR-0082) and
  *   `pursuitRadiusMeters`/`pursuitCenterSpeedMps`/`pursuitCircleRadiusMeters`/
  *   `pursuitTransitionSeconds`/`pursuitMaxSeconds` (run 66, ADR-0085) and
- *   `agitatedWingFlapMultiplier` (run 70, ADR-0089) are passed straight
+ *   `agitatedWingFlapMultiplier` (run 70, ADR-0089) and
+ *   `giveUpBankAngleMultiplier`/`giveUpTransitionSeconds` (run 71, ADR-0091) are passed straight
  *   through to `createDragon` — omitted per-spawn fields fall back to `createDragon`'s own no-op
  *   defaults (calm flight, unaffected by the player). `sampleGroundY` itself is always passed
  *   through too (run 64), needed for the dive's and the traveling circle's terrain-safety clamp.
@@ -520,6 +585,8 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				pursuitCircleRadiusMeters: spawn.pursuitCircleRadiusMeters,
 				pursuitTransitionSeconds: spawn.pursuitTransitionSeconds,
 				pursuitMaxSeconds: spawn.pursuitMaxSeconds,
+				giveUpBankAngleMultiplier: spawn.giveUpBankAngleMultiplier,
+				giveUpTransitionSeconds: spawn.giveUpTransitionSeconds,
 				// The same number `centerY` above was resolved from — passed separately so the
 				// traveling circle can re-derive its cruise altitude over new terrain (run 66).
 				cruiseAltitudeAboveGroundMeters: spawn.altitudeMeters,

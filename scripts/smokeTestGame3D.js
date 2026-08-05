@@ -19,7 +19,8 @@
  *   wolf waypoint patrol.
  * - `game3dSmokeChecksDragonFlight.js` — dragon baseline flight/awareness: circling flight, notice
  *   trigger, reactive flight.
- * - `game3dSmokeChecksDragonDive.js` — dragon path deviations: dive/swoop, continuous chase.
+ * - `game3dSmokeChecksDragonDive.js` — dragon path deviations: dive/swoop, continuous chase,
+ *   pursuit give-up cue.
  *
  * The split history: run 40 (`game3dSmokeChecks.js` hit 596/600), run 64 (a fifth check module rather
  * than growing `game3dSmokeChecksMovement.js`, already at 614/600), run 68 (that 614-line violation
@@ -81,6 +82,7 @@ async function main() {
 		results.push(await dragonFlightChecks.checkDragonWingFlapAgitation(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonDive(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonPursuit(browser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonGiveUpCue(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();

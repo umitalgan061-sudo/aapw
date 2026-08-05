@@ -7339,3 +7339,127 @@ blocking bugs, syntax errors, or regressions found this run.
 
 **Addendum:** `git commit`/`git push origin main` outcomes and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 71)
+
+**Fresh Session Snapshot at container boot:** `GOVERNANCE.md` read in full (current, last
+substantively extended run 57's §8.14 addition). `3D_GAME_PROGRESS.md` (this file, tail), `git log
+-10`, `DECISIONS.md`'s last 2 ADRs (0089-0090), `QUESTIONS_FOR_OWNER.md` (5 entries, none actionable
+by this run — the leaked-key rotation and health/damage-system questions are both owner-only) all
+read for context. `git status`/`git log -10` found this container's `HEAD` detached at run 70's final
+commit (`a1c96eb`) while local `main` pointed at a completely unrelated root history (a stale 2D-only
+`Initial commit`, no shared ancestor at all) — same "unrelated histories" symptom run 70 itself
+documented and flagged as a pattern worth watching for. Verified (per run 70's own stated caveat)
+that local `main` was genuinely unused scratch state before resyncing: `git checkout -B main
+origin/main` (GOVERNANCE.md §8.14's own suggested command) rather than a bare `git reset --hard`,
+landing local `main` exactly on `origin/main` with a clean working tree.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`, excluding vendor) —
+clean, 50 files. Full `scripts/smokeTestGame3D.js` — **19/19 PASS** before any new code. All 5
+standing guards (`checkAssetsManifest.js`, `checkServiceWorkerCache.js`,
+`checkDialogueChoicesShape.js`, `checkSmokeCheckRegistry.js`, `checkPwaInstallability.js`) clean.
+Baseline perf sampled and cross-checked bit-identical to run 70b (46 draw calls, 393,231 triangles,
+44 geometries, 17 textures) before appending any new row — confirms no drift since run 70's own
+commit.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 confirmed already done (no new evidence to
+doubt it). Items 5-6 (syntax/blocking bugs): clean, none found. Run 70's own "Next step" named two
+real options: (1) the FAZ 7 dragon pursuit give-up cue (explicitly deferred by run 70's own
+sub-task-2 ADR-0090 so it wouldn't be picked under end-of-run time pressure) and (2)
+`gameplayConfig.js`'s 573/600 split (still a non-violation with no forcing bug/perf/readability/
+architecture reason — GOLDEN RULE 6). Picked **option (a), the give-up cue** — matches this run's own
+explicit assignment and is the more genuinely due item (deferred once already, not indefinitely).
+
+**Sub-task 1 — dragon pursuit give-up cue (DECISIONS.md ADR-0091):** `gameplay/dragons.js` already
+computed `pursuitExhausted` (run 66, ADR-0085) — true only when an engagement times out
+(`pursuitMaxSeconds`) while the player is still inside `pursuitRadiusMeters`, distinct from an
+*ordinary* disengage where the player simply leaves the radius first and `pursuitExhausted` never
+becomes true at all — but both cases previously eased the circle home through byte-identical
+bank-angle math. A new eased `giveUpBlend` (0-1, its own `giveUpTransitionSeconds`, default `0.6` —
+deliberately snappier than every sibling transition) now tracks `pursuitExhausted` directly and
+steepens the bank angle to `reactiveBankAngleRadians * giveUpBankAngleMultiplier` (default `1.6`) on
+top of whatever the ordinary reactive-blend bank already is — layered independently from ADR-0089's
+wing-flap `agitationBlend`, so that already-passing regression test carries zero risk from this
+change. Exposed on `object3D.userData.giveUpBlend` (same "expose for tests without reaching into
+internals" convention `userData.wingFlapTimeScale` already set). `spawnConfiguredDragons` passes both
+new options straight through; the real spawn (`umit-dragon-1`) stayed on both defaults, same
+conservative choice ADR-0089 made. New regression check `checkDragonGiveUpCue`
+(`scripts/game3dSmokeChecksDragonDive.js`, alongside `checkDragonPursuit` — both exercise
+`pursuitExhausted`, matching that file's own documented "path-deviation/chase" scope rather than the
+sibling flight-only file) isolates four scenarios: explicit-multiplier give-up (reaches and *latches*
+at the exact steepened bank while the player lingers), default-multiplier give-up (proves the `1.6`
+default itself applies), ordinary disengage (the cue never triggers at all), and re-arm (leaving the
+radius eases the cue back to the plain calm bank). Full ADR/verification detail: ADR-0091.
+
+**DoD status:** `node --check` clean across every changed file (`src/3d/gameplay/dragons.js`,
+`scripts/game3dSmokeChecksDragonDive.js`, `scripts/smokeTestGame3D.js`) and a full 50-file repo
+sweep, both before and after. Smoke suite **20/20 PASS** (19 + 1 new) before and after, zero console/
+page errors on real headless boot of `game3d.html`; the 2D shell's pre-existing 11 non-blocking
+sandbox-network errors unchanged. All 5 standing guards re-run clean; `checkSmokeCheckRegistry.js`
+now reports 20 checks / 5 modules, all 50 JS files still within the 600-line cap — but `dragons.js`
+grew 531 -> 598 lines (crossed the 540-line WARN threshold, only 2 lines of headroom left) alongside
+the pre-existing `gameplayConfig.js` 573/600 WARN; both non-blocking, neither a violation, but
+`dragons.js`'s is a fresh, real signal flagged below (unlike `gameplayConfig.js`'s long-standing
+watch-item, the *next* touch to this file should split it first). Visual evidence: a bank-angle-
+*over-time* change has no static-image signature, same reasoning ADR-0089's timeScale change and
+`checkWaterVertexShaderStatic` both already established — primary proof is the multi-scenario
+regression test; supplementary, a direct `createDragon` render outside the test harness printed
+`userData.giveUpBlend === 1` and `rotation.z === 0.48` (exactly `0.3 * 1.6`, the un-passed default)
+immediately before a real headless-boot screenshot near the `umit` seat, which shows the scene intact
+and the pre-existing "Ejderha Görüldü!" toast still firing correctly, zero console errors on that
+boot. Performance: perf snapshot bit-identical to run 70b on every GPU-submission metric (46 draw
+calls, 393,231 triangles, 44 geometries, 17 textures) — expected, a bank-angle change adds no
+geometry. Tech debt counter: **0** (unchanged — the `dragons.js` line-count WARN is a watch-item, not
+debt; no `TEMP`/`HACK`/`FIXME`/`WORKAROUND`, no known shortcut). This file updated (this entry). ADR
+written (ADR-0091). Committed. Console clean.
+
+**Session Quality Gate (GOVERNANCE.md §8.6):** confidence **5/5** — one isolated cosmetic bank-angle
+change, deliberately kept independent of ADR-0089's already-passing wing-flap test, with a
+four-scenario regression test that proves both the positive case (give-up reaches and latches at the
+exact steepened bank) and the negative case (an ordinary disengage never triggers it at all) rather
+than only the combination. Nothing ambiguous for "6 months from now." **Not chaining a second
+sub-task this run:** `dragons.js` now sitting at 598/600 (only 2 lines of headroom) is itself a real,
+fresh forcing signal for a split — but doing that split *this* run, right after just having grown the
+same file, would be rushing a nontrivial refactor (real blast radius: `game3d.js`'s import,
+`spawnConfiguredDragons`'s own call site, and every dragon smoke-check file) under the same
+"give the next sub-task room to be done carefully, not quickly" discipline run 70 itself used to defer
+this very sub-task. One well-executed sub-task this run, per the task's own explicit instruction.
+
+**World Evolution Report:**
+
+| Metric | Run 70 | Run 71 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged |
+| Kingdom seats w/ real castle models | 8 | 8 | unchanged (remaining 6 confirmed blocked) |
+| Dragons (spawned) | 1 | 1 | unchanged (deeper behavior, not more dragons) |
+| NPCs with dialogue-choice branching | 13/14 | 13/14 | unchanged, complete |
+| Smoke suite | 19/19 | **20/20** | +1 (`checkDragonGiveUpCue`) |
+| Standing static guards | 6 | 6 | unchanged |
+| Files over the 600-line cap | 0 | 0 | unchanged (`dragons.js` now 598/600, WARN not violation) |
+| ADRs | 90 | **91** | +1 (ADR-0091) |
+| perf_log.csv rows | 11 | **12** | +1 |
+| Manifest entries | 41 | 41 | unchanged (no new assets) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (deliberate constant) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (cosmetic-only change) |
+
+**Oyuncu fark eder mi:** evet, ama yine küçük ve dolaylı — bir ejderha artık kovalamaktan gerçekten
+vazgeçtiğinde (18 saniyelik zamanlayıcı dolduğunda, oyuncu hâlâ yakınken) fark edilir biçimde daha
+sert bir dönüş yaparak uzaklaşıyor; oyuncu kovalamadan kendisi uzaklaşıp ejderhayı bıraktığında bu
+belirgin "vazgeçme" dönüşü hiç görünmüyor — sadece normal, sakin dönüşle eve dönüyor. Konum/hız/pist
+davranışlarının hiçbiri değişmedi, sadece bu ayrım artık görsel olarak okunabiliyor.
+
+**Next step for the next run:** two real, well-defined options remain, plus one new forcing signal:
+(1) **`src/3d/gameplay/dragons.js`'s line count (598/600, only 2 lines of headroom)** — the loudest
+watch-item this run leaves behind; the *next* touch to this file (a further flight-behavior polish,
+or eventually attack/fire-breath work once the health/damage question resolves) should split it
+first, following the same by-subsystem-block precedent ADR-0087 already set for the smoke-check
+files, rather than push it over the 600-line cap. (2) `gameplayConfig.js`'s 573/600 split — same
+non-blocking watch-item runs 70/69 both already named, still no forcing reason of its own yet. (3)
+Telegraphing the dive itself a beat before it happens (run 70's other named-but-deferred option, still
+open, still cosmetic-only). Confirmed still blocked: the remaining 6 castle seats and all FAZ 6
+animals (manual human asset download), and any dragon attack/fire-breath work (owner decision pending
+in `QUESTIONS_FOR_OWNER.md`). No blocking bugs, syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

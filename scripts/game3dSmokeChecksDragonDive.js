@@ -7,9 +7,10 @@
  * follows) so that run didn't grow an already-over-budget file further. Run 68 (DECISIONS.md
  * ADR-0087) then cleared that violation properly, moving the three baseline dragon flight/awareness
  * checks into `game3dSmokeChecksDragonFlight.js`; this file's scope is unchanged and is now the
- * *path-deviation* half of dragon coverage (dive/swoop ADR-0082, continuous chase ADR-0085) against
- * that sibling's nominal-flight half. `smokeTestGame3D.js` calls this file's exports alongside every
- * other check module's.
+ * *path-deviation* half of dragon coverage (dive/swoop ADR-0082, continuous chase ADR-0085, and run
+ * 71's give-up cue ADR-0091 — layered directly on the same `pursuitExhausted` state this file's own
+ * `checkDragonPursuit` already exercises) against that sibling's nominal-flight half.
+ * `smokeTestGame3D.js` calls this file's exports alongside every other check module's.
  * @module scripts/game3dSmokeChecksDragonDive
  */
 
@@ -323,4 +324,147 @@ async function checkDragonPursuit(browser, baseUrl) {
 	return { name: 'dragon continuous chase (gameplay/dragons.js, ADR-0085)', ok, details };
 }
 
-module.exports = { checkDragonDive, checkDragonPursuit };
+/**
+ * Regression guard for `gameplay/dragons.js`'s give-up cue (run 71, DECISIONS.md ADR-0091) — the
+ * distinct bank-angle telegraph layered on top of run 66's continuous chase (ADR-0085) when a
+ * pursuit engagement times out (`pursuitExhausted`) rather than ending because the player simply
+ * left `pursuitRadiusMeters` before the timer ran out. Placed alongside `checkDragonPursuit` (not
+ * in `game3dSmokeChecksDragonFlight.js`) since it exercises the same `pursuitExhausted` state that
+ * check already owns — this file's own header documents it as the "path-deviation"/chase half of
+ * dragon coverage.
+ *
+ * Every scenario parks the dragon (`speedMps: 0`, `startAngleRadians: 0`) and pins
+ * `pursuitCenterSpeedMps: 0`/`pursuitCircleRadiusMeters` equal to the calm radius — the same
+ * isolation trick `checkDragonPursuit`'s own radius/center sub-scenes use — so position never
+ * moves and only the bank-angle math under test changes `object3D.rotation.z`. `noticeRadiusMeters`
+ * is deliberately omitted throughout (no `eventsBus`/`eventName`/`noticeToast` either), so
+ * `reactiveBlend` stays exactly 0 the whole time and `reactiveBankAngleRadians` keeps its own
+ * "defaults to `bankAngleRadians`" no-op value — isolating the give-up bank layer from the
+ * already-covered reactive-flight bank (`checkDragonReactiveFlight`) instead of compounding them.
+ * Four independent scenarios:
+ * - **Give-up (explicit multiplier):** the player never leaves `pursuitRadiusMeters` — the
+ *   engagement times out (`pursuitExhausted` becomes true) and `giveUpBlend` eases up to exactly 1,
+ *   steepening the bank to exactly `bankAngleRadians * giveUpBankAngleMultiplier` (an explicit,
+ *   non-default `2.0` here, to keep the assertion visibly distinct from both the calm bank and the
+ *   `1.6` default) — and *stays* there while the player keeps lingering (proving the cue latches for
+ *   the whole "still nearby, already given up" window, not just a one-frame blip).
+ * - **Give-up (default multiplier omitted):** same shape, but `giveUpBankAngleMultiplier` itself is
+ *   left unset — proves the `1.6` default actually applies rather than silently no-op'ing, same
+ *   precedent `checkDragonWingFlapAgitation`'s own dive-only scenario already established for
+ *   `agitatedWingFlapMultiplier`.
+ * - **Ordinary disengage (no give-up):** the player leaves `pursuitRadiusMeters` *before*
+ *   `pursuitMaxSeconds` elapses — `pursuitExhausted` never becomes true, so `giveUpBlend` (and the
+ *   bank angle) never leaves its calm baseline at any point, proving the cue is specific to a
+ *   timeout, not every disengage.
+ * - **Re-arm eases the cue back off:** continuing scenario 1's already-given-up dragon, the player
+ *   finally leaves `pursuitRadiusMeters` — `pursuitExhausted` resets to false (re-arming a future
+ *   engagement, the same edge-trigger `checkDragonPursuit` already proves for the chase itself) and
+ *   `giveUpBlend` eases back down to exactly 0, restoring the plain calm bank angle.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkDragonGiveUpCue(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createDragon } = await import('/src/3d/gameplay/dragons.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { DRAGON_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+
+			const assetLoader = new AssetLoader();
+			const delta = 0.1;
+			const centerX = 0;
+			const centerZ = 0;
+			const centerY = 50;
+			const circleRadiusMeters = 100;
+			const bankAngleRadians = 0.3;
+			const flatGround = () => 0;
+			const approxEqual = (a, b, tolerance = 1e-9) => Math.abs(a - b) < tolerance;
+			// Directly under the dragon's parked position (0, 50, 100): 3D distance 100, inside a
+			// 150m pursuit radius; far outside it once moved to z=5000.
+			const playerNear = { x: 0, y: 0, z: circleRadiusMeters };
+			const playerFar = { x: 5000, y: 0, z: 5000 };
+			const baseSpawn = {
+				assetLoader,
+				modelUrl: DRAGON_CONFIG.MODEL_URL,
+				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
+				scale: DRAGON_CONFIG.SCALE,
+				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
+				centerX, centerZ, centerY, circleRadiusMeters,
+				speedMps: 0,
+				startAngleRadians: 0,
+				bankAngleRadians,
+				sampleGroundY: flatGround,
+				pursuitRadiusMeters: 150,
+				pursuitCenterSpeedMps: 0, // pinned — isolates bank angle from center/radius travel
+				pursuitCircleRadiusMeters: circleRadiusMeters, // no tightening, same isolation reason
+				pursuitTransitionSeconds: 1,
+				pursuitMaxSeconds: 1,
+				giveUpTransitionSeconds: 0.5,
+			};
+
+			// --- Scenario 1: give-up with an explicit, non-default multiplier. ---
+			const explicitDragon = await createDragon({ ...baseSpawn, giveUpBankAngleMultiplier: 2.0 });
+			const expectedGiveUpBankExplicit = bankAngleRadians * 2.0;
+			for (let i = 0; i < 10; i++) explicitDragon.update(delta, playerNear); // 1.0s -> exhausts
+			const stillCalmRightAtExhaustion =
+				approxEqual(explicitDragon.object3D.userData.giveUpBlend, 0, 1e-6);
+			for (let i = 0; i < 5; i++) explicitDragon.update(delta, playerNear); // 0.5s more -> giveUpBlend -> 1
+			const giveUpReachesExplicitMultiplier =
+				approxEqual(explicitDragon.object3D.userData.giveUpBlend, 1) &&
+				approxEqual(explicitDragon.object3D.rotation.z, expectedGiveUpBankExplicit);
+			// Player keeps lingering — the cue must latch, not fall back to calm on its own.
+			for (let i = 0; i < 20; i++) explicitDragon.update(delta, playerNear);
+			const giveUpLatchesWhilePlayerLingers =
+				approxEqual(explicitDragon.object3D.userData.giveUpBlend, 1) &&
+				approxEqual(explicitDragon.object3D.rotation.z, expectedGiveUpBankExplicit);
+			// Player finally leaves — re-arms, and the cue eases back off.
+			for (let i = 0; i < 5; i++) explicitDragon.update(delta, playerFar); // 0.5s -> giveUpBlend -> 0
+			const giveUpEasesBackOffOnReArm =
+				approxEqual(explicitDragon.object3D.userData.giveUpBlend, 0) &&
+				approxEqual(explicitDragon.object3D.rotation.z, bankAngleRadians);
+			explicitDragon.dispose();
+
+			// --- Scenario 2: give-up with giveUpBankAngleMultiplier omitted (proves the 1.6 default). ---
+			const defaultDragon = await createDragon({ ...baseSpawn });
+			const expectedGiveUpBankDefault = bankAngleRadians * 1.6;
+			for (let i = 0; i < 15; i++) defaultDragon.update(delta, playerNear); // 1.0s exhaust + 0.5s ease
+			const giveUpReachesDefaultMultiplier =
+				approxEqual(defaultDragon.object3D.userData.giveUpBlend, 1) &&
+				approxEqual(defaultDragon.object3D.rotation.z, expectedGiveUpBankDefault);
+			defaultDragon.dispose();
+
+			// --- Scenario 3: ordinary disengage — player leaves before the timer ever exhausts. ---
+			const ordinaryDragon = await createDragon({ ...baseSpawn, giveUpBankAngleMultiplier: 2.0 });
+			for (let i = 0; i < 3; i++) ordinaryDragon.update(delta, playerNear); // 0.3s — well under 1.0s
+			const engagedButNotExhaustedYet =
+				approxEqual(ordinaryDragon.object3D.userData.giveUpBlend, 0);
+			ordinaryDragon.update(delta, playerFar); // leaves before exhausting — must never trigger
+			for (let i = 0; i < 20; i++) ordinaryDragon.update(delta, playerFar);
+			const noGiveUpOnOrdinaryDisengage =
+				approxEqual(ordinaryDragon.object3D.userData.giveUpBlend, 0) &&
+				approxEqual(ordinaryDragon.object3D.rotation.z, bankAngleRadians);
+			ordinaryDragon.dispose();
+
+			return {
+				stillCalmRightAtExhaustion, giveUpReachesExplicitMultiplier, giveUpLatchesWhilePlayerLingers,
+				giveUpEasesBackOffOnReArm, giveUpReachesDefaultMultiplier, engagedButNotExhaustedYet,
+				noGiveUpOnOrdinaryDisengage,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'a timeout-driven give-up eases the bank angle to exactly bankAngleRadians * ' +
+			'giveUpBankAngleMultiplier (explicit and un-passed-default cases both proven) and latches ' +
+			'while the player keeps lingering; leaving the radius re-arms it and eases the cue back to ' +
+			'the calm bank; an ordinary disengage (player leaves before the timer exhausts) never ' +
+			'triggers the cue at all'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'dragon pursuit give-up cue (gameplay/dragons.js, ADR-0091)', ok, details };
+}
+
+module.exports = { checkDragonDive, checkDragonPursuit, checkDragonGiveUpCue };

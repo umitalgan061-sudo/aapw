@@ -7281,3 +7281,162 @@ line instead of grepping the whole progress log the way this run had to.
 **Geri alma planı:** `git revert` the single commit. Deletes `scripts/checkPwaInstallability.js` and
 reverts the `GOVERNANCE.md` note. Nothing else depends on it — standalone, not imported or required
 by any other file.
+
+---
+
+## ADR-0091: Dragon pursuit give-up cue — a distinct bank-angle telegraph on timeout, separate from an ordinary disengage
+
+**Date:** 2026-08-05 (run 71)
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely cosmetic, same category as ADR-0089 — no new radius,
+trigger, position deviation, or gameplay consequence. Reuses `pursuitExhausted`, a state
+`gameplay/dragons.js` already computed every frame (run 66, ADR-0085); adds one derived blend value
+and layers it onto the existing bank-angle calculation. Fully reversible: `git revert` removes the
+one new parameter pair, the one derived blend, its one `userData` write, and the new regression
+test; nothing else depends on `giveUpBankAngleMultiplier`/`giveUpTransitionSeconds`/
+`userData.giveUpBlend`.
+
+**Context:** Run 70's own "Next step" (and ADR-0090's "alternatives considered") both named this as
+the top genuinely-unblocked FAZ 7 option, deliberately deferred a run so it wouldn't be picked under
+time pressure right after ADR-0089/0090: `gameplay/dragons.js`'s `pursuitExhausted` flag (run 66)
+already distinguishes two different reasons an engagement ends — the player simply left
+`pursuitRadiusMeters` before `pursuitMaxSeconds` ran out (an *ordinary* disengage, `pursuitExhausted`
+never becomes true), versus the timer running out while the player was still nearby (a real
+"give-up," `pursuitExhausted` latches true until they eventually leave) — but until this run both
+cases eased the circle home through byte-identical bank-angle math. A player being chased could never
+actually tell "it gave up" from "it just decided to go home," even though the game already knows the
+difference internally. This is the same believability gap ADR-0089 closed for escalation (position/
+speed/bank all reacted to proximity, but the `Fly` clip's playback rate didn't); this run closes the
+matching gap for de-escalation.
+
+**Değişiklik Etki Analizi (GOVERNANCE.md §8.4 — not a terrain/height/noise/world-scale change, so
+the Arazi Değişikliği Güvenlik Kontrolü doesn't apply, but the general impact-analysis discipline
+does):** Affected systems: `gameplay/dragons.js` (`createDragon`'s per-frame `update()`, its bank-
+angle calculation specifically), `spawnConfiguredDragons` (two new pass-through fields),
+`gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS` schema (two more optional fields it may set, not
+required — this run left the one real spawn, `umit-dragon-1`, on both defaults, same conservative
+choice ADR-0089 made), and the smoke suite (one new check). Nothing in `world/`, `physics.js`, or
+any other gameplay module reads `giveUpBlend` or is otherwise touched — in particular, this run
+deliberately did **not** fold `giveUpBlend` into `agitationBlend` (the wing-flap driver ADR-0089
+added), keeping the two cues independent so this change carries zero risk to ADR-0089's own already-
+passing regression test. **Gelecek Faz Etkisi:** none of FAZ 8-10 depend on bank-angle math; if/when
+a real attack/fire-breath system is eventually built (pending the owner's health/damage decision in
+`QUESTIONS_FOR_OWNER.md`), `pursuitExhausted`'s existing "timed out vs. actually escaped" distinction
+is already there to reuse for e.g. a distinct "spared" vs. "escaped" outcome, without needing new
+state.
+
+**Decision:** Add `giveUpBankAngleMultiplier` (default `1.6`) and `giveUpTransitionSeconds` (default
+`0.6`) to `createDragon`'s options. Each frame, a new `giveUpBlend` (0-1, starts at 0) eases toward 1
+while `pursuitExhausted` is true and back toward 0 once the player leaves `pursuitRadiusMeters` (the
+same event that resets `pursuitExhausted` itself, re-arming a future engagement) — the same linear-
+ease shape `reactiveBlend`/`diveBlend`/`pursuitBlend` already use, just with its own (deliberately
+snappier) transition time so a "decisive break-off" reads faster than the smoother reactions those
+govern. The bank angle calculation, which already blended `bankAngleRadians` -> `reactiveBankAngleRadians`
+via `reactiveBlend`, now layers a second blend on top: from wherever that reactive-blended value
+lands, toward `reactiveBankAngleRadians * giveUpBankAngleMultiplier`, via `giveUpBlend`. An ordinary
+disengage never moves `giveUpBlend` off 0, so it keeps exactly the bank angle it already had — only a
+timeout-driven give-up steepens it further. Exposed on `object3D.userData.giveUpBlend` each frame,
+same "expose for regression tests without reaching into the update loop's internals" reasoning
+`userData.wingFlapTimeScale` already established.
+
+Deriving the give-up bank angle from `reactiveBankAngleRadians` (rather than a fresh absolute value)
+was deliberate, same reasoning `reactiveBankAngleRadians` itself defaulting to `bankAngleRadians`
+already follows: a dragon with no banking configured at all (`bankAngleRadians` and
+`reactiveBankAngleRadians` both `0`) gets no visible cue from this either, rather than inventing a
+bank angle out of nothing for a dragon whose owner never configured one.
+
+**Alternatives considered:**
+- *Fold the give-up cue into the existing wing-flap `agitationBlend` instead of a new, independent
+  blend.* Rejected: `agitationBlend` is `Math.max(reactiveBlend, diveBlend, pursuitBlend)` — while
+  `pursuitExhausted` is true, `pursuitBlend` is actively easing back toward 0 (the circle is
+  literally traveling home), so folding a give-up spike into the same max-of-three formula would
+  either get masked by a still-high `reactiveBlend`, or require its own separate case-split inside an
+  already-tested formula, risking a regression to ADR-0089's own passing test for no real gain — a
+  wing-flap change already reads as "agitated," which isn't the same emotional beat as "giving up."
+  A bank-angle cue is a genuinely distinct visual channel from a flap-rate cue, which is the point.
+- *An instantaneous snap (no easing) at the moment of exhaustion, rather than a blend.* Rejected: an
+  instant snap would look like a bug/teleport, the same reasoning every other reaction in this module
+  already rejected for itself (see `reactiveBlend`'s own doc comment). A fast, blended ease
+  (`giveUpTransitionSeconds` defaults to `0.6`, deliberately shorter than every sibling transition)
+  gets the "decisive" read without an actual discontinuity.
+- *A new toast/UI event announcing "the dragon gave up," reusing `worldEventToast.js`.* Rejected as
+  disproportionate for this run: the ask was specifically a *flight-behavior* cue (GOVERNANCE.md
+  §18's own framing, matching ADR-0089's precedent), and a text announcement duplicates information
+  the visual cue itself already conveys — a player watching the dragon bank away and glide home
+  doesn't need a pop-up to tell them the same thing.
+- *Skip this and split `gameplayConfig.js` instead (573/600, run 70's #2 option).* Rejected this run,
+  same reasoning ADR-0089/ADR-0090 both already gave: not yet a violation, no file currently needs to
+  add to it, so splitting now would be a refactor with no forcing bug/perf/readability/architecture
+  reason (GOLDEN RULE 6).
+
+**Consequence:**
+- A player who gets chased and outlasts the 18-second `pursuitMaxSeconds` timer now sees the dragon
+  visibly "give up" — a harder bank as it turns away — distinct from simply losing the dragon by
+  breaking line of distance before the timer ever runs out, proven independently by this run's new
+  regression test rather than only by inspection.
+- No change to any position, radius, trigger, or timing value already tuned by runs 58/64/66/70 —
+  every existing dragon smoke check (circling, notice, reactive, dive, pursuit, wing-flap) still
+  passes unchanged.
+- `src/3d/gameplay/dragons.js` grew from 531 to 598 lines — still under the 600-line cap, but with
+  almost no headroom left (`checkSmokeCheckRegistry.js`'s `WARN_LINES` threshold, 540, is now
+  crossed). Unlike `gameplayConfig.js`'s long-standing 573/600 watch-item, this is a real, fresh
+  signal: the *next* addition to this file (an attack/fire-breath system, once the owner's health/
+  damage question resolves, or any further flight-behavior polish) should split it first rather than
+  push it over the cap — flagged explicitly in `3D_GAME_PROGRESS.md`'s "Next step," not left as a
+  silent WARN a future run might not notice.
+- `gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS` schema gained two more *optional* fields for future
+  spawns/tuning; the one real spawn (`umit-dragon-1`) was left on both defaults rather than edited,
+  since no playtest signal yet says either default reads wrong.
+
+**Etkilenen sistemler:** `src/3d/gameplay/dragons.js` (`createDragon`, `spawnConfiguredDragons`),
+`scripts/game3dSmokeChecksDragonDive.js` (new check, placed alongside `checkDragonPursuit` since both
+exercise `pursuitExhausted` — not in `game3dSmokeChecksDragonFlight.js`, despite that file owning
+ADR-0089's wing-flap check, since this cue is specifically a *pursuit*-exhaustion behavior, that
+file's sibling's own documented scope), `scripts/smokeTestGame3D.js` (wired in). `gameplayConfig.js`
+unchanged (no spawn edited).
+
+**Verification (GOVERNANCE.md §8.1):**
+- `node --check` clean across every changed file (`src/3d/gameplay/dragons.js`,
+  `scripts/game3dSmokeChecksDragonDive.js`, `scripts/smokeTestGame3D.js`), and a full repo sweep (50
+  files, no new file added) before and after.
+- New regression check (`checkDragonGiveUpCue`) added and passing, isolating four scenarios: a
+  give-up with an explicit non-default multiplier (`2.0`) reaches exactly `bankAngleRadians * 2.0`
+  and *latches* there while the player keeps lingering (not just a one-frame blip); a give-up with
+  the multiplier omitted proves the `1.6` default itself actually applies; an ordinary disengage
+  (player leaves before the timer ever exhausts) never moves `giveUpBlend` off `0` at any point,
+  proving the cue is specific to a timeout, not every disengage; and leaving the radius after a
+  give-up re-arms it and eases the cue back to the plain calm bank angle.
+- Full smoke suite: **20/20 PASS** (19 pre-existing + 1 new), zero console/page errors on real
+  headless boot of `game3d.html`; the 2D shell's pre-existing 11 non-blocking sandbox-network errors
+  unchanged (same count every recent run has documented).
+- All 5 standing guards re-run clean: `checkAssetsManifest.js` OK (41 entries, unchanged),
+  `checkServiceWorkerCache.js` OK (43 JS files, unchanged), `checkDialogueChoicesShape.js` OK (13/14,
+  unchanged), `checkPwaInstallability.js` OK (unchanged), `checkSmokeCheckRegistry.js` OK — 20 checks
+  now (was 19) across 5 modules, all 50 JS files still within the 600-line cap; `dragons.js` now
+  crosses the 540-line WARN threshold (531 -> 598) alongside the pre-existing `gameplayConfig.js`
+  573/600 WARN — both non-blocking, neither a violation, both flagged as watch-items below.
+- **Görsel kanıt (§8.5):** a bank-angle-*over-time* change has the same "no static-image signature"
+  property ADR-0089's timeScale change did — two frames at the same instant look identical whichever
+  `giveUpBlend` produced them. Primary evidence is therefore the multi-scenario regression test
+  above, which observes the actual eased value across real frames (including the "latches while
+  lingering" and "eases back off on re-arm" properties a single instant couldn't show) rather than a
+  single instant. Supplementary, matching ADR-0089's own precedent: a direct `createDragon` render
+  (outside the test harness) driven through a give-up scenario printed `userData.giveUpBlend === 1`
+  and `rotation.z === 0.48` (exactly `0.3 * 1.6`, the un-passed default multiplier) immediately
+  before a real headless-boot screenshot of `game3d.html` near the `umit` seat — the screenshot
+  itself shows the scene intact, the pre-existing "Ejderha Görüldü!" notice toast still firing
+  correctly (the shared distance/blend pipeline this change hooks into is still healthy end-to-end),
+  and zero console errors on that same boot.
+- **Performans (§4):** perf snapshot (`perf_log.csv` `run71` row) bit-identical to `run70b` on every
+  GPU-submission metric (46 draw calls, 393,231 triangles, 44 geometries, 17 textures) — expected, a
+  bank-angle change adds no geometry/material/draw-call count.
+- Tech debt counter: **0** (unchanged — neither introduced nor closed any this run; the `dragons.js`
+  line-count WARN is a watch-item, not tech debt — no `TEMP`/`HACK`/`FIXME`/`WORKAROUND`, no known
+  shortcut, just less remaining headroom before a real split becomes necessary).
+
+**Geri alma planı:** `git revert` the single commit. Removes `giveUpBankAngleMultiplier`/
+`giveUpTransitionSeconds`, the `giveUpBlend` derivation/write, the bank-angle layering, the new
+pass-through in `spawnConfiguredDragons`, and the new regression check + its wiring in
+`smokeTestGame3D.js`. No other file references any of it.
