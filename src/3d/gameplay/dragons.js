@@ -16,8 +16,18 @@
  * but the dragon eases into flying its existing circle faster and banking harder, then eases back to
  * the calm baseline once the player leaves — a smoothly-blended "reaction", not an instant snap, and
  * still fully deterministic (driven only by `isInRadius` + elapsed `delta`, no `Math.random()`).
+ * Run 64 (DECISIONS.md ADR-0082) adds the first real path deviation: a brief dive off the circle
+ * when the player gets much closer than `noticeRadiusMeters` (a new, smaller `alarmRadiusMeters`),
+ * swooping partway toward them and losing altitude, then easing back onto the ordinary circle once
+ * they back off — blended the same linear-ease way as run 58's speed/bank reaction, just applied to
+ * *position* this time, and terrain-safe (never dips below the real ground under it, plus a
+ * clearance margin). Still no chasing/attacking/pathfinding back — the circle (`angle`) is never
+ * actually left, only how far the rendered position is pulled off it, so "returning to the circle"
+ * needs no separate path-planning: easing the dive blend back to 0 always lands exactly on the
+ * ordinary circling pose.
  * `game3d.js` wires this in the same spawn-then-per-frame-update shape every other gameplay system
- * already uses.
+ * already uses, wrapped in a try/catch (GOVERNANCE.md §8.13 safe mode) since run 64 also touches
+ * that call site.
  * @module gameplay/dragons
  */
 
@@ -67,6 +77,34 @@ import { AssetLoader } from '../assetLoader.js';
  *   reactive (or back) takes — a linear blend, not an instant snap, so the speed-up/bank-in reads as
  *   a reaction rather than a teleport. Defaults to `1.5`. Ignored if reactive params are both at
  *   their no-op defaults.
+ * @param {number} [options.alarmRadiusMeters] Run 64 (ADR-0082) dive: when the player comes within
+ *   this many meters of the dragon's real position — meant to be well inside `noticeRadiusMeters`,
+ *   a "right underneath it" distance rather than "somewhere on the horizon" — the dragon eases off
+ *   its circle toward them and loses altitude (see `diveDropMeters`/`diveLateralPullFraction`
+ *   below), easing back once they retreat past it. Omit (along with `sampleGroundY`) to disable
+ *   entirely — same "omit to disable" convention `noticeRadiusMeters`/reactive-flight already use, so
+ *   a dragon can react (speed up/bank) without diving, but diving requires `sampleGroundY` for its
+ *   own terrain-safety clamp.
+ * @param {(worldX: number, worldZ: number) => number} [options.sampleGroundY] Real ground height at
+ *   an (x, z) — same convention `spawnConfiguredAnimals`/`spawnConfiguredDragons` already use for
+ *   `centerY`. Required for diving to activate; re-sampled every frame the dive blend is above 0
+ *   (the dive position moves every frame, so a single sample at the dive's start wouldn't stay
+ *   correct) to clamp the dragon's altitude above the real terrain under its new position.
+ * @param {number} [options.diveDropMeters] How far below `centerY` the dive's raw target altitude
+ *   is, before the terrain-safety clamp. Defaults to `25`. The actual altitude reached may be higher
+ *   than `centerY - diveDropMeters` if the real ground there is close enough that
+ *   `minAltitudeAboveGroundMeters` would otherwise be violated.
+ * @param {number} [options.diveLateralPullFraction] How far horizontally the dive target is pulled
+ *   toward the player's current (x, z), as a fraction of the distance from the dragon's on-circle
+ *   position to the player (`0` = stays over the circle point, `1` = directly over the player).
+ *   Defaults to `0.35` — a swoop toward them, not a teleport to stand on top of them. Clamped to
+ *   `[0, 1]` internally (a bad config value can't send the dragon past the player or behind it).
+ * @param {number} [options.diveTransitionSeconds] How long, in seconds, easing into (or out of) the
+ *   dive takes — same linear-blend shape `reactiveTransitionSeconds` uses, just for position instead
+ *   of speed/bank. Defaults to `1`.
+ * @param {number} [options.minAltitudeAboveGroundMeters] Terrain-safety floor: the dive's blended
+ *   altitude is never allowed to end up below `sampleGroundY(x, z) + minAltitudeAboveGroundMeters`
+ *   for the dragon's *actual* (post-blend) (x, z) that frame. Defaults to `10`.
  * @returns {Promise<{object3D: THREE.Object3D, update: (delta: number, playerPosition?: {x: number, y: number, z: number}) => void, dispose: () => void}>}
  */
 export async function createDragon({
@@ -90,7 +128,14 @@ export async function createDragon({
 	reactiveSpeedMultiplier = 1,
 	reactiveBankAngleRadians = bankAngleRadians,
 	reactiveTransitionSeconds = 1.5,
+	alarmRadiusMeters,
+	sampleGroundY,
+	diveDropMeters = 25,
+	diveLateralPullFraction = 0.35,
+	diveTransitionSeconds = 1,
+	minAltitudeAboveGroundMeters = 10,
 }) {
+	const clampedDiveLateralPullFraction = Math.min(1, Math.max(0, diveLateralPullFraction));
 	const model = await assetLoader.loadFBXModel(modelUrl, {
 		fallbackColor: 0x2a2a2a,
 		fallbackSize: 6,
@@ -116,6 +161,9 @@ export async function createDragon({
 	// as the dragon actually responding, not teleporting between two fixed states. Starts at 0 (calm)
 	// — same "never assumed" convention `playerWasInNoticeRadius` below already follows.
 	let reactiveBlend = 0;
+	// Run 64 (ADR-0082) dive: 0 = on-circle, 1 = fully at the (terrain-clamped) dive target. Same
+	// starts-at-0, eased-not-snapped shape as `reactiveBlend` above.
+	let diveBlend = 0;
 
 	/** Places `model` at the current `angle` on its circle and orients it along the direction of travel. */
 	function applyPose(currentBankAngleRadians) {
@@ -133,6 +181,7 @@ export async function createDragon({
 	applyPose(bankAngleRadians);
 
 	const canNotice = Boolean(noticeRadiusMeters != null && eventsBus && eventName && noticeToast);
+	const canDive = Boolean(alarmRadiusMeters != null && typeof sampleGroundY === 'function');
 	// Starts false: the very first `update()` call (typically seconds after boot) does its own
 	// real distance check before deciding whether the player already started inside the radius —
 	// never assumed true/false up front.
@@ -150,13 +199,19 @@ export async function createDragon({
 			// Distance check (and the notice edge-trigger it already drove) now runs first, against
 			// the dragon's position as of the end of the previous frame — same real distance the
 			// original run-54 check used, just also reused below to pick this frame's reactive blend
-			// target instead of only firing the one-shot notice event.
-			let isInRadius = false;
-			if (canNotice && playerPosition) {
+			// target (and, run 64, the dive-alarm target) instead of only firing the one-shot notice
+			// event.
+			let distanceToPlayer = null;
+			if (playerPosition && (canNotice || canDive)) {
 				const dx = model.position.x - playerPosition.x;
 				const dy = model.position.y - playerPosition.y;
 				const dz = model.position.z - playerPosition.z;
-				isInRadius = Math.hypot(dx, dy, dz) < noticeRadiusMeters;
+				distanceToPlayer = Math.hypot(dx, dy, dz);
+			}
+
+			let isInRadius = false;
+			if (canNotice && distanceToPlayer != null) {
+				isInRadius = distanceToPlayer < noticeRadiusMeters;
 				if (isInRadius && !playerWasInNoticeRadius) {
 					eventsBus.emit(eventName, noticeToast);
 				}
@@ -179,7 +234,42 @@ export async function createDragon({
 			const currentBankAngleRadians = bankAngleRadians + (reactiveBankAngleRadians - bankAngleRadians) * reactiveBlend;
 
 			angle += angularSpeedRadiansPerSecond * delta;
-			applyPose(currentBankAngleRadians);
+			applyPose(currentBankAngleRadians); // pure on-circle pose — the dive below blends *away*
+			// from this, never replaces the underlying path, so easing back to diveBlend 0 always
+			// lands exactly here again.
+
+			// Run 64 (ADR-0082): brief dive off the circle when the player is much closer than
+			// `noticeRadiusMeters` (inside the smaller `alarmRadiusMeters`), easing back the same way
+			// once they retreat — a linear ease-toward-a-target, same shape as `reactiveBlend` above,
+			// just blending *position* instead of speed/bank.
+			const isAlarmed = canDive && distanceToPlayer != null && distanceToPlayer < alarmRadiusMeters;
+			const diveBlendTarget = isAlarmed ? 1 : 0;
+			if (diveTransitionSeconds > 0) {
+				const diveStep = delta / diveTransitionSeconds;
+				if (diveBlend < diveBlendTarget) diveBlend = Math.min(diveBlendTarget, diveBlend + diveStep);
+				else if (diveBlend > diveBlendTarget) diveBlend = Math.max(diveBlendTarget, diveBlend - diveStep);
+			} else {
+				diveBlend = diveBlendTarget;
+			}
+			if (diveBlend > 0 && playerPosition) {
+				const circleX = model.position.x;
+				const circleZ = model.position.z;
+				// Pulled only partway toward the player's horizontal position, not all the way onto
+				// it — a swoop toward them, not a teleport to stand on top of them.
+				const diveTargetX = circleX + (playerPosition.x - circleX) * clampedDiveLateralPullFraction;
+				const diveTargetZ = circleZ + (playerPosition.z - circleZ) * clampedDiveLateralPullFraction;
+				const diveTargetY = centerY - diveDropMeters;
+				const blendedX = circleX + (diveTargetX - circleX) * diveBlend;
+				const blendedZ = circleZ + (diveTargetZ - circleZ) * diveBlend;
+				const blendedY = centerY + (diveTargetY - centerY) * diveBlend;
+				// Terrain-collision safety floor: never let the dive put the dragon below the real
+				// ground under its *new* (x, z), plus a clearance margin. Re-sampled every frame (the
+				// position moves every frame while diving), not just once at the dive's start.
+				const groundY = sampleGroundY(blendedX, blendedZ);
+				const safeY = Math.max(blendedY, groundY + minAltitudeAboveGroundMeters);
+				model.position.set(blendedX, safeY, blendedZ);
+			}
+
 			mixer.update(delta);
 		},
 
@@ -207,8 +297,11 @@ export async function createDragon({
  * @param {string} [options.eventName] `EVENTS.WORLD_EVENT_TRIGGERED`.
  * @returns {Promise<Awaited<ReturnType<typeof createDragon>>[]>} Already filtered — no `null` entries.
  *   Each spawn's own `reactiveSpeedMultiplier`/`reactiveBankAngleRadians`/`reactiveTransitionSeconds`
- *   (run 58, ADR-0077) are passed straight through to `createDragon` — omitted per-spawn fields fall
- *   back to `createDragon`'s own no-op defaults (calm flight, unaffected by the player).
+ *   (run 58, ADR-0077) and `alarmRadiusMeters`/`diveDropMeters`/`diveLateralPullFraction`/
+ *   `diveTransitionSeconds`/`minAltitudeAboveGroundMeters` (run 64, ADR-0082) are passed straight
+ *   through to `createDragon` — omitted per-spawn fields fall back to `createDragon`'s own no-op
+ *   defaults (calm flight, unaffected by the player). `sampleGroundY` itself is always passed
+ *   through too (run 64), needed for the dive's own terrain-safety clamp.
  */
 export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsById, sampleGroundY, eventsBus, eventName }) {
 	const dragons = await Promise.all(
@@ -238,6 +331,12 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				reactiveSpeedMultiplier: spawn.reactiveSpeedMultiplier,
 				reactiveBankAngleRadians: spawn.reactiveBankAngleRadians,
 				reactiveTransitionSeconds: spawn.reactiveTransitionSeconds,
+				alarmRadiusMeters: spawn.alarmRadiusMeters,
+				sampleGroundY,
+				diveDropMeters: spawn.diveDropMeters,
+				diveLateralPullFraction: spawn.diveLateralPullFraction,
+				diveTransitionSeconds: spawn.diveTransitionSeconds,
+				minAltitudeAboveGroundMeters: spawn.minAltitudeAboveGroundMeters,
 			});
 		}),
 	);

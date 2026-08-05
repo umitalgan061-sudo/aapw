@@ -6188,3 +6188,124 @@ or the unrelated script. **The key itself must still be treated as compromised a
 the repo owner** — it remains recoverable from git history (`70bb43b`) until that history is
 separately purged, which this run deliberately did not do without confirmation. **Gelecek Faz Etkisi:**
 none — orthogonal to all FAZ work, pure repo-hygiene/security fix.
+
+## ADR-0082: Dragon dive/swoop reaction — first real path deviation off the circling flight path
+
+**Status:** Accepted (run 64).
+
+**Risk Seviyesi:** LOW. Justification: fully additive and opt-in (`alarmRadiusMeters`/`sampleGroundY`
+both required to activate; the one configured spawn is the only dragon affected), the underlying
+circle path (`angle`) is never modified — only how far the *rendered* position is blended off it —
+so easing the dive blend back to 0 always lands exactly back on the pre-existing, already-verified
+circling pose; trivially reversible (omit the two new spawn fields to fall back to run 58's
+speed/bank-only reaction, or revert this commit entirely).
+
+**Context:** Runs 58/59/63's own "Next step" notes all named the same concrete, un-started FAZ 7
+increment: a real path deviation (leaving the circle briefly), not just the speed/bank-only reaction
+run 58 shipped. `GOVERNANCE.md` §18's priority order has items 1-10 (macro-relief through
+World-Coverage review) all confirmed clean/unchanged again this run (fresh `node --check` sweep, 50+
+files, clean; full smoke suite 16/16 PASS on `origin/main` before any new code) and World Coverage's
+flat 4.5% mobile figure re-confirmed, once again, as `STREAM_RADIUS_CHUNKS`'s deliberate mobile
+triangle-budget constraint (ADR-0010/ADR-0013), not a real gap worth another investigation run — so
+this run moved to item 12 (FAZ 7 dragon), as run 63 recommended giving it "its own full run."
+
+**Decision:**
+
+1. **`gameplay/dragons.js`'s `createDragon`** gains five new optional parameters —
+   `alarmRadiusMeters`, `sampleGroundY`, `diveDropMeters` (default 25), `diveLateralPullFraction`
+   (default 0.35, clamped to `[0, 1]`), `diveTransitionSeconds` (default 1),
+   `minAltitudeAboveGroundMeters` (default 10) — all omittable (dive fully disabled by default, same
+   "omit to disable" convention `noticeRadiusMeters`/reactive flight already use). Internally, a new
+   `diveBlend` state (0 = on-circle, 1 = fully dived) eases linearly toward 1 while the player is
+   inside `alarmRadiusMeters` (real 3D distance to the dragon's own position, same distance computation
+   reactive flight already runs, now shared/reused rather than duplicated) and back toward 0 once they
+   retreat — the exact same linear-ease shape run 58's `reactiveBlend` established, just blending
+   *position* (a lerp from the pure on-circle pose toward a point pulled partway toward the player,
+   lower in altitude) instead of speed/bank. **Terrain-collision safety:** every frame the dive blend
+   is above 0, the blended altitude is clamped to never go below `sampleGroundY(x, z) +
+   minAltitudeAboveGroundMeters` for the dragon's actual post-blend `(x, z)` — re-sampled every frame,
+   not just once at the dive's start, since the position itself moves every frame while diving.
+2. **`gameplayConfig.js`'s `umit-dragon-1` spawn** gets real tuning values: `alarmRadiusMeters: 110`
+   (must clear the spawn's own `altitudeMeters: 90` — the dragon's 3D distance to a player standing
+   exactly under its current circle position can never read below its own altitude, so anything ≤90
+   would simply never trigger; 110 gives ~63m of horizontal slack around the nearest point on the
+   150m-radius circle), `diveDropMeters: 30`, `diveLateralPullFraction: 0.3`,
+   `diveTransitionSeconds: 0.8`, `minAltitudeAboveGroundMeters: 12` — this run's own engineering
+   judgment (no existing project value to reuse), same precedent ADR-0077's reactive-flight numbers
+   already set. Not escalated to `QUESTIONS_FOR_OWNER.md`: a tuning choice, not a design/product
+   ambiguity, matching how ADR-0077's numbers were handled.
+3. **`game3d.js`'s per-frame dragon-update loop** is now wrapped in a try/catch
+   (GOVERNANCE.md §8.13, safe mode for newly-touched subsystems): if any one dragon's `update()` throws
+   (a bad `sampleGroundY` result, a corrupt mixer state, etc.), only that dragon is disposed and
+   dropped from `state.dragons` — logged via `console.error`, not silently swallowed — instead of the
+   whole per-frame update loop (and everything after it that frame: camera follow, world events, HUD)
+   crashing with it.
+4. **`scripts/game3dSmokeChecksDragonDive.js`** (new file, not added to
+   `game3dSmokeChecksMovement.js` — already 614/600 lines going into this run, see that file's own
+   header for why splitting further rather than growing it more was the right call here too) — a real
+   `createDragon` controller (`speedMps: 0`, parked at a known position, same trick
+   `checkDragonNotice`/`checkDragonReactiveFlight` already use) asserts: stays exactly on-circle while
+   far; sustained proximity eases it to the *exact* expected lateral-pull + altitude-drop position; a
+   deliberately-too-low `sampleGroundY` clamps the dive to exactly `groundY +
+   minAltitudeAboveGroundMeters` (the real terrain-collision guarantee, not just the unclamped
+   lerp math); the player retreating eases it back to the *exact* on-circle pose; a dragon with no
+   `alarmRadiusMeters`/`sampleGroundY` configured never dives regardless of proximity. Wired into
+   `smokeTestGame3D.js` as the suite's 17th check.
+
+**Alternatives considered:**
+- **Deriving the dive target purely from the player's position (fully "onto" them, not partway).**
+  Rejected: `diveLateralPullFraction` exists specifically so a bad/extreme config (or a future
+  per-spawn override) can't put the dragon exactly on top of the player's own collider; a partial pull
+  reads as "swooping toward" rather than "landing on."
+- **A full return-to-circle path-planner (recompute the shortest arc back rather than blending a
+  lerp).** Rejected as far more scope than this increment needs: because the underlying circle
+  `angle` is never actually left, blending the *rendered* position back to `diveBlend = 0` already
+  lands exactly on the correct, already-moving circle position — no separate planning needed, and no
+  "catch up to where the circle has moved to since I left" problem to solve.
+- **A second, real live-game screenshot (walking the actual player near the actual spawned dragon
+  during a real low pass) for visual verification, instead of a standalone synthetic scene.**
+  Attempted conceptually but not practical without a debug teleport hook (no internal game state —
+  player position, the live THREE scene, the spawned dragon list — is exposed on `window` for a
+  headless script to reach; deliberately not leaked, same precedent the F2 panel already set).
+  Per the spawn's own doc comment, the *player does spawn* close enough (~60m from `umit`) that the
+  dive should trigger naturally within roughly one lap of real playtime post-boot — worth a human
+  playtester's eyes confirming, noted below — but scripting a precisely-timed live capture wasn't
+  worth the added complexity this run given the standalone-scene screenshots plus the smoke test's
+  exact-math assertions are already strong, real evidence for the position/clamp behavior itself.
+
+**Verification:** `node --check` clean on all 5 changed/new files
+(`gameplay/dragons.js`, `gameplayConfig.js`, `game3d.js`, `game3dSmokeChecksDragonDive.js`,
+`smokeTestGame3D.js`), plus a full `src/`+`scripts/` sweep (clean). Full `scripts/smokeTestGame3D.js`
+— **17/17 PASS** (16 prior + the new dive check), including the real `game3d.html` zero-console-error
+boot (confirms the try/catch safe-mode addition didn't change normal-path behavior — it only executes
+if `dragon.update()` throws, which it doesn't in ordinary operation). **Visual verification (§8.5):**
+a standalone, self-contained THREE.js scene (not the live `game3d.html` scene graph — see
+"Alternatives considered" above for why) rendered the real dragon model calm (high altitude, level)
+vs. fully dived (dropped ~30m, pulled laterally toward a fixed player point) from both a wide and a
+close camera angle — 4 screenshots total, the close-angle pair making the altitude/position change
+clearly visible against the reference ground plane. Not committed to the repo (this project's own
+established convention — prior runs' screenshot evidence is described in text, not checked in as
+binary files).
+
+**Consequence:** The one configured dragon (`umit-dragon-1`) now has a real, terrain-safe path
+deviation on top of its existing speed/bank reaction — the next concrete step past run 58's "still no
+diving/chasing/pathfinding" note. Still no true chase/attack behavior (the dive is a bounded swoop
+toward a fixed alarm trigger, not pursuit that tracks the player's continued movement beyond the
+initial pull vector) — a natural further increment if wanted. No existing behavior changed for a
+dragon that doesn't opt into the new fields (none do, besides `umit-dragon-1`).
+
+**Gelecek Faz Etkisi (future-phase impact):**
+- **FAZ 7 (this dragon, future runs):** `diveBlend` and the dive-target lerp math are a direct
+  extension point for a later "real chase" tier (continuously re-aiming the dive target at the
+  player's *current* position each frame, rather than the single pull-vector snapshot this run
+  computes fresh each frame already does implicitly via `distanceToPlayer`/`playerPosition` — so this
+  is closer to "already partially chase-like" than a one-shot swoop, worth noting for whoever scopes
+  the next increment) — and for a future "breaks from the circle entirely" alert tier the same way
+  ADR-0077's own future-phase note already flagged.
+- **FAZ 6 (animals):** the same "blend position off a deterministic base path, terrain-clamp the
+  result" pattern is reusable for any future animal reaction needing to leave its patrol path
+  temporarily (e.g., a wolf lunging), if `gameplay/animals.js`'s existing flee logic (which replaces
+  its path entirely rather than blending off a base one) ever needs a partial version.
+- **Human playtest note:** worth a real playtest confirming the dive is visible/felt during normal
+  play near `umit`'s seat (see "Alternatives considered" above) — this run's evidence is strong for
+  the underlying math/terrain-safety but is a synthetic scene, not a live capture.

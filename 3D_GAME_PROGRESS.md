@@ -6337,3 +6337,113 @@ key (rotate + decide on history rewrite) and the blocked animal assets.
 
 **Addendum:** did not attempt `git tag stable-YYYY-MM-DD-HHmm` this run either — same known `HTTP 403`
 tag-push rejection documented since run 58, no new reason to believe it's fixed.
+
+## This Run (2026-08-05, run 64)
+
+**Fresh Session Snapshot at container boot:** `git status` showed a detached `HEAD` at run 63's final
+commit (`7f079f1`) with local `main` stale (same recurring pattern noted in runs 18/29/30/36/37/57/63);
+`git fetch origin main` confirmed `origin/main` matched exactly (no concurrent-session divergence);
+`git checkout main` + `git reset --hard origin/main` synced local `main` before any work started, per
+§8.14. `GOVERNANCE.md`/`CREDITS.md` already exist, already contain every rule this run's scheduler
+prompt listed (confirmed by reading the full file — no missing section) — no changes needed there.
+`QUESTIONS_FOR_OWNER.md` read: two owner-only items pending (leaked key, blocked animal assets),
+neither actionable by this run. `DECISIONS.md`'s last 3 ADRs read for context. `ARCHITECTURE.md` last
+touched 2026-07-30 (6 days ago, under the 7-day re-read threshold) — not re-read.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`, 50 files) — clean. Full
+`scripts/smokeTestGame3D.js` — **16/16 PASS** on `origin/main` before any new code, confirming the
+baseline (including run 63's security fix) is healthy.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 (macro-relief/roads/ground-color/castle textures)
+remain the genuinely-done "1.x cluster" (re-confirmed, not re-verified in depth this run — no new
+evidence to doubt runs 54-58's own verification). Items 5-10 (syntax/blocking-bugs/perf/memory-
+leak/tech-debt/smoke-test) all clean per the baseline sweep above. **Item 11 (World Coverage):**
+re-checked `chunkManager.js`'s coverage source (`everGenerated` chunk count) and `sceneManager.js`'s
+mobile-vs-desktop `STREAM_RADIUS_CHUNKS` branch directly rather than re-running the metric — the flat
+4.5% mobile figure is `STREAM_RADIUS_CHUNKS: 2`'s own deliberate mobile triangle-budget constraint,
+already documented and re-confirmed across ADR-0010/ADR-0013 and several later runs' own delta tables
+(59→62→63, all flat). **Correcting run 63's own "worth a dedicated investigation run" note:** it isn't
+a stale/unmaintained metric or a real open gap — it's a known, intentional, already-closed constant;
+repeating the investigation would just re-derive the same documented answer again. Not repeating it a
+further time.
+
+**Sub-task — FAZ 7 dragon dive/swoop reaction (priority item 12; DECISIONS.md ADR-0082):** the
+concrete next FAZ 7 step runs 58/59/63 all pointed at — a real path deviation off the circling
+flight path, not just the speed/bank-only reaction run 58 shipped. `gameplay/dragons.js`'s
+`createDragon` gains an `alarmRadiusMeters`-triggered dive: while the player is much closer than
+`noticeRadiusMeters` (a new, smaller alarm distance), the dragon eases off its circle toward them and
+loses altitude, terrain-clamped every frame against a real `sampleGroundY`, then eases back to the
+*exact* on-circle pose once they retreat — no separate return-path-planning needed, since the circle
+`angle` itself is never touched, only how far the rendered position blends off it. `umit-dragon-1`
+(the one configured spawn) got real tuning values (`alarmRadiusMeters: 110` — must clear its own
+90m `altitudeMeters` or the dive could never trigger; `diveDropMeters: 30`;
+`diveLateralPullFraction: 0.3`; `diveTransitionSeconds: 0.8`; `minAltitudeAboveGroundMeters: 12`).
+Also wrapped `game3d.js`'s per-frame dragon-update loop in a try/catch (GOVERNANCE.md §8.13 safe
+mode, since this run touched that exact call site): one dragon's `update()` throwing now disables
+only that dragon (disposed, dropped from `state.dragons`, logged) instead of crashing the frame loop.
+
+**Verification:** `node --check` clean on all 5 changed/new files. New
+`scripts/game3dSmokeChecksDragonDive.js` (split into its own file rather than grown into
+`game3dSmokeChecksMovement.js`, already 614/600 lines going into this run) asserts the exact dive
+position math, the terrain-collision clamp actually winning over the unclamped target, and the exact
+return-to-circle pose — wired into `smokeTestGame3D.js` as check 17. Full suite re-run after all
+changes: **17/17 PASS**, including a genuine zero-console-error `game3d.html` boot (confirms the new
+try/catch didn't change normal-path behavior). **Visual verification (§8.5):** a standalone
+THREE.js scene (not the live game boot — no internal game state is exposed on `window` for a script
+to reach and trigger a real, precisely-timed live dive; see ADR-0082's "Alternatives considered")
+rendered the real dragon model calm vs. fully dived from both a wide and close camera angle (4
+screenshots) — the close pair makes the ~30m altitude drop + lateral pull clearly visible against a
+reference ground plane. Not committed to the repo (this project's own convention: screenshot evidence
+is described in text, not checked in as binary files).
+
+**Session Quality Gate (§8.6):** stopping here after 1 sub-task (plus the priority re-scan) rather
+than chaining into a further FAZ 7 increment (e.g. real continuous chase) or FAZ 8/9/10 work.
+Confidence: 5/5 — real, exact-math-verified, terrain-safe, fully opt-in/backward-compatible, no
+regressions (17/17 smoke, zero console errors). "6 ay sonra hâlâ net mi" check: yes — ADR-0082 spells
+out the exact blend math, the 90m-altitude-floor reasoning behind `alarmRadiusMeters: 110`, and
+explicitly flags the live-playtest gap this run's synthetic-scene evidence doesn't close.
+
+**Memory-leak checklist:** no new persistent listeners/timers/DOM nodes. The new try/catch's
+disposal path (`scene.remove` + `dragon.dispose()`) is itself a memory-leak *fix* for the one-in-a-
+million case a dragon throws mid-game — without it, a thrown error would leave that dragon's mixer/
+GPU resources referenced forever with no owner left to dispose them. The visual-verification script
+(scratchpad, not committed) opens/closes its own Playwright page and static server per run — nothing
+persists.
+
+**Files changed this run:** `src/3d/gameplay/dragons.js`, `src/3d/gameplay/gameplayConfig.js`,
+`src/3d/game3d.js`, `scripts/game3dSmokeChecksDragonDive.js` (new), `scripts/smokeTestGame3D.js`,
+`GOVERNANCE.md` (§17 roadmap line only — FAZ 7 status), `DECISIONS.md` (ADR-0082), `perf_log.csv`
+(+1 row), `3D_GAME_PROGRESS.md` (this file). No file near the 600-line cap (`gameplayConfig.js`
+largest, 557/600).
+
+**World Evolution Report (delta vs. run 63):**
+
+| Metric | Run 63 | Run 64 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged |
+| Kingdom seats w/ real castle models | 7 | 7 | unchanged |
+| Dragons (spawned) | 1 (circling + notice + reactive flight) | 1 (+ dive/swoop reaction) | behavior increment |
+| NPCs with dialogue-choice branching | 13/14 | 13/14 | unchanged |
+| Smoke suite | 16/16 | 17/17 | +1 check |
+| ADRs | 81 | 82 | +1 |
+| perf_log.csv rows | 2 | 3 | +1 |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (confirmed intentional again) |
+| Tech debt count | unchanged | unchanged | +0 |
+
+**Oyuncu fark eder mi:** yes, potentially — anyone who happens to be standing near `umit`'s seat while
+the dragon's low pass brings it within ~110m (roughly under/near the flight path) will now see it dip
+down and swoop toward them for a moment before climbing back to its normal patrol, instead of only
+ever flying the same circle regardless of how close they get. Whether this is *commonly* noticed
+during ordinary play (vs. only during a deliberate wait-and-watch) is the one open question a real
+playtest would answer — flagged in ADR-0082 rather than guessed at.
+
+**Next step for the next run:** re-scan the priority order fresh, as always (§8.14: `git fetch` before
+starting). FAZ 7's dragon now has notice + reactive flight + a bounded dive; a natural further
+increment (not started this run) is upgrading the dive into a real continuous chase (re-aiming at the
+player's *current* position every frame rather than the fixed pull-vector this run computes, per
+ADR-0082's own Gelecek Faz Etkisi note) — bigger scope, deserves its own run. FAZ 6's cart/dog-cat/
+bird gap remains blocked on the human manual-asset-download step. Items 1-11 came back clean/
+unchanged again this run. No blocking bugs, syntax errors, or regressions found.
+
+**Addendum:** did not attempt `git tag stable-YYYY-MM-DD-HHmm` this run either — same known `HTTP 403`
+tag-push rejection documented since run 58, no new reason to believe it's fixed.

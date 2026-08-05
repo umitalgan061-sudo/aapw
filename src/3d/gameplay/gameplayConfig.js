@@ -484,6 +484,22 @@ export const DRAGON_CONFIG = Object.freeze({
 			reactiveSpeedMultiplier: 1.6,
 			reactiveBankAngleRadians: 0.65,
 			reactiveTransitionSeconds: 1.2,
+			/** FAZ 7 dive (run 64, DECISIONS.md ADR-0082): the first real path deviation, layered on
+			 * top of run 58's speed/bank-only reaction. `alarmRadiusMeters` must clear
+			 * `altitudeMeters` (90 above) — the dragon's 3D distance to a player standing exactly
+			 * under its current circle position can never read below its own altitude, so anything
+			 * <=90 here would simply never trigger. 110 gives ~63m of horizontal slack
+			 * (sqrt(110²-90²)) around the nearest point on the 150m-radius circle — reachable by
+			 * standing near the seat while the dragon happens to be passing low nearly overhead, not
+			 * a de-facto-permanent state. `diveDropMeters`/`minAltitudeAboveGroundMeters` are this
+			 * run's own engineering judgment (no existing project value to reuse, same as
+			 * ADR-0077's reactive-flight numbers) — see `gameplay/dragons.js`'s `createDragon` doc
+			 * comment for the exact blend + terrain-clamp math. */
+			alarmRadiusMeters: 110,
+			diveDropMeters: 30,
+			diveLateralPullFraction: 0.3,
+			diveTransitionSeconds: 0.8,
+			minAltitudeAboveGroundMeters: 12,
 		}),
 	]),
 });

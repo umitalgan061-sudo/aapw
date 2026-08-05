@@ -403,9 +403,25 @@ export async function initGame3D() {
 					.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z }));
 				animal.update(delta, playerPos, packmateFleePositions);
 			}
-			// FAZ 7 dragons (run 53 flight path, run 54 player-awareness) — see `gameplay/dragons.js`'s
-			// own doc comment. `playerPos` already reflects this frame's post-movement position (set above).
-			for (const dragon of state.dragons) dragon.update(delta, playerPos);
+			// FAZ 7 dragons (run 53 flight path, run 54 player-awareness, run 64 dive) — see
+			// `gameplay/dragons.js`'s own doc comment. `playerPos` already reflects this frame's
+			// post-movement position (set above). Run 64 wraps this in a try/catch per GOVERNANCE.md
+			// §8.13 (safe mode for newly-touched subsystems): one dragon's `update()` throwing (a bad
+			// `sampleGroundY` result, a corrupt mixer state, etc.) disables only that dragon —
+			// disposed and dropped from `state.dragons` — instead of crashing the whole frame loop.
+			let anyDragonFailed = false;
+			for (const dragon of state.dragons) {
+				try {
+					dragon.update(delta, playerPos);
+				} catch (error) {
+					console.error(`[game3d] Dragon "${dragon.object3D?.name ?? '?'}" update() threw — disabling this dragon only (GOVERNANCE.md §8.13 safe mode), rest of the game continues.`, error);
+					state.scene.remove(dragon.object3D);
+					dragon.dispose();
+					dragon.disabledDueToError = true;
+					anyDragonFailed = true;
+				}
+			}
+			if (anyDragonFailed) state.dragons = state.dragons.filter((dragon) => !dragon.disabledDueToError);
 			state.camera.position.x += playerPos.x - previousTargetX;
 			state.camera.position.z += playerPos.z - previousTargetZ;
 			state.controls.target.set(playerPos.x, playerPos.y + PLAYER_CONFIG.CAMERA_TARGET_HEIGHT_METERS, playerPos.z);

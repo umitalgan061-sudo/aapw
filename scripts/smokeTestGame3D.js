@@ -14,9 +14,11 @@
  * level: 2D shell load, 3D mode boot, water vertex-shader-has-no-displacement, F4 debug camera, F2
  * debug/profiling panel, world-event system), `game3dSmokeChecks.js` (per-entity gameplay:
  * settlement collider, jump/gravity arc, interaction controller), and `game3dSmokeChecksMovement.js`
- * (waypoint-patrol/flee-AI: wolf flee/pack-alert, NPC waypoint patrol, wolf waypoint patrol) — split
- * across three files (run 40, then again this run once `game3dSmokeChecks.js` hit 596/600 lines) —
- * see each file's own header comment for why.
+ * (waypoint-patrol/flee-AI: wolf flee/pack-alert, NPC waypoint patrol, wolf waypoint patrol), and
+ * `game3dSmokeChecksDragonDive.js` (run 64: dragon dive/swoop reaction) — split across four files
+ * (run 40, again once `game3dSmokeChecks.js` hit 596/600 lines, again run 64 since
+ * `game3dSmokeChecksMovement.js` was already at 614/600 going into that run) — see each file's own
+ * header comment for why.
  *
  * Requires Playwright's Chromium browser (dev-only tooling — this repo intentionally has no
  * `package.json`/build step for the *deployed* site; this script is never loaded by a browser or
@@ -32,6 +34,7 @@
 const sceneChecks = require('./game3dSmokeChecksScene.js');
 const checks = require('./game3dSmokeChecks.js');
 const movementChecks = require('./game3dSmokeChecksMovement.js');
+const dragonDiveChecks = require('./game3dSmokeChecksDragonDive.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
@@ -68,6 +71,7 @@ async function main() {
 		results.push(await movementChecks.checkDragonFlight(browser, baseUrl));
 		results.push(await movementChecks.checkDragonNotice(browser, baseUrl));
 		results.push(await movementChecks.checkDragonReactiveFlight(browser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonDive(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();
