@@ -92,3 +92,12 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   textures). `scripts/game3dSmokeChecksDragonDive.js` now 598/600 (fresh WARN, flagged as next run's
   real forcing signal to split). `git push origin main` succeeded (`cffd49c`). Local tag only —
   `git push origin <tag>` still rejected with `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-1012` — run 72 sub-task 2 end: `game3dSmokeChecksDragonDive.js` split by theme
+  (ADR-0094) — 598/600 lines became `game3dSmokeChecksDragonDive.js` (301, dive-only) +
+  `game3dSmokeChecksDragonPursuit.js` (318, new, pursuit-only). No production code touched; only
+  `smokeTestGame3D.js`'s wiring changed. Smoke suite 21/21 PASS before and after with byte-identical
+  detail text on every dragon check; perf bit-identical (46 draw calls / 393,231 triangles / 44
+  geometries / 17 textures); `checkServiceWorkerCache.js` confirms scripts/ dev tooling stays outside
+  the precache scope (still 46 JS files); `game3dSmokeChecksDragonDive.js`'s 598/600 WARN is gone,
+  only `gameplayConfig.js`'s 579/600 remains. `git push origin main` succeeded (`da097ed`). Local tag
+  only — `git push origin <tag>` still rejected with `HTTP 403` (same known issue since run 58).
