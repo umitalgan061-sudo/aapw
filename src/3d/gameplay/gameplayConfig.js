@@ -499,6 +499,12 @@ export const DRAGON_CONFIG = Object.freeze({
 			diveDropMeters: 30,
 			diveLateralPullFraction: 0.3,
 			diveTransitionSeconds: 0.8,
+			/** FAZ 7 dive telegraph (run 72): no explicit override here — `createDragon`'s own
+			 * `diveTelegraphSeconds`/`diveTelegraphTransitionSeconds` defaults (0.4s / 0.15s) already
+			 * fit this spawn's own `diveTransitionSeconds` (0.8) well (a beat that reads as roughly
+			 * half the dive's own motion time, not longer than it), so this spawn simply inherits
+			 * them rather than duplicating the same numbers here. See `dragonController.js`'s
+			 * `createDragon` doc comment for the full reasoning. */
 			minAltitudeAboveGroundMeters: 12,
 			/** FAZ 7 continuous chase (run 66, DECISIONS.md ADR-0085): the dragon's circle center
 			 * itself now travels to the player instead of staying tethered to this seat forever —

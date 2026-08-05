@@ -76,6 +76,15 @@
  * it — now steepens the bank angle a beat further, over its own (deliberately snappier) transition
  * time, layered on top of whatever the existing reactive-blend bank already is. Still no new
  * position/radius/trigger and still no health/damage/attack.
+ * Run 72 gives the *start* of a dive its own beat, the same way run 71 gave its end one: previously
+ * `diveBlend` (and the wing-flap agitation it drives) began moving the instant the player crossed
+ * `alarmRadiusMeters`, so the swoop and its own warning were the same motion. A new
+ * `diveTelegraphBlend` now rises immediately on crossing that threshold, driving the wing-flap cue
+ * on its own, while `diveBlend` itself stays pinned at exactly 0 (the dragon holds its circling
+ * pose) for `diveTelegraphSeconds` (default 0.4s). Only once that window elapses does the dive's own
+ * position blend start moving, exactly as before. A player who retreats during the telegraph window
+ * never sees the dive start at all -- only the wing-flare warning fired, the intended "warned, not
+ * committed" read. Still no new radius/trigger and still no health/damage/attack.
  *
  * @module gameplay/dragons
  */

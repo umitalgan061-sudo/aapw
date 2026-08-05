@@ -32,7 +32,8 @@ import { createDragon } from './dragonController.js';
  *   `pursuitRadiusMeters`/`pursuitCenterSpeedMps`/`pursuitCircleRadiusMeters`/
  *   `pursuitTransitionSeconds`/`pursuitMaxSeconds` (run 66, ADR-0085) and
  *   `agitatedWingFlapMultiplier` (run 70, ADR-0089) and
- *   `giveUpBankAngleMultiplier`/`giveUpTransitionSeconds` (run 71, ADR-0091) are passed straight
+ *   `giveUpBankAngleMultiplier`/`giveUpTransitionSeconds` (run 71, ADR-0091) and
+ *   `diveTelegraphSeconds`/`diveTelegraphTransitionSeconds` (run 72) are passed straight
  *   through to `createDragon` — omitted per-spawn fields fall back to `createDragon`'s own no-op
  *   defaults (calm flight, unaffected by the player). `sampleGroundY` itself is always passed
  *   through too (run 64), needed for the dive's and the traveling circle's terrain-safety clamp.
@@ -70,6 +71,8 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				diveDropMeters: spawn.diveDropMeters,
 				diveLateralPullFraction: spawn.diveLateralPullFraction,
 				diveTransitionSeconds: spawn.diveTransitionSeconds,
+				diveTelegraphSeconds: spawn.diveTelegraphSeconds,
+				diveTelegraphTransitionSeconds: spawn.diveTelegraphTransitionSeconds,
 				minAltitudeAboveGroundMeters: spawn.minAltitudeAboveGroundMeters,
 				pursuitRadiusMeters: spawn.pursuitRadiusMeters,
 				pursuitCenterSpeedMps: spawn.pursuitCenterSpeedMps,

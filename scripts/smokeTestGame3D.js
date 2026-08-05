@@ -83,6 +83,7 @@ async function main() {
 		results.push(await dragonDiveChecks.checkDragonDive(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonPursuit(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonGiveUpCue(browser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonDiveTelegraph(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();

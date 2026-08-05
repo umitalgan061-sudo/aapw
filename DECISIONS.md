@@ -7622,3 +7622,156 @@ deletes the three new modules, and reverts `service-worker.js`'s three precache 
 `SHELL_CACHE` v3->v4 bump (harmless either way — a name change only forces one extra re-fetch). No
 caller, test, config value or asset changed, so nothing else needs unwinding. A revert is safe at any
 later point too, since the public API on both sides of the split is identical.
+
+---
+
+## ADR-0093: Dragon dive telegraph — a wing-flap warning beat before the swoop starts, decoupled from the dive's own position blend
+
+**Date:** 2026-08-05 (run 72)
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely cosmetic, same category as ADR-0089/ADR-0091 — no new
+radius, trigger, or gameplay consequence; the dragon's *final* dive behavior (position/timing once the
+telegraph window elapses) is unchanged from ADR-0082. Adds two new optional parameters with backward-
+compatible defaults and one new derived blend. Fully reversible: `git revert` removes the new
+parameters, the new state (`diveAlarmElapsedSeconds`/`diveTelegraphBlend`), its `userData` write, and
+the new regression test; nothing else depends on any of it.
+
+**Context:** Run 70's own "Next step" named "telegraphing the dive a beat before it happens" as a real,
+still-open, cosmetic-only option, and run 71's own "Next step" repeated it — by then with a natural
+home already available (`dragonController.js` had ~190 lines of headroom after the run-71 split,
+`dragonFlightMath.js` was already the right place for any new blend math). Until this run, the dive
+(ADR-0082) started moving `diveBlend` the exact instant the player crossed `alarmRadiusMeters` — the
+swoop itself was the only warning a player got. Runs 70/71 already established the precedent of giving
+a distinct visual read to *escalation* (ADR-0089's wing-flap agitation) and to *de-escalation*
+(ADR-0091's give-up bank steepen); this run gives the dive's own *start* the same treatment: a beat of
+"wings flaring, still circling" before the dragon actually commits to the swoop.
+
+**Değişiklik Etki Analizi (GOVERNANCE.md §8.4 — not a terrain/height/noise/world-scale change, so the
+Arazi Değişikliği Güvenlik Kontrolü doesn't apply, but the general impact-analysis discipline does):**
+Affected systems: `gameplay/dragonController.js` (`createDragon`'s per-frame `update()`, specifically
+the dive-trigger block and the `agitationBlend` calculation that drives wing-flap `timeScale`),
+`gameplay/dragonSpawns.js` (two new pass-through fields), `gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS`
+schema (two more optional fields — this run left the one real spawn, `umit-dragon-1`, on both defaults,
+same conservative choice ADR-0089/ADR-0091 made, with a comment explaining why), and the smoke suite
+(one new check). Nothing in `dragonFlightMath.js`'s pure functions changed — `applyDiveOffset` and
+`clampAltitudeAboveGround` are called exactly as before, just later (gated by the new elapsed-time
+check) rather than immediately. Nothing in `world/`, `physics.js`, or any other gameplay module reads
+`diveTelegraphBlend` or is otherwise touched. **Gelecek Faz Etkisi:** none of FAZ 8-10 depend on this
+timing; if/when a real attack/fire-breath system is eventually built (pending the owner's health/
+damage decision in `QUESTIONS_FOR_OWNER.md`), the telegraph window is a natural place to eventually
+hang a "the dragon is about to attack" audio/UI cue, without needing new state — the elapsed-time
+counter already exists.
+
+**Decision:** Add `diveTelegraphSeconds` (default `0.4`) and `diveTelegraphTransitionSeconds` (default
+`0.15`) to `createDragon`'s options. A new plain elapsed-time counter, `diveAlarmElapsedSeconds` (not
+eased — it is seconds, not a blend), accumulates while `isAlarmed` (inside `alarmRadiusMeters`) is
+true and resets to `0` the instant the player leaves. The dive's own position blend (`diveBlend`) now
+only targets `1` once `diveAlarmElapsedSeconds >= diveTelegraphSeconds` — before that, its target stays
+exactly `0`, so the dragon holds its circling pose. A second, independent blend, `diveTelegraphBlend`,
+rises toward `1` immediately on entering `alarmRadiusMeters` (over the much snappier
+`diveTelegraphTransitionSeconds`) and falls back to `0` either once the player leaves or once the
+telegraph window itself elapses and `diveBlend` takes over. `agitationBlend` (the wing-flap driver) is
+now `Math.max(reactiveBlend, diveBlend, pursuitBlend, diveTelegraphBlend)`, so the telegraph window
+reads as agitated (wings flaring) even though `diveBlend` — and therefore position — hasn't moved yet.
+Exposed on `object3D.userData.diveTelegraphBlend`, same "expose for regression tests" convention
+`userData.wingFlapTimeScale`/`userData.giveUpBlend` already established.
+
+A direct end-to-end drive (outside the test harness, real FBX loaded) confirmed the intended shape:
+at t=0.1s inside `alarmRadiusMeters`, `diveTelegraphBlend` is already 0.667 (wing-flap time-scale
+1.33) while position is still exactly on-circle; at t=0.25s the telegraph is fully flared
+(`diveTelegraphBlend === 1`, time-scale at the un-passed 1.5 default) and position is *still* exactly
+on-circle (the 0.4s window hasn't elapsed yet); by t=0.667s the telegraph has faded back to 0 and the
+dive itself has visibly started (position has left the circle, descending). Zero console errors on
+that same real-FBX drive.
+
+**Alternatives considered:**
+- *Steepen the bank angle during the telegraph window too (mirroring ADR-0091's give-up cue), not just
+  the wing-flap rate.* Rejected for this pass: it would require either stacking a third bank-angle
+  layer on top of the existing reactive/give-up blend logic (risking the same kind of ordering bug a
+  three-way stack invites) or reusing `giveUpBankAngleMultiplier` for a semantically different moment
+  (start of a dive, not end of a chase) — muddying what that name means. Wing-flap alone is already a
+  distinct, testable, and visually real cue; a bank-angle telegraph is a reasonable future addition but
+  not needed to satisfy "telegraph the dive a beat before it happens," and keeping this pass to one new
+  blend (not two) keeps the change small and easy to reason about.
+- *Delay the wing-flap agitation along with the dive's position (i.e. don't add a separate
+  `diveTelegraphBlend` at all — just let `diveBlend` drive agitation once it starts moving, same as
+  before).* Rejected: this is exactly the *lack* of a telegraph the task asked to fix — without an
+  independent cue, the player's only warning would still be the swoop itself starting, just delayed by
+  `diveTelegraphSeconds` with nothing distinguishing the wait from ordinary calm circling.
+- *An instantaneous flare (no easing) the moment `alarmRadiusMeters` is crossed.* Rejected, same
+  reasoning every other reaction in this module already rejected for itself: an instant snap reads as a
+  glitch. `diveTelegraphTransitionSeconds` defaults to `0.15` — deliberately much snappier than
+  `diveTelegraphSeconds` itself, so the cue still reads as a sudden flare without an actual
+  discontinuity.
+- *Skip this and split `gameplayConfig.js` instead (579/600 after this run's own +6 lines, still the
+  only line-count watch-item in `src/`).* Rejected this run, same reasoning ADR-0089/0090/0091 all
+  already gave: not yet a violation, no forcing bug/perf/readability/architecture reason yet (GOLDEN
+  RULE 6) — it belongs to whichever future run first needs to add a config block there.
+
+**Consequence:**
+- A player who approaches close enough to trigger the dive (`alarmRadiusMeters`) now gets a distinct
+  ~0.4s "wings flaring, still circling" warning before the dragon actually swoops, rather than the
+  swoop itself being the only warning — and retreating during that window cancels the dive entirely
+  (the position never left the circle), a genuinely different, more forgiving feel than before.
+- No change to any position, radius, timing, or trigger value already tuned by runs 58/64/66/70/71 once
+  the telegraph window elapses — every existing dragon smoke check (circling, notice, reactive, dive,
+  pursuit, wing-flap, give-up) still passes unchanged, byte-identical final states.
+- `scripts/game3dSmokeChecksDragonDive.js` grew to 598/600 lines (crossed the 540-line WARN threshold,
+  only 2 lines of headroom) adding the new check — flagged explicitly below and in
+  `3D_GAME_PROGRESS.md`'s "Next step" as the loudest fresh watch-item this run leaves behind, the same
+  way `dragons.js`'s own 598/600 was flagged going into run 71 (which then split it, ADR-0092).
+  `src/3d/gameplay/dragonController.js` grew 414 -> 462 lines — still comfortable, no cap concern.
+- `gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS` schema gained two more *optional* fields for future
+  spawns/tuning; the one real spawn (`umit-dragon-1`) was left on both defaults (documented inline with
+  the reasoning why), consistent with every prior FAZ 7 polish pass.
+
+**Etkilenen sistemler:** `src/3d/gameplay/dragonController.js` (`createDragon`), `dragonSpawns.js`
+(pass-through), `dragons.js` (header doc only, no behavior), `gameplayConfig.js` (doc comment only, no
+spawn edited), `scripts/game3dSmokeChecksDragonDive.js` (new check, placed alongside `checkDragonDive`
+since it exercises the same `alarmRadiusMeters`/dive machinery), `scripts/smokeTestGame3D.js` (wired
+in).
+
+**Verification (GOVERNANCE.md §8.1):**
+- `node --check` clean across every changed file (`dragonController.js`, `dragonSpawns.js`,
+  `dragons.js`, `gameplayConfig.js`, `game3dSmokeChecksDragonDive.js`, `smokeTestGame3D.js`) and a full
+  53-file repo sweep, both before and after.
+- New regression check (`checkDragonDiveTelegraph`) added and passing, isolating three properties: the
+  telegraph cue reaches exactly `1` while the dragon holds its exact on-circle pose (position
+  unchanged, `diveBlend` never above 0) for the whole `diveTelegraphSeconds` window; the dive itself
+  eventually reaches the same expected dived position `checkDragonDive` already proves, just delayed;
+  and retreating during the telegraph window cancels the dive entirely (position never once left the
+  circle) despite the cue having fired. All three use deliberately non-default
+  `diveTelegraphSeconds`/`diveTelegraphTransitionSeconds` values, proving the parameters are actually
+  read, not just their defaults.
+- Full smoke suite: **21/21 PASS** (20 pre-existing + 1 new), zero console/page errors on real headless
+  boot of `game3d.html`; the 2D shell's pre-existing 11 non-blocking sandbox-network errors unchanged.
+- All 5 standing guards re-run clean: `checkAssetsManifest.js` OK (41 entries, unchanged),
+  `checkServiceWorkerCache.js` OK (46 JS files, unchanged), `checkDialogueChoicesShape.js` OK (13/14,
+  unchanged), `checkPwaInstallability.js` OK (unchanged), `checkSmokeCheckRegistry.js` OK — 21 checks
+  now (was 20) across 5 modules, all 53 JS files still within the 600-line cap; two WARNs, both
+  non-blocking: `game3dSmokeChecksDragonDive.js` now 598/600 (fresh, see Consequence above) and
+  `gameplayConfig.js`'s pre-existing 579/600 (grew from 573 with this run's own doc comment).
+- **Görsel kanıt (§8.5):** a blend-*over-time* change has the same "no static-image signature"
+  property ADR-0089/ADR-0091 both already documented — a single frame looks identical regardless of
+  which blend produced the wing-flap rate or the on-circle position. Primary evidence is therefore the
+  three-scenario regression test above. Supplementary, matching that same precedent: a direct
+  `createDragon` drive (outside the test harness, real FBX loaded, not the placeholder) sampled at
+  t=0.1s/0.25s/0.667s printed the exact progression documented in "Decision" above (telegraph ramping
+  while position holds, then fading as the dive visibly starts), zero console errors on that drive,
+  immediately followed by two real headless-boot screenshots (default chase camera + F4 free-cam) of
+  `game3d.html` near the `umit` seat — both show the scene intact, the player character, the castle
+  silhouette, and the pre-existing "Ejderha Görüldü!" notice toast still firing correctly, zero console
+  errors on either boot.
+- **Performans (§4):** perf snapshot (`perf_log.csv` `run72` row) bit-identical to `run71b` on every
+  GPU-submission metric (46 draw calls, 393,231 triangles, 44 geometries, 17 textures) — expected, a
+  timing-only change adds no geometry/material/draw-call count.
+- Tech debt counter: **0** (unchanged — neither introduced nor closed any this run; the
+  `game3dSmokeChecksDragonDive.js` line-count WARN is a watch-item, not tech debt — no
+  `TEMP`/`HACK`/`FIXME`/`WORKAROUND`, no known shortcut).
+
+**Geri alma planı:** `git revert` the single commit. Removes `diveTelegraphSeconds`/
+`diveTelegraphTransitionSeconds`, the `diveAlarmElapsedSeconds`/`diveTelegraphBlend` derivation/write,
+the `agitationBlend` change, the new pass-through in `dragonSpawns.js`, and the new regression check +
+its wiring in `smokeTestGame3D.js`. No other file references any of it.

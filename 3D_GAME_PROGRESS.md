@@ -7568,3 +7568,140 @@ confidence, not a gap. Confirmed still blocked: the remaining 6 castle seats and
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 72)
+
+**Fresh Session Snapshot at container boot:** `GOVERNANCE.md` read in full (current, last
+substantively extended run 71's own re-verification of §8.14 concurrency guidance — no new
+governance rules added this run). `3D_GAME_PROGRESS.md` (this file, tail), `git log -10`,
+`DECISIONS.md`'s last 2 ADRs (0091-0092), `QUESTIONS_FOR_OWNER.md` (5 entries, none actionable by
+this run — the leaked-key rotation and health/damage-system questions both remain owner-only),
+`STABLE_TAGS.md`, `CATCH_UP.md` all read for context. `git status`/`git log -10` found this
+container's `HEAD` detached at run 71's final commit (`7a1e574`) while local `main` pointed at a
+completely unrelated root history (a stale 2D-only `Initial commit`) — the exact same recurring
+"unrelated histories" symptom runs 70/71 both already documented. Resynced with `git checkout -B
+main origin/main` (GOVERNANCE.md §8.14's own suggested command), landing local `main` exactly on
+`origin/main` with a clean working tree.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`, excluding vendor) —
+clean, 53 files. Full `scripts/smokeTestGame3D.js` — **20/20 PASS** before any new code, zero
+console/page errors. All 5 standing guards (`checkAssetsManifest.js`, `checkServiceWorkerCache.js`,
+`checkDialogueChoicesShape.js`, `checkSmokeCheckRegistry.js`, `checkPwaInstallability.js`) clean
+(`checkSmokeCheckRegistry.js`'s only WARN: `gameplayConfig.js` 573/600, pre-existing).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 (terrain macro relief, road network, ground
+color, castle texturing) confirmed already done in prior runs, no new evidence to doubt it. Items
+5-6 (syntax/blocking bugs): clean, none found. Run 71's own "Next step" named three real options:
+(1) the FAZ 7 dive telegraph — "telegraphing the dive a beat before it happens," open since run 70,
+now with a natural home in the freshly-split `dragonController.js`/`dragonFlightMath.js`; (2)
+`gameplayConfig.js`'s 573/600 split, still a non-violation with no forcing reason (GOLDEN RULE 6);
+(3) an optional dedicated unit-style smoke check for `dragonFlightMath.js`'s pure functions, named
+as "additive confidence, not a gap." Picked **option (1), the dive telegraph** — the most genuinely
+due item (deferred by name across two prior runs) and matches this run's own explicit assignment
+(item 9 of GOVERNANCE.md §18, FAZ 7).
+
+**Sub-task 1 — dragon dive telegraph (DECISIONS.md ADR-0093):** `gameplay/dragonController.js`'s
+dive (run 64, ADR-0082) previously started moving `diveBlend` — and therefore both the dragon's
+position and the wing-flap agitation cue it drives — the exact instant the player crossed
+`alarmRadiusMeters`, so the swoop itself was the only warning a player got. A new
+`diveTelegraphSeconds` (default `0.4`) now gates when the dive's own position blend is allowed to
+start moving at all: a plain elapsed-time counter (`diveAlarmElapsedSeconds`, not eased — it's
+seconds, not a blend) tracks how long the player has been continuously inside `alarmRadiusMeters`,
+resetting to 0 the instant they leave. While that counter is under the threshold, `diveBlend`'s
+target stays exactly 0 (the dragon holds its circling pose) — but a second, independent
+`diveTelegraphBlend` rises immediately (over the much snappier `diveTelegraphTransitionSeconds`,
+default `0.15`) and feeds into the existing wing-flap `agitationBlend` calculation (now `Math.max`
+of four blends instead of three), so the player sees "wings flaring, still circling" as a genuine
+warning beat before the swoop begins. A player who retreats during that window never sees the dive
+start at all — only the wing-flare cue fired, the intended "warned, not committed" read. Once the
+window elapses, the dive proceeds exactly as ADR-0082 always specified (same final position, same
+`diveTransitionSeconds` ease) — this is purely a delay-plus-independent-cue, not a behavior change
+to the dive itself. Exposed on `object3D.userData.diveTelegraphBlend`, same convention
+`userData.wingFlapTimeScale`/`userData.giveUpBlend` already established. `dragonSpawns.js` passes
+both new options straight through; the real spawn (`umit-dragon-1`) stayed on both defaults (a
+comment in `gameplayConfig.js` explains why: the defaults already fit this spawn's own
+`diveTransitionSeconds` of 0.8s well). New regression check `checkDragonDiveTelegraph`
+(`scripts/game3dSmokeChecksDragonDive.js`, alongside `checkDragonDive` — both exercise
+`alarmRadiusMeters`) isolates three scenarios with deliberately non-default telegraph values: the
+cue fires to exactly 1 while position stays exactly on-circle for the whole window; the dive
+eventually reaches the same expected position `checkDragonDive` already proves, just delayed; and
+retreating mid-window cancels the dive entirely despite the cue having fired. A direct
+`createDragon` drive outside the harness (real FBX, not placeholder) confirmed the exact progression
+at t=0.1s/0.25s/0.667s. Full ADR/verification detail: ADR-0093.
+
+**DoD status:** `node --check` clean across every changed file
+(`src/3d/gameplay/dragonController.js`, `dragonSpawns.js`, `dragons.js`, `gameplayConfig.js`,
+`scripts/game3dSmokeChecksDragonDive.js`, `scripts/smokeTestGame3D.js`) and a full 53-file repo
+sweep, both before and after. Smoke suite **21/21 PASS** (20 + 1 new) before and after, zero
+console/page errors on real headless boot of `game3d.html`; the 2D shell's pre-existing 11
+non-blocking sandbox-network errors unchanged. All 5 standing guards re-run clean;
+`checkSmokeCheckRegistry.js` now reports 21 checks / 5 modules, all 53 JS files still within the
+600-line cap — two WARNs, both non-blocking: `scripts/game3dSmokeChecksDragonDive.js` grew to
+598/600 (crossed the 540-line WARN threshold with the new check, only 2 lines of headroom left —
+flagged below as this run's real forcing signal, the same way `dragons.js`'s own 598/600 was flagged
+going into run 71) and the pre-existing `gameplayConfig.js` watch-item grew 573->579 (this run's own
+doc comment, still non-blocking). `src/3d/gameplay/dragonController.js` grew 414->462 lines, still
+comfortable. Visual evidence: a blend-*over-time* change has no static-image signature, same
+reasoning ADR-0089/ADR-0091 both already established — primary proof is the three-scenario
+regression test; supplementary, a direct `createDragon` drive (real FBX) sampled at three timestamps
+printed the exact expected progression (telegraph ramping while position holds, then fading as the
+dive visibly starts), zero console errors, immediately followed by two real headless-boot screenshots
+(default chase camera + F4 free-cam) near the `umit` seat, both showing the scene intact and the
+pre-existing "Ejderha Görüldü!" toast still firing correctly, zero console errors on either boot.
+Performance: perf snapshot (`run72` row) bit-identical to `run71b` on every GPU-submission metric (46
+draw calls, 393,231 triangles, 44 geometries, 17 textures) — expected, a timing-only change adds no
+geometry. Tech debt counter: **0** (unchanged — the two line-count WARNs are watch-items, not debt;
+no `TEMP`/`HACK`/`FIXME`/`WORKAROUND`, no known shortcut). This file updated (this entry). ADR
+written (ADR-0093). Committed. Console clean.
+
+**Session Quality Gate (GOVERNANCE.md §8.6):** confidence **5/5** — one isolated cosmetic timing
+change, deliberately kept independent of the existing dive/reactive/pursuit/give-up blends (a fourth
+`Math.max` argument, not a rewrite of any of them), with a three-scenario regression test using
+non-default parameter values (proving the parameters are actually read) plus a real end-to-end
+numeric drive through the actual FBX. Nothing ambiguous for "6 months from now." **Not chaining a
+second sub-task this run:** `game3dSmokeChecksDragonDive.js` now sitting at 598/600 (only 2 lines of
+headroom) is itself a real, fresh forcing signal for a split — but, following the exact same
+discipline run 70 used when it deferred this very dive-telegraph sub-task a run so it wouldn't be
+picked under end-of-run time pressure, doing that split *this* run right after growing the same file
+would rush a nontrivial refactor (real blast radius: `smokeTestGame3D.js`'s three call sites into
+this file, and the file's own "path-deviation half of dragon coverage" scope note other docs already
+point at) under time pressure. One well-executed sub-task this run.
+
+**World Evolution Report:**
+
+| Metric | Run 71 (end) | Run 72 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged |
+| Kingdom seats w/ real castle models | 8 | 8 | unchanged (remaining 6 confirmed blocked) |
+| Dragons (spawned) | 1 | 1 | unchanged (deeper behavior, not more dragons) |
+| NPCs with dialogue-choice branching | 13/14 | 13/14 | unchanged, complete |
+| Smoke suite | 20/20 | **21/21** | +1 (`checkDragonDiveTelegraph`) |
+| Standing static guards | 6 | 6 | unchanged |
+| Files over the 600-line cap | 0 | 0 | unchanged (2 files now WARN, neither a violation) |
+| ADRs | 92 | **93** | +1 (ADR-0093) |
+| perf_log.csv rows | 13 | **14** | +1 |
+| Manifest entries | 41 | 41 | unchanged (no new assets) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (deliberate constant) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (cosmetic/timing-only change) |
+
+**Oyuncu fark eder mi:** evet, doğrudan ve önceki iki ejderha inceliğinden (ADR-0089/ADR-0091) biraz
+daha belirgin — artık ejderha dalışa geçmeden hemen önce kanatlarını gözle görülür biçimde daha hızlı
+çırpmaya başlıyor, ama hâlâ dairesindeymiş gibi duruyor; oyuncu bu ~0.4 saniyelik uyarı penceresinde
+geri çekilirse dalış hiç başlamıyor. Önceden dalış, oyuncu tetik mesafesine girer girmez aniden
+başlıyordu; şimdi bir "az kaldı, dikkat et" anı var.
+
+**Next step for the next run:** two real, well-defined options remain: (1)
+**`scripts/game3dSmokeChecksDragonDive.js`'s line count (598/600, only 2 lines of headroom)** — the
+loudest watch-item this run leaves behind; the *next* touch to this file (any further dive/pursuit/
+give-up-adjacent regression check) should split it first, following the exact same by-theme
+precedent ADR-0087/ADR-0092 already set, rather than push it over the 600-line cap — a natural split
+is `checkDragonDive`+`checkDragonDiveTelegraph` (dive-specific) vs. `checkDragonPursuit`+
+`checkDragonGiveUpCue` (pursuit-specific), matching the file's own "path-deviation half" framing. (2)
+`gameplayConfig.js`'s 579/600 split — still the other non-blocking watch-item, still no forcing
+reason of its own yet. Confirmed still blocked: the remaining 6 castle seats and all FAZ 6 animals
+(manual human asset download), and any dragon attack/fire-breath work (owner decision pending in
+`QUESTIONS_FOR_OWNER.md`). No blocking bugs, syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

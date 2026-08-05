@@ -7,9 +7,11 @@
  * follows) so that run didn't grow an already-over-budget file further. Run 68 (DECISIONS.md
  * ADR-0087) then cleared that violation properly, moving the three baseline dragon flight/awareness
  * checks into `game3dSmokeChecksDragonFlight.js`; this file's scope is unchanged and is now the
- * *path-deviation* half of dragon coverage (dive/swoop ADR-0082, continuous chase ADR-0085, and run
- * 71's give-up cue ADR-0091 — layered directly on the same `pursuitExhausted` state this file's own
- * `checkDragonPursuit` already exercises) against that sibling's nominal-flight half.
+ * *path-deviation* half of dragon coverage (dive/swoop ADR-0082, continuous chase ADR-0085, run
+ * 71's give-up cue ADR-0091 -- layered directly on the same `pursuitExhausted` state this file's own
+ * `checkDragonPursuit` already exercises -- and run 72's dive telegraph, the warning beat layered
+ * directly on `checkDragonDive`'s own dive/swoop machinery) against that sibling's nominal-flight
+ * half.
  * `smokeTestGame3D.js` calls this file's exports alongside every other check module's.
  * @module scripts/game3dSmokeChecksDragonDive
  */
@@ -467,4 +469,130 @@ async function checkDragonGiveUpCue(browser, baseUrl) {
 	return { name: 'dragon pursuit give-up cue (gameplay/dragons.js, ADR-0091)', ok, details };
 }
 
-module.exports = { checkDragonDive, checkDragonPursuit, checkDragonGiveUpCue };
+/**
+ * Regression guard for `gameplay/dragons.js`'s dive telegraph (run 72) — the warning beat layered on
+ * top of run 64's dive (ADR-0082), giving its *start* the same distinct read run 71's give-up cue
+ * (ADR-0091) already gave its end. Placed alongside `checkDragonDive` (this file's own dive/swoop
+ * scenario) rather than the flight-only sibling file, since it exercises the exact same
+ * `alarmRadiusMeters`/dive machinery that check already owns.
+ *
+ * Every scenario parks the dragon (`speedMps: 0`) — same trick every sibling dragon check already
+ * uses — so position only moves once the dive's own blend actually starts. Three independent
+ * scenarios:
+ * - **Telegraph fires before the dive moves:** sustained proximity inside `alarmRadiusMeters`, for
+ *   longer than `diveTelegraphTransitionSeconds` but still under `diveTelegraphSeconds`, drives
+ *   `userData.diveTelegraphBlend` to exactly 1 (the wing-flap cue is fully flared) while the dragon's
+ *   position stays *exactly* on its circle — `diveBlend` never left 0 — proving the cue and the dive
+ *   motion are genuinely decoupled, not just an early sample of the same ramp.
+ * - **The dive itself starts once the telegraph window elapses:** continuing the same dragon past
+ *   `diveTelegraphSeconds`, the position eventually leaves the circle and reaches the exact expected
+ *   dived position (same math `checkDragonDive` already proves) — the telegraph delays the dive, it
+ *   doesn't replace it.
+ * - **Retreating during the telegraph window cancels the dive entirely:** a fresh dragon gets a short
+ *   burst of proximity — long enough for the telegraph cue to fire, but well under
+ *   `diveTelegraphSeconds` — then the player retreats past `alarmRadiusMeters`. The dragon's position
+ *   never once left its circle (`diveBlend` stayed exactly 0 throughout), even though the wing-flap
+ *   cue did fire — the "warned, not committed" property the feature is meant to have.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkDragonDiveTelegraph(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createDragon } = await import('/src/3d/gameplay/dragons.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { DRAGON_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+
+			const assetLoader = new AssetLoader();
+			const centerX = 300;
+			const centerZ = 400;
+			const centerY = 90;
+			const circleRadiusMeters = 150;
+			const alarmRadiusMeters = 50;
+			const diveDropMeters = 30;
+			const diveLateralPullFraction = 0.4;
+			const diveTransitionSeconds = 1;
+			const diveTelegraphSeconds = 0.5; // deliberately non-default (createDragon's own is 0.4)
+			const diveTelegraphTransitionSeconds = 0.1; // deliberately non-default (createDragon's own is 0.15)
+			const minAltitudeAboveGroundMeters = 10;
+			const generousGroundY = () => -1000; // well below anything the unclamped dive math reaches
+			const approxEqual = (a, b, tolerance = 1e-6) => Math.abs(a - b) < tolerance;
+			const delta = 1 / 60;
+
+			const baseSpawn = {
+				assetLoader,
+				modelUrl: DRAGON_CONFIG.MODEL_URL,
+				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
+				scale: DRAGON_CONFIG.SCALE,
+				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
+				centerX, centerZ, centerY, circleRadiusMeters,
+				speedMps: 0, // parks the dragon at its start position (centerX, centerY, centerZ + radius)
+				alarmRadiusMeters,
+				sampleGroundY: generousGroundY,
+				diveDropMeters,
+				diveLateralPullFraction,
+				diveTransitionSeconds,
+				diveTelegraphSeconds,
+				diveTelegraphTransitionSeconds,
+				minAltitudeAboveGroundMeters,
+			};
+			const circleX = centerX; // dragon's parked position: (centerX, centerY, centerZ + radius)
+			const circleZ = centerZ + circleRadiusMeters;
+			const playerNear = { x: circleX + 20, y: centerY, z: circleZ }; // ~20m away, inside alarmRadiusMeters
+			const playerFar = { x: circleX, y: centerY, z: circleZ + 1000 }; // outside alarmRadiusMeters
+
+			// --- Scenario 1+2: telegraph fires first, dive starts only once the window elapses. ---
+			const dragon = await createDragon({ ...baseSpawn });
+			// 15 frames = 0.25s: past diveTelegraphTransitionSeconds (0.1s, so the cue itself is fully
+			// flared) but well under diveTelegraphSeconds (0.5s, so the dive must not have started).
+			for (let i = 0; i < 15; i++) dragon.update(delta, playerNear);
+			const telegraphFullyFlaredDuringWindow = approxEqual(dragon.object3D.userData.diveTelegraphBlend, 1);
+			const positionStillExactlyOnCircleDuringTelegraph =
+				dragon.object3D.position.x === circleX && dragon.object3D.position.y === centerY &&
+				dragon.object3D.position.z === circleZ;
+			// Continue well past diveTelegraphSeconds + diveTransitionSeconds (0.5 + 1 = 1.5s -> 90
+			// frames from the start of this scenario; 75 more from here) so the dive itself finishes.
+			for (let i = 0; i < 200; i++) dragon.update(delta, playerNear);
+			const { x: divedX, y: divedY, z: divedZ } = dragon.object3D.position;
+			const expectedDivedX = circleX + (playerNear.x - circleX) * diveLateralPullFraction;
+			const expectedDivedZ = circleZ + (playerNear.z - circleZ) * diveLateralPullFraction;
+			const expectedDivedY = centerY - diveDropMeters;
+			const diveEventuallyReachesExpectedPosition =
+				Math.abs(divedX - expectedDivedX) < 1e-6 && Math.abs(divedZ - expectedDivedZ) < 1e-6 &&
+				Math.abs(divedY - expectedDivedY) < 1e-6;
+			dragon.dispose();
+
+			// --- Scenario 3: retreating during the telegraph window cancels the dive entirely. ---
+			const cancelDragon = await createDragon({ ...baseSpawn });
+			for (let i = 0; i < 15; i++) cancelDragon.update(delta, playerNear); // 0.25s, cue fires
+			const cueFiredBeforeRetreat = approxEqual(cancelDragon.object3D.userData.diveTelegraphBlend, 1);
+			for (let i = 0; i < 60; i++) cancelDragon.update(delta, playerFar); // retreats well before 0.5s window would elapse
+			const dragonNeverLeftCircleDespiteCue =
+				cancelDragon.object3D.position.x === circleX && cancelDragon.object3D.position.y === centerY &&
+				cancelDragon.object3D.position.z === circleZ;
+			const cueEasedBackOffAfterRetreat = approxEqual(cancelDragon.object3D.userData.diveTelegraphBlend, 0);
+			cancelDragon.dispose();
+
+			return {
+				telegraphFullyFlaredDuringWindow, positionStillExactlyOnCircleDuringTelegraph,
+				diveEventuallyReachesExpectedPosition, cueFiredBeforeRetreat,
+				dragonNeverLeftCircleDespiteCue, cueEasedBackOffAfterRetreat,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'entering alarmRadiusMeters flares the wing-flap telegraph cue to exactly 1 while the ' +
+			'dragon holds its exact on-circle pose (diveBlend never leaves 0) for diveTelegraphSeconds; ' +
+			'the dive itself starts only once that window elapses and reaches the same expected ' +
+			'position checkDragonDive proves; retreating during the telegraph window cancels the dive ' +
+			'entirely -- the dragon never once leaves its circle despite the cue having fired'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'dragon dive telegraph (gameplay/dragons.js, run 72)', ok, details };
+}
+
+module.exports = { checkDragonDive, checkDragonPursuit, checkDragonGiveUpCue, checkDragonDiveTelegraph };

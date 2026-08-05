@@ -91,6 +91,24 @@ import {
  * @param {number} [options.diveTransitionSeconds] How long, in seconds, easing into (or out of) the
  *   dive takes — same linear-blend shape `reactiveTransitionSeconds` uses, just for position instead
  *   of speed/bank. Defaults to `1`.
+ * @param {number} [options.diveTelegraphSeconds] Run 72's dive telegraph: once the player enters
+ *   `alarmRadiusMeters`, the dive's own position blend (`diveBlend` above) does not start moving for
+ *   this many seconds — the dragon stays exactly on its circle, but `diveTelegraphBlend` (see below)
+ *   still rises immediately, driving the wing-flap agitation cue on its own so the player sees "wings
+ *   flaring, still circling" as a distinct warning beat *before* the swoop itself begins, rather than
+ *   the dive starting to move the instant they cross the threshold. If the player retreats past
+ *   `alarmRadiusMeters` before this elapses, the dive never starts at all — only the telegraph cue
+ *   fired, which is the intended "warned, not committed" read. Defaults to `0.4`: long enough to read
+ *   as a distinct beat, short enough that the dive itself (`diveTransitionSeconds`, `0.8`-`1` in
+ *   practice) still feels like the dominant motion. A value of `0` degenerates to the pre-run-72
+ *   behavior (dive starts moving the same frame the telegraph blend does).
+ * @param {number} [options.diveTelegraphTransitionSeconds] How long, in seconds,
+ *   `diveTelegraphBlend` takes to ease toward 1 (on entering `alarmRadiusMeters`) or back to 0 (once
+ *   alarmed clears, or once the telegraph window itself elapses and the real dive blend takes over
+ *   agitation instead). Defaults to `0.15` — deliberately much snappier than `diveTelegraphSeconds`
+ *   itself, so the wing-flap cue reads as a sudden flare-up rather than a gradual ramp, the same
+ *   "the cue itself is quick even though the window it lives in is longer" shape
+ *   `giveUpTransitionSeconds` (`0.6`, snappier than its siblings) already established in run 71.
  * @param {number} [options.minAltitudeAboveGroundMeters] Terrain-safety floor: the dragon's final
  *   altitude is never allowed to end up below `sampleGroundY(x, z) + minAltitudeAboveGroundMeters`
  *   for its *actual* (post-blend) (x, z) that frame. Defaults to `10`. Applied to every frame's
@@ -189,6 +207,8 @@ export async function createDragon({
 	diveDropMeters = 25,
 	diveLateralPullFraction = 0.35,
 	diveTransitionSeconds = 1,
+	diveTelegraphSeconds = 0.4,
+	diveTelegraphTransitionSeconds = 0.15,
 	minAltitudeAboveGroundMeters = 10,
 	pursuitRadiusMeters,
 	pursuitCenterSpeedMps = 10,
@@ -240,6 +260,16 @@ export async function createDragon({
 	// Run 64 (ADR-0082) dive: 0 = on-circle, 1 = fully at the (terrain-clamped) dive target. Same
 	// starts-at-0, eased-not-snapped shape as `reactiveBlend` above.
 	let diveBlend = 0;
+	// Run 72 dive telegraph: seconds the player has been continuously inside `alarmRadiusMeters` —
+	// reset to 0 the instant they leave it (not eased; this is a plain elapsed-time counter, not a
+	// blend). Gates when `diveBlend`'s target is allowed to become 1 (see `update()` below).
+	let diveAlarmElapsedSeconds = 0;
+	// Run 72 dive telegraph: 0 = no telegraph cue, 1 = fully flared. Rises immediately once alarmed
+	// (independent of `diveBlend`, which stays pinned at 0 until `diveTelegraphSeconds` elapses) and
+	// falls back to 0 either once the player leaves `alarmRadiusMeters` or once the telegraph window
+	// itself elapses and the real dive takes over driving the agitation cue. Same starts-at-0,
+	// eased-not-snapped shape as `reactiveBlend`/`diveBlend` above.
+	let diveTelegraphBlend = 0;
 	// Run 66 (ADR-0085) pursuit: 0 = home-shaped circle (calm radius/altitude), 1 = fully engaged
 	// (tightened radius, terrain-following cruise altitude). Same starts-at-0, eased-not-snapped
 	// shape as the two blends above. The circle *center*'s travel is deliberately not driven by this
@@ -370,7 +400,19 @@ export async function createDragon({
 			// once they retreat — a linear ease-toward-a-target, same shape as `reactiveBlend` above,
 			// just blending *position* instead of speed/bank.
 			const isAlarmed = canDive && distanceToPlayer != null && distanceToPlayer < alarmRadiusMeters;
-			diveBlend = easeBlendToward(diveBlend, isAlarmed ? 1 : 0, delta, diveTransitionSeconds);
+			// Run 72 dive telegraph: a plain elapsed-time counter (not eased), reset the instant the
+			// player leaves `alarmRadiusMeters` — gates when the dive's own position blend is allowed
+			// to start moving, below.
+			diveAlarmElapsedSeconds = isAlarmed ? diveAlarmElapsedSeconds + delta : 0;
+			const diveTelegraphActive = isAlarmed && diveAlarmElapsedSeconds < diveTelegraphSeconds;
+			diveTelegraphBlend = easeBlendToward(diveTelegraphBlend, diveTelegraphActive ? 1 : 0, delta, diveTelegraphTransitionSeconds);
+			// The dive's position blend only targets 1 once the telegraph window has fully elapsed —
+			// while alarmed but still inside that window, it stays pinned at its current value (0 on
+			// first entering `alarmRadiusMeters`), so the dragon visibly holds its circling pose while
+			// only the telegraph cue (wing-flap agitation, below) fires. A player who retreats before
+			// the window elapses never sees `diveBlend` leave 0 at all — the dive itself never started.
+			const diveMotionAllowed = isAlarmed && diveAlarmElapsedSeconds >= diveTelegraphSeconds;
+			diveBlend = easeBlendToward(diveBlend, diveMotionAllowed ? 1 : 0, delta, diveTransitionSeconds);
 			if (diveBlend > 0 && playerPosition) {
 				applyDiveOffset(model, {
 					playerX: playerPosition.x,
@@ -388,12 +430,14 @@ export async function createDragon({
 				clampAltitudeAboveGround(model, sampleGroundY, minAltitudeAboveGroundMeters);
 			}
 
-			// Run 70 (ADR-0089) wing-flap telegraph: reuses the three blends already computed above
-			// this frame (reactive/dive/pursuit) rather than adding a new trigger — whichever reaction
-			// is currently strongest sets how hard the wings flap, so a dragon that is merely reactive
-			// (sped-up circling, no dive/pursuit) still gets a visible cue, and one that is diving or
-			// pursuing doesn't flap faster than either alone implies.
-			const agitationBlend = Math.max(reactiveBlend, diveBlend, pursuitBlend);
+			// Run 70 (ADR-0089) wing-flap telegraph: reuses the blends already computed above this
+			// frame (reactive/dive/pursuit, and run 72's dive-telegraph) rather than adding a new
+			// trigger — whichever reaction is currently strongest sets how hard the wings flap, so a
+			// dragon that is merely reactive (sped-up circling, no dive/pursuit) still gets a visible
+			// cue, one that is diving or pursuing doesn't flap faster than either alone implies, and —
+			// run 72 — the telegraph window itself (before the dive's position blend is even allowed
+			// to move) already reads as agitated rather than waiting for `diveBlend` to catch up.
+			const agitationBlend = Math.max(reactiveBlend, diveBlend, pursuitBlend, diveTelegraphBlend);
 			const wingFlapTimeScale = 1 + (agitatedWingFlapMultiplier - 1) * agitationBlend;
 			if (flyAction) flyAction.timeScale = wingFlapTimeScale;
 			model.userData.wingFlapTimeScale = wingFlapTimeScale;
@@ -401,6 +445,10 @@ export async function createDragon({
 			// regression tests (and any future debug tooling) can read it without reaching into the
 			// bank-angle math above.
 			model.userData.giveUpBlend = giveUpBlend;
+			// Run 72 dive telegraph: exposed the same way, so a regression test can directly assert
+			// "the cue fired but the dive itself never moved" instead of inferring it only from
+			// `wingFlapTimeScale` (which `diveBlend` also drives once the dive actually starts).
+			model.userData.diveTelegraphBlend = diveTelegraphBlend;
 
 			mixer.update(delta);
 		},
