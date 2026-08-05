@@ -8668,3 +8668,112 @@ playtest would need to recalibrate, same reasoning ADR-0097/0098 already used.
 **Geri alma planı:** `git revert` the single commit. Removes the two new `WORLD_EVENTS` objects and
 this ADR entry. Nothing else references either id — `ui/worldEventToast.js` and every smoke check
 consume the pool generically.
+
+## ADR-0102: Grow the world-event flavor pool from 22 to 24 entries, adding its first celestial-darkness entry distinct from `falling_star`/`red_comet` and its first justice/crime entry
+
+**Status:** Accepted (run 79).
+
+**Risk Seviyesi:** LOW. Config/data-only addition to a frozen array; zero changes to
+`createWorldEventSystem`'s mechanism, `ui/worldEventToast.js`, or any call site. Fully reversible:
+`git revert` removes the two new objects and this ADR entry, nothing else references either id.
+
+**Context:** Session Snapshot at run start (2026-08-05, run 79 — scheduled autonomous routine): the
+incoming instruction opened with a request to create `GOVERNANCE.md` as a "first, one-time" bootstrap
+step — found it already fully created and current (302 lines, matches this and prior instructions'
+rule set), so that step was a no-op confirmation. Read `3D_GAME_PROGRESS.md`'s last "This Run" entry
+(run 78), `DECISIONS.md`'s last 3 ADRs (0099/0100/0101), `QUESTIONS_FOR_OWNER.md` in full (7 entries,
+all still open, none resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`CREDITS.md` tails. Session started on a detached `HEAD` at run 78's final
+commit (`6379801`); `git checkout main` + `git fetch origin main` confirmed local `main` already
+matched `origin/main` exactly (`git branch -r --contains` and `git log main..origin/main` both empty
+after fetch) — no concurrent session to reconcile with (GOVERNANCE.md §8.14).
+
+**Priority re-scan (GOVERNANCE.md §18), fresh:** full `node --check` sweep (61 files) clean. Full
+smoke suite: **22/22 PASS** (this run's own pre-change baseline). All 8 standing guards clean (14/14
+seats, 13/13 road edges, 41/41 manifest entries, 22 smoke checks across 61 files within cap, PWA
+installability OK, 52-file service-worker precache). Items 1-11 all reconfirmed healthy, no fresh
+regression. Item 12 (FAZ 6/7 assets) and item 13 (FAZ 11 species): re-checked `assets/models/` via
+`git log --diff-filter=A -- 'assets/models/*'` — last new model file added at `fe359ac` (run ~59, the
+8th castle), nothing since, and `ivory_stallion.glb` (the only recent-looking animal file) was already
+added and registered at run 54 (`dcbbefd`) and already tracked in `creatureSpeciesConfig.js`'s `at`
+entry as a known rigless static model, not new. No design reason surfaced for anything else in items
+1-13. That leaves item 14 ("Yeni özellik"). `gameplay/worldEvents.js`'s flavor pool remains this
+project's established, low-risk, repeatedly re-used growth track for exactly this bucket (grown
+4→8→12→14→16→18→20→22 across eight prior rounds, ADR-0061/0063/0065/0068/0097/0098/0101 — each
+landing the run immediately after a prior growth round has direct precedent, same as this one). No
+terrain/height/noise/world-scale change — the Arazi Değişikliği Güvenlik Kontrolü doesn't apply.
+**Gelecek Faz Etkisi:** none — FAZ 8 stays flavor-only (ADR-0056's design boundary, reaffirmed by
+every prior growth ADR including this one), no stat/quest/persistence hook added.
+
+**Decision:** `WORLD_EVENTS` grows from 22 to 24 entries, adding `eclipse` (the sky darkening at
+midday, read by some as an omen of disaster and by others as mere natural chance) and
+`shackled_prisoner` (guards dragging a chained prisoner through the castle gate toward the dungeon,
+their crime unknown). Both are original text, not derived from any HBO material — this project's one
+hard constraint. `eclipse` is deliberately distinct from the existing `falling_star`/`red_comet`: both
+of those are things appearing/streaking *in* a normal night sky, while an eclipse is the sky itself
+going dark at an abnormal time — a different sensory experience (unexpected daytime darkness, not a
+nighttime light). `shackled_prisoner` fills a genuinely unrepresented tone: none of the 22 existing
+entries touches justice, crime, or punishment — the closest neighbors are `wildling_rumor` (external
+threat), `dragon_shadow` (creature threat), and `mourning_bells` (grief/death), all different in kind
+from "someone is being punished and we don't know why."
+
+**Alternatives considered:**
+- *Add 4+ entries in one batch.* Rejected — same precedent ADR-0065/0068/0097/0098/0101 already
+  rejected this for; the established batch size is +2.
+- *Pick a market/harvest or falconer/training theme instead of `shackled_prisoner`.* Rejected — a
+  market/harvest pick was already rejected in ADR-0098 for overlapping the existing `trade_caravan`/
+  `feast_fires`/`tourney_announce` commerce-or-celebration cluster; a falconer/training pick reads too
+  close to `hunting_party`'s established "castle folk with game animals" register from ADR-0101.
+  `shackled_prisoner` is a genuinely unrepresented register (justice/crime) not a near-duplicate of any
+  of the 22 existing entries.
+- *Frame `eclipse` as a lunar eclipse (nighttime) instead of a solar one (daytime).* Rejected — a
+  nighttime eclipse would read too close to `falling_star`/`red_comet`'s existing "something happens in
+  a dark sky" register; a *daytime* eclipse is the more distinct, more unsettling variant (the sky
+  changing when it normally wouldn't) and better matches the folkloric "omen" framing already
+  established by `red_comet`.
+- *Give the eclipse event a lingering multi-toast/multi-day display like `red_comet`'s "days" framing
+  suggested doing for itself.* Rejected — no per-entry duration/persistence mechanism exists anywhere
+  in the pool; ADR-0098/ADR-0101 already rejected inventing one for a config-only content addition, and
+  this run has no new forcing reason to revisit that.
+
+**Verified:**
+- `node --check` clean on `worldEvents.js`. Line count: 107/600 (was 105) — comfortable headroom.
+- Full committed smoke suite: all **22** checks PASS, identical before and after (`checkWorldEvents`
+  asserts the mechanism generically against whatever the pool contains, needed no changes).
+- All 8 standing guards re-run clean and unaffected (none touch `worldEvents.js`'s content).
+- A small standalone check confirmed all 24 ids/colors are unique except one pre-existing collision
+  from before this run (`raven`/`wolf_howl` both `#8faabb`, unrelated to this change) — neither new
+  color (`#2a1f3d`, `#5c5c4a`) collides with any of the 22 prior colors, and neither new icon (`🌑`,
+  `⛓️`) collides with any of the 22 prior icons.
+- **Real headless-Chromium proof of the new content specifically** (same technique ADR-0097/0098/0101
+  established): a one-off Playwright script (`devServerHelper.js`'s shared static-server + Playwright
+  bootstrap, not committed — dev-only, same as every prior round's own proof script) booted the live
+  `game3d.html` page (zero console/page errors throughout, `game3d-loading` element reached
+  `g3d-loading-hidden`), drove the real `createWorldEventSystem` (seed 7) with repeated large time
+  deltas until BOTH new ids (`eclipse`/`shackled_prisoner`) were actually observed coming out of the
+  real 24-entry pool (47 `update()` calls), confirmed both real payloads match the source exactly, then
+  rendered each real payload through a real `WorldEventToast` instance. Two screenshots confirm each
+  toast's real icon/title/desc/border-color render correctly over the live scene (castle silhouette,
+  player model, starlit night sky). Zero console/page errors throughout.
+- **AI Self-Review 2. Geçiş (§8.3):** re-read the diff before committing — confirmed neither new id
+  collides with any of the 22 existing ones; confirmed `eclipse`'s "omen or natural chance" framing and
+  `shackled_prisoner`'s castle-gate framing stay generic fantasy vocabulary already established in this
+  project's own settlement/world-event naming, not sourced from any HBO-specific material; confirmed
+  the module's JSDoc header needed no update (it doesn't track a live entry count).
+- `perf_log.csv` `run79` row bit-identical to run76-78 on every GPU metric (46 draw calls / 393,231
+  triangles / 44 geometries / 17 textures), as expected for a data-only change touching zero scene
+  objects.
+- Tech debt counter: **0** (unchanged). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+
+**Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` only. No other file changed.
+
+**Consequences:** World-event pool now has 24 entries, with its first daytime-darkness celestial
+entry distinct from `falling_star`/`red_comet` (`eclipse`) and its first justice/crime entry
+(`shackled_prisoner`). `worldEvents.js` has 493/600 lines of headroom before its own 600-line cap —
+no split pressure. FAZ 8's event system remains flavor-only, unchanged design boundary from ADR-0056.
+No `QUESTIONS_FOR_OWNER.md` entry needed — flavor-text content carries no numeric value a future
+playtest would need to recalibrate, same reasoning ADR-0097/0098/0101 already used.
+
+**Geri alma planı:** `git revert` the single commit. Removes the two new `WORLD_EVENTS` objects and
+this ADR entry. Nothing else references either id — `ui/worldEventToast.js` and every smoke check
+consume the pool generically.
