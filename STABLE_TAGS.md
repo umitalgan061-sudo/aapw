@@ -148,3 +148,18 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   (`cde8a38`). Local tag only — `git push origin <tag>` still rejected, this time failing as
   `send-pack: unexpected disconnect while reading sideband packet` rather than the `HTTP 403` seen
   since run 58; different surface error, same standing block, so no change to §8.11's conclusion.
+- `stable-2026-08-05-1600` — run 77 end: one sub-task, split `gameplay/gameplayConfig.js` by domain
+  (597/600 -> `playerConfig.js`/`npcConfig.js`/`animalConfig.js`/`dragonConfig.js`/
+  `interactionConfig.js` + a 31-line re-export barrel, DECISIONS.md ADR-0100) — same precedent
+  `dragons.js` (run 71, ADR-0092) and `dialogueChoices.js` (run 50, ADR-0066) already set. All 13
+  existing importers unchanged (named imports through the barrel). Fixed
+  `checkDialogueChoicesShape.js`, which had text-parsed `gameplayConfig.js` between
+  `NPC_CONFIG`/`ANIMAL_CONFIG` markers and broke the instant the split moved `ANIMAL_CONFIG` out —
+  caught by actually running the guard, not assumed safe. `service-worker.js`'s `GAME3D_SHELL_FILES`
+  got the 5 new files, `SHELL_CACHE` bumped v5->v6. Smoke suite 22/22 PASS before and after, all 8
+  standing guards clean after the fix (zero WARN now — the 597/600 line that forced this is gone).
+  `perf_log.csv` `run77` bit-identical to run75/76 on every GPU metric (46 draw calls / 393,231
+  triangles / 44 geometries / 17 textures), as expected for a config-only, zero-scene-object change.
+  `git push origin main` succeeded (`119d76b`). Local tag only — `git push origin <tag>` still
+  rejected, `HTTP 403` then `send-pack: unexpected disconnect` on the same call — same standing
+  block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
