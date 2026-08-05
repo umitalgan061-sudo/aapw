@@ -61,3 +61,13 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   19/19 smoke suite passing, zero console/page errors, perf bit-identical to sub-task 1. `git push
   origin main` succeeded (`868d427`). Local tag only — `git push origin <tag>` still rejected with
   `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-0905` — run 71 end: dragon pursuit give-up cue (ADR-0091) — a new `giveUpBlend`
+  tracks the existing `pursuitExhausted` state (run 66/ADR-0085) and steepens the bank angle on a
+  timeout-driven give-up, distinct from an ordinary distance-triggered disengage (which never
+  triggers the cue at all), layered independently from ADR-0089's wing-flap blend. New 4-scenario
+  regression check `checkDragonGiveUpCue` isolates explicit-multiplier/default-multiplier give-up,
+  ordinary disengage, and re-arm (20/20 smoke suite passing). Zero console/page errors on real
+  headless boot, perf bit-identical to run70b on every GPU-submission metric. `dragons.js` grew
+  531->598 lines (crossed the 540 WARN threshold, still under the 600 cap — flagged as next run's
+  real forcing signal to split). `git push origin main` succeeded (`a0d5b83`). Local tag only —
+  `git push origin <tag>` still rejected with `HTTP 403` (same known issue since run 58).
