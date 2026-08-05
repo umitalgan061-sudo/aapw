@@ -130,3 +130,21 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `gameplayConfig.js` still 597/600 (untouched this run, same watch-item as ever). `git push origin
   main` succeeded (`452ff57`). Local tag only — `git push origin <tag>` still rejected with `HTTP 403`
   (same known issue since run 58).
+- `stable-2026-08-05-1506` — run 76 end: two sub-tasks. (1) First governance rule-consolidation pass
+  (§8.12, overdue since ~run 56) — reviewed §16 deferred-rule activation conditions (none trigger:
+  no `SaveSystem`, `perf_log.csv` under 30 rows) and §15's platform check (done run 70, not due);
+  recorded the tag-push block in §8.11 as a known permanent constraint instead of a per-run
+  discovery; added `RULES_CHANGELOG.md`. (2) Fixed the recurring `check2DShell`
+  `page.goto: Timeout 15000ms exceeded` flake at its measured root cause (ADR-0099) — `index.html`'s
+  5 unreachable external resources each hang ~12.6-13.4s before the sandbox resets them, leaving
+  only ~1.6-2.4s under the 15s timeout; the page-boot checks are now hermetic (all non-same-origin
+  requests aborted), taking `check2DShell` from ~13,000ms to 104-445ms. `check3DMode` now also
+  asserts zero external requests, making the offline-PWA rule (Altın Kural 4) suite-enforced rather
+  than review-only. Smoke suite 22/22 PASS before and after, all 8 standing guards clean, before/
+  after screenshots at two viewports render identically, 3D boot shows no penalty from route
+  interception. `perf_log.csv` `run76` is a real sample, bit-identical to run75 on every GPU metric
+  (46 draw calls / 393,231 triangles / 44 geometries / 17 textures) — expected, no `src/` file was
+  touched. `gameplayConfig.js` still 597/600 (untouched). `git push origin main` succeeded
+  (`cde8a38`). Local tag only — `git push origin <tag>` still rejected, this time failing as
+  `send-pack: unexpected disconnect while reading sideband packet` rather than the `HTTP 403` seen
+  since run 58; different surface error, same standing block, so no change to §8.11's conclusion.
