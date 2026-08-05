@@ -9303,3 +9303,80 @@ entry needed — no design/product decision involved.
 **Geri alma planı:** `git revert` the single commit — restores both helpers to their ADR-0105 shape
 (dispose calls unwrapped) and removes the two new smoke checks. No other file depends on the new
 try/catch's exact log wording.
+
+
+## ADR-0107: FAZ 5 is complete by design at 13/14 — record `jon-guard-1`'s exclusion as a decision, not a backlog item
+
+**Status:** Accepted (run 83, sub-task 2).
+
+**Risk Seviyesi:** LOW. Documentation-only. No JS file changed, no behavior changed, no smoke check
+affected. Fully reversible: `git revert`.
+
+**Context:** GOVERNANCE.md §17's roadmap line read "FAZ 5: NPC diyalog 13/14", and the scheduled
+routine's own stored prompt repeats that phrasing. Written that way it reads as *an unfinished task*
+— 13 done, 1 to go. It is not. The 14th NPC, `jon-guard-1` (the Night's Watch guard at Jon's seat),
+has no `CHOICES_BY_NPC_ID` entry because ADR-0058 **deliberately excluded it**, and
+`dialogueChoices.js`'s own header (lines 33-35) says so explicitly and has said so since run 44.
+ADR-0058's "Alternatives considered" gives the reason: his greeting —
+`'{name}: Gece Nöbeti sınırdadır. Duvar'ın ötesinde ne olduğunu bilmek istemezsin.'`
+("You don't want to know what's beyond the Wall") — is deliberately closed-off, and appending a
+"here are two things you may ask me" menu to a line whose whole point is refusing to elaborate
+undercuts it.
+
+The cost of the ambiguous phrasing is concrete and recurring: this run re-derived the "gap", and the
+run notes show the same 13/14 line being re-scanned as a candidate item across earlier runs. Each
+time, the actual answer required reading a 106-ADR file to rediscover a decision made at run 44.
+That is exactly the "6 ay sonra hâlâ net mi" failure §8.6 exists to catch, applied to the roadmap
+itself rather than to code.
+
+**Decision:**
+1. GOVERNANCE.md §17's FAZ 5 line now states the pilot is **complete by design at 13**, names
+   `jon-guard-1` and ADR-0058 as the reason, and points at `QUESTIONS_FOR_OWNER.md` for the reversal
+   question. FAZ 5 is treated as closed unless the owner says otherwise.
+2. A `QUESTIONS_FOR_OWNER.md` entry was added per §14, because reversing this is a tonal/product
+   call and not mine to make unilaterally — especially since ADR-0058's own wording is hedged
+   ("arguably read better"), i.e. it was a judgment call that could reasonably go either way, not a
+   hard constraint. The entry records the temporary default (keep ADR-0058's call) and notes that
+   reversing it is a single small sub-task if wanted.
+3. `scripts/checkDialogueChoicesShape.js`'s "Pilot coverage: 13/14 real NPCs" output was left
+   **unchanged**. It is a SOFT WARNING by design (its own header, item 5) and the raw ratio is the
+   honest number; the fix belongs in the roadmap prose that misreads the ratio, not in the tool
+   reporting it. Rewriting the checker to say "13/13 by design" would bake a product decision into a
+   static analysis tool and silently hide the real count if the owner later reverses the call.
+
+**Alternatives considered:**
+- *Just write `jon-guard-1`'s two dialogue choices and close the "gap".* Rejected — this is the
+  trap the ambiguous phrasing sets. It would silently overturn a documented, deliberate ADR-0058
+  decision on tone, which is precisely the class of call GOVERNANCE.md §14 says to escalate rather
+  than guess at. Writing the prose would have been the *easy* sub-task; not writing it is the
+  correct one.
+- *Leave the roadmap line alone since ADR-0058 already documents the reason.* Rejected — the whole
+  problem is that the reason lives 4,200 lines deep in DECISIONS.md while the misleading summary
+  sits in the file every run reads first (§20's Session Snapshot). Documentation that is technically
+  present but reliably re-missed is not doing its job.
+- *Mark FAZ 5 100% and delete the 13/14 ratio entirely.* Rejected — the ratio is real information
+  (a future reader should know one NPC is intentionally quieter than the rest); erasing it trades
+  one misleading summary for another.
+
+**Verified:**
+- `node scripts/checkDialogueChoicesShape.js`: still OK, 13 entries, all valid, unchanged output —
+  confirming this sub-task changed no dialogue data.
+- Full smoke suite unaffected (no JS changed) — re-confirmed 24/24 at the end of this run.
+- Claim traced to primary sources rather than to a prior run's summary of them: `npcConfig.js:185`
+  (the spawn exists), `dialogueChoices.js:33-35` (the documented exclusion),
+  `interactionConfig.js:46` (the actual greeting text), and DECISIONS.md ADR-0058's "Alternatives
+  considered" bullet (the original reasoning, hedged as "arguably").
+- Independently cross-checked by this run's parallel audit (see 3D_GAME_PROGRESS.md run 83
+  sub-task 3), whose adversarial verifier reached the same conclusion from a cold start.
+
+**Etkilenen sistemler:** `GOVERNANCE.md` §17, `QUESTIONS_FOR_OWNER.md`. No source file, no script,
+no asset.
+
+**Consequences:** Future runs reading the Session Snapshot see FAZ 5 as closed and stop spending a
+scan on it; if the owner does want the 14th voiced, the question is already queued with the
+implementation path spelled out. This also sets a small precedent worth keeping: when a roadmap
+summary and an ADR disagree about whether something is "missing", fix the summary rather than
+building the thing.
+
+**Geri alma planı:** `git revert` the single commit — restores the "13/14" phrasing and removes the
+question entry. Nothing depends on either.

@@ -247,7 +247,14 @@ göreve geçilir.
 
 ## 17. Yol Haritası (özet — güncel durum için `3D_GAME_PROGRESS.md`'ye bakılır)
 
-FAZ 0-1 TAMAMLANDI. FAZ 2 ~%95. FAZ 3 ~%90. FAZ 4 TAMAMLANDI. FAZ 5: NPC diyalog 13/14.
+FAZ 0-1 TAMAMLANDI. FAZ 2 ~%95. FAZ 3 ~%90. FAZ 4 TAMAMLANDI. **FAZ 5: NPC diyalog 13/14 —
+tasarım gereği TAMAM, eksik değil.** (Run 83'te netleştirildi: 14. NPC olan `jon-guard-1`'in
+diyalog seçeneği yok çünkü ADR-0058'in "Alternatives considered" bölümünde bilinçli olarak dışarıda
+bırakıldı — Gece Nöbeti nöbetçisinin kapalı/uğursuz tek satırlık selamlaması
+[`'Duvar'ın ötesinde ne olduğunu bilmek istemezsin.'`] "sana şunları sorabilirsin" listesiyle
+zayıflıyor. "13/14" ifadesi bir eksik iş gibi okunduğu için birçok çalıştırma aynı sahte boşluğu
+tekrar tekrar keşfetti. Bu bir ürün/tasarım kararı olduğundan geri çevrilmesi §14 gereği sahibe
+soruldu — bkz. `QUESTIONS_FOR_OWNER.md`. Sahip aksini söylemedikçe FAZ 5 kapalı sayılır.)
 FAZ 6: kurt tamam, at/araba/köpek-kedi/kuş kaldı. FAZ 7: ilk ejderha (fark etme + reaktif
 uçuş + dalış/swoop + **gerçek sürekli kovalama** var — run 66/ADR-0085: ejderha artık
 kalesini terk edip oyuncuyu 18 saniye boyunca kovalıyor, sonra vazgeçip dönüyor; saldırı/

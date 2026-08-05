@@ -75,3 +75,18 @@ instead of guessed at silently. Newest entry at the bottom.
   `COMBAT_STANCE_TRANSITION_SECONDS = 0.3` (a near-instant ease, since this models a stationary human's
   posture snapping to attention rather than an airborne creature's momentum). All three are
   single-number edits in `gameplayConfig.js` if a playtest says otherwise.
+
+- **(run 83, ADR-0058 revisited) Gece Nöbeti nöbetçisi `jon-guard-1` diyalog seçeneği almalı mı —
+  yani FAZ 5 pilotu 14/14'e tamamlansın mı, yoksa 13'te bilinçli olarak kapalı mı kalsın?** Bu
+  çalıştırma "FAZ 5: NPC diyalog 13/14" ifadesinin bir eksik iş sanılıp defalarca yeniden
+  keşfedildiğini fark etti. Gerçekte 14. NPC bir unutma değil: ADR-0058'in "Alternatives considered"
+  bölümü onu bilinçli olarak dışarıda bıraktı; gerekçe, Duvar nöbetçisinin kapalı ve uğursuz tek
+  satırlık selamlamasının (`'Gece Nöbeti sınırdadır. Duvar'ın ötesinde ne olduğunu bilmek
+  istemezsin.'`) ardına "istersen şunları sorabilirsin" listesi eklemenin o tonu zayıflatması. Bu
+  sanatsal/tonal bir karar (API değil), ve ADR-0058'in kendi ifadesi de kesin değil, "arguably read
+  better" diyor — yani makul biçimde iki türlü de gidilebilir. §14 gereği tek başıma tersine
+  çevirmedim. **Geçici varsayılan:** ADR-0058'in kararı korundu, `jon-guard-1` seçeneksiz kalmaya
+  devam ediyor ve FAZ 5 tasarım gereği TAMAM sayılıyor (GOVERNANCE.md §17 bu yönde netleştirildi).
+  Tersini istersen tek bir küçük alt görev yeterli: `dialogueChoices.js`'e 2 seçenekli bir giriş
+  (Duvar'ın ötesi / Gece Nöbeti yemini gibi temalarla) + mevcut 24/24 smoke suite'i zaten bu şekli
+  doğruluyor.
