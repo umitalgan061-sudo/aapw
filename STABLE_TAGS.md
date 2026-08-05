@@ -247,3 +247,14 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   origin main` succeeded (`a20915a`). Local tag only — `git push origin <tag>` still rejected, same
   `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies
   the checkpoint).
+- `stable-2026-08-05-2230` — run 83 end (3 sub-tasks): (1) `safeMode.js` cleanup-throw containment
+  closed, ADR-0106, +2 committed smoke checks; (2) FAZ 5 recorded as complete-by-design at 13/14,
+  ADR-0107, reversal escalated to the owner; (3) **the 2D game was completely dead offline** —
+  `script.js` crashed on line 2 whenever the Firebase CDN was unreachable, aborting all 4,147 lines
+  (ADR-0109). Measured 1 uncaught pageerror -> 0, script.js now runs to completion, `loadData()`
+  yields 14 kingdoms + 74 markers, offline title screen renders; `check2DShell` rewritten to
+  hard-fail on uncaught pageerrors + incomplete script execution. Full suite **24/24 PASS**.
+  A concurrent session (run 84) pushed mid-run and claimed ADR-0108, so mine was renumbered to
+  ADR-0109 and its work preserved intact through the rebase (GOVERNANCE.md §8.14). `git push origin
+  main` succeeded (`38f0c65`). Local tag only — `git push origin <tag>` still `HTTP 403`, same
+  standing block since run 58.
