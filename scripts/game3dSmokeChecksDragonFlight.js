@@ -322,8 +322,114 @@ async function checkDragonReactiveFlight(browser, baseUrl) {
 	return { name: 'dragon reactive flight (gameplay/dragons.js, ADR-0077)', ok, details };
 }
 
+/**
+ * Regression guard for `gameplay/dragons.js`'s wing-flap telegraph (run 70, DECISIONS.md ADR-0089) —
+ * the `Fly` clip's own `AnimationAction.timeScale` reacting to how agitated the dragon is, on top of
+ * the already-tested position/bank/speed reactions. Three independent scenarios, each isolating one
+ * trigger so a regression in any single one is caught rather than only the combination:
+ * - **Calm baseline** (no notice/alarm/pursuit configured at all — same shape `checkDragonFlight`
+ *   uses): `object3D.userData.wingFlapTimeScale` stays exactly `1` every frame, never set below it.
+ * - **Reactive-only** (`noticeRadiusMeters` configured, no dive/pursuit): sustained proximity eases
+ *   the exposed time-scale up to exactly the configured `agitatedWingFlapMultiplier` (`2.0` here, to
+ *   keep the assertion visibly distinct from both `1` and the default `1.5`), and the player leaving
+ *   eases it back down to exactly `1`.
+ * - **Dive-only** (`alarmRadiusMeters`/`sampleGroundY` configured, no notice/pursuit — proves the
+ *   time-scale reacts to `diveBlend` on its own, not only riding along with `reactiveBlend`): omits
+ *   `agitatedWingFlapMultiplier` entirely, so this scenario also confirms `createDragon`'s own `1.5`
+ *   default actually applies rather than silently no-op'ing when the option isn't passed.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkDragonWingFlapAgitation(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createDragon } = await import('/src/3d/gameplay/dragons.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { EventBus } = await import('/src/3d/eventBus.js');
+			const { DRAGON_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+
+			const assetLoader = new AssetLoader();
+			const delta = 1 / 60;
+			const baseSpawn = {
+				assetLoader,
+				modelUrl: DRAGON_CONFIG.MODEL_URL,
+				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
+				scale: DRAGON_CONFIG.SCALE,
+				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
+				centerX: 0, centerZ: 0, centerY: 50, circleRadiusMeters: 100,
+				speedMps: 0, // parks the dragon at a fixed position — same trick every sibling check uses
+			};
+
+			// Scenario 1: calm baseline, no reaction configured at all.
+			const calmDragon = await createDragon({ ...baseSpawn });
+			calmDragon.update(delta, { x: 0, y: 50, z: 0 }); // exactly at the dragon's own position
+			const calmStaysAtOneWhenNear = calmDragon.object3D.userData.wingFlapTimeScale === 1;
+			calmDragon.update(delta, { x: 0, y: 50, z: 1e6 });
+			const calmStaysAtOneWhenFar = calmDragon.object3D.userData.wingFlapTimeScale === 1;
+			const calmStaysAtOne = calmStaysAtOneWhenNear && calmStaysAtOneWhenFar;
+
+			// Scenario 2: reactive-only, explicit non-default multiplier (2.0).
+			const eventsBus = new EventBus();
+			const reactiveDragon = await createDragon({
+				...baseSpawn,
+				noticeRadiusMeters: 150,
+				eventsBus,
+				eventName: 'test:dragonWingFlapReactive',
+				noticeToast: { icon: '🐉', title: 'test', desc: 'test', color: '#000000' },
+				reactiveTransitionSeconds: 1.0,
+				agitatedWingFlapMultiplier: 2.0,
+			});
+			const playerNear = { x: 0, y: 50, z: 0 };
+			const playerFar = { x: 0, y: 50, z: 1e6 };
+			for (let i = 0; i < 200; i++) reactiveDragon.update(delta, playerNear);
+			const reactiveReachesMultiplier =
+				Math.abs(reactiveDragon.object3D.userData.wingFlapTimeScale - 2.0) < 1e-9;
+			for (let i = 0; i < 200; i++) reactiveDragon.update(delta, playerFar);
+			const reactiveReturnsToOne =
+				Math.abs(reactiveDragon.object3D.userData.wingFlapTimeScale - 1) < 1e-9;
+
+			// Scenario 3: dive-only, default multiplier omitted (proves the 1.5 default itself applies).
+			const diveDragon = await createDragon({
+				...baseSpawn,
+				alarmRadiusMeters: 30,
+				sampleGroundY: () => 0,
+				diveTransitionSeconds: 1.0,
+			});
+			// `playerNear` is `circleRadiusMeters` (100m) from the circle center, not from the dragon's
+			// own parked position — recompute a point genuinely close to where this dragon actually is,
+			// rather than reusing `playerNear` verbatim (it would sit outside the 30m alarm radius).
+			const parkedX = diveDragon.object3D.position.x;
+			const parkedZ = diveDragon.object3D.position.z;
+			const diveTriggerPoint = { x: parkedX, y: 50, z: parkedZ + 5 }; // 5m < 30m alarm radius
+			for (let i = 0; i < 200; i++) diveDragon.update(delta, diveTriggerPoint);
+			const diveReachesDefaultMultiplier =
+				Math.abs(diveDragon.object3D.userData.wingFlapTimeScale - 1.5) < 1e-9;
+			for (let i = 0; i < 200; i++) diveDragon.update(delta, playerFar);
+			const diveReturnsToOne = Math.abs(diveDragon.object3D.userData.wingFlapTimeScale - 1) < 1e-9;
+
+			return {
+				calmStaysAtOne, reactiveReachesMultiplier, reactiveReturnsToOne,
+				diveReachesDefaultMultiplier, diveReturnsToOne,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'wing-flap time-scale stays exactly 1 with no reaction configured; a reactive-only dragon ' +
+			'eases up to its explicit custom multiplier and back to 1; a dive-only dragon eases up to ' +
+			'the un-passed 1.5 default and back to 1 — each trigger proven independently, not only in ' +
+			'combination'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'dragon wing-flap agitation telegraph (gameplay/dragons.js, ADR-0089)', ok, details };
+}
+
 module.exports = {
 	checkDragonFlight,
 	checkDragonNotice,
 	checkDragonReactiveFlight,
+	checkDragonWingFlapAgitation,
 };

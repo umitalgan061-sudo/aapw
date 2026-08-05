@@ -41,6 +41,13 @@
  * `game3d.js` wires this in the same spawn-then-per-frame-update shape every other gameplay system
  * already uses, wrapped in a try/catch (GOVERNANCE.md §8.13 safe mode) since run 64 also touches
  * that call site.
+ * Run 70 (DECISIONS.md ADR-0089) adds a small, deliberately damage-free polish pass on top of run
+ * 66's chase: the `Fly` clip's own playback speed now reacts too, not just position/bank/circling
+ * speed — the more agitated the dragon is (reusing the existing reactive/dive/pursuit blends,
+ * whichever is currently strongest), the harder its wings visibly flap, easing back to the calm
+ * baseline the same way every earlier reaction here already does. Purely cosmetic — no new radius,
+ * trigger, or state, and still no health/damage/attack (see `QUESTIONS_FOR_OWNER.md`'s open
+ * question on whether this project wants one at all).
  * @module gameplay/dragons
  */
 
@@ -158,6 +165,15 @@ import { AssetLoader } from '../assetLoader.js';
  *   it instead of flying into the slope. Omit to keep the fixed `centerY` at all times (exact
  *   pre-run-66 behavior). `spawnConfiguredDragons` passes each spawn's own `altitudeMeters` — the
  *   same number `centerY` was resolved from at spawn — so the two agree by construction at home.
+ * @param {number} [options.agitatedWingFlapMultiplier] Run 70 (ADR-0089) wing-flap telegraph: the
+ *   `Fly` clip's `AnimationAction.timeScale` is driven every frame by `agitationBlend` — the
+ *   strongest of `reactiveBlend`/`diveBlend`/`pursuitBlend` this frame (a dragon that is both
+ *   diving and pursuing flaps at the single fastest rate either implies, not a compounded one) —
+ *   eased linearly from `1` (calm) up to this value (fully agitated), the same blend-driven-not
+ *   -snapped shape every other reaction in this module already uses. Defaults to `1.5`: fast enough
+ *   to read as a distinct "wings work harder" cue at a glance, not so fast the clip visibly
+ *   stutters. Exposed on `object3D.userData.wingFlapTimeScale` each frame (no other public API
+ *   change) so regression tests can assert it without reaching into the `AnimationMixer` internals.
  * @returns {Promise<{object3D: THREE.Object3D, update: (delta: number, playerPosition?: {x: number, y: number, z: number}) => void, dispose: () => void}>}
  */
 export async function createDragon({
@@ -193,6 +209,7 @@ export async function createDragon({
 	pursuitTransitionSeconds = 2,
 	pursuitMaxSeconds = 20,
 	cruiseAltitudeAboveGroundMeters,
+	agitatedWingFlapMultiplier = 1.5,
 }) {
 	const clampedDiveLateralPullFraction = Math.min(1, Math.max(0, diveLateralPullFraction));
 	const model = await assetLoader.loadFBXModel(modelUrl, {
@@ -418,6 +435,16 @@ export async function createDragon({
 				if (model.position.y < minY) model.position.y = minY;
 			}
 
+			// Run 70 (ADR-0089) wing-flap telegraph: reuses the three blends already computed above
+			// this frame (reactive/dive/pursuit) rather than adding a new trigger — whichever reaction
+			// is currently strongest sets how hard the wings flap, so a dragon that is merely reactive
+			// (sped-up circling, no dive/pursuit) still gets a visible cue, and one that is diving or
+			// pursuing doesn't flap faster than either alone implies.
+			const agitationBlend = Math.max(reactiveBlend, diveBlend, pursuitBlend);
+			const wingFlapTimeScale = 1 + (agitatedWingFlapMultiplier - 1) * agitationBlend;
+			if (flyAction) flyAction.timeScale = wingFlapTimeScale;
+			model.userData.wingFlapTimeScale = wingFlapTimeScale;
+
 			mixer.update(delta);
 		},
 
@@ -448,7 +475,8 @@ export async function createDragon({
  *   (run 58, ADR-0077) and `alarmRadiusMeters`/`diveDropMeters`/`diveLateralPullFraction`/
  *   `diveTransitionSeconds`/`minAltitudeAboveGroundMeters` (run 64, ADR-0082) and
  *   `pursuitRadiusMeters`/`pursuitCenterSpeedMps`/`pursuitCircleRadiusMeters`/
- *   `pursuitTransitionSeconds`/`pursuitMaxSeconds` (run 66, ADR-0085) are passed straight
+ *   `pursuitTransitionSeconds`/`pursuitMaxSeconds` (run 66, ADR-0085) and
+ *   `agitatedWingFlapMultiplier` (run 70, ADR-0089) are passed straight
  *   through to `createDragon` — omitted per-spawn fields fall back to `createDragon`'s own no-op
  *   defaults (calm flight, unaffected by the player). `sampleGroundY` itself is always passed
  *   through too (run 64), needed for the dive's and the traveling circle's terrain-safety clamp.
@@ -495,6 +523,7 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				// The same number `centerY` above was resolved from — passed separately so the
 				// traveling circle can re-derive its cruise altitude over new terrain (run 66).
 				cruiseAltitudeAboveGroundMeters: spawn.altitudeMeters,
+				agitatedWingFlapMultiplier: spawn.agitatedWingFlapMultiplier,
 			});
 		}),
 	);

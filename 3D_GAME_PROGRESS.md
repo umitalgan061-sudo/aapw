@@ -7191,3 +7191,96 @@ condition. Confirmed still blocked, do not start: the remaining 6 castle seats a
 
 **Addendum:** `git commit` and `git push origin main` outcomes, plus the stable-tag attempt, are
 recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 70)
+
+**Fresh Session Snapshot at container boot:** `GOVERNANCE.md` read in full (already complete and
+current — created run 56, last substantively extended run 57's §8.14 addition; the scheduler prompt
+this run arrived with re-listed the same rules verbatim, confirming nothing new to merge).
+`CREDITS.md` likewise already complete (created run 56, backfilled retroactively). `3D_GAME_PROGRESS.md`
+(this file), `DECISIONS.md`'s last 3 ADRs (0086-0088), `QUESTIONS_FOR_OWNER.md` (4 entries, none
+actionable by this run — the leaked-key rotation and the health/damage-system product question are
+both owner-only) all read for context. `git status`/`git log -10` found the container's `HEAD` detached
+at run 69's final commit while local `main` pointed at a **completely unrelated** root history (no
+common ancestor at all, not merely "behind" as prior runs' recurring container-restart note described)
+— `git merge --ff-only` correctly refused rather than silently doing something unsafe.
+`git branch -f main origin/main` (rejected — branch checked out in this worktree) then `git reset
+--hard origin/main` resynced local `main` to the real, continuously-developed history before any other
+work started. **Worth flagging for a future run:** this is a stronger break than the "stale local main,
+safe fast-forward" pattern runs 18/29/30/36/37/38/58/67 all documented — this run's `main` had no
+shared history with `origin/main` at all. `git reset --hard` was safe here specifically because the
+local `main` ref was provably unused scratch state (nothing in this session's own work depended on it),
+not because that command is safe in general — a future run finding the same "unrelated histories"
+symptom should verify the same thing before reaching for it.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`, excluding vendor) — clean,
+49 files. Full `scripts/smokeTestGame3D.js` — **18/18 PASS** before any new code. All 4 standing guards
+clean.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 (the "1.x cluster" — macro relief, roads, ground
+color, castle textures) confirmed already done per prior runs' own re-verification, no new evidence to
+doubt it. Items 5-6 (syntax/blocking bugs): clean, none found. Run 69's own "Next step" ranked three
+genuinely-unblocked options; picked **#1, FAZ 7 dragon flight/behavior polish that deals no damage**
+(dialogue-choice coverage, its own #2, is not actually a gap — 13/14 is complete, `jon-guard-1`
+deliberately excluded per ADR-0058; the `gameplayConfig.js` 573/600 WARN, #3, is a non-violation with
+no code needing to touch that file yet, so splitting it now would be a refactor without a bug/perf/
+readability/architecture reason — GOLDEN RULE 6 — not this run's pick).
+
+**Sub-task 1 — dragon wing-flap agitation telegraph (DECISIONS.md ADR-0089):** `gameplay/dragons.js`'s
+`Fly` clip now plays faster the more agitated the dragon is — `agitationBlend = Math.max(reactiveBlend,
+diveBlend, pursuitBlend)` drives `AnimationAction.timeScale` from `1` (calm) up to a new
+`agitatedWingFlapMultiplier` option (default `1.5`), eased the same way every other reaction in this
+module already blends. Also exposed on `object3D.userData.wingFlapTimeScale` (no other public-API
+change) so it's testable without reaching into mixer internals. `spawnConfiguredDragons` passes a new
+optional per-spawn override straight through. New regression check `checkDragonWingFlapAgitation`
+(`scripts/game3dSmokeChecksDragonFlight.js`) isolates three scenarios (calm/reactive-only/dive-only) so
+each trigger is proven independently. Full ADR/verification detail: ADR-0089.
+
+**DoD status:** `node --check` clean (49 files). Smoke suite **19/19 PASS** (18 + 1 new) before and
+after, zero console/page errors on real headless boot; 2D shell's pre-existing 11 non-blocking
+sandbox-network errors unchanged (re-confirmed twice for stability, matches ADR-0088's documented
+count). All 4 pre-existing standing guards re-run clean; `checkSmokeCheckRegistry.js` now reports 19
+checks / 5 modules, all 49 files within the 600-line cap (`dragons.js` 502 -> 531 lines, still well
+under). Visual evidence: a static screenshot can't show a playback-*rate* change (see ADR-0089's
+explicit reasoning, same category `checkWaterVertexShaderStatic` already established) — primary proof
+is the multi-scenario regression test; supplementary, a real headless boot screenshot near the `umit`
+seat confirms the scene and its pre-existing "Ejderha Görüldü!" notice toast both still work end to
+end, and an isolated direct-`createDragon` render independently printed
+`userData.wingFlapTimeScale === 2` before its own shot. Performance: perf snapshot bit-identical to run
+69 on every GPU-submission metric (46 draw calls, 393,231 triangles, 44 geometries, 17 textures) —
+expected, a timeScale change adds no geometry. Tech debt counter: **0** (unchanged). This file updated
+(this entry). ADR written (ADR-0089). Committed. Console clean.
+
+**World Evolution Report:**
+
+| Metric | Run 69 | Run 70 | Delta |
+|---|---|---|---|
+| Road network | 20.23km (13 edges) | 20.23km (13 edges) | unchanged |
+| Kingdom seats w/ real castle models | 8 | 8 | unchanged (remaining 6 confirmed blocked) |
+| Dragons (spawned) | 1 | 1 | unchanged (deeper behavior, not more dragons) |
+| NPCs with dialogue-choice branching | 13/14 | 13/14 | unchanged, complete |
+| Smoke suite | 18/18 | **19/19** | +1 (`checkDragonWingFlapAgitation`) |
+| Standing static guards | 5 | 5 | unchanged |
+| Files over the 600-line cap | 0 | 0 | unchanged |
+| ADRs | 88 | **89** | +1 (ADR-0089) |
+| perf_log.csv rows | 9 | **10** | +1 |
+| Manifest entries | 41 | 41 | unchanged (no new assets) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (deliberate constant) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (cosmetic-only change) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ve dolaylı — bir ejderha artık sana yaklaştığında (fark
+ettiğinde, dalış yaptığında ya da kovaladığında) kanatlarını daha hızlı çırpıyor, sakin devriye
+gezerken çırpınmıyor. Konum/hız/pist davranışlarının hiçbiri değişmedi, sadece bu bir görsel ipucu.
+
+**Next step for the next run:** FAZ 7 dragon polish still has real room without touching the
+health/damage question — e.g. a distinct "give-up" cue when an engagement times out and the dragon
+heads home (currently identical easing to any other disengage), or telegraphing the dive itself a beat
+before it happens rather than only reacting to it. `gameplayConfig.js`'s 573/600 WARN remains a
+non-blocking watch-item for whichever run next needs to add a config block there. Confirmed still
+blocked: the remaining 6 castle seats and all FAZ 6 animals (manual human asset download), and any
+dragon attack/fire-breath work (owner decision pending in `QUESTIONS_FOR_OWNER.md`). No blocking bugs,
+syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

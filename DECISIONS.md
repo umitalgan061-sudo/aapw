@@ -7058,3 +7058,122 @@ bump needed (dev-only script, never loaded by a browser or referenced from `inde
 **Geri alma planı:** `git revert` the single commit. Deletes `scripts/checkDialogueChoicesShape.js` and
 restores the doc/log lines. Nothing else depends on it — standalone, not imported or required by any
 other file.
+
+---
+
+## ADR-0089: Dragon wing-flap agitation telegraph — `Fly` clip timeScale reacts to reactive/dive/pursuit blend
+
+**Date:** 2026-08-05 (run 70)
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely cosmetic — no new radius, trigger, state machine, or
+gameplay consequence. Reuses the three blend values (`reactiveBlend`/`diveBlend`/`pursuitBlend`)
+`gameplay/dragons.js` already computed every frame; adds one derived value and one animation-mixer
+write on top. Fully reversible: `git revert` removes the one new parameter, its per-frame write, and
+the new regression test; nothing else depends on `agitatedWingFlapMultiplier` or
+`userData.wingFlapTimeScale`.
+
+**Context:** Run 69's own "Next step" ranked "FAZ 7 dragon flight/behavior polish that deals no
+damage" as the top genuinely-unblocked option (the alternative, an actual attack, is blocked on the
+still-open `QUESTIONS_FOR_OWNER.md` health/damage question). `gameplay/dragons.js` already reacts to
+proximity in every dimension except one: position (dive/pursuit) and flight-path speed/bank
+(reactive) all change, but the `Fly` animation clip itself has always played at a fixed rate — a
+dragon closing in for a dive looks no more urgent, frame to frame, than one calmly patrolling. That
+is a real, if small, believability gap and a safe one to close without touching the open
+damage/health question at all.
+
+**Değişiklik Etki Analizi (GOVERNANCE.md §8.4 — not a terrain/height/noise/world-scale change, so
+the Arazi Değişikliği Güvenlik Kontrolü doesn't apply, but the general impact-analysis discipline
+does):** Affected systems: `gameplay/dragons.js` (`createDragon`'s per-frame `update()`),
+`gameplay/dragons.js`'s `spawnConfiguredDragons` (one new pass-through field),
+`gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS` schema (an optional field it may set, not required —
+this run left the one real spawn using the `1.5` default), and the smoke suite (one new check).
+Nothing in `world/`, `physics.js`, or any other gameplay module reads `wingFlapTimeScale` or is
+otherwise touched. **Gelecek Faz Etkisi:** none of FAZ 8-10 depend on animation playback rate;
+if/when a real attack/fire-breath system is eventually built (pending the owner's health/damage
+decision), it can reuse `agitationBlend`'s "strongest of the three blends" pattern directly rather
+than re-deriving it.
+
+**Decision:** Add `agitatedWingFlapMultiplier` (default `1.5`) to `createDragon`'s options. Each
+frame, after the existing reactive/dive/pursuit blends are computed, `agitationBlend =
+Math.max(reactiveBlend, diveBlend, pursuitBlend)` and `wingFlapTimeScale = 1 +
+(agitatedWingFlapMultiplier - 1) * agitationBlend` are derived and applied to the `Fly`
+`AnimationAction.timeScale` (when the clip resolved), and also written to
+`model.userData.wingFlapTimeScale` — the latter purely so regression tests (and any future debug
+tooling) can read the value without reaching into `AnimationMixer` internals, since the controller's
+public shape (`{object3D, update, dispose}`) otherwise exposes nothing about animation state.
+`spawnConfiguredDragons` passes a new optional `spawn.agitatedWingFlapMultiplier` straight through,
+same "omit falls back to the callee's own default" convention every other per-spawn tuning value in
+this module already uses.
+
+Taking the **max** of the three blends, rather than summing or averaging them, was deliberate: a
+dragon that is both diving and pursuing (their radii can overlap by design — pursuit is meant to sit
+between the alarm and notice radii) should flap at the single fastest rate either reaction alone
+implies, not an inflated compounded one that no individual reaction ever actually reaches on its own.
+
+**Alternatives considered:**
+- *Drive wing-flap rate off `distanceToPlayer` directly, independent of the existing blends.* Rejected:
+  would need its own easing/transition-time state, duplicating machinery `reactiveBlend`/`diveBlend`/
+  `pursuitBlend` already provide, for a value that should track "how agitated is the dragon reacting
+  right now" — which is exactly what those blends already mean.
+- *A dedicated wing-flap-only radius + blend, separate from the other three.* Rejected: adds a fourth
+  radius for a player to reason about (on top of notice/alarm/pursuit) for a purely cosmetic effect —
+  not proportionate. Reusing the existing blends means zero new configuration is *required*, only
+  optional tuning of the multiplier.
+- *Skip this and pick FAZ 5's 14th NPC dialogue-choice entry instead (run 69's #2 option).* Rejected
+  this run: that gap is not actually missed — `jon-guard-1` is deliberately excluded per ADR-0058 (the
+  Night King seat has no NPC at all), so 13/14 is the real, complete number, not unfinished work (see
+  `checkDialogueChoicesShape.js`'s own "Pilot coverage: 13/14" line, machine-verified).
+
+**Consequence:**
+- A dragon now visibly (if subtly) flaps harder the more agitated it is, decoupled per-trigger — a
+  reactive-only dragon (no dive/pursuit configured) still gets the cue, proven independently by this
+  run's new regression test rather than only in combination.
+- No change to any position, radius, trigger, or timing value already tuned by runs 58/64/66 — every
+  existing dragon smoke check (circling, notice, reactive, dive, pursuit) still passes unchanged.
+- `gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS` schema gained one more *optional* field for future
+  spawns/tuning; the one real spawn (`umit-dragon-1`) was left on the `1.5` default rather than edited,
+  since no playtest signal yet says the default reads wrong.
+
+**Etkilenen sistemler:** `src/3d/gameplay/dragons.js` (`createDragon`, `spawnConfiguredDragons`),
+`scripts/game3dSmokeChecksDragonFlight.js` (new check), `scripts/smokeTestGame3D.js` (wired in).
+`gameplayConfig.js` unchanged (no spawn edited).
+
+**Verification (GOVERNANCE.md §8.1):**
+- `node --check` clean across every `src/`+`scripts/` file, before and after.
+- New regression check (`checkDragonWingFlapAgitation`) added and passing, isolating three scenarios:
+  a calm dragon (no reaction configured) stays at exactly `1` across frames near or far; a
+  reactive-only dragon (custom `2.0` multiplier, to keep the assertion visibly distinct from both `1`
+  and the default) eases up to exactly `2.0` under sustained proximity and back to exactly `1` on
+  retreat; a dive-only dragon (multiplier *omitted*, proving the `1.5` default itself actually applies
+  rather than silently no-op'ing) eases up to exactly `1.5` and back down — each trigger proven to
+  drive the time-scale independently, not only when combined.
+- Full smoke suite: **19/19 PASS** (18 pre-existing + 1 new), zero console/page errors on real headless
+  boot of `game3d.html`; the 2D shell's pre-existing 11 non-blocking sandbox-network errors unchanged
+  (same count ADR-0088 documented, re-confirmed twice this run for stability).
+- Three other standing guards re-run clean: `checkAssetsManifest.js` OK (41 entries, unchanged — no new
+  asset), `checkServiceWorkerCache.js` OK (43 JS files — `dragons.js`'s own line-count growth doesn't
+  add a new shell file), `checkDialogueChoicesShape.js` OK (13/14, unchanged). `checkSmokeCheckRegistry.js`
+  OK — 19 checks now (was 18) across 5 modules, all 49 JS files still within the 600-line cap (`dragons.js`
+  grew 502 -> 531 lines, still comfortably under; `gameplayConfig.js`'s pre-existing 573/600 WARN is
+  unchanged, this run added nothing to it).
+- **Görsel kanıt (§8.5):** a pure animation-*playback-rate* change has no static-image signature — two
+  frames at the same instant look identical whichever `timeScale` produced them, the same reasoning
+  `checkWaterVertexShaderStatic` already applies to a different kind of time-based effect (source
+  analysis over a screenshot). Primary evidence is therefore the multi-scenario regression test above,
+  which observes the actual eased value across real frames rather than a single instant. Supplementary:
+  a real headless screenshot of `game3d.html` booted normally near the `umit` seat shows the scene
+  intact and the pre-existing "Ejderha Görüldü!" notice toast still firing correctly (proving the
+  shared distance/blend pipeline this change hooks into is still healthy end-to-end); a second, isolated
+  render driving a `createDragon` instance directly with a pinned-near player through 200 frames printed
+  `object3D.userData.wingFlapTimeScale === 2` immediately before the shot — the same value the
+  regression test asserts, confirmed once more outside the test harness itself.
+- **Performans (§4):** perf snapshot (`perf_log.csv` run70 row) bit-identical to run 69 on every
+  GPU-submission metric (46 draw calls, 393,231 triangles, 44 geometries, 17 textures) — expected, since
+  `AnimationAction.timeScale` changes playback rate, not geometry/material/draw-call count.
+- Tech debt counter: **0** (unchanged — neither introduced nor closed any this run).
+
+**Geri alma planı:** `git revert` the single commit. Removes `agitatedWingFlapMultiplier`, its
+per-frame derivation/write, the new pass-through in `spawnConfiguredDragons`, and the new regression
+check + its wiring in `smokeTestGame3D.js`. No other file references any of it.
