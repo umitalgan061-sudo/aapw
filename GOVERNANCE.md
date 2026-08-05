@@ -212,7 +212,12 @@ göreve geçilir.
   (`checkServiceWorkerCache.js`, ADR-0083), kota izlemesi run 66'da (F2 panelinin
   `navigator.storage.estimate()` satırı, ADR-0084) — ikisi de kalıcı regresyon korumasıyla.
 - **Periyodik Platform Kontrolü:** ~ayda bir (20-30 çalıştırmada bir) `npm audit`, PWA hâlâ
-  kurulabiliyor mu, WebGL bekleneni veriyor mu kontrol edilir.
+  kurulabiliyor mu, WebGL bekleneni veriyor mu kontrol edilir. **Son kontrol: run 70 (2026-08-05,
+  ADR-0090)** — `npm audit`: N/A (repoda `package.json`/npm bağımlılığı yok, saf vanilla JS + repoya
+  gömülü/vendored three.js). PWA kurulabilirliği: yeni kalıcı statik guard
+  `scripts/checkPwaInstallability.js` ile OK. WebGL: mevcut smoke suite + `perf_log.csv` zaten her
+  çalıştırmada gerçek WebGL çıktısını (draw call/üçgen/doku sayıları) doğruluyor, ayrıca
+  doğrulanmadı. Bir sonraki kontrol ~run 90-100 civarında.
 
 ---
 

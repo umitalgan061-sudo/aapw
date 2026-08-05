@@ -7284,3 +7284,58 @@ syntax errors, or regressions found this run.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+**Sub-task 2 (same run, chained per GOVERNANCE.md §19) — PWA installability standing guard + first
+Periyodik Platform Kontrolü pass (DECISIONS.md ADR-0090):** `GOVERNANCE.md` §15's "check every 20-30
+runs" rule had never actually been acted on (confirmed by grep — 14 runs since the rule was written).
+Three findings: `npm audit` is **not applicable** (no `package.json`/npm dependency anywhere in this
+repo — vanilla JS + a vendored, committed three.js copy); PWA installability is **OK**, now backed by
+a new standing guard `scripts/checkPwaInstallability.js` (manifest required fields, icon sizes
+>=192px/>=512px with on-disk srcs verified, `start_url` resolves, `service-worker.js` exists,
+`index.html` wires both the manifest link and the SW registration call); WebGL is **OK**, no new check
+needed — already proven every run by `check3DMode` + `perf_log.csv`'s real GPU-submission numbers.
+`GOVERNANCE.md` §15 now carries a "last checked: run 70" pointer so this doesn't silently lapse again.
+
+**DoD status (sub-task 2):** `node --check` clean (50 files now). Smoke suite 19/19 PASS unchanged (no
+new smoke check — this is a standalone guard, same category as `checkAssetsManifest.js`). All 5
+standing guards clean, including the new one. Visual evidence: none possible/needed (dev-tooling-only,
+same category as ADR-0087/0088/0089's own reasoning). Performance: perf snapshot (`run70b` row)
+bit-identical to sub-task 1's own `run70` row on every GPU-submission metric. Tech debt: **0**
+(unchanged across both sub-tasks this run). Progress doc updated (this entry). ADR written (ADR-0090).
+Committed. Console clean.
+
+**Session Quality Gate (GOVERNANCE.md §8.6) after 2 chained sub-tasks:** confidence 5/5 on both — one
+isolated cosmetic animation-timing change with independently-proven trigger scenarios, one read-only
+audit backed by a new deterministic static guard. Neither leaves anything ambiguous for "6 months from
+now." Stopping here for this run: the next real candidates (dragon give-up/telegraph polish,
+`gameplayConfig.js`'s split) both carry either a real design question this run shouldn't guess at, or
+a wider blast-radius refactor with no forcing bug/perf/readability reason yet (GOLDEN RULE 6) — neither
+is a "quick, obviously safe" continuation the way sub-task 2 was after sub-task 1.
+
+**World Evolution Report (sub-task 2 only — sub-task 1's own table above already covers the run's
+gameplay-facing delta):**
+
+| Metric | Before sub-task 2 | After sub-task 2 | Delta |
+|---|---|---|---|
+| Standing static guards | 5 | **6** | +1 (`checkPwaInstallability.js`) |
+| ADRs | 89 | **90** | +1 (ADR-0090) |
+| perf_log.csv rows | 10 | **11** | +1 |
+| Files (JS, repo-wide) | 49 | **50** | +1 |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (dev-tooling only) |
+
+**Oyuncu fark eder mi:** hayır — bu tamamen perde arkası. Oyunun kurulabilirliği (PWA olarak telefona
+eklenebilmesi) artık her çalıştırmada otomatik kontrol ediliyor, ama bu sub-task hiçbir oyun dosyasını
+değiştirmedi.
+
+**Next step for the next run:** two real, well-defined options remain open: (1) FAZ 7 dragon polish
+with a genuine design call to make first — a distinct "give-up" cue on pursuit timeout vs. an ordinary
+disengage, or telegraphing the dive a beat before it starts (both flagged, neither picked this run,
+see ADR-0090's own "alternatives considered"); (2) `gameplayConfig.js`'s 573/600 split,
+still not urgent but the file that finally needs a new config block there should do it first, per
+ADR-0087's precedent. Confirmed still blocked: the remaining 6 castle seats and all FAZ 6 animals
+(manual human asset download), and any dragon attack/fire-breath work (owner decision pending). No
+blocking bugs, syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcomes and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

@@ -7177,3 +7177,107 @@ implies, not an inflated compounded one that no individual reaction ever actuall
 **Geri alma planı:** `git revert` the single commit. Removes `agitatedWingFlapMultiplier`, its
 per-frame derivation/write, the new pass-through in `spawnConfiguredDragons`, and the new regression
 check + its wiring in `smokeTestGame3D.js`. No other file references any of it.
+
+---
+
+## ADR-0090: PWA installability standing guard + first Periyodik Platform Kontrolü pass
+
+**Date:** 2026-08-05 (run 70, sub-task 2)
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely additive dev tooling — one new `scripts/` file, no
+existing `src/` or shipped runtime file touched. Fully reversible: `git revert` deletes the one new
+file and the doc-only `GOVERNANCE.md` note; nothing else references it.
+
+**Context:** `GOVERNANCE.md` §15 has carried a "Periyodik Platform Kontrolü" rule (`npm audit`, PWA
+installability, WebGL sanity — roughly every 20-30 runs) since it was created (run 56), but a grep of
+`3D_GAME_PROGRESS.md` for any prior mention of it came back empty — run 70 is the first run to
+actually act on it, 14 runs after the rule was written. Continuing the same session that landed
+ADR-0089 (this run's first sub-task), rather than stopping there, per GOVERNANCE.md §19's chaining
+rule — the session quality gate (§8.6) was still comfortably above the confidence-4 bar after
+sub-task 1 (clean smoke suite, no open questions), and this sub-task is a read-only audit with
+essentially no risk of destabilizing anything sub-task 1 touched.
+
+**Decision:** Three findings, one new artifact:
+1. **`npm audit`: not applicable.** Confirmed by direct search (`find . -iname "package*.json"`,
+   `find . -iname node_modules`) — this repo has no `package.json`, no npm dependency, and no
+   `node_modules` anywhere. It's vanilla JS plus a vendored, committed copy of three.js
+   (`src/3d/vendor/three/`) — there is no npm dependency graph for `npm audit` to scan. This is a
+   genuine "not applicable" finding, not a skipped check — recorded as such rather than silently
+   passed over, so a future run doesn't waste time re-discovering the same negative.
+2. **PWA installability: OK**, now backed by a new standing static guard,
+   `scripts/checkPwaInstallability.js` — same "cheap, dependency-free, `fs`-based cross-check"
+   precedent `checkAssetsManifest.js`/`checkServiceWorkerCache.js`/`checkDialogueChoicesShape.js`
+   already established. Validates `manifest.json`'s required installability fields (name/short_name/
+   start_url/display), that `display` is a spec-valid value, that the icon set includes both a
+   >=192px and a >=512px declared size (Chrome's own install-eligibility minimums) with every
+   on-disk `src` actually resolving, that `start_url` resolves to a real file, that
+   `service-worker.js` exists, and that `index.html` actually wires both the manifest `<link>` and
+   the `serviceWorker.register()` call — the two integration points a browser needs before it will
+   even consider a page installable. Chosen as a **standing** guard rather than a one-off manual
+   check specifically because this rule already slipped 14 runs once with no persisted artifact to
+   remind anyone — a script that lives in `scripts/` and can be re-run in seconds costs little and
+   directly prevents the same silent-drift failure mode `checkServiceWorkerCache.js` was created to
+   close for the precache list.
+3. **WebGL: OK, no new check needed.** `smokeTestGame3D.js`'s `check3DMode` already proves a real
+   WebGL context renders the real scene (not a placeholder/error state) on every run, and
+   `collectPerfSnapshot.js`'s `perf_log.csv` already records real GPU-submission numbers (draw
+   calls/triangles/geometries/textures) every run — both already exercised by this run's own
+   sub-task 1. Adding a third, redundant WebGL-specific check would duplicate existing coverage for
+   no new signal, so none was added.
+
+`GOVERNANCE.md` §15 updated with a "Son kontrol: run 70" pointer recording this pass's outcome and a
+rough "next check ~run 90-100" note, so a future run can answer "is this overdue?" by reading one
+line instead of grepping the whole progress log the way this run had to.
+
+**Alternatives considered:**
+- *Skip this and pick a dragon-behavior follow-up instead (e.g. a distinct "give-up" cue on pursuit
+  timeout, or telegraphing the dive a beat before it starts).* Considered but not picked this
+  sub-task: both are real, underspecified design choices (how should "give-up" look? how many
+  seconds of telegraph?) this run would have had to guess at rather than derive from an existing
+  convention — the BİLMEME KURALI's spirit extends to design specifics, not only API surfaces.
+  This periodic-check item, by contrast, is fully spec'd by existing web-platform standards
+  (installability criteria) and this project's own `GOVERNANCE.md` rule, with no guessing required.
+- *Split `gameplayConfig.js` (573/600) preemptively, since `checkSmokeCheckRegistry.js` already
+  WARNs about it.* Rejected this run: not yet a violation, no file currently needs to add to it, and
+  a full split touches every import site across `player.js`/`npc.js`/`animals.js`/`dragons.js`/
+  `interaction.js`/`game3d.js` plus several smoke-test dynamic-import strings — real blast radius for
+  a refactor with no bug/perf/readability-forcing reason yet (GOLDEN RULE 6). Left as a watch-item.
+
+**Consequence:**
+- A genuine, previously-unaddressed governance gap (this rule silently unenforced for 14 runs) is now
+  closed with a persisted artifact, not just this run's own manual confirmation.
+- Any future accidental manifest/service-worker-registration breakage (a typo'd `href`, an icon file
+  deleted without updating the manifest, a removed `<link rel="manifest">`) is now caught immediately
+  by a 1-second script run, rather than only discoverable by an actual install attempt on a real
+  device.
+- **Gelecek Faz Etkisi:** none — this check validates the existing PWA shell, not any FAZ-gated
+  gameplay system. If a future run ever adds real npm tooling (a bundler, a lint config, a test
+  runner with npm deps), `npm audit` becomes actionable again at that point — this ADR's "N/A"
+  finding is a snapshot of the current repo shape, not a permanent exemption.
+
+**Etkilenen sistemler:** `scripts/` dev tooling only (new file). `GOVERNANCE.md` doc-only note. No
+`src/`, `manifest.json`, `index.html`, or `service-worker.js` content changed — only read/validated.
+
+**Verification (GOVERNANCE.md §8.1):**
+- `node --check scripts/checkPwaInstallability.js` clean; full repo sweep (49 -> 50 files with the
+  new script) also clean.
+- New guard run clean against the real repo: `manifest.json has all required fields, "standalone"
+  display, 3 icon(s) (>=192px and >=512px both present, all on-disk srcs resolve), start_url
+  resolves, service-worker.js exists, index.html wires both the manifest link and the
+  service-worker registration.`
+- All 4 pre-existing standing guards + full smoke suite re-run clean: 19/19 PASS, zero console/page
+  errors on real headless boot (2D shell's documented 11 non-blocking sandbox-network errors
+  unchanged).
+- **Görsel kanıt (§8.5):** none possible or needed — same category as ADR-0087/ADR-0088, dev-tooling-
+  only, never loaded by a browser, touches no rendered content.
+- **Performans (§4):** perf snapshot (`perf_log.csv` run70b row) bit-identical to run 70's own
+  sub-task-1 row on every GPU-submission metric (46 / 393,231 / 44 / 17) — expected for a change that
+  adds no `src/` code.
+- Tech debt counter: **0** (unchanged — this run neither introduced nor closed any across either
+  sub-task).
+
+**Geri alma planı:** `git revert` the single commit. Deletes `scripts/checkPwaInstallability.js` and
+reverts the `GOVERNANCE.md` note. Nothing else depends on it — standalone, not imported or required
+by any other file.
