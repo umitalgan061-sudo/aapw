@@ -163,3 +163,17 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `git push origin main` succeeded (`119d76b`). Local tag only — `git push origin <tag>` still
   rejected, `HTTP 403` then `send-pack: unexpected disconnect` on the same call — same standing
   block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
+- `stable-2026-08-05-1830` — run 78 end: one sub-task, grew `gameplay/worldEvents.js`'s flavor pool
+  from 20 to 22 entries (`red_comet`, `hunting_party`, DECISIONS.md ADR-0101) — config/data-only,
+  zero mechanism change. Confirmed GOVERNANCE.md/CREDITS.md/assets_manifest.json `dateAdded`
+  coverage (all asked for again by this run's incoming instruction as a "first" bootstrap step)
+  were already complete from an earlier run; added the run-68-due `CATCH_UP.md` 10-run human-catchup
+  entry (GOVERNANCE.md §13). `node --check` clean (62 files). Smoke suite **22/22 PASS** before and
+  after. All 8 standing guards clean, zero WARN. Real headless-Chromium proof: both new event ids
+  drawn from the live 22-entry pool, each rendered through the real `WorldEventToast` over the live
+  scene (castle silhouette, player model, starlit sky), zero console/page errors. `perf_log.csv`
+  `run78` row bit-identical to run75-77 on every GPU metric (46 draw calls / 393,231 triangles / 44
+  geometries / 17 textures), as expected for a data-only change touching zero scene objects.
+  `git push origin main` succeeded (`9702a49`). Local tag only — `git push origin <tag>` still
+  rejected, `HTTP 403` then `send-pack: unexpected disconnect` on the same call — same standing
+  block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
