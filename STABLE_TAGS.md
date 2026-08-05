@@ -27,3 +27,15 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   smoke suite passing, zero console errors, standalone two-angle visual proof of the new model.
   Local tag only — `git push origin <tag>` still rejected with `HTTP 403` (same known issue since
   run 58).
+- `stable-2026-08-05-0639` — run 68 end: the standing 614-line Altın Kural 7 violation in
+  `scripts/game3dSmokeChecksMovement.js` finally cleared at its source (ADR-0087) — its 3 dragon
+  checks moved verbatim into a new `game3dSmokeChecksDragonFlight.js`, leaving 328/329-line halves —
+  plus a new permanent guard (`scripts/checkSmokeCheckRegistry.js`) that machine-enforces the
+  600-line cap repo-wide and cross-checks the smoke registry both ways, so a future run cannot
+  silently drop a check and still print a green suite. **Every JS file in the repo is now under the
+  cap, machine-verified.** 18/18 smoke suite passing before AND after, with the full suite stdout
+  diffed before/after (identical once `check2DShell`'s sandbox-network error counter is normalized)
+  and the moved code proven byte-identical — not merely "18/18 still passes". Zero console/page
+  errors on a real headless boot, 2 camera angles. No `src/` code touched; perf bit-identical to run
+  67. `git push origin main` succeeded (`95bb9ae`). Local tag only — `git push origin <tag>` still
+  rejected with `HTTP 403` (same known issue since run 58).
