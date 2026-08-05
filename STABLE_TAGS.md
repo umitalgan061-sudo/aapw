@@ -71,3 +71,14 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   531->598 lines (crossed the 540 WARN threshold, still under the 600 cap — flagged as next run's
   real forcing signal to split). `git push origin main` succeeded (`a0d5b83`). Local tag only —
   `git push origin <tag>` still rejected with `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-0940` — run 71 sub-task 2 end: `gameplay/dragons.js` split by subsystem block
+  (ADR-0092) — 598/600 lines became four files (`dragonController.js` 414, `dragonFlightMath.js` 146,
+  `dragonSpawns.js` 89, `dragons.js` 84 as the re-exporting entry point). Public API and import path
+  unchanged, so no caller and no test was edited: `game3d.js` and all six dragon smoke checks still
+  import from `src/3d/gameplay/dragons.js`. Smoke suite 20/20 PASS before and after with **byte-
+  identical stdout** except the 2D shell's known non-blocking sandbox-network counter; perf
+  bit-identical (46 draw calls / 393,231 triangles / 44 geometries / 17 textures); zero console/page
+  errors on real headless boot; all 6 standing guards clean and the `dragons.js` 598/600 WARN is
+  gone. `service-worker.js` precaches the three new modules (`SHELL_CACHE` v3->v4). `git push origin
+  main` succeeded (`8376b68`). Local tag only — `git push origin <tag>` still rejected with
+  `HTTP 403` (same known issue since run 58).
