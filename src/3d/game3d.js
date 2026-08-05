@@ -61,6 +61,7 @@ import { updateStarfield, disposeStarfield } from './stars.js';
 import { updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
 import { updateFog } from './fog.js';
 import { createScene, isCoarsePointerDevice, worldToChunkCoord } from './sceneManager.js';
+import { updateEntitiesSafely, updateSystemSafely } from './safeMode.js';
 import { createPerfPanel } from './debug/perfPanel.js';
 
 /** Shared asset loader instance for the whole 3D mode. */
@@ -390,100 +391,66 @@ export async function initGame3D() {
 			// read is current — safe to feed into each NPC's combat-stance check and each animal's
 			// flee-awareness check below.
 			const playerPos = state.player.object3D.position;
+			// Every gameplay-subsystem update below goes through `safeMode.js` (GOVERNANCE.md §8.13:
+			// one subsystem throwing disables only itself, never the whole frame loop). Dragons got
+			// this at run 64, the other four at run 81; run 82 extracted the five near-identical
+			// try/catch blocks into that module — see its own doc comment for the two shapes.
 			// Run 73 (ADR-0096): playerPos feeds each NPC's combat-stance proximity check — see
-			// `gameplay/npc.js`'s `createNPC` doc comment. Run 81 wraps this in a try/catch per
-			// GOVERNANCE.md §8.13 (the rule's own "hayvan AI" subsystem — NPCs use the same
-			// per-entity spawn/update/dispose shape as animals): one NPC's `update()` throwing
-			// disables only that NPC — disposed and dropped from `state.npcs` — instead of crashing
-			// the whole frame loop. Same pattern the dragon loop below already established at run 64.
-			let anyNpcFailed = false;
-			for (const npc of state.npcs) {
-				try {
-					npc.update(delta, playerPos);
-				} catch (error) {
-					console.error(`[game3d] NPC "${npc.object3D?.name ?? '?'}" update() threw — disabling this NPC only (GOVERNANCE.md §8.13 safe mode), rest of the game continues.`, error);
-					state.scene.remove(npc.object3D);
-					npc.dispose();
-					npc.disabledDueToError = true;
-					anyNpcFailed = true;
-				}
-			}
-			if (anyNpcFailed) state.npcs = state.npcs.filter((npc) => !npc.disabledDueToError);
+			// `gameplay/npc.js`'s `createNPC` doc comment.
+			state.npcs = updateEntitiesSafely({
+				entities: state.npcs,
+				scene: state.scene,
+				label: 'NPC',
+				update: (npc) => npc.update(delta, playerPos),
+			});
 			// FAZ 5 interaction (run 32-33, ADR-0032/ADR-0033): nearest-NPC tracking, prompt
-			// visibility, and dialogue auto-close all live in `gameplay/interaction.js`. Run 81 wraps
-			// this in a try/catch per GOVERNANCE.md §8.13 (the rule's own "diyalog" subsystem): this
-			// is a single shared controller, not a per-entity list like NPCs/animals/dragons, so on
-			// error it self-disables via a flag (skips `update()` on every future frame) rather than
-			// being disposed and dropped — it owns no scene object/geometry of its own to remove.
-			if (!state.interactionDisabledDueToError) {
-				try {
-					state.interaction.update(state.npcs, playerPos);
-				} catch (error) {
-					console.error('[game3d] Interaction controller update() threw — disabling dialogue for the rest of this session (GOVERNANCE.md §8.13 safe mode), rest of the game continues.', error);
-					state.interactionDisabledDueToError = true;
-				}
-			}
+			// visibility, and dialogue auto-close all live in `gameplay/interaction.js`.
+			state.interactionDisabledDueToError = updateSystemSafely({
+				disabled: state.interactionDisabledDueToError,
+				label: 'Interaction controller',
+				update: () => state.interaction.update(state.npcs, playerPos),
+			});
 			// Pack awareness (run 29, DECISIONS.md ADR-0029): each animal gets the positions of every
 			// *other* animal already flagged `isFleeing` this frame. O(n²) over `state.animals` — fine
 			// at today's 2-wolf count (see ADR-0029's Consequence for the revisit threshold if the
-			// animal count grows a lot in a future run). Run 81 wraps the update call itself in a
-			// try/catch per GOVERNANCE.md §8.13 (the rule's own "hayvan AI" subsystem), matching the
-			// NPC/dragon per-entity pattern above/below.
-			let anyAnimalFailed = false;
-			for (const animal of state.animals) {
-				const packmateFleePositions = state.animals
-					.filter((other) => other !== animal && other.isFleeing)
-					.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z }));
-				try {
-					animal.update(delta, playerPos, packmateFleePositions);
-				} catch (error) {
-					console.error(`[game3d] Animal "${animal.object3D?.name ?? '?'}" update() threw — disabling this animal only (GOVERNANCE.md §8.13 safe mode), rest of the game continues.`, error);
-					state.scene.remove(animal.object3D);
-					animal.dispose();
-					animal.disabledDueToError = true;
-					anyAnimalFailed = true;
-				}
-			}
-			if (anyAnimalFailed) state.animals = state.animals.filter((animal) => !animal.disabledDueToError);
+			// animal count grows a lot in a future run).
+			state.animals = updateEntitiesSafely({
+				entities: state.animals,
+				scene: state.scene,
+				label: 'Animal',
+				update: (animal) => animal.update(
+					delta,
+					playerPos,
+					state.animals
+						.filter((other) => other !== animal && other.isFleeing)
+						.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z })),
+				),
+			});
 			// FAZ 7 dragons (run 53 flight path, run 54 player-awareness, run 64 dive) — see
 			// `gameplay/dragons.js`'s own doc comment. `playerPos` already reflects this frame's
-			// post-movement position (set above). Run 64 wraps this in a try/catch per GOVERNANCE.md
-			// §8.13 (safe mode for newly-touched subsystems): one dragon's `update()` throwing (a bad
-			// `sampleGroundY` result, a corrupt mixer state, etc.) disables only that dragon —
-			// disposed and dropped from `state.dragons` — instead of crashing the whole frame loop.
-			let anyDragonFailed = false;
-			for (const dragon of state.dragons) {
-				try {
-					dragon.update(delta, playerPos);
-				} catch (error) {
-					console.error(`[game3d] Dragon "${dragon.object3D?.name ?? '?'}" update() threw — disabling this dragon only (GOVERNANCE.md §8.13 safe mode), rest of the game continues.`, error);
-					state.scene.remove(dragon.object3D);
-					dragon.dispose();
-					dragon.disabledDueToError = true;
-					anyDragonFailed = true;
-				}
-			}
-			if (anyDragonFailed) state.dragons = state.dragons.filter((dragon) => !dragon.disabledDueToError);
+			// post-movement position (set above).
+			state.dragons = updateEntitiesSafely({
+				entities: state.dragons,
+				scene: state.scene,
+				label: 'Dragon',
+				update: (dragon) => dragon.update(delta, playerPos),
+			});
 			state.camera.position.x += playerPos.x - previousTargetX;
 			state.camera.position.z += playerPos.z - previousTargetZ;
 			state.controls.target.set(playerPos.x, playerPos.y + PLAYER_CONFIG.CAMERA_TARGET_HEIGHT_METERS, playerPos.z);
 
 			state.controls.update(); // required every frame: enableDamping is on
 			streamAroundOrbitTarget(state);
-			// Run 81 wraps this in a try/catch per GOVERNANCE.md §8.13 (the rule's own "dünya
-			// olayları" subsystem, the last of the 4 named subsystems to get this treatment — dragon
-			// AI at run 64, NPC/animal AI and dialogue just above). Singleton system like `interaction`
-			// above: on error it self-disables via a flag and calls its own `dispose()` (it does own a
-			// timer-like countdown, though no DOM/listeners) rather than being removed from a list.
-			if (!state.worldEventsDisabledDueToError) {
-				try {
-					state.worldEvents.update(delta);
-				} catch (error) {
-					console.error('[game3d] World-event system update() threw — disabling world events for the rest of this session (GOVERNANCE.md §8.13 safe mode), rest of the game continues.', error);
-					state.worldEvents.dispose();
-					state.worldEventsDisabledDueToError = true;
-				}
-			}
+			// Same §8.13 safe mode as the four subsystems above, singleton shape like `interaction` —
+			// but this one does own something to release on failure (its countdown), so it passes a
+			// `disposeOnError`. `worldEvents.dispose()` is idempotent, so the unconditional teardown
+			// call further down stays safe even after this path already disposed it.
+			state.worldEventsDisabledDueToError = updateSystemSafely({
+				disabled: state.worldEventsDisabledDueToError,
+				label: 'World-event system',
+				update: () => state.worldEvents.update(delta),
+				disposeOnError: () => state.worldEvents.dispose(),
+			});
 			const elapsedSeconds = state.elapsedSeconds;
 			const dayNight = updateDayNightLighting(
 				state.lights,

@@ -8843,5 +8843,96 @@ extracting the per-entity-list update loops into a small helper module) rather t
 600. `CATCH_UP.md`'s next 10-run digest due at run 88. No blocking bugs, syntax errors, or
 regressions found this run.
 
+*(Follow-up: that WARN was resolved in the very next sub-task — see run 82 below.)*
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 82 — scheduled autonomous routine, continued from run 81)
+
+Direct continuation of run 81 within the same chaining flow (GOVERNANCE.md §19): run 81's quality
+gate passed 5/5 and its budget was barely touched (304 lines / 4 files of 1200/25), so rather than
+stopping, the next priority item was re-scanned. Run 81's own change had created a concrete,
+non-blocked item: `game3d.js` hit 571/600 lines and `checkSmokeCheckRegistry.js` started WARNing
+about it. That is priority item 9 (teknik borç) territory and outranks item 14 ("yeni özellik"),
+so it was taken next. `git fetch origin main` re-confirmed no concurrent session (§8.14).
+
+### Sub-task 2: extract the five inline safe-mode try/catch blocks into `safeMode.js` (DECISIONS.md ADR-0105)
+
+Run 81 left `game3d.js` carrying five near-identical try/catch blocks — three per-entity loops
+(NPC/animal/dragon) differing only in a noun, two singleton guards (interaction/world-events)
+differing only in a flag name. New `src/3d/safeMode.js` (104 lines) exports two helpers —
+`updateEntitiesSafely` for the per-entity lists, `updateSystemSafely` for the singletons — and
+`game3d.js`'s five blocks became five calls. Two shapes deliberately, not one: "disable" genuinely
+means different things for a list entity (drop it) and a singleton (latch a flag). State ownership
+stays with the caller (helpers return the new value, never mutate `state`). Full reasoning,
+alternatives, and the pre-existing-and-deliberately-unchanged `dispose()`-throws exposure in
+ADR-0105.
+
+**DoD status:** `node --check` clean across the full 70-file sweep. `game3d.js` **538/600** (was
+571) — the WARN is gone, confirmed by re-running the guard ("62 JS files all within the 600-line
+cap", no WARN line). Smoke suite **22/22 PASS**, zero FAIL. All 8 standing guards clean, including
+`checkServiceWorkerCache.js` after adding `safeMode.js` to `GAME3D_SHELL_FILES` and bumping
+`SHELL_CACHE` v6->v7 (without which an offline install would load a cached `game3d.js` and fail on
+an uncached import). **Error path re-proven from scratch, not assumed to have survived the move:**
+the same Playwright injection harness was re-run and **extended from 4 to 5 subsystems** —
+`dragonController.js` added specifically because the dragon path was *not* newly wrapped this run
+(run 64 did that) but its call site *was* rewritten by this refactor, making it the likeliest place
+for a silent regression to hide. All 5 confirmed: boot reached ready, expected safe-mode
+`console.error` fired, **zero** uncaught `pageerror`, zero external requests.
+`ALL 5 SAFE-MODE INJECTIONS PROVEN`. 2 screenshots (default boot camera + F4 free-cam) visually
+identical to the run 81 pair — player, castle + guard NPC, starfield, live `WorldEventToast`.
+`perf_log.csv` `run82` row bit-identical to run76-81 (46/393,231/44/17). Memory-leak checklist:
+n/a — no new listener/timer/DOM node; the helper allocates nothing on a healthy frame (returns the
+same array reference). Tech debt counter: **0**. ADR-0105 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** re-derived rather than eyeballed — confirmed the animal packmate
+closure still reads the pre-filter `state.animals` (the reassignment happens only after the helper
+returns, so mid-iteration reads match the old inline code exactly, including the pre-existing quirk
+that a just-failed animal can still appear in a later sibling's packmate list that same frame);
+confirmed the `undefined` initial flag value behaves identically to the old `if (!flag)` guard;
+confirmed a latched singleton skips `update()` entirely rather than re-catching every frame;
+confirmed the healthy path adds no allocation; confirmed the collapsed log wording is cosmetic and
+that nothing in `scripts/` depends on the old strings.
+
+**Session Quality Gate (§8.6) after 2 sub-tasks:** confidence **5/5** — this removed a real standing
+WARN, cut five copies of one pattern down to one implementation, and (the part that matters for a
+refactor of *error handling*) re-proved every error path empirically rather than reasoning that the
+move was safe. The extension to 5 injections was a deliberate response to the refactor's own risk
+profile, not box-ticking. **Stopping the run here**, one sub-task past the gate: the remaining
+backlog is entirely owner-decision or missing-asset blocked (unchanged from run 80/81), so a 3rd
+sub-task would mean reaching for filler rather than the next genuinely most valuable thing —
+exactly what §8.6 and the run-wide time cap (§8.7) exist to prevent.
+
+**World Evolution Report (run 82, cumulative over both sub-tasks):**
+
+| Metric | Run 81 start | Run 82 end | Delta |
+|---|---|---|---|
+| Subsystems with §8.13 safe-mode wrapping | 1/4 (dragons only) | **4/4** | +3 |
+| §8.13 implementations in the codebase | 1 (inline) | **1 (`safeMode.js`, shared by 5 call sites)** | 5 inline copies -> 1 module |
+| `game3d.js` lines | 519/600 | **538/600** | +19 net (peaked at 571, WARN cleared) |
+| `src/3d/` JS modules | 61 | **62** | +1 (`safeMode.js`) |
+| ADR headers in `DECISIONS.md` | 103 | **105** | +2 (ADR-0104, ADR-0105) |
+| `perf_log.csv` rows | 24 | **26** | +2 (`run81`, `run82`) |
+| Service-worker `SHELL_CACHE` | v6 | **v7** | +1 (new precached module) |
+| Smoke suite | 22/22 | **22/22** | unchanged |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged |
+
+**Oyuncu fark eder mi:** hayır — bu alt görev tamamen kod düzeni; oyunda görünen hiçbir şey
+değişmedi (iki ekran görüntüsü run 81'inkiyle birebir aynı). Dolaylı faydası: bundan sonra tick
+döngüsüne eklenecek her yeni sistem, hata yalıtımını kopyala-yapıştır ile değil tek satırlık bir
+çağrıyla otomatik alacak — run 64 ile run 81 arasında 4 sistemden 3'ünün sessizce korumasız
+kalmasının sebebi tam olarak o kopyala-yapıştır boşluğuydu.
+
+**Next step for the next run:** re-scan the priority order fresh. Blocked items unchanged: 6 castle
+seats + FAZ 6 animals need real rigged models, dragon attack/fire-breath needs the owner's
+health-system decision, `erkek-insan`/`kadin-insan`/`koylu` differentiation has no design driver.
+Known, deliberately-deferred follow-up from ADR-0105: a throwing `entity.dispose()` inside
+`safeMode.js`'s catch still escapes (pre-existing since run 64, left unchanged so this refactor
+stayed behavior-preserving) — a small, well-scoped candidate if a run wants one. `CATCH_UP.md`'s
+next 10-run digest due at run 88. No blocking bugs, syntax errors, or regressions found.
+
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.

@@ -9083,3 +9083,122 @@ form exactly (dragons' own try/catch, added run 64, is untouched either way). No
 references `state.interactionDisabledDueToError`/`state.worldEventsDisabledDueToError`/the
 per-entity `disabledDueToError` flags on NPCs/animals outside this same function, so no other file
 needs a matching revert.
+
+## ADR-0105: Extract the five inline safe-mode try/catch blocks out of `game3d.js`'s tick loop into `safeMode.js` (571/600 -> 538/600)
+
+**Status:** Accepted (run 82).
+
+**Risk Seviyesi:** LOW. Behavior-preserving refactor of code shipped one sub-task earlier in this
+same run (ADR-0104) plus the run-64 dragon block. No new mechanism, no gameplay logic touched. The
+non-error path is proven unchanged (22/22 smoke, bit-identical `perf_log.csv` GPU metrics, two
+matching screenshots) and the *error* path is re-proven from scratch for all five subsystems, not
+assumed to have survived the move. Fully reversible: `git revert`.
+
+**Context:** Immediate continuation of ADR-0104 within run 82's own chaining flow (GOVERNANCE.md
+§19). ADR-0104 finished applying §8.13's safe-mode rule to the 3 subsystems that lacked it, which
+left `game3d.js` at **571/600 lines** carrying **five near-identical inline try/catch blocks** —
+three per-entity loops (NPC/animal/dragon) differing only in a noun, and two singleton guards
+(interaction/world-events) differing only in a flag name. `checkSmokeCheckRegistry.js` began emitting
+`WARN: src/3d/game3d.js is 571/600 lines — approaching the cap, plan a split before adding to it`,
+and ADR-0104's own "Next step" note flagged exactly this as the follow-up. So this is a refactor with
+two of Altın Kural 6's four sanctioned reasons behind it (readability: 5 copies of one pattern;
+architecture: the 600-line cap, Altın Kural 7), not refactoring for its own sake. No terrain/height/
+noise/world-scale change — Arazi Değişikliği Güvenlik Kontrolü doesn't apply. **Gelecek Faz Etkisi:**
+positive and concrete — every future FAZ 6/9/10/11 subsystem added to the tick loop now gets error
+isolation by writing one `updateEntitiesSafely({...})` call instead of copy-pasting a 6th try/catch
+block, which is exactly the copy-paste drift that let 3 of 4 subsystems silently go unwrapped between
+run 64 and run 81 in the first place.
+
+**Decision:** New `src/3d/safeMode.js` (104 lines) exporting two helpers, and `game3d.js`'s five
+inline blocks replaced by calls to them.
+1. **`updateEntitiesSafely({entities, scene, label, update})`** — for the per-entity lists
+   (`state.npcs`, `state.animals`, `state.dragons`), all three of which share the same
+   `{object3D, update(...), dispose()}` contract. Returns the list unchanged when nothing threw (no
+   allocation on a healthy frame) and a filtered copy when something did. State ownership stays in
+   `game3d.js`: the caller assigns the return value, so each subsystem's lifetime is visible at
+   exactly one place rather than mutated from inside a helper.
+2. **`updateSystemSafely({disabled, label, update, disposeOnError})`** — for the singletons
+   (`state.interaction`, `state.worldEvents`), which have no list to filter and (for `interaction`)
+   no scene object to remove. Takes and returns the caller-held disabled boolean. `disposeOnError` is
+   optional precisely because only one of the two owns something to release.
+3. Two shapes deliberately, not one — the per-entity and singleton cases differ in what "disable"
+   even means (drop from a list vs. latch a flag), and collapsing them would have produced a helper
+   with mutually-exclusive parameters that is harder to read than the duplication it replaced.
+4. `service-worker.js`: `safeMode.js` added to `GAME3D_SHELL_FILES`, `SHELL_CACHE` bumped `v6`->`v7`
+   — without it an offline install would load a cached `game3d.js` and immediately fail on an
+   uncached `import`, the exact failure mode ADR-0083/ADR-0100 already documented.
+
+**Alternatives considered:**
+- *Leave it at 571/600 and split later.* Rejected — 571 is close enough that the very next run
+  touching `tick()` would either breach the cap or be forced into this same refactor under worse
+  conditions (bundled with an unrelated feature change, making the diff harder to review). Doing it
+  now, as its own commit with its own proof, is strictly cheaper. The standing WARN existed to
+  prompt exactly this.
+- *One combined helper covering both shapes via optional params.* Rejected — see Decision point 3.
+- *Move the helpers into `gameplay/`.* Rejected — `gameplay/README.md`'s own "blast radius" rule says
+  `gameplay/` only touches itself, `eventBus.js`, `physics.js`, `input.js`. These helpers are
+  *caller-side* infrastructure operating generically over gameplay systems, so they belong at the
+  `src/3d/` root alongside `sceneManager.js` — the same category and the same precedent (ADR-0052)
+  of extracting from `game3d.js` to keep it under the cap.
+- *Also wrap `entity.dispose()` (called inside the catch) in its own try/catch.* Rejected for this
+  commit — a throwing `dispose()` would still escape, but that exposure is **pre-existing and
+  unchanged** (run 64's original block had it identically). Fixing it here would make a
+  behavior-preserving refactor quietly behavior-changing, which is precisely what makes refactor
+  commits hard to trust. Noted as a real, separate follow-up rather than smuggled in.
+
+**Verified:**
+- `node --check` clean across the full 70-file sweep (69 + the new `safeMode.js`). Line counts:
+  `game3d.js` **538/600** (was 571 — the `checkSmokeCheckRegistry` WARN is gone, confirmed by
+  re-running it: "62 JS files all within the 600-line cap", no WARN line), `safeMode.js` 104/600.
+- Full committed smoke suite: **22/22 PASS**, zero FAIL, unchanged.
+- All 8 standing guards clean, including `checkServiceWorkerCache.js` re-run after the precache edit
+  ("53 JS files ... all present in `GAME3D_SHELL_FILES`", up from 52).
+- **Error path re-proven, not assumed — this is the load-bearing evidence for a refactor of error
+  handling.** The same dev-only Playwright injection harness ADR-0104 used was re-run against the
+  refactored code and **extended to 5 subsystems**: `dragonController.js` was added specifically
+  because the dragon path was *not* newly wrapped this run (run 64 did that) but its call site *was*
+  rewritten by this refactor, so leaving it unproven would have been the single most likely place
+  for a silent regression to hide. All 5 independently confirmed: boot reached
+  `g3d-loading-hidden`, the expected safe-mode `console.error` fired, **zero** uncaught `pageerror`
+  escaped (the throw really is still caught inside `tick()`), zero external requests.
+  `ALL 5 SAFE-MODE INJECTIONS PROVEN`.
+- **Görsel Doğrulama Standardı (§8.5):** 2 screenshots at distinct camera angles (default boot
+  camera + real F4 free-cam) — both visually identical to the ADR-0104 pair taken hours earlier:
+  player model, castle silhouette with its guard NPC, starfield, terrain horizon, and a live
+  `WorldEventToast` mid-flight. The toast's presence matters beyond decoration: it proves the
+  refactored world-event *and* interaction singleton paths are still ticking normally on the
+  ordinary no-error path, not merely surviving the injection test.
+- `perf_log.csv` `run82` row (real measurement) bit-identical to run76-81 on every GPU metric
+  (46 draw calls / 393,231 triangles / 44 geometries / 17 textures) — expected, since no scene
+  object, geometry, or material was touched.
+- **AI Self-Review 2. Geçiş (§8.3):** re-derived rather than eyeballed — (a) confirmed the animal
+  packmate closure still reads the *pre-filter* `state.animals`, because `state.animals = updateEntities
+  Safely({entities: state.animals, ...})` only reassigns after the helper returns, so mid-iteration
+  reads see the original array exactly as the old inline code did (including the pre-existing quirk
+  that a just-failed animal can still appear in a later sibling's packmate list on that same frame —
+  unchanged, by design); (b) confirmed the disabled flags start `undefined` and `!undefined`/falsy
+  behaves identically to the old `if (!flag)` guard, so first-frame behavior is unchanged; (c)
+  confirmed `updateSystemSafely` skips `update()` entirely once latched rather than re-catching every
+  frame (which would spam the console indefinitely); (d) confirmed the healthy path performs no new
+  allocation (helper returns the same array reference); (e) confirmed the log-message wording change
+  is cosmetic and deliberate ("disabling this NPC only"/"this animal only" collapsed to "disabling
+  this one only" so one template serves all three labels) and that nothing in the repo greps for
+  those strings — re-checked `scripts/` for any dependency on the old wording and found none.
+- Tech debt counter: **0** (unchanged). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+
+**Etkilenen sistemler:** `src/3d/game3d.js` (tick loop call sites only), new `src/3d/safeMode.js`,
+`service-worker.js` (precache list + cache version). No gameplay module touched — `npc.js`,
+`animals.js`, `dragonController.js`, `interaction.js`, and `worldEvents.js` are all byte-identical.
+
+**Consequences:** `game3d.js` has 62 lines of headroom again instead of 29, and the §8.13 rule now
+has exactly one implementation instead of five copies — so the next subsystem added to the tick loop
+inherits error isolation by construction rather than by remembering to copy a block. The known,
+pre-existing gap (a throwing `dispose()` inside the catch still escapes) is now documented in one
+place instead of being invisibly replicated five times, which is itself a prerequisite for fixing it
+cheaply later. No `QUESTIONS_FOR_OWNER.md` entry needed — no design/product decision involved.
+
+**Geri alma planı:** `git revert` the single commit — restores the five inline blocks, deletes
+`safeMode.js`, and reverts the service-worker precache entry and `SHELL_CACHE` bump together (they
+are in the same commit precisely so a revert can't leave a cache version pointing at a file list
+that no longer matches). ADR-0104's behavior would be fully restored, since this commit changed no
+behavior of its own.

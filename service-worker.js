@@ -6,7 +6,7 @@
 
 const SW_VERSION = 'westeros-media-v4';
 const MEDIA_CACHE = 'westeros-media-v4';
-const SHELL_CACHE = 'westeros-shell-v6';
+const SHELL_CACHE = 'westeros-shell-v7';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -67,10 +67,17 @@ const SHELL_FILES = [
 // modules are precached here alongside it, same reasoning as that entry: without them an offline
 // install would fetch `gameplayConfig.js` from cache and then fail on its 5 uncached
 // `export ... from` targets. `SHELL_CACHE` bumped v5->v6.
+//
+// run 82 (DECISIONS.md ADR-0105): added `safeMode.js` — the GOVERNANCE.md §8.13 error-isolation
+// helpers extracted out of `game3d.js`'s tick loop (which had reached 571/600 lines carrying five
+// near-identical inline try/catch blocks). `game3d.js` now imports it, so without this entry an
+// offline install would load `game3d.js` from cache and immediately fail on an uncached import —
+// exactly the failure mode the run 65/77 entries above describe. `SHELL_CACHE` bumped v6->v7.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
     './src/3d/game3d.js',
+    './src/3d/safeMode.js',
     './src/3d/eventBus.js',
     './src/3d/state.js',
     './src/3d/assetLoader.js',
