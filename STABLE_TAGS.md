@@ -39,3 +39,11 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   errors on a real headless boot, 2 camera angles. No `src/` code touched; perf bit-identical to run
   67. `git push origin main` succeeded (`95bb9ae`). Local tag only — `git push origin <tag>` still
   rejected with `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-0651` — run 69 end: new standing guard `scripts/checkDialogueChoicesShape.js`
+  (ADR-0088) closes the last of run 68's three named smoke-coverage gaps — cross-checks
+  `dialogueChoices.js`'s `CHOICES_BY_NPC_ID` against real NPC ids, the keybinding slot count, and
+  content shape (non-empty label/response, `{name}` placeholder), negative-controlled 4 ways. 18/18
+  smoke suite passing before and after, zero console/page errors on real headless boot. No `src/`
+  code touched; perf bit-identical to run 68 on every GPU-submission metric. `git push origin main`
+  succeeded (`21addd5`). Local tag only — `git push origin <tag>` still rejected with `HTTP 403`
+  (same known issue since run 58).
