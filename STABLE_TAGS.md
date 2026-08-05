@@ -120,3 +120,13 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   objects). `gameplayConfig.js` still 597/600 (untouched this run, same watch-item as ever). `git push
   origin main` succeeded (`29b99f6`). Local tag only — `git push origin <tag>` still rejected with
   `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-1357` — run 75 end: `WORLD_EVENTS` flavor pool grown 18 -> 20 entries
+  (`wildling_rumor`, `mourning_bells`, ADR-0098) — config-only, zero mechanism change; `mourning_bells`
+  is the pool's first openly somber/grief-toned entry. Real headless-Chromium proof: both new ids
+  observed from the live pool via `createWorldEventSystem`, real payloads verified, `WorldEventToast`
+  rendered `mourning_bells` over the live scene, zero console/page errors. Smoke suite 22/22 PASS
+  (byte-identical on every other check), all 7 standing guards clean, perf bit-identical to run74 (46
+  draw calls / 393,231 triangles / 44 geometries / 17 textures — expected, no new scene objects).
+  `gameplayConfig.js` still 597/600 (untouched this run, same watch-item as ever). `git push origin
+  main` succeeded (`452ff57`). Local tag only — `git push origin <tag>` still rejected with `HTTP 403`
+  (same known issue since run 58).
