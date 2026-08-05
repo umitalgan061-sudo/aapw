@@ -391,21 +391,60 @@ export async function initGame3D() {
 			// flee-awareness check below.
 			const playerPos = state.player.object3D.position;
 			// Run 73 (ADR-0096): playerPos feeds each NPC's combat-stance proximity check — see
-			// `gameplay/npc.js`'s `createNPC` doc comment.
-			for (const npc of state.npcs) npc.update(delta, playerPos);
+			// `gameplay/npc.js`'s `createNPC` doc comment. Run 81 wraps this in a try/catch per
+			// GOVERNANCE.md §8.13 (the rule's own "hayvan AI" subsystem — NPCs use the same
+			// per-entity spawn/update/dispose shape as animals): one NPC's `update()` throwing
+			// disables only that NPC — disposed and dropped from `state.npcs` — instead of crashing
+			// the whole frame loop. Same pattern the dragon loop below already established at run 64.
+			let anyNpcFailed = false;
+			for (const npc of state.npcs) {
+				try {
+					npc.update(delta, playerPos);
+				} catch (error) {
+					console.error(`[game3d] NPC "${npc.object3D?.name ?? '?'}" update() threw — disabling this NPC only (GOVERNANCE.md §8.13 safe mode), rest of the game continues.`, error);
+					state.scene.remove(npc.object3D);
+					npc.dispose();
+					npc.disabledDueToError = true;
+					anyNpcFailed = true;
+				}
+			}
+			if (anyNpcFailed) state.npcs = state.npcs.filter((npc) => !npc.disabledDueToError);
 			// FAZ 5 interaction (run 32-33, ADR-0032/ADR-0033): nearest-NPC tracking, prompt
-			// visibility, and dialogue auto-close all live in `gameplay/interaction.js`.
-			state.interaction.update(state.npcs, playerPos);
+			// visibility, and dialogue auto-close all live in `gameplay/interaction.js`. Run 81 wraps
+			// this in a try/catch per GOVERNANCE.md §8.13 (the rule's own "diyalog" subsystem): this
+			// is a single shared controller, not a per-entity list like NPCs/animals/dragons, so on
+			// error it self-disables via a flag (skips `update()` on every future frame) rather than
+			// being disposed and dropped — it owns no scene object/geometry of its own to remove.
+			if (!state.interactionDisabledDueToError) {
+				try {
+					state.interaction.update(state.npcs, playerPos);
+				} catch (error) {
+					console.error('[game3d] Interaction controller update() threw — disabling dialogue for the rest of this session (GOVERNANCE.md §8.13 safe mode), rest of the game continues.', error);
+					state.interactionDisabledDueToError = true;
+				}
+			}
 			// Pack awareness (run 29, DECISIONS.md ADR-0029): each animal gets the positions of every
 			// *other* animal already flagged `isFleeing` this frame. O(n²) over `state.animals` — fine
 			// at today's 2-wolf count (see ADR-0029's Consequence for the revisit threshold if the
-			// animal count grows a lot in a future run).
+			// animal count grows a lot in a future run). Run 81 wraps the update call itself in a
+			// try/catch per GOVERNANCE.md §8.13 (the rule's own "hayvan AI" subsystem), matching the
+			// NPC/dragon per-entity pattern above/below.
+			let anyAnimalFailed = false;
 			for (const animal of state.animals) {
 				const packmateFleePositions = state.animals
 					.filter((other) => other !== animal && other.isFleeing)
 					.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z }));
-				animal.update(delta, playerPos, packmateFleePositions);
+				try {
+					animal.update(delta, playerPos, packmateFleePositions);
+				} catch (error) {
+					console.error(`[game3d] Animal "${animal.object3D?.name ?? '?'}" update() threw — disabling this animal only (GOVERNANCE.md §8.13 safe mode), rest of the game continues.`, error);
+					state.scene.remove(animal.object3D);
+					animal.dispose();
+					animal.disabledDueToError = true;
+					anyAnimalFailed = true;
+				}
 			}
+			if (anyAnimalFailed) state.animals = state.animals.filter((animal) => !animal.disabledDueToError);
 			// FAZ 7 dragons (run 53 flight path, run 54 player-awareness, run 64 dive) — see
 			// `gameplay/dragons.js`'s own doc comment. `playerPos` already reflects this frame's
 			// post-movement position (set above). Run 64 wraps this in a try/catch per GOVERNANCE.md
@@ -431,7 +470,20 @@ export async function initGame3D() {
 
 			state.controls.update(); // required every frame: enableDamping is on
 			streamAroundOrbitTarget(state);
-			state.worldEvents.update(delta);
+			// Run 81 wraps this in a try/catch per GOVERNANCE.md §8.13 (the rule's own "dünya
+			// olayları" subsystem, the last of the 4 named subsystems to get this treatment — dragon
+			// AI at run 64, NPC/animal AI and dialogue just above). Singleton system like `interaction`
+			// above: on error it self-disables via a flag and calls its own `dispose()` (it does own a
+			// timer-like countdown, though no DOM/listeners) rather than being removed from a list.
+			if (!state.worldEventsDisabledDueToError) {
+				try {
+					state.worldEvents.update(delta);
+				} catch (error) {
+					console.error('[game3d] World-event system update() threw — disabling world events for the rest of this session (GOVERNANCE.md §8.13 safe mode), rest of the game continues.', error);
+					state.worldEvents.dispose();
+					state.worldEventsDisabledDueToError = true;
+				}
+			}
 			const elapsedSeconds = state.elapsedSeconds;
 			const dayNight = updateDayNightLighting(
 				state.lights,

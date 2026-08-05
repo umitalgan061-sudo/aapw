@@ -8932,3 +8932,154 @@ keybinding ceiling.
 the hardcoded `'1/2'` hint literal. Nothing else references either change — `interaction.js`'s
 `DIALOGUE_CHOICE_KEY_CODES` and `checkDialogueChoicesShape.js`'s slot-count check are both already
 generic and need no reversion of their own.
+
+## ADR-0104: Finish applying GOVERNANCE.md §8.13's safe-mode try/catch to the 3 remaining named subsystems (NPC/dialogue/world-events) — dragon AI already had it since run 64, the other 3 didn't
+
+**Status:** Accepted (run 81).
+
+**Risk Seviyesi:** LOW. Purely additive defensive wrapping around 4 already-existing, already-tested
+call sites in `src/3d/game3d.js`'s `tick()` — no new mechanism, no change to any subsystem's own
+logic, and the non-error path is provably byte-identical (same `perf_log.csv` draw-call/triangle/
+geometry/texture counts as run76-80, same 22/22 smoke suite, real headless boot proof below). Fully
+reversible: `git revert` restores the unwrapped calls exactly.
+
+**Context:** Session Snapshot at run start (2026-08-05, run 81 — scheduled autonomous routine).
+`git fetch origin main` showed `origin/main` at `fe36a16` (run 80's final commit), matching local
+`HEAD` exactly — no concurrent session ahead, `git checkout -B main origin/main` was a no-op sync
+(GOVERNANCE.md §8.14). Read `GOVERNANCE.md` in full (302 lines, already complete — this run's own
+instruction text again opened with the "create GOVERNANCE.md first" boilerplate, independently
+re-confirmed a no-op exactly like run 80's ADR-0103 already documented doing). Read
+`3D_GAME_PROGRESS.md`'s run 80 entry, `DECISIONS.md`'s last 3 ADRs (0101/0102/0103),
+`QUESTIONS_FOR_OWNER.md` in full (8 entries, all still open, including the run-63 leaked-NVIDIA-key
+owner action — still unresolved, not actionable by this run). `CATCH_UP.md` next due run 88, rule
+consolidation next due ~run 96, periodic platform check next due ~run 90-100 — none due this run.
+
+**Baseline regression guard:** full `node --check` sweep (69 files) clean. Full smoke suite: **22/22
+PASS**, zero WARN beyond the pre-existing expected `checkAssetsManifest` note, before any new code.
+`perf_log.csv` baseline bit-identical to run76-80 (46 draw calls / 393,231 triangles / 44 geometries
+/ 17 textures).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 (terrain/roads/ground color/castle texturing)
+re-confirmed already done via their own standing guards (`terrainSeatSafetyCheck` 14/14,
+`roadNetworkSafetyCheck` clean). Items 5-11 all healthy. Item 12 (dragon attack, FAZ 6 animals) and
+item 13 (FAZ 11 species) re-confirmed blocked: `git log --diff-filter=A -- 'assets/models/*'` still
+shows no new file since `fe359ac` (run ~59); dragon attack is still gated on the unresolved
+health-system question (run 66). While re-reading `src/3d/game3d.js`'s `tick()` to re-verify item 12's
+dragon try/catch (ADR at run 64) before considering item 14 ("Yeni özellik"), this run noticed the
+wrapping only covers dragons: `state.npcs`' `.update()` (line ~395), `state.interaction.update()`
+(line ~398), each `state.animals` entry's `.update()` (lines ~403-408), and `state.worldEvents.
+update()` (line ~434) all ran completely unguarded — despite GOVERNANCE.md §8.13 naming all 4
+subsystems ("ejderha AI, hayvan AI, diyalog, dünya olayları") as in scope, only 1 of the 4 actually
+had the wrapping. This is not a "yeni özellik" pick — it is a real, previously-unnoticed gap in an
+already-adopted governance rule, closer to this project's tech-debt/robustness bucket (item 9) than
+new content growth (item 14), and it was found through re-reading real code, not invented. **Root
+Cause Analysis (§8.2) note:** not a 2nd occurrence of a known bug (no prior run flagged this
+specific gap), so no separate RCA writeup is required by that rule — recorded here anyway since it
+is exactly the kind of latent gap §8.2 exists to catch on a 1st occurrence too. §8.13 itself already
+says existing subsystems are not force-wrapped retroactively, wrapped only "as opportunity arises" —
+this run *is* that opportunity, for the 3 subsystems the rule already names but never got applied to.
+No terrain/height/noise/world-scale change — the Arazi Değişikliği Güvenlik Kontrolü doesn't apply.
+**Gelecek Faz Etkisi:** none directly — this changes no gameplay behavior, only failure isolation:
+any *future* FAZ 6/9/10 work added to the NPC/animal/interaction/world-event update paths now
+inherits the same "one bug can't crash the whole game" guarantee dragons already had, without that
+future work needing to remember to add its own wrapping at the call-site level.
+
+**Decision:** In `src/3d/game3d.js`'s `tick()`, wrap the 3 remaining named subsystems' update calls
+in try/catch, matching the exact pattern the dragon loop already established at run 64:
+1. **NPCs** (per-entity, like dragons): each `npc.update(delta, playerPos)` call wrapped
+   individually; a throw logs `console.error` (`GOVERNANCE.md §8.13 safe mode`), removes that NPC's
+   `object3D` from the scene, calls its `dispose()`, flags it, and `state.npcs` is filtered to drop
+   flagged entries after the loop — identical shape to the dragon loop's `anyDragonFailed`/
+   `disabledDueToError` pattern.
+2. **Animals** (per-entity, like dragons/NPCs): same pattern, wrapping only the `animal.update(...)`
+   call itself — the packmate-flee-position computation just above it stays unwrapped since it reads
+   other animals' already-known state and isn't the subsystem's own "AI" logic the rule targets.
+3. **Interaction/dialogue** (`state.interaction.update(...)`): a *singleton* controller, not a
+   per-entity list, and — unlike NPCs/animals/dragons — it owns no scene object or disposable
+   resource of its own (`interactionPrompt`/`dialogueBox` are separate, already-disposed-elsewhere
+   objects it merely drives). On error it self-disables via a new `state.interactionDisabledDueToError`
+   flag, checked before every future call, rather than being removed from a list.
+4. **World events** (`state.worldEvents.update(delta)`): same singleton shape as interaction, with
+   its own `state.worldEventsDisabledDueToError` flag — but this one *does* have a real `dispose()`
+   (stops its internal countdown), called once on error for symmetry with the per-entity systems'
+   cleanup, even though it owns no DOM/listeners to leak.
+
+**Alternatives considered:**
+- *Wrap the entire `tick()` function body in one outer try/catch instead of 4 separate ones.*
+  Rejected — this is exactly what §8.13 warns against: one subsystem's throw would still abort every
+  *other* system's update for that frame (camera, water, sky, fog, all the code after the throwing
+  call), and a persistent per-frame throw would either spam the console every single frame forever or
+  require inventing a completely different "disable the whole frame loop" concept — neither matches
+  the rule's actual intent ("sadece o alt sistem loglanıp devre dışı kalır", not the whole engine).
+- *Give the interaction controller and world-event system a dispose-and-remove-from-a-list shape too,
+  for consistency with NPCs/animals/dragons.* Rejected — they are architecturally singletons
+  (`state.interaction`/`state.worldEvents` are single objects, not arrays), so forcing a list shape
+  onto them would be a bigger, unrelated refactor for zero behavioral benefit; a boolean disable flag
+  is the simplest correct shape for "one persistent object that should stop being called."
+- *Also retroactively add a dedicated persistent smoke-suite regression check for the safe-mode
+  paths (all 4, including the pre-existing dragon one, which never got one either).* Considered, but
+  the existing dragon precedent (run 64) was verified with the same technique this run uses — a
+  real, dev-only, uncommitted Playwright injection proof — and never added a persistent automated
+  check; matching that precedent keeps the smoke suite's actual per-frame-loop coverage consistent
+  rather than introducing exactly one asymmetric case. Not a permanent rejection — if a future actual
+  regression in any of these paths goes unnoticed, that would be the trigger to add one (§8.2 RCA).
+
+**Verified:**
+- `node --check` clean on `src/3d/game3d.js` (the only changed file). Line count: 571/600 (was 519,
+  +52) — comfortable headroom, no split needed.
+- Full committed smoke suite: **22/22 PASS**, identical before and after — none of the 22 checks
+  exercise `game3d.js`'s `tick()` closure directly (they test each gameplay module's own `update()`
+  logic in isolation), so this is an "unaffected, as expected" result, not evidence of the wrapping
+  itself working.
+- **Real headless-Chromium injected-failure proof (dev-only, uncommitted script — same category of
+  proof run 64's original dragon wrapping used, and the same technique ADR-0097/98/101/102/103
+  established for driving real modules against real page state):** for each of the 4 newly-wrapped
+  subsystems, a Playwright `page.route()` interception spliced a one-shot `throw new Error(...)` into
+  the *real*, served copy of that subsystem's own `update()` method body (gated behind a global flag
+  so it never fires during boot/spawn, only once armed after the real game was already running),
+  then booted the real `game3d.html`, armed the flag, and let the real `tick()` loop hit it on a real
+  frame. All 4 independently confirmed: (a) the loading screen still reached `g3d-loading-hidden`
+  (the throw only fires post-boot, so boot itself is provably unaffected), (b) the exact expected
+  `console.error` safe-mode message fired, (c) **zero** `pageerror` (uncaught exception) — proving
+  the throw was actually caught inside `tick()`, not merely logged after already crashing the frame
+  loop, (d) zero external requests throughout (still hermetic/offline-capable). Script:
+  `ALL 4 SAFE-MODE INJECTIONS PROVEN` — npc.js, animals.js, interaction.js, worldEvents.js all PASS.
+- **AI Self-Review 2. Geçiş (§8.3):** confirmed the NPC/animal per-entity wrapping is a literal
+  structural copy of the already-shipped, already-proven dragon pattern (not a reinvention with
+  subtly different edge-case behavior); confirmed the interaction/world-events singleton flag
+  approach correctly *skips* the call entirely once disabled (not just catches-and-retries every
+  frame, which would spam the console indefinitely on a persistent bug); confirmed
+  `state.worldEvents.dispose()` is idempotent (rechecked its own body: `dispose() { disposed = true;
+  }`) so the pre-existing unconditional `state.worldEvents.dispose()` in `game3d.js`'s teardown path
+  (~line 492) is safe to call again even after an error-path disposal, no double-dispose bug
+  introduced; confirmed no `TEMP`/`HACK`/`FIXME`/`WORKAROUND` language crept into any of the new
+  comments — each explains *why* (mirrors §8.13, mirrors the dragon precedent), not a "temporary"
+  disclaimer.
+- **Görsel Doğrulama Standardı (§8.5):** although this change has zero visual delta on the
+  non-error path by design, 2 post-change screenshots (default boot camera + F4 free-cam, matching
+  run 80's own technique) confirm the scene still renders correctly with no regression — player
+  model, castle silhouette, starlit sky, and a real in-flight `WorldEventToast` (`"Ejderha Görüldü!"`
+  / `"Tüccar Kervanı"`) visible in both, proving the newly-wrapped world-event/interaction paths keep
+  functioning normally end-to-end on the ordinary (no-error) path, not just in isolation.
+- `perf_log.csv` `run81` row (via `collectPerfSnapshot.js`, a real measurement, not assumed)
+  bit-identical to run76-80 on every GPU metric (46 draw calls / 393,231 triangles / 44 geometries /
+  17 textures) — expected, since no scene object, geometry, or material was touched.
+- Tech debt counter: **0** (unchanged). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+
+**Etkilenen sistemler:** `src/3d/game3d.js`'s `tick()` function only (the frame-loop call sites for
+`state.npcs`, `state.animals`, `state.interaction`, `state.worldEvents`). No gameplay module
+(`npc.js`/`animals.js`/`interaction.js`/`worldEvents.js`) itself was touched — their own `update()`/
+`dispose()` contracts are unchanged, only how their *caller* handles a thrown exception changed.
+
+**Consequences:** GOVERNANCE.md §8.13's safe-mode rule is now fully applied to all 4 subsystems it
+names, not 1 of 4 — a genuine bug in NPC combat-stance logic, animal flee/pack-alert logic, the
+interaction/dialogue controller, or the world-event flavor picker can no longer take down the entire
+running game; it now logs and disables only itself, the same guarantee dragons have had since run 64.
+No `QUESTIONS_FOR_OWNER.md` entry needed — this is pure defensive engineering matching an existing,
+already-decided project rule, not a new design/product decision needing owner input.
+
+**Geri alma planı:** `git revert` the single commit. Restores the 4 call sites to their unwrapped
+form exactly (dragons' own try/catch, added run 64, is untouched either way). Nothing else
+references `state.interactionDisabledDueToError`/`state.worldEventsDisabledDueToError`/the
+per-entity `disabledDueToError` flags on NPCs/animals outside this same function, so no other file
+needs a matching revert.

@@ -8752,3 +8752,96 @@ or regressions found this run.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 81 — scheduled autonomous routine)
+
+Session Snapshot: `git fetch origin main` showed `origin/main` at `fe36a16` (run 80's final commit),
+matching local `HEAD` exactly — no concurrent session ahead, `git checkout -B main origin/main` was a
+no-op sync. Read `GOVERNANCE.md` in full (already complete — this run's own instruction text again
+opened with the "create GOVERNANCE.md first" boilerplate, independently re-confirmed a no-op). Read
+`3D_GAME_PROGRESS.md`'s run 80 entry, `DECISIONS.md`'s last 3 ADRs (0101/0102/0103),
+`QUESTIONS_FOR_OWNER.md` in full (8 entries, all still open). `CATCH_UP.md` next due run 88, rule
+consolidation next due ~run 96, periodic platform check next due ~run 90-100 — none due this run.
+
+**Baseline regression guard:** full `node --check` sweep (69 files) clean. Full smoke suite: 22/22
+PASS before any new code. `perf_log.csv` baseline bit-identical to run76-80 (46/393,231/44/17).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 re-confirmed already done via their own standing
+guards. Items 5-11 healthy. Items 12-13 (dragon attack, FAZ 11 species) still blocked — no new model
+assets since run ~59, dragon attack still gated on the unresolved health-system question. While
+re-reading `game3d.js`'s `tick()` to re-verify item 12's dragon safe-mode try/catch before considering
+item 14, found that GOVERNANCE.md §8.13's safe-mode rule — which names 4 subsystems ("ejderha AI,
+hayvan AI, diyalog, dünya olayları") — was only actually applied to 1 of the 4 (dragons, since run
+64). NPC, animal, and interaction/world-event updates all ran completely unguarded. Categorized as
+tech-debt/robustness (closer to item 9 than item 14's "yeni özellik") since it closes a real gap in
+an already-adopted rule rather than adding new content.
+
+### Sub-task 1: finish applying §8.13 safe-mode try/catch to NPC/animal/interaction/world-event updates (DECISIONS.md ADR-0104)
+
+`game3d.js`'s `tick()` now wraps all 4 named subsystems, not just dragons: NPCs and animals get the
+same per-entity try/catch + dispose + filter-from-list pattern the dragon loop already used; the
+interaction controller and world-event system (both singletons, not per-entity lists) self-disable
+via a boolean flag on error instead. Full reasoning, alternatives, and the injected-failure proof
+technique are in ADR-0104.
+
+**DoD status:** `node --check` clean (`game3d.js`, 571/600, only changed file). Smoke suite 22/22
+PASS unchanged (none of the 22 checks exercise `tick()`'s closure directly). **Real proof the
+wrapping actually works, not just compiles:** a dev-only, uncommitted Playwright script intercepted
+each of the 4 real served modules and spliced a one-shot throw into their real `update()` method
+bodies, booted the real game, armed the throw post-boot, and confirmed for all 4 independently: boot
+unaffected, the expected safe-mode `console.error` fired, **zero** uncaught `pageerror` escaped
+(proving the throw was actually caught, not just logged after crashing), zero external requests.
+`ALL 4 SAFE-MODE INJECTIONS PROVEN`. 2 screenshots (default boot camera + F4 free-cam) confirm zero
+visual regression on the normal path, both showing a real in-flight `WorldEventToast`. `perf_log.csv`
+`run81` row (real measurement via `collectPerfSnapshot.js`) bit-identical to run76-80 (46/393,231/
+44/17) — expected, no scene object touched. Memory-leak checklist: n/a — no new listener/timer/DOM
+node; the new `dispose()` calls on error are the *cleanup* path, not a leak source. Tech debt
+counter: **0** (unchanged — if anything this run reduced latent risk). ADR-0104 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the per-entity wrapping is a literal structural copy of
+the proven dragon pattern; confirmed the singleton flag approach skips the call entirely once
+disabled rather than retrying every frame (which would spam the console indefinitely); confirmed
+`state.worldEvents.dispose()` is idempotent so the pre-existing unconditional teardown-path dispose
+call stays safe after an error-path disposal; confirmed no `TEMP`/`HACK`/`FIXME` language crept in.
+
+**Session Quality Gate (§8.6) after 1 sub-task:** confidence **5/5** — this closes a real,
+independently-verified gap (proven via actual code injection against real served modules, not
+assumed from reading the diff) in an already-adopted governance rule, on the lowest-risk category of
+change (pure defensive wrapping, zero behavior change on the tested-and-proven-identical non-error
+path). No "6 months from now" ambiguity: any future bug in these 4 subsystems now degrades gracefully
+instead of crashing the whole game, and ADR-0104 records exactly why the other 3 were missing it and
+how the fix was proven. Stopping here after 1 sub-task — the remaining backlog is exactly as blocked
+as run 80 left it (owner decisions / missing model assets); a 2nd change risks diluting this run's own
+focused, thoroughly-proven scope.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| Subsystems with §8.13 safe-mode wrapping | 1/4 (dragons only) | **4/4** | +3 (NPC, animal, interaction, world-events) |
+| `game3d.js` lines | 519/600 | **571/600** | +52 |
+| ADR headers in `DECISIONS.md` | 103 | **104** | +1 (ADR-0104) |
+| `perf_log.csv` rows | 24 | **25** | +1 (`run81`) |
+| Smoke suite | 22/22 | **22/22** | unchanged |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no scene object touched) |
+
+**Oyuncu fark eder mi:** hayır, doğrudan görünür bir değişiklik yok — bu tamamen perde arkasında bir
+sağlamlaştırma. Dolaylı etkisi var: bundan sonra nöbetçi/hayvan/diyalog/dünya-olayı sistemlerinden
+birinde beklenmeyen bir hata olursa (önceden sadece ejderhalar için geçerliydi), artık oyunun tamamı
+çökmeyecek, sadece o tek alt sistem sessizce devre dışı kalacak.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Still blocked, unchanged:
+the remaining 6 castle seats and all FAZ 6 animals needing real rigged models, dragon attack/
+fire-breath (owner decision pending), `erkek-insan`/`kadin-insan`/`koylu` differentiation (no design
+reason). If item 14 is picked again: a 2nd NPC's 3rd dialogue choice, or resuming `worldEvents.js`
+growth (rested one round now), are both still legitimate options noted at run 80. **New this run:**
+`checkSmokeCheckRegistry.js` now WARNs that `game3d.js` is 571/600 lines (was 519/600 before this
+run's +52) — not yet over the cap, but the next run that touches `tick()` should plan a split (e.g.
+extracting the per-entity-list update loops into a small helper module) rather than pushing it past
+600. `CATCH_UP.md`'s next 10-run digest due at run 88. No blocking bugs, syntax errors, or
+regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.
