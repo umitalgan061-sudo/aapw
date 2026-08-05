@@ -6,7 +6,7 @@
 
 const SW_VERSION = 'westeros-media-v4';
 const MEDIA_CACHE = 'westeros-media-v4';
-const SHELL_CACHE = 'westeros-shell-v3';
+const SHELL_CACHE = 'westeros-shell-v4';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -43,6 +43,15 @@ const SHELL_FILES = [
 // new entry. `SHELL_CACHE` bumped v2->v3 so existing installs actually clean up the old, now-stale
 // cache entry set rather than accumulating it alongside the new one (the `activate` handler's
 // `KEEP`-array cleanup deletes the unreferenced old cache automatically).
+//
+// run 71 (DECISIONS.md ADR-0092): `gameplay/dragons.js` reached the 600-line cap and was split by
+// subsystem into `dragonController.js` + `dragonFlightMath.js` + `dragonSpawns.js` (`dragons.js`
+// itself stays, now as the re-exporting entry point every caller still imports), so the three new
+// modules are precached here alongside it — without them an offline install would fetch
+// `dragons.js` from cache and then fail on its three uncached `export ... from` targets. Same
+// reasoning as the run 65/67 entries above: `SHELL_CACHE` bumped v3->v4 so an existing install
+// replaces its now-incomplete entry set wholesale instead of mixing the new `dragons.js` facade
+// with a cache that has no modules to re-export from.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -71,6 +80,9 @@ const GAME3D_SHELL_FILES = [
     './src/3d/gameplay/npc.js',
     './src/3d/gameplay/animals.js',
     './src/3d/gameplay/dragons.js',
+    './src/3d/gameplay/dragonController.js',
+    './src/3d/gameplay/dragonFlightMath.js',
+    './src/3d/gameplay/dragonSpawns.js',
     './src/3d/gameplay/interaction.js',
     './src/3d/gameplay/worldEvents.js',
     './src/3d/world/terrain.js',

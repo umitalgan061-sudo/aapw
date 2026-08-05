@@ -7463,3 +7463,108 @@ in `QUESTIONS_FOR_OWNER.md`). No blocking bugs, syntax errors, or regressions fo
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+**Sub-task 2 (same run, chained per GOVERNANCE.md §19) — split the 598-line `gameplay/dragons.js` by
+subsystem block (DECISIONS.md ADR-0092):** sub-task 1 left `src/3d/gameplay/dragons.js` at **598/600
+lines**, past `checkSmokeCheckRegistry.js`'s 540 WARN threshold with two lines of headroom — a real
+forcing signal under GOLDEN RULE 7, not a discretionary refactor (so GOLDEN RULE 6 is satisfied on
+its architecture/readability limb rather than bypassed), and the exact item sub-task 1's own "Next
+step" ranked #1. Split four ways by cohesive responsibility, following ADR-0087's by-theme precedent
+rather than any line-count cut: **`dragonController.js` (414)** — `createDragon`: model/rig loading,
+the per-frame update loop (notice/reactive/pursuit/give-up/dive/wing-flap) and `dispose()`, kept
+whole because its ~15 closure variables only make sense together; **`dragonFlightMath.js` (146)** —
+the pure, stateless arithmetic that loop drives (`easeBlendToward`, `blendScalar`, `applyCirclePose`,
+`stepCenterTowardTarget`, `applyDiveOffset`, `clampAltitudeAboveGround`), i.e. the four near-duplicate
+inline blend easings plus the four position blocks; **`dragonSpawns.js` (89)** — `spawnConfiguredDragons`
+moved verbatim, the same spawn-wiring seam `animals.js`/`npc.js` already have; **`dragons.js` (84)** —
+now the subsystem entry point: two `export ... from` re-exports, a map of where the code went, and the
+full runs 53-71 behavior history (kept here because every other module/ADR/doc already points a reader
+at this path). **The public API and import path are unchanged**: `createDragon` and
+`spawnConfiguredDragons` are still importable from `src/3d/gameplay/dragons.js` with identical
+signatures/defaults/`userData` writes, so **not one consumer was edited** — `game3d.js`'s static
+import and all six dragon smoke checks' dynamic `import('/src/3d/gameplay/dragons.js')` were verified
+by repo-wide grep first and left alone, which is what makes the untouched tests a real proof instead
+of a co-edited tautology. Floating-point expression order was preserved exactly where a "cleaner"
+signature would have changed results (`stepCenterTowardTarget` keeps `(to / distance) * maxStep` and
+still assigns the target *exactly* in its snap branch, preserving run 66's "fully returned home is an
+exact equality" property), and it mutates the caller's center record rather than returning an object,
+so the split adds zero per-frame allocation. `service-worker.js` precaches all three new modules with
+`SHELL_CACHE` bumped v3->v4 (run 65/67 precedent) — without that, an offline install would serve the
+cached facade and then fail on three uncached re-export targets.
+
+**DoD status (sub-task 2):** `node --check` clean on every changed/new file
+(`dragons.js`, `dragonController.js`, `dragonFlightMath.js`, `dragonSpawns.js`, `service-worker.js`)
+plus a full repo sweep (**53** `src/`+`scripts/` files now, was 50), before and after. Smoke suite
+**20/20 PASS before, 20/20 PASS after** — and since this is a pure refactor, the primary correctness
+argument is that the *existing, untouched* tests still pass: the two full stdout captures `diff` to
+**exactly one differing line**, `check2DShell`'s non-blocking external-fetch counter (11 vs 10), the
+same sandbox-network noise ADR-0087/0088 already document, in a check that never loads `dragons.js`.
+Every dragon check's measured positions/bank angles/blends/lap counts are byte-identical. All 6
+standing guards clean: `checkAssetsManifest.js` (41 entries), `checkServiceWorkerCache.js` (**46** JS
+files now, was 43), `checkDialogueChoicesShape.js` (13/14), `checkPwaInstallability.js`,
+`checkSmokeCheckRegistry.js` (20 checks / 5 modules unchanged; 53 JS files within the cap and
+**`dragons.js`'s 598/600 WARN is gone** — `gameplayConfig.js`'s 573/600 is now the only line-count
+watch-item left in the repo). Performance: `perf_log.csv`'s `run71b` row bit-identical to `run71`/
+`run70b` on every GPU-submission metric (46 draw calls, 393,231 triangles, 44 geometries, 17
+textures) — exactly what a pure module split must produce. Console: **zero** console/page errors on a
+real headless boot of `game3d.html`, both via the suite's own `check3DMode` and an independent boot.
+Visual evidence (§8.5): two camera angles from a real post-split headless boot (default chase camera +
+F4 free-cam) — the meaningful visual claim for a refactor is that *nothing* changed, and the world,
+castle, NPC, terrain and lighting all render as before; plus an independent post-split
+`createDragon` drive **through the public `dragons.js` path** (i.e. through both new modules)
+reproduced ADR-0091's own documented numbers exactly — `userData.giveUpBlend === 1`,
+`rotation.z === 0.48` (`0.3 * 1.6`) — and its module namespace still exports exactly
+`createDragon, spawnConfiguredDragons` and nothing else. Memory-leak checklist: `dispose()` moved
+verbatim (`mixer.stopAllAction()` + `AssetLoader.disposeObject3D(model)`), `game3d.js`'s dispose call
+site untouched and still handed the same controller object, exercised directly in that post-split
+drive; no listener/timer/DOM node is created anywhere in the split and `dragonFlightMath.js` holds no
+module-level state, so the split is allocation- and leak-neutral. Tech debt counter: **0** (unchanged
+— this sub-task *removes* a watch-item rather than adding one). This file updated (this entry). ADR
+written (ADR-0092). Committed. Console clean.
+
+**Session Quality Gate (GOVERNANCE.md §8.6) after 2 chained sub-tasks:** confidence **5/5** on both.
+Sub-task 2's evidence is unusually strong for a refactor precisely because nothing outside the four
+files was allowed to change: byte-identical suite output, bit-identical perf, an unedited test suite,
+and a public API proven identical by enumerating the module's exports at runtime. **Not chaining a
+third sub-task**, per this run's own explicit instruction and §8.7's run-level time ceiling.
+
+**World Evolution Report (sub-task 2 only — sub-task 1's own table above already covers the run's
+gameplay-facing delta):**
+
+| Metric | Before sub-task 2 | After sub-task 2 | Delta |
+|---|---|---|---|
+| `gameplay/dragons.js` line count | 598/600 (WARN) | **84** | -514, WARN cleared |
+| Largest dragon-subsystem file | 598 | **414** (`dragonController.js`) | -184, back under the 540 WARN line |
+| Files with a line-count WARN | 2 | **1** (`gameplayConfig.js` 573) | -1 |
+| Files over the 600-line cap | 0 | 0 | unchanged |
+| Files (JS, repo-wide) | 50 | **53** | +3 (controller / flight math / spawns) |
+| JS files precached by the service worker | 43 | **46** | +3 (`SHELL_CACHE` v3->v4) |
+| Smoke suite | 20/20 | 20/20 | unchanged — and untouched, which is the proof |
+| Standing static guards | 6 | 6 | unchanged |
+| ADRs | 91 | **92** | +1 (ADR-0092) |
+| perf_log.csv rows | 12 | **13** | +1 (`run71b`) |
+| Manifest entries | 41 | 41 | unchanged (no new assets) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (deliberate constant) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (pure module split) |
+
+**Oyuncu fark eder mi:** hayır — oyuncu hiçbir şey fark etmez, ve zaten amaç tam olarak bu. Ejderha
+aynı daireyi aynı hızda uçuyor, aynı anda fark ediyor, aynı biçimde dalıyor, kovalıyor ve vazgeçiyor;
+tek bir sayı bile değişmedi (smoke testi çıktısı bayt bayt aynı). Değişen sadece kodun hangi dosyada
+durduğu: 598 satırlık tek dosya, 600 satır sınırına dayanmadan önce dört sorumluluğa bölündü, böylece
+bir sonraki ejderha özelliğinin yazılacak yeri var.
+
+**Next step for the next run:** (1) **FAZ 7 dive telegraph** — telegraphing the dive a beat before it
+starts (run 70's other named-but-deferred cosmetic option, still open, and now with a natural home:
+`dragonController.js` has ~190 lines of headroom and `dragonFlightMath.js` is where any new blend
+math goes). (2) `gameplayConfig.js`'s 573/600 split — now the *only* line-count watch-item left; same
+by-subsystem precedent (ADR-0087/0092) applies, but it is still a non-violation with no forcing reason
+of its own, so it belongs to whichever run first needs to add a config block there. (3) Optional and
+cheap: a dedicated unit-style smoke check for `dragonFlightMath.js`'s pure functions — the six
+existing dragon checks already cover them end-to-end through the public API, so this is additive
+confidence, not a gap. Confirmed still blocked: the remaining 6 castle seats and all FAZ 6 animals
+(manual human asset download), and any dragon attack/fire-breath work (owner decision pending in
+`QUESTIONS_FOR_OWNER.md`). No blocking bugs, syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.
