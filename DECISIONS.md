@@ -8234,3 +8234,111 @@ constant, flavor-text content carries no numeric value a future playtest would n
 **Geri alma planı:** `git revert` the single commit. Removes the two new `WORLD_EVENTS` objects and
 this ADR entry. Nothing else references either id — `ui/worldEventToast.js` and every smoke check
 consume the pool generically.
+
+## ADR-0098: Grow the world-event flavor pool from 18 to 20 entries, adding the pool's first two openly emotional (dread/grief) flavors
+
+**Status:** Accepted (run 75).
+
+**Risk Seviyesi:** LOW. Config/data-only addition to a frozen array; zero changes to
+`createWorldEventSystem`'s mechanism, `ui/worldEventToast.js`, or any call site. Fully reversible:
+`git revert` removes the two new objects and this ADR entry, nothing else references either id.
+
+**Context:** Session Snapshot at run start (2026-08-05, run 75): read `GOVERNANCE.md` in full,
+`3D_GAME_PROGRESS.md`'s last four "This Run" entries (72/72-continued/73/74), `QUESTIONS_FOR_OWNER.md`
+in full (7 entries, all still open, none this run could resolve — the leaked-NVIDIA-key entry noted as
+already mitigated, owner action still pending, not re-done), and `DECISIONS.md`'s last 3 ADRs
+(0096/0097 plus this file's own tail). `git fetch origin main` confirmed local `HEAD` (`bc190b7`)
+already matched `origin/main` — no concurrent session to reconcile with (GOVERNANCE.md §8.14),
+re-confirmed a second time immediately before this commit.
+
+**Priority re-scan (GOVERNANCE.md §18), fresh, not trusted from any stale summary:** `node --check`
+clean across all 64 `src/`+`scripts/` files. Full smoke suite: **22/22 PASS** (this run's own
+baseline, re-run again after the change with an identical 22/22). All 7 standing guards re-run clean:
+`checkSmokeCheckRegistry` (22 checks/6 modules, 56 JS files within cap, only the pre-existing
+`gameplayConfig.js` 597/600 WARN — unchanged, still not itself a forcing reason per Altın Kural 6),
+`checkAssetsManifest` (41 entries, same pre-existing 20-file sidecar-texture WARN, expected),
+`checkCreatureSpeciesConfig` (15 entries, 9 awaiting-model/6 partial-existing, unchanged),
+`checkDialogueChoicesShape` (13/14, unchanged — a deliberate ADR-0058 exclusion, not a gap),
+`checkPwaInstallability` (OK), `checkServiceWorkerCache` (47 JS files), `terrainSeatSafetyCheck`/
+`roadNetworkSafetyCheck` (14/14 seats, 13/13 edges). Items 1-11 all reconfirmed healthy, no fresh
+regression surfaced. Item 12 (FAZ 6/7 assets) and item 13 (other FAZ 11 species): re-checked
+`assets/models/` on disk against every `creatureSpeciesConfig.js`/`gameplayConfig.js` import — the same
+5 orphaned `.glb` character files and the same rigless horse from ADR-0096/0097's own audits remain,
+nothing new uploaded since run 74 (confirmed via `find -newer` against a known-old repo file finding
+zero results, plus a directory listing matching prior runs' own file lists exactly). No design reason
+surfaced to give `erkek-insan`/`kadin-insan`/`koylu` an opt-in `combatStanceTriggerRadiusMeters` (their
+own registry notes still don't call for one). That leaves item 14 ("Yeni özellik").
+`gameplay/worldEvents.js`'s flavor pool remains this project's own established, low-risk, repeatedly
+re-used growth track for exactly this bucket (grown 4→8→12→14→16→18 across six prior rounds,
+ADR-0061/0063/0065/0068/0097 — note ADR-0065/ADR-0068 themselves landed in consecutive runs 49/50, so
+growing this same pool again the very next run after ADR-0097 has direct precedent, not a first-time
+choice). No terrain/height/noise/world-scale change — the Arazi Değişikliği Güvenlik Kontrolü doesn't
+apply. **Gelecek Faz Etkisi:** none — FAZ 8 stays flavor-only (ADR-0056's design boundary, reaffirmed
+by every prior growth ADR including this one), no stat/quest/persistence hook added, nothing any
+not-yet-started phase depends on.
+
+**Decision:** `WORLD_EVENTS` grows from 18 to 20 entries, adding `wildling_rumor` (anxious whispers of
+wildlings beyond the Wall — explicitly flagged as a legitimate future pick in ADR-0097's own
+"Alternatives considered" section, not chosen there only because `iron_bank` opened a wholly new theme
+that run) and `mourning_bells` (slow, heavy bells from a castle — someone has been lost). Both are
+original text, not derived from any HBO material — this project's one hard constraint. `mourning_bells`
+is deliberately this pool's first entry with an explicitly somber/grief register: every existing entry
+reads as either routine, celebratory, mysterious/ambiguous, or dangerous-but-uncertain, but none states
+a plain, unambiguous loss — same "previously unrepresented theme" bar ADR-0097 used for `iron_bank`.
+`wildling_rumor` shares its general "danger from the north" cluster with `watch_horn`/`wolf_howl`
+(acknowledged, same as ADR-0097 noted), but is distinct in specificity: `watch_horn` stays deliberately
+ambiguous ("sadece bir devriye mi dönüyor?"), while `wildling_rumor` names an explicit, sourced threat
+rumor rather than an ambient sound cue — a different flavor of unease, not a duplicate.
+
+**Alternatives considered:**
+- *Add 4+ entries in one batch.* Rejected — same precedent ADR-0065/0068/0097 already rejected this
+  for; the established batch size is +2.
+- *Pick a second, unrelated new theme instead of `wildling_rumor` (e.g. a harvest/market flavor).*
+  Rejected for this round: a harvest/market pick would overlap thematically with the existing
+  `trade_caravan`/`feast_fires`/`tourney_announce` celebratory-or-commerce cluster, while
+  `wildling_rumor` was already identified by name in ADR-0097 as filling a real, previously-passed-over
+  gap — using an already-considered-and-recorded idea is more traceable than inventing a new one this
+  run.
+- *Give `mourning_bells` a distinct sound/visual hook (e.g. a slower toast duration) instead of reusing
+  the shared `WorldEventToast` display exactly like every other entry.* Rejected: `ui/worldEventToast.js`
+  intentionally renders every entry identically (icon/title/desc/color only) — special-casing one
+  entry's *display* mechanism would be scope creep on a config-only content addition, and no per-entry
+  timing/rendering hook exists anywhere else in the pool to justify inventing one now.
+
+**Verified:**
+- `node --check` clean on `worldEvents.js`. Line count: 103/600 (was 101) — comfortable headroom.
+- Full committed smoke suite: all **22** checks PASS, identical before and after
+  (`checkWorldEvents` asserts the mechanism generically against whatever the pool contains, needed no
+  changes, same as every prior growth round).
+- All 7 standing guards re-run clean and unaffected (none touch `worldEvents.js`'s content) — see
+  Context section above for the individual re-run results.
+- **Real headless-Chromium proof of the new content specifically** (same technique ADR-0068/0097
+  established): a one-off Playwright script (`devServerHelper.js`'s shared static-server + Playwright
+  bootstrap, not committed — dev-only, same as every prior round's own proof script) booted the live
+  `game3d.html` page (zero console/page errors throughout), drove the real `createWorldEventSystem`
+  (seed 7) with repeated large time deltas until BOTH new ids (`wildling_rumor`/`mourning_bells`) were
+  actually observed coming out of the real pool (27 `update()` calls), confirmed both real payloads
+  match the source exactly, then rendered `mourning_bells`'s real payload through a real
+  `WorldEventToast` instance. Screenshot confirms the toast's real icon/title/desc render over the live
+  scene (castle silhouette, player model, starlit night sky) — visible in the same frame as an
+  unrelated, already-firing real dragon-notice toast underneath it, which incidentally also proves two
+  toasts can coexist without collision. Zero console/page errors throughout.
+- **AI Self-Review 2. Geçiş (§8.3):** re-read the diff before committing — confirmed neither new id
+  collides with any of the 18 existing ones; confirmed `wildling_rumor`'s "beyond the Wall" framing
+  stays generic fantasy vocabulary already established in this project's own `KINGDOM_SEATS` (a "Night
+  King" seat already exists), not sourced from any HBO-specific material; confirmed `mourning_bells`
+  deliberately does NOT name who was lost or why, keeping the pool's established open-ended tone rather
+  than stating a concrete game-state fact; confirmed the module's JSDoc header needed no update (it
+  doesn't track a live entry count).
+- Tech debt counter: **0** (unchanged). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+
+**Consequences:** World-event pool now has 20 entries, with its first explicitly somber/grief-toned
+entry (`mourning_bells`) alongside its first explicit named-threat-rumor entry from the "danger from
+the north" cluster (`wildling_rumor`). `worldEvents.js` has 497/600 lines of headroom before its own
+600-line cap — no split pressure. FAZ 8's event system remains flavor-only, unchanged design boundary
+from ADR-0056. No `QUESTIONS_FOR_OWNER.md` entry needed — flavor-text content carries no numeric value
+a future playtest would need to recalibrate, same reasoning ADR-0097 already used.
+
+**Geri alma planı:** `git revert` the single commit. Removes the two new `WORLD_EVENTS` objects and
+this ADR entry. Nothing else references either id — `ui/worldEventToast.js` and every smoke check
+consume the pool generically.
