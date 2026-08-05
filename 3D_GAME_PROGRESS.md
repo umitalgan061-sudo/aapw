@@ -7705,3 +7705,81 @@ reason of its own yet. Confirmed still blocked: the remaining 6 castle seats and
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+**Sub-task 2 (same run, chained per GOVERNANCE.md §19) — split the 598-line
+`game3dSmokeChecksDragonDive.js` by theme (DECISIONS.md ADR-0094):** sub-task 1 left this file at
+598/600 lines after adding `checkDragonDiveTelegraph`, past the 540-line WARN threshold — the exact
+same situation `gameplay/dragons.js` itself was in going into run 71, which split it *in that same
+run* (ADR-0092) rather than deferring. On reflection this run corrected its own initial "not chaining
+a second sub-task" note from sub-task 1's Quality Gate: the actual established precedent favors
+splitting immediately when a sub-task's own addition is the direct cause, not deferring it — deferring
+would repeat the exact "noticed but worked around" failure `checkSmokeCheckRegistry.js`'s own header
+already documents as a cautionary case study (`game3dSmokeChecksMovement.js` sat over budget for four
+runs before finally being split). Split by theme, matching ADR-0087/ADR-0092's own precedent: the file
+keeps `checkDragonDive`+`checkDragonDiveTelegraph` (both `alarmRadiusMeters`-triggered); a new
+`scripts/game3dSmokeChecksDragonPursuit.js` takes `checkDragonPursuit`+`checkDragonGiveUpCue` (both
+`pursuitRadiusMeters`-triggered, both exercising `pursuitExhausted`). No re-export facade needed
+(unlike `dragons.js`'s own split) since only `smokeTestGame3D.js` imports either file — its `require`
+and two call sites were updated directly. Full ADR/verification detail: ADR-0094.
+
+**DoD status (sub-task 2):** `node --check` clean on all three changed/new files
+(`game3dSmokeChecksDragonDive.js`, `game3dSmokeChecksDragonPursuit.js`, `smokeTestGame3D.js`) plus a
+full repo sweep (**54** `src/`+`scripts/` files now, was 53). Smoke suite **21/21 PASS before, 21/21
+PASS after** — byte-for-byte identical detail text on every dragon check (the 2D shell's own
+non-blocking sandbox-network error counter read 10 vs. 11, a known run-to-run fluctuation in an
+unrelated counter, not a regression). All 6 standing guards clean:
+`checkServiceWorkerCache.js` confirms 46 JS files unchanged (scripts/ dev tooling correctly outside its
+scope), `checkSmokeCheckRegistry.js` now reports 21 checks across **6** modules (was 5), 54 files
+within the cap, and the `game3dSmokeChecksDragonDive.js` 598/600 WARN is gone — only
+`gameplayConfig.js`'s pre-existing 579/600 remains. Performance: `perf_log.csv`'s `run72b` row
+bit-identical to `run72` on every GPU-submission metric (46 draw calls, 393,231 triangles, 44
+geometries, 17 textures) — expected, a dev-tooling-only reorganization touches no runtime path. Visual
+evidence: not applicable — a pure test-file split with zero production behavior change has no visual
+signature; the byte-for-byte-unchanged smoke suite output is the correctness proof (same reasoning
+ADR-0092 used for its own refactor). Memory-leak checklist: no listener/timer/DOM node created by this
+split; every `page.close()`/`dragon.dispose()` call moved verbatim with its owning function. Tech debt
+counter: **0** (unchanged — this sub-task *removes* a watch-item rather than adding one). This file
+updated (this entry). ADR written (ADR-0094). Committed. Console clean.
+
+**Session Quality Gate (GOVERNANCE.md §8.6) after 2 chained sub-tasks:** confidence **5/5** on both.
+Sub-task 2's evidence is strong for the same reason ADR-0092's was: nothing outside the three touched
+files changed, and the smoke suite's own output is byte-for-byte identical proof rather than inference.
+**Not chaining a third sub-task**, per §8.7's run-level time ceiling and GOVERNANCE.md §19's own
+"well-scoped, not rushed" discipline — two solid sub-tasks (one feature, one same-run cleanup of the
+watch-item it created) is a natural, complete unit of work for this run.
+
+**World Evolution Report (sub-task 2 only — sub-task 1's own table above already covers the run's
+gameplay-facing delta):**
+
+| Metric | Before sub-task 2 | After sub-task 2 | Delta |
+|---|---|---|---|
+| `game3dSmokeChecksDragonDive.js` line count | 598/600 (WARN) | **301** | -297, WARN cleared |
+| `game3dSmokeChecksDragonPursuit.js` (new) | -- | **318** | new file |
+| Files with a line-count WARN | 2 | **1** (`gameplayConfig.js` 579) | -1 |
+| Files over the 600-line cap | 0 | 0 | unchanged |
+| Files (JS, repo-wide) | 53 | **54** | +1 (new pursuit-check file) |
+| Smoke check modules | 5 | **6** | +1 |
+| Smoke suite | 21/21 | 21/21 | unchanged -- and byte-identical, which is the proof |
+| Standing static guards | 6 | 6 | unchanged |
+| ADRs | 93 | **94** | +1 (ADR-0094) |
+| perf_log.csv rows | 14 | **15** | +1 (`run72b`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (deliberate constant) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (dev-tooling-only reorganization) |
+
+**Oyuncu fark eder mi:** hayır — bu sub-task tamamen geliştirme araçlarıyla ilgili (test dosyası
+bölme), oyunun kendisinde hiçbir şey değişmedi; ejderha tam olarak sub-task 1'de anlatıldığı gibi
+davranmaya devam ediyor.
+
+**Next step for the next run:** `gameplayConfig.js`'s 579/600 split is now the *only* line-count
+watch-item left in the repo — same by-subsystem precedent (ADR-0087/ADR-0092/ADR-0094) applies
+whenever it's touched next, but it remains a non-violation with no forcing reason of its own (GOLDEN
+RULE 6), so it belongs to whichever run first needs to add a config block there. Beyond that,
+`3D_GAME_PROGRESS.md`'s sub-task 1 entry above already lists the real open FAZ 7 options (a
+bank-angle telegraph layer, a dedicated `dragonFlightMath.js` unit-style check). Confirmed still
+blocked: the remaining 6 castle seats and all FAZ 6 animals (manual human asset download), and any
+dragon attack/fire-breath work (owner decision pending in `QUESTIONS_FOR_OWNER.md`). No blocking bugs,
+syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

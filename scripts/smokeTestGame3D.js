@@ -43,6 +43,7 @@ const checks = require('./game3dSmokeChecks.js');
 const movementChecks = require('./game3dSmokeChecksMovement.js');
 const dragonFlightChecks = require('./game3dSmokeChecksDragonFlight.js');
 const dragonDiveChecks = require('./game3dSmokeChecksDragonDive.js');
+const dragonPursuitChecks = require('./game3dSmokeChecksDragonPursuit.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
@@ -81,8 +82,8 @@ async function main() {
 		results.push(await dragonFlightChecks.checkDragonReactiveFlight(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonWingFlapAgitation(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonDive(browser, baseUrl));
-		results.push(await dragonDiveChecks.checkDragonPursuit(browser, baseUrl));
-		results.push(await dragonDiveChecks.checkDragonGiveUpCue(browser, baseUrl));
+		results.push(await dragonPursuitChecks.checkDragonPursuit(browser, baseUrl));
+		results.push(await dragonPursuitChecks.checkDragonGiveUpCue(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonDiveTelegraph(browser, baseUrl));
 	} finally {
 		await browser.close();

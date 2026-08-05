@@ -7775,3 +7775,110 @@ in).
 `diveTelegraphTransitionSeconds`, the `diveAlarmElapsedSeconds`/`diveTelegraphBlend` derivation/write,
 the `agitationBlend` change, the new pass-through in `dragonSpawns.js`, and the new regression check +
 its wiring in `smokeTestGame3D.js`. No other file references any of it.
+
+---
+
+## ADR-0094: Split `game3dSmokeChecksDragonDive.js` by theme (dive vs. pursuit), the same forcing signal and shape as `dragons.js`'s own run-71 split
+
+**Date:** 2026-08-05 (run 72, sub-task 2)
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: pure test-file reorganization, no production code touched.
+Every moved function's body is byte-identical to before the split; only its file location and the
+runner's two call sites changed. Fully reversible: `git revert` restores the single 598-line file and
+the two call sites.
+
+**Context:** Sub-task 1 (ADR-0093) added `checkDragonDiveTelegraph` to
+`game3dSmokeChecksDragonDive.js`, pushing it to 598/600 lines — crossing
+`checkSmokeCheckRegistry.js`'s 540-line WARN threshold with only 2 lines of headroom, flagged
+explicitly in that sub-task's own "Consequence"/"Next step" notes. This is the exact same situation
+`gameplay/dragons.js` was in going into run 71 (531 -> 598 lines after ADR-0091, split by ADR-0092 in
+the same run) — and on reflection, the established precedent there is to do the split *immediately*,
+in the same run, once a sub-task's own addition is what pushed a file to the threshold — not to defer
+it to a future run, as this run's sub-task 1 notes initially (incorrectly) suggested. Deferring would
+repeat exactly the "noticed but worked around" failure mode `checkSmokeCheckRegistry.js`'s own header
+already documents as a Root Cause Analysis case study (GOVERNANCE.md §8.2) —
+`game3dSmokeChecksMovement.js` sat at 614/600 for four runs before run 68 finally split it. Splitting
+now, while the two themes (dive vs. pursuit) are freshest in context, is both correct GOLDEN RULE 7
+practice and avoids that exact failure repeating a third time.
+
+**Değişiklik Etki Analizi (GOVERNANCE.md §8.4):** Not a terrain/height/noise/world-scale change,
+so the Arazi Değişikliği Güvenlik Kontrolü doesn't apply. Affected systems:
+`scripts/game3dSmokeChecksDragonDive.js` (now dive-only), a new
+`scripts/game3dSmokeChecksDragonPursuit.js` (pursuit-only), and `scripts/smokeTestGame3D.js` (one new
+`require`, two call sites re-pointed). No `src/` file is touched — this is dev-tooling-only, so
+`service-worker.js`'s precache list is unaffected (`checkServiceWorkerCache.js` confirmed: still 46 JS
+files, unchanged — `scripts/*.js` is never loaded by a browser, see that file's own header). **Gelecek
+Faz Etkisi:** none — this is pure test-file organization; any future dragon check picks the file
+matching its own trigger (`alarmRadiusMeters` -> dive file, `pursuitRadiusMeters` -> pursuit file), the
+same theme-based rule `dragons.js`'s own subsystem split (ADR-0092) already established for production
+code.
+
+**Decision:** Split by cohesive trigger/theme, not by raw line count, matching ADR-0087/ADR-0092's own
+precedent: `game3dSmokeChecksDragonDive.js` keeps `checkDragonDive` (ADR-0082) and
+`checkDragonDiveTelegraph` (ADR-0093) — both `alarmRadiusMeters`-triggered, both exercising the same
+dive/swoop machinery. A new `game3dSmokeChecksDragonPursuit.js` takes `checkDragonPursuit` (ADR-0085)
+and `checkDragonGiveUpCue` (ADR-0091) — both `pursuitRadiusMeters`-triggered, both exercising the same
+`pursuitExhausted` state. Unlike `dragons.js`'s own split, no re-export facade was needed: only
+`smokeTestGame3D.js` ever imports either file (a dev-only test runner, not a public production API with
+multiple consumers), so updating its two call sites directly is simpler and just as safe as adding an
+indirection layer would have been.
+
+**Alternatives considered:**
+- *Defer the split to a future run, as originally noted in this run's own sub-task 1.* Rejected on
+  reconsideration (this ADR's own Context section) — the actual established precedent (ADR-0092)
+  favors splitting immediately when a sub-task's own addition is the direct cause, and deferring risks
+  repeating `game3dSmokeChecksMovement.js`'s own four-run delay.
+- *Split by line-count midpoint instead of theme (e.g. first two functions in file A, last two in file
+  B).* Rejected: would separate `checkDragonDive` from `checkDragonDiveTelegraph` despite them sharing
+  `alarmRadiusMeters` fixtures and scope, or `checkDragonPursuit` from `checkDragonGiveUpCue` despite
+  sharing `pursuitExhausted`. A future reader hunting for "does the dive have coverage" should find
+  every dive check in one place, the same reasoning ADR-0092 gave for `dragonFlightMath.js` vs.
+  `dragonController.js`.
+- *Keep a re-export facade file (mirroring `dragons.js`'s own shape) so `smokeTestGame3D.js`'s import
+  line didn't need to change.* Rejected as unneeded indirection: `dragons.js`'s facade exists because
+  *production* code (`game3d.js`) and *six different test files* all import it, so an unchanged public
+  path matters. Here exactly one file imports either module, so updating its two lines directly is
+  strictly simpler with identical safety.
+
+**Consequence:**
+- `game3dSmokeChecksDragonDive.js`: 598 -> 301 lines. `game3dSmokeChecksDragonPursuit.js` (new): 318
+  lines. Both comfortably under the 540-line WARN threshold, real headroom for future dive/pursuit
+  checks.
+- `smokeTestGame3D.js` gained one `require` line; its two `checkDragonPursuit`/`checkDragonGiveUpCue`
+  call sites now read `dragonPursuitChecks.` instead of `dragonDiveChecks.` — the only production-
+  adjacent edit in this sub-task, and `checkSmokeCheckRegistry.js`'s own static cross-check (parses
+  exactly this kind of `alias.fn(...)` wiring) confirms all 21 checks still resolve correctly in both
+  directions.
+- No test behavior changed: every moved function's body is untouched, byte-for-byte, from sub-task 1's
+  own version.
+
+**Etkilenen sistemler:** `scripts/game3dSmokeChecksDragonDive.js` (trimmed),
+`scripts/game3dSmokeChecksDragonPursuit.js` (new), `scripts/smokeTestGame3D.js` (wiring only). No
+`src/` file, no `service-worker.js` precache entry, no production behavior.
+
+**Verification (GOVERNANCE.md §8.1):**
+- `node --check` clean on all three changed/new files, and a full 54-file repo sweep before and after.
+- Full smoke suite: **21/21 PASS**, output identical in substance to the pre-split run (the 2D shell's
+  own non-blocking sandbox-network error count reads 10 vs. 11 this run — a known run-to-run
+  fluctuation in that unrelated counter, not a regression; every dragon check's own PASS line and
+  detail text is unchanged). Zero console/page errors on real headless boot of `game3d.html`.
+- All 5 standing guards re-run clean: `checkAssetsManifest.js` OK (41 entries, unchanged),
+  `checkServiceWorkerCache.js` OK (46 JS files, unchanged — confirms `scripts/` files are correctly
+  outside its scope), `checkDialogueChoicesShape.js` OK (13/14, unchanged), `checkPwaInstallability.js`
+  OK (unchanged), `checkSmokeCheckRegistry.js` OK — 21 checks across **6** modules now (was 5), 54 JS
+  files all within the cap, the `game3dSmokeChecksDragonDive.js` 598/600 WARN is gone, only
+  `gameplayConfig.js`'s pre-existing 579/600 remains.
+- **Görsel kanıt (§8.5):** not applicable — a pure test-file reorganization with zero production
+  behavior change has no visual signature to capture; the smoke suite's own byte-for-byte-unchanged
+  output is the correctness proof, the same reasoning ADR-0092 gave for its own refactor.
+- **Performans (§4):** perf snapshot (`perf_log.csv` `run72b` row) bit-identical to `run72` on every
+  GPU-submission metric (46 draw calls, 393,231 triangles, 44 geometries, 17 textures) — expected, a
+  dev-tooling-only reorganization touches no runtime geometry/material/draw-call path.
+- Tech debt counter: **0** (unchanged — this sub-task *removes* a watch-item rather than adding one).
+
+**Geri alma planı:** `git revert` the single commit. Restores the one 598-line
+`game3dSmokeChecksDragonDive.js`, deletes `game3dSmokeChecksDragonPursuit.js`, and reverts
+`smokeTestGame3D.js`'s `require` line and two call sites. No other file references either check
+module directly.
