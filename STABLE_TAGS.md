@@ -213,3 +213,11 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   Local tag only — `git push origin <tag>` still rejected, `HTTP 403` then `send-pack: unexpected
   disconnect` on the same call — same standing block since run 58 (GOVERNANCE.md §8.11: a local tag
   + this entry satisfies the checkpoint).
+- `stable-2026-08-05-1958` — run 81 end: GOVERNANCE.md §8.13 safe-mode try/catch finished for the
+  3 remaining named subsystems (NPC, animal, interaction/dialogue, world-events — dragons already
+  had it since run 64), ADR-0104. Real dev-only Playwright injection proof against all 4 real
+  served modules confirmed each throw is actually caught (zero uncaught pageerror) and logs the
+  expected safe-mode message; full smoke suite 22/22 PASS; `perf_log.csv` run81 row bit-identical
+  to run76-80. `git push origin main` succeeded (`e3572d4`). Local tag only — `git push origin <tag>`
+  still rejected, same `HTTP 403`/`send-pack: unexpected disconnect` standing block since run 58
+  (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
