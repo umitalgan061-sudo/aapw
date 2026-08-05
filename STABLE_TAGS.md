@@ -239,3 +239,11 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   pairs (expected — pure code-hygiene change). `git push origin main` succeeded (`bcac4e0`). Local
   tag only — `git push origin <tag>` still rejected, same `HTTP 403` standing block since run 58
   (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
+- `stable-2026-08-05-2154` — run 84 end: world-event flavor pool grown 24 -> 26
+  (`northern_lights`, `traveling_singer`), ADR-0108. Pure data addition, zero mechanism change.
+  Smoke suite 24/24 PASS, all 8 standing guards clean, `perf_log.csv` `run84` bit-identical to
+  run76-83 (no scene object touched), real headless-Chromium proof of both new events firing +
+  rendering via a real EventBus -> WorldEventToast, zero console errors, 2 screenshots. `git push
+  origin main` succeeded (`a20915a`). Local tag only — `git push origin <tag>` still rejected, same
+  `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies
+  the checkpoint).
