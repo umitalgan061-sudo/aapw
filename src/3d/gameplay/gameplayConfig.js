@@ -547,7 +547,7 @@ export const INTERACTION_CONFIG = Object.freeze({
 	/** FAZ 5's real branching pilot (started run 44, DECISIONS.md ADR-0058; grown through run 50,
 	 * DECISIONS.md ADR-0060/0062/0063/0064/0067; content itself moved out to its own file run 50,
 	 * DECISIONS.md ADR-0066, once this growth pattern pushed `gameplayConfig.js` to 566/600 lines).
-	 * 12 of 14 NPCs get 2 numbered choices after their greeting; picking one (Digit1/Digit2 — see
+	 * 13 of 14 NPCs get 2 numbered choices after their greeting; picking one (Digit1/Digit2 — see
 	 * `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response line,
 	 * replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry here —
 	 * an absent/empty array means the old greeting-then-close-on-E behavior, unchanged. See
