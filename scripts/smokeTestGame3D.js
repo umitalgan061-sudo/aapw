@@ -21,6 +21,8 @@
  *   trigger, reactive flight.
  * - `game3dSmokeChecksDragonDive.js` — dragon path deviations: dive/swoop, continuous chase,
  *   pursuit give-up cue.
+ * - `game3dSmokeChecksSafeMode.js` — `safeMode.js`'s dispose()/disposeOnError()-throws containment
+ *   (ADR-0106), per-entity and singleton.
  *
  * The split history: run 40 (`game3dSmokeChecks.js` hit 596/600), run 64 (a fifth check module rather
  * than growing `game3dSmokeChecksMovement.js`, already at 614/600), run 68 (that 614-line violation
@@ -44,6 +46,7 @@ const movementChecks = require('./game3dSmokeChecksMovement.js');
 const dragonFlightChecks = require('./game3dSmokeChecksDragonFlight.js');
 const dragonDiveChecks = require('./game3dSmokeChecksDragonDive.js');
 const dragonPursuitChecks = require('./game3dSmokeChecksDragonPursuit.js');
+const safeModeChecks = require('./game3dSmokeChecksSafeMode.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
@@ -86,6 +89,8 @@ async function main() {
 		results.push(await dragonPursuitChecks.checkDragonPursuit(browser, baseUrl));
 		results.push(await dragonPursuitChecks.checkDragonGiveUpCue(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonDiveTelegraph(browser, baseUrl));
+		results.push(await safeModeChecks.checkSafeModeEntityDisposeThrows(browser, baseUrl));
+		results.push(await safeModeChecks.checkSafeModeSystemDisposeThrows(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();

@@ -8936,3 +8936,103 @@ next 10-run digest due at run 88. No blocking bugs, syntax errors, or regression
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+
+## This Run (2026-08-05, run 83 — scheduled autonomous routine)
+
+Session Snapshot: `GOVERNANCE.md` (already existed and current — the stored scheduler prompt's
+"create GOVERNANCE.md for the first time" instruction is stale, that setup happened in an earlier
+run; `CREDITS.md` likewise already exists), `3D_GAME_PROGRESS.md`, `git log -10`, `DECISIONS.md`
+last 3 ADRs, `QUESTIONS_FOR_OWNER.md`. Eşzamanlılık Kontrolü (§8.14): `git fetch origin main` found
+local `main` 21 commits behind `origin/main` (this container's checkout had drifted — HEAD was
+detached at an older commit, and the local `main` ref itself was stale at `b091711`); fast-forwarded
+(`git merge --ff-only`) before doing anything else, no force-push or history rewrite needed. Re-ran
+the full smoke suite immediately after syncing to confirm the freshly-pulled tree is healthy before
+picking any work (22/22 PASS at that point, all 8 standing guards clean).
+
+Priority order re-scanned fresh (GOVERNANCE.md §18): items 1-8 (arazi/yol/çim/kale-dokusu/syntax/
+blocking-bug/perf/memory) are unchanged from run 82 — already shipped in earlier runs or blocked on
+missing 3D models the owner hasn't supplied yet. Item 9 (teknik borç) had one concrete, unblocked
+target: ADR-0105's own documented follow-up (a throwing `dispose()`/`disposeOnError()` inside
+`safeMode.js`'s catch blocks would still escape uncaught). Took that.
+
+### Sub-task 1: close the dispose()/disposeOnError()-throws gap in `safeMode.js` (DECISIONS.md ADR-0106)
+
+Both helpers now wrap their own cleanup call (`entity.dispose()` / `disposeOnError()`) in a second,
+inner try/catch — a throw there is logged separately but never escapes the helper, and the
+entity/system still ends up marked disabled either way. Full reasoning, alternatives (why not wrap
+the whole catch body, why not also wrap `scene.remove`) in ADR-0106.
+
+**New, permanent regression coverage — not a throwaway proof:** unlike prior runs' pattern of an
+uncommitted, dev-only Playwright script written to prove a fix and then discarded, this fix's proof
+is a new committed smoke-check module, `scripts/game3dSmokeChecksSafeMode.js` (176 lines, 2 checks),
+wired into `smokeTestGame3D.js` and registered in `checkSmokeCheckRegistry.js`. It runs against the
+real served `safeMode.js` (in-page dynamic `import()`, the project's standard pattern) with an
+entity/system whose `update()` *and* cleanup both throw, and proves the exception is contained, the
+entity/system still ends up disabled, a healthy sibling is unaffected, the no-throw healthy path
+still returns the same array reference (ADR-0105's no-allocation guarantee), a latched singleton
+stays latched, and the no-`disposeOnError`-provided case (`interaction`) is unaffected.
+
+**DoD status:** `node --check` clean (`safeMode.js`, `game3d.js`, both smoke-check files). Full
+suite **24/24 PASS** (was 22/22 — +2 new), zero FAIL. `checkSmokeCheckRegistry.js`: 24 checks / 7
+modules, 63 JS files all within the 600-line cap. `checkServiceWorkerCache.js`: unaffected (edited
+file, not a new one; new smoke-check module is dev-only `scripts/`, never served — no `SHELL_CACHE`
+bump needed). 2 screenshots (default boot camera + F4 free-cam) — both show a normal boot (player,
+castle + guard NPC, live `WorldEventToast`), visually consistent with prior runs' pairs; zero visual
+difference is the correct outcome here, since zero scene object was touched. `perf_log.csv` `run83`
+row bit-identical to run76-82 (46/393,231/44/17). Memory-leak checklist: n/a — no new listener/
+timer/DOM node, the inner try/catch allocates nothing on the (overwhelmingly common) no-throw path.
+Tech debt counter: **0** (this closes a documented gap rather than opening one). ADR-0106 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the inner try/catch scopes exactly the one
+caller-owned call, not the whole catch body (wrapping the log line too would silently hide a
+different class of bug); confirmed the entity/system still ends up disabled even when its own
+cleanup throws (a broken dispose is not a reason to keep calling an update() already known
+broken); confirmed the distinct "ALSO threw" log wording doesn't collide with anything `scripts/`
+depends on; confirmed no `TEMP`/`HACK`/`FIXME`; confirmed this doesn't reopen the copy-paste risk
+ADR-0105 fixed (still exactly one implementation of each shape, just each one slightly more
+defensive now).
+
+**Session Quality Gate (§8.6) after 1 sub-task:** confidence **5/5** — closes a real, previously
+*documented* gap (not a speculative hardening) with permanent committed regression coverage instead
+of the throwaway-proof pattern prior runs used, on the lowest-risk change category (pure defensive
+wrapping around already-defensive code, zero behavior change on the overwhelmingly common no-throw
+path, fully reversible). No "6 months from now" ambiguity — ADR-0106 records exactly what gap this
+closes and how it's proven to stay closed. **Stopping here after 1 sub-task:** the rest of the
+backlog is unchanged from run 80-82 — entirely blocked on missing 3D models or the pending owner
+health-system decision — so a 2nd sub-task this run would mean reaching for filler rather than the
+next genuinely valuable, unblocked item.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| `safeMode.js` cleanup-call throw containment | 0/2 helpers (documented gap, ADR-0105) | **2/2** | +2 |
+| Smoke suite | 22/22 | **24/24** | +2 checks (new, committed — not a throwaway proof) |
+| Smoke-check modules | 6 | **7** | +1 (`game3dSmokeChecksSafeMode.js`) |
+| ADR headers in `DECISIONS.md` | 105 | **106** | +1 (ADR-0106) |
+| `perf_log.csv` rows | 26 | **27** | +1 (`run83`) |
+| `src/3d/` JS modules | 62 | **62** | unchanged (edit only, no new module) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no scene object touched) |
+
+**Oyuncu fark eder mi:** hayır — tamamen perde arkasında bir sağlamlaştırma, iki ekran görüntüsü
+birbiriyle görsel olarak aynı. Dolaylı etkisi: artık bir alt sistemin normal hata-izolasyonu devreye
+girdiğinde (güncelleme hata verip o alt sistem devre dışı kaldığında), o devre dışı bırakma
+işleminin *kendisi* de bir hataya çarpsa bile artık oyunun tamamı çökmeyecek.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Blocked items
+unchanged since run 80: 6 remaining castle seats + all FAZ 6 animals need real rigged models,
+dragon attack/fire-breath needs the owner's pending health-system decision
+(`QUESTIONS_FOR_OWNER.md`), `erkek-insan`/`kadin-insan`/`koylu` differentiation has no design
+driver. No other known gaps from ADR-0104/ADR-0105/ADR-0106 remain — this was the last item that
+chain of work had flagged. `CATCH_UP.md`'s next 10-run digest still due at run 88 (unchanged, this
+run's change isn't player-visible enough to justify an early one). No blocking bugs, syntax errors,
+or regressions found this run. **Environment note:** this container's local checkout of `main` had
+drifted 21 commits behind `origin/main` at session start (stale local branch ref, not a real
+divergent-work conflict) — fast-forwarded cleanly per §8.14, no action needed from the owner, but
+worth knowing this can happen if a container is reused across sessions with different clone states.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

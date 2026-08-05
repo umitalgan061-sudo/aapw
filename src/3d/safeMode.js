@@ -10,6 +10,14 @@
  * noun — and pushed the file to 571/600, close enough to this project's file cap (Altın Kural 7)
  * that `checkSmokeCheckRegistry.js` began warning about it.
  *
+ * **Known-gap-turned-fix (run 83, ADR-0106):** ADR-0105 shipped both helpers with a documented,
+ * deliberately-deferred exposure — a *throwing* `dispose()`/`disposeOnError()` call inside the catch
+ * block itself would escape uncaught, defeating the whole point of this module (one bad subsystem
+ * crashing the frame loop again, just one level further down). Both helpers now wrap their own
+ * cleanup call in a second try/catch: cleanup failing is logged as its own error but never allowed
+ * to propagate, and the entity/system is still marked disabled either way — cleanup failing is not a
+ * reason to keep calling a subsystem already known to be broken.
+ *
  * Two shapes, because the subsystems genuinely come in two shapes — this is not one abstraction
  * awkwardly covering both:
  * - **Per-entity lists** (`state.npcs`, `state.animals`, `state.dragons`): many independent
@@ -59,7 +67,18 @@ export function updateEntitiesSafely({ entities, scene, label, update }) {
 				error,
 			);
 			scene.remove(entity.object3D);
-			entity.dispose();
+			// entity.dispose() is caller-owned cleanup code this module doesn't control — if IT also
+			// throws, that must not escape and re-crash the frame loop this whole module exists to
+			// protect (ADR-0106). The entity is disabled either way: a dispose failure is a reason to
+			// log louder, never a reason to keep calling an update() already known to be broken.
+			try {
+				entity.dispose();
+			} catch (disposeError) {
+				console.error(
+					`[game3d] ${label} "${entity.object3D?.name ?? '?'}" dispose() ALSO threw during safe-mode cleanup — entity still disabled ${SAFE_MODE_NOTE}`,
+					disposeError,
+				);
+			}
 			entity.disabledDueToError = true;
 			anyFailed = true;
 		}
@@ -98,7 +117,20 @@ export function updateSystemSafely({ disabled, label, update, disposeOnError }) 
 			`[game3d] ${label} update() threw — disabling it for the rest of this session ${SAFE_MODE_NOTE}`,
 			error,
 		);
-		if (disposeOnError) disposeOnError();
+		// Same reasoning as updateEntitiesSafely's dispose() guard (ADR-0106): disposeOnError() is
+		// caller-owned cleanup this module doesn't control, so a throw inside it must not escape and
+		// re-crash the frame loop. The system is latched disabled regardless of whether cleanup
+		// itself succeeded.
+		if (disposeOnError) {
+			try {
+				disposeOnError();
+			} catch (disposeError) {
+				console.error(
+					`[game3d] ${label} disposeOnError() ALSO threw during safe-mode cleanup — system still disabled ${SAFE_MODE_NOTE}`,
+					disposeError,
+				);
+			}
+		}
 		return true;
 	}
 }

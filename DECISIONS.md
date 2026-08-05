@@ -9202,3 +9202,104 @@ cheaply later. No `QUESTIONS_FOR_OWNER.md` entry needed — no design/product de
 are in the same commit precisely so a revert can't leave a cache version pointing at a file list
 that no longer matches). ADR-0104's behavior would be fully restored, since this commit changed no
 behavior of its own.
+
+
+## ADR-0106: Close the dispose()/disposeOnError()-throws gap in `safeMode.js` (ADR-0105's own deferred follow-up)
+
+**Status:** Accepted (run 83).
+
+**Risk Seviyesi:** LOW. Adds a nested try/catch around an already-defensive helper's own cleanup
+call; no new mechanism, no gameplay logic touched, no terrain/height/noise/world-scale change
+(Arazi Değişikliği Güvenlik Kontrolü doesn't apply). Fully reversible: `git revert`.
+
+**Context:** ADR-0105 extracted `game3d.js`'s five inline safe-mode try/catch blocks into
+`src/3d/safeMode.js`, and explicitly flagged one exposure as pre-existing and deliberately left
+unfixed at the time: if `entity.dispose()` (in `updateEntitiesSafely`'s catch block) or
+`disposeOnError()` (in `updateSystemSafely`'s catch block) itself throws, that exception escapes the
+helper uncaught — meaning a broken *cleanup* path could still crash the whole frame loop, exactly
+the failure mode §8.13's safe-mode rule exists to prevent, just one level further down than the
+`update()` throw it already catches. ADR-0105 named this a legitimate, well-scoped follow-up rather
+than fixing it inline (to keep that commit strictly behavior-preserving). This run picked it up:
+items 1-8 of GOVERNANCE.md §18's priority order are either already shipped in prior runs or blocked
+on missing 3D models / an owner design decision (dragon health system, remaining castle seats,
+FAZ 6 animals — unchanged since run 80-82), so this is the next unblocked item under §18's item 9
+(teknik borç). **Gelecek Faz Etkisi:** positive — every future subsystem routed through these two
+helpers (which is now the only way new tick-loop entries get error isolation, per ADR-0105) now also
+gets crash-proof cleanup by construction, without needing to remember this edge case per call site.
+
+**Decision:** Both helpers in `src/3d/safeMode.js` wrap their own cleanup call in a second,
+inner try/catch:
+1. `updateEntitiesSafely`: `entity.dispose()` is now called inside its own try/catch. If it throws,
+   the error is logged separately (distinct message: "dispose() ALSO threw during safe-mode
+   cleanup") but does not propagate. The entity is still marked `disabledDueToError = true` and still
+   excluded from the returned list either way — a failing cleanup is not a reason to keep calling an
+   `update()` already known to be broken, it's a reason to log louder.
+2. `updateSystemSafely`: same shape for `disposeOnError()` — wrapped, logged separately if it
+   throws, never propagates. The system still ends up latched `disabled = true` regardless.
+3. `scene.remove(entity.object3D)` (three.js's own built-in) was deliberately left unwrapped — it
+   operates on plain internal arrays and does not call into any project-authored code, unlike
+   `dispose()`/`disposeOnError()` which are supplied by whichever gameplay module owns the entity.
+   Wrapping it would be defending against a failure mode this codebase has no reason to expect from
+   a first-party three.js API, which is a different risk category from catcher-owned-cleanup-code.
+
+**Alternatives considered:**
+- *Leave it as ADR-0105 shipped it, since no bug had actually been observed yet.* Rejected — this is
+  exactly the "aynı hata 2. kez görülürse önce Root Cause yaz" bar inverted: the point of a
+  documented, known gap in error-handling code is to fix it before it needs a second, live incident
+  to justify itself. ADR-0105's own "Next step" note named it as ready-to-pick-up.
+- *Wrap the whole catch block body in a single outer try/catch instead of just the dispose call.*
+  Rejected — that would also swallow a throw from `console.error` itself or from reading
+  `entity.object3D?.name` in the log line, silently hiding failures this fix has no business hiding.
+  Scoping the inner try/catch to exactly the one caller-owned call keeps the blast radius precise.
+- *Also give `scene.remove` the same treatment, for symmetry.* Rejected — see Decision point 3.
+
+**Verified:**
+- `node --check` clean on `safeMode.js`, `game3d.js` (untouched, still compiles), and both new/edited
+  smoke-check files (`game3dSmokeChecksSafeMode.js`, `smokeTestGame3D.js`).
+- **New committed regression coverage, not a throwaway proof:** unlike prior runs' pattern of an
+  uncommitted, dev-only Playwright injection script, this fix's proof is now a permanent smoke check
+  — `scripts/game3dSmokeChecksSafeMode.js`'s two new checks (`checkSafeModeEntityDisposeThrows`,
+  `checkSafeModeSystemDisposeThrows`), wired into `smokeTestGame3D.js` and registered in
+  `checkSmokeCheckRegistry.js`. They run against the real served `safeMode.js` via the project's
+  standard in-page dynamic-`import()` pattern (not a copy), constructing an entity/system whose
+  `update()` *and* `dispose()`/`disposeOnError()` both throw, and assert: (a) no exception escapes
+  the helper, (b) the bad entity/system still ends up disabled, (c) a healthy sibling entity is
+  unaffected, (d) the no-throw healthy path still returns the exact same array reference (ADR-0105's
+  no-allocation guarantee, unchanged), (e) a latched singleton stays latched and never calls
+  `update()` again, (f) the no-`disposeOnError`-provided case (`interaction`) is unaffected.
+- Full smoke suite: **24/24 PASS** (was 22/22 — +2 new checks), zero FAIL.
+- `checkSmokeCheckRegistry.js`: 24 checks across 7 modules, every export invoked exactly once; 63 JS
+  files all within the 600-line cap (`safeMode.js` 136/600, `game3dSmokeChecksSafeMode.js` 176/600).
+- `checkServiceWorkerCache.js`: unaffected — `safeMode.js` was edited, not newly added, and the new
+  smoke-check module lives in dev-only `scripts/`, never served to a browser, so no `SHELL_CACHE`
+  bump is needed this run.
+- **Görsel Doğrulama Standardı (§8.5):** 2 screenshots at distinct camera angles (default boot camera
+  + F4 free-cam) — both show the game fully booted (player, castle silhouette with a guard NPC, live
+  `WorldEventToast`), visually consistent with prior runs' pairs. Expected and correct for a pure
+  code-hygiene change: zero scene object was touched, so zero visual difference is exactly the
+  right outcome, not a null result.
+- `perf_log.csv` `run83` row (real measurement) bit-identical to run76-82 on every GPU metric
+  (46 draw calls / 393,231 triangles / 44 geometries / 17 textures) — expected, no scene object
+  touched.
+- **AI Self-Review 2. Geçiş (§8.3):** confirmed the inner try/catch's scope is exactly the one
+  caller-owned call (not the whole catch body, see Alternatives); confirmed the entity/system is
+  still marked disabled on the path where cleanup itself throws (a dispose failure must not leave a
+  known-broken subsystem still being called every frame); confirmed the distinct "ALSO threw" log
+  wording doesn't collide with or get consumed by anything in `scripts/`; confirmed no
+  `TEMP`/`HACK`/`FIXME`/`WORKAROUND` language crept in; confirmed this doesn't reintroduce the
+  copy-paste risk ADR-0105 fixed (still exactly one implementation of each shape).
+- Tech debt counter: **0** (unchanged — this closes a documented gap rather than opening one).
+
+**Etkilenen sistemler:** `src/3d/safeMode.js` (both helpers' catch blocks only — no call-site change
+in `game3d.js`), new `scripts/game3dSmokeChecksSafeMode.js`, `scripts/smokeTestGame3D.js` (wiring).
+No gameplay module touched.
+
+**Consequences:** The one remaining documented gap from ADR-0105 is now closed, and — unlike that
+gap's original discovery — this fix ships with permanent, committed regression coverage instead of a
+one-off proof that evaporates at the end of the run. Any future edit to `safeMode.js` that
+reintroduces this exposure will fail `smokeTestGame3D.js` immediately. No `QUESTIONS_FOR_OWNER.md`
+entry needed — no design/product decision involved.
+
+**Geri alma planı:** `git revert` the single commit — restores both helpers to their ADR-0105 shape
+(dispose calls unwrapped) and removes the two new smoke checks. No other file depends on the new
+try/catch's exact log wording.
