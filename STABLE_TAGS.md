@@ -47,3 +47,10 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   code touched; perf bit-identical to run 68 on every GPU-submission metric. `git push origin main`
   succeeded (`21addd5`). Local tag only — `git push origin <tag>` still rejected with `HTTP 403`
   (same known issue since run 58).
+- `stable-2026-08-05-0715` — run 70 end: dragon wing-flap agitation telegraph (ADR-0089) — the `Fly`
+  clip's own playback speed now eases up with however agitated the dragon currently is (reactive/dive/
+  pursuit, whichever blend is strongest), a purely cosmetic polish pass with no new radius/trigger/
+  damage. New regression check isolates all three triggers independently (19/19 smoke suite passing).
+  Zero console/page errors on real headless boot, perf bit-identical to run 69 on every GPU-submission
+  metric. `git push origin main` succeeded (`147aeed`). Local tag only — `git push origin <tag>` still
+  rejected with `HTTP 403` (same known issue since run 58).
