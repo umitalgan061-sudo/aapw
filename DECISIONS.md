@@ -9380,3 +9380,116 @@ building the thing.
 
 **Geri alma planı:** `git revert` the single commit — restores the "13/14" phrasing and removes the
 question entry. Nothing depends on either.
+
+
+## ADR-0108: Grow the world-event flavor pool from 24 to 26 entries, adding its first aurora/sky-color entry and its first traveling-performer entry
+
+**Status:** Accepted (run 84).
+
+**Risk Seviyesi:** LOW. Config/data-only addition to a frozen array; zero changes to
+`createWorldEventSystem`'s mechanism, `ui/worldEventToast.js`, or any call site. Fully reversible:
+`git revert` removes the two new objects and this ADR entry, nothing else references either id.
+
+**Context:** Session Snapshot at run start (2026-08-05, run 84 — scheduled autonomous routine): the
+incoming instruction again opened with a "create GOVERNANCE.md for the first time" bootstrap step —
+found it already fully created and current (309 lines, matches this and prior instructions' rule
+set, already covers every 🆕 item the stored prompt listed), so that step was a no-op confirmation,
+same as run 83 noted. `CREDITS.md` likewise already exists and current. Read `3D_GAME_PROGRESS.md`'s
+last "This Run" entry (run 83), `DECISIONS.md`'s last 3 ADRs (0105/0106/0107), `QUESTIONS_FOR_OWNER.md`
+in full (8 entries, all still open, none resolvable unattended this run), `STABLE_TAGS.md`/
+`perf_log.csv`/`CATCH_UP.md`/`RULES_CHANGELOG.md` tails. Session started on a detached `HEAD` with a
+stale local `main` ref (21 commits behind `origin/main` — same drift class run 83 already hit and
+documented, not a new finding); `git checkout -B main origin/main` resynced cleanly, no force-push or
+history rewrite needed. Re-ran the full smoke suite immediately after syncing (24/24 PASS, all 8
+standing guards clean) before picking any work, then again `git fetch origin main` right before
+writing this ADR (§8.14) — still no divergence, no concurrent session to reconcile with.
+
+**Priority re-scan (GOVERNANCE.md §18), fresh:** items 1-9 unchanged from run 83 — the "1.x cluster"
+(macro relief/roads/ground color/castle textures) has been done since run 55/56, item 9's only
+outstanding gap (the `safeMode.js` dispose()-throws follow-up) closed last run with nothing new
+surfaced. Items 10-11 (smoke test, world coverage) reconfirmed healthy, no fresh regression. Item 12
+(FAZ 6/7 assets) and item 13 (FAZ 11 species): re-checked `assets/models/` via
+`git log --diff-filter=A -- 'assets/models/*'` — still no new model file since run ~59 (the 8th
+castle); nothing for an unattended run to act on there. Dragon attack/fire-breath still blocked on
+the owner's pending health-system decision (`QUESTIONS_FOR_OWNER.md`, run 66). That leaves item 14
+("Yeni özellik"). `gameplay/worldEvents.js`'s flavor pool remains this project's established,
+low-risk, repeatedly re-used growth track for exactly this bucket (grown 4→8→12→14→16→18→20→22→24
+across nine prior rounds, ADR-0061/0063/0065/0068/0097/0098/0101/0102 — each landing a run or few
+after a prior growth round has direct precedent, same as this one). No terrain/height/noise/
+world-scale change — the Arazi Değişikliği Güvenlik Kontrolü doesn't apply. **Gelecek Faz Etkisi:**
+none — FAZ 8 stays flavor-only (ADR-0056's design boundary, reaffirmed by every prior growth ADR
+including this one), no stat/quest/persistence hook added.
+
+**Decision:** `WORLD_EVENTS` grows from 24 to 26 entries, adding `northern_lights` (a green-tinted
+aurora rippling over the northern horizon, read by the old as the Wall's own warning) and
+`traveling_singer` (a traveling bard arriving at a castle gate to play an old song about long-dead
+kings). Both are original text, not derived from any HBO material — this project's one hard
+constraint. `northern_lights` is deliberately distinct from every existing celestial entry
+(`falling_star`, `red_comet`, `eclipse`): those are all things *appearing/streaking/darkening* the
+sky, while an aurora is colored light *rippling* across it — a different visual register (color and
+motion, not a point of light or an absence of light), and it is this pool's first entry to name the
+Wall directly as a location rather than only referencing "beyond the Wall" (`wildling_rumor`).
+`traveling_singer` fills a genuinely unrepresented register: none of the 24 existing entries touches
+music, performance, or storytelling — the closest neighbors are `feast_fires` (celebration sound),
+`blacksmith_hammer` (labor sound), and `tourney_announce` (announcement of a future event), all
+different in kind from a quiet, deliberate cultural moment happening in the present.
+
+**Alternatives considered:**
+- *Add 4+ entries in one batch.* Rejected — same precedent ADR-0065/0068/0097/0098/0101/0102 already
+  rejected this for; the established batch size is +2.
+- *Pick a market-day/harvest theme instead of `traveling_singer`.* Rejected — already rejected in
+  ADR-0098 for overlapping the existing `trade_caravan`/`feast_fires`/`tourney_announce`
+  commerce-or-celebration cluster; a bard/song pick is a distinct register (art/memory, not commerce
+  or festivity).
+- *Frame the aurora as a lunar/nighttime-only phenomenon collapsed into `falling_star`'s existing
+  slot instead of a new entry.* Rejected — a streaking point of light and a rippling field of color
+  read as different enough events on their own (this pool already distinguishes `falling_star` from
+  `red_comet` from `eclipse`, three variations on "something's different about tonight's sky"), and
+  collapsing them would lose the Wall-specific folk reading that makes this entry distinct.
+- *Give `northern_lights` a direct "this means winter is coming" reading.* Rejected — this project's
+  existing `white_raven` entry already owns the explicit seasonal-change reading; duplicating it here
+  would be redundant. The "Wall's own warning" framing keeps this entry in the same ambiguous-omen
+  register as `red_comet`/`eclipse` (interpretable, not a stated fact) without repeating either their
+  content or `white_raven`'s.
+
+**Verified:**
+- `node --check` clean on `worldEvents.js`. Line count: 109/600 (was 107) — comfortable headroom.
+- Full committed smoke suite: all **24** checks PASS, identical before and after (the world-event
+  smoke check asserts the mechanism generically against whatever the pool contains, needed no
+  changes). All 8 standing guards re-run clean and unaffected (none touch `worldEvents.js`'s
+  content).
+- A small standalone check confirmed all 26 ids/icons are unique, and neither new color (`#2a7a5a`,
+  `#8a5ac8`) collides with any of the 24 prior colors (one pre-existing collision from before this
+  run, `raven`/`wolf_howl` both `#8faabb`, is unrelated to this change and unchanged by it).
+- **Real headless-Chromium proof of the new content specifically** (same technique
+  ADR-0097/0098/0101/0102 established): a one-off Playwright script (`devServerHelper.js`'s shared
+  static-server + Playwright bootstrap, not committed — dev-only, same as every prior round's own
+  proof script) booted the live `game3d.html` page (zero console/page errors throughout), drove the
+  real `createWorldEventSystem` (seed 7) with repeated large time deltas until both new ids
+  (`northern_lights`/`traveling_singer`) were actually observed coming out of the real 26-entry pool
+  (35 `update()` calls), confirmed both real payloads match the source exactly, then routed each real
+  payload through a real `EventBus` into a real `WorldEventToast` instance (constructed with that bus,
+  not calling any private method directly). Two screenshots confirm each toast's real icon/title/
+  desc/border-color render correctly over the live scene (castle silhouette, player model, starlit
+  night sky) — green border for `northern_lights`, violet for `traveling_singer`. Zero console/page
+  errors throughout.
+- **AI Self-Review 2. Geçiş (§8.3):** re-read the diff before committing — confirmed neither new id
+  collides with any of the 24 existing ones; confirmed `northern_lights`' folk-warning framing and
+  `traveling_singer`'s castle-gate framing stay in the generic fantasy vocabulary already established
+  by this pool (no invented proper nouns, no HBO-specific references); confirmed no `TEMP`/`HACK`/
+  `FIXME`; confirmed `Object.freeze` still covers the full 26-entry array (frozen at declaration,
+  entries appended before the freeze call, not after); confirmed this doesn't reintroduce any
+  mechanism change — `createWorldEventSystem`'s `update()`/`dispose()` bodies are byte-identical to
+  before this change.
+
+**Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` only (data addition). No change to
+`ui/worldEventToast.js`, `eventBus.js`, `game3d.js`, or any smoke-check module.
+
+**Consequences:** The world-event pool continues its established incremental-content growth track
+while items 1-13 stay asset/decision-blocked. Two more distinct tones (folk-omen aurora,
+music/performance) are now represented in the ambient-flavor rotation. No player-facing mechanism
+changed; the only visible effect is these two new toasts entering the random rotation.
+
+**Geri alma planı:** `git revert` the single commit — removes both new objects and this ADR entry.
+Nothing else references either id; `Object.freeze` and the picking mechanism are untouched either
+way.

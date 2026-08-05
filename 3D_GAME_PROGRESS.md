@@ -9036,3 +9036,98 @@ worth knowing this can happen if a container is reused across sessions with diff
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+
+## This Run (2026-08-05, run 84 — scheduled autonomous routine)
+
+Session Snapshot: `GOVERNANCE.md` (already existed and current, 309 lines — the stored scheduler
+prompt's "create GOVERNANCE.md for the first time" instruction is stale for a second consecutive
+run; already covers every 🆕 item the prompt listed, including §8.14's concurrency check added run
+57. `CREDITS.md` likewise already exists), `3D_GAME_PROGRESS.md` (run 83's entry), `git log -10`,
+`DECISIONS.md` last 3 ADRs (0105/0106/0107), `QUESTIONS_FOR_OWNER.md` (8 entries, all still open,
+none resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md` tails. Eşzamanlılık Kontrolü (§8.14): `git fetch origin main` found local
+`main` 21 commits behind `origin/main` again (same stale-checkout class run 83 hit and documented —
+this container was evidently reused from an older clone state, not a new/different problem);
+`git checkout -B main origin/main` fast-forwarded cleanly, no force-push or history rewrite needed.
+Re-ran the full smoke suite immediately after syncing (24/24 PASS, all 8 standing guards clean)
+before picking any work.
+
+Priority order re-scanned fresh (GOVERNANCE.md §18): items 1-9 unchanged from run 83 — the "1.x
+cluster" has been done since run 55/56, item 9's only outstanding gap (safeMode.js dispose()-throws)
+closed last run, nothing new surfaced. Items 10-11 reconfirmed healthy. Items 12-13 still blocked on
+missing 3D models the owner hasn't supplied (`git log --diff-filter=A -- 'assets/models/*'` shows
+nothing new since run ~59). Dragon attack still blocked on the owner's pending health-system
+decision. That left item 14 ("Yeni özellik") — `gameplay/worldEvents.js`'s flavor pool, this
+project's established low-risk growth track for exactly this bucket.
+
+### Sub-task 1: grow the world-event flavor pool from 24 to 26 entries (DECISIONS.md ADR-0108)
+
+Added `northern_lights` (an aurora over the northern horizon, read as the Wall's own warning) and
+`traveling_singer` (a bard arriving at a castle gate with an old song). Full reasoning, alternatives
+(why not a market/harvest theme, why not collapse the aurora into `falling_star`) in ADR-0108.
+
+**DoD status:** `node --check` clean on `worldEvents.js`. Full suite **24/24 PASS**, zero FAIL, all
+8 standing guards clean. Line count 109/600. A standalone uniqueness check confirmed all 26 ids/icons
+unique and neither new color collides with any of the 24 prior ones (the one pre-existing
+`raven`/`wolf_howl` color collision predates this run and is unrelated). **Real headless-Chromium
+proof** (same technique ADR-0097/0098/0101/0102 established, not a mechanism assumption): a dev-only
+Playwright script booted the live `game3d.html`, drove the real `createWorldEventSystem` (seed 7)
+until both new ids came out of the real 26-entry pool (35 `update()` calls), confirmed both payloads
+match source exactly, then routed each through a real `EventBus` into a real `WorldEventToast`
+instance and screenshotted both toasts — green border for `northern_lights`, violet for
+`traveling_singer`, zero console/page errors throughout. `perf_log.csv` `run84` row
+(`46/393231/44/17`) bit-identical to run76-83 (no scene object touched, expected for a pure
+data-content addition). Memory-leak checklist: n/a — no new listener/timer/DOM node, only two
+frozen-array entries. Tech debt counter: **0** (unchanged). ADR-0108 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed neither new id/icon/color collides with the 24
+existing entries beyond the one pre-existing unrelated collision; confirmed both new entries'
+framing stays in the project's established generic-fantasy vocabulary (no HBO-specific references);
+confirmed `Object.freeze` still covers all 26 entries (appended before the freeze call); confirmed
+`createWorldEventSystem`'s `update()`/`dispose()` bodies are byte-identical to before this change —
+this is a pure data addition, not a mechanism touch; confirmed no `TEMP`/`HACK`/`FIXME`.
+
+**Session Quality Gate (§8.6) after 1 sub-task:** confidence **5/5** — same low-risk, well-precedented
+content-growth pattern used successfully nine times before (ADR-0061 through ADR-0102), proven with
+real headless-Chromium output rather than an assumption that the generic mechanism "just works" for
+new data, zero mechanism change, fully reversible. **Stopping here after 1 sub-task:** the rest of
+the backlog is unchanged from run 80-83 — entirely blocked on missing 3D models or the pending owner
+health-system decision (§14) — so a 2nd sub-task this run would mean reaching for filler rather than
+the next genuinely valuable, unblocked item. No "6 months from now" ambiguity: ADR-0108 records
+exactly what was added and why, matching the established pattern's own audit trail.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| World-event flavor pool entries | 24 | **26** | +2 (`northern_lights`, `traveling_singer`) |
+| `worldEvents.js` lines | 107/600 | **109/600** | +2 |
+| Smoke suite | 24/24 | **24/24** | unchanged (mechanism untouched) |
+| ADR headers in `DECISIONS.md` | 107 | **108** | +1 (ADR-0108) |
+| `perf_log.csv` rows | 27 | **28** | +1 (`run84`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no scene object touched) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ölçekte — dünya olayları rotasyonuna iki yeni, önceden hiç
+görünmemiş toast (kuzey ışıkları omeni, gezgin ozan) katıldı; oyunun geri kalanı görsel/mekanik
+olarak değişmedi.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Blocked items unchanged
+since run 80: 6 remaining castle seats + all FAZ 6 animals need real rigged models, dragon
+attack/fire-breath needs the owner's pending health-system decision, `erkek-insan`/`kadin-insan`/
+`koylu` differentiation has no design driver. `CATCH_UP.md`'s next 10-run digest still due at run 88
+(4 runs away). `RULES_CHANGELOG.md`'s next consolidation pass due ~run 96 (unchanged, last one was
+run 76). Periodic platform check due ~run 90-100 (unchanged, last one was run 70). No blocking bugs,
+syntax errors, or regressions found this run. **Environment note (repeat of run 83's):** this
+container's local checkout of `main` was again found drifted behind `origin/main` at session start —
+same known, harmless stale-checkout class, fast-forwarded cleanly per §8.14, no owner action needed.
+If the world-event pool keeps growing at +2/round, worth a future run considering whether a rarity
+weighting (some entries feel "bigger" than others, e.g. `red_comet` vs `bell_toll`) would read better
+than the current uniform random pick — not acted on this run, no forcing reason yet, noted here only
+as a future idea, not a `QUESTIONS_FOR_OWNER.md` entry (it's an engineering nice-to-have, not a
+blocked product decision).
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.
