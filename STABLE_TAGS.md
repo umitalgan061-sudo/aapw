@@ -111,3 +111,12 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `gameplayConfig.js` now 597/600 (fresh WARN, next run's real forcing signal to split if touched
   again). `git push origin main` succeeded (`c1ba8d6`). Local tag only — `git push origin <tag>`
   still rejected with `HTTP 403` (same known issue since run 58).
+- `stable-2026-08-05-1255` — run 74 end: `WORLD_EVENTS` flavor pool grown 16 -> 18 entries
+  (`white_raven`, `iron_bank`, ADR-0097) — config-only, zero mechanism change. Real headless-Chromium
+  proof: both new ids observed from the live pool via `createWorldEventSystem`, real payloads
+  verified, `WorldEventToast` rendered over the live scene, zero console/page errors. Smoke suite
+  22/22 PASS (byte-identical on every other check), all 7 standing guards clean, perf bit-identical to
+  run73 (46 draw calls / 393,231 triangles / 44 geometries / 17 textures — expected, no new scene
+  objects). `gameplayConfig.js` still 597/600 (untouched this run, same watch-item as ever). `git push
+  origin main` succeeded (`29b99f6`). Local tag only — `git push origin <tag>` still rejected with
+  `HTTP 403` (same known issue since run 58).
