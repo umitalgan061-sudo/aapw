@@ -28,19 +28,55 @@ const GAME3D_READY_TIMEOUT_MS = 60000;
 
 /**
  * Navigates to `url` and collects uncaught exceptions / console errors seen during the load.
+ *
+ * **Hermetic by design (run 76, DECISIONS.md ADR-0099).** Every request to an origin other than the
+ * local static server is aborted before it leaves the browser, so this navigation never touches the
+ * real network. This is a flakiness fix with a measured root cause, not a precaution: `index.html`
+ * references 5 external resources (3 Firebase CDN scripts, Google Fonts, cdnjs font-awesome) that
+ * this sandbox cannot reach, and they do **not** fail fast — each one hangs until the sandbox resets
+ * the connection at ~12.6-13.4s. Because those are render/parser-blocking `<link>`/`<script>` tags,
+ * they delayed even `domcontentloaded` to ~13s, leaving only ~1.6s of headroom under
+ * `NAV_TIMEOUT_MS` — so ordinary jitter intermittently pushed `check2DShell` over the limit. That
+ * exact `page.goto: Timeout 15000ms exceeded` flake was recorded as an environment quirk in run 68
+ * and hit again in run 76; blocking the unreachable requests removes the wait entirely (measured on
+ * this very function, 6 consecutive calls: ~13,000ms -> 104-445ms), which is what makes the timeout
+ * flake structurally impossible rather than merely unlikely.
+ *
+ * Scope note, measured rather than assumed: this fixes the *timeout*, not the long-standing 10-11
+ * fluctuation in the non-blocking console-error count — that was re-measured after this fix and
+ * still varies between 10 and 11 across full-suite runs (the tail of the aborted requests' console
+ * errors races `page.close()`). It stays non-blocking and unasserted for exactly that reason; do not
+ * be tempted to assert an exact count here without first making that race deterministic.
+ *
+ * `game3d.html` references no external origins at all (verified run 76), so blocking is a no-op for
+ * the 3D path in the current tree — but it is applied there too on purpose: this project's Altın
+ * Kural 4 requires the 3D mode to be offline-PWA-capable, so a future external dependency sneaking
+ * into the 3D path is a real regression, and `externalBlocked` surfacing a non-zero count on a
+ * `game3d.html` load is exactly how it would get noticed.
  * @param {import('playwright').Browser} browser
  * @param {string} url
- * @returns {Promise<{page: import('playwright').Page, errors: string[]}>}
+ * @param {string} baseUrl Local static-server origin; every other origin is aborted.
+ * @returns {Promise<{page: import('playwright').Page, errors: string[], externalBlocked: number}>}
  */
-async function loadAndCollectErrors(browser, url) {
+async function loadAndCollectErrors(browser, url, baseUrl) {
 	const page = await browser.newPage();
 	const errors = [];
+	let externalBlocked = 0;
 	page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
 	page.on('console', (msg) => {
 		if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
 	});
+	await page.route('**/*', (route, request) => {
+		const requestUrl = request.url();
+		const isLocal = requestUrl.startsWith(baseUrl)
+			|| requestUrl.startsWith('data:')
+			|| requestUrl.startsWith('blob:');
+		if (isLocal) return route.continue();
+		externalBlocked += 1;
+		return route.abort();
+	});
 	await page.goto(url, { waitUntil: 'load', timeout: NAV_TIMEOUT_MS });
-	return { page, errors };
+	return { page, errors, externalBlocked };
 }
 
 /**
@@ -51,19 +87,28 @@ async function loadAndCollectErrors(browser, url) {
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */
 async function check2DShell(browser, baseUrl) {
-	const { page, errors } = await loadAndCollectErrors(browser, `${baseUrl}/index.html`);
+	const { page, errors, externalBlocked } = await loadAndCollectErrors(
+		browser,
+		`${baseUrl}/index.html`,
+		baseUrl,
+	);
 	const title = await page.title();
 	await page.close();
 	const ok = title.length > 0;
 	const errorNote = errors.length > 0
 		? ` (${errors.length} console/page error(s) seen, non-blocking — see file header comment)`
 		: '';
-	return { name: '2D shell (index.html)', ok, details: `title="${title}"${errorNote}` };
+	const blockedNote = ` [hermetic: ${externalBlocked} external request(s) blocked]`;
+	return { name: '2D shell (index.html)', ok, details: `title="${title}"${errorNote}${blockedNote}` };
 }
 
 /** @returns {Promise<{name: string, ok: boolean, details: string}>} */
 async function check3DMode(browser, baseUrl) {
-	const { page, errors } = await loadAndCollectErrors(browser, `${baseUrl}/game3d.html`);
+	const { page, errors, externalBlocked } = await loadAndCollectErrors(
+		browser,
+		`${baseUrl}/game3d.html`,
+		baseUrl,
+	);
 	let outcome = 'timeout';
 	try {
 		const handle = await page.waitForFunction(
@@ -81,10 +126,17 @@ async function check3DMode(browser, baseUrl) {
 		outcome = 'timeout';
 	}
 	await page.close();
-	const ok = outcome === 'ready' && errors.length === 0;
+	// `externalBlocked` must be 0 here, and that is a real assertion rather than a diagnostic: Altın
+	// Kural 4 requires the 3D mode to run offline, so any request the 3D path makes to a non-local
+	// origin is an offline-PWA regression — the boot only appeared to succeed because this sandbox
+	// happened to have a network. See `loadAndCollectErrors`'s comment (ADR-0099).
+	const ok = outcome === 'ready' && errors.length === 0 && externalBlocked === 0;
 	const details = ok
-		? 'loading screen hid (GAME_READY phase1-scene), zero console/page errors'
-		: `outcome=${outcome}${errors.length ? `, errors: ${errors.join('; ')}` : ''}`;
+		? 'loading screen hid (GAME_READY phase1-scene), zero console/page errors, zero external requests (offline-capable)'
+		: `outcome=${outcome}${errors.length ? `, errors: ${errors.join('; ')}` : ''}`
+			+ (externalBlocked > 0
+				? `, ${externalBlocked} external request(s) attempted — violates the offline-PWA rule (Altın Kural 4)`
+				: '');
 	return { name: '3D mode (game3d.html)', ok, details };
 }
 

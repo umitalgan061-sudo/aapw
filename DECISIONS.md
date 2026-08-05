@@ -8342,3 +8342,100 @@ a future playtest would need to recalibrate, same reasoning ADR-0097 already use
 **Geri alma planı:** `git revert` the single commit. Removes the two new `WORLD_EVENTS` objects and
 this ADR entry. Nothing else references either id — `ui/worldEventToast.js` and every smoke check
 consume the pool generically.
+
+## ADR-0099: Make the page-boot smoke checks hermetic — fixes a recurring `check2DShell` navigation-timeout flake at its measured root cause
+
+**Status:** Accepted (run 76).
+
+**Risk Seviyesi:** LOW. Test-infrastructure only — no production/runtime code changed, nothing under
+`src/` touched. Fully reversible: `git revert` restores the previous `loadAndCollectErrors` signature
+and both call sites, and nothing else in the repo calls it (verified with a repo-wide grep).
+
+**Context:** Session Snapshot at run start (2026-08-05, run 76): read `GOVERNANCE.md` in full,
+`3D_GAME_PROGRESS.md`'s last "This Run" entry (run 75), `DECISIONS.md`'s last 3 ADRs (0096/0097/0098),
+`QUESTIONS_FOR_OWNER.md` in full (7 entries, all still open, none resolvable unattended this run).
+`git fetch origin main` confirmed local `HEAD` matched `origin/main` at `f636d76` (GOVERNANCE.md
+§8.14), re-confirmed immediately before this commit.
+
+This run's **very first** baseline smoke invocation failed with `page.goto: Timeout 15000ms exceeded`
+on `check2DShell`, then passed on an immediate re-run with byte-identical code — i.e. a flaky
+regression guard, which is worse than a merely slow one: it makes every run's DoD "smoke test" line
+untrustworthy, and the standing advice was to re-run and ignore it. Run 68's own notes record the
+**same** failure with the same advice ("A one-off `check2DShell` timeout should be re-run once before
+it is treated as real"). Per GOVERNANCE.md §8.2, a second sighting of the same fault requires Root
+Cause / Prevention / Regression Test **before** code — so the cause was measured, not guessed.
+
+**Root cause (measured, not inferred):** a dev-only instrumented run logged every request's lifetime
+across 3 consecutive `index.html` loads. `index.html` references 5 external resources — 3 Firebase CDN
+scripts (`gstatic.com`), Google Fonts, and cdnjs font-awesome. This sandbox cannot reach any of them,
+and critically they do **not** fail fast: each one hangs until the sandbox resets the connection at
+**~12.6-13.4s** (`net::ERR_CONNECTION_RESET`). Because they are parser/render-blocking `<link>`/
+`<script>` tags, even `domcontentloaded` measured ~12.9-13.1s — so switching the wait condition would
+**not** have fixed it. Against `NAV_TIMEOUT_MS = 15000` that leaves only ~1.6-2.4s of headroom, and
+ordinary jitter intermittently crosses it. The check was, in effect, timing how fast the sandbox
+rejects connections rather than anything about the game.
+
+**Decision:** `loadAndCollectErrors` now takes the local server's `baseUrl` and installs a
+`page.route('**/*')` handler that aborts every request whose URL is not same-origin with it (`data:`/
+`blob:` allowed). The page-boot checks are therefore **hermetic** — they never touch the real network.
+
+Applied to the 3D check as well, deliberately, even though `game3d.html` was verified this run to
+reference **zero** external origins (so it is a no-op today): Altın Kural 4 requires the 3D mode to be
+offline-PWA-capable, so an external dependency leaking into the 3D path is a genuine regression. For
+that reason `check3DMode` now **asserts** `externalBlocked === 0` rather than merely reporting it —
+this converts a rule previously enforced only by review into one enforced by the suite.
+`check2DShell`'s assertion is deliberately left as-is (title only); its blocked count is reported in
+the details line, not asserted, because `index.html` is the legacy 2D shell where those CDN references
+are expected and out of scope for this project's 3D work.
+
+**Prevention / Regression Test (GOVERNANCE.md §8.2's required third element):** the fix is itself
+structural rather than a tuning nudge — the timeout can no longer be reached by network waiting,
+because no network wait can occur. Bumping `NAV_TIMEOUT_MS` was rejected precisely because it would
+have been a tuning nudge (see Alternatives). The new hermetic invariant is guarded going forward by
+`check3DMode`'s `externalBlocked === 0` assertion, and every run's stdout now prints the live blocked
+count for the 2D shell (`[hermetic: N external request(s) blocked]`), so a silently-removed route
+handler shows up as a changed line in output that is diffed run-over-run.
+
+**Verification:** `node --check` clean. Full smoke suite **22/22 PASS** before and after (0 FAIL); all
+8 standing guards re-run clean and unchanged. `check2DShell` measured directly, 6 consecutive calls:
+**104-445ms**, down from ~13,000ms, `ok=true` and `hermetic: 5` on every call. Görsel doğrulama
+(§8.5): before/after screenshots at two viewports (1280x800 desktop, 390x844 mobile) — 13349ms->334ms
+and 13191ms->292ms — and the rendered pages are visually identical (logo, "WESTEROS" title, subtitle,
+OYNAT button, fallback fonts all unchanged), which is the expected result precisely because those
+resources were *already* failing before this change, only 13s more slowly. 3D boot re-measured with
+and without route interception (2 runs each): 9541-9627ms routed vs 8754-9469ms unrouted — overlapping
+run-to-run variance, no measurable penalty from intercepting the ~76MB model load; those runs also
+independently re-confirmed `blocked=0` for `game3d.html`.
+
+**Honest scope limit:** this fixes the *timeout* flake only. The separate, long-standing 10-11
+fluctuation in the 2D shell's **non-blocking** console-error count was re-measured after the fix and
+still varies (the tail of the aborted requests' console errors races `page.close()`). It is left
+non-blocking and unasserted, and the code comment says so explicitly, so a later run does not mistake
+it for something this ADR made deterministic. Asserting an exact count there would be brittle.
+
+**Etkilenen sistemler:** `scripts/game3dSmokeChecksScene.js` only (`loadAndCollectErrors`,
+`check2DShell`, `check3DMode`). No `src/` file, no runtime behavior, no asset, no world data. The file
+went 411 -> 463/600 lines, comfortably within Altın Kural 7.
+
+**Gelecek Faz Etkisi:** positive and phase-agnostic. Every future phase relies on this suite as its
+regression guard, so removing a false-failure source raises the trustworthiness of every future run's
+DoD "smoke test" line. The new offline assertion additionally protects FAZ 9-10 (not yet started) from
+quietly acquiring an external runtime dependency that would break the offline-PWA guarantee.
+
+**Alternatives considered:**
+- *Raise `NAV_TIMEOUT_MS` from 15s to e.g. 30s.* Rejected — the measured wait is ~13s of pure dead
+  time on every single run; a bigger number hides the flake instead of removing it, and leaves the
+  suite paying ~13s per 2D boot forever. It also would have re-earned the same §8.2 finding on the
+  next sighting.
+- *Switch `waitUntil` from `load` to `domcontentloaded`.* Rejected on measurement: `domcontentloaded`
+  was itself ~12.9-13.1s here, because the blocking resources are in `<head>`/parser path. This is
+  exactly the kind of plausible-but-wrong fix the measure-first rule exists to catch.
+- *Stub the external resources with `route.fulfill()` instead of aborting.* Rejected as more
+  machinery for no gain: the check asserts the page title, not CDN-dependent rendering, and aborting
+  reproduces the honest "these are unreachable" condition rather than inventing a fake success.
+- *Delete the external references from `index.html`.* Rejected — that is the shipped 2D game, and
+  Altın Kural 1 ("mevcut 2D oyunu koru") puts its runtime behavior out of scope for a test fix.
+
+**Geri alma planı:** `git revert` this single commit. That restores `loadAndCollectErrors(browser,
+url)` and both original call sites; the only consequence is the return of the ~13s wait and its
+intermittent timeout.

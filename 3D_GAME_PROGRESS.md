@@ -8226,3 +8226,126 @@ this run.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 76 — scheduled autonomous routine)
+
+**Session Snapshot done first, per GOVERNANCE.md §20:** read `GOVERNANCE.md` in full,
+`3D_GAME_PROGRESS.md`'s last "This Run" entry (run 75), `DECISIONS.md`'s last 3 ADRs (0096/0097/0098),
+`QUESTIONS_FOR_OWNER.md` in full (7 entries, all still open — none resolvable unattended this run; the
+leaked NVIDIA API key entry still needs owner action and was not re-done), skimmed `CATCH_UP.md`,
+`STABLE_TAGS.md` (tail), `perf_log.csv` (tail), `CREDITS.md`. `git fetch origin main` (§8.14) confirmed
+local `HEAD` already matched `origin/main` at `f636d76` — no concurrent session to reconcile with;
+repeated immediately before each commit with the same result. (Session started on a detached HEAD at
+`f636d76`; checked out `main` and fast-forwarded to the same commit before any work.)
+
+**Priority re-scan (GOVERNANCE.md §18), fresh:** `node --check` clean across all 64 `src/`+`scripts/`
+JS files. All 8 standing guards clean: `checkSmokeCheckRegistry` (22 checks/6 modules, only the
+pre-existing `gameplayConfig.js` 597/600 WARN), `checkAssetsManifest` (41 entries, same pre-existing
+sidecar-texture WARN), `checkCreatureSpeciesConfig` (15 entries), `checkDialogueChoicesShape` (13/14,
+the deliberate ADR-0058 exclusion), `checkPwaInstallability`, `checkServiceWorkerCache` (47 JS files),
+`terrainSeatSafetyCheck` (14/14 seats), `roadNetworkSafetyCheck` (13/13 edges, 20.23km). No new assets
+on disk since run 75 (same 5 orphaned character `.glb`s and the same rigless horse), so items 12-13
+remain blocked exactly as run 75 recorded.
+
+**But the baseline smoke run itself failed** — `page.goto: Timeout 15000ms exceeded` on `check2DShell`,
+passing on an immediate re-run with identical code. That made item 10 ("Smoke test") the live,
+highest-priority item this run, ahead of item 14: a flaky regression guard devalues every run's DoD.
+
+### Sub-task 1: First governance rule-consolidation pass (GOVERNANCE.md §8.12)
+
+§8.12 requires a consolidation sub-task every ~20 runs; `GOVERNANCE.md` was created ~run 56 and this
+is the first pass since, so it was overdue. Reviewed §16's deferred-rule activation conditions
+(`SaveSystem` still absent; `perf_log.csv` at 19 rows, under the 30-row bar — nothing activates) and
+§15's periodic platform check (last done run 70, not due until ~run 90-100). No contradictory or
+obsolete rules found. One real update: §8.11 now records the `git push origin <tag>` → `HTTP 403`
+constraint as a **known, permanent environment limitation** rather than a per-run discovery — it had
+been re-reported as a fresh finding in all 15 `STABLE_TAGS.md` entries since run 58. The rule now
+states that a local tag plus a `STABLE_TAGS.md` entry satisfies the checkpoint and a failed tag push
+does not block DoD. Created `RULES_CHANGELOG.md` with this pass's entry, as §8.12 requires.
+Docs-only; committed as `517b4db`.
+
+### Sub-task 2: Make the page-boot smoke checks hermetic — fix the recurring `check2DShell` timeout flake (DECISIONS.md ADR-0099)
+
+Run 68 recorded this **same** flake and routed around it ("re-run once before treating it as real"),
+so per §8.2 this second sighting required Root Cause / Prevention / Regression Test **before** code.
+
+**Root cause, measured not guessed:** a dev-only instrumented run logged every request's lifetime
+across 3 consecutive `index.html` loads. `index.html` pulls 5 external resources (3 Firebase CDN
+scripts, Google Fonts, cdnjs font-awesome) this sandbox cannot reach — and they do not fail fast, each
+hanging **~12.6-13.4s** until the sandbox resets the connection. They are parser/render-blocking, so
+even `domcontentloaded` measured ~12.9-13.1s (meaning the obvious "just switch the wait condition" fix
+would **not** have worked). Against `NAV_TIMEOUT_MS = 15000` that left only ~1.6-2.4s of headroom;
+ordinary jitter crossed it. The check was effectively timing the sandbox's connection resets.
+
+**Fix:** `loadAndCollectErrors` now takes the local `baseUrl` and installs a `page.route('**/*')`
+handler aborting every non-same-origin request, making both page-boot checks hermetic. Applied to the
+3D check too — `game3d.html` was verified to reference zero external origins, so it is a no-op today,
+but Altın Kural 4 requires the 3D mode to be offline-capable, so `check3DMode` now **asserts**
+`externalBlocked === 0`, converting a review-only rule into a suite-enforced one.
+
+**DoD status:** `node --check` clean on the one changed file (`game3dSmokeChecksScene.js`, 411 →
+463/600). Smoke suite **22/22 PASS, 0 FAIL** before and after. All 8 standing guards re-run clean.
+`check2DShell` measured directly over 6 consecutive calls: **104-445ms** (was ~13,000ms), `ok=true`
+and `hermetic: 5` every time. **Görsel doğrulama (§8.5):** before/after screenshots at two viewports
+(1280x800: 13349ms→334ms; 390x844: 13191ms→292ms) — pages render **visually identical** (logo,
+"WESTEROS" title, subtitle, OYNAT button, fallback fonts), the expected result since those resources
+were already failing before, only 13s more slowly. **Performance:** 3D boot re-measured with and
+without route interception (2 runs each) — 9541-9627ms routed vs 8754-9469ms unrouted, overlapping
+run-to-run variance, so no penalty from intercepting the ~76MB model load; those runs independently
+re-confirmed `blocked=0` for `game3d.html`. `perf_log.csv` `run76` row is a real headless sample (not
+copied): 46 draw calls / 393,231 triangles / 44 geometries / 17 textures — bit-identical to `run75`,
+as expected for a test-infra-only change. Memory-leak checklist: the route handler is per-`Page` and
+dies with the `page.close()` each check already performs; no new listener/timer/DOM/geometry in
+production code (no `src/` file touched at all). Tech debt counter: **0** (unchanged). ADR-0099
+written. Console clean.
+
+**Honest scope limit, recorded deliberately:** this fixes the *timeout* only. The separate
+long-standing 10-11 fluctuation in the 2D shell's **non-blocking** console-error count was re-measured
+after the fix and still varies (the aborted requests' console-error tail races `page.close()`). An
+earlier draft of the code comment claimed the fix made that count deterministic; that claim was
+disproven by this run's own full-suite output (10 in one run, 11 in another) and was corrected before
+commit rather than shipped. It stays unasserted, and the comment now warns against asserting it.
+
+**AI Self-Review 2. Geçiş (§8.3):** the review's one substantive catch was performance — adding route
+interception to the check that streams ~76MB of models could plausibly have traded a 2D win for a 3D
+loss, so it was measured rather than assumed (result above: no measurable penalty). Also verified via
+repo-wide grep that `loadAndCollectErrors` has no callers outside this file, so the signature change
+is contained; confirmed `collectPerfSnapshot.js` uses `devServerHelper.js` directly and is unaffected.
+
+**Session Quality Gate (GOVERNANCE.md §8.6) after 2 sub-tasks:** confidence **5/5** — the fix targets a
+root cause measured with real instrumentation rather than a plausible guess (and the measurement
+actively ruled out the most obvious wrong fix), it is test-infrastructure-only with zero runtime
+blast radius, it is fully reversible, and every guard plus the full suite re-ran clean. No "6 months
+from now" ambiguity: ADR-0099 records the measured timings, the rejected alternatives with the reason
+each was rejected, and the explicit scope limit.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| Smoke suite | 22/22 (flaky) | **22/22 (hermetic)** | same count, no longer network-dependent |
+| `check2DShell` wall time | ~13,000ms | **104-445ms** | ~30-125x faster, timeout headroom now structural |
+| Offline-PWA rule enforcement | review-only | **suite-asserted** | `check3DMode` asserts zero external requests |
+| `game3dSmokeChecksScene.js` lines | 411/600 | **463/600** | +52, within cap |
+| ADR headers in `DECISIONS.md` | 97 | **98** | +1 (ADR-0099) |
+| `perf_log.csv` rows | 19 | **20** | +1 (`run76`) |
+| Governance docs | GOVERNANCE.md | **+ RULES_CHANGELOG.md** | +1 file (§8.12) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no scene objects touched) |
+
+**Oyuncu fark eder mi:** hayır — bu çalıştırmada oyunun kendisinde hiçbir şey değişmedi (tek bir `src/`
+dosyasına dokunulmadı). Değer dolaylı ama gerçek: oyunu koruyan otomatik test artık ağ koşullarına
+bağlı olarak rastgele başarısız olmuyor, yani bundan sonraki her çalıştırmanın "smoke test geçti"
+raporu güvenilir; ayrıca 3D modun internetsiz çalışma garantisi artık insan gözüne değil teste bağlı.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. `gameplayConfig.js`'s
+597/600 remains the one line-count watch-item (untouched this run). Confirmed still blocked, unchanged
+from run 75: the remaining 6 castle seats and all FAZ 6 animals needing real rigged models, dragon
+attack/fire-breath (owner decision pending in `QUESTIONS_FOR_OWNER.md`),
+`erkek-insan`/`kadin-insan`/`koylu` differentiation (no design reason to invent one). Note for whoever
+next grows `WORLD_EVENTS`: run 75 exhausted the "previously considered" ideas banked in ADR-0097, so a
+genuinely new theme would have to be invented. No blocking bugs, syntax errors, or regressions found.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.
