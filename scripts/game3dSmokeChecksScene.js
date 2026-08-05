@@ -61,8 +61,18 @@ const GAME3D_READY_TIMEOUT_MS = 60000;
 async function loadAndCollectErrors(browser, url, baseUrl) {
 	const page = await browser.newPage();
 	const errors = [];
+	// Uncaught `pageerror`s are tracked separately from `console.error`s (run 83, ADR-0109). The two
+	// are not the same severity: a `console.error` here is usually this sandbox reporting a blocked
+	// external request or a `.gitignore`d media file (`/resimler/`, `/videolar/`), i.e. an artifact
+	// of the hermetic environment. An uncaught `pageerror` is a real thrown exception that aborted
+	// whatever script raised it — which is exactly how the 2D game's offline crash went unnoticed
+	// for 83 runs, averaged into an "11 errors, non-blocking" count.
+	const pageErrors = [];
 	let externalBlocked = 0;
-	page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
+	page.on('pageerror', (err) => {
+		errors.push(`pageerror: ${err.message}`);
+		pageErrors.push(err.message);
+	});
 	page.on('console', (msg) => {
 		if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
 	});
@@ -76,30 +86,64 @@ async function loadAndCollectErrors(browser, url, baseUrl) {
 		return route.abort();
 	});
 	await page.goto(url, { waitUntil: 'load', timeout: NAV_TIMEOUT_MS });
-	return { page, errors, externalBlocked };
+	return { page, errors, pageErrors, externalBlocked };
 }
 
 /**
- * Non-blocking: only a failed navigation (empty title) counts against `ok`. Console/page errors
- * are reported for visibility but never fail this check — they trace to this sandbox's
- * external-network restrictions and a pre-existing, unrelated 2D media-asset gap, not to anything
- * a 3D-mode regression could cause.
+ * Guards Altın Kural 1 ("preserve the existing 2D game") against the specific failure ADR-0109
+ * fixed: with every external origin blocked (the offline/installed-PWA case, since the Firebase SDK
+ * is loaded from Google's CDN), `script.js` used to throw an uncaught `ReferenceError: firebase is
+ * not defined` on its second line and abort the entire 4,100-line game script.
+ *
+ * Two assertions, deliberately at different strictness:
+ * - **Hard (fails the check):** zero uncaught `pageerror`s, and `script.js` must run to completion.
+ *   Completion is proven by the file's own last statement, a `console.log` — a real end-of-file
+ *   marker, not a proxy like "some global exists" that an early abort could still satisfy.
+ * - **Soft (reported only):** the `console.error` count. Those are dominated by this sandbox's
+ *   blocked external requests and by `/resimler/`+`/videolar/` media that `.gitignore` deliberately
+ *   keeps out of the repo, so failing on them would make this check environment-dependent.
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */
 async function check2DShell(browser, baseUrl) {
-	const { page, errors, externalBlocked } = await loadAndCollectErrors(
-		browser,
-		`${baseUrl}/index.html`,
-		baseUrl,
-	);
+	const page = await browser.newPage();
+	const errors = [];
+	const pageErrors = [];
+	let externalBlocked = 0;
+	let ranToCompletion = false;
+	page.on('pageerror', (err) => {
+		errors.push(`pageerror: ${err.message}`);
+		pageErrors.push(err.message);
+	});
+	page.on('console', (msg) => {
+		if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
+		// `script.js`'s own final statement — see its last line. Reaching it proves the whole file
+		// executed, which is precisely what the pre-ADR-0109 crash prevented.
+		if (msg.text().includes('Script başarıyla yüklendi')) ranToCompletion = true;
+	});
+	await page.route('**/*', (route, request) => {
+		const requestUrl = request.url();
+		const isLocal = requestUrl.startsWith(baseUrl)
+			|| requestUrl.startsWith('data:')
+			|| requestUrl.startsWith('blob:');
+		if (isLocal) return route.continue();
+		externalBlocked += 1;
+		return route.abort();
+	});
+	await page.goto(`${baseUrl}/index.html`, { waitUntil: 'load', timeout: NAV_TIMEOUT_MS });
 	const title = await page.title();
 	await page.close();
-	const ok = title.length > 0;
-	const errorNote = errors.length > 0
-		? ` (${errors.length} console/page error(s) seen, non-blocking — see file header comment)`
-		: '';
-	const blockedNote = ` [hermetic: ${externalBlocked} external request(s) blocked]`;
-	return { name: '2D shell (index.html)', ok, details: `title="${title}"${errorNote}${blockedNote}` };
+
+	const ok = title.length > 0 && pageErrors.length === 0 && ranToCompletion;
+	const consoleErrorCount = errors.length - pageErrors.length;
+	const details = ok
+		? `title="${title}", zero uncaught pageerrors and script.js ran to completion with all `
+			+ `${externalBlocked} external request(s) blocked (ADR-0109 offline guard); `
+			+ `${consoleErrorCount} console.error(s) seen — blocked CDNs + .gitignore'd media, soft-reported`
+		: `title="${title}"`
+			+ (pageErrors.length ? `, ${pageErrors.length} UNCAUGHT pageerror(s): ${pageErrors.join('; ')}` : '')
+			+ (ranToCompletion ? '' : ', script.js did NOT run to completion (aborted early — see ADR-0109)')
+			+ ` [hermetic: ${externalBlocked} external request(s) blocked]`;
+	return { name: '2D shell (index.html) — offline/no-CDN resilience', ok, details };
 }
 
 /** @returns {Promise<{name: string, ok: boolean, details: string}>} */

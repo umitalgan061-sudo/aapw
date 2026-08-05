@@ -90,3 +90,19 @@ instead of guessed at silently. Newest entry at the bottom.
   Tersini istersen tek bir küçük alt görev yeterli: `dialogueChoices.js`'e 2 seçenekli bir giriş
   (Duvar'ın ötesi / Gece Nöbeti yemini gibi temalarla) + mevcut 24/24 smoke suite'i zaten bu şekli
   doğruluyor.
+
+- **(run 83, ADR-0109) 2D oyun çevrimdışı açıldığında veri yüklemesi otomatik başlıyor mu — sende
+  gerçek cihazda kontrol edebilir misin?** Bu çalıştırma 2D oyunun çevrimdışıyken tamamen ölü
+  olduğunu buldu ve düzeltti (`script.js` 2. satırda Firebase CDN'i yoksa çöküyordu, tüm oyun iptal
+  oluyordu — ayrıntı ADR-0109). Düzeltmeden sonra `script.js` sonuna kadar çalışıyor ve
+  `loadData()` elle çağrıldığında yerel veriye düzgün düşüyor (14 krallık, 74 işaret). Ekran
+  görüntüsüyle doğrulandı: çevrimdışıyken açılış ekranı ("WESTEROS / YEDİ KRALLIK HARİTASI" +
+  OYNAT düğmesi) artık düzgün geliyor — düzeltmeden önce `script.js` hiç çalışmadığı için burası
+  ölüydü. Doğrulayamadığım tek şey OYNAT'a basıldıktan SONRAki harita durumu: başsız (headless)
+  ortamda krallık verisi o aşamada boş kalıyor, ama harita zaten bu düğmenin arkasında olduğundan
+  bunun gerçek bir sorun mu yoksa test ortamının bir kısıtı mı olduğunu ayırt edemedim. Her hâlükârda
+  düzeltmeden ÖNCE de (hatta çok daha kötü biçimde) geçerliydi — yeni bir regresyon değil. **Geçici
+  varsayılan:** çökme düzeltildi ve kalıcı testle korundu; açılış akışı olduğu gibi bırakıldı,
+  §22'nin "aynı şeyde 2 başarısız denemeden sonra bırak" kuralı gereği zorlanmadı. **Senden
+  istenen (1 dakikalık kontrol):** telefonunda PWA'yı kur, uçak moduna al, aç ve OYNAT'a bas —
+  harita ve krallıklar geliyor mu? Gelmiyorsa kendi alt görevi olarak ele alınacak.

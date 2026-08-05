@@ -9493,3 +9493,127 @@ changed; the only visible effect is these two new toasts entering the random rot
 **Geri alma planı:** `git revert` the single commit — removes both new objects and this ADR entry.
 Nothing else references either id; `Object.freeze` and the picking mechanism are untouched either
 way.
+## ADR-0109: The 2D game was completely dead offline — `script.js` crashed on line 2 when the Firebase CDN was unreachable
+
+**Status:** Accepted (run 83, sub-task 3).
+
+**Risk Seviyesi:** MEDIUM. This is the first change to the 2D game's `script.js` in this whole 3D
+effort, and Altın Kural 1 ("mevcut 2D oyunu koru") governs it. Mitigated by the online path being
+provably unchanged (see Verified) and by a new hard regression assertion. Fully reversible:
+`git revert`.
+
+**Context — a real blocking bug (priority item 6), hiding in plain sight for 83 runs.** The smoke
+suite has always reported `PASS: 2D shell (index.html) — title="..." (11 console/page error(s) seen,
+non-blocking)`. That "non-blocking" note was written when the errors were assumed to be sandbox
+artifacts, and no run since re-opened it. This run categorised all 11 by hand with a throwaway
+Playwright probe. They are three different things:
+
+1. **5 blocked external requests** (Google Fonts, cdnjs FontAwesome, and three
+   `gstatic.com/firebasejs/*` SDK scripts) — genuine hermetic-sandbox artifacts.
+2. **4 local 404s** (`/resimler/map.png` ×2, `/resimler/kapak.png`, `/videolar/ilk22.mp4`) — **not
+   bugs**: `.gitignore` deliberately excludes `/resimler/`, `/videolar/` and `/sounds/`, so those
+   binaries are simply not in the repo. Correctly left alone.
+3. **1 uncaught `ReferenceError: firebase is not defined` at `script.js:2`** — a real, severe bug.
+
+`index.html` loads the Firebase SDK from Google's CDN (lines 1092-1094, `defer`) and then
+`script.js` (line 1393, `defer`). `script.js`'s *second statement* was an unguarded
+`firebase.initializeApp({...})`, with `firebase.firestore()` at line 10 and `firebase.database()` at
+line 35. A top-level throw aborts the rest of a script, so whenever that CDN was unreachable, **the
+entire 4,147-line 2D game never executed** — not degraded, dead: no rendering, no PWA install
+prompt, no input handling. The service worker does not precache `www.gstatic.com/firebasejs/*`
+(it only special-cases `googleapis.com` hostnames at runtime, `service-worker.js:177-180`), so this
+is exactly the state of an **installed PWA opened offline** — which is the whole point of Altın
+Kural 4 ("offline PWA") and of the PWA install path `checkPwaInstallability.js` guards.
+
+The most striking part: the author had *already written* the graceful-degradation path. `loadData()`
+wraps its Firestore reads in `try/catch` and falls back to `cloneInit()` local data with a
+`'⚠️ Yerel veri kullanılıyor'` toast; `saveData()` does the same with `'⚠️ Kayıt hatası'`. None of
+it could ever run, because the crash happened ~890 lines earlier.
+
+**Decision:** Guard only the three top-of-file SDK entry points; change nothing downstream.
+1. `firebase.initializeApp(...)` moved inside an IIFE returning a `firebaseReady` boolean —
+   `typeof firebase === 'undefined'` short-circuits with one clear Turkish `console.warn`, and the
+   `initializeApp` call itself is `try/catch`ed so a malformed/partial SDK also degrades instead of
+   throwing.
+2. `db` and `rtdb` become `firebaseReady && typeof firebase.X === 'function' ? firebase.X() : null`.
+   Each sub-SDK is probed separately because they are three independent `<script>` tags — one can
+   load while another fails.
+3. `multiplayerBaslat()` gets an `if (!rtdb) return;` early exit (matching its existing
+   `if (multiplayerAktif) return;` style). Because it returns *before* setting
+   `multiplayerAktif = true`, the other Realtime-DB caller `krallığıGuncelleMultiplayer()` is
+   already covered by its own pre-existing `if (!multiplayerAktif) return;` — no second guard, no
+   duplicated condition.
+4. Nothing else changed. The 8 Firestore call sites downstream are untouched: with `db === null`,
+   `db.collection(...)` throws a `TypeError` *inside the author's existing `try` blocks*, so the
+   fallback he already wrote runs. Verified empirically, not assumed — see below.
+
+**Alternatives considered:**
+- *Precache the Firebase SDK from gstatic in the service worker so offline gets real cloud sync.*
+  Rejected for this commit: it is a different feature (offline *sync*, not offline *survival*),
+  involves cross-origin caching of a third-party CDN and its own version-pinning/staleness questions, and
+  would not have fixed the crash for a first-ever visit with no network. The local-data fallback is
+  what the author designed for; this commit makes it reachable. Noted as a possible follow-up.
+- *Vendor the Firebase SDK into the repo like three.js already is.* Rejected — much larger change,
+  licensing/size review needed, and it still would not guard against a partial/failed load. Also
+  outside a bug-fix commit's scope.
+- *Wrap the whole of `script.js` in a giant try/catch.* Rejected — hides every future error instead
+  of the one specific, understood failure mode, and would leave the game half-initialised in an
+  unpredictable state rather than cleanly local-only.
+- *Fix the 4 local 404s by committing the media.* Rejected — `.gitignore` excludes those directories
+  deliberately; they are presumably deployed out-of-band. Not this run's call to reverse.
+
+**Verified:**
+- `node --check script.js` and `node --check scripts/game3dSmokeChecksScene.js` clean.
+- **Before (measured, hermetic):** 1 uncaught `pageerror: firebase is not defined` @ `script.js:2:1`,
+  10 `console.error`s, and `script.js` never reached its final line.
+- **After (measured, same harness):** **0 uncaught pageerrors**; `script.js` runs to completion (its
+  own last-line `console.log('✅ ... Script başarıyla yüklendi!')` observed); `firebaseReady === false`,
+  `db === null`, `rtdb === null` exactly as designed; the offline `console.warn` fires once.
+- **The fallback actually produces a playable dataset, not just a non-crash:** invoking `loadData()`
+  with `db === null` yields **14 kingdoms and 74 markers**, first kingdom `"Ümit Targeryan"` — i.e.
+  control reaches the author's `catch` and `cloneInit()` path precisely as intended.
+- **Online path proven unchanged by construction:** when `firebase` is defined, `firebaseReady` is
+  `true` and the three calls are made with byte-identical config to before, so `db`/`rtdb` are the
+  same objects and all 10 downstream call sites are untouched.
+- **New hard regression guard.** `check2DShell` was rewritten from "only an empty title fails" to
+  also fail on (a) any uncaught `pageerror`, (b) `script.js` not reaching its final statement. The
+  `console.error` count stays *soft*-reported, because it is dominated by blocked CDNs and
+  `.gitignore`d media and would otherwise make the check environment-dependent. Its name is now
+  "2D shell (index.html) — offline/no-CDN resilience". This is the assertion whose absence let the
+  bug survive 83 runs behind an averaged "11 errors, non-blocking" note.
+- Full smoke suite re-run after the change; all standing guards clean (`checkSmokeCheckRegistry`: 24
+  checks / 7 modules, 63 files within the 600-line cap; `checkServiceWorkerCache`,
+  `checkPwaInstallability`, `checkDialogueChoicesShape`, `checkAssetsManifest` all OK).
+- 3D mode unaffected: still "zero console/page errors, zero external requests".
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed `firebaseReady` is `const` and evaluated once, so no
+TOCTOU between the probe and the `db`/`rtdb` initialisers; confirmed returning early from
+`multiplayerBaslat()` *before* the `multiplayerAktif = true` assignment is what makes the second
+guard unnecessary (reversing those two lines would silently break it); confirmed the Firebase web
+API key left in the config is not a leak of the ADR-0081 kind — Firebase web configs are public by
+design and secured by `firestore.rules`, which the repo has; confirmed all messages are Turkish per
+GOVERNANCE.md §15's in-game-text rule while code/comments stay mixed as the file already was;
+confirmed no `TEMP`/`HACK`/`FIXME` language.
+
+**Etkilenen sistemler:** `script.js` (lines 1-35 and `multiplayerBaslat()` only),
+`scripts/game3dSmokeChecksScene.js` (`check2DShell` + `loadAndCollectErrors` bookkeeping). No 3D
+module, no asset, no service-worker change.
+
+**Consequences:** The installed PWA now survives being opened offline — it loads the local
+14-kingdom dataset instead of showing a dead page. The smoke suite can no longer regress this
+silently. It also retires a bad habit: an error count that gets summarised as "non-blocking" without
+anyone re-deriving *why* is a place bugs hide, and the check now distinguishes thrown exceptions
+from environmental noise instead of averaging them together.
+
+**Known limitation, deliberately not fixed here (see `QUESTIONS_FOR_OWNER.md`):** the screenshot
+confirms the offline title screen ("WESTEROS / YEDİ KRALLIK HARİTASI" + OYNAT button) now renders,
+which was dead before this commit. What could not be confirmed headlessly is the map state *after*
+the OYNAT gate — `kingdoms` is still empty at title-screen time, though that is where the map is
+supposed to be gated anyway, so it may simply be the intended intro flow rather than a defect. It is
+a *separate, pre-existing* question either way — before this commit nothing ran at all — and chasing
+it further hit this run's §22 two-attempt limit, so it is recorded for a real-device check rather
+than rushed.
+
+**Geri alma planı:** `git revert` the single commit — restores the unguarded `initializeApp`/
+`firestore()`/`database()` calls, the `multiplayerBaslat` guard, and the softer `check2DShell`.
+Nothing else depends on `firebaseReady`.

@@ -9131,3 +9131,93 @@ blocked product decision).
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+### Sub-task 2: FAZ 5 recorded as complete-by-design at 13/14 (DECISIONS.md ADR-0107)
+
+Docs-only. GOVERNANCE.md §17's "FAZ 5: NPC diyalog 13/14" reads as an unfinished task; it is not.
+`jon-guard-1` has no dialogue choices because ADR-0058 deliberately excluded him (his Night's Watch
+greeting is intentionally closed-off: "Duvar'ın ötesinde ne olduğunu bilmek istemezsin"), and
+`dialogueChoices.js:33-35` has said so since run 44. Roadmap line corrected; reversal escalated to
+`QUESTIONS_FOR_OWNER.md` per §14 instead of overturned unilaterally. `checkDialogueChoicesShape.js`'s
+"13/14" output deliberately left alone — it is a soft warning reporting the honest raw ratio, and
+baking a product decision into a static-analysis tool would hide the real count if the owner
+reverses the call.
+
+### Sub-task 3: the 2D game was completely dead offline — `script.js` crashed on line 2 (DECISIONS.md ADR-0109)
+
+**The most significant bug found in this project so far, and it had been visible in every smoke run
+for 83 runs.** The suite always printed `PASS: 2D shell — (11 console/page error(s) seen,
+non-blocking)`. Nobody re-derived *why* those 11 were non-blocking. This run categorised all of them
+with a throwaway Playwright probe: 5 are blocked external CDNs (sandbox artifact), 4 are local 404s
+for `/resimler/`+`/videolar/` media that `.gitignore` deliberately excludes (not bugs) — and 1 was a
+real, severe defect: **`Uncaught ReferenceError: firebase is not defined` at `script.js:2`.**
+
+`index.html` loads the Firebase SDK from Google's CDN, then `script.js`, whose *second statement* was
+an unguarded `firebase.initializeApp(...)`. A top-level throw aborts the rest of a script, so whenever
+that CDN was unreachable — offline, filtered network, CDN outage — **the entire 4,147-line 2D game
+never executed.** The service worker does not precache `gstatic.com/firebasejs/*`, so this is exactly
+the state of an installed PWA opened offline, i.e. a direct violation of Altın Kural 4 and a
+blocking bug on Altın Kural 1's protected 2D game. The bitter detail: the author had *already
+written* the graceful fallback (`loadData()` catches and falls back to local data with a
+"Yerel veri kullanılıyor" toast) — it just sat ~890 lines below a crash that made it unreachable.
+
+Fix guards only the three SDK entry points (`initializeApp` in an IIFE returning `firebaseReady`;
+`db`/`rtdb` probed per-sub-SDK since they are three independent `<script>` tags; an `if (!rtdb)
+return;` in `multiplayerBaslat()` placed *before* `multiplayerAktif = true`, which is what makes a
+second guard in `krallığıGuncelleMultiplayer()` unnecessary). All 10 downstream Firestore call sites
+untouched — with `db === null` they throw inside the author's existing `try` blocks and his fallback
+runs. Full reasoning in ADR-0109.
+
+**DoD status:** `node --check` clean. **Measured before:** 1 uncaught pageerror, script.js never
+reached its last line. **Measured after:** **0 uncaught pageerrors**, script.js runs to completion,
+`firebaseReady===false`/`db===null`/`rtdb===null` as designed, and calling `loadData()` yields **14
+kingdoms + 74 markers** ("Ümit Targeryan") — proving the fallback path, not just the absence of a
+crash. Screenshot: the offline title screen now renders (was dead). Online path unchanged by
+construction (same config, same objects, untouched call sites). Full suite **24/24 PASS, 0 FAIL**;
+all standing guards clean. `perf_log.csv` `run83b` GPU metrics bit-identical to run76-83. Tech debt:
+**0**. ADR-0109 written.
+
+**New permanent guard:** `check2DShell` was rewritten from "only an empty title fails" to hard-fail
+on (a) any uncaught pageerror and (b) `script.js` not reaching its final statement, while keeping the
+`console.error` count *soft*-reported (it is dominated by blocked CDNs and gitignored media, so
+failing on it would make the check environment-dependent). Renamed to
+"2D shell (index.html) — offline/no-CDN resilience". The averaged "11 errors, non-blocking" note is
+precisely what let this hide, so the check now separates thrown exceptions from environmental noise.
+
+**Session Quality Gate (§8.6) after 3 sub-tasks:** confidence **5/5** on sub-tasks 1-2, **4/5** on
+sub-task 3 — the crash fix, its proof, and its regression guard are solid and measured, but one
+loose end is honestly open (see below), and it touches the protected 2D game, so 5/5 would be
+overclaiming. **Stopping the run here** per §8.7's run-wide cap: this run has run long, and the
+parallel backlog audit could not be completed (all 7 investigators died on a session usage limit),
+so the next run should re-scan fresh rather than me guessing at a 4th item while degraded.
+
+**Honest loose end:** headlessly I could not confirm the map state *after* the OYNAT gate —
+`kingdoms` is still empty at title-screen time, which may simply be the intended intro flow. It is
+pre-existing either way (before this fix nothing ran at all) and chasing it hit §22's two-attempt
+limit, so it is queued in `QUESTIONS_FOR_OWNER.md` as a one-minute real-device check.
+
+**World Evolution Report (run 83, all 3 sub-tasks):**
+
+| Metric | Run 83 start | Run 83 end | Delta |
+|---|---|---|---|
+| 2D game works offline / no-CDN | **no — whole script aborted at line 2** | **yes** | 🔴→🟢 blocking bug fixed |
+| `safeMode.js` cleanup-throw containment | 0/2 helpers | **2/2** | +2 |
+| Smoke suite | 22/22 | **24/24** | +2 checks, plus `check2DShell` made strict |
+| Smoke-check modules | 6 | **7** | +1 |
+| ADR headers in `DECISIONS.md` | 105 | **108** | +3 (0106, 0107, 0108) |
+| `perf_log.csv` rows | 26 | **28** | +2 (`run83`, `run83b`) |
+| Open owner questions | 6 | **8** | +2 (FAZ 5 reversal, offline map check) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged |
+
+**Oyuncu fark eder mi:** EVET, bu sefer çok net. Telefonuna kurduğun PWA'yı internetsiz açtığında
+2D oyun şimdiye kadar tamamen boş/ölü geliyordu — açılış ekranı bile çizilmiyordu, çünkü oyunun
+tüm kodu ikinci satırda çöküyordu. Artık internetsiz açılışta oyun normal şekilde geliyor ve bulut
+kaydı yerine yerel veriyle çalışıyor. İnternet varken hiçbir şey değişmedi.
+
+**Next step for the next run:** re-run the backlog audit (this run's died on a usage limit). Known
+open items: the offline map check above, the FAZ 5 reversal question, plus the unchanged
+model-blocked/owner-blocked backlog. `CATCH_UP.md`'s 10-run digest due at run 88.
+
+**Addendum:** commit/push and stable-tag outcomes are recorded in `STABLE_TAGS.md`.
