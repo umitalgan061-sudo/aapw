@@ -41,7 +41,7 @@ export class DialogueBox {
 	 * Shows the box with the given text, replacing whatever was shown before.
 	 * @param {string} text
 	 * @param {string[]} [choiceLabels] Numbered choice labels rendered below the text (this method
-	 *   adds the "1)"/"2)" prefix itself — callers pass the bare label). Omit/empty for a plain
+	 *   adds the "1)"/"2)"/... prefix itself — callers pass the bare label). Omit/empty for a plain
 	 *   response with no choices, which also reverts the hint back to "E / Esc - Kapat".
 	 */
 	show(text, choiceLabels = []) {
@@ -54,7 +54,14 @@ export class DialogueBox {
 				return choiceEl;
 			}),
 		);
-		this._hintEl.textContent = choiceLabels.length > 0 ? '1/2 - Seç, Esc - Kapat' : 'E / Esc - Kapat';
+		// Built from choiceLabels.length rather than hardcoded "1/2" (run 79 and earlier) — that literal
+		// was silently wrong for any NPC with a 3rd choice (interaction.js's DIALOGUE_CHOICE_KEY_CODES
+		// already reaches Digit3; only the hint text never scaled). Byte-identical output for the
+		// existing 2-choice case, so no behavior change for any of the 13 already-shipped NPCs.
+		this._hintEl.textContent =
+			choiceLabels.length > 0
+				? `${choiceLabels.map((_, index) => index + 1).join('/')} - Seç, Esc - Kapat`
+				: 'E / Esc - Kapat';
 		this._visible = true;
 		this._el.hidden = false;
 	}

@@ -12,7 +12,10 @@
 /** FAZ 5's real branching pilot (started run 44, DECISIONS.md ADR-0058; grown run 46 to 4,
  * DECISIONS.md ADR-0060; grown run 47 to 6, DECISIONS.md ADR-0062; grown run 48 to 8,
  * DECISIONS.md ADR-0063; grown run 49 to 10, DECISIONS.md ADR-0064; grown run 50 to 12,
- * DECISIONS.md ADR-0067; grown run 51 to 13, DECISIONS.md ADR-0069). 13 of 14 NPCs
+ * DECISIONS.md ADR-0067; grown run 51 to 13, DECISIONS.md ADR-0069; run 80, DECISIONS.md
+ * ADR-0103, gave `umit-guard-1` a 3rd choice — the pilot's first NPC to use the 3rd of
+ * `interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` slots, which has been reachable since run 44 but
+ * never exercised; every other listed NPC below still has exactly 2). 13 of 14 NPCs
  * (`umit-guard-1`/`berkalp-guard-1` — the player's home seat and the Stark seat the wolves already
  * patrol at; `doran-guard-1`/`xaro-guard-1` — Dorne's pride and Qarth's thirteen gates;
  * `cersei-guard-1`/`stannis-guard-1` — Lannister gold and Baratheon justice, both already
@@ -42,6 +45,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Ümit Targeryan nerede?',
 			response: '{name}: Lordumuz surların içinde, danışmanlarıyla meşgul. Onu rahatsız etmeni tavsiye etmem.',
+		}),
+		Object.freeze({
+			label: 'Burada nöbet tutmak seni hiç korkutuyor mu?',
+			response: '{name}: Korku, gafil avlanmayanı ısırmaz, yabancı. Ben gözümü dört açarım, korkuya vaktim olmaz.',
 		}),
 	]),
 	'berkalp-guard-1': Object.freeze([

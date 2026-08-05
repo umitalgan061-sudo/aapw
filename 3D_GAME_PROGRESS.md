@@ -8645,3 +8645,110 @@ found this run.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-05, run 80 — scheduled autonomous routine)
+
+**Session Snapshot done first, per GOVERNANCE.md §20:** read `GOVERNANCE.md` in full (302 lines) —
+this run's incoming instruction again opened with a "first, one-time" request to create it;
+independently re-verified (full read, not a grep-for-literal-phrasing pass, which initially found
+nothing and could have been misread as "missing") that every rule this run's instruction named is
+already present under differently-worded Turkish headings — confirmed a no-op, already done at run
+76. Read `3D_GAME_PROGRESS.md`'s last entry (run 79), `DECISIONS.md`'s last 3 ADRs (0100/0101/0102),
+`QUESTIONS_FOR_OWNER.md` in full (8 entries, all still open), `STABLE_TAGS.md`/`perf_log.csv`/
+`CATCH_UP.md`/`RULES_CHANGELOG.md`/`CREDITS.md` tails. Session started on a detached `HEAD` at run
+79's final commit (`821b49c`); `git fetch origin main` showed `origin/main` already at that same
+commit — `git checkout main` was a no-op sync, no concurrent session to reconcile with
+(GOVERNANCE.md §8.14).
+
+**Baseline regression guard:** full `node --check` sweep (69 files) — clean. Full
+`scripts/smokeTestGame3D.js` — **22/22 PASS**, 0 FAIL, before any new code. All 8 standing guards
+clean, zero WARN beyond the pre-existing, expected `checkAssetsManifest` texture/sidecar note.
+`perf_log.csv` implicit baseline: bit-identical to run76-79 (46 draw calls / 393,231 triangles / 44
+geometries / 17 textures).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 (terrain macro relief, road network, ground
+color, castle texturing) confirmed already done via their own standing guards. Items 5-11 all
+healthy, unchanged from run 79. Item 12 (dragon attack, FAZ 6 animals) and item 13 (FAZ 11 species)
+remain blocked — no new model assets since run ~59 (`git log --diff-filter=A -- 'assets/models/*'`
+re-checked), dragon attack still gated on the unresolved health-system question (run 66). That
+leaves item 14 ("Yeni özellik"). Rather than a 5th consecutive `worldEvents.js` flavor-pool growth
+round (runs 74/75/78/79), this run diversified within the same low-risk bucket: `interaction.js`'s
+3rd dialogue-choice slot has been reachable since run 44 but no NPC had ever used it, and reading
+`dialogueBox.js` before touching it surfaced a real latent bug (its hint text was hardcoded to
+"1/2", never updated for a 3rd choice) — see ADR-0103 for full reasoning.
+
+### Sub-task 1: 3rd dialogue choice for `umit-guard-1` + fix `dialogueBox.js`'s hardcoded 2-choice hint text (DECISIONS.md ADR-0103)
+
+Gave `umit-guard-1` (the player's own home seat) a 3rd choice — "Burada nöbet tutmak seni hiç
+korkutuyor mu?" — proving `interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`' 3rd slot for the first
+time. Fixed `ui/dialogueBox.js`'s hint text to build itself from `choiceLabels.length` instead of a
+hardcoded `'1/2 - Seç, Esc - Kapat'` literal that would have silently under-reported a 3rd choice.
+Full reasoning, alternatives considered, and both fixes' exact diffs in ADR-0103.
+
+**DoD status:** `node --check` clean on both changed files (`dialogueBox.js` 82/600,
+`dialogueChoices.js` 174/600). Smoke suite **22/22 PASS** after (unchanged — the interaction
+controller's own check uses mocks that never inspect real hint text). `checkDialogueChoicesShape.js`
+OK: 13/13 NPC entries still resolve, all choices within the 3-slot limit, pilot coverage unchanged at
+13/14. All 7 other standing guards clean, unaffected. **Real headless-Chromium proof:** an
+uncommitted, dev-only Playwright script booted live `game3d.html` (zero console/page errors, zero
+external requests, `game3d-loading` reached `g3d-loading-hidden`), then in-page drove the real
+`DialogueBox`/`createInteractionController`/`CHOICES_BY_NPC_ID` — confirmed an existing 2-choice NPC
+(`berkalp-guard-1`) still renders the exact pre-existing `'1/2 - Seç, Esc - Kapat'` hint (regression
+proof), then confirmed `umit-guard-1` renders all 3 real choice labels with hint `'1/2/3 - Seç, Esc -
+Kapat'`, and that pressing `Digit3` shows the real new response verbatim and reverts the hint to
+`'E / Esc - Kapat'`. Two screenshots at distinct camera angles (default boot camera, then a real
+F4-free-cam drag) both show the 3-choice box rendered correctly over the live scene (castle
+silhouette, player model, starlit sky, a real `WorldEventToast` mid-flight in both, proving the scene
+keeps ticking underneath). Memory-leak checklist: n/a — no listener/timer/DOM node left dangling by
+the shipped change itself (the proof script's own throwaway `DialogueBox` instances were disposed).
+Tech debt counter: **0** (unchanged). ADR-0103 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** re-derived (not just spot-checked) that the new hint-text
+template reproduces both prior literals exactly for 0 and 2 choices; confirmed the 3rd choice reads
+as a distinct angle (guard's own character) from the existing 2 (dragon lore / lord's whereabouts),
+not a near-duplicate; confirmed no HBO-specific material; confirmed `dialogueChoices.js`'s header
+needed an update (tracks growth history) and updated it; confirmed
+`checkDialogueChoicesShape.js` needed zero changes since its slot-count check already derives from
+`interaction.js` rather than a hardcoded `2`.
+
+**Session Quality Gate (GOVERNANCE.md §8.6) after 1 sub-task:** confidence **5/5** — a real,
+previously-unexercised code path (the 3rd choice slot) got its first content, a real latent bug got
+fixed with the fix's correctness proven (not assumed) against every existing caller, and the change
+deliberately avoided repeating the same growth pattern a 5th consecutive time. No "6 months from now"
+ambiguity: ADR-0103 records exactly why this NPC/this choice/this bug, and the regression proof
+(existing NPC's hint unchanged) makes the byte-identical claim for the other 13 checkable rather than
+asserted. Stopping here after 1 sub-task — the remaining backlog is exactly as blocked as run 79 left
+it (owner decisions / missing assets), and reaching for a 2nd change in the same run risks the same
+filler-content pattern this run's own priority re-scan was trying to avoid.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| `umit-guard-1` dialogue choices | 2 | **3** | +1 (first NPC to use the 3rd slot) |
+| NPCs with dialogue choices | 13/14 | 13/14 | unchanged (grew an existing entry, not coverage) |
+| `dialogueBox.js` lines | 76/600 | **82/600** | +6 |
+| `dialogueChoices.js` lines | 167/600 | **174/600** | +7 |
+| ADR headers in `DECISIONS.md` | 102 | **103** | +1 (ADR-0103) |
+| `perf_log.csv` rows | 23 | **24** | +1 (`run80`) |
+| Smoke suite | 22/22 | **22/22** | unchanged |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no scene objects touched) |
+
+**Oyuncu fark eder mi:** evet, küçük ama doğrudan — kendi evi olan kaledeki nöbetçiyle konuşurken artık
+3. bir soru seçeneği var ("Burada nöbet tutmak seni hiç korkutuyor mu?"), ve seçenek sayısı ne olursa
+olsun ipucu metni ("1/2", "1/2/3" gibi) artık her zaman doğru gösteriliyor. Dünyanın kendisi
+(arazi/yol/kale/hayvan) değişmedi.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Still blocked, unchanged
+from run 79: the remaining 6 castle seats and all FAZ 6 animals needing real rigged models, dragon
+attack/fire-breath (owner decision pending in `QUESTIONS_FOR_OWNER.md`), `erkek-insan`/`kadin-insan`/
+`koylu` differentiation (no design reason to invent one). If item 14 is picked again, worth
+considering a 2nd NPC's 3rd choice, or resuming `worldEvents.js` growth (now rested one round) —
+either is legitimate; avoid stacking the same sub-type back-to-back where a genuinely different one
+is available. `CATCH_UP.md`'s next 10-run digest is due at run 88. No blocking bugs, syntax errors,
+or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

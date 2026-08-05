@@ -8777,3 +8777,158 @@ playtest would need to recalibrate, same reasoning ADR-0097/0098/0101 already us
 **Geri alma planı:** `git revert` the single commit. Removes the two new `WORLD_EVENTS` objects and
 this ADR entry. Nothing else references either id — `ui/worldEventToast.js` and every smoke check
 consume the pool generically.
+
+## ADR-0103: Give `umit-guard-1` a 3rd dialogue choice — the pilot's first use of `interaction.js`'s already-built 3rd choice slot — and fix `dialogueBox.js`'s hint text, which had been hardcoded to "1/2" since run 44
+
+**Status:** Accepted (run 80).
+
+**Risk Seviyesi:** LOW. One new data entry in a frozen array (`CHOICES_BY_NPC_ID['umit-guard-1']`)
+plus a hint-text computation in a shared UI class (`ui/dialogueBox.js`) that is provably
+byte-identical for every existing 2-choice caller. No new mechanism: `interaction.js`'s
+`DIALOGUE_CHOICE_KEY_CODES` has reached `Digit3` since run 44 (ADR-0058) and
+`checkDialogueChoicesShape.js` has enforced a 3-slot ceiling (derived from that same array, not
+hardcoded) since run 69 — this run is the first to actually use the 3rd slot, not the first to make
+it possible. Fully reversible: `git revert` restores the 2-choice array and the hardcoded hint string.
+
+**Context:** Session Snapshot at run start (2026-08-05, run 80 — scheduled autonomous routine).
+Session started on a detached `HEAD` at run 79's final commit (`821b49c`); `git fetch origin main`
+showed `origin/main` already at that same commit (no concurrent session ahead), so `git checkout
+main` + fast-forward was a no-op sync, not a merge (GOVERNANCE.md §8.14). Read `GOVERNANCE.md` in
+full (302 lines) — the incoming instruction again opened with a "first, one-time" request to create
+it; independently re-verified (not just trusted run 76-79's prior claim) that every rule named in
+this run's instruction text (console-cleanliness DoD item, Arazi Değişikliği Güvenlik Kontrolü,
+run-wide time cap, deterministic regression snapshot, stable-checkpoint tags, rule-set maintenance,
+error-boundary/safe-mode, CREDITS.md, sourceUrl+date, human catch-up digest, perf log, questions
+escalation, in-game-text-language pin, PWA cache versioning, periodic platform check, deferred-rules
+section) is already present in `GOVERNANCE.md` under Turkish headings that don't lexically match this
+run's phrasing but do cover the same content — confirmed by reading, not by grepping for the literal
+strings, since a first grep pass for the exact phrasing found nothing and could have been
+misread as "missing" without a full read. Read `3D_GAME_PROGRESS.md`'s last "This Run" entry (run
+79), `DECISIONS.md`'s last 3 ADRs (0100/0101/0102), `QUESTIONS_FOR_OWNER.md` in full (8 entries, all
+still open — including the run-63 leaked-NVIDIA-key owner action, still unresolved, not something
+this run can act on further), `STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/`RULES_CHANGELOG.md`/
+`CREDITS.md` tails. `CATCH_UP.md`'s last human-catchup entry is "Run 78 itibarıyla" — next due at
+run 88, not this run.
+
+**Baseline regression guard:** full `node --check` sweep (69 files) clean. Full committed smoke
+suite: **22/22 PASS**, before any new code. All 8 standing guards clean, zero WARN (`checkAssetsManifest`'s
+20-file texture/sidecar note is a pre-existing, expected soft warning, unrelated to this run).
+`perf_log.csv` implicit baseline: bit-identical to run76-79 (46/393,231/44/17).
+
+**Priority re-scan (GOVERNANCE.md §18), fresh:** items 1-4 (terrain macro relief, road network,
+ground color, castle texturing) re-confirmed already done via their own standing guards
+(`terrainSeatSafetyCheck`/`roadNetworkSafetyCheck`, both 14/14 and 13/13 clean). Items 5-11
+(syntax/blocking-bugs/perf/memory/tech-debt/smoke-test/coverage) all healthy, unchanged. Item 12
+(dragon attack, FAZ 6 animals) and item 13 (FAZ 11 species) re-confirmed blocked: `git log
+--diff-filter=A -- 'assets/models/*'` shows no new file since `fe359ac` (run ~59); dragon
+attack/damage is still gated on the unresolved health-system question logged at run 66. That leaves
+item 14 ("Yeni özellik"). Rather than a 5th consecutive `worldEvents.js` flavor-pool growth round
+(runs 74/75/78/79 all picked that bucket, and run 79's own note flagged the repetition risk of a
+6th in a row reading as filler rather than organic growth), this run looked for a *different*,
+equally low-risk, equally real corner of the same bucket: `gameplay/dialogueChoices.js`'s header
+comment already documents the pilot growing NPC-by-NPC (4→13) but never choice-count-per-NPC — every
+one of the 13 covered NPCs has exactly 2, despite `interaction.js`'s own `DIALOGUE_CHOICE_KEY_CODES`
+having reached 3 slots since run 44 specifically to leave room for this. Reading `ui/dialogueBox.js`
+before touching it surfaced a real, previously-invisible bug: its hint text was a literal `'1/2 -
+Seç, Esc - Kapat'` string, not derived from `choiceLabels.length` — harmless as long as every NPC
+stayed at 2 choices, but silently wrong the moment any NPC used a 3rd (the hint would still say
+"1/2" while a 3rd numbered choice sat visibly below it). No smoke check would have caught this
+either: `checkDialogueChoicesShape.js` validates `dialogueChoices.js`'s data shape only, and
+`game3dSmokeChecks.js`'s interaction-controller check uses fake `dialogueBox` mocks that never
+render real hint text. **Root Cause Analysis (§8.2) note:** not a 2nd occurrence of a known bug (no
+prior run hit this), so no separate RCA writeup required by that rule — but recorded here since it
+is exactly the kind of latent gap the rule exists to catch on a 1st occurrence too. No terrain/
+height/noise/world-scale change — the Arazi Değişikliği Güvenlik Kontrolü doesn't apply. **Gelecek
+Faz Etkisi:** none — still no persistence/quest/stat hook on dialogue choices, same design boundary
+ADR-0058 set; a future real quest/dialogue-tree system would supersede this pilot rather than build
+on the hint-text string format.
+
+**Decision:**
+1. `ui/dialogueBox.js`'s `show()` now builds its hint text from `choiceLabels.length` —
+   `` `${choiceLabels.map((_, i) => i + 1).join('/')} - Seç, Esc - Kapat` `` — instead of the
+   hardcoded `'1/2 - Seç, Esc - Kapat'` literal. For every existing 2-choice call this produces the
+   exact same string (proven below, not assumed), so it is a pure bug fix with zero visible change
+   for the 13 already-shipped NPCs.
+2. `gameplay/dialogueChoices.js`'s `CHOICES_BY_NPC_ID['umit-guard-1']` — the player's own home seat
+   — gets a 3rd choice: "Burada nöbet tutmak seni hiç korkutuyor mu?" ("Does standing guard here
+   ever scare you?"), answered in the guard's own established voice ("{name}: Korku, gafil
+   avlanmayanı ısırmaz, yabancı. Ben gözümü dört açarım, korkuya vaktim olmaz." — "Fear doesn't bite
+   the watchful, stranger. I keep my eyes open; I have no time for fear."). Deliberately a 3rd
+   *angle*, not a variation on the existing 2: choice 1 is about dragons (lore), choice 2 is about
+   the lord's whereabouts (plot), choice 3 is about the guard himself (character) — proven distinct
+   from ADR-0058's original 2, not just a 3rd near-duplicate line.
+
+**Alternatives considered:**
+- *Pick a different NPC for the 3rd-choice pilot.* Considered `berkalp-guard-1` (the other
+  "founding" pilot NPC from ADR-0058) but `umit-guard-1` is the player's own home seat — the NPC
+  every player meets first and most often — making it the highest-visibility, lowest-risk choice
+  to prove the mechanism on.
+- *Add a 3rd choice to all 13 NPCs in one pass.* Rejected — same "prove on one, extend later"
+  precedent this project has used for every prior growth axis (NPC count itself went 2→4→6→8→10→
+  12→13 one small batch at a time, not all-at-once); 13 new choice/response pairs in one commit
+  would also be a much larger, harder-to-review diff for a mechanism never exercised before.
+- *Leave `dialogueBox.js`'s hint text hardcoded and just special-case 3-choice NPCs elsewhere.*
+  Rejected outright — that would be exactly the kind of scattered, harder-to-reason-about fix this
+  project's `Değişiklik Etki Analizi` process exists to avoid; fixing it at its one source
+  (`show()`) is both simpler and correct for any future choice count up to the keybinding cap.
+- *Grow `worldEvents.js` a 5th consecutive time instead.* Rejected this run specifically — see the
+  Priority re-scan above; not a permanent rejection of that pool as a growth track, just a
+  deliberate diversification this round.
+
+**Verified:**
+- `node --check` clean on both changed files. Line counts: `dialogueBox.js` 82/600 (was 76, +6),
+  `dialogueChoices.js` 174/600 (was 167, +7) — both comfortable headroom.
+- Full committed smoke suite: all **22** checks PASS, identical before and after, including
+  "interaction controller" (its own fake-mock assertions are unaffected by the real hint-text
+  string, which they never inspect).
+- `checkDialogueChoicesShape.js` OK: 13/13 NPC entries still resolve to real NPC ids (unchanged
+  count — this grew an existing entry's choice array, not the NPC-coverage count), all choices
+  (including `umit-guard-1`'s new 3rd) within the 3-slot keybinding limit, every label/response
+  non-empty, every response carries `{name}`. Pilot coverage line unchanged: 13/14.
+- All 7 other standing guards re-run clean and unaffected (none touch either changed file).
+- **Real headless-Chromium proof (same technique ADR-0097/0098/0101/0102 established, applied to
+  the interaction/dialogue system instead of world events):** a one-off Playwright script (dev-only,
+  not committed) booted the live `game3d.html` (zero console/page errors, zero external requests
+  throughout — hermetic, `game3d-loading` reached `g3d-loading-hidden`), then in-page imported the
+  real `DialogueBox`, `createInteractionController`, and `CHOICES_BY_NPC_ID` modules and drove two
+  rigs: (1) `berkalp-guard-1` (an existing 2-choice NPC) opened and confirmed its hint text is the
+  exact pre-existing string `'1/2 - Seç, Esc - Kapat'` — proving the fix is byte-identical for
+  already-shipped NPCs, not merely "probably fine"; (2) `umit-guard-1` opened, confirmed all 3 real
+  choice labels render in order with hint text `'1/2/3 - Seç, Esc - Kapat'`, then `Digit3` pressed
+  and confirmed the shown text becomes the real new response verbatim, choice list clears to 0, and
+  the hint reverts to the plain `'E / Esc - Kapat'` — the full open→offer→pick→consume cycle on
+  real data, not a mock. Two screenshots (distinct camera angles: the default boot camera, then the
+  real F4 free-cam after a genuine drag-to-look) both show the real 3-choice box — greeting, all 3
+  numbered choices, and the "1/2/3" hint — rendered correctly over the real live scene (castle
+  silhouette, player model, starlit sky, a real in-flight `WorldEventToast` visible in both,
+  confirming the scene keeps ticking underneath, not a frozen frame).
+- **AI Self-Review 2. Geçiş (§8.3):** re-read the diff before committing — confirmed the new hint-text
+  template produces the identical string for 1 and 2 choices as the two literals it replaces (`'E /
+  Esc - Kapat'` for 0, `'1/2 - Seç, Esc - Kapat'` for 2 — both re-derivable from the formula, not
+  just spot-checked); confirmed `umit-guard-1`'s 3rd choice doesn't duplicate either of its own
+  existing 2 or read as an HBO-specific reference; confirmed `dialogueChoices.js`'s header comment
+  needed an update (it tracks growth history) and updated it; confirmed
+  `checkDialogueChoicesShape.js` needed no change (its slot-count check already derives from
+  `interaction.js` rather than a hardcoded `2`, so it was already correct for a 3rd choice with zero
+  edits — the guard was ahead of the data, not behind it).
+- `perf_log.csv` `run80` row bit-identical to run76-79 on every GPU metric (46 draw calls / 393,231
+  triangles / 44 geometries / 17 textures), as expected — no scene object, geometry, or material
+  touched (pure UI-string + data-array change).
+- Tech debt counter: **0** (unchanged). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+
+**Etkilenen sistemler:** `src/3d/ui/dialogueBox.js` (hint-text computation, used by every NPC
+dialogue, all 14 seats) and `src/3d/gameplay/dialogueChoices.js` (`umit-guard-1`'s choice array
+only). No other file changed.
+
+**Consequences:** `interaction.js`'s 3rd choice slot — reachable by keypress since run 44 but never
+exercised — now has its first real content, and the hint text that would have silently
+under-reported it now scales correctly for any future NPC that follows. `dialogueChoices.js` has
+426/600 lines of headroom; `dialogueBox.js` has 518/600. No `QUESTIONS_FOR_OWNER.md` entry needed —
+this doesn't introduce a new tunable numeric value a future playtest would need to recalibrate
+(unlike e.g. the dragon-pursuit speed/radius questions), it exercises an existing, already-decided
+keybinding ceiling.
+
+**Geri alma planı:** `git revert` the single commit. Restores the 2-choice `umit-guard-1` array and
+the hardcoded `'1/2'` hint literal. Nothing else references either change — `interaction.js`'s
+`DIALOGUE_CHOICE_KEY_CODES` and `checkDialogueChoicesShape.js`'s slot-count check are both already
+generic and need no reversion of their own.
