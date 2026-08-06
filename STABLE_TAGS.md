@@ -290,3 +290,12 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   main` succeeded (`4386fcd`). Local tag only — `git push origin <tag>` still rejected, same
   `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the
   checkpoint).
+
+- **`stable-2026-08-06-0505` (run 87, commit `281c5e9`):** Session Quality Gate passed (confidence
+  5/5 after 1 sub-task — starfield twinkle, ADR-0112), full smoke suite 26/26 PASS (was 25 — new
+  `checkStarfieldTwinkle` check), all 6 standing static guards clean, `game3d.html` boots with zero
+  console/page errors (confirmed via 2 separate Playwright captures this run, both zero errors).
+  `perf_log.csv` `run87` row bit-identical to run76-86 (no scene object added). `git push origin
+  main` succeeded (`281c5e9`). Local tag only — `git push origin <tag>` still rejected, same
+  `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the
+  checkpoint).
