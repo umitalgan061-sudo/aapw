@@ -6,6 +6,25 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 98 itibarıyla (2026-08-06)
+
+Son 10 çalıştırmanın (89-98) en büyük gelişmesi: ejderhalar artık gerçekten saldırabiliyor. Daha önce
+sadece etrafta uçup dikkatini gösteriyorlardı; şimdi kışkırtılırsa (uzun süre çok yakın durursan) gerçek
+hasar veren bir ısırık saldırısına geçiyorlar, oyuncunun da artık bir can barı (100/100) var — canın
+biterse spawn noktasına dönüp tam iyileşerek geri geliyorsun (kayıt/ceza mekaniği yok, sadece yeniden
+başlangıç). Kalelerin çevresindeki zemin artık düzgün düzleniyor — daha önce bazı kaleler engebeli
+arazide havada asılı kalır/boşluk bırakırdı, artık 14 koltuğun hepsi düz bir zemine oturuyor. Diyalog
+tarafında sessiz ama istikrarlı bir büyüme var: kalenin nöbetçisiyle konuşurken 3. bir soru sorabildiğin
+NPC sayısı 4'ten 10'a çıktı (Baratheon, Lannister, Dorne, Qarth ve Demir Adalar nöbetçileri de artık
+kendi kişisel bir cevaplarını veriyor) — dünyanın geri kalanı bu on çalıştırmada değişmedi. Perde
+arkasında: platform sağlık kontrolü (npm audit/PWA kurulabilirlik/WebGL) tekrar yapıldı, hâlâ temiz;
+performans günlüğü (`perf_log.csv`) düzenli birikmeye devam ediyor, 40+ satıra ulaştı. Açık kalan en
+büyük konular hâlâ aynı: 6 kale hâlâ dokusuz duruyor (gerçek 3D model bekleniyor), at/kuzgun/koyun gibi
+hayvanlar için model bekleniyor, ve sızmış NVIDIA API anahtarını kendi tarafında iptal etmen hâlâ senin
+yapman gereken bir iş (bkz. `QUESTIONS_FOR_OWNER.md`).
+
+---
+
 ## Run 88 itibarıyla (2026-08-06)
 
 Son 10 çalıştırmanın (79-87) oyuncuya en çok ulaşan tarafı hâlâ küçük ama gerçek eklentiler: periyodik

@@ -11360,3 +11360,122 @@ house-coverage reasoning behind picking this NPC over the other 4 equally-ready 
 **Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
 the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
 choice.
+
+## ADR-0124: `balon-guard-1`'s 3rd dialogue choice — the pilot's 10th NPC to use the 3rd slot, 1st Iron Islands seat
+
+**Date:** 2026-08-06 (run 98, scheduled autonomous routine).
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely additive dialogue-config data (one new object literal
+in an existing `Object.freeze` array) plus a doc-comment update. Fully reversible: `git revert` the
+one commit removes the new choice and restores the header comment's prior wording. No `src/` runtime
+logic touched, no other NPC's entry, no shared module changed.
+
+**Context:** Session Snapshot (GOVERNANCE.md §20) confirmed `GOVERNANCE.md`/`CREDITS.md`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md` already exist from prior runs (the
+incoming scheduled prompt's "first create GOVERNANCE.md" instruction is stale boilerplate again, run
+98 not run 1) — all read in full rather than recreated. Repo state check: local `main` branch ref was
+a stale ref (behind `origin/main`), while `HEAD` was already detached at `origin/main`'s current
+commit (`3cfa93d`) after `git fetch origin main` — same shallow-clone local-ref quirk runs 96/97
+diagnosed, not real divergence, no lost work. Pre-work baseline: `node --check` clean across all
+`src/`+`scripts/` files, `checkDialogueChoicesShape.js` OK (13/14 pilot coverage),
+`checkSmokeCheckRegistry.js` OK (28 checks/8 modules; same 2 known line-count WARNs as run 97 —
+`game3d.js` 585/600 and `dragonController.js` 579/600, unchanged, not yet urgent), full
+`smokeTestGame3D.js` suite **28/28 PASS**, 0 FAIL.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-3 (terrain macro relief/road network/ground color)
+remain DONE per their own standing guards. Item 4 (castle texturing, 7/14) still blocked on real
+models for the remaining 6 seats — unchanged. Items 5-11 (syntax/blocking bugs/perf/memory/tech
+debt/smoke test/world coverage) all healthy per the baseline above — 0 tech debt. Items 12-13 (FAZ 7
+dragon follow-ups / FAZ 11 species) remain blocked on models or already-logged owner decisions. §8.12
+rule consolidation last done run 96, not due until ~run 116. §15 periodic platform check last done
+run 91, not due until ~run 111-121. That leaves item 14 as the only actionable lever — ADR-0123's own
+"Alternatives considered" named `balon-guard-1` first among the 4 remaining 2-choice NPCs
+(`balon-guard-1`/`robin-guard-1`/`ziya-guard-1`/`berk-guard-1`).
+
+**Gelecek Faz Etkisi:** none — still no further branching/state/persistence/stat hook, same "pilot on
+a growing subset" scope ADR-0058 established; a future real dialogue-tree/quest system would replace
+this mechanism wholesale rather than be constrained by one more leaf choice.
+
+**Decision:** `balon-guard-1` (the Iron Islands seat, whose existing 2 choices cover the "we do not
+sow" reaping philosophy and how respect is earned there) gets a 3rd choice — "Eski Yol hiç
+istediğinden fazlasına mal oldu mu?" ("Has the Old Way ever cost you more than it's won?"). Response
+("Oldu, yabancı, birden fazla kez. Denizin aldığını geri vermez o — ama teslim olmak daha ağır bir
+bedel, biz öyle biliriz.") stays in-tone with the existing 2 choices while adding a personal-doubt
+angle genuinely distinct from every other 3-choice NPC's own 3rd-choice theme so far (fear-of-being-
+caught-off-guard for `umit-guard-1`, duty/fatigue for `berkalp-guard-1`, suspicion for `twin-guard-1`,
+regret-over-wit for `olena-guard-1`, private-conviction for `stannis-guard-1`, fear-under-a-ruler for
+`cersei-guard-1`, cost-of-isolation-as-a-region for `doran-guard-1`, restlessness/what-if-I-left for
+`xaro-guard-1`, personal-solitude for `stannis-guard-2` — kept distinct from this NPC's own angle by
+asking about the cost of a whole culture's creed rather than one person's loneliness/duty). Implemented
+as one new `Object.freeze({label, response})` entry appended to `CHOICES_BY_NPC_ID['balon-guard-1']`
+in `gameplay/dialogueChoices.js`, plus the file's header comment updated to record the 10th 3-choice
+NPC and this ADR. No other file touched — `interactionConfig.js`'s existing `GREETINGS_BY_NPC_ID`
+entry, `npcConfig.js`'s spawn entry, `interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` handling, and
+`game3d.js`'s keydown wiring are all unchanged and already generic across every NPC's choice count.
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only, uncommitted Playwright script, same methodology ADR-0115/117/119/120/121/122/123 used,
+run over a local static server rather than `file://` this run — the real `createInteractionController`/
+`DialogueBox`/`InteractionPrompt`/`CHOICES_BY_NPC_ID` modules `game3d.js` itself imports were
+dynamically imported from inside the real booted `game3d.html` page and driven through the actual
+`update()`/`handleKeyDown()` API against a synthetic `balon-guard-1` NPC; deleted before commit): (1)
+all 3 real choice labels render in order ("1) Tohum ekmemek ne demek?" / "2) Demir Adalar'a nasıl
+saygı gösterilir?" / "3) Eski Yol hiç istediğinden fazlasına mal oldu mu?"), hint reads exactly
+`'1/2/3 - Seç, Esc - Kapat'`, health bar `100/100` visible in the background. (2) Pressing `Digit3`
+shows the exact new response text with `{name}` replaced by the synthetic NPC's display name, hint
+reverts to `'E / Esc - Kapat'`, choice list cleared (0 `.g3d-dialogue-box-choice` elements remaining).
+Zero console/page errors throughout (`consoleErrors.length === 0`).
+
+**Perf sampling:** `perf_log.csv`'s `run98` row (`46/393231/44/17`) sampled fresh via
+`scripts/collectPerfSnapshot.js`, bit-identical to the run76-97 baseline on draw calls/triangles/
+geometries/textures — expected, this change touches zero geometry/texture code.
+
+**Alternatives considered:**
+- *`worldEvents.js`'s flavor pool instead (27 -> 29 entries).* Rejected, same reasoning ADR-0115/
+  117/119/120/121/122/123 used — still a legitimate future lever, but a 10th NPC reaching the 3rd
+  dialogue slot continues the more informative, already-proven-safe proof point, and `balon-guard-1`
+  was already the specifically-named next candidate from ADR-0123.
+- *A 3rd fact about reaving/the Iron Price instead.* Rejected — the existing 2 choices already cover
+  the "we do not sow" philosophy and how respect is earned; a 3rd near-duplicate would read as
+  padding, same reasoning the prior 9 ADRs used to prefer a personal-question 3rd choice.
+- *One of the other 3 remaining 2-choice NPCs instead (`robin-guard-1`/`ziya-guard-1`/
+  `berk-guard-1`).* Rejected in favor of `balon-guard-1` specifically because it was ADR-0123's own
+  named next candidate and gives the pilot its first Iron Islands 3-choice seat — a concrete coverage
+  reason over picking arbitrarily among the rest; logged here as the still-open candidates for a
+  future run.
+- *Do nothing this sub-task, stop after the baseline check.* Rejected — Session Quality Gate
+  confidence stayed high (existing, well-established pattern, 9 prior ADRs to follow, zero open
+  design ambiguity) and the run budget/time cap were nowhere close, so GOVERNANCE.md §19's chaining
+  rule applies.
+
+**Consequences:** `balon-guard-1` becomes the pilot's 10th NPC (of 13 with any dialogue choices, 14
+total real NPCs) to use the 3rd dialogue slot, and the Iron Islands' 1st seat to do so.
+`checkDialogueChoicesShape.js`'s pilot-coverage line is unaffected (still 13/14 — no new NPC gained
+an entry, an existing one grew). No lasting performance cost (config-data-only, zero geometry/
+listener/timer touch in the committed diff). `dialogueChoices.js` grows to 235 lines, still well
+inside the 600-line cap. Only 3 NPCs remain at 2 choices (`robin-guard-1`/`ziya-guard-1`/
+`berk-guard-1`).
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (whether the Old Way's cost
+has ever exceeded its gain) is genuinely distinct from `balon-guard-1`'s existing 2 choices (reaping
+philosophy + how respect is earned) and from every other 3-choice NPC's own 3rd choice theme — no
+near-duplicate. Confirmed the header-comment update's NPC-list prose stays internally consistent
+(removed `balon-guard-1` from the "still 2-choice" list, added its own new-choice sentence in the same
+run-by-run chronological style the prior 9 entries use, updated the inline 3-choice-NPC enumeration).
+No `TEMP`/`HACK`/`FIXME`/`WORKAROUND` anywhere in the diff. Memory leak checklist: n/a, config-data-
+only (no new listener/timer/DOM/geometry-material in the committed diff; the proof script's own
+`DialogueBox`/`InteractionPrompt` instances lived only inside its own disposable headless browser
+context, never committed).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 10th-generation repeat of an already-proven,
+low-risk pattern (config-data-only, fully reversible, real headless-Chromium + real visual proof both
+confirm the exact rendered text end-to-end), zero open design ambiguity (ADR-0123 had already
+pre-vetted this exact candidate), zero regression in the full smoke suite (28/28 PASS before and
+after). "6 ay sonra hâlâ net mi" tereddüdü yok: this ADR records the exact angle picked, why, and the
+house-coverage reasoning behind picking this NPC over the other 3 equally-ready candidates.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
+the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
+choice.

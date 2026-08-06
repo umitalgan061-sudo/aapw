@@ -10625,3 +10625,94 @@ bölme planı düşünülmeli.
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+## This Run (2026-08-06, run 98 — scheduled autonomous routine)
+
+**Session Snapshot:** the incoming scheduled prompt's "first create GOVERNANCE.md" instruction is
+stale boilerplate again (this is run 98, not run 1) — `GOVERNANCE.md`/`CREDITS.md`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md` all already exist from prior runs,
+confirmed present and read in full per GOVERNANCE.md §20 rather than recreated. `DECISIONS.md`'s
+last 3 ADRs (0122-0123, plus this run's own 0124) and `3D_GAME_PROGRESS.md`'s run 97 entry read.
+`ARCHITECTURE.md` not re-read (last touched 2026-08-05, under the 7-day threshold).
+
+**Eşzamanlılık Kontrolü:** local `main` branch ref was stale (behind `origin/main`), `HEAD` was
+already at `origin/main`'s current commit after `git fetch origin main` — same shallow-clone
+local-ref quirk runs 96/97 diagnosed, not real divergence, no lost work. `git push origin HEAD:main`
+confirmed "Everything up-to-date" before any new work started.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`) — clean. Full
+`scripts/smokeTestGame3D.js` — **28/28 PASS**, 0 FAIL, before any new code.
+`checkDialogueChoicesShape.js` OK (13/14 pilot coverage). `checkSmokeCheckRegistry.js` OK (28 checks/
+8 modules; same 2 known line-count WARNs as run 97 — `game3d.js` 585/600 and `dragonController.js`
+579/600, unchanged, still under the cap, not yet urgent).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-3 (terrain macro relief/road network/ground color)
+remain DONE per their own standing guards. Item 4 (castle texturing, 7/14) still blocked on real
+models for the remaining 6 seats. Items 5-11 all healthy (0 tech debt, smoke suite green, coverage
+unchanged). Items 12-13 (dragon follow-ups / FAZ 11 species) remain blocked on models or already-
+logged owner decisions. That left item 14 as the only actionable lever this run.
+
+### Sub-task 1: `balon-guard-1`'s 3rd dialogue choice (DECISIONS.md ADR-0124)
+
+Full reasoning, alternatives considered, and decision detail are in ADR-0124 — not duplicated here.
+
+**DoD durumu:** `node --check` clean (`dialogueChoices.js`, 235/600, was 230). `checkDialogueChoicesShape.js`
+OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot coverage unchanged at 13/14.
+`checkSmokeCheckRegistry.js` re-run post-change: unchanged (28 checks/8 modules, same 2 known WARNs).
+Full smoke suite re-run: **28/28 PASS**, 0 FAIL (before-baseline also 28/28 PASS, 0 FAIL — regresyon
+yok). **Konsol Temizliği:** the proof script's own headless boot recorded `consoleErrors.length === 0`.
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only, uncommitted Playwright script, same methodology as prior ADRs, run over a local static
+server this run instead of `file://`, deleted before commit): the real `game3d.html` was booted, the
+live `CHOICES_BY_NPC_ID`/`DialogueBox`/`InteractionPrompt`/`createInteractionController` modules
+dynamically imported and driven through the real `update()`/`handleKeyDown()` API against a synthetic
+`balon-guard-1` NPC. (1) All 3 real choice labels render in order, hint reads exactly
+`'1/2/3 - Seç, Esc - Kapat'`, health bar `100/100` visible. (2) Pressing `Digit3` shows the exact new
+response text with `{name}` replaced, hint reverts to `'E / Esc - Kapat'`, choice list cleared. Zero
+console/page errors throughout.
+
+**Perf sampling:** `perf_log.csv`'s `run98` row (46/393,231/44/17) bit-identical to the run76-97
+baseline — expected, zero geometry/texture code touched.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (whether the Old Way's cost
+ever exceeded its gain) is distinct from `balon-guard-1`'s existing 2 choices and from every other
+3-choice NPC's own 3rd choice theme. Header-comment NPC-list prose updated consistently. No
+`TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a, config-data-only.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 10th-generation repeat of an already-proven,
+low-risk pattern, zero open design ambiguity (ADR-0123 pre-vetted this exact candidate), zero
+regression in the full smoke suite. "6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 98 end) | Delta |
+|---|---|---|---|
+| NPCs with a 3rd dialogue choice | 9/13 | **10/13** | +1 (`balon-guard-1`) |
+| Dialogue choice pilot coverage | 13/14 | 13/14 | değişmedi |
+| Smoke suite | 28/28 | **28/28** | aynı 28 kontrol, yeniden doğrulandı |
+| ADR headers in `DECISIONS.md` | 123 | **124** | +1 (ADR-0124) |
+| `perf_log.csv` rows | 40 | **41** | +1 (`run98`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (saf config-data değişikliği) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ölçekte — `balon-guard-1` ile konuşan bir oyuncu artık 3.
+bir soru sorabilir ve Demir Adalar nöbetçisinin Eski Yol'un bedeli üzerine kişisel bir cevabını alır;
+dünyanın geri kalanı değişmedi.
+
+**Ek alt görev — `CATCH_UP.md` özeti (GOVERNANCE.md §13, her 10 çalıştırmada bir, sıra bu run'da):**
+run 89-98'i özetleyen yeni bir giriş `CATCH_UP.md`'nin en üstüne eklendi (bkz. o dosya). Kod
+değişikliği yok, sadece dokümantasyon — DoD'nin kod-odaklı maddeleri (node --check/smoke test) bu alt
+görev için uygulanmaz, kendi commit'i var.
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Bloklu kalan her şey değişmedi: 6
+kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. Item 14 tekrar seçilirse: kalan 3 iki-seçenekli
+NPC'den biri (`robin-guard-1`/`ziya-guard-1`/`berk-guard-1`) veya `worldEvents.js`'nin flavor pool'u.
+`RULES_CHANGELOG.md`'nin sıradaki konsolidasyonu ~run 116'da (değişmedi). `CATCH_UP.md`'nin sıradaki
+özeti ~run 108'de (bu run'da yapıldı, run 98 -> ~108). `game3d.js` (585/600) ve `dragonController.js`
+(579/600) her ikisi de 600 satır sınırına yaklaşıyor — henüz acil değil ama bir sonraki dokunuşta bir
+bölme planı düşünülmeli.
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.
