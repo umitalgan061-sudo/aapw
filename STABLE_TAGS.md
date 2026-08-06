@@ -413,3 +413,13 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   at `89c27ae`. `git push origin main` succeeded twice (`23870a7..91b4196` sub-task 1,
   `91b4196..89c27ae` sub-task 2). `git push origin <tag>` still rejected, same `HTTP 403` standing
   block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
+
+- **Run 97 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed (confidence
+  5/5) — `stannis-guard-2`'s 3rd dialogue choice (ADR-0123), the pilot's 9th NPC to reach the 3rd
+  dialogue slot and Baratheon's 2nd seat to do so. Full smoke suite **28/28 PASS** before and after,
+  real headless-Chromium proof + real visual proof (2 moments, live `game3d.html` scene in the
+  background) confirm the new choice renders and resolves correctly, 0 console/page errors.
+  `perf_log.csv`'s `run97` row bit-identical to run76-96. Local tag `stable-2026-08-06-1500` created
+  at `6810e29`. `git push origin main` succeeded (`1147cf0..6810e29`). `git push origin <tag>` still
+  rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
+  entry satisfies the checkpoint).
