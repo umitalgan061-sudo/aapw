@@ -311,3 +311,15 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `git push origin main` succeeded (`643d5a6`). Local tag only — `git push origin <tag>` still
   rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry
   satisfies the checkpoint).
+
+- **`stable-2026-08-06-0817` (run 88, commit `40f315f`):** Session Quality Gate passed (confidence
+  5/5 after 2 sub-tasks + 1 governance-mandated housekeeping item — `game3dSmokeChecksScene.js` split
+  clearing its 573/600 WARN [ADR-0113]; `berkalp-guard-1`'s 3rd dialogue choice, the pilot's 2nd NPC to
+  use that slot [ADR-0114]; `CATCH_UP.md`'s 10-run digest, on schedule), full smoke suite 26/26 PASS
+  (unchanged both sub-tasks), all 6 standing static guards clean (only the pre-existing `game3d.js`
+  545/600 WARN remains, unchanged since run 87), `game3d.html` boots with zero console/page errors
+  (confirmed via 2 real Playwright screenshot captures for ADR-0114, both zero errors). `perf_log.csv`
+  `run88` row bit-identical to run76-87 (no scene object added, config-only content change).
+  `git push origin main` succeeded (`40f315f`). Local tag only — `git push origin <tag>` still
+  rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry
+  satisfies the checkpoint).
