@@ -490,3 +490,19 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `3D_GAME_PROGRESS.md` run 105's Concurrency/snapshot note). `git push origin <tag>` still
   rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
   entry satisfies the checkpoint).
+
+- **run 107 (2026-08-06):** priority re-scan found items 1-11 clean (full `node --check` sweep
+  clean; 31/31 real-browser smoke suite green before any change). Added `ui/dayNightClock.js`
+  (FAZ 8 discoverability HUD, ADR-0134) and, while capturing this run's own mobile visual proof,
+  found + root-caused a real pre-existing mobile HUD collision (world-event toast overlapping the
+  health bar and settlement compass on a 390×844 viewport) to `game3d.css` never declaring
+  `box-sizing: border-box` — fixed globally, not patched per-widget, plus the mobile toast's `top`
+  offset moved from ADR-0129's back-link-only `64px` to `184px` clearing the full second HUD row.
+  Extended the world-event toast smoke check to assert mobile clearance against health-bar/compass/
+  clock too, not just the back-link. `smokeTestGame3D.js` **32/32 PASS**, zero console/page errors;
+  `collectPerfSnapshot.js`'s `run107` row bit-identical (draw calls/triangles/geometries/textures)
+  to the run76-105 baseline, confirming zero rendered-output change (DOM/CSS-only). Local tag
+  `stable-2026-08-06-2117` created at `eeb96f6` (PR #7 merge). `git push origin work` + PR #7 →
+  `main` merge succeeded (`9ad8ae8..eeb96f6`). `git push origin <tag>` still rejected, same
+  `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies
+  the checkpoint).
