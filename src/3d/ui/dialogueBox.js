@@ -26,10 +26,29 @@ export class DialogueBox {
 		this._choicesEl = document.createElement('div');
 		this._choicesEl.className = 'g3d-dialogue-box-choices';
 		this._el.appendChild(this._choicesEl);
+		this._choiceHandler = null;
+		this._closeHandler = null;
+		this._onChoiceActivate = (event) => {
+			if (event.type === 'keydown' && event.code !== 'Enter' && event.code !== 'Space') return;
+			const choiceEl = event.target.closest('[data-dialogue-choice-index]');
+			if (!choiceEl || !this._choicesEl.contains(choiceEl) || !this._choiceHandler) return;
+			event.preventDefault();
+			this._choiceHandler(Number(choiceEl.dataset.dialogueChoiceIndex));
+		};
+		this._choicesEl.addEventListener('pointerup', this._onChoiceActivate);
+		this._choicesEl.addEventListener('keydown', this._onChoiceActivate);
 
 		this._hintEl = document.createElement('p');
 		this._hintEl.className = 'g3d-dialogue-box-hint';
 		this._hintEl.textContent = 'E / Esc - Kapat';
+		this._onClosePointerUp = (event) => {
+			if (event.type === 'keydown' && event.code !== 'Enter' && event.code !== 'Space') return;
+			if (!this._visible || !this._closeHandler) return;
+			event.preventDefault();
+			this._closeHandler();
+		};
+		this._hintEl.addEventListener('pointerup', this._onClosePointerUp);
+		this._hintEl.addEventListener('keydown', this._onClosePointerUp);
 		this._el.appendChild(this._hintEl);
 
 		this._el.hidden = true;
@@ -51,6 +70,9 @@ export class DialogueBox {
 				const choiceEl = document.createElement('p');
 				choiceEl.className = 'g3d-dialogue-box-choice';
 				choiceEl.textContent = `${index + 1}) ${label}`;
+				choiceEl.dataset.dialogueChoiceIndex = String(index);
+				choiceEl.setAttribute('role', 'button');
+				choiceEl.tabIndex = 0;
 				return choiceEl;
 			}),
 		);
@@ -62,8 +84,23 @@ export class DialogueBox {
 			choiceLabels.length > 0
 				? `${choiceLabels.map((_, index) => index + 1).join('/')} - Seç, Esc - Kapat`
 				: 'E / Esc - Kapat';
+		if (this._closeHandler) this._hintEl.textContent += ' • Dokunarak kapat';
 		this._visible = true;
 		this._el.hidden = false;
+	}
+
+	/** Registers an optional touch/keyboard activation path for numbered choices. */
+	setChoiceHandler(handler) {
+		this._choiceHandler = typeof handler === 'function' ? handler : null;
+		this._el.classList.toggle('g3d-dialogue-box-actionable', Boolean(this._choiceHandler));
+	}
+
+	/** Registers an optional touch close path while preserving global E/Escape controls. */
+	setCloseHandler(handler) {
+		this._closeHandler = typeof handler === 'function' ? handler : null;
+		this._hintEl.classList.toggle('g3d-dialogue-box-close-action', Boolean(this._closeHandler));
+		this._hintEl.setAttribute('role', this._closeHandler ? 'button' : 'note');
+		this._hintEl.tabIndex = this._closeHandler ? 0 : -1;
 	}
 
 	hide() {
@@ -77,6 +114,10 @@ export class DialogueBox {
 	}
 
 	dispose() {
+		this._choicesEl.removeEventListener('pointerup', this._onChoiceActivate);
+		this._choicesEl.removeEventListener('keydown', this._onChoiceActivate);
+		this._hintEl.removeEventListener('pointerup', this._onClosePointerUp);
+		this._hintEl.removeEventListener('keydown', this._onClosePointerUp);
 		this._el.remove();
 	}
 }

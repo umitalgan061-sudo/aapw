@@ -99,3 +99,4 @@ a system here (blast radius rule).
   the *world* (ground height) must still come from the same seeded sampler every other system
   uses (`physics.js` → `world/terrain.js`'s `createHeightSampler`), so the character never stands
   above/below what the rendered terrain mesh actually shows.
+- **Touch dialogue selection (run 99, ADR-0125):** the controller's bounds-checked `handleChoice(index)` is the shared mobile/PWA entry point used by `ui/dialogueBox.js`; it calls the same internal one-shot `selectChoice` state transition as Digit1–Digit3, so input devices cannot diverge in dialogue behavior.

@@ -160,6 +160,54 @@ html, body {
   color: #f0d9a0;
 }
 
+.g3d-dialogue-box-actionable {
+  pointer-events: auto;
+}
+
+.g3d-dialogue-box-actionable .g3d-dialogue-box-choice {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid rgba(200, 150, 10, 0.35);
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.g3d-dialogue-box-actionable .g3d-dialogue-box-choice:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
+}
+
+.g3d-dialogue-box-actionable .g3d-dialogue-box-choice:active {
+  background: rgba(200, 150, 10, 0.22);
+  border-color: rgba(232, 212, 160, 0.8);
+}
+
+.g3d-dialogue-box-close-action {
+  width: fit-content;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  margin: 4px 0 -8px auto;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.g3d-dialogue-box-close-action:active {
+  background: rgba(200, 150, 10, 0.22);
+}
+
+.g3d-dialogue-box-close-action:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
+}
+
 .g3d-dialogue-box-hint {
   margin: 0;
   font-size: 11px;
