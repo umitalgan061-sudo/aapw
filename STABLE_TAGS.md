@@ -513,3 +513,12 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   merge). `git push origin work` + PR #8 → `main` merge succeeded (`120db16..055a728`).
   `git push origin <tag>` still rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md
   §8.11: a local tag + this entry satisfies the checkpoint).
+
+- **Run 109 (2026-08-06):** Session Quality Gate passed (confidence 5/5, §8.6) — teknik borç fix
+  (ADR-0136, split `dragonController.js`'s reaction-state bookkeeping into `dragonReactionState.js`,
+  removing the 579/600 file-cap WARN that had persisted across runs 104-108), 32/32 real-browser
+  smoke suite clean incl. all 8 exact-value dragon-behavior checks, game opens without issue. Local
+  tag `stable-2026-08-06-2258` created at `9c404eb` (PR #9 merge). `git push origin work` + PR #9 →
+  `main` merge succeeded (`5823181..9c404eb`). `git push origin <tag>` still rejected, same
+  `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies
+  the checkpoint).
