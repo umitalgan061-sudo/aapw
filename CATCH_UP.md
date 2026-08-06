@@ -6,6 +6,26 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 108 itibarıyla (2026-08-06)
+
+Son 10 çalıştırmanın (99-108) en görünür gelişmesi: artık oyunun her cihazında (masaüstü, mobil,
+kurulu PWA) dört köşe HUD widget'ı bir arada çalışıyor — kontroller yardımı ("?" düğmesi), en yakın
+kaleye pusula, oyun içi saat (gündüz/alacakaranlık/gece ikonuyla) ve can barı. Bunları eklerken
+gerçek bir mobil çakışma bulundu ve kök nedeninden düzeltildi: `game3d.css` hiçbir zaman
+`box-sizing` tanımlamamıştı, bu yüzden bazı widget'lar telefon ekranında kendi hesapladıklarından
+daha geniş çiziliyordu — artık düzeltildi ve bir daha sessizce tekrarlanmaması için test genişletildi.
+Dünya olayları havuzu da büyümeye devam etti: artık gündüz/gece × nadir-lik matrisinin her hücresinde
+en az bir olay var (ör. "Pazar Günü" — sadece gündüz görülen, seyrek bir olay). Perde arkasında iki
+önemli bakım işi yapıldı: `game3d.js` 600 satır sınırına dayanmadan önce bir yardımcı dosyaya
+bölündü (oyuncu hiçbir şey fark etmez, sadece gelecekteki eklemelere yer açtı), ve bu çalıştırma
+(108) iki geliştirici-dokümantasyon dosyasındaki büyük bir eksikliği kapattı — ejderha saldırı
+sistemi, can/hasar sistemi ve yol ağı gibi gerçek, çalışan alt sistemler daha önce hiç
+belgelenmemişti, artık belgeli. Açık kalan en büyük konular hâlâ aynı: 6 kale hâlâ dokusuz duruyor,
+at/kuzgun/koyun gibi hayvanlar için model bekleniyor, ve sızmış NVIDIA API anahtarını kendi tarafında
+iptal etmen hâlâ senin yapman gereken bir iş (bkz. `QUESTIONS_FOR_OWNER.md`).
+
+---
+
 ## Run 98 itibarıyla (2026-08-06)
 
 Son 10 çalıştırmanın (89-98) en büyük gelişmesi: ejderhalar artık gerçekten saldırabiliyor. Daha önce
