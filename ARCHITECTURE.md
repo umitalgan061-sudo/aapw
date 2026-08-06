@@ -896,3 +896,10 @@ dragons/combat/etc.
   walker don't resolve to the exact expected distances — verified against a real injected failure
   (the same zero-distance edge case ADR-0037 fixed), see ADR-0038. Exits 2 (distinct from a real
   failure) if Playwright itself isn't resolvable in the current environment.
+
+## `src/3d/ui/settlementCompass.js` — nearest-settlement HUD (run 106)
+
+- **Depends on:** the existing `settlementSeats` coordinate registry and the player's current world position/yaw.
+- **Used by:** `game3d.js`; updates one lightweight DOM compass each frame and is precached for installed/offline PWA use.
+- **Critical path:** no world-generation dependency; if no seats are configured the widget hides itself.
+- **Lifecycle:** owns one DOM subtree, no listeners/timers/GPU resources, and removes that subtree in `dispose()`.

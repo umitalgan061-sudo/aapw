@@ -403,3 +403,55 @@ html, body {
   margin: 0;
   color: rgba(232, 212, 160, 0.82);
 }
+
+.g3d-settlement-compass {
+  position: fixed;
+  top: max(78px, calc(env(safe-area-inset-top, 0px) + 78px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  z-index: 19;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(230px, calc(100vw - 24px));
+  padding: 8px 11px;
+  border: 1px solid rgba(200, 150, 10, 0.45);
+  border-radius: 9px;
+  background: rgba(10, 6, 2, 0.76);
+  color: #e8d4a0;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-settlement-compass-arrow {
+  display: inline-block;
+  color: #c8960a;
+  font-size: 24px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.g3d-settlement-compass-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.g3d-settlement-compass-text strong {
+  overflow: hidden;
+  color: #f0d9a0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.g3d-settlement-compass-distance {
+  opacity: 0.72;
+}
+
+@media (max-width: 600px) {
+  .g3d-settlement-compass {
+    top: max(122px, calc(env(safe-area-inset-top, 0px) + 122px));
+    right: 12px;
+  }
+}

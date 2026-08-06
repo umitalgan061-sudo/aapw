@@ -49,6 +49,7 @@ import { DialogueBox } from './ui/dialogueBox.js';
 import { WorldEventToast } from './ui/worldEventToast.js';
 import { HealthBar } from './ui/healthBar.js';
 import { ControlsHelp } from './ui/controlsHelp.js';
+import { SettlementCompass } from './ui/settlementCompass.js';
 import { createPlayer } from './gameplay/player.js';
 import { createHealthState } from './gameplay/health.js';
 import { spawnConfiguredNPCs } from './gameplay/npc.js';
@@ -288,6 +289,7 @@ export async function initGame3D() {
 		});
 		state.worldEventToast = new WorldEventToast({ eventsBus: gameEvents, eventName: EVENTS.WORLD_EVENT_TRIGGERED });
 		state.controlsHelp = new ControlsHelp({ isMobileClass: isCoarsePointerDevice() });
+		state.settlementCompass = new SettlementCompass({ seats: state.settlementSeats });
 
 		let frameId;
 		const tick = () => {
@@ -313,6 +315,7 @@ export async function initGame3D() {
 			// read is current — safe to feed into each NPC's combat-stance check and each animal's
 			// flee-awareness check below.
 			const playerPos = state.player.object3D.position;
+			state.settlementCompass.update(playerPos, state.player.object3D.rotation.y);
 			// Every gameplay-subsystem update below goes through `safeMode.js` (GOVERNANCE.md §8.13:
 			// one subsystem throwing disables only itself, never the whole frame loop). Dragons got
 			// this at run 64, the other four at run 81; run 82 extracted the five near-identical
@@ -440,6 +443,7 @@ export async function initGame3D() {
 			state.worldEvents.dispose();
 			state.worldEventToast.dispose();
 			state.controlsHelp.dispose();
+			state.settlementCompass.dispose();
 			unsubscribePlayerDied();
 			state.playerHealth.dispose();
 			state.healthBar.dispose();

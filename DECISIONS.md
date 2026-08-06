@@ -11911,3 +11911,17 @@ choice.
 **Session Quality Gate (§8.6):** confidence **5/5** — mechanical, fully-tested relocation with zero behavior change, verified by a complete real-browser smoke pass and a bit-identical perf snapshot; no open design ambiguity.
 
 **Geri alma planı:** `git revert` the single commit — moves the five functions back into `game3d.js` and restores its three dropped imports; `gameLoopHelpers.js` and the doc-comment updates revert with it.
+
+## ADR-0133: Nearest-settlement compass for FAZ 8 discoverability
+
+**Status:** Accepted (run 106).
+
+**Risk Seviyesi:** LOW — additive HUD module and smoke check; no movement, world generation, settlement coordinates, save data, or renderer behavior changes.
+
+**Context:** the FAZ 8 world already contains named kingdom seats, but desktop, mobile, and installed-PWA players had no persistent in-world cue for discovering them. The run-105 extraction restored safe orchestration headroom. The service-worker guard also exposed that run 105's new `gameLoopHelpers.js` module had not been added to the offline shell.
+
+**Decision:** add a disposable `SettlementCompass` that selects the nearest configured seat, shows its name and rounded distance, and rotates an arrow relative to player yaw. Keep the widget pointer-inert, safe-area aware, and compact on narrow screens. Wire it to the existing per-frame player position, precache both the widget and the previously omitted `gameLoopHelpers.js`, and add a dedicated real-browser regression check.
+
+**Alternatives considered:** a full minimap was rejected as substantially more rendering/UI complexity; quest-only markers were rejected because no quest state exists yet; hard-coding one destination was rejected because it would hide the existing multi-seat world.
+
+**Verification and consequence:** syntax, PWA installability, service-worker coverage, smoke-registry, focused mobile browser assertions, desktop/mobile screenshots, and the full browser suite verify the change. The widget owns no listeners, timers, or GPU resources and removes its only DOM subtree on dispose. **Gelecek Faz Etkisi:** future road signs or quest markers can complement this orientation layer without changing settlement data. **Rollback:** revert the additive module, wiring, styles, cache entries, test, and documentation commit.

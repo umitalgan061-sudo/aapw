@@ -11132,3 +11132,17 @@ Moved `computeCameraRelativeMove`, `combineAxes`, `collectCameraCollidables`, `s
 **World Evolution Report:** world/NPC/dialogue/event/animal/dragon/settlement/road/asset counts unchanged (pure refactor, no gameplay change); `game3d.js` line count 590→471 (129 lines of headroom restored before the next forced split); smoke registry unchanged at 30 checks/10 modules, files-near-cap 2→1; ADR headers 131→132; coverage desktop 96.2% / mobile 4.5% (unchanged); debt 0→0. **Oyuncu fark eder mi:** hayır — tamamen görünmez, iç kod organizasyonu değişikliği; oyuncunun göreceği hiçbir şey değişmedi. **Next step:** priority re-scan again next run — items 1-3 stay closed, item 4 stays owner/asset-blocked, items 5-8 stay clean; either `dragonController.js`'s own 579/600 WARN (same tech-debt category, not yet urgent) or a fresh scan of items 10-14 (smoke test/world coverage/FAZ 7/FAZ 11) are the most likely next picks.
 
 **Addendum:** local commit + `git push origin work` (then PR open/merge to `main`) attempted per the established run 2-104 workflow; see this run's own commit/push log for the actual result (tag push, if attempted, is expected to hit the same standing `HTTP 403` per GOVERNANCE.md §8.11).
+
+## This Run (2026-08-06, run 106)
+
+**Concurrency/snapshot:** GitHub authentication was restored, `origin/main` was fetched, and `work` was realigned to run 105 before editing so Claude's latest merged refactor remained intact. The FAZ priority scan selected a player-visible FAZ 8 discoverability gap after the run-105 line-cap debt was closed.
+
+### Sub-task: nearest-settlement compass (DECISIONS.md ADR-0133)
+
+Added a responsive, safe-area-aware HUD compass that continuously selects the nearest kingdom seat, displays its name and rounded distance, and rotates relative to player yaw. It works from the same DOM/CSS path on desktop, touch/mobile, and installed PWA; it adds no input interception. The module has no listeners/timers/GPU allocation and removes its DOM on disposal. The PWA shell now includes the compass and also closes the pre-existing run-105 omission of `gameLoopHelpers.js` found by `checkServiceWorkerCache.js`.
+
+**DoD:** full JavaScript syntax sweep, smoke registry (31 checks/11 modules), PWA installability, service-worker cache coverage, and focused mobile Playwright assertions pass. Desktop 1280×720 and mobile 390×844 screenshots verify safe placement. Full-suite and perf results are recorded in this run's test log; no code was deleted.
+
+**World Evolution Report:** world/NPC/dialogue/event/animal/dragon/settlement/road/asset counts unchanged; settlement-navigation coverage 0→1 HUD system; smoke registry 30→31 and modules 10→11; ADR headers 132→133; technical debt 0→0. **Oyuncu fark eder mi:** evet — en yakın yerleşimin yönünü ve mesafesini artık her cihazda görebilir. **Next step:** fetch current `origin/main` again before the next sub-task, then resume the governed priority scan; the remaining untextured-seat and new-fauna items still require suitable licensed model assets.
+
+**Run-106 verification addendum:** the full smoke runner passed all 30 component/regression checks, including the new compass, but its separate real-3D readiness probe timed out under this container's software renderer. `collectPerfSnapshot.js run106` hit the same readiness timeout, so no performance row was fabricated; the last valid run-105 renderer baseline remains authoritative.
