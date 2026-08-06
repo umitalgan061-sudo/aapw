@@ -89,6 +89,7 @@ const WORLD_EVENTS = Object.freeze([
 	{ id: 'shackled_prisoner', icon: '⛓️', title: 'Zincirli Mahkûm', desc: 'Nöbetçiler zincirli bir mahkûmu kale kapısından zindana sürüklüyor — suçu neydi, kimse bilmiyor.', color: '#5c5c4a', weight: WEIGHT.UNCOMMON },
 	{ id: 'northern_lights', icon: '🌌', title: 'Kuzey Işıkları', desc: 'Ufkun kuzeyinde gökyüzü yeşile çalan bir ışıkla dalgalanıyor — yaşlılar bunu Duvar\'ın kendi uyarısı sayar.', color: '#2a7a5a', weight: WEIGHT.RARE, timeOfDay: 'night' },
 	{ id: 'traveling_singer', icon: '🎻', title: 'Gezgin Ozan', desc: 'Kale kapısına gelen bir ozan, eski krallardan kalma bir türküyü mızıkasıyla çalmaya başlıyor.', color: '#8a5ac8', weight: WEIGHT.UNCOMMON },
+	{ id: 'harvest_wagons', icon: '🌾', title: 'Hasat Arabaları', desc: 'Gün ışığında tahıl yüklü arabalar kale ambarlarına doğru ilerliyor; yol kenarında saman kokusu kalıyor.', color: '#c8a84a', weight: WEIGHT.COMMON, timeOfDay: 'day' },
 ]);
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=

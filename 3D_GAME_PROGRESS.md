@@ -10986,3 +10986,19 @@ sonraki dokunuşta bir bölme planı düşünülmeli.
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+## This Run (2026-08-06, run 102)
+
+**Concurrency/snapshot:** authenticated, restored `origin`, fetched `origin/main`, and found Claude's run-101 ADR-0128 two commits beyond the run-100 merge. Local `work` was realigned to `origin/main` before edits. FAZ 5's third-choice rollout is complete; the next unblocked roadmap lever was FAZ 8 world-event flavor.
+
+### Sub-task: daytime harvest event + mobile toast collision fix (DECISIONS.md ADR-0129)
+
+Added the COMMON, day-gated `harvest_wagons` event. Its first 390×844 visual proof revealed the existing event toast overlapping “2D Haritaya Dön”; a ≤600px safe-area-aware rule now places transient toasts below the persistent top HUD. Desktop placement remains unchanged. Smoke assertions prove noon inclusion, midnight exclusion, and ≥12px mobile separation.
+
+**DoD:** full `node --check` sweep passed; smoke registry remains 29/29 across 9 modules with only the two known near-cap warnings; PWA installability and service-worker cache guards pass. Focused Playwright world-event lifecycle/layout and 1000-draw time-gating checks pass. Real before/after mobile and desktop screenshots captured the defect and fix. Memory checklist: no new listener/timer/DOM/GPU allocation; existing toast lifecycle unchanged. Confidence **5/5**. Technical debt remains **0**.
+
+**World Evolution Report:** event pool 26→27 (+1 daytime harvest event); NPC/animal/dragon/settlement/road/asset counts unchanged; world coverage desktop 96.2% / mobile boot 4.5%; smoke registry unchanged at 29; ADR headers 128→129; mobile top-HUD overlap fixed; debt 0→0. **Oyuncu fark eder mi:** evet — gündüz tahıl arabaları haberi görülebilir ve mobil toast artık geri dönüş düğmesini kapatmaz. **Next step:** fresh `origin/main` fetch; re-scan priority order. If content remains the only unblocked lever, expand world-event variety only with a distinct, testable time/rarity role rather than duplicating existing ambiance.
+
+**Performance addendum:** `collectPerfSnapshot.js run102` succeeded after the entry above was drafted: 2 headless-software FPS, 46 draw calls, 393,231 triangles, 44 geometries, 17 textures, 307 MB JS heap — draw/triangle/geometry/texture figures remain identical to the established baseline; row appended to `perf_log.csv`.
+
+**Full regression addendum:** post-change `smokeTestGame3D.js` completed **29/29 PASS**, including real offline-capable 3D `GAME_READY`, zero 3D console/page errors, the new mobile-toast separation assertion, and every NPC/animal/dragon/safe-mode guard.
