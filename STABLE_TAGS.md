@@ -354,3 +354,11 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   succeeded (`afd910a`). Local tag only — `git push origin <tag>` still rejected, same `HTTP 403`
   standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the
   checkpoint).
+
+- **Run 91 (2026-08-06):** Session Quality Gate passed (confidence 5/5, 2 sub-tasks — periodic
+  platform check re-pass §15 + `olena-guard-1`'s 3rd dialogue choice ADR-0117), full smoke suite
+  **27/27 PASS** before and after both sub-tasks, game boots cleanly (real screenshots taken this
+  run, 0 console/page errors). Local tag `stable-2026-08-06-1000` created at `035c359`.
+  `git push origin main` succeeded (`c98cffb..035c359`). `git push origin <tag>` still rejected,
+  same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry
+  satisfies the checkpoint).
