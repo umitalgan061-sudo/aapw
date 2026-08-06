@@ -434,3 +434,13 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   origin main` succeeded (`3cfa93d..ae247e3`). `git push origin <tag>` still rejected, same
   `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies
   the checkpoint).
+
+- **Run 99 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed (confidence
+  5/5) — `robin-guard-1`'s 3rd dialogue choice (ADR-0125), the pilot's 11th NPC to reach the 3rd
+  dialogue slot and the Vale's 1st seat to do so. Full smoke suite **28/28 PASS** before and after,
+  real headless-Chromium + real visual proof (2 moments, live `game3d.html` scene served over a
+  local static server) confirm the new choice renders and resolves correctly, 0 console/page errors.
+  `perf_log.csv`'s `run99` row bit-identical to run76-98. Local tag `stable-2026-08-06-1655` created
+  at `358c62c`. `git push origin main` succeeded (`493bbef..358c62c`). `git push origin <tag>` still
+  rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
+  entry satisfies the checkpoint).
