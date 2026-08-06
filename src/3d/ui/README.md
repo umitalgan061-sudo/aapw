@@ -15,7 +15,7 @@ convention below.
   tracks one pointer via Pointer Events (`pointerdown`/`pointermove`/`pointerup`/`pointercancel`,
   `setPointerCapture` so dragging past the base's bounds still tracks). `getAxes()` returns the
   same `{forward, strafe, running}` shape as `input.js`'s `KeyboardInput.getAxes()` (continuous
-  -1..1 here, since it's an analog stick) — `game3d.js`'s `combineAxes()` merges the two so
+  -1..1 here, since it's an analog stick) — `gameLoopHelpers.js`'s `combineAxes()` merges the two so
   keyboard and joystick input never fight each other. `dispose()` removes the DOM and listeners.
 - **`interactionPrompt.js`** — proximity interaction affordance (FAZ 5 first pass, run 32).
   `new InteractionPrompt(container?)` appends a single `<div>` (styled via `game3d.css`), hidden by

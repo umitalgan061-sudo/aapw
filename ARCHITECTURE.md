@@ -139,7 +139,7 @@ the way it is.
 - **Used by:** `game3d.js` — one `ChunkManager` instance, `loadSquare(0, 0,
   PHASE1_PREVIEW_RADIUS_CHUNKS)` at scene-bootstrap time, then `streamTowards(centerChunkX,
   centerChunkZ, STREAM_RADIUS_CHUNKS)` every frame the `OrbitControls` target has crossed into a
-  new chunk (see `streamAroundOrbitTarget()` in `game3d.js`). Also `getLoadedChunkMesh(chunkX,
+  new chunk (see `streamAroundOrbitTarget()` in `gameLoopHelpers.js`, run 105). Also `getLoadedChunkMesh(chunkX,
   chunkZ)` (ADR-0018), read every frame by `collectCameraCollidables()` to fetch the player's
   current chunk mesh (+ 8 neighbors) as camera wall-avoidance raycast candidates, without that
   caller needing to know the internal `chunkKey` format.
@@ -296,8 +296,8 @@ the way it is.
   position only for that frame's `renderer.render()` call and restores the true desired position
   immediately after, so a collision is a one-frame visual clamp, not a permanent zoom change (the
   camera eases back out the instant line of sight clears). Reuses one caller-owned `THREE.Raycaster`
-  (no per-frame allocation) against a small caller-supplied candidate list — see `game3d.js`'s
-  `collectCameraCollidables` entry below for what's actually tested.
+  (no per-frame allocation) against a small caller-supplied candidate list — see
+  `gameLoopHelpers.js`'s `collectCameraCollidables` entry below for what's actually tested.
 
 ## `src/3d/physics.js` — Ground- and settlement-collision resolution, plus jump/gravity (FAZ 4 / FAZ 3, run 35; jump arc added run 36)
 
@@ -343,7 +343,7 @@ the way it is.
   styled via `game3d.css`) to a container element (`document.body` by default).
 - **Used by:** `game3d.js` — instantiated only when `isCoarsePointerDevice()` is true, read once
   per frame via `getAxes()` (same shape as `KeyboardInput.getAxes()`), combined with keyboard axes
-  via `game3d.js`'s `combineAxes()`, disposed on `pagehide`.
+  via `gameLoopHelpers.js`'s `combineAxes()`, disposed on `pagehide`.
 - **Critical path:** no — if it fails to construct or never registers a touch, the player just
   can't move via touch (keyboard still works if a keyboard happens to be attached; a stationary
   character is the same safe degraded state `input.js` already documents).
@@ -793,7 +793,13 @@ dragons/combat/etc.
   `camera.js`'s `resolveCameraCollision()` each frame — see `world/chunkManager.js`, `lighting.js`,
   `fog.js`, `sky.js`, `world/water.js`, and DECISIONS.md ADR-0003/ADR-0006/ADR-0007/ADR-0009/
   ADR-0011/ADR-0013/ADR-0016/ADR-0018/ADR-0019/ADR-0025/ADR-0026/ADR-0027).
-- **`collectCameraCollidables(state, worldX, worldZ)` (module-local, added ADR-0018):** builds the
+- **`gameLoopHelpers.js` (run 105):** the tick loop's pure per-frame helpers below
+  (`collectCameraCollidables`, `computeCameraRelativeMove`, `combineAxes`, `streamAroundOrbitTarget`,
+  `bindResize`) were extracted out of `game3d.js` into their own module purely to stay under the
+  600-line file cap (`game3d.js` was at 590/600) — no behavior change, each function takes
+  everything it needs as a parameter rather than closing over `initGame3D`'s locals, so the move was
+  mechanical. `game3d.js` imports and calls them exactly as before.
+- **`collectCameraCollidables(state, worldX, worldZ)` (`gameLoopHelpers.js`, added ADR-0018):** builds the
   small candidate list `resolveCameraCollision` raycasts against each frame — the player's current
   terrain chunk + its 8 immediate neighbors (via `chunkManager.getLoadedChunkMesh`, sufficient
   since `CAMERA_MAX_DISTANCE_METERS` is 40m, far short of one 500m chunk) plus every settlement
@@ -807,10 +813,10 @@ dragons/combat/etc.
   `camera.position` to the snapshotted desired value. This keeps the pull-in a purely visual,
   per-frame effect — the next frame's chase-delta translation (which reads `camera.position`) always
   starts from the user's true, uncollided zoom/orbit state.
-- **`computeCameraRelativeMove(camera, controls, axes)` (module-local, added FAZ 4):** turns raw
-  input axes into a world-space movement direction from the camera's current facing. Kept here,
+- **`computeCameraRelativeMove(camera, controls, axes)` (`gameLoopHelpers.js`, added FAZ 4):** turns raw
+  input axes into a world-space movement direction from the camera's current facing. Kept there,
   not in `gameplay/player.js`, so gameplay code stays camera-agnostic (see `gameplay/README.md`).
-- **`combineAxes(keyboardAxes, joystickAxes)` (module-local, added FAZ 4 run 18):** sums the
+- **`combineAxes(keyboardAxes, joystickAxes)` (`gameLoopHelpers.js`, added FAZ 4 run 18):** sums the
   continuous forward/strafe components (clamped to [-1, 1]) and ORs `running`, so a touch-capable
   device with a keyboard attached can use either input source without one overriding the other.
   `joystickAxes` is `null` on desktop (no `TouchJoystick` instantiated there), in which case this

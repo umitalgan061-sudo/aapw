@@ -6,7 +6,7 @@
  *
  * Touch/joystick input (FAZ 4's other input requirement, for mobile) lives in its own module,
  * `ui/touchJoystick.js` — this module intentionally covers keyboard only. `game3d.js` combines
- * both via `combineAxes()` before computing camera-relative movement.
+ * both via `gameLoopHelpers.js`'s `combineAxes()` before computing camera-relative movement.
  * @module input
  */
 

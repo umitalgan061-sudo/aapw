@@ -58,7 +58,7 @@ const _rayDirection = new THREE.Vector3();
 
 /**
  * Pulls `desiredPosition` in along the target->camera ray if it's occluded by anything in
- * `collidables` (terrain chunks, castle parts — see `game3d.js`'s `collectCameraCollidables`),
+ * `collidables` (terrain chunks, castle parts — see `gameLoopHelpers.js`'s `collectCameraCollidables`),
  * so the chase camera lands just in front of a wall/hillside instead of clipping through it.
  * Deliberately does not mutate `OrbitControls`' own spherical radius — `game3d.js` restores
  * `camera.position` to `desiredPosition` right after each frame's render, so a collision pull-in
