@@ -58,6 +58,27 @@ here (blast radius rule — if a change needs more than that, it's not a world-s
   disposes a material's own maps plus itself. See DECISIONS.md's newest ADR for why procedural
   generation was chosen over an external texture file.
 
+- **`roadPathfinder.js`** — slope-aware A* pathfinder over a padded grid corridor between two
+  world-space points (DECISIONS.md ADR-0076). `findSlopeAwarePath({...})` returns a polyline that
+  visibly bends around steep terrain instead of cutting a straight line through it (GOVERNANCE.md
+  §8.10) — 8-directional grid A* with an admissible Euclidean heuristic, movement cost scaled by a
+  cubic grade penalty (`ROAD_COMFORT_GRADE_DEGREES = 10°`, the soft target below which a segment is
+  treated as effectively free). Pure/stateless: takes a height sampler (the same
+  `createHeightSampler` output every other world system reads through) and never touches THREE.js
+  or scene state, so it's independently regression-checked by `scripts/roadNetworkSafetyCheck.js`.
+  Deterministic — no `Math.random()`, same inputs always produce the same grid/expansion
+  order/output path.
+- **`roads.js`** — road network connecting the 14 kingdom seats (DECISIONS.md ADR-0076).
+  `computeSeatMST(seats)` builds a minimum-spanning-tree topology (Prim's algorithm, 13 edges over
+  raw Euclidean seat-to-seat distance — deterministic tie-breaking by array order) rather than a
+  complete point-to-point graph; `buildRoadNetwork({seats, sampleHeightMeters})` routes each MST
+  edge through `roadPathfinder.js`'s slope-aware A* and merges every edge into one dirt-colored
+  ribbon `THREE.Mesh` (`ROAD_WIDTH_METERS = 8`, raised `VERTICAL_OFFSET_METERS = 0.4` above the
+  sampled terrain to avoid z-fighting) following the real combined fine-FBM + macro-relief terrain
+  height. `disposeRoadNetwork(group)` releases the mesh's geometry/material. First-pass scope: one
+  road tier ("ana yol" / at arabası yolu) — see `QUESTIONS_FOR_OWNER.md` for the deferred second
+  "patika" tier question.
+
 ## Conventions
 
 - **Determinism:** every generator in this folder must take an explicit `seed` and use a seeded

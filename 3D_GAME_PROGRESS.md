@@ -11188,3 +11188,41 @@ Added `DayNightClock` (`ui/dayNightClock.js`): a 24-hour HH:MM readout plus a da
 **Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §8.14. Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları (at/araba/köpek-kedi/kuş) model bekliyor. `dragonController.js`'s 579/600 WARN is still the most concrete pending tech-debt item if no fresher FAZ 8 lever presents itself. `RULES_CHANGELOG.md`'s next consolidation ~run 116 (unchanged). `CATCH_UP.md`'s next summary due **next run (~108)** — flag this explicitly for run 108's Session Snapshot step.
 
 **Addendum:** local commit + `git push origin work` (then PR open/merge to `main`) attempted per the established run 2-106 workflow; local `git tag stable-2026-08-06-HHMM` + push attempt (expected to hit the standing `HTTP 403` per GOVERNANCE.md §8.11) recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-06, run 108 — scheduled autonomous routine)
+
+**Concurrency/snapshot:** local `main` (detached HEAD from container init) was already exactly at `origin/main`'s real tip (`120db16`, run 107's stable-tag commit) — confirmed via `mcp__github__list_branches`/`list_pull_requests` (0 open PRs, `main` = `120db16`) rather than trusting the local ref alone, per §8.14. Read `GOVERNANCE.md` in full (already populated — no recreation needed, confirming it covers every rule the fired prompt listed, including all the 🆕-tagged ones from a stale-looking prior version of that prompt), `3D_GAME_PROGRESS.md`'s run 107 entry, `DECISIONS.md`'s last 3 ADRs (0132-0134), and `QUESTIONS_FOR_OWNER.md` in full (no new unresolved item since run 90; the run-63 leaked-key entry is still open pending owner action, unchanged, not re-flagged as new). `git checkout -B work origin/main` before any edit.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`) clean. `checkSmokeCheckRegistry.js`: 32 checks/12 modules, only the pre-existing `dragonController.js` 579/600 WARN (unchanged across several runs). Full `scripts/smokeTestGame3D.js`: **32/32 PASS**, 0 FAIL, zero console/page errors — no readiness timeout this run.
+
+**Priority re-scan (§18):** items 1-3 (macro relief/road network/terrain color) remain closed. Item 4 (texture the remaining 6 kingdom seats) stays asset-blocked. Items 5-11 all clean per the baseline sweep above. Items 12-13 (FAZ 7 dragon follow-ups, FAZ 11 species) remain model/owner-decision-blocked. That left item 14 (new feature) — following the run-104/106/107 discoverability-widget precedent, `ui/README.md` and (this run's own required step, matching that precedent's "read the full widget list first, don't assume a gap") `gameplay/README.md`/`world/README.md` were read in full before picking anything.
+
+### Sub-task: close `gameplay/README.md`/`world/README.md` documentation drift (DECISIONS.md ADR-0135)
+
+That read surfaced a real, unrelated-to-item-14 gap instead: `gameplay/README.md`'s "Files" list documented only 6 of the folder's 17 `.js` files — an entire FAZ 7 dragon subsystem (`dragons.js`/`dragonController.js`/`dragonFlightMath.js`/`dragonSpawns.js`/`dragonConfig.js`), this project's first health system (`health.js`), the FAZ 11 species registry (`creatureSpeciesConfig.js`), and 4 other split-out config files were completely undocumented. `world/README.md` was missing `roads.js`/`roadPathfinder.js` — the FAZ priority-item-2 road network. Fixing a real, freshly-discovered doc gap in the same run it surfaced beat deferring to a hypothetical future run that might not re-discover it (full reasoning/alternatives in ADR-0135). Also corrected one already-present stale line found in the same pass: `interaction.js`'s README entry said `choicesByNpcId` covers "2 of 14 NPCs" (a run-44-era number); the live, `node`-verified count is 13 of 14.
+
+**DoD durumu:** documentation-only — no `.js` file touched, so `node --check` has nothing new to check (verified nothing in `src/`/`scripts/` shows as changed via `git status`). `checkSmokeCheckRegistry.js` and the full `smokeTestGame3D.js` (32/32 PASS) both re-run post-change, unchanged from the baseline above, confirming the README edits touched nothing either scans. `collectPerfSnapshot.js` `run108` row (`46/393231/44/17`) bit-identical to the run76-107 baseline, as expected. No visual proof taken — this change has no rendered-UI surface (see ADR-0135's own reasoning); `git diff --stat` (2 `.md` files, +103/-9) is the applicable evidence. Konsol Temizliği: n/a, no page was rendered by this change specifically (the full smoke suite's own zero-console-error re-run covers the baseline). Technical debt: **0** (this fix *reduces* latent doc-debt, doesn't add any).
+
+**AI Self-Review 2. Geçiş (§8.3):** every new entry's claimed exports/option shapes were copied from the real file (`grep -n "^export"` for `roads.js`/`roadPathfinder.js`/`dragonSpawns.js`, full reads for the rest), not assumed from other docs' possibly-stale prose. The "13 of 14" correction was checked against the live `CHOICES_BY_NPC_ID` object via a real `node -e "import(...)"`, not counted by eye. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a, no runtime code touched.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — mechanical, fully-verified documentation correction, zero runtime risk, closes a real and growing gap. "6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 108 end) | Delta |
+|---|---|---|---|
+| `gameplay/README.md` documented files | 6 / 17 | **17 / 17** | +11 |
+| `world/README.md` documented files | 6 / 8 | **8 / 8** | +2 |
+| Stale doc claims found+fixed | 0 | **1** (`interaction.js`'s NPC-choice count) | +1 |
+| Smoke suite | 32/32 | **32/32** | unchanged (docs-only) |
+| ADR headers in `DECISIONS.md` | 134 | **135** | +1 (ADR-0135) |
+| `perf_log.csv` rows | 48 | **49** | +1 (`run108`) |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (docs-only) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi (doc-debt reduced, not counted against the code-debt counter) |
+
+**Oyuncu fark eder mi:** hayır — tamamen görünmez, sadece geliştirici dokümantasyonu. Ama gelecekteki her çalıştırmanın Session Snapshot adımı artık dünyanın gerçek FAZ 7/FAZ 11/yol-ağı alt sistemlerinin varlığından haberdar oluyor — daha önce bu dosyaların hiçbiri `gameplay/README.md`'de görünmüyordu.
+
+**Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §8.14. Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları (at/araba/köpek-kedi/kuş) model bekliyor. `dragonController.js`'s 579/600 WARN is still the most concrete pending tech-debt item if no fresher FAZ 8/item-14 lever presents itself — this run's own doc-fix means the next run's Session Snapshot will actually see it documented now, alongside every other dragon-subsystem file. `RULES_CHANGELOG.md`'s next consolidation ~run 116 (unchanged). `CATCH_UP.md`'s next summary is due **this run (108)** per run 107's own flag — handled below, in the same run rather than deferred again.
+
+**Addendum:** local commit + `git push origin work` (then PR open/merge to `main`) attempted per the established run 2-107 workflow; local `git tag stable-2026-08-06-HHMM` + push attempt (expected to hit the standing `HTTP 403` per GOVERNANCE.md §8.11) recorded in `STABLE_TAGS.md`.
