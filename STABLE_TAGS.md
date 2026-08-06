@@ -444,3 +444,14 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   at `358c62c`. `git push origin main` succeeded (`493bbef..358c62c`). `git push origin <tag>` still
   rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
   entry satisfies the checkpoint).
+
+- **Run 99 sub-task 2 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed
+  (confidence 5/5) — `ziya-guard-1`'s 3rd dialogue choice (ADR-0126), the pilot's 12th NPC to reach
+  the 3rd dialogue slot, the Reach's 2nd seat to do so (after `olena-guard-1`). Chained from
+  sub-task 1 (`robin-guard-1`, ADR-0125) same run. Full smoke suite **28/28 PASS**, real
+  headless-Chromium + real visual proof confirm the new choice renders and resolves correctly, 0
+  console/page errors. `perf_log.csv`'s `run99b` row bit-identical to run76-99. Local tag
+  `stable-2026-08-06-1710` created at `d40fdbf`. `git push origin main` succeeded
+  (`10f45bd..d40fdbf`). `git push origin <tag>` still rejected, same `HTTP 403` standing block since
+  run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint). Only
+  `berk-guard-1` remains at 2 choices — next run completes item 14's pilot coverage at 13/13.
