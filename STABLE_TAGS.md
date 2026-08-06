@@ -362,3 +362,11 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `git push origin main` succeeded (`c98cffb..035c359`). `git push origin <tag>` still rejected,
   same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry
   satisfies the checkpoint).
+
+- **Run 92 (2026-08-06, canlı istek):** Session Quality Gate passed (confidence 5/5) — settlement
+  ground-flatten pads (ADR-0118), fixing the owner's directly-reported bug (castles floating/gapping
+  over uneven terrain). Full smoke suite **28/28 PASS** (new check added this run). Real before/after
+  visual proof (2 angles, `berk` seat) + 2 independent safety-check scripts (before/after) confirm no
+  regression. Local tag `stable-2026-08-06-1130` created at `3698939`. `git push origin main`
+  succeeded (`178d7c0..3698939`). `git push origin <tag>` still rejected, same `HTTP 403` standing
+  block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
