@@ -10284,6 +10284,129 @@ both sub-tasks, stays bit-identical to run76-87).
 together, or its own commit if split) — removes the one new choice object and reverts the header
 comment's NPC-list prose to its pre-change wording. Nothing else references this specific choice.
 
+## ADR-0115: `twin-guard-1`'s 3rd dialogue choice — the pilot's 3rd NPC to use the 3rd slot
+
+**Status:** Accepted (run 89).
+
+**Risk Seviyesi:** LOW. Pure content addition to `CHOICES_BY_NPC_ID`'s existing 2-choice array for
+one already-shipped NPC — no new mechanism, no schema change, no other NPC touched. No terrain/
+height/world-scale change (Arazi Değişikliği Güvenlik Kontrolü doesn't apply). Fully reversible:
+`git revert` removes the one new choice object and its header-comment note.
+
+**Context:** First sub-task this run (2026-08-06, run 89 — scheduled autonomous routine). Session
+Snapshot confirmed `GOVERNANCE.md`/`CREDITS.md` already exist and are comprehensive (created run
+~74-75, last consolidated run 76) — no recreation needed. `git fetch origin main` (§8.14) confirmed
+local `main` (a stale local branch ref, `b091711`) was behind `origin/main` (`af3e7ac`, run 88's last
+commit) with no divergence — a fast-forward local-branch-pointer fix, not a real conflict; reconciled
+by resetting local `main` to `origin/main` before starting. Baseline regression guard: full
+`node --check` sweep — clean, 64 files. Full `smokeTestGame3D.js` — **26/26 PASS**, 0 FAIL, before
+any new code.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-8 (terrain macro relief, road network, ground
+color, castle texturing, syntax errors, blocking bugs, performance, memory) re-confirmed already
+done/healthy via their own standing guards (`terrainSeatSafetyCheck.js`, `roadNetworkSafetyCheck.js`,
+the smoke suite itself), not re-litigated from scratch — same precedent run 88 and earlier runs
+already established for a re-scan with no new evidence of drift. Item 4 (castle texturing) remains
+blocked on real 3D models for the 6 remaining seats — no new model asset since run ~59 (re-checked via
+`git log --diff-filter=A -- 'assets/models/*'`). Items 9-11 (tech debt, smoke test, coverage): no
+open line-count WARN remains (run 88 closed the only one, `game3dSmokeChecksScene.js`; `game3d.js`'s
+545/600 is the sole file above 90% of the cap, not yet urgent, unchanged since run 87). Items 12-13
+(dragon attack, FAZ 11 species) remain blocked exactly as run 88 left them — no new model asset,
+dragon attack still gated on the unresolved health-system question in `QUESTIONS_FOR_OWNER.md`. That
+leaves item 14 ("yeni özellik"): run 88's own Next-step note logged `twin-guard-1`/`olena-guard-1` as
+the remaining 3rd-choice candidates (both from ADR-0114's own "Alternatives considered"), and flagged
+`worldEvents.js`'s flavor pool as "rested one round" — i.e. eligible again, but the dialogue-choice
+lever hadn't been exercised on a 3rd NPC yet, a genuinely distinct milestone (proving the mechanism
+generalizes past a 2-NPC pilot) that the flavor-pool lever doesn't offer this run. **Gelecek Faz
+Etkisi:** none — still no further branching/state/persistence/stat hook, same "pilot on a growing
+subset" scope ADR-0058 established; a future real dialogue-tree/quest system would replace this
+mechanism wholesale rather than be constrained by one more leaf choice.
+
+**Decision:** `twin-guard-1` (the Twins' crossing/toll flavor, the pilot's own distinct Lannister-
+house seat) gets a 3rd choice — "Hiç fark edilmeden geçen biri oldu mu?" ("Has anyone ever slipped
+through unnoticed?") — the exact angle ADR-0114's own "Alternatives considered" logged as this NPC's
+fitting lever: a paranoid toll-keeper's suspicion, distinct from both `umit-guard-1`'s "does it scare
+you" personal-duty question and `berkalp-guard-1`'s "does it tire you" personal-duty question — this
+one is about the guard's own professional vigilance/paranoia rather than his feelings about the job,
+opening a 3rd distinct angle rather than a 3rd near-duplicate of the existing "personal question"
+pattern. Original text, no HBO-specific material. Response ("Bir kere oldu, bir daha olmadı... O
+geceden sonra nöbeti hiç gevşetmedik") stays in-tone with the NPC's existing 2 choices (terse,
+guarded, addresses the player as "yabancı") and echoes its own already-established "the Twins never
+forget who crossed" theme (present since `twin-guard-1`'s first choice) without quoting any
+trademarked line.
+
+**Alternatives considered:**
+- *`olena-guard-1` instead (run 88's other logged candidate).* Considered — a sharp-tongued Tyrell
+  guard, "has your wit ever gotten you in trouble?" would fit. Rejected in favor of `twin-guard-1`
+  because ADR-0114 already logged a *specific, concrete* question idea for `twin-guard-1` ("have you
+  ever let someone through unnoticed?"), while `olena-guard-1`'s angle would need to be invented fresh
+  this run — picking the already-vetted idea reduces the risk of an awkward or forced-sounding
+  addition, same reasoning ADR-0114 itself used when it picked `berkalp-guard-1` over inventing a new
+  angle for a fresh NPC. `olena-guard-1` remains a legitimate future candidate (noted below in Next
+  step).
+- *`worldEvents.js`'s flavor pool instead (26 -> 28 entries).* Rejected for this sub-task — not
+  because it's a bad lever (run 88's own note explicitly flagged it as "rested one round," i.e.
+  eligible), but because the dialogue-choice mechanism reaching a **3rd** NPC is a more informative
+  proof point this run (confirms the mechanism generalizes past the original 2-NPC pilot, not just a
+  content-volume increase) — the flavor pool remains a valid pick for a later sub-task or a future
+  run if the budget/quality gate allow continuing.
+- *A 3rd lore fact about the Twins/crossing instead.* Rejected — the existing 2 choices already cover
+  the toll/bedel angle and the surveillance angle; a 3rd lore fact risks reading as padding, whereas
+  the paranoid-suspicion question (already logged as this NPC's fitting angle in ADR-0114) opens
+  something the existing 2 don't touch.
+
+**Verified:**
+- `node --check` clean on `dialogueChoices.js` (189/600, was 181). `checkDialogueChoicesShape.js`
+  re-run: **13/13 NPC entries still resolve, all choices within the 3-slot keybinding limit, all
+  labels/responses non-empty, all responses carry `{name}`. Pilot coverage: 13/14** (unchanged — this
+  grew an existing entry, not coverage).
+- Full committed smoke suite, re-run after the change: **26/26 PASS**, 0 FAIL — `checkInteractionController`'s
+  own choice-branching assertions exercise the mechanism generically via mocks, unaffected by this
+  NPC's specific content.
+- **Real headless-Chromium proof, not assumed from the diff:** a dev-only (not committed) Playwright
+  script booted the real `game3d.html` (zero console/page errors), then in-page drove the real
+  `createInteractionController`/`DialogueBox`/`INTERACTION_CONFIG.CHOICES_BY_NPC_ID` against a
+  synthetic `twin-guard-1` NPC (`object3D.name` — the actual lookup key `openDialogue` uses, not
+  `id`) placed at the player's own position (well inside `radiusMeters`). Confirmed, against the real
+  served modules: all 3 real choice labels render ("Köprüden geçmenin bir bedeli var mı?" / "Neden her
+  adımı bu kadar yakından izliyorsunuz?" / the new "Hiç fark edilmeden geçen biri oldu mu?"), the hint
+  reads exactly `'1/2/3 - Seç, Esc - Kapat'` (the mechanism's 3rd generalization, after
+  `umit-guard-1`/`berkalp-guard-1`), pressing `Digit3` shows the new response verbatim with `{name}`
+  correctly replaced ("İkiz Muhafızı: Bir kere oldu, bir daha olmadı, yabancı. O geceden sonra nöbeti
+  hiç gevşetmedik."), and the hint reverts to `'E / Esc - Kapat'` after selection. The proof script's
+  DOM query was container-scoped from the first draft this run (`new DialogueBox(container)` +
+  `container.querySelector(...)` throughout) — ADR-0114's own logged pitfall (querying the live
+  game's own already-booted `DialogueBox` by shared class name) was avoided by design rather than
+  rediscovered. **Real visual proof, 2 angles, zero console/page errors in both:** (1) the live
+  scene's default boot camera, before touching anything; (2) the same live scene after opening the
+  dialogue, selecting the 3rd choice, and activating F4's free-fly camera (driven via in-page
+  `dispatchEvent`, matching `checkFreeCamera`'s and ADR-0114's established technique) — the 2nd
+  screenshot shows the dialogue box rendering the new 3rd choice's response over the live scene, with
+  a real in-flight `WorldEventToast` ("Ejderha Görüldü!") visible in both frames, proving the rest of
+  the scene keeps ticking underneath.
+- **AI Self-Review 2. Geçiş (§8.3):** confirmed the new response's tone matches `twin-guard-1`'s
+  existing 2 (terse, guarded, addresses the player as "yabancı" like every other guard in this file);
+  confirmed no HBO-specific phrasing; confirmed the header comment's NPC-list prose was updated to
+  list `twin-guard-1` alongside `umit-guard-1`/`berkalp-guard-1` as a 3-choice NPC and to record the
+  run/ADR history inline (matching the file's existing convention); confirmed no
+  `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+- **Değişiklik Etki Analizi:** not required — no terrain/height/noise/world-scale touch.
+- **Görsel Doğrulama Standardı (§8.5):** satisfied — 2 camera angles, zero console/page errors in
+  both, matching this project's standing convention for a player-visible `src/` gameplay content
+  change.
+
+**Etkilenen sistemler:** `src/3d/gameplay/dialogueChoices.js` (one new choice object in
+`twin-guard-1`'s array, header comment updated). No change to `interaction.js`, `dialogueBox.js`,
+`gameplayConfig.js`, or any other NPC's entry.
+
+**Consequences:** `twin-guard-1` becomes the pilot's 3rd NPC (of 13) to use the 3rd dialogue slot,
+proving the mechanism generalizes to a 3rd, non-Stark/non-player-seat NPC rather than staying limited
+to the first 2. No performance cost (config-data-only, zero geometry/listener/timer touch).
+
+**Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
+the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
+choice.
+
 ## ADR-0116: Dragon attack lunge/bite + a generic player health system — dragons now genuinely attack once provoked
 
 **Status:** Accepted (run 90 — a live, interactive request from the project owner, not a scheduled

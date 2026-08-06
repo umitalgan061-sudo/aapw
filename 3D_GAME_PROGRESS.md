@@ -9711,6 +9711,102 @@ syntax errors, or regressions found this run.
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
 
+## This Run (2026-08-06, run 89 — scheduled autonomous routine)
+
+**Session Snapshot:** `GOVERNANCE.md` (already exists, comprehensive, last consolidated run 76 —
+confirmed via its own section headers rather than recreated, per the incoming prompt's own
+first-line contingency), `3D_GAME_PROGRESS.md`'s run 88 entry, `DECISIONS.md`'s last 3 ADRs
+(0112-0114), `QUESTIONS_FOR_OWNER.md` (11 entries, all still open, none resolvable unattended this
+run), `STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/`RULES_CHANGELOG.md` tails, `CREDITS.md`
+(already exists). Eşzamanlılık Kontrolü (§8.14): `git fetch origin main` found local `main` (a stale
+branch pointer at `b091711`, unrelated to this session's own detached-HEAD starting point) 38 commits
+behind `origin/main` (`af3e7ac`) — not a real conflict, just a never-updated local ref from an earlier
+session's checkout; resolved with `git checkout -B main origin/main` before starting, no lost work
+(all 38 commits were already on `origin/main`, confirmed via `git log HEAD..origin/main` returning 0
+after the fetch).
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`) — clean, 64 files. Full
+`scripts/smokeTestGame3D.js` — **26/26 PASS**, 0 FAIL, before any new code. Standing guards clean
+except the one already-known line-count WARN flagged since run 87 (`game3d.js` 545/600) — no new
+WARN, no regression.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-8 re-confirmed already done/healthy via their own
+standing guards, not re-litigated from scratch. Item 4 (castle texturing) still blocked on real
+models for the 6 remaining seats. Items 9-11 healthy (no open line-count WARN beyond the known
+`game3d.js` one, smoke suite green, coverage unchanged). Items 12-13 (dragon attack, FAZ 11 species)
+remain blocked exactly as run 88 left them. That leaves item 14 — see sub-task 1 below (full
+reasoning in DECISIONS.md ADR-0115).
+
+### Sub-task 1: `twin-guard-1`'s 3rd dialogue choice (DECISIONS.md ADR-0115)
+
+Full reasoning, alternatives considered (including why `olena-guard-1`/the flavor pool were passed
+over this run), and the real proof details are in ADR-0115 — not duplicated here.
+
+**DoD status:** `node --check` clean (`dialogueChoices.js`, 189/600, was 181). `checkDialogueChoicesShape.js`
+OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot coverage unchanged at 13/14.
+Full smoke suite re-run: **26/26 PASS**, 0 FAIL. **Real headless-Chromium proof:** a dev-only,
+uncommitted Playwright script drove the real `createInteractionController`/`DialogueBox`/
+`CHOICES_BY_NPC_ID` against a synthetic `twin-guard-1` NPC (keyed by `object3D.name`, the actual
+lookup key) — confirmed all 3 real choice labels render, hint reads `'1/2/3 - Seç, Esc - Kapat'`,
+`Digit3` shows the exact new response with `{name}` replaced, hint reverts correctly after selection,
+zero page/console errors. The proof script's DOM query was container-scoped from its first draft
+(ADR-0114's logged pitfall avoided by design, not rediscovered). **Real visual proof, 2 angles, zero
+console/page errors in both:** default boot camera, then the same scene with the dialogue open on its
+3rd choice plus F4 free-cam active — both show a real in-flight `WorldEventToast` ("Ejderha
+Görüldü!"), proving the scene keeps ticking underneath. `perf_log.csv`'s `run89` row (real measurement
+via `collectPerfSnapshot.js`) bit-identical to run76-88 (46/393,231/44/17/326) — expected, config-only
+change, zero scene object touched. Memory-leak checklist: n/a, config-data-only. Tech debt counter:
+**0** (unchanged — no WARN opened or closed this sub-task). ADR-0115 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new response's tone matches `twin-guard-1`'s
+existing 2 (terse, guarded, "yabancı" address); confirmed no HBO-specific phrasing; confirmed the
+header comment's NPC-list prose and run/ADR history were updated to include `twin-guard-1` among the
+3-choice NPCs; confirmed no `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+
+**Session Quality Gate (§8.6) after 1 sub-task:** confidence **5/5** — this is the pilot's 3rd
+NPC to reach the 3-choice tier, using an angle ADR-0114 itself had already vetted as fitting rather
+than an invented-fresh one, fully proven with real rendered screenshots against the real served
+modules, zero console/page errors, and the previously-caught DOM-isolation pitfall avoided by
+construction rather than re-discovered. No "6 months from now" ambiguity: ADR-0115 records exactly
+why this NPC/angle, what was rejected and why, and the full real-proof trail. **Stopping the run
+here, one sub-task past the gate:** the remaining unblocked item-14 lever this run (`worldEvents.js`'s
+flavor pool, or `olena-guard-1`'s 3rd choice) would be a reasonable next pick for a future run, but
+this run's own single sub-task already delivered a genuinely new milestone (3rd NPC, not just more
+volume) at LOW risk with full real-proof — matching §8.6/§8.7's own "don't reach for filler" guidance
+rather than stacking a 2nd sub-task simply because budget remains.
+
+**World Evolution Report (run 89):**
+
+| Metric | Run 88 end | Run 89 end | Delta |
+|---|---|---|---|
+| `twin-guard-1` dialogue choices | 2 | **3** | +1 (3rd NPC to use the 3rd slot) |
+| NPCs with dialogue choices | 13/14 | 13/14 | unchanged (grew an existing entry, not coverage) |
+| NPCs at the 3-choice tier | 2/14 | **3/14** | +1 |
+| Smoke suite | 26/26 | **26/26** | unchanged (no new/removed check) |
+| ADR headers in `DECISIONS.md` | 114 | **115** | +1 (ADR-0115) |
+| `perf_log.csv` rows | 32 | **33** | +1 (`run89`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged |
+
+**Oyuncu fark eder mi:** evet, küçük ama doğrudan — İkiz Kuleler'deki nöbetçiyle konuşurken artık 3.
+bir soru seçeneği de var ("Hiç fark edilmeden geçen biri oldu mu?").
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Blocked items unchanged:
+6 remaining castle seats + all FAZ 6 animals need real rigged models, dragon attack/fire-breath needs
+the owner's pending health-system decision. If item 14 is picked again: `olena-guard-1` remains the
+last logged 3rd-choice candidate, or `worldEvents.js`'s flavor pool (rested two rounds now, 27
+entries). `RULES_CHANGELOG.md`'s next consolidation pass due ~run 96 (unchanged). Periodic platform
+check due ~run 90-100 (unchanged, last one was run 70 — due soon, worth picking up next run or the one
+after). `CATCH_UP.md`'s next digest due at run 98 (unchanged). No blocking bugs, syntax errors, or
+regressions found this run. Also note for the next run: `main`'s local branch pointer was stale
+entering this run (harmless, fixed via `git checkout -B main origin/main`) — worth a quick
+`git fetch origin main`/`git log HEAD..origin/main` sanity check each run's Session Snapshot, already
+part of §8.14, no process change needed.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.
+
 ## This Run (2026-08-06, run 90 — canlı istek, proje sahibinin doğrudan talebi, zamanlanmış tetikleme değil)
 
 **Session context:** Run 88 (zamanlanmış otonom çalıştırma) az önce tamamlanmış, `main` `af3e7ac`'ta,
