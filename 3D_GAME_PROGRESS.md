@@ -10536,3 +10536,92 @@ GOVERNANCE.md §16).
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+## This Run (2026-08-06, run 97 — scheduled autonomous routine)
+
+**Session Snapshot:** the incoming scheduled prompt's "first create GOVERNANCE.md" instruction is
+stale boilerplate again (this is run 97, not run 1) — `GOVERNANCE.md`/`CREDITS.md`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md` all already exist from prior runs,
+confirmed present and read in full per GOVERNANCE.md §20 rather than recreated. `DECISIONS.md`'s
+last 3 ADRs (0121-0122, plus this run's own 0123) and `3D_GAME_PROGRESS.md`'s run 96 entry read.
+`ARCHITECTURE.md` not re-read (last touched 2026-08-05, under the 7-day threshold).
+
+**Eşzamanlılık Kontrolü:** local `main` was a stale ref 1 commit behind `origin/main`, with local
+`HEAD` itself already detached at the correct, current `origin/main` commit (`1147cf0`) — a
+shallow-clone local-ref quirk, same pattern run 96 diagnosed as harmless. `git fetch origin main` +
+`git checkout -B main origin/main` resolved it, clean tree, no lost work.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`) — clean. Full
+`scripts/smokeTestGame3D.js` — **28/28 PASS**, 0 FAIL, before any new code.
+`checkDialogueChoicesShape.js` OK (13/14 pilot coverage). `checkSmokeCheckRegistry.js` OK (28 checks/
+8 modules; 2 known line-count WARNs — `game3d.js` 585/600 and `dragonController.js` 579/600, both
+grown slightly since run 89's last-flagged 545/600 for `game3d.js`, still under the cap, noted for a
+future split, not yet urgent).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-3 (terrain macro relief/road network/ground color)
+remain DONE per their own standing guards. Item 4 (castle texturing, 7/14) still blocked on real
+models for the remaining 6 seats. Items 5-11 all healthy (0 tech debt, smoke suite green, coverage
+unchanged). Items 12-13 (dragon follow-ups / FAZ 11 species) remain blocked on models or already-
+logged owner decisions. That left item 14 as the only actionable lever this run.
+
+### Sub-task 1: `stannis-guard-2`'s 3rd dialogue choice (DECISIONS.md ADR-0123)
+
+Full reasoning, alternatives considered, and decision detail are in ADR-0123 — not duplicated here.
+
+**DoD durumu:** `node --check` clean (`dialogueChoices.js`, 230/600, was 225). `checkDialogueChoicesShape.js`
+OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot coverage unchanged at 13/14.
+`checkSmokeCheckRegistry.js` re-run post-change: unchanged (28 checks/8 modules, same 2 known WARNs).
+Full smoke suite re-run: **28/28 PASS**, 0 FAIL (before-baseline also 28/28 PASS, 0 FAIL — regresyon
+yok). **Konsol Temizliği:** the proof script's own headless boot recorded `consoleErrors.length === 0`.
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only, uncommitted Playwright script, same methodology as prior ADRs, deleted before commit): the
+real `game3d.html` was booted, the live `CHOICES_BY_NPC_ID`/`DialogueBox`/`InteractionPrompt`/
+`createInteractionController` modules dynamically imported and driven against a synthetic
+`stannis-guard-2` NPC. (1) All 3 real choice labels render in order, hint reads exactly
+`'1/2/3 - Seç, Esc - Kapat'`. (2) Pressing `Digit3` shows the exact new response text with `{name}`
+replaced, hint reverts to `'E / Esc - Kapat'`, choice list cleared. Both screenshots also caught the
+real scene's own background dragon-attack simulation running normally (health bar 100→40 between
+moments) — incidental, not part of this change, but confirms the rest of the booted scene stays
+healthy alongside the dialogue UI. Zero console/page errors throughout.
+
+**Perf sampling:** `perf_log.csv`'s `run97` row (46/393,231/44/17) bit-identical to the run76-96
+baseline — expected, zero geometry/texture code touched.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (personal solitude/isolation)
+is distinct from `stannis-guard-2`'s existing 2 choices and from every other 3-choice NPC's own 3rd
+choice theme, including its own house-mate `stannis-guard-1`'s (doctrinal conviction, not personal
+loneliness). Header-comment NPC-list prose updated consistently. No `TEMP`/`HACK`/`FIXME`/
+`WORKAROUND`. Memory leak checklist: n/a, config-data-only.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 9th-generation repeat of an already-proven,
+low-risk pattern, zero open design ambiguity (ADR-0122 pre-vetted this exact candidate), zero
+regression in the full smoke suite. "6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 97 end) | Delta |
+|---|---|---|---|
+| NPCs with a 3rd dialogue choice | 8/13 | **9/13** | +1 (`stannis-guard-2`) |
+| Dialogue choice pilot coverage | 13/14 | 13/14 | değişmedi |
+| Smoke suite | 28/28 | **28/28** | aynı 28 kontrol, yeniden doğrulandı |
+| ADR headers in `DECISIONS.md` | 122 | **123** | +1 (ADR-0123) |
+| `perf_log.csv` rows | 39 | **40** | +1 (`run97`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (saf config-data değişikliği) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ölçekte — `stannis-guard-2` ile konuşan bir oyuncu artık 3.
+bir soru sorabilir ve tepedeki nöbetçinin yalnızlık üzerine kişisel bir cevabını alır; dünyanın geri
+kalanı değişmedi.
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Bloklu kalan her şey değişmedi: 6
+kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. Item 14 tekrar seçilirse: kalan 4 iki-seçenekli
+NPC'den biri (`balon-guard-1`/`robin-guard-1`/`ziya-guard-1`/`berk-guard-1`) veya `worldEvents.js`'nin
+flavor pool'u. `RULES_CHANGELOG.md`'nin sıradaki konsolidasyonu ~run 116'da (değişmedi). `CATCH_UP.md`'nin
+sıradaki özeti run 98'de (bir sonraki run). Ayrıca not: `game3d.js` (585/600) ve `dragonController.js`
+(579/600) her ikisi de 600 satır sınırına yaklaşıyor — henüz acil değil ama bir sonraki dokunuşta bir
+bölme planı düşünülmeli.
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.
