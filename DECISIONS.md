@@ -11114,3 +11114,121 @@ the exact angle picked, why, and the house-coverage reasoning behind picking thi
 **Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
 the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
 choice.
+
+
+## ADR-0122: `xaro-guard-1`'s 3rd dialogue choice — the pilot's 8th NPC to use the 3rd slot, only non-Seven-Kingdoms seat
+
+**Date:** 2026-08-06 (run 96, scheduled autonomous routine).
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely additive dialogue-config data (one new object literal
+in an existing `Object.freeze` array) plus a doc-comment update. Fully reversible: `git revert` the
+one commit removes the new choice and restores the header comment's prior wording. No `src/` runtime
+logic touched, no other NPC's entry, no shared module changed.
+
+**Context:** Session Snapshot (GOVERNANCE.md §20) confirmed local `HEAD`/`main` were a shallow-clone
+local-ref artifact, not real divergence — `git fetch origin main` + `git ls-remote` both confirmed
+`origin/main` already held run 95's push; local `main` reset to match, clean tree. GOVERNANCE.md §8.12
+rule consolidation (due ~every 20 runs, last at run 76) was taken as this run's own sub-task 1 (see
+`RULES_CHANGELOG.md`'s run 96 entry) — no rule changes needed beyond a `perf_log.csv` threshold note.
+Priority re-scan (GOVERNANCE.md §18): items 1-4 unchanged/still blocked as in run 95. Items 5-11
+re-confirmed healthy by this run's own pre-work baseline (`node --check` clean across all `src/`
+files, `checkDialogueChoicesShape.js` OK — 13/14 pilot coverage, `checkSmokeCheckRegistry.js` OK — 28
+checks/8 modules, same 2 known line-count WARNs; full `smokeTestGame3D.js` suite **28/28 PASS**, 0
+FAIL). Items 12-13 remain blocked on models. That leaves item 14 as the actionable lever — ADR-0121's
+own "Alternatives considered" had already named `xaro-guard-1` as the next equally-ready candidate
+(deferred that run in favor of `doran-guard-1` for Dornish house-coverage). This run picks it up:
+`xaro-guard-1` (Qarth, a foreign trading city rather than one of the Seven Kingdoms' own seats) is the
+pilot's only remaining non-Seven-Kingdoms 2-choice NPC, giving it a distinct "outsider" flavor none of
+the other 7 three-choice NPCs share.
+
+**Gelecek Faz Etkisi:** none — still no further branching/state/persistence/stat hook, same "pilot on
+a growing subset" scope ADR-0058 established; a future real dialogue-tree/quest system would replace
+this mechanism wholesale rather than be constrained by one more leaf choice.
+
+**Decision:** `xaro-guard-1` (Qarth gatekeeper, existing 2 choices cover the other twelve gates' secrecy
+and how outsiders earn Qarth's trust) gets a 3rd choice — "Hiç kendi kapından çıkıp gitmeyi düşündün
+mü?" ("Have you ever thought about walking out through your own gate and leaving?"). Response
+("Elbette düşündüm, yabancı. On üç kapıdan hangisinin ardında benim için bir hayat olduğunu hâlâ merak
+ederim. Ama nöbetim burada, hayalim değil.") stays in-tone with the existing 2 choices (addresses the
+player as "yabancı", keeps Qarth's thirteen-gates motif) while adding a personal
+restlessness/what-if-I-left angle distinct from the pair's secrecy/trust-economy framing — genuinely
+different from every other 3-choice NPC's own 3rd-choice angle so far (fear-of-being-caught-off-guard
+for `umit-guard-1`, duty/fatigue for `berkalp-guard-1`, suspicion for `twin-guard-1`,
+regret-over-wit for `olena-guard-1`, private-conviction for `stannis-guard-1`, fear-under-a-ruler for
+`cersei-guard-1`, cost-of-isolation for `doran-guard-1`). Implemented as one new
+`Object.freeze({label, response})` entry appended to `CHOICES_BY_NPC_ID['xaro-guard-1']` in
+`gameplay/dialogueChoices.js`, plus the file's header comment updated to record the 8th 3-choice NPC
+and this ADR. No other file touched — `interactionConfig.js`'s existing `GREETINGS_BY_NPC_ID` entry,
+`npcConfig.js`'s spawn entry, `interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` handling, and
+`game3d.js`'s keydown wiring are all unchanged and already generic across every NPC's choice count.
+
+**Real headless-Chromium proof** (dev-only, uncommitted Playwright script, same methodology
+ADR-0115/ADR-0117/ADR-0119/ADR-0120/ADR-0121 used, deleted before commit): the real `game3d.html` was
+booted, then the same live `CHOICES_BY_NPC_ID`/`DialogueBox`/`InteractionPrompt`/
+`createInteractionController` modules `game3d.js` itself imports were dynamically imported from
+inside the page and driven against a synthetic `xaro-guard-1` NPC. Confirmed: all 3 real choice
+labels render in order ("1) Diğer on iki kapının ardında ne var?" / "2) Qarth'a nasıl güven
+kazanılır?" / "3) Hiç kendi kapından çıkıp gitmeyi düşündün mü?"), the hint reads exactly
+`'1/2/3 - Seç, Esc - Kapat'` while choices are shown, pressing `Digit3` shows the exact new response
+text with `{name}` replaced by the synthetic NPC's display name, and the hint reverts to
+`'E / Esc - Kapat'` after selection with the choice list cleared (0 `.g3d-dialogue-box-choice`
+elements remaining) — zero console/page errors throughout (`consoleErrors.length === 0`).
+
+**Real visual proof, 2 moments, zero console/page errors in both:** the proof script's `DialogueBox`/
+`InteractionPrompt` were constructed against their real default container (`document.body`) so their
+DOM renders with the game's own live CSS, directly over the real booted `game3d.html` scene (health
+bar `100/100` visible in both) — (1) all 3 choices open, hint `1/2/3 - Seç, Esc - Kapat`; (2) the 3rd
+choice's response shown, hint reverted to `E / Esc - Kapat`, choice list cleared.
+
+**Perf sampling:** `perf_log.csv`'s `run96` row (46/393,231/44/17) is bit-identical to the run76-95
+baseline — expected, this change touches zero geometry/texture code.
+
+**Alternatives considered:**
+- *`worldEvents.js`'s flavor pool instead (27 -> 29 entries).* Rejected, same reasoning ADR-0115/
+  ADR-0117/ADR-0119/ADR-0120/ADR-0121 used — still a legitimate future lever, but an 8th NPC reaching
+  the 3rd dialogue slot continues the more informative, already-proven-safe proof point, and
+  `xaro-guard-1` was already the specifically-named next candidate from ADR-0121.
+- *A 3rd lore fact about Qarth's gates/trade instead.* Rejected — the existing 2 choices already
+  cover both the gates'-secrecy and trust-economy lore angles; a 3rd near-duplicate would read as
+  padding, same reasoning ADR-0114/ADR-0115/ADR-0117/ADR-0119/ADR-0120/ADR-0121 used to prefer a
+  personal-question 3rd choice over a 3rd lore fact.
+- *One of the other 5 remaining 2-choice NPCs instead (`stannis-guard-2`/`balon-guard-1`/
+  `robin-guard-1`/`ziya-guard-1`/`berk-guard-1`).* Rejected in favor of `xaro-guard-1` this run
+  specifically because it was ADR-0121's own named next candidate and gives the pilot its first
+  non-Seven-Kingdoms 3-choice representative — a concrete coverage reason over picking arbitrarily
+  among the rest; logged here as the still-open candidates for a future run.
+- *Do nothing this sub-task, stop after sub-task 1's rule consolidation instead.* Rejected — Session
+  Quality Gate confidence stayed high (existing, well-established pattern, 7 prior ADRs to follow,
+  zero open design ambiguity) and the run budget/time cap were nowhere close, so GOVERNANCE.md §19's
+  chaining rule applies.
+
+**Consequences:** `xaro-guard-1` becomes the pilot's 8th NPC (of 13 with any dialogue choices, 14
+total real NPCs) to use the 3rd dialogue slot, and its only non-Seven-Kingdoms seat. Only 5 NPCs
+remain at 2 choices (`stannis-guard-2`/`balon-guard-1`/`robin-guard-1`/`ziya-guard-1`/`berk-guard-1`).
+`checkDialogueChoicesShape.js`'s pilot-coverage line is unaffected (still 13/14 — no new NPC gained
+an entry, an existing one grew). No lasting performance cost (config-data-only, zero geometry/
+listener/timer touch in the committed diff). `dialogueChoices.js` grows from 218 to 225 lines, still
+well inside the 600-line cap.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (personal restlessness/
+what-if-I-left) is genuinely distinct from `xaro-guard-1`'s existing 2 choices (gate secrecy + trust
+economy) and from every other 3-choice NPC's own 3rd choice theme — no near-duplicate. Confirmed the
+header-comment update's NPC-list prose stays internally consistent (removed `xaro-guard-1` from the
+"still 2-choice" list, added its own new-choice sentence in the same run-by-run chronological style
+the prior 7 entries use). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND` anywhere in the diff. Memory leak
+checklist: n/a, config-data-only (no new listener/timer/DOM/geometry-material in the committed diff;
+the proof script's own `DialogueBox`/`InteractionPrompt` instances lived only inside its own
+disposable headless browser context, never committed).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 8th-generation repeat of an already-proven,
+low-risk pattern (config-data-only, fully reversible, real headless-Chromium + real visual proof both
+confirm the exact rendered text end-to-end), zero open design ambiguity (ADR-0121 had already
+pre-vetted this exact candidate), zero regression in the full smoke suite (28/28 PASS before and
+after). "6 ay sonra hâlâ net mi" tereddüdü yok: this ADR records the exact angle picked, why, and the
+house-coverage reasoning behind picking this NPC over the other 5 equally-ready candidates.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
+the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
+choice.

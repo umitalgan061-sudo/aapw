@@ -10473,3 +10473,66 @@ committed that could regress runtime behavior (docs-only diff).
 entries: 1 → **2**. `GOVERNANCE.md` §16 gained one clarifying note, no rule content changed.
 
 **Oyuncu fark eder mi:** hayır — bu tamamen iç süreç bakımı, oyunda hiçbir şey değişmedi.
+
+### Sub-task 2: `xaro-guard-1`'s 3rd dialogue choice (DECISIONS.md ADR-0122)
+
+Full reasoning, alternatives considered, and decision detail are in ADR-0122 — not duplicated here.
+
+**DoD durumu:** `node --check` clean (`dialogueChoices.js`, 225/600, was 218). `checkDialogueChoicesShape.js`
+OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot coverage unchanged at 13/14.
+`checkSmokeCheckRegistry.js` re-run post-change: unchanged (28 checks/8 modules, same 2 known WARNs).
+Full smoke suite re-run: **28/28 PASS**, 0 FAIL (before-baseline also 28/28 PASS, 0 FAIL — regresyon
+yok). **Konsol Temizliği:** the proof script's own headless boot recorded `consoleErrors.length === 0`.
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only, uncommitted Playwright script, same methodology ADR-0115/ADR-0117/ADR-0119/ADR-0120/
+ADR-0121 used, deleted before commit): the real `game3d.html` was booted, then the same live
+`CHOICES_BY_NPC_ID`/`DialogueBox`/`InteractionPrompt`/`createInteractionController` modules
+`game3d.js` itself imports were dynamically imported from inside the page and driven against a
+synthetic `xaro-guard-1` NPC. (1) All 3 real choice labels render in order, hint reads exactly
+`'1/2/3 - Seç, Esc - Kapat'`, health bar `100/100` visible in the background. (2) Pressing `Digit3`
+shows the exact new response text with `{name}` replaced by the synthetic NPC's display name, hint
+reverts to `'E / Esc - Kapat'`, choice list cleared. Zero console/page errors throughout.
+
+**Perf sampling:** `perf_log.csv`'s `run96` row (46/393,231/44/17) bit-identical to the run76-95
+baseline — expected, zero geometry/texture code touched.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (personal restlessness/
+what-if-I-left) is distinct from `xaro-guard-1`'s existing 2 choices (gate secrecy + trust economy)
+and from every other 3-choice NPC's own 3rd choice theme so far — no near-duplicate. Header-comment
+NPC-list prose updated consistently. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist:
+n/a, config-data-only.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 8th-generation repeat of an already-proven,
+low-risk pattern, zero open design ambiguity (ADR-0121 pre-vetted this exact candidate), zero
+regression in the full smoke suite. "6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 96 end) | Delta |
+|---|---|---|---|
+| NPCs with a 3rd dialogue choice | 7/13 | **8/13** | +1 (`xaro-guard-1`) |
+| Dialogue choice pilot coverage | 13/14 | 13/14 | değişmedi |
+| Smoke suite | 28/28 | **28/28** | aynı 28 kontrol, yeniden doğrulandı |
+| ADR headers in `DECISIONS.md` | 121 | **122** | +1 (ADR-0122) |
+| `RULES_CHANGELOG.md` entries | 1 | **2** | +1 (run 96 consolidation) |
+| `perf_log.csv` rows | 38 | **39** | +1 (`run96`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (saf config-data değişikliği) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ölçekte — `xaro-guard-1` ile konuşan bir oyuncu artık 3. bir
+soru sorabilir ve gatekeeper'ın kişisel bir huzursuzluk/kaçış hayali cevabı alır; dünyanın geri kalanı
+değişmedi.
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Bloklu kalan her şey değişmedi: 6
+kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. Item 14 tekrar seçilirse: kalan 5 iki-seçenekli
+NPC'den biri (`stannis-guard-2`/`balon-guard-1`/`robin-guard-1`/`ziya-guard-1`/`berk-guard-1`) veya
+`worldEvents.js`'nin flavor pool'u. `RULES_CHANGELOG.md`'nin sıradaki konsolidasyonu ~run 116'da
+(bu run'da yapıldı, run 96 -> ~116). `CATCH_UP.md`'nin sıradaki özeti run 98'de (değişmedi, 2 run
+kaldı). Ayrıca not: `perf_log.csv` artık "30-commit performans trend grafiği" ertelenmiş kuralının
+30+ satır eşiğini geçti (39 satır) — artık gerçekten ele alınabilir bir alt görev, zorunlu değil (bkz.
+GOVERNANCE.md §16).
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.
