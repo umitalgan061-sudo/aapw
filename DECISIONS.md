@@ -9617,3 +9617,125 @@ than rushed.
 **Geri alma planı:** `git revert` the single commit — restores the unguarded `initializeApp`/
 `firestore()`/`database()` calls, the `multiplayerBaslat` guard, and the softer `check2DShell`.
 Nothing else depends on `firebaseReady`.
+
+## ADR-0110: Weighted rarity for the world-event flavor pool — RARE entries now fire measurably less often than COMMON ones
+
+**Status:** Accepted (run 85).
+
+**Risk Seviyesi:** LOW. Pure selection-algorithm change inside `gameplay/worldEvents.js`, isolated to
+one function; no change to `ui/worldEventToast.js`, `eventBus.js`, `game3d.js`, payload shape (an
+extra `weight` field is additive, ignored by every existing consumer), or any other module. Fully
+reversible: `git revert` restores the old uniform `WORLD_EVENTS[Math.floor(random() *
+WORLD_EVENTS.length)]` pick and removes the `weight` fields.
+
+**Context:** Session Snapshot at run start (2026-08-06, run 85 — scheduled autonomous routine):
+`GOVERNANCE.md` (325 lines) and `CREDITS.md` already existed and current — this run's incoming
+instruction again opened with a "create them for the first time" bootstrap step, same no-op
+confirmation run 83/84 already noted. Read `3D_GAME_PROGRESS.md`'s last "This Run" entry (run 84),
+`DECISIONS.md`'s last 3 ADRs (0107/0108/0109), `QUESTIONS_FOR_OWNER.md` in full (8 entries, all still
+open, none resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md` tails. Session again started on a detached `HEAD` with a stale local `main` ref;
+unlike prior runs' drift, this time `origin/main` itself was already fully caught up to the detached
+`HEAD`'s tip (`6feebf7`, run 84's last commit) — `git fetch` had simply not run yet locally, not a
+real divergence. `git checkout main && git reset --hard origin/main` resynced cleanly. Re-ran the
+full smoke suite before picking any work: **24/24 PASS**, all 8 standing guards clean, no regression
+at session start.
+
+**Priority re-scan (GOVERNANCE.md §18), fresh:** items 1-11 unchanged and healthy — the "1.x cluster"
+(macro relief/roads/ground color/castle textures) has been done since run 55/56, no fresh regression,
+no syntax error, `node --check` clean across every `src/**/*.js`, no `TEMP`/`HACK`/`FIXME`/
+`WORKAROUND` marker anywhere in `src/` (two false-positive substring hits checked and confirmed
+harmless: `greetingTemplate`/`GREETING_TEMPLATE`, not a banned marker). Items 12-13 (FAZ 6/7/11
+assets): re-checked `assets/models/` — no new model file since run ~59 (the 8th castle); `git log
+--diff-filter=A -- 'assets/models/*'` confirms this directly rather than assuming from a stale note.
+Dragon attack/fire-breath still blocked on the owner's pending health-system decision
+(`QUESTIONS_FOR_OWNER.md`, run 66). That leaves item 14 ("Yeni özellik"). Same bucket run 84 used
+(`gameplay/worldEvents.js`'s flavor pool), but this run picked a different action inside that bucket:
+rather than a tenth straight +2-entries growth round (which was starting to feel like reaching for
+familiar filler rather than genuine value — the exact anti-pattern GOVERNANCE.md §8.6's Session
+Quality Gate warns against), this addresses a real, previously-noted-but-not-acted-on idea from run
+84's own "Next step" section: *"if the world-event pool keeps growing at +2/round, worth a future run
+considering whether a rarity weighting... would read better than the current uniform random pick."*
+No terrain/height/noise/world-scale change — the Arazi Değişikliği Güvenlik Kontrolü doesn't apply.
+**Gelecek Faz Etkisi:** none — FAZ 8 stays flavor-only (ADR-0056's design boundary, unchanged by this
+run), no stat/quest/persistence hook added; a future turn/stat system could read `weight` as a ready-
+made rarity signal if it ever wants one, but nothing requires that.
+
+**Decision:** Every one of the 26 `WORLD_EVENTS` entries gets a `weight` field (COMMON=3, UNCOMMON=2,
+RARE=1 — three tiers, not a per-entry number, see Alternatives), and `createWorldEventSystem`'s pick
+switches from a uniform `Math.floor(random() * WORLD_EVENTS.length)` index to a weighted pick
+(`pickWeightedEvent`): draw one `random()` float scaled to the pool's total weight, then walk the
+array subtracting each entry's weight until the remainder goes negative. Same one-`random()`-call-
+per-pick shape as before (determinism/PRNG-consumption pattern unchanged, only which index it lands
+on). Classification (this run's own editorial judgment, not a playtest): **RARE** (7 entries) —
+`dragon_shadow`, `white_raven`, `wildling_rumor`, `mourning_bells`, `red_comet`, `eclipse`,
+`northern_lights` — every entry whose own description text already frames it as a dramatic/ominous
+occurrence or explicit possible omen ("bir alâmet sayıyor", "bir felaket alâmeti", "kendi uyarısı"),
+plus the two lore-significant one-offs (a season changing, a dragon's shadow). **COMMON** (8 entries)
+— `raven`, `distant_storm`, `wolf_howl`, `guard_change`, `sept_prayer`, `horse_gallop`, `watch_horn`,
+`blacksmith_hammer` — routine background detail that could plausibly happen most nights, nothing the
+text itself marks as unusual. **UNCOMMON** (11 entries) — everything else: a specific, notable-but-
+ordinary occurrence (a visitor, an announcement, a caravan) that stands out from ambient routine
+without reading as a portent.
+
+**Alternatives considered:**
+- *A per-entry numeric weight (1-10 scale) instead of three tiers.* Rejected — with zero real
+  playtesting to calibrate against, a wider numeric range would invent false precision (is
+  `red_comet` a 2 or a 3? nobody can say yet). Three broad tiers is a claim this run can actually
+  defend from the pool's own text; a `QUESTIONS_FOR_OWNER.md`-style temporary default would apply
+  here too if this were a bigger, harder-to-reverse call, but a 3-tier int constant is a one-line
+  edit either way, so it's recorded here rather than escalated.
+- *Keep growing the pool by +2 again (the run 84 pattern), skip weighting.* Rejected — see Context:
+  ten straight rounds of the identical action was trending toward filler rather than the next
+  genuinely valuable unblocked item, and the weighting idea was already sitting recorded and unacted
+  since run 84.
+- *Do both (grow the pool AND add weighting) in one sub-task.* Rejected — mixes an additive/reversible
+  data change with a mechanism change in one commit, harder to `git revert` independently if either
+  one needs undoing later; keeps this run's Değişiklik Etki Analizi scoped to one thing.
+- *A time-of-day or season gate (e.g. `mourning_bells` only at night) instead of static rarity.*
+  Rejected — bigger scope (needs a real day/night or season concept this project doesn't have yet
+  outside `sky.js`'s cosmetic cycle), and not what run 84's note actually asked for.
+
+**Verified:**
+- `node --check` clean on `worldEvents.js`. Line count: 145/600 (was 109) — comfortable headroom.
+- Full committed smoke suite: all **24** checks PASS, identical before and after — the world-event
+  smoke check asserts determinism generically (same seed -> same first event across two independent
+  systems), which holds under a weighted pick exactly as it did under a uniform one; it does not
+  hardcode which id that is, so it needed no change. All 8 standing guards re-run clean.
+- **Real headless-Chromium statistical proof**, not a claim of "weighted math is right" left
+  unverified: a one-off Playwright script (same `devServerHelper.js` bootstrap every prior round's
+  proof script used, dev-only, not committed) drove one real `createWorldEventSystem` (seed 12345)
+  through 5000 real `update()` calls, each with a delta far past the max interval so every call
+  fires, and tallied the real emitted ids. Measured: COMMON entries averaged 283.5 fires/entry
+  (expected ≈283.0 from the weight math), RARE entries averaged 90.7 fires/entry (expected ≈94.3) —
+  a measured common:rare ratio of 3.13, matching the intended 3:1 weight ratio well within 5000-draw
+  sampling noise. Zero console/page errors throughout.
+- **Real toast render proof**, both tiers: the same script then drove a fresh system/bus/
+  `WorldEventToast` trio until a COMMON id (`sept_prayer`) and a RARE id (`red_comet`) each actually
+  fired, screenshotting both — correct icon/title/desc/border-color for each, zero console/page
+  errors. Confirms the additive `weight` field on the emitted payload does not break
+  `WorldEventToast`'s existing `{icon, title, desc, color}`-only consumption.
+- **AI Self-Review 2. Geçiş (§8.3):** re-read the diff before committing — confirmed all 26 entries
+  received exactly one `weight` value each (no entry silently defaulted to `undefined`, which would
+  have made `TOTAL_WEIGHT` `NaN` and broken every future pick — checked directly, not assumed);
+  confirmed `TOTAL_WEIGHT` is computed once at module load from the frozen array, not recomputed per
+  pick; confirmed `pickWeightedEvent`'s fallback return (`WORLD_EVENTS[length - 1]`) is an
+  unreachable float-rounding guard, not a silent behavior bug (the 5000-draw run above never needed
+  it — every draw resolved inside the loop); confirmed no `TEMP`/`HACK`/`FIXME`; confirmed
+  `Object.freeze` still covers the full 26-entry array unchanged; confirmed `createWorldEventSystem`'s
+  `update()`/`dispose()` control flow is otherwise byte-identical to before (only the one line
+  swapping the uniform index pick for `pickWeightedEvent(random)` changed).
+
+**Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` only. No change to `ui/worldEventToast.js`,
+`eventBus.js`, `game3d.js`, or any smoke-check module (the existing determinism-only assertion needed
+no update).
+
+**Consequences:** The seven RARE entries (dragon's shadow, white raven, wildling rumor, mourning
+bells, red comet, eclipse, northern lights) — this pool's own most dramatic/ominous content — now
+read as genuinely uncommon instead of appearing exactly as often as routine ambiance like a wolf howl
+or a bell. No player-facing mechanism changed beyond pacing/frequency; the toast UI, timing window,
+and every existing entry's text are untouched.
+
+**Geri alma planı:** `git revert` the single commit — restores the uniform pick and removes every
+`weight` field/the `WEIGHT`/`TOTAL_WEIGHT`/`pickWeightedEvent` additions. Nothing else references
+`weight`.

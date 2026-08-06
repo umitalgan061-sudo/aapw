@@ -9221,3 +9221,101 @@ open items: the offline map check above, the FAZ 5 reversal question, plus the u
 model-blocked/owner-blocked backlog. `CATCH_UP.md`'s 10-run digest due at run 88.
 
 **Addendum:** commit/push and stable-tag outcomes are recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-06, run 85 — scheduled autonomous routine)
+
+Session Snapshot: `GOVERNANCE.md` (325 lines, already existed and current — the stored scheduler
+prompt's "create GOVERNANCE.md for the first time" step is stale for a third consecutive run;
+already covers every 🆕 item the prompt listed. `CREDITS.md` likewise already exists and current),
+`3D_GAME_PROGRESS.md` (run 84's entry), `git log -10`, `DECISIONS.md` last 3 ADRs (0107/0108/0109),
+`QUESTIONS_FOR_OWNER.md` (8 entries, all still open, none resolvable unattended this run),
+`STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/`RULES_CHANGELOG.md` tails. Eşzamanlılık Kontrolü
+(§8.14): session again started on a detached `HEAD`; this time `origin/main` was already fully
+caught up to the detached tip (`6feebf7`) — just a local `git fetch` that hadn't run yet, not real
+divergence. `git checkout main && git reset --hard origin/main` resynced cleanly. Re-ran the full
+smoke suite before picking any work: **24/24 PASS**, all 8 standing guards clean.
+
+Priority order re-scanned fresh (GOVERNANCE.md §18): items 1-11 unchanged and healthy — no syntax
+errors (`node --check` clean across every `src/**/*.js`), no blocking bugs, no `TEMP`/`HACK`/`FIXME`/
+`WORKAROUND` markers in `src/`, all 8 standing guard scripts clean, smoke suite clean. Items 12-13
+still blocked on missing 3D models (`git log --diff-filter=A -- 'assets/models/*'` confirms nothing
+new since run ~59). Dragon attack still blocked on the owner's pending health-system decision. That
+left item 14 ("Yeni özellik") — but rather than a tenth straight +2-entries growth round on
+`gameplay/worldEvents.js` (run 84's own "Next step" note had already flagged this pattern was worth
+revisiting rather than repeating blindly), this run acted on that same note's own suggestion.
+
+### Sub-task 1: weighted rarity for the world-event flavor pool (DECISIONS.md ADR-0110)
+
+All 26 `WORLD_EVENTS` entries now carry a `weight` (COMMON=3, UNCOMMON=2, RARE=1), and the pick
+algorithm switched from uniform-index to weighted (`pickWeightedEvent`) — same one-`random()`-call
+shape, so determinism/PRNG consumption is unchanged, only *which* index a draw lands on. Seven
+dramatic/ominous entries (`dragon_shadow`, `white_raven`, `wildling_rumor`, `mourning_bells`,
+`red_comet`, `eclipse`, `northern_lights` — every entry whose own text already reads as a possible
+omen/portent) are now RARE; eight routine-ambiance entries are COMMON; the remaining eleven are
+UNCOMMON. Full reasoning, alternatives considered, and classification rationale in ADR-0110.
+
+**DoD status:** `node --check` clean. Line count 145/600 (was 109) — comfortable headroom. Full
+smoke suite **24/24 PASS** both before and after (the world-event check asserts determinism
+generically, not a specific id, so it needed no change); all 8 standing guards re-run clean. **Real
+statistical proof, not an assumption the weight math is right:** a dev-only Playwright script drove
+one real system through 5000 real `update()` calls (seed 12345) and tallied real emitted ids —
+measured common:rare ratio **3.13** against an intended 3:1, COMMON averaging 283.5 fires/entry
+(expected ≈283.0) and RARE averaging 90.7 (expected ≈94.3), both within normal 5000-draw sampling
+noise. **Real toast-render proof, both tiers:** the same script fired real events until it saw a
+COMMON id (`sept_prayer`) and a RARE id (`red_comet`), screenshotting each through a real
+`EventBus` → `WorldEventToast` — correct icon/title/desc/border-color, zero console/page errors
+throughout both proofs. `perf_log.csv` `run85` row (`2/46/393231/44/17/347`) — draw calls/triangles
+identical to run76-84 (expected: pure selection-logic change, no scene object touched). Memory-leak
+checklist: n/a — no new listener/timer/DOM node, only a frozen `weight` field per entry plus one
+pure helper function. Tech debt counter: **0** (unchanged). ADR-0110 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed all 26 entries received exactly one `weight` (no
+`undefined` that would have poisoned `TOTAL_WEIGHT` into `NaN`); confirmed `TOTAL_WEIGHT` is computed
+once at module load, not per pick; confirmed the fallback return in `pickWeightedEvent` is an
+unreachable float-rounding guard (never hit across 5000 real draws); confirmed `Object.freeze` still
+covers the full array; confirmed `update()`/`dispose()` control flow is otherwise byte-identical;
+confirmed no `TEMP`/`HACK`/`FIXME`.
+
+**Session Quality Gate (§8.6) after 1 sub-task:** confidence **5/5** — low-risk, fully reversible,
+mechanism change proven with real statistical output (not a "the math should work" assumption),
+zero player-facing regression, zero terrain/scale/height touch. **Stopping here after 1 sub-task:**
+same as run 84 — the rest of the backlog is entirely blocked on missing 3D models or the pending
+owner health-system decision, so a 2nd sub-task this run would mean reaching for filler. No "6
+months from now" ambiguity: ADR-0110 records the full classification rationale, so a future reader
+doesn't have to reverse-engineer why any given entry landed in its tier.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| World-event pool selection | uniform random (26 equally likely) | **weighted (COMMON 3× / UNCOMMON 2× / RARE 1×)** | mechanism change |
+| RARE-tier entries (dramatic/ominous) | fired as often as any other | **~1/3 as often as COMMON entries (measured 3.13:1)** | pacing improved |
+| `worldEvents.js` lines | 109/600 | **145/600** | +36 |
+| Smoke suite | 24/24 | **24/24** | unchanged (determinism-only assertion, no id hardcoded) |
+| ADR headers in `DECISIONS.md` | 109 | **110** | +1 (ADR-0110) |
+| `perf_log.csv` rows | 28 | **29** | +1 (`run85`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no scene object touched) |
+
+**Oyuncu fark eder mi:** evet, ama ince bir fark — kızıl kuyruklu yıldız, tutulma, kuzey ışıkları gibi
+"büyük" olaylar artık nöbetçi değişimi veya kurt uluması gibi rutin olaylardan belirgin biçimde daha
+seyrek görünecek; toplam olay havuzu veya oyunun geri kalanı görsel/mekanik olarak değişmedi.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Blocked items unchanged
+since run 80: 6 remaining castle seats + all FAZ 6 animals need real rigged models (the one static
+exception, `umit-horse-1`/`ivory_stallion.glb`, was already wired in as a rigless prop run 39), dragon
+attack/fire-breath needs the owner's pending health-system decision, `erkek-insan`/`kadin-insan`/
+`koylu` differentiation has no design driver. `CATCH_UP.md`'s next 10-run digest due at run 88 (3
+runs away). `RULES_CHANGELOG.md`'s next consolidation pass due ~run 96 (unchanged, last one was run
+76). Periodic platform check due ~run 90-100 (unchanged, last one was run 70). No blocking bugs,
+syntax errors, or regressions found this run — the smoke suite flaked twice while iterating on this
+sub-task (once a single `game3d.html` check timing out while the verification script's own browser
+was still tearing down concurrently, once a whole-suite `page.goto` timeout on a later run with no
+other Chromium process alive at the time), but both times an immediate clean re-run came back
+**24/24**, and neither failure mode is specific to `worldEvents.js` (one hit an unrelated check,
+the other failed before any check-specific code ran). Logged here as an observed container flakiness
+class, not a code finding — nothing in this diff is implicated.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.
