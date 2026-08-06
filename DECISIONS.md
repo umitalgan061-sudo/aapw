@@ -11873,3 +11873,19 @@ choice.
 **Session Quality Gate (§8.6):** confidence **5/5** — low-risk, well-proven pattern (same shape as ADR-0110/0111/0129), a genuine non-duplicate coverage gap identified and closed (not padding), zero regression in the full smoke suite (29/29 before and after), zero open design ambiguity. "6 ay sonra hâlâ net mi" tereddüdü yok — the ADR text spells out exactly which coverage cell was empty and why this entry fills it.
 
 **Geri alma planı:** `git revert` the single commit — removes the one new `WORLD_EVENTS` entry, the two comment fixes (would need to be manually restored to their prior slightly-stale wording if strict bit-for-bit revert of comments is wanted, though leaving the corrected counts is harmless either way), and the two new assertions plus their inclusion in the `result`/`details` shape in `game3dSmokeChecksDebugTools.js`. Nothing else references `market_day`.
+
+## ADR-0131: Responsive in-game controls reference for desktop, mobile, and PWA
+
+**Status:** Accepted (run 104).
+
+**Risk Seviyesi:** LOW — additive UI module, three lifecycle wiring lines, CSS, cache entry, and one dedicated smoke module; no gameplay/world/save behavior changes.
+
+**Context:** FAZ 5 dialogue content and FAZ 8 gated world-event coverage are complete through run 103, but the 3D mode still had no discoverable controls reference. Desktop users had to guess WASD/Shift/Space/E/mouse, while touch/PWA users had no explanation for joystick run threshold, prompt taps, dialogue taps, drag, or pinch. The required fetch found Claude's ADR-0130/run-103 market event and this run realigned to it before editing.
+
+**Decision:** add `ControlsHelp`, an inert-until-open DOM widget with a 44px bottom-right “?” button. It renders separate Turkish desktop and touch definitions, updates `aria-expanded`/labels, closes with Escape, fits narrow/safe-area viewports, and removes both listeners plus DOM on dispose. `game3d.js` selects content via its existing `isCoarsePointerDevice()` signal. The module is precached for offline PWA use. Its smoke check lives in a dedicated tenth module rather than growing existing near-cap files.
+
+**Alternatives considered:** auto-opening a first-run modal was rejected because no save/preferences system exists yet and repeatedly blocking play would be intrusive. Static always-visible text was rejected for mobile screen pressure. Adding help markup directly to `game3d.html` was rejected because a self-owned/disposable UI module follows project conventions and is directly testable.
+
+**Verification:** full JavaScript syntax sweep, service-worker cache, PWA installability, and smoke registry pass (30 checks/10 modules). Focused Playwright proof passes toggle, mobile/desktop content split, 44px target, 390px fit, Escape, ARIA, and dispose. Desktop 1280×720 and touch-mobile 390×844 screenshots show collision-free panels. Full suite passed all 29 pre-existing component checks plus this new check; only real 3D readiness timed out under this container's software renderer. Performance sampling hit the same readiness timeout, so no fabricated CSV row was added.
+
+**Consequence:** controls are discoverable in desktop browser, mobile browser, and installed/offline PWA. Two constant listeners exist only while the widget exists and are explicitly removed. `game3d.js` is now 590/600 and must not receive another feature wiring increment before an approved extraction/refactor; this run adds no technical debt because the limit is still satisfied and the constraint is documented. **Gelecek Faz Etkisi:** future controls can extend the module without touching the orchestrator. **Rollback:** revert the additive module/wiring/styles/cache/test/docs.

@@ -337,3 +337,69 @@ html, body {
     width: min(360px, calc(100vw - 24px));
   }
 }
+
+.g3d-controls-help {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  z-index: 24;
+}
+
+.g3d-controls-help-button {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+  border: 1px solid rgba(200, 150, 10, 0.65);
+  border-radius: 50%;
+  background: rgba(10, 6, 2, 0.82);
+  color: #e8d4a0;
+  font: 700 20px/1 serif;
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-controls-help-button:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
+}
+
+.g3d-controls-help-panel {
+  width: min(300px, calc(100vw - 24px));
+  max-height: min(420px, calc(100vh - 88px));
+  margin-bottom: 8px;
+  padding: 14px 16px;
+  overflow-y: auto;
+  border: 1px solid rgba(200, 150, 10, 0.55);
+  border-radius: 10px;
+  background: rgba(10, 6, 2, 0.9);
+  color: #e8d4a0;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+}
+
+.g3d-controls-help-panel h2 {
+  margin: 0 0 10px;
+  color: #c8960a;
+  font-size: 16px;
+}
+
+.g3d-controls-help-panel dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 7px 12px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.g3d-controls-help-panel dt {
+  color: #f0d9a0;
+  font-weight: 700;
+}
+
+.g3d-controls-help-panel dd {
+  margin: 0;
+  color: rgba(232, 212, 160, 0.82);
+}

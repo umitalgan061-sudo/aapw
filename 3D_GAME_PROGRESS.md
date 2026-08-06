@@ -11100,3 +11100,17 @@ bir sonraki dokunuşta bir bölme planı düşünülmeli.
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+## This Run (2026-08-06, run 104)
+
+**Concurrency/snapshot:** restored GitHub auth/origin, fetched `origin/main`, found Claude's run-103 ADR-0130 market event 106 commits beyond the stale local base, and realigned `work` to current main before editing. Priority re-scan found the world-event gated-rarity matrix complete and exposed a broader FAZ 8 usability gap: no controls reference on any platform.
+
+### Sub-task: responsive desktop/mobile/PWA controls help (DECISIONS.md ADR-0131)
+
+Added a 44px bottom-right help affordance and device-specific Turkish instructions. Desktop lists WASD/arrows, Shift, Space, E, and mouse; touch/PWA lists joystick/run threshold, prompt/dialogue taps, drag, and pinch. ARIA state follows open/closed state, Escape closes, narrow viewport bounds are enforced, and disposal removes button/window listeners and DOM. `controlsHelp.js` is included in the service-worker shell.
+
+**DoD:** full `node --check` sweep, `checkSmokeCheckRegistry` (30 checks/10 modules), PWA installability, and service-worker cache guards pass. Focused real-browser check passes all lifecycle/accessibility/layout assertions. Desktop 1280×720 and mobile 390×844 screenshots show no collisions. Full suite: all 29 prior component checks plus controls-help pass; only the real 3D readiness probe timed out under software rendering. Perf sampling hit the same readiness timeout, so no CSV row was invented. Confidence **4/5** due solely to environment readiness timeout; technical debt remains **0**.
+
+**Memory/performance:** two constant listeners (button click + window keydown), both removed; one small hidden panel and button, zero timers/GPU resources. `game3d.js` is 590/600 — no further feature wiring there before extraction. Latest valid renderer baseline remains 46 draw calls / 393,231 triangles.
+
+**World Evolution Report:** world/NPC/dialogue/event/animal/dragon/settlement/road/asset counts unchanged; controls-reference coverage 0/3→3/3 (desktop/mobile/installed PWA); smoke registry 29→30 and modules 9→10; ADR headers 130→131; coverage desktop 96.2% / mobile 4.5%; debt 0→0. **Oyuncu fark eder mi:** evet — “?” ile kendi cihazına uygun kontrolleri oyun içinde görebilir. **Next step:** fresh `origin/main` fetch and priority re-scan; before any new `game3d.js` wiring, extract a UI bootstrap/lifecycle helper under an explicitly approved refactor despite the owner's general no-deletion preference.
