@@ -455,3 +455,15 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   (`10f45bd..d40fdbf`). `git push origin <tag>` still rejected, same `HTTP 403` standing block since
   run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint). Only
   `berk-guard-1` remains at 2 choices — next run completes item 14's pilot coverage at 13/13.
+
+- **Run 101 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed (confidence
+  5/5) — `berk-guard-1`'s 3rd dialogue choice (ADR-0128), the pilot's 13th and final NPC to reach
+  the 3rd dialogue slot, completing the FAZ 5 dialogue-choice pilot's 3rd-slot rollout (13/13
+  choice-enabled NPCs; `jon-guard-1` remains deliberately excluded per ADR-0058). Full smoke suite
+  **29/29 PASS**, real headless-Chromium + real visual proof confirm the new choice renders and
+  resolves correctly, 0 console/page errors. `perf_log.csv`'s `run100c` row bit-identical to
+  run76-100. Local tag `stable-2026-08-06-1754` created at `e7ef628`. `git push origin main`
+  succeeded (`392e011..e7ef628`). `git push origin <tag>` still rejected, same `HTTP 403` standing
+  block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint). Item
+  14 (dialogue 3rd-choice pilot) is now exhausted — next run's priority re-scan should treat it as
+  DONE and move to `worldEvents.js`'s flavor pool or re-confirm items 1-13 from scratch.
