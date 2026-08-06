@@ -101,6 +101,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/ui/dialogueBox.js',
     './src/3d/ui/worldEventToast.js',
     './src/3d/ui/healthBar.js',
+    './src/3d/ui/controlsHelp.js',
     './src/3d/gameplay/health.js',
     './src/3d/gameplay/gameplayConfig.js',
     './src/3d/gameplay/playerConfig.js',

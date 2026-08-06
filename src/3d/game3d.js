@@ -46,6 +46,7 @@ import { InteractionPrompt } from './ui/interactionPrompt.js';
 import { DialogueBox } from './ui/dialogueBox.js';
 import { WorldEventToast } from './ui/worldEventToast.js';
 import { HealthBar } from './ui/healthBar.js';
+import { ControlsHelp } from './ui/controlsHelp.js';
 import { createPlayer } from './gameplay/player.js';
 import { createHealthState } from './gameplay/health.js';
 import { spawnConfiguredNPCs } from './gameplay/npc.js';
@@ -405,6 +406,7 @@ export async function initGame3D() {
 			eventName: EVENTS.WORLD_EVENT_TRIGGERED,
 		});
 		state.worldEventToast = new WorldEventToast({ eventsBus: gameEvents, eventName: EVENTS.WORLD_EVENT_TRIGGERED });
+		state.controlsHelp = new ControlsHelp({ isMobileClass: isCoarsePointerDevice() });
 
 		let frameId;
 		const tick = () => {
@@ -556,6 +558,7 @@ export async function initGame3D() {
 			state.perfPanel.dispose();
 			state.worldEvents.dispose();
 			state.worldEventToast.dispose();
+			state.controlsHelp.dispose();
 			unsubscribePlayerDied();
 			state.playerHealth.dispose();
 			state.healthBar.dispose();
