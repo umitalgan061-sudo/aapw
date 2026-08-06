@@ -21,8 +21,11 @@
  * 2-choice majority; run 89, DECISIONS.md ADR-0115, gave `twin-guard-1` a 3rd choice too, its theme
  * a paranoid toll-keeper's own suspicion — the exact angle ADR-0114's own "Alternatives considered"
  * logged as this NPC's fitting next lever ("has anyone ever slipped through unnoticed?") — the
- * pilot's 3rd NPC and 1st non-Stark/non-player-seat NPC to reach the 3rd slot; every other listed
- * NPC below still has exactly 2). 13 of 14 NPCs
+ * pilot's 3rd NPC and 1st non-Stark/non-player-seat NPC to reach the 3rd slot; run 91, DECISIONS.md
+ * ADR-0117, gave `olena-guard-1` a 3rd choice too, its theme a sharp-tongued Tyrell guard's own
+ * regret about her wit — the exact angle ADR-0115's own "Alternatives considered" logged as this
+ * NPC's fitting next lever ("has your wit ever gotten you in trouble?"); every other listed NPC
+ * below still has exactly 2). 13 of 14 NPCs
  * (`umit-guard-1`/`berkalp-guard-1` — the player's home seat and the Stark seat the wolves already
  * patrol at; `doran-guard-1`/`xaro-guard-1` — Dorne's pride and Qarth's thirteen gates;
  * `cersei-guard-1`/`stannis-guard-1` — Lannister gold and Baratheon justice, both already
@@ -32,7 +35,8 @@
  * `olena-guard-1` — Tyrell's gardens/growing-power flavor, now voiced at all 3 of its Reach seats;
  * `twin-guard-1` — the Twins' crossing/toll flavor, its own distinct Lannister-house seat, not
  * reusing `cersei-guard-1`'s gold-mine angle) get at least 2
- * numbered choices after their greeting (`umit-guard-1`/`berkalp-guard-1`/`twin-guard-1` get 3);
+ * numbered choices after their greeting (`umit-guard-1`/`berkalp-guard-1`/`twin-guard-1`/
+ * `olena-guard-1` get 3);
  * picking one (Digit1/Digit2/Digit3 — see
  * `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response line,
  * replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry here —
@@ -170,6 +174,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Keskin sözleri kimseyi kırmıyor mu hiç?',
 			response: '{name}: Kırar elbette, ama doğru söylenmiş bir söz her zaman bir yalandan iyidir.',
+		}),
+		Object.freeze({
+			label: 'Keskin dilin hiç başını belaya soktu mu?',
+			response: '{name}: Soktu elbette, yabancı. Ama sustuğum günler, konuştuğum günlerden daha pişman ettiği için artık susmuyorum.',
 		}),
 	]),
 	'twin-guard-1': Object.freeze([

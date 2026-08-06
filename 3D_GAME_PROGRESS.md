@@ -9939,3 +9939,122 @@ sıradaki konsolidasyonu ~run 96'da (değişmedi). Periyodik platform kontrolü 
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+## This Run (2026-08-06, run 91 — scheduled autonomous routine)
+
+**Session Snapshot:** `GOVERNANCE.md` (already exists, comprehensive — read, not recreated; the
+incoming scheduler prompt's own first sub-task, "create GOVERNANCE.md/CREDITS.md," is stale/already
+done as of run 76's consolidation pass and this run's own check), `3D_GAME_PROGRESS.md`'s run 90
+entry, `DECISIONS.md`'s last 3 ADRs (0114-0116), `QUESTIONS_FOR_OWNER.md` (still open, 2 newest
+entries about starfield twinkle and dragon-attack calibration — neither resolvable unattended),
+`STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/`RULES_CHANGELOG.md` tails, `CREDITS.md` (already
+exists). Eşzamanlılık Kontrolü (§8.14): local `main` was a stale branch pointer 43 commits behind
+`origin/main` (a leftover detached-HEAD checkout from an earlier session, itself already
+fully-pushed) — resolved with `git fetch origin main && git checkout main && git reset --hard
+origin/main`, confirmed zero divergence (`git log origin/main..HEAD` empty both directions after).
+No lost work.
+
+**Baseline regression guard:** `node --check` clean on the one file touched this run. Full
+`scripts/smokeTestGame3D.js` — **27/27 PASS**, 0 FAIL, before any new code.
+`scripts/checkSmokeCheckRegistry.js`/`checkPwaInstallability.js` — clean, same 2 known WARNs as run
+90 (`game3d.js` 585/600, `dragonController.js` 579/600 — both still under the cap, neither touched
+this run).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-3 (terrain macro relief/road network/ground color)
+confirmed DONE via their own standing guards (`terrainSeatSafetyCheck.js`/`roadNetworkSafetyCheck.js`
+still clean). Item 4 (castle texturing, 7/14) still blocked on real models for the remaining 6 seats
+— unchanged. Items 5-11 (syntax/blocking bugs/perf/mem leak/tech debt/smoke test/world coverage) all
+healthy, re-confirmed by this run's own baseline (27/27, 0 WARN beyond the 2 known line-count ones,
+0 tech debt). Items 12-13 (FAZ 7 dragon follow-ups / FAZ 11 species) remain blocked on models or
+already delivered by run 90's live request. That leaves item 14 — see sub-task 2 below. Sub-task 1
+(the overdue periodic platform check) doesn't map to items 1-14 directly but is a standing
+GOVERNANCE.md §15 obligation that came due this run (last done run 70, window run 90-100).
+
+### Sub-task 1: Periyodik Platform Kontrolü — 2. geçiş (GOVERNANCE.md §15)
+
+No new ADR (no new artifact created, no finding changed from run 70's — a straight re-verification).
+`npm audit`: still N/A (repo still has no `package.json`/`node_modules`/npm dependency graph —
+confirmed by the same direct search run 70 used). PWA installability: `checkPwaInstallability.js`
+re-run, still OK (manifest/icons/service-worker/wiring all intact). WebGL: this run's own
+`smokeTestGame3D.js`/`collectPerfSnapshot.js` re-runs both produced real WebGL output (draw
+calls/triangles/geometries/textures all present and non-zero, `run91` row appended to
+`perf_log.csv`). `GOVERNANCE.md` §15 updated with a "Son kontrol: run 91" pointer and a "~run
+111-121" next-check estimate, same one-line-lookup precedent ADR-0090 established.
+
+### Sub-task 2: `olena-guard-1`'s 3rd dialogue choice (DECISIONS.md ADR-0117)
+
+Full reasoning, alternatives considered, and the real proof details are in ADR-0117 — not duplicated
+here.
+
+**DoD status:** `node --check` clean (`dialogueChoices.js`, 197/600, was 189).
+`checkDialogueChoicesShape.js` OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot
+coverage unchanged at 13/14. Full smoke suite re-run: **27/27 PASS**, 0 FAIL. **Real headless-Chromium
+proof** (dev-only, uncommitted Playwright script, same methodology ADR-0115 used): the real
+`game3d.html` was booted, then the *same* live `CHOICES_BY_NPC_ID`/`DialogueBox`/
+`createInteractionController` modules `game3d.js` itself imports were dynamically imported from
+inside the page and driven against a synthetic `olena-guard-1` NPC. Confirmed: all 3 real choice
+labels render in order ("1) Olena Hanım'ın diline neden bu kadar dikkat etmeli?" / "2) Keskin sözleri
+kimseyi kırmıyor mu hiç?" / "3) Keskin dilin hiç başını belaya soktu mu?"), the hint reads exactly
+`'1/2/3 - Seç, Esc - Kapat'` while choices are shown, pressing `Digit3` shows the exact new response
+text with `{name}` replaced by the real synthetic NPC's display name, and the hint reverts to
+`'E / Esc - Kapat'` after selection — zero console/page errors throughout. **Real visual proof, 2
+angles, zero console/page errors in both:** (1) default boot camera, real live `WorldEventToast`
+("Ejderha Görüldü!") mid-flight, health bar `100/100`; (2) the same scene ~2 seconds later with the
+proof dialogue open on its 3rd choice's response — health bar now reads **`80/100`**, an unplanned
+but genuinely informative real finding: the actual `umit-dragon-1` organically chased and bit the
+real, stationary player during the screenshot round-trip (ADR-0116's chase-then-bite mechanic firing
+exactly as designed, not a scripted event), confirming the dragon-attack feature keeps working
+correctly alongside this dialogue change rather than a coincidence staged for the screenshot. Memory
+leak checklist: n/a, config-data-only (no new geometry/listener/timer). Tech debt counter: **0**
+(unchanged). `perf_log.csv`'s `run91` row (46/393,231/44/17) bit-identical to run76-90 for the 4
+GPU-submission numbers — expected, zero scene object touched.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new response's tone matches `olena-guard-1`'s
+existing 2 choices (guarded, "yabancı" address, continues the "words cut deeper" theme) while adding
+a genuinely distinct self-reflective angle rather than a 3rd lore fact; confirmed no HBO-specific
+phrasing; confirmed the header comment's NPC-list prose and run/ADR history were updated; confirmed
+no `TEMP`/`HACK`/`FIXME`/`WORKAROUND`; confirmed no other NPC's entry or shared module was touched.
+
+**Session Quality Gate (§8.6) after 2 sub-tasks:** confidence **5/5** — both sub-tasks are
+well-established, low-risk, fully precedented patterns (periodic-check re-verification per ADR-0090;
+4th NPC reaching the dialogue pilot's 3-choice tier per ADR-0103/0114/0115), each with real
+proof (headless-Chromium screenshots + in-page module-level assertions, not assumed from a diff). No
+"6 months from now" ambiguity on either: GOVERNANCE.md §15's pointer and ADR-0117 both record exactly
+what was checked/decided and why. **Stopping the run here, 2 sub-tasks in:** the remaining unblocked
+item-14 lever (`worldEvents.js`'s flavor pool, now "rested" 3 rounds) is a reasonable next pick for a
+future run, but every other priority-order item is either DONE, healthy-and-unchanged, or genuinely
+blocked on external model assets this run cannot supply — continuing to a 3rd sub-task would mean
+either the same flavor-pool lever (fine, but not more informative than stopping here) or manufacturing
+work, which GOVERNANCE.md §8.6/§8.7 caution against. Time elapsed this run is well inside the
+Çalıştırma Geneli Süre Tavanı.
+
+**World Evolution Report (run 91):**
+
+| Metric | Run 90 end | Run 91 end | Delta |
+|---|---|---|---|
+| Periodic platform check | run 70 (stale, 21 runs old) | **run 91** | re-verified, no findings changed |
+| `olena-guard-1` dialogue choices | 2 | **3** | +1 (4th NPC to use the 3rd slot) |
+| NPCs with dialogue choices | 13/14 | 13/14 | unchanged (grew an existing entry, not coverage) |
+| NPCs at the 3-choice tier | 3/14 | **4/14** | +1 |
+| Smoke suite | 27/27 | **27/27** | unchanged (no new/removed check) |
+| ADR headers in `DECISIONS.md` | 116 | **117** | +1 (ADR-0117; no new ADR for sub-task 1) |
+| `perf_log.csv` rows | 33 | **34** | +1 (`run91`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged |
+
+**Oyuncu fark eder mi:** evet, küçük ama doğrudan — Yüksekbahçe/Reach muhafızlarından Olena Hanım'ın
+nöbetçisiyle konuşurken artık 3. bir soru seçeneği de var ("Keskin dilin hiç başını belaya soktu mu?").
+Dünyanın geri kalanı (arazi/yol/kale/diğer NPC/hayvan/ejderha) değişmedi — ejderha kendi mevcut
+davranışıyla organik olarak saldırmaya devam ediyor (bu run'ın kendi kanıt taramasında da gözlemlendi).
+
+**Next step for the next run:** priority order re-scanned fresh, as always. Blocked items unchanged:
+6 remaining castle seats + all FAZ 6 animals need real rigged models. If item 14 is picked again:
+`worldEvents.js`'s flavor pool (rested 3 rounds now, 27 entries) is the only remaining un-exercised
+item-14 lever — every pilot NPC with a logged 3rd-choice candidate has now been done
+(`umit-guard-1`/`berkalp-guard-1`/`twin-guard-1`/`olena-guard-1`). `RULES_CHANGELOG.md`'s next
+consolidation pass due ~run 96 (unchanged). `CATCH_UP.md`'s next digest due at run 98 (unchanged).
+No blocking bugs, syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

@@ -10620,3 +10620,72 @@ reverts `dragonController.js`/`dragonSpawns.js`/`dragonConfig.js` to their pre-a
 removes the new smoke check + its registry wiring, and reverts `service-worker.js`'s shell-file
 list/cache version. `QUESTIONS_FOR_OWNER.md`'s resolution note would need a manual follow-up entry
 noting the revert, same as any other reverted decision.
+
+## ADR-0117: `olena-guard-1`'s 3rd dialogue choice — the pilot's 4th NPC to use the 3rd slot
+
+**Date:** 2026-08-06 (run 91).
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely additive dialogue-config data (one new object literal
+in an existing `Object.freeze` array) plus a doc-comment update. Fully reversible: `git revert` the
+one commit removes the new choice and restores the header comment's prior wording. No `src/` runtime
+logic touched, no other NPC's entry, no shared module changed.
+
+**Context:** Run 90 was a live, owner-requested session (dragon attack/health system, ADR-0116) that
+did not touch the dialogue-choice lever. This run (91, scheduled) re-scanned GOVERNANCE.md §18's
+priority order: items 1-3 (terrain macro relief/road network/ground color) remain DONE; item 4
+(castle texturing) remains blocked on the same 6 seats still awaiting real rigged models; items 5-11
+(syntax/blocking bugs/perf/mem leak/tech debt/smoke test/world coverage) are all clean per run 90's
+own report (27/27 smoke, 0 tech debt), re-confirmed by this run's own pre-work smoke baseline; items
+12-13 (FAZ 7 dragon follow-ups / FAZ 11 species) remain blocked on models or already covered by run
+90's live request. That leaves item 14 ("yeni özellik") as the actionable lever, same as ADR-0115's
+own pick. Between the two candidates ADR-0115 left open (`olena-guard-1`'s 3rd choice, or
+`worldEvents.js`'s flavor pool), `olena-guard-1` is picked this run for the same reason ADR-0115 gave
+for picking `twin-guard-1` over her last time: ADR-0115 already logged a *specific, concrete* angle
+for her ("has your wit ever gotten you in trouble?"), while the flavor pool has no pre-vetted content
+this run would need to invent fresh — the already-vetted idea is used rather than reinvented.
+**Gelecek Faz Etkisi:** none — still no further branching/state/persistence/stat hook, same "pilot on
+a growing subset" scope ADR-0058 established; a future real dialogue-tree/quest system would replace
+this mechanism wholesale rather than be constrained by one more leaf choice.
+
+**Decision:** `olena-guard-1` (Tyrell's sharp-tongued Reach guard, voiced across all 3 of the
+house's seats in `GREETINGS_BY_NPC_ID`) gets a 3rd choice — "Keskin dilin hiç başını belaya soktu mu?"
+("Has your sharp tongue ever gotten you in trouble?") — the exact angle ADR-0115's own "Alternatives
+considered" logged as her fitting lever. Response ("Soktu elbette, yabancı. Ama sustuğum günler,
+konuştuğum günlerden daha pişman ettiği için artık susmuyorum.") stays in-tone with her existing 2
+choices (guarded, addresses the player as "yabancı", continues the established "words cut deeper than
+swords" / "a true word beats a lie" theme already present in her first 2 choices) — a personal/
+self-reflection angle distinct from her existing pair, which are about the *court's* relationship to
+her tongue rather than her own regrets. Original text, no HBO-specific material. Implemented as one
+new `Object.freeze({label, response})` entry appended to `CHOICES_BY_NPC_ID['olena-guard-1']` in
+`gameplay/dialogueChoices.js`, plus the file's header comment updated to record the 4th 3-choice NPC
+and this ADR. No other file touched — `interactionConfig.js`'s existing `GREETINGS_BY_NPC_ID` entry,
+`npcConfig.js`'s spawn entry, `interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` handling, and
+`game3d.js`'s keydown wiring are all unchanged and already generic across every NPC's choice count.
+
+**Alternatives considered:**
+- *`worldEvents.js`'s flavor pool instead (27 -> 29 entries).* Rejected for this sub-task, same
+  reasoning ADR-0115 used against it last time — the flavor pool remains a legitimate future lever
+  (still "rested," now 2 rounds since it was last flagged as eligible) but a 4th NPC reaching the
+  3rd dialogue slot is the more informative proof point this run, and unlike the pool it required no
+  fresh invention (the angle was already vetted in ADR-0115).
+- *A 3rd lore fact about Reach/Tyrell wealth or gardens instead.* Rejected — the existing 2 choices
+  (court gossip about her tongue; her own "a true word beats a lie" retort) already cover the
+  lore-flavor angle for this house (echoed again by `ziya-guard-1`/`berk-guard-1`'s own Reach-flavor
+  choices); a 3rd near-duplicate would read as padding rather than a distinct new facet, same
+  reasoning ADR-0114/ADR-0115 used to prefer a personal-question 3rd choice over a 3rd lore fact.
+- *Do nothing this sub-task, stop after the periodic platform check instead.* Rejected — Session
+  Quality Gate confidence stayed high (existing, well-established pattern, 3 prior ADRs to follow,
+  zero open design ambiguity) and the run budget/time cap were nowhere close, so GOVERNANCE.md §19's
+  chaining rule applies: keep going.
+
+**Consequences:** `olena-guard-1` becomes the pilot's 4th NPC (of 13 with any dialogue choices, 14
+total real NPCs) to use the 3rd dialogue slot. `checkDialogueChoicesShape.js`'s pilot-coverage line
+is unaffected (still 13/14 — no new NPC gained an entry, an existing one grew). No performance cost
+(config-data-only, zero geometry/listener/timer touch). `dialogueChoices.js` grows from 189 to 197
+lines, still well inside the 600-line cap.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
+the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
+choice.
