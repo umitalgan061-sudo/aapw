@@ -390,6 +390,8 @@ export async function initGame3D() {
 		const handleInteractKeyDown = (event) => state.interaction.handleKeyDown(event);
 		window.addEventListener('keydown', handleInteractKeyDown);
 		state.interactionPrompt.setActivateHandler(() => state.interaction.handleKeyDown({ code: 'KeyE', repeat: false }));
+		state.dialogueBox.setChoiceHandler((index) => state.interaction.handleChoice(index));
+		state.dialogueBox.setCloseHandler(() => state.interaction.handleKeyDown({ code: 'KeyE', repeat: false }));
 
 		// F2 debug/profiling panel (debug/README.md, ADR-0053) — same isCoarsePointerDevice() signal
 		// sceneManager.js's own chunk-radius split already used, so both agree on the device class.

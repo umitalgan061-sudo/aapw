@@ -52,3 +52,4 @@ convention below.
   system (HUD, dialogue) can't accidentally couple to a specific camera or character implementation.
 - **Own DOM, own disposal.** Any DOM a module here creates must be removable via its own
   `dispose()` — mirrors the memory-leak checklist every other system in this project follows.
+- **Dialogue touch path (run 99, ADR-0125):** `DialogueBox` can register delegated choice and close handlers; choices expose 44px focusable role-button targets for pointer/Enter/Space input, and `dispose()` removes all three listeners. Desktop Digit1–Digit3/E/Escape remains owned by `gameplay/interaction.js`.

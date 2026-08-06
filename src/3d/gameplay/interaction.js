@@ -67,6 +67,12 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 	}
 
 	return {
+		/** Selects a visible dialogue choice by zero-based index (mobile/PWA pointer path). */
+		handleChoice(index) {
+			if (!Number.isInteger(index) || !activeChoices || index < 0 || index >= activeChoices.length) return;
+			selectChoice(index);
+		},
+
 		/** Call once per frame with the current NPC list and player world position. */
 		update(npcs, playerPos) {
 			nearestNpc = null;

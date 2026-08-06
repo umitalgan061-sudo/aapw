@@ -10875,3 +10875,17 @@ sonraki dokunuşta bir bölme planı düşünülmeli.
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+## This Run (2026-08-06, run 100)
+
+**Concurrency/snapshot:** fetched `origin/main` before work and again immediately before commit. The first fetch found Claude's run-98 main 94 commits ahead of stale `work`; the second found Claude's run-99 ADR-0125/0126 dialogue commits four commits ahead. The worktree was realigned to the latter before commit, this decision was renumbered ADR-0127, and no concurrent code/content was overwritten or deleted.
+
+### Sub-task: complete FAZ 5 touch/PWA dialogue input (DECISIONS.md ADR-0127)
+
+`DialogueBox` renders focusable role-button choices with stable indices, delegates pointer/Enter/Space activation through the interaction controller's validated `handleChoice(index)`, and exposes a 44px pointer/Enter/Space close affordance through the existing KeyE close behavior. Desktop Digit1–Digit3/E/Escape and the dynamic `1/2/3` hint remain unchanged. Four constant listeners are removed by `dispose()`.
+
+**DoD:** full `node --check` sweep passed. `checkDialogueChoicesShape.js` passed; `checkSmokeCheckRegistry.js` passed at 29 checks/9 modules (known near-cap warnings only); PWA installability and service-worker cache checks passed. Full Playwright run: all 28 existing component checks plus the new touch check passed; full 3D readiness alone timed out in software-rendered Chromium. The focused touch test passed again after reviewer accessibility additions. Desktop 1280×720 and touch-mobile 390×844 visual proofs showed three 44px choices and close hint without overflow. Perf snapshot timed out at readiness; no fabricated CSV row. Confidence **4/5**; tech debt remains **0**.
+
+**Memory/performance:** four constant DOM listeners per `DialogueBox`, all explicitly removed; no timer/GPU allocation. World coverage remains desktop 96.2% / mobile boot 4.5%; run-99's latest valid renderer snapshot remains authoritative because this DOM-only change adds no renderer work.
+
+**World Evolution Report:** NPC/dialogue-content/animal/dragon/settlement/road/asset counts unchanged from Claude's completed run 99; touch-completable choice conversations increase from prompt-open-only to full open/select/close for all 13 choice-enabled NPCs; smoke registry 28→29; ADR headers 126→127; coverage unchanged; debt 0→0. **Oyuncu fark eder mi:** evet — mobil/PWA oyuncusu artık fiziksel klavye olmadan üç seçenekli konuşmayı tamamlayabilir. **Next step:** fresh `origin/main` fetch; if priority 14 remains the only unblocked item, `berk-guard-1` is the final two-choice candidate. Avoid touching near-cap `game3d.js`; future wiring should first extract an interaction bootstrap helper.

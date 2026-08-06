@@ -11693,3 +11693,19 @@ before and after). "6 ay sonra hâlâ net mi" tereddüdü yok.
 **Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
 the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
 choice.
+
+## ADR-0127: FAZ 5 dialogue choices get complete touch/PWA activation
+
+**Status:** Accepted (run 100).
+
+**Risk Seviyesi:** LOW — additive DOM input handlers only; existing Digit1–Digit3, E and Escape paths are unchanged.
+
+**Context:** Run 99 left the project at 13/14 NPC dialogue coverage and 12/13 choice-enabled NPCs with three questions. ADR-0080 already let touch users open a greeting by tapping the proximity prompt, but choosing a reply and closing the response still required a physical keyboard. This run fetched `origin/main` twice: the first fetch found Claude's run-98 work 94 commits ahead of the stale `work` base; the pre-commit fetch then found Claude's run-99 ADR-0125/0126 work four commits ahead. The implementation was realigned to that latest main before commit, preserving both concurrent dialogue-content additions and renumbering this decision to ADR-0127.
+
+**Decision:** `DialogueBox` owns delegated pointer/keyboard activation for its dynamic choice list and pointer/keyboard activation for its close affordance. Rendered choices carry a stable zero-based data index, `role="button"`, and keyboard focus; pointer-up, Enter, or Space forwards the index to the controller's bounds-checked `handleChoice(index)`. The close affordance forwards to the existing KeyE close route and mirrors those accessibility semantics. CSS gives both paths a 44px touch target and visible keyboard focus. A separate `game3dSmokeChecksDialogueTouch.js` module keeps the existing check file and `game3d.js` under 600 lines.
+
+**Alternatives considered:** a mobile-only toolbar was rejected because it would duplicate dialogue state and DOM lifecycle. One listener per rerendered choice was rejected because delegated listeners have constant count and simpler cleanup. Replaying the old PR commit was rejected after conflicts exposed run-79's scalable three-choice hint and newer smoke checks; rebuilding only the missing input path on current main preserves concurrent work.
+
+**Verification:** full JavaScript syntax sweep, dialogue-shape check, smoke-registry check (29 checks/9 modules), PWA installability, and service-worker cache coverage passed. The Playwright suite passed all 28 pre-existing component checks plus the new dialogue touch check; only the full 3D readiness probe timed out under this container's software renderer. A focused rerun of the new check passed after reviewer accessibility additions. Desktop 1280×720 and touch-mobile 390×844 screenshots showed all three choices and the touch-close hint without overflow. `collectPerfSnapshot.js run100` hit scene-readiness timeout, so no synthetic perf row was written.
+
+**Consequence:** mobile browser and installed-PWA users can open, select, and close FAZ 5 conversations without a physical keyboard, while desktop controls and run-79's dynamically generated `1/2/3` hint remain intact. Four constant listeners are explicitly removed in `dispose()`. No world, asset, save, geometry, material, or texture behavior changed. **Gelecek Faz Etkisi:** later quest dialogue can reuse the validated route without mobile-only gameplay logic. **Rollback:** revert ADR-0127's additive lines and delete its dedicated smoke module.
