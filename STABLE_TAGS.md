@@ -506,3 +506,10 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `main` merge succeeded (`9ad8ae8..eeb96f6`). `git push origin <tag>` still rejected, same
   `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies
   the checkpoint).
+
+- **Run 108 (2026-08-06):** Session Quality Gate passed (confidence 5/5, §8.6) — docs-only fix
+  (ADR-0135, `gameplay/README.md`/`world/README.md` file-list drift), 32/32 real-browser smoke suite
+  clean, game opens without issue. Local tag `stable-2026-08-06-2154` created at `055a728` (PR #8
+  merge). `git push origin work` + PR #8 → `main` merge succeeded (`120db16..055a728`).
+  `git push origin <tag>` still rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md
+  §8.11: a local tag + this entry satisfies the checkpoint).
