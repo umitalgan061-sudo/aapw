@@ -380,3 +380,14 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `git push origin main` succeeded (`99063f2..c1c64c5`). `git push origin <tag>` still rejected,
   same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry
   satisfies the checkpoint).
+
+- **Run 94 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed (confidence
+  5/5) — `cersei-guard-1`'s 3rd dialogue choice (ADR-0120), the pilot's 6th NPC to reach the 3rd
+  dialogue slot. Full smoke suite **28/28 PASS** before and after, real headless-Chromium proof +
+  real visual proof (2 moments, live `game3d.html` scene in the background) confirm the new choice
+  renders and resolves correctly, 0 console/page errors. `perf_log.csv`'s first `run94` sample
+  diverged from baseline (async load-timing noise, confirmed and resolved — see ADR-0120); the
+  committed row uses the reproduced expected values (46/393,231/44/17). Local tag
+  `stable-2026-08-06-1300` created at `11915ed`. `git push origin main` succeeded
+  (`95531b0..11915ed`). `git push origin <tag>` still rejected, same `HTTP 403` standing block
+  since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
