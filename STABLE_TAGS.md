@@ -272,3 +272,21 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `git push origin main` succeeded (`52c9644`). Local tag only — `git push origin <tag>` still
   `HTTP 403`, same standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry
   satisfies the checkpoint).
+- `stable-2026-08-06-0415` — run 86 end: day/night gating for the world-event flavor pool (4 of 26
+  entries — `wolf_howl`/`falling_star`/`northern_lights` night-only, `eclipse` day-only), ADR-0111 —
+  continues directly from ADR-0110's own Alternatives section, which had already named and deferred
+  this exact idea. Pure additive/backward-compatible change (`nightFactor` is an optional parameter;
+  every pre-existing caller unaffected) plus a pure reorder in `game3d.js` (no logic change) to make
+  `dayNight.nightFactor` available earlier. New committed regression coverage
+  (`checkWorldEventsTimeGating`, 2 assertions x 1000 forced draws each) rather than a throwaway proof
+  — full suite 24/24 -> **25/25 PASS**, all 8 standing guards clean (2 files now WARN-flagged
+  approaching the 600-line cap, not fatal — see `3D_GAME_PROGRESS.md`'s Next step). Real proof beyond
+  the committed check: an 8000-draw statistical sample (zero cross-contamination) plus real
+  headless-Chromium screenshots showing the eclipse toast against a genuinely bright daytime sky and
+  the northern-lights toast against a genuinely dark starry night sky (real day/night clock driven
+  forward via a documented `performance.now()`-jump technique — a naive load-time-based version was
+  tried first and silently no-op'd, recorded in ADR-0111 so a future run doesn't repeat the dead end).
+  `perf_log.csv` `run86` row bit-identical to run76-85 (no scene object touched). `git push origin
+  main` succeeded (`4386fcd`). Local tag only — `git push origin <tag>` still rejected, same
+  `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the
+  checkpoint).
