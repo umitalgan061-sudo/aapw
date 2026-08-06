@@ -10043,3 +10043,127 @@ twinkle feature.
 `PointsMaterial`, the 3-argument `updateStarfield` call in `game3d.js`, and removes the new smoke
 check + its registry wiring. Nothing else references the new `aPhase`/`aFreq` attributes or the
 `uTime`/`uNightFactor`-uniform shape.
+
+## ADR-0113: Split `game3dSmokeChecksScene.js`'s F4/F2/world-event checks into `game3dSmokeChecksDebugTools.js`
+
+**Status:** Accepted (run 88).
+
+**Risk Seviyesi:** LOW. Pure test-tooling reorganization — moves 4 existing check functions verbatim
+into a new sibling module and updates 2 call sites (`smokeTestGame3D.js`'s orchestration + header
+comment). No `src/` (shipped) code touched, no terrain/height/world-scale change (Arazi Değişikliği
+Güvenlik Kontrolü doesn't apply), no new/removed assertion. Fully reversible: `git revert` restores
+the single pre-split file and the two call-site edits.
+
+**Context:** Session Snapshot at run start (2026-08-06, run 88 — scheduled autonomous routine):
+`GOVERNANCE.md`/`CREDITS.md` were already present and current — the stored scheduler prompt's "create
+GOVERNANCE.md for the first time" instruction is stale for a ninth consecutive run (first built at run
+76, per §12), confirmed via a full read against the incoming instruction's own list, not recreated.
+`git fetch origin main` confirmed local `main` already matched `origin/main` (`9036b34`, run 87's last
+commit) — no concurrent-session conflict (§8.14). Read `3D_GAME_PROGRESS.md`'s run 87 entry,
+`DECISIONS.md`'s last 3 ADRs (0110-0112), `QUESTIONS_FOR_OWNER.md` in full (10 entries, all still
+open, none resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md` tails. Ran the full smoke suite and every standing static guard before picking
+any work: **26/26 PASS**, all 6 guards clean except the two already-known line-count WARNs
+(`game3dSmokeChecksScene.js` 573/600, `game3d.js` 545/600, both flagged since run 87), no regression
+at session start.
+
+**Priority re-scan (GOVERNANCE.md §18), fresh:** items 1-8 (terrain, roads, ground color, castle
+texturing, syntax, blocking bugs, performance, memory) re-confirmed healthy/already-resolved via
+their own standing guards, not re-litigated. Items 9-11 (tech debt, smoke test, coverage) — this is
+where run 87's own Next-step note pointed: `game3dSmokeChecksScene.js` at 573/600 is a real,
+unblocked, non-owner-gated item that outranks item 14 ("yeni özellik"), exactly the same reasoning
+runs 81->82 and 82->83 already used for the analogous `game3d.js`/`safeMode.js` WARNs. Items 12-13
+(dragon attack, FAZ 11 species) remain blocked exactly as run 87 left them — no new model asset since
+run ~59, dragon attack still gated on the unresolved health-system question. **This run's incoming
+instruction also asked for two governance-mandated housekeeping items due at run 88 specifically**:
+`CATCH_UP.md`'s next 10-run digest (§13, due every 10 runs, last one at run 78) — done as a separate,
+non-code commit alongside this sub-task, see `CATCH_UP.md`'s new entry and `3D_GAME_PROGRESS.md`'s
+run 88 notes for its own accounting; it is not repeated here since it touches no code and isn't itself
+an ADR-worthy decision.
+
+**Gelecek Faz Etkisi:** none — this is dev-only test tooling (`scripts/`, never served, no
+`SHELL_CACHE`/PWA-installability surface), no runtime module, stat, quest, or persistence hook
+touches any future FAZ's shape.
+
+**Decision:** `game3dSmokeChecksScene.js`'s 4 checks that build a real singleton object in-page and
+drive it via synthetic key events/method calls — `checkFreeCamera` (F4), `checkPerfPanel` (F2),
+`checkWorldEvents` and `checkWorldEventsTimeGating` (world-event system) — move verbatim into a new
+`game3dSmokeChecksDebugTools.js`, along with their own copy of the shared `NAV_TIMEOUT_MS` constant
+(duplicated rather than shared/imported, same precedent `game3dSmokeChecksScene.js`'s own header
+already set for exactly this constant). `game3dSmokeChecksScene.js` keeps only the 3 page-navigation
+checks that instead assert on the page-load lifecycle itself — `check2DShell`, `check3DMode`,
+`checkWaterVertexShaderStatic` — plus their shared `loadAndCollectErrors` helper and
+`GAME3D_READY_TIMEOUT_MS` constant, which only those functions use. `smokeTestGame3D.js` gained one
+new `require()` and its header's module-list comment was updated to describe all 8 modules (was 7);
+`checkSmokeCheckRegistry.js` needed **zero** changes — it discovers check modules dynamically via a
+`/^game3dSmokeChecks/` filename filter (confirmed by reading its own source before assuming this),
+not a hardcoded list, so a new correctly-named file is picked up automatically.
+
+**Alternatives considered:**
+- *Split by check count instead of theme (e.g. first 2 vs. last 2).* Rejected — every prior split in
+  this project's history (runs 40/64/68/82, all cited in the file headers) split by theme, not by
+  line-count arithmetic; theme-based splits stay meaningful to a future reader deciding where a *new*
+  check belongs, arithmetic splits don't.
+- *Move `checkWaterVertexShaderStatic` into the new file instead, since it's also a `page.evaluate`-
+  in-page check.* Rejected — it's still fundamentally a page-boot-adjacent invariant (asserts on a
+  freshly-created module's shader source, not a persistent singleton driven by synthetic events across
+  multiple `update()`/keydown steps the way all 4 moved checks are), and keeping it alongside
+  `check2DShell`/`check3DMode` keeps `game3dSmokeChecksScene.js`'s own remaining theme
+  ("does the page/scene itself boot and render correctly") coherent.
+- *Grow a brand-new 9th check into the already-573/600 file instead of splitting first.* Not
+  applicable this run (no new check was needed) — noted only because it's the wrong order were one
+  ever needed: this project's own precedent (run 82's `game3d.js` WARN) is to clear a line-count WARN
+  before, not after, adding further content to a flagged file.
+
+**Verified:**
+- `node --check` clean across the full 64-file sweep (`src/`+`scripts/`, excluding vendor) — 2 files
+  changed shape (`game3dSmokeChecksScene.js` split, `smokeTestGame3D.js` edited), 1 new
+  (`game3dSmokeChecksDebugTools.js`).
+- `checkSmokeCheckRegistry.js` re-run: **26 smoke checks wired across 8 check modules** (was 7; every
+  export still invoked exactly once, every invocation still resolves), **64 JS files all within the
+  600-line cap, only 1 approaching it** (`game3d.js`, 545/600, unchanged by this run, already known
+  since run 87) — the `game3dSmokeChecksScene.js` WARN this run set out to clear is gone (573 -> 243
+  lines); the new `game3dSmokeChecksDebugTools.js` sits at 363/600, comfortable headroom.
+- Full committed smoke suite, re-run after the split: **26/26 PASS**, 0 FAIL — every check this run
+  touched (the 4 moved ones) still passes with byte-identical assertion logic, proving the move itself
+  introduced no behavior change, not just that the file compiles.
+- All other 5 standing static guards re-run clean, unaffected (`checkAssetsManifest`,
+  `checkCreatureSpeciesConfig`, `checkDialogueChoicesShape`, `checkPwaInstallability`,
+  `checkServiceWorkerCache` — the last one confirmed deliberately unaffected: `scripts/` is dev-only
+  tooling never referenced from `GAME3D_SHELL_FILES`, so a new file here needs no `SHELL_CACHE` bump,
+  unlike a new `src/` module would).
+- **AI Self-Review 2. Geçiş (§8.3):** confirmed every one of the 4 moved functions' bodies is
+  byte-identical to its pre-split source (diffed the extracted text against the original file before
+  writing the new module, not just visually skimmed); confirmed `smokeTestGame3D.js`'s 4 call-site
+  edits reference the correct new module for the correct function (no accidental cross-wiring, e.g.
+  `checkPerfPanel` still called via `debugToolChecks`, not left on the old `sceneChecks` alias);
+  confirmed `game3dSmokeChecksScene.js`'s trimmed `module.exports` no longer references any of the 4
+  moved names (would have been a `ReferenceError` at `require()` time, not silently wrong); confirmed
+  no `TEMP`/`HACK`/`FIXME`/`WORKAROUND` language crept into either file's header.
+- **Değişiklik Etki Analizi:** not required — no terrain/height/noise/world-scale touch, confirmed
+  before starting (this ADR's Gelecek Faz Etkisi line above).
+- **Görsel Doğrulama Standardı (§8.5) — deliberately not captured this run:** unlike prior pure-
+  refactor ADRs (e.g. ADR-0104/ADR-0105/ADR-0106) that still took before/after screenshots to prove
+  zero visual regression, this run's change touches **zero `src/` files** (only `scripts/`, dev-only
+  test tooling never loaded by `game3d.html` or referenced from `GAME3D_SHELL_FILES`) — there is no
+  code path connecting this change to anything rendered, so a screenshot pair would prove nothing a
+  screenshot couldn't already tell you from the diff itself. The committed `check3DMode` smoke check
+  (re-run and passing: "zero console/page errors") is the correct, already-existing proof that the
+  live game still boots cleanly; `perf_log.csv`'s `run88` row is likewise a real measured (not
+  screenshotted) confirmation that the rendered scene is byte-for-byte identical (46/393,231/44/17,
+  matching run76-87 exactly).
+
+**Etkilenen sistemler:** `scripts/game3dSmokeChecksScene.js` (trimmed to 3 checks + shared helper).
+`scripts/game3dSmokeChecksDebugTools.js` (new, 4 checks moved verbatim). `scripts/smokeTestGame3D.js`
+(1 new `require()`, 4 call-site edits, header comment updated). No change to any `src/` module, any
+shipped asset, or `checkSmokeCheckRegistry.js` (dynamic discovery needed no edit).
+
+**Consequences:** The line-count WARN that run 87's Next-step note flagged is cleared before it could
+ever become an actual over-cap violation, at the lowest possible risk (pure move, zero new assertion,
+re-proven identical on every moved check). No player-visible effect whatsoever — this is dev-only test
+tooling, never served, never part of the deployed game.
+
+**Geri alma planı:** `git revert` the single commit — restores `game3dSmokeChecksScene.js`'s
+pre-split 7-export shape, removes `game3dSmokeChecksDebugTools.js` entirely, and reverts
+`smokeTestGame3D.js`'s `require()`/call-sites/header comment to their pre-split form. Nothing else
+references `game3dSmokeChecksDebugTools.js`.

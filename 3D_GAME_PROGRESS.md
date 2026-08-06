@@ -9553,3 +9553,114 @@ this same sub-task, before any commit.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-06, run 88 — scheduled autonomous routine)
+
+**Session Snapshot done first, per GOVERNANCE.md §20:** `GOVERNANCE.md` (already existed and current,
+309 lines — the stored scheduler prompt's "create GOVERNANCE.md for the first time" instruction is
+stale for a ninth consecutive run, first built at run 76; independently re-verified every 🆕 item the
+prompt listed is already present under differently-worded Turkish headings, confirmed a no-op, not
+recreated). `CREDITS.md` likewise already exists. Read `3D_GAME_PROGRESS.md`'s run 87 entry,
+`DECISIONS.md`'s last 3 ADRs (0110-0112), `QUESTIONS_FOR_OWNER.md` in full (10 entries, all still
+open, none resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md` tails. Eşzamanlılık Kontrolü (§8.14): `git fetch origin main` confirmed local
+`main` already matched `origin/main` exactly (`9036b34`, run 87's last commit) — no concurrent session
+to reconcile with.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`, excluding vendor) —
+clean, 63 files. Full `scripts/smokeTestGame3D.js` — **26/26 PASS**, 0 FAIL, before any new code. All
+6 standing guards clean except the two already-known line-count WARNs flagged since run 87
+(`game3dSmokeChecksScene.js` 573/600, `game3d.js` 545/600) — no new WARN, no regression.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-8 (terrain macro relief, road network, ground color,
+castle texturing, syntax errors, blocking bugs, performance, memory) re-confirmed already
+done/healthy via their own standing guards, not re-litigated from scratch. Items 9-11 (tech debt,
+smoke test, coverage): item 9 had a concrete, unblocked target left over from run 87's own Next-step
+note — `game3dSmokeChecksScene.js`'s 573/600 line-count WARN — which outranks item 14 ("yeni özellik"),
+same reasoning runs 81->82 and 82->83 already used for the analogous `game3d.js`/`safeMode.js` WARNs.
+Items 12-13 (dragon attack, FAZ 11 species) remain blocked exactly as run 87 left them — no new model
+asset since run ~59 (`git log --diff-filter=A -- 'assets/models/*'` re-checked), dragon attack still
+gated on the unresolved health-system question.
+
+### Housekeeping (governance-mandated, not a numbered priority item): `CATCH_UP.md`'s 10-run digest
+
+Per GOVERNANCE.md §13, due every ~10 runs — last one was run 78, this is run 88 (exactly on schedule).
+Added a new entry at the top of `CATCH_UP.md` summarizing runs 79-87 in plain, jargon-free Turkish:
+the world-event flavor pool's growth (24->26 entries) plus its weighted-rarity/day-night-gating
+mechanisms, the starfield twinkle, the first use of a 3rd dialogue-choice slot, the 2D-offline-crash
+fix (run 83, still the most player-relevant fix of the window), and the full §8.13 safe-mode rollout
+across all 4 named subsystems. Closed with the still-open items unchanged (castle textures, FAZ 6
+animals, dragon health-system decision, the NVIDIA key revocation still needed from the owner). This
+is documentation-only, no code touched, not itself an ADR-worthy decision — recorded here for
+completeness, not repeated in DECISIONS.md.
+
+### Sub-task 1: split `game3dSmokeChecksScene.js`'s F4/F2/world-event checks into `game3dSmokeChecksDebugTools.js` (DECISIONS.md ADR-0113)
+
+`checkFreeCamera`, `checkPerfPanel`, `checkWorldEvents`, `checkWorldEventsTimeGating` moved verbatim
+into a new sibling module; `game3dSmokeChecksScene.js` keeps only the 3 page-navigation checks
+(`check2DShell`, `check3DMode`, `checkWaterVertexShaderStatic`) plus their shared helper.
+`smokeTestGame3D.js` gained one `require()` + 4 call-site edits + an updated header. Full reasoning,
+alternatives considered, and the "why no screenshots this run" note in ADR-0113.
+
+**DoD status:** `node --check` clean across the full 64-file sweep. `checkSmokeCheckRegistry.js`
+re-run: **26 checks / 8 modules** (was 7), **64 JS files all within the 600-line cap, only 1
+approaching it** (`game3d.js`, 545/600, unchanged, already known since run 87) — the
+`game3dSmokeChecksScene.js` WARN this run set out to clear is gone (573 -> 243 lines); the new
+`game3dSmokeChecksDebugTools.js` sits at 363/600. Full smoke suite re-run after the split: **26/26
+PASS**, 0 FAIL — every one of the 4 moved checks still passes with byte-identical assertion logic,
+proving the move introduced no behavior change. All 5 other standing guards clean, unaffected
+(`checkServiceWorkerCache.js` confirmed deliberately unaffected — `scripts/` is dev-only tooling never
+in `GAME3D_SHELL_FILES`, no `SHELL_CACHE` bump needed for a dev-tool file, unlike a new `src/` module
+would require). `perf_log.csv` `run88` row (real measurement via `collectPerfSnapshot.js`) bit-identical
+to run76-87 (46/393,231/44/17) — expected, this change touches zero `src/` files. Memory-leak
+checklist: n/a — no listener/timer/DOM/geometry touched, this is dev-only test tooling. Tech debt
+counter: **0** (this run closed one WARN and opened none). ADR-0113 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed every one of the 4 moved functions' bodies is
+byte-identical to its pre-split source (diffed the extracted text, not visually skimmed); confirmed
+all 4 `smokeTestGame3D.js` call sites reference the correct new module for the correct function name
+(no accidental cross-wiring); confirmed `game3dSmokeChecksScene.js`'s trimmed exports no longer
+reference any moved name (would be a `require()`-time `ReferenceError`, not a silent bug); confirmed
+`checkSmokeCheckRegistry.js` needed zero edits since it discovers modules dynamically (read its source
+to confirm this, not assumed); confirmed no `TEMP`/`HACK`/`FIXME`/`WORKAROUND` in either header.
+
+**Session Quality Gate (§8.6) after 1 sub-task (+1 housekeeping item):** confidence **5/5** — this
+closes a real, previously-flagged WARN (not a speculative one) at the lowest possible risk (pure move,
+zero `src/` touch, re-proven byte-identical on every moved check, real measured perf confirming zero
+scene change), plus completed the governance-mandated `CATCH_UP.md` digest exactly on its due schedule.
+No "6 months from now" ambiguity: ADR-0113 records exactly why this split, by what theme, and why no
+screenshot pair (a first for this project's refactor ADRs, explicitly reasoned rather than silently
+skipped). **Stopping here after 1 sub-task:** the remaining backlog is exactly as blocked as run 87
+left it (owner decisions / missing model assets) — reaching for a "yeni özellik" pass this run would
+have meant a 5th consecutive round through that bucket (runs 84-87 all used it), risking the exact
+filler pattern ADR-0110's own Alternatives section warned against; this run's actual available lever
+was the tech-debt item instead, which is what got taken.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| `game3dSmokeChecksScene.js` lines | 573/600 (WARN) | **243/600** | -330, WARN cleared |
+| Check modules | 7 | **8** | +1 (`game3dSmokeChecksDebugTools.js`) |
+| Smoke suite | 26/26 | **26/26** | unchanged (pure move, no new/removed check) |
+| ADR headers in `DECISIONS.md` | 112 | **113** | +1 (ADR-0113) |
+| `perf_log.csv` rows | 31 | **32** | +1 (`run88`) |
+| `CATCH_UP.md` entries | 3 | **4** | +1 (new 10-run digest, on schedule) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged (closed 1 WARN, opened none) |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (zero `src/` file touched) |
+
+**Oyuncu fark eder mi:** hayır — bu tamamen perde arkasında bir test-dosyası düzeni; oyunda görünen
+hiçbir şey değişmedi (zaten hiçbir `src/` dosyası bile değişmedi). `CATCH_UP.md`'nin yeni özeti ise
+doğrudan oyuncuya değil, aylarca uzak kalan proje sahibine hitap ediyor.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Blocked items unchanged
+since run 80: 6 remaining castle seats + all FAZ 6 animals need real rigged models, dragon attack/
+fire-breath needs the owner's pending health-system decision. No other known line-count WARN remains
+— `game3d.js`'s 545/600 (run 87's flag) is the only one left, not yet urgent. `RULES_CHANGELOG.md`'s
+next consolidation pass due ~run 96 (unchanged, last one was run 76). Periodic platform check due
+~run 90-100 (unchanged, last one was run 70). `CATCH_UP.md`'s next digest due at run 98. No blocking
+bugs, syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.
