@@ -83,6 +83,66 @@ export const CASTLE_MODEL_ASSIGNMENTS = Object.freeze([
 const REAL_CASTLE_FOOTPRINT_METERS = 46;
 
 /**
+ * Ground-flatten pad radii (DECISIONS.md ADR-0118), in meters, applied around every kingdom seat —
+ * see `world/terrain.js`'s `createHeightSampler` `flattenPads` param for the actual blend math.
+ * `INNER` is fully flat (no residual slope anywhere under the castle) and sized to comfortably clear
+ * the farthest point either castle shape actually reaches from its own center: the procedural
+ * silhouette's own corner towers reach `hypot(TOWER_CORNER_OFFSET_METERS, TOWER_CORNER_OFFSET_METERS)
+ * + TOWER_RADIUS_BOTTOM_METERS` = `hypot(20, 20) + 6.5` ≈ 34.8m (`SETTLEMENT_CONFIG`, `config.js`);
+ * a real model's own scaled bounding box reaches at most `REAL_CASTLE_FOOTPRINT_METERS / 2 * Math.SQRT2`
+ * ≈ 32.5m (a square footprint's own worst-case corner distance — real footprints are usually
+ * narrower than that on at least one axis, so this is already a conservative upper bound, not a
+ * measured-per-model number). `OUTER` is where the pad has fully eased back to untouched natural
+ * terrain — picked wide enough (a 37m blend ring) that the transition reads as a gentle grade rather
+ * than a visible seam given this world's typical local relief (`DEFAULT_MAX_HEIGHT_METERS` 24m over
+ * ~167m noise-cell wavelengths — see `terrain.js`'s `NOISE_SCALE`), not derived from a stricter
+ * formula since "how wide before a blend looks natural" is a visual judgment call, not a physical
+ * constant. One shared radius pair for every seat (not per-shape) — simpler to reason about than a
+ * real-model-vs-procedural branch, and both shapes fit comfortably inside it either way.
+ */
+const SETTLEMENT_FLATTEN_INNER_RADIUS_METERS = 38;
+const SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 75;
+
+/**
+ * Builds the `flattenPads` list `world/terrain.js`'s `createHeightSampler` consumes to flatten the
+ * ground under/around every kingdom seat's castle (DECISIONS.md ADR-0118) — call once, before
+ * building the *final* sampler that `world/chunkManager.js`/`physics.js`'s `createGroundCollider`
+ * both then use, and pass the same `flattenPads` array to both (see `sceneManager.js`) so the
+ * rendered ground mesh and every gameplay height query agree on the exact same flattened field.
+ *
+ * Each pad's `anchorHeightMeters` deliberately mirrors `createSettlements`'s own `groundY` formula
+ * (`Math.max(sampleHeightMeters(x, z), seaLevelMeters + minGroundClearanceMeters)`) exactly — not
+ * the *raw* unclamped terrain sample — so the flattened pad settles at precisely the height a castle
+ * actually rests at, clamp included. Using the raw sample instead would silently reintroduce the
+ * exact bug this exists to fix for any seat the clamp actually lifts (e.g. `jon`, whose raw terrain
+ * sample sits a mere ~4mm above `WORLD_DEFAULTS.WATER_LEVEL_METERS` — the castle itself is clamped
+ * up to `MIN_GROUND_CLEARANCE_METERS` above that, so a pad flattened to the *unclamped* height would
+ * leave the castle floating ~1.5m above its own supposedly-flattened ground).
+ * @param {object} options
+ * @param {(worldX: number, worldZ: number) => number} options.sampleHeightMeters The *base*
+ *   (unflattened) sampler — i.e. `createHeightSampler(seed)` called with no `flattenPads` of its
+ *   own. Passing an already-flattened sampler here would be circular.
+ * @param {number} options.seaLevelMeters `WORLD_DEFAULTS.WATER_LEVEL_METERS`.
+ * @param {number} options.minGroundClearanceMeters `SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS`.
+ * @param {{minX: number, maxX: number, minY: number, maxY: number}} options.mapBounds `WORLD_SCALE.MAP_BOUNDS`.
+ * @param {number} options.metersPerMapUnit `WORLD_SCALE.METERS_PER_MAP_UNIT`.
+ * @returns {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]}
+ */
+export function computeSettlementFlattenPads({ sampleHeightMeters, seaLevelMeters, minGroundClearanceMeters, mapBounds, metersPerMapUnit }) {
+	return KINGDOM_SEATS.map((seat) => {
+		const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, mapBounds, metersPerMapUnit);
+		const anchorHeightMeters = Math.max(sampleHeightMeters(x, z), seaLevelMeters + minGroundClearanceMeters);
+		return {
+			x,
+			z,
+			innerRadiusMeters: SETTLEMENT_FLATTEN_INNER_RADIUS_METERS,
+			outerRadiusMeters: SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS,
+			anchorHeightMeters,
+		};
+	});
+}
+
+/**
  * Converts a 2D-map coordinate (same space as `INIT_KINGDOMS`' `x`/`y`) to a world-space `(x, z)`
  * in meters. The padded kingdom bounding box's *center* (`mapBounds`) maps to the world origin
  * `(0, 0)` — the same origin `world/chunkManager.js`'s chunk `(0, 0)` is centered on — so this

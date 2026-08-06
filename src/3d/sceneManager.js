@@ -16,7 +16,8 @@ import { ChunkManager } from './world/chunkManager.js';
 import { createGroundCollider, createSettlementCollider } from './physics.js';
 import { createWater } from './world/water.js';
 import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMesh } from './world/rivers.js';
-import { createSettlements } from './world/settlements.js';
+import { createHeightSampler } from './world/terrain.js';
+import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createOrbitCamera } from './camera.js';
 import { createFreeCameraController } from './debug/freeCamera.js';
@@ -101,10 +102,26 @@ export function createScene(canvas) {
 
 	const lights = createDayNightLighting(scene);
 
+	// Ground-flatten pads (DECISIONS.md ADR-0118) — computed once, up front, from a throwaway *base*
+	// (unflattened) sampler, then threaded into both the chunk manager (so the rendered ground mesh
+	// is flat under every castle) and the ground collider below (so every gameplay height query —
+	// settlements/roads/rivers/NPCs/animals/dragons/the player — agrees with what's actually drawn).
+	// See `world/settlements.js`'s `computeSettlementFlattenPads` doc comment for why the anchor
+	// height must come from this clamped formula, not the raw terrain sample.
+	const baseSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
+	const flattenPads = computeSettlementFlattenPads({
+		sampleHeightMeters: baseSampleHeightMeters,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		minGroundClearanceMeters: SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
+		mapBounds: WORLD_SCALE.MAP_BOUNDS,
+		metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
+	});
+
 	const chunkManager = new ChunkManager({
 		scene,
 		chunkSizeMeters: CHUNK_CONFIG.CHUNK_SIZE_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
+		flattenPads,
 	});
 	// Touch-primary devices get the mobile-budget STREAM_RADIUS_CHUNKS instead of the desktop-only
 	// PHASE1_PREVIEW_RADIUS_CHUNKS boot preview — see this function's own doc comment / ADR-0010.
@@ -121,8 +138,9 @@ export function createScene(canvas) {
 
 	// Single ground-height source for the whole scene (physics.js — also what FAZ 4's player
 	// snaps to). Static, generated once — see world/rivers.js module doc for why the river itself
-	// doesn't stream/update per frame yet.
-	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED);
+	// doesn't stream/update per frame yet. Same `flattenPads` as `chunkManager` above (ADR-0118) so
+	// this never disagrees with the rendered ground mesh under a castle.
+	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
 	const { points: riverPoints, endReason: riverEndReason } = generateRiverPath({
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		sampleHeightMeters: groundCollider.getGroundHeight,

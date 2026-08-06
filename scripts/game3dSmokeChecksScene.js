@@ -236,8 +236,92 @@ async function checkWaterVertexShaderStatic(browser, baseUrl) {
 	return { name: 'water vertex shader has no time-varying displacement (world/water.js, ADR-0048)', ok, details };
 }
 
+/**
+ * Regression guard for ADR-0118 (settlement ground-flatten pads — fixes castles visibly floating/
+ * gapping over uneven terrain). Drives the *real* `createHeightSampler`/`computeSettlementFlattenPads`
+ * the live game imports, in-page, against all 14 real `KINGDOM_SEATS` — not a re-derived
+ * approximation. Three invariants, none of which held before ADR-0118 (there was no flattening at
+ * all):
+ *   1. Every seat's exact center samples to precisely its own pad's `anchorHeightMeters` (proves the
+ *      pad's anchor formula matches what `createSettlements` actually places the castle at — see
+ *      `world/settlements.js`'s `computeSettlementFlattenPads` doc comment for why this must be the
+ *      *clamped* height, not the raw terrain sample).
+ *   2. 8 points spaced around each seat's full `innerRadiusMeters` ring sample to that exact same
+ *      anchor height (within float tolerance) — proves the *entire* castle footprint is flat, not
+ *      just the single center point the old code sampled, which is the actual bug this fixes.
+ *   3. A point just beyond each seat's `outerRadiusMeters` sample identically whether or not
+ *      `flattenPads` is passed — proves the pad's influence is bounded exactly where it claims to
+ *      stop, not leaking into unrelated terrain far from any castle.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkSettlementGroundFlatten(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createHeightSampler } = await import('/src/3d/world/terrain.js');
+			const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
+			const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
+
+			const baseSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
+			const flattenPads = computeSettlementFlattenPads({
+				sampleHeightMeters: baseSampleHeightMeters,
+				seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+				minGroundClearanceMeters: SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
+				mapBounds: WORLD_SCALE.MAP_BOUNDS,
+				metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
+			});
+			const flatSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+
+			const EPSILON_METERS = 1e-6;
+			const failures = [];
+			KINGDOM_SEATS.forEach((seat, index) => {
+				const pad = flattenPads[index];
+				const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
+
+				const centerHeight = flatSampleHeightMeters(x, z);
+				if (Math.abs(centerHeight - pad.anchorHeightMeters) > EPSILON_METERS) {
+					failures.push(`${seat.id}: center=${centerHeight.toFixed(4)} != anchor=${pad.anchorHeightMeters.toFixed(4)}`);
+				}
+				if (pad.anchorHeightMeters <= WORLD_DEFAULTS.WATER_LEVEL_METERS) {
+					failures.push(`${seat.id}: anchor=${pad.anchorHeightMeters.toFixed(4)} at/below water level ${WORLD_DEFAULTS.WATER_LEVEL_METERS}`);
+				}
+
+				for (let i = 0; i < 8; i++) {
+					const angle = (i / 8) * Math.PI * 2;
+					const ringX = x + Math.cos(angle) * pad.innerRadiusMeters;
+					const ringZ = z + Math.sin(angle) * pad.innerRadiusMeters;
+					const ringHeight = flatSampleHeightMeters(ringX, ringZ);
+					if (Math.abs(ringHeight - pad.anchorHeightMeters) > EPSILON_METERS) {
+						failures.push(`${seat.id} ring#${i}: height=${ringHeight.toFixed(4)} != anchor=${pad.anchorHeightMeters.toFixed(4)}`);
+					}
+				}
+
+				const beyondX = x + pad.outerRadiusMeters + 5;
+				const flattenedBeyond = flatSampleHeightMeters(beyondX, z);
+				const baseBeyond = baseSampleHeightMeters(beyondX, z);
+				if (Math.abs(flattenedBeyond - baseBeyond) > EPSILON_METERS) {
+					failures.push(`${seat.id} beyond-outer: flattened=${flattenedBeyond.toFixed(4)} != base=${baseBeyond.toFixed(4)}`);
+				}
+			});
+
+			return { seatCount: KINGDOM_SEATS.length, failures };
+		});
+	} catch (error) {
+		result = { error: String(error) };
+	}
+	await page.close();
+	const ok = result && !result.error && result.failures.length === 0;
+	const details = ok
+		? `all ${result.seatCount} kingdom seats: center + 8-point footprint ring flat at the exact clamped anchor height, zero influence beyond outerRadiusMeters`
+		: `FAILED: ${result?.error ?? JSON.stringify(result.failures)}`;
+	return { name: 'settlement ground-flatten pads (world/terrain.js + world/settlements.js, ADR-0118)', ok, details };
+}
+
 module.exports = {
 	check2DShell,
 	check3DMode,
 	checkWaterVertexShaderStatic,
+	checkSettlementGroundFlatten,
 };

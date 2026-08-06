@@ -8,8 +8,12 @@
  * all 14 real kingdom-seat coordinates (`world/settlements.js`'s `KINGDOM_SEATS`, mapped through the
  * same `mapToWorldXZ` the live game uses) and asserts:
  *   1. No seat's raw sampled ground height is at or below `WORLD_DEFAULTS.WATER_LEVEL_METERS`
- *      (not the clamped, already-safe `groundY` `createSettlements` places castles at — the *raw*
- *      terrain height, so a change that would flood a seat can't hide behind that clamp).
+ *      (not the clamped, already-safe `groundY` `createSettlements` places castles at, and — since
+ *      DECISIONS.md ADR-0118 — not the flattened `flattenPads` height either: this check
+ *      deliberately builds its own sampler with `createHeightSampler(seed)`, no `flattenPads`, so a
+ *      change that would flood a seat can't hide behind either mechanism. `scripts/
+ *      game3dSmokeChecksScene.js`'s `checkSettlementGroundFlatten` is the standing regression guard
+ *      for the flatten pads themselves — see that check for what it asserts).
  *   2. No seat's local slope (central-difference sampled at a small fixed offset around the seat's
  *      exact `(x, z)`) exceeds `WALKABLE_SLOPE_MAX_DEGREES` — see that constant's own comment for
  *      why this specific threshold and why it's logged to `QUESTIONS_FOR_OWNER.md` as a temporary

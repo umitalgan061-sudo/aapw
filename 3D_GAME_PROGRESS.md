@@ -10058,3 +10058,96 @@ No blocking bugs, syntax errors, or regressions found this run.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-06, run 92 — canlı istek, proje sahibinin doğrudan talebi, zamanlanmış tetikleme değil)
+
+**Session context:** Run 91 (zamanlanmış otonom çalıştırma) az önce tamamlanmış, `main` `178d7c0`'da,
+27/27 duman testi (run 91'in kendi testi) temiz, 0 yeni tech debt. Proje sahibi doğrudan,
+canlı bir mesaj gönderdi: *"Kaleler zeminin üzerinde yapay duruyor. Kalelerin bazı yerlerinden altı
+görünüyor. Kalelerin taban sınırlarına zemin yapışkan olsun. Kalelerin altındaki zeminlere dolgu yap
+lütfen."*
+
+### Sub-task: Settlement ground-flatten pads (DECISIONS.md ADR-0118)
+
+Full reasoning, Arazi Değişikliği Güvenlik Kontrolü before/after results, and alternatives considered
+are in ADR-0118 — not duplicated here.
+
+**Root cause (§8.2):** `createSettlements` only ever sampled terrain height at each castle's single
+center point and placed the whole silhouette there — nothing flattened the ground around that point
+to match, so any seat with real local slope left part of the castle floating and part of the ground
+visibly dropping away beneath it.
+
+**DoD durumu:** `node --check` clean on all 9 touched files (`world/terrain.js`, `world/settlements.js`,
+`physics.js`, `world/chunkManager.js`, `sceneManager.js`, `scripts/game3dSmokeChecksScene.js`,
+`scripts/smokeTestGame3D.js`, `scripts/roadNetworkSafetyCheck.js`, `scripts/terrainSeatSafetyCheck.js`).
+`checkSmokeCheckRegistry.js`: **28 duman testi / 8 kontrol modülü** (yeni: `checkSettlementGroundFlatten`),
+66 JS dosyasının tümü 600 satır sınırının içinde (aynı 2 bilinen WARN, değişmedi — bu run hiçbirine
+dokunmadı). Full smoke suite: **28/28 PASS**, 0 FAIL (before-baseline de 27/27 PASS, 0 FAIL —
+regresyon yok). **Yeni, kalıcı regresyon kapsamı:** `checkSettlementGroundFlatten` (14 koltuğun tümü
+için: merkez = kendi pad'inin kenetli anchor yüksekliği; `innerRadiusMeters` çemberindeki 8 nokta da
+aynı anchor'a eşit — tüm ayak izinin düz olduğunu kanıtlar, sadece merkez noktanın değil; `outerRadiusMeters`
+ötesindeki bir nokta flatten'siz haliyle birebir aynı — pad etkisinin iddia ettiği yerde durduğunu
+kanıtlar).
+
+**Arazi Değişikliği Güvenlik Kontrolü (§8.4), önce/sonra:** `terrainSeatSafetyCheck.js` (değiştirilmedi
+— kasıtlı olarak hâlâ kendi ham/flatten'siz sampler'ını kuruyor) önce/sonra çalıştırıldı: **birebir
+aynı çıktı**, 14/14 koltuk PASS (hiçbiri su altında değil, hiçbiri 35° yürünebilir-eğim eşiğini
+aşmıyor) — ham arazi formülünün hiç dokunulmadığını kanıtlıyor. `roadNetworkSafetyCheck.js` (canlı
+oyunun gerçekten kullandığı flatten'li sampler'ı kuracak şekilde güncellendi) sonra çalıştırıldı: 14
+koltuğun tümü hâlâ bağlı (13 kenarlı yayılma ağacı), her kenar hâlâ 20° sert eğim tavanının altında,
+dağ-kaçınma stres testi hâlâ düz çizgiden 620m daha uzaktan geçiyor, nehir çarpışmaması hâlâ geçerli.
+Toplam yol ağı uzunluğu 20.23km'den **20.24km**'ye kaydı (gerçek, beklenen ~10m fark — yollar artık
+her koltukta ham arazi yerine düz pad'e yumuşak geçiş yapıyor).
+
+**Gerçek görsel kanıt, önce/sonra, 2 açı, `berk` koltuğu (5.436° yerel eğim — hâlâ prosedürel 6
+koltuktan en dikçe):** `sceneManager.js`'nin gerçek `createScene()`'i ikinci, bağımsız bir canvas'a
+inşa edilip kamera koltuğa taşındı (görsel kanıt için, gerçek `game3d.html` önyüklemesiyle çakışmadan).
+(1) Orta mesafeli "yaklaşma" açısı: önce/sonra fark ince ama gerçek (5.436°'lik eğim bu mesafede çok
+belirgin değil). (2) Alçak, yakın, kale tabanı boyunca sıyırma açısı — **çarpıcı**: ÖNCE, kamera tam
+kale tabanının kenarında, zemin kameranın altına düşüyor ve boşluk (arka plan rengi) çerçevenin alt
+yarısını dolduruyor — tam olarak bildirilen hata ("kalelerin bazı yerlerinden altı görünüyor").
+SONRA, aynı kamera pozunda zemin ufka kadar kesintisiz, tabanla tam hizalı. İki taraf da sıfır
+konsol/sayfa hatası. `perf_log.csv`'nin `run92` satırı run76-91 ile 4 GPU-gönderim sayısında bit-bit
+aynı (46/393,231/44/17) — beklenen, bu saf bir vertex-yükseklik yeniden şekillendirmesi, yeni
+geometri değil.
+
+**AI Self-Review 2. Geçiş (§8.3):** `jon` koltuğunun kenar durumu (ham yükseklik su seviyesinin
+sadece ~4mm üzerinde) özellikle kontrol edildi — pad'in `anchorHeightMeters`'ının ham örnek değil
+`createSettlements`'ın kendi kenetli `groundY` formülünü yansıttığı doğrulandı (aksi halde bu koltuk
+için tam olarak düzeltilen hatayı yeniden yaratırdı); tüm mevcut çağıranların (`world/rivers.js`,
+`world/roads.js`, `gameplay/*`'nin dolaylı tüketimi) `flattenPads`'i hiç geçmediği için etkilenmediği
+doğrulandı (varsayılan boş dizi, birebir eski davranış); hiçbir `TEMP`/`HACK`/`FIXME`/`WORKAROUND`
+yok; bellek sızıntısı kontrol listesi n/a (yeni listener/timer/DOM/geometry-material yok, sadece
+düz veri parametresi).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — proje sahibinin kendi sözleriyle canlı talep
+ettiği, gerçek bir bildirilen hatanın kök nedeni bulunup (tek nokta örneklemesi) doğru katmanda
+(paylaşılan yükseklik alanı, hem render hem gameplay için) düzeltildi; önce/sonra hem sayısal (2 ayrı
+güvenlik script'i) hem görsel (gerçek ekran görüntüleri, aynı kamera pozunda) kanıtla doğrulandı; yeni
+kalıcı bir regresyon testi eklendi. "6 ay sonra hâlâ net mi" tereddüdü yok: ADR-0118 tam kök neden
+analizini, kenetleme detayının neden önemli olduğunu (jon örneği), ve her alternatifi kayda geçiriyor.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| Kale zemin oturması | tek nokta örneklemesi, ayak izinin geri kalanı düzeltilmemiş | **tüm ayak izi düz pad** (14 koltuk) | yeni mekanizma (ADR-0118) |
+| Smoke suite | 27/27 | **28/28** | +1 kontrol (`checkSettlementGroundFlatten`) |
+| ADR headers in `DECISIONS.md` | 117 | **118** | +1 (ADR-0118) |
+| `perf_log.csv` rows | 34 | **35** | +1 (`run92`) |
+| Yol ağı toplam uzunluk | 20.23km | **20.24km** | +0.01km (pad'lere yumuşak geçiş) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (saf yükseklik yeniden şekillendirmesi) |
+
+**Oyuncu fark eder mi:** evet, doğrudan ve tam olarak bildirilen sorunun kendisi — 14 kalenin
+tamamının artık tabanı zeminle tam hizalı, hiçbir yerde zemin altından görünmüyor, hiçbir yerde
+havada asılı durmuyor. Dünyanın geri kalanı (arazi rengi/yol rotaları/kale modelleri/diğer
+NPC/hayvan/ejderha davranışı) değişmedi — sadece zemin bu 14 nokta çevresinde yeniden şekillendi.
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Bloklu kalan her şey değişmedi: 6
+kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. `RULES_CHANGELOG.md`'nin sıradaki konsolidasyonu
+~run 96'da (değişmedi). `CATCH_UP.md`'nin sıradaki özeti run 98'de (değişmedi).
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.

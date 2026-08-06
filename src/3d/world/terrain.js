@@ -153,6 +153,25 @@ function sampleMacroReliefMeters(worldX, worldZ) {
 	return total;
 }
 
+/**
+ * Blend weight for a "settlement flatten pad" (see `createHeightSampler`'s `flattenPads` param) at
+ * a given distance from its center: `1` (fully flattened to the pad's own anchor height) at or
+ * inside `innerRadiusMeters`, easing down to exactly `0` (pure natural terrain, untouched) at or
+ * beyond `outerRadiusMeters` via the same `t*t*(3-2*t)` smoothstep `sampleMacroReliefMeters` already
+ * uses — so a castle's full footprint sits on a genuinely flat pad (no residual slope under any part
+ * of it) while the pad itself blends into the surrounding terrain with no hard, cliff-like edge.
+ * @param {number} distanceMeters
+ * @param {number} innerRadiusMeters
+ * @param {number} outerRadiusMeters
+ * @returns {number} In `[0, 1]`.
+ */
+function computeFlattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {
+	if (distanceMeters <= innerRadiusMeters) return 1;
+	if (distanceMeters >= outerRadiusMeters) return 0;
+	const t = 1 - (distanceMeters - innerRadiusMeters) / (outerRadiusMeters - innerRadiusMeters);
+	return t * t * (3 - 2 * t);
+}
+
 const LOW_COLOR = new THREE.Color(0x3d6b28);
 const HIGH_COLOR = new THREE.Color(0x6b6152);
 /** Exponent applied to the clamped low/high blend fraction before it drives the `LOW_COLOR`->
@@ -189,13 +208,46 @@ export const DEFAULT_MAX_HEIGHT_METERS = 24;
  *   pass fewer octaves for a low-pass-filtered version of the same underlying noise field. The
  *   macro-relief domes are unaffected by this option either way — they're a separate additive term,
  *   not another FBM octave.
+ * @param {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]} [flattenPads]
+ *   "Settlement flatten pads" (DECISIONS.md ADR-0118) — ground truth for "how tall is the terrain
+ *   under/around this castle" would otherwise be a single point sample at the seat's exact center,
+ *   which is why castles used to visibly float/gap over uneven ground: nothing flattened the terrain
+ *   *around* that one sampled point to match. Each pad blends the base (fine-FBM + macro-relief)
+ *   height toward its own `anchorHeightMeters` — see `computeFlattenWeight` — fully flat within
+ *   `innerRadiusMeters` (sized to cover the castle's real footprint, so nothing pokes up through or
+ *   gaps under any part of it), easing back to untouched natural terrain by `outerRadiusMeters`. Not
+ *   `terrain.js`'s own concern which seats need one or how large — see
+ *   `world/settlements.js`'s `computeSettlementFlattenPads` (this module must not import
+ *   `world/settlements.js`, matching the existing layering `world/roads.js`'s `seats` parameter
+ *   already established — see this module's own doc comment). Omit/empty (the default) for the
+ *   unflattened field exactly as before this parameter existed — every pre-existing caller that
+ *   doesn't pass it sees byte-identical output. When more than one pad's `outerRadiusMeters` reaches
+ *   a query point (not expected in practice — kingdom seats sit far apart relative to any pad's
+ *   radius — but not assumed impossible either), the pad with the *strongest* (highest-weight, i.e.
+ *   nearest) influence wins outright rather than summing/averaging multiple pads' anchors, so a
+ *   point can never land on a physically-meaningless blend of two different castles' ground levels.
  * @returns {(worldX: number, worldZ: number, maxHeightMeters?: number) => number}
  */
-export function createHeightSampler(seed, fbmOptions) {
+export function createHeightSampler(seed, fbmOptions, flattenPads = []) {
 	const noise2D = createValueNoise2D(seed);
 	return function sampleHeightMeters(worldX, worldZ, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS) {
 		const fineDetailMeters = fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE, fbmOptions) * maxHeightMeters;
-		return fineDetailMeters + sampleMacroReliefMeters(worldX, worldZ);
+		const baseHeightMeters = fineDetailMeters + sampleMacroReliefMeters(worldX, worldZ);
+		if (flattenPads.length === 0) return baseHeightMeters;
+
+		let strongestWeight = 0;
+		let strongestAnchorMeters = 0;
+		for (const pad of flattenPads) {
+			const distanceMeters = Math.hypot(worldX - pad.x, worldZ - pad.z);
+			if (distanceMeters >= pad.outerRadiusMeters) continue;
+			const weight = computeFlattenWeight(distanceMeters, pad.innerRadiusMeters, pad.outerRadiusMeters);
+			if (weight > strongestWeight) {
+				strongestWeight = weight;
+				strongestAnchorMeters = pad.anchorHeightMeters;
+			}
+		}
+		if (strongestWeight <= 0) return baseHeightMeters;
+		return baseHeightMeters + (strongestAnchorMeters - baseHeightMeters) * strongestWeight;
 	};
 }
 
@@ -210,10 +262,15 @@ export function createHeightSampler(seed, fbmOptions) {
  * @param {number} [options.segments=64] Geometry subdivisions per edge (resolution).
  * @param {number} [options.maxHeightMeters] Peak height variation within the chunk (`DEFAULT_MAX_HEIGHT_METERS`).
  * @param {number} [options.seed=1] World seed — same seed + same args always produce the same chunk.
+ * @param {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]} [options.flattenPads]
+ *   Forwarded to `createHeightSampler` — see that function's own doc comment. Baking this into the
+ *   chunk mesh's own vertex heights (not just gameplay height queries via `physics.js`) is what
+ *   actually fixes castles visibly floating/gapping over the rendered ground, not merely over a
+ *   height value nothing draws.
  * @returns {THREE.Mesh} Positioned at the chunk's world-space center, ready to `scene.add()`.
  */
-export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1 }) {
-	const sampleHeightMeters = createHeightSampler(seed);
+export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [] }) {
+	const sampleHeightMeters = createHeightSampler(seed, undefined, flattenPads);
 	const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
 	geometry.rotateX(-Math.PI / 2);
 

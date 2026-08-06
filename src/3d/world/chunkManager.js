@@ -28,11 +28,17 @@ export class ChunkManager {
 	 * @param {import('three').Scene} options.scene
 	 * @param {number} options.chunkSizeMeters
 	 * @param {number} options.seed
+	 * @param {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]} [options.flattenPads]
+	 *   Forwarded to every `createTerrainChunk` call (DECISIONS.md ADR-0118) — see
+	 *   `world/terrain.js`'s `createHeightSampler` doc comment. `sceneManager.js` passes the same
+	 *   array here and into `physics.js`'s `createGroundCollider` so rendered chunk geometry and
+	 *   every gameplay height query stay in agreement.
 	 */
-	constructor({ scene, chunkSizeMeters, seed }) {
+	constructor({ scene, chunkSizeMeters, seed, flattenPads = [] }) {
 		this.scene = scene;
 		this.chunkSizeMeters = chunkSizeMeters;
 		this.seed = seed;
+		this.flattenPads = flattenPads;
 		/** @type {Map<string, import('three').Mesh>} Currently in the scene. */
 		this.loaded = new Map();
 		/** @type {Set<string>} Every chunk key ever loaded, even if later unloaded. Only grows —
@@ -51,7 +57,7 @@ export class ChunkManager {
 		const existing = this.loaded.get(key);
 		if (existing) return existing;
 
-		const mesh = createTerrainChunk({ chunkX, chunkZ, size: this.chunkSizeMeters, seed: this.seed });
+		const mesh = createTerrainChunk({ chunkX, chunkZ, size: this.chunkSizeMeters, seed: this.seed, flattenPads: this.flattenPads });
 		this.scene.add(mesh);
 		this.loaded.set(key, mesh);
 		this.everGenerated.add(key);

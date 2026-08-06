@@ -17,10 +17,15 @@ import { createHeightSampler } from './world/terrain.js';
  *   collision agrees with what actually rendered.
  * @param {{octaves?: number, lacunarity?: number, gain?: number}} [fbmOptions] Forwarded to
  *   `createHeightSampler` — leave unset to match `world/terrain.js`'s own chunk-baking defaults.
+ * @param {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]} [flattenPads]
+ *   Forwarded to `createHeightSampler` (DECISIONS.md ADR-0118) — `sceneManager.js` passes the exact
+ *   same array here and into `world/chunkManager.js`'s `ChunkManager`, so this collider's height
+ *   (what settlements/roads/NPCs/animals/dragons/the player all snap to) agrees with the rendered
+ *   ground mesh under every kingdom seat's castle.
  * @returns {{getGroundHeight: (worldX: number, worldZ: number) => number}}
  */
-export function createGroundCollider(seed, fbmOptions) {
-	const sampleHeightMeters = createHeightSampler(seed, fbmOptions);
+export function createGroundCollider(seed, fbmOptions, flattenPads) {
+	const sampleHeightMeters = createHeightSampler(seed, fbmOptions, flattenPads);
 	return {
 		/** Terrain height, in meters, at the given world-space (x, z). */
 		getGroundHeight(worldX, worldZ) {

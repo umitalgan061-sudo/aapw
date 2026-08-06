@@ -12,7 +12,7 @@
  * and Playwright bootstrap it uses live in `devServerHelper.js` (run 59, shared with
  * `collectPerfSnapshot.js`). The actual per-feature assertions live in nine focused check modules:
  * - `game3dSmokeChecksScene.js` — page-boot level: 2D shell load, 3D mode boot, water
- *   vertex-shader-has-no-displacement.
+ *   vertex-shader-has-no-displacement, settlement ground-flatten pads (run 92, ADR-0118).
  * - `game3dSmokeChecksDebugTools.js` — debug-tool + world-event singleton systems: F4 debug camera,
  *   F2 debug/profiling panel, world-event system, world-event day/night gating (split out of
  *   `game3dSmokeChecksScene.js` run 88, which had reached 573/600 — see that file's own header).
@@ -79,6 +79,7 @@ async function main() {
 		results.push(await sceneChecks.check2DShell(browser, baseUrl));
 		results.push(await sceneChecks.check3DMode(browser, baseUrl));
 		results.push(await sceneChecks.checkWaterVertexShaderStatic(browser, baseUrl));
+		results.push(await sceneChecks.checkSettlementGroundFlatten(browser, baseUrl));
 		results.push(await debugToolChecks.checkFreeCamera(browser, baseUrl));
 		results.push(await debugToolChecks.checkPerfPanel(browser, baseUrl));
 		results.push(await debugToolChecks.checkWorldEvents(browser, baseUrl));

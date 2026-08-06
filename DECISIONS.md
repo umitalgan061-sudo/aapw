@@ -10689,3 +10689,127 @@ lines, still well inside the 600-line cap.
 **Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
 the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
 choice.
+
+## ADR-0118: Settlement ground-flatten pads — fixes castles visibly floating/gapping over uneven terrain
+
+**Date:** 2026-08-06 (run 92 — a live, interactive request from the project owner, not a scheduled
+autonomous firing).
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** MEDIUM. Justification: this is a real edit to `world/terrain.js`'s height-sampler
+math — the single ground-truth field the rendered terrain mesh, physics ground snapping, road
+routing, river tracing, and every settlement placement all read through — so a mistake here could
+propagate world-wide, not stay contained to one file. Not HIGH/IRREVERSIBLE: purely additive (a new,
+default-empty `flattenPads` parameter threaded through; every existing call site that doesn't pass it
+sees byte-identical output — proven, not assumed, by `terrainSeatSafetyCheck.js`'s unchanged-script
+before/after run matching byte-for-byte), fully reversible by `git revert`, and the raw/unflattened
+base formula itself was never touched (only a new blend layered on top, same architectural pattern
+`MACRO_RELIEF_FEATURES` already established for the macro-relief domes).
+
+**Context:** Proje sahibi doğrudan, canlı bir mesaj gönderdi: *"Kaleler zeminin üzerinde yapay
+duruyor. Kalelerin bazı yerlerinden altı görünüyor. Kalelerin taban sınırlarına zemin yapışkan olsun.
+Kalelerin altındaki zeminlere dolgu yap lütfen."* Root cause (Root Cause Analysis, GOVERNANCE.md
+§8.2): `world/settlements.js`'s `createSettlements` only ever sampled terrain height at a castle's
+single center point (`groundY = sampleHeightMeters(x, z)`) and placed the whole keep+4-towers
+silhouette (or real model) at that one height — nothing flattened the ground *around* that point to
+match, so on any seat with real local slope, part of the castle's footprint sat above the natural
+terrain (visible floating) and part cut below it (the natural ground rising above the castle's fixed
+base, or — the more visually striking failure, confirmed by this run's own before/after screenshots
+below — the ground dropping away beneath the base on the downhill side, leaving a real gap you can
+see under/past the wall). **Gelecek Faz Etkisi:** none of FAZ 6-11's still-unbuilt work (animal
+models, remaining 6 castle textures, dragon fire-breath, etc.) depends on terrain height math: this
+change is purely a ground-truth correction underneath already-placed geometry, not a new coupling any
+future system needs to account for.
+
+**Arazi Değişikliği Güvenlik Kontrolü (before/after, GOVERNANCE.md §8.4):**
+- `scripts/terrainSeatSafetyCheck.js` (unmodified — deliberately builds its own *raw*, unflattened
+  sampler, same as before this change existed) run before and after this change: **byte-for-byte
+  identical output**, 14/14 seats PASS (no seat underwater, no seat past the 35° walkable-slope
+  threshold) — proves the raw terrain formula itself was never touched, only a new blend layered on
+  top of it.
+- `scripts/roadNetworkSafetyCheck.js` (updated to build the same *flattened* sampler
+  `sceneManager.js` actually uses in production, matching what roads really route over) run after:
+  all 14 seats still connected (13-edge spanning tree), every edge still under the 20° hard grade
+  ceiling, mountain-avoidance stress test still routes 620m farther from the mountain center than a
+  straight line would, river non-collision still holds. Total network length shifted from 20.23km to
+  **20.24km** (a real, expected ~10m difference — roads now grade smoothly onto a flat pad at each
+  seat instead of routing over raw uneven terrain right at the castle, not a regression).
+- New standing regression guard (not just a one-off dev check): `scripts/
+  game3dSmokeChecksScene.js`'s `checkSettlementGroundFlatten` (wired into `smokeTestGame3D.js`,
+  smoke suite now 28/28) asserts, for all 14 real kingdom seats: (1) the exact center samples to
+  precisely the pad's own clamped anchor height, (2) 8 points spaced around the *entire*
+  `innerRadiusMeters` footprint ring sample to that same anchor (proves the whole footprint is flat,
+  not just the center — the actual bug), (3) a point just beyond `outerRadiusMeters` is byte-identical
+  to the unflattened base height (proves the pad's influence is bounded exactly where it claims).
+
+**Decision:** `world/terrain.js`'s `createHeightSampler` gains an optional `flattenPads` parameter —
+`{x, z, innerRadiusMeters, outerRadiusMeters, anchorHeightMeters}[]`. For any query point, the base
+(fine-FBM + macro-relief) height blends toward the nearest/strongest pad's `anchorHeightMeters`: fully
+flat (weight 1) within `innerRadiusMeters`, easing to fully untouched (weight 0) by
+`outerRadiusMeters` via the same `t*t*(3-2*t)` smoothstep `sampleMacroReliefMeters` already uses — no
+hard, cliff-like edge. `world/settlements.js`'s new `computeSettlementFlattenPads` builds one pad per
+kingdom seat: `innerRadiusMeters=38` (comfortably clears both the procedural silhouette's own ~34.8m
+corner-to-corner reach and a real model's own ~32.5m worst-case corner reach), `outerRadiusMeters=75`
+(a 37m blend ring, picked by eye against this world's typical local relief — a visual judgment call,
+not a physical constant), and `anchorHeightMeters` computed as `Math.max(rawHeight, seaLevelMeters +
+minGroundClearanceMeters)` — deliberately mirroring `createSettlements`'s own `groundY` clamp formula
+exactly, **not** the raw unclamped sample. This detail matters: `jon`'s raw terrain sample sits a mere
+~4mm above `WORLD_DEFAULTS.WATER_LEVEL_METERS`, so its castle is already clamped up
+`MIN_GROUND_CLEARANCE_METERS` (1.5m) above that raw sample — flattening to the *unclamped* height
+would have silently reintroduced the exact same floating-castle bug for that one seat. `sceneManager.js`
+computes `flattenPads` once (from a throwaway *base*, unflattened sampler — computing a pad's own
+anchor from an already-flattened sampler would be circular) and threads the *same* array into both
+`world/chunkManager.js` (so the rendered ground mesh is genuinely flat, not just a height value
+nothing draws) and `physics.js`'s `createGroundCollider` (so every gameplay height query —
+settlements/roads/rivers/NPCs/animals/dragons/the player — agrees with what's actually rendered).
+"Fill" (dolgu) is what raising a locally-low pad up to the anchor height amounts to; "stuck ground"
+(yapışkan zemin) is what a fully-flat `innerRadiusMeters` ring against the castle's own already-flat
+base achieves — both of the owner's literal asks fall out of the same single mechanism, not two
+separate features.
+
+**Alternatives considered:**
+- *Carve a literal foundation mesh (a flat disc/box under each castle) instead of reshaping the
+  terrain.* Rejected — would need its own geometry/material/dispose lifecycle per seat (14 more draw
+  calls or a 4th `InstancedMesh`), would still show a visible seam against the surrounding terrain
+  mesh unless that terrain was ALSO reshaped to meet it (the actual problem), and wouldn't fix
+  gameplay height queries (physics/roads/NPCs) agreeing with what's drawn — reshaping the one shared
+  height field roads/physics/rendering already all read through fixes every consumer at once, for
+  free, with zero new draw calls.
+- *Raise `MIN_GROUND_CLEARANCE_METERS` instead (lift every castle higher above its local terrain).*
+  Rejected — doesn't fix the actual bug (a single center height sample still doesn't match the whole
+  footprint's varying terrain) and would make the floating look *worse* on gentle-slope seats where
+  the existing clearance was already sufficient, while doing nothing for a seat whose downhill edge
+  genuinely drops away (the "you can see under it" failure this run's own before-screenshot shows —
+  more clearance makes that gap *larger*, not smaller).
+- *A single flatten radius with no inner/outer split (weight purely `1 - distance/radius`, smoothstepped
+  like `MACRO_RELIEF_FEATURES`).* Considered — simpler (one constant instead of two), but a pure
+  radial falloff is only ~78-97% flat within the true footprint's own radius rather than exactly flat
+  everywhere under the castle, which is precisely the residual-slope-under-part-of-the-castle failure
+  mode being fixed; the inner/outer split costs one extra constant for a genuinely flat pad under the
+  entire footprint, not an approximately-flat one.
+- *Per-seat radii branching on real-model-vs-procedural footprint size.* Rejected as unneeded
+  precision — both shapes fit comfortably inside one shared conservative radius (see
+  `computeSettlementFlattenPads`'s own doc comment for the exact numbers), and a per-shape branch
+  would add complexity with no visible benefit.
+
+**Consequences:** All 14 kingdom seats now sit on a genuinely flat, gap-free pad — visually confirmed
+(see this run's own real before/after screenshots, `berk` seat, 5.436° local slope — the "before" shot
+shows the ground dropping away below the camera at the castle's own base perimeter; "after" shows
+continuous, flush ground at that identical camera pose). Road network shifts by a negligible ~10m
+total length as edges now grade onto the flat pads instead of raw terrain right at each seat — no
+connectivity or grade-threshold regression. Zero draw-call/triangle-count change (`perf_log.csv`
+`run92` row bit-identical to run76-91's 46/393,231/44/17 for those 4 numbers) — this is a pure vertex-
+height reshape of geometry that already existed, not new geometry. `world/terrain.js` grows from 260
+to 317 lines, `world/settlements.js` from 324 to 384, both comfortably inside the 600-line cap; every
+other touched file (`physics.js`, `world/chunkManager.js`, `sceneManager.js`,
+`scripts/game3dSmokeChecksScene.js`, `scripts/roadNetworkSafetyCheck.js`,
+`scripts/terrainSeatSafetyCheck.js`) likewise stays well within it.
+
+**Geri alma planı:** `git revert` the single commit — removes the `flattenPads` parameter from
+`createHeightSampler`/`createTerrainChunk`/`createGroundCollider`/`ChunkManager`, removes
+`computeSettlementFlattenPads` from `world/settlements.js`, removes `sceneManager.js`'s pad
+computation/wiring, removes the new `checkSettlementGroundFlatten` smoke check and its registry
+wiring, and reverts the two safety-check scripts' sampler construction back to unflattened. Every
+call site that never passed `flattenPads` is already unaffected by this revert (they never depended
+on it in the first place) — no cascading changes needed elsewhere.

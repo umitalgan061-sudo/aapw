@@ -116,14 +116,25 @@ async function main() {
 		const page = await browser.newPage();
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
 		data = await page.evaluate(async () => {
-			const { KINGDOM_SEATS, mapToWorldXZ } = await import('/src/3d/world/settlements.js');
-			const { WORLD_SCALE, WORLD_DEFAULTS } = await import('/src/3d/config.js');
+			const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
+			const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
 			const { createHeightSampler } = await import('/src/3d/world/terrain.js');
 			const { buildRoadNetwork } = await import('/src/3d/world/roads.js');
 			const { findSlopeAwarePath } = await import('/src/3d/world/roadPathfinder.js');
 			const { generateRiverPath } = await import('/src/3d/world/rivers.js');
 
-			const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
+			// Same flattened field `sceneManager.js` actually builds (DECISIONS.md ADR-0118) — not the
+			// raw unflattened sampler, so this check exercises exactly what roads route over in the
+			// live game (a flat pad under each castle can shift a routed edge's first/last few meters).
+			const baseSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
+			const flattenPads = computeSettlementFlattenPads({
+				sampleHeightMeters: baseSampleHeightMeters,
+				seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+				minGroundClearanceMeters: SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
+				mapBounds: WORLD_SCALE.MAP_BOUNDS,
+				metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
+			});
+			const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
 			const seats = KINGDOM_SEATS.map((seat) => {
 				const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
 				return { id: seat.id, x, z, groundY: sampleHeightMeters(x, z) };
