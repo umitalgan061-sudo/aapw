@@ -10151,3 +10151,97 @@ kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. `RULES_CHANGELOG.md`'nin 
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+## This Run (2026-08-06, run 93 — scheduled autonomous routine)
+
+**Session Snapshot:** repo already had `GOVERNANCE.md`/`CREDITS.md`/`CATCH_UP.md`/`RULES_CHANGELOG.md`/
+`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md` all in place from prior runs (the incoming scheduled prompt's
+"first create GOVERNANCE.md" instruction is stale boilerplate — this is run 93, not run 1). Repo state
+check found local `HEAD` detached at run 92's final commit (`99063f2`), local `main` stale at
+`b091711` while `origin/main` (after a fresh `fetch`) was already at `99063f2` — run 92's own
+`git push origin main` had genuinely succeeded, only the local branch pointer was stale. Reset local
+`main` to `origin/main` (`git checkout -B main origin/main`) before starting any work — clean tree, no
+divergence, nothing lost.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-3 (terrain macro relief/road network/ground color)
+confirmed DONE via their own standing guards (`terrainSeatSafetyCheck.js`/`roadNetworkSafetyCheck.js`
+still clean, not re-touched this run). Item 4 (castle texturing, 7/14) still blocked on real models
+for the remaining 6 seats — unchanged. Items 5-11 (syntax/blocking bugs/perf/mem leak/tech debt/smoke
+test/world coverage) all healthy, re-confirmed by this run's own pre-work baseline (`node --check`
+clean, `checkSmokeCheckRegistry.js` OK — 28 checks/8 modules, 66 files under the 600-line cap with the
+same 2 known WARNs; full `smokeTestGame3D.js` suite **28/28 PASS**, 0 FAIL). Items 12-13 (FAZ 7 dragon
+follow-ups / FAZ 11 species) remain blocked on models. That leaves item 14 ("yeni özellik") as the
+actionable lever.
+
+### Sub-task 1: `stannis-guard-1`'s 3rd dialogue choice (DECISIONS.md ADR-0119)
+
+Full reasoning, alternatives considered, and decision detail are in ADR-0119 — not duplicated here.
+
+**DoD durumu:** `node --check` clean (`dialogueChoices.js`, 204/600, was 197). `checkDialogueChoicesShape.js`
+OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot coverage unchanged at 13/14.
+`checkSmokeCheckRegistry.js` re-run post-change: unchanged (28 checks/8 modules, same 2 known WARNs).
+Full smoke suite re-run: **28/28 PASS**, 0 FAIL (before-baseline also 28/28 PASS, 0 FAIL — regresyon
+yok).
+
+**Real headless-Chromium proof** (dev-only, uncommitted Playwright script, same methodology
+ADR-0115/ADR-0117 used, deleted before commit): the real `game3d.html` was booted, then the *same*
+live `CHOICES_BY_NPC_ID`/`DialogueBox`/`createInteractionController` modules `game3d.js` itself
+imports were dynamically imported from inside the page and driven against a synthetic
+`stannis-guard-1` NPC. Confirmed: all 3 real choice labels render in order ("1) Stannis'in adaleti tam
+olarak nedir?" / "2) Neden başka bir kral değil de Stannis?" / "3) Stannis'in davasına hiç şüphe
+duydun mu?"), the hint reads exactly `'1/2/3 - Seç, Esc - Kapat'` while choices are shown, pressing
+`Digit3` shows the exact new response text with `{name}` replaced by the real synthetic NPC's display
+name, and the hint reverts to `'E / Esc - Kapat'` after selection — zero console/page errors
+throughout.
+
+**Real visual proof, 2 moments, zero console/page errors in both:** the proof script's `DialogueBox`
+was constructed against its real default container (`document.body`) so its DOM renders with the
+game's own live CSS, directly over the real booted `game3d.html` scene (not a detached/off-screen
+container) — (1) all 3 choices open, showing the real world-event toast ("Ejderha Görüldü!") and
+health bar (`100/100`) still live in the background; (2) ~0.3s later with the 3rd choice's response
+shown, hint reverted to `E / Esc - Kapat`, health bar still `100/100` (no incidental dragon bite this
+round, unlike ADR-0117's screenshot). Memory leak checklist: n/a, config-data-only (no new
+geometry/listener/timer). Tech debt counter: **0** (unchanged). `perf_log.csv`'s `run93` row
+(46/393,231/44/17) bit-identical to run76-92 for the 4 GPU-submission numbers — expected, zero scene
+object touched.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (personal conviction/doubt)
+is genuinely distinct from `stannis-guard-1`'s existing 2 choices (both institutional/public-facing)
+and from every other 3-choice NPC's own 3rd choice theme (checked all 4 prior ADRs' summaries) — no
+near-duplicate. Confirmed the header-comment update's NPC-list prose stays internally consistent
+(removed the now-stale "`cersei-guard-1`/`stannis-guard-1`... both already flavor-rich" pairing since
+`stannis-guard-1` no longer belongs in the "still 2-choice" list). No `TEMP`/`HACK`/`FIXME`/
+`WORKAROUND` anywhere in the diff.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 4th-generation repeat of an already-proven,
+low-risk pattern (config-data-only, fully reversible, real headless-Chromium + real visual proof both
+confirm the exact rendered text end-to-end), zero open design ambiguity, zero regression in the full
+smoke suite. "6 ay sonra hâlâ net mi" tereddüdü yok: ADR-0119 records the exact angle picked and why,
+same as its 4 predecessors.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| NPCs with a 3rd dialogue choice | 4/13 | **5/13** | +1 (`stannis-guard-1`) |
+| Dialogue choice pilot coverage | 13/14 | 13/14 | değişmedi (mevcut bir NPC büyüdü, yeni NPC eklenmedi) |
+| Smoke suite | 27/27 | **28/28** | aynı 28 kontrol, yeniden doğrulandı |
+| ADR headers in `DECISIONS.md` | 118 | **119** | +1 (ADR-0119) |
+| `perf_log.csv` rows | 35 | **36** | +1 (`run93`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (saf config-data değişikliği) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ölçekte — `stannis-guard-1` ile konuşan bir oyuncu artık
+3. bir soru sorabilir ve muhafızın kişisel bir itiraf/kararlılık cevabı alır; dünyanın geri kalanı
+değişmedi.
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Bloklu kalan her şey değişmedi: 6
+kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. Item 14 tekrar seçilirse: `cersei-guard-1`'in
+3. seçeneği (bu run'ın ADR-0119'unda açık bırakılan bir sonraki aday) veya `worldEvents.js`'nin
+flavor pool'u (hâlâ "dinlenmiş", 3 tur oldu son işaretlenmesinden beri). `RULES_CHANGELOG.md`'nin
+sıradaki konsolidasyonu ~run 96'da (değişmedi). `CATCH_UP.md`'nin sıradaki özeti run 98'de
+(değişmedi).
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.

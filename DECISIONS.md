@@ -10813,3 +10813,76 @@ computation/wiring, removes the new `checkSettlementGroundFlatten` smoke check a
 wiring, and reverts the two safety-check scripts' sampler construction back to unflattened. Every
 call site that never passed `flattenPads` is already unaffected by this revert (they never depended
 on it in the first place) — no cascading changes needed elsewhere.
+
+## ADR-0119: `stannis-guard-1`'s 3rd dialogue choice — the pilot's 5th NPC to use the 3rd slot
+
+**Date:** 2026-08-06 (run 93).
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely additive dialogue-config data (one new object literal
+in an existing `Object.freeze` array) plus a doc-comment update. Fully reversible: `git revert` the
+one commit removes the new choice and restores the header comment's prior wording. No `src/` runtime
+logic touched, no other NPC's entry, no shared module changed.
+
+**Context:** Run 92 was a live, owner-reported bug fix (settlement ground-flatten pads, ADR-0118)
+that did not touch the dialogue-choice lever. This run (93, scheduled) re-scanned GOVERNANCE.md §18's
+priority order fresh: items 1-3 (terrain macro relief/road network/ground color) remain DONE per
+their own standing guards (`terrainSeatSafetyCheck.js`/`roadNetworkSafetyCheck.js` both still clean);
+item 4 (castle texturing, 7/14) remains blocked on real models for the other 6 seats; items 5-11
+(syntax/blocking bugs/perf/mem leak/tech debt/smoke test/world coverage) all re-confirmed healthy by
+this run's own pre-work baseline (27/27 smoke, 0 tech debt, `checkSmokeCheckRegistry.js` clean with
+the same 2 known line-count WARNs); items 12-13 (FAZ 7 dragon follow-ups / FAZ 11 species) remain
+blocked on models. That leaves item 14 ("yeni özellik") as the actionable lever, same pick ADR-0115/
+ADR-0117 made. Of the 9 remaining 2-choice NPCs, `stannis-guard-1` is picked: its existing 2 choices
+are both about Stannis's justice/legitimacy as a public/institutional question, leaving a private-
+conviction angle ("do *you* ever doubt it?") open and unduplicated by any other NPC's 3rd choice so
+far (duty/fatigue for `berkalp-guard-1`, suspicion for `twin-guard-1`, regret-over-wit for
+`olena-guard-1`, fear-under-siege for `umit-guard-1`) — a genuinely distinct personal facet, not a
+near-duplicate lore fact, same bar ADR-0114's "Alternatives considered" set.
+
+**Gelecek Faz Etkisi:** none — still no further branching/state/persistence/stat hook, same "pilot on
+a growing subset" scope ADR-0058 established; a future real dialogue-tree/quest system would replace
+this mechanism wholesale rather than be constrained by one more leaf choice.
+
+**Decision:** `stannis-guard-1` (Baratheon's justice-loyalist castle guard, voiced in
+`GREETINGS_BY_NPC_ID` as "Kral Stannis'in adaleti bu topraklarda hüküm sürer") gets a 3rd choice —
+"Stannis'in davasına hiç şüphe duydun mu?" ("Have you ever doubted Stannis's cause?"). Response
+("Şüphe zayıflıktır, yabancı. Ben hakka hizmet ederim, sonucuna değil — Kral'ın davası benim
+davamdır, sorgulamadan.") stays in-tone with his existing 2 choices (stern, addresses the player as
+"yabancı", continues the established "the law/right is what matters, not favor" theme) while adding
+a personal-conviction angle distinct from the pair's institutional framing. Original text, no
+HBO-specific material. Implemented as one new `Object.freeze({label, response})` entry appended to
+`CHOICES_BY_NPC_ID['stannis-guard-1']` in `gameplay/dialogueChoices.js`, plus the file's header
+comment updated to record the 5th 3-choice NPC and this ADR. No other file touched —
+`interactionConfig.js`'s existing `GREETINGS_BY_NPC_ID` entry, `npcConfig.js`'s spawn entry,
+`interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` handling, and `game3d.js`'s keydown wiring are all
+unchanged and already generic across every NPC's choice count.
+
+**Alternatives considered:**
+- *`cersei-guard-1` instead (a personal-fear-under-Cersei angle).* Rejected this run — both are
+  equally fitting candidates with no prior ADR pre-vetting either specifically; `stannis-guard-1` was
+  picked arbitrarily between two equally-ready options rather than left open, so a future run does
+  not have to re-litigate the choice. `cersei-guard-1` remains a logged candidate for the next pick.
+- *`worldEvents.js`'s flavor pool instead (27 -> 29 entries).* Rejected, same reasoning ADR-0115/
+  ADR-0117 used — still a legitimate future lever, but a 5th NPC reaching the 3rd dialogue slot
+  continues the more informative, already-proven-safe proof point this run.
+- *A 3rd lore fact about Baratheon succession/legitimacy instead.* Rejected — the existing 2 choices
+  already cover the lore-flavor angle for this house; a 3rd near-duplicate would read as padding
+  rather than a distinct new facet, same reasoning ADR-0114/ADR-0115/ADR-0117 used to prefer a
+  personal-question 3rd choice over a 3rd lore fact.
+- *Do nothing this sub-task, stop after the pre-work baseline instead.* Rejected — Session Quality
+  Gate confidence stayed high (existing, well-established pattern, 4 prior ADRs to follow, zero open
+  design ambiguity) and the run budget/time cap were nowhere close, so GOVERNANCE.md §19's chaining
+  rule applies.
+
+**Consequences:** `stannis-guard-1` becomes the pilot's 5th NPC (of 13 with any dialogue choices, 14
+total real NPCs) to use the 3rd dialogue slot. `checkDialogueChoicesShape.js`'s pilot-coverage line
+is unaffected (still 13/14 — no new NPC gained an entry, an existing one grew). No performance cost
+(config-data-only, zero geometry/listener/timer touch — `perf_log.csv`'s `run93` row bit-identical to
+run76-92 for the 4 GPU-submission numbers: 46/393,231/44/17). `dialogueChoices.js` grows from 197 to
+204 lines, still well inside the 600-line cap.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
+the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
+choice.
