@@ -334,3 +334,23 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   touched). `git push origin main` succeeded (`782857b`). Local tag only — `git push origin <tag>`
   still rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag +
   this entry satisfies the checkpoint).
+
+- **`stable-2026-08-06-0908` (run 90, commit `afd910a` — a merge commit):** Session Quality Gate
+  passed (confidence 5/5 — dragon attack lunge/bite + generic player health system [ADR-0116], the
+  project owner's own live, interactive request, not a scheduled firing). **Eşzamanlılık Kontrolü
+  (GOVERNANCE.md §8.14) triggered for real this run**, not just checked and found clear: a
+  concurrent scheduled autonomous session independently ran its own "run 89"
+  (`twin-guard-1`'s 3rd dialogue choice, commit `782857b`) and pushed to `origin/main` while this
+  session's own live-request work was still in progress — discovered at push time (`git fetch`
+  showed `origin/main` had advanced past this session's own last-known commit), not before, since
+  this run started from a base (`af3e7ac`) that was current at the time. Both sessions had
+  independently picked ADR number **0115** and the run number **89** for their own work — resolved
+  by renumbering this session's own ADR to **0116** and its own run label to **90** (kept, not
+  reused, since 89 was already claimed first — the other commit's timestamp, 08:54:48, predates
+  this session's own commit, 09:03:09), then `git merge origin/main` (3 conflicts — `DECISIONS.md`/
+  `3D_GAME_PROGRESS.md`/`perf_log.csv`, all pure append-at-end conflicts, resolved by keeping both
+  sessions' content in chronological order, run 89 before run 90). Full smoke suite **27/27 PASS**
+  re-run after the merge (not assumed clean from either side alone). `git push origin main`
+  succeeded (`afd910a`). Local tag only — `git push origin <tag>` still rejected, same `HTTP 403`
+  standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the
+  checkpoint).
