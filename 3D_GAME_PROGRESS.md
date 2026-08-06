@@ -10803,3 +10803,75 @@ düşünülmeli.
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+### Sub-task 2: `ziya-guard-1`'s 3rd dialogue choice (DECISIONS.md ADR-0126)
+
+Full reasoning, alternatives considered, and decision detail are in ADR-0126 — not duplicated here.
+Chained straight from sub-task 1 per GOVERNANCE.md §19 (Session Quality Gate for sub-task 1 scored
+5/5, run budget/time nowhere close to any cap).
+
+**DoD durumu:** `node --check` clean (`dialogueChoices.js`, 253/600, was 245). `checkDialogueChoicesShape.js`
+OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot coverage unchanged at 13/14.
+`checkSmokeCheckRegistry.js` re-run post-change: unchanged (28 checks/8 modules, same 2 known WARNs).
+Full smoke suite re-run: **28/28 PASS**, 0 FAIL. **Konsol Temizliği:** the proof script's own headless
+boot recorded `consoleErrors.length === 0`.
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only, uncommitted Playwright script, same methodology as the ADR-0115..0125 series, deleted
+before commit): the real `game3d.html` was booted, the live `CHOICES_BY_NPC_ID`/`DialogueBox`/
+`InteractionPrompt`/`createInteractionController` modules dynamically imported and driven through the
+real `update()`/`handleKeyDown()` API against a synthetic `ziya-guard-1` NPC. (1) All 3 real choice
+labels render in order, hint reads exactly `'1/2/3 - Seç, Esc - Kapat'`. (2) Pressing `Digit3` shows
+the exact new response text with `{name}` replaced ("Ziya Muhafız: Getiriyor, yabancı, hem de sık
+sık..."), hint reverts to `'E / Esc - Kapat'`, choice list cleared. Zero console/page errors
+throughout.
+
+**Perf sampling:** `perf_log.csv`'s `run99b` row (46/393,231/44/17) bit-identical to the run76-99
+baseline — expected, zero geometry/texture code touched.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (abundance as vulnerability/
+envy-target) is distinct from `ziya-guard-1`'s existing 2 choices and from every other 3-choice NPC's
+own 3rd choice theme, including its own Reach house-mate `olena-guard-1`. Header-comment NPC-list
+prose updated consistently. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a,
+config-data-only.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 12th-generation repeat of an already-proven,
+low-risk pattern, zero open design ambiguity, zero regression in the full smoke suite. "6 ay sonra
+hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 99 end) | Delta |
+|---|---|---|---|
+| NPCs with a 3rd dialogue choice | 10/13 | **12/13** | +2 (`robin-guard-1`, `ziya-guard-1`) |
+| Dialogue choice pilot coverage | 13/14 | 13/14 | değişmedi |
+| Smoke suite | 28/28 | **28/28** | aynı 28 kontrol, iki kez yeniden doğrulandı |
+| ADR headers in `DECISIONS.md` | 124 | **126** | +2 (ADR-0125, ADR-0126) |
+| `perf_log.csv` rows | 41 | **43** | +2 (`run99`, `run99b`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (saf config-data değişikliği) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ölçekte — `ziya-guard-1` ile konuşan bir oyuncu artık 3. bir
+soru sorabilir ve Reach bahçe nöbetçisinin bereketin getirdiği risk üzerine kişisel bir cevabını alır;
+dünyanın geri kalanı değişmedi.
+
+**Run 99 Session Quality Gate re-check after sub-task 2 (§8.6):** confidence still **5/5** — same
+low-risk, well-proven pattern, zero regression across both sub-tasks. Session time well under the
+§8.7 6-8 saat run-wide cap. Stopping here for this run: only 1 NPC (`berk-guard-1`) remains at
+2 choices, a natural single-item unit for the next run rather than force a 3rd repeat of the exact
+same pattern in one sitting — consistent with runs 96-98's own cadence of 1 sub-task per run (run 98
+did 1 dialogue choice + 1 due documentation task, not 3 code sub-tasks).
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Bloklu kalan her şey değişmedi: 6
+kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. Item 14 tekrar seçilirse: son kalan iki-seçenekli
+NPC `berk-guard-1` (Reach'in 3. koltuğu) — bu NPC'ye 3. seçenek eklendiğinde pilot 13/13 NPC'de 3.
+seçenek tamamlanmış olacak (jon-guard-1 kasıtlı olarak hâlâ hariç, bkz. ADR-0058). Sonrasında item 14
+tükenmiş sayılır, bir sonraki dalgada `worldEvents.js`'nin flavor pool'u ya da yeni bir lever
+değerlendirilir. `RULES_CHANGELOG.md`'nin sıradaki konsolidasyonu ~run 116'da (değişmedi).
+`CATCH_UP.md`'nin sıradaki özeti ~run 108'de (değişmedi). `game3d.js` (585/600) ve
+`dragonController.js` (579/600) her ikisi de 600 satır sınırına yaklaşıyor — henüz acil değil ama bir
+sonraki dokunuşta bir bölme planı düşünülmeli.
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.

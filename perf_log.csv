@@ -42,3 +42,4 @@ date,run,fps,drawCalls,triangles,geometries,textures,jsHeapUsedMB
 2026-08-06,run97,2,46,393231,44,17,347
 2026-08-06,run98,3,46,393231,44,17,326
 2026-08-06,run99,3,46,393231,44,17,290
+2026-08-06,run99b,3,46,393231,44,17,326

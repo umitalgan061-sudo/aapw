@@ -47,7 +47,11 @@
  * reach the 3rd slot; run 99, DECISIONS.md ADR-0125, gave `robin-guard-1` a 3rd choice too, its theme
  * a height-guard's own quiet homesickness for lower ground ("doesn't keeping watch this high up ever
  * unsettle you?") rather than a 3rd fact about the Eyrie's eagles — the pilot's 11th NPC and first
- * Vale seat to reach the 3rd slot; every other listed NPC below still has exactly 2). 13 of 14 NPCs
+ * Vale seat to reach the 3rd slot; run 99, DECISIONS.md ADR-0126, gave `ziya-guard-1` a 3rd choice
+ * too, its theme a garden-guard's own worry that abundance itself draws envy/danger ("doesn't being
+ * this fertile make you a target?") rather than a 3rd fact about the harvest — the pilot's 12th NPC
+ * and 2nd Reach seat to reach the 3rd slot; every other listed NPC below still has exactly 2). 13 of
+ * 14 NPCs
  * (`umit-guard-1`/`berkalp-guard-1` — the player's home seat and the Stark seat the wolves already
  * patrol at;
  * `robin-guard-1` — Arryn's Eyrie height, the pilot's first Vale seat; `ziya-guard-1`/`berk-guard-1`/
@@ -56,7 +60,7 @@
  * reusing `cersei-guard-1`'s gold-mine angle) get at least 2
  * numbered choices after their greeting (`umit-guard-1`/`berkalp-guard-1`/`twin-guard-1`/
  * `olena-guard-1`/`stannis-guard-1`/`cersei-guard-1`/`doran-guard-1`/`xaro-guard-1`/`stannis-guard-2`/
- * `balon-guard-1`/`robin-guard-1` get 3);
+ * `balon-guard-1`/`robin-guard-1`/`ziya-guard-1` get 3);
  * picking one (Digit1/Digit2/Digit3 — see
  * `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response line,
  * replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry here —
@@ -202,6 +206,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Büyüyen güç derken neyi kastediyorsun?',
 			response: '{name}: Ordular kılıçla büyür, biz tahılla. Sonunda ikisi de aynı kapıya çıkar.',
+		}),
+		Object.freeze({
+			label: 'Bu kadar bereketli olmak hiç sizi hedef hâline getirmiyor mu?',
+			response: '{name}: Getiriyor, yabancı, hem de sık sık. Aç kalan komşu dolu ambara göz diker. Reach\'in gerçek savunması surlar değil, kimin bize borçlu olduğudur.',
 		}),
 	]),
 	'berk-guard-1': Object.freeze([

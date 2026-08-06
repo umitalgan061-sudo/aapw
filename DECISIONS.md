@@ -11602,3 +11602,94 @@ house-coverage reasoning behind picking this NPC over the other 2 equally-ready 
 **Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
 the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
 choice.
+
+---
+
+## ADR-0126: `ziya-guard-1`'s 3rd dialogue choice — the pilot's 12th NPC to use the 3rd slot, 2nd Reach seat
+
+**Date:** 2026-08-06 (run 99, scheduled autonomous routine).
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely additive dialogue-config data (one new object literal
+in an existing `Object.freeze` array) plus a doc-comment update. Fully reversible: `git revert` the
+one commit removes the new choice and restores the header comment's prior wording. No `src/` runtime
+logic touched, no other NPC's entry, no shared module changed.
+
+**Context:** Continuation of this same run, immediately after ADR-0125 (`robin-guard-1`). Baseline
+re-confirmed post-ADR-0125: `node --check` clean, `checkDialogueChoicesShape.js` OK (13/14 pilot
+coverage), `checkSmokeCheckRegistry.js` OK (28 checks/8 modules, same 2 known WARNs), full
+`smokeTestGame3D.js` **28/28 PASS**, 0 FAIL. Session Quality Gate for ADR-0125 scored 5/5 and the
+run's time/budget cap were nowhere close, so GOVERNANCE.md §19's chaining rule applies — continuing
+straight to the next item-14 candidate rather than stopping.
+
+**Priority re-scan (GOVERNANCE.md §18):** unchanged from ADR-0125's own re-scan — items 1-13 all
+DONE/healthy/blocked as already logged there. Item 14 remains the only actionable lever. ADR-0125's
+own "Alternatives considered" named the 2 remaining 2-choice NPCs as `ziya-guard-1`/`berk-guard-1`
+(both Reach seats), so `ziya-guard-1` is picked as the specific next candidate, matching
+`dialogueChoices.js`'s own file order.
+
+**Gelecek Faz Etkisi:** none — same as every prior ADR in this series; still no further
+branching/state/persistence/stat hook.
+
+**Decision:** `ziya-guard-1` (a Reach garden seat, whose existing 2 choices cover the bahçelerin
+verimliliği and the "grain grows power too" framing) gets a 3rd choice — "Bu kadar bereketli olmak
+hiç sizi hedef hâline getirmiyor mu?" ("Doesn't being this fertile ever make you a target?").
+Response ("Getiriyor, yabancı, hem de sık sık. Aç kalan komşu dolu ambara göz diker. Reach'in gerçek
+savunması surlar değil, kimin bize borçlu olduğudur.") introduces a genuinely new angle not used by
+any of the prior 11 three-choice NPCs: abundance itself as a source of vulnerability/envy, with the
+guard naming political debt (not walls) as the real defense — distinct from fear-under-a-ruler
+(`cersei-guard-1`, about a specific person's temper), cost-of-a-culture's-creed (`balon-guard-1`,
+about a whole philosophy's price), and every other used theme (see ADR-0125 for the full list).
+Implemented as one new `Object.freeze({label, response})` entry appended to
+`CHOICES_BY_NPC_ID['ziya-guard-1']` in `gameplay/dialogueChoices.js`, plus the file's header comment
+updated to record the 12th 3-choice NPC and this ADR. No other file touched.
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only, uncommitted Playwright script, same methodology as the full ADR-0115..0125 series, run
+over a local static server; the real `createInteractionController`/`DialogueBox`/`InteractionPrompt`/
+`CHOICES_BY_NPC_ID` modules `game3d.js` itself imports were dynamically imported from inside the real
+booted `game3d.html` page and driven through the actual `update()`/`handleKeyDown()` API against a
+synthetic `ziya-guard-1` NPC; deleted before commit): (1) all 3 real choice labels render in order
+("1) Ziya Hanım'ın bahçeleri neyle ünlü?" / "2) Büyüyen güç derken neyi kastediyorsun?" / "3) Bu kadar
+bereketli olmak hiç sizi hedef hâline getirmiyor mu?"), hint reads exactly `'1/2/3 - Seç, Esc -
+Kapat'`. (2) Pressing `Digit3` shows the exact new response text with `{name}` replaced by the
+synthetic NPC's display name ("Ziya Muhafız"), hint reverts to `'E / Esc - Kapat'`, choice list
+cleared (0 `.g3d-dialogue-box-choice` elements remaining). Zero console/page errors throughout
+(`consoleErrors.length === 0`).
+
+**Perf sampling:** `perf_log.csv`'s `run99b` row (`46/393231/44/17`) sampled fresh via
+`scripts/collectPerfSnapshot.js`, bit-identical to the run76-99 baseline on draw calls/triangles/
+geometries/textures — expected, this change touches zero geometry/texture code.
+
+**Alternatives considered:**
+- *`berk-guard-1` instead.* Rejected in favor of `ziya-guard-1` specifically because it was
+  ADR-0125's own first-listed remaining candidate, matching `dialogueChoices.js`'s file order;
+  `berk-guard-1` remains the pilot's single remaining 2-choice NPC for a future run.
+- *A 3rd fact about the gardens/harvest instead.* Rejected — the existing 2 choices already cover
+  fertility and the grain-as-power framing; a 3rd near-duplicate would read as padding, same
+  reasoning the prior 11 ADRs used.
+- *`worldEvents.js`'s flavor pool instead.* Rejected, same reasoning the prior 11 ADRs used.
+- *Stop this run after sub-task 1.* Rejected — ADR-0125's Session Quality Gate confidence was 5/5,
+  zero open design ambiguity for this candidate, zero regression, and run budget/time nowhere close
+  to any cap, so GOVERNANCE.md §19's chaining rule applies.
+
+**Consequences:** `ziya-guard-1` becomes the pilot's 12th NPC (of 13 with any dialogue choices, 14
+total real NPCs) to use the 3rd dialogue slot, and the Reach's 2nd seat to do so (after
+`olena-guard-1`). `checkDialogueChoicesShape.js`'s pilot-coverage line is unaffected (still 13/14).
+No lasting performance cost (config-data-only). `dialogueChoices.js` grows to 253 lines, still well
+inside the 600-line cap. Only 1 NPC remains at 2 choices (`berk-guard-1`).
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (abundance as vulnerability/
+envy-target) is genuinely distinct from `ziya-guard-1`'s existing 2 choices and from every other
+3-choice NPC's own 3rd choice theme — no near-duplicate, including its own Reach house-mate
+`olena-guard-1` (regret-over-wit, a completely different axis). Header-comment NPC-list prose updated
+consistently. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a, config-data-only.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 12th-generation repeat of an already-proven,
+low-risk pattern, zero open design ambiguity, zero regression in the full smoke suite (28/28 PASS
+before and after). "6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
+the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
+choice.
