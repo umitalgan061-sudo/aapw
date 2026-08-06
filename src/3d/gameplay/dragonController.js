@@ -5,23 +5,22 @@
  * ADR-0092); `dragons.js` re-exports `createDragon` from here, so every existing importer and doc
  * reference to `gameplay/dragons.js` keeps working unchanged. The pure position/blend arithmetic
  * this loop drives lives in `gameplay/dragonFlightMath.js`; the config-driven spawn wiring lives in
- * `gameplay/dragonSpawns.js`. The run-by-run history of *why* the behavior below is shaped the way
- * it is (runs 53/54/58/64/66/70/71 and their ADRs) is kept in `gameplay/dragons.js`'s own header,
- * the entry point every other module and doc already points at.
+ * `gameplay/dragonSpawns.js`; the per-frame notice/reactive/pursuit/give-up/dive/telegraph/attack
+ * blend *bookkeeping* was itself split out to `gameplay/dragonReactionState.js` in run 109
+ * (DECISIONS.md ADR-0136) when this file approached the same 600-line cap a second time — this
+ * file now owns model/mixer loading, calling that stepping logic once per frame, applying its
+ * result to the real `THREE.Object3D`, and firing events/exposing `userData`. The run-by-run
+ * history of *why* the behavior below is shaped the way it is (runs 53/54/58/64/66/70/71/72/90 and
+ * their ADRs) is kept in `gameplay/dragons.js`'s own header, the entry point every other module and
+ * doc already points at.
  *
  * @module gameplay/dragonController
  */
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
-import {
-	easeBlendToward,
-	blendScalar,
-	applyCirclePose,
-	stepCenterTowardTarget,
-	applyDiveOffset,
-	clampAltitudeAboveGround,
-} from './dragonFlightMath.js';
+import { applyCirclePose, applyDiveOffset, clampAltitudeAboveGround } from './dragonFlightMath.js';
+import { createDragonReactionState, stepDragonReactionState } from './dragonReactionState.js';
 
 /**
  * Loads the dragon model, places it on its circling flight path, and returns a small controller
@@ -297,71 +296,6 @@ export async function createDragon({
 	const flyAction = flyClip ? mixer.clipAction(flyClip) : null;
 	if (flyAction) flyAction.play();
 
-	// Tangential speed is the tuned constant (see DRAGON_CONFIG's own speed/radius comment for the
-	// resulting ~0.08 rad/s at the default spawn's 150m radius); angular speed is derived from it
-	// against the circle's *current* radius each frame. With no pursuit configured the radius never
-	// changes, so this is arithmetically identical to the fixed `speedMps / circleRadiusMeters`
-	// run 53 used — it only starts to matter once run 66's pursuit tightens the circle, where
-	// holding tangential (not angular) speed constant is what stops a closing dragon from appearing
-	// to slow down as its ring shrinks.
-	const calmAngularSpeedFor = (radiusMeters) => speedMps / radiusMeters;
-	const reactiveAngularSpeedFor = (radiusMeters) => (speedMps * reactiveSpeedMultiplier) / radiusMeters;
-	let angle = startAngleRadians;
-
-	// Run 66 (ADR-0085) pursuit: the circle's center is no longer fixed at the spawn seat. This
-	// tracks where it actually is right now; `centerX`/`centerZ`/`centerY` stay the immutable "home"
-	// values the center travels back to on disengage. Held as one mutable record (rather than three
-	// `let`s) so `dragonFlightMath.js`'s `stepCenterTowardTarget` can advance it in place without
-	// allocating a result object every frame.
-	const center = { x: centerX, y: centerY, z: centerZ };
-
-	// Run 58 (ADR-0077) reactive flight: 0 = calm baseline, 1 = fully reactive (faster + harder
-	// bank). Eased linearly toward its target each frame rather than snapped, so the reaction reads
-	// as the dragon actually responding, not teleporting between two fixed states. Starts at 0 (calm)
-	// — same "never assumed" convention `playerWasInNoticeRadius` below already follows.
-	let reactiveBlend = 0;
-	// Run 64 (ADR-0082) dive: 0 = on-circle, 1 = fully at the (terrain-clamped) dive target. Same
-	// starts-at-0, eased-not-snapped shape as `reactiveBlend` above.
-	let diveBlend = 0;
-	// Run 72 dive telegraph: seconds the player has been continuously inside `alarmRadiusMeters` —
-	// reset to 0 the instant they leave it (not eased; this is a plain elapsed-time counter, not a
-	// blend). Gates when `diveBlend`'s target is allowed to become 1 (see `update()` below).
-	let diveAlarmElapsedSeconds = 0;
-	// Run 72 dive telegraph: 0 = no telegraph cue, 1 = fully flared. Rises immediately once alarmed
-	// (independent of `diveBlend`, which stays pinned at 0 until `diveTelegraphSeconds` elapses) and
-	// falls back to 0 either once the player leaves `alarmRadiusMeters` or once the telegraph window
-	// itself elapses and the real dive takes over driving the agitation cue. Same starts-at-0,
-	// eased-not-snapped shape as `reactiveBlend`/`diveBlend` above.
-	let diveTelegraphBlend = 0;
-	// Run 66 (ADR-0085) pursuit: 0 = home-shaped circle (calm radius/altitude), 1 = fully engaged
-	// (tightened radius, terrain-following cruise altitude). Same starts-at-0, eased-not-snapped
-	// shape as the two blends above. The circle *center*'s travel is deliberately not driven by this
-	// — it moves at a bounded speed instead, see `pursuitCenterSpeedMps`'s doc comment.
-	let pursuitBlend = 0;
-	let pursuitElapsedSeconds = 0;
-	// Set once an engagement burns through `pursuitMaxSeconds`; blocks re-engaging until the player
-	// leaves `pursuitRadiusMeters`, the same edge-trigger/re-arm shape `playerWasInNoticeRadius`
-	// below already uses for the notice event.
-	let pursuitExhausted = false;
-	// Run 71 (ADR-0091) give-up cue: 0 = no give-up cue, 1 = fully at the steepened give-up bank
-	// angle. Eased toward 1 only while `pursuitExhausted` is true and back to 0 once the player
-	// leaves `pursuitRadiusMeters` (the same event that resets `pursuitExhausted` itself) — an
-	// ordinary disengage, where the player leaves before the timer ever exhausts, never sets
-	// `pursuitExhausted` true at all, so this blend never leaves 0 for that case. Same starts-at-0,
-	// eased-not-snapped shape as `reactiveBlend`/`diveBlend`/`pursuitBlend` above.
-	let giveUpBlend = 0;
-	// Run 90 (ADR-0116) attack lunge: 0 = ordinary dive pull/drop, 1 = fully escalated to
-	// `attackLateralPullFraction`/`attackDropMeters`. Same starts-at-0, eased-not-snapped shape as
-	// every other blend above. Only ever computed when `canBite` (below) is true — see `update()`.
-	let attackBlend = 0;
-	// Run 90 (ADR-0116): seconds remaining before this dragon may land another bite, ticked down
-	// every frame regardless of `attackBlend` (recovers even while not currently attacking). Starts
-	// at 0 (no cooldown yet) rather than `biteCooldownSeconds` — a freshly spawned dragon can land
-	// its first hit as soon as it genuinely reaches the player, not on an artificial delay.
-	let biteCooldownRemainingSeconds = 0;
-
-	applyCirclePose(model, center, circleRadiusMeters, angle, bankAngleRadians);
-
 	const canNotice = Boolean(noticeRadiusMeters != null && eventsBus && eventName && noticeToast);
 	const canDive = Boolean(alarmRadiusMeters != null && typeof sampleGroundY === 'function');
 	const canPursue = Boolean(pursuitRadiusMeters != null && typeof sampleGroundY === 'function');
@@ -370,10 +304,12 @@ export async function createDragon({
 	// "the feature's own defining value has no generic default" reasoning `noticeToast` already
 	// follows for the notice tier above.
 	const canBite = Boolean(canDive && biteEventName && eventsBus && typeof biteDamage === 'number');
-	// Starts false: the very first `update()` call (typically seconds after boot) does its own
-	// real distance check before deciding whether the player already started inside the radius —
-	// never assumed true/false up front.
-	let playerWasInNoticeRadius = false;
+
+	// All per-frame notice/reactive/pursuit/give-up/dive/telegraph/attack blend bookkeeping lives
+	// in `gameplay/dragonReactionState.js` (run 109, DECISIONS.md ADR-0136) — this controller only
+	// creates the mutable record, steps it once per frame, and applies the result to `model`.
+	const state = createDragonReactionState(startAngleRadians, centerX, centerY, centerZ);
+	applyCirclePose(model, state.center, circleRadiusMeters, state.angle, bankAngleRadians);
 
 	return {
 		object3D: model,
@@ -384,11 +320,10 @@ export async function createDragon({
 		 *   only read when this dragon has player-awareness configured (`noticeRadiusMeters`).
 		 */
 		update(delta, playerPosition) {
-			// Distance check (and the notice edge-trigger it already drove) now runs first, against
-			// the dragon's position as of the end of the previous frame — same real distance the
-			// original run-54 check used, just also reused below to pick this frame's reactive blend
-			// target (and, run 64, the dive-alarm target) instead of only firing the one-shot notice
-			// event.
+			// Distance check runs first, against the dragon's position as of the end of the previous
+			// frame — same real distance the original run-54 check used, reused by
+			// `stepDragonReactionState` for the reactive/dive/pursuit blend targets, not only the
+			// one-shot notice event.
 			let distanceToPlayer = null;
 			if (playerPosition && (canNotice || canDive || canPursue)) {
 				const dx = model.position.x - playerPosition.x;
@@ -397,121 +332,38 @@ export async function createDragon({
 				distanceToPlayer = Math.hypot(dx, dy, dz);
 			}
 
-			let isInRadius = false;
-			if (canNotice && distanceToPlayer != null) {
-				isInRadius = distanceToPlayer < noticeRadiusMeters;
-				if (isInRadius && !playerWasInNoticeRadius) {
-					eventsBus.emit(eventName, noticeToast);
-				}
-				playerWasInNoticeRadius = isInRadius;
+			const frame = stepDragonReactionState(state, delta, distanceToPlayer, {
+				canNotice, canDive, canPursue, canBite,
+				noticeRadiusMeters,
+				reactiveSpeedMultiplier, reactiveBankAngleRadians, reactiveTransitionSeconds,
+				bankAngleRadians, speedMps, circleRadiusMeters,
+				alarmRadiusMeters, diveTelegraphSeconds, diveTelegraphTransitionSeconds, diveTransitionSeconds,
+				attackTriggerSeconds, attackTransitionSeconds,
+				clampedDiveLateralPullFraction, diveDropMeters,
+				clampedAttackLateralPullFraction, attackDropMeters,
+				pursuitRadiusMeters, pursuitCenterSpeedMps, centerX, centerZ, centerY,
+				pursuitCircleRadiusMeters, pursuitTransitionSeconds, pursuitMaxSeconds,
+				cruiseAltitudeAboveGroundMeters, sampleGroundY,
+				giveUpBankAngleMultiplier, giveUpTransitionSeconds,
+				playerPosition,
+			});
+
+			if (frame.justEnteredNotice) {
+				eventsBus.emit(eventName, noticeToast);
 			}
 
-			// Run 58 (ADR-0077): ease `reactiveBlend` linearly toward 1 (in radius) or 0 (not) over
-			// `reactiveTransitionSeconds`, then use it to blend both the angular speed and the bank
-			// angle between their calm and reactive values for this frame's move.
-			reactiveBlend = easeBlendToward(reactiveBlend, isInRadius ? 1 : 0, delta, reactiveTransitionSeconds);
-
-			// Run 66 (ADR-0085) pursuit engagement. `isEngaged` gates both the center's travel target
-			// and the radius/altitude blend below. Exhaustion re-arms only on the player actually
-			// leaving the radius, so a stationary player can't be chased forever.
-			let isEngaged = false;
-			if (canPursue && distanceToPlayer != null) {
-				const isInPursuitRadius = distanceToPlayer < pursuitRadiusMeters;
-				if (!isInPursuitRadius) {
-					pursuitExhausted = false; // left the radius — re-arm for a future engagement.
-					pursuitElapsedSeconds = 0;
-				} else if (!pursuitExhausted) {
-					pursuitElapsedSeconds += delta;
-					if (pursuitElapsedSeconds >= pursuitMaxSeconds) pursuitExhausted = true;
-					else isEngaged = true;
-				}
-			}
-
-			// Run 71 (ADR-0091) give-up cue: eases toward 1 while `pursuitExhausted` is true (the
-			// dragon gave up mid-engagement, the timer ran out while the player was still inside
-			// `pursuitRadiusMeters`) and back toward 0 once the player actually leaves the radius —
-			// distinct from an *ordinary* disengage, where the player leaves before the timer ever
-			// exhausts and `pursuitExhausted` never becomes true in the first place, so this blend
-			// stays exactly 0 for that case.
-			giveUpBlend = easeBlendToward(giveUpBlend, pursuitExhausted ? 1 : 0, delta, giveUpTransitionSeconds);
-
-			// The circle center travels at a bounded speed toward the player while engaged, and back
-			// toward its immutable home center otherwise (see `dragonFlightMath.js`'s
-			// `stepCenterTowardTarget` for why this is speed-limited rather than blended).
-			if (canPursue) {
-				const targetCenterX = isEngaged && playerPosition ? playerPosition.x : centerX;
-				const targetCenterZ = isEngaged && playerPosition ? playerPosition.z : centerZ;
-				stepCenterTowardTarget(center, targetCenterX, targetCenterZ, pursuitCenterSpeedMps * delta);
-			}
-
-			// Radius/altitude ease into and out of the engaged shape.
-			pursuitBlend = easeBlendToward(pursuitBlend, isEngaged ? 1 : 0, delta, pursuitTransitionSeconds);
-			const currentCircleRadiusMeters = blendScalar(circleRadiusMeters, pursuitCircleRadiusMeters, pursuitBlend);
-			// While pursuing, cruise altitude follows the terrain under the *moving* center rather
-			// than staying pinned to the home seat's own ground height — otherwise a chase up a
-			// mountainside would fly straight into the slope (the final safety clamp below would
-			// still catch it, but as an emergency floor, not as flight that reads as deliberate).
-			if (canPursue && cruiseAltitudeAboveGroundMeters != null) {
-				const terrainFollowingCenterY = sampleGroundY(center.x, center.z) + cruiseAltitudeAboveGroundMeters;
-				center.y = blendScalar(centerY, terrainFollowingCenterY, pursuitBlend);
-			}
-
-			const calmAngular = calmAngularSpeedFor(currentCircleRadiusMeters);
-			const reactiveAngular = reactiveAngularSpeedFor(currentCircleRadiusMeters);
-			const angularSpeedRadiansPerSecond = blendScalar(calmAngular, reactiveAngular, reactiveBlend);
-			const reactiveBankAngleThisFrame = blendScalar(bankAngleRadians, reactiveBankAngleRadians, reactiveBlend);
-			// Run 71 (ADR-0091) give-up cue: layered on top of the ordinary reactive-blend bank above,
-			// via `giveUpBlend` — a plain distance-triggered disengage never moves this past 0, so it
-			// keeps exactly the reactive bank it already had; only a timeout-driven give-up steepens it
-			// further.
-			const giveUpBankAngleRadians = reactiveBankAngleRadians * giveUpBankAngleMultiplier;
-			const currentBankAngleRadians = blendScalar(reactiveBankAngleThisFrame, giveUpBankAngleRadians, giveUpBlend);
-
-			angle += angularSpeedRadiansPerSecond * delta;
 			// Pure on-circle pose — the dive below blends *away* from this, never replaces the
 			// underlying path, so easing back to diveBlend 0 always lands exactly here again.
-			applyCirclePose(model, center, currentCircleRadiusMeters, angle, currentBankAngleRadians);
+			applyCirclePose(model, state.center, frame.currentCircleRadiusMeters, state.angle, frame.currentBankAngleRadians);
 
-			// Run 64 (ADR-0082): brief dive off the circle when the player is much closer than
-			// `noticeRadiusMeters` (inside the smaller `alarmRadiusMeters`), easing back the same way
-			// once they retreat — a linear ease-toward-a-target, same shape as `reactiveBlend` above,
-			// just blending *position* instead of speed/bank.
-			const isAlarmed = canDive && distanceToPlayer != null && distanceToPlayer < alarmRadiusMeters;
-			// Run 72 dive telegraph: a plain elapsed-time counter (not eased), reset the instant the
-			// player leaves `alarmRadiusMeters` — gates when the dive's own position blend is allowed
-			// to start moving, below.
-			diveAlarmElapsedSeconds = isAlarmed ? diveAlarmElapsedSeconds + delta : 0;
-			const diveTelegraphActive = isAlarmed && diveAlarmElapsedSeconds < diveTelegraphSeconds;
-			diveTelegraphBlend = easeBlendToward(diveTelegraphBlend, diveTelegraphActive ? 1 : 0, delta, diveTelegraphTransitionSeconds);
-			// The dive's position blend only targets 1 once the telegraph window has fully elapsed —
-			// while alarmed but still inside that window, it stays pinned at its current value (0 on
-			// first entering `alarmRadiusMeters`), so the dragon visibly holds its circling pose while
-			// only the telegraph cue (wing-flap agitation, below) fires. A player who retreats before
-			// the window elapses never sees `diveBlend` leave 0 at all — the dive itself never started.
-			const diveMotionAllowed = isAlarmed && diveAlarmElapsedSeconds >= diveTelegraphSeconds;
-			diveBlend = easeBlendToward(diveBlend, diveMotionAllowed ? 1 : 0, delta, diveTransitionSeconds);
-
-			// Run 90 (ADR-0116) attack lunge: only ever computed for a biting dragon (`canBite`) — a
-			// non-biting dragon's `currentLateralPullFraction`/`currentDropMeters` stay exactly
-			// `clampedDiveLateralPullFraction`/`diveDropMeters`, provably identical to the pre-run-88
-			// dive math. Requires sustained proximity *on top of* the dive's own telegraph+transition —
-			// the player kept provoking it, not merely triggered one swoop.
-			let currentLateralPullFraction = clampedDiveLateralPullFraction;
-			let currentDropMeters = diveDropMeters;
-			if (canBite) {
-				const attackTriggered = isAlarmed && diveAlarmElapsedSeconds >= diveTelegraphSeconds + attackTriggerSeconds;
-				attackBlend = easeBlendToward(attackBlend, attackTriggered ? 1 : 0, delta, attackTransitionSeconds);
-				currentLateralPullFraction = blendScalar(clampedDiveLateralPullFraction, clampedAttackLateralPullFraction, attackBlend);
-				currentDropMeters = blendScalar(diveDropMeters, attackDropMeters, attackBlend);
-			}
-			if (diveBlend > 0 && playerPosition) {
+			if (state.diveBlend > 0 && playerPosition) {
 				applyDiveOffset(model, {
 					playerX: playerPosition.x,
 					playerZ: playerPosition.z,
-					centerY: center.y,
-					diveDropMeters: currentDropMeters,
-					lateralPullFraction: currentLateralPullFraction,
-					diveBlend,
+					centerY: state.center.y,
+					diveDropMeters: frame.currentDropMeters,
+					lateralPullFraction: frame.currentLateralPullFraction,
+					diveBlend: state.diveBlend,
 				});
 			}
 
@@ -522,49 +374,41 @@ export async function createDragon({
 			}
 
 			// Run 90 (ADR-0116) bite: checked against the *final*, post-terrain-clamp position (the
-			// real rendered position) — the actual on-screen distance, not the unclamped dive-offset
-			// math. `attackBlend > 0.95` (not exactly `1`, which `easeBlendToward` only ever reaches
-			// asymptotically-exactly at the very end of `attackTransitionSeconds`, same floating-point
-			// caution `checkStarfieldTwinkle`'s own header already notes for a sine peak) restricts a
-			// landed hit to a *fully*-committed lunge, never an incidental close pass during ordinary
-			// circling/pursuit.
-			biteCooldownRemainingSeconds = Math.max(0, biteCooldownRemainingSeconds - delta);
+			// real rendered position), not the unclamped dive-offset math — the actual on-screen
+			// distance, not a theoretical one. `attackBlend > 0.95` (not exactly `1`, which
+			// `easeBlendToward` only ever reaches asymptotically-exactly at the very end of
+			// `attackTransitionSeconds`, same floating-point caution `checkStarfieldTwinkle`'s own
+			// header already notes for a sine peak) restricts a landed hit to a *fully*-committed
+			// lunge, never an incidental close pass during ordinary circling/pursuit.
+			state.biteCooldownRemainingSeconds = Math.max(0, state.biteCooldownRemainingSeconds - delta);
 			let didBiteThisFrame = false;
-			if (canBite && attackBlend > 0.95 && biteCooldownRemainingSeconds <= 0 && playerPosition) {
+			if (canBite && state.attackBlend > 0.95 && state.biteCooldownRemainingSeconds <= 0 && playerPosition) {
 				const dx = model.position.x - playerPosition.x;
 				const dy = model.position.y - playerPosition.y;
 				const dz = model.position.z - playerPosition.z;
 				if (Math.hypot(dx, dy, dz) < biteRadiusMeters) {
 					eventsBus.emit(biteEventName, { amount: biteDamage, sourceId: name ?? 'dragon' });
-					biteCooldownRemainingSeconds = biteCooldownSeconds;
+					state.biteCooldownRemainingSeconds = biteCooldownSeconds;
 					didBiteThisFrame = true;
 				}
 			}
 
-			// Run 70 (ADR-0089) wing-flap telegraph: reuses the blends already computed above this
-			// frame (reactive/dive/pursuit, and run 72's dive-telegraph) rather than adding a new
-			// trigger — whichever reaction is currently strongest sets how hard the wings flap, so a
-			// dragon that is merely reactive (sped-up circling, no dive/pursuit) still gets a visible
-			// cue, one that is diving or pursuing doesn't flap faster than either alone implies, and —
-			// run 72 — the telegraph window itself (before the dive's position blend is even allowed
-			// to move) already reads as agitated rather than waiting for `diveBlend` to catch up. Run
-			// 88's `attackBlend` folds in the same way — inert (0) for any non-biting dragon, so this
-			// `Math.max` stays exactly as before for every dragon spawned prior to this run.
-			const agitationBlend = Math.max(reactiveBlend, diveBlend, pursuitBlend, diveTelegraphBlend, attackBlend);
-			const wingFlapTimeScale = 1 + (agitatedWingFlapMultiplier - 1) * agitationBlend;
+			// Run 70 (ADR-0089) wing-flap telegraph: `frame.agitationBlend` is already the strongest
+			// of reactive/dive/pursuit/telegraph/attack this frame (see `dragonReactionState.js`).
+			const wingFlapTimeScale = 1 + (agitatedWingFlapMultiplier - 1) * frame.agitationBlend;
 			if (flyAction) flyAction.timeScale = wingFlapTimeScale;
 			model.userData.wingFlapTimeScale = wingFlapTimeScale;
 			// Run 71 (ADR-0091) give-up cue: exposed the same way `wingFlapTimeScale` already is, so
 			// regression tests (and any future debug tooling) can read it without reaching into the
-			// bank-angle math above.
-			model.userData.giveUpBlend = giveUpBlend;
+			// reaction-state module directly.
+			model.userData.giveUpBlend = state.giveUpBlend;
 			// Run 72 dive telegraph: exposed the same way, so a regression test can directly assert
 			// "the cue fired but the dive itself never moved" instead of inferring it only from
 			// `wingFlapTimeScale` (which `diveBlend` also drives once the dive actually starts).
-			model.userData.diveTelegraphBlend = diveTelegraphBlend;
+			model.userData.diveTelegraphBlend = state.diveTelegraphBlend;
 			// Run 90 (ADR-0116): exposed the same way, so a regression test can assert the escalation
 			// and the landed hit independently of each other and of `wingFlapTimeScale`.
-			model.userData.attackBlend = attackBlend;
+			model.userData.attackBlend = state.attackBlend;
 			model.userData.didBiteThisFrame = didBiteThisFrame;
 
 			mixer.update(delta);
