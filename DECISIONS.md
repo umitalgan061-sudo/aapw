@@ -9739,3 +9739,151 @@ and every existing entry's text are untouched.
 **Geri alma planı:** `git revert` the single commit — restores the uniform pick and removes every
 `weight` field/the `WEIGHT`/`TOTAL_WEIGHT`/`pickWeightedEvent` additions. Nothing else references
 `weight`.
+
+---
+
+## ADR-0111: Day/night gating for the world-event flavor pool — an aurora no longer fires at noon, an eclipse no longer fires at midnight
+
+**Status:** Accepted (run 86).
+
+**Risk Seviyesi:** LOW. Additive change to `gameplay/worldEvents.js` (new optional `timeOfDay` field
+on 4 of 26 entries, new optional `nightFactor` parameter on `pickWeightedEvent`/`system.update`) plus
+a pure reorder (no logic change) inside `game3d.js` moving the existing `updateDayNightLighting` call
+a few lines earlier so its result is available before the world-event block that now wants it. No
+change to any other module's public shape, no terrain/height/scale touch (Arazi Değişikliği Güvenlik
+Kontrolü doesn't apply). Fully reversible: `git revert` restores the unconditional pick and the
+original call-site ordering.
+
+**Context:** Session Snapshot at run start (2026-08-06, run 86 — scheduled autonomous routine):
+`GOVERNANCE.md` (325 lines) and `CREDITS.md` confirmed already current against this run's incoming
+rule list (a diff-check, not a rewrite — nothing new to add). Read `3D_GAME_PROGRESS.md`'s run 85
+entry, `DECISIONS.md`'s last 3 ADRs (0109/0110), `QUESTIONS_FOR_OWNER.md` in full (8 entries, all
+still open, none resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md` tails. Session started on a detached `HEAD`; `origin/main` was already at the
+same tip (`d384e4c`, run 85's last commit) — `git checkout main && git reset --hard origin/main`
+resynced with no real divergence. Ran the full smoke suite before picking any work: **24/24 PASS**,
+all 8 standing guards clean, no regression at session start.
+
+**Priority re-scan (GOVERNANCE.md §18), fresh, not a mechanical repeat of run 85's pick:** items 1-11
+unchanged and healthy — `node --check` clean across every `src/**/*.js`, the two `TEMP`/`HACK`/
+`FIXME`/`WORKAROUND` substring hits are the same confirmed-harmless `GREETING_TEMPLATE` false
+positive run 85 already checked, all 8 standing guards clean, smoke suite clean. Items 12-13 (FAZ
+6/7/11 assets): re-checked `assets/models/` directly — the castle/dragon `.glb` files under
+`assets/models/settlements/castles/` and `assets/models/creatures/dragons/` all trace to a single
+old commit (`fe359ac`, 2026-08-05) already wired into `CASTLE_MODEL_ASSIGNMENTS`/manifest since
+ADR-0074/ADR-0086 — confirmed these are not new assets before considering item 4/12/13 unblocked (a
+first glance at `git log --diff-filter=A` output could have misread the batch-add commit as recent).
+No new model file since run ~59. Dragon attack/fire-breath still blocked on the owner's pending
+health-system decision (`QUESTIONS_FOR_OWNER.md`, run 66). That leaves item 14 ("Yeni özellik").
+Rather than a third straight round of touching `worldEvents.js` via its now-familiar "grow the pool"
+or "reweight the pool" moves, this run picked the idea ADR-0110's own Alternatives section had
+already named and explicitly deferred as a separate change: *"A time-of-day or season gate (e.g.
+`mourning_bells` only at night) instead of static rarity... bigger scope... not what run 84's note
+actually asked for."* That scope objection no longer applies here — this is its own dedicated
+sub-task, not bundled into ADR-0110's rarity change. **Gelecek Faz Etkisi:** none beyond FAZ 8 itself
+— still flavor-only (ADR-0056's boundary, unchanged), no stat/quest/persistence hook added; a future
+season/weather system could reuse the same `nightFactor`-gating pattern (or a new `season` field
+alongside `timeOfDay`) if it ever wants one, but nothing requires that today.
+
+**Decision:** `WORLD_EVENTS` entries may carry an optional `timeOfDay: 'day' | 'night'` field —
+applied to exactly 4 of 26 entries whose own text (or the real-world convention for the phenomenon
+it names) is unambiguous about when it happens: `wolf_howl` (night — its own description says
+"Gecenin sessizliğinde", "in the night's silence"), `falling_star` (night — shooting stars are
+conventionally an after-dark sighting), `northern_lights` (night — aurorae are only visible in
+darkness, a real-world fact, not an invented rule), `eclipse` (day — its own description says "Öğle
+vakti", "at midday"). `pickWeightedEvent(random, nightFactor)` gained an optional second parameter:
+when supplied, the pool is filtered to `timeOfDay`-eligible entries (via `isEligible`, comparing
+`nightFactor` against `NIGHT_THRESHOLD = 0.6` / `DAY_THRESHOLD = 0.15`) before the existing
+ADR-0110 weighted pick runs over just that eligible subset; omitting `nightFactor` (every call site
+before this run, and the existing smoke test) skips gating entirely — every entry eligible, byte-
+identical behavior to before. `createWorldEventSystem`'s `system.update(deltaSeconds, nightFactor)`
+forwards the optional second argument straight through. `game3d.js`'s only change is moving its
+existing `updateDayNightLighting(...)` call a few lines earlier (nothing between its old and new
+position reads `state.lights`/`elapsedSeconds` first) so `dayNight.nightFactor` exists before the
+world-event `update()` call just below it, and passing that value through.
+
+**Why two threshold constants instead of one at 0.5:** `lighting.js`'s own keyframe table defines
+dusk/dawn transition points at `nightFactor = 0.35` (ratio 0.27 and 0.73) — a single 0.5 cutoff would
+let a `'night'`-tagged event fire during a still-visibly-orange sunset, or a `'day'`-tagged event fire
+during a still-dim dawn. `NIGHT_THRESHOLD = 0.6` and `DAY_THRESHOLD = 0.15` both sit solidly past
+those transition keyframes on their respective side, so a gated event only fires once the sky itself
+plausibly reads as "night" or "day" to a player looking at it, not merely "past the halfway point."
+Single-number engineering judgment, not measured against a real playtest — logged as a new
+`QUESTIONS_FOR_OWNER.md` entry (2026-08-06) for the same reason ADR-0096's combat-stance radius/
+ADR-0089's wing-flap multiplier were: a "does this feel right" tuning value nobody can calibrate
+without watching a real person react to it.
+
+**Alternatives considered:**
+- *Gate every entry whose title/icon merely sounds nocturnal (e.g. `dragon_shadow`, `red_comet`,
+  `mourning_bells`), not just the 4 with unambiguous text.* Rejected — `dragon_shadow`'s "a shadow
+  passed — or did you imagine it?" doesn't actually specify day or night (a shadow needs a light
+  source either way — sun or moon), and `red_comet`'s "hangs in the sky for days" describes a
+  multi-day *object*, not a moment restricted to one time of day. Gating either would be guessing
+  at authorial intent the text doesn't support, the same "don't invent precision you can't justify"
+  reasoning ADR-0110 already applied to rarity tiers.
+- *A single 0.5 `nightFactor` cutoff instead of two threshold constants.* Rejected — see the
+  dedicated reasoning above (dusk/dawn keyframes sit at 0.35, a 0.5 cutoff doesn't clear them by
+  much on the night side).
+- *Recompute `TOTAL_WEIGHT` for the filtered subset once per `dayNight` state change (cached) instead
+  of on every pick.* Rejected — a pick only happens once per 45-90s per system instance; the `filter`
+  + `reduce` over 26 short objects is microseconds, not worth the cache-invalidation complexity of
+  tracking "did `nightFactor`'s eligibility bucket change since last pick."
+- *Make `nightFactor` a required third constructor option instead of an optional `update()`
+  parameter.* Rejected — would force every existing/future caller (including the committed smoke
+  test's determinism check) to thread a day/night value through even when it doesn't care, and
+  breaks the "gating is additive, never required" property this run wanted for backward compatibility.
+
+**Verified:**
+- `node --check` clean on `worldEvents.js` (180/600, plenty of headroom) and `game3d.js` (545/600 —
+  `checkSmokeCheckRegistry.js`'s 540-line WARN threshold now flags it, noted for a future split, not
+  fatal). `scripts/game3dSmokeChecksScene.js` also now 573/600, same WARN, not fatal.
+- Full committed smoke suite: **25/25 PASS** (was 24 — this run added a permanent, committed
+  regression check rather than a throwaway proof script, per this project's own stated preference for
+  real coverage over one-off verification). The new check, `checkWorldEventsTimeGating`, forces
+  `nightFactor` to solid noon (`0`) and solid midnight (`1`) across 1000 real `update()` draws each
+  and asserts: the 3 night-restricted ids never appear at noon and `eclipse` does; `eclipse` never
+  appears at midnight and at least one night-restricted id does; the pre-ADR-0111 1-argument
+  `update(delta)` call shape still fires without throwing. All 8 standing guards re-run clean.
+- **Real headless-Chromium statistical proof** beyond the committed check: an ad-hoc 4000-draw sample
+  at forced noon and 4000 more at forced midnight (dev-only, not committed) confirmed zero
+  cross-contamination in both directions and measured `eclipse` firing 67/4000 times at noon,
+  `wolf_howl`/`falling_star`/`northern_lights` firing 205/142/76 times respectively at midnight — all
+  consistent with each id's ADR-0110 weight against its gated pool's total.
+- **Real visual proof, both tiers, matching the real sky:** a dev-only Playwright script drove the
+  real running `game3d.html` scene's own day/night clock (via an explicit, Node-triggered
+  `performance.now()` offset applied only after confirming the game already running a few real
+  frames — a load-time-based auto-jump was tried first and silently absorbed into `THREE.Clock`'s
+  lazy `start()` baseline with zero visible effect, a real dead-end worth recording so a future run
+  doesn't repeat it) to a real daytime state (ratio ≈0.51) and a real nighttime state (ratio ≈0.83),
+  then fired the real `createWorldEventSystem` at each until it drew `eclipse` / `northern_lights`
+  respectively, screenshotting through a real `EventBus` → `WorldEventToast`. Day screenshot: bright
+  blue sky, green sunlit terrain, "Güneş Tutulması" toast. Night screenshot: dark starry sky, black
+  silhouetted castle, "Kuzey Işıkları" toast. Zero console/page errors in either capture.
+- **AI Self-Review 2. Geçiş (§8.3):** confirmed `isEligible` returns `true` (no gating) whenever
+  either `event.timeOfDay` or `nightFactor` is `undefined` — the two existing call sites that matter
+  (the pre-ADR-0111 smoke-test determinism check, and any future caller that simply forgets the new
+  argument) both stay exactly as before, not silently broken; confirmed the empty-pool fallback in
+  `pickWeightedEvent` (`pool = eligible.length > 0 ? eligible : WORLD_EVENTS`) is a defensive
+  safety net, not an expected runtime path (22/26 entries carry no `timeOfDay` at all, so `eligible`
+  can only come up empty from a bug in `isEligible` itself); confirmed the `game3d.js` reorder moved
+  exactly one `const`/one function call block with no other statement caught in between, and that
+  `elapsedSeconds`/`dayNight` are still declared before every other place that reads them further
+  down (`updateAuroraSky`/`updateStarfield`/`updateFog`); confirmed no `TEMP`/`HACK`/`FIXME`.
+
+**Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` (new field/parameter, additive) and
+`src/3d/game3d.js` (pure reorder + one new argument at the world-event `update()` call site). New
+committed check in `scripts/game3dSmokeChecksScene.js` + wiring in `scripts/smokeTestGame3D.js`. No
+change to `ui/worldEventToast.js`, `eventBus.js`, `lighting.js`, or any other module.
+
+**Consequences:** The 4 gated entries now only fire when the real sky plausibly matches their own
+text — no more aurora at high noon, no more shooting stars or wolf howls under a bright midday sun,
+no more solar eclipse in the middle of the night. The other 22 entries are completely unaffected
+(still eligible any time, still weighted exactly as ADR-0110 left them). Subtle, not a new mechanic a
+player would consciously notice as a system — just fewer small immersion-breaking mismatches between
+a toast's text and the sky visible behind it.
+
+**Geri alma planı:** `git revert` the single commit — removes every `timeOfDay` field, the
+`NIGHT_THRESHOLD`/`DAY_THRESHOLD`/`isEligible` additions, the `nightFactor` parameter from
+`pickWeightedEvent`/`system.update`, the `game3d.js` reorder (restoring the original call-site
+ordering, itself inert either way), and the new smoke check + its registry wiring. Nothing else
+references `timeOfDay`/`nightFactor`.

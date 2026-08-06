@@ -9319,3 +9319,126 @@ class, not a code finding — nothing in this diff is implicated.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-06, run 86 — scheduled autonomous routine)
+
+Session Snapshot: `GOVERNANCE.md` (325 lines) and `CREDITS.md` confirmed already current against
+this run's incoming rule list (diff-check against the message's rule summary, not a rewrite —
+nothing new to add, consistent with run 85's prediction). `3D_GAME_PROGRESS.md` (run 85's entry),
+`git log -10`, `DECISIONS.md` last 3 ADRs (0109/0110), `QUESTIONS_FOR_OWNER.md` (8 entries, all still
+open, none resolvable unattended this run), `STABLE_TAGS.md`/`perf_log.csv`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md` tails. Eşzamanlılık Kontrolü (§8.14): session started on a detached `HEAD`;
+`origin/main` was already at the identical tip (`d384e4c`, run 85's own last commit) — no real
+divergence, `git checkout main && git reset --hard origin/main` resynced cleanly. Ran the full smoke
+suite before picking any work: **24/24 PASS**, all 8 standing guards clean — clean baseline
+confirmed.
+
+Priority order re-scanned fresh (GOVERNANCE.md §18), not a mechanical repeat of run 85's pick: items
+1-11 unchanged and healthy — no syntax errors (`node --check` clean across every `src/**/*.js`), no
+blocking bugs, no `TEMP`/`HACK`/`FIXME`/`WORKAROUND` markers in `src/` (the one substring hit,
+`GREETING_TEMPLATE`, is the same confirmed-harmless false positive run 85 already checked), all 8
+standing guard scripts clean, smoke suite clean. Items 12-13 double-checked directly rather than
+trusting the note: `git log --diff-filter=A -- 'assets/models/*'` showed a batch of castle/dragon
+`.glb` files that at first glance looked new, but tracing each to its commit (`fe359ac`,
+2026-08-05) confirmed they're the same 8th-castle batch already wired in since ADR-0074/ADR-0086 —
+still no new asset since run ~59. Dragon attack still blocked on the owner's pending health-system
+decision. That left item 14 ("Yeni özellik") — but rather than a third straight round touching
+`worldEvents.js` via its now-familiar "grow the pool" (run 84) or "reweight the pool" (run 85) moves,
+this run acted on an idea ADR-0110 itself had already named and explicitly deferred: day/night gating
+for the handful of entries whose own text is unambiguous about when they happen.
+
+### Sub-task 1: day/night gating for the world-event flavor pool (DECISIONS.md ADR-0111)
+
+4 of 26 `WORLD_EVENTS` entries (`wolf_howl`, `falling_star`, `northern_lights` → night-only;
+`eclipse` → day-only) now carry a `timeOfDay` field, and `pickWeightedEvent`/`system.update` gained
+an optional `nightFactor` parameter (`lighting.js`'s real 0=noon..1=midnight day/night blend) that
+filters the pool to eligible entries before ADR-0110's weighted pick runs. `game3d.js` now computes
+`dayNight` a few lines earlier (pure reorder, no logic change) so its `nightFactor` is available to
+pass into the world-event `update()` call. Gating is fully additive/optional — every call site that
+doesn't pass `nightFactor` (the pre-existing smoke-test determinism check included) behaves exactly
+as before. Full reasoning, threshold rationale, and alternatives considered in ADR-0111.
+
+**DoD status:** `node --check` clean on both touched files (`worldEvents.js` 180/600,
+`game3d.js` 545/600). Full smoke suite **25/25 PASS** both before and after — this run added a
+*permanent, committed* regression check (`checkWorldEventsTimeGating` in
+`game3dSmokeChecksScene.js`, wired into `smokeTestGame3D.js`) rather than a throwaway proof script,
+per this project's established preference for real coverage over one-off verification: it forces
+`nightFactor` to solid noon and solid midnight across 1000 real draws each and asserts zero
+cross-contamination in both directions plus the legacy no-argument call shape still working. All 8
+standing guards re-run clean (`checkSmokeCheckRegistry.js` now WARNs — not fails — that
+`game3dSmokeChecksScene.js` (573/600) and `game3d.js` (545/600) are approaching the 600-line cap;
+noted below for a future split, no violation today). **Real statistical proof beyond the committed
+check:** an ad-hoc 4000-draw sample at forced noon and 4000 more at forced midnight confirmed zero
+cross-contamination and measured `eclipse` firing 67/4000 at noon, the three night-only ids firing
+205/142/76 times at midnight — consistent with each id's ADR-0110 weight against its gated pool.
+**Real visual proof, both tiers, matching the actual rendered sky (§8.5):** a dev-only Playwright
+script drove the real running `game3d.html` scene's own day/night clock to a real daytime state and
+a real nighttime state (see ADR-0111 for the `performance.now()`-jump technique, including a
+documented dead-end where a load-time-based auto-jump silently no-op'd), then fired the real event
+system at each until it drew the specific gated id, screenshotting through a real `EventBus` →
+`WorldEventToast`. Day capture: bright blue sky, green sunlit terrain, "Güneş Tutulması" toast.
+Night capture: dark starry sky, black silhouetted castle, "Kuzey Işıkları" toast. Zero console/page
+errors in either capture. `perf_log.csv` `run86` row (`3/46/393231/44/17/326`) — draw calls/
+triangles/geometries/textures bit-identical to run76-85 (expected: pure selection-logic change, no
+scene object touched). Memory-leak checklist: n/a — no new listener/timer/DOM node, only two frozen
+constants, one pure filter helper, and an optional function parameter. Tech debt counter: **0**
+(unchanged — the two new WARNs are advance notice, not a violation; see Next step). ADR-0111
+written, plus a new `QUESTIONS_FOR_OWNER.md` entry for the two threshold constants (same "tuning
+value nobody can calibrate without a real playtest" pattern as ADR-0089/ADR-0096).
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed `isEligible` returns `true` (no gating) whenever either
+`event.timeOfDay` or `nightFactor` is `undefined` — every pre-existing caller stays byte-identical;
+confirmed the empty-pool fallback in `pickWeightedEvent` is a defensive safety net (22/26 entries
+carry no `timeOfDay` at all, so it can only trigger from a bug in `isEligible` itself, never in normal
+operation); confirmed the `game3d.js` reorder moved exactly one self-contained block with nothing
+else caught in between, and that every later reader of `elapsedSeconds`/`dayNight`
+(`updateAuroraSky`/`updateStarfield`/`updateFog`) still sees them declared first; confirmed no
+`TEMP`/`HACK`/`FIXME`.
+
+**Session Quality Gate (§8.6) after 1 sub-task:** confidence **5/5** — low-risk, fully reversible,
+additive (no existing call site's behavior changed), proven with real statistical draws AND real
+matching-sky screenshots (not just "the filter logic should work" left unverified), zero
+terrain/scale/height touch, a genuine committed regression check added (not a throwaway). **Stopping
+here after 1 sub-task:** same reasoning as runs 84/85 — items 1-11 are healthy, items 12-13 remain
+blocked on missing 3D models or the owner's pending health-system decision, so the only other
+available lever this run is the same "Yeni özellik" bucket already exercised once this run; a second
+pass through it risks the exact filler pattern ADR-0110's own Alternatives section warned against.
+No "6 months from now" ambiguity: ADR-0111 records the full threshold rationale and every rejected
+alternative, so a future reader doesn't have to reverse-engineer why these 4 entries (and no others)
+got gated, or why these two threshold numbers.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| World-event day/night gating | none — any of 26 entries could fire at any sky state | **4 entries gated** (`wolf_howl`/`falling_star`/`northern_lights` night-only, `eclipse` day-only) | mechanism change |
+| Cross-contamination (gated id firing at the wrong time) | n/a (no gating existed) | **zero in 8000 forced draws + 25/25 committed smoke suite** | new invariant, verified |
+| Smoke suite | 24/24 | **25/25** | +1 (new committed `checkWorldEventsTimeGating`) |
+| `worldEvents.js` lines | 145/600 | **180/600** | +35 |
+| `game3d.js` lines | 538/600 | **545/600** | +7 (reorder comments + 1 new arg) |
+| ADR headers in `DECISIONS.md` | 110 | **111** | +1 (ADR-0111) |
+| `QUESTIONS_FOR_OWNER.md` open entries | 8 | **9** | +1 (gating threshold tuning) |
+| `perf_log.csv` rows | 29 | **30** | +1 (`run86`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged (2 files now WARN-flagged near the 600-line cap — see Next step) |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no scene object touched) |
+
+**Oyuncu fark eder mi:** evet, ama ince bir fark — "Kuzey Işıkları" artık yalnızca gerçekten gece
+olduğunda, "Güneş Tutulması" ise yalnızca gerçekten gündüz olduğunda görünecek; toplam olay havuzu,
+sıklığı (ADR-0110'un ağırlıkları) veya oyunun geri kalanı değişmedi — sadece dört olayın ne zaman
+tetiklenebileceği artık gökyüzüyle tutarlı.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Blocked items unchanged
+since run 80: 6 remaining castle seats + all FAZ 6 animals need real rigged models, dragon attack/
+fire-breath needs the owner's pending health-system decision, `erkek-insan`/`kadin-insan`/`koylu`
+differentiation has no design driver. **New, low-priority housekeeping item:** `checkSmokeCheckRegistry.js`
+now WARNs on 2 files approaching the 600-line cap — `scripts/game3dSmokeChecksScene.js` (573/600)
+and `src/3d/game3d.js` (545/600); neither needs a split today, but the next run that touches either
+should plan one rather than pushing further past 540 (same "advance warning" pattern runs 64/67/68
+established for this exact scenario). `CATCH_UP.md`'s next 10-run digest due at run 88 (2 runs away,
+unchanged). `RULES_CHANGELOG.md`'s next consolidation pass due ~run 96 (unchanged, last one was run
+76). Periodic platform check due ~run 90-100 (unchanged, last one was run 70). No blocking bugs,
+syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.

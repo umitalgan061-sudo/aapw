@@ -12,7 +12,8 @@
  * and Playwright bootstrap it uses live in `devServerHelper.js` (run 59, shared with
  * `collectPerfSnapshot.js`). The actual per-feature assertions live in five focused check modules:
  * - `game3dSmokeChecksScene.js` — page/scene level: 2D shell load, 3D mode boot, water
- *   vertex-shader-has-no-displacement, F4 debug camera, F2 debug/profiling panel, world-event system.
+ *   vertex-shader-has-no-displacement, F4 debug camera, F2 debug/profiling panel, world-event system,
+ *   world-event day/night gating.
  * - `game3dSmokeChecks.js` — non-movement per-entity gameplay: settlement collider, jump/gravity arc,
  *   interaction controller, interaction-prompt tap.
  * - `game3dSmokeChecksMovement.js` — ground-movement AI: wolf flee/pack-alert, NPC waypoint patrol,
@@ -73,6 +74,7 @@ async function main() {
 		results.push(await sceneChecks.checkFreeCamera(browser, baseUrl));
 		results.push(await sceneChecks.checkPerfPanel(browser, baseUrl));
 		results.push(await sceneChecks.checkWorldEvents(browser, baseUrl));
+		results.push(await sceneChecks.checkWorldEventsTimeGating(browser, baseUrl));
 		results.push(await checks.checkSettlementCollider(browser, baseUrl));
 		results.push(await checks.checkJumpArc(browser, baseUrl));
 		results.push(await checks.checkInteractionController(browser, baseUrl));

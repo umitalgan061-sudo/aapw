@@ -106,3 +106,14 @@ instead of guessed at silently. Newest entry at the bottom.
   §22'nin "aynı şeyde 2 başarısız denemeden sonra bırak" kuralı gereği zorlanmadı. **Senden
   istenen (1 dakikalık kontrol):** telefonunda PWA'yı kur, uçak moduna al, aç ve OYNAT'a bas —
   harita ve krallıklar geliyor mu? Gelmiyorsa kendi alt görevi olarak ele alınacak.
+
+- **(run 86, ADR-0111) Dünya olayları artık gündüz/gece durumuna göre kısıtlanıyor (kuzey ışıkları
+  vb. artık öğle vakti tetiklenmiyor, güneş tutulması artık gece yarısı tetiklenmiyor) — bu geçiş
+  eşiği ("ne kadar karanlık olursa 'gece' sayılır") doğru mu hissettiriyor?** `gameplay/worldEvents.js`'e
+  eklenen `NIGHT_THRESHOLD = 0.6` / `DAY_THRESHOLD = 0.15` (lighting.js'in 0=öğle..1=gece yarısı
+  `nightFactor` ölçeğinde) bu çalıştırmanın kendi mühendislik tahmini — `lighting.js`'in alacakaranlık/
+  şafak geçiş noktalarının (nightFactor 0.35) net biçimde dışında kalacak şekilde seçildi, ama gerçek
+  bir oyun testiyle kalibre edilmedi. **Geçici varsayılan:** yukarıdaki iki sabit değer kullanılıyor;
+  ADR-0111'de tam gerekçesi var. Eğer bir olay ("kuzey ışıkları" gibi) hâlâ çok erken/geç bir saatte
+  tetikleniyormuş gibi hissettirirse, bu tek satırlık bir sabit değişikliği.
+

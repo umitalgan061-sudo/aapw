@@ -8,6 +8,9 @@
  * (`EVENTS.WORLD_EVENT_TRIGGERED`) rather than called directly — the explicit ask was to extend the
  * EventBus to real gameplay events, not just add another direct function call. `ui/worldEventToast.js`
  * is the (only, for now) listener, rendering the same icon/title/description shape as a toast card.
+ * Selection is weighted by rarity tier (ADR-0110) and, for the handful of entries whose own text is
+ * unambiguous about when they happen, gated against `lighting.js`'s real day/night state (ADR-0111,
+ * run 86) — an aurora no longer fires at high noon, an eclipse no longer fires at midnight.
  * @module gameplay/worldEvents
  */
 
@@ -36,6 +39,15 @@ function mulberry32(seed) {
  * precision you can't justify" reasoning as every `QUESTIONS_FOR_OWNER.md` temporary-default entry). */
 const WEIGHT = Object.freeze({ COMMON: 3, UNCOMMON: 2, RARE: 1 });
 
+/** How close to full day/night `dayNight.nightFactor` (`lighting.js`, 0 = noon, 1 = midnight) must
+ * be before a `timeOfDay`-restricted event (ADR-0111) is eligible to fire. Both thresholds
+ * deliberately exclude `lighting.js`'s own dusk/dawn keyframes (`nightFactor` 0.35 at ratio
+ * 0.27/0.73) — an event tagged `'night'` shouldn't fire during a still-orange sunset, and one tagged
+ * `'day'` shouldn't fire during a still-dim dawn. Single-number engineering judgment, not measured
+ * against a real playtest — see `QUESTIONS_FOR_OWNER.md`'s newest entry (run 86). */
+const NIGHT_THRESHOLD = 0.6;
+const DAY_THRESHOLD = 0.15;
+
 /** Curated flavor events — pure lore/ambiance, no stat effects (see module doc for why). Kept local
  * to this file rather than in `config.js`, which is already at its 600-line cap — same
  * "tool/system-specific constants stay local" precedent `debug/perfPanel.js`'s own budgets set.
@@ -45,17 +57,21 @@ const WEIGHT = Object.freeze({ COMMON: 3, UNCOMMON: 2, RARE: 1 });
  * pool's own text frames as a possible omen/portent, or a lore-significant one-off (a season
  * changing, a dragon's shadow). The split is this run's own editorial judgment, not measured against
  * a real playtest — see ADR-0110's Alternatives for why a per-entry knob was rejected in favor of
- * just three tiers. */
+ * just three tiers. `timeOfDay` (ADR-0111, run 86): an optional `'day'`/`'night'` gate, omitted =
+ * eligible any time. Only applied to the 4 entries whose own text (or real-world convention for the
+ * phenomenon it names) is unambiguous about when it happens — see ADR-0111's Decision for why every
+ * other entry, including tonally-similar ones like `dragon_shadow`/`red_comet`, was deliberately left
+ * ungated rather than guessed at. */
 const WORLD_EVENTS = Object.freeze([
 	{ id: 'raven', icon: '🐦', title: 'Kuzgun Ulaştı', desc: 'Uzak bir kaleden kuzgun mesajı geldi.', color: '#8faabb', weight: WEIGHT.COMMON },
 	{ id: 'distant_storm', icon: '🌩️', title: 'Uzak Fırtına', desc: 'Ufukta fırtına bulutları toplanıyor.', color: '#4a88c8', weight: WEIGHT.COMMON },
-	{ id: 'wolf_howl', icon: '🐺', title: 'Kurt Uluması', desc: 'Gecenin sessizliğinde bir kurt uluması yankılandı.', color: '#8faabb', weight: WEIGHT.COMMON },
+	{ id: 'wolf_howl', icon: '🐺', title: 'Kurt Uluması', desc: 'Gecenin sessizliğinde bir kurt uluması yankılandı.', color: '#8faabb', weight: WEIGHT.COMMON, timeOfDay: 'night' },
 	{ id: 'feast_fires', icon: '🔥', title: 'Şölen Ateşleri', desc: 'Bir kalede şölen ateşleri yakıldı, kutlama sesleri rüzgarda taşınıyor.', color: '#e8784a', weight: WEIGHT.UNCOMMON },
 	{ id: 'dragon_shadow', icon: '🐉', title: 'Ejderha Gölgesi', desc: 'Gökyüzünde bir gölge geçti — yoksa hayal mi gördün?', color: '#c8430a', weight: WEIGHT.RARE },
 	{ id: 'guard_change', icon: '⚔️', title: 'Nöbetçi Değişimi', desc: 'Kale kapılarında nöbetçiler el değiştiriyor.', color: '#c8960a', weight: WEIGHT.COMMON },
 	{ id: 'sept_prayer', icon: '🕯️', title: 'Yedi Tanrı\'ya Dua', desc: 'Bir Sept\'ten mumların titreyen ışığı görünüyor.', color: '#e8b420', weight: WEIGHT.COMMON },
 	{ id: 'maester_raven', icon: '📜', title: 'Maester\'ın Kaydı', desc: 'Bir maester yeni bilgi kayıtlarını tamamladı.', color: '#20c8a0', weight: WEIGHT.UNCOMMON },
-	{ id: 'falling_star', icon: '🌠', title: 'Düşen Yıldız', desc: 'Gökyüzünde bir yıldız kayarken görüldü — bazıları bunu bir alamet sayar.', color: '#c8b4e8', weight: WEIGHT.UNCOMMON },
+	{ id: 'falling_star', icon: '🌠', title: 'Düşen Yıldız', desc: 'Gökyüzünde bir yıldız kayarken görüldü — bazıları bunu bir alamet sayar.', color: '#c8b4e8', weight: WEIGHT.UNCOMMON, timeOfDay: 'night' },
 	{ id: 'horse_gallop', icon: '🐎', title: 'Nal Sesleri', desc: 'Uzaktan bir atın nal sesleri duyuluyor — bir haberci mi, yoksa devriye mi?', color: '#b48a5a', weight: WEIGHT.COMMON },
 	{ id: 'trade_caravan', icon: '🛒', title: 'Tüccar Kervanı', desc: 'Kale yoluna bir tüccar kervanı yaklaşıyor, çanları uzaktan duyuluyor.', color: '#c89a30', weight: WEIGHT.UNCOMMON },
 	{ id: 'bell_toll', icon: '🔔', title: 'Çan Sesi', desc: 'Bir kalenin çanı çalıyor — nöbet değişimi mi, yoksa bir uyarı mı?', color: '#a0a0c8', weight: WEIGHT.UNCOMMON },
@@ -69,31 +85,46 @@ const WORLD_EVENTS = Object.freeze([
 	{ id: 'mourning_bells', icon: '🖤', title: 'Yas Çanları', desc: 'Bir kaleden yavaş, ağır çan sesleri geliyor — biri kaybedilmiş.', color: '#4a4a4a', weight: WEIGHT.RARE },
 	{ id: 'red_comet', icon: '☄️', title: 'Kızıl Kuyruklu Yıldız', desc: 'Gökyüzünde günlerdir asılı duran kızıl bir kuyruklu yıldız — kimileri bunu bir hanedanın alâmeti sayıyor.', color: '#9c2a1e', weight: WEIGHT.RARE },
 	{ id: 'hunting_party', icon: '🦌', title: 'Av Dönüşü', desc: 'Bir av birliği kale kapısından geri döndü, atların sırtında günün avı asılı.', color: '#5a7a3a', weight: WEIGHT.UNCOMMON },
-	{ id: 'eclipse', icon: '🌑', title: 'Güneş Tutulması', desc: 'Öğle vakti gökyüzü kararıyor — kimileri bunu bir felaket alâmeti sayıyor, kimileri sadece doğanın bir cilvesi.', color: '#2a1f3d', weight: WEIGHT.RARE },
+	{ id: 'eclipse', icon: '🌑', title: 'Güneş Tutulması', desc: 'Öğle vakti gökyüzü kararıyor — kimileri bunu bir felaket alâmeti sayıyor, kimileri sadece doğanın bir cilvesi.', color: '#2a1f3d', weight: WEIGHT.RARE, timeOfDay: 'day' },
 	{ id: 'shackled_prisoner', icon: '⛓️', title: 'Zincirli Mahkûm', desc: 'Nöbetçiler zincirli bir mahkûmu kale kapısından zindana sürüklüyor — suçu neydi, kimse bilmiyor.', color: '#5c5c4a', weight: WEIGHT.UNCOMMON },
-	{ id: 'northern_lights', icon: '🌌', title: 'Kuzey Işıkları', desc: 'Ufkun kuzeyinde gökyüzü yeşile çalan bir ışıkla dalgalanıyor — yaşlılar bunu Duvar\'ın kendi uyarısı sayar.', color: '#2a7a5a', weight: WEIGHT.RARE },
+	{ id: 'northern_lights', icon: '🌌', title: 'Kuzey Işıkları', desc: 'Ufkun kuzeyinde gökyüzü yeşile çalan bir ışıkla dalgalanıyor — yaşlılar bunu Duvar\'ın kendi uyarısı sayar.', color: '#2a7a5a', weight: WEIGHT.RARE, timeOfDay: 'night' },
 	{ id: 'traveling_singer', icon: '🎻', title: 'Gezgin Ozan', desc: 'Kale kapısına gelen bir ozan, eski krallardan kalma bir türküyü mızıkasıyla çalmaya başlıyor.', color: '#8a5ac8', weight: WEIGHT.UNCOMMON },
 ]);
 
-/** Sum of every entry's `weight` — computed once at module load (the array is frozen/fixed-size),
- * not per-pick. */
-const TOTAL_WEIGHT = WORLD_EVENTS.reduce((sum, event) => sum + event.weight, 0);
+/** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
+ * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test
+ * caller that only passes `deltaSeconds`) always returns `true`: gating is additive, never a new
+ * required argument. An event with no `timeOfDay` field is likewise always eligible. */
+function isEligible(event, nightFactor) {
+	if (event.timeOfDay === undefined || nightFactor === undefined) return true;
+	if (event.timeOfDay === 'night') return nightFactor >= NIGHT_THRESHOLD;
+	if (event.timeOfDay === 'day') return nightFactor <= DAY_THRESHOLD;
+	return true;
+}
 
 /**
- * Picks one `WORLD_EVENTS` entry, weighted by its `weight` field (ADR-0110) — higher-weight entries
- * come up more often, same one-`random()`-call-per-pick shape the old uniform
- * `WORLD_EVENTS[Math.floor(random() * WORLD_EVENTS.length)]` had, so this doesn't change how many
- * PRNG draws a `update()` call consumes.
+ * Picks one `WORLD_EVENTS` entry, weighted by its `weight` field (ADR-0110) and, when `nightFactor`
+ * is supplied, filtered first by `timeOfDay` eligibility (ADR-0111) — higher-weight *eligible*
+ * entries come up more often. Still one `random()` call per pick, same shape as before ADR-0110/0111
+ * both times, so this doesn't change how many PRNG draws an `update()` call consumes.
  * @param {() => number} random
- * @returns {{id: string, icon: string, title: string, desc: string, color: string, weight: number}}
+ * @param {number} [nightFactor] `lighting.js`'s day/night blend (0=noon..1=midnight). Omit to skip
+ *   time-of-day gating entirely (every entry eligible, same as before ADR-0111).
+ * @returns {{id: string, icon: string, title: string, desc: string, color: string, weight: number, timeOfDay?: string}}
  */
-function pickWeightedEvent(random) {
-	let remaining = random() * TOTAL_WEIGHT;
-	for (const event of WORLD_EVENTS) {
+function pickWeightedEvent(random, nightFactor) {
+	const eligible = WORLD_EVENTS.filter((event) => isEligible(event, nightFactor));
+	// 22 of 26 entries carry no `timeOfDay` at all, so `eligible` can only ever come up empty from a
+	// bug in this function itself — this fallback is a safety net against ever emitting nothing, not
+	// an expected runtime path.
+	const pool = eligible.length > 0 ? eligible : WORLD_EVENTS;
+	const totalWeight = pool.reduce((sum, event) => sum + event.weight, 0);
+	let remaining = random() * totalWeight;
+	for (const event of pool) {
 		remaining -= event.weight;
 		if (remaining < 0) return event;
 	}
-	return WORLD_EVENTS[WORLD_EVENTS.length - 1]; // Float rounding guard; never hit in practice.
+	return pool[pool.length - 1]; // Float rounding guard; never hit in practice.
 }
 
 /** Real-time seconds between events — randomized per-firing within this range so it never reads as
@@ -124,13 +155,17 @@ export function createWorldEventSystem({ eventsBus, seed, eventName }) {
 	/**
 	 * Call once per frame with the real elapsed seconds since the last call. No-op after `dispose()`.
 	 * @param {number} deltaSeconds
+	 * @param {number} [nightFactor] `lighting.js`'s day/night blend for this frame (0=noon..1=
+	 *   midnight), forwarded into `pickWeightedEvent` for `timeOfDay` gating (ADR-0111). Optional and
+	 *   additive — omitting it (as every caller did before run 86) picks from the full pool exactly
+	 *   like before, gating none of it.
 	 */
-	system.update = (deltaSeconds) => {
+	system.update = (deltaSeconds, nightFactor) => {
 		if (disposed) return;
 		secondsUntilNext -= deltaSeconds;
 		if (secondsUntilNext > 0) return;
 		secondsUntilNext += MIN_INTERVAL_SECONDS + random() * (MAX_INTERVAL_SECONDS - MIN_INTERVAL_SECONDS);
-		const picked = pickWeightedEvent(random);
+		const picked = pickWeightedEvent(random, nightFactor);
 		eventsBus.emit(eventName, picked);
 	};
 

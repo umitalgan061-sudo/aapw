@@ -441,16 +441,11 @@ export async function initGame3D() {
 
 			state.controls.update(); // required every frame: enableDamping is on
 			streamAroundOrbitTarget(state);
-			// Same §8.13 safe mode as the four subsystems above, singleton shape like `interaction` —
-			// but this one does own something to release on failure (its countdown), so it passes a
-			// `disposeOnError`. `worldEvents.dispose()` is idempotent, so the unconditional teardown
-			// call further down stays safe even after this path already disposed it.
-			state.worldEventsDisabledDueToError = updateSystemSafely({
-				disabled: state.worldEventsDisabledDueToError,
-				label: 'World-event system',
-				update: () => state.worldEvents.update(delta),
-				disposeOnError: () => state.worldEvents.dispose(),
-			});
+			// Computed here (moved up from its original position just below, run 86/ADR-0111) so
+			// `dayNight.nightFactor` exists before the world-event block right below needs it to gate
+			// time-of-day-restricted events (no aurora at high noon, no midday eclipse at 3am). Nothing
+			// between here and its old call site reads `state.lights`/`elapsedSeconds` first, so the
+			// reorder is inert for every other caller of `dayNight` further down.
 			const elapsedSeconds = state.elapsedSeconds;
 			const dayNight = updateDayNightLighting(
 				state.lights,
@@ -458,6 +453,18 @@ export async function initGame3D() {
 				WORLD_DEFAULTS.DAY_LENGTH_SECONDS,
 				WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO,
 			);
+			// Same §8.13 safe mode as the four subsystems above, singleton shape like `interaction` —
+			// but this one does own something to release on failure (its countdown), so it passes a
+			// `disposeOnError`. `worldEvents.dispose()` is idempotent, so the unconditional teardown
+			// call further down stays safe even after this path already disposed it. `dayNight.
+			// nightFactor` (run 86/ADR-0111) lets the picker gate day/night-restricted flavor events
+			// against the real sky state instead of firing at any hour.
+			state.worldEventsDisabledDueToError = updateSystemSafely({
+				disabled: state.worldEventsDisabledDueToError,
+				label: 'World-event system',
+				update: () => state.worldEvents.update(delta, dayNight.nightFactor),
+				disposeOnError: () => state.worldEvents.dispose(),
+			});
 			// F4 debug free-cam (ADR-0049): no-op while inactive; `viewCamera` is what renders below.
 			state.freeCamera.update(delta);
 			const viewCamera = state.freeCamera.active ? state.freeCamera.camera : state.camera;
