@@ -323,3 +323,14 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `git push origin main` succeeded (`40f315f`). Local tag only — `git push origin <tag>` still
   rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry
   satisfies the checkpoint).
+
+- **`stable-2026-08-06-0854` (run 89, commit `782857b`):** Session Quality Gate passed (confidence
+  5/5 after 1 sub-task — `twin-guard-1`'s 3rd dialogue choice, the pilot's 3rd NPC to reach the
+  3-choice tier [ADR-0115]), full smoke suite 26/26 PASS, `node --check` clean across the full
+  sweep, only the pre-existing `game3d.js` 545/600 WARN remains (unchanged since run 87),
+  `game3d.html` boots with zero console/page errors (confirmed via 2 real Playwright screenshot
+  captures for ADR-0115, both zero errors, both showing a real in-flight `WorldEventToast`).
+  `perf_log.csv` `run89` row bit-identical to run76-88 (config-only content change, no scene object
+  touched). `git push origin main` succeeded (`782857b`). Local tag only — `git push origin <tag>`
+  still rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag +
+  this entry satisfies the checkpoint).
