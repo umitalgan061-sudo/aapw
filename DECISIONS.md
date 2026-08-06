@@ -12084,3 +12084,98 @@ split happened and where the line was drawn.
 inline body, removes `dragonReactionState.js`, reverts the service-worker shell-list entry/version
 bump and the README edits. Nothing else references `dragonReactionState.js`'s exports directly (only
 `dragonController.js` imports it), so a revert is a clean, single-commit operation.
+
+## ADR-0137: `analyzePerfTrend.js` — plain-text perf trend report over `perf_log.csv` (GOVERNANCE.md §16 deferred item)
+
+**Status:** Accepted (run 110 — scheduled autonomous routine).
+
+**Risk Seviyesi:** LOW — new, standalone dev-tool script; reads `perf_log.csv` only, writes
+nothing, touches no runtime/gameplay code, not wired into the smoke suite or any DoD gate.
+
+**Context:** priority re-scan this run (§18) found items 1-3 (macro relief/road network/terrain
+color) closed since earlier runs, item 4 (remaining 6 kingdom-seat textures) still asset-blocked,
+items 5-8/10-11 all clean (full `node --check` sweep clean; baseline `smokeTestGame3D.js` **32/32
+PASS**, 0 FAIL, zero console/page errors; every standing guard clean; no file within reach of the
+600-line cap — run 109's own split left the repo with zero WARNs). Items 12-13 (FAZ 7 dragon
+follow-ups, FAZ 11 species) remain owner-decision/asset-model-blocked, unchanged since run 109. That
+left item 9 (teknik borç) with no fresh candidate and item 14 (new feature) — but GOVERNANCE.md §16
+already names a concrete, zero-risk, already-flagged-as-doable item: the "30-commit performans trend
+grafiği" deferred rule, whose 30+-row threshold was crossed at run 96 and explicitly marked
+"ilk uygun boşlukta ele alınabilir" (take it up at the first convenient opening) rather than
+mandatory. With `perf_log.csv` now at 52 rows and no forcing tech-debt/new-feature candidate ahead
+of it in priority order, this was that opening.
+
+**Decision:** add `scripts/analyzePerfTrend.js` — reads `perf_log.csv`, prints min/max/avg per
+numeric column, reports first-vs-last for the four GPU-submission columns (drawCalls/triangles/
+geometries/textures — expected to move only when real content changes, so "first vs. last" is the
+useful framing, not a noise-drift ratio), and runs a first-half-vs-second-half average-ratio check
+specifically on `jsHeapUsedMB` (the one column expected to be noisy without a real problem) to flag
+sustained upward drift as a possible memory-leak signal. Plain stdout text/tables, matching every
+existing `scripts/check*.js`/`collectPerfSnapshot.js` convention in this repo (CommonJS `require`,
+single-purpose, informational-only where noted) — deliberately **not** a rendered chart image/PNG.
+
+**Alternatives considered:**
+- *Render an actual chart (canvas-to-PNG, or an SVG sparkline) instead of a text table.* Rejected:
+  this project has zero charting dependency anywhere (vanilla JS, no npm dependency tree at all —
+  confirmed again this run, still no `package.json`), and adding one (or hand-rolling SVG polyline
+  math) is real, avoidable complexity for a private, single-owner repo's dev-only tool over ~50
+  rows of data that (per this same script's own first real run below) turned out to already be
+  almost perfectly flat — a table already shows everything a chart would, at a fraction of the
+  code and zero new risk surface. If `perf_log.csv` ever grows enough rows that a text table stops
+  being scannable, revisit then.
+- *Wire this into `checkSmokeCheckRegistry.js` or the Playwright smoke suite as a pass/fail gate.*
+  Rejected: a "second-half average is N× the first-half" heuristic is a soft signal worth a human
+  glance, not a hard correctness assertion the way every real smoke check's exact-value assertions
+  are — matching `collectPerfSnapshot.js`'s own established "measure and record, never gate"
+  precedent (its header explicitly disclaims pass/fail). Making it a gate would also mean picking
+  a threshold precise enough to never false-positive on this container's own known ~35% run-to-run
+  jsHeapUsedMB noise band, which is a much higher bar than an informational script needs to clear.
+- *Compute a real linear-regression slope instead of a first-half/second-half average ratio.*
+  Rejected as unnecessary precision for what this needs to answer ("is memory trending up, yes or
+  no") — a slope calculation adds real code (least-squares math) for a question the simpler
+  halves-comparison already answers clearly given how flat the real data turned out to be; revisit
+  if a future run's data is noisy enough that halves-comparison stops giving a clear answer.
+
+**Verification:** `node --check scripts/analyzePerfTrend.js` clean, plus the full repo sweep
+(`src/`+`scripts/`+`service-worker.js`, 76 JS files now) clean. Ran against the real, current
+`perf_log.csv` (52 rows, run59..run110 — this run's own `collectPerfSnapshot.js run110` sample
+included): drawCalls/geometries/textures unchanged since the very first sample (46/44/17), triangles
+moved -236 (393,467→393,231, the known run-67 world-content change, not new), `jsHeapUsedMB`
+first-half avg 314.7MB vs. second-half avg 319.6MB — a 1.02x ratio, correctly reported as **OK, no
+drift** (well under the 1.5x warn threshold), confirming by real aggregate evidence (not just each
+run's own single-sample "bit-identical to baseline" note) that 52 runs of dragon/UI/refactor work
+have produced no cumulative memory growth. `checkServiceWorkerCache.js`: unaffected — `scripts/` dev
+tooling is outside its precache scope (re-confirmed, still 60 JS files precached, unchanged). Full
+`smokeTestGame3D.js` re-run after adding the file: **32/32 PASS**, 0 FAIL, zero console/page errors,
+byte-identical to the pre-change baseline captured at the top of this run (expected — a new,
+unimported dev script cannot affect any runtime path). No visual proof — a stdout-only dev tool has
+no rendered-UI surface (same reasoning ADR-0135's docs-only change and ADR-0136's refactor both
+already used for their own non-visual changes); this ADR's own printed output above is the
+applicable evidence.
+
+**AI Self-Review 2. Geçiş (§8.3):** re-read the script once more as a skeptic before committing —
+confirmed `CONTENT_COLUMNS`' "first vs. last" framing can't misreport a mid-run dip-then-recovery as
+"unchanged" (it only compares endpoints, which is the correct framing for a column that's supposed
+to be a step function, not a continuous metric); confirmed the drift check's `mid =
+Math.floor(n/2)` split means an odd row count puts the extra row in the second half, a harmless
+one-row skew given the guard only fires at >=10 rows; confirmed empty/missing `jsHeapUsedMB` cells
+(the CSV's trailing-comma-optional column) are filtered via `Number.isFinite` before any average,
+so a blank cell can't silently become `NaN`-poisoned math. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+Memory leak checklist: n/a — a one-shot CLI script with no listeners/timers/DOM/GPU resources of its
+own.
+
+**Etkilenen sistemler:** new `scripts/analyzePerfTrend.js` only; `perf_log.csv` gained its normal
+per-run `run110` sampling row (via `collectPerfSnapshot.js`, the existing convention, not a new
+schema/column). No other file changes.
+
+**Gelecek Faz Etkisi:** none on any unstarted FAZ — this is dev tooling with no gameplay/world
+surface. Future runs (or the owner) can run this script any time `perf_log.csv` grows to sanity-
+check for drift without re-deriving the min/max/avg math by hand each time.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — a small, standalone, fully-verified read-only
+script with a real first execution against real data included as its own evidence; zero runtime
+risk. "6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**Geri alma planı:** delete `scripts/analyzePerfTrend.js`; `perf_log.csv`'s `run110` row (from the
+now-normal `collectPerfSnapshot.js run110` sampling, not specific to this ADR) is independent and
+would stay regardless. Nothing imports or depends on this script.

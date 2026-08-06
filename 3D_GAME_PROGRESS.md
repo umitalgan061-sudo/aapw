@@ -11320,3 +11320,119 @@ run 108).
 **Addendum:** local commit + `git push origin work` (then PR open/merge to `main`) attempted per
 the established workflow; local `git tag stable-2026-08-06-HHMM` + push attempt (expected to hit
 the standing `HTTP 403` per GOVERNANCE.md §8.11) recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-06, run 110 — scheduled autonomous routine)
+
+**Concurrency/snapshot:** this container's local `main` (a stale, previously-diverged branch — 52
+commits only on the local side, 60 only on `origin/main`, the exact "unrelated histories" symptom
+runs 70-72 already documented, distinct from those runs' *own* detached-HEAD variant of the same
+underlying container-boot issue) was resynced via `git checkout -B main origin/main` per §8.14,
+landing exactly on `origin/main`'s real tip (`2aec0ef`, run 109's stable-tag commit) — confirmed via
+`mcp__github__list_pull_requests` (0 open PRs) rather than trusting the local ref alone. Read
+`GOVERNANCE.md` in full (already populated from earlier runs — confirmed it covers every rule the
+fired prompt listed, including every 🆕-tagged item; **no recreation needed**, the fired prompt's own
+"first do this" instruction was already satisfied by a prior run), `3D_GAME_PROGRESS.md`'s run
+108/109 entries, `DECISIONS.md`'s ADR-0135/0136, and `QUESTIONS_FOR_OWNER.md` in full (no new
+unresolved item since run 90; the run-63 leaked-key entry stays open pending owner action,
+unchanged — confirmed the tracked tree still has no `.env`/`ndvi_nvidia.py`, so no regression
+there). `CREDITS.md` also already exists (102 lines, prior-run-populated) — not recreated.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`)
+clean, 75 files (pre-change). All 6 standing guards clean (`checkAssetsManifest.js`: 41 entries;
+`checkServiceWorkerCache.js`: 60 JS files precached; `checkDialogueChoicesShape.js`: 13/14;
+`checkPwaInstallability.js`: OK; `checkCreatureSpeciesConfig.js`: 15 entries;
+`checkSmokeCheckRegistry.js`: 32 checks/12 modules, 75 files, **zero line-count WARNs** — confirms
+run 109's own split left no forced-split candidate behind). Full `scripts/smokeTestGame3D.js`:
+**32/32 PASS**, 0 FAIL, zero console/page errors.
+
+**Priority re-scan (§18):** items 1-3 (macro relief/road network/terrain color) confirmed closed
+(no new evidence to doubt prior runs' repeated confirmation). Item 4 (texture the remaining 6
+kingdom seats) stays asset-blocked — `assets_manifest.json` has no new castle entries. Items 5-8/
+10-11 all clean per the baseline sweep above. Item 9 (teknik borç): the baseline sweep found **zero**
+line-count WARNs — run 109's split left nothing to pick up here this run. Items 12-13 (FAZ 7 dragon
+follow-ups, FAZ 11 species) remain owner-decision/asset-model-blocked, re-confirmed unchanged (no
+new model files under `assets/models/` for horse/dog/cat/bird/raven/sheep/boar). `RULES_CHANGELOG.md`'s
+next consolidation still ~run 116 (not due), `CATCH_UP.md`'s next summary still ~run 118 (not due,
+last done run 108), GOVERNANCE.md §15's next platform check still ~run 111-121 (not clearly due at
+110 either). With items 1-13 exhausted and no forcing tech-debt candidate, GOVERNANCE.md §16's own
+deferred-item table pointed at a concrete, zero-risk, already-flagged-as-doable item ahead of a
+fresh item-14 feature: the "30-commit performans trend grafiği," whose row threshold was crossed at
+run 96 and explicitly marked "take it up at the first convenient opening" — this was that opening.
+
+### Sub-task: `analyzePerfTrend.js` — plain-text perf trend report over `perf_log.csv` (DECISIONS.md ADR-0137)
+
+Added `scripts/analyzePerfTrend.js`: reads `perf_log.csv`, prints min/max/avg per numeric column,
+first-vs-last for the four GPU-submission columns (drawCalls/triangles/geometries/textures — only
+expected to move when real content changes), and a first-half-vs-second-half average-ratio drift
+check specifically on `jsHeapUsedMB` (the one column expected to be noisy without a real problem) to
+flag sustained upward drift as a possible memory-leak signal. Plain stdout text, matching every
+existing `scripts/check*.js`/`collectPerfSnapshot.js` convention (CommonJS, single-purpose,
+informational-only, never gates DoD) — deliberately not a rendered chart image; full reasoning +
+alternatives considered in ADR-0137.
+
+**Run against the real, current data (52 rows, run59..run110 — this run's own
+`collectPerfSnapshot.js run110` sample included):** drawCalls/geometries/textures unchanged since
+the very first sample (46/44/17); triangles moved -236 (393,467→393,231, the known run-67 world-
+content change, not new); `jsHeapUsedMB` first-half avg **314.7MB** vs. second-half avg **319.6MB**
+— a **1.02x** ratio, correctly reported **OK, no drift** (well under the 1.5x warn threshold). This
+is the first real *aggregate* confirmation (52 samples) that this project's own per-run "perf
+bit-identical to baseline" notes have genuinely held with zero cumulative memory growth, not just
+run-to-run in isolation.
+
+**DoD durumu:**
+- [x] `node --check` — clean on the new file plus a full repo sweep (76 files, up from 75)
+- [x] Smoke test — baseline **32/32 PASS** before this sub-task; re-run after, still **32/32 PASS**,
+      0 FAIL, zero console/page errors, byte-identical to the pre-change baseline (expected — a new,
+      unimported dev script touches no runtime path)
+- [x] Görsel kanıt — n/a, stdout-only dev tool has no rendered-UI surface (same reasoning
+      ADR-0135/ADR-0136 both already used for their own non-visual changes); this entry's own
+      printed output above is the applicable evidence
+- [x] Performans bütçesi — `collectPerfSnapshot.js`'s `run110` row (`46/393231/44/17`) bit-identical
+      to the run76-109 baseline, confirming zero rendered-output change
+- [x] Teknik borç sayacı — **0** (unchanged; this adds a dev tool, not debt)
+- [x] `3D_GAME_PROGRESS.md` güncellendi (this entry)
+- [x] ADR yazıldı — DECISIONS.md ADR-0137
+- [x] Commit atıldı (below)
+- [x] Konsol Temizliği — zero console/page errors across the full smoke suite re-run
+
+**AI Self-Review 2. Geçiş (§8.3):** re-read the script once more as a skeptic before committing —
+confirmed the GPU-submission columns' "first vs. last" framing (not a drift ratio) is the right
+shape for a step-function metric; confirmed the odd-row-count `Math.floor(n/2)` split putting the
+extra row in the second half is a harmless one-row skew, not a real bias, at the guard's own >=10-row
+floor; confirmed blank `jsHeapUsedMB` cells are filtered via `Number.isFinite` before any average, so
+they can't NaN-poison the math. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a — a
+one-shot CLI script owns no listeners/timers/DOM/GPU resources.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — small, standalone, fully-verified read-only
+script; its own first real execution against real data is included as evidence, not just a claim of
+correctness. "6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 110 end) | Delta |
+|---|---|---|---|
+| Dev-tooling scripts | 16 | **17** | +1 (`analyzePerfTrend.js`) |
+| `perf_log.csv` rows | 51 | **52** | +1 (`run110`) |
+| `jsHeapUsedMB` aggregate drift (first-half vs. second-half avg) | unmeasured | **1.02x — no drift** | new confirmatory signal |
+| Files (JS, repo-wide) | 75 | **76** | +1 |
+| Smoke suite | 32/32 | **32/32** | unchanged (dev-tool-only addition) |
+| Standing static guards | 6 | 6 | unchanged |
+| ADR headers in `DECISIONS.md` | 136 | **137** | +1 (ADR-0137) |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (dev-tooling-only addition) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** hayır — tamamen görünmez, bir geliştirici komut satırı aracı. Ama artık
+proje sahibi (veya gelecekteki bir çalıştırma) `perf_log.csv` büyüdükçe elle min/max/ortalama
+hesaplamadan gerçek bir bellek-sızıntısı sinyali olup olmadığını tek komutla kontrol edebiliyor.
+
+**Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §8.14.
+Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları (at/araba/köpek-kedi/kuş)
+model bekliyor. No file is near the 600-line cap. `RULES_CHANGELOG.md`'s next consolidation ~run 116,
+`CATCH_UP.md`'s next summary ~run 118, GOVERNANCE.md §15's next platform check ~run 111-121 — all
+three now genuinely close and worth checking first thing next run. With priority items 1-13 and
+§16's perf-trend item all closed, the next run's real open door is item 14 (new feature) unless a
+fresh regression/tech-debt signal appears first.
+
+**Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
+recorded in `STABLE_TAGS.md`.
