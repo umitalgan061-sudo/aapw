@@ -27,11 +27,14 @@
  * NPC's fitting next lever ("has your wit ever gotten you in trouble?"); run 93, DECISIONS.md
  * ADR-0119, gave `stannis-guard-1` a 3rd choice too, its theme a stern justice-loyalist's own
  * private conviction ("have you ever doubted Stannis's cause?") rather than a 3rd fact about his
- * legal code — the pilot's 5th NPC and 1st Baratheon seat to reach the 3rd slot; every other listed
- * NPC below still has exactly 2). 13 of 14 NPCs
+ * legal code — the pilot's 5th NPC and 1st Baratheon seat to reach the 3rd slot; run 94, DECISIONS.md
+ * ADR-0120, gave `cersei-guard-1` a 3rd choice too, its theme a fear-under-a-ruthless-queen angle
+ * ("what happens if you defy Cersei?") rather than a 3rd fact about Lannister wealth/rule — the
+ * exact angle ADR-0119's own "Alternatives considered" logged as this NPC's fitting next candidate —
+ * the pilot's 6th NPC and 1st Lannister seat to reach the 3rd slot; every other listed NPC below
+ * still has exactly 2). 13 of 14 NPCs
  * (`umit-guard-1`/`berkalp-guard-1` — the player's home seat and the Stark seat the wolves already
  * patrol at; `doran-guard-1`/`xaro-guard-1` — Dorne's pride and Qarth's thirteen gates;
- * `cersei-guard-1` — Lannister gold, already flavor-rich in `GREETINGS_BY_NPC_ID`;
  * `stannis-guard-2` — Baratheon's second watchman;
  * `balon-guard-1` — Greyjoy's "we do not sow" flavor, the pilot's first Iron Islands seat;
  * `robin-guard-1` — Arryn's Eyrie height, the pilot's first Vale seat; `ziya-guard-1`/`berk-guard-1`/
@@ -39,7 +42,7 @@
  * `twin-guard-1` — the Twins' crossing/toll flavor, its own distinct Lannister-house seat, not
  * reusing `cersei-guard-1`'s gold-mine angle) get at least 2
  * numbered choices after their greeting (`umit-guard-1`/`berkalp-guard-1`/`twin-guard-1`/
- * `olena-guard-1`/`stannis-guard-1` get 3);
+ * `olena-guard-1`/`stannis-guard-1`/`cersei-guard-1` get 3);
  * picking one (Digit1/Digit2/Digit3 — see
  * `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response line,
  * replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry here —
@@ -107,6 +110,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Cersei Lannister nasıl bir kraliçedir?',
 			response: '{name}: Sorgulanacak biri değildir. Sözü kanundur, burada da öyledir.',
+		}),
+		Object.freeze({
+			label: 'Cersei\'ye karşı gelmek ne olur dersin?',
+			response: '{name}: Karşı gelen fazla yaşamaz, yabancı. Ben emirlere uyarım, sorgulamam — hayatta kalmanın tek yolu bu.',
 		}),
 	]),
 	'stannis-guard-1': Object.freeze([

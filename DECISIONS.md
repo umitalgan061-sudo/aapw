@@ -10886,3 +10886,112 @@ run76-92 for the 4 GPU-submission numbers: 46/393,231/44/17). `dialogueChoices.j
 **Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
 the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
 choice.
+
+## ADR-0120: `cersei-guard-1`'s 3rd dialogue choice — the pilot's 6th NPC to use the 3rd slot
+
+**Date:** 2026-08-06 (run 94, scheduled autonomous routine).
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely additive dialogue-config data (one new object literal
+in an existing `Object.freeze` array) plus a doc-comment update. Fully reversible: `git revert` the
+one commit removes the new choice and restores the header comment's prior wording. No `src/` runtime
+logic touched, no other NPC's entry, no shared module changed.
+
+**Context:** Session Snapshot (GOVERNANCE.md §20) confirmed local `main` was already fast-forwarded
+to `origin/main` at run 93's final commit (`95531b0`) — clean tree, no divergence. Priority re-scan
+(GOVERNANCE.md §18): items 1-3 (terrain macro relief/road network/ground color) remain DONE per their
+own standing guards, not re-touched this run. Item 4 (castle texturing, 7/14) still blocked on real
+models for the other 6 seats. Items 5-11 (syntax/blocking bugs/perf/mem leak/tech debt/smoke
+test/world coverage) all re-confirmed healthy by this run's own pre-work baseline (`node --check`
+clean, `checkDialogueChoicesShape.js` OK — 13/14 pilot coverage, `checkSmokeCheckRegistry.js` OK —
+28 checks/8 modules, same 2 known line-count WARNs; full `smokeTestGame3D.js` suite **28/28 PASS**,
+0 FAIL). Items 12-13 (FAZ 7 dragon follow-ups / FAZ 11 species) remain blocked on models. That leaves
+item 14 ("yeni özellik") as the actionable lever, same conclusion run 93 reached. ADR-0119's own
+"Alternatives considered" already logged `cersei-guard-1` as the next equally-ready candidate (a
+personal-fear-under-Cersei angle) rather than leaving the pick open — this run follows that lead
+directly rather than re-litigating it.
+
+**Gelecek Faz Etkisi:** none — still no further branching/state/persistence/stat hook, same "pilot on
+a growing subset" scope ADR-0058 established; a future real dialogue-tree/quest system would replace
+this mechanism wholesale rather than be constrained by one more leaf choice.
+
+**Decision:** `cersei-guard-1` (Lannister castle guard, voiced in `GREETINGS_BY_NPC_ID` as "Bir
+Lannister borcunu öder. Sen de saygını göster, yeter.") gets a 3rd choice — "Cersei'ye karşı gelmek
+ne olur dersin?" ("What do you think happens if someone defies Cersei?"). Response ("Karşı gelen
+fazla yaşamaz, yabancı. Ben emirlere uyarım, sorgulamam — hayatta kalmanın tek yolu bu.") stays
+in-tone with his existing 2 choices (addresses the player as "yabancı", continues the established
+"a Lannister's word is law here" theme) while adding a personal fear/self-preservation angle distinct
+from the pair's wealth-and-legitimacy framing — genuinely different from every other 3-choice NPC's
+own 3rd-choice angle so far (duty/fatigue for `berkalp-guard-1`, suspicion for `twin-guard-1`,
+regret-over-wit for `olena-guard-1`, private-conviction for `stannis-guard-1`). Implemented as one
+new `Object.freeze({label, response})` entry appended to `CHOICES_BY_NPC_ID['cersei-guard-1']` in
+`gameplay/dialogueChoices.js`, plus the file's header comment updated to record the 6th 3-choice NPC
+and this ADR. No other file touched — `interactionConfig.js`'s existing `GREETINGS_BY_NPC_ID` entry,
+`npcConfig.js`'s spawn entry, `interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` handling, and
+`game3d.js`'s keydown wiring are all unchanged and already generic across every NPC's choice count.
+
+**Real headless-Chromium proof** (dev-only, uncommitted Playwright script, same methodology
+ADR-0115/ADR-0117/ADR-0119 used, deleted before commit): the real `game3d.html` was booted, then the
+same live `CHOICES_BY_NPC_ID`/`INTERACTION_CONFIG`/`DialogueBox`/`InteractionPrompt`/
+`createInteractionController` modules `game3d.js` itself imports were dynamically imported from
+inside the page and driven against a synthetic `cersei-guard-1` NPC. Confirmed: all 3 real choice
+labels render in order ("1) Lannister'lar neden bu kadar zengin?" / "2) Cersei Lannister nasıl bir
+kraliçedir?" / "3) Cersei'ye karşı gelmek ne olur dersin?"), the hint reads exactly
+`'1/2/3 - Seç, Esc - Kapat'` while choices are shown, pressing `Digit3` shows the exact new response
+text with `{name}` replaced by the synthetic NPC's display name, and the hint reverts to
+`'E / Esc - Kapat'` after selection — zero console/page errors throughout (`consoleErrors.length ===
+0`).
+
+**Real visual proof, 2 moments, zero console/page errors in both:** the proof script's `DialogueBox`/
+`InteractionPrompt` were constructed against their real default container (`document.body`) so their
+DOM renders with the game's own live CSS, directly over the real booted `game3d.html` scene (health
+bar `100/100` visible in both) — (1) all 3 choices open, hint `1/2/3 - Seç, Esc - Kapat`; (2) the 3rd
+choice's response shown, hint reverted to `E / Esc - Kapat`, choice list cleared (0 `.g3d-dialogue-
+box-choice` elements remaining).
+
+**Alternatives considered:**
+- *`worldEvents.js`'s flavor pool instead (27 -> 29 entries).* Rejected, same reasoning ADR-0115/
+  ADR-0117/ADR-0119 used — still a legitimate future lever, but a 6th NPC reaching the 3rd dialogue
+  slot continues the more informative, already-proven-safe proof point, and ADR-0119 had already
+  pre-vetted `cersei-guard-1` specifically as the next pick.
+- *A 3rd lore fact about Lannister wealth/succession instead.* Rejected — the existing 2 choices
+  already cover both the wealth (Casterly Rock's mines) and legitimacy (Cersei's unquestioned rule)
+  lore angles; a 3rd near-duplicate would read as padding, same reasoning ADR-0114/ADR-0115/
+  ADR-0117/ADR-0119 used to prefer a personal-question 3rd choice over a 3rd lore fact.
+- *Do nothing this sub-task, stop after the pre-work baseline instead.* Rejected — Session Quality
+  Gate confidence stayed high (existing, well-established pattern, 5 prior ADRs to follow, zero open
+  design ambiguity) and the run budget/time cap were nowhere close, so GOVERNANCE.md §19's chaining
+  rule applies.
+
+**Consequences:** `cersei-guard-1` becomes the pilot's 6th NPC (of 13 with any dialogue choices, 14
+total real NPCs) to use the 3rd dialogue slot. `checkDialogueChoicesShape.js`'s pilot-coverage line
+is unaffected (still 13/14 — no new NPC gained an entry, an existing one grew). No lasting performance
+cost (config-data-only, zero geometry/listener/timer touch in the committed diff). `perf_log.csv`'s
+first `run94` sample read 51/431,217/45/22 (diverging from the run76-93 baseline of 46/393,231/44/17)
+purely from async asset-load timing relative to `collectPerfSnapshot.js`'s fixed settle delay — an
+immediate re-sample (`run94b`, discarded) reproduced the expected 46/393,231/44/17 exactly, confirming
+this was sampling-timing noise, not a regression from this change (which touches zero geometry/
+texture code). The committed `perf_log.csv` `run94` row uses the reproduced, expected values.
+`dialogueChoices.js` grows from 204 to 211 lines, still well inside the 600-line cap.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (fear/self-preservation
+under a specific, named threat) is genuinely distinct from `cersei-guard-1`'s existing 2 choices
+(wealth lore + institutional legitimacy) and from every other 3-choice NPC's own 3rd choice theme —
+no near-duplicate. Confirmed the header-comment update's NPC-list prose stays internally consistent
+(removed `cersei-guard-1` from the "still 2-choice" list, added its own new-choice sentence in the
+same run-by-run chronological style the prior 5 entries use). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`
+anywhere in the diff. Memory leak checklist: n/a, config-data-only (no new listener/timer/DOM/
+geometry-material in the committed diff; the proof script's own `DialogueBox`/`InteractionPrompt`
+instances lived only inside its own disposable headless browser context, never committed).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 6th-generation repeat of an already-proven,
+low-risk pattern (config-data-only, fully reversible, real headless-Chromium + real visual proof both
+confirm the exact rendered text end-to-end), zero open design ambiguity (ADR-0119 had already
+pre-vetted this exact candidate), zero regression in the full smoke suite (28/28 PASS before and
+after). "6 ay sonra hâlâ net mi" tereddüdü yok: this ADR records the exact angle picked, why, and the
+perf-sampling noise investigated and resolved, same as its 5 predecessors.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
+the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
+choice.
