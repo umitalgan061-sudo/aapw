@@ -9630,37 +9630,83 @@ zero `src/` touch, re-proven byte-identical on every moved check, real measured 
 scene change), plus completed the governance-mandated `CATCH_UP.md` digest exactly on its due schedule.
 No "6 months from now" ambiguity: ADR-0113 records exactly why this split, by what theme, and why no
 screenshot pair (a first for this project's refactor ADRs, explicitly reasoned rather than silently
-skipped). **Stopping here after 1 sub-task:** the remaining backlog is exactly as blocked as run 87
-left it (owner decisions / missing model assets) — reaching for a "yeni özellik" pass this run would
-have meant a 5th consecutive round through that bucket (runs 84-87 all used it), risking the exact
-filler pattern ADR-0110's own Alternatives section warned against; this run's actual available lever
-was the tech-debt item instead, which is what got taken.
+skipped). **Continuing rather than stopping here** (§19): the budget was barely touched (7 files/~670
+lines of 25/1200) and the remaining backlog had one genuinely different, non-repeat lever available
+within item 14 — see sub-task 2 below.
 
-**World Evolution Report:**
+### Sub-task 2: `berkalp-guard-1`'s 3rd dialogue choice (DECISIONS.md ADR-0114)
 
-| Metric | Before | After | Delta |
+`git fetch origin main` re-confirmed no concurrent session (§8.14) before starting. Rather than a 5th
+consecutive `worldEvents.js` flavor-pool round (runs 84-87 already exhausted that specific sub-type)
+or repeating run 80's exact pattern on the same file with no new angle, this sub-task acted on run
+80's own logged suggestion — a 2nd NPC's 3rd choice — giving `berkalp-guard-1` a new personal/duty
+question ("Bu kadar uzun süren nöbetler seni hiç yorar mı?"), the pilot's 2nd NPC (of 13) to use the
+3rd slot. Full reasoning, alternatives considered, and the DOM-collision bug caught mid-proof in
+ADR-0114.
+
+**DoD status:** `node --check` clean (`dialogueChoices.js`, 181/600, was 174). `checkDialogueChoicesShape.js`
+OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot coverage unchanged at 13/14.
+Full smoke suite re-run: **26/26 PASS**, 0 FAIL. **Real headless-Chromium proof:** a dev-only,
+uncommitted Playwright script drove the real `createInteractionController`/`DialogueBox`/
+`CHOICES_BY_NPC_ID` against a synthetic `berkalp-guard-1` — confirmed all 3 real choice labels
+render, hint reads `'1/2/3 - Seç, Esc - Kapat'`, `Digit3` shows the exact new response with `{name}`
+replaced, hint reverts correctly after selection. **A real bug caught before the proof ran, not
+shipped:** the script's first draft queried the DOM by class name and silently grabbed the *live*
+game's own already-booted `DialogueBox` instance instead of the proof's synthetic one (both share the
+`.g3d-dialogue-box` class) — fixed by scoping every query to a dedicated container, see ADR-0114's
+root-cause note. **Real visual proof, 2 angles, zero console/page errors in both:** default boot
+camera, then F4 free-cam (driven via in-page synthetic `dispatchEvent`, not Playwright's real
+`page.keyboard`/`page.mouse` — the latter hung indefinitely on a first attempt) — both show the new
+3rd choice's response rendered over the live scene, a real in-flight `WorldEventToast` ("Ejderha
+Görüldü!") visible in both frames. Memory-leak checklist: n/a, config-data-only. Tech debt counter:
+**0** (unchanged). `perf_log.csv`'s already-sampled `run88` row stays accurate (config-only change,
+no scene object touched). ADR-0114 written.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new response's tone matches `berkalp-guard-1`'s
+existing 2 (stoic, addresses the player as "yabancı" like every other guard in this file); confirmed
+no HBO-specific phrasing, checked specifically against the trademarked "kış geliyor" line; confirmed
+the header comment's NPC-list prose was updated ("get 2" -> "get at least 2 (3 for two of them)");
+confirmed no `TEMP`/`HACK`/`FIXME`.
+
+**Session Quality Gate (§8.6) after 2 sub-tasks (+1 housekeeping item):** confidence **5/5** —
+sub-task 2 is a genuinely different lever within item 14 (not a repeat of any sub-type used in runs
+84-87 or even of run 80's own file, beyond reusing its NPC), fully proven with real rendered
+screenshots and a real caught-and-fixed proof-script bug documented rather than silently retried.
+**Stopping the run here, two sub-tasks past the gate:** the remaining backlog is entirely
+owner-decision- or missing-asset-blocked (6 castle seats, FAZ 6 animals, dragon health system) — a 3rd
+sub-task this run would mean reaching for filler rather than the next genuinely valuable, unblocked
+item, exactly what §8.6 and the run-wide time cap (§8.7) exist to prevent.
+
+**World Evolution Report (run 88, cumulative over both sub-tasks):**
+
+| Metric | Run 87 end | Run 88 end | Delta |
 |---|---|---|---|
 | `game3dSmokeChecksScene.js` lines | 573/600 (WARN) | **243/600** | -330, WARN cleared |
 | Check modules | 7 | **8** | +1 (`game3dSmokeChecksDebugTools.js`) |
-| Smoke suite | 26/26 | **26/26** | unchanged (pure move, no new/removed check) |
-| ADR headers in `DECISIONS.md` | 112 | **113** | +1 (ADR-0113) |
+| `berkalp-guard-1` dialogue choices | 2 | **3** | +1 (2nd NPC to use the 3rd slot) |
+| NPCs with dialogue choices | 13/14 | 13/14 | unchanged (grew an existing entry, not coverage) |
+| Smoke suite | 26/26 | **26/26** | unchanged (no new/removed check either sub-task) |
+| ADR headers in `DECISIONS.md` | 112 | **114** | +2 (ADR-0113, ADR-0114) |
 | `perf_log.csv` rows | 31 | **32** | +1 (`run88`) |
 | `CATCH_UP.md` entries | 3 | **4** | +1 (new 10-run digest, on schedule) |
 | World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
 | Tech debt count | 0 | **0** | unchanged (closed 1 WARN, opened none) |
-| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (zero `src/` file touched) |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged |
 
-**Oyuncu fark eder mi:** hayır — bu tamamen perde arkasında bir test-dosyası düzeni; oyunda görünen
-hiçbir şey değişmedi (zaten hiçbir `src/` dosyası bile değişmedi). `CATCH_UP.md`'nin yeni özeti ise
-doğrudan oyuncuya değil, aylarca uzak kalan proje sahibine hitap ediyor.
+**Oyuncu fark eder mi:** sub-task 1 hayır (tamamen perde arkasında bir test-dosyası düzeni). Sub-task
+2 evet, küçük ama doğrudan — Stark kalesindeki nöbetçiyle konuşurken artık 3. bir soru seçeneği de
+var ("Bu kadar uzun süren nöbetler seni hiç yorar mı?"). `CATCH_UP.md`'nin yeni özeti ise doğrudan
+oyuncuya değil, aylarca uzak kalan proje sahibine hitap ediyor.
 
 **Next step for the next run:** re-scan the priority order fresh, as always. Blocked items unchanged
 since run 80: 6 remaining castle seats + all FAZ 6 animals need real rigged models, dragon attack/
 fire-breath needs the owner's pending health-system decision. No other known line-count WARN remains
-— `game3d.js`'s 545/600 (run 87's flag) is the only one left, not yet urgent. `RULES_CHANGELOG.md`'s
-next consolidation pass due ~run 96 (unchanged, last one was run 76). Periodic platform check due
-~run 90-100 (unchanged, last one was run 70). `CATCH_UP.md`'s next digest due at run 98. No blocking
-bugs, syntax errors, or regressions found this run.
+— `game3d.js`'s 545/600 (run 87's flag) is the only one left, not yet urgent. If item 14 is picked
+again: `twin-guard-1`/`olena-guard-1` remain logged candidates for a 3rd dialogue choice (ADR-0114's
+Alternatives), or `worldEvents.js`'s flavor pool (rested one round now). `RULES_CHANGELOG.md`'s next
+consolidation pass due ~run 96 (unchanged, last one was run 76). Periodic platform check due ~run
+90-100 (unchanged, last one was run 70). `CATCH_UP.md`'s next digest due at run 98. No blocking bugs,
+syntax errors, or regressions found this run.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.

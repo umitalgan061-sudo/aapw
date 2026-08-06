@@ -10167,3 +10167,119 @@ tooling, never served, never part of the deployed game.
 pre-split 7-export shape, removes `game3dSmokeChecksDebugTools.js` entirely, and reverts
 `smokeTestGame3D.js`'s `require()`/call-sites/header comment to their pre-split form. Nothing else
 references `game3dSmokeChecksDebugTools.js`.
+
+## ADR-0114: `berkalp-guard-1`'s 3rd dialogue choice — the pilot's 2nd NPC to use the 3rd slot
+
+**Status:** Accepted (run 88).
+
+**Risk Seviyesi:** LOW. Pure content addition to `CHOICES_BY_NPC_ID`'s existing 2-choice array for
+one already-shipped NPC — no new mechanism, no schema change, no other NPC touched. No terrain/
+height/world-scale change (Arazi Değişikliği Güvenlik Kontrolü doesn't apply). Fully reversible:
+`git revert` removes the one new choice object and its header-comment note.
+
+**Context:** Second sub-task this run (2026-08-06, run 88 — scheduled autonomous routine),
+continuing within the same chaining flow (GOVERNANCE.md §19): sub-task 1 (ADR-0113) passed its
+quality gate 5/5 and used almost none of the run's 1200-line/25-file budget (7 files/~670 lines), so
+rather than stopping, the priority order was re-scanned fresh. `git fetch origin main` re-confirmed
+no concurrent session (§8.14) before starting.
+
+**Priority re-scan:** items 1-11 unchanged from this run's own sub-task 1 scan (all healthy/already-
+resolved). Items 12-13 still blocked (no new model asset, health-system decision still pending). That
+leaves item 14 ("yeni özellik") — but rather than the `gameplay/worldEvents.js` flavor-pool growth
+this bucket had used 4 consecutive times before this run's own rest (runs 84-87), or a repeat of
+run 80's `umit-guard-1` pattern on a *different* file, this sub-task picked up run 80's own explicitly
+logged Next-step suggestion: "if item 14 is picked again, worth considering a 2nd NPC's 3rd choice" —
+a genuinely different sub-type within the same low-risk bucket, not a 5th repeat of any single one.
+**Gelecek Faz Etkisi:** none — still no further branching/state/persistence/stat hook, same "pilot on
+a growing subset" scope ADR-0058 established; a future real dialogue-tree/quest system would replace
+this mechanism wholesale rather than be constrained by one more leaf choice.
+
+**Decision:** `berkalp-guard-1` (the Stark seat the wolves already patrol at) gets a 3rd choice —
+"Bu kadar uzun süren nöbetler seni hiç yorar mı?" ("Doesn't standing guard this long ever tire you
+out?") — deliberately a personal/duty question about the guard himself, the same angle ADR-0103 used
+for `umit-guard-1`'s 3rd choice, rather than a 3rd lore fact about House Stark (the NPC's existing 2
+choices already cover winter-lore and wolf-lore; a 3rd lore fact would have been the easy but
+less-interesting option). This keeps the two 3-choice NPCs reading as distinct from each other (one
+character question each, not two near-duplicate "tell me more lore" slots) as well as from the
+2-choice majority. Original text, no HBO-specific material — the response ("Kış geldiğinde
+dinlenecek vakit olmayacak") echoes the Stark house's already-established in-game winter theme
+(present since `berkalp-guard-1`'s very first choice, run 44) without quoting any trademarked line.
+
+**Alternatives considered:**
+- *A 3rd lore fact instead (e.g. about Winterfell's crypts, or the direwolf sigil).* Rejected — the
+  existing 2 choices already cover the two most obvious Stark lore angles (winter-preparedness,
+  wolves); a 3rd lore fact risks reading as padding rather than a genuinely new angle, whereas a
+  personal/duty question opens a angle neither existing choice touches.
+- *Pick a different, still-untouched 2-choice NPC instead of `berkalp-guard-1`.* Considered
+  `twin-guard-1` (a paranoid toll-keeper — a 3rd "have you ever let someone through unnoticed?"
+  question would fit) and `olena-guard-1` (a sharp-tongued Tyrell guard). Both remain legitimate
+  future candidates (noted in `3D_GAME_PROGRESS.md`'s Next step); `berkalp-guard-1` was picked because
+  its own guard's character (stoic, winter-hardened) gives the clearest, least-forced personal-question
+  angle, and because it sits at the same "player's home region, wolves already patrol here" narrative
+  weight as `umit-guard-1` — a fitting 2nd NPC to join the 3-choice tier for that reason.
+- *Give a 3rd choice to two NPCs this run instead of one.* Rejected — one well-considered new choice,
+  fully proven, beats two rushed ones; matches this project's own repeated "don't stack the same
+  sub-type twice in one run to fill time" reasoning (ADR-0110's Alternatives, run 87's stopping
+  rationale) applied here to *content volume* rather than *sub-type repetition*.
+
+**Verified:**
+- `node --check` clean on `dialogueChoices.js` (181/600, was 174). `checkDialogueChoicesShape.js`
+  re-run: **13/13 NPC entries still resolve, all choices within the 3-slot keybinding limit, all
+  labels/responses non-empty, all responses carry `{name}`. Pilot coverage: 13/14** (unchanged — this
+  grew an existing entry, not coverage).
+- Full committed smoke suite, re-run after the change: **26/26 PASS**, 0 FAIL — `checkInteractionController`'s
+  own choice-branching assertions (offer/select/out-of-range/already-consumed/E-closes-mid-choice/
+  no-entry-unaffected) all still pass unchanged, since they exercise the mechanism generically via
+  mocks, not this specific NPC's content.
+- **Real headless-Chromium proof, not assumed from the diff:** a dev-only (not committed) Playwright
+  script booted the real `game3d.html` (zero console/page errors, `game3d-loading` reached
+  `g3d-loading-hidden`), then in-page drove the real `createInteractionController`/`DialogueBox`/
+  `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` against a synthetic `berkalp-guard-1` NPC placed at the
+  player's own position (well inside `radiusMeters`). Confirmed, against the real served modules: all
+  3 real choice labels render ("Kışın geldiğini nereden biliyorsun?" / "Kurtlar neden bu kadar yakın
+  dolaşıyor?" / the new "Bu kadar uzun süren nöbetler seni hiç yorar mı?"), the hint reads exactly
+  `'1/2/3 - Seç, Esc - Kapat'` (proving `dialogueBox.js`'s run-80 length-driven hint still scales
+  correctly to a *different* NPC's 3 choices, not just `umit-guard-1`'s), pressing `Digit3` shows the
+  new response verbatim with `{name}` correctly replaced, and the hint reverts to `'E / Esc - Kapat'`
+  after selection. **A real isolation bug was caught and fixed before the proof ran, not shipped**:
+  the first draft of the proof script queried `document.querySelector('.g3d-dialogue-box')` directly,
+  which silently returned the *live* game's own `DialogueBox` instance (`game3d.js` creates one
+  unconditionally at boot) instead of the proof's own synthetic one, since both share the same CSS
+  class — the proof's own container-scoped query (`myContainer.querySelector(...)`) fixed this; noted
+  here as a re-discoverable pitfall for any future proof script that creates a 2nd instance of a
+  DOM-owning class already instantiated by the live game (same category of gotcha `checkFreeCamera`'s
+  own header comment already flags for `createFreeCameraController`, but this is the first time it
+  bit an *ad-hoc* proof script rather than a committed check). **Real visual proof, 2 angles, zero
+  console/page errors in both:** (1) the live scene's default boot camera, before touching anything;
+  (2) the same live scene after activating F4's free-fly camera and dragging it (driven via in-page
+  `dispatchEvent` synthetic events rather than Playwright's OS-level `page.keyboard`/`page.mouse` APIs
+  — the latter hung indefinitely on a first attempt, root cause not chased down further since the
+  in-page approach, already `checkFreeCamera`'s own established technique, was both reliable and
+  immediate) — both screenshots show the dialogue box rendering the new 3rd choice's response over
+  the live scene (castle silhouette, player model, a real in-flight `WorldEventToast` ["Ejderha
+  Görüldü!"] visible in both frames, proving the rest of the scene keeps ticking underneath).
+- **AI Self-Review 2. Geçiş (§8.3):** confirmed the new choice's response text stays in-tone with
+  `berkalp-guard-1`'s existing 2 (stoic, winter-hardened, addresses the player as "yabancı" like every
+  other guard response in this file); confirmed no HBO-specific phrasing (checked against the
+  trademarked "kış geliyor" line specifically — this response evokes the same in-game winter theme
+  without quoting it, same standard every existing Stark-guard line in this file already meets);
+  confirmed the header comment's NPC-list prose was updated to say "at least 2 (get 3)" rather than a
+  now-inaccurate flat "get 2"; confirmed no `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+- **Değişiklik Etki Analizi:** not required — no terrain/height/noise/world-scale touch.
+- **Görsel Doğrulama Standardı (§8.5):** satisfied — 2 camera angles, zero console/page errors in
+  both, matching this project's standing convention (unlike ADR-0113 earlier this same run, this
+  sub-task *does* touch a real `src/` gameplay file with player-visible content, so a screenshot pair
+  was the right call here, not skipped).
+
+**Etkilenen sistemler:** `src/3d/gameplay/dialogueChoices.js` (one new choice object in
+`berkalp-guard-1`'s array, header comment updated). No change to `interaction.js`, `dialogueBox.js`,
+`gameplayConfig.js`, or any other NPC's entry.
+
+**Consequences:** `berkalp-guard-1` becomes the pilot's 2nd NPC (of 13) to use the 3rd dialogue slot,
+proving the mechanism generalizes to a 2nd NPC rather than staying a one-off. No performance cost
+(config-data-only, zero geometry/listener/timer touch — `perf_log.csv`'s `run88` row, sampled after
+both sub-tasks, stays bit-identical to run76-87).
+
+**Geri alma planı:** `git revert` the single commit (shared with ADR-0113's changes if committed
+together, or its own commit if split) — removes the one new choice object and reverts the header
+comment's NPC-list prose to its pre-change wording. Nothing else references this specific choice.
