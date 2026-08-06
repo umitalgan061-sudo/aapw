@@ -467,3 +467,14 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint). Item
   14 (dialogue 3rd-choice pilot) is now exhausted — next run's priority re-scan should treat it as
   DONE and move to `worldEvents.js`'s flavor pool or re-confirm items 1-13 from scratch.
+
+- **Run 103 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed (confidence
+  5/5) — `market_day` world event (ADR-0130), the pilot's first UNCOMMON+day gated-rarity entry,
+  closing the last empty cell in the (rarity × time-of-day) gated-event coverage matrix (now 6/6).
+  Full smoke suite **29/29 PASS**, real headless-Chromium + real visual proof (2 moments — desktop
+  1280×720 and mobile 390×844, live `game3d.html` scene served over a local static server) confirm
+  the new event renders and its day-gate holds under 1000 forced-midnight draws, 0 console/page
+  errors. `perf_log.csv`'s `run103` row bit-identical to run76-102. Local tag
+  `stable-2026-08-06-1854` created at `f658a15`. `git push origin main` succeeded
+  (`1a361b4..f658a15`). `git push origin <tag>` still rejected, same `HTTP 403` standing block
+  since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
