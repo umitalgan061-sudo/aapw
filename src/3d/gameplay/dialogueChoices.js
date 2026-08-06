@@ -50,7 +50,12 @@
  * Vale seat to reach the 3rd slot; run 99, DECISIONS.md ADR-0126, gave `ziya-guard-1` a 3rd choice
  * too, its theme a garden-guard's own worry that abundance itself draws envy/danger ("doesn't being
  * this fertile make you a target?") rather than a 3rd fact about the harvest — the pilot's 12th NPC
- * and 2nd Reach seat to reach the 3rd slot; every other listed NPC below still has exactly 2). 13 of
+ * and 2nd Reach seat to reach the 3rd slot; run 100, DECISIONS.md ADR-0128, gave `berk-guard-1` a
+ * 3rd choice too, its theme a gate-guard's own memory of misjudging someone's intent ("have you ever
+ * let the wrong person in?") rather than a 3rd fact about Reach hospitality — the pilot's 13th and
+ * final NPC to reach the 3rd slot, completing every choice-enabled seat (only `jon-guard-1`'s
+ * deliberate single-line exclusion below remains uncovered); no NPC below is left at exactly 2). 13
+ * of
  * 14 NPCs
  * (`umit-guard-1`/`berkalp-guard-1` — the player's home seat and the Stark seat the wolves already
  * patrol at;
@@ -58,9 +63,9 @@
  * `olena-guard-1` — Tyrell's gardens/growing-power flavor, now voiced at all 3 of its Reach seats;
  * `twin-guard-1` — the Twins' crossing/toll flavor, its own distinct Lannister-house seat, not
  * reusing `cersei-guard-1`'s gold-mine angle) get at least 2
- * numbered choices after their greeting (`umit-guard-1`/`berkalp-guard-1`/`twin-guard-1`/
- * `olena-guard-1`/`stannis-guard-1`/`cersei-guard-1`/`doran-guard-1`/`xaro-guard-1`/`stannis-guard-2`/
- * `balon-guard-1`/`robin-guard-1`/`ziya-guard-1` get 3);
+ * numbered choices after their greeting (all 13 choice-enabled NPCs — `umit-guard-1`/`berkalp-guard-1`/
+ * `twin-guard-1`/`olena-guard-1`/`stannis-guard-1`/`cersei-guard-1`/`doran-guard-1`/`xaro-guard-1`/
+ * `stannis-guard-2`/`balon-guard-1`/`robin-guard-1`/`ziya-guard-1`/`berk-guard-1` — now get 3);
  * picking one (Digit1/Digit2/Digit3 — see
  * `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response line,
  * replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry here —
@@ -220,6 +225,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Misafirperverliğinizin sınırı tam olarak ne?',
 			response: '{name}: Sofra herkese açıktır, ama kapı herkese değil. Niyetini belli et, gerisi kolay.',
+		}),
+		Object.freeze({
+			label: 'Yanlış birini içeri aldığın oldu mu hiç?',
+			response: '{name}: Oldu, yabancı, bir kez. O günden beri her yüze bakışım değişti — bu kapı artık taştan değil, benim vicdanımdan yapılma.',
 		}),
 	]),
 	'olena-guard-1': Object.freeze([

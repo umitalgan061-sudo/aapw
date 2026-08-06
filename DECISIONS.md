@@ -11709,3 +11709,111 @@ choice.
 **Verification:** full JavaScript syntax sweep, dialogue-shape check, smoke-registry check (29 checks/9 modules), PWA installability, and service-worker cache coverage passed. The Playwright suite passed all 28 pre-existing component checks plus the new dialogue touch check; only the full 3D readiness probe timed out under this container's software renderer. A focused rerun of the new check passed after reviewer accessibility additions. Desktop 1280×720 and touch-mobile 390×844 screenshots showed all three choices and the touch-close hint without overflow. `collectPerfSnapshot.js run100` hit scene-readiness timeout, so no synthetic perf row was written.
 
 **Consequence:** mobile browser and installed-PWA users can open, select, and close FAZ 5 conversations without a physical keyboard, while desktop controls and run-79's dynamically generated `1/2/3` hint remain intact. Four constant listeners are explicitly removed in `dispose()`. No world, asset, save, geometry, material, or texture behavior changed. **Gelecek Faz Etkisi:** later quest dialogue can reuse the validated route without mobile-only gameplay logic. **Rollback:** revert ADR-0127's additive lines and delete its dedicated smoke module.
+
+## ADR-0128: `berk-guard-1`'s 3rd dialogue choice — the pilot's 13th and final NPC to use the 3rd slot
+
+**Date:** 2026-08-06 (run 100, scheduled autonomous routine — new firing, continuing after ADR-0127).
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely additive dialogue-config data (one new object literal
+in an existing `Object.freeze` array) plus a doc-comment update. Fully reversible: `git revert` the
+one commit removes the new choice and restores the header comment's prior wording. No `src/` runtime
+logic touched, no other NPC's entry, no shared module changed.
+
+**Context:** Fresh session/context (new scheduled firing), not a continuation of the session that
+produced ADR-0127 — GOVERNANCE.md/`3D_GAME_PROGRESS.md`/`DECISIONS.md`'s last 3 ADRs (0126-0127)/
+`QUESTIONS_FOR_OWNER.md`/`git log` all read first per the Session Snapshot procedure. `GOVERNANCE.md`,
+`CREDITS.md`, `CATCH_UP.md`, `RULES_CHANGELOG.md`, `STABLE_TAGS.md`, `QUESTIONS_FOR_OWNER.md` all
+already exist from prior runs (confirmed present, not recreated — the incoming prompt's "first create
+GOVERNANCE.md" instruction is stale boilerplate by now). `ARCHITECTURE.md` not re-read (last touched
+2026-08-05, under the 7-day threshold).
+
+**Eşzamanlılık Kontrolü:** local `main` ref was a detached HEAD already pointing at `origin/main`'s
+tip (`392e011`, the ADR-0127 merge commit) — `git fetch origin main` reported a forced-update ref
+change to the exact same commit (shallow-clone local-ref quirk runs 96-99 already diagnosed, not real
+divergence), then `git checkout -B main origin/main` re-pointed the local branch before any new work
+started.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`) — clean. Full
+`scripts/smokeTestGame3D.js` — **29/29 PASS**, 0 FAIL, before any new code (grew from 28 to 29 checks
+in ADR-0127's touch-input work). `checkSmokeCheckRegistry.js` OK (29 checks/9 modules; same 2 known
+line-count WARNs — `game3d.js` 587/600, `dragonController.js` 579/600, unchanged, still under cap).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 (terrain macro relief/road network/ground color/
+castle texturing) remain in their standing states — items 1-3 DONE per their own safety-check guards
+(`terrainSeatSafetyCheck.js`/`roadNetworkSafetyCheck.js`), item 4 (7/14 castles textured) still
+blocked on real models for the remaining 6 seats, unchanged since run 96. Items 5-11 all healthy (0
+tech debt, smoke suite green, coverage unchanged). Items 12-13 (dragon follow-ups / FAZ 11 species)
+remain blocked on models or already-logged owner decisions in `QUESTIONS_FOR_OWNER.md`. That left
+item 14 as the only actionable lever this run — `berk-guard-1` is the single remaining 2-choice NPC
+per ADR-0126's own "Next step" note, `dialogueChoices.js`'s file order confirming it directly.
+
+**Gelecek Faz Etkisi:** none — same as every prior ADR in this series; still no further
+branching/state/persistence/stat hook. This closes the FAZ 5 dialogue-choice pilot's 3rd-slot rollout
+(13/13 choice-enabled NPCs now have 3 choices; `jon-guard-1` remains deliberately excluded per
+ADR-0058) — a future FAZ 9/10 quest-dialogue system would build on this same data shape rather than
+extend it further.
+
+**Decision:** `berk-guard-1` (Berk Tyrell's Reach seat, whose existing 2 choices cover soil fertility
+and hospitality's unstated boundary) gets a 3rd choice — "Yanlış birini içeri aldığın oldu mu hiç?"
+("Have you ever let the wrong person in?"). Response ("Oldu, yabancı, bir kez. O günden beri her yüze
+bakışım değişti — bu kapı artık taştan değil, benim vicdanımdan yapılma.") introduces a genuinely new
+angle not used by any of the prior 12 three-choice NPCs: a gatekeeper's own memory of a past
+misjudgment, reframing the gate as a personal, ongoing burden of judgment rather than a wall — distinct
+from abundance-as-target (`ziya-guard-1`, about the Reach's wealth drawing danger from outside) and
+wit-that-wounds (`olena-guard-1`, about words turned inward), the two other Reach seats' own themes,
+and every other used theme (see ADR-0125/ADR-0126 for the fuller list). Implemented as one new
+`Object.freeze({label, response})` entry appended to `CHOICES_BY_NPC_ID['berk-guard-1']` in
+`gameplay/dialogueChoices.js`, plus the file's header comment updated to record the 13th (and final)
+3-choice NPC and this ADR. No other file touched.
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only, uncommitted proof script, same methodology as the full ADR-0115..0126 series, run over a
+local static server via `devServerHelper.js`; deleted before commit): the real `game3d.html` was
+booted, the live `CHOICES_BY_NPC_ID`/`DialogueBox`/`createInteractionController` modules dynamically
+imported and driven through the real `update()`/`handleKeyDown()` API against a synthetic
+`berk-guard-1` NPC. (1) All 3 real choice labels render in order ("1) Topraklarınız neden bu kadar
+verimli?" / "2) Misafirperverliğinizin sınırı tam olarak ne?" / "3) Yanlış birini içeri aldığın oldu mu
+hiç?"), hint reads exactly `'1/2/3 - Seç, Esc - Kapat'`. (2) Pressing `Digit3` shows the exact new
+response text with `{name}` replaced by the synthetic NPC's display name ("Berk Muhafız"), hint
+reverts to `'E / Esc - Kapat'`, choice list cleared (0 choice elements remaining). Zero console/page
+errors throughout (`consoleErrors.length === 0`).
+
+**Perf sampling:** `perf_log.csv`'s `run100c` row (`46/393231/44/17`) sampled fresh via
+`scripts/collectPerfSnapshot.js`, bit-identical to the run76-100 baseline on draw calls/triangles/
+geometries/textures — expected, this change touches zero geometry/texture code.
+
+**Alternatives considered:**
+- *`worldEvents.js`'s flavor pool instead.* Rejected, same reasoning the prior 12 ADRs used — item 14
+  (the last remaining 2-choice NPC) was the clearer, already-scouted next lever.
+- *A 3rd fact about Reach hospitality customs instead.* Rejected — the existing 2 choices already
+  cover soil fertility and the "state your intent" gate policy; a 3rd near-duplicate lore fact would
+  read as padding, same reasoning the prior 12 ADRs used for their own NPCs.
+- *Leave `berk-guard-1` at 2 choices, pick a different lever entirely.* Rejected — every other item
+  in the priority list remains DONE/healthy/blocked as re-scanned above; item 14 is the only
+  actionable lever, and this is its last uncovered candidate.
+
+**Consequences:** `berk-guard-1` becomes the pilot's 13th (and final) NPC of 13 choice-enabled NPCs
+(14 total real NPCs) to use the 3rd dialogue slot. `checkDialogueChoicesShape.js`'s pilot-coverage
+line is unaffected (still 13/14 real NPCs — `jon-guard-1` deliberately has no entry). No lasting
+performance cost (config-data-only). `dialogueChoices.js` grows to 262 lines, still well inside the
+600-line cap. Item 14 (dialogue choice 3rd-slot pilot) is now exhausted — the next run picking item
+14 again should treat it as DONE and move to `worldEvents.js`'s flavor pool or re-scan from item 1.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (a gatekeeper's own memory of
+misjudging someone) is genuinely distinct from `berk-guard-1`'s existing 2 choices and from every
+other 3-choice NPC's own 3rd choice theme, including its own Reach house-mates `ziya-guard-1`
+(abundance-as-target) and `olena-guard-1` (wit-that-wounds) — no near-duplicate. Header-comment
+NPC-list prose updated consistently, including the "13 of 14" summary now correctly reading "no NPC
+left at exactly 2". No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a,
+config-data-only (no listener/timer/DOM/geometry-material allocation).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 13th-generation repeat of an already-proven,
+low-risk pattern, zero open design ambiguity, zero regression in the full smoke suite (29/29 PASS
+before and after). "6 ay sonra hâlâ net mi" tereddüdü yok — this is the pilot's last item on this
+specific lever, so the next run's priority re-scan will naturally move on.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
+the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
+choice.

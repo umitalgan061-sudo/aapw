@@ -10889,3 +10889,100 @@ kayıtlı.
 **Memory/performance:** four constant DOM listeners per `DialogueBox`, all explicitly removed; no timer/GPU allocation. World coverage remains desktop 96.2% / mobile boot 4.5%; run-99's latest valid renderer snapshot remains authoritative because this DOM-only change adds no renderer work.
 
 **World Evolution Report:** NPC/dialogue-content/animal/dragon/settlement/road/asset counts unchanged from Claude's completed run 99; touch-completable choice conversations increase from prompt-open-only to full open/select/close for all 13 choice-enabled NPCs; smoke registry 28→29; ADR headers 126→127; coverage unchanged; debt 0→0. **Oyuncu fark eder mi:** evet — mobil/PWA oyuncusu artık fiziksel klavye olmadan üç seçenekli konuşmayı tamamlayabilir. **Next step:** fresh `origin/main` fetch; if priority 14 remains the only unblocked item, `berk-guard-1` is the final two-choice candidate. Avoid touching near-cap `game3d.js`; future wiring should first extract an interaction bootstrap helper.
+
+## This Run (2026-08-06, run 101 — scheduled autonomous routine)
+
+**Session Snapshot:** fresh context/session (new scheduled firing, not a continuation of run 100's
+session). The incoming scheduled prompt's "first create GOVERNANCE.md" instruction is stale
+boilerplate again — `GOVERNANCE.md`/`CREDITS.md`/`CATCH_UP.md`/`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/
+`QUESTIONS_FOR_OWNER.md` all already exist from prior runs, confirmed present and read rather than
+recreated. `DECISIONS.md`'s last 3 ADRs (0126-0127, plus this run's own 0128) and
+`3D_GAME_PROGRESS.md`'s run 100 entry read. `ARCHITECTURE.md` not re-read (last touched 2026-08-05,
+under the 7-day threshold).
+
+**Eşzamanlılık Kontrolü:** local repo started in a detached-HEAD state already pointing at
+`origin/main`'s tip (`392e011`, run 100's ADR-0127 merge commit). `git fetch origin main` reported a
+forced-update ref change to the exact same commit — same shallow-clone local-ref quirk runs 96-100
+already diagnosed, not real divergence, no lost work. `git checkout -B main origin/main` re-pointed
+the local branch before any new work started.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`) — clean. Full
+`scripts/smokeTestGame3D.js` — **29/29 PASS**, 0 FAIL, before any new code. `checkSmokeCheckRegistry.js`
+OK (29 checks/9 modules; same 2 known line-count WARNs as run 100 — `game3d.js` 587/600 and
+`dragonController.js` 579/600, unchanged, still under the cap, not yet urgent).
+
+**Priority re-scan (GOVERNANCE.md §18, per the incoming prompt's restated order):** items 1-3
+(terrain macro relief/road network/ground color) remain DONE per their own standing safety-check
+guards (`terrainSeatSafetyCheck.js`/`roadNetworkSafetyCheck.js`) — `world/terrain.js`'s
+`MACRO_RELIEF_FEATURES` (ADR-0075) already layers a mountain + 2 hills with exact, mathematically-
+guaranteed zero-influence-beyond-radius kingdom-seat safety margins; ground color already uses a
+grass-green low/rock-tan high vertex-color blend (`world/terrain.js`'s `LOW_COLOR`/`HIGH_COLOR`).
+Item 4 (castle texturing, 7/14 real seats) still blocked on real models for the remaining 6 seats —
+unchanged since run 96, no new models became available this run. Items 5-11 all healthy (0 tech
+debt, smoke suite green, coverage unchanged). Items 12-13 (dragon follow-ups / FAZ 11 species) remain
+blocked on models or already-logged owner decisions in `QUESTIONS_FOR_OWNER.md`. That left item 14 as
+the only actionable lever this run — `berk-guard-1` was the pilot's single remaining 2-choice NPC per
+run 99/ADR-0126's own "Next step" note.
+
+### Sub-task: `berk-guard-1`'s 3rd dialogue choice (DECISIONS.md ADR-0128)
+
+Full reasoning, alternatives considered, and decision detail are in ADR-0128 — not duplicated here.
+
+**DoD durumu:** `node --check` clean (`dialogueChoices.js`, 262/600, was 253). `checkDialogueChoicesShape.js`
+OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot coverage unchanged at 13/14.
+`checkSmokeCheckRegistry.js` re-run post-change: unchanged (29 checks/9 modules, same 2 known WARNs).
+Full smoke suite re-run: **29/29 PASS**, 0 FAIL (before-baseline also 29/29 PASS, 0 FAIL — regresyon
+yok). **Konsol Temizliği:** the proof script's own headless boot recorded `consoleErrors.length === 0`.
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only, uncommitted proof script, same methodology as the ADR-0115..0127 series, run over a local
+static server, deleted before commit): the real `game3d.html` was booted, the live `CHOICES_BY_NPC_ID`/
+`DialogueBox`/`createInteractionController` modules dynamically imported and driven through the real
+`update()`/`handleKeyDown()` API against a synthetic `berk-guard-1` NPC. (1) All 3 real choice labels
+render in order, hint reads exactly `'1/2/3 - Seç, Esc - Kapat'`. (2) Pressing `Digit3` shows the
+exact new response text with `{name}` replaced ("Berk Muhafız: Oldu, yabancı, bir kez..."), hint
+reverts to `'E / Esc - Kapat'`, choice list cleared. Zero console/page errors throughout.
+
+**Perf sampling:** `perf_log.csv`'s `run100c` row (46/393,231/44/17) bit-identical to the run76-100
+baseline — expected, zero geometry/texture code touched.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (a gatekeeper's own memory
+of misjudging someone's intent) is distinct from `berk-guard-1`'s existing 2 choices and from every
+other 3-choice NPC's own 3rd choice theme, including its own Reach house-mates `ziya-guard-1`/
+`olena-guard-1`. Header-comment NPC-list prose updated consistently (the "13 of 14" summary now
+correctly reads "no NPC left at exactly 2"). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak
+checklist: n/a, config-data-only.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 13th-generation repeat of an already-proven,
+low-risk pattern, zero open design ambiguity, zero regression in the full smoke suite. "6 ay sonra
+hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 101 end) | Delta |
+|---|---|---|---|
+| NPCs with a 3rd dialogue choice | 12/13 | **13/13** | +1 (`berk-guard-1`) — pilot's 3rd-slot rollout now complete |
+| Dialogue choice pilot coverage | 13/14 | 13/14 | değişmedi (`jon-guard-1` deliberately excluded, ADR-0058) |
+| Smoke suite | 29/29 | **29/29** | aynı 29 kontrol, yeniden doğrulandı |
+| ADR headers in `DECISIONS.md` | 127 | **128** | +1 (ADR-0128) |
+| `perf_log.csv` rows | 43 | **44** | +1 (`run100c`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (saf config-data değişikliği) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ölçekte — `berk-guard-1` ile konuşan bir oyuncu artık 3. bir
+soru sorabilir ve Reach kapı nöbetçisinin geçmiş bir yanlış karar üzerine kişisel bir cevabını alır;
+dünyanın geri kalanı değişmedi. Daha genel olarak: FAZ 5'in 3.-seçenek pilot yayılımı artık
+tamamlandı (13/13 seçenek-etkin NPC), bu da bu spesifik levier'ın tükendiği anlamına geliyor.
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Bloklu kalan her şey değişmedi: 6
+kale hâlâ dokusuz, FAZ 6 hayvanları (at/araba/köpek-kedi/kuş) model bekliyor. Item 14 artık tükenmiş
+sayılmalı (13/13 3rd-choice coverage) — bir sonraki dalgada `worldEvents.js`'nin flavor pool'u yeni
+lever olarak değerlendirilebilir, ya da öncelik sırası baştan (item 1'den) taranarak gerçekten hiçbir
+şeyin kaçmadığı teyit edilir. `RULES_CHANGELOG.md`'nin sıradaki konsolidasyonu ~run 116'da (değişmedi).
+`CATCH_UP.md`'nin sıradaki özeti ~run 108'de (değişmedi). `game3d.js` (587/600) ve
+`dragonController.js` (579/600) her ikisi de 600 satır sınırına yaklaşıyor — henüz acil değil ama bir
+sonraki dokunuşta bir bölme planı düşünülmeli.
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.
