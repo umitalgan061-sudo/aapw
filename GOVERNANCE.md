@@ -241,7 +241,7 @@ göreve geçilir.
 | Tam Test Piramidi (7 katman) | mevcut smoke test yetersiz kalmaya başlarsa (sık regresyon kaçıyorsa) |
 | Frame Budget alt-sistem süre ölçümü | F2 panelinin `renderer.info` istatistikleri yetersiz kalırsa (FPS düşüyor ama nedeni belirsizse) |
 | Resmi 1-10 Kod Kalite Skoru | uygulanmıyor — Oturum Kalite Kapısı'nın 1-5 güven skoru yeterli kabul edildi |
-| 30-commit performans trend grafiği | `perf_log.csv` 30+ satır biriktirdikten sonra düşünülebilir |
+| 30-commit performans trend grafiği | `perf_log.csv` 30+ satır biriktirdikten sonra düşünülebilir — **eşik run 96'da geçildi (39 veri satırı); hâlâ zorunlu değil, sadece artık gerçekten yapılabilir bir alt görev, ilk uygun boşlukta ele alınabilir** |
 
 ---
 

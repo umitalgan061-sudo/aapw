@@ -10414,3 +10414,62 @@ konsolidasyonu ~run 96'da (değişmedi). `CATCH_UP.md`'nin sıradaki özeti run 
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+## This Run (2026-08-06, run 96 — scheduled autonomous routine)
+
+**Session Snapshot:** the incoming scheduled prompt's "first create GOVERNANCE.md" instruction is
+stale boilerplate again (this is run 96, not run 1) — `GOVERNANCE.md`/`CREDITS.md`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md` all already exist from prior runs,
+confirmed present and read in full per GOVERNANCE.md §20. Repo state check found local `HEAD`
+detached ahead of a stale local `main` ref (shallow-clone artifact — `git log --oneline | wc -l`
+showed 52 commits reachable from each of `main`/`HEAD` but with different truncation points,
+`git merge-base` came back empty, `git rev-parse --is-shallow-repository` confirmed `true`); a fresh
+`git fetch origin main` + `git ls-remote origin refs/heads/main` both confirmed the actual remote
+`main` was already at the same commit (`23870a7`) as local `HEAD` — run 95's own push had genuinely
+succeeded, nothing lost, just a shallow-clone local-ref quirk. Reset local `main` to match
+`origin/main` directly (`git reset --hard`) — clean tree, no divergence. Pre-work baseline: `node
+--check` clean across all `src/` files, `checkDialogueChoicesShape.js` OK (13/14 pilot coverage),
+`checkSmokeCheckRegistry.js` OK (28 checks/8 modules, same 2 known line-count WARNs), full
+`smokeTestGame3D.js` suite **28/28 PASS**, 0 FAIL.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-4 unchanged/still blocked as in run 95. Items 5-11
+all healthy per the baseline above. Items 12-13 still blocked on models. GOVERNANCE.md §8.12 (rule
+consolidation, due ~every 20 runs) was last run at run 76 — **20 runs ago, due this run** — taken as
+sub-task 1 ahead of the usual item-14 dialogue-choice work.
+
+### Sub-task 1: GOVERNANCE.md §8.12 rule consolidation pass (2nd consolidation, run 76 → run 96)
+
+Reviewed `GOVERNANCE.md` end to end against the current repo state. §16 Ertelenmiş Kurallar table:
+`SaveSystem` still doesn't exist (a `grep` hit in `game3d.js` was a false positive — the match was
+inside that rule's own explanatory code comment, not a real `SaveSystem` module); public API/mod
+support still doesn't exist (a `grep` hit in `dragonController.js` was also a false positive — part
+of the phrase "no other public API" in a JSDoc comment); smoke test suite still adequate (28/28
+PASS, no frequent regressions slipping through); F2's `renderer.info` stats still adequate (no FPS
+drop with an unclear cause has come up) — all four deferred rules still correctly inactive, no
+change needed. One real finding: `perf_log.csv` crossed the "30+ satır" threshold named in the
+30-commit-perf-trend-graph deferred rule (39 data rows as of this run's pre-work baseline, up from
+19 at the run-76 check). This doesn't auto-activate anything (the rule was always phrased as
+"could be considered", not a hard gate) but is now genuinely actionable — noted with a one-line
+addition to `GOVERNANCE.md` §16 rather than silently left for a future consolidation pass to
+re-discover from scratch. §8.11 (tag-push `HTTP 403`, standing since run 58) and §15 (periodic
+platform check, last run 91, next due ~run 111-121) both re-confirmed still accurate, no changes.
+No contradictory or invalidated rule found anywhere else in the document.
+
+**DoD durumu:** documentation-only change (`GOVERNANCE.md`, `RULES_CHANGELOG.md`) — no JS touched,
+`node --check` n/a for this sub-task per GOVERNANCE.md's own DoD note ("sadece dokümantasyon...
+değilse atla"). No visual proof needed (no runtime behavior change). Memory leak checklist: n/a.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed both `grep` hits investigated were genuinely false
+positives (read the actual matched line in context, not just the match) before concluding "still
+inactive" rather than taking the raw `grep -l` hit at face value. Confirmed the new perf_log.csv
+threshold note doesn't overstate itself as a requirement — worded as "artık yapılabilir, zorunlu
+değil" to avoid a future run misreading it as a new mandatory gate.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — a bounded, mechanical rule-review task with a
+clear existing template (run 76's own consolidation entry) to follow, no design ambiguity, nothing
+committed that could regress runtime behavior (docs-only diff).
+
+**World Evolution Report:** no player-facing change (documentation-only). `RULES_CHANGELOG.md`
+entries: 1 → **2**. `GOVERNANCE.md` §16 gained one clarifying note, no rule content changed.
+
+**Oyuncu fark eder mi:** hayır — bu tamamen iç süreç bakımı, oyunda hiçbir şey değişmedi.
