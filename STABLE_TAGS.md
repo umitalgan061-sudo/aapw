@@ -391,3 +391,13 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `stable-2026-08-06-1300` created at `11915ed`. `git push origin main` succeeded
   (`95531b0..11915ed`). `git push origin <tag>` still rejected, same `HTTP 403` standing block
   since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
+
+- **Run 95 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed (confidence
+  5/5) — `doran-guard-1`'s 3rd dialogue choice (ADR-0121), the pilot's 7th NPC to reach the 3rd
+  dialogue slot and its 1st Dornish seat. Full smoke suite **28/28 PASS** before and after, real
+  headless-Chromium proof + real visual proof (2 moments, live `game3d.html` scene in the
+  background) confirm the new choice renders and resolves correctly, 0 console/page errors.
+  `perf_log.csv`'s `run95` row bit-identical to run76-94. Local tag `stable-2026-08-06-1330` created
+  at `dce401a`. `git push origin main` succeeded (`b12e425..dce401a`). `git push origin <tag>` still
+  rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
+  entry satisfies the checkpoint).
