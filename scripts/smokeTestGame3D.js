@@ -15,7 +15,8 @@
  *   vertex-shader-has-no-displacement, F4 debug camera, F2 debug/profiling panel, world-event system,
  *   world-event day/night gating.
  * - `game3dSmokeChecks.js` — non-movement per-entity gameplay: settlement collider, jump/gravity arc,
- *   interaction controller, interaction-prompt tap.
+ *   interaction controller, interaction-prompt tap; plus (run 87, budget-placed — see that file's own
+ *   header) the starfield twinkle check.
  * - `game3dSmokeChecksMovement.js` — ground-movement AI: wolf flee/pack-alert, NPC waypoint patrol,
  *   wolf waypoint patrol, NPC combat-stance.
  * - `game3dSmokeChecksDragonFlight.js` — dragon baseline flight/awareness: circling flight, notice
@@ -79,6 +80,7 @@ async function main() {
 		results.push(await checks.checkJumpArc(browser, baseUrl));
 		results.push(await checks.checkInteractionController(browser, baseUrl));
 		results.push(await checks.checkInteractionPromptTap(browser, baseUrl));
+		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));

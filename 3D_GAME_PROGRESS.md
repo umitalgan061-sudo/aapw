@@ -371,7 +371,9 @@ Triangles<500K, TextureMem<512MB.
   yıldızlar bir atmosfer meselesi, `world/` sistemi değil). Gerçek `game3d.html` sahnesinde ve ayrı
   bir gece-zorlamalı doğrulama render'ında sıfır hatayla, gün döngüsü boyunca opaklığın
   `nightFactor`'ü tam eşleştirdiği bir birim-testi taramasıyla doğrulandı. Detaylar: DECISIONS.md
-  ADR-0012.
+  ADR-0012. **Run 87 güncellemesi:** her yıldız artık kendi tohumlu faz/frekansıyla yavaşça
+  titreşiyor (parlaklık tam sıfıra hiç inmiyor) — `ShaderMaterial`'e geçildi, ilk kalıcı regresyon
+  testi eklendi (26. smoke check). Detaylar: DECISIONS.md ADR-0112.
 - [x] Nehir — ilk gerçek geçiş (`world/rivers.js`) — deterministik yokuş-aşağı yürüyüş
   (steepest-descent, `terrain.js`'in mevcut FBM yükseklik alanı üzerinde, `terrain.js`'e hiç
   dokunmadan — su için ADR-0005'in aynı tekniği), kaynak noktasından (orijine 2000m içindeki en
@@ -4728,10 +4730,12 @@ step; the world-event system's flavor pool could still grow.
   boot, confined to a fixed radius around the origin (see ADR-0009) — a real multi-river system
   tied to `ChunkManager`'s streaming (so rivers appear/persist correctly as the player explores
   beyond the FAZ 1 preview area) is future work, not this pass's scope.
-- **`stars.js`'s starfield is a fixed, non-twinkling pattern.** Same seed always produces the same
-  star positions (by design — determinism rule), but there's no per-star flicker/twinkle animation
-  and no relation to real astronomical positions — a flat, uniform opacity per scene, not per-star
-  variation. See DECISIONS.md ADR-0012's Consequence for what a future flow-animated pass would need.
+- **~~`stars.js`'s starfield is a fixed, non-twinkling pattern~~ — twinkle landed run 87** (per-star
+  seeded phase/frequency, `ShaderMaterial` replacing the old flat-opacity `PointsMaterial`, see
+  DECISIONS.md ADR-0112). Same seed still always produces the same star positions AND the same
+  twinkle pattern (determinism rule unchanged — the phase/frequency stream is deterministic, not
+  `Math.random()`). **Still open:** no relation to real astronomical positions/constellations — this
+  was never in scope, still a uniformly-scattered procedural field, just no longer flat-brightness.
 - **Volumetric light (god rays) intentionally deferred, not skipped.** Flagged in the FAZ 2 roadmap
   and DECISIONS.md ADR-0012's Consequence as needing a real post-processing pipeline
   (`EffectComposer`/render targets) this project doesn't have yet — that's FAZ 9's `postfx.js`
@@ -9439,6 +9443,113 @@ established for this exact scenario). `CATCH_UP.md`'s next 10-run digest due at 
 unchanged). `RULES_CHANGELOG.md`'s next consolidation pass due ~run 96 (unchanged, last one was run
 76). Periodic platform check due ~run 90-100 (unchanged, last one was run 70). No blocking bugs,
 syntax errors, or regressions found this run.
+
+**Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
+`STABLE_TAGS.md`.
+
+## This Run (2026-08-06, run 87)
+
+**Fresh Session Snapshot at container boot:** `GOVERNANCE.md`/`CREDITS.md` already existed and were
+already current against this run's incoming instruction (which asked for their creation as a first
+sub-task) — confirmed via a diff-read, not recreated; both were built by run 86. `git fetch origin
+main` confirmed local `main` already matched `origin/main` (`20001b9`) — no concurrent-session
+conflict (§8.14). Read `3D_GAME_PROGRESS.md`'s run 86 entry, `DECISIONS.md`'s last 3 ADRs
+(0109-0111), `QUESTIONS_FOR_OWNER.md` in full (9 entries, all still open), `STABLE_TAGS.md`/
+`perf_log.csv`/`CATCH_UP.md`/`RULES_CHANGELOG.md` tails. Ran the full smoke suite before picking any
+work: **25/25 PASS**, all 6 standing static guards clean, no regression at session start.
+
+### Sub-task 1: starfield twinkle + its first regression test (DECISIONS.md ADR-0112)
+
+Priority re-scan (GOVERNANCE.md §18): items 1-11 re-confirmed healthy/already-resolved (not
+re-litigated from scratch — cross-checked against `3D_GAME_PROGRESS.md`'s own prior "already
+resolved" notes). Items 12-13 still blocked on missing rigged models / the owner's pending
+health-system decision. That left item 14 ("Yeni özellik") — but rather than a fourth straight run
+touching `worldEvents.js` (runs 84/85/86 all did), this run picked a different, long-standing Known
+Issue with genuine zero test coverage: `stars.js`'s starfield, flagged "fixed, non-twinkling" since
+FAZ 2 (run 7).
+
+**What shipped:** each of the 1200 stars now brightens/dims independently over real time via a
+per-star seeded phase/frequency baked into the geometry at creation (deterministic — same seed,
+same twinkle pattern, never `Math.random()`). `PointsMaterial` replaced by a hand-written
+`ShaderMaterial` (same pattern `world/water.js` already established). Full reasoning, alternatives,
+and threshold rationale in ADR-0112.
+
+**A real bug caught before commit, not shipped:** the first draft of the vertex shader's inline `//`
+comment referenced `` `sizeAttenuation: false` `` in backticks — since the shader source is itself a
+JS template literal, those backticks prematurely closed it, corrupting the shader string.
+`node --check` did not catch this (the corrupted split was still syntactically valid JS, just
+semantically wrong); the **full Playwright smoke suite did** — `game3d.html` failed to boot entirely
+(`pageerror: Unexpected identifier 'sizeAttenuation'`). Fixed by rewording the comment before commit.
+Recorded in ADR-0112 as a root-cause note (this project's own `/* glsl */ \`...\`` convention means
+literal backticks can never appear anywhere inside a shader string, comments included) rather than
+silently re-tried — exactly the failure mode the smoke-test gate exists to catch pre-commit.
+
+**DoD status:** `node --check` clean (`stars.js` 169/600, `game3d.js` 545/600 unchanged). Full smoke
+suite **26/26 PASS** after the fix (was 25 — `checkStarfieldTwinkle` is the starfield's first
+regression check of any kind, deliberately placed in `game3dSmokeChecks.js` rather than the
+thematically-closer but already-573/600 `game3dSmokeChecksScene.js` — budget-driven placement,
+documented in that file's header). All 6 standing static guards clean, no new line-count WARNs.
+**Real proof beyond the committed check:** a dev-only (not committed) Playwright script rendered an
+isolated starfield to a real `WebGLRenderTarget` at two different `elapsedSeconds` values with
+everything else fixed and read back actual framebuffer pixels — **1054 of 1070 real star pixels
+changed brightness** between the two captures (nightFactor=1 both times), and **zero bright pixels**
+at nightFactor=0 (day still fully hides every star). **Real visual proof, 2 angles, zero
+console/page errors in both:** (1) the live `game3d.html` scene driven to a real nighttime state
+(ADR-0111's `performance.now()`-offset technique, reused not rediscovered) — dark night sky, black
+castle silhouette, visible star points, a real world-event toast fired in-frame, proving the whole
+scene composites correctly; (2) the isolated pixel-proof script's own zenith-look render, a close-up
+angle the live scene's default orbit view never shows. Memory-leak checklist: `disposeStarfield`
+still disposes geometry+material (now with 2 more attributes on the same geometry, no new
+allocation category) — proven not to throw in the committed check. Tech debt counter: **0**
+(unchanged). `perf_log.csv` `run87` row bit-identical to run76-86 (pure shader/attribute change, no
+new draw call/geometry/texture). `QUESTIONS_FOR_OWNER.md` gained one entry for the twinkle
+speed/amplitude feel constants (same uncalibrated-tuning-value pattern as ADR-0089/0096/0111).
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed `updateStarfield`'s new parameter was updated at its
+one and only call site (searched every reference across `src`/`scripts`); confirmed the twinkle
+floor can only ever produce equal-or-dimmer brightness than the old flat opacity at the same
+`nightFactor`, never brighter (no regression at full night); confirmed the fixed `gl_PointSize`
+reproduces the old `sizeAttenuation: false` behavior exactly, just computed without three.js's
+built-in attenuation term; confirmed no `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+
+**Session Quality Gate (§8.6) after 1 sub-task:** confidence **5/5** — low-risk, fully reversible,
+a real coverage gap closed (not just a visual polish item), a real bug caught and fixed by the
+project's own regression guard before it ever reached a commit (the guard doing exactly its job),
+proven with real rendered-pixel numeric evidence AND real matching-scene screenshots, zero
+terrain/scale/height touch. **Stopping here after 1 sub-task:** same reasoning as runs 84-86 —
+items 1-13 remain healthy/blocked, item 14 is the only lever, and this run already used it once;
+a second "Yeni özellik" pass this run risks the same filler pattern ADR-0110's Alternatives section
+warned against. No "6 months from now" ambiguity: ADR-0112 records the full shader design, the
+caught-bug root cause, and every rejected alternative.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| Starfield animation | flat, uniform opacity per scene (no per-star variation) | **per-star seeded twinkle** (independent phase/frequency, 1200 stars) | mechanism change |
+| Starfield test coverage | 0 checks | **1 check, 6 assertions** (`checkStarfieldTwinkle`) | new, closes a real gap |
+| Star pixels changing brightness over time (measured) | n/a (no animation existed) | **1054/1070 (98.5%) in an 8000ms-simulated window** | new invariant, verified |
+| Smoke suite | 25/25 | **26/26** | +1 |
+| `stars.js` lines | 99/600 | **169/600** | +70 |
+| `game3dSmokeChecks.js` lines | 346/600 | **444/600** | +98 (new check) |
+| ADR headers in `DECISIONS.md` | 111 | **112** | +1 (ADR-0112) |
+| `QUESTIONS_FOR_OWNER.md` open entries | 9 | **10** | +1 (twinkle feel tuning) |
+| `perf_log.csv` rows | 30 | **31** | +1 (`run87`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | unchanged (no world change) |
+| Tech debt count | 0 | **0** | unchanged |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | unchanged (no scene object added) |
+
+**Oyuncu fark eder mi:** evet, ince ama gerçek bir fark — gece gökyüzündeki yıldızlar artık sabit
+parlaklıkta durmuyor, her biri kendi ritminde hafifçe parlayıp sönüyor (hiçbiri tamamen kaybolmadan).
+Oyunun geri kalanı (dünya ölçeği, yollar, kaleler, NPC'ler, ejderha) değişmedi.
+
+**Next step for the next run:** re-scan the priority order fresh, as always. Blocked items unchanged
+since run 80: 6 remaining castle seats + all FAZ 6 animals need real rigged models, dragon attack/
+fire-breath needs the owner's pending health-system decision. `CATCH_UP.md`'s next 10-run digest due
+at run 88 (1 run away). `RULES_CHANGELOG.md`'s next consolidation pass due ~run 96 (unchanged).
+Periodic platform check due ~run 90-100 (unchanged). No blocking bugs, syntax errors, or regressions
+found this run — the one bug found (the shader-comment backtick issue) was caught and fixed within
+this same sub-task, before any commit.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.

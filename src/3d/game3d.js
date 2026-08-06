@@ -469,7 +469,7 @@ export async function initGame3D() {
 			state.freeCamera.update(delta);
 			const viewCamera = state.freeCamera.active ? state.freeCamera.camera : state.camera;
 			updateAuroraSky(state.sky, viewCamera.position, elapsedSeconds, dayNight);
-			updateStarfield(state.stars, viewCamera.position, dayNight.nightFactor);
+			updateStarfield(state.stars, viewCamera.position, elapsedSeconds, dayNight.nightFactor);
 			updateFog(state.scene.fog, dayNight);
 			if (state.freeCamera.active) state.scene.fog.density = 0; // see debug/README.md's Conventions.
 			updateWater(state.water, viewCamera.position, elapsedSeconds);

@@ -14,6 +14,13 @@
  * — DECISIONS.md ADR-0087); `smokeTestGame3D.js` calls every one of their exports and its own header
  * carries the authoritative module + check list.
  *
+ * **Run 87 addition:** `checkStarfieldTwinkle` (atmosphere, not really "per-entity gameplay") landed
+ * here rather than in the thematically-closer `game3dSmokeChecksScene.js` purely on line-budget
+ * grounds — that file was already at 573/600 (flagged as approaching the cap in run 86's Next step),
+ * and this file had the most headroom (346/600) of any check module. Same precedent run 64 already
+ * set (route a new check by available budget once the "obvious" file is full, rather than push a
+ * flagged file over its cap) — see this file's own history above.
+ *
  * Every function here takes `(browser, baseUrl)` and returns `Promise<{name, ok, details}>`. See
  * each function's own comment for what it guards against.
  * @module scripts/game3dSmokeChecks
@@ -338,9 +345,100 @@ async function checkInteractionPromptTap(browser, baseUrl) {
 	return { name: 'interaction prompt tap activation (ui/interactionPrompt.js)', ok, details };
 }
 
+/**
+ * Regression guard for this run's starfield twinkle (`stars.js`, DECISIONS.md ADR-0112). Was flagged
+ * a known limitation ("fixed, non-twinkling pattern") since FAZ 2 with zero test coverage of any
+ * kind — this is the starfield's first smoke check at all, not just a twinkle-specific addition.
+ *
+ * Verifies, against the real module over HTTP (same in-page dynamic-`import()` pattern every other
+ * check here uses): the twinkle attributes exist and are well-formed (finite, in-range) for all 1200
+ * stars; the same seed reproduces the exact same phase/frequency per star (determinism rule —
+ * extends the pre-existing position determinism to the new attributes); `updateStarfield` forwards
+ * `elapsedSeconds`/`nightFactor` into the shader's `uTime`/`uNightFactor` uniforms unchanged (the
+ * values the vertex shader multiplies the twinkle by, so a wiring regression here would silently
+ * freeze the animation or break night-gating); the vertex shader source structurally references both
+ * new attributes and multiplies by `uNightFactor` (so `nightFactor=0` — full daylight — still forces
+ * every star fully transparent regardless of twinkle phase, mirroring `checkWaterVertexShaderStatic`'s
+ * source-inspection style just above); and `disposeStarfield` doesn't throw.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkStarfieldTwinkle(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createStarfield, updateStarfield, disposeStarfield } = await import('/src/3d/stars.js');
+
+			const starsA = createStarfield(1337);
+			const phaseAttr = starsA.geometry.getAttribute('aPhase');
+			const freqAttr = starsA.geometry.getAttribute('aFreq');
+			const countMatches = phaseAttr.count === 1200 && freqAttr.count === 1200;
+			let allFiniteAndInRange = true;
+			for (let i = 0; i < phaseAttr.count; i++) {
+				const phase = phaseAttr.getX(i);
+				const freq = freqAttr.getX(i);
+				const phaseOk = Number.isFinite(phase) && phase >= 0 && phase <= Math.PI * 2;
+				const freqOk = Number.isFinite(freq) && freq >= 0.4 && freq <= 1.3;
+				if (!phaseOk || !freqOk) { allFiniteAndInRange = false; break; }
+			}
+
+			// Determinism: a second starfield built from the same seed reproduces every phase/freq
+			// value exactly, not just the (already-covered-elsewhere) star positions.
+			const starsB = createStarfield(1337);
+			const phaseAttrB = starsB.geometry.getAttribute('aPhase');
+			const freqAttrB = starsB.geometry.getAttribute('aFreq');
+			let deterministic = true;
+			for (let i = 0; i < phaseAttr.count; i++) {
+				if (phaseAttr.getX(i) !== phaseAttrB.getX(i) || freqAttr.getX(i) !== freqAttrB.getX(i)) {
+					deterministic = false;
+					break;
+				}
+			}
+
+			// A different seed must NOT reproduce the same pattern (rules out a seed argument silently
+			// being ignored, the same failure mode ADR-0111's determinism check guards against).
+			const starsC = createStarfield(42);
+			const phaseAttrC = starsC.geometry.getAttribute('aPhase');
+			const seedActuallyUsed = phaseAttr.getX(0) !== phaseAttrC.getX(0);
+
+			updateStarfield(starsA, { x: 1, y: 2, z: 3 }, 12.5, 0.75);
+			const uniformsWiredCorrectly = starsA.material.uniforms.uTime.value === 12.5
+				&& starsA.material.uniforms.uNightFactor.value === 0.75;
+
+			const source = starsA.material.vertexShader;
+			const shaderReferencesTwinkleInputs = source.includes('aPhase') && source.includes('aFreq')
+				&& source.includes('uNightFactor') && /vAlpha\s*=\s*uNightFactor/.test(source);
+
+			let disposeThrew = false;
+			try {
+				disposeStarfield(starsA);
+				disposeStarfield(starsB);
+				disposeStarfield(starsC);
+			} catch (error) {
+				disposeThrew = true;
+			}
+
+			return {
+				countMatches, allFiniteAndInRange, deterministic, seedActuallyUsed,
+				uniformsWiredCorrectly, shaderReferencesTwinkleInputs, disposeThrew: !disposeThrew,
+			};
+		});
+	} catch (error) {
+		result = { error: String(error) };
+	}
+	await page.close();
+	const ok = result && Object.values(result).every((value) => value === true);
+	const details = ok
+		? '1200/1200 stars have finite in-range twinkle phase/freq, same seed reproduces them exactly, a different seed does not, updateStarfield forwards elapsedSeconds/nightFactor into uTime/uNightFactor, the vertex shader multiplies alpha by uNightFactor, dispose() does not throw'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'starfield twinkle (stars.js, ADR-0112)', ok, details };
+}
+
 module.exports = {
 	checkSettlementCollider,
 	checkJumpArc,
 	checkInteractionController,
 	checkInteractionPromptTap,
+	checkStarfieldTwinkle,
 };

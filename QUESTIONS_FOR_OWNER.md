@@ -117,3 +117,12 @@ instead of guessed at silently. Newest entry at the bottom.
   ADR-0111'de tam gerekçesi var. Eğer bir olay ("kuzey ışıkları" gibi) hâlâ çok erken/geç bir saatte
   tetikleniyormuş gibi hissettirirse, bu tek satırlık bir sabit değişikliği.
 
+- **(run 87, ADR-0112) Yıldız titreşimi (twinkle) doğru hızda/genlikte mi hissettiriyor?**
+  `stars.js`'e eklenen `TWINKLE_BASE = 0.65` / `TWINKLE_AMPLITUDE = 0.35` (parlaklık hiçbir zaman tam
+  sıfıra inmiyor — "titreşim" değil "arıza" gibi görünmesin diye) ve `TWINKLE_FREQ_MIN/MAX = 0.4-1.3`
+  rad/s (her yıldız ~5-16 saniyede bir tam döngü) bu çalıştırmanın kendi mühendislik tahmini, gerçek
+  bir oyun testiyle kalibre edilmedi — ADR-0089/ADR-0096/ADR-0111'in aynı "gerçek biri izlemeden
+  kalibre edilemeyen his değeri" deseni. **Geçici varsayılan:** yukarıdaki dört sabit kullanılıyor;
+  hepsi `stars.js`'de tek satırlık düzenlemeler. Titreşim çok göze batıyor/çok belli belirsiz
+  hissettirirse tersi de mümkün.
+
