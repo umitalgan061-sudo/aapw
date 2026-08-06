@@ -11002,3 +11002,101 @@ Added the COMMON, day-gated `harvest_wagons` event. Its first 390×844 visual pr
 **Performance addendum:** `collectPerfSnapshot.js run102` succeeded after the entry above was drafted: 2 headless-software FPS, 46 draw calls, 393,231 triangles, 44 geometries, 17 textures, 307 MB JS heap — draw/triangle/geometry/texture figures remain identical to the established baseline; row appended to `perf_log.csv`.
 
 **Full regression addendum:** post-change `smokeTestGame3D.js` completed **29/29 PASS**, including real offline-capable 3D `GAME_READY`, zero 3D console/page errors, the new mobile-toast separation assertion, and every NPC/animal/dragon/safe-mode guard.
+
+## This Run (2026-08-06, run 103 — scheduled autonomous routine)
+
+**Session Snapshot:** fresh context/session (new scheduled firing). `GOVERNANCE.md`,
+`3D_GAME_PROGRESS.md`'s run 102 entry, `DECISIONS.md`'s last 3 ADRs (0127-0129), and
+`QUESTIONS_FOR_OWNER.md` all read in full. `GOVERNANCE.md`/`CREDITS.md`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md` all confirmed already exist and
+populated, not recreated. `ARCHITECTURE.md` not re-read (last touched 2026-08-05, under the 7-day
+threshold).
+
+**Eşzamanlılık Kontrolü:** `git fetch origin main` found the repo already sitting exactly at
+`origin/main`'s tip (`1a361b4`, run 102's ADR-0129 merge) with a clean working tree — no
+realignment needed before starting. Re-fetched again immediately before commit (see Addendum).
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`) — clean. Full
+`scripts/smokeTestGame3D.js` — **29/29 PASS**, 0 FAIL, before any new code. `checkSmokeCheckRegistry.js`
+OK (29 checks/9 modules; same 2 known line-count WARNs as run 102 — `game3d.js` 587/600 and
+`dragonController.js` 579/600, unchanged, still under the cap, not yet urgent).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-3 (terrain macro relief/road network/ground
+color) remain DONE per their own standing safety-check guards. Item 4 (castle texturing, 7/14)
+still blocked on real models for the remaining 6 seats, unchanged since run 96. Items 5-11 all
+healthy (0 tech debt, smoke suite green, coverage unchanged). Item 12 (dialogue 3rd-choice pilot)
+is exhausted per run 101/ADR-0128. Items 12-13 (dragon follow-ups / FAZ 11 species) remain blocked
+on models or already-logged owner decisions. That left `worldEvents.js`'s flavor pool (item 14) as
+the only actionable, non-duplicate lever this run, following run 102's own precedent.
+
+### Sub-task: `market_day` — the pilot's first UNCOMMON+day-gated world event (DECISIONS.md ADR-0130)
+
+Full reasoning, alternatives considered, and decision detail are in ADR-0130 — not duplicated here.
+
+**DoD durumu:** `node --check` clean (`worldEvents.js`, `game3dSmokeChecksDebugTools.js`).
+Full smoke suite re-run: **29/29 PASS**, 0 FAIL (before-baseline also 29/29 PASS — regresyon yok).
+`checkSmokeCheckRegistry.js` re-run post-change: unchanged (29 checks/9 modules, same 2 known
+WARNs — the new assertions extend an existing check in place, not a new module). `checkPwaInstallability.js`/
+`checkServiceWorkerCache.js` both pass unchanged. **Konsol Temizliği:** the proof script's own
+headless boot recorded `consoleErrors.length === 0` across both moments.
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only proof script written directly to the session scratchpad, never inside the repo tree — no
+delete-before-commit step needed — run over a local static server via `devServerHelper.js`): the
+real `game3d.html` was booted, the live `createWorldEventSystem`/`EventBus`/`WorldEventToast`
+modules dynamically imported and driven through their real APIs. (1) Desktop 1280×720: a seed
+search found a first-draw-at-noon match, the real toast DOM rendered the exact title "Pazar Günü"
+and exact description text, and a separate 1000-draw forced-midnight run on another seed never
+produced `market_day`. (2) Mobile 390×844: the same event rendered with its toast at `top:64px`,
+matching ADR-0129's mobile-safe placement rule, no overlap with the "← 2D Haritaya Dön" control.
+Zero console/page errors throughout.
+
+**Perf sampling:** `perf_log.csv`'s `run103` row (`46/393231/44/17`) sampled fresh via
+`scripts/collectPerfSnapshot.js`, bit-identical to the run76-102 baseline — expected, zero
+geometry/texture/renderer code touched.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed `market_day`'s theme (a festive, daylight-bound
+public market) is distinct from every other entry, including the two other trade-adjacent ones
+(`trade_caravan`, `iron_bank`, both ungated) and the other COMMON+day entry (`harvest_wagons`,
+grain delivery, not a public market). Also fixed two comments in `worldEvents.js` that had gone
+stale after run 102's `harvest_wagons` addition without being updated then (a small documentation-
+debt find, corrected inline rather than left for a future run to re-discover). No
+`TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a in `worldEvents.js` (config-data-
+only); the throwaway proof script's own toast/bus instances were either explicitly disposed or left
+to page-close teardown (harmless, the script itself is never committed).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — low-risk, well-proven pattern, a genuine
+non-duplicate coverage gap (UNCOMMON+day was the one gated rarity/time-of-day combination with zero
+representation across the pool's 5 pre-existing gated entries) identified and closed rather than
+padded, zero regression in the full smoke suite. "6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 103 end) | Delta |
+|---|---|---|---|
+| World event pool | 27 | **28** | +1 (`market_day`) |
+| Gated-rarity coverage (rarity × time-of-day cells with ≥1 entry) | 5/6 (UNCOMMON+day empty) | **6/6** | +1 — coverage matrix now complete |
+| Smoke suite | 29/29 | **29/29** | aynı 29 kontrol, genişletilmiş `ADR-0111` doğrulaması ile yeniden doğrulandı |
+| ADR headers in `DECISIONS.md` | 129 | **130** | +1 (ADR-0130) |
+| `perf_log.csv` rows | 46 | **47** | +1 (`run103`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (saf config-data değişikliği) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ölçekte — gündüz oynarken artık nadiren bir kale
+meydanında pazar kurulduğu haberi de görülebilir; dünyanın geri kalanı değişmedi. Perde arkasında:
+gündüz/gece kapılı olay havuzunun (rarity × zaman-dilimi) kapsama matrisi artık tam — her hücrede
+en az bir örnek var.
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Bloklu kalan her şey değişmedi: 6
+kale hâlâ dokusuz, FAZ 6 hayvanları (at/araba/köpek-kedi/kuş) model bekliyor. Item 14 tekrar
+seçilirse: `worldEvents.js`'nin havuzu artık 28 girdi ve 6/6 gated-rarity kapsaması tam — bir
+sonraki alt görev ya tamamen yeni bir ungated flavor girdisi (mevcut 22 ungated girdiye ek, hâlâ
+padding değil gerçek çeşitlilikse) ya da öncelik sırası baştan (item 1'den) taranarak gerçekten
+hiçbir şeyin kaçmadığı teyit edilir. `RULES_CHANGELOG.md`'nin sıradaki konsolidasyonu ~run 116'da
+(değişmedi). `CATCH_UP.md`'nin sıradaki özeti ~run 108'de (değişmedi). `game3d.js` (587/600) ve
+`dragonController.js` (579/600) her ikisi de 600 satır sınırına yaklaşıyor — henüz acil değil ama
+bir sonraki dokunuşta bir bölme planı düşünülmeli.
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.

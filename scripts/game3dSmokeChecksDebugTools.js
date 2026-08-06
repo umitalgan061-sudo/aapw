@@ -301,11 +301,12 @@ async function checkWorldEvents(browser, baseUrl) {
  * Real statistical proof, not an assumption the filter logic is right: forces `nightFactor` to solid
  * noon (`0`) and solid midnight (`1`) across many real `update()` firings and asserts the
  * night-restricted entries (`wolf_howl`, `falling_star`, `northern_lights`) never once appear at
- * noon, the day-restricted entry (`eclipse`) never once appears at midnight, and — the positive half,
- * not just the negative — that `eclipse` *does* appear at noon and at least one of the three
- * night-restricted entries *does* appear at midnight (proves the gate lets its own tier through, not
- * just that it blocks everything). Also asserts the pre-ADR-0111 call shape (`update(delta)` with no
- * `nightFactor`) still fires without throwing — gating is additive, never a required argument.
+ * noon, the day-restricted entries (`eclipse`, `harvest_wagons`, `market_day`, ADR-0130) never once
+ * appear at midnight, and — the positive half, not just the negative — that `eclipse` *does* appear
+ * at noon and at least one of the three night-restricted entries *does* appear at midnight (proves
+ * the gate lets its own tier through, not just that it blocks everything). Also asserts the
+ * pre-ADR-0111 call shape (`update(delta)` with no `nightFactor`) still fires without throwing —
+ * gating is additive, never a required argument.
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */
 async function checkWorldEventsTimeGating(browser, baseUrl) {
@@ -328,6 +329,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 			const noonNeverGatesInNightOnly = NIGHT_ONLY_IDS.every((id) => !noonIds.has(id));
 			const noonFiresEclipse = noonIds.has('eclipse');
 			const noonFiresHarvestWagons = noonIds.has('harvest_wagons');
+			const noonFiresMarketDay = noonIds.has('market_day');
 
 			const midnightIds = new Set();
 			const midnightSystem = createWorldEventSystem({ eventsBus: bus, seed: 2, eventName: 'midnight' });
@@ -336,6 +338,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 			midnightSystem.dispose();
 			const midnightNeverFiresEclipse = !midnightIds.has('eclipse');
 			const midnightNeverFiresHarvestWagons = !midnightIds.has('harvest_wagons');
+			const midnightNeverFiresMarketDay = !midnightIds.has('market_day');
 			const midnightFiresSomeNightOnly = NIGHT_ONLY_IDS.some((id) => midnightIds.has(id));
 
 			// Pre-ADR-0111 call shape: no nightFactor argument at all must still fire without throwing.
@@ -349,6 +352,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 			return {
 				noonNeverGatesInNightOnly, noonFiresEclipse,
 				noonFiresHarvestWagons, midnightNeverFiresHarvestWagons,
+				noonFiresMarketDay, midnightNeverFiresMarketDay,
 				midnightNeverFiresEclipse, midnightFiresSomeNightOnly,
 				legacyCallStillFires,
 			};
@@ -359,7 +363,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 	await page.close();
 	const ok = result && Object.values(result).every((value) => value === true);
 	const details = ok
-		? 'forced noon (nightFactor=0) across 1000 draws never emitted a night-restricted id and did emit eclipse; forced midnight (nightFactor=1) across 1000 draws never emitted eclipse and did emit a night-restricted id; the pre-gating 1-argument update(delta) call shape still fires without throwing'
+		? 'forced noon (nightFactor=0) across 1000 draws never emitted a night-restricted id and did emit eclipse/harvest_wagons/market_day; forced midnight (nightFactor=1) across 1000 draws never emitted eclipse/harvest_wagons/market_day and did emit a night-restricted id; the pre-gating 1-argument update(delta) call shape still fires without throwing'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
 	return { name: 'world-event day/night gating (gameplay/worldEvents.js, ADR-0111)', ok, details };
 }
