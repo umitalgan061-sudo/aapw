@@ -423,3 +423,14 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   at `6810e29`. `git push origin main` succeeded (`1147cf0..6810e29`). `git push origin <tag>` still
   rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
   entry satisfies the checkpoint).
+
+- **Run 98 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed (confidence
+  5/5) — `balon-guard-1`'s 3rd dialogue choice (ADR-0124), the pilot's 10th NPC to reach the 3rd
+  dialogue slot and the Iron Islands' 1st seat to do so. Also shipped the run-98-due `CATCH_UP.md`
+  digest (runs 89-98). Full smoke suite **28/28 PASS** before and after, real headless-Chromium +
+  real visual proof (2 moments, live `game3d.html` scene served over a local static server) confirm
+  the new choice renders and resolves correctly, 0 console/page errors. `perf_log.csv`'s `run98` row
+  bit-identical to run76-97. Local tag `stable-2026-08-06-1556` created at `ae247e3`. `git push
+  origin main` succeeded (`3cfa93d..ae247e3`). `git push origin <tag>` still rejected, same
+  `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies
+  the checkpoint).
