@@ -6,7 +6,7 @@
 
 const SW_VERSION = 'westeros-media-v4';
 const MEDIA_CACHE = 'westeros-media-v4';
-const SHELL_CACHE = 'westeros-shell-v8';
+const SHELL_CACHE = 'westeros-shell-v9';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -77,6 +77,10 @@ const SHELL_FILES = [
 // run 90 (DECISIONS.md ADR-0116): added `gameplay/health.js` + `ui/healthBar.js` — the new FAZ 7
 // dragon-combat player health state + its HUD, both now imported directly by `game3d.js`. Same
 // failure mode as every entry above without them. `SHELL_CACHE` bumped v7->v8.
+//
+// run 107 (DECISIONS.md ADR-0134): added `ui/dayNightClock.js` — the new FAZ 8 discoverability HUD,
+// now imported directly by `game3d.js`. Same failure mode as every entry above without it.
+// `SHELL_CACHE` bumped v8->v9.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -104,6 +108,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/ui/healthBar.js',
     './src/3d/ui/controlsHelp.js',
     './src/3d/ui/settlementCompass.js',
+    './src/3d/ui/dayNightClock.js',
     './src/3d/gameplay/health.js',
     './src/3d/gameplay/gameplayConfig.js',
     './src/3d/gameplay/playerConfig.js',

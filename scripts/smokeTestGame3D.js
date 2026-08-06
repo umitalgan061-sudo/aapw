@@ -10,7 +10,7 @@
  *
  * This file is just the orchestration (result printing over each check) — the static file server
  * and Playwright bootstrap it uses live in `devServerHelper.js` (run 59, shared with
- * `collectPerfSnapshot.js`). The actual per-feature assertions live in nine focused check modules:
+ * `collectPerfSnapshot.js`). The actual per-feature assertions live in twelve focused check modules:
  * - `game3dSmokeChecksScene.js` — page-boot level: 2D shell load, 3D mode boot, water
  *   vertex-shader-has-no-displacement, settlement ground-flatten pads (run 92, ADR-0118).
  * - `game3dSmokeChecksDebugTools.js` — debug-tool + world-event singleton systems: F4 debug camera,
@@ -29,6 +29,10 @@
  *   give-up cue.
  * - `game3dSmokeChecksSafeMode.js` — `safeMode.js`'s dispose()/disposeOnError()-throws containment
  *   (ADR-0106), per-entity and singleton.
+ * - `game3dSmokeChecksDialogueTouch.js` — touch/keyboard dialogue-choice activation (run 99, ADR-0125).
+ * - `game3dSmokeChecksControlsHelp.js` — responsive controls-reference widget (run 104, ADR-0131).
+ * - `game3dSmokeChecksSettlementCompass.js` — nearest-settlement compass widget (run 106, ADR-0133).
+ * - `game3dSmokeChecksDayNightClock.js` — day/night clock widget (run 107, ADR-0134).
  *
  * The split history: run 40 (`game3dSmokeChecks.js` hit 596/600), run 64 (a fifth check module rather
  * than growing `game3dSmokeChecksMovement.js`, already at 614/600), run 68 (that 614-line violation
@@ -59,6 +63,7 @@ const safeModeChecks = require('./game3dSmokeChecksSafeMode.js');
 const dialogueTouchChecks = require('./game3dSmokeChecksDialogueTouch.js');
 const controlsHelpChecks = require('./game3dSmokeChecksControlsHelp.js');
 const settlementCompassChecks = require('./game3dSmokeChecksSettlementCompass.js');
+const dayNightClockChecks = require('./game3dSmokeChecksDayNightClock.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
@@ -94,6 +99,7 @@ async function main() {
 		results.push(await dialogueTouchChecks.checkDialogueChoiceTap(browser, baseUrl));
 		results.push(await controlsHelpChecks.checkControlsHelp(browser, baseUrl));
 		results.push(await settlementCompassChecks.checkSettlementCompass(browser, baseUrl));
+		results.push(await dayNightClockChecks.checkDayNightClock(browser, baseUrl));
 		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));

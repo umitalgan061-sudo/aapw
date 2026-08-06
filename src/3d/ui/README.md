@@ -1,7 +1,8 @@
 # `src/3d/ui/`
 
 Owns on-screen UI the player interacts with directly — the touch joystick, interaction prompt,
-dialogue box, and world-event toast today, and (future phases) HUD/inventory/debug panels. Only this folder and
+dialogue box, world-event toast, health/controls-help/settlement-compass/day-night-clock HUD
+widgets today, and (future phases) inventory/quest panels. Only this folder and
 `src/3d/config.js` should be touched when working on a system here (blast radius rule); UI modules
 render their own DOM, they don't reach into `world/`, `gameplay/`, or Three.js scene internals — the
 one exception is that `gameplay/interaction.js` (not this folder) owns the distance math/keypress
@@ -32,8 +33,6 @@ convention below.
   removes the DOM. Same "dumb DOM only" split as `interactionPrompt.js` — `gameplay/interaction.js`
   decides what text/choices to show and when, and which numbered choice was picked.
 - **`worldEventToast.js`** — toast card for `gameplay/worldEvents.js`'s periodic events (run 42).
-- **`controlsHelp.js`** — responsive FAZ 8 controls reference: a 44px bottom-right help button opens device-specific desktop or touch instructions, Escape closes it, and `dispose()` removes its button/window listeners and DOM.
-- **`settlementCompass.js`** — FAZ 8 discoverability HUD: points toward the nearest real kingdom seat relative to player yaw, reports distance in meters/kilometers, throttles text writes to 10m buckets, and owns no listeners/timers.
   `new WorldEventToast({eventsBus, eventName, container?})` appends a hidden `<div>` and
   self-subscribes to `eventName` on `eventsBus` (the *one* exception to "own DOM only, caller
   decides when" below — the whole point of the world-event system was routing through the
@@ -41,6 +40,21 @@ convention below.
   emitted event's icon/title/description, auto-hides after 6s, and re-arms its own hide timer if a
   second event arrives before the first finishes. `dispose()` unsubscribes, clears any pending
   timer, and removes the DOM.
+- **`healthBar.js`** — player health HUD (FAZ 7 dragon combat, run 90, ADR-0116). `new HealthBar(
+  {eventsBus, healthChangedEventName, damageEventName, container?})` appends an always-visible
+  label/track/fill/text `<div>` and self-subscribes to both events on `eventsBus` (same self-
+  listening exception `worldEventToast.js` established above) — `healthChangedEventName` repaints
+  the fill width/color/text from the current/max ratio (including `gameplay/health.js`'s own
+  synchronous construction-time emit, so it never boots showing stale state), `damageEventName`
+  triggers a brief flash class unrelated to the actual number. `dispose()` unsubscribes both,
+  clears any pending flash timeout, and removes the DOM.
+- **`controlsHelp.js`** — responsive FAZ 8 controls reference: a 44px bottom-right help button opens device-specific desktop or touch instructions, Escape closes it, and `dispose()` removes its button/window listeners and DOM.
+- **`settlementCompass.js`** — FAZ 8 discoverability HUD: points toward the nearest real kingdom seat relative to player yaw, reports distance in meters/kilometers, throttles text writes to 10m buckets, and owns no listeners/timers.
+- **`dayNightClock.js`** — FAZ 8 discoverability HUD (run 107): renders a 24-hour HH:MM readout plus
+  a day/twilight/night icon from `lighting.js`'s own `updateDayNightLighting()` return value
+  (`timeRatio`/`nightFactor`), throttling DOM writes to "the displayed game-minute changed" the same
+  way `settlementCompass.js` throttles to a 10m distance bucket. Owns no listeners/timers; `dispose()`
+  removes the DOM.
 
 ## Conventions
 

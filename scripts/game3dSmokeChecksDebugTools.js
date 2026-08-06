@@ -226,6 +226,9 @@ async function checkWorldEvents(browser, baseUrl) {
 			const { createWorldEventSystem } = await import('/src/3d/gameplay/worldEvents.js');
 			const { WorldEventToast } = await import('/src/3d/ui/worldEventToast.js');
 			const { EventBus } = await import('/src/3d/eventBus.js');
+			const { HealthBar } = await import('/src/3d/ui/healthBar.js');
+			const { SettlementCompass } = await import('/src/3d/ui/settlementCompass.js');
+			const { DayNightClock } = await import('/src/3d/ui/dayNightClock.js');
 
 			const bus = new EventBus();
 			const eventName = 'test:worldEvent';
@@ -265,6 +268,17 @@ async function checkWorldEvents(browser, baseUrl) {
 			bus.on(`${eventName}C`, (payload) => toastEvents.push(payload));
 			const systemC = createWorldEventSystem({ eventsBus: bus, seed: 7, eventName: `${eventName}C` });
 			const toast = new WorldEventToast({ eventsBus: bus, eventName: `${eventName}C` });
+			// run 107 (ADR-0134): a real toast overlapping a real corner HUD widget was found by that
+			// run's own visual proof, on a viewport this check already runs at (390x844) — the
+			// back-link-only clearance check below missed it because the health-bar/compass/clock
+			// widgets didn't exist in this test's DOM at all. Instantiating minimal real instances of
+			// each (same constructors `game3d.js` itself calls) closes that gap for good, not just for
+			// this run's specific regression.
+			const healthBar = new HealthBar({ eventsBus: bus, healthChangedEventName: `${eventName}D`, damageEventName: `${eventName}E` });
+			const compass = new SettlementCompass({ seats: [{ name: 'Test Kalesi', x: 10, z: 10 }] });
+			compass.update({ x: 0, z: 0 }, 0);
+			const clock = new DayNightClock();
+			clock.update(0.3, 0.4);
 			const el = document.querySelector('.g3d-event-toast');
 			const hiddenInitially = el.hidden === true;
 			systemC.update(1000);
@@ -274,15 +288,26 @@ async function checkWorldEvents(browser, baseUrl) {
 			const backLinkRect = document.querySelector('.g3d-back-link').getBoundingClientRect();
 			const toastRect = el.getBoundingClientRect();
 			const mobileToastClearsBackLink = toastRect.top >= backLinkRect.bottom + 12;
+			const healthBarRect = document.querySelector('.g3d-health-bar').getBoundingClientRect();
+			const compassRect = document.querySelector('.g3d-settlement-compass').getBoundingClientRect();
+			const clockRect = document.querySelector('.g3d-day-night-clock').getBoundingClientRect();
+			const noOverlap = (a, b) => !(a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top);
+			const mobileToastClearsHealthBar = noOverlap(toastRect, healthBarRect);
+			const mobileToastClearsCompass = noOverlap(toastRect, compassRect);
+			const mobileToastClearsClock = noOverlap(toastRect, clockRect);
 
 			toast.dispose();
 			systemC.dispose();
+			healthBar.dispose();
+			compass.dispose();
+			clock.dispose();
 			const disposedRemovesDom = document.querySelector('.g3d-event-toast') === null;
 
 			return {
 				noFireBelowThreshold, firedExactlyOnce, payloadShapeOk, firesAgainAfterReset,
 				noFireAfterDispose, deterministic, hiddenInitially, shownOnEvent, disposedRemovesDom,
-				mobileToastClearsBackLink,
+				mobileToastClearsBackLink, mobileToastClearsHealthBar, mobileToastClearsCompass,
+				mobileToastClearsClock,
 			};
 		});
 	} catch (error) {
@@ -291,7 +316,7 @@ async function checkWorldEvents(browser, baseUrl) {
 	await page.close();
 	const ok = result && Object.values(result).every((value) => value === true);
 	const details = ok
-		? 'no-op below the min interval, fires exactly once per update() call past it (never loops), resets its own countdown, dispose() stops further emits, same seed picks the same first event, toast shows real emitted payload text and dispose() removes its DOM'
+		? 'no-op below the min interval, fires exactly once per update() call past it (never loops), resets its own countdown, dispose() stops further emits, same seed picks the same first event, toast shows real emitted payload text, mobile toast clears the back-link/health-bar/compass/clock, and dispose() removes its DOM'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
 	return { name: 'world-event system (gameplay/worldEvents.js + ui/worldEventToast.js, ADR-0056)', ok, details };
 }

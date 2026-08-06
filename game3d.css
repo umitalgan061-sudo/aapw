@@ -1,6 +1,21 @@
 /* Styles for game3d.html only — deliberately isolated from style.css (the 2D game's stylesheet).
    Colors are literal, not shared CSS variables, so this page has zero coupling to the 2D UI. */
 
+/* Root-cause fix (run 107, ADR-0134): this file never declared box-sizing, so every fixed-position
+   HUD widget below defaulted to content-box — a `width: min(360px, calc(100vw - Npx))` computed
+   against *content* width only, then silently grew past that intended viewport-safe bound by its
+   own padding+border (e.g. `.g3d-event-toast`'s 14px/side padding + ~4px border added ~32px on top
+   of its calculated 360px, actually rendering ~392px wide on a 390px-wide mobile viewport — found by
+   this run's own real-browser visual proof for the new day/night clock: the event toast, while
+   showing, overlapped both the health bar and the settlement compass, not merely the clock this run
+   was adding). `style.css` (the 2D page) already resets to border-box; this file simply never did.
+   Every `min(Npx, calc(100vw - Mpx))` width and `max(Npx, calc(env(safe-area-inset-*) + Npx))`
+   position in this file was written assuming border-box sizing, so this is the single fix that
+   makes them all correct at once — not a widget-by-widget patch. See DECISIONS.md ADR-0134. */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -332,8 +347,15 @@ html, body {
 }
 
 @media (max-width: 600px) {
+  /* run 107 (ADR-0134): 64px (ADR-0129's own fix) only cleared the back-link — it never accounted
+     for the settlement compass (run 106) or health bar sitting above/overlapping that same band, so
+     a two-line toast description (up to ~72px tall) could still overlap the health bar's own bottom
+     edge (12px top + ~61px tall = 73px) and, more visibly, the whole second HUD row (compass/clock,
+     top:122px + up to ~48px tall = 170px) for the several seconds a toast is shown. 184px clears the
+     taller of the two second-row widgets (compass, ~48px) with a 14px margin — found by this run's
+     own real-browser visual proof for the new day/night clock, not assumed. */
   .g3d-event-toast {
-    top: max(64px, calc(env(safe-area-inset-top, 0px) + 64px));
+    top: max(184px, calc(env(safe-area-inset-top, 0px) + 184px));
     width: min(360px, calc(100vw - 24px));
   }
 }
@@ -453,5 +475,44 @@ html, body {
   .g3d-settlement-compass {
     top: max(122px, calc(env(safe-area-inset-top, 0px) + 122px));
     right: 12px;
+  }
+}
+
+/* Day/night clock (FAZ 8 discoverability, run 107) — src/3d/ui/dayNightClock.js. Top-left,
+   mirroring the settlement compass's top-right placement: below the always-present back-link
+   (top:12/left:12), the one left-side HUD spot free on every viewport (the F4/F2 debug panel only
+   ever appears on developer request, never in the ordinary play path this HUD serves). */
+.g3d-day-night-clock {
+  position: fixed;
+  top: max(78px, calc(env(safe-area-inset-top, 0px) + 78px));
+  left: max(12px, env(safe-area-inset-left, 0px));
+  z-index: 19;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid rgba(200, 150, 10, 0.45);
+  border-radius: 9px;
+  background: rgba(10, 6, 2, 0.76);
+  color: #e8d4a0;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-day-night-clock-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.g3d-day-night-clock-time {
+  font-family: monospace;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+}
+
+@media (max-width: 600px) {
+  .g3d-day-night-clock {
+    top: max(122px, calc(env(safe-area-inset-top, 0px) + 122px));
+    left: 12px;
   }
 }
