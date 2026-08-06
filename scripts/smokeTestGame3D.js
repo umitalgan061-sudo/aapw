@@ -58,6 +58,7 @@ const dragonPursuitChecks = require('./game3dSmokeChecksDragonPursuit.js');
 const safeModeChecks = require('./game3dSmokeChecksSafeMode.js');
 const dialogueTouchChecks = require('./game3dSmokeChecksDialogueTouch.js');
 const controlsHelpChecks = require('./game3dSmokeChecksControlsHelp.js');
+const settlementCompassChecks = require('./game3dSmokeChecksSettlementCompass.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
@@ -92,6 +93,7 @@ async function main() {
 		results.push(await checks.checkInteractionPromptTap(browser, baseUrl));
 		results.push(await dialogueTouchChecks.checkDialogueChoiceTap(browser, baseUrl));
 		results.push(await controlsHelpChecks.checkControlsHelp(browser, baseUrl));
+		results.push(await settlementCompassChecks.checkSettlementCompass(browser, baseUrl));
 		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));

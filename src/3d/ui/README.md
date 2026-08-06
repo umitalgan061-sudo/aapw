@@ -33,6 +33,7 @@ convention below.
   decides what text/choices to show and when, and which numbered choice was picked.
 - **`worldEventToast.js`** — toast card for `gameplay/worldEvents.js`'s periodic events (run 42).
 - **`controlsHelp.js`** — responsive FAZ 8 controls reference: a 44px bottom-right help button opens device-specific desktop or touch instructions, Escape closes it, and `dispose()` removes its button/window listeners and DOM.
+- **`settlementCompass.js`** — FAZ 8 discoverability HUD: points toward the nearest real kingdom seat relative to player yaw, reports distance in meters/kilometers, throttles text writes to 10m buckets, and owns no listeners/timers.
   `new WorldEventToast({eventsBus, eventName, container?})` appends a hidden `<div>` and
   self-subscribes to `eventName` on `eventsBus` (the *one* exception to "own DOM only, caller
   decides when" below — the whole point of the world-event system was routing through the
