@@ -10328,3 +10328,89 @@ sıradaki konsolidasyonu ~run 96'da (değişmedi). `CATCH_UP.md`'nin sıradaki �
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+## This Run (2026-08-06, run 95 — scheduled autonomous routine)
+
+**Session Snapshot:** the incoming scheduled prompt's "first create GOVERNANCE.md" instruction is
+stale boilerplate again (this is run 95, not run 1) — `GOVERNANCE.md`/`CREDITS.md`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md` all already exist from prior runs,
+confirmed present and read in full per GOVERNANCE.md §20. Repo state check found local `HEAD`
+detached 51 commits ahead of local `main`'s stale cached ref; `git fetch origin main` showed
+`origin/main` already at that same commit (`b12e425`) — run 94's own push had genuinely succeeded.
+Fast-forwarded local `main` to `origin/main` before starting any work — clean tree, no divergence,
+nothing lost.
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-3 (terrain macro relief/road network/ground color)
+confirmed DONE via their own standing guards (not re-touched this run). Item 4 (castle texturing,
+7/14) still blocked on real models for the remaining 6 seats — unchanged. Items 5-11 (syntax/blocking
+bugs/perf/mem leak/tech debt/smoke test/world coverage) all healthy, re-confirmed by this run's own
+pre-work baseline (`node --check` clean across `src/3d`, `checkDialogueChoicesShape.js` OK — 13/14
+pilot coverage, `checkSmokeCheckRegistry.js` OK — 28 checks/8 modules, 66 files under the 600-line cap
+with the same 2 known WARNs; full `smokeTestGame3D.js` suite **28/28 PASS**, 0 FAIL). Items 12-13
+(FAZ 7 dragon follow-ups / FAZ 11 species) remain blocked on models. That leaves item 14 ("yeni
+özellik") as the actionable lever — run 94's own "Next step" named the 7 remaining 2-choice NPCs as
+open candidates without pre-vetting one specifically, so this run picked `doran-guard-1` (Dorne) for
+house-coverage reasons (see ADR-0121's Context/Alternatives).
+
+### Sub-task 1: `doran-guard-1`'s 3rd dialogue choice (DECISIONS.md ADR-0121)
+
+Full reasoning, alternatives considered, and decision detail are in ADR-0121 — not duplicated here.
+
+**DoD durumu:** `node --check` clean (`dialogueChoices.js`, 218/600, was 211). `checkDialogueChoicesShape.js`
+OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot coverage unchanged at 13/14.
+`checkSmokeCheckRegistry.js` re-run post-change: unchanged (28 checks/8 modules, same 2 known WARNs).
+Full smoke suite re-run: **28/28 PASS**, 0 FAIL (before-baseline also 28/28 PASS, 0 FAIL — regresyon
+yok).
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only, uncommitted Playwright script, same methodology ADR-0115/ADR-0117/ADR-0119/ADR-0120 used,
+deleted before commit): the real `game3d.html` was booted, then the same live `CHOICES_BY_NPC_ID`/
+`DialogueBox`/`InteractionPrompt`/`createInteractionController` modules `game3d.js` itself imports
+were dynamically imported from inside the page and driven against a synthetic `doran-guard-1` NPC.
+(1) All 3 real choice labels render in order, hint reads exactly `'1/2/3 - Seç, Esc - Kapat'`, the
+real world-event toast ("Ejderha Görüldü!") and health bar (`60/100` — an earlier incidental dragon
+bite during this run's own boot-and-settle wait, unrelated to this change) both visible in the
+background. (2) Pressing `Digit3` shows the exact new response text with `{name}` replaced by the
+synthetic NPC's display name, hint reverts to `'E / Esc - Kapat'`, choice list cleared, health bar
+unchanged at `60/100`. Zero console/page errors throughout.
+
+**Perf sampling note:** `perf_log.csv`'s `run95` row (46/393,231/44/17) is bit-identical to the
+run76-94 baseline — expected, zero geometry/texture code touched.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (personal cost-of-isolation
+confession) is distinct from `doran-guard-1`'s existing 2 choices (political tension + secret-garden
+lore) and from every other 3-choice NPC's own 3rd choice theme so far — no near-duplicate. Header-
+comment NPC-list prose updated consistently. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak
+checklist: n/a, config-data-only.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 7th-generation repeat of an already-proven,
+low-risk pattern, zero open design ambiguity, zero regression in the full smoke suite. "6 ay sonra
+hâlâ net mi" tereddüdü yok: ADR-0121 records the exact angle picked and why, same as its 6
+predecessors.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| NPCs with a 3rd dialogue choice | 6/13 | **7/13** | +1 (`doran-guard-1`) |
+| Dialogue choice pilot coverage | 13/14 | 13/14 | değişmedi (mevcut bir NPC büyüdü, yeni NPC eklenmedi) |
+| Smoke suite | 28/28 | **28/28** | aynı 28 kontrol, yeniden doğrulandı |
+| ADR headers in `DECISIONS.md` | 120 | **121** | +1 (ADR-0121) |
+| `perf_log.csv` rows | 37 | **38** | +1 (`run95`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (saf config-data değişikliği) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ölçekte — `doran-guard-1` ile konuşan bir oyuncu artık 3.
+bir soru sorabilir ve muhafızın kişisel bir bedel/pişmanlık cevabı alır; dünyanın geri kalanı
+değişmedi.
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Bloklu kalan her şey değişmedi: 6
+kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. Item 14 tekrar seçilirse: kalan 6 iki-seçenekli
+NPC'den biri (`xaro-guard-1`'in bu run'da açık bırakılan bir sonraki aday — bkz. ADR-0121'in
+"Alternatives considered" / `stannis-guard-2`/`balon-guard-1`/`robin-guard-1`/`ziya-guard-1`/
+`berk-guard-1`) veya `worldEvents.js`'nin flavor pool'u. `RULES_CHANGELOG.md`'nin sıradaki
+konsolidasyonu ~run 96'da (değişmedi). `CATCH_UP.md`'nin sıradaki özeti run 98'de (değişmedi).
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.

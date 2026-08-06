@@ -10995,3 +10995,122 @@ perf-sampling noise investigated and resolved, same as its 5 predecessors.
 **Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
 the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
 choice.
+
+
+## ADR-0121: `doran-guard-1`'s 3rd dialogue choice — the pilot's 7th NPC to use the 3rd slot, 1st Dornish seat
+
+**Date:** 2026-08-06 (run 95, scheduled autonomous routine).
+
+**Status:** Accepted.
+
+**Risk Seviyesi:** LOW. Justification: purely additive dialogue-config data (one new object literal
+in an existing `Object.freeze` array) plus a doc-comment update. Fully reversible: `git revert` the
+one commit removes the new choice and restores the header comment's prior wording. No `src/` runtime
+logic touched, no other NPC's entry, no shared module changed.
+
+**Context:** Session Snapshot (GOVERNANCE.md §20) confirmed local `HEAD` was detached 51 commits
+ahead of local `main`'s stale cache — `git fetch origin main` showed `origin/main` already at that
+same commit (`b12e425`, run 94's own push had genuinely succeeded); local `main` was fast-forwarded
+to match, clean tree, nothing lost. Priority re-scan (GOVERNANCE.md §18): items 1-3 (terrain macro
+relief/road network/ground color) remain DONE per their own standing guards, not re-touched this run.
+Item 4 (castle texturing, 7/14) still blocked on real models for the other 6 seats. Items 5-11
+(syntax/blocking bugs/perf/mem leak/tech debt/smoke test/world coverage) all re-confirmed healthy by
+this run's own pre-work baseline (`node --check` clean across `src/3d`, `checkDialogueChoicesShape.js`
+OK — 13/14 pilot coverage, `checkSmokeCheckRegistry.js` OK — 28 checks/8 modules, same 2 known
+line-count WARNs; full `smokeTestGame3D.js` suite **28/28 PASS**, 0 FAIL). Items 12-13 (FAZ 7 dragon
+follow-ups / FAZ 11 species) remain blocked on models. That leaves item 14 ("yeni özellik") as the
+actionable lever, same conclusion run 94 reached. Run 94's own "Next step" named the 7 remaining
+2-choice NPCs as the open candidates without pre-vetting one specifically — this run picks
+`doran-guard-1` (Dorne, the pilot's only remaining un-grown Martell seat) to spread 3rd-slot coverage
+to a house not yet represented among the 6 existing 3-choice NPCs (Stark x2, Lannister x2, Baratheon,
+Tyrell/Frey via twin-guard-1 — no Dornish seat yet).
+
+**Gelecek Faz Etkisi:** none — still no further branching/state/persistence/stat hook, same "pilot on
+a growing subset" scope ADR-0058 established; a future real dialogue-tree/quest system would replace
+this mechanism wholesale rather than be constrained by one more leaf choice.
+
+**Decision:** `doran-guard-1` (Dorne castle guard, existing 2 choices cover political
+independence/tension and the secret-gardens lore hook) gets a 3rd choice — "Bu kadar bağımsız
+kalmanın hiç bir bedeli oldu mu?" ("Has staying this independent ever cost you?"). Response ("Oldu
+elbette, yabancı. Yalnız yürüyen zor günde müttefik bulamaz. Ama biz bunu göze aldık, boyun
+eğmektense.") stays in-tone with the existing 2 choices (addresses the player as "yabancı", continues
+the proud-but-unbowed Dorne voice) while adding a personal cost-of-isolation confession angle distinct
+from the pair's political-tension/secret-garden framing — genuinely different from every other
+3-choice NPC's own 3rd-choice angle so far (duty/fatigue for `berkalp-guard-1`, suspicion for
+`twin-guard-1`, regret-over-wit for `olena-guard-1`, private-conviction for `stannis-guard-1`,
+fear-under-a-ruler for `cersei-guard-1`). Implemented as one new `Object.freeze({label, response})`
+entry appended to `CHOICES_BY_NPC_ID['doran-guard-1']` in `gameplay/dialogueChoices.js`, plus the
+file's header comment updated to record the 7th 3-choice NPC and this ADR. No other file touched —
+`interactionConfig.js`'s existing `GREETINGS_BY_NPC_ID` entry, `npcConfig.js`'s spawn entry,
+`interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` handling, and `game3d.js`'s keydown wiring are all
+unchanged and already generic across every NPC's choice count.
+
+**Real headless-Chromium proof** (dev-only, uncommitted Playwright script, same methodology
+ADR-0115/ADR-0117/ADR-0119/ADR-0120 used, deleted before commit): the real `game3d.html` was booted,
+then the same live `CHOICES_BY_NPC_ID`/`DialogueBox`/`InteractionPrompt`/`createInteractionController`
+modules `game3d.js` itself imports were dynamically imported from inside the page and driven against
+a synthetic `doran-guard-1` NPC. Confirmed: all 3 real choice labels render in order ("1) Diğer
+krallıklarla aranız neden bu kadar gergin?" / "2) Dorne'un gizli bahçeleri var mı?" / "3) Bu kadar
+bağımsız kalmanın hiç bir bedeli oldu mu?"), the hint reads exactly `'1/2/3 - Seç, Esc - Kapat'` while
+choices are shown, pressing `Digit3` shows the exact new response text with `{name}` replaced by the
+synthetic NPC's display name, and the hint reverts to `'E / Esc - Kapat'` after selection with the
+choice list cleared (0 `.g3d-dialogue-box-choice` elements remaining) — zero console/page errors
+throughout (`consoleErrors.length === 0`).
+
+**Real visual proof, 2 moments, zero console/page errors in both:** the proof script's `DialogueBox`/
+`InteractionPrompt` were constructed against their real default container (`document.body`) so their
+DOM renders with the game's own live CSS, directly over the real booted `game3d.html` scene — (1) all
+3 choices open, hint `1/2/3 - Seç, Esc - Kapat`, the real world-event toast ("Ejderha Görüldü!") and
+health bar (`60/100` — an earlier incidental dragon bite during this run's own boot-and-settle wait,
+unrelated to this change) both visible in the background; (2) the 3rd choice's response shown, hint
+reverted to `E / Esc - Kapat`, choice list cleared, health bar unchanged at `60/100` (no further
+incidental damage this round).
+
+**Perf sampling:** `perf_log.csv`'s `run95` row (46/393,231/44/17) is bit-identical to the run76-94
+baseline — expected, this change touches zero geometry/texture code.
+
+**Alternatives considered:**
+- *`worldEvents.js`'s flavor pool instead (27 -> 29 entries).* Rejected, same reasoning ADR-0115/
+  ADR-0117/ADR-0119/ADR-0120 used — still a legitimate future lever, but a 7th NPC reaching the 3rd
+  dialogue slot continues the more informative, already-proven-safe proof point, and this run's own
+  house-coverage angle (Dorne not yet represented) gave a concrete reason to prefer this pick over
+  re-litigating the flavor-pool option again.
+- *A 3rd lore fact about Dorne's politics/gardens instead.* Rejected — the existing 2 choices already
+  cover both the political-independence and secret-garden lore angles; a 3rd near-duplicate would read
+  as padding, same reasoning ADR-0114/ADR-0115/ADR-0117/ADR-0119/ADR-0120 used to prefer a
+  personal-question 3rd choice over a 3rd lore fact.
+- *`xaro-guard-1` instead (also un-grown, also un-vetted).* Rejected in favor of `doran-guard-1` this
+  run specifically because Dorne has no 3-choice representative yet while Qarth (a foreign trading
+  city, not one of the Seven Kingdoms' seats) is a lower-priority gap for this "spread across houses"
+  angle; logged here as the next equally-ready candidate for a future run.
+- *Do nothing this sub-task, stop after the pre-work baseline instead.* Rejected — Session Quality
+  Gate confidence stayed high (existing, well-established pattern, 6 prior ADRs to follow, zero open
+  design ambiguity) and the run budget/time cap were nowhere close, so GOVERNANCE.md §19's chaining
+  rule applies.
+
+**Consequences:** `doran-guard-1` becomes the pilot's 7th NPC (of 13 with any dialogue choices, 14
+total real NPCs) to use the 3rd dialogue slot, and its 1st Dornish seat. `checkDialogueChoicesShape.js`'s
+pilot-coverage line is unaffected (still 13/14 — no new NPC gained an entry, an existing one grew). No
+lasting performance cost (config-data-only, zero geometry/listener/timer touch in the committed diff).
+`dialogueChoices.js` grows from 211 to 218 lines, still well inside the 600-line cap.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (personal cost-of-isolation
+confession) is genuinely distinct from `doran-guard-1`'s existing 2 choices (political tension +
+secret-garden lore) and from every other 3-choice NPC's own 3rd choice theme — no near-duplicate.
+Confirmed the header-comment update's NPC-list prose stays internally consistent (removed
+`doran-guard-1` from the "still 2-choice" list, added its own new-choice sentence in the same
+run-by-run chronological style the prior 6 entries use). No `TEMP`/`HACK`/`FIXME`/`WORKAROUND` anywhere
+in the diff. Memory leak checklist: n/a, config-data-only (no new listener/timer/DOM/geometry-material
+in the committed diff; the proof script's own `DialogueBox`/`InteractionPrompt` instances lived only
+inside its own disposable headless browser context, never committed).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 7th-generation repeat of an already-proven,
+low-risk pattern (config-data-only, fully reversible, real headless-Chromium + real visual proof both
+confirm the exact rendered text end-to-end), zero open design ambiguity, zero regression in the full
+smoke suite (28/28 PASS before and after). "6 ay sonra hâlâ net mi" tereddüdü yok: this ADR records
+the exact angle picked, why, and the house-coverage reasoning behind picking this NPC over the other
+6 equally-ready candidates.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
+the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
+choice.
