@@ -401,3 +401,15 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   at `dce401a`. `git push origin main` succeeded (`b12e425..dce401a`). `git push origin <tag>` still
   rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
   entry satisfies the checkpoint).
+
+- **Run 96 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed (confidence
+  5/5 both sub-tasks) — sub-task 1: GOVERNANCE.md §8.12 rule consolidation (2nd pass, run 76 →
+  run 96), no rule content changed beyond a `perf_log.csv` 30+-row threshold note; sub-task 2:
+  `xaro-guard-1`'s 3rd dialogue choice (ADR-0122), the pilot's 8th NPC to reach the 3rd dialogue
+  slot and its only non-Seven-Kingdoms seat. Full smoke suite **28/28 PASS** before and after, real
+  headless-Chromium proof + real visual proof (2 moments, live `game3d.html` scene in the
+  background) confirm the new choice renders and resolves correctly, 0 console/page errors.
+  `perf_log.csv`'s `run96` row bit-identical to run76-95. Local tag `stable-2026-08-06-1530` created
+  at `89c27ae`. `git push origin main` succeeded twice (`23870a7..91b4196` sub-task 1,
+  `91b4196..89c27ae` sub-task 2). `git push origin <tag>` still rejected, same `HTTP 403` standing
+  block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
