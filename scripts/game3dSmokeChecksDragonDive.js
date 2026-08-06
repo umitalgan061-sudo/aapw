@@ -298,4 +298,161 @@ async function checkDragonDiveTelegraph(browser, baseUrl) {
 	return { name: 'dragon dive telegraph (gameplay/dragons.js, run 72)', ok, details };
 }
 
-module.exports = { checkDragonDive, checkDragonDiveTelegraph };
+/**
+ * Regression guard for `gameplay/dragons.js`'s attack lunge/bite (run 90, DECISIONS.md ADR-0116) —
+ * the project owner's own live request: dragons should attack once provoked, not just menace and
+ * withdraw. Every scenario parks the dragon (`speedMps: 0`) and uses a real `EventBus`, same
+ * conventions `checkDragonDive`/`checkWorldEvents` already establish, so the actual emitted damage
+ * event (not just an internal blend value) is what's asserted wherever possible.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkDragonBiteAttack(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createDragon } = await import('/src/3d/gameplay/dragons.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { DRAGON_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+			const { EventBus } = await import('/src/3d/eventBus.js');
+
+			const assetLoader = new AssetLoader();
+			const approxEqual = (a, b, tolerance = 1e-6) => Math.abs(a - b) < tolerance;
+			const delta = 1 / 60;
+			// Deliberately low altitude/short transitions (vs. DRAGON_CONFIG.SPAWNS[0]'s real, much
+			// larger numbers) purely so this test reaches every stage in a small, fast, exact frame
+			// count — the *mechanism* under test is identical either way.
+			const centerX = 300;
+			const centerZ = 400;
+			const centerY = 20;
+			const circleRadiusMeters = 150;
+			const alarmRadiusMeters = 50; // > centerY, same "must clear altitude to ever trigger" property real spawns need.
+			const diveDropMeters = 10;
+			const diveLateralPullFraction = 0.4;
+			const diveTransitionSeconds = 0.3;
+			const diveTelegraphSeconds = 0.2;
+			const diveTelegraphTransitionSeconds = 0.1;
+			const attackTriggerSeconds = 0.3; // additional sustained time *beyond* the telegraph+dive window above.
+			const attackLateralPullFraction = 0.95;
+			const attackDropMeters = 18; // deeper than diveDropMeters -- clamped by minAltitudeAboveGroundMeters below.
+			const attackTransitionSeconds = 0.3;
+			const minAltitudeAboveGroundMeters = 3;
+			const biteRadiusMeters = 10;
+			const biteDamage = 25;
+			const biteCooldownSeconds = 1;
+			const flatGroundY = () => 0;
+			const circleX = centerX; // dragon's parked position: (centerX, centerY, centerZ + radius)
+			const circleZ = centerZ + circleRadiusMeters;
+			// A real player standing on the ground (y=0), not at the dragon's own cruise altitude —
+			// matters here specifically because the bite check reads real 3D distance, unlike
+			// `checkDragonDive`'s own `playerNear` (which reuses `centerY` purely to isolate the
+			// lateral-pull math, never intended to double as a realistic bite-range scenario).
+			const playerNear = { x: circleX + 15, y: 0, z: circleZ };
+			const playerFar = { x: circleX, y: 0, z: circleZ + 1000 };
+
+			const baseSpawn = {
+				assetLoader,
+				modelUrl: DRAGON_CONFIG.MODEL_URL,
+				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
+				scale: DRAGON_CONFIG.SCALE,
+				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
+				centerX, centerZ, centerY, circleRadiusMeters,
+				speedMps: 0,
+				alarmRadiusMeters,
+				sampleGroundY: flatGroundY,
+				diveDropMeters, diveLateralPullFraction, diveTransitionSeconds,
+				diveTelegraphSeconds, diveTelegraphTransitionSeconds,
+				attackTriggerSeconds, attackLateralPullFraction, attackDropMeters, attackTransitionSeconds,
+				minAltitudeAboveGroundMeters,
+				biteRadiusMeters, biteDamage, biteCooldownSeconds,
+			};
+
+			// --- Scenario 1: sustained provocation escalates and lands exactly one hit; cooldown then
+			//     blocks a 2nd one until it elapses, after which a 2nd hit lands. ---
+			const bus = new EventBus();
+			const hits = [];
+			bus.on('test:bite', (payload) => hits.push(payload));
+			const dragon = await createDragon({ ...baseSpawn, eventsBus: bus, biteEventName: 'test:bite' });
+			// 90 frames = 1.5s: well past telegraph (0.2s) + dive transition (0.3s) + attack trigger
+			// (0.3s more) + attack transition (0.3s) = 1.1s total to full escalation. With these
+			// exact numbers the 1st hit deterministically lands at frame 48 (0.8s: the first frame
+			// `attackBlend` exceeds 0.95 -- 17/18 steps of the 1/18-per-frame ease is 0.944, 18/18 is
+			// exactly 1) -- 90 frames leaves comfortable margin on both sides.
+			for (let i = 0; i < 90; i++) dragon.update(delta, playerNear);
+			const exactlyOneHitAfterEscalation = hits.length === 1;
+			const firstHitAmountCorrect = hits[0]?.amount === biteDamage;
+			const attackBlendFullyEscalated = approxEqual(dragon.object3D.userData.attackBlend, 1);
+			// 10 more frames (cumulative 100, 1.667s): the cooldown from the frame-48 hit
+			// (biteCooldownSeconds=1s -> expires at frame 108) has not elapsed yet -- must not add a
+			// 2nd hit. (An earlier draft of this check used 30 more frames here -- cumulative 120,
+			// past frame 108 -- and *correctly* caught the resulting 2nd hit as a real test-timing bug
+			// in itself, not a bug in `dragonController.js`: re-verified by hand against the exact
+			// frame-by-frame blend math above before narrowing this window, not just loosened until
+			// it passed.)
+			for (let i = 0; i < 10; i++) dragon.update(delta, playerNear);
+			const stillExactlyOneHitDuringCooldown = hits.length === 1;
+			// 40 more frames (cumulative 140, 2.333s): well past frame 108's cooldown expiry -- a 2nd
+			// hit must land now that the dragon is still fully escalated and in range.
+			for (let i = 0; i < 40; i++) dragon.update(delta, playerNear);
+			const secondHitLandsAfterCooldown = hits.length === 2;
+			dragon.dispose();
+
+			// --- Scenario 2: proximity alone (dive, no sustained escalation yet) never bites. ---
+			const shortHits = [];
+			bus.on('test:biteShort', (payload) => shortHits.push(payload));
+			const shortDragon = await createDragon({ ...baseSpawn, eventsBus: bus, biteEventName: 'test:biteShort' });
+			// 20 frames = 0.33s: past the telegraph (0.2s, dive is moving) but well under the 0.5s
+			// (telegraph + attackTriggerSeconds) needed for escalation to even begin.
+			for (let i = 0; i < 20; i++) shortDragon.update(delta, playerNear);
+			const diveStartedButNoBiteYet = shortDragon.object3D.userData.attackBlend === 0 && shortHits.length === 0;
+			shortDragon.dispose();
+
+			// --- Scenario 3: retreating mid-escalation cancels it and stops any further bite. ---
+			const retreatHits = [];
+			bus.on('test:biteRetreat', (payload) => retreatHits.push(payload));
+			const retreatDragon = await createDragon({ ...baseSpawn, eventsBus: bus, biteEventName: 'test:biteRetreat' });
+			for (let i = 0; i < 90; i++) retreatDragon.update(delta, playerNear); // escalates, lands 1 hit (same as scenario 1).
+			const hitCountBeforeRetreat = retreatHits.length;
+			for (let i = 0; i < 60; i++) retreatDragon.update(delta, playerFar); // 1s outside alarmRadiusMeters.
+			const attackBlendErasedAfterRetreat = approxEqual(retreatDragon.object3D.userData.attackBlend, 0);
+			const noFurtherHitsAfterRetreat = retreatHits.length === hitCountBeforeRetreat;
+			retreatDragon.dispose();
+
+			// --- Scenario 4: dive-only dragon (no biteEventName/biteDamage) never bites regardless of
+			//     how long the player provokes it, and its position is untouched (exact pre-run-88
+			//     dive math — the same formula checkDragonDive itself proves). ---
+			const noBiteDragon = await createDragon({ ...baseSpawn, eventsBus: bus }); // no biteEventName/biteDamage.
+			for (let i = 0; i < 200; i++) noBiteDragon.update(delta, playerNear); // far past every threshold above.
+			const expectedCalmDivedX = circleX + (playerNear.x - circleX) * diveLateralPullFraction;
+			const expectedCalmDivedY = centerY - diveDropMeters;
+			const noBiteDragonUnaffected = approxEqual(noBiteDragon.object3D.position.x, expectedCalmDivedX)
+				&& approxEqual(noBiteDragon.object3D.position.z, circleZ)
+				&& approxEqual(noBiteDragon.object3D.position.y, expectedCalmDivedY)
+				&& noBiteDragon.object3D.userData.attackBlend === 0;
+			noBiteDragon.dispose();
+
+			return {
+				exactlyOneHitAfterEscalation, firstHitAmountCorrect, attackBlendFullyEscalated,
+				stillExactlyOneHitDuringCooldown, secondHitLandsAfterCooldown,
+				diveStartedButNoBiteYet,
+				attackBlendErasedAfterRetreat, noFurtherHitsAfterRetreat,
+				noBiteDragonUnaffected,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'sustained provocation past the dive+telegraph window escalates to a real, damage-dealing ' +
+			'hit (exact configured amount) exactly once, blocked by its own cooldown, landing a 2nd ' +
+			'hit once that cooldown elapses; a short proximity burst that never escalates lands no ' +
+			'hit at all; retreating mid-escalation eases the escalation back to exactly 0 and stops ' +
+			'any further hit; a dive-only dragon with no bite configured never bites regardless of ' +
+			'duration and its position stays exactly the pre-existing dive-only math'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'dragon attack lunge/bite (gameplay/dragons.js, ADR-0116)', ok, details };
+}
+
+module.exports = { checkDragonDive, checkDragonDiveTelegraph, checkDragonBiteAttack };

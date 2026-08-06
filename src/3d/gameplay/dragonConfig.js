@@ -125,6 +125,26 @@ export const DRAGON_CONFIG = Object.freeze({
 			pursuitCircleRadiusMeters: 55,
 			pursuitTransitionSeconds: 2.5,
 			pursuitMaxSeconds: 18,
+			/** FAZ 7 attack lunge/bite (run 90, DECISIONS.md ADR-0116) — the project owner's own live
+			 * request: dragons should actually attack once provoked, not just menace and withdraw
+			 * (runs 66/70/71 all deliberately deferred this exact question to `QUESTIONS_FOR_OWNER.md`).
+			 * Only 3 fields need a spawn-level override — `attackTriggerSeconds`/`biteRadiusMeters`/
+			 * `biteCooldownSeconds` all keep `createDragon`'s own defaults (2.5s/15m/4s), which already
+			 * fit this spawn's numbers fine:
+			 * - `attackLateralPullFraction: 0.9` — far more committed than the ordinary menace dive's
+			 *   0.3 above; `createDragon`'s own default would otherwise just reuse that 0.3 and never
+			 *   escalate at all (see its own doc comment: "provably inert unless configured").
+			 * - `attackDropMeters: 78` — `altitudeMeters` (90) minus `minAltitudeAboveGroundMeters` (12):
+			 *   deep enough that the terrain-safety clamp, not this raw number, is what actually stops
+			 *   the descent — reads as "dives all the way down to bite" rather than a fixed,
+			 *   altitude-agnostic drop that might stay too high up to ever land a hit.
+			 * - `biteDamage: 20` — this run's own engineering judgment (this project's first combat
+			 *   number of any kind); paired with `PLAYER_CONFIG.MAX_HEALTH` (100) for a readable
+			 *   "5 hits to defeat" budget. See `QUESTIONS_FOR_OWNER.md` for the open feel-calibration
+			 *   question, same pattern every other guessed dragon constant already logged there. */
+			attackLateralPullFraction: 0.9,
+			attackDropMeters: 78,
+			biteDamage: 20,
 		}),
 	]),
 });

@@ -10,7 +10,7 @@
  *
  * This file is just the orchestration (result printing over each check) — the static file server
  * and Playwright bootstrap it uses live in `devServerHelper.js` (run 59, shared with
- * `collectPerfSnapshot.js`). The actual per-feature assertions live in seven focused check modules:
+ * `collectPerfSnapshot.js`). The actual per-feature assertions live in nine focused check modules:
  * - `game3dSmokeChecksScene.js` — page-boot level: 2D shell load, 3D mode boot, water
  *   vertex-shader-has-no-displacement.
  * - `game3dSmokeChecksDebugTools.js` — debug-tool + world-event singleton systems: F4 debug camera,
@@ -22,9 +22,11 @@
  * - `game3dSmokeChecksMovement.js` — ground-movement AI: wolf flee/pack-alert, NPC waypoint patrol,
  *   wolf waypoint patrol, NPC combat-stance.
  * - `game3dSmokeChecksDragonFlight.js` — dragon baseline flight/awareness: circling flight, notice
- *   trigger, reactive flight.
- * - `game3dSmokeChecksDragonDive.js` — dragon path deviations: dive/swoop, continuous chase,
- *   pursuit give-up cue.
+ *   trigger, reactive flight, wing-flap agitation telegraph.
+ * - `game3dSmokeChecksDragonDive.js` — dragon dive/swoop path deviations: dive/swoop, dive telegraph,
+ *   and (run 90, ADR-0116) the attack lunge/bite escalation on top of it.
+ * - `game3dSmokeChecksDragonPursuit.js` — dragon continuous-chase path deviations: pursuit, pursuit
+ *   give-up cue.
  * - `game3dSmokeChecksSafeMode.js` — `safeMode.js`'s dispose()/disposeOnError()-throws containment
  *   (ADR-0106), per-entity and singleton.
  *
@@ -98,6 +100,7 @@ async function main() {
 		results.push(await dragonPursuitChecks.checkDragonPursuit(browser, baseUrl));
 		results.push(await dragonPursuitChecks.checkDragonGiveUpCue(browser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonDiveTelegraph(browser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonBiteAttack(browser, baseUrl));
 		results.push(await safeModeChecks.checkSafeModeEntityDisposeThrows(browser, baseUrl));
 		results.push(await safeModeChecks.checkSafeModeSystemDisposeThrows(browser, baseUrl));
 	} finally {

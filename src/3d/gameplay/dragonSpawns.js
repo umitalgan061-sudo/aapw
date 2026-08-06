@@ -25,6 +25,11 @@ import { createDragon } from './dragonController.js';
  * @param {import('../eventBus.js').EventBus} [options.eventsBus] Player-awareness (ADR-0072) — see
  *   `createDragon`'s own doc comment. Omit to spawn every configured dragon with awareness disabled.
  * @param {string} [options.eventName] `EVENTS.WORLD_EVENT_TRIGGERED`.
+ * @param {string} [options.biteEventName] Run 90 (ADR-0116) `EVENTS.PLAYER_DAMAGED` — shared across
+ *   every spawn the same way `eventName` already is, distinct from it since the payload shape
+ *   differs (`{amount, sourceId}`, not a toast-shaped event). Omit to spawn every configured dragon
+ *   with biting disabled regardless of any per-spawn `biteDamage` — same "requires its own defining
+ *   value" gate `createDragon`'s own `canBite` already enforces per-dragon.
  * @returns {Promise<Awaited<ReturnType<typeof createDragon>>[]>} Already filtered — no `null` entries.
  *   Each spawn's own `reactiveSpeedMultiplier`/`reactiveBankAngleRadians`/`reactiveTransitionSeconds`
  *   (run 58, ADR-0077) and `alarmRadiusMeters`/`diveDropMeters`/`diveLateralPullFraction`/
@@ -33,12 +38,14 @@ import { createDragon } from './dragonController.js';
  *   `pursuitTransitionSeconds`/`pursuitMaxSeconds` (run 66, ADR-0085) and
  *   `agitatedWingFlapMultiplier` (run 70, ADR-0089) and
  *   `giveUpBankAngleMultiplier`/`giveUpTransitionSeconds` (run 71, ADR-0091) and
- *   `diveTelegraphSeconds`/`diveTelegraphTransitionSeconds` (run 72) are passed straight
+ *   `diveTelegraphSeconds`/`diveTelegraphTransitionSeconds` (run 72) and
+ *   `attackTriggerSeconds`/`attackLateralPullFraction`/`attackDropMeters`/`attackTransitionSeconds`/
+ *   `biteRadiusMeters`/`biteDamage`/`biteCooldownSeconds` (run 90, ADR-0116) are passed straight
  *   through to `createDragon` — omitted per-spawn fields fall back to `createDragon`'s own no-op
  *   defaults (calm flight, unaffected by the player). `sampleGroundY` itself is always passed
  *   through too (run 64), needed for the dive's and the traveling circle's terrain-safety clamp.
  */
-export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsById, sampleGroundY, eventsBus, eventName }) {
+export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsById, sampleGroundY, eventsBus, eventName, biteEventName }) {
 	const dragons = await Promise.all(
 		dragonConfig.SPAWNS.map(async (spawn) => {
 			const seat = seatsById.get(spawn.seatId);
@@ -85,6 +92,16 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				// traveling circle can re-derive its cruise altitude over new terrain (run 66).
 				cruiseAltitudeAboveGroundMeters: spawn.altitudeMeters,
 				agitatedWingFlapMultiplier: spawn.agitatedWingFlapMultiplier,
+				// Run 90 (ADR-0116) attack lunge/bite: `biteEventName` shared across every spawn (like
+				// `eventName`), the rest per-spawn (like every other dive/pursuit tunable above).
+				attackTriggerSeconds: spawn.attackTriggerSeconds,
+				attackLateralPullFraction: spawn.attackLateralPullFraction,
+				attackDropMeters: spawn.attackDropMeters,
+				attackTransitionSeconds: spawn.attackTransitionSeconds,
+				biteRadiusMeters: spawn.biteRadiusMeters,
+				biteDamage: spawn.biteDamage,
+				biteCooldownSeconds: spawn.biteCooldownSeconds,
+				biteEventName,
 			});
 		}),
 	);

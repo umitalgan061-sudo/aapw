@@ -85,6 +85,23 @@
  * position blend start moving, exactly as before. A player who retreats during the telegraph window
  * never sees the dive start at all -- only the wing-flare warning fired, the intended "warned, not
  * committed" read. Still no new radius/trigger and still no health/damage/attack.
+ * Run 90 (DECISIONS.md ADR-0116) answers the question every one of runs 66/70/71 explicitly deferred
+ * to `QUESTIONS_FOR_OWNER.md`: the project owner asked, in their own words, for dragons to actually
+ * be aggressive where they exist, attacking once provoked. A new `attackBlend` escalates the
+ * existing dive once the player has stayed inside `alarmRadiusMeters` continuously for *longer* than
+ * the ordinary dive's own telegraph+transition window (`attackTriggerSeconds`, default 2.5s beyond
+ * that) — the player kept provoking it, not merely triggered one swoop — replacing the dive's calm
+ * lateral-pull/altitude-drop with much more committed ones (`attackLateralPullFraction`/
+ * `attackDropMeters`) over its own slower transition. Once fully escalated and within
+ * `biteRadiusMeters` of the player's *real*, terrain-clamped position, the dragon emits
+ * `EVENTS.PLAYER_DAMAGED` (a fixed `biteDamage`, rate-limited by `biteCooldownSeconds`) — the
+ * project's first source of real, lethal-eventually damage of any kind. `gameplay/health.js` (a new,
+ * fully generic health-state module, not dragon-specific) turns that into the player's actual health
+ * dropping, `ui/healthBar.js` shows it, and `game3d.js` handles `EVENTS.PLAYER_DIED` by respawning
+ * the player at their spawn point, fully healed. Entirely additive and off by default: a dragon with
+ * no `biteEventName`/`biteDamage` configured (every dragon spawned before this run, since
+ * `DRAGON_CONFIG.SPAWNS[0]` is the only one updated to opt in) never computes any of this and
+ * behaves exactly as it did the run before — see `dragonController.js`'s own `canBite` gate.
  *
  * @module gameplay/dragons
  */

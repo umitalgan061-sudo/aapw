@@ -109,6 +109,60 @@ import {
  *   itself, so the wing-flap cue reads as a sudden flare-up rather than a gradual ramp, the same
  *   "the cue itself is quick even though the window it lives in is longer" shape
  *   `giveUpTransitionSeconds` (`0.6`, snappier than its siblings) already established in run 71.
+ * @param {number} [options.attackTriggerSeconds] Run 90 (ADR-0116) attack lunge — the owner-
+ *   requested "if provoked, attack" behavior: a real, damage-dealing escalation on top of the
+ *   run-64 dive's non-lethal menace. Gated behind `canBite` (see `biteEventName`/`biteDamage` below)
+ *   — a dragon with no bite configured never computes any of this and behaves exactly as before.
+ *   Once alarmed continuously for `diveTelegraphSeconds + attackTriggerSeconds` (i.e. the ordinary
+ *   dive has already fully committed, *then* this much longer of sustained proximity on top of that
+ *   — the player kept provoking it rather than the dragon merely swooping once), `attackBlend` (see
+ *   `update()` below) starts easing toward 1, escalating the dive's own pull/drop from their calm
+ *   values toward `attackLateralPullFraction`/`attackDropMeters`. The player retreating past
+ *   `alarmRadiusMeters` at any point resets `diveAlarmElapsedSeconds` to 0 (pre-existing behavior)
+ *   and eases `attackBlend` back down with it — an ordinary dive that never escalates never sees
+ *   this fire at all. Defaults to `2.5`.
+ * @param {number} [options.attackLateralPullFraction] Replaces `diveLateralPullFraction` once
+ *   `attackBlend` reaches 1 (blended between the two by `attackBlend`, same `blendScalar` shape
+ *   `pursuitCircleRadiusMeters`'s own blend already uses) — how far horizontally the escalated lunge
+ *   pulls toward the player, same clamped `0`-`1` range as `diveLateralPullFraction`. Defaults to
+ *   `diveLateralPullFraction` itself (no escalation unless a spawn explicitly configures a higher
+ *   value) — kept provably inert when unconfigured (`blendScalar` between two equal values is that
+ *   value regardless of blend) rather than defaulting to a plausible-sounding but arbitrary number.
+ * @param {number} [options.attackDropMeters] Replaces `diveDropMeters` the same way, once escalated —
+ *   how far below cruise altitude the lunge's *unclamped* target sits (the terrain-safety floor below
+ *   still applies exactly as it does to the ordinary dive). Defaults to `diveDropMeters` itself, same
+ *   "provably inert unless configured" reasoning as `attackLateralPullFraction` above — a real attack
+ *   spawn should set this close to `centerY`'s own altitude-above-ground budget (e.g. `altitudeMeters
+ *   - minAltitudeAboveGroundMeters`) so the terrain clamp is what actually stops the descent, reading
+ *   as "dives all the way down to bite," not a fixed, altitude-agnostic magic number.
+ * @param {number} [options.attackTransitionSeconds] How long, in seconds, `attackBlend` takes to ease
+ *   toward 1 (escalating) or back to 0 (the player retreated, or the underlying dive itself eased
+ *   back down with it). Defaults to `1.5` — deliberately slower than `diveTransitionSeconds` (`0.8`-
+ *   `1` in practice): the *ordinary* swoop should read as quick, but committing to a real attack is a
+ *   bigger, more deliberate escalation, not just a faster version of the same motion.
+ * @param {number} [options.biteRadiusMeters] The 3D distance, in meters, to the player at which a
+ *   fully-escalated lunge (`attackBlend > 0.95` — see `update()`'s own comment for why not exactly
+ *   `1`) counts as landing a hit: emits `biteEventName` with `{amount: biteDamage, sourceId: name}`
+ *   once `biteCooldownSeconds` has elapsed since the last hit. Checked against the *final*, post-
+ *   terrain-clamp position (the real rendered position), not the unclamped dive-offset math, so this
+ *   is the actual on-screen distance, not a theoretical one. Defaults to `15`: this run's own
+ *   engineering judgment (this project's first combat range of any kind, nothing to calibrate
+ *   against) — see `QUESTIONS_FOR_OWNER.md` for the open feel-calibration question, same pattern
+ *   every other guessed dragon constant (ADR-0082/ADR-0085/ADR-0091) already logged there.
+ * @param {number} [options.biteDamage] Health removed per landed hit (`gameplay/health.js`'s
+ *   `onDamage` handler reads `payload.amount`). **Required for biting to activate at all** — `canBite`
+ *   below is `false` without it, same "the feature's own defining value has no generic default"
+ *   reasoning `noticeToast` already follows for the notice tier. No default: a dragon that should
+ *   deal no damage (every dragon before this run, and any future non-combat spawn) simply omits this.
+ * @param {number} [options.biteCooldownSeconds] Minimum seconds between two landed hits from this
+ *   same dragon — prevents one sustained lunge from draining health every single frame it happens to
+ *   stay inside `biteRadiusMeters`. Defaults to `4`. Ticks down every frame regardless of
+ *   `attackBlend` (recovers even while not currently attacking), floored at `0`.
+ * @param {string} [options.biteEventName] `EVENTS.PLAYER_DAMAGED`, passed in rather than imported —
+ *   same options-over-import precedent `eventName`/`noticeToast` above already use. **Required for
+ *   biting to activate at all**, alongside `biteDamage` and `alarmRadiusMeters`/`sampleGroundY` (dive
+ *   must already be enabled — biting is additive escalation on top of diving, never independent of
+ *   it) — see `canBite` in the function body.
  * @param {number} [options.minAltitudeAboveGroundMeters] Terrain-safety floor: the dragon's final
  *   altitude is never allowed to end up below `sampleGroundY(x, z) + minAltitudeAboveGroundMeters`
  *   for its *actual* (post-blend) (x, z) that frame. Defaults to `10`. Applied to every frame's
@@ -209,6 +263,14 @@ export async function createDragon({
 	diveTransitionSeconds = 1,
 	diveTelegraphSeconds = 0.4,
 	diveTelegraphTransitionSeconds = 0.15,
+	attackTriggerSeconds = 2.5,
+	attackLateralPullFraction = diveLateralPullFraction,
+	attackDropMeters = diveDropMeters,
+	attackTransitionSeconds = 1.5,
+	biteRadiusMeters = 15,
+	biteDamage,
+	biteCooldownSeconds = 4,
+	biteEventName,
 	minAltitudeAboveGroundMeters = 10,
 	pursuitRadiusMeters,
 	pursuitCenterSpeedMps = 10,
@@ -221,6 +283,7 @@ export async function createDragon({
 	agitatedWingFlapMultiplier = 1.5,
 }) {
 	const clampedDiveLateralPullFraction = Math.min(1, Math.max(0, diveLateralPullFraction));
+	const clampedAttackLateralPullFraction = Math.min(1, Math.max(0, attackLateralPullFraction));
 	const model = await assetLoader.loadFBXModel(modelUrl, {
 		fallbackColor: 0x2a2a2a,
 		fallbackSize: 6,
@@ -287,12 +350,26 @@ export async function createDragon({
 	// `pursuitExhausted` true at all, so this blend never leaves 0 for that case. Same starts-at-0,
 	// eased-not-snapped shape as `reactiveBlend`/`diveBlend`/`pursuitBlend` above.
 	let giveUpBlend = 0;
+	// Run 90 (ADR-0116) attack lunge: 0 = ordinary dive pull/drop, 1 = fully escalated to
+	// `attackLateralPullFraction`/`attackDropMeters`. Same starts-at-0, eased-not-snapped shape as
+	// every other blend above. Only ever computed when `canBite` (below) is true — see `update()`.
+	let attackBlend = 0;
+	// Run 90 (ADR-0116): seconds remaining before this dragon may land another bite, ticked down
+	// every frame regardless of `attackBlend` (recovers even while not currently attacking). Starts
+	// at 0 (no cooldown yet) rather than `biteCooldownSeconds` — a freshly spawned dragon can land
+	// its first hit as soon as it genuinely reaches the player, not on an artificial delay.
+	let biteCooldownRemainingSeconds = 0;
 
 	applyCirclePose(model, center, circleRadiusMeters, angle, bankAngleRadians);
 
 	const canNotice = Boolean(noticeRadiusMeters != null && eventsBus && eventName && noticeToast);
 	const canDive = Boolean(alarmRadiusMeters != null && typeof sampleGroundY === 'function');
 	const canPursue = Boolean(pursuitRadiusMeters != null && typeof sampleGroundY === 'function');
+	// Run 90 (ADR-0116): biting is additive escalation on top of diving, never independent of it —
+	// requires `canDive` alongside its own defining values (`biteEventName`/`biteDamage`), same
+	// "the feature's own defining value has no generic default" reasoning `noticeToast` already
+	// follows for the notice tier above.
+	const canBite = Boolean(canDive && biteEventName && eventsBus && typeof biteDamage === 'number');
 	// Starts false: the very first `update()` call (typically seconds after boot) does its own
 	// real distance check before deciding whether the player already started inside the radius —
 	// never assumed true/false up front.
@@ -413,13 +490,27 @@ export async function createDragon({
 			// the window elapses never sees `diveBlend` leave 0 at all — the dive itself never started.
 			const diveMotionAllowed = isAlarmed && diveAlarmElapsedSeconds >= diveTelegraphSeconds;
 			diveBlend = easeBlendToward(diveBlend, diveMotionAllowed ? 1 : 0, delta, diveTransitionSeconds);
+
+			// Run 90 (ADR-0116) attack lunge: only ever computed for a biting dragon (`canBite`) — a
+			// non-biting dragon's `currentLateralPullFraction`/`currentDropMeters` stay exactly
+			// `clampedDiveLateralPullFraction`/`diveDropMeters`, provably identical to the pre-run-88
+			// dive math. Requires sustained proximity *on top of* the dive's own telegraph+transition —
+			// the player kept provoking it, not merely triggered one swoop.
+			let currentLateralPullFraction = clampedDiveLateralPullFraction;
+			let currentDropMeters = diveDropMeters;
+			if (canBite) {
+				const attackTriggered = isAlarmed && diveAlarmElapsedSeconds >= diveTelegraphSeconds + attackTriggerSeconds;
+				attackBlend = easeBlendToward(attackBlend, attackTriggered ? 1 : 0, delta, attackTransitionSeconds);
+				currentLateralPullFraction = blendScalar(clampedDiveLateralPullFraction, clampedAttackLateralPullFraction, attackBlend);
+				currentDropMeters = blendScalar(diveDropMeters, attackDropMeters, attackBlend);
+			}
 			if (diveBlend > 0 && playerPosition) {
 				applyDiveOffset(model, {
 					playerX: playerPosition.x,
 					playerZ: playerPosition.z,
 					centerY: center.y,
-					diveDropMeters,
-					lateralPullFraction: clampedDiveLateralPullFraction,
+					diveDropMeters: currentDropMeters,
+					lateralPullFraction: currentLateralPullFraction,
 					diveBlend,
 				});
 			}
@@ -430,14 +521,36 @@ export async function createDragon({
 				clampAltitudeAboveGround(model, sampleGroundY, minAltitudeAboveGroundMeters);
 			}
 
+			// Run 90 (ADR-0116) bite: checked against the *final*, post-terrain-clamp position (the
+			// real rendered position) — the actual on-screen distance, not the unclamped dive-offset
+			// math. `attackBlend > 0.95` (not exactly `1`, which `easeBlendToward` only ever reaches
+			// asymptotically-exactly at the very end of `attackTransitionSeconds`, same floating-point
+			// caution `checkStarfieldTwinkle`'s own header already notes for a sine peak) restricts a
+			// landed hit to a *fully*-committed lunge, never an incidental close pass during ordinary
+			// circling/pursuit.
+			biteCooldownRemainingSeconds = Math.max(0, biteCooldownRemainingSeconds - delta);
+			let didBiteThisFrame = false;
+			if (canBite && attackBlend > 0.95 && biteCooldownRemainingSeconds <= 0 && playerPosition) {
+				const dx = model.position.x - playerPosition.x;
+				const dy = model.position.y - playerPosition.y;
+				const dz = model.position.z - playerPosition.z;
+				if (Math.hypot(dx, dy, dz) < biteRadiusMeters) {
+					eventsBus.emit(biteEventName, { amount: biteDamage, sourceId: name ?? 'dragon' });
+					biteCooldownRemainingSeconds = biteCooldownSeconds;
+					didBiteThisFrame = true;
+				}
+			}
+
 			// Run 70 (ADR-0089) wing-flap telegraph: reuses the blends already computed above this
 			// frame (reactive/dive/pursuit, and run 72's dive-telegraph) rather than adding a new
 			// trigger — whichever reaction is currently strongest sets how hard the wings flap, so a
 			// dragon that is merely reactive (sped-up circling, no dive/pursuit) still gets a visible
 			// cue, one that is diving or pursuing doesn't flap faster than either alone implies, and —
 			// run 72 — the telegraph window itself (before the dive's position blend is even allowed
-			// to move) already reads as agitated rather than waiting for `diveBlend` to catch up.
-			const agitationBlend = Math.max(reactiveBlend, diveBlend, pursuitBlend, diveTelegraphBlend);
+			// to move) already reads as agitated rather than waiting for `diveBlend` to catch up. Run
+			// 88's `attackBlend` folds in the same way — inert (0) for any non-biting dragon, so this
+			// `Math.max` stays exactly as before for every dragon spawned prior to this run.
+			const agitationBlend = Math.max(reactiveBlend, diveBlend, pursuitBlend, diveTelegraphBlend, attackBlend);
 			const wingFlapTimeScale = 1 + (agitatedWingFlapMultiplier - 1) * agitationBlend;
 			if (flyAction) flyAction.timeScale = wingFlapTimeScale;
 			model.userData.wingFlapTimeScale = wingFlapTimeScale;
@@ -449,6 +562,10 @@ export async function createDragon({
 			// "the cue fired but the dive itself never moved" instead of inferring it only from
 			// `wingFlapTimeScale` (which `diveBlend` also drives once the dive actually starts).
 			model.userData.diveTelegraphBlend = diveTelegraphBlend;
+			// Run 90 (ADR-0116): exposed the same way, so a regression test can assert the escalation
+			// and the landed hit independently of each other and of `wingFlapTimeScale`.
+			model.userData.attackBlend = attackBlend;
+			model.userData.didBiteThisFrame = didBiteThisFrame;
 
 			mixer.update(delta);
 		},

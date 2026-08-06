@@ -226,3 +226,59 @@ html, body {
   line-height: 1.35;
   opacity: 0.9;
 }
+
+/* Player health bar (FAZ 7 dragon combat, run 90, DECISIONS.md ADR-0116) — src/3d/ui/healthBar.js.
+   Top-right, the one HUD corner none of the widgets above already occupy (back-link/perf-panel:
+   top-left; event-toast: top-center; interaction-prompt/dialogue-box: bottom-center; joystick:
+   bottom-left). Always visible (unlike the F2 panel), since health matters as an ambient HUD
+   element the moment a health system exists at all. */
+.g3d-health-bar {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  right: 12px;
+  z-index: 20;
+  width: 160px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(10, 6, 2, 0.7);
+  border: 1px solid rgba(200, 150, 10, 0.5);
+  color: #e8d4a0;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  transition: background 0.15s ease;
+}
+
+.g3d-health-bar-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.g3d-health-bar-track {
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.g3d-health-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #7a1010, #c8430a);
+  transition: width 0.2s ease;
+}
+
+.g3d-health-bar.g3d-health-bar-low .g3d-health-bar-fill {
+  background: linear-gradient(90deg, #7a1010, #e04040);
+}
+
+.g3d-health-bar-text {
+  margin: 4px 0 0;
+  font-size: 11px;
+  text-align: right;
+  font-family: monospace;
+}
+
+.g3d-health-bar.g3d-health-bar-flash {
+  background: rgba(120, 10, 10, 0.75);
+}

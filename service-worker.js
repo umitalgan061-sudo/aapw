@@ -6,7 +6,7 @@
 
 const SW_VERSION = 'westeros-media-v4';
 const MEDIA_CACHE = 'westeros-media-v4';
-const SHELL_CACHE = 'westeros-shell-v7';
+const SHELL_CACHE = 'westeros-shell-v8';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -73,6 +73,10 @@ const SHELL_FILES = [
 // near-identical inline try/catch blocks). `game3d.js` now imports it, so without this entry an
 // offline install would load `game3d.js` from cache and immediately fail on an uncached import —
 // exactly the failure mode the run 65/77 entries above describe. `SHELL_CACHE` bumped v6->v7.
+//
+// run 90 (DECISIONS.md ADR-0116): added `gameplay/health.js` + `ui/healthBar.js` — the new FAZ 7
+// dragon-combat player health state + its HUD, both now imported directly by `game3d.js`. Same
+// failure mode as every entry above without them. `SHELL_CACHE` bumped v7->v8.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -96,6 +100,8 @@ const GAME3D_SHELL_FILES = [
     './src/3d/ui/interactionPrompt.js',
     './src/3d/ui/dialogueBox.js',
     './src/3d/ui/worldEventToast.js',
+    './src/3d/ui/healthBar.js',
+    './src/3d/gameplay/health.js',
     './src/3d/gameplay/gameplayConfig.js',
     './src/3d/gameplay/playerConfig.js',
     './src/3d/gameplay/npcConfig.js',

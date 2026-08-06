@@ -9710,3 +9710,136 @@ syntax errors, or regressions found this run.
 
 **Addendum:** `git commit`/`git push origin main` outcome and the stable-tag attempt are recorded in
 `STABLE_TAGS.md`.
+
+## This Run (2026-08-06, run 90 — canlı istek, proje sahibinin doğrudan talebi, zamanlanmış tetikleme değil)
+
+**Session context:** Run 88 (zamanlanmış otonom çalıştırma) az önce tamamlanmış, `main` `af3e7ac`'ta,
+27/27 duman testi temiz, tek WARN `game3d.js` 585/600 (bilinen, run 88'den). Proje sahibi doğrudan,
+canlı bir mesaj gönderdi: *"Ejderha'ların olduğu yerde saldırganlığı da olsun. Kışkırtılırsa
+Ejderha'lar saldırsın."* Bu, run 66'dan beri `QUESTIONS_FOR_OWNER.md`'de açık bekleyen tam da o
+soruyu (ejderha oyuncuya gerçekten zarar verebilsin mi?) doğrudan yanıtlıyor ve GOVERNANCE.md §18
+öncelik listesinin 12. maddesini (FAZ 7 ejderha) tam da bu kararın beklediği noktadan açıyor. FAZ 5-11
+listesinin geri kalanı (kale dokuları, FAZ 6 hayvanları, FAZ 11 türleri) hâlâ eksik model bekliyor,
+değişmedi.
+
+### Sub-task: Ejderha saldırı hamlesi/ısırığı + genel bir can/hasar sistemi (DECISIONS.md ADR-0116)
+
+Üç yeni parça: (1) `gameplay/health.js` — bu projenin ilk can/hasar sistemi, tamamen jenerik (oyuncuya
+özel değil, `EventBus` üzerinden konuşan bir sayaç); (2) `ui/healthBar.js` — sağ üstte, hiçbir mevcut
+HUD öğesinin kullanmadığı köşede, `worldEventToast.js` ile aynı kendi-kendine-abone-olan DOM deseni;
+(3) `dragonController.js`'ye run 64'ün mevcut "dalış"ının üzerine katmanlanan bir "saldırı hamlesi" —
+oyuncu `alarmRadiusMeters` içinde dalışın kendi telegraf+geçiş penceresinden DAHA UZUN süre kalırsa
+(yani gerçekten kışkırtırsa), dalış çok daha kararlı bir hedefe (`attackLateralPullFraction`/
+`attackDropMeters`) eskalasyon yapıyor; tam eskalasyon + `biteRadiusMeters` içindeyken gerçek bir
+`EVENTS.PLAYER_DAMAGED` olayı yayınlanıyor (`biteCooldownSeconds` ile hız sınırlı). Ölüm
+(`EVENTS.PLAYER_DIED`) `game3d.js`'de ele alınıyor: doğum noktasına ışınlanma + tam can yenilenmesi +
+mevcut `WorldEventToast` altyapısı yeniden kullanılarak gerçek bir "Yenildin" bildirimi (yeni bir arayüz
+bileşeni inşa etmeden). Sadece `DRAGON_CONFIG.SPAWNS[0]` (`umit-dragon-1`, var olan tek ejderha) bu
+özelliğe dahil oluyor — hiçbir eski ejderha davranışı değişmiyor (biting yapılandırılmamışsa `canBite`
+false kalıyor, kod hiç çalışmıyor). Tam gerekçe, alternatifler ve kalibrasyon notları ADR-0116'te.
+
+**DoD durumu:** `node --check` tüm değişen/yeni dosyalarda temiz. `checkSmokeCheckRegistry.js`:
+**27 duman testi / 8 kontrol modülü** (yeni: `checkDragonBiteAttack`), 66 JS dosyasının tümü 600
+satır sınırının içinde, 2 yeni WARN (her ikisi de hâlâ sınırın altında, gelecek bir çalıştırma için
+not edildi): `game3d.js` 585/600 (run 88'den beri biliniyordu), `dragonController.js` 579/600 (bu
+çalıştırmada yeni). `checkServiceWorkerCache.js`: OK (`health.js`/`healthBar.js` eklendi,
+`SHELL_CACHE` v7→v8). Tam duman testi paketi, her değişiklikten sonra yeniden çalıştırıldı: **27/27
+PASS**, 0 FAIL. **Yeni, kalıcı regresyon kapsamı:** `checkDragonBiteAttack` (4 senaryo — sürekli
+kışkırtma tam olarak bir kez isabet eder + kendi bekleme süresiyle engellenir + süre dolunca 2.
+isabet gelir; kısa bir yakınlık asla eskalasyona ulaşmadan hiç isabet etmez; kışkırtma ortasında geri
+çekilme eskalasyonu tam sıfıra söndürür ve daha fazla isabeti durdurur; ısırık yapılandırılmamış bir
+ejderha hiç ısırmaz ve konumu tam olarak eski dalış-only formülüyle birebir aynı kalır).
+**Commit'ten önce yakalanan gerçek bir hata, kaçak bırakılmadı:** yeni testin ilk taslağı ikinci/üçüncü
+kontrol noktaları için gevşek seçilmiş kare sayıları kullanıyordu ve bu, bekleme süresinin gerçekte
+dolduğu kareyle (kare 108) yanlış tarafa denk geldi — testin kendisi gerçek bir çalıştırmada başarısız
+olarak bunu yakaladı, kare-kare eğim matematiği elle yeniden hesaplanıp kesin sayılarla düzeltildi
+(marjlar genişletilerek "geçsin diye" gevşetilmedi).
+
+**Gerçek uçtan uca kanıt** (kapsanan izole testin ötesinde — o sadece `dragonController.js`'yi
+izole test eder, `game3d.js`'nin tam kablolamasını değil): geliştirme-amaçlı, commit'lenmemiş bir
+Playwright betiği gerçek `game3d.html`'yi açtı, sonra `game3d.js`'nin kendisinin içe aktardığı
+*aynı* `gameEvents`/`EVENTS` tekil modüllerini `page.evaluate` içinden içe aktardı (ES modül tekillik
+semantiği: aynı URL'nin dinamik içe aktarımı aynı canlı örneği döndürür) ve gerçek
+`EVENTS.PLAYER_DAMAGED` olayları yayınladı. Doğrulandı: gerçek can çubuğu yayınlanan miktar kadar
+düştü; öldürücü bir "tamamlama" darbesi (999 hasar, sıfıra kenetlendi) gerçek `EVENTS.PLAYER_DIED`
+işleyicisini tetikledi — gerçek doğum noktasına ışınlanma, gerçek tam can yenilenmesi, ve gerçek
+"Yenildin" bildirimi (canlı DOM/JS durumundan doğrudan okundu, diff'ten varsayılmadı). Sıfır
+konsol/sayfa hatası.
+
+**Planlanmamış ama gerçekten bilgilendirici bir bulgu, gizlenmeden kayda geçirildi:** aynı kanıt
+betiğinin İLK çalıştırması (kasıtlı "tamamlama" darbesi eklenmeden önce) gerçek oyuncunun canının
+hiçbir betik-taraflı hasar yayınlanmadan tam olarak `20` (bu spawn'ın gerçek `biteDamage`'ı) düştüğünü
+gösterdi — tamamen, hareketsiz duran gerçek oyuncuya gerçek ejderhanın organik olarak kovalayıp
+dalıp saldırmasından, sadece gerçek varlık yükleme + birkaç `page.screenshot()` gidiş-dönüşünün
+aldığı gerçek zaman içinde. Elle doğrulanan sebep: `DRAGON_CONFIG.SPAWNS[0]`'ın
+`pursuitRadiusMeters`'ı (160m) oyuncunun sabit doğum noktasından sakin daire geometrisinin kendi
+erişebileceği minimum mesafeden (gerçek harita-birimi farkından hesaplanan ~127.6m) daha GENİŞ —
+yani kovalama tek başına, sakin daire geometrisinin asla kapatamayacağı boşluğu gerçek zaman içinde
+kapatabiliyor. Düz Türkçe: oyuncu sadece ejderhanın kalesine yeterince yakın durursa, bilerek
+yaklaşmasına bile gerek kalmadan kovalanıp sonunda ısırılıyor — "ejderhanın olduğu yerde
+saldırganlık olsun" isteğine, tasarım aşamasında beklenenden bile daha iyi uyan bir sonuç.
+
+**Gerçek görsel kanıt, 2 açı, her ikisinde de sıfır konsol/sayfa hatası:** (1) varsayılan açılış
+kamerası, sağ üstte can çubuğu `100 / 100`; (2) F4 serbest kamera (sayfa-içi sentetik
+`dispatchEvent` ile sürülen — gerçek işletim-sistemi seviyesi Playwright girişi bu çalıştırmada
+`berkalp-guard-1` kanıtında [ADR-0114] ve burada da sonsuza dek askıda kaldı, kök sebep daha fazla
+kovalanmadı çünkü sayfa-içi teknik zaten güvenilir ve anındaydı). Bellek sızıntısı kontrol listesi:
+`state.playerHealth.dispose()`/`state.healthBar.dispose()`/`unsubscribePlayerDied()` hepsi
+`game3d.js`'nin `pagehide` temizliğinde çağrılıyor. Teknik borç sayacı: **0** (yeni WARN'lar not
+edildi ama sınırın altında, acil değil). `perf_log.csv` `run90` satırı run76-88 ile bit-bit aynı
+(46/393,231/44/17) — beklenen, hiçbir 3D sahne nesnesi eklenmedi (can çubuğu DOM, 3D sahne değil).
+
+**AI Self-Review 2. Geçiş (§8.3):** her mevcut ejderha duman testinin (`checkDragonFlight`/
+`checkDragonNotice`/`checkDragonReactiveFlight`/`checkDragonWingFlapAgitation`/`checkDragonDive`/
+`checkDragonDiveTelegraph`/`checkDragonPursuit`/`checkDragonGiveUpCue`) değişmeden geçtiği
+doğrulandı — hiçbiri `biteEventName`/`biteDamage` yapılandırmıyor, yani `canBite` her biri için
+`false` ve yeni kod yolları onlar için hiç çalışmıyor (sadece sayısal olarak etkisiz değil,
+gerçekten hiç çalışmıyor); `agitationBlend`'in yeni `attackBlend` terimi ısıran olmayan bir ejderha
+için asla 0'ın üzerine çıkmıyor; `game3d.js`'nin `pagehide` temizliği eksiksiz doğrulandı; hiçbir
+`TEMP`/`HACK`/`FIXME`/`WORKAROUND` yok.
+
+**Bonus düzeltme, aynı commit:** `smokeTestGame3D.js`'nin kendi modül-listesi başlık yorumu bu
+çalıştırmadan bağımsız olarak eskimişti — kontrol modüllerini az saydı ("seven" derken zaten sekiz
+vardı run 88'den beri) ve `game3dSmokeChecksDragonPursuit.js`'i hiç listelemiyordu (run 72'den beri
+`require`'lanıp kullanılmasına rağmen), onun 2 kontrolünü yanlışlıkla `game3dSmokeChecksDragonDive.js`'e
+atfediyordu. Bu dosyayı zaten yeni kontrol için düzenlerken düzeltildi, gelecek bir çalıştırmaya
+bırakılmadı.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — bu, proje sahibinin kendi sözleriyle canlı
+talep ettiği, uzun süredir `QUESTIONS_FOR_OWNER.md`'de bilinçli olarak bekletilen bir karardı; uygulama
+tamamen katmanlı/geriye dönük uyumlu (hiçbir eski ejderha davranışı değişmedi), gerçek uçtan uca kanıtla
+(canlı `EventBus` üzerinden, izole testin ötesinde) ve yeni, kalıcı bir regresyon testiyle doğrulandı;
+test yazımı sırasında gerçek bir zamanlama hatası yakalanıp kanıtlanabilir şekilde düzeltildi, gevşetilip
+geçirilmedi. "6 ay sonra hâlâ net mi" tereddüdü yok: ADR-0116 tam gerekçeyi, her alternatifi, ve
+kalibrasyon sabitlerinin nereden geldiğini kayda geçiriyor.
+
+**World Evolution Report:**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| Can/hasar sistemi | yok | **var** (`gameplay/health.js`, jenerik) | yeni mekanizma |
+| Ejderha saldırı/ısırık | yok (sadece tehdit, hasar yok — ADR-0085) | **var** (`umit-dragon-1` için) | yeni mekanizma |
+| Smoke suite | 27/27 | **27/27** | değişmedi (1 yeni kontrol, 0 kaldırılan) |
+| Duman testi kontrolleri | 26 | **27** | +1 (`checkDragonBiteAttack`) |
+| ADR headers in `DECISIONS.md` | 114 | **115** | +1 (ADR-0116) |
+| `perf_log.csv` rows | 32 | **33** | +1 (`run90`) |
+| `QUESTIONS_FOR_OWNER.md` açık girdiler | 10 | **10** | 1 çözüldü (+✅), 1 yeni (kalibrasyon) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi (2 yeni WARN, ikisi de sınırın altında) |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (hiçbir 3D sahne nesnesi eklenmedi) |
+
+**Oyuncu fark eder mi:** evet, doğrudan ve gerçek — sağ üstte artık bir can çubuğu var, ve ejderhaya
+yeterince yaklaşıp (veya kalesinin yakınında yeterince uzun kalıp) onu kışkırtırsan gerçekten
+saldırıyor ve canını azaltıyor; can sıfırlanırsa doğum noktana geri dönüyorsun, tam can ile. Dünyanın
+geri kalanı (arazi/yol/kale/diğer NPC/hayvan) değişmedi.
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Yeni açık kalibrasyon sorusu
+`QUESTIONS_FOR_OWNER.md`'de (saldırı sabitleri gerçek oyun testiyle doğrulanmadı). İki yeni WARN
+(`game3d.js` 585/600, `dragonController.js` 579/600) — henüz acil değil ama bu dosyalardan birine
+dokunan bir sonraki çalıştırma bir bölme planlamalı. Bloklu kalan diğer her şey değişmedi: 6 kale hâlâ
+dokusuz, FAZ 6 hayvanları model bekliyor, FAZ 11 türleri model bekliyor. `RULES_CHANGELOG.md`'nin
+sıradaki konsolidasyonu ~run 96'da (değişmedi). Periyodik platform kontrolü ~run 90-100'de
+(değişmedi). `CATCH_UP.md`'nin sıradaki özeti run 98'de (değişmedi).
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.

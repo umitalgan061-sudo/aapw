@@ -68,4 +68,11 @@ export const PLAYER_CONFIG = Object.freeze({
 	 * keeps the camera from ending up inside the player model itself when a wall is hit very close
 	 * to `CAMERA_MIN_DISTANCE_METERS`. Comfortably above `WORLD_DEFAULTS.NEAR_PLANE` (0.1m). */
 	CAMERA_COLLISION_MIN_DISTANCE_METERS: 1.5,
+	/** FAZ 7 dragon combat (run 90, DECISIONS.md ADR-0116): starting/full player health —
+	 * `gameplay/health.js`'s `createHealthState` reads this once at construction. No existing
+	 * project value to calibrate against (this is the game's first health/damage system of any
+	 * kind); 100 is this run's own engineering judgment purely because it divides evenly against
+	 * `dragonConfig.js`'s `biteDamage` (20) into a readable "5 hits to defeat" budget — see
+	 * `QUESTIONS_FOR_OWNER.md` for the open feel-calibration question. */
+	MAX_HEALTH: 100,
 });

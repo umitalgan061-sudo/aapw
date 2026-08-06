@@ -10283,3 +10283,217 @@ both sub-tasks, stays bit-identical to run76-87).
 **Geri alma planı:** `git revert` the single commit (shared with ADR-0113's changes if committed
 together, or its own commit if split) — removes the one new choice object and reverts the header
 comment's NPC-list prose to its pre-change wording. Nothing else references this specific choice.
+
+## ADR-0116: Dragon attack lunge/bite + a generic player health system — dragons now genuinely attack once provoked
+
+**Status:** Accepted (run 90 — a live, interactive request from the project owner, not a scheduled
+autonomous firing).
+
+**Risk Seviyesi:** MEDIUM. The first health/damage/death/respawn mechanism of any kind in this
+codebase — a real project-shaping addition (GOVERNANCE.md §14 flags exactly this class of decision
+as one no run should make unilaterally), which is precisely why it was never implemented before now
+despite three separate runs (66/70/71) explicitly identifying it as the natural next increment and
+deferring it to `QUESTIONS_FOR_OWNER.md` instead of guessing. Not IRREVERSIBLE: no `SaveSystem`
+exists yet (GOVERNANCE.md §16's Save Game Uyumluluk Kapısı isn't active until one does), so death is
+a plain in-memory respawn, nothing persisted. No terrain/height/world-scale touch (Arazi Değişikliği
+Güvenlik Kontrolü doesn't apply). Fully reversible: `git revert` restores every dragon to its
+pre-run-89 menace-and-withdraw behavior and removes the health bar/state entirely.
+
+**Context:** This run was not triggered by the scheduler — the project owner sent a direct, live
+message mid-session: *"Ejderha'ların olduğu yerde saldırganlığı da olsun. Kışkırtılırsa Ejderha'lar
+saldırsın."* ("Where dragons exist, let there be aggression too. If provoked, dragons should
+attack.") This directly answers the question logged at run 66 (`QUESTIONS_FOR_OWNER.md`, now marked
+resolved) and unblocks GOVERNANCE.md §18's priority item 12 (FAZ 7 ejderha), which had sat blocked
+since run 66 specifically on this decision. Session state at the time: `main` at `af3e7ac` (run 88's
+final commit), full smoke suite 27/27 PASS, all static guards clean except the two pre-existing
+line-count WARNs (`game3d.js` 545/600, `dragonController.js` — not yet WARN before this run) already
+known from run 88. **Gelecek Faz Etkisi:** meaningful, and worth stating plainly rather than deferred
+again: this is the project's first combat-adjacent system, so any future FAZ that wants combat,
+failure states, or persistence (a real `SaveSystem`) now has a real, working pattern to build on
+(`gameplay/health.js` is deliberately generic, not player-specific) instead of starting from nothing.
+No terrain/world-scale system is touched, so FAZ 8-10 (world events, unstarted systems) are
+unaffected.
+
+**Decision:** Three new pieces, each scoped as small as it could be while still being a real,
+proven mechanism:
+
+1. **`gameplay/health.js` (new module)** — a generic, EventBus-driven clamped health counter
+   (`createHealthState`), not "player health" by name: listens for a damage event, clamps `current`
+   at `[0, maxHealth]`, re-emits a change event on every real change (including once, synchronously,
+   at construction — so a `ui/healthBar.js` built first still gets its initial paint), and emits a
+   died event exactly once, edge-triggered, when `current` reaches 0. `heal()`/`reset()` both re-arm
+   the death edge-trigger. Nothing here is dragon-specific or player-specific — a future NPC/animal
+   health bar could reuse it unchanged, matching this project's "systems talk only through the
+   EventBus" architecture (`eventBus.js`'s own header).
+2. **`ui/healthBar.js` (new module)** — same self-subscribing, DOM-owning pattern
+   `ui/worldEventToast.js` already established: a top-right HUD bar (the one corner none of the
+   existing HUD widgets already occupy — back-link/perf-panel top-left, event-toast top-center,
+   interaction-prompt/dialogue-box bottom-center, joystick bottom-left), always visible (unlike the
+   F2 panel), with a brief red flash on damage.
+3. **`gameplay/dragonController.js`'s attack lunge** — a new `attackBlend`, layered on top of the
+   existing run-64 dive exactly the way run 71's `giveUpBlend` layered onto reactive bank angle:
+   once the player has stayed inside `alarmRadiusMeters` continuously for *longer* than the ordinary
+   dive's own telegraph+transition window (`attackTriggerSeconds`, default 2.5s beyond that — the
+   player kept provoking it, not merely triggered one swoop), `attackBlend` eases toward 1,
+   escalating the dive's calm `diveLateralPullFraction`/`diveDropMeters` toward much more committed
+   `attackLateralPullFraction`/`attackDropMeters`. Once fully escalated (`attackBlend > 0.95`) and
+   within `biteRadiusMeters` of the player's *real*, terrain-clamped position, the dragon emits
+   `EVENTS.PLAYER_DAMAGED` (a fixed `biteDamage`, rate-limited by `biteCooldownSeconds`). Gated
+   behind a new `canBite` (requires `biteEventName`+`biteDamage`+`eventsBus`, alongside `canDive`) —
+   a dragon with no bite configured (every dragon spawned before this run) computes none of this and
+   is provably byte-identical to its pre-run-89 self (see Verified). Only
+   `DRAGON_CONFIG.SPAWNS[0]` (`umit-dragon-1`, the only dragon that exists) opts in.
+   Death (`EVENTS.PLAYER_DIED`) is handled in `game3d.js`: teleport back to the spawn point, `heal()`
+   to full, and — reusing the *existing* `WorldEventToast` infrastructure rather than building a new
+   "defeat screen" — a real "Yenildin" toast.
+
+**Alternatives considered:**
+- *A separate, brand-new "attack" trigger radius/state machine, independent of the existing dive.*
+  Rejected — the dive already models exactly the right shape (sustained proximity -> escalating
+  response -> withdraw-if-retreated); reusing and escalating it, the same way run 71's give-up cue
+  layered onto run 58's reactive blend, keeps one mental model instead of two parallel ones, and
+  reuses `dragonFlightMath.js`'s `applyDiveOffset` completely unchanged (no new position function).
+- *Let the ordinary dive itself deal damage on every close pass, no escalation tier.* Rejected on two
+  grounds: (1) it would retroactively change `checkDragonDive`/`checkDragonDiveTelegraph`'s own
+  meaning (those checks assert an exact, *fixed* dive target regardless of duration — making the dive
+  itself duration-dependent would break that contract); (2) it doesn't match the owner's own
+  phrasing — "kışkırtılırsa" (if provoked) implies sustained antagonism, not an incidental swoop.
+- *A generic sentinel default for `attackDropMeters` (e.g. an arbitrarily large number, always
+  terrain-clamped) instead of a per-spawn tuned value.* Tried first, then rejected: blended linearly
+  from `diveDropMeters` via `attackBlend`, a huge sentinel saturates the terrain clamp almost
+  immediately once `attackBlend` leaves 0 (any nonzero blend already overshoots the floor), producing
+  a jarring snap-to-ground instead of a smooth, escalating descent — violates this project's "eased,
+  not snapped" convention every other blend here follows. Replaced with `attackDropMeters` defaulting
+  to `diveDropMeters` itself (provably inert unless a spawn overrides it) and a real, spawn-specific
+  tuned value (78 = `altitudeMeters` - `minAltitudeAboveGroundMeters`) at `DRAGON_CONFIG.SPAWNS[0]`.
+- *Player-side invulnerability window (i-frames) in addition to the dragon's own bite cooldown.*
+  Rejected for this run — with exactly one dragon in the entire game, the dragon's own
+  `biteCooldownSeconds` already fully prevents damage-spam; a second, player-side cooldown would be
+  redundant complexity solving a problem that doesn't exist yet. Worth revisiting if/when a second
+  biting creature is ever added (two dragons could otherwise double-hit in the same instant).
+- *Passive health regeneration over time.* Deliberately left out — the owner's request was about
+  attack/aggression, not regen, and this project's own "smallest thing that reads as X" discipline
+  (`gameplay/dragons.js`'s own header, run 53's first pass) argues for the minimal mechanism that
+  satisfies the actual ask. Logged as an open question in `QUESTIONS_FOR_OWNER.md` rather than
+  guessed either way.
+- *A dedicated "defeat" screen/UI instead of reusing `WorldEventToast`.* Rejected — reusing the
+  existing toast infrastructure (already proven, already styled, already memory-leak-safe) delivers
+  real player feedback with one line of new code (`gameEvents.emit(EVENTS.WORLD_EVENT_TRIGGERED,
+  {...})`) instead of a whole new UI component for a single event type.
+
+**Verified:**
+- `node --check` clean across every changed/new file (`config.js`, `playerConfig.js`, `health.js`
+  (new), `healthBar.js` (new), `dragonController.js`, `dragons.js`, `dragonSpawns.js`,
+  `dragonConfig.js`, `game3d.js`, `game3dSmokeChecksDragonDive.js`, `smokeTestGame3D.js`,
+  `service-worker.js`, `game3d.css`).
+- `checkSmokeCheckRegistry.js`: **27 smoke checks wired across 8 check modules**, 66 JS files all
+  within the 600-line cap. Two *new* WARNs this run (both still comfortably under 600, noted as
+  watch-items for whichever future run next touches either file): `game3d.js` 585/600 (was 585
+  already flagged at run 88; this run's own net addition was small — health bar/state construction
+  + the death listener, all event-driven, zero per-frame tick-loop cost) and
+  `dragonController.js` 579/600 (new this run, +117 lines for the attack/bite params + logic + JSDoc).
+- `checkServiceWorkerCache.js`: **OK** after adding `gameplay/health.js` + `ui/healthBar.js` to
+  `GAME3D_SHELL_FILES` and bumping `SHELL_CACHE` v7->v8 — without these an offline install would
+  load `game3d.js` from cache and immediately fail on its two newly-uncached imports.
+- **New, permanent regression coverage** — `checkDragonBiteAttack` (`game3dSmokeChecksDragonDive.js`,
+  4 scenarios against the real served `dragonController.js`, driven with deterministic parked-dragon
+  parameters exactly the way `checkDragonDive`/`checkDragonDiveTelegraph` already do): (1) sustained
+  provocation past the dive+telegraph window escalates to a real emitted `PLAYER_DAMAGED`-shaped
+  event with the exact configured `amount`, exactly once, blocked by its own cooldown until it
+  elapses, then a 2nd hit lands; (2) a short proximity burst that never reaches the escalation
+  threshold lands zero hits; (3) retreating mid-escalation eases `attackBlend` back to exactly 0 and
+  stops any further hit; (4) a dive-only dragon with no `biteEventName`/`biteDamage` configured never
+  bites regardless of duration, and its position is *exactly* the pre-existing dive-only formula
+  `checkDragonDive` itself already proves (byte-for-byte regression proof, not just "no error
+  thrown"). **A real test-timing bug was caught and fixed before this landed, not shipped as a
+  flaky check:** the first draft's 2nd/3rd checkpoints used loosely-chosen frame counts (30 more,
+  then 60 more) that turned out to fall on the wrong side of the exact, hand-computed frame at which
+  the cooldown actually expires (frame 108, given this check's own chosen constants) — caught by the
+  check itself failing on a real run (not a hunch), root-caused by working out the exact
+  frame-by-frame easing math by hand (documented inline in the fixed check) rather than just widening
+  the margins until it happened to pass.
+- Full committed smoke suite, re-run after every change: **27/27 PASS**, 0 FAIL (26 pre-existing +
+  1 new).
+- **Real end-to-end proof beyond the isolated check** (the committed check only exercises
+  `dragonController.js` in isolation with a synthetic `EventBus`, never the real `game3d.js` wiring
+  end-to-end): a dev-only, uncommitted Playwright script booted the real `game3d.html`, then imported
+  the *exact same* `gameEvents`/`EVENTS` singleton modules `game3d.js` itself imports (ES module
+  singleton semantics: importing an identical URL from `page.evaluate` returns the identical live
+  instance, not a copy) and emitted real `EVENTS.PLAYER_DAMAGED` events at it. Confirmed: the real
+  health bar dropped from `100 / 100` by the exact emitted amount; a lethal top-up (999 damage,
+  clamped) triggered the real `EVENTS.PLAYER_DIED` handler — real teleport back to spawn, real
+  `heal()` to full (health bar read `100 / 100` again), and the real "Yenildin" toast appeared
+  (`toastTitle === 'Yenildin'`, `toastHidden === false`), all read directly off the live DOM/JS
+  state, not asserted from the diff. Zero console/page errors throughout.
+- **An unplanned but genuinely informative real-world finding, left in as a documented discovery
+  rather than smoothed over:** a *first* run of that same proof script (before the deliberate
+  top-up was added) showed the real player's health had already dropped by exactly `20` — this
+  spawn's real `biteDamage` — with **zero** script-side damage emitted yet, purely from the real
+  dragon organically pursuing+diving+attacking the real, entirely stationary player during the real
+  wall-clock time asset-loading and a couple of `page.screenshot()` round trips took. Hand-verified
+  why: `DRAGON_CONFIG.SPAWNS[0]`'s `pursuitRadiusMeters` (160m) is *wider* than the calm circle's own
+  reachable minimum distance from the player's stationary spawn point (~127.6m, computed from the
+  real seat/spawn map-unit offset and `METERS_PER_MAP_UNIT`) — so pursuit alone can close enough of
+  the gap over real time to bring the player within `alarmRadiusMeters` (110m) even though the calm
+  circle geometry alone never could. In plain terms: a player who simply stands near the dragon's
+  home castle long enough gets pursued and eventually bitten, without ever having to deliberately
+  provoke it by walking closer — arguably an *even better* match for "dragons should be aggressive
+  where they exist" than the deliberate-approach case this ADR's own design discussion assumed would
+  be the typical path to a hit.
+- **Real visual proof, 2 angles, zero console/page errors in both:** (1) the live scene's default
+  boot camera, health bar visible top-right at `100 / 100`; (2) the same live scene after activating
+  F4's free-fly camera (in-page synthetic `dispatchEvent`, not Playwright's real `page.keyboard`/
+  `page.mouse` — **a real environment issue found and worked around, not silently retried:** the
+  OS-level input APIs hung indefinitely on a first attempt during this same run's earlier
+  `berkalp-guard-1` proof [ADR-0114] and again here; root cause not chased down further since the
+  in-page dispatch approach — already `checkFreeCamera`'s own established technique — was both
+  reliable and immediate both times).
+- **AI Self-Review 2. Geçiş (§8.3):** confirmed every existing dragon smoke check
+  (`checkDragonFlight`/`checkDragonNotice`/`checkDragonReactiveFlight`/`checkDragonWingFlapAgitation`/
+  `checkDragonDive`/`checkDragonDiveTelegraph`/`checkDragonPursuit`/`checkDragonGiveUpCue`) still
+  passes unchanged — none of them configure `biteEventName`/`biteDamage`, so `canBite` is `false`
+  for every one of their synthetic dragons and the new code paths never execute for them at all (not
+  merely numerically inert); confirmed `agitationBlend`'s new `attackBlend` term can only ever raise
+  `wingFlapTimeScale` above what it would have been for a *biting* dragon (never for a non-biting
+  one, where `attackBlend` stays permanently 0), and that even for a biting dragon it never exceeds
+  what `diveBlend`/`pursuitBlend` alone already drive it to by the time `attackBlend` has risen
+  (escalation only starts after the dive has already fully committed); confirmed
+  `unsubscribePlayerDied()`/`state.playerHealth.dispose()`/`state.healthBar.dispose()` are all called
+  in `game3d.js`'s `pagehide` cleanup (memory-leak checklist); confirmed no
+  `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+- **Değişiklik Etki Analizi:** not required — no terrain/height/noise/world-scale touch, confirmed
+  before starting (this ADR's Gelecek Faz Etkisi line above).
+
+**Etkilenen sistemler:** `src/3d/gameplay/health.js` (new). `src/3d/ui/healthBar.js` (new).
+`src/3d/config.js` (+3 `EVENTS` entries). `src/3d/gameplay/playerConfig.js` (+`MAX_HEALTH`).
+`src/3d/gameplay/dragonController.js` (+attack/bite params, state, logic — see Decision).
+`src/3d/gameplay/dragons.js` (header narrative only). `src/3d/gameplay/dragonSpawns.js` (+8
+pass-through params). `src/3d/gameplay/dragonConfig.js` (+3 fields on `SPAWNS[0]`). `src/3d/game3d.js`
+(health bar/state construction, death-respawn handler, bite-event wiring into the dragon spawn call,
+pagehide cleanup). `scripts/game3dSmokeChecksDragonDive.js` (+`checkDragonBiteAttack`).
+`scripts/smokeTestGame3D.js` (wiring + header fixes — see below). `service-worker.js` (+2 shell
+files, cache version bump). `game3d.css` (+`.g3d-health-bar` styles). `QUESTIONS_FOR_OWNER.md` (run
+66's entry resolved; one new calibration-constants entry). No change to `world/`, terrain, roads, or
+any non-dragon gameplay system.
+
+**Bonus fix, same commit:** `smokeTestGame3D.js`'s own module-list header comment had drifted out of
+date independent of this run's own changes — it undercounted the check modules ("seven" when there
+were already eight after run 88's own split) and never listed `game3dSmokeChecksDragonPursuit.js` at
+all despite it being `require`'d and used since run 72, misattributing its two checks
+(`checkDragonPursuit`/`checkDragonGiveUpCue`) to `game3dSmokeChecksDragonDive.js` instead. Corrected
+while already editing this file for the new check, rather than left for a future run to rediscover.
+
+**Consequences:** The project's dragon is no longer purely a spectacle — sustained proximity now
+carries a real, damage-dealing cost, and death has a real (if currently gentle) consequence:
+respawn at the player's own spawn point, fully healed. Every dragon spawned before this run keeps its
+exact prior behavior (nothing opts in without explicit config). A future 2nd dragon, or a future
+combat/quest/save system, now has a working, generic (`gameplay/health.js`) foundation to build on
+instead of starting from nothing.
+
+**Geri alma planı:** `git revert` the single commit — removes `health.js`/`healthBar.js` entirely,
+reverts `dragonController.js`/`dragonSpawns.js`/`dragonConfig.js` to their pre-attack-lunge shape
+(every dragon returns to pure menace-and-withdraw), removes the 3 new `EVENTS` entries and
+`PLAYER_CONFIG.MAX_HEALTH`, reverts `game3d.js`'s health-bar/state construction and death handler,
+removes the new smoke check + its registry wiring, and reverts `service-worker.js`'s shell-file
+list/cache version. `QUESTIONS_FOR_OWNER.md`'s resolution note would need a manual follow-up entry
+noting the revert, same as any other reverted decision.

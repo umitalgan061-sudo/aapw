@@ -45,7 +45,9 @@ import { TouchJoystick } from './ui/touchJoystick.js';
 import { InteractionPrompt } from './ui/interactionPrompt.js';
 import { DialogueBox } from './ui/dialogueBox.js';
 import { WorldEventToast } from './ui/worldEventToast.js';
+import { HealthBar } from './ui/healthBar.js';
 import { createPlayer } from './gameplay/player.js';
+import { createHealthState } from './gameplay/health.js';
 import { spawnConfiguredNPCs } from './gameplay/npc.js';
 import { spawnConfiguredAnimals } from './gameplay/animals.js';
 import { spawnConfiguredDragons } from './gameplay/dragons.js';
@@ -270,6 +272,37 @@ export async function initGame3D() {
 		state.keyboardInput = keyboardInput;
 		state.touchJoystick = touchJoystick;
 		state.interactionPrompt = new InteractionPrompt();
+		// FAZ 7 dragon combat (run 90, DECISIONS.md ADR-0116): the health bar is constructed
+		// *before* the health state below so its own initial (full-bar) paint isn't missed — see
+		// `gameplay/health.js`'s own doc comment on `healthChangedEventName`'s synchronous emit.
+		state.healthBar = new HealthBar({
+			eventsBus: gameEvents,
+			healthChangedEventName: EVENTS.PLAYER_HEALTH_CHANGED,
+			damageEventName: EVENTS.PLAYER_DAMAGED,
+		});
+		state.playerHealth = createHealthState({
+			eventsBus: gameEvents,
+			maxHealth: PLAYER_CONFIG.MAX_HEALTH,
+			damageEventName: EVENTS.PLAYER_DAMAGED,
+			healthChangedEventName: EVENTS.PLAYER_HEALTH_CHANGED,
+			diedEventName: EVENTS.PLAYER_DIED,
+		});
+		// Respawn-on-death: teleports back to the original spawn point and heals to full. No
+		// SaveSystem exists yet (GOVERNANCE.md §16's Save Game Uyumluluk Kapısı isn't active until
+		// one does), so this is a plain in-memory reset, not a persisted checkpoint. Also reuses the
+		// existing world-event toast (no new UI) for a real "you were defeated" cue.
+		const unsubscribePlayerDied = gameEvents.on(EVENTS.PLAYER_DIED, () => {
+			const groundY = state.groundCollider.getGroundHeight(spawnWorld.x, spawnWorld.z);
+			player.object3D.position.set(spawnWorld.x, groundY, spawnWorld.z);
+			state.playerHealth.reset();
+			gameEvents.emit(EVENTS.WORLD_EVENT_TRIGGERED, {
+				id: 'player_defeated',
+				icon: '💀',
+				title: 'Yenildin',
+				desc: 'Ejderha saldırısı seni alt etti — kaleye geri döndün.',
+				color: '#e04040',
+			});
+		});
 		// A player now exists — panning the target would just get overwritten next frame (the
 		// camera chases the player instead), so free-pan is no longer meaningful. See camera.js.
 		state.controls.enablePan = false;
@@ -336,6 +369,10 @@ export async function initGame3D() {
 			// `gameplay/worldEvents.js`'s ambient flavor events already fire through.
 			eventsBus: gameEvents,
 			eventName: EVENTS.WORLD_EVENT_TRIGGERED,
+			// FAZ 7 dragon combat (run 90, DECISIONS.md ADR-0116) — shared across every spawn the same
+			// way `eventName` is; only `DRAGON_CONFIG.SPAWNS[0]` actually configures `biteDamage`, so
+			// this alone doesn't activate biting for a future spawn that doesn't opt in.
+			biteEventName: EVENTS.PLAYER_DAMAGED,
 		});
 		for (const dragon of state.dragons) state.scene.add(dragon.object3D);
 		console.info(`[game3d] Spawned ${state.dragons.length} FAZ 7 dragon(s).`);
@@ -517,6 +554,9 @@ export async function initGame3D() {
 			state.perfPanel.dispose();
 			state.worldEvents.dispose();
 			state.worldEventToast.dispose();
+			unsubscribePlayerDied();
+			state.playerHealth.dispose();
+			state.healthBar.dispose();
 			state.chunkManager.disposeAll();
 			disposeAuroraSky(state.sky);
 			disposeStarfield(state.stars);

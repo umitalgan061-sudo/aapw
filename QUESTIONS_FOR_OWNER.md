@@ -47,14 +47,19 @@ instead of guessed at silently. Newest entry at the bottom.
   rewrite's own push may need to happen from the owner's own machine. **Temporary default used:** key
   treated as compromised, history left untouched, tree cleaned.
 
-- **(run 66, ADR-0085) Should the dragon ever actually *hurt* the player — i.e. does this project
-  want a health/damage system at all?** FAZ 7's dragon now genuinely hunts (leaves its castle, closes
-  to ~65m, circles overhead for up to 18s, gives up). The obvious next increment is an attack, but
-  that is blocked on a question no run should answer unilaterally: there is **no health, damage,
-  death, or respawn concept anywhere in this codebase**, and adding one is a project-shaping decision
-  (it implies combat, failure states, probably saves) far beyond "make the dragon better". **Temporary
-  default used:** the dragon menaces and withdraws, dealing no damage — a threat that is never lethal.
-  Revisit before any attack/fire-breath work starts.
+- **✅ ÇÖZÜLDÜ (run 66, ADR-0085 → run 90, ADR-0116) Should the dragon ever actually *hurt* the
+  player — i.e. does this project want a health/damage system at all?** Owner answered directly,
+  live, in their own words (2026-08-06): "Ejderha'ların olduğu yerde saldırganlığı da olsun.
+  Kışkırtılırsa Ejderha'lar saldırsın." (Dragons should be aggressive where they exist; if provoked,
+  they should attack.) Implemented run 90: a new generic `gameplay/health.js` state (this project's
+  first health/damage system of any kind) + `ui/healthBar.js` HUD, and `gameplay/dragonController.js`
+  gained a real attack-lunge escalation on top of the existing menace-dive — sustained proximity now
+  lands a real, damage-dealing hit once fully committed. Death respawns the player at their spawn
+  point, fully healed (no persistence — no `SaveSystem` exists yet, see the deferred rule in
+  `GOVERNANCE.md` §16). Full reasoning in ADR-0116. This entry stays in the file, marked resolved
+  rather than deleted, as a record of the question and its answer — the calibration constants that
+  *implement* this decision are their own fresh entry at the bottom of this file, same pattern every
+  other guessed-constant question already follows.
 
 - **(run 66, ADR-0085) Does the chase *feel* right at real frame rates — 18s engagement, 10 m/s
   pursuit speed, 55m tightened ring?** These were tuned against a 40-second simulated trajectory
@@ -126,3 +131,16 @@ instead of guessed at silently. Newest entry at the bottom.
   hepsi `stars.js`'de tek satırlık düzenlemeler. Titreşim çok göze batıyor/çok belli belirsiz
   hissettirirse tersi de mümkün.
 
+
+- **(run 90, ADR-0116) Ejderha saldırısının kalibrasyon sabitleri gerçek bir oyun testiyle ayarlanmadı
+  — doğru hissettiriyor mu?** Sahip "kışkırtılırsa saldırsın" dedi, ama "ne kadar kışkırtma", "ne kadar
+  hasar", "ne kadar can" gibi hissiyat sabitlerini kalibre edecek gerçek bir oyun testi yoktu — bu
+  projenin ilk sağlık/hasar sistemi olduğu için hiçbir referans değer de yoktu. **Geçici varsayılanlar
+  kullanıldı:** `PLAYER_CONFIG.MAX_HEALTH = 100`; `DRAGON_CONFIG.SPAWNS[0]`'da `biteDamage: 20`
+  (5 isabetle yenilgi), `attackLateralPullFraction: 0.9`/`attackDropMeters: 78` (saldırı ne kadar
+  yakına iniyor); `dragonController.js`'nin kendi varsayılanları `attackTriggerSeconds: 2.5`
+  (kaç saniye sürekli kışkırtma gerekiyor), `biteRadiusMeters: 15` (ısırık menzili),
+  `biteCooldownSeconds: 4` (iki ısırık arası minimum süre). Hepsi tek satırlık sabit değişiklikleri —
+  bir oyun testi "çok kolay ölüyorum"/"hiç saldırmıyor" derse ilk bakılacak yer bu sabitler. Ayrıca
+  şu an ölümde can yenilenmesi dışında bir bedel yok (ceza/geri yükleme mekaniği yok) — bunun
+  yeterli mi yoksa ileride bir bedel eklenmeli mi, ayrı bir tasarım kararı olarak açık bırakıldı.
