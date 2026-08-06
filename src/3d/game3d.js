@@ -50,6 +50,7 @@ import { WorldEventToast } from './ui/worldEventToast.js';
 import { HealthBar } from './ui/healthBar.js';
 import { ControlsHelp } from './ui/controlsHelp.js';
 import { SettlementCompass } from './ui/settlementCompass.js';
+import { DayNightClock } from './ui/dayNightClock.js';
 import { createPlayer } from './gameplay/player.js';
 import { createHealthState } from './gameplay/health.js';
 import { spawnConfiguredNPCs } from './gameplay/npc.js';
@@ -290,6 +291,7 @@ export async function initGame3D() {
 		state.worldEventToast = new WorldEventToast({ eventsBus: gameEvents, eventName: EVENTS.WORLD_EVENT_TRIGGERED });
 		state.controlsHelp = new ControlsHelp({ isMobileClass: isCoarsePointerDevice() });
 		state.settlementCompass = new SettlementCompass({ seats: state.settlementSeats });
+		state.dayNightClock = new DayNightClock();
 
 		let frameId;
 		const tick = () => {
@@ -378,6 +380,7 @@ export async function initGame3D() {
 				WORLD_DEFAULTS.DAY_LENGTH_SECONDS,
 				WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO,
 			);
+			state.dayNightClock.update(dayNight.timeRatio, dayNight.nightFactor);
 			// Same §8.13 safe mode as the four subsystems above, singleton shape like `interaction` —
 			// but this one does own something to release on failure (its countdown), so it passes a
 			// `disposeOnError`. `worldEvents.dispose()` is idempotent, so the unconditional teardown
@@ -444,6 +447,7 @@ export async function initGame3D() {
 			state.worldEventToast.dispose();
 			state.controlsHelp.dispose();
 			state.settlementCompass.dispose();
+			state.dayNightClock.dispose();
 			unsubscribePlayerDied();
 			state.playerHealth.dispose();
 			state.healthBar.dispose();
