@@ -10716,3 +10716,90 @@ bölme planı düşünülmeli.
 
 **Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
 kayıtlı.
+
+## This Run (2026-08-06, run 99 — scheduled autonomous routine)
+
+**Session Snapshot:** the incoming scheduled prompt's "first create GOVERNANCE.md" instruction is
+stale boilerplate again (run 99, not run 1) — `GOVERNANCE.md`/`CREDITS.md`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md` all already exist from prior runs,
+confirmed present and read in full rather than recreated. `DECISIONS.md`'s last 3 ADRs (0123-0124,
+plus this run's own 0125) and `3D_GAME_PROGRESS.md`'s run 98 entry read. `ARCHITECTURE.md` not
+re-read (last touched 2026-08-05, under the 7-day threshold).
+
+**Eşzamanlılık Kontrolü:** local `main` branch ref was stale (behind `origin/main`) — `git fetch
+origin main` reported a forced update, `HEAD` ended up detached at `origin/main`'s current commit
+(`493bbef`); re-pointed local `main` at it (`git checkout -B main origin/main`) before any new work
+started. Same shallow-clone local-ref quirk runs 96-98 diagnosed, not real divergence, no lost work.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`) — clean. Full
+`scripts/smokeTestGame3D.js` — **28/28 PASS**, 0 FAIL, before any new code. `checkDialogueChoicesShape.js`
+OK (13/14 pilot coverage). `checkSmokeCheckRegistry.js` OK (28 checks/8 modules; same 2 known
+line-count WARNs as run 98 — `game3d.js` 585/600 and `dragonController.js` 579/600, unchanged, still
+under the cap, not yet urgent).
+
+**Priority re-scan (GOVERNANCE.md §18):** items 1-3 (terrain macro relief/road network/ground color)
+remain DONE per their own standing guards. Item 4 (castle texturing, 7/14) still blocked on real
+models for the remaining 6 seats. Items 5-11 all healthy (0 tech debt, smoke suite green, coverage
+unchanged). Items 12-13 (dragon follow-ups / FAZ 11 species) remain blocked on models or already-
+logged owner decisions. That left item 14 as the only actionable lever this run.
+
+### Sub-task 1: `robin-guard-1`'s 3rd dialogue choice (DECISIONS.md ADR-0125)
+
+Full reasoning, alternatives considered, and decision detail are in ADR-0125 — not duplicated here.
+
+**DoD durumu:** `node --check` clean (`dialogueChoices.js`, 245/600, was 235). `checkDialogueChoicesShape.js`
+OK: 13/13 entries resolve, all choices within the 3-slot limit, pilot coverage unchanged at 13/14.
+`checkSmokeCheckRegistry.js` re-run post-change: unchanged (28 checks/8 modules, same 2 known WARNs).
+Full smoke suite re-run: **28/28 PASS**, 0 FAIL (before-baseline also 28/28 PASS, 0 FAIL — regresyon
+yok). **Konsol Temizliği:** the proof script's own headless boot recorded `consoleErrors.length === 0`.
+
+**Real headless-Chromium proof + real visual proof, 2 moments, zero console/page errors in both**
+(dev-only, uncommitted Playwright script, same methodology as prior ADRs, run over a local static
+server, deleted before commit): the real `game3d.html` was booted, the live `CHOICES_BY_NPC_ID`/
+`DialogueBox`/`InteractionPrompt`/`createInteractionController` modules dynamically imported and
+driven through the real `update()`/`handleKeyDown()` API against a synthetic `robin-guard-1` NPC. (1)
+All 3 real choice labels render in order, hint reads exactly `'1/2/3 - Seç, Esc - Kapat'`. (2)
+Pressing `Digit3` shows the exact new response text with `{name}` replaced ("Robin Muhafız: Ürkütmüyor
+değil, yabancı..."), hint reverts to `'E / Esc - Kapat'`, choice list cleared. Zero console/page
+errors throughout.
+
+**Perf sampling:** `perf_log.csv`'s `run99` row (46/393,231/44/17) bit-identical to the run76-98
+baseline — expected, zero geometry/texture code touched.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the new 3rd choice's angle (quiet homesickness for
+lower ground, deliberately not the same as "fear of falling") is distinct from `robin-guard-1`'s
+existing 2 choices and from every other 3-choice NPC's own 3rd choice theme. Header-comment NPC-list
+prose updated consistently. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a,
+config-data-only.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — 11th-generation repeat of an already-proven,
+low-risk pattern, zero open design ambiguity (ADR-0124 pre-vetted this exact candidate), zero
+regression in the full smoke suite. "6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 99 end) | Delta |
+|---|---|---|---|
+| NPCs with a 3rd dialogue choice | 10/13 | **11/13** | +1 (`robin-guard-1`) |
+| Dialogue choice pilot coverage | 13/14 | 13/14 | değişmedi |
+| Smoke suite | 28/28 | **28/28** | aynı 28 kontrol, yeniden doğrulandı |
+| ADR headers in `DECISIONS.md` | 124 | **125** | +1 (ADR-0125) |
+| `perf_log.csv` rows | 41 | **42** | +1 (`run99`) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (saf config-data değişikliği) |
+
+**Oyuncu fark eder mi:** evet, ama küçük ölçekte — `robin-guard-1` ile konuşan bir oyuncu artık 3.
+bir soru sorabilir ve Arryn Eyrie nöbetçisinin yükseklik üzerine kişisel bir cevabını alır; dünyanın
+geri kalanı değişmedi.
+
+**Next step for the next run:** öncelik sırası baştan taranacak. Bloklu kalan her şey değişmedi: 6
+kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. Item 14 tekrar seçilirse: kalan 2 iki-seçenekli
+NPC'den biri (`ziya-guard-1`/`berk-guard-1`, ikisi de Reach koltuğu) veya `worldEvents.js`'nin flavor
+pool'u. `RULES_CHANGELOG.md`'nin sıradaki konsolidasyonu ~run 116'da (değişmedi). `CATCH_UP.md`'nin
+sıradaki özeti ~run 108'de (değişmedi). `game3d.js` (585/600) ve `dragonController.js` (579/600) her
+ikisi de 600 satır sınırına yaklaşıyor — henüz acil değil ama bir sonraki dokunuşta bir bölme planı
+düşünülmeli.
+
+**Addendum:** `git commit`/`git push origin main` sonucu ve stable-tag denemesi `STABLE_TAGS.md`'de
+kayıtlı.
