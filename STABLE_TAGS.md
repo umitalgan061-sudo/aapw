@@ -478,3 +478,15 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `stable-2026-08-06-1854` created at `f658a15`. `git push origin main` succeeded
   (`1a361b4..f658a15`). `git push origin <tag>` still rejected, same `HTTP 403` standing block
   since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
+
+- **Run 105 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed (confidence
+  5/5) — `gameLoopHelpers.js` extracted from `game3d.js` (ADR-0132), a pure tech-debt/line-cap
+  refactor with zero behavior change (590→471 lines, real headroom restored). Full real-browser
+  `smokeTestGame3D.js` **30/30 PASS**, zero console/page errors; `collectPerfSnapshot.js`'s
+  `run105` row bit-identical (draw calls/triangles/geometries/textures) to run103's baseline,
+  confirming no rendered-output change. Local tag `stable-2026-08-06-1959` created at `362769d`.
+  `git push origin work` + PR #5 → `main` merge succeeded (`b091711..c4c7bb0` — this run also found
+  and corrected a stale local `origin/main` tracking ref from a shallow fetch, see
+  `3D_GAME_PROGRESS.md` run 105's Concurrency/snapshot note). `git push origin <tag>` still
+  rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
+  entry satisfies the checkpoint).
