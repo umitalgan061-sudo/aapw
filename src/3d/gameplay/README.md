@@ -100,3 +100,4 @@ a system here (blast radius rule).
   uses (`physics.js` → `world/terrain.js`'s `createHeightSampler`), so the character never stands
   above/below what the rendered terrain mesh actually shows.
 - **Touch dialogue selection (run 99, ADR-0125):** the controller's bounds-checked `handleChoice(index)` is the shared mobile/PWA entry point used by `ui/dialogueBox.js`; it calls the same internal one-shot `selectChoice` state transition as Digit1–Digit3, so input devices cannot diverge in dialogue behavior.
+- **World-event pool run 102 (ADR-0129):** `harvest_wagons` is a COMMON, explicitly day-gated flavor event; its mobile proof also established the ≤600px collision-free toast slot in `game3d.css`.

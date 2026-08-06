@@ -39,6 +39,7 @@ async function checkFreeCamera(browser, baseUrl) {
 	let result;
 	try {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		await page.setViewportSize({ width: 390, height: 844 });
 		result = await page.evaluate(async () => {
 			const { createFreeCameraController } = await import('/src/3d/debug/freeCamera.js');
 			const THREE = await import('/src/3d/vendor/three/three.module.js');
@@ -220,6 +221,7 @@ async function checkWorldEvents(browser, baseUrl) {
 	let result;
 	try {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		await page.setViewportSize({ width: 390, height: 844 });
 		result = await page.evaluate(async () => {
 			const { createWorldEventSystem } = await import('/src/3d/gameplay/worldEvents.js');
 			const { WorldEventToast } = await import('/src/3d/ui/worldEventToast.js');
@@ -269,6 +271,9 @@ async function checkWorldEvents(browser, baseUrl) {
 			const shownOnEvent = el.hidden === false
 				&& el.querySelector('.g3d-event-toast-title').textContent === toastEvents[0].title
 				&& el.querySelector('.g3d-event-toast-desc').textContent === toastEvents[0].desc;
+			const backLinkRect = document.querySelector('.g3d-back-link').getBoundingClientRect();
+			const toastRect = el.getBoundingClientRect();
+			const mobileToastClearsBackLink = toastRect.top >= backLinkRect.bottom + 12;
 
 			toast.dispose();
 			systemC.dispose();
@@ -277,6 +282,7 @@ async function checkWorldEvents(browser, baseUrl) {
 			return {
 				noFireBelowThreshold, firedExactlyOnce, payloadShapeOk, firesAgainAfterReset,
 				noFireAfterDispose, deterministic, hiddenInitially, shownOnEvent, disposedRemovesDom,
+				mobileToastClearsBackLink,
 			};
 		});
 	} catch (error) {
@@ -321,6 +327,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 			noonSystem.dispose();
 			const noonNeverGatesInNightOnly = NIGHT_ONLY_IDS.every((id) => !noonIds.has(id));
 			const noonFiresEclipse = noonIds.has('eclipse');
+			const noonFiresHarvestWagons = noonIds.has('harvest_wagons');
 
 			const midnightIds = new Set();
 			const midnightSystem = createWorldEventSystem({ eventsBus: bus, seed: 2, eventName: 'midnight' });
@@ -328,6 +335,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 			for (let i = 0; i < DRAW_COUNT; i += 1) midnightSystem.update(1000, 1); // nightFactor=1: solid midnight.
 			midnightSystem.dispose();
 			const midnightNeverFiresEclipse = !midnightIds.has('eclipse');
+			const midnightNeverFiresHarvestWagons = !midnightIds.has('harvest_wagons');
 			const midnightFiresSomeNightOnly = NIGHT_ONLY_IDS.some((id) => midnightIds.has(id));
 
 			// Pre-ADR-0111 call shape: no nightFactor argument at all must still fire without throwing.
@@ -340,6 +348,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 
 			return {
 				noonNeverGatesInNightOnly, noonFiresEclipse,
+				noonFiresHarvestWagons, midnightNeverFiresHarvestWagons,
 				midnightNeverFiresEclipse, midnightFiresSomeNightOnly,
 				legacyCallStillFires,
 			};

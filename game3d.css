@@ -330,3 +330,10 @@ html, body {
 .g3d-health-bar.g3d-health-bar-flash {
   background: rgba(120, 10, 10, 0.75);
 }
+
+@media (max-width: 600px) {
+  .g3d-event-toast {
+    top: max(64px, calc(env(safe-area-inset-top, 0px) + 64px));
+    width: min(360px, calc(100vw - 24px));
+  }
+}

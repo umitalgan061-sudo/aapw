@@ -11817,3 +11817,23 @@ specific lever, so the next run's priority re-scan will naturally move on.
 **Geri alma planı:** `git revert` the single commit — removes the one new choice object and reverts
 the header comment's NPC-list prose to its pre-change wording. Nothing else references this specific
 choice.
+
+## ADR-0129: Day-gated harvest caravan event + collision-free mobile event toast
+
+**Status:** Accepted (run 102).
+
+**Risk Seviyesi:** LOW — one additive flavor-data entry, one mobile-only CSS media rule, and additive regression assertions; no world/save/render-state mutation.
+
+**Context:** Run 101 completed FAZ 5's three-choice rollout (13/13 choice-enabled NPCs), making the roadmap's suggested `worldEvents.js` flavor pool the next unblocked item. The required pre-task `origin/main` fetch found Claude's ADR-0128/run-101 work and this run realigned to it before editing. Visual proof of the new event exposed an existing mobile defect: the top-centered toast overlapped the top-left “2D Haritaya Dön” control at 390px width.
+
+**Decision:** add `harvest_wagons`, a COMMON daytime event describing grain wagons reaching castle stores. Its explicit `timeOfDay: 'day'` reuses ADR-0111's eligibility filter. At ≤600px, the event toast moves below the top HUD row with safe-area-aware 64px top spacing and a 24px viewport gutter. Existing desktop placement is unchanged. The world-event smoke checks now prove the new id appears across forced-noon draws, never appears at midnight, and the real toast clears the back-link by at least 12px at 390×844.
+
+**Alternatives considered:** leaving the event ungated was rejected because its text explicitly says daylight. Shortening the Turkish description to hide overlap was rejected because it would mask a layout bug affecting any longer event. Moving the back-link was rejected because that control has stable placement; moving transient toast content below the persistent mobile HUD is the smaller rule.
+
+**Verification:** full JavaScript syntax sweep, smoke registry, PWA installability, and service-worker cache checks pass. Focused real-browser checks for world-event lifecycle/mobile layout and 1000-draw day/night gating pass. Desktop 1280×720 and mobile 390×844 visual proofs render the real Turkish event; the post-fix mobile proof has no overlap. No listeners/timers/DOM/GPU resources were added by the event data or CSS.
+
+**Consequence:** FAZ 8 gains one visible daytime world event (27 total pool entries), and all event toasts now preserve the mobile navigation target. Desktop, 2D, offline cache, deterministic PRNG draw count, event cadence, and renderer budgets remain unchanged. **Gelecek Faz Etkisi:** future long event descriptions inherit the mobile-safe toast slot. **Rollback:** revert the additive event, assertions, and media rule.
+
+**ADR-0129 performance addendum:** run102 sampling succeeded at 2 headless-software FPS / 46 draw calls / 393,231 triangles / 44 geometries / 17 textures / 307 MB JS heap; renderer counts are unchanged and the row is recorded in `perf_log.csv`.
+
+**ADR-0129 full-suite addendum:** the post-change Playwright suite completed 29/29 PASS; real 3D boot reached `GAME_READY` offline with zero console/page errors.
