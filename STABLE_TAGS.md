@@ -299,3 +299,15 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   main` succeeded (`281c5e9`). Local tag only — `git push origin <tag>` still rejected, same
   `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the
   checkpoint).
+
+- **`stable-2026-08-06-0754` (run 88, commit `643d5a6`):** Session Quality Gate passed (confidence
+  5/5 after 1 sub-task + 1 governance-mandated housekeeping item — `game3dSmokeChecksScene.js` split
+  into two check modules clearing its 573/600 WARN, ADR-0113; `CATCH_UP.md`'s 10-run digest, on
+  schedule), full smoke suite 26/26 PASS (unchanged — pure move, no new/removed check), all 6 standing
+  static guards clean (only the pre-existing `game3d.js` 545/600 WARN remains, unchanged since run 87),
+  `game3d.html` boots with zero console/page errors (confirmed via the committed `check3DMode` smoke
+  check, this run touched zero `src/` files so no fresh screenshot was needed — see ADR-0113's
+  explicit reasoning). `perf_log.csv` `run88` row bit-identical to run76-87 (no scene object touched).
+  `git push origin main` succeeded (`643d5a6`). Local tag only — `git push origin <tag>` still
+  rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry
+  satisfies the checkpoint).
