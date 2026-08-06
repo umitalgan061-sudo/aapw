@@ -258,3 +258,17 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   ADR-0109 and its work preserved intact through the rebase (GOVERNANCE.md §8.14). `git push origin
   main` succeeded (`38f0c65`). Local tag only — `git push origin <tag>` still `HTTP 403`, same
   standing block since run 58.
+- `stable-2026-08-06-0304` — run 85 end: world-event flavor pool selection switched from uniform
+  random to weighted rarity (COMMON=3/UNCOMMON=2/RARE=1), ADR-0110 — the 7 most dramatic/ominous
+  entries now fire roughly 1/3 as often as routine-ambiance ones. Pure selection-logic change, zero
+  scene/mechanism touch elsewhere. Verified with a real 5000-draw headless-Chromium statistical
+  sample (measured common:rare ratio 3.13 against an intended 3:1) plus real toast-render screenshots
+  for one COMMON and one RARE id. Full suite **24/24 PASS** (world-event check's determinism
+  assertion is generic, needed no change); all 8 standing guards clean; `perf_log.csv` `run85` row
+  bit-identical to run76-84 (no scene object touched). Smoke suite flaked twice mid-session
+  (once a single check timing out during concurrent verification-script teardown, once a whole-suite
+  navigation timeout with no other Chromium alive) — both times an immediate clean re-run came back
+  24/24, neither implicating this diff; recorded as observed container flakiness, not a finding.
+  `git push origin main` succeeded (`52c9644`). Local tag only — `git push origin <tag>` still
+  `HTTP 403`, same standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry
+  satisfies the checkpoint).
