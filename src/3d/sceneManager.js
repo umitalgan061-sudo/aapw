@@ -44,8 +44,9 @@ export function isCoarsePointerDevice() {
 /**
  * Converts a world-space coordinate to the chunk grid coordinate it falls in, matching the
  * `world/README.md` convention (chunk `(cx, cz)` centered at world `(cx * size, 0, cz * size)`).
- * Exported so `game3d.js`'s own per-frame chunk-coordinate lookups (`collectCameraCollidables`,
- * `streamAroundOrbitTarget`) share this single definition instead of a second copy.
+ * Exported so `gameLoopHelpers.js`'s own per-frame chunk-coordinate lookups
+ * (`collectCameraCollidables`, `streamAroundOrbitTarget`) share this single definition instead of
+ * a second copy.
  * @param {number} worldCoord
  * @param {number} chunkSizeMeters
  * @returns {number}
