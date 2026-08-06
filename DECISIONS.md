@@ -11975,3 +11975,112 @@ While writing this run's own required visual proof (`GOVERNANCE.md` §8.5) for t
 **Session Quality Gate (§8.6):** confidence **5/5** — mechanical, fully-verified documentation correction (every claim checked against the real source, not assumed), zero risk to runtime behavior, closes a real and growing gap rather than a hypothetical one. "6 ay sonra hâlâ net mi" tereddüdü yok.
 
 **Geri alma planı:** `git revert` the single commit — restores both READMEs' prior (incomplete) "Files" sections. Nothing else references this commit.
+
+## ADR-0136: Split `dragonController.js`'s reaction-state bookkeeping into `dragonReactionState.js` (600-line cap)
+
+**Status:** Accepted (run 109 — scheduled autonomous routine).
+
+**Risk Seviyesi:** LOW — pure code motion (no logic rewritten), zero behavior/API change; fully
+covered by the existing exact-value dragon smoke suite (8 dedicated checks) before and after.
+
+**Context:** priority re-scan this run (§18) found items 1-3 (macro relief/road network/terrain
+color) closed since earlier runs, item 4 (remaining 6 kingdom-seat textures) still asset-blocked,
+items 5-8/10-11 clean (full `node --check` sweep clean; 32/32 real-browser smoke suite green, zero
+console/page errors, `collectPerfSnapshot.js`'s `run109` row bit-identical to the run76-108
+baseline before this change). That left item 9 (teknik borç): `checkSmokeCheckRegistry.js` has
+flagged `gameplay/dragonController.js` at 579/600 lines as a WARN across several runs (104-108)
+without action — the most concrete, already-identified debt item available, and the priority list
+places tech debt ahead of a fresh item-14 feature. Left unaddressed, the very next dragon-behavior
+addition (a real, not-hypothetical possibility — FAZ 7's own history shows a new reaction tier
+roughly every few runs) would have pushed the file over the project's 600-line cap (golden rule 7)
+mid-edit, forcing a rushed split under time pressure instead of a deliberate one now with headroom
+to spare.
+
+**Decision:** extract the per-frame notice/reactive/pursuit/give-up/dive/telegraph/attack blend
+*bookkeeping* — `update()`'s distance-check-driven state stepping, previously ~180 lines of inline
+closure `let`s and blend math — into a new `gameplay/dragonReactionState.js` module, exporting
+`createDragonReactionState(startAngleRadians, centerX, centerY, centerZ)` (returns the mutable
+per-dragon record) and `stepDragonReactionState(state, delta, distanceToPlayer, config)` (advances
+it one frame, returns this frame's derived values). `dragonController.js` keeps model/mixer
+loading, calling that stepping function once per frame, applying the result to the real
+`THREE.Object3D` via `dragonFlightMath.js`'s existing pure pose functions, firing
+`eventsBus.emit(...)` for notice/bite, and exposing `userData` — the same pure-state/side-effect
+split `dragonFlightMath.js` already draws for its own arithmetic. Same "extract by concern"
+pattern `dragonFlightMath.js`/`dragonSpawns.js` already established when `gameplay/dragons.js`
+itself was first split in run 71 (ADR-0092) — this is that same file hitting the cap a second time,
+split the same way. Every blend/threshold/ease call in the new module is moved verbatim from the
+old inline `update()`, not rewritten — deliberately, given how many of the project's own dragon
+smoke checks assert *exact* numeric values (on-radius position, exact eased bank angles, exact
+dive/attack blend targets), a rewrite-while-moving would have risked silently changing behavior the
+tests might not have caught if the rewrite happened to preserve the specific values those tests
+probe but not the general shape.
+
+**Alternatives considered:**
+- *Trim the JSDoc block instead (lines 1-237, the largest single chunk of the file) — leave the
+  logic untouched.* Rejected: JSDoc conventionally stays attached to the function it documents
+  (every other file in this folder follows the same pattern), and trimming real documentation to
+  buy line count is a worse trade than moving code to a new file — it would have made the file
+  *less* useful to a future run at the same file-count cost this fix actually pays for real
+  headroom.
+- *Do nothing this run, defer until the file actually crosses 600.* Rejected — the WARN has already
+  persisted across 5 runs (104-108) with the file only getting *closer* to the cap (any future
+  dragon-behavior addition adds to it, never subtracts), and GOVERNANCE.md §18 places teknik borç
+  ahead of new features in priority order specifically so a WARN like this doesn't compound into a
+  forced, rushed split later.
+- *Extract by ability-tier instead (a `dragonDive.js`, a `dragonPursuit.js`, etc.) rather than one
+  `dragonReactionState.js`.* Rejected — the tiers are not independent: `agitationBlend` reads
+  `reactiveBlend`/`diveBlend`/`pursuitBlend`/`diveTelegraphBlend`/`attackBlend` together, and
+  `giveUpBlend` derives from `pursuitExhausted`. Splitting by tier would have meant either passing a
+  cross-tier state bundle between multiple new files (no real separation-of-concerns win over one
+  file) or duplicating the `agitationBlend`/`giveUpBlend` cross-tier reads awkwardly across files.
+  One module for "the whole per-frame reaction state machine" matches how the tiers actually
+  interact.
+
+**Verification:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`) clean.
+`checkSmokeCheckRegistry.js`: unchanged 32 checks/12 modules, file-cap WARN now **gone** —
+`dragonController.js` 423/600 lines (down from 579/600), `dragonReactionState.js` 189/600, both
+comfortably under the cap; 75 JS files total, none near it. Full real-browser
+`smokeTestGame3D.js`: **32/32 PASS**, 0 FAIL, zero console/page errors — critically, all 8 dragon-
+behavior checks (circling flight, notice trigger, reactive flight, wing-flap telegraph, dive/swoop,
+continuous chase, give-up cue, dive telegraph, attack lunge/bite — the exact-value regression suite
+this refactor most risked) passed unchanged, confirming the moved arithmetic produces bit-identical
+results to the pre-refactor inline version. `checkServiceWorkerCache.js`: the new
+`gameplay/dragonReactionState.js` file added to `GAME3D_SHELL_FILES` (offline installs would
+otherwise fetch `dragonController.js` from cache and fail on its now-uncached import), `SHELL_CACHE`
+bumped v9→v10 per the file's own established convention. `checkPwaInstallability.js`: still OK.
+`collectPerfSnapshot.js`'s `run109` row (`46/393231/44/17`) bit-identical to the run76-108 baseline
+— confirms zero rendered-output change, as expected for a pure code-motion refactor. No visual
+proof taken — this change has no rendered-UI surface of its own (same reasoning ADR-0135's
+docs-only change used); the smoke suite's exact-value dragon assertions are the applicable evidence
+for a numeric-behavior-preserving refactor, not a screenshot.
+
+**AI Self-Review 2. Geçiş (§8.3):** diffed the moved logic line-by-line against the original file
+(preserved via git history) to confirm no arithmetic, comparison, or ordering changed — only the
+enclosing function/variable-passing shape did. Confirmed `state.center`/`state.angle` mutation
+semantics are identical to the original closure `let`s (same object-reference-mutation pattern
+`dragonFlightMath.js`'s `stepCenterTowardTarget` already uses, not a new allocation per frame). No
+`TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a — no new listeners/timers/GPU
+resources; `dispose()` unchanged.
+
+**Etkilenen sistemler:** `src/3d/gameplay/dragonController.js` (rewritten body, JSDoc unchanged),
+new `src/3d/gameplay/dragonReactionState.js`, `service-worker.js` (`GAME3D_SHELL_FILES` +
+`SHELL_CACHE` version), `src/3d/gameplay/README.md` (updated entries). No other file's behavior
+changes — `dragons.js`'s re-export of `createDragon` and every existing importer keep working
+unchanged (same public API).
+
+**Gelecek Faz Etkisi:** `dragonController.js` now has ~180 lines of real headroom before the next
+split is needed — a future FAZ 7 reaction tier (or FAZ 11 species-specific dragon behavior) can be
+added without an immediate forced refactor. `dragonReactionState.js`'s `config` bundle shape (one
+object of named options, not individually threaded arguments) is a reusable pattern if a future
+non-dragon creature ever needs similar multi-tier reaction bookkeeping.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — mechanical, fully-verified code-motion
+refactor; every claim checked against real tool output (line counts, smoke suite, perf snapshot),
+not assumed; the exact-value dragon smoke suite is strong evidence nothing numeric moved. "6 ay
+sonra hâlâ net mi" tereddüdü yok — the new module's header and this ADR both spell out why the
+split happened and where the line was drawn.
+
+**Geri alma planı:** `git revert` the single commit — restores `dragonController.js`'s previous
+inline body, removes `dragonReactionState.js`, reverts the service-worker shell-list entry/version
+bump and the README edits. Nothing else references `dragonReactionState.js`'s exports directly (only
+`dragonController.js` imports it), so a revert is a clean, single-commit operation.

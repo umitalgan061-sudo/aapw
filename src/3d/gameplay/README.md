@@ -124,20 +124,31 @@ a system here (blast radius rule).
   flight behavior is shaped the way it is (notice → reactive flight → dive → continuous chase →
   give-up cue → dive telegraph → attack lunge/bite, runs 53-90) — read it before touching any
   dragon behavior rather than re-deriving the reasoning from the code alone.
-- **`dragonController.js`** — a single dragon's controller: model/rig loading and the per-frame
-  flight + reaction update loop (notice/reactive/dive/pursuit/give-up/attack), split out of
-  `dragons.js` in run 71 (DECISIONS.md ADR-0092) at the 600-line cap. `createDragon({...})` returns
-  the project's usual `{object3D, update(delta, playerPosition), dispose()}` shape. Every reaction
-  tier is off-by-default (omitting its defining option disables it entirely, e.g. no
-  `alarmRadiusMeters` means diving never activates) — see the file's own extensive per-option doc
-  comments for exact trigger/blend semantics.
-- **`dragonFlightMath.js`** — pure, stateless circle/blend arithmetic `dragonController.js`'s loop
-  drives: `easeBlendToward` (linear 0..1 blend easing), `blendScalar` (lerp), `applyCirclePose`
-  (position+orientation on a circle), `stepCenterTowardTarget` (speed-limited circle-center travel,
-  exact-landing not asymptotic), `applyDiveOffset` (dive position blend), and
-  `clampAltitudeAboveGround` (terrain-safety floor). Split out alongside `dragonController.js` in
-  run 71 (DECISIONS.md ADR-0092) — deliberately *not* rewritten/"cleaned up" on the way out, since
-  the exact floating-point expression order is load-bearing (see the file's own header).
+- **`dragonController.js`** — a single dragon's controller: model/rig loading, calling
+  `dragonReactionState.js`'s per-frame stepping once per frame, and applying the result to the real
+  `THREE.Object3D` (position/pose/events/`userData`). Split out of `dragons.js` in run 71
+  (DECISIONS.md ADR-0092) at the 600-line cap; the reaction-state bookkeeping was itself split out
+  to `dragonReactionState.js` in run 109 (DECISIONS.md ADR-0136) when this file approached the same
+  cap a second time. `createDragon({...})` returns the project's usual `{object3D, update(delta,
+  playerPosition), dispose()}` shape. Every reaction tier is off-by-default (omitting its defining
+  option disables it entirely, e.g. no `alarmRadiusMeters` means diving never activates) — see the
+  file's own extensive per-option doc comments for exact trigger/blend semantics.
+- **`dragonReactionState.js`** — the notice/reactive/pursuit/give-up/dive/telegraph/attack blend
+  *bookkeeping* `dragonController.js`'s loop steps every frame: `createDragonReactionState(...)`
+  returns the mutable per-dragon record (blends, elapsed-time counters, the traveling circle
+  center), `stepDragonReactionState(state, delta, distanceToPlayer, config)` advances it and returns
+  this frame's derived values (circle radius/bank angle/dive pull-drop/agitation). Split out of
+  `dragonController.js` in run 109 (DECISIONS.md ADR-0136) — a verbatim move, not a rewrite; it
+  never touches a `THREE.Object3D` or emits an event, same pure-state/side-effect split
+  `dragonFlightMath.js` already draws for its own pure position arithmetic.
+- **`dragonFlightMath.js`** — pure, stateless circle/blend arithmetic `dragonReactionState.js`'s
+  stepping (and `dragonController.js`'s own pose application) drives: `easeBlendToward` (linear
+  0..1 blend easing), `blendScalar` (lerp), `applyCirclePose` (position+orientation on a circle),
+  `stepCenterTowardTarget` (speed-limited circle-center travel, exact-landing not asymptotic),
+  `applyDiveOffset` (dive position blend), and `clampAltitudeAboveGround` (terrain-safety floor).
+  Split out alongside `dragonController.js` in run 71 (DECISIONS.md ADR-0092) — deliberately *not*
+  rewritten/"cleaned up" on the way out, since the exact floating-point expression order is
+  load-bearing (see the file's own header).
 - **`dragonSpawns.js`** — config-driven dragon spawn wiring: `spawnConfiguredDragons({assetLoader,
   dragonConfig, seatsById, sampleGroundY, eventsBus, eventName, biteEventName})` resolves
   `DRAGON_CONFIG.SPAWNS` against the kingdom-seat lookup and loads them in parallel, same shape as

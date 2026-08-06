@@ -6,7 +6,7 @@
 
 const SW_VERSION = 'westeros-media-v4';
 const MEDIA_CACHE = 'westeros-media-v4';
-const SHELL_CACHE = 'westeros-shell-v9';
+const SHELL_CACHE = 'westeros-shell-v10';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -81,6 +81,13 @@ const SHELL_FILES = [
 // run 107 (DECISIONS.md ADR-0134): added `ui/dayNightClock.js` — the new FAZ 8 discoverability HUD,
 // now imported directly by `game3d.js`. Same failure mode as every entry above without it.
 // `SHELL_CACHE` bumped v8->v9.
+//
+// run 109 (DECISIONS.md ADR-0136): added `gameplay/dragonReactionState.js` — the per-frame notice/
+// reactive/pursuit/give-up/dive/telegraph/attack blend bookkeeping split out of
+// `dragonController.js` when that file approached the 600-line cap a second time (same reasoning
+// as the run 71/ADR-0092 `dragons.js` split above). Without this entry an offline install would
+// fetch `dragonController.js` from cache and immediately fail on its uncached import — the same
+// failure mode every entry above without a new module describes. `SHELL_CACHE` bumped v9->v10.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -124,6 +131,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/gameplay/dragons.js',
     './src/3d/gameplay/dragonController.js',
     './src/3d/gameplay/dragonFlightMath.js',
+    './src/3d/gameplay/dragonReactionState.js',
     './src/3d/gameplay/dragonSpawns.js',
     './src/3d/gameplay/interaction.js',
     './src/3d/gameplay/worldEvents.js',

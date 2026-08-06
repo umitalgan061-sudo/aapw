@@ -11226,3 +11226,97 @@ That read surfaced a real, unrelated-to-item-14 gap instead: `gameplay/README.md
 **Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §8.14. Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları (at/araba/köpek-kedi/kuş) model bekliyor. `dragonController.js`'s 579/600 WARN is still the most concrete pending tech-debt item if no fresher FAZ 8/item-14 lever presents itself — this run's own doc-fix means the next run's Session Snapshot will actually see it documented now, alongside every other dragon-subsystem file. `RULES_CHANGELOG.md`'s next consolidation ~run 116 (unchanged). `CATCH_UP.md`'s next summary is due **this run (108)** per run 107's own flag — handled below, in the same run rather than deferred again.
 
 **Addendum:** local commit + `git push origin work` (then PR open/merge to `main`) attempted per the established run 2-107 workflow; local `git tag stable-2026-08-06-HHMM` + push attempt (expected to hit the standing `HTTP 403` per GOVERNANCE.md §8.11) recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-06, run 109 — scheduled autonomous routine)
+
+**Concurrency/snapshot:** `git fetch origin main` showed local `main` (detached HEAD at container
+init) already exactly at `origin/main`'s real tip (`5823181`, run 108's docs commit) — no
+divergence, no other session's work to reconcile. Read `GOVERNANCE.md` in full (already populated
+from an earlier run — confirmed it covers every rule the fired prompt listed, including every
+🆕-tagged item; no recreation needed), `3D_GAME_PROGRESS.md`'s run 108 entry, `DECISIONS.md`'s
+ADR-0133/0134/0135, and `QUESTIONS_FOR_OWNER.md` in full (no new unresolved item since run 90; the
+run-63 leaked-key entry stays open pending owner action, unchanged). `git checkout -B work
+origin/main` before any edit.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`)
+clean. `checkSmokeCheckRegistry.js`: 32 checks/12 modules — the pre-existing `dragonController.js`
+579/600 WARN, unchanged across runs 104-108, still present. Full `scripts/smokeTestGame3D.js`:
+**32/32 PASS**, 0 FAIL, zero console/page errors.
+
+**Priority re-scan (§18):** items 1-3 (macro relief/road network/terrain color) remain closed.
+Item 4 (texture the remaining 6 kingdom seats) stays asset-blocked. Items 5-8/10-11 all clean per
+the baseline sweep above. That left item 9 (teknik borç): `dragonController.js`'s 579/600 WARN,
+flagged and left unaddressed across 5 consecutive runs, was the most concrete, already-identified
+debt item — priority order places tech debt ahead of a fresh item-14 feature.
+
+### Sub-task: split `dragonController.js`'s reaction-state bookkeeping into `dragonReactionState.js` (DECISIONS.md ADR-0136)
+
+**Değişiklik Etki Analizi (§8.4):** this touches FAZ 7 dragon flight/reaction code, not
+arazi/yükseklik/dünya ölçeği — the terrain-change safety gate doesn't apply. Affected systems: only
+`gameplay/dragonController.js` (rewritten body) and the new `gameplay/dragonReactionState.js`;
+`dragons.js`'s public re-export and every other importer's call shape are unchanged. Risk: a pure
+code-motion refactor risks accidentally changing arithmetic/ordering while moving it — mitigated by
+moving every blend/threshold call verbatim (not rewriting) and re-running the existing 8
+exact-value dragon smoke checks unchanged. **Gelecek Faz Etkisi:** future FAZ 7 reaction tiers or
+FAZ 11 species-specific dragon behavior gain ~180 lines of headroom before the next forced split.
+
+Extracted the per-frame notice/reactive/pursuit/give-up/dive/telegraph/attack blend bookkeeping
+(previously ~180 lines of inline closure state in `update()`) into a new
+`createDragonReactionState()`/`stepDragonReactionState()` pair in `gameplay/dragonReactionState.js`
+— same "extract by concern" pattern `dragonFlightMath.js`/`dragonSpawns.js` already established
+when `dragons.js` itself was first split (run 71, ADR-0092). `dragonController.js` shrank from
+579 to 423 lines; the new module is 189 lines. Full reasoning + alternatives considered in
+ADR-0136.
+
+**DoD durumu:**
+- [x] `node --check` — full sweep clean (both new/changed `.js` files + `service-worker.js`)
+- [x] Smoke test — `smokeTestGame3D.js` **32/32 PASS**, 0 FAIL, zero console/page errors, all 8
+      dragon-behavior checks (exact-value assertions) pass unchanged
+- [x] Görsel kanıt — n/a, no rendered-UI surface (pure code-motion refactor); the exact-value
+      dragon smoke suite is the applicable evidence, per ADR-0136's own reasoning
+- [x] Performans bütçesi — `collectPerfSnapshot.js` `run109` row (`46/393231/44/17`) bit-identical
+      to the run76-108 baseline, confirming zero rendered-output change
+- [x] Teknik borç sayacı — **0** (this fix *removes* the standing WARN, doesn't add debt)
+- [x] `3D_GAME_PROGRESS.md` güncellendi (this entry)
+- [x] ADR yazıldı — DECISIONS.md ADR-0136
+- [x] Commit atıldı (below)
+- [x] Konsol Temizliği — zero console/page errors across the full smoke suite
+
+**AI Self-Review 2. Geçiş (§8.3):** diffed the moved logic against the original (via git history)
+to confirm no arithmetic/comparison/ordering changed, only the enclosing function shape. Confirmed
+`state.center`/`state.angle` mutation semantics match the original closure `let`s exactly. No
+`TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a — no new listeners/timers/GPU
+resources, `dispose()` unchanged.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — mechanical, fully-verified code-motion
+refactor; the exact-value dragon smoke suite is strong evidence nothing numeric moved. "6 ay sonra
+hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 109 end) | Delta |
+|---|---|---|---|
+| `dragonController.js` lines | 579/600 (WARN) | **423/600** | -156 |
+| `dragonReactionState.js` lines | n/a (new file) | **189/600** | +189 |
+| Files near the 600-line cap | 1 (`dragonController.js`) | **0** | -1 |
+| Smoke suite | 32/32 | **32/32** | unchanged (behavior-preserving) |
+| ADR headers in `DECISIONS.md` | 135 | **136** | +1 (ADR-0136) |
+| `perf_log.csv` rows | 49 | **50** | +1 (`run109`) |
+| Draw calls / triangles | 46 / 393,231 | 46 / 393,231 | değişmedi (pure refactor) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 1 (dragonController.js WARN) | **0** | -1 |
+
+**Oyuncu fark eder mi:** hayır — tamamen görünmez, davranış bire bir aynı (tüm ejderha smoke
+testleri değişmeden geçti). Ama gelecekteki bir ejderha davranış eklemesi artık dosya sınırına
+çarpmadan yapılabilir.
+
+**Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §8.14.
+Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları (at/araba/köpek-kedi/kuş)
+model bekliyor. No file is near the 600-line cap now — the next priority-9 tech-debt candidate (if
+any) will need a fresh scan rather than reusing this run's target. `RULES_CHANGELOG.md`'s next
+consolidation ~run 116 (unchanged). `CATCH_UP.md`'s next summary ~run 118 (unchanged, last done
+run 108).
+
+**Addendum:** local commit + `git push origin work` (then PR open/merge to `main`) attempted per
+the established workflow; local `git tag stable-2026-08-06-HHMM` + push attempt (expected to hit
+the standing `HTTP 403` per GOVERNANCE.md §8.11) recorded in `STABLE_TAGS.md`.
