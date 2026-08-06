@@ -370,3 +370,13 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   regression. Local tag `stable-2026-08-06-1130` created at `3698939`. `git push origin main`
   succeeded (`178d7c0..3698939`). `git push origin <tag>` still rejected, same `HTTP 403` standing
   block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint).
+
+- **Run 93 (2026-08-06, scheduled autonomous routine):** Session Quality Gate passed (confidence
+  5/5) — `stannis-guard-1`'s 3rd dialogue choice (ADR-0119), the pilot's 5th NPC to reach the 3rd
+  dialogue slot. Full smoke suite **28/28 PASS** before and after, real headless-Chromium proof +
+  real visual proof (2 moments, live `game3d.html` scene in the background) confirm the new choice
+  renders and resolves correctly, 0 console/page errors. `perf_log.csv`'s `run93` row bit-identical
+  to run76-92 (config-data-only change). Local tag `stable-2026-08-06-1200` created at `c1c64c5`.
+  `git push origin main` succeeded (`99063f2..c1c64c5`). `git push origin <tag>` still rejected,
+  same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry
+  satisfies the checkpoint).
