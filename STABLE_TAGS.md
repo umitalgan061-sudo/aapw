@@ -690,3 +690,10 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   Playwright olmayan konteynerde browser smoke/perf güvenli biçimde SKIP etti ve sahte performans
   satırı yazılmadı. `stable-2026-08-07-0818` etiketi merge commit'ine oluşturuldu ve bu run'da
   GitHub'a başarıyla gönderildi.
+
+- **Run 122 (2026-08-07):** FAZ 8 yerleşim keşfi bildirimine erişilebilir keşfedilen/toplam
+  ilerleme sayacı eklendi (ADR-0147). PR #23 `main` dalına `b554d72` ile birleştirildi; değişiklik
+  88 ekleme/0 silmedir. Tam Playwright smoke suite 34/34 PASS, odaklı discovery kontrolü PASS,
+  desktop/mobile görsel kontrol PASS; perf snapshot 55 draw call / 646,282 triangle / 49 geometry /
+  22 texture / 242 MB heap. `stable-2026-08-07-0832` etiketi merge commit'ine oluşturuldu ve
+  GitHub'a başarıyla gönderildi.
