@@ -1,0 +1,186 @@
+name: Run 136 Mobile Vegetation LOD
+
+on:
+  push:
+    branches:
+      - agent/run136-mobile-vegetation-lod
+    paths:
+      - '.github/workflows/run136-mobile-vegetation-lod.yml'
+      - 'scripts/applyRun136MobileVegetationLod.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run136-mobile-vegetation-lod
+  cancel-in-progress: false
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "fa08609c46e4a710a0343a6b284873b4c0832598"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          test -f RULES_CHANGELOG.md
+          git log -10 --oneline
+          tail -n 200 GOVERNANCE.md
+          tail -n 220 3D_GAME_PROGRESS.md
+          tail -n 160 DECISIONS.md
+          tail -n 100 RULES_CHANGELOG.md
+          tail -n 80 QUESTIONS_FOR_OWNER.md
+
+      - name: Baseline integrity and browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/baseline-mobile-perf.log"
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/baseline-smoke.log"
+          BASELINE_PASS="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/baseline-smoke.log")"
+          test "$BASELINE_PASS" -ge 34
+
+      - name: Apply additive implementation locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/applyRun136MobileVegetationLod.py
+
+      - name: Syntax and integrity gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/vegetation.js
+          node --check scripts/checkMobileVegetationLod.js
+          node --check scripts/captureRun136MobileVegetationEvidence.js
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js | tee "$RUNNER_TEMP/vegetation-lod.log"
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/vegetation.js scripts/checkMobileVegetationLod.js scripts/captureRun136MobileVegetationEvidence.js; then exit 1; fi
+
+      - name: Post-change mobile performance budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/mobile-perf.log"
+          MOBILE_PERF="$(grep '\[checkMobilePerfBudget\] sample' "$RUNNER_TEMP/mobile-perf.log" | tail -n 1)"
+          echo "MOBILE_PERF=$MOBILE_PERF" >> "$GITHUB_ENV"
+          VEGE_LOD="$(grep '\[checkMobileVegetationLod\] sample' "$RUNNER_TEMP/vegetation-lod.log" | tail -n 1)"
+          echo "VEGE_LOD=$VEGE_LOD" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke after change
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/post-smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/post-smoke.log")"
+          echo "SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+          test "$PASS_COUNT" -ge 34
+
+      - name: Mobile visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureRun136MobileVegetationEvidence.js
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run136-mobile-vegetation-lod-evidence
+          path: artifacts/run136-mobile-vegetation-lod/*.png
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Performance snapshot and self-review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run136 | tee "$RUNNER_TEMP/perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/perf-trend.log"
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          echo "PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+          git diff --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Append run records, consolidate rules, and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "fa08609c46e4a710a0343a6b284873b4c0832598"
+          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          printf '\n## Run 136 — mobile vegetation geometry LOD + kural konsolidasyonu (%s)\n' "$STAMP" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Alt görev 1: ~20-run kural konsolidasyonu (run116→136) yapıldı; ertelenmiş kuralların aktivasyon koşulları yeniden kontrol edildi, mevcut aktif kurallarda çelişki/geçersizlik bulunmadı. Yeni mobil vegetation LOD kapısı §26 olarak eklendi.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Alt görev 2: coarse-pointer vegetation geometry LOD uygulandı; deterministik ağaç yerleşimi/tür/transform/material korunuyor, hem orijin hem run135 spawn-çapalı vegetation diski aynı LOD yolunu kullanıyor.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Runtime: mobilde trunk 4 radial segment, pine cone 5 radial segment, round crown 5x4 sphere segment; desktop geometrisi aynen korunuyor; swap edilen eski geometry hemen dispose ediliyor.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Vegetation LOD ölçümü: ${VEGE_LOD}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- DoD: baseline + post-change browser smoke ${SMOKE_PASS_COUNT}/34+ PASS; node --check PASS; mobile spawn vegetation + streaming + terrain LOD + vegetation LOD + mobile perf + checkpoint/world-event/PWA/cache/assets/terrain/road guard PASS; additive-only PASS; konsol/page error yok." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Mobil performans: ${MOBILE_PERF}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Desktop trend snapshot: ${PERF_ROW}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Görsel doğrulama: gerçek mobile/touch Chromium ile normal yakın görünüm + F4 uzak görünüm olmak üzere 2 ekran görüntüsü artifact olarak saklandı.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- World Coverage: desktop %96.2; mobil resident terrain footprint yaklaşık %8.9 (49 chunk / 12.25 km²) değişmedi. Run135 spawn vegetation görsel kapsamı korunurken bu run render maliyetini düşürdü.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Memory leak checklist: eski vegetation geometry swap anında dispose ediliyor; yeni listener/timer/DOM yok. Teknik borç: run135ten devreden game3d.js 540/600 bölünme ihtiyacı = 1, yeni borç eklenmedi. ADR-0160. Risk LOW. Güven 5/5.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- World Evolution Report delta: yol 0 km, orman yerleşim/ağaç sayısı 0, kale/NPC/event/hayvan 0; oyuncu aynı mobil ağaçları görür, primitive tessellation daha hafiftir. Sıradaki adım: gerçek ölçümle procedural castle sabit maliyeti/frustum-culling adayını değerlendirmek.' >> 3D_GAME_PROGRESS.md
+          printf '\n- **Run 136 (2026-08-07, dördüncü konsolidasyon geçişi):** Run 116dan ~20 çalıştırma sonra GOVERNANCE.md yeniden gözden geçirildi. SaveSystem/public API aktivasyon koşulları hâlâ karşılanmıyor; smoke ve F2/mobile perf kapıları yeterli çalışıyor; run132 platform kontrolü güncel. Çelişen/geçersiz kural bulunmadı. Mobil coverage programına yeni §26 vegetation geometry-LOD kapısı eklendi. Sıradaki konsolidasyon ~run 156 veya FAZ tamamlanınca.\n' >> RULES_CHANGELOG.md
+          printf '%s\n' "- $TAG — run 136 mobile vegetation geometry LOD + rule consolidation; ${SMOKE_PASS_COUNT}/34+ browser smoke PASS; mobile/perf/additive guards PASS." >> STABLE_TAGS.md
+          node scripts/checkCheckpointConsistency.js
+          git config user.name "Westeros Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/3d/world/vegetation.js scripts/checkMobileVegetationLod.js scripts/captureRun136MobileVegetationEvidence.js GOVERNANCE.md DECISIONS.md RULES_CHANGELOG.md 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git commit -m "perf(3d): add mobile vegetation geometry LOD (run 136)"
+          git push origin HEAD:agent/run136-mobile-vegetation-lod
+          git tag "$TAG"
+          git push origin "$TAG"
