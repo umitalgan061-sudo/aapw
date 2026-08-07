@@ -294,3 +294,8 @@ ChunkManager.prototype.streamTowards = function streamTowardsWithLiveMobileRadiu
 		Math.max(radius, MOBILE_LIVE_WORLD_RADIUS_RUN140),
 	);
 };
+
+// Run 141 / ADR-0165 — exported live binding for mobile systems that must follow the actual
+// runtime streaming radius without duplicating a stale literal. Future additive radius wrappers
+// update this binding after their own declaration.
+export let MOBILE_LIVE_WORLD_RADIUS_CHUNKS = MOBILE_LIVE_WORLD_RADIUS_RUN140;

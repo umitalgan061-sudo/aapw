@@ -13381,3 +13381,11 @@ okuyabilir.
 - ADR: ADR-0164 (MEDIUM). Teknik borç: 1 (`game3d.js` 540/600 önceki borç; yeni borç yok). Güven: 5/5.
 - World Evolution delta: yol/orman/kale/NPC/event/hayvan sayıları değişmedi; yalnız mobil görünür/gezilebilir resident terrain +8.00 km². Oyuncu fark eder: evet, telefonda daha geniş çevre terrain aynı anda görünür.
 - CI final mobile sample: {"profile":{"coarse":true,"fine":false,"touchPoints":1},"fps":0,"drawCalls":34,"triangles":171929,"geometries":29,"textures":22,"budgets":{"drawCallsExclusiveMax":500,"trianglesExclusiveMax":500000},"textureMemoryMB":null,"textureMemoryReason":"renderer.info exposes texture count, not resident texture-memory bytes"}
+
+## Run 141 — live-radius-aware mobile vegetation culling (2026-08-07 16:41 UTC)
+- Alt görev: radius-4 mobil dünyada resident terrain ile kesişemeyen origin/spawn vegetation diskleri whole-group visibility ile cull ediliyor; eski Run 138 fikri güncel mimariye taşındı.
+- DoD: baseline + post-change browser smoke 34/34+ PASS; culling/radius4/mobile-perf/terrain/vegetation/PWA/cache/asset/road/seat/checkpoint/additive guard'ları PASS; iki mobil görsel kanıt artifact olarak saklandı.
+- Mobil performans: {"profile":{"coarse":true,"fine":false,"touchPoints":1},"fps":1,"drawCalls":34,"triangles":171929,"geometries":29,"textures":22,"budgets":{"drawCallsExclusiveMax":500,"trianglesExclusiveMax":500000},"textureMemoryMB":null,"textureMemoryReason":"renderer.info exposes texture count, not resident texture-memory bytes"}
+- World Coverage: desktop %96.2; mobil resident terrain ~%14.7 (81 chunk / 20.25 km²), bu run coverage'i büyütmedi.
+- Memory leak checklist: yeni geometry/material/listener/timer yok; yalnız group.visible + küçük userData state. Teknik borç: 1 (`game3d.js` 545/600 civarı). Risk LOW. Güven 5/5.
+- World Evolution Report delta: yol 0 km, orman/ağaç sayısı 0, kale/NPC/event/hayvan 0; oyuncu uzaktaki gereksiz ağaç disklerinin çizilmemesini performans/temizlik olarak hisseder. Sıradaki adım: radius-5 readiness ölçümü.

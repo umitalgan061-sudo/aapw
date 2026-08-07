@@ -446,3 +446,23 @@ Mobil World Coverage radius artışı artık iki ayrı sözleşmeyi birlikte kor
 Bu desen, additive-only kuralını delmeden eski regression sözleşmesini koruyup gerçek oyun manager'ı
 ayrı bir opt-in/live-runtime yolu olarak büyütür. Yeni test veya runtime kodu bu ayrımı belirsizleştirirse
 6 ay sonra okunabilirlik kapısı gereği refactor/ADR değerlendirmesi yapılır.
+
+## 29. Mobil Vegetation Distance-Culling Kapısı (run 141)
+
+Mobil/coarse-pointer sahnede vegetation diskleri yalnız oyuncunun resident terrain komşuluğuyla
+kesişebilecek durumdaysa render-visible kalır. Uzak disklerin instance verisi silinmez; oyuncu geri
+yaklaşınca aynı deterministik ağaçlar yeniden görünür.
+
+- Culling eşiğinin resident-terrain kısmı sabit bir radius kopyasından hesaplanamaz; `chunkManager.js`
+  içindeki `MOBILE_LIVE_WORLD_RADIUS_CHUNKS` live binding'i kullanılmalıdır. Her gelecekteki radius
+  artışı bu binding'i aynı additive değişiklikte güncellemek zorundadır.
+- Vegetation disk yarıçapı `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS * CHUNK_SIZE_METERS` üzerinden türetilir;
+  tek serbest tuning değeri config'teki güvenlik marjıdır.
+- Desktop görünürlüğü değiştirilemez. Mobil updater yalnız whole-group `visible` durumunu değiştirir;
+  seed, instance matrix, geometry/material veya placement verisini mutasyona uğratamaz.
+- Yeni runtime modülü service-worker 3D shell precache listesinde bulunmadan PWA cache kapısı PASS
+  sayılamaz.
+- `checkMobileVegetationCullingRun141.js`, mobile render budget, radius-4 live guard, vegetation LOD,
+  34+ browser smoke ve iki mobil görsel kanıt birlikte PASS olmadan DONE yoktur.
+- Bu optimizasyon coverage yüzdesini tek başına artırmaz; radius-4 (~%14.7 resident footprint) üzerinde
+  gereksiz uzak vegetation çizimini engelleyerek sonraki coverage artışları için güvenli temel sağlar.

@@ -785,3 +785,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 - stable-2026-08-07-1604 — run 139 mobile radius readiness evidence; smoke 34/34+ PASS, additive-only PASS.
 - stable-2026-08-07-1620 — run 140 live mobile radius 4; 81 chunks / 20.25 km², full governance validation pending this same CI run.
+- stable-2026-08-07-1641 — run 141 live-radius mobile vegetation culling; 34/34+ browser smoke, mobile/culling/PWA/additive gates PASS.

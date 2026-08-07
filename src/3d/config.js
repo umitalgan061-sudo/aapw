@@ -181,3 +181,10 @@ export const EVENTS = Object.freeze({
 	 * listener: respawns the player at their spawn point and heals back to full. */
 	PLAYER_DIED: 'player:died',
 });
+
+/** Run 141 / ADR-0165 — whole-disc mobile vegetation culling safety margin. Terrain radius
+ * and vegetation-disc radius are derived from their live/config sources in the culling module;
+ * only the visual overlap margin is a tuning value here, per the no-magic-numbers rule. */
+export const MOBILE_VEGETATION_CULLING_CONFIG_RUN141 = Object.freeze({
+	INTERSECTION_MARGIN_METERS: 100,
+});
