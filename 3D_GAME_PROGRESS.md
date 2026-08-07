@@ -13074,3 +13074,14 @@ düz bir radius artışı artık bilinen bir engel. Sonraki catch-up ~run 138, p
 edilmemiş engel tespiti), güven skoru 5/5, "6 ay sonra hâlâ net mi" tereddüdü yok — ADR-0157 hem
 kararı hem gelecekteki iki çözüm yolunu (test yeniden yazımı ya da sahip onayı) açıkça kaydediyor.
 Çalışma Süresi Sınırı/Çalıştırma Geneli Süre Tavanı içinde kalındı.
+
+## Run 134 — mobile terrain distance LOD (2026-08-07 13:28 UTC)
+- Alt görev: GOVERNANCE §23 sırasına göre radius artırmadan önce mobil terrain mesafe-LOD uygulandı; yakın halka 64, orta halka 32, dış halka 16 segment/kenar.
+- Runtime: coarse-pointer radius 3 / 49 resident chunk korunuyor; merkez değişiminde LOD bandı değişen chunk aynı seed+flatten-pad ile yeniden üretilip eski geometry/material dispose ediliyor; desktop yolu değişmedi.
+- DoD: baseline ve post-change browser smoke 34/34+ PASS; node --check PASS; mobile streaming + mobile terrain LOD + mobile perf + checkpoint/world-event/PWA/cache/assets/terrain/road guard PASS; additive-only PASS; konsol/page error yok.
+- Mobil performans: [checkMobilePerfBudget] PASS: measurable mobile render budgets are respected.
+- Desktop trend snapshot: 2026-08-07,run134,2,50,608296,48,17,368
+- Görsel doğrulama: gerçek mobile/touch Chromium ile yakın görünüm + F4 uzak görünüm olmak üzere 2 ekran görüntüsü artifact olarak saklandı; belirgin boot/render hatası yok.
+- World Coverage: desktop %96.2; mobil resident footprint yaklaşık %8.9 (49 chunk / 12.25 km²) değişmedi. Bu run coverage yüzdesini zorlamadı; radius 4 öncesi triangle marjı üretti.
+- Memory leak checklist: LOD değişiminde eski geometry/material dispose ediliyor; yeni listener/timer/DOM yok. Teknik borç: 0 yeni. ADR-0158. Risk LOW. Güven 5/5.
+- World Evolution Report delta: yol 0 km, orman alanı 0 km², kale/NPC/event/hayvan 0; oyuncunun dünya içeriği değişmez, mobil uzak terrain daha düşük tessellation ile çizilir. Sıradaki güvenli adım vegetation distance culling/LOD.

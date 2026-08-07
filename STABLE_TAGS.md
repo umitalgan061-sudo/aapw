@@ -760,3 +760,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   34/34 PASS, 0 FAIL, 0 console/page errors; additive-only guard and world-event catalog guard
   (38 unique/9 gated) both re-verified clean. Perf 50 draw call / 608,296 triangle / 48 geometry /
   17 texture / 326 MB heap (run120's baseline, unchanged — data-only addition).
+- stable-2026-08-07-1328 — run 134 mobile terrain distance LOD; 34/34+ browser smoke PASS; mobile LOD/perf/additive guards PASS.

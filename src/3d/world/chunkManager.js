@@ -178,3 +178,74 @@ ChunkManager.prototype.streamTowards = function streamTowardsWithMobileBoundRun1
 		if (outsideResidentSquare) this.unloadChunk(chunkX, chunkZ);
 	}
 };
+
+
+// Run 134 / ADR-0158 — mobile terrain distance LOD. This is deliberately layered after run 130's
+// bounded-streaming wrapper so the proven radius-3 eviction behavior stays untouched. On coarse-
+// pointer devices, terrain inside Chebyshev radius 1 keeps the original 64x64 subdivision density,
+// radius 2 uses 32x32, and radius 3 uses 16x16. When the streaming center crosses a chunk boundary,
+// resident chunks whose LOD band changed are rebuilt from the exact same seeded height sampler and
+// flatten pads, then the old geometry/material are disposed immediately. Desktop loadChunk/
+// streamTowards behavior remains byte-for-byte delegated to the pre-run-134 implementation.
+const MOBILE_TERRAIN_LOD_SEGMENTS_RUN134 = Object.freeze({ NEAR: 64, MID: 32, FAR: 16 });
+
+function isMobileCoarsePointerRun134() {
+	return typeof window !== 'undefined' &&
+		typeof window.matchMedia === 'function' &&
+		window.matchMedia('(pointer: coarse)').matches;
+}
+
+function mobileTerrainLodSegmentsRun134(chunkX, chunkZ, centerX, centerZ) {
+	const distance = Math.max(Math.abs(chunkX - centerX), Math.abs(chunkZ - centerZ));
+	if (distance <= 1) return MOBILE_TERRAIN_LOD_SEGMENTS_RUN134.NEAR;
+	if (distance === 2) return MOBILE_TERRAIN_LOD_SEGMENTS_RUN134.MID;
+	return MOBILE_TERRAIN_LOD_SEGMENTS_RUN134.FAR;
+}
+
+function createMobileTerrainLodChunkRun134(manager, chunkX, chunkZ, segments) {
+	const mesh = createTerrainChunk({
+		chunkX,
+		chunkZ,
+		size: manager.chunkSizeMeters,
+		segments,
+		seed: manager.seed,
+		flattenPads: manager.flattenPads,
+	});
+	mesh.userData.mobileTerrainLodSegmentsRun134 = segments;
+	return mesh;
+}
+
+const _loadChunkBeforeMobileTerrainLodRun134 = ChunkManager.prototype.loadChunk;
+ChunkManager.prototype.loadChunk = function loadChunkWithMobileTerrainLodRun134(chunkX, chunkZ) {
+	if (!isMobileCoarsePointerRun134()) return _loadChunkBeforeMobileTerrainLodRun134.call(this, chunkX, chunkZ);
+	const key = chunkKey(chunkX, chunkZ);
+	const existing = this.loaded.get(key);
+	if (existing) return existing;
+	const center = this.mobileTerrainLodCenterRun134 ?? { x: 0, z: 0 };
+	const segments = mobileTerrainLodSegmentsRun134(chunkX, chunkZ, center.x, center.z);
+	const mesh = createMobileTerrainLodChunkRun134(this, chunkX, chunkZ, segments);
+	this.scene.add(mesh);
+	this.loaded.set(key, mesh);
+	this.everGenerated.add(key);
+	return mesh;
+};
+
+const _streamTowardsBeforeMobileTerrainLodRun134 = ChunkManager.prototype.streamTowards;
+ChunkManager.prototype.streamTowards = function streamTowardsWithMobileTerrainLodRun134(centerChunkX, centerChunkZ, radius) {
+	if (!isMobileCoarsePointerRun134()) {
+		return _streamTowardsBeforeMobileTerrainLodRun134.call(this, centerChunkX, centerChunkZ, radius);
+	}
+	this.mobileTerrainLodCenterRun134 = { x: centerChunkX, z: centerChunkZ };
+	_streamTowardsBeforeMobileTerrainLodRun134.call(this, centerChunkX, centerChunkZ, radius);
+
+	for (const [key, mesh] of [...this.loaded.entries()]) {
+		const [chunkX, chunkZ] = key.split(',').map(Number);
+		const desiredSegments = mobileTerrainLodSegmentsRun134(chunkX, chunkZ, centerChunkX, centerChunkZ);
+		if (mesh.userData.mobileTerrainLodSegmentsRun134 === desiredSegments) continue;
+		const replacement = createMobileTerrainLodChunkRun134(this, chunkX, chunkZ, desiredSegments);
+		this.scene.remove(mesh);
+		disposeTerrainChunk(mesh);
+		this.scene.add(replacement);
+		this.loaded.set(key, replacement);
+	}
+};
