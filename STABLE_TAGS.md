@@ -735,3 +735,10 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   reddedildi (§8.11'in bilinen kısıt kaydıyla tutarlı) — yerel tag + bu satır kontrol noktası için
   yeterli sayıldı.
 - stable-2026-08-07-1031 — run 127 governance validation; browser smoke 34/34+ PASS, additive-only PASS, perf snapshot recorded.
+- stable-2026-08-07-1100 — run 128: `nightswatch_levy` world event (ADR-0153) + `CATCH_UP.md` run
+  119-128 catch-up summary, PR #34 merged to `main` (`defc526`). Full Playwright smoke suite
+  **34/34 PASS**, 0 console/page errors, both pre- and post-merge on `main`; additive-only guard and
+  world-event catalog guard re-verified clean on the merged tip. Perf 50 draw call / 608,296
+  triangle / 48 geometry / 17 texture / 326 MB heap (run120's baseline, unchanged — data-only
+  addition). `git push origin stable-2026-08-07-1100` again hit the known `HTTP 403` tag-push
+  restriction (§8.11) — local tag + this line serve as the checkpoint.
