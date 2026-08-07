@@ -53,22 +53,35 @@ jobs:
           tail -n 140 DECISIONS.md
           tail -n 120 QUESTIONS_FOR_OWNER.md
 
-      - name: Baseline integrity and smoke
+      - name: Baseline checkpoint consistency
+        run: node scripts/checkCheckpointConsistency.js
+      - name: Baseline world-event catalog
+        run: node scripts/checkWorldEventCatalog.js
+      - name: Baseline asset manifest
+        run: node scripts/checkAssetsManifest.js
+      - name: Baseline PWA installability
+        run: node scripts/checkPwaInstallability.js
+      - name: Baseline service-worker cache
+        run: node scripts/checkServiceWorkerCache.js
+      - name: Baseline smoke registry
+        run: node scripts/checkSmokeCheckRegistry.js
+      - name: Baseline terrain-seat safety
+        run: node scripts/terrainSeatSafetyCheck.js
+      - name: Baseline road-network safety
+        run: node scripts/roadNetworkSafetyCheck.js
+      - name: Baseline mobile chunk streaming
+        run: node scripts/checkMobileChunkStreaming.js
+      - name: Baseline mobile terrain LOD
+        run: node scripts/checkMobileTerrainLod.js
+      - name: Baseline mobile vegetation LOD
+        run: node scripts/checkMobileVegetationLod.js
+      - name: Baseline mobile spawn vegetation
+        run: node scripts/checkMobileSpawnVegetation.js
+
+      - name: Baseline full browser smoke
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/checkCheckpointConsistency.js
-          node scripts/checkWorldEventCatalog.js
-          node scripts/checkAssetsManifest.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkSmokeCheckRegistry.js
-          node scripts/terrainSeatSafetyCheck.js
-          node scripts/roadNetworkSafetyCheck.js
-          node scripts/checkMobileChunkStreaming.js
-          node scripts/checkMobileTerrainLod.js
-          node scripts/checkMobileVegetationLod.js
-          node scripts/checkMobileSpawnVegetation.js
           node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/baseline-smoke.log"
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/baseline-smoke.log")" -ge 34
 
