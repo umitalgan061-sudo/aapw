@@ -14278,3 +14278,20 @@ yeniden numaralandırıldı — iki oturumun çalışması da korunuyor, hiçbir
 **Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` veri kataloğu, Run 147 regresyon guard'ı. Terrain, save formatı, PWA runtime listesi, PRNG tüketim sayısı, mevcut event ağırlıkları ve 2D oyun değişmez.
 
 **Geri alma planı:** Yeni girdiler additive veri satırlarıdır; gelecekte eligibility/filter katmanı ile devre dışı bırakılabilir. Mevcut satır silme/değiştirme gerekmez.
+
+
+## ADR-0171 — FAZ 8 dünya olayı sabit-seed checksum regresyonu (run 148)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `createWorldEventSystem` için sabit seed, sabit 95 saniyelik update adımları ve gündüz/gece/alacakaranlık/ungated örüntüsüyle 24 emission'lık deterministik çıktı `scripts/fixtures/world-events-seed-148.json` içinde sequence + SHA-256 checksum olarak saklanır. `scripts/checkWorldEventDeterminism.js` aynı seed'in aynı sırayı üretmesini, farklı seed'in ayrışmasını, time-of-day eligibility kurallarını ve dispose sonrası emission olmamasını doğrular. Ayrı `world-event-determinism.yml` workflow'u fixture mevcut olduğu sürece gelecekteki main/agent değişikliklerinde bu snapshot'ı sürekli kontrol eder.
+
+**Neden:** GOVERNANCE deterministik prosedürel/gameplay üretiminde sabit-seed snapshot ister. FAZ 8 katalog büyürken yalnız katalog şekli ve metin çeşitliliğini kontrol etmek PRNG sırası veya day/night filtering davranışının istemeden değişmesini yakalamıyordu.
+
+**Alternatifler:** Runtime davranışını değiştirmek reddedildi; Run 148 yalnız test/CI kapsamını genişletir. Sadece aynı seed'i iki kez karşılaştırıp checksum fixture saklamamak reddedildi, çünkü bu yaklaşım aynı commit içindeki deterministik fakat istemsiz davranış değişikliğini regresyon sayamazdı.
+
+**Sonuç:** Oyun davranışı bit-eşit kalır; sabit-seed world-event davranışı artık checksum ile izlenir. Kasıtlı bir gelecekteki davranış değişikliği fixture güncellemesi ve yeni ADR gerektirir.
+
+**Etkilenen sistemler:** test/CI (`scripts/checkWorldEventDeterminism.js`, fixture, GitHub Actions). Runtime `worldEvents.js`, EventBus, UI, PWA cache listesi ve save formatı değişmez.
+
+**Geri alma planı:** Yeni guard ve fixture additive dosyalardır; yanlış pozitif üretiyorsa sonraki additive policy katmanıyla koşullu devre dışı bırakılabilir. Mevcut kaynak satırı silme/değiştirme gerekmez.

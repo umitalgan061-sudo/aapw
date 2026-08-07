@@ -13542,3 +13542,12 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Performans: 2026-08-07,run147,2,50,608296,48,17,368. Memory leak checklist: veri-kataloğu dışında yeni runtime state/listener/timer/DOM/geometry/material yok.
 - Teknik borç: 1 (`game3d.js` 545/600, değişmedi). Risk LOW. Güven 5/5.
 - World Evolution Report delta: +3 dünya olayı (toplam 52); yol/orman/kale/NPC/hayvan 0. Oyuncu fark eder mi: evet, gündüz/gece ve nötr atmosfer olay havuzu daha çeşitli.
+
+
+## Run 148 — FAZ 8 deterministic world-event regression snapshot (2026-08-07 19:36 UTC)
+- Alt görev: dünya olayı sisteminin sabit seed + sabit day/night örüntüsünde ürettiği 24 olaylık sıra SHA-256 checksum fixture ile kalıcı regresyon guard'ına alındı; runtime kodu değiştirilmedi.
+- DoD: temiz origin/main baseline + post-change browser smoke 34/34+ PASS; determinism snapshot/catalog/diversity/PWA/cache/mobile/terrain/road/additive-only kontrolleri PASS; 3D boot console/page error yok.
+- World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi. Event toplamı 52, değişmedi.
+- Performans: 2026-08-07,run148,1,50,608296,48,17,326. Teknik borç: 1 (game3d.js 545/600 owner kararı bekliyor, değişmedi). Risk LOW. Güven 5/5.
+- World Evolution Report delta: yol 0 km; orman 0 km²; kale/NPC/event/hayvan 0; coverage 0; asset/diyalog 0; ADR +1. Oyuncu fark eder mi: doğrudan hayır; deterministik olay sırası artık gelecekteki istemsiz PRNG/gating regresyonlarına karşı korunuyor.
+- Sıradaki güvenli adım: owner bloklarına dokunmadan FAZ 8 test/kalite veya bağımsız düşük-risk gameplay iyileştirmesi; yayın öncesi concurrency gate zorunlu.

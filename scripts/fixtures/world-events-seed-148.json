@@ -1,0 +1,163 @@
+{
+  "schema": 1,
+  "seed": 1482026,
+  "stepSeconds": 95,
+  "steps": 24,
+  "nightPattern": [
+    0,
+    1,
+    0.5,
+    null,
+    0,
+    1,
+    null,
+    0.5
+  ],
+  "sequence": [
+    {
+      "step": 0,
+      "nightFactor": 0,
+      "id": "raven",
+      "timeOfDay": null
+    },
+    {
+      "step": 1,
+      "nightFactor": 1,
+      "id": "maester_raven",
+      "timeOfDay": null
+    },
+    {
+      "step": 2,
+      "nightFactor": 0.5,
+      "id": "wedding_procession",
+      "timeOfDay": null
+    },
+    {
+      "step": 3,
+      "nightFactor": null,
+      "id": "mummer_troupe",
+      "timeOfDay": null
+    },
+    {
+      "step": 4,
+      "nightFactor": 0,
+      "id": "maester_raven",
+      "timeOfDay": null
+    },
+    {
+      "step": 5,
+      "nightFactor": 1,
+      "id": "night_signal_fire",
+      "timeOfDay": "night"
+    },
+    {
+      "step": 6,
+      "nightFactor": null,
+      "id": "mourning_bells",
+      "timeOfDay": null
+    },
+    {
+      "step": 7,
+      "nightFactor": 0.5,
+      "id": "maester_raven",
+      "timeOfDay": null
+    },
+    {
+      "step": 8,
+      "nightFactor": 0,
+      "id": "training_yard_drill",
+      "timeOfDay": "day"
+    },
+    {
+      "step": 9,
+      "nightFactor": 1,
+      "id": "wolf_howl",
+      "timeOfDay": "night"
+    },
+    {
+      "step": 10,
+      "nightFactor": 0.5,
+      "id": "mummer_troupe",
+      "timeOfDay": null
+    },
+    {
+      "step": 11,
+      "nightFactor": null,
+      "id": "crow_flock",
+      "timeOfDay": null
+    },
+    {
+      "step": 12,
+      "nightFactor": 0,
+      "id": "raven",
+      "timeOfDay": null
+    },
+    {
+      "step": 13,
+      "nightFactor": 1,
+      "id": "hunting_party",
+      "timeOfDay": null
+    },
+    {
+      "step": 14,
+      "nightFactor": null,
+      "id": "night_signal_fire",
+      "timeOfDay": "night"
+    },
+    {
+      "step": 15,
+      "nightFactor": 0.5,
+      "id": "ward_hostage_arrival",
+      "timeOfDay": null
+    },
+    {
+      "step": 16,
+      "nightFactor": 0,
+      "id": "nightswatch_levy",
+      "timeOfDay": null
+    },
+    {
+      "step": 17,
+      "nightFactor": 1,
+      "id": "trade_caravan",
+      "timeOfDay": null
+    },
+    {
+      "step": 18,
+      "nightFactor": 0.5,
+      "id": "white_raven",
+      "timeOfDay": null
+    },
+    {
+      "step": 19,
+      "nightFactor": null,
+      "id": "shackled_prisoner",
+      "timeOfDay": null
+    },
+    {
+      "step": 20,
+      "nightFactor": 0,
+      "id": "maester_raven",
+      "timeOfDay": null
+    },
+    {
+      "step": 21,
+      "nightFactor": 1,
+      "id": "stargazing_maester",
+      "timeOfDay": "night"
+    },
+    {
+      "step": 22,
+      "nightFactor": null,
+      "id": "nightswatch_levy",
+      "timeOfDay": null
+    },
+    {
+      "step": 23,
+      "nightFactor": 0.5,
+      "id": "white_raven",
+      "timeOfDay": null
+    }
+  ],
+  "checksum": "61903751fad36d15acc99592baa37d0ed5c7c91ec5c41ea22e4570ca1f3a0be6"
+}
