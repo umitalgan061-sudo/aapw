@@ -1,0 +1,211 @@
+name: Run 157 Day-Night Clock Accessibility
+
+on:
+  push:
+    branches:
+      - agent/run157-day-night-clock-a11y
+    paths:
+      - 'src/3d/ui/dayNightClock.js'
+      - 'scripts/checkDayNightClockAccessibility.js'
+      - '.github/workflows/run157-day-night-clock-a11y.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BASE_SHA: bea71605e43e05b19f1d0705a1702066256c7de3
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and start concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 160 GOVERNANCE.md
+          tail -n 180 3D_GAME_PROGRESS.md
+          tail -n 120 DECISIONS.md
+          tail -n 100 QUESTIONS_FOR_OWNER.md
+
+      - name: Baseline full browser smoke on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run157-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (
+            cd "$BASELINE"
+            node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run157-smoke-before.log"
+            test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run157-smoke-before.log")" -ge 34
+          )
+          git worktree remove "$BASELINE"
+
+      - name: Syntax and target accessibility regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/ui/dayNightClock.js
+          node --check scripts/checkDayNightClockAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          git diff --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Governance and deterministic regression gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Existing accessibility regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+
+      - name: Mobile streaming LOD and budget regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js
+
+      - name: Full browser smoke after change and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run157-smoke-after.log"
+          AFTER_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run157-smoke-after.log")"
+          test "$AFTER_COUNT" -ge 34
+          if grep -Ei 'console\.error|page error|unhandled' "$RUNNER_TEMP/run157-smoke-after.log"; then
+            exit 1
+          fi
+          echo "RUN157_SMOKE_PASS_COUNT=$AFTER_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run157 | tee "$RUNNER_TEMP/run157-perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/run157-perf-trend.log"
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          test -n "$PERF_ROW"
+          echo "RUN157_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+
+      - name: Senior self-review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/ui/dayNightClock.js scripts/checkDayNightClockAccessibility.js; then
+            exit 1
+          fi
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+
+      - name: Append Run 157 governance records
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          cat >> DECISIONS.md <<'EOF'
+
+## ADR-0179 — Oyun saati için sessiz erişilebilir timer semantiği (run 157)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `DayNightClock` görsel davranışı değiştirmeden `role="timer"`, `aria-live="off"`, `aria-atomic="true"` kazanır; dekoratif gün/gece emojisi `aria-hidden="true"` olur. Görünen oyun dakikası değiştiğinde mevcut Türkçe `aria-label`, `Oyun içi saat HH:MM` biçiminde güncellenir.
+
+**Neden:** 12 dakikalık sıkıştırılmış oyun gününde ekrandaki saat yaklaşık her yarım gerçek saniyede değişiyor. `status`/`polite` gibi canlı-bölge semantiği bu kadar hızlı değişen bir yüzeyde ekran okuyucuyu gereksiz yere konuşturur. `timer` rolü + `aria-live=off`, oyuncu erişilebilirlik ağacında saati sorguladığında güncel değeri verir ama her dakika değişimini kendiliğinden anons etmez. Emoji yalnız görsel dönem ipucu olduğu için erişilebilir adın parçası yapılmaz.
+
+**Alternatifler:** (1) `role="status"` + `aria-live="polite"` — reddedildi, sıkıştırılmış zaman akışında aşırı konuşkan olurdu. (2) Yalnız mevcut `aria-label="Oyun içi saat"` ile kalmak — reddedildi, erişilebilir ad güncel HH:MM değerini taşımıyordu. (3) Saati focusable bir kontrol yapmak — reddedildi, widget etkileşimli değil.
+
+**Sonuç:** Görsel DOM/CSS, zaman hesaplama, ikon eşikleri, world-event gündüz/gece kuralları ve render performansı değişmez. Ekran okuyucu güncel saati Türkçe ad üzerinden okuyabilir; otomatik canlı anons yapılmaz.
+
+**Etkilenen sistemler:** `src/3d/ui/dayNightClock.js`, yeni `scripts/checkDayNightClockAccessibility.js`, run157 CI/kayıtları. `lighting.js`, `worldEvents.js`, save/PWA/cache ve 2D oyun etkilenmez.
+
+**Geri alma planı:** İleride owner onaylı ortak erişilebilirlik katmanı gelirse yeni attribute'lar o katman tarafından additive biçimde gölgelenebilir; mevcut runtime satırlarını silmek/değiştirmek gerekmez.
+EOF
+          cat >> 3D_GAME_PROGRESS.md <<EOF
+
+## Run 157 — Day/night clock accessibility (${STAMP})
+- Alt görev: owner bloklarına dokunmadan FAZ 8 HUD erişilebilirliği — oyun içi saat `role=timer`, `aria-live=off`, `aria-atomic=true`, dinamik Türkçe `aria-label` ve dekoratif ikon için `aria-hidden=true` kazandı.
+- Additive-only: mevcut kaynak satırı silinmedi/değiştirilmedi; yalnız yeni attribute/update satırları, yeni regresyon scripti ve bu CI/kayıtlar eklendi.
+- DoD: `node --check` PASS; hedef a11y testi PASS; checkpoint/uniqueness, world-event determinism/catalog/diversity, PWA/cache, asset/dialogue, terrain/road, mobil streaming/LOD/culling/perf ve mevcut a11y regresyonları PASS; browser smoke ${RUN157_SMOKE_PASS_COUNT}/34+ PASS; console/page error 0; additive-only PASS.
+- Görsel doğrulama: yalnız ARIA metadata ve erişilebilir ad güncellendiği için piksel çıktısı değişmedi; baseline ve post-change gerçek Chromium/WebGL smoke aynı görsel/runtime yolu doğruladı.
+- Performans: ${RUN157_PERF_ROW}
+- Memory leak checklist: yeni listener/timer/geometry/material yok; `DayNightClock.dispose()` mevcut DOM kaldırma davranışını aynen koruyor.
+- Teknik borç: 1 (`game3d.js` 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
+- ADR: ADR-0179. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: yol/orman/kale/NPC/event/hayvan 0; asset/diyalog 0; ADR +1; erişilebilirlik regresyon kapsamı +1. Oyuncu farkı: görsel olarak hayır; ekran okuyucu güncel oyun saatini sessiz timer semantiğiyle okuyabilir.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız UI/test-kalite işi; run158 civarı CATCH_UP.md insan yakalama özeti penceresi.
+EOF
+          printf '%s\n' "- $TAG — run 157 day/night clock quiet timer accessibility (ADR-0179); ${RUN157_SMOKE_PASS_COUNT}/34+ browser smoke, additive-only/PWA/mobile/governance gates PASS." >> STABLE_TAGS.md
+          echo "RUN157_STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Commit Run 157 records
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          git commit -m "docs(3d): record run157 stable checkpoint"
+          git push origin HEAD:${GITHUB_REF_NAME}
+
+      - name: Best-effort stable tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag "$RUN157_STABLE_TAG"
+          git push origin "$RUN157_STABLE_TAG" || true
