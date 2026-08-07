@@ -13622,3 +13622,14 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0176 (LOW). World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: yol/orman/kale/NPC/event/hayvan sayıları 0; toplam ADR sayısı 175→176 (+1); test kapsamı +1 (`checkDialogueBoxAccessibility.js`). Oyuncu fark eder mi: görsel olarak hayır; ekran okuyucu kullanan oyuncu artık NPC diyalog metnini/seçim listesini tek atomik durum bildirimi olarak duyar.
 - Sıradaki güvenli adım: owner bloklarına (radius-5/ADR-0166, `game3d.js` bölünmesi, world-event determinism-checksum/ADR-0172, güvenlik anahtarı rotasyonu) dokunmadan bağımsız UI/erişilebilirlik veya test-kalite işi; run156 civarı kural konsolidasyonu penceresi yaklaşıyor; sonraki catch-up ~run158.
+
+
+## Run 155 — Player health meter accessibility semantics (2026-08-07 22:38 UTC)
+- Session Snapshot / concurrency: temiz run154 (`e99de43b`) tabanından başlandı; `GOVERNANCE.md`, progress/ADR/QFO ve son commitler doğrulandı. Başlangıçta `run155` adlı rakip aktif branch yoktu; owner bloklarına dokunulmadı.
+- Alt görev: `ui/healthBar.js` additive-only olarak gerçek bir erişilebilir `meter` semantiği kazandı (`role=meter`, Türkçe `aria-label=Can`, min/max/current/value-text). Görsel can barı, hasar flash'ı, EventBus akışı ve gameplay değerleri değişmedi.
+- DoD: temiz run154 baseline + post-change browser/WebGL smoke 34/34+ PASS; `node --check`, gerçek Chromium mobil+desktop health-bar erişilebilirlik regresyonu, checkpoint/world-event/PWA/cache/assets/dialogue/mobile/world safety ve additive-only kapıları PASS; console/page error yok.
+- Görsel doğrulama: yalnız ARIA metadata eklendi, piksel/layout çıktısı değişmedi; tam browser smoke görünür davranışı, hedef regresyon testi ise erişilebilirlik ağacındaki meter değerlerini doğrular.
+- World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi. Performans `perf_log.csv` run155 satırında kayıtlı; renderer yolu değişmedi.
+- Memory leak checklist: yeni listener/timer/DOM/geometry/material yok; mevcut iki EventBus subscription ve flash timeout dispose sırasında temizlenmeye devam ediyor. Teknik borç: 1 (`game3d.js` 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
+- World Evolution Report delta: yol 0 km; orman 0 km²; kale/NPC/event/hayvan 0; coverage 0; asset/diyalog 0; ADR +1. Oyuncu fark eder mi: görsel olarak hayır; ekran okuyucu kullanan oyuncu artık can göstergesini semantik bir ölçer ve güncel sayısal değer olarak okuyabilir.
+- Sıradaki güvenli adım: run156 civarı kural konsolidasyonunu önceliklendir; owner bloklarına dokunma ve final concurrency gate'i koru.

@@ -809,3 +809,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-07-2128 — run 152 latest-run checkpoint uniqueness guard; 34/34+ browser smoke and governance/mobile/PWA gates PASS.
 - stable-2026-08-07-2139 — run 153 settlement discovery atomic accessibility; 34/34+ browser smoke and a11y/governance/mobile/PWA gates PASS.
 - stable-2026-08-07-2154 — run 154 dialogue box atomic accessibility; 34/34+ browser smoke and a11y/governance/mobile/PWA gates PASS.
+- stable-2026-08-07-2238 — run 155 player health meter accessibility; 34/34+ browser smoke and a11y/governance/mobile/PWA gates PASS.

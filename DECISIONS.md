@@ -14407,3 +14407,20 @@ verince (aşağıdaki üç seçenekten biri) ilgili run o kararı uygulayacak co
 **Etkilenen sistemler:** `src/3d/ui/dialogueBox.js`; yeni test-only `scripts/checkDialogueBoxAccessibility.js`; run154 CI/kayıtları. `gameplay/interaction.js`, NPC diyalog verisi, save formatı, service-worker cache listesi ve mobil/masaüstü render yolu etkilenmez.
 
 **Geri alma planı:** Additive extension ileride daha yeni bir erişilebilirlik policy katmanı tarafından gölgelenebilir; owner additive-only refactor istisnası verirse semantik attribute'lar constructor içine taşınabilir. Mevcut satırları silmek/değiştirmek gerekmez.
+
+
+## ADR-0177 — Oyuncu can çubuğunu erişilebilir meter olarak tanımlama (run 155)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `HealthBar` mevcut görsel ve EventBus davranışını değiştirmeden additive-only ARIA meter semantiği kazanır: kökte `role=meter`, `aria-label=Can`, `aria-valuemin=0`; her health paint sırasında `aria-valuemax`, sınırlandırılmış `aria-valuenow` ve görünür metinle eşleşen `aria-valuetext` güncellenir.
+
+**Neden:** Görsel can çubuğu oyuncunun FAZ 7 ejderha hasarı sonrası kritik durumunu gösteriyor ancak yardımcı teknoloji için bugüne kadar yalnız anlamsız bir `div` ağacıydı. Meter semantiği mevcut görsel metni çoğaltmadan sayısal sağlık durumunu erişilebilir kılar.
+
+**Alternatifler:** (1) `role=status` + live region kullanmak her hasarda gereksiz/sık anons üretebileceği için reddedildi. (2) Ayrı gizli erişilebilir DOM eklemek çift veri kaynağı ve cleanup yükü yaratacağı için reddedildi. (3) Mevcut satırları refactor etmek additive-only guard nedeniyle reddedildi.
+
+**Sonuç:** CSS sınıfları, fill width hesabı, düşük-can eşiği, hasar flash timer'ı, EventBus abonelikleri ve gameplay health hesapları değişmez; yardımcı teknoloji güncel can değerini semantik ölçer olarak okuyabilir.
+
+**Etkilenen sistemler:** `src/3d/ui/healthBar.js`, hedef regresyon scripti ve run155 CI/kayıtları. `gameplay/health.js`, dragon combat, `game3d.js`, save formatı, PWA/cache ve renderer etkilenmez.
+
+**Geri alma planı:** Eklenen ARIA attribute'ları ileride owner onaylı bir erişilebilirlik policy/refactor katmanı tarafından gölgelenebilir; mevcut runtime satırlarını silmek/değiştirmek gerekmez.
