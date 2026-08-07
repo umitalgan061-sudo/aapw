@@ -1,0 +1,192 @@
+name: Run 141 Mobile Vegetation Culling
+
+on:
+  push:
+    branches:
+      - agent/run141-mobile-vegetation-culling
+    paths:
+      - 'src/3d/world/mobileVegetationCulling.js'
+      - 'scripts/checkMobileVegetationCullingRun141.js'
+      - 'scripts/applyRun141MobileVegetationCulling.py'
+      - '.github/workflows/run141-mobile-vegetation-culling.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      BASE_SHA: 521e5d8f7afbed7b6086f388fb767a0d2151b73b
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 140 GOVERNANCE.md
+          tail -n 80 QUESTIONS_FOR_OWNER.md
+
+      - name: Baseline validation on clean main worktree
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run141-baseline"
+          git worktree add --detach "$BASELINE" origin/main
+          (
+            cd "$BASELINE"
+            node scripts/checkCheckpointConsistency.js
+            node scripts/checkWorldEventCatalog.js
+            node scripts/checkPwaInstallability.js
+            node scripts/checkServiceWorkerCache.js
+            node scripts/terrainSeatSafetyCheck.js
+            node scripts/roadNetworkSafetyCheck.js
+            node scripts/checkMobileChunkStreaming.js
+            node scripts/checkMobileRadius4LiveWorld.js
+            node scripts/checkMobileTerrainLod.js
+            node scripts/checkMobileSpawnVegetation.js
+            node scripts/checkMobileVegetationLod.js
+            node scripts/checkMobilePerfBudget.js
+            node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run141-smoke-before.log"
+            test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run141-smoke-before.log")" -ge 34
+          )
+          git worktree remove "$BASELINE"
+
+      - name: Apply additive runtime and governance changes
+        run: |
+          set -euo pipefail
+          python scripts/applyRun141MobileVegetationCulling.py
+          git diff --check
+          test "$(git diff --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+
+      - name: Syntax and integrity gates
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/chunkManager.js
+          node --check src/3d/config.js
+          node --check src/3d/game3d.js
+          node --check src/3d/world/mobileVegetationCulling.js
+          node --check scripts/checkMobileVegetationCullingRun141.js
+          python -m py_compile scripts/applyRun141MobileVegetationCulling.py
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Mobile streaming and LOD regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+
+      - name: Live-radius vegetation culling gate
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileVegetationCullingRun141.js
+
+      - name: Live mobile render budget
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run141-mobile-perf.log"
+          SAMPLE="$(grep '\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run141-mobile-perf.log" | tail -n 1)"
+          test -n "$SAMPLE"
+          echo "RUN141_MOBILE_PERF=${SAMPLE#*sample }" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke after change
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run141-smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run141-smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          echo "RUN141_SMOKE=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Mobile visual evidence
+        run: |
+          set -euo pipefail
+          node scripts/captureRun130MobileEvidence.js
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run141-mobile-vegetation-culling-evidence
+          path: artifacts/run130-mobile/*.png
+          if-no-files-found: error
+
+      - name: Performance snapshot and self-review
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run141
+          node scripts/analyzePerfTrend.js
+          git diff --check
+          test "$(git diff --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+          grep -q 'MOBILE_LIVE_WORLD_RADIUS_CHUNKS' src/3d/world/chunkManager.js
+          grep -q '## 29. Mobil Vegetation Distance-Culling Kapısı' GOVERNANCE.md
+          grep -q 'ADR-0165' DECISIONS.md
+          grep -q "mobileVegetationCulling.js" service-worker.js
+
+      - name: Finalize progress and checkpoint records
+        run: |
+          set -euo pipefail
+          export RUN141_FINALIZE=1
+          export RUN141_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          python scripts/applyRun141MobileVegetationCulling.py
+          export RUN141_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          echo "RUN141_TAG=$RUN141_TAG" >> "$GITHUB_ENV"
+          printf '%s\n' "- $RUN141_TAG — run 141 live-radius mobile vegetation culling; 34/34+ browser smoke, mobile/culling/PWA/additive gates PASS." >> STABLE_TAGS.md
+          node scripts/checkCheckpointConsistency.js
+
+      - name: Final concurrency gate, commit, tag and push
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "Westeros Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            src/3d/world/mobileVegetationCulling.js \
+            src/3d/world/chunkManager.js \
+            src/3d/config.js \
+            src/3d/game3d.js \
+            service-worker.js \
+            GOVERNANCE.md DECISIONS.md 3D_GAME_PROGRESS.md STABLE_TAGS.md perf_log.csv \
+            scripts/checkMobileVegetationCullingRun141.js \
+            scripts/applyRun141MobileVegetationCulling.py \
+            .github/workflows/run141-mobile-vegetation-culling.yml
+          git diff --cached --check
+          test "$(git diff --cached --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+          git commit -m "perf(3d): cull remote mobile vegetation discs (run 141)"
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git tag "$RUN141_TAG"
+          git push origin HEAD:agent/run141-mobile-vegetation-culling
+          git push origin "$RUN141_TAG"
