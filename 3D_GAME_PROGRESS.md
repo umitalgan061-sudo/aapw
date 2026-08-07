@@ -13198,3 +13198,17 @@ yönlendirildi (fabrikasyon yok), hem doğruluk hem entegrasyon testleriyle kan�
 guard'a tam uyumlu, masaüstü regresyonu yok (ölçülerek doğrulandı). "6 ay sonra hâlâ net mi"
 tereddüdü yok — ADR-0159 hem bulunan boşluğu hem seçilen çözümü hem reddedilen alternatifleri açıkça
 kaydediyor. Çalışma Süresi Sınırı/Çalıştırma Geneli Süre Tavanı içinde kalındı.
+
+## Run 136 — mobile vegetation geometry LOD + kural konsolidasyonu (2026-08-07 14:37 UTC)
+- RCA: Run 135 checkpoint verisi aslında STABLE_TAGS.md içinde vardı fakat backtickli madde biçimi checkpoint parser tarafından görülmüyordu. Prevention: uyumlu additive alias satırı eklendi; mevcut Run 135 kaydı değiştirilmedi. Regression Test: checkCheckpointConsistency.js artık bu repo durumunda tekrar PASS.
+- Alt görev 1: ~20-run kural konsolidasyonu (run116→136) yapıldı; ertelenmiş kuralların aktivasyon koşulları yeniden kontrol edildi, mevcut aktif kurallarda çelişki/geçersizlik bulunmadı. Yeni mobil vegetation LOD kapısı §26 olarak eklendi.
+- Alt görev 2: coarse-pointer vegetation geometry LOD uygulandı; deterministik ağaç yerleşimi/tür/transform/material korunuyor, hem orijin hem run135 spawn-çapalı vegetation diski aynı LOD yolunu kullanıyor.
+- Runtime: mobilde trunk 4 radial segment, pine cone 5 radial segment, round crown 5x4 sphere segment; desktop geometrisi aynen korunuyor; swap edilen eski geometry hemen dispose ediliyor.
+- Vegetation LOD ölçümü: [checkMobileVegetationLod] sample {"stats":{"active":true,"desktopTriangles":6190,"mobileTriangles":3514,"reductionRatio":0.43231017770597735,"placedCount":94},"counts":[54,54,40,40],"coarse":true}
+- DoD: baseline + post-change browser smoke 34/34+ PASS; node --check PASS; mobile spawn vegetation + streaming + terrain LOD + vegetation LOD + mobile perf + checkpoint/world-event/PWA/cache/assets/terrain/road guard PASS; additive-only PASS; konsol/page error yok.
+- Mobil performans: [checkMobilePerfBudget] sample {"profile":{"coarse":true,"fine":false,"touchPoints":1},"fps":1,"drawCalls":31,"triangles":170393,"geometries":26,"textures":22,"budgets":{"drawCallsExclusiveMax":500,"trianglesExclusiveMax":500000},"textureMemoryMB":null,"textureMemoryReason":"renderer.info exposes texture count, not resident texture-memory bytes"}
+- Desktop trend snapshot: 2026-08-07,run136,1,50,608296,48,17,391
+- Görsel doğrulama: gerçek mobile/touch Chromium ile normal yakın görünüm + F4 uzak görünüm olmak üzere 2 ekran görüntüsü artifact olarak saklandı.
+- World Coverage: desktop %96.2; mobil resident terrain footprint yaklaşık %8.9 (49 chunk / 12.25 km²) değişmedi. Run135 spawn vegetation görsel kapsamı korunurken bu run render maliyetini düşürdü.
+- Memory leak checklist: eski vegetation geometry swap anında dispose ediliyor; yeni listener/timer/DOM yok. Teknik borç: run135ten devreden game3d.js 540/600 bölünme ihtiyacı = 1, yeni borç eklenmedi. ADR-0160. Risk LOW. Güven 5/5.
+- World Evolution Report delta: yol 0 km, orman yerleşim/ağaç sayısı 0, kale/NPC/event/hayvan 0; oyuncu aynı mobil ağaçları görür, primitive tessellation daha hafiftir. Sıradaki adım: gerçek ölçümle procedural castle sabit maliyeti/frustum-culling adayını değerlendirmek.

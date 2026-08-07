@@ -390,3 +390,22 @@ Belirgin pop-in veya yakın halkada geometri kaybı görülürse sonraki radius 
 bantları yeniden değerlendirilir. Bu optimizasyon coverage yüzdesini tek başına yükseltmez; radius
 3'ün yaklaşık %8.9 resident footprint'ini daha düşük GPU/triangle maliyetiyle güvenli tutarak sonraki
 radius artışı için performans marjı üretir.
+
+
+## 26. Mobil Vegetation Geometry-LOD Kapısı
+
+Mobil World Coverage büyütme programında terrain LOD'den sonraki vegetation adımı ölçümlü ve
+regresyon-korumalı ilerler:
+
+- Coarse-pointer mobil yolunda deterministik ağaç yerleşimi, tür dağılımı, instance transformları ve
+  materyaller korunur; yalnız primitive geometrisinin segment sayısı düşürülebilir.
+- Masaüstü vegetation geometrisi aynı kalır. Mobil optimizasyon masaüstü görsel kalitesini azaltamaz.
+- Geometry değiştirildiğinde eski geometry aynı işlemde `dispose()` edilmelidir; ikinci bir tam
+  geometry kopyası GPU belleğinde tutulamaz.
+- `scripts/checkMobileVegetationLod.js` gerçek mobile/touch Chromium context'inde çalışmalı; mobil
+  LOD'nin aktif olduğunu, instance sayılarının korunduğunu ve vegetation triangle yükünün desktop
+  geometrisine göre en az %25 düştüğünü doğrulamalıdır.
+- Bu kapı `scripts/checkMobilePerfBudget.js` ve `scripts/checkMobileSpawnVegetation.js` ile birlikte
+  PASS olmadan vegetation optimizasyonu veya sonraki mobil radius artışı DONE sayılamaz.
+- Görsel doğrulama en az iki mobil açıyla yapılır; belirgin silhouette kaybı/bozuk mesh varsa daha
+  yüksek segment seviyesi seçilir.
