@@ -583,3 +583,23 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   still rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
   entry satisfies the checkpoint). One new open question logged in `QUESTIONS_FOR_OWNER.md` (cluster
   ring density/radius calibration, run 113/ADR-0140) — not blocking.
+
+- **Run 114 (2026-08-07):** Session Quality Gate passed (confidence 5/5, §8.6) — item-14 new
+  feature, `gameplay/worldEvents.js`'s `sellsword_arrival` world event, a new UNCOMMON/ungated
+  flavor-pool entry (ADR-0141), following run 102/103/129/130's own established low-risk pattern.
+  33/33 baseline → 33/33 real-browser smoke suite clean both before and after (existing id-based
+  gating check needed no modification), both `terrainSeatSafetyCheck.js` (14/14) and
+  `roadNetworkSafetyCheck.js` (13/13 edges) re-confirmed unaffected (out-of-scope change, checked
+  as due diligence anyway), `collectPerfSnapshot.js run114` bit-identical to run113 (config-data-
+  only change, no geometry/texture/renderer code touched), real 2-viewport headless-Chromium proof
+  (desktop 1280x720 + mobile 390x844) showing the exact toast title/desc text and confirming mobile
+  placement clears the back-link control, zero console/page errors throughout. Incidentally fixed a
+  stale `GOVERNANCE.md` §16 table row (the "30-commit perf trend graph" deferred item was already
+  implemented in run 110/ADR-0137 but still read as pending). Game opens without issue post-merge
+  (merge commit `583ce9c` is a real merge of `work` into `main`, no conflicts; full `node --check`
+  sweep + `checkSmokeCheckRegistry.js` re-confirmed clean against the merged tree). Local tag
+  `stable-2026-08-07-0351` created at `583ce9c` (PR #14 merge). `git push origin work` + PR #14 →
+  `main` merge succeeded (`d90aab4..583ce9c`). `git push origin <tag>` still rejected, same
+  `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies
+  the checkpoint). No new open question in `QUESTIONS_FOR_OWNER.md` (discrete tier choice, not a
+  calibration constant needing a real playtest).
