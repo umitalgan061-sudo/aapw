@@ -13161,3 +13161,11 @@ mix navigation rendering with persistence; EventBus routing was rejected because
 needs this private first-arrival state; permanent onscreen badges were rejected to avoid HUD
 clutter. **Performance:** one 14-seat distance scan per frame, no WebGL resources, and no new network
 request. **Rollback:** revert the run-117 commit; the unused versioned storage value is harmless.
+
+### ADR-0144 addendum — storage accessor guard
+
+Review found that a default parameter reading `globalThis.localStorage` could itself throw a
+`SecurityError` before the constructor's existing read/write guards ran. Storage resolution now
+happens inside its own guarded helper, while an explicitly supplied `null` still disables
+persistence. The browser regression check additionally uses a storage object whose reads and writes
+both throw, proving that first-arrival feedback continues in session memory in restricted contexts.

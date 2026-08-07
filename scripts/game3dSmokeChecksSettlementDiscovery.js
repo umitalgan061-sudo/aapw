@@ -36,8 +36,17 @@ async function checkSettlementDiscovery(browser, baseUrl) {
 			remembered.update({ x: 100, z: 100 });
 			const doesNotRepeat = remembered._root.hidden;
 			remembered.dispose();
+			const blockedStorage = {
+				getItem: () => { throw new DOMException('Blocked', 'SecurityError'); },
+				setItem: () => { throw new DOMException('Blocked', 'SecurityError'); },
+			};
+			const restricted = new SettlementDiscovery({ seats, container, storage: blockedStorage, radiusMeters: 20 });
+			restricted.update({ x: 100, z: 100 });
+			const storageFailureFallsBack = !restricted._root.hidden
+				&& restricted._root.textContent.includes('Kışyarı');
+			restricted.dispose();
 			container.remove();
-			return { staysHiddenWhenFar, announcesOnArrival, persistsDiscovery, fitsMobileViewport, autoHides, disposeRemovesDom, doesNotRepeat };
+			return { staysHiddenWhenFar, announcesOnArrival, persistsDiscovery, fitsMobileViewport, autoHides, disposeRemovesDom, doesNotRepeat, storageFailureFallsBack };
 		});
 	} finally {
 		await page.close();

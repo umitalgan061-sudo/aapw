@@ -14,6 +14,14 @@ function readDiscoveries(storage) {
 	}
 }
 
+function getDefaultStorage() {
+	try {
+		return globalThis.localStorage;
+	} catch {
+		return null;
+	}
+}
+
 export class SettlementDiscovery {
 	/**
 	 * @param {{seats: {id: string, name: string, x: number, z: number}[], container?: HTMLElement,
@@ -22,15 +30,15 @@ export class SettlementDiscovery {
 	constructor({
 		seats,
 		container = document.body,
-		storage = globalThis.localStorage,
+		storage,
 		radiusMeters = DEFAULT_DISCOVERY_RADIUS_METERS,
 		visibleMilliseconds = DEFAULT_VISIBLE_MILLISECONDS,
 	}) {
 		this._seats = seats;
-		this._storage = storage;
+		this._storage = storage === undefined ? getDefaultStorage() : storage;
 		this._radiusMeters = radiusMeters;
 		this._visibleMilliseconds = visibleMilliseconds;
-		this._discovered = readDiscoveries(storage);
+		this._discovered = readDiscoveries(this._storage);
 		this._hideTimeoutId = null;
 
 		this._root = document.createElement('aside');
