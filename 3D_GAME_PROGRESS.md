@@ -12675,3 +12675,83 @@ ayrı ayrı görünür) doğru biçimde işaret etti. Tek code-point, evrensel d
 glifi, Unicode 6.0'dan beri var) ile değiştirildi — `raven` ile aynı temel ikonu paylaşır ama başlık/
 açıklama/renk zaten yeterince ayırt edici olduğundan (bkz. ADR-0150's Alternatifler) bu kabul
 edilebilir bir ödünleşim. Metin/lore/ADR gerekçesi değişmedi, yalnız ikon glifi düzeltildi.
+
+## This Run (2026-08-07, run 126)
+
+**Concurrency/snapshot:** `git fetch origin main` sonrası local, `origin/main`'in en son commit'iyle
+(`3c7e4fb`, "chore: add additive-only diff guard (#31)") aynıydı — bu commit proje sahibi tarafından
+run 125'ten SONRA, normal PR akışı dışında doğrudan `main`'e eklenmişti (`scripts/
+checkAdditiveOnlyDiff.js`: kaynak dosyalarda satır silme/değiştirmeyi reddeden bağımsız bir guard).
+`GOVERNANCE.md`, `3D_GAME_PROGRESS.md` (son 3 run), `DECISIONS.md` son 3 ADR ve `QUESTIONS_FOR_OWNER.md`
+okundu; ayrıca `git ls-remote --heads origin` ile eski/paralel dallar tarandı — `agent/
+run126-additive-diff-guard` adlı bir dal bulundu ama diff'i çok eski bir `origin/main` taban noktasından
+(çok sayıda ilgisiz dosya farkı) geldiğinden terk edilmiş/bayat bir dal olarak değerlendirildi, birleştirilmedi;
+diğer bulunan dallar (`agent/phase5-plus-next-step`, `claude/westeros-pwa-quality-audit-pninxh`, vb.) run
+92-93 veya daha eski tarihli, güncel `main` ile ilgisiz. Öncelik taraması: madde 1/1.2/1.5 kod içinde zaten
+doğrulanmış durumda (bu run'da yeniden statik guard'larla teyit edildi), madde 1.7 hâlâ manuel asset
+bekliyor, madde 2-9 (sözdizimi/blocking bug/performans/memory leak/teknik borç/smoke/coverage/FAZ 7-5-6)
+tam baseline taramasıyla temiz bulundu: `node --check` tüm `src/`+`scripts/`+`script.js`+`service-worker.js`
+dosyalarında sıfır hata; `checkSmokeCheckRegistry.js` 34 check/14 modül, 81 dosya 600 satır sınırının
+altında; `terrainSeatSafetyCheck.js` 14/14 PASS; `roadNetworkSafetyCheck.js` 13/13 PASS; `checkAssetsManifest.js`
+41/41 çözülü; `checkPwaInstallability.js`/`checkServiceWorkerCache.js`/`checkCreatureSpeciesConfig.js`/
+`checkDialogueChoicesShape.js` hepsi OK; tam `smokeTestGame3D.js` değişiklik ÖNCESİ **34/34 PASS**, 0
+FAIL, 0 konsol/sayfa hatası (baseline).
+
+### Sub-task 1: Additive-only diff guard'ı GOVERNANCE.md'ye kalıcı Altın Kural olarak kaydet (ADR-0151)
+
+Owner'ın `main`'e doğrudan eklediği `scripts/checkAdditiveOnlyDiff.js` guard'ı `GOVERNANCE.md` §2
+(Altın Kurallar, yeni madde 9) ve §8.1 (DoD checklist, yeni satır) olarak kaydedildi — artık her
+commit öncesi `node scripts/checkAdditiveOnlyDiff.js` çalıştırılıp PASS bekleniyor; bir satırı
+değiştirmek yerine yeni bir ekleme ile üzerine yazacak yapı kurma kuralı açıkça yazıldı, FAIL
+durumunda `QUESTIONS_FOR_OWNER.md`'ye düşme yönergesi eklendi.
+
+**DoD / doğrulama:** Yalnız `.md` dosyaları değişti (guard kapsamı dışında ama additive tutuldu —
+mevcut hiçbir satır silinmedi/değiştirilmedi, yalnız yeni satırlar eklendi). `node
+scripts/checkAdditiveOnlyDiff.js origin/main HEAD` → PASS. Görsel kanıt gerekmiyor (kod/UI
+değişikliği yok, önceki dokümantasyon-only ADR'lerle aynı gerekçe). Teknik borç: **0**. Güven: **5/5**.
+
+### Sub-task 2: zamandan bağımsız `midwife_summoned` (Ebe Çağrısı) dünya olayı (ADR-0152)
+
+FAZ 8 dünya olayı havuzuna UNCOMMON ağırlıklı, gate'siz `midwife_summoned` girdisi eklendi — kale
+içinde bir ebenin bir kuleye çağrılmasını, yaklaşan bir doğumun habercisi olarak anlatan, havuzda
+şimdiye kadar hiç olmayan "doğum/aile" temalı yeni bir gündelik-yaşam görüntüsü. Mevcut ağırlıklı
+seçim/toast sunum yolu aynen kullanıldı; yeni geometri/materyal/timer/listener yok. Değişiklik
+tamamen ekleme biçiminde yapıldı — önceki `crow_flock` girişinin (run 125) satırı ve ondan önceki
+tüm 33 satır dokunulmadan bırakıldı; yeni girdi listenin sonuna, kapanış parantezinden önce eklendi,
+ve stale "live count" yorumu güncellenmek yerine altına yeni tarihli bir satır eklendi (GOVERNANCE.md
+madde 9'un additive-only guard'ına uymak için).
+
+**DoD / doğrulama:** Değişen tek gerçek kod dosyası (`gameplay/worldEvents.js`) syntax-clean.
+`checkSmokeCheckRegistry.js` yeniden PASS (34/14). 500 seed × 30 tetikleme (15.000 çekiliş, alternan
+gündüz/gece `nightFactor`) ile gerçek modül üzerinden yapılan bir erişilebilirlik ispatı (committed
+değil, atılan script) `midwife_summoned`'ın hem gündüz hem gece erişilebilir olduğunu ve havuzdaki
+35 id'nin hepsinin en az bir kez çekildiğini (eksiksiz, çakışmasız) doğruladı: 481 çekiliş
+`midwife_summoned` için. Değişiklik SONRASI tam Playwright smoke suite yeniden çalıştırıldı: **34/34
+PASS**, 0 FAIL, baseline'la birebir aynı. Veri-only ekleme yeni bir görsel yüzey oluşturmadığından
+önceki flavor-event ADR'leriyle aynı gerekçeyle yeni ekran görüntüsü gerektirmedi. Teknik borç
+sayacı: **0**. Güven: **5/5**.
+
+**AI Self-Review 2. Geçiş:** Yeni girişten önceki 35 (34+bu) entry'nin `desc` metinleri tek tek
+yeniden okunarak hiçbirinin "doğum/ebe" temasını zaten kapsamadığı teyit edildi. Ağırlık seçimi
+(UNCOMMON, RARE değil) ADR-0152'de gerekçeli. `TEMP`/`HACK`/`FIXME`/`WORKAROUND` yorumu yok.
+
+**Memory-leak checklist:** veri-only ekleme; listener/timer/DOM/geometry/material tahsisi yok.
+**Performans:** olay seçimi yalnız tetikleme anında 35 elemanlı sabit bir dizi üzerinde çalışır;
+frame başına yeni maliyet yok. `collectPerfSnapshot.js run126`: 2 FPS / 50 draw call / 608,296
+triangle / 48 geometry / 17 texture / 257 MB heap — draw call/triangle/geometry/texture sayıları
+run120'den beri değişmeyen değerlerle birebir aynı (veri-only ekleme, yeni render yüzeyi yok);
+beklenen sonuç budur. `perf_log.csv` güncellendi.
+
+**World Evolution Report:** dünya olayı havuzu 34'ten **35** girdiye çıktı (gated 9, ungated 26);
+smoke kapsamı 34/14 olarak değişmedi; ADR sayısı 150'den **152**'ye çıktı (0151 governance, 0152
+midwife_summoned); GOVERNANCE.md 2 yeni satır kazandı (Altın Kural 9 + DoD checklist). World Coverage
+desktop/mobil 96.2% / 4.5% değişmedi. Oyuncu fark eder: evet, küçük ölçekte; seyrek bir doğum
+haberi bildirimi görebilir.
+
+**Next step:** her zamanki taze `origin/main` fetch ve öncelik taraması; 6 dokusuz kale ile FAZ 6
+model bekleyen türler (at/araba/köpek-kedi/kuş) hâlâ manuel asset kaynağı bekliyor. Sonraki catch-up
+~run 128, platform kontrolü ~run 132-142, kural konsolidasyonu ~run 136 — hepsi hâlâ güncel.
+
+**Oturum Kalite Kapısı:** 2 alt görev tamamlandı, güven skoru her ikisinde de 5/5, "6 ay sonra hâlâ
+net mi" tereddüdü yok — devam edilebilir. Çalışma Süresi Sınırı/Çalıştırma Geneli Süre Tavanı içinde
+kalındı.

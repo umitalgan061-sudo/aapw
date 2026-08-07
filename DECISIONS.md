@@ -13464,3 +13464,96 @@ kez çekildiğini (ne eksik ne çakışan id) doğruladı.
 **Gelecek faz etkisi:** Yok. FAZ 9 ses/cila veya ilerideki canlı-model sistemine bağımlılık eklemez;
 ileride gerçek bir kuş/karga modeli gelirse bu toast bağımsız kalabilir veya ayrı ADR ile görsel
 olaya bağlanabilir.
+
+## ADR-0151 — Additive-only diff guard'ı GOVERNANCE.md'ye kalıcı Altın Kural olarak kaydet (run 126)
+
+**Risk seviyesi:** LOW
+
+**Karar:** Proje sahibinin doğrudan `main`'e eklediği `scripts/checkAdditiveOnlyDiff.js`
+(commit `3c7e4fb`, "chore: add additive-only diff guard (#31)") — kaynak dosyalarda satır
+silme/değiştirmeyi reddeden bağımsız bir guard — `GOVERNANCE.md` §2'ye (Altın Kurallar) 9. madde
+olarak ve §8.1 Definition of Done listesine yeni bir checklist satırı olarak kaydedildi. Bu run'dan
+itibaren her commit öncesi `node scripts/checkAdditiveOnlyDiff.js` (varsayılan
+`origin/main...HEAD`) çalıştırılıp PASS bekleniyor.
+
+**Neden:** GOVERNANCE.md §20 Session Snapshot'ın "yeni ekleme/değişiklik olduğunda kısa bir not"
+mekanizması, bu run'ın `git fetch` + öncelik taramasında keşfedilen bu commit için de geçerli — owner
+bir talimat notu yerine doğrudan repoya bir guard commit'i ekleyerek niyetini gösterdi, bu da
+GOVERNANCE.md'nin güncellenmesini gerektiren bir "yeni ekleme" sayılır. Ayrıca bu, zaten
+`ARCHITECTURE.md`'nin 3D mod/2D oyun sınırında ("no *existing* line... modified — only new,
+additive lines were added") ve ADR-0111'in `nightFactor` opsiyonel-parametre deseninde run 1'den
+beri fiilen uygulanan "yalnız ekleme" alışkanlığının, artık tüm kaynak ağacına genelleştirilip
+otomatik olarak denetlenmesi — süreklilik, yeni bir davranış değil.
+
+**Alternatifler:**
+- **Sessizce uy, GOVERNANCE.md'yi güncelleme** reddedildi — GOVERNANCE.md'nin kendi amacı ("her
+  çalıştırmanın Session Snapshot adımı bu dosyayı okur... proje sahibi artık bu kuralları her
+  seferinde tekrar yazmaz") tam olarak bu tür kalıcı kuralların TEK yerde toplanmasını gerektiriyor;
+  guard dosyasının kendi başlığındaki yorum yeterli sayılıp GOVERNANCE.md'de atlanırsa, gelecekteki
+  bir run bu kısıtı `3D_GAME_PROGRESS.md`'nin binlerce satırlık geçmişinde arayıp bulmak zorunda
+  kalırdı — run 76'nın tag-push-403 kısıtını neden §8.11'e taşıdığıyla aynı gerekçe.
+- **ADR yazmadan sadece GOVERNANCE.md satırı eklemek** reddedildi — bu, mevcut sürecin (§9 ADR
+  Minimum İçerik) süreç değişikliklerini de kapsadığı emsaline (ör. ADR-0137 perf-trend script'i,
+  ADR-0083/0084 PWA cache) uymaz; küçük ve düşük riskli olsa da kalıcı bir süreç kuralı olduğundan
+  kendi ADR'si var.
+
+**Sonuç / etkilenen sistemler:** Yalnız `GOVERNANCE.md` (§2 madde 9 + §8.1 yeni checklist satırı)
+ve bu ADR değişti. `scripts/checkAdditiveOnlyDiff.js`'nin kendisi bu run'da yazılmadı (zaten
+owner tarafından eklenmişti) — bu run yalnız onu süreç dokümantasyonuna bağladı ve bu run'ın kendi
+tüm değişiklikleri (bu ADR dahil) guard'a karşı doğrulandı (`node scripts/checkAdditiveOnlyDiff.js
+origin/main HEAD` → PASS, hem bu madde eklenmeden önce hem sonra). Çalışma zamanı kodu, render
+yolu, asset'ler veya smoke suite etkilenmedi.
+
+**Geri alma planı:** GOVERNANCE.md'deki iki eklenti (madde 9 + DoD satırı) kaldırılır; guard
+dosyasının kendisi owner'ın kendi commit'i olduğundan bu ADR'nin geri alınması onu silmez/devre dışı
+bırakmaz — yalnız süreç dokümantasyonunu eski haline getirir.
+
+**Gelecek faz etkisi:** Bundan sonraki her alt görev artık bu kısıtla tasarlanmalı: mevcut bir
+satırı değiştirmek yerine yeni bir ekleme ile üzerine yazacak yapı kurmak. Bu, refactor'ları (Altın
+Kural 6) ve bug düzeltmelerini daha yavaş/dolaylı hale getirebilir — gerçek bir satır silme/değişimi
+zorunlu olduğunda `QUESTIONS_FOR_OWNER.md`'ye düşülüp owner'ın açık onayı beklenecek (bkz.
+GOVERNANCE.md §2 madde 9'un son cümlesi).
+
+## ADR-0152 — Zamandan bağımsız `midwife_summoned` (Ebe Çağrısı) dünya olayı (run 126)
+
+**Risk seviyesi:** LOW
+
+**Karar:** FAZ 8 dünya olayı havuzuna UNCOMMON ağırlıklı, `timeOfDay` gate'i olmayan
+`midwife_summoned` ("Ebe Çağrısı") girdisi eklendi. Kale içinde bir ebenin bir kuleye aceleyle
+çağrılmasını, yaklaşan bir doğumun habercisi olarak anlatan, havuzdaki hiçbir mevcut girdinin
+kapsamadığı yeni bir gündelik-yaşam görüntüsü. Mevcut ağırlıklı-seçim ve toast sunum yolu aynen
+kullanıldı; yeni geometri/materyal/timer/listener eklemedi.
+
+**Neden:** Bu run'ın öncelik taraması (bkz. bu run'ın Session Snapshot bölümü) madde 1-9'un hepsini
+temiz/tamamlanmış veya manuel asset bekleyen (madde 1.7, FAZ 6 hayvanları) olarak buldu — run 125
+ile aynı desen. Madde 10 (yeni özellik) kapsamında, doğumlar Westeros lore'unda (veraset,
+hanedanlar) önemli bir yer tuttuğundan ve havuzda şu ana kadar hiçbir "doğum/aile" temalı girdi
+olmadığından (en yakın komşular `feast_fires`/`traveling_singer`/`tourney_announce` gibi kutlama
+temalı ama doğrudan doğum içermeyen girdiler) düşük riskli, kendi kendine yeten bir veri eklemesi
+seçildi.
+
+**Alternatifler:**
+- **`timeOfDay` gate'i** reddedildi — doğumlar günün her saatinde gerçekleşir, metin belirli bir
+  zamanı ima etmiyor; ADR-0111/ADR-0150 ile aynı "yalnız metni belirsiz olmayanlar gate'lenir"
+  kuralı.
+- **RARE ağırlık** reddedildi — bir doğum haberi `red_comet`/`wildling_rumor` gibi dramatik bir
+  alâmet değil, `feast_fires`/`tourney_announce` gibi fark edilir ama günlük yaşamın bir parçası
+  sayılan notable bir olay; UNCOMMON bu ikisiyle aynı kayıtta.
+  **Doğrulama:** yeni girişten önceki 35 (34+bu) entry'nin `desc` metinleri tek tek yeniden okunarak
+  hiçbirinin "doğum/ebe" temasını zaten kapsamadığı teyit edildi.
+- **`feast_fires` ile birleştirme** reddedildi — o kutlama/şölen temalı ve UNCOMMON zaten; bir
+  doğumun kendine özgü aciliyet/beklenti tonu (ebe *acele* çağrılıyor) ayrı bir okunuş.
+
+**Sonuç / etkilenen sistemler:** Yalnız `gameplay/worldEvents.js` veri havuzu 34'ten 35 girdiye
+büyüdü (gated sayısı 9 olarak değişmedi, ungated sayısı 25'ten 26'ya çıktı). Mevcut ağırlıklı seçim,
+toast, güvenli-mod, day/night ve PWA cache yolları değişmez. 500 seed × 30 tetikleme (15.000
+çekiliş, alternan gündüz/gece `nightFactor`) ile gerçek modül üzerinden yapılan bir erişilebilirlik
+ispatı (committed değil, atılan script — run 125'in aynı yöntemi) `midwife_summoned`'ın hem gündüz
+hem gece erişilebilir olduğunu ve havuzdaki 35 id'nin hepsinin en az bir kez çekildiğini (eksiksiz,
+çakışmasız) doğruladı: 481 çekiliş `midwife_summoned` için, 35 farklı id toplamda gözlemlendi.
+
+**Geri alma planı:** Tek `midwife_summoned` veri satırı ve bir yorum-satırı sayaç güncellemesi
+kaldırılarak önceki 34-entry havuza dönülebilir; şema veya kalıcı kayıt migrasyonu yoktur.
+
+**Gelecek faz etkisi:** Yok. FAZ 9 ses/cila veya ilerideki NPC/aile sistemine bağımlılık eklemez;
+ileride bir soy/hanedan mekaniği gelirse bu toast bağımsız kalabilir veya ayrı ADR ile bağlanabilir.
