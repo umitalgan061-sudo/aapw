@@ -5,18 +5,8 @@
  */
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
-async function main() {
-	const playwright = loadPlaywright();
-	if (!playwright) {
-		console.error('[world-event-toast-a11y] SKIP: Playwright unavailable.');
-		process.exit(2);
-	}
-
-	const server = await startStaticServer();
-	const { port } = server.address();
-	const baseUrl = `http://127.0.0.1:${port}`;
-	const browser = await playwright.chromium.launch({ headless: true });
-	const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+async function checkViewport(browser, baseUrl, viewport, label) {
+	const page = await browser.newPage({ viewport });
 	const pageErrors = [];
 	const consoleErrors = [];
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
@@ -44,6 +34,7 @@ async function main() {
 			bus.emit('run150-test', payload);
 			const el = container.querySelector('.g3d-event-toast');
 			const icon = container.querySelector('.g3d-event-toast-icon');
+			const rect = el?.getBoundingClientRect();
 			const snapshot = {
 				role: el?.getAttribute('role'),
 				live: el?.getAttribute('aria-live'),
@@ -52,6 +43,8 @@ async function main() {
 				hidden: el?.hidden,
 				title: container.querySelector('.g3d-event-toast-title')?.textContent,
 				desc: container.querySelector('.g3d-event-toast-desc')?.textContent,
+				width: rect?.width ?? 0,
+				height: rect?.height ?? 0,
 			};
 			toast.dispose();
 			bus.emit('run150-test', payload);
@@ -71,13 +64,34 @@ async function main() {
 			disposed: true,
 		};
 		for (const [key, value] of Object.entries(expected)) {
-			if (result[key] !== value) throw new Error(`${key}: expected ${value}, got ${result[key]}`);
+			if (result[key] !== value) throw new Error(`${label} ${key}: expected ${value}, got ${result[key]}`);
 		}
-		if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(' | ')}`);
-		console.log('[world-event-toast-a11y] PASS:', JSON.stringify(result));
+		if (!(result.width > 0 && result.height > 0)) throw new Error(`${label}: toast has no visible layout box`);
+		if (pageErrors.length) throw new Error(`${label} page errors: ${pageErrors.join(' | ')}`);
+		console.log(`[world-event-toast-a11y] PASS ${label}:`, JSON.stringify(result));
 		if (consoleErrors.length) {
-			console.log(`[world-event-toast-a11y] INFO: ${consoleErrors.length} unrelated boot console.error(s) observed; full smoke owns the zero-error gate.`);
+			console.log(`[world-event-toast-a11y] INFO ${label}: ${consoleErrors.length} unrelated boot console.error(s) observed; full smoke owns the zero-error gate.`);
 		}
+		return result;
+	} finally {
+		await page.close();
+	}
+}
+
+async function main() {
+	const playwright = loadPlaywright();
+	if (!playwright) {
+		console.error('[world-event-toast-a11y] SKIP: Playwright unavailable.');
+		process.exit(2);
+	}
+
+	const server = await startStaticServer();
+	const { port } = server.address();
+	const baseUrl = `http://127.0.0.1:${port}`;
+	const browser = await playwright.chromium.launch({ headless: true });
+	try {
+		await checkViewport(browser, baseUrl, { width: 390, height: 844 }, 'mobile-390');
+		await checkViewport(browser, baseUrl, { width: 1440, height: 900 }, 'desktop-1440');
 	} finally {
 		await browser.close();
 		server.close();
