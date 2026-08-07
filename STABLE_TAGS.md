@@ -532,3 +532,16 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   origin work` + PR #10 → `main` merge succeeded (`2aec0ef..20a98a1`). `git push origin <tag>` still
   rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
   entry satisfies the checkpoint).
+
+- **Run 111 (2026-08-07):** Session Quality Gate passed (confidence 5/5, §8.6) — item-14 new
+  feature, `world/vegetation.js` procedural instanced-tree scatter (ADR-0138), the first system to
+  close the "Vegetation" gap `GOVERNANCE.md` §3's target architecture has named since run 0. 32/32
+  baseline → 33/33 real-browser smoke suite clean (1 new check, 16 sub-assertions), both
+  `terrainSeatSafetyCheck.js` (14/14) and `roadNetworkSafetyCheck.js` (13/13 edges) re-confirmed
+  unaffected, real F4 free-cam before/after visual proof, fresh `collectPerfSnapshot.js run111`
+  (drawCalls 46→48, triangles 393,231→521,526, well inside desktop budget), game opens without
+  issue. Local tag `stable-2026-08-07-0100` created at `00fbf7b` (PR #11 merge). `git push origin
+  work` + PR #11 → `main` merge succeeded (`f4bc193..00fbf7b`). `git push origin <tag>` still
+  rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
+  entry satisfies the checkpoint). One new open question logged in `QUESTIONS_FOR_OWNER.md`
+  (vegetation density, run 111/ADR-0138) — not blocking.
