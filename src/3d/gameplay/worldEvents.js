@@ -61,7 +61,7 @@ const DAY_THRESHOLD = 0.15;
  * eligible any time. Only applied to the entries whose own text (or real-world convention for the
  * phenomenon it names) is unambiguous about when it happens — see ADR-0111's Decision for why every
  * other entry, including tonally-similar ones like `dragon_shadow`/`red_comet`, was deliberately left
- * ungated rather than guessed at. Currently 6 of 28 entries carry a `timeOfDay` gate (kept as a
+ * ungated rather than guessed at. Currently 6 of 29 entries carry a `timeOfDay` gate (kept as a
  * relative, not a hardcoded count, so future additions don't leave this comment stale the way
  * run 102's `harvest_wagons` addition briefly did). */
 const WORLD_EVENTS = Object.freeze([
@@ -93,6 +93,7 @@ const WORLD_EVENTS = Object.freeze([
 	{ id: 'traveling_singer', icon: '🎻', title: 'Gezgin Ozan', desc: 'Kale kapısına gelen bir ozan, eski krallardan kalma bir türküyü mızıkasıyla çalmaya başlıyor.', color: '#8a5ac8', weight: WEIGHT.UNCOMMON },
 	{ id: 'harvest_wagons', icon: '🌾', title: 'Hasat Arabaları', desc: 'Gün ışığında tahıl yüklü arabalar kale ambarlarına doğru ilerliyor; yol kenarında saman kokusu kalıyor.', color: '#c8a84a', weight: WEIGHT.COMMON, timeOfDay: 'day' },
 	{ id: 'market_day', icon: '🧺', title: 'Pazar Günü', desc: 'Kale meydanında pazar kuruldu; tüccarlar mallarını gün ışığında sergiliyor, pazarlık sesleri yankılanıyor.', color: '#d4883a', weight: WEIGHT.UNCOMMON, timeOfDay: 'day' },
+	{ id: 'sellsword_arrival', icon: '🗡️', title: 'Kiralık Kılıç Gelişi', desc: 'Yorgun görünüşlü bir kiralık kılıç kale kapısına yaklaşıyor — iş mi arıyor, yoksa bir şeyden mi kaçıyor?', color: '#8a6a4a', weight: WEIGHT.UNCOMMON },
 ]);
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
@@ -118,7 +119,7 @@ function isEligible(event, nightFactor) {
  */
 function pickWeightedEvent(random, nightFactor) {
 	const eligible = WORLD_EVENTS.filter((event) => isEligible(event, nightFactor));
-	// 22 of 28 entries carry no `timeOfDay` at all, so `eligible` can only ever come up empty from a
+	// 23 of 29 entries carry no `timeOfDay` at all, so `eligible` can only ever come up empty from a
 	// bug in this function itself — this fallback is a safety net against ever emitting nothing, not
 	// an expected runtime path.
 	const pool = eligible.length > 0 ? eligible : WORLD_EVENTS;

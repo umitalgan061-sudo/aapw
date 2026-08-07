@@ -12678,3 +12678,161 @@ exported helper/1 new private helper are the entire diff — no other file's beh
 clustering existing beyond the one-line `sceneManager.js` log message, which reverts in the same
 commit). `scripts/game3dSmokeChecksVegetation.js` reverts to its ADR-0139-era assertions in the same
 revert.
+
+## ADR-0141: `sellsword_arrival` — a new UNCOMMON, ungated world event (`worldEvents.js` flavor-pool growth)
+
+**Status:** Accepted (run 114 — scheduled autonomous routine).
+
+**Risk Seviyesi:** LOW — one additive flavor-data entry appended to `WORLD_EVENTS`, plus two
+one-line relative-count comment updates in the same file; no world/save/render-state mutation, no
+shared module touched, no new check module (existing statistical gating check is id-agnostic and
+needed no change).
+
+**Context:** Fresh session/context (new scheduled firing). `GOVERNANCE.md` (all 22 sections, already
+complete — this run's own fired-prompt text still says "create GOVERNANCE.md first", already
+satisfied by an earlier run, re-confirmed rather than recreated; `CREDITS.md`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`STABLE_TAGS.md` likewise already exist), `3D_GAME_PROGRESS.md`'s run 113
+entry, `DECISIONS.md`'s last 3 ADRs (0138-0140), and `QUESTIONS_FOR_OWNER.md` in full (no unresolved
+item forcing this run's hand; run-63 leaked-key entry stays open pending owner action, unchanged)
+all read first per the Session Snapshot procedure. `ARCHITECTURE.md` not re-read (last touched
+2026-08-07, same day, under the 7-day threshold). `git fetch origin main` found the repo already at
+`origin/main`'s tip (`d90aab4`, run 113's stable-tag commit) with a clean working tree, zero open
+PRs (`mcp__github__list_pull_requests`) — no realignment needed before starting.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`) —
+clean, 86 files pre-change. Standing guards clean (`checkSmokeCheckRegistry.js`: 33 checks/13
+modules, zero line-count WARNs; `terrainSeatSafetyCheck.js` 14/14; `roadNetworkSafetyCheck.js`
+13/13 edges). Full `scripts/smokeTestGame3D.js`: **33/33 PASS**, 0 FAIL, zero console/page errors
+(pre-change baseline).
+
+**Priority re-scan (§18):** items 1-3 (macro relief/road network/terrain color) confirmed closed.
+Item 4 (remaining 6 kingdom-seat textures) stays asset-blocked. Items 5-8/10-11 all clean per the
+baseline sweep — no file near the 600-line cap (`game3d.js` 482/600 has real headroom). Item 9
+(teknik borç): zero. Items 12-13 (FAZ 7 dragon follow-ups, FAZ 11 species) remain owner-decision/
+asset-model-blocked, re-confirmed unchanged. §8.12/§13/§15 maintenance windows all checked — none
+due this specific run (rule consolidation ~run 116, `CATCH_UP.md` ~run 118, next platform check
+~run 132-142). Run 113's own ADR-0140 named "grounding more seats' terrain neighborhoods" as its
+own natural follow-up, but explicitly flagged a real, measured mobile perf cost (ADR-0013: ~92
+chunks/~753K triangles, 1.9x the mobile triangle budget) and no equivalent desktop measurement
+existed yet either — too large to responsibly scope in the time this run had available without its
+own dedicated perf-measurement sub-task, so deferred rather than attempted half-measured. With
+1-13 exhausted, item 14 (new feature) taken, following run 102/103/129/130's own established
+low-risk precedent: grow `worldEvents.js`'s flavor pool by one entry.
+
+**Decision:** Add `sellsword_arrival` — an UNCOMMON-rarity, ungated (no `timeOfDay`) event
+("Kiralık Kılıç Gelişi" / "Yorgun görünüşlü bir kiralık kılıç kale kapısına yaklaşıyor — iş mi
+arıyor, yoksa bir şeyden mi kaçıyor?"). A wandering sellsword/hedge-knight arriving at a castle gate
+is a genre-appropriate GoT-flavored occurrence (Bronn, the Golden Company, hedge knights are all
+established franchise tropes) that plausibly happens at any hour, unlike this pool's day/night-
+bound entries — matching `trade_caravan`/`iron_bank`'s own ungated precedent for "a person/party
+approaching the gate" events. Distinct from every existing entry: `hunting_party` is the castle's
+own men returning, not an outsider arriving; `shackled_prisoner` is already a captive under guard,
+not someone freely arriving looking for work; `trade_caravan`/`iron_bank` are merchant/financial
+visitors, not an armed freelance fighter. UNCOMMON (not COMMON) because a lone sellsword's arrival
+is a specific, notable occurrence a player would remark on — not routine background ambiance like
+`guard_change`/`blacksmith_hammer` — matching this project's own UNCOMMON definition (ADR-0110).
+Implemented as one new `Object.freeze`-array entry appended to `WORLD_EVENTS` in
+`gameplay/worldEvents.js`, plus its two existing relative-count header comments updated in place
+("6 of 28" -> "6 of 29" carrying a `timeOfDay` gate; "22 of 28" -> "23 of 29" carrying none) so
+neither goes stale the way run 102's `harvest_wagons` addition briefly left them (fixed in
+ADR-0130) — this run's addition is itself ungated, so the gated-count stays 6 while both the
+ungated-count and the total move by one.
+
+**Gelecek Faz Etkisi:** none — purely additive flavor content, no new system, no branching/state/
+persistence hook. A future FAZ 8 expansion (a per-season event calendar, or a sellsword recruitable
+as a follower) would read this same `WORLD_EVENTS` array shape; nothing here forecloses that.
+
+**Değişiklik Etki Analizi:** affected systems — `gameplay/worldEvents.js` only (the one file with
+the new entry + its two comment fixes). Zero edits to `world/terrain.js`/`world/roads.js`/
+`world/rivers.js`/`world/settlements.js`/any height-sampler code, so **Arazi Değişikliği Güvenlik
+Kontrolü does not apply**. No edit to `pickWeightedEvent`'s selection logic itself, `isEligible`'s
+gating logic, or `ui/worldEventToast.js`'s rendering — the existing statistical gating smoke check
+(`world-event day/night gating`, ADR-0111) asserts by *id name*, not by array length or index, so
+it needed no change and still passes unmodified against the now-29-entry pool.
+
+**Real headless-Chromium proof, 2 viewports, zero console/page errors in both** (dev-only,
+uncommitted proof script written to the session scratchpad — never inside the repo tree, matching
+ADR-0130's own precedent): the real `game3d.html` was booted, the live `createWorldEventSystem`/
+`EventBus`/`WorldEventToast` modules dynamically imported and driven through their real APIs.
+Searched seeds 1-5000 for one whose very first forced-noon draw is `sellsword_arrival` (found:
+seed 7 — the event being ungated, forcing noon here is just an arbitrary consistent condition, not
+a gating proof). (1) Desktop 1280x720: re-emitted through a real `EventBus`, confirmed the real
+toast DOM's title/desc `textContent` match the picked payload's `title`/`desc` exactly (Turkish
+character `Kılıç`/`kaçıyor?` included, no encoding mangling). (2) Mobile 390x844: the same
+deterministic seed's draw rendered the same real toast, its bounding rect (`top: 184px`) clears the
+back-link control (`noOverlapBackLink: true`). Zero console/page errors throughout both viewports
+(`consoleErrors.length === 0` both times).
+
+**Sonuç:** `node --check` clean on the one changed file (`gameplay/worldEvents.js`, ~186 lines —
+real headroom) plus a full repo sweep (86 JS files, unchanged — no new file this run).
+`checkSmokeCheckRegistry.js`: unchanged **33 checks/13 modules**, zero line-count WARNs. Full
+`smokeTestGame3D.js` re-run after the change: **33/33 PASS**, 0 FAIL, zero console/page errors
+(same as the pre-change baseline — the existing `world-event day/night gating` check's id-based
+assertions still pass unmodified against the grown pool). `scripts/terrainSeatSafetyCheck.js`
+**PASS 14/14** and `scripts/roadNetworkSafetyCheck.js` **PASS** (13/13 edges), both re-run as due
+diligence despite this being an out-of-scope change for them, byte-identical to run 113's recorded
+values. `collectPerfSnapshot.js run114` sample: drawCalls/triangles/geometries/textures all
+bit-identical to run113 (50/608296/48/17) — expected, config-data-only change touches zero
+geometry/texture/renderer code.
+
+**Alternatives considered:**
+- *A COMMON, always-eligible variant instead.* Rejected — see Decision above; a lone armed
+  stranger arriving is notable enough to read as UNCOMMON under this project's own tier
+  definition, not routine ambiance.
+- *A `timeOfDay: 'night'` gate (a mysterious figure arriving under cover of darkness).* Considered
+  but rejected — the event's own text is deliberately ambiguous ("iş mi arıyor, yoksa bir şeyden mi
+  kaçıyor?") precisely so it reads plausibly at any hour, unlike `market_day`/`eclipse`'s
+  unambiguous-by-convention timing; forcing a night gate would narrow, not preserve, that
+  ambiguity.
+- *A larger new system (e.g. the sellsword becomes a hireable NPC) instead of a flavor event.*
+  Rejected for this run's scope — that's a real gameplay-state/persistence feature (no `SaveSystem`
+  exists yet, per GOVERNANCE.md §16's deferred activation gate) deserving its own dedicated
+  sub-task with its own design questions, not bundled into a one-line flavor-pool addition.
+- *Growing the preview radius (`PHASE1_PREVIEW_RADIUS_CHUNKS`) to bring the two remaining
+  disc-excluded seats (Xaro, Night King) into vegetation-clustering range instead* — ADR-0140's own
+  named follow-up. Deferred, not rejected: doing this responsibly needs its own real F2/F4-measured
+  perf sub-task (per `debug/README.md`'s own standing note that this exact constant's past growth,
+  ADR-0014/ADR-0055, was only ever done from *measured*, not estimated, headroom) — a bigger,
+  separately-scoped item than this run had room to responsibly finish end-to-end.
+
+**AI Self-Review 2. Geçiş (§8.3):** independently re-verified — confirmed no other existing entry's
+theme genuinely overlaps (re-read all 28 prior entries' `desc` text before writing the Decision, not
+assumed); confirmed the comment-count arithmetic by hand (6 gated + 22 ungated = 28 before; new
+entry has no `timeOfDay`, so 6 gated + 23 ungated = 29 after — both comments now internally
+consistent with each other and with `WORLD_EVENTS.length`); confirmed the existing gating smoke
+check's assertions (`noonFiresEclipse`/`midnightNeverFiresEclipse`/etc.) reference fixed id strings,
+not array length or index, so they cannot spuriously pass or fail from an unrelated 29th entry
+appended at the end; confirmed the proof script's own seed-search loop disposes every probe
+system/bus it creates (no accumulating listeners across up to 5000 iterations) before the real,
+kept instances are created. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a,
+config-data-only in `worldEvents.js`; the proof script itself is never committed and its own
+instances are explicitly disposed or left to page-close teardown.
+
+**Also fixed (incidental, low-risk, directly adjacent to this run's own reading):**
+`GOVERNANCE.md` §16's deferred-rules table still described the "30-commit performans trend
+grafiği" item as merely eligible-but-not-yet-taken ("ilk uygun boşlukta ele alınabilir"), even
+though run 110's ADR-0137 had already implemented it (`scripts/analyzePerfTrend.js`, a deliberate
+plain-text table rather than a rendered chart — see that ADR's own Alternatives). This is the same
+class of staleness ADR-0130 fixed for `worldEvents.js`'s own comments — a documentation-debt find,
+not a behavior change. The table row now reads "✅ Ele alındı (run 110, ADR-0137)" with a one-line
+summary, kept in the table (not deleted) purely as a historical record, matching how resolved
+`QUESTIONS_FOR_OWNER.md` entries are kept marked-resolved rather than removed.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — low-risk, well-proven pattern (same shape as
+ADR-0102/0110/0111/0129/0130), a genuinely distinct new entry (verified against all 28 prior
+entries' text, not assumed), zero regression in the full smoke suite (33/33 before and after), real
+2-viewport proof with exact-text DOM assertions (not just "a toast appeared"), zero open design
+ambiguity worth escalating to `QUESTIONS_FOR_OWNER.md` (a discrete COMMON/UNCOMMON/RARE tier choice
+under an already-established rubric, not a continuous tunable constant needing a real playtest to
+calibrate — unlike runs 111-113's density/mix-ratio/cluster-radius questions). "6 ay sonra hâlâ net
+mi" tereddüdü yok — the Decision section spells out exactly which existing entries this was checked
+against for thematic overlap and why each is distinct.
+
+**Etkilenen sistemler:** `gameplay/worldEvents.js` only (new entry + 2 comment fixes);
+`GOVERNANCE.md` (1 stale table row corrected, incidental).
+
+**Geri alma planı:** `git revert` the single commit — removes the one new `WORLD_EVENTS` entry, the
+two comment-count fixes (would need to be manually restored to their prior wording for a strict
+bit-for-bit revert, though leaving the corrected counts is harmless either way), and the
+`GOVERNANCE.md` §16 table-row correction (reverting that specific line is harmless either way too,
+since it's now simply more accurate than before). Nothing else references `sellsword_arrival`.
