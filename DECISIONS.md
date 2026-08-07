@@ -13299,3 +13299,33 @@ seeds × 5 forced draws, not just restated from config.
 the two comment-count fixes (would need to be manually restored to their prior wording for a strict
 bit-for-bit revert, though leaving the corrected counts is harmless either way). Nothing else
 references `falconer_flight`.
+
+## ADR-0146 — Geceye özel `owl_watch` dünya olayı (run 121)
+
+**Risk seviyesi:** LOW
+
+**Karar:** FAZ 8 dünya olayı havuzuna COMMON ağırlıklı ve `timeOfDay: 'night'` ile sınırlandırılmış
+`owl_watch` ("Baykuş Nöbeti") girdisi eklendi. Olay, ay ışığında kale suruna konan baykuşu ve
+nöbetçilerin sessiz kanat sesini dinlemesini anlatır; mevcut toast sunum yolunu aynen kullanır.
+
+**Neden:** Güncel öncelik taramasında 1-13 numaralı maddeler tamamlanmış ya da asset/ürün kararıyla
+bloklu kaldı. 14 numaralı yeni özellik alanında, run 120'nin gündüz olayını dengeleyen küçük ve
+Westeros atmosferine uygun bir gece olayı; masaüstü, mobil ve offline PWA'yı yeni geometri, materyal,
+timer veya listener maliyeti olmadan genişletir.
+
+**Alternatifler:** (1) Olayı zamandan bağımsız bırakmak reddedildi; metin açıkça ay ışığı ve gece
+nöbeti bağlamı taşıyor. (2) UNCOMMON/RARE ağırlık reddedildi; sıradan bir baykuş gözlemi dramatik
+alamet değildir. (3) Yeni görsel model eklemek asset/lisans ve performans bütçesi gerektireceği için
+bu düşük riskli içerik adımının kapsamı dışında bırakıldı.
+
+**Sonuç / etkilenen sistemler:** Yalnız `gameplay/worldEvents.js` veri havuzu büyür. Mevcut
+ağırlıklı seçim, toast, güvenli-mod, day/night ve PWA cache yolları değişmez. 5000 deterministik seed
+ile gerçek modül üzerinden yapılan ayrı gündüz/gece örneklemesi olayın gecede erişilebilir, gündüzde
+ise erişilemez olduğunu doğruladı.
+
+**Geri alma planı:** Tek `owl_watch` veri satırı kaldırılarak önceki havuza dönülebilir; şema veya
+kalıcı kayıt migrasyonu yoktur.
+
+**Gelecek faz etkisi:** Yok. FAZ 9 ses/cila veya ilerideki canlı-model sistemine bağımlılık eklemez;
+bir baykuş modeli ileride gelirse bu toast bağımsız kalabilir veya ayrı ADR ile görsel olaya
+bağlanabilir.

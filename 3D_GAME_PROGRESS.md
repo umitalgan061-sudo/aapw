@@ -12438,3 +12438,41 @@ model bekliyor. `CATCH_UP.md`'nin next summary ~run 128 (last done run 118, one 
 
 **Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
 recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-07, run 121 — Codex continuation)
+
+**Concurrency/snapshot:** GitHub erişimi kalıcı kimlik bilgisiyle doğrulandı, `git fetch origin
+--prune` çalıştırıldı ve yerel `work` dalı doğrudan güncel `origin/main` (`62d6887`) üzerine yeniden
+kuruldu. Önceki memnuniyetsiz yerel commit güvenlik amacıyla yalnız yerel bir backup dalında
+saklandı; bu run'ın diff'ine taşınmadı. `GOVERNANCE.md`, son run kayıtları, son kararlar ve
+`QUESTIONS_FOR_OWNER.md` yeniden okundu. Açık PR yoktu.
+
+### Sub-task: geceye özel `owl_watch` dünya olayı (ADR-0146)
+
+FAZ 8 olay havuzuna COMMON ağırlıklı "Baykuş Nöbeti" eklendi. `timeOfDay: 'night'` kapısı sayesinde
+gündüz havuzuna girmiyor. Değişiklik tamamen eklemeli yapıldı; mevcut kaynak satırı silinmedi. Yeni
+geometri, texture, materyal, timer, listener veya DOM yüzeyi yok; mevcut toast ve lifecycle yolu
+kullanılıyor.
+
+**DoD:** değişen modül ve tam JS syntax taraması temiz; smoke registry 34 kontrol/14 modül ve bütün
+JS dosyaları 600 satır sınırında; PWA kurulabilirlik ve service-worker cache kontrolleri geçti.
+Playwright repo bağımlılığı olmadığı için tam browser smoke/safety kontrolleri bu konteynerde SKIP
+etti. Buna karşılık gerçek modül üzerinde 5000 seed'lik ayrı gündüz/gece örneklemesi `owl_watch` için
+gece erişilebilirliği ve gündüz sızıntısının olmamasını kanıtladı. Veri satırı yeni bir görsel yüzey
+oluşturmadığından önceki flavor-event ADR'leriyle aynı gerekçeyle yeni ekran görüntüsü gerektirmedi.
+Konsol açısından yeni çalışma zamanı yolu yoktur. Teknik borç sayacı: **0**. Güven: **5/5**.
+
+**Memory-leak checklist:** veri-only ekleme; listener/timer/DOM/geometry/material tahsisi yok.
+**Performans:** olay seçimi yalnız tetikleme anında küçük sabit bir dizi üzerinde çalışır; frame başına
+yeni maliyet yok. Son doğrulanmış bütçe 50 draw call / 608,296 triangle / 48 geometry / 17 texture
+olarak değişmeden kabul edildi; Playwright olmadığı için sahte `perf_log.csv` satırı yazılmadı.
+
+**World Evolution Report:** dünya olayı havuzu 32'den **33** girdiye, gece kapılı olay sayısı 3'ten
+**4** girdiye çıktı; smoke kapsamı 34/14 olarak değişmedi; ADR sayısı 145'ten **146**'ya çıktı.
+World Coverage masaüstü/mobil 96.2% / 4.5% ve bütün render metrikleri değişmedi. Oyuncu fark eder:
+evet, küçük ölçekte; gece oynarken yeni bir kale-sur atmosfer bildirimi görebilir.
+
+**Next step:** yeni geliştirmeden önce yeniden `origin/main` fetch ve öncelik taraması. Altı dokusuz
+kale ile FAZ 6 at/araba/köpek-kedi/kuş varlıkları asset beklemeye devam ediyor. Vegetation preview
+yarıçapını büyütme seçeneği ancak özel performans ölçümüyle ele alınmalı. Sonraki catch-up özeti
+~run 128, platform kontrolü ~run 132-142, kural konsolidasyonu ~run 136.
