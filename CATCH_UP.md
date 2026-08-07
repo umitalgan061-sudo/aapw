@@ -106,3 +106,11 @@ iptal etmen hâlâ senin yapman gereken bir iş.
 ---
 
 ## Run 78 itibarıyla (2026-08-05)
+
+## Run 130 — Mobil dünya genişliyor
+Mobil 3D dünyada aynı anda görülebilen terrain alanını yaklaşık iki katına çıkaran ilk adım atıldı.
+Telefon artık oyuncunun çevresinde 25 yerine 49 terrain chunk tutabiliyor.
+Geride kalan terrain parçaları bellekten temizleniyor; uzun gezilerde RAM/GPU kullanımı sınırsız büyümüyor.
+Bu değişiklik masaüstü davranışına dokunmuyor.
+Mobil resident terrain footprint yaklaşık %4.5 seviyesinden %8.9 seviyesine çıktı.
+Sonraki hedef ağaçlar, uzak terrain ve kale modelleri için LOD/culling optimizasyonu; ardından daha geniş streaming radius değerlendirilecek.
