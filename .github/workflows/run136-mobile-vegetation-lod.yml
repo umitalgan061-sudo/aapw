@@ -57,6 +57,20 @@ jobs:
           tail -n 100 RULES_CHANGELOG.md
           tail -n 80 QUESTIONS_FOR_OWNER.md
 
+      - name: Repair inherited Run 135 checkpoint format
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'run 135' 3D_GAME_PROGRESS.md
+          grep -q ',run135,' perf_log.csv
+          grep -q '^- `stable-2026-08-07-1420` — run 135:' STABLE_TAGS.md
+          if grep -q '^- stable-2026-08-07-1420 — run 135 ' STABLE_TAGS.md; then
+            echo 'Compatible Run 135 checkpoint alias already present.'
+          else
+            printf '%s\n' '- stable-2026-08-07-1420 — run 135 checkpoint-format compatibility alias; same validated spawn-anchored vegetation checkpoint, 34/34 smoke PASS and mobile budget 31 draw calls / 174173 triangles.' >> STABLE_TAGS.md
+          fi
+          node scripts/checkCheckpointConsistency.js
+
       - name: Baseline integrity and browser smoke
         shell: bash
         run: |
@@ -163,6 +177,7 @@ jobs:
           STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
           TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
           printf '\n## Run 136 — mobile vegetation geometry LOD + kural konsolidasyonu (%s)\n' "$STAMP" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- RCA: Run 135 checkpoint verisi aslında STABLE_TAGS.md içinde vardı fakat backtickli madde biçimi checkpoint parser tarafından görülmüyordu. Prevention: uyumlu additive alias satırı eklendi; mevcut Run 135 kaydı değiştirilmedi. Regression Test: checkCheckpointConsistency.js artık bu repo durumunda tekrar PASS.' >> 3D_GAME_PROGRESS.md
           printf '%s\n' '- Alt görev 1: ~20-run kural konsolidasyonu (run116→136) yapıldı; ertelenmiş kuralların aktivasyon koşulları yeniden kontrol edildi, mevcut aktif kurallarda çelişki/geçersizlik bulunmadı. Yeni mobil vegetation LOD kapısı §26 olarak eklendi.' >> 3D_GAME_PROGRESS.md
           printf '%s\n' '- Alt görev 2: coarse-pointer vegetation geometry LOD uygulandı; deterministik ağaç yerleşimi/tür/transform/material korunuyor, hem orijin hem run135 spawn-çapalı vegetation diski aynı LOD yolunu kullanıyor.' >> 3D_GAME_PROGRESS.md
           printf '%s\n' '- Runtime: mobilde trunk 4 radial segment, pine cone 5 radial segment, round crown 5x4 sphere segment; desktop geometrisi aynen korunuyor; swap edilen eski geometry hemen dispose ediliyor.' >> 3D_GAME_PROGRESS.md
@@ -174,7 +189,7 @@ jobs:
           printf '%s\n' '- World Coverage: desktop %96.2; mobil resident terrain footprint yaklaşık %8.9 (49 chunk / 12.25 km²) değişmedi. Run135 spawn vegetation görsel kapsamı korunurken bu run render maliyetini düşürdü.' >> 3D_GAME_PROGRESS.md
           printf '%s\n' '- Memory leak checklist: eski vegetation geometry swap anında dispose ediliyor; yeni listener/timer/DOM yok. Teknik borç: run135ten devreden game3d.js 540/600 bölünme ihtiyacı = 1, yeni borç eklenmedi. ADR-0160. Risk LOW. Güven 5/5.' >> 3D_GAME_PROGRESS.md
           printf '%s\n' '- World Evolution Report delta: yol 0 km, orman yerleşim/ağaç sayısı 0, kale/NPC/event/hayvan 0; oyuncu aynı mobil ağaçları görür, primitive tessellation daha hafiftir. Sıradaki adım: gerçek ölçümle procedural castle sabit maliyeti/frustum-culling adayını değerlendirmek.' >> 3D_GAME_PROGRESS.md
-          printf '\n- **Run 136 (2026-08-07, dördüncü konsolidasyon geçişi):** Run 116dan ~20 çalıştırma sonra GOVERNANCE.md yeniden gözden geçirildi. SaveSystem/public API aktivasyon koşulları hâlâ karşılanmıyor; smoke ve F2/mobile perf kapıları yeterli çalışıyor; run132 platform kontrolü güncel. Çelişen/geçersiz kural bulunmadı. Mobil coverage programına yeni §26 vegetation geometry-LOD kapısı eklendi. Sıradaki konsolidasyon ~run 156 veya FAZ tamamlanınca.\n' >> RULES_CHANGELOG.md
+          printf '\n- **Run 136 (2026-08-07, dördüncü konsolidasyon geçişi):** Run 116dan ~20 çalıştırma sonra GOVERNANCE.md yeniden gözden geçirildi. SaveSystem/public API aktivasyon koşulları hâlâ karşılanmıyor; smoke ve F2/mobile perf kapıları yeterli çalışıyor; run132 platform kontrolü güncel. Çelişen/geçersiz kural bulunmadı. Mobil coverage programına yeni §26 vegetation geometry-LOD kapısı eklendi. Run135 checkpoint satır biçimi parser uyumluluğu additive alias ile onarıldı. Sıradaki konsolidasyon ~run 156 veya FAZ tamamlanınca.\n' >> RULES_CHANGELOG.md
           printf '%s\n' "- $TAG — run 136 mobile vegetation geometry LOD + rule consolidation; ${SMOKE_PASS_COUNT}/34+ browser smoke PASS; mobile/perf/additive guards PASS." >> STABLE_TAGS.md
           node scripts/checkCheckpointConsistency.js
           git config user.name "Westeros Automation"
