@@ -13720,6 +13720,78 @@ saatlik otomasyon için sürekli erişilebilir değil.
 **Sonuç:** Coverage büyütme işleri önce otomatik mobile render bütçesini kanıtlayacak. Gerçek cihaz
 FPS ve texture-memory doğrulaması ayrıca geçerliliğini korur.
 
+
+## ADR-0157 — Zamandan bağımsız `hedge_knight_arrival` (Gezgin Şövalye) dünya olayı (run 133)
+
+**Risk seviyesi:** LOW
+
+**Karar:** FAZ 8 dünya olayı havuzuna UNCOMMON ağırlıklı, `timeOfDay` gate'i olmayan
+`hedge_knight_arrival` ("Gezgin Şövalye") girdisi eklendi. Zırhı hırpalanmış, kimliği belirsiz bir
+gezgin şövalyenin kale kapısında hizmet ya da bir gecelik yatak aradığını anlatan yeni bir "misafir
+gelişi" anı. Mevcut ağırlıklı seçim/toast sunum yolu aynen kullanıldı; yeni geometri/materyal/
+timer/listener eklenmedi.
+
+**Neden:** Bu run'ın öncelik taraması madde 1/1.2/1.5'i değişmedi/tamam buldu; madde 1.7 (kale
+dokulandırma) hâlâ manuel asset bekliyor; madde 2-7 (sözdizimi/bug/perf/memory/tech-debt/smoke)
+temiz. **Madde 8 (World Coverage) için gerçek bir teknik engel bulundu ve denendi, sonra terk
+edildi:** mobil bounded-streaming yarıçapını (`world/chunkManager.js`'in run-130 `streamTowards`
+override'ı) 3'ten 4'e çıkarmak (81 chunk / 20.25 km², ölçülen run-132 mobil bütçesine göre bolca
+marj var — 27/500 draw call, 206.871/500.000 üçgen) teknik olarak mümkün ve additive-only guard'a
+(GOVERNANCE.md §2 madde 9) uygun bir sarmalayıcı fonksiyonla yapılabilirdi (run-130'un kendi
+üzerine binen desen). Ancak mevcut `scripts/checkMobileChunkStreaming.js` regresyon testi
+`result.initial.loaded === 49`/`area === 12.25` gibi eski davranışı doğrulayan sabit literal
+değerler içeriyor ve bu değerler yeni davranışla eşleşmeyeceği için test gerçek bir regresyon
+olarak FAIL edecekti — additive-only guard bu dosyadaki mevcut satırların DEĞİŞTİRİLMESİNİ
+yasaklıyor, ve dosyanın kendi `if (!ok) { ...; process.exit(1); }` erken-çıkış yapısı, altına
+yeni bir "run-133 beklentisi" bloğu eklemeyi de işe yaramaz kılıyor (eski blok zaten script'i
+FAIL ile sonlandırıyor). Bu, GOVERNANCE.md §2 madde 9'un öngördüğü "gerçek bir satır
+silme/değiştirme zorunluysa commit atma" durumunun somut bir örneği — radius artışı bu run'da
+YAPILMADI (geri alındı, hiçbir kaynak dosyası bu konuda commit edilmedi). Madde 9 (FAZ 7/FAZ
+5-6) hâlâ model/asset kararı bekliyor. Bu da madde 10'u (yeni özellik) tek uygulanabilir kulvar
+olarak bıraktı — aynı `silent_sisters_procession` (run 131) deseni: düşük riskli, kendi kendine
+yeten bir veri eklemesi.
+
+**Alternatifler:**
+- **`sellsword_arrival` ile birleştirme** reddedildi — o isimsiz bir paralı asker, niyeti
+  belirsiz/olası kaçak; bu ise adının anılmadığı ama meslek/statü olarak açık bir şövalye,
+  açıkça hizmet/yatak talep ediyor — farklı bir sosyal an.
+- **`timeOfDay` gate'i** reddedildi — bir şövalyenin kapıya varışı günün her saatinde
+  gerçekleşebilir, metin belirli bir zamanı ima etmiyor; ADR-0111/ADR-0150/ADR-0152/ADR-0155 ile
+  aynı "yalnız metni belirsiz olmayanlar gate'lenir" kuralı.
+- **COMMON ağırlık** reddedildi — bir gezgin şövalyenin kapıya gelişi `guard_change`/
+  `blacksmith_hammer` gibi her gün olabilecek bir rutin değil, `sellsword_arrival`/
+  `tourney_announce` gibi belirli, dikkat çeken bir ziyaretçi anı; UNCOMMON bu ikisiyle aynı
+  kayıtta.
+- **Mobil coverage radius artışı (yukarıda açıklanan)** — additive-only guard'ın mevcut
+  `checkMobileChunkStreaming.js`'deki sabit literal beklenti değerleriyle gerçek bir çakışması
+  nedeniyle bu run'da terk edildi; gelecekte ele alınabilmesi için bu ADR'nin kendi "Gelecek faz
+  etkisi" bölümüne not düşüldü. **Doğrulama:** yeni girişten önceki 37 entry'nin `desc` metinleri
+  tek tek yeniden okunarak hiçbirinin "gezgin şövalye/hizmet arayışı" temasını zaten kapsamadığı
+  teyit edildi (en yakın tonal komşular `sellsword_arrival`/`traveling_singer`/`tourney_announce`
+  ile karşılaştırıldı — üçü de kale kapısına bir yabancının gelişini anlatıyor ama farklı roller/
+  talepler).
+
+**Sonuç / etkilenen sistemler:** Yalnız `gameplay/worldEvents.js` veri havuzu 37'den 38 girdiye
+büyüdü (gated sayısı 9 olarak değişmedi, ungated sayısı 28'den 29'a çıktı). Mevcut ağırlıklı seçim,
+toast, güvenli-mod, day/night ve PWA cache yolları değişmez. 500 seed × 30 tetikleme (15.000
+çekiliş, alternan gündüz/gece `nightFactor`) ile gerçek modül üzerinden yapılan bir erişilebilirlik
+ispatı (committed değil, atılan `.mjs` script) `hedge_knight_arrival`'ın hem gündüz hem gece
+erişilebilir olduğunu (207 gündüz, 222 gece, toplam 429 çekiliş) ve havuzdaki 38 id'nin hepsinin en
+az bir kez çekildiğini (eksiksiz, çakışmasız) doğruladı. `world/chunkManager.js`/
+`scripts/checkMobileChunkStreaming.js` bu run'da HİÇ değiştirilmedi — yukarıdaki deneme yalnızca
+düşünüldü/planlandı, hiçbir kod veya test dosyasına yazılmadı.
+
+**Geri alma planı:** Tek `hedge_knight_arrival` veri satırı, bir açıklama yorum bloğu ve bir
+yorum-satırı sayaç güncellemesi kaldırılarak önceki 37-entry havuza dönülebilir; şema veya kalıcı
+kayıt migrasyonu yoktur.
+
+**Gelecek faz etkisi:** Mobil World Coverage'ı radius 3'ten büyütmek isteyen gelecekteki bir run,
+`scripts/checkMobileChunkStreaming.js`'i additive-only-uyumlu biçimde yeniden yazmayı (örn. sabit
+literaller yerine `CHUNK_CONFIG`'den türetilen beklenen değerler, ya da script'in en başında process
+exit yapmayan, sonda tek bir toplu sonuç değerlendiren bir yapı) YA DA GOVERNANCE.md §2 madde 9'un
+öngördüğü sahip onayı yolunu (`QUESTIONS_FOR_OWNER.md`'ye kısa not + açık onay bekleme) izlemeli.
+Bu ADR bu iki yolu da resmi olarak açık bırakıyor, kalıcı bir "asla yapılamaz" değil.
+
 **Etkilenen sistemler:** dev-tool/CI, mobil performans yönetişimi; runtime gameplay davranışı yok.
 
 **Geri alma planı:** Yeni script/workflow kullanılmaz; runtime kaynakları bu ADR ile değiştirilmedi.

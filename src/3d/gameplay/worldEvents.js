@@ -108,11 +108,18 @@ const WORLD_EVENTS = Object.freeze([
 	 * isn't tied to a specific time of day, same "only gate unambiguous text" rule as every other
 	 * ungated entry here. */
 	{ id: 'silent_sisters_procession', icon: '🥀', title: 'Sessiz Kızkardeşler Alayı', desc: 'Kara örtülü Sessiz Kızkardeşler örtülü bir tabutu kale kapısından sessizce taşıyor — kimin cenazesi olduğunu kimse yüksek sesle sormuyor.', color: '#463a4a', weight: WEIGHT.RARE },
+	/** Run 133 addition (ADR-0157): a wandering hedge knight requesting a lord's service or a night's
+	 * lodging at the gate — distinct from `sellsword_arrival` (an unaffiliated mercenary, ambiguous
+	 * intent framed as possibly fleeing something) and `traveling_singer` (a musician, no request for
+	 * service/lodging). No `timeOfDay` gate: a knight can plausibly arrive at any hour, same "only gate
+	 * unambiguous text" rule as every other ungated entry here. */
+	{ id: 'hedge_knight_arrival', icon: '🛡️', title: 'Gezgin Şövalye', desc: 'Zırhı hırpalanmış bir gezgin şövalye kale kapısında dizginlerini çekiyor — bir efendiye hizmet mi arıyor, yoksa sadece bir gecelik yatak mı istiyor?', color: '#6a7a8a', weight: WEIGHT.UNCOMMON },
 ]);
 // Run 126 live count: 9 of 35 entries are time-gated; the JSDoc/comment above retain earlier runs'
 // snapshots rather than being edited in place (GOVERNANCE.md §2 madde 9, additive-only diff guard).
 // Run 128 live count: 9 of 36 entries are time-gated.
 // Run 131 live count: 9 of 37 entries are time-gated.
+// Run 133 live count: 9 of 38 entries are time-gated.
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
  * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test

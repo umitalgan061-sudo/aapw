@@ -12988,3 +12988,89 @@ bu yüzden tek alt görevden sonra durup checkpoint atıldı.
 - World Coverage: desktop %96.2; mobil resident footprint yaklaşık %8.9 (run130 radius 3) korunuyor. Bu run yeni radius artırmadı; önce ölçüm kapısını kalıcılaştırdı.
 - Memory leak: yeni runtime listener/timer/DOM/geometry/material yok. Teknik borç: 0 yeni. ADR-0156. Risk LOW. Güven 5/5.
 - World Evolution Report delta: yol 0 km, orman 0 km², kale/NPC/event/hayvan 0; oyuncu davranışı değişmez; sonraki güvenli adım mobil terrain/vegetation LOD+culling ölçümü.
+
+## Run 133 — `hedge_knight_arrival` world event + mobil coverage engel tespiti (2026-08-07 13:00 UTC)
+
+**Session Snapshot:** `HEAD` detached olarak bulundu, `origin/main` tracking ref'i bayattı (2 gün
+öncesine ait) — `git fetch origin main` sonrası `origin/main`'in aslında `HEAD` ile aynı commit'te
+(dc9eae3, run 132) olduğu doğrulandı; local `main` branch'i `git checkout -B main origin/main` ile
+bu commit'e yeniden bağlandı (veri kaybı yok, yalnız stale tracking ref'i düzeltildi). `GOVERNANCE.md`
+tam okundu, `QUESTIONS_FOR_OWNER.md`/`CATCH_UP.md`/`STABLE_TAGS.md`/`RULES_CHANGELOG.md` son
+girdileri okundu — kural konsolidasyonu ~run 136, catch-up ~run 138, platform kontrolü penceresi
+run 132-142 (bu run'ın kendi statik guard geçişleri zaten kapsıyor) — hiçbiri bu run'da vadesi
+gelmedi.
+
+**Baseline regression guard:** tam `node --check` taraması sıfır hata (34 çalışan JS dosyası).
+`checkSmokeCheckRegistry.js` 34 check/14 modül, 86 dosya 600 satır sınırının altında.
+`checkAssetsManifest.js` 41/41, `checkPwaInstallability.js`/`checkServiceWorkerCache.js`/
+`checkCreatureSpeciesConfig.js`/`checkDialogueChoicesShape.js`/`checkWorldEventCatalog.js`/
+`checkMobileChunkStreaming.js`/`checkCheckpointConsistency.js` hepsi OK. `terrainSeatSafetyCheck.js`
+**14/14 PASS**, `roadNetworkSafetyCheck.js` **13/13 PASS**. `checkAdditiveOnlyDiff.js` PASS. Tam
+`smokeTestGame3D.js` **34/34 PASS**, 0 FAIL, 0 konsol/sayfa hatası.
+
+**Öncelik taraması (§18):** madde 1/1.2/1.5 değişmedi (tamam), 1.7 hâlâ 6 koltuk için manuel asset
+bekliyor. Madde 2-7 (sözdizimi/bug/perf/memory/tech-debt/smoke) temiz. **Madde 8 (World Coverage)
+denendi ve gerçek bir engelle terk edildi** — bkz. DECISIONS.md ADR-0157'nin "Neden" bölümü: mobil
+bounded-streaming radius'unu 3→4 büyütmek (ölçülen bolca perf marjı var) additive-only guard'ın
+`scripts/checkMobileChunkStreaming.js`'deki sabit regresyon-testi literalleriyle gerçek bir
+çakışmasına takıldı — kod DEĞİŞTİRİLMEDİ, commit atılmadı. Madde 9 (FAZ 7/FAZ 5-6) hâlâ model/sahip
+kararı bekliyor. Madde 10 (yeni özellik) bu run'ın tek uygulanabilir kulvarı oldu.
+
+### Sub-task: zamandan bağımsız `hedge_knight_arrival` (Gezgin Şövalye) dünya olayı (ADR-0157)
+
+FAZ 8 dünya olayı havuzuna UNCOMMON ağırlıklı, gate'siz `hedge_knight_arrival` girdisi eklendi —
+zırhı hırpalanmış bir gezgin şövalyenin kale kapısında hizmet ya da bir gecelik yatak aradığını
+anlatan, `sellsword_arrival`/`traveling_singer`/`tourney_announce`'dan farklı bir "misafir gelişi"
+anı. Tam gerekçe/alternatifler `DECISIONS.md` ADR-0157'de.
+
+**DoD / doğrulama:** Değişen tek gerçek kod dosyası (`gameplay/worldEvents.js`) syntax-clean
+(`node --check` PASS). `checkWorldEventCatalog.js` PASS (38 unique, 9 gated).
+`checkSmokeCheckRegistry.js` PASS (34/14). `checkAdditiveOnlyDiff.js` PASS — yalnız ekleme, hiçbir
+satır silinmedi/değiştirilmedi. 500 seed × 30 tetikleme (15.000 çekiliş, alternan gündüz/gece
+`nightFactor`) ile gerçek modül üzerinden (geçici `.mjs` kopya, committed değil, çalıştırma sonunda
+silindi) yapılan bir erişilebilirlik ispatı `hedge_knight_arrival`'ın hem gündüz (207) hem gece
+(222) erişilebilir olduğunu ve havuzdaki 38 id'nin hepsinin en az bir kez çekildiğini (eksiksiz,
+çakışmasız) doğruladı. Merge öncesi tam Playwright smoke suite: **34/34 PASS**, 0 FAIL, 0 konsol/
+sayfa hatası. Veri-only ekleme yeni bir görsel yüzey oluşturmadığından yeni ekran görüntüsü
+gerektirmedi. Teknik borç sayacı: **0**. Güven: **5/5**.
+
+**AI Self-Review 2. Geçiş:** Yeni girişten önceki 37 entry'nin `desc` metinleri tek tek yeniden
+okunarak hiçbirinin "gezgin şövalye/hizmet arayışı" temasını zaten kapsamadığı teyit edildi. İkon
+seçimi (`🛡️`) `guard_change`'in (`⚔️`) ve `sellsword_arrival`'ın (`🗡️`) ikonlarından bilinçli olarak
+farklı tutuldu. `TEMP`/`HACK`/`FIXME`/`WORKAROUND` yorumu yok. Mobil coverage denemesinin (yukarıda)
+terk edilme kararı da aynı özenle ikinci kez gözden geçirildi: additive-only guard'ın gerçek bir
+kısıt olduğu, "geçici çözüm" değil "yapılamaz, sahip onayı veya test-yeniden-yazımı gerekir" olduğu
+doğrulandı.
+
+**Memory-leak checklist:** veri-only ekleme; listener/timer/DOM/geometry/material tahsisi yok.
+**Performans:** olay seçimi yalnız tetikleme anında 38 elemanlı sabit bir dizi üzerinde çalışır;
+frame başına yeni maliyet yok.
+- Platform kontrolü: bu run'ın statik guard geçişleri (PWA/service-worker/asset-manifest) zaten
+  PASS; run 132'nin mobil render-budget PASS'i hâlâ güncel, yeniden ölçülmedi (bu run mobil render
+  yolunu değiştirmedi).
+- Desktop trend kaydı: 2026-08-07,run133,2,50,608296,48,17,326
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 133 end) | Delta |
+|---|---|---|---|
+| `worldEvents.js` flavor-pool entries | 37 | **38** | +1 (`hedge_knight_arrival`) |
+| `worldEvents.js` gated entries | 9 | **9** | değişmedi (ungated) |
+| Smoke suite | 34/34 | **34/34** | değişmedi |
+| ADR headers in `DECISIONS.md` | 156 | **157** | +1 (ADR-0157) |
+| World Coverage (desktop / mobil) | 96.2% / 8.9% | 96.2% / 8.9% | değişmedi (bu run mobil radius'a dokunmadı — bkz. ADR-0157) |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** evet, küçük ölçekte — seyrek bir gezgin şövalye bildirimi görebilir.
+
+**Next step:** her zamanki taze `origin/main` fetch ve öncelik taraması; 6 dokusuz kale ile FAZ 6
+model bekleyen türler (at/araba/köpek-kedi/kuş) hâlâ manuel asset kaynağı bekliyor. Mobil World
+Coverage'ı radius 3'ün ötesine büyütmek isteyen bir sonraki run, önce `checkMobileChunkStreaming.js`'i
+additive-only-uyumlu yeniden yazmalı (ADR-0157'nin Gelecek faz etkisi) ya da sahip onayı istemeli —
+düz bir radius artışı artık bilinen bir engel. Sonraki catch-up ~run 138, platform kontrolü ~run
+132-142, kural konsolidasyonu ~run 136 — hepsi güncel.
+
+**Oturum Kalite Kapısı:** 1 alt görev tamamlandı (+ 1 denenip güvenli biçimde terk edilen, commit
+edilmemiş engel tespiti), güven skoru 5/5, "6 ay sonra hâlâ net mi" tereddüdü yok — ADR-0157 hem
+kararı hem gelecekteki iki çözüm yolunu (test yeniden yazımı ya da sahip onayı) açıkça kaydediyor.
+Çalışma Süresi Sınırı/Çalıştırma Geneli Süre Tavanı içinde kalındı.
