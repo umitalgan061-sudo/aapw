@@ -1,0 +1,186 @@
+name: Run 146 World Events Expansion
+
+on:
+  push:
+    branches:
+      - agent/run146-world-events-expansion
+    paths:
+      - '.github/workflows/run146-world-events-expansion.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/run146-world-events-expansion.yml'
+      - 'scripts/applyRun146WorldEvents.py'
+      - 'scripts/checkRun146WorldEvents.js'
+      - 'src/3d/gameplay/worldEvents.js'
+      - '3D_GAME_PROGRESS.md'
+      - 'DECISIONS.md'
+      - 'STABLE_TAGS.md'
+      - 'perf_log.csv'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      BASE_SHA: c113daa7dc9cd9b2df5f56d760433b30e5fd93c5
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          ref: agent/run146-world-events-expansion
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 140 GOVERNANCE.md
+          tail -n 180 3D_GAME_PROGRESS.md
+          tail -n 140 DECISIONS.md
+          tail -n 120 QUESTIONS_FOR_OWNER.md
+          grep -q 'ADR-0166' DECISIONS.md
+          grep -q 'ADR-0169' DECISIONS.md
+          grep -q 'game3d.js' QUESTIONS_FOR_OWNER.md
+
+      - name: Baseline validation on clean main worktree
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run146-baseline"
+          git worktree add --detach "$BASELINE" origin/main
+          (
+            cd "$BASELINE"
+            node scripts/checkCheckpointConsistency.js
+            node scripts/checkWorldEventCatalog.js
+            node scripts/checkRun143WorldEvents.js
+            node scripts/checkRun144WorldEvents.js
+            node scripts/checkRun145WorldEvents.js
+            node scripts/checkAssetsManifest.js
+            node scripts/checkCreatureSpeciesConfig.js
+            node scripts/checkDialogueChoicesShape.js
+            node scripts/checkPwaInstallability.js
+            node scripts/checkServiceWorkerCache.js
+            node scripts/checkMobileChunkStreaming.js
+            node scripts/checkMobileRadius4LiveWorld.js
+            node scripts/checkMobileVegetationCullingRun141.js
+            node scripts/terrainSeatSafetyCheck.js
+            node scripts/roadNetworkSafetyCheck.js
+            node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run146-smoke-before.log"
+            test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run146-smoke-before.log")" -ge 34
+          )
+          git worktree remove "$BASELINE"
+
+      - name: Apply additive world-event changes
+        run: |
+          set -euo pipefail
+          python scripts/applyRun146WorldEvents.py
+          git diff --check
+          test "$(git diff --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+
+      - name: Syntax and catalog gates
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/worldEvents.js
+          node --check scripts/checkRun146WorldEvents.js
+          python -m py_compile scripts/applyRun146WorldEvents.py
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkRun143WorldEvents.js
+          node scripts/checkRun144WorldEvents.js
+          node scripts/checkRun145WorldEvents.js
+          node scripts/checkRun146WorldEvents.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+
+      - name: Current mobile and world safety regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run146-mobile-perf.log"
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Full browser and WebGL smoke after change
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run146-smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run146-smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          echo "RUN146_SMOKE=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and self-review
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run146 | tee "$RUNNER_TEMP/run146-perf.log"
+          node scripts/analyzePerfTrend.js
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          echo "RUN146_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+          git diff --check
+          test "$(git diff --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+          grep -q "id: 'sealed_courier'" src/3d/gameplay/worldEvents.js
+          grep -q "id: 'training_yard_drill'" src/3d/gameplay/worldEvents.js
+          grep -q "id: 'graveyard_vigil'" src/3d/gameplay/worldEvents.js
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/applyRun146WorldEvents.py scripts/checkRun146WorldEvents.js; then exit 1; fi
+
+      - name: Finalize progress and checkpoint records
+        run: |
+          set -euo pipefail
+          export RUN146_FINALIZE=1
+          export RUN146_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN146_PERF_ROW="$RUN146_PERF_ROW"
+          python scripts/applyRun146WorldEvents.py
+          export RUN146_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          echo "RUN146_TAG=$RUN146_TAG" >> "$GITHUB_ENV"
+          printf '%s\n' "- $RUN146_TAG — run 146 FAZ 8 world-event expansion (sealed courier/training yard/graveyard vigil); 34/34+ browser smoke, catalog/PWA/cache/mobile/road/terrain/checkpoint/additive-only guards PASS." >> STABLE_TAGS.md
+          node scripts/checkCheckpointConsistency.js
+
+      - name: Final concurrency gate, commit, tag and push
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "Westeros Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            src/3d/gameplay/worldEvents.js \
+            3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv \
+            scripts/applyRun146WorldEvents.py scripts/checkRun146WorldEvents.js \
+            .github/workflows/run146-world-events-expansion.yml
+          git diff --cached --check
+          test "$(git diff --cached --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+          git commit -m "feat(3d): expand FAZ 8 world events (run 146)"
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git tag "$RUN146_TAG"
+          git push origin HEAD:agent/run146-world-events-expansion
+          git push origin "$RUN146_TAG"
