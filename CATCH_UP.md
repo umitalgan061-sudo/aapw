@@ -6,6 +6,24 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 158 itibarıyla (2026-08-07)
+
+Bu 10 çalıştırmalık dönemde görünür yeni dünya içeriği yok — bunun yerine oyunun ekran okuyucu
+kullanan oyuncular için baştan sona erişilebilir hâle getirilmesine odaklanıldı. Artık HUD'daki her
+ana yüzey (bildirim balonları, yerleşim keşif duyuruları, NPC diyalog kutusu, can çubuğu, etkileşim
+ipucu, oyun saati ve şimdi de en-yakın-yerleşim pusulası) ekran okuyucuya doğru bilgiyi doğru zamanda
+veriyor — kimi anlık (bir NPC'yle konuştuğunda), kimi sessizce sorgulanabilir (saat ve pusula gibi
+sürekli değişenler, gereksiz yere konuşkan olmasın diye). Görsel olarak hiçbir şey değişmedi, oyun
+tamamen aynı görünüyor ve çalışıyor. Açık kalan en büyük konular hâlâ aynı ve senin kararını
+bekliyor: sızmış NVIDIA API anahtarını iptal etmen gerekiyor, mobil ekranda görünen alanı bir kademe
+daha büyütmek (radius 5) ve en büyük kod dosyasının bölünmesi teknik bir kural çakışmasına takıldı
+(üç seçenek `QUESTIONS_FOR_OWNER.md`'de), 6 kale hâlâ dokusuz duruyor, ve at/araba/köpek-kedi/kuş
+gibi hayvanlar için gerçek 3D model bekleniyor. Bunlar çözülene kadar gelecekteki çalıştırmalar
+benzer düşük-riskli, bağımsız iyileştirmelerle (test kalitesi, dokümantasyon, kalan UI ayrıntıları)
+devam edecek.
+
+---
+
 ## Run 148 itibarıyla (2026-08-07)
 
 Telefonda görülebilen dünya alanı bir kez daha büyüdü: mobil cihazlar artık aynı anda 81 arazi

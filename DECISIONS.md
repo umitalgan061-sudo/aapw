@@ -14480,3 +14480,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** `src/3d/ui/dayNightClock.js`, yeni `scripts/checkDayNightClockAccessibility.js`, run157 CI/kayıtları. `lighting.js`, `worldEvents.js`, save/PWA/cache ve 2D oyun etkilenmez.
 
 **Geri alma planı:** İleride owner onaylı ortak erişilebilirlik katmanı gelirse yeni attribute'lar o katman tarafından additive biçimde gölgelenebilir; mevcut runtime satırlarını silmek/değiştirmek gerekmez.
+
+
+## ADR-0180 — Yerleşim pusulasına sessiz, sorgulanabilir durum semantiği (run 158)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `SettlementCompass` mevcut görsel/DOM davranışını değiştirmeden `role="status"`, `aria-live="off"`, `aria-atomic="true"` kazanır (constructor'da, additive yeni satırlar). `update()` içine eklenen additive `settlementChanged` izleyicisi, en yakın yerleşim veya 10m mesafe kovası gerçekten değiştiğinde `aria-label`'ı `En yakın yerleşim: <ad>, <mesafe>` biçiminde günceller; değişmediğinde gereksiz yeniden yazım yapılmaz.
+
+**Neden:** Bu widget `src/3d/ui/`'daki son "kısmi" erişilebilirlik yüzeyiydi (run150/153/154/155/156b'nin toast/keşif/diyalog/can-çubuğu/etkileşim-ipucu erişilebilirlik dizisinin altıncısı) — kökte statik bir `aria-label` vardı ama pusula her karede değişen ad/mesafe metnini hiçbir zaman yardımcı teknolojiye açmıyordu. Mesafe kovası oyuncu yürürken ~10m'de bir (koşarken ~1.5 saniyede bir) değişebildiği için `aria-live="polite"` (run150/153/154/155'in desenini) burada seçmek run157/ADR-0179'un day/night clock'ta bulduğu aynı "aşırı konuşkan olur" sorununu üretir — bu yüzden run157 ile aynı sessiz `aria-live="off"` + sorgulanabilir dinamik `aria-label` deseni tercih edildi.
+
+**Alternatifler:** (1) `aria-live="polite"` — reddedildi, sürekli/sık değişen bir yüzeyde aşırı konuşkan olurdu (day/night clock'un ADR-0179'da reddettiği aynı seçenek). (2) Statik `aria-label`'ı hiç güncellememek — reddedildi, erişilebilir ad hiçbir zaman güncel yerleşim/mesafe bilgisini taşımazdı. (3) Her `update()` çağrısında (her karede) koşulsuz `aria-label` yeniden yazmak — reddedildi, hem gereksiz DOM churn hem de mevcut `_lastSeat`/`_lastDistanceBucket` paint-skip optimizasyonuyla tutarsız; bunun yerine aynı iki bayrağı okuyan yeni bir `settlementChanged` yerel değişkeni eklendi.
+
+**Sonuç:** Görsel ok rotasyonu, ad/mesafe metni, `hidden` tabanlı görünürlük, `setSeatFilter` davranışı ve `game3d.js`'in her karede çağırdığı `update()` sözleşmesi değişmez. Ekran okuyucu kullanan oyuncu pusulayı sorguladığında güncel en yakın yerleşim adını ve mesafesini tek bir erişilebilir ad olarak alır; sürekli mesafe değişimiyle spam edilmez.
+
+**Etkilenen sistemler:** `src/3d/ui/settlementCompass.js`; yeni `scripts/checkSettlementCompassAccessibility.js`; run158 CI/kayıtları. `game3d.js`'in pusula çağırma sırası, seat/flatten-pad verisi, save formatı, PWA/cache ve render bütçesi etkilenmez.
+
+**Geri alma planı:** İleride owner onaylı ortak erişilebilirlik policy katmanı gelirse eklenen dört attribute additive biçimde gölgelenebilir. Mevcut runtime satırlarını silmek/değiştirmek gerekmez.

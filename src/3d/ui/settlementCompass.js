@@ -9,6 +9,9 @@ export class SettlementCompass {
 		this._root = document.createElement('aside');
 		this._root.className = 'g3d-settlement-compass';
 		this._root.setAttribute('aria-label', 'En yakın yerleşim');
+		this._root.setAttribute('role', 'status');
+		this._root.setAttribute('aria-live', 'off');
+		this._root.setAttribute('aria-atomic', 'true');
 		this._arrow = document.createElement('span');
 		this._arrow.className = 'g3d-settlement-compass-arrow';
 		this._arrow.textContent = '↑';
@@ -50,6 +53,7 @@ export class SettlementCompass {
 		const bearing = Math.atan2(nearest.x - playerPosition.x, nearest.z - playerPosition.z);
 		this._arrow.style.transform = `rotate(${bearing - playerYawRadians}rad)`;
 		const distanceBucket = Math.round(nearestDistance / 10) * 10;
+		const settlementChanged = this._lastSeat !== nearest || this._lastDistanceBucket !== distanceBucket;
 		if (this._lastSeat !== nearest) {
 			this._name.textContent = nearest.name;
 			this._lastSeat = nearest;
@@ -59,6 +63,9 @@ export class SettlementCompass {
 				? `${distanceBucket} m`
 				: `${(distanceBucket / 1000).toFixed(1)} km`;
 			this._lastDistanceBucket = distanceBucket;
+		}
+		if (settlementChanged) {
+			this._root.setAttribute('aria-label', `En yakın yerleşim: ${this._name.textContent}, ${this._distance.textContent}`);
 		}
 	}
 
