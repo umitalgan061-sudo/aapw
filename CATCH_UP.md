@@ -6,6 +6,25 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 118 itibarıyla (2026-08-07)
+
+Son 10 çalıştırmanın (109-118) en büyük gelişmesi: dünya artık gerçekten çıplak değil — zemine ilk
+kez prosedürel ağaçlar eklendi (iki farklı silüet, sivri köknar-benzeri ve yuvarlak), ve çoğu kalenin
+(masaüstünde 14'ten 12'si) çevresinde kendi başına daha yoğun bir ağaç halkası oluşuyor, böylece
+kale duvarlarının hemen dışında "korunan arazi" hissi okunuyor. İkinci büyük gelişme: bir kaleye
+ilk kez 55 metre içine giren oyuncu artık bunu bir bildirimle öğreniyor ve bu bilgi kalıcı olarak
+hatırlanıyor (bir daha aynı kaleye gidince tekrar bildirim gelmiyor) — hem çevrimiçi hem çevrimdışı
+kurulu PWA'da çalışıyor. Dünya olayları bildirim havuzu da üç yeni kart kazandı: kale kapısında bir
+kiralık kılıç, sadaka dağıtan bir septon (sadece gündüz), ve ormanın kenarında bir direwolf izi.
+Perde arkasında: `dragonController.js` 600 satır sınırına dayanmadan önce bölündü, performans
+verisini elle karşılaştırmak yerine tek komutla min/max/ortalama gösteren bir araç eklendi, ve kural
+dosyası (`GOVERNANCE.md`) iki kez gözden geçirilip güncel olduğu doğrulandı. Açık kalan en büyük
+konular hâlâ aynı: 6 kale hâlâ dokusuz duruyor (gerçek 3D model bekleniyor), at/araba/köpek-kedi/kuş
+gibi hayvanlar için model bekleniyor, ve sızmış NVIDIA API anahtarını kendi tarafında iptal etmen
+hâlâ senin yapman gereken bir iş (bkz. `QUESTIONS_FOR_OWNER.md`).
+
+---
+
 ## Run 108 itibarıyla (2026-08-06)
 
 Son 10 çalıştırmanın (99-108) en görünür gelişmesi: artık oyunun her cihazında (masaüstü, mobil,
