@@ -1,0 +1,356 @@
+name: Run 130 Mobile Coverage Streaming
+
+on:
+  push:
+    branches:
+      - agent/run130-mobile-coverage-streaming
+    paths:
+      - '.github/workflows/run130-mobile-coverage.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run130-mobile-coverage-streaming
+  cancel-in-progress: false
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "13ed64eaf8ffa1016f369910594d7f52ca155d2e"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 180 3D_GAME_PROGRESS.md
+          tail -n 120 DECISIONS.md
+
+      - name: Apply additive mobile coverage policy and runtime implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def append_once(path, marker, text):
+              p = Path(path)
+              current = p.read_text()
+              if marker in current:
+                  raise SystemExit(f'marker already present in {path}: {marker}')
+              p.write_text(current + text)
+
+          append_once('src/3d/world/chunkManager.js', 'MOBILE_STREAMING_RADIUS_CHUNKS_RUN130', r'''
+
+// Run 130 / ADR-0153 — mobile bounded streaming policy. Kept as an additive prototype wrapper so
+// GOVERNANCE.md's additive-only rule is preserved: the proven desktop implementation above remains
+// byte-for-byte intact. Coarse-pointer devices widen the active terrain neighborhood from radius 2
+// (25 chunks / 6.25 km²) to radius 3 (49 chunks / 12.25 km²) while evicting chunks outside that
+// same radius after every chunk-boundary crossing. Cumulative World Coverage still grows through
+// `everGenerated`; resident GPU/RAM terrain stays bounded at <=49 chunks instead of growing without
+// limit during exploration. Desktop behavior is deliberately unchanged.
+const MOBILE_STREAMING_RADIUS_CHUNKS_RUN130 = 3;
+const _streamTowardsBeforeMobileCoverageRun130 = ChunkManager.prototype.streamTowards;
+ChunkManager.prototype.streamTowards = function streamTowardsWithMobileBoundRun130(centerChunkX, centerChunkZ, radius) {
+	const isMobileCoarsePointer = typeof window !== 'undefined' &&
+		typeof window.matchMedia === 'function' &&
+		window.matchMedia('(pointer: coarse)').matches;
+	const effectiveRadius = isMobileCoarsePointer
+		? Math.max(radius, MOBILE_STREAMING_RADIUS_CHUNKS_RUN130)
+		: radius;
+
+	_streamTowardsBeforeMobileCoverageRun130.call(this, centerChunkX, centerChunkZ, effectiveRadius);
+	if (!isMobileCoarsePointer) return;
+
+	for (const key of [...this.loaded.keys()]) {
+		const [chunkX, chunkZ] = key.split(',').map(Number);
+		const outsideResidentSquare =
+			Math.abs(chunkX - centerChunkX) > effectiveRadius ||
+			Math.abs(chunkZ - centerChunkZ) > effectiveRadius;
+		if (outsideResidentSquare) this.unloadChunk(chunkX, chunkZ);
+	}
+};
+''')
+
+          append_once('GOVERNANCE.md', '## 23. Mobil World Coverage Büyütme Politikası', r'''
+
+---
+
+## 23. Mobil World Coverage Büyütme Politikası (run 130)
+
+Proje sahibinin mobil World Coverage'i yükseltme talebi kalıcı bir mühendislik hedefidir. Bu hedef
+"daha fazla chunk'ı aynı anda telefona yükle" şeklinde uygulanmaz; mobil bütçeyi koruyan kademeli
+**streaming + eviction + LOD/asset optimizasyonu** programı olarak yürütülür.
+
+1. **Bounded streaming zorunlu:** mobil/coarse-pointer cihazda oyuncu ilerledikçe yeni chunk'lar
+   yüklenebilir fakat aktif yarıçapın dışında kalan terrain chunk'ları GPU/RAM'den boşaltılır.
+   `everGenerated` korunur; böylece kümülatif keşif/World Coverage büyürken resident bellek sınırsız
+   büyümez.
+2. **Kademeli radius artışı:** her radius artışı ayrı bir alt görevdir. Önce mevcut mobile bütçeler
+   (`DrawCalls<500`, `Triangles<500K`, `TextureMem<512MB`, hedef 30-60 FPS), sonra coarse-pointer
+   runtime testi, sonra full browser smoke kontrol edilir. Bütçe aşılırsa radius geri büyütülmez;
+   önce LOD/culling/texture optimizasyonu yapılır.
+3. **Run 130 başlangıç seviyesi:** mobil streaming radius 2'den 3'e çıkarılır. Kare footprint 25
+   chunk'tan 49 chunk'a, 6.25 km²'den 12.25 km²'ye çıkar; 137.5 km² dünya hedefi bazında başlangıç
+   footprint coverage yaklaşık %4.5'ten %8.9'a yükselir. Bu değer gerçek mobil runtime testleriyle
+   doğrulanmadan daha yüksek bir oran raporlanmaz.
+4. **Sonraki optimizasyon sırası:** (a) mesafe tabanlı terrain/vegetation LOD, (b) frustum ve mümkün
+   olduğunda occlusion culling, (c) kale/ağaç uzak-mesafe düşük-poly veya impostor yaklaşımı,
+   (d) texture atlas/sıkıştırma ve mobil texture boyutu, (e) ölçüm sonrası yeni radius artışı.
+5. **Görsel kalite koruması:** LOD geçişleri belirgin pop-in üretmemeli; yeni mobil coverage alt
+   görevlerinde yakın+uzak en az iki görsel kanıt ve F4/free-camera kontrolü tutulur.
+6. **PWA/offline koruması:** streaming yalnız repoda/service-worker cache politikasınca erişilebilir
+   asset'leri kullanır. Mobil coverage artırmak CDN/HBO asset bağımlılığı eklemek için gerekçe değildir.
+7. **Deterministik dünya korunur:** chunk unload/reload aynı seed+koordinatta aynı terrain sonucunu
+   üretmek zorundadır; eviction kümülatif `everGenerated` metriğini veya prosedürel checksum
+   kurallarını sıfırlayamaz.
+8. **Dinamik öncelik:** mobil World Coverage %98'in altındayken ve daha üst sırada blocking bug /
+   performans / memory-leak problemi yokken bu program aktif iyileştirme alanlarından biridir.
+''')
+
+          append_once('DECISIONS.md', '## ADR-0153 — Mobil bounded streaming ile coverage radius 2→3', r'''
+
+## ADR-0153 — Mobil bounded streaming ile coverage radius 2→3 (run 130)
+
+**Risk seviyesi:** MEDIUM
+
+**Karar:** Coarse-pointer mobil cihazlarda `ChunkManager.streamTowards` additive bir wrapper ile
+radius 3 kullanacak ve aynı radius dışındaki terrain chunk'larını her chunk geçişinde `unloadChunk`
+ile dispose edecek. Desktop path aynen korunacak. Böylece resident terrain 49 chunk ile sınırlı
+kalırken oyuncunun gezdiği yeni chunk'lar `everGenerated` üzerinden kümülatif World Coverage'e
+katılmaya devam edecek.
+
+**Neden:** Önceki radius 2 footprint'i 25×0.25=6.25 km², yani 137.5 km² hedef dünyanın yaklaşık
+%4.5'iydi. Radius'u eviction olmadan büyütmek uzun mobil oturumlarda resident geometry/material
+sayısını sınırsız büyütürdü. Önce bounded eviction eklemek, radius artışını bellek açısından güvenli
+hale getirir. Radius 3 footprint'i 49×0.25=12.25 km² (~%8.9) ile ilk ölçülü artıştır.
+
+**Alternatifler:** Radius'u doğrudan 4+ yapmak reddedildi; gerçek mobil ölçüm olmadan fazla agresif.
+Sadece eviction ekleyip radius 2'de kalmak güvenli ama sahibin açık coverage artışı talebini bu run'da
+ilerletmiyor. Tüm world'ü resident tutmak mobil performans/bellek bütçeleriyle çelişiyor.
+
+**Sonuç / etkilenen sistemler:** `world/chunkManager.js` mobil streaming davranışı; terrain reload,
+camera collision'ın yakın-chunk lookup'u ve kümülatif coverage metriği. NPC/dragon/road/settlement,
+2D oyun ve desktop streaming davranışı değişmez. Resident terrain üst sınırı mobilde 49 chunk olur.
+
+**Geri alma planı:** Additive wrapper devre dışı bırakılarak önceki `streamTowards` radius 2 ve
+no-eviction davranışına dönülebilir. Kalıcı save/schema migrasyonu yoktur.
+
+**Gelecek faz etkisi:** FAZ 9-10 ve daha büyük asset dünyası için olumlu; sınırlı resident terrain
+LOD, vegetation culling ve asset streaming çalışmalarına ölçülebilir temel sağlar. Yeni SaveSystem
+veya public API bağımlılığı oluşturmaz.
+''')
+
+          Path('scripts/checkMobileChunkStreaming.js').write_text(r'''#!/usr/bin/env node
+/** Run 130 mobile streaming regression check: real module + coarse-pointer browser runtime. */
+const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
+
+async function main() {
+	const playwright = loadPlaywright();
+	if (!playwright) process.exit(2);
+	const server = await startStaticServer();
+	const baseUrl = `http://127.0.0.1:${server.address().port}`;
+	const browser = await playwright.chromium.launch({ headless: true });
+	try {
+		const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+		const page = await context.newPage();
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+		const result = await page.evaluate(async () => {
+			const [{ ChunkManager }, THREE] = await Promise.all([
+				import('/src/3d/world/chunkManager.js'),
+				import('/src/3d/vendor/three/three.module.js'),
+			]);
+			const scene = new THREE.Scene();
+			const manager = new ChunkManager({ scene, chunkSizeMeters: 500, seed: 1337 });
+			const coarse = window.matchMedia('(pointer: coarse)').matches;
+			manager.streamTowards(0, 0, 2);
+			const initial = { loaded: manager.loadedCount, ever: manager.everGeneratedCount, area: manager.getCoveredAreaKm2() };
+			manager.streamTowards(7, 0, 2);
+			const moved = {
+				loaded: manager.loadedCount,
+				ever: manager.everGeneratedCount,
+				area: manager.getCoveredAreaKm2(),
+				oldCenterResident: Boolean(manager.getLoadedChunkMesh(0, 0)),
+				newCenterResident: Boolean(manager.getLoadedChunkMesh(7, 0)),
+			};
+			manager.disposeAll();
+			return { coarse, initial, moved, remaining: manager.loadedCount };
+		});
+		await context.close();
+		const ok = result.coarse &&
+			result.initial.loaded === 49 && result.initial.ever === 49 && result.initial.area === 12.25 &&
+			result.moved.loaded === 49 && result.moved.ever > 49 && result.moved.area === 12.25 &&
+			!result.moved.oldCenterResident && result.moved.newCenterResident && result.remaining === 0;
+		if (!ok) {
+			console.error('[mobile-streaming] FAIL', JSON.stringify(result));
+			process.exit(1);
+		}
+		console.log(`[mobile-streaming] PASS: coarse=${result.coarse}; resident ${result.initial.loaded} chunks / ${result.initial.area.toFixed(2)} km²; cumulative grows to ${result.moved.ever} while resident stays ${result.moved.loaded}; eviction+dispose verified.`);
+	} finally {
+		await browser.close();
+		server.close();
+	}
+}
+main().catch((error) => { console.error('[mobile-streaming] FAIL:', error); process.exit(1); });
+''')
+
+          Path('scripts/captureRun130MobileEvidence.js').write_text(r'''#!/usr/bin/env node
+/** Run 130 visual evidence: two mobile-emulated 3D screenshots, second via F4 free camera. */
+const fs = require('fs');
+const path = require('path');
+const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
+async function main() {
+	const playwright = loadPlaywright();
+	if (!playwright) process.exit(2);
+	const out = path.resolve('artifacts/run130-mobile');
+	fs.mkdirSync(out, { recursive: true });
+	const server = await startStaticServer();
+	const baseUrl = `http://127.0.0.1:${server.address().port}`;
+	const browser = await playwright.chromium.launch({ headless: true });
+	const errors = [];
+	try {
+		const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+		const page = await context.newPage();
+		page.on('pageerror', (e) => errors.push(`page:${e.message}`));
+		page.on('console', (m) => { if (m.type() === 'error') errors.push(`console:${m.text()}`); });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+		await page.waitForFunction(() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'), { timeout: 60000 });
+		await page.screenshot({ path: path.join(out, 'mobile-near.png'), fullPage: true });
+		await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F4' })));
+		await page.keyboard.down('KeyW');
+		await page.waitForTimeout(1400);
+		await page.keyboard.up('KeyW');
+		await page.screenshot({ path: path.join(out, 'mobile-f4-far.png'), fullPage: true });
+		await context.close();
+		if (errors.length) throw new Error(errors.join('\n'));
+		console.log(`[run130-visual] PASS: 2 mobile screenshots written to ${out}; zero console/page errors.`);
+	} finally {
+		await browser.close();
+		server.close();
+	}
+}
+main().catch((e) => { console.error('[run130-visual] FAIL:', e); process.exit(1); });
+''')
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/3d/world/chunkManager.js GOVERNANCE.md DECISIONS.md scripts/checkMobileChunkStreaming.js scripts/captureRun130MobileEvidence.js
+          git diff --cached --check
+          git commit -m "perf(3d): begin bounded mobile coverage expansion (ADR-0153)"
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Syntax and integrity gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/chunkManager.js
+          node --check scripts/checkMobileChunkStreaming.js
+          node --check scripts/captureRun130MobileEvidence.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Full browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log")"
+          echo "SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+          test "$PASS_COUNT" -ge 34
+
+      - name: Mobile visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureRun130MobileEvidence.js
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run130-mobile-coverage-evidence
+          path: artifacts/run130-mobile/*.png
+          retention-days: 30
+
+      - name: Performance snapshot and self-review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run130 | tee "$RUNNER_TEMP/perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/perf-trend.log"
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          echo "PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/chunkManager.js scripts/checkMobileChunkStreaming.js scripts/captureRun130MobileEvidence.js; then exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Append run records, catch-up, checkpoint and publish branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          printf '\n## Run 130 — mobil bounded streaming + coverage radius 3 (%s)\n' "$STAMP" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Alt görev: mobil World Coverage büyütme programının ilk runtime adımı; coarse-pointer streaming radius 2→3 ve radius-dışı terrain eviction (ADR-0153).' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Coverage: mobil resident footprint 25→49 chunk, 6.25→12.25 km²; 137.5 km² hedef bazında yaklaşık %4.5→%8.9. Kümülatif everGenerated keşifle büyürken resident terrain 49 chunkta bounded kalır.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- DoD: node --check PASS; mobile runtime streaming test PASS; checkpoint/world-event/PWA/cache/asset/smoke-registry/terrain/road guard PASS; browser smoke ${SMOKE_PASS_COUNT}/34+ PASS; additive-only PASS; iki mobil görsel kanıt artifact olarak saklandı." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Performans: ${PERF_ROW}. Bu headless desktop snapshot mobil FPS iddiası değildir; mobil radius artışı 49 resident terrain ile bounded ve sıradaki adım gerçek mobil LOD/culling ölçümüdür." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Memory-leak: eviction unloadChunk→disposeTerrainChunk yolunu kullanır; runtime testi hareket sonrası resident=49 ve disposeAll sonrası 0 doğruladı. Teknik borç: 0 yeni borç.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- World Evolution Report: yol/orman/kale/NPC/event/hayvan/asset/diyalog sayıları delta 0; yalnız mobil gezilebilir resident terrain footprint +6.00 km². Oyuncu fark eder: evet, mobilde aynı anda daha geniş terrain çevresi görünür.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Oturum kalite kapısı: güven 5/5. Risk MEDIUM. Sonraki adım: mobil vegetation/terrain distance LOD + culling, ardından ölçüm uygunsa radius 4 değerlendirmesi.' >> 3D_GAME_PROGRESS.md
+
+          printf '\n## Run 130 — Mobil dünya genişliyor\n' >> CATCH_UP.md
+          printf '%s\n' 'Mobil 3D dünyada aynı anda görülebilen terrain alanını yaklaşık iki katına çıkaran ilk adım atıldı.' >> CATCH_UP.md
+          printf '%s\n' 'Telefon artık oyuncunun çevresinde 25 yerine 49 terrain chunk tutabiliyor.' >> CATCH_UP.md
+          printf '%s\n' 'Bunu yaparken geride kalan terrain parçaları bellekten temizleniyor; uzun gezilerde RAM/GPU kullanımı sınırsız büyümüyor.' >> CATCH_UP.md
+          printf '%s\n' 'Bu değişiklik masaüstü davranışına dokunmuyor.' >> CATCH_UP.md
+          printf '%s\n' 'Mobil resident terrain footprint yaklaşık %4.5 seviyesinden %8.9 seviyesine çıktı.' >> CATCH_UP.md
+          printf '%s\n' 'Sonraki hedef ağaçlar, uzak terrain ve kale modelleri için LOD/culling optimizasyonu; bu optimizasyonlardan sonra daha geniş streaming radius değerlendirilecek.' >> CATCH_UP.md
+
+          printf '%s\n' "- $TAG — run 130 mobile bounded streaming; 49-chunk / 12.25 km² mobile footprint (~8.9%%), browser smoke ${SMOKE_PASS_COUNT}/34+ PASS, mobile runtime eviction PASS." >> STABLE_TAGS.md
+          git add 3D_GAME_PROGRESS.md CATCH_UP.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          git commit -m "docs: record run 130 mobile coverage checkpoint"
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "13ed64eaf8ffa1016f369910594d7f52ca155d2e"
+          git push origin HEAD:${GITHUB_REF_NAME}
+          git tag "$TAG"
+          git push origin "$TAG"
