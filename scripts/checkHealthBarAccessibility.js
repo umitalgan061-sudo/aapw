@@ -70,7 +70,7 @@ async function checkViewport(browser, baseUrl, viewport, label) {
 		const expected = {
 			initial: { role: 'meter', label: 'Can', min: '0', listenerCount: 2 },
 			afterHealth: { max: '100', now: '74', text: '74 / 100', visibleText: '74 / 100', width: '73.2%' },
-			clamped: { now: '0', width: '0.0%' },
+			clamped: { now: '0', width: '0%' },
 			disposed: { listenerCount: 0, connected: false },
 		};
 		for (const [group, fields] of Object.entries(expected)) {
