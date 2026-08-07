@@ -11,10 +11,6 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: governance-validation-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -87,12 +83,12 @@ jobs:
           PERF_ROW="$(tail -n 1 perf_log.csv)"
           echo "PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
 
-      - name: AI self-review and repository cleanliness
+      - name: Self-review and additive guard
         shell: bash
         run: |
           set -euo pipefail
           git diff --check
-          ! grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkWorldEventCatalog.js
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkWorldEventCatalog.js; then exit 1; fi
           node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
 
       - name: Append governance records
@@ -101,22 +97,15 @@ jobs:
           set -euo pipefail
           STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
           TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
-          cat >> 3D_GAME_PROGRESS.md <<EOF
-
-## Run 127 — GitHub runner governance validation ($STAMP)
-- Alt görev: WORLD_EVENTS katalog bütünlük guard'ının gerçek repo checkout üzerinde doğrulanması.
-- Değişiklik: scripts/checkWorldEventCatalog.js + kalıcı .github/workflows/governance-validation.yml kalite kapısı; mevcut kaynak kodundan satır/dosya silinmedi.
-- DoD: node --check PASS; katalog/PWA/cache/asset/smoke-registry/terrain/road guard'ları PASS; browser smoke ${SMOKE_PASS_COUNT}/34+ PASS; konsol temizliği smoke suite kapsamında PASS; additive-only guard PASS.
-- Performans: ${PERF_ROW}
-- Görsel doğrulama: bu alt görev runtime görsel davranışını değiştirmeyen test/CI aracıdır; browser smoke gerçek 2D/3D boot ve UI kontrollerini doğruladı, yeni görsel delta yok.
-- ADR: runtime/mimari davranış değişmediği için yeni ADR gerekmiyor.
-- Teknik borç: 0 yeni borç.
-- World Coverage: runtime world generation değiştirilmedi; önceki ölçüm korunur.
-- World Evolution Report: yol/orman/kale/NPC/event/hayvan sayılarında delta 0; katalog guard'ı yalnız regresyon güvenliği ekler. Oyuncu doğrudan fark etmez.
-- Oturum kalite kapısı: güven 5/5; oyun smoke suite içinde sorunsuz açıldı.
-- Risk: LOW.
-EOF
-          echo "- $TAG — run 127 governance validation; full browser smoke ${SMOKE_PASS_COUNT}/34+ PASS, additive-only PASS, performance snapshot recorded." >> STABLE_TAGS.md
+          printf '\n## Run 127 — GitHub runner governance validation (%s)\n' "$STAMP" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Alt görev: WORLD_EVENTS katalog bütünlük guard gerçek repo checkout üzerinde doğrulandı." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Değişiklik: checkWorldEventCatalog.js + governance validation CI; mevcut uygulama kaynaklarından satır/dosya silinmedi." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- DoD: node --check PASS; katalog/PWA/cache/asset/smoke-registry/terrain/road guard PASS; browser smoke ${SMOKE_PASS_COUNT}/34+ PASS; additive-only PASS." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Performans: ${PERF_ROW}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Görsel doğrulama: runtime görsel davranışı değişmedi; gerçek 2D/3D browser boot ve UI smoke doğrulandı." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- ADR: runtime/mimari davranış değişmediği için yeni ADR gerekmiyor." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Teknik borç: 0 yeni borç. World Coverage: değişmedi. World Evolution delta: 0. Risk: LOW. Güven: 5/5." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- $TAG — run 127 governance validation; browser smoke ${SMOKE_PASS_COUNT}/34+ PASS, additive-only PASS, perf snapshot recorded." >> STABLE_TAGS.md
           echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
 
       - name: Commit progress and performance log
