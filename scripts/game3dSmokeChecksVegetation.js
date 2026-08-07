@@ -1,4 +1,5 @@
-/** Procedural vegetation regression check (run 111/ADR-0138, extended run 112/ADR-0139 for species variety). */
+/** Procedural vegetation regression check (run 111/ADR-0138, extended run 112/ADR-0139 for species
+ * variety, extended run 113/ADR-0140 for seat-local clustering). */
 
 const NAV_TIMEOUT_MS = 10_000;
 
@@ -9,7 +10,7 @@ async function checkVegetation(browser, baseUrl) {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
 		result = await page.evaluate(async () => {
 			const THREE = await import('/src/3d/vendor/three/three.module.js');
-			const { createVegetation, disposeVegetation, isPlaceablePosition, distancePointToSegment2D, pickSpeciesIndex } =
+			const { createVegetation, disposeVegetation, isPlaceablePosition, distancePointToSegment2D, pickSpeciesIndex, sampleAnnulusPoint } =
 				await import('/src/3d/world/vegetation.js');
 
 			// Flat ground well above sea level everywhere, except a steep ridge along x=200 and a
@@ -109,6 +110,62 @@ async function checkVegetation(browser, baseUrl) {
 				disposeThrew = true;
 			}
 
+			// sampleAnnulusPoint — exact-value at the ring's inner/outer edges (a queued fake rng, not
+			// the real seeded stream, so both draws are pinned to known values).
+			const queuedRng = (values) => {
+				let i = 0;
+				return () => values[i++];
+			};
+			const annulusAtInnerEdge = sampleAnnulusPoint(queuedRng([0, 0]), 0, 0, 100, 260);
+			const annulusInnerEdgeExact = Math.abs(annulusAtInnerEdge.x - 100) < 1e-9 && Math.abs(annulusAtInnerEdge.z) < 1e-9;
+			const annulusAtOuterEdge = sampleAnnulusPoint(queuedRng([0, 1]), 0, 0, 100, 260);
+			const annulusOuterEdgeExact = Math.abs(annulusAtOuterEdge.x - 260) < 1e-9 && Math.abs(annulusAtOuterEdge.z) < 1e-9;
+			// Off-center annulus (non-zero center) — confirms the offset is applied, not just the radius.
+			const annulusOffCenter = sampleAnnulusPoint(queuedRng([0, 0]), 500, -300, 100, 260);
+			const annulusOffCenterExact = Math.abs(annulusOffCenter.x - 600) < 1e-9 && Math.abs(annulusOffCenter.z - -300) < 1e-9;
+
+			// createVegetation seat-local clustering (run 113/ADR-0140) — a seat at the disc's own
+			// center, disc radius (400m) large enough its full ring (260m) fits inside
+			// (0 + 260 <= 400), density forced to 0 so every placed tree is provably a cluster tree, not
+			// a base-scatter one.
+			const decomposePosition = (mesh, index) => {
+				const m = new THREE.Matrix4();
+				const p = new THREE.Vector3();
+				const q = new THREE.Quaternion();
+				const s = new THREE.Vector3();
+				mesh.getMatrixAt(index, m);
+				m.decompose(p, q, s);
+				return p;
+			};
+			const clustered = createVegetation({
+				sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seed: 42, seats: [{ x: 0, z: 0 }], roadEdges: [],
+				radiusMeters: 400, densityPerKm2: 0,
+			});
+			const qualifyingSeatGetsCluster = clustered.clusterSeatCount === 1 && clustered.placedCount > 0;
+			// Every placed instance (both species' meshes) sits within [SEAT_EXCLUSION_RADIUS_METERS,
+			// CLUSTER_RING_OUTER_RADIUS_METERS] of the seat — proves the ring actually bounds where cluster
+			// trees land, not just that *some* trees got placed somewhere. (Lower bound uses the seat
+			// exclusion radius, not the ring's own tighter inner margin, so this assertion doesn't need to
+			// hand-duplicate vegetation.js's own private CLUSTER_RING_INNER_MARGIN_METERS constant.)
+			let allClusterTreesWithinRing = true;
+			for (const mesh of clustered.group.children) {
+				for (let i = 0; i < mesh.count; i++) {
+					const p = decomposePosition(mesh, i);
+					const distanceFromSeat = Math.hypot(p.x, p.z);
+					if (distanceFromSeat < 90 || distanceFromSeat > 260 + 1e-6) allClusterTreesWithinRing = false;
+				}
+			}
+			// A seat far outside the disc never gets a ring — the same "no trees over a chunk that was
+			// never generated" guarantee, extended to the ring's own outer edge.
+			const farSeat = createVegetation({
+				sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seed: 42, seats: [{ x: 10000, z: 10000 }], roadEdges: [],
+				radiusMeters: 400, densityPerKm2: 0,
+			});
+			const nonQualifyingSeatGetsNoCluster = farSeat.clusterSeatCount === 0 && farSeat.placedCount === 0;
+			// Empty `seats` (this check's own pre-existing determinism runs above) never triggers
+			// clustering — locks in that ADR-0138/ADR-0139's own scatter-only behavior is unchanged.
+			const emptySeatsGetsNoCluster = runA.clusterSeatCount === 0 && runB.clusterSeatCount === 0 && runC.clusterSeatCount === 0;
+
 			return {
 				segmentDistanceExact, segmentDistancePastEndpoint,
 				acceptsOrdinaryFlatGround, rejectsUnderwater, rejectsNearSeat, acceptsFarFromSeat,
@@ -117,6 +174,8 @@ async function checkVegetation(browser, baseUrl) {
 				sameSeedIsDeterministic, differentSeedDiffers, placedNeverExceedsTarget,
 				fourDrawCallsForTwoSpecies, bothSpeciesRepresented, speciesCountsSumToPlaced,
 				rejectionActuallyRejects, zeroRadiusIsInert, disposeDidNotThrow: !disposeThrew,
+				annulusInnerEdgeExact, annulusOuterEdgeExact, annulusOffCenterExact,
+				qualifyingSeatGetsCluster, allClusterTreesWithinRing, nonQualifyingSeatGetsNoCluster, emptySeatsGetsNoCluster,
 			};
 		});
 	} finally {
@@ -124,10 +183,10 @@ async function checkVegetation(browser, baseUrl) {
 	}
 	const ok = Object.values(result).every(Boolean);
 	return {
-		name: 'procedural vegetation (world/vegetation.js, ADR-0138/ADR-0139)',
+		name: 'procedural vegetation (world/vegetation.js, ADR-0138/ADR-0139/ADR-0140)',
 		ok,
 		details: ok
-			? 'segment-distance exact-value, isPlaceablePosition rejects water/steep-slope/near-seat/near-road and accepts ordinary ground, pickSpeciesIndex exact at/around its weight boundary, same-seed scatter is bit-identical across every species mesh, different seed differs, placed never exceeds target, 4 draw calls (2 species x trunk+foliage), both species represented and their counts sum to placedCount, full-exclusion disc places zero, zero-radius disc is inert, dispose does not throw'
+			? 'segment-distance exact-value, isPlaceablePosition rejects water/steep-slope/near-seat/near-road and accepts ordinary ground, pickSpeciesIndex exact at/around its weight boundary, same-seed scatter is bit-identical across every species mesh, different seed differs, placed never exceeds target, 4 draw calls (2 species x trunk+foliage), both species represented and their counts sum to placedCount, full-exclusion disc places zero, zero-radius disc is inert, dispose does not throw, sampleAnnulusPoint exact at inner/outer edges and off-center, a qualifying seat gets a cluster ring with every instance provably inside it, a too-far seat gets none, empty seats never triggers clustering'
 			: `FAILED assertion(s): ${JSON.stringify(result)}`,
 	};
 }

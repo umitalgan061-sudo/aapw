@@ -157,3 +157,14 @@ instead of guessed at silently. Newest entry at the bottom.
   oyun testiyle kalibre edilmedi — run 111'in yoğunluk sorusuyla aynı desen. **Geçici varsayılan:**
   yukarıdaki iki ağırlık kullanılıyor; ikisi de tek satırlık sabitler. Bir tür çok baskın/çok nadir
   hissettirirse veya üçüncü bir tür eklenmek istenirse, bu ağırlıklar ilk bakılacak yer.
+
+- **(run 113, ADR-0140) Yeni kale-çevresi ağaç kümesi (seat-local clustering ring) ne kadar
+  yoğun/geniş olmalı — 220 ağaç/km² (temel dağılımın ~7 katı) ve 260m dış yarıçap doğru mu
+  hissettiriyor?** `world/vegetation.js`'in `CLUSTER_DENSITY_PER_KM2 = 220` /
+  `CLUSTER_RING_OUTER_RADIUS_METERS = 260` sabitleri de gerçek bir oyun testiyle kalibre edilmedi —
+  run 111/112'nin yoğunluk/karışım oranı sorularıyla aynı desen. **Geçici varsayılan:** yukarıdaki
+  iki sabit kullanılıyor; ikisi de tek satırlık değerler. Halka çok yoğun/çok seyrek hissettirirse
+  veya kale başına farklı bir halka boyutu istenirse, bu sabitler ilk bakılacak yer. Not: bu özellik
+  şu an masaüstünde 14 koltuktan 12'sinde aktif (Xaro ve Night King, önizleme diskinin dışında kaldığı
+  için hariç), mobilde hiçbirinde (bkz. ADR-0140'ın Qualification-rule scope notu) — bu bilinçli bir
+  kapsam kararı, hata değil.
