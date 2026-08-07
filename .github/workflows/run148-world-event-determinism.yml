@@ -61,6 +61,7 @@ jobs:
           test "$(git diff --numstat origin/main...HEAD | awk '$2 != 0 {n++} END {print n+0}')" = "0"
           node --check scripts/checkWorldEventDeterminism.js
           node --check src/3d/gameplay/worldEvents.js
+          python -m py_compile scripts/finalizeRun148.py
           node scripts/checkWorldEventDeterminism.js --write-fixture
           node scripts/checkWorldEventDeterminism.js
           node scripts/checkWorldEventCatalog.js
@@ -75,7 +76,7 @@ jobs:
           node scripts/checkSmokeCheckRegistry.js
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
-          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkWorldEventDeterminism.js .github/workflows/world-event-determinism.yml .github/workflows/run148-world-event-determinism.yml; then exit 1; fi
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkWorldEventDeterminism.js scripts/finalizeRun148.py .github/workflows/world-event-determinism.yml .github/workflows/run148-world-event-determinism.yml; then exit 1; fi
       - name: Mobile and world safety gates
         run: |
           set -euo pipefail
@@ -99,40 +100,10 @@ jobs:
       - name: Finalize records
         run: |
           set -euo pipefail
-          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
-          TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
-          echo "RUN148_TAG=$TAG" >> "$GITHUB_ENV"
-          cat >> 3D_GAME_PROGRESS.md <<EOF
-
-
-## Run 148 — FAZ 8 deterministic world-event regression snapshot ($STAMP)
-- Alt görev: dünya olayı sisteminin sabit seed + sabit day/night örüntüsünde ürettiği 24 olaylık sıra SHA-256 checksum fixture ile kalıcı regresyon guard'ına alındı; runtime kodu değiştirilmedi.
-- DoD: temiz origin/main baseline + post-change browser smoke 34/34+ PASS; determinism snapshot/catalog/diversity/PWA/cache/mobile/terrain/road/additive-only kontrolleri PASS; 3D boot console/page error yok.
-- World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi. Event toplamı 52, değişmedi.
-- Performans: $RUN148_PERF_ROW. Teknik borç: 1 (game3d.js 545/600 owner kararı bekliyor, değişmedi). Risk LOW. Güven 5/5.
-- World Evolution Report delta: yol 0 km; orman 0 km²; kale/NPC/event/hayvan 0; coverage 0; asset/diyalog 0; ADR +1. Oyuncu fark eder mi: doğrudan hayır; deterministik olay sırası artık gelecekteki istemsiz PRNG/gating regresyonlarına karşı korunuyor.
-- Sıradaki güvenli adım: owner bloklarına dokunmadan FAZ 8 test/kalite veya bağımsız düşük-risk gameplay iyileştirmesi; yayın öncesi concurrency gate zorunlu.
-EOF
-          cat >> DECISIONS.md <<'EOF'
-
-
-## ADR-0171 — FAZ 8 dünya olayı sabit-seed checksum regresyonu (run 148)
-
-**Risk Seviyesi:** LOW
-
-**Karar:** `createWorldEventSystem` için sabit seed, sabit 95 saniyelik update adımları ve gündüz/gece/alacakaranlık/ungated örüntüsüyle 24 emission'lık deterministik çıktı `scripts/fixtures/world-events-seed-148.json` içinde sequence + SHA-256 checksum olarak saklanır. `scripts/checkWorldEventDeterminism.js` aynı seed'in aynı sırayı üretmesini, farklı seed'in ayrışmasını, time-of-day eligibility kurallarını ve dispose sonrası emission olmamasını doğrular. Ayrı `world-event-determinism.yml` workflow'u fixture mevcut olduğu sürece gelecekteki main/agent değişikliklerinde bu snapshot'ı sürekli kontrol eder.
-
-**Neden:** GOVERNANCE deterministik prosedürel/gameplay üretiminde sabit-seed snapshot ister. FAZ 8 katalog büyürken yalnız katalog şekli ve metin çeşitliliğini kontrol etmek PRNG sırası veya day/night filtering davranışının istemeden değişmesini yakalamıyordu.
-
-**Alternatifler:** Runtime davranışını değiştirmek reddedildi; Run 148 yalnız test/CI kapsamını genişletir. Sadece aynı seed'i iki kez karşılaştırıp checksum fixture saklamamak reddedildi, çünkü bu yaklaşım aynı commit içindeki deterministik fakat istemsiz davranış değişikliğini regresyon sayamazdı.
-
-**Sonuç:** Oyun davranışı bit-eşit kalır; sabit-seed world-event davranışı artık checksum ile izlenir. Kasıtlı bir gelecekteki davranış değişikliği fixture güncellemesi ve yeni ADR gerektirir.
-
-**Etkilenen sistemler:** test/CI (`scripts/checkWorldEventDeterminism.js`, fixture, GitHub Actions). Runtime `worldEvents.js`, EventBus, UI, PWA cache listesi ve save formatı değişmez.
-
-**Geri alma planı:** Yeni guard ve fixture additive dosyalardır; yanlış pozitif üretiyorsa sonraki additive policy katmanıyla koşullu devre dışı bırakılabilir. Mevcut kaynak satırı silme/değiştirme gerekmez.
-EOF
-          printf '%s\n' "- $TAG — run 148 fixed-seed world-event checksum guard; 34/34+ browser smoke, determinism/catalog/diversity/PWA/cache/mobile/road/terrain/additive gates PASS." >> STABLE_TAGS.md
+          export RUN148_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN148_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          python scripts/finalizeRun148.py
+          echo "RUN148_TAG=$RUN148_TAG" >> "$GITHUB_ENV"
           node scripts/checkCheckpointConsistency.js
       - name: Final concurrency gate and publish branch
         run: |
