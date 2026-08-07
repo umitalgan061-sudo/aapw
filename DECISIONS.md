@@ -13417,3 +13417,50 @@ en-yakın pusula davranışına dönülür; veri migrasyonu yoktur.
 
 **Gelecek faz etkisi:** İleride görev/fast-travel hedefleri aynı opsiyonel filtre API'sini farklı
 predicate ile kullanabilir; discovery storage formatına bağlanmak zorunda değildir.
+
+## ADR-0150 — Zamandan bağımsız `crow_flock` (Karga Sürüsü) dünya olayı (run 125)
+
+**Risk seviyesi:** LOW
+
+**Karar:** FAZ 8 dünya olayı havuzuna RARE ağırlıklı, `timeOfDay` gate'i olmayan `crow_flock`
+("Karga Sürüsü") girdisi eklendi. Kale surlarının üzerinde toplanan bir karga sürüsünün aniden
+havalanıp dağılmasını, kimilerince kötü bir alâmet sayılan bir görüntü olarak anlatır; mevcut
+ağırlıklı-seçim ve toast sunum yolunu aynen kullanır, yeni geometri/materyal/timer/listener eklemez.
+
+**Neden:** Güncel öncelik taramasında 1-8 numaralı maddeler (makro relief, yol ağı, zemin rengi,
+sözdizimi, blocking bug, performans, memory leak, teknik borç) hepsi temiz/tamamlanmış durumda
+bulundu (bkz. bu run'un Session Snapshot bölümü — tam statik guard taraması + 34/34 Playwright smoke
+suite PASS baseline); madde 1.7 (6 kale) ve FAZ 6 hayvan varlıkları hâlâ manuel asset kaynağı
+bekliyor (owner review gerektirir, bu run'un kapsamı dışında — bkz. DECISIONS.md ADR-0131 ve
+QUESTIONS_FOR_OWNER.md). 14 numaralı yeni içerik alanında, gökyüzü/kuş temalı önceki girdilerden
+(`raven`, `white_raven`, `maester_raven`, `falconer_flight`, `owl_watch`) tonca ayrışan — mesaj
+taşıyan tekil bir kuş yerine ürkütücü toplu bir kuş sürüsü görüntüsü olan, `dragon_shadow`/
+`red_comet`/`wildling_rumor`/`mourning_bells` ile aynı "belirsiz alâmet" ailesine ait — küçük ve
+düşük riskli bir ekleme seçildi.
+
+**Alternatifler:**
+- **`timeOfDay: 'night'` gate'i** reddedildi — kargalar (`dragon_shadow`/`red_comet` gibi) gündüz de
+  gece de gerçekçi biçimde görülebilir; metin gün ışığı ya da ay ışığı gibi belirli bir zaman
+  ifade etmiyor, bu yüzden run 86/ADR-0111'in "yalnız metni belirsiz olmayanlar gate'lenir" kuralına
+  göre ungated bırakıldı.
+- **COMMON/UNCOMMON ağırlık** reddedildi — "kötü bir işaret" çerçevesi sıradan bir ambiyans
+  detayından çok, `red_comet`/`wildling_rumor` gibi diğer RARE-tier alâmetlerle aynı dramatik
+  kayıtta; sıradan bir gözlem olarak COMMON/UNCOMMON'a indirmek bu çerçeveyi zayıflatır.
+  **Doğrulama:** yeni girişten önceki 34 (33+bu) entry'nin `desc` metinleri tek tek yeniden okunarak
+  hiçbirinin aynı "toplu kuş sürüsü" görüntüsünü zaten kapsamadığı teyit edildi.
+- **`raven`/`maester_raven` ile birleştirme** reddedildi — o ikisi mesaj/kayıt temalı, tekil ve
+  sakin; `crow_flock` mesaj taşımayan, ürkütücü ve toplu bir doğa görüntüsü — ayrı bir okunuşu var.
+
+**Sonuç / etkilenen sistemler:** Yalnız `gameplay/worldEvents.js` veri havuzu 33'ten 34 girdiye
+büyüdü (gated sayısı 9 olarak değişmedi, ungated sayısı 24'ten 25'e çıktı). Mevcut ağırlıklı seçim,
+toast, güvenli-mod, day/night ve PWA cache yolları değişmez. 500 seed × 30 tetikleme (15.000 çekiliş,
+alternan gündüz/gece `nightFactor`) ile gerçek modül üzerinden yapılan bir erişilebilirlik ispatı
+`crow_flock`'un hem gündüz hem gece erişilebilir olduğunu ve havuzdaki 34 id'nin hepsinin en az bir
+kez çekildiğini (ne eksik ne çakışan id) doğruladı.
+
+**Geri alma planı:** Tek `crow_flock` veri satırı ve iki yorum-satırı sayaç güncellemesi kaldırılarak
+önceki 33-entry havuza dönülebilir; şema veya kalıcı kayıt migrasyonu yoktur.
+
+**Gelecek faz etkisi:** Yok. FAZ 9 ses/cila veya ilerideki canlı-model sistemine bağımlılık eklemez;
+ileride gerçek bir kuş/karga modeli gelirse bu toast bağımsız kalabilir veya ayrı ADR ile görsel
+olaya bağlanabilir.

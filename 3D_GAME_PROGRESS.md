@@ -12589,3 +12589,89 @@ bir hedef gösterir.
 1 FPS / 50 draw call / 608,296 triangle / 48 geometry / 17 texture / 307 MB heap. Render kaynakları
 run-123 ile aynıdır ve bütçe altındadır; yalnız headless heap örneği değişmiştir. `perf_log.csv`
 güncellendi ve full browser smoke **34/34 PASS** tamamlandı.
+
+## This Run (2026-08-07, run 125)
+
+**Concurrency/snapshot:** `git fetch origin main` sonrası local `main`/`work` başta güncel
+`origin/main` (`87bd507`, run-122 stable kayıt merge'i) ile aynı commit'teydi, ancak bu run'ın
+`work` dalı push edilip PR (#27) açıldıktan SONRA `origin/main` **iki kez** eşzamanlı başka run'lar
+tarafından ileri taşındı: önce `5f25f0b` (run-123 ADR-0148 keşif-tamamlama + stable tag), sonra
+`9716657` (run-124 ADR-0149 keşfedilmemiş-yerleşim pusulası, PR #28/#29 + stable tag) — ilk merge
+denemesi GitHub'da gerçek bir çakışma verdi, `origin/main`'i yeniden fetch edip `work`'ü rebase
+ettikten sonra bile ikinci bir çakışma çıktı çünkü ilk rebase sırasında `origin/main` zaten yeniden
+ilerlemişti. `origin/main` bir kez daha fetch edilip `work` onun üzerine tekrar rebase edildi;
+`3D_GAME_PROGRESS.md`/`DECISIONS.md`/`perf_log.csv`'deki üç ekleme-çakışması, her iki run'ın
+içeriğini de koruyacak şekilde (diğer run'ın girdisi önce, bu run'ınki sonra) elle çözüldü ve bu
+run'ın kendi ADR/run numarası çakışmayı önlemek için **ADR-0148→ADR-0150** ve **run 123→run 125**
+olarak yeniden numaralandırıldı (`worldEvents.js`'nin kendisinde hiçbir zaman çakışma olmadı — üç
+run da farklı dosyalara dokundu: `worldEvents.js`, `ui/settlementDiscovery.js`, `ui/settlementCompass.js`/
+`game3d.js`). `GOVERNANCE.md` (TÜM kalıcı kurallar zaten mevcut — bu run'da oluşturma alt görevi
+gerekmedi), `QUESTIONS_FOR_OWNER.md` ve son ADR'ler (0145-0149, artık 0150 dahil) okundu. Öncelik
+taraması: madde 1/1.2/1.5 (makro relief, yol ağı, zemin rengi) kod içinde zaten mevcut ve doğrulandı
+(bkz. aşağıdaki baseline guard çıktıları); madde 1.7 (6 kale dokusuz) ADR-0131'in belgelediği gibi
+manuel asset kaynağı bekliyor — bu run'un scope'unda değil. Madde 2-8 (sözdizimi/blocking
+bug/performans/memory leak/teknik borç/smoke test/world coverage) için tam bir baseline taraması
+yapıldı ve hepsi temiz bulundu: `node --check` tüm `src/`+`scripts/`+`script.js`+`service-worker.js`
+dosyalarında sıfır hata; `checkSmokeCheckRegistry.js` 34 check/14 modül, 80 dosya 600 satır sınırının
+altında; `checkAssetsManifest.js` 41/41 kayıt çözümlü (yalnız beklenen sidecar-texture WARN'ları);
+`terrainSeatSafetyCheck.js` 14/14 koltuk PASS; `roadNetworkSafetyCheck.js` 13/13 kenar + dağ-kaçınma
++ nehir-çakışmama PASS; `checkPwaInstallability.js`/`checkServiceWorkerCache.js`/
+`checkCreatureSpeciesConfig.js`/`checkDialogueChoicesShape.js` hepsi OK; tam
+`scripts/smokeTestGame3D.js` **34/34 PASS**, 0 konsol/sayfa hatası (rebase'ler öncesi ve sonrası,
+üç kez tekrarlandı). Bu, madde 9'un (FAZ 7/5-6) hayvan/kale bloklarının değişmediğini de doğruladı.
+Madde 10 (yeni özellik) run 120-124'ün kurduğu düşük riskli katkı deseniyle devam edildi.
+
+### Sub-task: zamandan bağımsız `crow_flock` dünya olayı (ADR-0150)
+
+FAZ 8 dünya olayı havuzuna RARE ağırlıklı, gate'siz `crow_flock` ("Karga Sürüsü") girdisi eklendi —
+kale surları üzerinde toplanan bir karga sürüsünün aniden dağılmasını anlatan, `dragon_shadow`/
+`red_comet`/`wildling_rumor`/`mourning_bells` ile aynı "belirsiz alâmet" ailesinden, kuş temalı
+önceki girdilerden (mesaj taşıyan `raven` ailesi, gün ışıklı `falconer_flight`, gece `owl_watch`)
+tonca ayrışan yeni bir görüntü. Mevcut ağırlıklı seçim/toast sunum yolu aynen kullanıldı; yeni
+geometri/materyal/timer/listener yok.
+
+**DoD / doğrulama:** Değişen tek gerçek kod dosyası (`gameplay/worldEvents.js`) + `DECISIONS.md`
+tam syntax taraması temiz. `checkSmokeCheckRegistry.js` yeniden PASS (34/14, boyut sınırı içinde).
+500 seed × 30 tetikleme (15.000 çekiliş, alternan gündüz/gece `nightFactor`) ile gerçek modül
+üzerinden yapılan bir erişilebilirlik ispatı (committed değil, atılan script) `crow_flock`'un hem
+gündüz hem gece erişilebilir olduğunu ve havuzdaki 34 id'nin hepsinin en az bir kez çekildiğini
+(eksiksiz, çakışmasız) doğruladı. Tam Playwright smoke suite değişiklik sonrası yeniden çalıştırıldı
+(bkz. aşağıdaki addendum). Veri-only ekleme yeni bir görsel yüzey oluşturmadığından önceki
+flavor-event ADR'leriyle aynı gerekçeyle yeni ekran görüntüsü gerektirmedi. Konsol açısından yeni
+çalışma zamanı yolu yoktur. Teknik borç sayacı: **0**. Güven: **5/5**.
+
+**AI Self-Review 2. Geçiş:** Yeni girişten önceki 33 entry'nin `desc` metinleri tek tek yeniden
+okunarak hiçbirinin aynı "toplu kuş sürüsü, ürkütücü alâmet" görüntüsünü zaten kapsamadığı teyit
+edildi (en yakın tonal komşular `dragon_shadow`/`red_comet`/`wildling_rumor` ile karşılaştırıldı).
+Ağırlık seçimi (RARE, COMMON/UNCOMMON değil) ve gate kararı (ungated) yukarıdaki ADR-0150'de gerekçeli.
+`TEMP`/`HACK`/`FIXME`/`WORKAROUND` yorumu yok.
+
+**Memory-leak checklist:** veri-only ekleme; listener/timer/DOM/geometry/material tahsisi yok.
+**Performans:** olay seçimi yalnız tetikleme anında 34 elemanlı sabit bir dizi üzerinde çalışır;
+frame başına yeni maliyet yok.
+
+**World Evolution Report:** dünya olayı havuzu 33'ten **34** girdiye çıktı (gated 9, ungated 25);
+smoke kapsamı 34/14 olarak değişmedi; ADR sayısı 149'dan **150**'ye çıktı (bu run'ın rebase'leri
+öncesi iki eşzamanlı run zaten 147'den 149'a çıkarmıştı). World Coverage masaüstü/mobil 96.2% / 4.5%
+değişmedi. Oyuncu fark eder: evet, küçük ölçekte; seyrek bir karga sürüsü görüntüsü görebilir.
+
+**Next step:** her zamanki taze `origin/main` fetch ve öncelik taraması; 6 dokusuz kale ile FAZ 6
+model bekleyen türler (at/araba/köpek-kedi/kuş) hâlâ manuel asset kaynağı bekliyor. Sonraki catch-up
+~run 128, platform kontrolü ~run 132-142, kural konsolidasyonu ~run 136 — hepsi hâlâ güncel.
+
+**Run-125 performans addendum:** Değişiklik sonrası tam Playwright smoke suite üç kez yeniden
+çalıştırıldı (değişiklik sonrası, ilk rebase sonrası, ikinci rebase sonrası): her seferinde
+**34/34 PASS**, 0 FAIL, 0 konsol/sayfa hatası — pre-change baseline'la birebir aynı. Gerçek Chromium
+snapshot `perf_log.csv`'ye `run125` satırı olarak eklendi (iki rebase sırasında sırasıyla `run123`
+ve `run124` olarak çakışan etiketler yeniden numaralandırıldı): 3 FPS örnek anı / 50 draw call /
+608,296 triangle / 48 geometry / 17 texture / 347 MB heap — draw call/triangle/geometry/texture
+sayıları run120'den beri değişmeyen değerlerle birebir aynı (veri-only ekleme, yeni render yüzeyi
+yok); beklenen sonuç budur.
+
+**PR #27 review addendum:** `chatgpt-codex-connector[bot]` otomatik incelemesi `crow_flock`'un
+ikonunun (`🐦‍⬛`, ZWJ birleşik "kara kuş" dizisi — Emoji 15.0, 2023) projenin belgelediği iOS 13+
+temel destek yolunda düzgün render edilmeyebileceğini (eski emoji fontlarında kuş + siyah kare olarak
+ayrı ayrı görünür) doğru biçimde işaret etti. Tek code-point, evrensel destekli `🐦` (aynı temel kuş
+glifi, Unicode 6.0'dan beri var) ile değiştirildi — `raven` ile aynı temel ikonu paylaşır ama başlık/
+açıklama/renk zaten yeterince ayırt edici olduğundan (bkz. ADR-0150's Alternatifler) bu kabul
+edilebilir bir ödünleşim. Metin/lore/ADR gerekçesi değişmedi, yalnız ikon glifi düzeltildi.
