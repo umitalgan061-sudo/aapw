@@ -101,9 +101,11 @@ const WORLD_EVENTS = Object.freeze([
 	{ id: 'owl_watch', icon: '🦉', title: 'Baykuş Nöbeti', desc: 'Ay ışığında bir baykuş kale surlarına konuyor; nöbetçiler sessiz kanat sesini dinliyor.', color: '#6f7898', weight: WEIGHT.COMMON, timeOfDay: 'night' },
 	{ id: 'crow_flock', icon: '🐦', title: 'Karga Sürüsü', desc: 'Kale surlarının üzerinde toplanan bir karga sürüsü aniden havalanıp dağılıyor — kimileri bunu kötü bir işaret sayar.', color: '#2e2e33', weight: WEIGHT.RARE },
 	{ id: 'midwife_summoned', icon: '👶', title: 'Ebe Çağrısı', desc: 'Kale içinde bir ebe aceleyle bir kuleye çağrılıyor — bir doğum yaklaşıyor.', color: '#d4849a', weight: WEIGHT.UNCOMMON },
+	{ id: 'nightswatch_levy', icon: '🏴', title: 'Gece Nöbeti Devşirmesi', desc: 'Kara pelerinli bir devşirici kale kapısında duruyor — Duvar için gönüllü ya da mahkûm arıyor.', color: '#1c1c22', weight: WEIGHT.UNCOMMON },
 ]);
 // Run 126 live count: 9 of 35 entries are time-gated; the JSDoc/comment above retain earlier runs'
 // snapshots rather than being edited in place (GOVERNANCE.md §2 madde 9, additive-only diff guard).
+// Run 128 live count: 9 of 36 entries are time-gated.
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
  * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test

@@ -6,6 +6,26 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 128 itibarıyla (2026-08-07)
+
+Son 10 çalıştırmanın (119-128) en görünür gelişmesi kale keşfi etrafında: artık bir kaleye ilk kez
+vardığında bildirimde "1 / 14 yerleşim keşfedildi" gibi bir ilerleme sayacı görüyorsun, son 14.
+koltuğa da vardığında kart "Tüm yerleşimler keşfedildi" yazıp hafifçe altın parlıyor, ve pusula artık
+zaten gittiğin kaleyi tekrar göstermek yerine gitmediğin en yakın koltuğa yöneliyor (hepsini
+gezdiysen gizleniyor). İkinci gelişme dünya olayları bildirim havuzunda: beş yeni kart eklendi — gün
+ışığında bir doğancının şahin uçurması, gece kale surlarına konan bir baykuş, aniden dağılan bir
+karga sürüsü, bir kuleye aceleyle çağrılan bir ebe (yaklaşan bir doğumun habercisi), ve Duvar için
+gönüllü/mahkûm arayan kara pelerinli bir Gece Nöbeti devşiricisi — havuz artık 36 farklı karta çıktı.
+Perde arkasında iki şey oldu: proje sahibi doğrudan repoya bir "sadece ekleme" güvenlik kontrolü ekledi
+(artık hiçbir commit mevcut bir kod satırını silemez/değiştiremez, sadece yeni satır ekleyebilir —
+bu artık kalıcı bir kural) ve dünya olayları listesinin bozulmadığını otomatik doğrulayan yeni bir
+test eklendi. Açık kalan en büyük konular hâlâ aynı: 6 kale hâlâ dokusuz duruyor (gerçek 3D model
+bekleniyor), at/araba/köpek-kedi/kuş gibi hayvanlar için model bekleniyor, ve sızmış NVIDIA API
+anahtarını kendi tarafında iptal etmen hâlâ senin yapman gereken bir iş (bkz.
+`QUESTIONS_FOR_OWNER.md`).
+
+---
+
 ## Run 118 itibarıyla (2026-08-07)
 
 Son 10 çalıştırmanın (109-118) en büyük gelişmesi: dünya artık gerçekten çıplak değil — zemine ilk

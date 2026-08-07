@@ -12764,3 +12764,111 @@ kalındı.
 - Görsel doğrulama: runtime görsel davranışı değişmedi; gerçek 2D/3D browser boot ve UI smoke doğrulandı.
 - ADR: runtime/mimari davranış değişmediği için yeni ADR gerekmiyor.
 - Teknik borç: 0 yeni borç. World Coverage: değişmedi. World Evolution delta: 0. Risk: LOW. Güven: 5/5.
+
+## This Run (2026-08-07, run 128 — scheduled autonomous routine)
+
+**Concurrency/snapshot:** `git fetch origin main` sonrası local, `origin/main`'in tepesiyle
+(`5a5e241`, run 127'nin governance validation guard'ı) aynıydı — divergence yok. `GOVERNANCE.md`
+tam okundu: bu run'ın fired prompt'unda listelenen tüm kurallar (her 🆕 madde dahil) zaten kendi
+numaralı bölümünde mevcut, yeniden oluşturma gerekmedi. `3D_GAME_PROGRESS.md` son 3 run
+(125/126/127), `DECISIONS.md` son 3 ADR (0150/0151/0152), `QUESTIONS_FOR_OWNER.md` tam (yeni
+belirsizlik yok, run 63'ün sızmış NVIDIA anahtarı maddesi hâlâ açık, owner aksiyonu bekliyor)
+okundu. `CREDITS.md` zaten mevcut ve dosya üzerindeki asset kaynaklarını kapsıyor.
+
+**Baseline regression guard:** tam `node --check` taraması (`src/`+`scripts/`+`script.js`+
+`service-worker.js`) sıfır hata. `checkSmokeCheckRegistry.js` 34 check/14 modül, 82 dosya 600 satır
+sınırının altında. `checkAssetsManifest.js` 41/41, `checkPwaInstallability.js`/
+`checkServiceWorkerCache.js`/`checkCreatureSpeciesConfig.js`/`checkDialogueChoicesShape.js`/
+`checkWorldEventCatalog.js` hepsi OK (katalog: 35 unique event, 9 gated, run 127'nin yeni guard'ı).
+`terrainSeatSafetyCheck.js` **14/14 PASS**, `roadNetworkSafetyCheck.js` **13/13 PASS**.
+`checkAdditiveOnlyDiff.js` PASS. Tam `smokeTestGame3D.js` değişiklik ÖNCESİ **34/34 PASS**, 0 FAIL, 0
+konsol/sayfa hatası (baseline).
+
+**Öncelik taraması (§18):** madde 1/1.2/1.5 kendi statik guard'larıyla (yukarıda) yeniden doğrulandı,
+temiz. Madde 1.7 (kale dokulandırma) hâlâ manuel asset bekliyor (6 kale dokusuz). Madde 2-9
+(sözdizimi/blocking bug/performans/memory leak/teknik borç/smoke/coverage/FAZ 7-5-6) tam baseline
+taramasıyla temiz. `3D_GAME_PROGRESS.md`'nin son "Next step" notu ve §13'ün "İnsan Yakalama Özeti"
+kuralı, `CATCH_UP.md`'nin son girişinin run 118'i kapsadığını ve sıradaki özetin ~run 128'de (şimdi)
+gerekli olduğunu doğruladı — 10-run kadans doldu.
+
+### Sub-task 1: `CATCH_UP.md` 10-run insan yakalama özeti (run 119-128)
+
+`GOVERNANCE.md` §13'ün kuralı gereği, önceki `CATCH_UP.md` girdisinin (run 118) kapsadığı tarihten
+bu yana geçen 10 çalıştırmanın (119-128) gerçek özetleri `3D_GAME_PROGRESS.md`'den tek tek okunarak
+(hafızadan veya varsayımdan değil) yeni, en üste eklenen bir paragraf yazıldı: yerleşim-keşif
+ilerleme sayacı (run 122), tüm-yerleşimler-keşfedildi tamamlama bildirimi (run 123), keşfedilmemiş
+koltuğa yönelen pusula (run 124), beş yeni dünya olayı kartı (falconer_flight run120, owl_watch
+run121, crow_flock run125, midwife_summoned run126, bu run'ın kendi nightswatch_levy'si — bkz. Sub-task
+2), additive-only diff guard'ın kalıcı kural haline gelmesi (run 126) ve yeni katalog bütünlük testi
+(run 127). Run 119'un kendisi (önceki catch-up'ı yazan run) meta bir doküman güncellemesi olduğundan
+oyun-içi içerik listesine dahil edilmedi.
+
+**DoD / doğrulama:** Yalnız `.md` değişti (additive — mevcut hiçbir satır silinmedi/değiştirilmedi).
+Her somut iddia (5 yeni dünya olayı kartı, 3 keşif-UI özelliği, 2 perde-arkası kural/test) kendi
+kaynak run girdisine karşı çapraz kontrol edildi, gevşek paraphrase edilmedi. `TEMP`/`HACK`/`FIXME`/
+`WORKAROUND` yok. Memory-leak checklist: n/a, runtime kod dokunulmadı. Teknik borç: **0**. Güven:
+**5/5** — "6 ay sonra hâlâ net mi" tereddüdü yok, özet somut özellik/dosya adları kullanıyor.
+
+### Sub-task 2: zamandan bağımsız `nightswatch_levy` (Gece Nöbeti Devşirmesi) dünya olayı (ADR-0153)
+
+FAZ 8 dünya olayı havuzuna UNCOMMON ağırlıklı, gate'siz `nightswatch_levy` girdisi eklendi — kara
+pelerinli bir devşiricinin kale kapısında Duvar için gönüllü/mahkûm aradığını anlatan, mevcut
+`wildling_rumor`/`shackled_prisoner` ile aynı Gece Nöbeti lore ailesinden ama farklı bir an (devşirme
+*eylemi*, zaten olmuş bir şeyin anlatımı değil) yeni bir girdi. Mevcut ağırlıklı seçim/toast sunum
+yolu aynen kullanıldı; yeni geometri/materyal/timer/listener yok. Tam gerekçe/alternatifler
+`DECISIONS.md` ADR-0153'te.
+
+**DoD / doğrulama:** Değişen tek gerçek kod dosyası (`gameplay/worldEvents.js`) syntax-clean.
+`checkWorldEventCatalog.js` yeniden PASS (36 unique, 9 gated). `checkSmokeCheckRegistry.js` yeniden
+PASS (34/14). 500 seed × 30 tetikleme (15.000 çekiliş, alternan gündüz/gece `nightFactor`) ile
+gerçek modül üzerinden (geçici `.mjs` kopya, committed değil) yapılan bir erişilebilirlik ispatı
+`nightswatch_levy`'nin hem gündüz hem gece erişilebilir olduğunu ve havuzdaki 36 id'nin hepsinin en
+az bir kez çekildiğini (eksiksiz, çakışmasız) doğruladı: 468 çekiliş `nightswatch_levy` için (221
+gündüz, 247 gece). Değişiklik SONRASI tam Playwright smoke suite yeniden çalıştırıldı (bkz. aşağıdaki
+addendum). Veri-only ekleme yeni bir görsel yüzey oluşturmadığından önceki flavor-event ADR'leriyle
+aynı gerekçeyle yeni ekran görüntüsü gerektirmedi. Teknik borç sayacı: **0**. Güven: **5/5**.
+
+**AI Self-Review 2. Geçiş:** Yeni girişten önceki 36 (35+bu) entry'nin `desc` metinleri tek tek
+yeniden okunarak hiçbirinin "devşirme/asker toplama" temasını zaten kapsamadığı teyit edildi (en
+yakın tonal komşular `wildling_rumor`/`shackled_prisoner`/`sellsword_arrival` ile karşılaştırıldı);
+icon seçimi (`🏴`) `mourning_bells`'in `🖤`'ından bilinçli olarak farklı tutuldu (ilk taslak `🖤`
+kullanmıştı, aynı ikonu paylaşan iki ayrı kart okunurluğu azaltacağından değiştirildi). `TEMP`/
+`HACK`/`FIXME`/`WORKAROUND` yorumu yok.
+
+**Memory-leak checklist:** veri-only ekleme; listener/timer/DOM/geometry/material tahsisi yok.
+**Performans:** olay seçimi yalnız tetikleme anında 36 elemanlı sabit bir dizi üzerinde çalışır;
+frame başına yeni maliyet yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 128 end) | Delta |
+|---|---|---|---|
+| `worldEvents.js` flavor-pool entries | 35 | **36** | +1 (`nightswatch_levy`) |
+| `worldEvents.js` gated entries | 9 | **9** | değişmedi (ungated) |
+| `CATCH_UP.md` entries | 12 (last: run 118) | **13** | +1 (run 128 recap) |
+| Smoke suite | 34/34 | **34/34** | değişmedi |
+| `checkSmokeCheckRegistry.js` | 34 checks/14 modül | **34 checks/14 modül** | değişmedi |
+| ADR headers in `DECISIONS.md` | 152 | **153** | +1 (ADR-0153) |
+| World Coverage (desktop / mobil) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** evet, küçük ölçekte — seyrek bir Gece Nöbeti devşirici bildirimi görebilir.
+`CATCH_UP.md` güncellemesi tamamen proje sahibine yönelik, oyunda görünmez.
+
+**Next step:** her zamanki taze `origin/main` fetch ve öncelik taraması; 6 dokusuz kale ile FAZ 6
+model bekleyen türler (at/araba/köpek-kedi/kuş) hâlâ manuel asset kaynağı bekliyor. Sonraki catch-up
+~run 138, platform kontrolü ~run 132-142, kural konsolidasyonu ~run 136 — hepsi güncel.
+
+**Oturum Kalite Kapısı:** 2 alt görev tamamlandı, güven skoru her ikisinde de 5/5, "6 ay sonra hâlâ
+net mi" tereddüdü yok — devam edilebilir. Çalışma Süresi Sınırı/Çalıştırma Geneli Süre Tavanı içinde
+kalındı.
+
+**Addendum:** smoke-suite sonrası tekrar çalıştırma sonucu, perf snapshot ve commit/push sonucu bu
+run'ın aşağıdaki addendum satırında ve `STABLE_TAGS.md`'de kayıtlıdır.
+
+**Run-128 performans addendum:** Değişiklik sonrası tam Playwright smoke suite yeniden çalıştırıldı:
+**34/34 PASS**, 0 FAIL, 0 konsol/sayfa hatası — pre-change baseline'la birebir aynı.
+`collectPerfSnapshot.js run128`: 2 FPS örnek anı / 50 draw call / 608,296 triangle / 48 geometry /
+17 texture / 326 MB heap — draw call/triangle/geometry/texture sayıları run120'den beri değişmeyen
+değerlerle birebir aynı (veri-only ekleme, yeni render yüzeyi yok); beklenen sonuç budur.
+`perf_log.csv` güncellendi.
