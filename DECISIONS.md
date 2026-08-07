@@ -12836,3 +12836,156 @@ two comment-count fixes (would need to be manually restored to their prior wordi
 bit-for-bit revert, though leaving the corrected counts is harmless either way), and the
 `GOVERNANCE.md` §16 table-row correction (reverting that specific line is harmless either way too,
 since it's now simply more accurate than before). Nothing else references `sellsword_arrival`.
+
+## ADR-0142: `alms_giving` — a new COMMON, day-gated world event (`worldEvents.js` flavor-pool growth)
+
+**Status:** Accepted (run 115 — scheduled autonomous routine).
+
+**Risk Seviyesi:** LOW — one additive flavor-data entry appended to `WORLD_EVENTS`, plus two
+one-line relative-count comment updates in the same file, plus two new assertion fields added to
+an existing statistical smoke check (id-based, additive, no existing assertion removed/changed);
+no world/save/render-state mutation, no shared module touched, no new check module.
+
+**Context:** Fresh session/context (new scheduled firing). `GOVERNANCE.md` (all sections, already
+complete — this run's own fired-prompt text still says "create GOVERNANCE.md first", already
+satisfied by an earlier run, re-confirmed via `wc -l`/section headers rather than recreated;
+`CREDITS.md`/`CATCH_UP.md`/`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md`/
+`perf_log.csv` likewise already exist, none recreated), `3D_GAME_PROGRESS.md`'s run 114 entry,
+`DECISIONS.md`'s last 3 ADRs (0139-0141), and `QUESTIONS_FOR_OWNER.md` in full (no unresolved item
+forcing this run's hand; run-63 leaked-key entry stays open pending owner action, unchanged) all
+read first per the Session Snapshot procedure. `ARCHITECTURE.md` not re-read (last touched
+2026-08-07, same day, under the 7-day threshold). `git fetch origin main` found the local
+container's repo HEAD-detached at `origin/main`'s real tip (`31d7a38`, run 114's stable-tag commit)
+— resynced via `git checkout -B main origin/main` before touching anything, per run 114's own
+precedent for the same situation.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`) —
+clean, 87 files pre-change. Standing guards clean (`checkSmokeCheckRegistry.js`: 33 checks/13
+modules, zero line-count WARNs; `terrainSeatSafetyCheck.js` 14/14; `roadNetworkSafetyCheck.js`
+13/13 edges). Full `scripts/smokeTestGame3D.js`: **33/33 PASS**, 0 FAIL, zero console/page errors
+(pre-change baseline).
+
+**Priority re-scan (§18):** items 1-3 (macro relief/road network/terrain color) confirmed closed
+per their own standing safety-check guards (re-run above). Item 4 (remaining 6 kingdom-seat
+textures) stays asset-blocked, unchanged. Items 5-8/10-11 all clean per the baseline sweep — no
+file near the 600-line cap (`game3d.js` 482/600, `dragonController.js` 423/600, `vegetation.js`
+429/600 all have real headroom). Item 9 (teknik borç): zero, no fresh candidate. Items 12-13 (FAZ 7
+dragon follow-ups — reactive flight/dive/pursuit/attack all already shipped per `gameplay/README.md`
+and `dragons.js`'s own header; FAZ 5-6 remaining animals — horse/cart/dog-cat/bird — and FAZ 11
+species) remain model/owner-decision-blocked, re-confirmed unchanged (no new asset appeared in
+`assets/` or `assets_manifest.json` this run). §8.12/§13/§15 maintenance windows checked: rule
+consolidation next due ~run 116 (one run away, not yet due — last done run 96, ~20-run cadence),
+`CATCH_UP.md` next due ~run 118 (last done run 108), next platform check ~run 132-142 — none due
+this specific run. Run 114's own follow-up (growing `PHASE1_PREVIEW_RADIUS_CHUNKS`/force-grounding
+Xaro/Night King for vegetation clustering) still needs its own dedicated perf-measurement sub-task
+per `debug/README.md`'s standing note — not attempted half-measured this run either. With 1-13
+exhausted, item 14 (new feature) taken again, following run 102/103/110-114's own established
+low-risk precedent: grow `worldEvents.js`'s flavor pool by one entry.
+
+**Decision:** Add `alms_giving` — a COMMON-rarity, day-gated (`timeOfDay: 'day'`) event ("Sadaka
+Dağıtımı" / "Kale kapısında bir septon dilencilere ekmek dağıtıyor, uzun bir sıra oluşmuş."). A
+septon distributing bread to beggars at a castle gate is a genre-appropriate, mundane feudal-life
+occurrence (charity/almsgiving by the Faith of the Seven is established franchise texture) distinct
+from every existing entry: `sept_prayer` is candlelight *inside* a Sept (worship, no crowd, any
+time), not almsgiving *at the gate* (charity, daytime, a visible line of people); `market_day` is
+commerce/haggling over goods, not charity; `harvest_wagons` is grain arriving, not food being given
+away; `hunting_party`/`shackled_prisoner`/`sellsword_arrival` are all about a specific
+person/party's own arrival or return, not an ongoing charitable act. Read all 29 prior `desc`
+strings before writing this Decision (not assumed) to confirm no genuine overlap. Day-gated because
+alms lines at a gate are a daytime feudal-life activity, matching `harvest_wagons`/`market_day`'s
+own precedent for unambiguous-by-convention daytime activities (ADR-0111's gating rubric — only
+gate entries whose own text/real-world convention is unambiguous). COMMON (not UNCOMMON) because
+this reads as routine background detail a player could plausibly see most days, matching this
+project's own COMMON definition (ADR-0110) — same tier as `guard_change`/`blacksmith_hammer`/
+`sept_prayer`, not a specific notable one-off like `sellsword_arrival`/`trade_caravan`.
+
+Implemented as one new `Object.freeze`-array entry appended to `WORLD_EVENTS` in
+`gameplay/worldEvents.js`, plus its two existing relative-count header comments updated in place
+("6 of 29" -> "7 of 30" carrying a `timeOfDay` gate; "23 of 29" -> "23 of 30" carrying none — the
+gated count moves by one since this addition is itself gated, unlike ADR-0141's ungated addition)
+so neither goes stale, matching ADR-0130/ADR-0141's own precedent. Also extended the existing
+`checkWorldEventsTimeGating` smoke check (`scripts/game3dSmokeChecksDebugTools.js`) with two new
+assertions (`noonFiresAlmsGiving`, `midnightNeverFiresAlmsGiving`) alongside its existing
+`harvest_wagons`/`market_day` day-gate assertions — every day-gated entry in the pool now has its
+own explicit gating proof in this check, not just the two that existed before this run.
+
+**Gelecek Faz Etkisi:** none — purely additive flavor content, no new system, no branching/state/
+persistence hook. A future FAZ 8 expansion (a charity/poverty mechanic tied to a per-kingdom economy)
+would read this same `WORLD_EVENTS` array shape; nothing here forecloses that.
+
+**Değişiklik Etki Analizi:** affected systems — `gameplay/worldEvents.js` (the new entry + its two
+comment fixes) and `scripts/game3dSmokeChecksDebugTools.js` (the two new assertion fields in
+`checkWorldEventsTimeGating`). Zero edits to `world/terrain.js`/`world/roads.js`/`world/rivers.js`/
+`world/settlements.js`/any height-sampler code, so **Arazi Değişikliği Güvenlik Kontrolü does not
+apply** (both existing safety scripts re-run as due diligence anyway — `terrainSeatSafetyCheck.js`
+**PASS 14/14** and `roadNetworkSafetyCheck.js` **PASS** 13/13 edges, both unchanged from run 114's
+recorded values). No edit to `pickWeightedEvent`'s selection logic, `isEligible`'s gating logic, or
+`ui/worldEventToast.js`'s rendering — the existing gating check asserts by *id name*, so its
+existing assertions needed no change, only additive new ones for the new id.
+
+**Real headless-Chromium proof, 2 viewports, zero console/page errors in both** (dev-only,
+uncommitted proof script written to the session scratchpad — never inside the repo tree, matching
+ADR-0130/ADR-0141's own precedent): the real `game3d.html` was booted, the live
+`createWorldEventSystem`/`EventBus`/`WorldEventToast` modules dynamically imported and driven
+through their real APIs. Searched seeds 1-5000 for one whose first forced-noon draw is
+`alms_giving` (found: seed 7). Separately confirmed the day gate holds across 1000 forced-midnight
+draws on that same seed (`alms_giving` never appears). (1) Desktop 1280x720: re-emitted through a
+real `EventBus`, confirmed the real toast DOM's `.g3d-event-toast-title`/`.g3d-event-toast-desc`
+`textContent` match the picked payload's `title`/`desc` exactly (Turkish characters `Dağıtımı`/
+`dilencilere` included, no encoding mangling), `hidden === false`. (2) Mobile 390x844: the same
+deterministic seed's draw rendered the same real toast at `top: 184px` — bit-identical to
+ADR-0141's own recorded mobile toast position, confirming the anchor point is stable across
+pool-growth changes. Zero console/page errors throughout both viewports.
+
+**Sonuç:** `node --check` clean on both changed files (`gameplay/worldEvents.js` ~187 lines,
+`scripts/game3dSmokeChecksDebugTools.js` ~404 lines — both real headroom) plus a full repo sweep
+(87 JS files, unchanged — no new file this run). `checkSmokeCheckRegistry.js`: unchanged **33
+checks/13 modules**, zero line-count WARNs. Full `smokeTestGame3D.js` re-run after the change:
+**33/33 PASS**, 0 FAIL, zero console/page errors — the extended gating check's new assertions pass
+alongside its unmodified existing ones. `collectPerfSnapshot.js run115` sample: drawCalls/triangles/
+geometries/textures all bit-identical to run114 (50/608296/48/17) — expected, config-data-only
+change. Teknik borç sayacı: **0** (unchanged). Konsol Temizliği: zero console/page errors across
+the full smoke suite re-run and the proof script's own two viewports.
+
+**AI Self-Review 2. Geçiş:** independently re-verified — confirmed no existing entry's theme
+genuinely overlaps (re-read all 29 prior `desc` strings before writing the Decision, not assumed,
+paying particular attention to `sept_prayer`/`market_day`/`harvest_wagons` as the closest tonal
+neighbors and confirming each is distinct by subject/location/act, not just by wording); confirmed
+the comment-count arithmetic by hand (6 gated + 23 ungated = 29 before; 7 gated + 23 ungated = 30
+after — both internally consistent with `WORLD_EVENTS.length`); confirmed the extended smoke
+check's new assertions are purely additive (no existing assertion's expected value changed) and
+that `Object.values(result).every(...)` still requires every field `true`, so a broken new
+assertion would fail the whole check, not silently pass; confirmed the proof script's seed-search
+loop disposes every probe system/bus across up to 5000 iterations before creating the real, kept
+instances, and that the script itself was never written inside the repo tree. No `TEMP`/`HACK`/
+`FIXME`/`WORKAROUND`. Memory leak checklist: n/a (config-data-only in `worldEvents.js`; the check
+extension only adds local `const`s already disposed with their systems; the proof script is never
+committed).
+
+**Session Quality Gate:** confidence **5/5** — low-risk, well-proven pattern (same shape as
+ADR-0102/0110/0111/0129/0130/0141), a genuinely distinct new entry verified against every prior
+entry's text, zero regression in the full smoke suite, real 2-viewport proof with exact-text DOM
+assertions, the day-gate itself independently proven (not just assumed from the config field), zero
+open design ambiguity worth escalating. "6 ay sonra hâlâ net mi" tereddüdü yok — this ADR spells out
+exactly which prior entries were checked and why each is distinct, and the gating proof is a real
+assertion, not a restated config value.
+
+**Alternatives Considered:**
+- **UNCOMMON tier instead of COMMON** — rejected: this is routine, unremarkable feudal-life texture
+  (like a septon's daily duty), not a specific notable occurrence a player would remark on the way
+  `sellsword_arrival`/`trade_caravan` are.
+- **Ungated (any time of day)** — rejected: an alms line reads as an unambiguously daytime activity
+  by real-world convention, matching this pool's own established rubric (ADR-0111) for which
+  entries get gated.
+- **A real charity/poverty mechanic (gold cost, reputation effect)** — out of scope: the 3D world
+  has no per-kingdom economy yet (see module header); this stays pure flavor, matching every other
+  `worldEvents.js` addition to date.
+- **Reuse `sept_prayer`'s existing entry instead of adding a new one** — rejected: they are
+  genuinely different acts (private candlelight worship vs. a public charity line at the gate) and
+  merging them would lose the distinct visual/narrative beat either could offer alone.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new `WORLD_EVENTS` entry, the
+two comment-count fixes (would need to be manually restored to their prior wording for a strict
+bit-for-bit revert, though leaving the corrected counts is harmless either way), and the two new
+smoke-check assertion fields (removing them is harmless — the check still passes with its original
+assertion set). Nothing else references `alms_giving`.

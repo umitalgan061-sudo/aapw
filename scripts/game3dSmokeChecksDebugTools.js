@@ -355,6 +355,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 			const noonFiresEclipse = noonIds.has('eclipse');
 			const noonFiresHarvestWagons = noonIds.has('harvest_wagons');
 			const noonFiresMarketDay = noonIds.has('market_day');
+			const noonFiresAlmsGiving = noonIds.has('alms_giving');
 
 			const midnightIds = new Set();
 			const midnightSystem = createWorldEventSystem({ eventsBus: bus, seed: 2, eventName: 'midnight' });
@@ -364,6 +365,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 			const midnightNeverFiresEclipse = !midnightIds.has('eclipse');
 			const midnightNeverFiresHarvestWagons = !midnightIds.has('harvest_wagons');
 			const midnightNeverFiresMarketDay = !midnightIds.has('market_day');
+			const midnightNeverFiresAlmsGiving = !midnightIds.has('alms_giving');
 			const midnightFiresSomeNightOnly = NIGHT_ONLY_IDS.some((id) => midnightIds.has(id));
 
 			// Pre-ADR-0111 call shape: no nightFactor argument at all must still fire without throwing.
@@ -378,6 +380,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 				noonNeverGatesInNightOnly, noonFiresEclipse,
 				noonFiresHarvestWagons, midnightNeverFiresHarvestWagons,
 				noonFiresMarketDay, midnightNeverFiresMarketDay,
+				noonFiresAlmsGiving, midnightNeverFiresAlmsGiving,
 				midnightNeverFiresEclipse, midnightFiresSomeNightOnly,
 				legacyCallStillFires,
 			};
@@ -388,7 +391,7 @@ async function checkWorldEventsTimeGating(browser, baseUrl) {
 	await page.close();
 	const ok = result && Object.values(result).every((value) => value === true);
 	const details = ok
-		? 'forced noon (nightFactor=0) across 1000 draws never emitted a night-restricted id and did emit eclipse/harvest_wagons/market_day; forced midnight (nightFactor=1) across 1000 draws never emitted eclipse/harvest_wagons/market_day and did emit a night-restricted id; the pre-gating 1-argument update(delta) call shape still fires without throwing'
+		? 'forced noon (nightFactor=0) across 1000 draws never emitted a night-restricted id and did emit eclipse/harvest_wagons/market_day/alms_giving; forced midnight (nightFactor=1) across 1000 draws never emitted eclipse/harvest_wagons/market_day/alms_giving and did emit a night-restricted id; the pre-gating 1-argument update(delta) call shape still fires without throwing'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
 	return { name: 'world-event day/night gating (gameplay/worldEvents.js, ADR-0111)', ok, details };
 }
