@@ -13557,3 +13557,52 @@ kaldırılarak önceki 34-entry havuza dönülebilir; şema veya kalıcı kayıt
 
 **Gelecek faz etkisi:** Yok. FAZ 9 ses/cila veya ilerideki NPC/aile sistemine bağımlılık eklemez;
 ileride bir soy/hanedan mekaniği gelirse bu toast bağımsız kalabilir veya ayrı ADR ile bağlanabilir.
+
+## ADR-0153 — Zamandan bağımsız `nightswatch_levy` (Gece Nöbeti Devşirmesi) dünya olayı (run 128)
+
+**Risk seviyesi:** LOW
+
+**Karar:** FAZ 8 dünya olayı havuzuna UNCOMMON ağırlıklı, `timeOfDay` gate'i olmayan
+`nightswatch_levy` ("Gece Nöbeti Devşirmesi") girdisi eklendi. Kara pelerinli bir devşiricinin kale
+kapısında Duvar için gönüllü ya da mahkûm aradığını anlatan, havuzdaki hiçbir mevcut girdinin
+kapsamadığı yeni bir "devşirme/asker toplama" görüntüsü — mevcut `wildling_rumor` (Duvar'ın
+ötesinden gelen korku söylentisi) ve `shackled_prisoner` (nöbetçilerin bir mahkûmu zindana
+sürüklemesi) ile aynı Gece Nöbeti/Duvar lore ailesinden ama farklı bir an: burada devşirici *dışarı*
+adam topluyor, önceki ikisi ise zaten olmuş bir şeyi anlatıyor. Mevcut ağırlıklı seçim/toast sunum
+yolu aynen kullanıldı; yeni geometri/materyal/timer/listener eklemedi.
+
+**Neden:** Bu run'ın öncelik taraması (bkz. bu run'ın Session Snapshot bölümü) madde 1-9'un hepsini
+temiz/tamamlanmış veya manuel asset bekleyen (madde 1.7, FAZ 6 hayvanları) olarak buldu — run
+125/126 ile aynı desen. Madde 10 (yeni özellik) kapsamında, Night's Watch/Duvar bu projenin lore'unda
+zaten önemli bir yer tutuyor (bkz. `jon-guard-1` NPC'si, ADR-0058) ama havuzdaki hiçbir mevcut girdi
+devşirme/asker toplama temasını doğrudan işlemiyordu — düşük riskli, kendi kendine yeten bir veri
+eklemesi seçildi.
+
+**Alternatifler:**
+- **`timeOfDay` gate'i** reddedildi — bir devşiricinin kale kapısında beklemesi günün her saatinde
+  gerçekleşebilir, metin belirli bir zamanı ima etmiyor; ADR-0111/ADR-0150/ADR-0152 ile aynı "yalnız
+  metni belirsiz olmayanlar gate'lenir" kuralı.
+- **RARE ağırlık** reddedildi — bir devşirme ziyareti `wildling_rumor`/`red_comet` gibi dramatik bir
+  alâmet değil, `shackled_prisoner`/`sellsword_arrival` gibi fark edilir ama günlük yaşamın bir
+  parçası sayılan notable bir olay; UNCOMMON bu ikisiyle aynı kayıtta.
+- **`wildling_rumor` ile birleştirme** reddedildi — o bir korku/söylenti, bu ise somut bir
+  devşirme ziyareti; ikisi farklı bir okunuş taşıyor (bkz. Karar bölümü).
+  **Doğrulama:** yeni girişten önceki 36 (35+bu) entry'nin `desc` metinleri tek tek yeniden okunarak
+  hiçbirinin "devşirme/asker toplama" temasını zaten kapsamadığı teyit edildi (en yakın tonal
+  komşular `wildling_rumor`/`shackled_prisoner`/`sellsword_arrival` ile karşılaştırıldı).
+
+**Sonuç / etkilenen sistemler:** Yalnız `gameplay/worldEvents.js` veri havuzu 35'ten 36 girdiye
+büyüdü (gated sayısı 9 olarak değişmedi, ungated sayısı 26'dan 27'ye çıktı). Mevcut ağırlıklı seçim,
+toast, güvenli-mod, day/night ve PWA cache yolları değişmez. 500 seed × 30 tetikleme (15.000
+çekiliş, alternan gündüz/gece `nightFactor`) ile gerçek modül üzerinden yapılan bir erişilebilirlik
+ispatı (committed değil, atılan `.mjs` script — run 125/126'nın aynı yöntemi) `nightswatch_levy`'nin
+hem gündüz hem gece erişilebilir olduğunu ve havuzdaki 36 id'nin hepsinin en az bir kez çekildiğini
+(eksiksiz, çakışmasız) doğruladı: 468 çekiliş `nightswatch_levy` için (221 gündüz, 247 gece), 36
+farklı id toplamda gözlemlendi.
+
+**Geri alma planı:** Tek `nightswatch_levy` veri satırı ve bir yorum-satırı sayaç güncellemesi
+kaldırılarak önceki 35-entry havuza dönülebilir; şema veya kalıcı kayıt migrasyonu yoktur.
+
+**Gelecek faz etkisi:** Yok. FAZ 9 ses/cila veya ilerideki bir Gece Nöbeti/devşirme quest hattına
+bağımlılık eklemez; ileride böyle bir mekanik gelirse bu toast bağımsız kalabilir veya ayrı ADR ile
+bağlanabilir.
