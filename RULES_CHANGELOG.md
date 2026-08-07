@@ -5,6 +5,20 @@
 
 ---
 
+- **Run 116 (2026-08-07, üçüncü konsolidasyon geçişi):** `GOVERNANCE.md` (96'dan beri ~20
+  çalıştırma sonra üçüncü kez) baştan sona gözden geçirildi. §16 Ertelenmiş Kurallar tablosu:
+  `SaveSystem` hâlâ yok (sahte pozitif — `game3d.js:177`'deki tek eşleşme kuralın kendi açıklayıcı
+  yorumu, "SaveSystem exists yet" ifadesinin bir parçası, gerçek bir modül değil), public API/mod
+  desteği hâlâ yok (sahte pozitif — `dragonController.js`'deki eşleşme "no other public API"
+  ifadesinin bir parçası), smoke test hâlâ yeterli (33/33 PASS, sık regresyon kaçmıyor), F2'nin
+  `renderer.info` istatistikleri hâlâ yeterli (FPS düşüşü/nedeni belirsizliği yaşanmadı) — dördü de
+  hâlâ aktivasyon koşulunu karşılamıyor, değişiklik yok. `perf_log.csv` artık 57 veri satırı (run
+  96'da 30+ eşiği geçilmişti, run 110'da ADR-0137 ile zaten ele alınmıştı — §16 satırı zaten "✅ Ele
+  alındı" işaretli, yeniden açılacak bir şey yok). §8.11 (tag push HTTP 403, run 58'den beri kalıcı)
+  ve §15 (periyodik platform kontrolü, son run 112, sıradaki ~run 132-142) hâlâ güncel ve doğru.
+  Başka çelişen/geçersiz madde bulunmadı; geri kalan tüm kurallar hâlâ geçerli ve aktif. Sıradaki
+  konsolidasyon ~run 136 civarı (veya bir FAZ tamamlanınca daha erken).
+
 - **Run 96 (2026-08-06, ikinci konsolidasyon geçişi):** `GOVERNANCE.md` (76'dan beri ~20 çalıştırma
   sonra ikinci kez) baştan sona gözden geçirildi. §16 Ertelenmiş Kurallar tablosu: `SaveSystem` hâlâ
   yok (sahte pozitif — `game3d.js`'deki tek eşleşme kuralın kendi açıklayıcı yorumu, gerçek bir

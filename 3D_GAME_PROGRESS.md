@@ -12126,3 +12126,88 @@ run either.
 
 **Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
 recorded in `STABLE_TAGS.md`.
+
+### Sub-task: Kural konsolidasyonu (§8.12, üçüncü geçiş) + `direwolf_track` — a new RARE, ungated world event (DECISIONS.md ADR-0143)
+
+**1) Kural konsolidasyonu (run 96'dan beri due):** `GOVERNANCE.md` baştan sona gözden geçirildi.
+§16'nın dört ertelenmiş maddesi hâlâ aktif değil (SaveSystem/mod API sahte pozitif eşleşmeler,
+smoke test + F2 istatistikleri hâlâ yeterli), §8.11/§15 hâlâ güncel. Değişiklik yok, tek satırlık
+kayıt `RULES_CHANGELOG.md`'ye düşüldü. Sıradaki konsolidasyon ~run 136.
+
+**2) `direwolf_track`:** `gameplay/worldEvents.js`'e bir yeni `Object.freeze`-array girdisi eklendi
+— bir direwolf'a ait olabilecek pençe izi, RARE, ungated (`sellsword_arrival` ile aynı gerekçe: bir
+iz her saatte bulunabilir). Dosyanın iki bağıl-sayı yorum satırı da yerinde güncellendi (7 of
+30→31 gated, 23→24 of 30→31 ungated). Tam gerekçe, tema-çakışma kontrolü (özellikle `wolf_howl`'a
+karşı), risk analizi (LOW) ve alternatifler `DECISIONS.md` ADR-0143'te.
+
+**Değişiklik Etki Analizi confirms:** no edits to `world/terrain.js`/`world/roads.js`/
+`world/rivers.js`/`world/settlements.js`/any height-sampler code — Arazi Değişikliği Güvenlik
+Kontrolü doesn't apply; both existing safety scripts re-run as due diligence anyway:
+`scripts/terrainSeatSafetyCheck.js` **PASS 14/14** and `scripts/roadNetworkSafetyCheck.js` **PASS**
+(13/13 edges), both byte-identical to run 115's recorded values.
+
+**DoD durumu:**
+- [x] `node --check` clean on the one changed file (`gameplay/worldEvents.js`) plus a full repo
+      sweep (78 JS files, unchanged)
+- [x] Smoke test — baseline **33/33 PASS** before, **33/33 PASS** after, 0 console/page errors both
+      times
+- [x] Görsel kanıt — real headless-Chromium proof (dev-only, scratchpad-only, never committed), 2
+      distinct real viewports (desktop 1280x720, mobile 390x844): searched seeds 1-20000 for one
+      whose first draw is `direwolf_track` (seed 73), separately confirmed it fires at both forced
+      noon (`nightFactor=0`) and forced midnight (`nightFactor=1`) — proving it's genuinely ungated,
+      confirmed the real toast DOM text matches the payload exactly (Turkish characters included),
+      confirmed the mobile toast's `top: 184px` matches ADR-0141/0142's own recorded anchor. Zero
+      console/page errors at both viewports.
+- [x] Performans bütçesi — `collectPerfSnapshot.js run116` sample: drawCalls/triangles/geometries/
+      textures all bit-identical to run115 (50/608296/48/17) — expected, config-data-only change
+- [x] Teknik borç sayacı — **0** (unchanged)
+- [x] `3D_GAME_PROGRESS.md` güncellendi (this entry)
+- [x] ADR yazıldı — `DECISIONS.md` ADR-0143 (Risk Seviyesi: LOW, Alternatives Considered, Geri alma
+      planı, Gelecek Faz Etkisi all present)
+- [x] Commit atıldı (below)
+- [x] Konsol Temizliği — zero console/page errors across the full smoke suite re-run and the proof
+      script's own two viewports
+
+**Yeni soru:** none — a discrete RARE/ungated tier choice under this project's own established
+rubrics (ADR-0110/ADR-0111), same reasoning every prior flavor-only `worldEvents.js` addition has
+used to skip a `QUESTIONS_FOR_OWNER.md` entry.
+
+**AI Self-Review 2. Geçiş (§8.3):** independently re-verified — confirmed no existing entry's theme
+genuinely overlaps (re-read all 30 prior `desc` strings, particular attention to `wolf_howl`);
+confirmed the comment-count arithmetic by hand (7+23=30 before, 7+24=31 after); confirmed the proof
+script's seed-search loop disposes every probe system/bus across up to 20000 iterations before
+creating the real, kept instances. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a
+(config-data-only; proof script never committed, instances disposed).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — same low-risk, well-proven pattern as every
+prior flavor-pool addition, genuinely distinct entry verified against every prior entry's text, zero
+regression, real 2-viewport proof plus an independent both-time-extremes ungated-ness proof, zero
+open design ambiguity worth escalating.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 116 end) | Delta |
+|---|---|---|---|
+| `worldEvents.js` flavor-pool entries | 30 | **31** | +1 (`direwolf_track`) |
+| `worldEvents.js` day-gated entries | 7 | **7** | unchanged (ungated addition) |
+| Draw calls / triangles / geometries / textures | 50 / 608,296 / 48 / 17 | **unchanged** | 0 |
+| Smoke suite | 33/33 | **33/33** | unchanged |
+| `checkSmokeCheckRegistry.js` | 33 checks/13 modules | **33 checks/13 modules** | unchanged |
+| ADR headers in `DECISIONS.md` | 142 | **143** | +1 (ADR-0143) |
+| `perf_log.csv` rows | 57 | **58** | +1 (`run116`) |
+| `RULES_CHANGELOG.md` entries | 2 | **3** | +1 (run 116 consolidation) |
+| Open questions in `QUESTIONS_FOR_OWNER.md` | unchanged | **unchanged** | none added |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** evet, ama küçük — dünya olayları havuzuna bir tane daha eklendi; oyuncu
+yeterince uzun oynarsa ormanın kenarında bir direwolf izi bildirimini görebilir. Dünyanın görsel/3D
+tarafında hiçbir değişiklik yok.
+
+**Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §18.
+Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları (at/araba/köpek-kedi/kuş)
+model bekliyor. No file near the 600-line cap. `CATCH_UP.md`'nin next summary ~run 118 (last done
+run 108, one run away). Next platform check ~run 132-142. Next rule consolidation ~run 136.
+
+**Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
+recorded in `STABLE_TAGS.md`.
