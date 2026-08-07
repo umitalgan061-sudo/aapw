@@ -99,3 +99,16 @@ export class SettlementDiscovery {
 		this._root.remove();
 	}
 }
+
+/**
+ * Run 153 accessibility extension. Settlement discovery already exposes a polite `status` live
+ * region; making the region atomic ensures the eyebrow, settlement name, and progress count are
+ * announced as one coherent Turkish update instead of separate fragments on assistive technology.
+ * The extension is additive-only and does not change timing, persistence, layout, discovery radius,
+ * or desktop/mobile/PWA rendering behavior.
+ */
+const discoverBeforeSettlementAccessibilityRun153 = SettlementDiscovery.prototype._discover;
+SettlementDiscovery.prototype._discover = function discoverAccessibleSettlementRun153(seat) {
+	this._root.setAttribute('aria-atomic', 'true');
+	discoverBeforeSettlementAccessibilityRun153.call(this, seat);
+};
