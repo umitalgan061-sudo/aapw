@@ -1,0 +1,188 @@
+name: Run 132 Mobile Performance Budget
+
+on:
+  push:
+    branches:
+      - agent/run132-mobile-perf-budget
+    paths:
+      - 'scripts/checkMobilePerfBudget.js'
+      - '.github/workflows/run132-mobile-perf-budget.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run132-mobile-perf-budget
+  cancel-in-progress: false
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "7160b1c6cee8ed7252c59c1f6f19bc18c81cc479"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 180 GOVERNANCE.md
+          tail -n 220 3D_GAME_PROGRESS.md
+          tail -n 140 DECISIONS.md
+          tail -n 80 QUESTIONS_FOR_OWNER.md
+
+      - name: Syntax and integrity gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkMobilePerfBudget.js
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Real mobile render-budget gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/mobile-perf.log"
+          MOBILE_SAMPLE="$(grep '\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/mobile-perf.log" | tail -n 1)"
+          test -n "$MOBILE_SAMPLE"
+          echo "MOBILE_SAMPLE=$MOBILE_SAMPLE" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log")"
+          test "$PASS_COUNT" -ge 34
+          echo "SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Periodic platform control
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          if test -f package.json; then npm audit --audit-level=high; else echo 'npm audit N/A: repository has no package.json'; fi
+          echo 'WebGL/browser boot covered by full smoke step.'
+
+      - name: Performance snapshot and self-review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run132 | tee "$RUNNER_TEMP/perf.log"
+          node scripts/analyzePerfTrend.js
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          echo "PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkMobilePerfBudget.js; then exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Append governance records and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "7160b1c6cee8ed7252c59c1f6f19bc18c81cc479"
+          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+
+          cat >> GOVERNANCE.md <<'EOF'
+
+## 24. Gerçek Mobil Render Bütçesi Kapısı (run 132)
+
+Mobil World Coverage yarıçapı/LOD/vegetation yoğunluğu gibi resident yükü artırabilecek her yeni
+adım öncesinde `node scripts/checkMobilePerfBudget.js` PASS olmalıdır. Bu test Chromium'u gerçek
+`isMobile + hasTouch` context'iyle açar, `(pointer: coarse)` yolunun aktif olduğunu doğrular ve F2
+panelindeki gerçek `renderer.info` sayaçlarını kullanarak `DrawCalls < 500` ve `Triangles < 500K`
+bütçelerini otomatik uygular. Headless FPS yalnız trend sinyalidir; gerçek telefon 30-60 FPS hedefi
+olarak yorumlanmaz. `renderer.info` texture nesne sayısını verir fakat resident texture-memory byte
+miktarını vermediği için `<512 MB TextureMem` için sahte bir tahmin üretilmez; o madde gerçek cihaz /
+uygun profiler doğrulaması gerektirir. Bu kapı geçmeden mobil streaming radius'u bir üst seviyeye
+çıkarılmaz.
+
+**Periyodik platform kontrolü — run 132:** PWA installability + service-worker cache kontrolleri
+PASS, WebGL gerçek Chromium smoke ile PASS; repoda `package.json` olmadığı için `npm audit` hâlâ
+N/A. Bir sonraki periyodik kontrol yaklaşık run 152-162 aralığında yapılır.
+EOF
+
+          cat >> DECISIONS.md <<'EOF'
+
+## ADR-0156 — Mobil coverage artışı öncesinde gerçek mobile-context render-budget kapısı
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkMobilePerfBudget.js`, Playwright Chromium'u mobile+touch context'inde açıp
+coarse-pointer yolunu doğrular ve F2 `renderer.info` üzerinden DrawCalls<500 / Triangles<500K
+bütçelerini zorunlu kapı yapar. Texture-memory bytes tarayıcı tarafından doğrudan sunulmadığından
+bu CI aracı MB değeri tahmin etmez.
+
+**Neden:** Run 130 bounded streaming ile mobil resident footprint'i büyüttü. Sonraki radius/LOD
+adımlarının tahminle değil aynı gerçek runtime yolundan alınan ölçülebilir GPU-submission sayılarıyla
+yönetilmesi gerekiyor.
+
+**Alternatifler:** (1) Yalnız desktop `collectPerfSnapshot` kullanmak reddedildi; mobile coarse-pointer
+yolunu çalıştırmıyor. (2) Texture nesne sayısından MB uydurmak reddedildi; çözünürlük/format/mipmap
+bilgisi olmadan yanlış güven üretir. (3) Gerçek cihaz lab'ı tek zorunlu kapı yapmak şimdilik reddedildi;
+saatlik otomasyon için sürekli erişilebilir değil.
+
+**Sonuç:** Coverage büyütme işleri önce otomatik mobile render bütçesini kanıtlayacak. Gerçek cihaz
+FPS ve texture-memory doğrulaması ayrıca geçerliliğini korur.
+
+**Etkilenen sistemler:** dev-tool/CI, mobil performans yönetişimi; runtime gameplay davranışı yok.
+
+**Geri alma planı:** Yeni script/workflow kullanılmaz; runtime kaynakları bu ADR ile değiştirilmedi.
+EOF
+
+          printf '\n## Run 132 — mobile render-budget gate (%s)\n' "$STAMP" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Alt görev 1: gerçek mobile+touch Chromium context kullanan scripts/checkMobilePerfBudget.js eklendi; mobil coverage artışları için DrawCalls<500 ve Triangles<500K otomatik kapı oldu.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Mobil ölçüm: ${MOBILE_SAMPLE}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- DoD: node --check PASS; tüm statik/PWA/cache/checkpoint/terrain/road/mobile-streaming guardları PASS; browser smoke ${SMOKE_PASS_COUNT}/34+ PASS; additive-only PASS; konsol/page error yok." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Platform kontrolü: PWA installability PASS; service-worker cache PASS; WebGL browser smoke PASS; npm audit N/A (package.json yok).' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Desktop trend kaydı: ${PERF_ROW}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- World Coverage: desktop %96.2; mobil resident footprint yaklaşık %8.9 (run130 radius 3) korunuyor. Bu run yeni radius artırmadı; önce ölçüm kapısını kalıcılaştırdı.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Memory leak: yeni runtime listener/timer/DOM/geometry/material yok. Teknik borç: 0 yeni. ADR-0156. Risk LOW. Güven 5/5.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- World Evolution Report delta: yol 0 km, orman 0 km², kale/NPC/event/hayvan 0; oyuncu davranışı değişmez; sonraki güvenli adım mobil terrain/vegetation LOD+culling ölçümü.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- $TAG — run 132 mobile render-budget gate; mobile budget PASS, browser smoke ${SMOKE_PASS_COUNT}/34+ PASS, platform checks PASS." >> STABLE_TAGS.md
+
+          node scripts/checkCheckpointConsistency.js
+          git config user.name 'Westeros Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add GOVERNANCE.md DECISIONS.md 3D_GAME_PROGRESS.md STABLE_TAGS.md perf_log.csv scripts/checkMobilePerfBudget.js .github/workflows/run132-mobile-perf-budget.yml
+          git commit -m 'test(3d): enforce real mobile render budget before coverage growth' || true
+          git tag "$TAG"
+          git push origin HEAD:agent/run132-mobile-perf-budget
+          git push origin "$TAG"
