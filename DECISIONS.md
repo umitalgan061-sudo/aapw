@@ -13834,3 +13834,97 @@ dönüş de mümkündür.
 **Gelecek Faz Etkisi:** FAZ 9-10 ve gelecekteki mobil dünya genişlemesi daha düşük terrain triangle
 maliyetiyle çalışır. SaveSystem/public API yok; save/API uyumluluk kapıları tetiklenmez. Yeni asset yok,
 lisans/PWA cache manifest değişikliği gerekmez.
+
+## ADR-0159 — Mobil oyuncu spawn'ına çapalı ikinci bir vejetasyon halkası (Run 135)
+
+**Risk Seviyesi: MEDIUM**
+
+**Karar:** `game3d.js`'e (sceneManager.js'e dokunulmadan) yeni, tamamen ek bir blok eklendi:
+coarse-pointer (mobil) cihazlarda, `createScene`'in zaten oluşturduğu, dünya orijinine (0,0) çapalı
+vejetasyon diskine (`state.vegetation`) EK olarak, oyuncunun gerçek spawn noktasına
+(`PLAYER_CONFIG.SPAWN_MAP_X/Y` → `mapToWorldXZ`) çapalı ikinci bir disk üretiliyor. İkinci disk,
+`world/vegetation.js`'in mevcut `createVegetation` fonksiyonunu DEĞİŞTİRMEDEN, ona kaydırılmış
+(shifted) bir `sampleHeightMeters`/`seats`/`roadEdges` görünümü vererek çağırıyor — yani yerleşim
+algoritması (su/eğim/kale/yol dışlama kuralları) aynen korunuyor, sadece girdi koordinat çerçevesi
+kaydırılıyor — sonra döndürülen `THREE.Group`'un `position`'ı aynı kaydırma miktarıyla ayarlanarak
+her ağacın GERÇEK render pozisyonunun, yüksekliğinin gerçekten örneklendiği noktayla birebir
+eşleşmesi sağlanıyor (naif bir post-hoc `group.position` çevirisi, düz olmayan arazide ağaçların
+havada asılı kalmasına/gömülmesine yol açardı — bkz. kodun kendi yorum bloğu). Yarıçap, yeni bir
+sabit icat etmek yerine mevcut `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS * CHUNK_CONFIG.CHUNK_SIZE_METERS`
+(1000m) değerini yeniden kullanıyor — orijin diskiyle aynı ölçek. Desktop tamamen dokunulmamış
+kalıyor (`isCoarsePointerDevice()` false olduğunda blok hiç çalışmıyor).
+
+**Neden:** Run 135'in görevi GOVERNANCE.md §23 madde 4(b)/(c)'nin işaret ettiği "mobil vejetasyon
+mesafe-tabanlı optimizasyon" adayını araştırmaktı. Ölçüm (gerçek `sceneManager.createScene` +
+gerçek `checkMobilePerfBudget.js` mobil-context Chromium context'i, tahmin değil) şunu ortaya
+çıkardı: mobil vejetasyon zaten toplam mobil triangle bütçesinin yalnızca ~%3-4'ünü oluşturuyor
+(run134 sonrası mobil toplam 165.399 üçgen; orijin diskinin kendisi yalnızca ~6-9K üçgen) — ayrıca
+`sceneManager.js`'in vejetasyon diskinin yarıçapı (`STREAM_RADIUS_CHUNKS`=2 → 1000m, dünya
+ORİJİNİNE çapalı) oyuncunun gerçek spawn noktasına (`mapToWorldXZ(SPAWN_MAP_X, SPAWN_MAP_Y)` =
+dünya (577.5, 4058.25), orijinden ~4.1km) göre ~3km kısa kalıyor — masaüstünde bu sorun yok çünkü
+`PHASE1_PREVIEW_RADIUS_CHUNKS`=11 → 5500m diski spawn'ı zaten kapsıyor, ama mobilde spawn diskin
+tamamen DIŞINDA. Yani mobil oyuncu normal oynanışta muhtemelen HİÇBİR ZAMAN bir ağaç görmüyordu —
+run111/112/113'ün üç ayrı ADR'siyle inşa edilmiş, zaten var olan bir özellik mobilde fiilen
+erişilemezdi. Bu, orijinal "mesafe-culling" adayından daha değerli, gerçek ve daha önce
+belgelenmemiş bir mobil World Coverage/görsel-tamlık boşluğuydu (GOVERNANCE §14'ün "gerçek bir
+tasarım/performans sorunu bulundu" durumu) — saf mesafe-culling (zaten ölçülen ~6-9K üçgenlik,
+bütçenin %1.5'inden azını oluşturan bir maliyeti kırpmak) yerine bu kök nedeni düzeltmek seçildi.
+Saf culling fikri tamamen terk edilmedi: aynı kaydırma tekniği ileride ikinci bir "oyuncu şu an
+spawn'dan uzaktaysa spawn diskini gizle" katmanına temel oluşturabilir, ama bu run'da gerekli
+görülmedi (iki disk toplamı hâlâ bütçenin sadece ~%35'inde kalıyor, ölçülmüş — bkz. Sonuç).
+
+**Alternatifler:**
+- **Sadece mesafe-culling (orijinal aday), kök nedene dokunmadan:** reddedildi — gerçek ölçüm
+  sonrası fayda/emek oranı düşük bulundu (bkz. Neden); orijin diski zaten mobil oyuncunun asla
+  görmeyeceği bir yerde duruyor, onu "ucuzlaştırmak" oyuncunun deneyimini hiç değiştirmezdi.
+- **`sceneManager.js`'in kendi `createVegetation` çağrısını spawn'a taşımak (orijin diskini
+  kaldırmak/değiştirmek):** reddedildi — Altın Kural 1 ve additive-only guard, mevcut çağrının
+  hiçbir satırının silinmesine/değiştirilmesine izin vermiyor; ayrıca orijin diski masaüstünde
+  hâlâ anlamlı (spawn'ı zaten kapsıyor), onu bozmak istenmeyen bir masaüstü regresyonu olurdu.
+- **Vejetasyonu tam dinamik, chunk-bazlı yapmak (oyuncu hareket ettikçe yeniden üretmek):**
+  reddedildi — çok daha büyük bir mimari değişiklik (terrain'in chunk-stream modeline benzer, ama
+  vejetasyon şu an tek seferlik statik bir `THREE.Group`); bu run'ın kapsamı için gereksiz
+  karmaşıklık/risk. İki statik disk (orijin + spawn) bugünkü ihtiyacı (oyuncunun spawn çevresinde
+  gerçekten ağaç görmesi) düşük riskle çözüyor. Gelecekte oyuncu spawn'dan çok uzağa yürürse yine
+  aynı "mobilde vejetasyon yok" durumu oluşabilir — bu ADR'nin Gelecek Faz Etkisi bölümünde
+  bilinçli bir sınır olarak not ediliyor, gizlenmiyor.
+- **Yeni yarıçap sabiti icat etmek:** reddedildi — `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS *
+  CHUNK_CONFIG.CHUNK_SIZE_METERS` zaten var ve orijin diskiyle aynı ölçeği veriyor, tutarlılık için
+  yeniden kullanıldı.
+
+**Doğrulama:** Yeni `scripts/checkMobileSpawnVegetation.js`: (1) gerçek `world/terrain.js` +
+`world/vegetation.js` modülleri üzerinden bir "doğruluk ispatı" — kaydırılmış disk çevrildikten
+sonra HER instance'ın gerçek render dünya-pozisyonunun, gerçek (kaydırılmamış) sampler'dan aynı
+noktada örneklenen yükseklikle (float32 instance-matrix depolama toleransı içinde, ≤1cm) birebir
+eşleştiğini ve disk yarıçapının dışına taşmadığını kanıtlıyor (94 instance, tümü PASS); (2) gerçek
+mobil-context `game3d.html` boot'unda `[game3d] Mobile spawn-anchored vegetation:` konsol satırının
+sıfırdan büyük bir sayıyla göründüğünü, gerçek masaüstü-context boot'ta ise HİÇ görünmediğini
+doğruluyor (mobil 134 ağaç, masaüstü satırı hiç yok). `checkMobilePerfBudget.js` değişiklik
+SONRASI: 31 draw call (önceki 27'den +4, tam olarak yeni diskin 2 tür × gövde+yaprak = 4 draw
+call'u), 174.173 üçgen (önceki 165.399'dan +8.774) — 500K bütçesinin hâlâ sadece ~%34.8'i, 500 draw
+call bütçesinin ~%6.2'si — bolca marj kalıyor. `terrainSeatSafetyCheck.js` 14/14,
+`roadNetworkSafetyCheck.js` 13/13, `checkMobileChunkStreaming.js`/`checkMobileTerrainLod.js` ikisi
+de değişmeden PASS (bu ADR terrain/chunk-streaming'e hiç dokunmuyor). Tam Playwright smoke suite
+değişiklik ÖNCESİ ve SONRASI 34/34 PASS, 0 FAIL, 0 konsol/sayfa hatası. `node --check` PASS
+(`game3d.js`, yeni script). `checkAdditiveOnlyDiff.js` PASS — `world/vegetation.js` ve
+`sceneManager.js` hiç dokunulmadı, `game3d.js`'e yalnızca yeni satırlar eklendi. `TEMP`/`HACK`/
+`FIXME`/`WORKAROUND` yorumu yok.
+
+**Sonuç / etkilenen sistemler:** `game3d.js` mobil-only ek blok (+~45 satır, dosya 540/600 —
+sınırın altında ama `checkSmokeCheckRegistry.js` artık "yaklaşıyor" uyarısı veriyor, bir sonraki
+büyük ekleme öncesi bölünmesi planlanmalı). Yeni `scripts/checkMobileSpawnVegetation.js` regresyon
+kapısı. `world/vegetation.js`, `sceneManager.js`, terrain/road/chunk-streaming, 2D oyun, PWA cache
+içeriği değişmedi. Mobil World Coverage yüzdesi (resident terrain km²) bu ADR ile değişmiyor —
+sadece mobil oyuncunun spawn çevresinde artık gerçekten ağaç GÖRMESİ (öncesinde büyük olasılıkla
+hiç görmüyordu) değişiyor.
+
+**Geri alma planı:** `game3d.js`'deki yeni blok (import satırları + `if (isCoarsePointerDevice())`
+bloğu + disposal satırı) kaldırılır; `sceneManager.js`/`world/vegetation.js` hiç değişmediğinden
+geri kalan her şey run134'ün davranışına aynen döner. Kalıcı save/schema migrasyonu yoktur.
+
+**Gelecek Faz Etkisi:** Mobil oyuncu spawn'dan çok uzağa (>1km) yürürse yine vejetasyonsuz bölgelere
+girebilir — bu ADR'nin bilinçli sınırı, gizlenmiyor (bkz. Alternatifler). Tam çözüm (vejetasyonun
+terrain gibi chunk-bazlı akması) ayrı, kendi ADR'sini hak eden daha büyük bir gelecek iş. Bu run'ın
+kaydırma tekniği (shifted-sampler + group.position telafi) o gelecekteki chunk-bazlı sisteme de
+doğrudan taşınabilir bir örüntü. SaveSystem/public API yok; save/API uyumluluk kapıları
+tetiklenmez. Yeni asset yok, lisans/PWA cache manifest değişikliği gerekmez.

@@ -65,6 +65,12 @@ import { disposeRiverMesh, disposeWaterfallMesh } from './world/rivers.js';
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.js';
 import { disposeRoadNetwork } from './world/roads.js';
 import { disposeVegetation } from './world/vegetation.js';
+// Run 135 / ADR-0159 — new import, additive: `createVegetation` itself is unchanged, this file just
+// also calls it a second time (see the mobile spawn-anchored vegetation block below).
+import { createVegetation } from './world/vegetation.js';
+// Run 135 / ADR-0159 — new import, additive: needed for the mobile spawn-anchored vegetation disc's
+// own radius (matches `sceneManager.js`'s own mobile disc sizing, not a fresh constant).
+import { CHUNK_CONFIG } from './config.js';
 import { resolveCameraCollision } from './camera.js';
 import { updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { updateStarfield, disposeStarfield } from './stars.js';
@@ -148,6 +154,52 @@ export async function initGame3D() {
 			WORLD_SCALE.MAP_BOUNDS,
 			WORLD_SCALE.METERS_PER_MAP_UNIT,
 		);
+		// Run 135 / ADR-0159 — mobile spawn-anchored vegetation disc. `createScene`'s own vegetation
+		// scatter (`state.vegetation`) is a disc centered on the world origin (0,0), sized to
+		// whatever terrain radius that device class loaded (see `sceneManager.js`'s own doc
+		// comment) — on desktop that disc is `PHASE1_PREVIEW_RADIUS_CHUNKS`'s own 5500m, comfortably
+		// past `spawnWorld`'s own ~4.1km distance from the origin, but on mobile it shrinks to
+		// `STREAM_RADIUS_CHUNKS`'s own 1000m radius, which falls roughly 3km short — measured, not
+		// assumed (see DECISIONS.md ADR-0159's own "Neden" section for the exact numbers) — so a
+		// mobile player never actually walked past a tree during ordinary play, the origin-disc
+		// scatter sitting far outside where mobile's own bounded terrain-streaming radius (ADR-0154)
+		// ever reaches. This second, purely additive scatter reuses the exact same `createVegetation`
+		// placement algorithm (never a second, drifting copy of the water/slope/seat/road exclusion
+		// rules) through a coordinate-shifted view of the same real sampler/seats/roads, then
+		// repositions the returned group by the same shift so each instance's *rendered* world
+		// position is exactly where its height was actually sampled from — a naive post-hoc
+		// `group.position` translate of an origin-sampled scatter would instead leave every tree
+		// floating or sunk relative to the real, non-flat terrain at the new location, since the
+		// heights baked into its instance matrices would still be the *origin* area's heights, not
+		// the spawn area's.
+		let mobileSpawnVegetation = null;
+		if (isCoarsePointerDevice()) {
+			const shiftedSampleHeightMeters = (x, z) => state.groundCollider.getGroundHeight(x + spawnWorld.x, z + spawnWorld.z);
+			const shiftedSeats = state.settlementSeats.map((seat) => ({ x: seat.x - spawnWorld.x, z: seat.z - spawnWorld.z }));
+			const shiftedRoadEdges = state.roadEdges.map((edge) => ({
+				points: edge.points.map((point) => ({ x: point.x - spawnWorld.x, z: point.z - spawnWorld.z })),
+			}));
+			const spawnVegetationResult = createVegetation({
+				sampleHeightMeters: shiftedSampleHeightMeters,
+				seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+				// XOR-tagged so this disc's own instance layout never collides with the origin disc's
+				// draw sequence — same "independent tagged stream" convention `world/vegetation.js`'s
+				// own seat-cluster pass already established for itself (ADR-0140).
+				seed: WORLD_DEFAULTS.WORLD_SEED ^ 0x5350574e, // "SPWN"-ish tag
+				seats: shiftedSeats,
+				roadEdges: shiftedRoadEdges,
+				radiusMeters: CHUNK_CONFIG.STREAM_RADIUS_CHUNKS * CHUNK_CONFIG.CHUNK_SIZE_METERS,
+			});
+			spawnVegetationResult.group.position.set(spawnWorld.x, 0, spawnWorld.z);
+			state.scene.add(spawnVegetationResult.group);
+			mobileSpawnVegetation = spawnVegetationResult.group;
+			console.info(
+				`[game3d] Mobile spawn-anchored vegetation: ${spawnVegetationResult.placedCount}/` +
+					`${spawnVegetationResult.targetCount} tree(s) near spawn (${spawnWorld.x.toFixed(0)}, ` +
+					`${spawnWorld.z.toFixed(0)}).`,
+			);
+		}
+		state.mobileSpawnVegetation = mobileSpawnVegetation;
 		const player = await createPlayer({
 			assetLoader,
 			groundCollider: state.groundCollider,
@@ -468,6 +520,7 @@ export async function initGame3D() {
 			disposeRealCastleModels(state.realCastles);
 			disposeRoadNetwork(state.roads);
 			disposeVegetation(state.vegetation);
+			if (state.mobileSpawnVegetation) disposeVegetation(state.mobileSpawnVegetation);
 			disposeDayNightLighting(state.scene, state.lights);
 			state.renderer.dispose();
 		}, { once: true });

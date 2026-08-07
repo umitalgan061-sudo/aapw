@@ -13085,3 +13085,116 @@ kararı hem gelecekteki iki çözüm yolunu (test yeniden yazımı ya da sahip o
 - World Coverage: desktop %96.2; mobil resident footprint yaklaşık %8.9 (49 chunk / 12.25 km²) değişmedi. Bu run coverage yüzdesini zorlamadı; radius 4 öncesi triangle marjı üretti.
 - Memory leak checklist: LOD değişiminde eski geometry/material dispose ediliyor; yeni listener/timer/DOM yok. Teknik borç: 0 yeni. ADR-0158. Risk LOW. Güven 5/5.
 - World Evolution Report delta: yol 0 km, orman alanı 0 km², kale/NPC/event/hayvan 0; oyuncunun dünya içeriği değişmez, mobil uzak terrain daha düşük tessellation ile çizilir. Sıradaki güvenli adım vegetation distance culling/LOD.
+
+## Run 135 — mobil spawn-çapalı vejetasyon halkası (2026-08-07 14:20 UTC)
+
+**Session Snapshot / Concurrency:** `git fetch origin main` → local `3b06669` (run 134) origin/main
+ile aynıydı, divergence yok. `GOVERNANCE.md` tam okundu (§23 mobil World Coverage programı, §25
+mobil terrain LOD kapısı dahil). `3D_GAME_PROGRESS.md` son ~300 satırı (run 130-134), `DECISIONS.md`
+son 5 ADR (0154-0158), `QUESTIONS_FOR_OWNER.md` tam (yeni belirsizlik yok — NVIDIA anahtarı maddesi
+hâlâ açık, sahip aksiyonu bekliyor) okundu. `scripts/checkMobileTerrainLod.js`,
+`checkMobileChunkStreaming.js`, `checkMobilePerfBudget.js`, `smokeTestGame3D.js`,
+`terrainSeatSafetyCheck.js`, `roadNetworkSafetyCheck.js` ve `src/3d/world/vegetation.js`/
+`terrain.js`/`chunkManager.js` incelendi.
+
+**Baseline regression guard:** tam `node --check` taraması sıfır hata. `checkAdditiveOnlyDiff.js`
+PASS. Tam `smokeTestGame3D.js` değişiklik ÖNCESİ **34/34 PASS**, 0 FAIL, 0 konsol/sayfa hatası.
+`checkMobilePerfBudget.js` baseline: 27 draw call / 165.399 üçgen (run134'ün terrain-LOD'undan
+sonraki gerçek mobil ölçüm — run132'nin 206.871'inden düşük, LOD'un beklenen etkisi).
+
+**Öncelik taraması (§18):** madde 1/1.2/1.5 tamam, 1.7 hâlâ manuel asset bekliyor. Madde 2-6
+(sözdizimi/bug/memory/tech-debt/smoke) baseline taramasıyla temiz. **Madde 7 (Performans/§23):**
+görev promptu mobil vejetasyon mesafe-culling'i aday gösterdi; araştırma bunun yerine daha değerli,
+gerçek bir mobil World Coverage boşluğu ortaya çıkardı (aşağıya bakınız) — plan buna göre uyarlandı.
+
+### Alt görev: mobil spawn-çapalı vejetasyon halkası (ADR-0159)
+
+**Araştırma bulgusu:** Gerçek `sceneManager.createScene()` + gerçek `checkMobilePerfBudget.js`
+mobil-context ölçümü (tahmin değil) şunu gösterdi: mobil vejetasyon zaten toplam mobil triangle
+bütçesinin sadece ~%1.5-4'ünü oluşturuyor (run134-sonrası mobil toplam 165.399 üçgen; orijin diski
+tek başına ~6-9K üçgen) — saf mesafe-culling'in gerçek faydası ölçülebilir derecede küçük. Daha
+önemlisi: `sceneManager.js`'in vejetasyon diski dünya ORİJİNİNE (0,0) çapalı ve mobilde yarıçapı
+sadece 1000m (`STREAM_RADIUS_CHUNKS`=2×500m), ama oyuncunun gerçek spawn noktası
+(`mapToWorldXZ(PLAYER_CONFIG.SPAWN_MAP_X, SPAWN_MAP_Y)` = dünya (577.5, 4058.25)) orijinden ~4.1km
+uzakta — masaüstünde sorun yok (`PHASE1_PREVIEW_RADIUS_CHUNKS`=11 → 5500m diski spawn'ı kapsıyor)
+ama mobilde disk spawn'dan ~3km kısa kalıyor. Sonuç: run111/112/113'ün üç ayrı ADR'siyle inşa
+edilmiş vejetasyon özelliği, mobil oyuncu tarafından normal oynanışta muhtemelen HİÇ
+görülemiyordu — daha önce belgelenmemiş, gerçek bir mobil görsel-tamlık boşluğu.
+
+**Uygulanan çözüm:** `world/vegetation.js` ve `sceneManager.js` HİÇ değiştirilmedi (sıfır risk o iki
+dosyaya). `game3d.js`'e tamamen ek bir blok eklendi: mobilde, mevcut orijin diskine EK olarak,
+oyuncunun gerçek spawn'ına çapalı ikinci bir `createVegetation` çağrısı — kaydırılmış
+(coordinate-shifted) bir `sampleHeightMeters`/`seats`/`roadEdges` görünümüyle aynı yerleşim
+algoritmasını (su/eğim/kale/yol dışlama) aynen kullanıyor, sonra döndürülen grup aynı kaydırma
+kadar `position`'lanıyor — böylece her ağacın render pozisyonu, yüksekliğinin gerçekten
+örneklendiği noktayla birebir eşleşiyor (naif bir post-hoc çeviri, düz olmayan arazide ağaçları
+havada bırakırdı). Yarıçap yeni bir sabit değil, mevcut `STREAM_RADIUS_CHUNKS*CHUNK_SIZE_METERS`
+(1000m) — orijin diskiyle aynı ölçek. Desktop tamamen dokunulmamış (`isCoarsePointerDevice()`
+false'ken blok hiç çalışmıyor).
+
+**DoD:**
+- `node --check`: PASS (`game3d.js`, yeni `scripts/checkMobileSpawnVegetation.js`).
+- `checkAdditiveOnlyDiff.js`: PASS — `world/vegetation.js`/`sceneManager.js` dokunulmadı, `game3d.js`'e
+  sadece yeni satırlar eklendi.
+- Yeni `scripts/checkMobileSpawnVegetation.js`: PASS — (1) kaydırma-doğruluğu ispatı (94 instance,
+  hepsinin render dünya-pozisyonundaki yüksekliği gerçek sampler'la ≤1cm float32-toleransında
+  eşleşiyor, hepsi disk yarıçapı içinde); (2) gerçek mobil-context boot'ta 134 ağaç yerleştirildiği
+  konsol satırıyla doğrulandı, gerçek masaüstü-context boot'ta bu satır hiç görünmüyor.
+- `checkMobilePerfBudget.js` değişiklik SONRASI: 31 draw call (+4), 174.173 üçgen (+8.774) — 500K
+  bütçesinin ~%34.8'i, 500 draw call bütçesinin ~%6.2'si, bolca marj kalıyor. PASS.
+- `terrainSeatSafetyCheck.js` 14/14 PASS, `roadNetworkSafetyCheck.js` 13/13 PASS,
+  `checkMobileChunkStreaming.js`/`checkMobileTerrainLod.js` değişmeden PASS (terrain/streaming'e
+  dokunulmadı).
+- Tam `smokeTestGame3D.js` değişiklik ÖNCESİ ve SONRASI **34/34 PASS**, 0 FAIL, 0 konsol/sayfa hatası.
+- `checkSmokeCheckRegistry.js`: 34 check/14 modül değişmedi; 89 JS dosyası 600 satır sınırının
+  altında, `game3d.js` artık 540/600 — **WARN: sınıra yaklaşıyor**, bir sonraki büyük ekleme öncesi
+  bölünmesi planlanmalı (tech-debt olarak sayıldı, aşağıya bakınız).
+- Görsel doğrulama: gerçek mobil-context ve gerçek masaüstü-context Chromium boot'ları ile ölçüldü
+  (konsol log + programatik instance/yükseklik doğrulaması); ekran görüntüsü dosyaya kaydedilmedi
+  (bu ortamda kalıcı artifact deposu yok) ama draw-call/triangle/instance sayıları before/after
+  olarak yukarıda kayıtlı.
+- ADR: **ADR-0159** yazıldı (Karar/Neden/Alternatifler/Doğrulama/Sonuç/Geri alma/Gelecek Faz Etkisi,
+  Risk: MEDIUM).
+- `TEMP`/`HACK`/`FIXME`/`WORKAROUND` yorumu yok.
+
+**Memory-leak checklist:** yeni grup `state.mobileSpawnVegetation`'a atanıp `state.scene.add()` ile
+sahneye ekleniyor; teardown'da `disposeVegetation(state.vegetation)`'ın hemen ardına eklenen yeni
+satır (`if (state.mobileSpawnVegetation) disposeVegetation(state.mobileSpawnVegetation);`) geometri/
+materyali dispose ediyor — mevcut `disposeVegetation` deseninin aynısı. Yeni listener/timer/DOM yok.
+
+**Performans:** Desktop `collectPerfSnapshot.js run135`: 1 FPS / 50 draw call / 608.296 üçgen / 48
+geometry / 17 texture / 273 MB heap — run120'den beri değişmeyen değerlerle birebir aynı (mobil-only
+değişiklik, desktop yolu hiç çalışmıyor; bu run'ın kendi ölçümüyle doğrulandı, varsayılmadı). Mobil:
+27→31 draw call, 165.399→174.173 üçgen (yukarıda detaylı).
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 135 end) | Delta |
+|---|---|---|---|
+| Mobil vejetasyon draw call | 27 (toplam sahne) | **31** | +4 (yeni disk: 2 tür × gövde+yaprak) |
+| Mobil toplam üçgen | 165.399 | **174.173** | +8.774 |
+| Mobil spawn çevresinde görünür ağaç sayısı | ~0 (ölçülen: spawn diskin ~3km dışında) | **134** | +134 (gerçek bir mobil görsel-tamlık düzeltmesi) |
+| Smoke suite | 34/34 | **34/34** | değişmedi |
+| ADR headers in `DECISIONS.md` | 158 | **159** | +1 (ADR-0159) |
+| World Coverage (desktop / mobil resident terrain) | 96.2% / ~8.9% | 96.2% / ~8.9% | değişmedi (bu ADR terrain radius'una dokunmuyor) |
+| Tech debt count | 0 | **1** | +1 (`game3d.js` 540/600, bölünme yaklaşıyor) |
+
+**Oyuncu fark eder mi:** Evet, gerçek bir fark — mobil oyuncu artık spawn noktası çevresinde
+gerçekten ağaç görüyor (öncesinde muhtemelen hiç görmüyordu, ölçülen bir boşluktu). Masaüstü hiç
+değişmedi.
+
+**Next step:** 6 dokusuz kale ile FAZ 6 model bekleyen türler (at/araba/köpek-kedi/kuş) hâlâ manuel
+asset bekliyor. `game3d.js` 540/600 satır — bir sonraki büyük ekleme öncesi bölünmesi (muhtemelen
+mobil-only bootstrap bloklarının ayrı bir `gameLoopHelpers.js`-benzeri dosyaya taşınması) planlanmalı.
+Mobil World Coverage programı (§23) sırasına göre sıradaki adım hâlâ (b) frustum/occlusion culling
+veya (c) kale uzak-mesafe düşük-poly/impostor — bu run'ın ölçümü, procedural kalelerin (`settlements`
+grubu, tüm 14 koltuk için radius-bağımsız her zaman sahneye ekleniyor) mobil bütçeye vejetasyondan
+daha büyük bir sabit katkı yapıyor olabileceğini düşündürüyor; bir sonraki run bunu gerçek ölçümle
+doğrulayabilir. Sonraki catch-up ~run 138, platform kontrolü ~run 132-142 (run132'de zaten yapıldı),
+kural konsolidasyonu ~run 136 — yaklaşıyor.
+
+**Oturum Kalite Kapısı:** 1 alt görev tamamlandı, güven skoru 5/5 — araştırma gerçek ölçümle
+yönlendirildi (fabrikasyon yok), hem doğruluk hem entegrasyon testleriyle kanıtlandı, additive-only
+guard'a tam uyumlu, masaüstü regresyonu yok (ölçülerek doğrulandı). "6 ay sonra hâlâ net mi"
+tereddüdü yok — ADR-0159 hem bulunan boşluğu hem seçilen çözümü hem reddedilen alternatifleri açıkça
+kaydediyor. Çalışma Süresi Sınırı/Çalıştırma Geneli Süre Tavanı içinde kalındı.
