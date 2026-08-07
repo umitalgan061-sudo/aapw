@@ -14135,3 +14135,29 @@ height sampler etkilenmez.
 **Geri alma planı:** Run-140 additive wrapper'ı gelecekte devre dışı bırakacak daha yeni bir additive
 qualification/feature gate eklenebilir; eski run-130/134 wrapper'ları yerinde olduğundan fallback radius
 3 davranışı korunmuştur. Mevcut satır silme/değiştirme gerekmez.
+
+## ADR-0165 — Live-radius-aware mobile vegetation distance culling (run 141)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run 138'de doğrulanıp merge edilemeden diverge olan whole-disc mobile vegetation culling,
+run 140'ın canlı radius-4 mimarisine yeniden uygulanır. Eski denemenin sabit 1500m resident-radius
+kopyası kullanılmaz; culling `chunkManager.js` içindeki exported live radius binding'inden türetilir.
+
+**Neden:** Mobil terrain artık 81 chunk / 20.25 km² resident iken origin ve spawn vegetation diskleri
+sahnede birlikte kalıyor. Resident terrain ile kesişmesi mümkün olmayan uzak bir disk görünür
+kalmak zorunda değil. Ayrıca sabit radius kopyası gelecekte radius 5'te sessizce stale olurdu.
+
+**Alternatifler:** Tek tek instance taraması CPU maliyeti ve karmaşıklık nedeniyle reddedildi. Origin
+diskini tamamen silmek deterministik geri dönüşü yok edeceği için reddedildi. Run 138 kodunu aynen
+cherry-pick etmek, radius-3'e gömülü 1500m eşiği nedeniyle reddedildi.
+
+**Sonuç:** Mobilde uzak vegetation grubu whole-group visibility ile kapanır; oyuncu yaklaşınca aynı
+instance verisi tekrar görünür. Desktop değişmez. Yeni live binding radius artışlarında tek kaynak
+olarak güncellenebilir.
+
+**Etkilenen sistemler:** chunkManager mobile radius metadata, config, game3d tick wiring,
+mobileVegetationCulling runtime modülü, service-worker precache ve mobil regression zinciri.
+
+**Geri alma planı:** Additive bir override ile updater no-op yapılabilir veya margin güvenli biçimde
+büyütülebilir; mevcut kaynak satırlarını silmek/değiştirmek gerekmez.

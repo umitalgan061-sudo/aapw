@@ -149,6 +149,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/roadPathfinder.js',
     './src/3d/world/roads.js',
     './src/3d/world/vegetation.js',
+    './src/3d/world/mobileVegetationCulling.js',
     './src/3d/vendor/three/three.module.js',
     './src/3d/vendor/three/LICENSE',
     './src/3d/vendor/three/addons/loaders/GLTFLoader.js',
