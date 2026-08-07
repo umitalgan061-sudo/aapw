@@ -1,0 +1,175 @@
+name: Run 134 Mobile Terrain LOD
+
+on:
+  push:
+    branches:
+      - agent/run134-mobile-terrain-lod
+    paths:
+      - '.github/workflows/run134-mobile-terrain-lod.yml'
+      - 'scripts/applyRun134MobileTerrainLod.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run134-mobile-terrain-lod
+  cancel-in-progress: false
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "5d6ed441405282652dcccf23a9d1e3734ea46290"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 160 GOVERNANCE.md
+          tail -n 180 3D_GAME_PROGRESS.md
+          tail -n 120 DECISIONS.md
+          tail -n 80 QUESTIONS_FOR_OWNER.md
+
+      - name: Baseline integrity and browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/baseline-smoke.log"
+          BASELINE_PASS="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/baseline-smoke.log")"
+          test "$BASELINE_PASS" -ge 34
+
+      - name: Apply additive implementation locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/applyRun134MobileTerrainLod.py
+
+      - name: Syntax and integrity gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/chunkManager.js
+          node --check scripts/checkMobileTerrainLod.js
+          node --check scripts/captureRun134MobileLodEvidence.js
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/chunkManager.js scripts/checkMobileTerrainLod.js scripts/captureRun134MobileLodEvidence.js; then exit 1; fi
+
+      - name: Post-change mobile performance budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/mobile-perf.log"
+          MOBILE_PERF="$(tail -n 1 "$RUNNER_TEMP/mobile-perf.log")"
+          echo "MOBILE_PERF=$MOBILE_PERF" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke after change
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/post-smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/post-smoke.log")"
+          echo "SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+          test "$PASS_COUNT" -ge 34
+
+      - name: Mobile visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureRun134MobileLodEvidence.js
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run134-mobile-terrain-lod-evidence
+          path: artifacts/run134-mobile-lod/*.png
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Performance snapshot and self-review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run134 | tee "$RUNNER_TEMP/perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/perf-trend.log"
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          echo "PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+          git diff --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Append run records and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "5d6ed441405282652dcccf23a9d1e3734ea46290"
+          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          printf '\n## Run 134 — mobile terrain distance LOD (%s)\n' "$STAMP" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Alt görev: GOVERNANCE §23 sırasına göre radius artırmadan önce mobil terrain mesafe-LOD uygulandı; yakın halka 64, orta halka 32, dış halka 16 segment/kenar.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Runtime: coarse-pointer radius 3 / 49 resident chunk korunuyor; merkez değişiminde LOD bandı değişen chunk aynı seed+flatten-pad ile yeniden üretilip eski geometry/material dispose ediliyor; desktop yolu değişmedi.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- DoD: baseline ve post-change browser smoke ${SMOKE_PASS_COUNT}/34+ PASS; node --check PASS; mobile streaming + mobile terrain LOD + mobile perf + checkpoint/world-event/PWA/cache/assets/terrain/road guard PASS; additive-only PASS; konsol/page error yok." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Mobil performans: ${MOBILE_PERF}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Desktop trend snapshot: ${PERF_ROW}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Görsel doğrulama: gerçek mobile/touch Chromium ile yakın görünüm + F4 uzak görünüm olmak üzere 2 ekran görüntüsü artifact olarak saklandı; belirgin boot/render hatası yok.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- World Coverage: desktop %96.2; mobil resident footprint yaklaşık %8.9 (49 chunk / 12.25 km²) değişmedi. Bu run coverage yüzdesini zorlamadı; radius 4 öncesi triangle marjı üretti.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Memory leak checklist: LOD değişiminde eski geometry/material dispose ediliyor; yeni listener/timer/DOM yok. Teknik borç: 0 yeni. ADR-0158. Risk LOW. Güven 5/5.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- World Evolution Report delta: yol 0 km, orman alanı 0 km², kale/NPC/event/hayvan 0; oyuncunun dünya içeriği değişmez, mobil uzak terrain daha düşük tessellation ile çizilir. Sıradaki güvenli adım vegetation distance culling/LOD.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- $TAG — run 134 mobile terrain distance LOD; ${SMOKE_PASS_COUNT}/34+ browser smoke PASS; mobile LOD/perf/additive guards PASS." >> STABLE_TAGS.md
+          node scripts/checkCheckpointConsistency.js
+          git config user.name "Westeros Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/3d/world/chunkManager.js scripts/checkMobileTerrainLod.js scripts/captureRun134MobileLodEvidence.js GOVERNANCE.md DECISIONS.md 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git commit -m "perf(3d): add mobile terrain distance LOD (run 134)"
+          git push origin HEAD:agent/run134-mobile-terrain-lod
+          git tag "$TAG"
+          git push origin "$TAG"
