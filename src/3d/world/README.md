@@ -79,15 +79,17 @@ here (blast radius rule — if a change needs more than that, it's not a world-s
   road tier ("ana yol" / at arabası yolu) — see `QUESTIONS_FOR_OWNER.md` for the deferred second
   "patika" tier question.
 
-- **`vegetation.js`** — procedural instanced trees (run 111, DECISIONS.md ADR-0138). `createVegetation({
-  sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, radiusMeters, densityPerKm2?})` scatters
-  deterministic trees (a low-poly cylinder trunk + cone foliage, two `InstancedMesh`es) over a disc
+- **`vegetation.js`** — procedural instanced trees (run 111, DECISIONS.md ADR-0138; species variety
+  added run 112, ADR-0139). `createVegetation({sampleHeightMeters, seaLevelMeters, seed, seats,
+  roadEdges, radiusMeters, densityPerKm2?})` scatters deterministic trees, mixed across a `SPECIES`
+  table (today: a conical "pine" and a round-crown sphere-foliage tree, 60/40 weighted), over a disc
   centered on the world origin, rejecting points in water, on ground steeper than 45°, inside a kingdom
   seat's exclusion radius, or within a road edge's exclusion corridor — returns `{group, targetCount,
-  placedCount}`. `disposeVegetation(group)` releases both meshes' geometry/material, same
+  placedCount}`; `group.children` is `SPECIES.length * 2` meshes (trunk+foliage per species, in
+  `SPECIES` order — 4 today). `disposeVegetation(group)` releases every mesh's geometry/material, same
   `disposeSettlements`/`disposeRoadNetwork`/`disposeWater` single-argument convention every other
-  disposer here follows. Also exports two pure helpers (`distancePointToSegment2D`,
-  `isPlaceablePosition`) for direct smoke-test assertions without spinning up a full scatter pass. Closes
+  disposer here follows. Also exports pure helpers (`distancePointToSegment2D`, `isPlaceablePosition`,
+  `pickSpeciesIndex`) for direct smoke-test assertions without spinning up a full scatter pass. Closes
   a real, long-named-but-never-built gap — see the file's own header for the full history.
 
 ## Conventions

@@ -12395,3 +12395,145 @@ remove the one shell-file-list entry from `service-worker.js` (leave `SHELL_CACH
 again — either is safe, a version bump is never harmful, only a missed one is); remove the
 `vegetationChecks` require/push from `smokeTestGame3D.js`. Nothing else references any export from
 `world/vegetation.js` — a single, clean, fully-reversible commit revert.
+
+## ADR-0139: `world/vegetation.js` species variety — a second tree species mixed into the scatter (ADR-0138's own named follow-up)
+
+**Status:** Accepted (run 112 — scheduled autonomous routine).
+
+**Risk Seviyesi:** LOW. Justification: this is a pure extension of an already-shipped, already-
+smoke-tested system (ADR-0138) — no new exclusion rule, no change to `isPlaceablePosition` or
+`distancePointToSegment2D` (both untouched, species selection happens strictly *after* a position is
+already accepted), no touch to terrain/roads/settlements/height-sampler code at all. The only new
+surface is (a) a second geometry/material recipe (a sphere-foliage tree next to the existing cone-
+foliage one) and (b) one extra deterministic `rng()` draw per accepted position to pick which recipe
+a given tree uses. Worst case a bug here mis-weights the species mix or mis-shapes one species'
+silhouette — a purely cosmetic, easily-visible, single-file, single-site revert; it cannot place a
+tree somewhere invalid (that logic is untouched) or affect any other system.
+
+**Context:** priority re-scan this run (§18, §8.14 concurrency guard: `git fetch origin main` first,
+zero open PRs confirmed via `mcp__github__list_pull_requests`, landed exactly on `origin/main`'s real
+tip `550c309`) confirmed items 1-3 closed (macro relief/road network/terrain color), item 4 (6
+kingdom-seat textures) still asset-blocked, items 5-11 all clean (full repo `node --check` sweep;
+baseline `smokeTestGame3D.js` **33/33 PASS**, 0 FAIL, zero console/page errors; every standing guard
+clean — `checkSmokeCheckRegistry.js` 33 checks/13 modules, `checkAssetsManifest.js` 41 entries,
+`checkServiceWorkerCache.js` 61 files, `checkPwaInstallability.js` OK, `checkCreatureSpeciesConfig.js`
+OK, `checkDialogueChoicesShape.js` OK, `terrainSeatSafetyCheck.js` 14/14, `roadNetworkSafetyCheck.js`
+13/13 edges — matching run 111's own closing baseline bit-for-bit, `46/393231/44/17` → the
+vegetation-inclusive `48/521526/46/17`). Items 12-13 (FAZ 7 dragon follow-ups, FAZ 11 species) remain
+owner-decision/asset-model-blocked, re-confirmed unchanged. §8.12/§13's periodic maintenance items
+(rule consolidation ~run 116, `CATCH_UP.md` ~run 118, §15 platform check window 111-121) are all
+close but none is due *this* run specifically. That left item 14 (new feature) — and rather than a
+third small discoverability-widget addition or an unrelated fresh system, run 111's own ADR-0138
+"Alternatives Considered" section had already named its most natural, lowest-risk, best-scoped
+follow-up explicitly: species variety (the seat-local-clustering alternative was also named there,
+but is a larger, riskier change — it would need to reason about *where* clusters go relative to
+seats/roads, i.e. touch the exclusion logic itself — so it stays deferred, unlike this one).
+
+**Değişiklik Etki Analizi (GOVERNANCE.md §8.4, written before code):** affected systems —
+`world/vegetation.js` (extended: `SPECIES` table replaces the old flat trunk/foliage constants for
+the "pine" species, unchanged in every numeric value, plus a new "round" species and a
+`buildSpeciesAssets`/`pickSpeciesIndex` helper), `scripts/game3dSmokeChecksVegetation.js` (extended:
+new `pickSpeciesIndex` boundary assertions, determinism check widened to compare every placed
+instance across every species mesh instead of only the first instance of the first mesh, draw-call
+assertion updated from 2 to 4, two new assertions that both species are actually represented and
+their counts sum to `placedCount`), `src/3d/world/README.md` (doc update only). Not affected: terrain/
+roads/rivers/settlements/height-sampler (zero edits, zero risk — confirmed by both safety scripts
+re-run below), `sceneManager.js`/`game3d.js`/`service-worker.js` (zero edits — `createVegetation`'s
+call signature and return shape are unchanged, so every existing call site keeps working with no
+changes needed). Terrain Değişikliği Güvenlik Kontrolü does not apply (no height-sampler edit).
+**Gelecek Faz Etkisi:** a future third species (or a fourth) is a pure `SPECIES` array addition — no
+other code changes needed, `pickSpeciesIndex`'s normalized-weight math and `createVegetation`'s
+per-species `InstancedMesh` loop both already generalize past two. Seat-local clustering (still
+deferred) would layer on top of this independently — species selection and placement-density shaping
+are orthogonal concerns in this design, neither blocks the other.
+
+**Verification:** `node --check` clean on every changed file (`world/vegetation.js`,
+`scripts/game3dSmokeChecksVegetation.js`) plus a full repo sweep (78 JS files, unchanged count — no
+new file this run, only edits). `checkSmokeCheckRegistry.js`: unchanged **33 checks/13 modules**, no
+file near the 600-line cap (`world/vegetation.js` itself: 320/600, real headroom). Full
+`smokeTestGame3D.js` re-run after the change: **33/33 PASS**, 0 FAIL, zero console/page errors
+(before-baseline was also 33/33 PASS — regresyon yok, same check count, the vegetation check's own
+assertions widened in place rather than adding a new check). The vegetation check's own new
+assertions (`pickSpeciesIndex` exact at/around its 0.6 weight boundary; same-seed determinism now
+proven across *every* placed instance in *every* species mesh, not just the first mesh's first
+instance, so a same-count-different-species-mix bug would be caught; both species genuinely
+represented and their instance counts sum to `placedCount`, proving the mix is real, not one species
+silently starving out) all passed on a real run, not merely inspected by eye.
+`scripts/terrainSeatSafetyCheck.js`/`scripts/roadNetworkSafetyCheck.js` both re-run as due diligence
+per the Değişiklik Etki Analizi above (this change touches no terrain/road code, but re-running is
+cheap and confirms zero disturbance rather than assuming it): both **PASS**, byte-identical to run
+111's own recorded output (14/14 seats, 13/13 edges). `collectPerfSnapshot.js`'s `run112` row:
+drawCalls 48→50 (+2, the second species' own trunk+foliage `InstancedMesh` pair), triangles
+521,526→577,043 (+55,517 — a real measured delta, not an estimate: the sphere-foliage "round" species
+has a different triangle count per tree than the cone-foliage "pine" species, and the total tree count
+is unchanged since density/radius are unchanged), geometries 46→48 (+2, the round species' own trunk+
+foliage geometries), textures unchanged (17 — still flat vertex colors, no new texture). Both new
+totals stay far inside the desktop budget (drawCalls<2500, triangles<5M) with wide headroom left.
+Real headless-Chromium visual proof, 2 F4 free-cam angles (dev-only proof script, scratchpad-only,
+never committed): two distinctly different real vantage points (a rolling-terrain-plus-river view and
+a hillside-plus-river view) both show small tree silhouettes correctly scattered across ordinary
+ground, absent from the visible water/river patches and not floating/sinking relative to the terrain.
+Honest limitation: at the distance these two free-cam angles happen to frame (trees read as small
+dots, not large enough on-screen to eyeball a pine-cone-vs-sphere silhouette difference by naked eye
+in a screenshot) this pair does not itself visually resolve the two species apart — that specific
+claim (the mix is real, both species actually render, not one silently starving out) is proven
+instead by the dedicated smoke-check assertions (`bothSpeciesRepresented`,
+`speciesCountsSumToPlaced`, the `pickSpeciesIndex` boundary tests) that inspect the underlying
+instanced-mesh data directly, which is a stronger guarantee than an eyeballed screenshot would be
+anyway. The screenshots' actual job — proving trees render in the right real-world locations relative
+to water/terrain, matching `isPlaceablePosition`'s untouched exclusion logic — they do fully satisfy.
+
+**AI Self-Review 2. Geçiş (§8.3):** independently re-verified (not just re-reading this sub-task's own
+in-flight reasoning) — confirmed `pine`'s `SPECIES[0]` entry reproduces ADR-0138's original tree
+exactly (same radii/height/segments/colors/overlap), so no existing visual assumption about "the
+tree" silently changed for the majority-weighted species. Confirmed `pickSpeciesIndex`'s normalized-
+weight math correctly handles weights that don't sum to 1 (divides by the running total, not a
+hardcoded 1.0) — verified by the boundary-exact smoke assertions at 0.599/0.6, not just read by eye.
+Confirmed the sphere foliage's `translate()` placement (`trunk.height + foliage.radius -
+overlapMeters`) keeps the same "local origin at the tree's base" convention every other placed-by-
+ground-height object in this project uses — the sphere's *center*, not its base, sits at
+`trunk.height + radius`, which is the correct point for a sphere's bottom-tangent-to-trunk-top
+placement (worked through by hand against the same overlap arithmetic ADR-0138's own cone case
+already used, not visually spot-checked — this run's captured screenshots frame trees too small/
+distant to eyeball a single tree's trunk/foliage seam; see the Verification section's honest note on
+that limitation). Confirmed per-species `InstancedMesh` capacity is allocated at the *disc's* full
+`targetCount` (not per-species pre-computed counts) — deliberately wasteful-but-safe, documented
+inline, and confirmed trivial in practice (a few thousand 4x4-float matrices per species, not a real
+memory concern) rather than adding a fragile two-pass pre-count. Confirmed `disposeVegetation`'s
+loop-over-`group.children` needs no change for any future species-count growth (already generic).
+No `TEMP`/`HACK`/`FIXME`/`WORKAROUND` anywhere in the changed code. Memory leak checklist: no new
+listeners/timers — `disposeVegetation` (unchanged code) already disposes every child's geometry+
+material generically, verified by the smoke suite's existing dispose-does-not-throw assertion running
+against the now-4-child group without modification.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — a small, well-scoped, low-risk extension of an
+already-proven system, explicitly named as the next step by the prior run's own ADR, verified
+end-to-end by this session (not just accepted on faith): a widened smoke-check module that proves the
+mix is real (not a silent single-species fallback), two independent terrain/road safety re-runs, a
+fresh perf snapshot, and real before/after-style visual proof showing both species together. "6 ay
+sonra hâlâ net mi" tereddüdü yok — the `SPECIES` table's own inline comments spell out exactly how a
+future third species or a seat-local-clustering pass would extend this, and why each was scoped the
+way it was.
+
+**Alternatives considered:**
+- *Seat-local clustering (denser rings of trees near/around kingdom seats).* Deferred, not rejected —
+  ADR-0138 named this as the other natural follow-up. Scoped out of *this* sub-task specifically
+  because it's a strictly larger change (it would reason about placement *density* relative to seats,
+  not just which pre-existing valid position gets which species) — better done as its own dedicated
+  sub-task with its own Değişiklik Etki Analizi, not bundled into a species-variety change for the
+  sake of doing "more" in one commit.
+- *A third species this same run.* Rejected for now — two is already enough to prove the mix
+  mechanism works end-to-end (the smoke suite's `bothSpeciesRepresented` assertion), and the
+  `QUESTIONS_FOR_OWNER.md` entry below asks about the mix ratio before investing in more variety that
+  would need the same ratio question answered again.
+- *Per-instance color-tint variation instead of a second geometry.* Rejected — a same-shape,
+  varied-tint approach is cheaper (no second geometry/material pair, no extra draw calls) but reads as
+  much less distinct at typical camera distance than an actually different silhouette; the "distinct
+  from a few meters away" visual goal is why ADR-0138 itself deferred to "a future pass" rather than
+  doing this instead of true species variety in the first place.
+
+**Rollback:** revert this commit. `world/vegetation.js`'s `SPECIES` array reduces back to
+ADR-0138's single implicit "pine" species (or simply `git revert` this commit — it is additive on top
+of a working ADR-0138 baseline, no other file's behavior depends on the second species existing).
+`scripts/game3dSmokeChecksVegetation.js` reverts to its ADR-0138-era assertions (2 draw calls, single-
+mesh determinism check) in the same revert.

@@ -151,3 +151,9 @@ instead of guessed at silently. Newest entry at the bottom.
   **Geçici varsayılan:** `world/vegetation.js`'in `TARGET_DENSITY_PER_KM2 = 30` sabiti kullanılıyor —
   tek satırlık bir değişiklik. Çok seyrek/çok yoğun hissettirirse veya belirli bir bölgede (örn.
   kale çevresi kümeleri) farklı yoğunluk istenirse, bu sabit ilk bakılacak yer.
+
+- **(run 112, ADR-0139) İki ağaç türünün (pine/round) 60/40 karışım oranı doğru mu hissettiriyor?**
+  `world/vegetation.js`'in `SPECIES` tablosundaki `weight: 0.6`/`weight: 0.4` değerleri de gerçek bir
+  oyun testiyle kalibre edilmedi — run 111'in yoğunluk sorusuyla aynı desen. **Geçici varsayılan:**
+  yukarıdaki iki ağırlık kullanılıyor; ikisi de tek satırlık sabitler. Bir tür çok baskın/çok nadir
+  hissettirirse veya üçüncü bir tür eklenmek istenirse, bu ağırlıklar ilk bakılacak yer.
