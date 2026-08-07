@@ -11863,3 +11863,132 @@ before attempting this on mobile specifically).
 
 **Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
 recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-07, run 114 — scheduled autonomous routine)
+
+**Concurrency/snapshot:** container booted fresh (ephemeral, per-session). Local repo started
+HEAD-detached at `origin/main`'s tip; resynced via `git checkout -B main origin/main`, confirmed
+zero open PRs via `mcp__github__list_pull_requests` before touching anything, landed exactly on
+`origin/main`'s real tip (`d90aab4`, run 113's stable-tag/§8.11 commit). This run's own fired-prompt
+text still says "create GOVERNANCE.md first" — already satisfied by an earlier run (re-confirmed:
+`GOVERNANCE.md` exists, complete, all 22 sections present; `CREDITS.md`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`STABLE_TAGS.md` all likewise already exist, none recreated). Read
+`3D_GAME_PROGRESS.md`'s run 113 entry, `DECISIONS.md`'s ADR-0138/0139/0140, and
+`QUESTIONS_FOR_OWNER.md` in full (no unresolved item forcing this run's hand; run-63 leaked-key
+entry stays open pending owner action, unchanged). No `git` drift found before committing below.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`)
+clean, 86 files pre-change. Standing guards clean (`checkSmokeCheckRegistry.js`: 33 checks/13
+modules, zero line-count WARNs; `terrainSeatSafetyCheck.js` 14/14; `roadNetworkSafetyCheck.js`
+13/13 edges). Full `scripts/smokeTestGame3D.js`: **33/33 PASS**, 0 FAIL, zero console/page errors
+(pre-change baseline).
+
+**Priority re-scan (§18):** items 1-3 confirmed closed. Item 4 stays asset-blocked. Items 5-8/10-11
+all clean per the baseline sweep. Item 9 (teknik borç): zero, no fresh candidate (`game3d.js`
+482/600 has real headroom). Items 12-13 remain owner-decision/asset-model-blocked, unchanged.
+§8.12/§13/§15 maintenance windows checked — none due this run (consolidation ~run 116, `CATCH_UP.md`
+~run 118, next platform check ~run 132-142). Run 113's own ADR-0140 named "grounding more seats'
+terrain neighborhoods" as its follow-up, but that needs its own measured-not-estimated perf
+sub-task (per `debug/README.md`'s standing note on how `PHASE1_PREVIEW_RADIUS_CHUNKS` has always
+been grown historically) — too large to responsibly finish this run, deferred rather than
+half-measured. With 1-13 exhausted, item 14 taken, following run 102/103/129/130's own low-risk
+precedent: grow `worldEvents.js`'s flavor pool by one entry.
+
+### Sub-task: `sellsword_arrival` — a new UNCOMMON, ungated world event (DECISIONS.md ADR-0141)
+
+Added one new `Object.freeze`-array entry to `gameplay/worldEvents.js`'s `WORLD_EVENTS`: a wandering
+sellsword arriving at a castle gate ("Kiralık Kılıç Gelişi"), UNCOMMON rarity, no `timeOfDay` gate
+(deliberately ambiguous text works at any hour). Fixed the file's own two relative-count header
+comments in place (6 of 28→29 gated, 22 of 28→23 of 29 ungated) so neither goes stale, matching
+ADR-0130's own precedent for the same file. Full reasoning, thematic-overlap check against all 28
+prior entries, risk analysis (LOW — additive data only, no logic change), and alternatives
+considered (COMMON tier, night gate, a full hireable-NPC feature, growing the preview radius
+instead) are in `DECISIONS.md` ADR-0141.
+
+**Değişiklik Etki Analizi confirms:** no edits to `world/terrain.js`/`world/roads.js`/
+`world/rivers.js`/`world/settlements.js`/any height-sampler code — Arazi Değişikliği Güvenlik
+Kontrolü doesn't apply; both existing safety scripts re-run as due diligence anyway:
+`scripts/terrainSeatSafetyCheck.js` **PASS 14/14** and `scripts/roadNetworkSafetyCheck.js` **PASS**
+(13/13 edges), both byte-identical to run 113's recorded values.
+
+**DoD durumu:**
+- [x] `node --check` clean on the one changed file (`gameplay/worldEvents.js`) plus a full repo
+      sweep (86 JS files, unchanged — no new file this run)
+- [x] Smoke test — baseline **33/33 PASS** before, **33/33 PASS** after (same check count, the
+      existing id-based gating assertions needed no change — 0 FAIL, zero console/page errors both
+      times)
+- [x] Görsel kanıt — real headless-Chromium proof (dev-only proof script, direct real-module
+      import via a real `game3d.html` boot, scratchpad-only, never committed), 2 distinct real
+      viewports (desktop 1280x720, mobile 390x844): searched seeds 1-5000 for one whose first draw
+      is the new event, confirmed the real toast DOM's title/desc `textContent` match the picked
+      payload exactly (Turkish characters included, no encoding issue), confirmed the mobile toast's
+      bounding rect clears the back-link control. Zero console/page errors at both viewports.
+- [x] Performans bütçesi — `collectPerfSnapshot.js run114` sample: drawCalls/triangles/geometries/
+      textures all bit-identical to run113 (50/608296/48/17) — expected, config-data-only change
+- [x] Teknik borç sayacı — **0** (unchanged; `worldEvents.js` grew to ~186/600, still well under cap)
+- [x] `3D_GAME_PROGRESS.md` güncellendi (this entry)
+- [x] ADR yazıldı — `DECISIONS.md` ADR-0141 (Risk Seviyesi: LOW, Alternatives Considered, Geri alma
+      planı, Gelecek Faz Etkisi all present)
+- [x] Commit atıldı (below)
+- [x] Konsol Temizliği — zero console/page errors across the full smoke suite re-run and the proof
+      script's own two viewports
+
+**Incidental fix (§8.3-adjacent, not a separate sub-task):** `GOVERNANCE.md` §16's deferred-rules
+table still described the "30-commit performans trend grafiği" item as merely eligible, even though
+run 110's ADR-0137 already implemented it (`scripts/analyzePerfTrend.js`). Corrected the table row
+to "✅ Ele alındı (run 110, ADR-0137)" with a one-line summary — a documentation-debt find noticed
+while re-reading `GOVERNANCE.md` per the Session Snapshot procedure, same class of fix ADR-0130 set
+precedent for. No code/behavior change.
+
+**Yeni soru:** none — a discrete COMMON/UNCOMMON/RARE tier choice under this project's own
+already-established rubric (ADR-0110), not a continuous tunable constant needing a real playtest,
+same reasoning every prior flavor-only `worldEvents.js` addition (run 83's `traveling_singer`,
+run 95's `shackled_prisoner`, etc.) used to skip a `QUESTIONS_FOR_OWNER.md` entry too.
+
+**AI Self-Review 2. Geçiş (§8.3):** independently re-verified — confirmed no existing entry's theme
+genuinely overlaps (re-read all 28 prior `desc` strings before writing the ADR's Decision, not
+assumed); confirmed the comment-count arithmetic by hand (6+22=28 before, 6+23=29 after — both
+comments now internally consistent with each other and with `WORLD_EVENTS.length`); confirmed the
+existing gating smoke check's assertions key off fixed id strings, not array length/index, so an
+unrelated 29th entry can't spuriously affect them; confirmed the proof script's own seed-search loop
+disposes every probe system/bus across up to 5000 iterations (no accumulating listeners) before
+creating the real, kept instances. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a
+(config-data-only in `worldEvents.js`; the proof script is never committed, its own instances are
+explicitly disposed).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — low-risk, well-proven pattern (same shape as
+ADR-0102/0110/0111/0129/0130), a genuinely distinct new entry verified (not assumed) against every
+prior entry's text, zero regression in the full smoke suite, real 2-viewport proof with exact-text
+DOM assertions, zero open design ambiguity worth escalating. "6 ay sonra hâlâ net mi" tereddüdü yok
+— the ADR spells out exactly which prior entries this was checked against and why each is distinct.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 114 end) | Delta |
+|---|---|---|---|
+| `worldEvents.js` flavor-pool entries | 28 | **29** | +1 (`sellsword_arrival`) |
+| Draw calls / triangles / geometries / textures | 50 / 608,296 / 48 / 17 | **unchanged** | 0 (config-data-only) |
+| Smoke suite | 33/33 | **33/33** | unchanged (existing check needed no modification) |
+| `checkSmokeCheckRegistry.js` | 33 checks/13 modules | **33 checks/13 modules** | unchanged |
+| ADR headers in `DECISIONS.md` | 140 | **141** | +1 (ADR-0141) |
+| `perf_log.csv` rows | 55 | **56** | +1 (`run114`) |
+| Open questions in `QUESTIONS_FOR_OWNER.md` | (unchanged from run 113) | **unchanged** | none added (discrete tier choice, not a calibration constant) |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** evet, ama küçük — dünya olayları bildirim havuzuna (24 saat boyunca
+periyodik olarak tetiklenen "kuzgun geldi"/"nöbet değişimi" tarzı kısa bildirimler) bir tane daha
+eklendi; oyuncu yeterince uzun oynarsa er ya da geç kale kapısına yaklaşan bir kiralık kılıç
+bildirimini görebilir. Dünyanın görsel/3D tarafında hiçbir değişiklik yok.
+
+**Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §8.14.
+Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. No file near
+the 600-line cap. `RULES_CHANGELOG.md`'nin next consolidation ~run 116 (yaklaşıyor, sıradaki 1-2
+çalıştırmada ele alınabilir), `CATCH_UP.md`'nin next summary ~run 118 (last done run 108). A
+natural, larger item-14 follow-up (not required, just available): ADR-0140's own deferred
+follow-up, growing `PHASE1_PREVIEW_RADIUS_CHUNKS` (or force-grounding specific seats) so Xaro/Night
+King qualify for vegetation clustering too — needs its own dedicated perf-measurement sub-task per
+`debug/README.md`'s standing note, not attempted half-measured this run.
+
+**Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
+recorded in `STABLE_TAGS.md`.

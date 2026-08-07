@@ -242,7 +242,7 @@ göreve geçilir.
 | Tam Test Piramidi (7 katman) | mevcut smoke test yetersiz kalmaya başlarsa (sık regresyon kaçıyorsa) |
 | Frame Budget alt-sistem süre ölçümü | F2 panelinin `renderer.info` istatistikleri yetersiz kalırsa (FPS düşüyor ama nedeni belirsizse) |
 | Resmi 1-10 Kod Kalite Skoru | uygulanmıyor — Oturum Kalite Kapısı'nın 1-5 güven skoru yeterli kabul edildi |
-| 30-commit performans trend grafiği | `perf_log.csv` 30+ satır biriktirdikten sonra düşünülebilir — **eşik run 96'da geçildi (39 veri satırı); hâlâ zorunlu değil, sadece artık gerçekten yapılabilir bir alt görev, ilk uygun boşlukta ele alınabilir** |
+| 30-commit performans trend grafiği | **✅ Ele alındı (run 110, ADR-0137):** `scripts/analyzePerfTrend.js` — `perf_log.csv` üzerinden min/max/ortalama + ilk-yarı/son-yarı `jsHeapUsedMB` sürüklenme kontrolü, düz metin tablo (bilinçli olarak grafik/PNG değil — ADR-0137'nin Alternatives bölümüne bakılır, tek npm bağımlılığı olmayan bu repo için ek karmaşıklık gerekçesiz bulundu). Aktivasyon koşulu (30+ satır, run 96'da geçildi) karşılandı ve madde kapatıldı; tabloda sadece kayıt için tutuluyor. |
 
 ---
 
