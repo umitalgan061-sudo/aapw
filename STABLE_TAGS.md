@@ -682,3 +682,11 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   open question in `QUESTIONS_FOR_OWNER.md` (discrete tier/gate choice, not a calibration constant
   needing a real playtest); the run-63 leaked-NVIDIA-key item remains open, unchanged, still
   pending owner action.
+
+- **Run 121 (2026-08-07):** FAZ 8 `owl_watch` / “Baykuş Nöbeti” gece dünya olayı
+  (ADR-0146). Değişiklik 71 ekleme/0 silme ile PR #21 üzerinden `main` dalına birleştirildi
+  (`a602294`); deterministik 5000-seed kanıtı olayın yalnız gece havuzunda erişilebilir olduğunu
+  doğruladı. Syntax, smoke-registry, PWA kurulabilirlik ve service-worker cache kontrolleri geçti;
+  Playwright olmayan konteynerde browser smoke/perf güvenli biçimde SKIP etti ve sahte performans
+  satırı yazılmadı. `stable-2026-08-07-0818` etiketi merge commit'ine oluşturuldu ve bu run'da
+  GitHub'a başarıyla gönderildi.
