@@ -545,3 +545,22 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
   entry satisfies the checkpoint). One new open question logged in `QUESTIONS_FOR_OWNER.md`
   (vegetation density, run 111/ADR-0138) — not blocking.
+
+- **Run 112 (2026-08-07):** Session Quality Gate passed (confidence 5/5, §8.6) — item-14 new
+  feature, `world/vegetation.js` species variety, a second tree species mixed into the existing
+  scatter (ADR-0139), the natural lowest-risk follow-up ADR-0138 itself had already named. 33/33
+  baseline → 33/33 real-browser smoke suite clean (existing vegetation check widened in place, not
+  a new check — species-boundary/mix-representation assertions all passed on a real run), both
+  `terrainSeatSafetyCheck.js` (14/14) and `roadNetworkSafetyCheck.js` (13/13 edges) re-confirmed
+  unaffected, real F4 free-cam 2-angle visual proof (honestly noted: confirms correct terrain/water
+  placement, does not itself resolve individual species silhouettes at that distance — the species-
+  mix claim is proven by the smoke assertions instead), fresh `collectPerfSnapshot.js run112`
+  (drawCalls 48→50, triangles 521,526→577,043, well inside desktop budget), game opens without
+  issue (merge commit `afadcad` is diff-empty against the already-verified `cd00fb2`). Local tag
+  `stable-2026-08-07-0208` created at `afadcad` (PR #12 merge). `git push origin work` + PR #12 →
+  `main` merge succeeded (`550c309..afadcad`). `git push origin <tag>` still rejected, same
+  `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies
+  the checkpoint). One new open question logged in `QUESTIONS_FOR_OWNER.md` (species mix ratio,
+  run 112/ADR-0139) — not blocking. GOVERNANCE.md §15's periodic platform check window (111-121)
+  was also closed this run, folded into this run's own baseline checks at no extra cost (npm audit
+  N/A, PWA installability OK, WebGL/smoke clean) — no new ADR, findings unchanged from run 91.
