@@ -13597,3 +13597,14 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Memory leak checklist: N/A — yeni runtime listener/timer/DOM/geometry/material yok. Teknik borç: 1 (`game3d.js` 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
 - World Evolution Report delta: yol 0 km; orman 0 km²; kale/NPC/event/hayvan 0; coverage 0; asset/diyalog 0; ADR +1. Oyuncu fark eder mi: hayır; ajanların aynı run kimliğini çift kaydetmesi artık yayın öncesinde otomatik yakalanır.
 - Sıradaki güvenli adım: owner bloklarına dokunmadan bağımsız UI/erişilebilirlik/test-kalite işi; ~run156 kural konsolidasyonu yaklaşırken concurrency gate zorunlu.
+
+
+## Run 153 — Settlement discovery atomic live announcement (2026-08-07 21:39 UTC)
+- Session Snapshot / concurrency: run152 (`84604991`) tabanından başlandı; `GOVERNANCE.md`, progress/ADR/QFO ve son commitler doğrulandı. Owner bloklarına dokunulmadı; Run153 adına aktif rakip dal başlangıçta yoktu.
+- Alt görev: `ui/settlementDiscovery.js` mevcut `role=status` + `aria-live=polite` semantiğine additive-only `aria-atomic=true` katmanı kazandırdı. Keşif başlığı, yerleşim adı ve ilerleme sayacı ekran okuyucuda tek tutarlı Türkçe güncelleme olarak duyurulabilir; timer, localStorage, yarıçap, layout ve gameplay davranışı değişmedi.
+- DoD: temiz run152 baseline + post-change browser/WebGL smoke 34/34+ PASS; `node --check`, özellik-spesifik Node DOM regresyonu, checkpoint/world-event/PWA/cache/assets/dialogue/mobile/world safety ve additive-only kapıları PASS; console/page error yok.
+- Görsel doğrulama: ARIA metadata piksel çıktısını değiştirmediği için görünür önce/sonra farkı beklenmez; tam browser smoke render davranışının değişmediğini, hedef regresyon testi erişilebilirlik ağacına taşınan atomik semantiği doğrular.
+- World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi. Performans ölçümü `perf_log.csv` run153 satırında kayıtlı; render yolu değişmedi.
+- Memory leak checklist: yeni listener/timer/DOM/geometry/material yok; mevcut dispose + timeout temizliği korunuyor. Teknik borç: 1 (`game3d.js` 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
+- World Evolution Report delta: yol 0 km; orman 0 km²; kale/NPC/event/hayvan 0; coverage 0; asset/diyalog 0; ADR +1. Oyuncu fark eder mi: görsel olarak hayır; ekran okuyucu kullanan oyuncu keşif bildiriminin üç parçasını tek atomik durum mesajı olarak alır.
+- Sıradaki güvenli adım: owner bloklarına dokunmadan bağımsız UI/erişilebilirlik veya test-kalite işi; run156 civarı kural konsolidasyonu yaklaşırken final concurrency gate zorunlu.

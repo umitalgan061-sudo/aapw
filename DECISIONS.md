@@ -14373,3 +14373,20 @@ verince (aşağıdaki üç seçenekten biri) ilgili run o kararı uygulayacak co
 **Etkilenen sistemler:** yalnız repository test/CI kalite katmanı ve üç checkpoint ledger'ı; gameplay, renderer, PWA cache, mobil dünya ve deterministik üreticiler etkilenmez.
 
 **Geri alma planı:** Yeni script/workflow ileride daha yeni bir guard tarafından additive biçimde gölgelenebilir; mevcut consistency guard ve runtime bit-eşit kalır.
+
+
+## ADR-0175 — Yerleşim keşfi için atomik erişilebilir durum mesajı (run 153)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `SettlementDiscovery` mevcut `role=status` ve `aria-live=polite` semantiğini korur; gerçek bir keşif bildirimi gösterilirken additive-only prototype extension ile `aria-atomic=true` uygulanır.
+
+**Neden:** Keşif bildirimi eyebrow + yerleşim adı + keşif ilerlemesi olmak üzere üç ayrı DOM metin düğümünden oluşur. Canlı bölge atomik değilse bazı yardımcı teknolojiler güncellemenin yalnız değişen parçasını okuyabilir. Atomik durum, Türkçe bildirimin bağlamını tek duyuruda korur.
+
+**Alternatifler:** Constructor satırını doğrudan değiştirmek daha sade olurdu fakat additive-only guard'ı ihlal eder. Yeni ikinci bir live-region DOM'u eklemek çift UI sahipliği ve cleanup yükü yaratacağı için reddedildi. Mevcut semantiği olduğu gibi bırakmak parçalı duyuru riskini sürdürürdü.
+
+**Sonuç:** Görsel piksel çıktısı, timer, persistence/localStorage, keşif yarıçapı, update sırası, mobil/desktop/PWA davranışı ve render bütçesi değişmez; yardımcı teknoloji duyurusu daha tutarlı hale gelir.
+
+**Etkilenen sistemler:** `src/3d/ui/settlementDiscovery.js`, hedef regresyon scripti ve run153 CI/kayıtları. `game3d.js`, world generation, EventBus, save formatı ve service-worker cache içeriği etkilenmez.
+
+**Geri alma planı:** Additive extension ileride daha yeni bir erişilebilirlik policy katmanı tarafından gölgelenebilir; owner additive-only refactor istisnası verirse semantik constructor içine taşınabilir. Mevcut satırları silmek/değiştirmek gerekmez.
