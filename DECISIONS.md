@@ -14356,3 +14356,20 @@ verince (aşağıdaki üç seçenekten biri) ilgili run o kararı uygulayacak co
 **Etkilenen sistemler:** `src/3d/ui/worldEventToast.js`; test-only `scripts/checkWorldEventToastAccessibility.js`; run150 CI/records. `game3d.js`, `gameplay/worldEvents.js`, EventBus API, save formatı ve WORLD_EVENTS katalog/fixture'ı değişmez.
 
 **Geri alma planı:** Additive extension sonraki bir additive policy katmanı ile devre dışı bırakılabilir. Owner gelecekte additive-only guard için kaynak-refactor istisnası verirse semantik attribute'lar constructor içine taşınabilir; o zamana kadar mevcut satırlar korunur.
+
+
+## ADR-0174 — Son run checkpoint kayıtlarında benzersizlik kapısı (run 152)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `checkCheckpointConsistency.js` korunur ve yanına bağımsız `checkLatestRunUniqueness.js` eklenir. Yeni guard en yüksek run numarasının `3D_GAME_PROGRESS.md`, `STABLE_TAGS.md` ve `perf_log.csv` içinde ayrı ayrı tam bir kez bulunmasını zorunlu kılar.
+
+**Neden:** Eşzamanlı ajanlar aynı run numarasını bağımsız şekilde yazarsa üç defter aynı maksimum run üzerinde anlaşabilir; bu durumda mevcut consistency kontrolü tek başına duplicate kaydı ayırt edemez. Benzersizlik kontrolü bu boşluğu runtime davranışına dokunmadan kapatır.
+
+**Alternatifler:** Mevcut consistency scriptini değiştirmek additive-only kuralını ihlal edeceği için reddedildi. Run numarasını yalnız commit mesajından çıkarmak authoritative-ledger kontrolü sağlamadığı için reddedildi.
+
+**Sonuç:** Çift son-run kayıtları CI'da erken FAIL olur; eski tarihsel kayıtların biçimi veya runtime kodu değişmez.
+
+**Etkilenen sistemler:** yalnız repository test/CI kalite katmanı ve üç checkpoint ledger'ı; gameplay, renderer, PWA cache, mobil dünya ve deterministik üreticiler etkilenmez.
+
+**Geri alma planı:** Yeni script/workflow ileride daha yeni bir guard tarafından additive biçimde gölgelenebilir; mevcut consistency guard ve runtime bit-eşit kalır.

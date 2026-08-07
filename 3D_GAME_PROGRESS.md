@@ -13588,3 +13588,12 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Memory leak checklist: N/A (kod değişmedi). Teknik borç: 1 (`game3d.js` 545/600, owner kararı bekliyor, değişmedi). Risk LOW. Güven 5/5 — hiçbir tahmin/fabrikasyon yok; güvenlik bulgusu ADR-0081'de zaten belgeliydi, bu run yalnız onu (ve iki diğer açık yapısal maddeyi) ilk kez gerçek bir push bildirimiyle sahibe ulaştırdı. "6 ay sonra hâlâ net mi" tereddüdü yok.
 - World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi. World Evolution Report delta: tüm sayılar 0 (bu run salt denetim/eskalasyon); toplam ADR sayısı değişmedi (173).
 - Sıradaki adım: owner'ın NVIDIA anahtarı rotasyonu + 3 yapısal maddeye yanıtı bekleniyor; bu arada gelecekteki runlar owner bloklarına dokunmadan bağımsız düşük-risk alanlarda (UI/erişilebilirlik/test-kalite) ilerlemeye devam edebilir. Sonraki catch-up ~run 158, kural konsolidasyonu ~run 156.
+
+
+## Run 152 — Latest-run checkpoint uniqueness guard (2026-08-07 21:28 UTC)
+- Alt görev: çok-agent eşzamanlılığında aynı son run kimliğinin progress/stable/perf defterlerine birden fazla kez yazılmasını yakalayan `scripts/checkLatestRunUniqueness.js` eklendi. Guard runtime/PWA/gameplay koduna dokunmaz.
+- DoD: temiz run151 baseline + post-change browser/WebGL smoke 34/34+ PASS; syntax, checkpoint consistency, world-event, PWA/cache, mobile/world safety ve additive-only kapıları PASS; console/page error yok.
+- World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi. Performans ölçümü `perf_log.csv` run152 satırında kayıtlı; runtime değişmedi.
+- Memory leak checklist: N/A — yeni runtime listener/timer/DOM/geometry/material yok. Teknik borç: 1 (`game3d.js` 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
+- World Evolution Report delta: yol 0 km; orman 0 km²; kale/NPC/event/hayvan 0; coverage 0; asset/diyalog 0; ADR +1. Oyuncu fark eder mi: hayır; ajanların aynı run kimliğini çift kaydetmesi artık yayın öncesinde otomatik yakalanır.
+- Sıradaki güvenli adım: owner bloklarına dokunmadan bağımsız UI/erişilebilirlik/test-kalite işi; ~run156 kural konsolidasyonu yaklaşırken concurrency gate zorunlu.
