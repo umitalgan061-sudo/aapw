@@ -734,3 +734,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   2026-08-07-1002` etiketi bu run'da `git push origin <tag>` ile denendi, yine `HTTP 403` ile
   reddedildi (§8.11'in bilinen kısıt kaydıyla tutarlı) — yerel tag + bu satır kontrol noktası için
   yeterli sayıldı.
+- stable-2026-08-07-1031 — run 127 governance validation; browser smoke 34/34+ PASS, additive-only PASS, perf snapshot recorded.

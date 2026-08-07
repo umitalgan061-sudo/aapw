@@ -12755,3 +12755,12 @@ model bekleyen türler (at/araba/köpek-kedi/kuş) hâlâ manuel asset kaynağı
 **Oturum Kalite Kapısı:** 2 alt görev tamamlandı, güven skoru her ikisinde de 5/5, "6 ay sonra hâlâ
 net mi" tereddüdü yok — devam edilebilir. Çalışma Süresi Sınırı/Çalıştırma Geneli Süre Tavanı içinde
 kalındı.
+
+## Run 127 — GitHub runner governance validation (2026-08-07 10:31 UTC)
+- Alt görev: WORLD_EVENTS katalog bütünlük guard gerçek repo checkout üzerinde doğrulandı.
+- Değişiklik: checkWorldEventCatalog.js + governance validation CI; mevcut uygulama kaynaklarından satır/dosya silinmedi.
+- DoD: node --check PASS; katalog/PWA/cache/asset/smoke-registry/terrain/road guard PASS; browser smoke 34/34+ PASS; additive-only PASS.
+- Performans: 2026-08-07,run127,1,50,608296,48,17,391
+- Görsel doğrulama: runtime görsel davranışı değişmedi; gerçek 2D/3D browser boot ve UI smoke doğrulandı.
+- ADR: runtime/mimari davranış değişmediği için yeni ADR gerekmiyor.
+- Teknik borç: 0 yeni borç. World Coverage: değişmedi. World Evolution delta: 0. Risk: LOW. Güven: 5/5.
