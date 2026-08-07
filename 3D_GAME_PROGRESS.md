@@ -12476,3 +12476,44 @@ evet, küçük ölçekte; gece oynarken yeni bir kale-sur atmosfer bildirimi gö
 kale ile FAZ 6 at/araba/köpek-kedi/kuş varlıkları asset beklemeye devam ediyor. Vegetation preview
 yarıçapını büyütme seçeneği ancak özel performans ölçümüyle ele alınmalı. Sonraki catch-up özeti
 ~run 128, platform kontrolü ~run 132-142, kural konsolidasyonu ~run 136.
+
+## This Run (2026-08-07, run 122 — Codex continuation)
+
+**Concurrency/snapshot:** `git fetch origin --prune` sonrası `work`, güncel `origin/main`
+(`9432514`, run-121 stable kayıt merge'i) üzerine kuruldu; açık PR yoktu. GOVERNANCE öncelikleri ve
+run-121 next-step yeniden tarandı. Asset bekleyen kale/hayvan işleri korunarak FAZ 8 keşif
+kullanılabilirliğinin küçük, bağımsız ilerleme boşluğu seçildi.
+
+### Sub-task: yerleşim keşfi ilerleme sayacı (ADR-0147)
+
+İlk-varış bildirimine “1 / 14 yerleşim keşfedildi” biçiminde keşfedilen/toplam sayacı eklendi. Metin
+mevcut polite status bölgesinde, Türkçe erişilebilir etikete sahip; kartın desktop/mobile/PWA
+lifecycle'ı, storage davranışı ve 5 saniyelik görünürlük süresi değişmedi. Değişiklik yalnız ekleme
+yaptı; mevcut kaynak satırı silinmedi.
+
+**DoD / doğrulama:** Değişen iki JS dosyası ve tam syntax taraması temiz. Odaklı gerçek Chromium
+kontrolü range, announcement, yeni progress assertion, persistence, restricted-storage fallback,
+390px mobil sığma, timeout ve dispose davranışlarını geçti. 1280×720 desktop ile 390×844 mobil
+görüntüler ayrı ayrı incelendi; sayaç kart içinde okunaklı ve viewport sınırlarında. Smoke registry,
+PWA kurulabilirlik ve service-worker cache kontrolleri yeniden çalıştırıldı. Teknik borç: **0**;
+güven **5/5**.
+
+**Memory-leak checklist:** Var olan root kaldırıldığında yeni span da onunla kaldırılır; yeni
+listener/timer/DOM root/geometry/material yoktur. **Performans:** yalnız keşif anında tek
+`textContent` güncellemesi; frame maliyeti, draw call ve 3D kaynak sayıları değişmez.
+
+**World Evolution Report:** keşfedilebilir koltuk sayısı 14 olarak değişmedi; bildirim içeriği 2
+satırdan **3** satıra çıktı; smoke registry toplamı 34/14 olarak değişmedi; ADR sayısı 146'dan
+**147**'ye çıktı. World Coverage 96.2% / 4.5% ve son render bütçesi değişmedi. Oyuncu fark eder:
+evet — her yeni kalede dünya keşfinin toplam ilerlemesini görür.
+
+**Next step:** her zamanki taze `origin/main` fetch ve öncelik taraması; 6 dokusuz kale ile FAZ 6
+model bekleyen türler bloklu. Sonraki catch-up ~run 128, platform kontrolü ~run 132-142 ve kural
+konsolidasyonu ~run 136.
+
+**Run-122 performans addendum:** Gerçek Chromium snapshot daha sonra başarıyla tamamlandı ve
+`perf_log.csv`'ye `run122` satırı eklendi: 0 FPS örnek anı / 55 draw call / 646,282 triangle /
+49 geometry / 22 texture / 242 MB heap. 0 FPS, snapshot anındaki headless yazılım-render ölçümüdür;
+kaynak bütçeleri desktop limitlerinin çok altındadır. Yeni sayaç bir HTML span olduğundan 3D metrik
+artışının nedeni değildir; önceki “son bütçe değişmedi” ifadesi kod-etki analizidir, bu satır ise bu
+konteynerin ölçülen gerçek anlık değeridir. Tam browser smoke suite **34/34 PASS** tamamlandı.

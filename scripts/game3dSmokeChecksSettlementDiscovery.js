@@ -25,6 +25,9 @@ async function checkSettlementDiscovery(browser, baseUrl) {
 			const announcesOnArrival = !root.hidden && root.textContent.includes('Kışyarı')
 				&& root.getAttribute('role') === 'status' && root.getAttribute('aria-live') === 'polite';
 			const persistsDiscovery = [...storageValues.values()].some((value) => value.includes('winterfell'));
+			const reportsDiscoveryProgress = root.textContent.includes('1 / 1 yerleşim keşfedildi')
+				&& root.querySelector('.g3d-settlement-discovery-progress')?.getAttribute('aria-label') === 'Keşif ilerlemesi';
+			if (!reportsDiscoveryProgress) throw new Error('Settlement discovery progress is missing or inaccessible');
 			const fitsMobileViewport = root.getBoundingClientRect().left >= 0
 				&& root.getBoundingClientRect().right <= window.innerWidth;
 			await new Promise((resolve) => setTimeout(resolve, 30));

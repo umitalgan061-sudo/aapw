@@ -552,6 +552,14 @@ html, body {
   font-size: 18px;
 }
 
+
+.g3d-settlement-discovery-progress {
+  margin-top: 4px;
+  color: rgba(232, 212, 160, 0.82);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
 @media (max-width: 600px) {
   .g3d-settlement-discovery {
     bottom: max(168px, calc(env(safe-area-inset-bottom, 0px) + 168px));
