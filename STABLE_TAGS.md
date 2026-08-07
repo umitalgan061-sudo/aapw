@@ -645,3 +645,22 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   entry satisfies the checkpoint). No new open question in `QUESTIONS_FOR_OWNER.md` (discrete
   tier/gate choice, not a calibration constant needing a real playtest); the run-63
   leaked-NVIDIA-key item remains open, unchanged, still pending owner action.
+
+- **Run 119 (2026-08-07):** Sub-task — overdue `CATCH_UP.md` owner-facing summary for runs 109-118
+  (documentation-only, no ADR by design, matches the run-108 `CATCH_UP.md`/doc-fix precedent).
+  Baseline + post-change: full `node --check` sweep clean (80 files, no new file), full
+  `smokeTestGame3D.js` **34/34 PASS** both before and after (docs-only, no code path could have
+  changed), `checkSmokeCheckRegistry.js` 34 checks/14 modules unaffected, `terrainSeatSafetyCheck.js`
+  14/14 and `roadNetworkSafetyCheck.js` 13/13 unaffected (out-of-scope change, checked as due
+  diligence anyway), `collectPerfSnapshot.js run119` bit-identical to run116's last recorded row
+  (`50/608296/48/17`). Game opens without issue post-merge (merge commit `e551ce9` is a real merge
+  of `work` into `main`, no conflicts; full `node --check` sweep + `checkSmokeCheckRegistry.js` + a
+  full post-merge `smokeTestGame3D.js` re-run — **34/34 PASS**, 0 FAIL — all re-confirmed clean
+  against the merged tree; one interim re-run attempt hit this session's own 120s shell timeout
+  mid-suite, a tooling artifact not a game/test regression — re-run to completion in the background
+  confirmed clean). Local tag `stable-2026-08-07-0650` created at `e551ce9` (PR #19 merge). `git push
+  origin work` + PR #19 → `main` merge succeeded (`45931b2..e551ce9`). `git push origin <tag>` still
+  rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
+  entry satisfies the checkpoint). No new open question in `QUESTIONS_FOR_OWNER.md` (pure reporting
+  update, no design decision to weigh); the run-63 leaked-NVIDIA-key item remains open, unchanged,
+  still pending owner action.
