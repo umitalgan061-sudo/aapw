@@ -14463,3 +14463,20 @@ mobil/masaüstü render yolu etkilenmez.
 **Geri alma planı:** Eklenen üç ARIA attribute'u ileride owner onaylı bir erişilebilirlik
 policy/refactor katmanı tarafından gölgelenebilir (ör. `role="button"` + klavye desteği eklenirken).
 Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
+
+
+## ADR-0179 — Oyun saati için sessiz erişilebilir timer semantiği (run 157)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `DayNightClock` görsel davranışı değiştirmeden `role="timer"`, `aria-live="off"`, `aria-atomic="true"` kazanır; dekoratif gün/gece emojisi `aria-hidden="true"` olur. Görünen oyun dakikası değiştiğinde mevcut Türkçe `aria-label`, `Oyun içi saat HH:MM` biçiminde güncellenir.
+
+**Neden:** 12 dakikalık sıkıştırılmış oyun gününde ekrandaki saat yaklaşık her yarım gerçek saniyede değişiyor. `status`/`polite` gibi canlı-bölge semantiği bu kadar hızlı değişen bir yüzeyde ekran okuyucuyu gereksiz yere konuşturur. `timer` rolü + `aria-live=off`, oyuncu erişilebilirlik ağacında saati sorguladığında güncel değeri verir ama her dakika değişimini kendiliğinden anons etmez. Emoji yalnız görsel dönem ipucu olduğu için erişilebilir adın parçası yapılmaz.
+
+**Alternatifler:** (1) `role="status"` + `aria-live="polite"` — reddedildi, sıkıştırılmış zaman akışında aşırı konuşkan olurdu. (2) Yalnız mevcut `aria-label="Oyun içi saat"` ile kalmak — reddedildi, erişilebilir ad güncel HH:MM değerini taşımıyordu. (3) Saati focusable bir kontrol yapmak — reddedildi, widget etkileşimli değil.
+
+**Sonuç:** Görsel DOM/CSS, zaman hesaplama, ikon eşikleri, world-event gündüz/gece kuralları ve render performansı değişmez. Ekran okuyucu güncel saati Türkçe ad üzerinden okuyabilir; otomatik canlı anons yapılmaz.
+
+**Etkilenen sistemler:** `src/3d/ui/dayNightClock.js`, yeni `scripts/checkDayNightClockAccessibility.js`, run157 CI/kayıtları. `lighting.js`, `worldEvents.js`, save/PWA/cache ve 2D oyun etkilenmez.
+
+**Geri alma planı:** İleride owner onaylı ortak erişilebilirlik katmanı gelirse yeni attribute'lar o katman tarafından additive biçimde gölgelenebilir; mevcut runtime satırlarını silmek/değiştirmek gerekmez.

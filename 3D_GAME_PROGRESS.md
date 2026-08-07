@@ -13719,3 +13719,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Sıradaki adım: owner bloklarına (radius-5, `game3d.js` bölünmesi, world-event checksum fixture,
   güvenlik anahtarı) dokunmadan bağımsız iş; bu run'ın Çalıştırma Geneli Süre Tavanı/Oturum Kalite
   Kapısı burada değerlendirilip run kapatıldı (bkz. çalıştırma sonu özeti).
+
+
+## Run 157 — Day/night clock accessibility (2026-08-07 23:40 UTC)
+- Alt görev: owner bloklarına dokunmadan FAZ 8 HUD erişilebilirliği — oyun içi saat `role=timer`, `aria-live=off`, `aria-atomic=true`, dinamik Türkçe `aria-label` ve dekoratif ikon için `aria-hidden=true` kazandı.
+- Additive-only: mevcut kaynak satırı silinmedi/değiştirilmedi; yalnız yeni attribute/update satırları, yeni regresyon scripti ve bu CI/kayıtlar eklendi.
+- DoD: `node --check` PASS; hedef a11y testi PASS; checkpoint/uniqueness, world-event determinism/catalog/diversity, PWA/cache, asset/dialogue, terrain/road, mobil streaming/LOD/culling/perf ve mevcut a11y regresyonları PASS; browser smoke 34/34+ PASS; 3D console/page error 0; additive-only PASS.
+- Görsel doğrulama: yalnız ARIA metadata ve erişilebilir ad güncellendiği için piksel çıktısı değişmedi; baseline ve post-change gerçek Chromium/WebGL smoke aynı görsel/runtime yolu doğruladı.
+- Performans: 2026-08-07,run157,1,50,608296,48,17,368
+- Memory leak checklist: yeni listener/timer/geometry/material yok; `DayNightClock.dispose()` mevcut DOM kaldırma davranışını aynen koruyor.
+- Teknik borç: 1 (`game3d.js` 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
+- ADR: ADR-0179. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: yol/orman/kale/NPC/event/hayvan 0; asset/diyalog 0; ADR +1; erişilebilirlik regresyon kapsamı +1. Oyuncu farkı: görsel olarak hayır; ekran okuyucu güncel oyun saatini sessiz timer semantiğiyle okuyabilir.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız UI/test-kalite işi; run158 civarı CATCH_UP.md insan yakalama özeti penceresi.
