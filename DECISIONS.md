@@ -13795,3 +13795,42 @@ Bu ADR bu iki yolu da resmi olarak açık bırakıyor, kalıcı bir "asla yapıl
 **Etkilenen sistemler:** dev-tool/CI, mobil performans yönetişimi; runtime gameplay davranışı yok.
 
 **Geri alma planı:** Yeni script/workflow kullanılmaz; runtime kaynakları bu ADR ile değiştirilmedi.
+
+
+## ADR-0158 — Mobil terrain için mesafe tabanlı tessellation LOD (Run 134)
+
+**Risk Seviyesi: LOW**
+
+**Karar:** Coarse-pointer mobil terrain'de radius-3 resident kare korunurken, streaming merkezine
+Chebyshev uzaklığı 0-1 olan chunk'lar 64, uzaklık 2 olanlar 32, uzaklık 3 olanlar 16 segment/kenar
+ile üretilir. Merkez chunk değiştirdiğinde LOD bandı değişen resident chunk aynı seed/flatten-pad
+parametreleriyle yeniden üretilir; eski geometry/material dispose edilir. Desktop yolu değişmez.
+
+**Neden:** Run 132 gerçek mobil render ölçümü radius 3'te bütçe marjı olduğunu gösterdi; run 133'ün
+radius 4 denemesi ise performanstan değil, mevcut additive-only regresyon testinin 49-chunk literal
+sözleşmesinden dolayı bırakıldı. GOVERNANCE §23'ün sırası radius zorlamak yerine önce terrain/vegetation
+LOD ve culling ister. `createTerrainChunk` zaten `segments` parametresini desteklediği için yeni bir
+terrain algoritması icat etmeden aynı deterministik yüzeyi daha ucuz tessellation ile çizmek mümkün.
+
+**Alternatifler:** (1) Radius 4'e doğrudan geçmek: run 133'te additive-only test sözleşmesi nedeniyle
+reddedildi. (2) Bütün mobil chunk'ları 16/32 segment yapmak: yakın görüntü kalitesini gereksiz düşürür.
+(3) Terrain'i hiç optimize etmeden yalnız vegetation azaltmak: triangle maliyetinin ana resident
+terrain kısmına dokunmaz. (4) Uzak chunk'ları tamamen görünmez yapmak: coverage kazanımının görsel
+anlamını azaltır.
+
+**Sonuç:** Radius ve kümülatif coverage hesabı değişmez; mobil resident terrain aynı 49 chunk / 12.25
+km² kalır. Ancak teorik terrain grid triangle yükü 49×64-segment yerine 9×64 + 16×32 + 24×16 dağılımına
+iner. Oyuncuya yakın 3×3 halka tam ayrıntıyı korur. Chunk sınırı geçişinde yeniden tessellation maliyeti
+oluşur; gerçek mobil perf testi ve görsel kanıt bu riskin kapısıdır.
+
+**Etkilenen sistemler:** `world/chunkManager.js` mobil/coarse-pointer render mesh üretimi; terrain
+geometry/material yaşam döngüsü; mobil performans. Ground collider, height sampler, yollar, nehir,
+yerleşimler, desktop streaming, 2D oyun ve PWA cache içeriği değişmez.
+
+**Geri alma planı:** Run 134'ün additive wrapper katmanını devre dışı bırakacak yeni bir additive
+policy katmanı eklenir; alttaki run 130 bounded-streaming davranışı aynen korunmuştur. Stabil tag'e
+dönüş de mümkündür.
+
+**Gelecek Faz Etkisi:** FAZ 9-10 ve gelecekteki mobil dünya genişlemesi daha düşük terrain triangle
+maliyetiyle çalışır. SaveSystem/public API yok; save/API uyumluluk kapıları tetiklenmez. Yeni asset yok,
+lisans/PWA cache manifest değişikliği gerekmez.

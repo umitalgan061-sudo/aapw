@@ -373,3 +373,20 @@ uygun profiler doğrulaması gerektirir. Bu kapı geçmeden mobil streaming radi
 **Periyodik platform kontrolü — run 132:** PWA installability + service-worker cache kontrolleri
 PASS, WebGL gerçek Chromium smoke ile PASS; repoda `package.json` olmadığı için `npm audit` hâlâ
 N/A. Bir sonraki periyodik kontrol yaklaşık run 152-162 aralığında yapılır.
+
+
+## 25. Mobil Terrain Mesafe-LOD Kapısı (run 134)
+
+Mobil/coarse-pointer terrain resident alanı büyütülmeden önce aktif radius içindeki geometry yükü
+mesafeye göre kademelendirilir. Run 134 referans politikası: streaming merkezine Chebyshev uzaklığı
+0-1 chunk olan yakın halka 64 segment/kenar ile mevcut tam terrain ayrıntısını korur; uzaklık 2 olan
+orta halka 32 segment/kenar; uzaklık 3 olan dış halka 16 segment/kenar kullanır. Oyuncu chunk sınırı
+geçtiğinde halkası değişen resident chunk aynı deterministik seed + flatten-pad sampler ile yeniden
+üretilir ve eski geometry/material hemen dispose edilir. Böylece collider/height sampler gerçeği
+değişmez, yalnız render mesh tessellation maliyeti düşer. Desktop davranışı bu LOD katmanından
+etkilenmez. Her LOD değişikliği `checkMobileTerrainLod.js`, `checkMobileChunkStreaming.js`, gerçek
+mobil render bütçesi kapısı (§24), 34+ browser smoke ve iki mobil görsel kanıtı birlikte geçmelidir.
+Belirgin pop-in veya yakın halkada geometri kaybı görülürse sonraki radius artışı yapılmaz; önce LOD
+bantları yeniden değerlendirilir. Bu optimizasyon coverage yüzdesini tek başına yükseltmez; radius
+3'ün yaklaşık %8.9 resident footprint'ini daha düşük GPU/triangle maliyetiyle güvenli tutarak sonraki
+radius artışı için performans marjı üretir.
