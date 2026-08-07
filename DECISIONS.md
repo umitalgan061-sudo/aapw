@@ -14218,3 +14218,18 @@ commit'ten hemen önceki `git fetch` başka bir otonom oturumun aynı saatlerde 
 "run 141"/"ADR-0165" (yukarıdaki, mobil vegetation culling) kullanıp origin/main'e push ettiğini
 ortaya çıkardı. Bu değişiklik, o oturumun tepesine rebase edilip run 142/ADR-0166 olarak
 yeniden numaralandırıldı — iki oturumun çalışması da korunuyor, hiçbir kimlik/numara çakışmıyor.
+
+
+## ADR-0167 — FAZ 8 üçlü dünya-olayı paketi ve platform doğrulaması (run 143)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Radius-5 ADR-0166 ile owner kararına bağlıyken ve kale/hayvan içerikleri yeni model assetleri beklerken, bağımsız ilerleme alanı olarak FAZ 8 dünya-olayı havuzu üç özgün olayla genişletilir. `night_signal_fire` yalnız gerçek gece eşiğinde, `court_petitioners` yalnız gerçek gündüz eşiğinde, `wandering_healer` ise günün her saatinde seçilebilir. Mevcut olaylar, ağırlıklar ve seçim algoritması değiştirilmez. Aynı run, GOVERNANCE'ın periyodik platform kontrol penceresini PWA/cache ve gerçek Chromium/WebGL doğrulamasıyla yeniler.
+
+**Neden:** Bu çalışma açık owner kararını dolanmaz, manuel asset gerektirmez ve kullanıcıya doğrudan yeni atmosfer içeriği verir. İki gated olay mevcut day/night mekanizmasını gerçek içerikle kullanırken üçüncü olay gün-zamanından bağımsız çeşitlilik ekler.
+
+**Alternatifler:** Radius-5'i tekrar zorlamak reddedildi (ADR-0166 açık blok); jon-guard diyalog istisnasını sırf 14/14 yapmak için kaldırmak reddedildi (önceki bilinçli tasarım kararı); yeni kale/hayvan modeli eklemek uygun lisanslı asset bulunmadığı için reddedildi.
+
+**Etkilenen sistemler:** `gameplay/worldEvents.js` veri kataloğu ve yeni statik regresyon guard'ı. EventBus/UI API şekli, save formatı, terrain, PWA runtime listesi ve deterministic PRNG algoritması değişmez.
+
+**Geri alma:** Olaylar veri-only additive girdilerdir; gelecekte yeni bir eligibility/filter katmanı ile devre dışı bırakılabilir. Mevcut satır silme/değiştirme gerektirmez.

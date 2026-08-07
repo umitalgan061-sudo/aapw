@@ -13490,3 +13490,12 @@ içinde kalındı.
 değişmedi (radius-5 commit edilmedi), toplam ADR sayısı 165→166 (+1, run 141'in ADR-0165'i dahil).
 Oyuncu fark eder mi: hayır — bu run'ın net etkisi yalnızca gelecekteki bir karar için kanıt/
 dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
+
+
+## Run 143 — FAZ 8 world-event expansion + platform check (2026-08-07 17:26 UTC)
+- Alt görevler: FAZ 8 WORLD_EVENTS kataloğuna üç özgün olay eklendi: gece işaret ateşi, gündüz dilekçe kuyruğu ve gezgin şifacı. Katalog 40→43; time-gated olaylar 9→11.
+- DoD: temiz origin/main baseline + post-change browser smoke 34/34+ PASS; world-event catalog/Run143 guard/PWA installability/service-worker cache/assets/dialogue/terrain/road/checkpoint/additive-only PASS; 3D boot zero console/page error.
+- Periyodik platform kontrolü: PWA installability PASS, service-worker offline shell PASS, gerçek Chromium/WebGL 3D boot PASS; package.json olmadığı için npm audit N/A.
+- World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi. Radius-5 ADR-0166 owner kararına bağlı kaldı ve bu run tekrar denenmedi.
+- Memory leak checklist: veri-kataloğu dışında yeni runtime state/listener/timer/geometry/material yok. Teknik borç: 1 (game3d.js cap yaklaşımı, değişmedi). Risk LOW. Güven 5/5.
+- World Evolution Report delta: +3 dünya olayı; yol/orman/kale/NPC/hayvan 0. Oyuncu fark eder: evet, periyodik 3D dünya olayı toast havuzu daha çeşitli. Sıradaki bağımsız adım: bloklu asset/radius kararları sürerken FAZ 8 içerik ve düşük-risk gameplay iyileştirmeleri.

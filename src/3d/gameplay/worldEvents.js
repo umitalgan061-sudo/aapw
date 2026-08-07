@@ -130,6 +130,15 @@ const WORLD_EVENTS = Object.freeze([
 	 * his own family). No `timeOfDay` gate: the text names no specific hour, same "only gate
 	 * unambiguous text" rule as every other ungated entry here. */
 	{ id: 'ward_hostage_arrival', icon: '🧒', title: 'Vesayet Genci', desc: 'Soylu bir ailenin genç oğlu, kendi evinin sadakatini garanti altına almak için başka bir evin vesayetine gönderiliyor — fiilen bir rehine olarak. Atının yanında yürüyen muhafızlar dışında kimse tek kelime etmiyor.', color: '#7a9a6a', weight: WEIGHT.UNCOMMON },
+	/** Run 143 addition: a distant signal fire visible only in true night, distinct from feast fires
+	 * (celebration) and the Night's Watch horn (auditory patrol cue). */
+	{ id: 'night_signal_fire', icon: '🔥', title: 'Gece İşaret Ateşi', desc: 'Karanlıkta uzak bir gözetleme kulesinde tek bir işaret ateşi yanıyor — dostlara çağrı mı, yoksa yaklaşan bir tehlikenin haberi mi?', color: '#d05a32', weight: WEIGHT.UNCOMMON, timeOfDay: 'night' },
+	/** Run 143 addition: daylight petitioners gathering at a lord's gate, a civilian/political cue
+	 * distinct from market-day commerce and alms-giving charity. */
+	{ id: 'court_petitioners', icon: '📜', title: 'Dilekçe Kuyruğu', desc: 'Gün ışığında köylüler ve küçük toprak sahipleri kale kapısında sıraya girmiş; herkes derdini lordun görevlilerine anlatmak için bekliyor.', color: '#9a7a52', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	/** Run 143 addition: an itinerant healer offering herbs and remedies, distinct from maesters,
+	 * merchants, singers and sellswords already represented in the catalog. */
+	{ id: 'wandering_healer', icon: '🌿', title: 'Gezgin Şifacı', desc: 'Omzunda ot demetleri taşıyan gezgin bir şifacı kale yolunda durup yaralara merhem, ateşe çay ve uykusuzluğa kök sattığını söylüyor.', color: '#5f8a58', weight: WEIGHT.UNCOMMON },
 ]);
 // Run 126 live count: 9 of 35 entries are time-gated; the JSDoc/comment above retain earlier runs'
 // snapshots rather than being edited in place (GOVERNANCE.md §2 madde 9, additive-only diff guard).
@@ -138,6 +147,7 @@ const WORLD_EVENTS = Object.freeze([
 // Run 133 live count: 9 of 38 entries are time-gated.
 // Run 137 live count: 9 of 39 entries are time-gated.
 // Run 138 live count: 9 of 40 entries are time-gated.
+// Run 143 live count: 11 of 43 entries are time-gated.
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
  * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test
