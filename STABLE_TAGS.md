@@ -564,3 +564,22 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   run 112/ADR-0139) — not blocking. GOVERNANCE.md §15's periodic platform check window (111-121)
   was also closed this run, folded into this run's own baseline checks at no extra cost (npm audit
   N/A, PWA installability OK, WebGL/smoke clean) — no new ADR, findings unchanged from run 91.
+
+- **Run 113 (2026-08-07):** Session Quality Gate passed (confidence 5/5, §8.6) — item-14 new feature,
+  `world/vegetation.js` seat-local clustering, a denser tree ring around qualifying kingdom seats
+  (ADR-0140), the natural lowest-risk follow-up ADR-0139 itself had already named. 33/33 baseline →
+  33/33 real-browser smoke suite clean (existing vegetation check widened in place, not a new check —
+  annulus-sampling/cluster-ring assertions all passed on a real run, checking real decomposed instance
+  positions, not just counts), both `terrainSeatSafetyCheck.js` (14/14) and `roadNetworkSafetyCheck.js`
+  (13/13 edges) re-confirmed unaffected, real F4 free-cam 2-angle visual proof from the real `stannis`
+  kingdom seat (close oblique + high overhead, both showing the ring's actual shape — honestly noted:
+  the capture technique's own independent scene build left sky/lighting unwired, sky renders black in
+  the close shot, terrain/tree/castle geometry itself is unaffected), fresh `collectPerfSnapshot.js
+  run113` (drawCalls unchanged 50, triangles 577,043→608,296, geometries/textures unchanged, well
+  inside desktop budget — first sample was a transient anomaly, discarded and re-sampled cleanly, see
+  `perf_log.csv`), game opens without issue (merge commit `3a901dc` is a real merge of `work` into
+  `main`, no conflicts). Local tag `stable-2026-08-07-0303` created at `3a901dc` (PR #13 merge). `git
+  push origin work` + PR #13 → `main` merge succeeded (`9957c32..3a901dc`). `git push origin <tag>`
+  still rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
+  entry satisfies the checkpoint). One new open question logged in `QUESTIONS_FOR_OWNER.md` (cluster
+  ring density/radius calibration, run 113/ADR-0140) — not blocking.
