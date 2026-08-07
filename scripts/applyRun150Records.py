@@ -14,12 +14,12 @@ perf_line = next((line for line in reversed(perf_lines) if ",run150," in line), 
 
 progress = f"""
 
-## Run 150 — World-event toast erişilebilir canlı bildirim ({{STAMP}})
+## Run 150 — World-event toast erişilebilir canlı bildirim ({STAMP})
 - Session Snapshot / concurrency: run 149 (`2756816e`) tabanından başlandı; `GOVERNANCE.md`, son progress/ADR/QFO bağlamı okundu. Run 149'un `WORLD_EVENTS` katalog büyümesini checksum/additive-only owner kararına bağlayan ADR-0172 kararı korundu; katalog 52'de bırakıldı.
 - Alt görev: `ui/worldEventToast.js` mevcut davranışına yalnız-additive bir erişilebilirlik katmanı eklendi. Toast gerçek bir olay gösterdiğinde `role=status`, `aria-live=polite`, `aria-atomic=true` alıyor; dekoratif emoji `aria-hidden=true`. Görsel stil, 6 saniyelik timer, EventBus bağlantısı ve mobil/desktop/PWA davranışı değişmedi.
 - DoD: temiz origin/main baseline smoke + değişiklik sonrası smoke PASS; `node --check`, özellik-spesifik gerçek Chromium erişilebilirlik testi, PWA/cache, mobile streaming/radius4/terrain/vegetation/perf, terrain-seat, road-network ve additive-only kapıları PASS. Console/page error tam smoke kapsamında sıfır.
 - Görsel doğrulama: ARIA attribute'ları CSS/render çıktısını değiştirmeyen semantik metadata olduğu için ekran görüntüsünde görünür delta beklenmez; 390px mobil ve masaüstü gerçek-browser DOM testi toast'ın görünür/metin içeriğini korurken erişilebilirlik ağacını doğruladı.
-- Performans: {{perf_line}}. World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi.
+- Performans: {perf_line}. World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi.
 - Memory leak checklist: yeni listener/timer/DOM/geometry/material eklenmedi; mevcut dispose/unsubscribe/timer cleanup aynen korunuyor. Teknik borç: 1 (`game3d.js` 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
 - World Evolution Report delta: yol 0 km; orman 0 km²; kale/NPC/event/hayvan 0; coverage 0; asset/diyalog 0; ADR +1. Oyuncu fark eder mi: görsel olarak hayır; ekran okuyucu kullanan oyuncu dünya olayı başlık+açıklamasını artık nazik canlı bildirim olarak duyar.
 - Sıradaki güvenli adım: owner bloklarına (radius-5, game3d.js bölünmesi, world-event checksum fixture) dokunmadan başka bağımsız düşük-risk erişilebilirlik/kalite veya gameplay iyileştirmesi; yayın öncesi concurrency gate zorunlu.
