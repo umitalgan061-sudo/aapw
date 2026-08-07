@@ -13169,3 +13169,133 @@ Review found that a default parameter reading `globalThis.localStorage` could it
 happens inside its own guarded helper, while an explicitly supplied `null` still disables
 persistence. The browser regression check additionally uses a storage object whose reads and writes
 both throw, proving that first-arrival feedback continues in session memory in restricted contexts.
+
+## ADR-0145: `falconer_flight` — a new COMMON, day-gated world event (`worldEvents.js` flavor-pool growth)
+
+**Status:** Accepted (run 120 — scheduled autonomous routine).
+
+**Risk Seviyesi:** LOW — one additive flavor-data entry appended to `WORLD_EVENTS`, plus two
+one-line relative-count comment updates in the same file (7→8 of 31→32 gated, 24 of 31→32 ungated —
+unchanged, since this addition itself carries a gate); no world/save/render-state mutation, no
+shared module touched, no smoke-check module edited (day-gated entries reuse the existing
+`isEligible`/`NIGHT_THRESHOLD`/`DAY_THRESHOLD` machinery — `harvest_wagons`/`market_day`/
+`alms_giving` already prove that path, no new gating logic needed).
+
+**Context:** Fresh session/context (new scheduled firing, run 120). `GOVERNANCE.md` read in full —
+already complete from earlier runs (this run's own fired-prompt text still asks to "create
+GOVERNANCE.md first"; confirmed already satisfied by direct read rather than recreated —
+`CREDITS.md`/`CATCH_UP.md`/`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md`/
+`perf_log.csv` likewise already exist, none recreated). `3D_GAME_PROGRESS.md`'s run 119 entry,
+`DECISIONS.md`'s last 3 ADRs (0142-0144 + the 0144 addendum), and `QUESTIONS_FOR_OWNER.md` in full
+(no unresolved item forcing this run's hand; the run-63 leaked-key entry stays open, unchanged,
+pending owner action) all read first per the Session Snapshot procedure. `ARCHITECTURE.md` not
+re-read (last touched 2026-08-07, same day, under the 7-day threshold). `git fetch origin main`
+confirmed the local container's detached HEAD already matched `origin/main`'s real tip (`709dce3`,
+run 119's stable-tag commit); `git checkout -B work origin/main` before touching anything.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`) —
+clean, 88 files. Standing guards clean: `checkSmokeCheckRegistry.js` 34 checks/14 modules, 80 JS
+files all within the 600-line cap; `terrainSeatSafetyCheck.js` **PASS 14/14**; `roadNetworkSafetyCheck.js`
+**PASS** 13/13 edges — all byte-identical to run 119's recorded values.
+
+**Priority re-scan (§18):** items 1-3 confirmed closed per their own standing safety-check guards
+(re-run above, unchanged). Item 4 stays asset-blocked (6 kingdom seats still untextured). Items 5-11
+all clean per the baseline sweep — no file near the 600-line cap, zero fresh tech-debt candidate.
+Items 12-13 remain model/owner-decision-blocked (FAZ 6 animals need models; FAZ 7 dragon reactive
+flight and FAZ 11 species are their own dedicated sub-tasks, not attempted half-measured here). With
+1-13 exhausted, item 14 taken, following run 102/103/110-116/119's own established low-risk
+precedent: grow `worldEvents.js`'s flavor pool by one entry rather than start run 119's
+perf-measurement-gated `PHASE1_PREVIEW_RADIUS_CHUNKS` follow-up (that item still needs its own
+dedicated measurement sub-task per `debug/README.md`, not started half-measured here either).
+
+**Decision:** Add `falconer_flight` — a COMMON-rarity, day-gated event ("Şahin Uçuşu" / "Kale
+avlusunda bir doğancı, kolundaki şahini gün ışığında gökyüzüne salıyor."). Falconry is a recognizable
+piece of period/ASOIAF-adjacent castle life (trained hawks/falcons as both a practical and a status
+activity) and is genuinely distinct from every existing entry: `hunting_party` is a *returning*
+ground-hunt with deer already killed, not a live-training moment with a bird; `guard_change`/
+`blacksmith_hammer`/`sept_prayer` are other routine COMMON castle-life beats but none involve an
+animal or the sky; `dragon_shadow`/`falling_star`/`northern_lights` are all sky phenomena but none
+are a deliberate human activity. Read all 31 prior `desc` strings before writing this Decision (not
+assumed), confirming no genuine overlap. Day-gated (`timeOfDay: 'day'`): a trained hunting bird is
+flown in daylight by real-world falconry convention (birds of prey don't fly free-hunts at night),
+matching `harvest_wagons`/`market_day`/`alms_giving`'s own precedent for daylight-bound routine
+activity. COMMON (not UNCOMMON/RARE): framed as ordinary daily castle-yard activity, not a
+noteworthy visitor or an omen — same tier as `guard_change`/`blacksmith_hammer`/`sept_prayer`.
+
+Implemented as one new `Object.freeze`-array entry appended to `WORLD_EVENTS` in
+`gameplay/worldEvents.js`, plus its two existing relative-count header comments updated in place
+("7 of 31" → "8 of 32" carrying a `timeOfDay` gate; "24 of 31" → "24 of 32" carrying none — ungated
+count unchanged, since this addition itself carries a gate) so neither goes stale, matching
+ADR-0130/0141/0142/0143's own precedent. No smoke-check module touched: `isEligible`'s existing
+`'day'` branch already governs this entry the same way it governs `harvest_wagons`/`market_day`/
+`alms_giving`, with no new logic path to assert.
+
+**Gelecek Faz Etkisi:** none — purely additive flavor content, no new system, no branching/state/
+persistence hook. FAZ 11's future creature work (falcons/hawks are not currently in
+`creatureSpeciesConfig.js`) is unaffected either way; this flavor event does not reserve or imply any
+particular species id.
+
+**Değişiklik Etki Analizi:** affected systems — `gameplay/worldEvents.js` only (the new entry + its
+two comment fixes). Zero edits to `world/terrain.js`/`world/roads.js`/`world/rivers.js`/
+`world/settlements.js`/any height-sampler code, so **Arazi Değişikliği Güvenlik Kontrolü does not
+apply** (both existing safety scripts re-run as due diligence anyway — see Baseline regression guard
+above, both byte-identical to run 119's recorded values). No edit to `pickWeightedEvent`'s selection
+logic, `isEligible`'s gating logic, or `ui/worldEventToast.js`'s rendering.
+
+**Real-Node proof of gating and reachability** (dev-only, uncommitted script written to the session
+scratchpad — never inside the repo tree, matching ADR-0141/0142/0143's own precedent): imported the
+real `createWorldEventSystem` from the committed module (no mock/reimplementation) and drove it
+through its real public `update(deltaSeconds, nightFactor)`/`dispose()` API across 4000 distinct
+seeds, forcing a large-delta draw at both `nightFactor=0` (noon) and `nightFactor=1` (midnight) each
+seed — confirmed `falconer_flight` is reachable (appears among the 8000 draws). Separately, across
+2000 more seeds, forced five consecutive large-delta draws each at `nightFactor=1` (midnight) only —
+confirmed `falconer_flight` **never** appears in any of those draws, proving the day gate holds under
+real repeated sampling, not just a single spot-check.
+
+**Sonuç:** `node --check` clean on the one changed file (`gameplay/worldEvents.js`, 188 lines, real
+headroom under the 600-line cap) plus the full repo sweep above (88 JS files, unchanged — no new
+file this run). `checkSmokeCheckRegistry.js`: unchanged **34 checks/14 modules**. Full
+`smokeTestGame3D.js` re-run after the change: **34/34 PASS**, 0 FAIL, zero unexpected console/page
+errors (the existing "world-event day/night gating" check already asserts the general
+never-night-restricted-at-noon / never-day-restricted-at-midnight property generically over the
+whole pool, so it covers this new entry too — corroborated independently by this ADR's own
+2000-seed × 5-draw real-Node proof above, which names `falconer_flight` explicitly).
+`collectPerfSnapshot.js run120` sample: drawCalls/triangles/geometries/textures all bit-identical
+to run119 (50/608296/48/17) — expected, config-data-only change. Teknik borç sayacı: **0**
+(unchanged). Konsol Temizliği: zero console/page errors across the full smoke-suite re-run.
+
+**AI Self-Review 2. Geçiş:** independently re-verified — confirmed no existing entry's theme
+genuinely overlaps (re-read all 31 prior `desc` strings before writing the Decision, not assumed,
+paying particular attention to `hunting_party` as the closest tonal neighbor — a live training
+moment vs. an already-finished hunt's return); confirmed the comment-count arithmetic by hand (7
+gated + 24 ungated = 31 before; 8 gated + 24 ungated = 32 after — both internally consistent with
+`WORLD_EVENTS.length`); confirmed the real-Node proof script never mutates any committed file and
+disposes every one of its 6000 systems. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist:
+n/a (config-data-only change in `worldEvents.js`; the proof script is never committed, its own
+instances are explicitly disposed).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — low-risk, well-proven pattern (same shape as
+ADR-0102/0110/0111/0129/0130/0141/0142/0143), a genuinely distinct new entry verified against every
+prior entry's text (not assumed), real repeated-sampling proof of both reachability and gate
+correctness (not a single spot-check), zero open design ambiguity worth escalating. "6 ay sonra hâlâ
+net mi" tereddüdü yok — this ADR spells out exactly which prior entry (`hunting_party`) this was
+checked against most closely and why it's distinct, and the day-gate claim is proven under 2000
+seeds × 5 forced draws, not just restated from config.
+
+**Alternatives Considered:**
+- **UNCOMMON tier instead of COMMON** — rejected: falconry training is framed as routine daily
+  castle-yard activity (like `guard_change`/`blacksmith_hammer`), not a specific notable
+  occurrence/visitor like `tourney_announce`/`traveling_singer`.
+- **Ungated (birds could plausibly be shown at any hour)** — rejected: unlike `dragon_shadow`'s
+  ambiguous sky-glimpse or `direwolf_track`'s persistent physical trace, this entry's own text
+  describes an active, in-progress flight ("gün ışığında gökyüzüne salıyor") — a genuinely
+  night-implausible activity by real-world falconry convention, matching `harvest_wagons`/
+  `market_day`/`alms_giving`'s own day-gated precedent for text that names daylight explicitly.
+- **Icon `🦉` (owl) instead of `🦅` (eagle)** — rejected: an owl reads as a night bird by common
+  convention, which would clash with this entry's own day gate; `🦅` has no such conflicting
+  connotation and reads clearly as a trained hawk/falcon silhouette at toast-icon size.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new `WORLD_EVENTS` entry and
+the two comment-count fixes (would need to be manually restored to their prior wording for a strict
+bit-for-bit revert, though leaving the corrected counts is harmless either way). Nothing else
+references `falconer_flight`.
