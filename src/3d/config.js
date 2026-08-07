@@ -181,3 +181,14 @@ export const EVENTS = Object.freeze({
 	 * listener: respawns the player at their spawn point and heals back to full. */
 	PLAYER_DIED: 'player:died',
 });
+
+
+/** Run 138 / ADR-0162: mobile vegetation whole-disc culling thresholds. Centralized here per the
+ * project's no-magic-numbers rule. The 1500m resident terrain radius is run-130's effective
+ * coarse-pointer radius 3 * 500m chunks; each vegetation disc is run-135's 1000m scatter radius.
+ * A 100m intersection margin prevents edge popping while crossing the overlap boundary. */
+export const MOBILE_VEGETATION_CULLING_CONFIG_RUN138 = Object.freeze({
+	RESIDENT_TERRAIN_RADIUS_METERS: 1500,
+	VEGETATION_DISC_RADIUS_METERS: 1000,
+	INTERSECTION_MARGIN_METERS: 100,
+});

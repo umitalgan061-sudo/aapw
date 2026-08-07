@@ -114,3 +114,13 @@ Geride kalan terrain parçaları bellekten temizleniyor; uzun gezilerde RAM/GPU 
 Bu değişiklik masaüstü davranışına dokunmuyor.
 Mobil resident terrain footprint yaklaşık %4.5 seviyesinden %8.9 seviyesine çıktı.
 Sonraki hedef ağaçlar, uzak terrain ve kale modelleri için LOD/culling optimizasyonu; ardından daha geniş streaming radius değerlendirilecek.
+
+
+## Run 138 — Mobil uzaktaki ağaç grupları artık boşuna çizilmiyor
+Mobil oyunda artık oyuncunun bulunduğu yüklenmiş araziyle hiçbir şekilde kesişmeyen uzak ağaç diski
+render edilmiyor. Spawn çevresindeki yeni ağaçlar görünmeye devam ediyor; dünya merkezindeki ağaçlar
+oyuncu kilometrelerce uzaktayken GPU bütçesi tüketmiyor. Oyuncu o bölgeye yaklaşırsa aynı deterministik
+ağaçlar yeniden görünür oluyor; veri silinmiyor ve yeniden rastgele üretilmiyor. Masaüstü sürümünde
+hiçbir görünürlük değişikliği yok. Bu adım mobil World Coverage'ı doğrudan büyütmüyor; radius artışı
+owner kararı beklerken bir sonraki genişleme için güvenli performans payı hazırlıyor. Tam browser smoke,
+mobil render bütçesi, PWA cache ve özel culling testiyle doğrulanıyor.

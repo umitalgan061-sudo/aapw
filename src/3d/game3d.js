@@ -76,6 +76,7 @@ import { updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { updateStarfield, disposeStarfield } from './stars.js';
 import { updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
 import { updateFog } from './fog.js';
+import { updateMobileVegetationDistanceCullingRun138 } from './world/mobileVegetationCulling.js';
 import { createScene, isCoarsePointerDevice } from './sceneManager.js';
 import { updateEntitiesSafely, updateSystemSafely } from './safeMode.js';
 import { createPerfPanel } from './debug/perfPanel.js';
@@ -426,6 +427,10 @@ export async function initGame3D() {
 
 			state.controls.update(); // required every frame: enableDamping is on
 			streamAroundOrbitTarget(state);
+			updateMobileVegetationDistanceCullingRun138(playerPos, [
+				{ id: 'origin', group: state.vegetation },
+				{ id: 'spawn', group: state.mobileSpawnVegetation },
+			], isCoarsePointerDevice());
 			// Computed here (moved up from its original position just below, run 86/ADR-0111) so
 			// `dayNight.nightFactor` exists before the world-event block right below needs it to gate
 			// time-of-day-restricted events (no aurora at high noon, no midday eclipse at 3am). Nothing

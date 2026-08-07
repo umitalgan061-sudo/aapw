@@ -14024,3 +14024,33 @@ FAZ 11 canlı türleri) etkilemez. Mobil World Coverage radius kararı artık sa
 `QUESTIONS_FOR_OWNER.md`'deki iki seçenekten biri yanıtlanana kadar gelecekteki runlar radius
 artışını tekrar denemeyecek, LOD/culling'e odaklanmaya devam edecek. SaveSystem/public API yok; save/
 API uyumluluk kapıları tetiklenmez. Yeni asset yok, lisans/PWA cache manifest değişikliği gerekmez.
+
+
+## ADR-0162 — Mobil vegetation disk distance culling (run 138)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Mobil/coarse-pointer modunda world-origin ve spawn-anchored vegetation diskleri, oyuncunun
+resident terrain komşuluğuyla kesişmediklerinde `group.visible = false` ile bütün halinde cull edilir.
+Desktop davranışı değişmez. Eşikler merkezi config'tedir; instance verileri silinmez veya yeniden
+üretilmez. Yeni runtime modülü aynı run içinde 3D PWA precache listesine eklenir.
+
+**Neden:** Run 135 mobil spawn vegetation boşluğunu kapattı, run 136 geometry LOD triangle maliyetini
+azalttı. Buna rağmen iki disk de sahnede kalıyor; spawn oyuncusu origin diskinden yaklaşık 4.1 km
+uzakta ve bounded mobile terrain bunun çok gerisinde bitiyor. Bu disk o anda oynanabilir resident
+terrain ile kesişmediği için render bütçesi harcaması anlamsız ve unloaded-terrain görsel riski taşır.
+
+**Alternatifler:** Tek tek tree-instance distance culling reddedildi; her frame yüzlerce instance
+matrisi taramak, dört InstancedMesh draw'ını grup seviyesinde kapatmaktan daha pahalı ve karmaşık.
+Origin vegetation'i tamamen silmek reddedildi; oyuncu ileride o bölgeye yaklaşabilir ve deterministik
+scatter korunmalıdır. Radius 4 reddedilmedi fakat owner eskalasyonu çözülene kadar ayrı olarak bloklu.
+
+**Sonuç:** Mobil spawn konumunda uzaktaki origin vegetation draw'ları/triangle'ları çıkar; spawn diski
+aynı kalır. Oyuncu origin bölgesine yaklaştığında görünürlük otomatik geri gelir. Desktop değişmez.
+
+**Etkilenen sistemler:** `src/3d/config.js`, `src/3d/world/mobileVegetationCulling.js`, küçük
+`game3d.js` wiring, `service-worker.js` precache ve mobil perf/smoke regression zinciri. Terrain
+üretimi, seed ve 2D oyun değişmez.
+
+**Geri alma planı:** Additive bir override ile updater çağrısını no-op yap veya config eşiklerini bütün
+diskleri görünür tutacak güvenli değere yükselt; mevcut satır silme/değiştirme gerektirme.

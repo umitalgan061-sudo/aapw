@@ -412,3 +412,27 @@ regresyon-korumalı ilerler:
   PASS olmadan vegetation optimizasyonu veya sonraki mobil radius artışı DONE sayılamaz.
 - Görsel doğrulama en az iki mobil açıyla yapılır; belirgin silhouette kaybı/bozuk mesh varsa daha
   yüksek segment seviyesi seçilir.
+
+
+## 27. Mobil Vegetation Distance-Culling Kapısı (run 138)
+
+Mobil/coarse-pointer sahnede vegetation diskleri yalnız resident terrain komşuluğuyla kesişiyorsa
+render edilir. Amaç World Coverage büyümesi öncesinde mobil draw/triangle bütçesini boşaltmak ve
+unloaded terrain üzerinde uzakta kalan ağaç gruplarının çizilmesini önlemektir.
+
+- Desktop görünürlüğü değiştirilemez; bu kapı yalnız coarse-pointer yolunda aktiftir.
+- Culling kararı tek tek ağaçlar için CPU taraması yapmaz; InstancedMesh gruplarını disk-merkez
+  mesafesine göre bütün halinde açıp kapatır, böylece her-frame maliyeti sabit ve küçüktür.
+- Eşikler `src/3d/config.js` içindeki `MOBILE_VEGETATION_CULLING_CONFIG_RUN138`'de merkezi tutulur;
+  runtime dosyalarına magic number yazılmaz.
+- Bir vegetation diski resident terrain yarıçapı + kendi scatter yarıçapı + güvenlik marjı dışında
+  kalırsa görünmez olur; oyuncu yaklaşınca aynı deterministik instance verisi yeniden görünür hale
+  gelir, yeniden üretim yapılmaz.
+- Yeni runtime modülü `service-worker.js` GAME3D precache listesinde bulunmadan PWA cache guard PASS
+  sayılamaz. Baseline cache doğrulaması staged branch yerine gerçek `origin/main` worktree'sinde
+  koşar; böylece henüz post-change cache kaydı yapılmamış yeni dosya baseline'ı sahte biçimde bozmaz.
+- Değişiklikten sonra `scripts/checkMobileVegetationCulling.js`, `scripts/checkMobilePerfBudget.js`
+  ve tam browser smoke PASS olmadan DONE yoktur. Görsel kanıt mobile+touch Chromium'da en az iki
+  kare olarak saklanır.
+- Radius 3→4 konusu `QUESTIONS_FOR_OWNER.md` yanıtlanana kadar bu optimizasyondan bağımsız biçimde
+  bloklu kalır; bu kural o ürün/yönetişim kararını dolanmak için kullanılamaz.

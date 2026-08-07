@@ -776,3 +776,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   unique/9 gated), assets/PWA/cache/checkpoint guards all PASS. Perf 50 draw call / 608,296
   triangle / 48 geometry / 17 texture / 307 MB heap (run129-136 baseline, unchanged — data-only
   addition).
+- stable-2026-08-07-1548 — run 138 mobile vegetation distance culling; 34/34+ browser smoke PASS, mobile perf/culling/PWA PASS, additive-only PASS.

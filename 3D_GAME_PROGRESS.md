@@ -13291,3 +13291,25 @@ Geneli Süre Tavanı içinde kalındı.
 - World Coverage: desktop %96.2; mobil resident terrain footprint yaklaşık %8.9 (49 chunk / 12.25 km²) değişmedi. Run135 spawn vegetation görsel kapsamı korunurken bu run render maliyetini düşürdü.
 - Memory leak checklist: eski vegetation geometry swap anında dispose ediliyor; yeni listener/timer/DOM yok. Teknik borç: run135ten devreden game3d.js 540/600 bölünme ihtiyacı = 1, yeni borç eklenmedi. ADR-0160. Risk LOW. Güven 5/5.
 - World Evolution Report delta: yol 0 km, orman yerleşim/ağaç sayısı 0, kale/NPC/event/hayvan 0; oyuncu aynı mobil ağaçları görür, primitive tessellation daha hafiftir. Sıradaki adım: gerçek ölçümle procedural castle sabit maliyeti/frustum-culling adayını değerlendirmek.
+
+
+## Run 138 RCA — staged runtime module vs baseline PWA cache guard
+- **Root Cause:** Run 138'in yeni `mobileVegetationCulling.js` runtime modülü branch'e baseline
+  testinden önce eklenince standing `checkServiceWorkerCache.js` guard'ı doğru biçimde yeni modülün
+  henüz `GAME3D_SHELL_FILES` içinde olmadığını gördü. İlk birleşik baseline adımı aynı nedenle düştü;
+  ikinci denemede adımlar ayrılınca hata açıkça service-worker cache kapısına izole edildi.
+- **Prevention:** Değişiklik-öncesi doğrulama artık branch çalışma ağacında değil gerçek
+  `origin/main` detached worktree'sinde koşacak. Yeni runtime modülü post-change aşamasında
+  service-worker precache listesine additive olarak eklenecek; branch'teki staged dosyalar baseline
+  gerçeğini bir daha kirletemeyecek.
+- **Regression Test:** Post-change `checkServiceWorkerCache.js` yeni modülü precache listesinde
+  görmeden PASS edemez; ayrıca tam PWA/browser smoke offline import zincirini doğrulamaya devam eder.
+
+## Run 138 — mobile vegetation distance culling (2026-08-07 15:48 UTC)
+- Alt görev: mobile/coarse-pointer modunda resident terrain ile kesişmeyen vegetation diskleri grup seviyesinde cull ediliyor; desktop yolu değişmedi.
+- Etki: spawn konumunda world-origin vegetation diski hidden, spawn vegetation visible; instance/seed verisi korunuyor ve oyuncu yaklaşınca görünürlük geri geliyor.
+- DoD: origin/main baseline + post-change browser smoke 34/34+ PASS; mobile culling/perf + terrain/vegetation/spawn/PWA/cache/asset/road/seat guards PASS; additive-only PASS; iki mobil görsel kanıt artifact olarak saklandı.
+- Mobil performans: [checkMobilePerfBudget] sample {"profile":{"coarse":true,"fine":false,"touchPoints":1},"fps":1,"drawCalls":31,"triangles":170393,"geometries":26,"textures":22,"budgets":{"drawCallsExclusiveMax":500,"trianglesExclusiveMax":500000},"textureMemoryMB":null,"textureMemoryReason":"renderer.info exposes texture count, not resident texture-memory bytes"}
+- Desktop perf trend: 2026-08-07,run138,1,50,608296,48,17,326
+- Memory leak: yeni listener/timer/DOM/geometry/material yok; yalnız group.visible ve küçük userData tanısı. Teknik borç: 1 (game3d.js 546/600 civarı, yeni ağır özellikler ayrı dosyaya yönlendirilmeli).
+- World Coverage: desktop %96.2 / mobile resident ~%8.9 değişmedi; radius 3→4 owner kararı bekliyor. World Evolution içerik deltası 0; oyuncu mobilde uzaktaki gereksiz ağaç çizimlerinin kalkmasını performans/temizlik olarak hisseder. Risk LOW, güven 5/5.
