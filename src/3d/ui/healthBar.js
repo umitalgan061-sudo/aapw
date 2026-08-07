@@ -25,6 +25,9 @@ export class HealthBar {
 	constructor({ eventsBus, healthChangedEventName, damageEventName, container = document.body }) {
 		this._el = document.createElement('div');
 		this._el.className = 'g3d-health-bar';
+		this._el.setAttribute('role', 'meter');
+		this._el.setAttribute('aria-label', 'Can');
+		this._el.setAttribute('aria-valuemin', '0');
 
 		const label = document.createElement('p');
 		label.className = 'g3d-health-bar-label';
@@ -59,6 +62,9 @@ export class HealthBar {
 		const ratio = maxHealth > 0 ? Math.max(0, Math.min(1, current / maxHealth)) : 0;
 		this._fillEl.style.width = `${(ratio * 100).toFixed(1)}%`;
 		this._textEl.textContent = `${Math.ceil(current)} / ${maxHealth}`;
+		this._el.setAttribute('aria-valuemax', String(maxHealth));
+		this._el.setAttribute('aria-valuenow', String(Math.max(0, Math.min(maxHealth, Math.ceil(current)))));
+		this._el.setAttribute('aria-valuetext', `${Math.ceil(current)} / ${maxHealth}`);
 		this._el.classList.toggle('g3d-health-bar-low', ratio > 0 && ratio <= 0.25);
 	}
 
