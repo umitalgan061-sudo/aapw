@@ -798,3 +798,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-07-1726 — run 143 FAZ 8 world-event expansion + periodic platform check; 34/34+ browser smoke, catalog/PWA/cache/mobile/additive gates PASS.
 - stable-2026-08-07-1741 — run 144 FAZ 8 world-event expansion; 34/34+ browser smoke, catalog/PWA/cache/mobile/additive gates PASS.
 - stable-2026-08-07-1900 — run 145 FAZ 8 world-event expansion (mummer troupe/shepherd flock/stargazing maester); 34/34 browser smoke, catalog (49/15)/PWA/cache/mobile/road/terrain/checkpoint/additive-only guards all PASS.
+- stable-2026-08-07-1827 — run 146 world-event diversity guard; 34/34+ browser smoke and full governance gates PASS.
