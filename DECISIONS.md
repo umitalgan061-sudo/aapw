@@ -14248,3 +14248,18 @@ yeniden numaralandırıldı — iki oturumun çalışması da korunuyor, hiçbir
 **Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` veri kataloğu, Run 144 regresyon guard'ı ve CI doğrulama akışı. Terrain, save formatı, PWA runtime listesi, PRNG tüketim sayısı ve mevcut event ağırlıkları değişmez.
 
 **Geri alma:** Yeni girdiler additive veri satırlarıdır; gelecekte eligibility/filter katmanı ile devre dışı bırakılabilir. Mevcut satır silme/değiştirme gerektirmez.
+
+
+## ADR-0169 — FAZ 8 üçüncü üçlü dünya-olayı paketi (run 145)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** ADR-0166/0168 ile radius-5 owner kararına ve kale/hayvan asset'lerine bağlı kalmaya devam ederken FAZ 8 dünya-olayı havuzu üç veri-only olayla daha genişletilir. `mummer_troupe` günün her saatinde seçilebilir, `shepherd_flock` yalnız gerçek gündüzde, `stargazing_maester` yalnız gerçek gecede. Mevcut olaylar, ağırlıklar, eşikler, seçim algoritması ve EventBus/UI sözleşmesi değiştirilmez.
+
+**Neden:** Yüksek öncelikli maddeler (kale dokulandırma, FAZ 6 hayvan modelleri, mobil radius-5) hâlâ manuel asset girdisi veya owner kararı bekliyor; bu üçlü, GOVERNANCE.md §18 öncelik sırasındaki en düşük madde (14. Yeni özellik) olsa da şu an tek gerçekten engelsiz ilerleme alanı. Üçü de mevcut katalogdaki soytarı/ozan, hasat/kervan ve yıldız/gökyüzü temalı girdilerden (traveling_singer, harvest_wagons, trade_caravan, falling_star, maester_raven) içerik olarak açıkça ayrıdır (bkz. worldEvents.js JSDoc yorumları).
+
+**Alternatifler:** Radius-5 tekrar denenmedi (ADR-0166 açık blok, owner yanıtı yok); kale texture/hayvan modeli eklemek uygun lisanslı asset bulunmadığı için reddedildi; `game3d.js`'in 545/600 satır teknik borcunu bu run'da bölmek reddedildi çünkü additive-only guard mevcut satırların taşınmasını/silinmesini yasaklıyor — bu, ADR-0166'daki radius-5 çatışmasıyla aynı yapısal kısıt, ayrı bir owner kararı gerektirir ve bu run kapsamına alınmadı.
+
+**Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` veri kataloğu, yeni `scripts/checkRun145WorldEvents.js` regresyon guard'ı. EventBus/UI API şekli, save formatı, terrain, PWA runtime listesi, deterministic PRNG algoritması ve mevcut event ağırlıkları değişmez.
+
+**Geri alma:** Yeni girdiler additive veri satırlarıdır; gelecekte yeni bir eligibility/filter katmanı ile devre dışı bırakılabilir. Mevcut satır silme/değiştirme gerektirmez.

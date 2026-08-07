@@ -227,3 +227,21 @@ instead of guessed at silently. Newest entry at the bottom.
   ederse run 143+ bunu uygulayabilir. Geçici varsayılan: hiçbiri seçilmedi, radius 4'te sabit kalınıyor
   (run 140'ın durumu aynen korunuyor), gelecekteki runlar bu maddeye owner yanıtı gelene kadar tekrar
   radius artışı denemeyecek.
+
+- **(run 145) `game3d.js`'in 545/600 satır teknik borcu, additive-only guard nedeniyle YAPISAL olarak
+  çözülemez hâle geldi — ADR-0166'daki mobil radius-5 çatışmasıyla aynı kısıt.** Bu dosyayı 600
+  satır tavanının altına indirmenin tek gerçek yolu bir kısmını ayrı bir modüle taşımaktır, ama bu
+  hem `game3d.js`'ten satır SİLMEYİ hem de o satırları başka bir dosyaya EKLEMEYİ gerektirir —
+  `scripts/checkAdditiveOnlyDiff.js` ilkini (kaynak dosyadan satır silme) kesin olarak yasaklıyor.
+  Dosya henüz 600 tavanını AŞMADI (545/600, `checkSmokeCheckRegistry.js`'in WARN eşiği), bu yüzden
+  şu an engelleyici değil — ama tavana ulaştığında (her yeni runtime wiring satırıyla yaklaşıyor)
+  aynı seçenek üçlüsüyle karşılaşılacak: (1) salt-refactor/dosya-taşıma commit'leri için
+  additive-only guard'dan dar kapsamlı bir istisna (yalnızca "aynı kodu başka dosyaya taşıma", yeni
+  davranış değişikliği yok, ayrı bir commit + ADR ile), (2) 600 satır tavanını `game3d.js` için
+  esnet/kaldır (Altın Kural 7'nin bir istisnası olarak, gerekçesiyle GOVERNANCE.md'ye işlenir), (3)
+  hiçbir şey yapma — dosya 600'e ulaştığında yeni runtime wiring kodu zorunlu olarak zaten var olan
+  ayrı modüllere yönlendirilir (bu, `game3d.js`'in kendisinin büyümesini durdurur ama mevcut 545
+  satırını küçültmez, teknik borç sayacı kalıcı olarak 1'de sabit kalır). **Geçici varsayılan:**
+  hiçbiri seçilmedi; gelecekteki runlar `game3d.js`'e yeni satır eklemekten kaçınıp (3)'ü fiilen
+  uygulayarak dosyayı 600'ün altında tutmaya çalışacak, tavana ulaşılırsa (1) ya da (2) için owner
+  yanıtı beklenecek.

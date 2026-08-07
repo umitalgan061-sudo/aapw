@@ -148,6 +148,21 @@ const WORLD_EVENTS = Object.freeze([
 	/** Run 144 addition: a silent aftermath clue rather than an active battle event; no time gate
 	 * because the discovered banner can plausibly remain beside the road at any hour. */
 	{ id: 'broken_banner_found', icon: '🚩', title: 'Yırtık Sancak', desc: 'Kale yolunun kenarında çamura bulanmış, arması seçilemeyen yırtık bir sancak bulundu — yakınlarda bir çatışma yaşanmış olabilir.', color: '#6f4a45', weight: WEIGHT.RARE },
+	/** Run 145 addition: a traveling mummer troupe staging a short performance in the yard, distinct
+	 * from `traveling_singer` (a lone musician) and `tourney_announce` (an announcement, not a show).
+	 * No `timeOfDay` gate: the text names no specific hour, same "only gate unambiguous text" rule as
+	 * every other ungated entry here. */
+	{ id: 'mummer_troupe', icon: '🎭', title: 'Gezgin Soytarılar', desc: 'Rengarenk kıyafetler giymiş bir soytarı topluluğu kale avlusunda kısa bir oyun sahneliyor; çocuklar gülüşürken yaşlılar başını sallıyor.', color: '#a0509a', weight: WEIGHT.UNCOMMON },
+	/** Run 145 addition: a shepherd driving a flock past the gate at daylight — pastoral daily-life
+	 * cue, distinct from `harvest_wagons` (grain, not livestock) and `trade_caravan` (merchants, not a
+	 * single local shepherd). Gated `day`: a flock being driven to pasture is a daylight activity, same
+	 * unambiguous-text rule as every other gated entry here. */
+	{ id: 'shepherd_flock', icon: '🐑', title: 'Çoban Sürüsü', desc: 'Gün ışığında bir çoban, meleyen koyun sürüsünü kale yolunun kenarından otlağa doğru sürüyor.', color: '#8a9a6a', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	/** Run 145 addition: a maester's own nighttime observation of the sky, distinct from `falling_star`
+	 * (a passive natural phenomenon anyone might see) and `maester_raven` (daytime record-keeping, no
+	 * stargazing). Gated `night`: studying the stars requires true darkness, same unambiguous-text rule
+	 * as every other gated entry here. */
+	{ id: 'stargazing_maester', icon: '🔭', title: 'Yıldız Gözlemi', desc: 'Gece yarısına yakın, kale kulesinde bir maester bakır bir aletle gökyüzünü inceliyor; kayıtlarına usulca bir şeyler not düşüyor.', color: '#3a5a7a', weight: WEIGHT.RARE, timeOfDay: 'night' },
 ]);
 // Run 126 live count: 9 of 35 entries are time-gated; the JSDoc/comment above retain earlier runs'
 // snapshots rather than being edited in place (GOVERNANCE.md §2 madde 9, additive-only diff guard).
@@ -158,6 +173,7 @@ const WORLD_EVENTS = Object.freeze([
 // Run 138 live count: 9 of 40 entries are time-gated.
 // Run 143 live count: 11 of 43 entries are time-gated.
 // Run 144 live count: 13 of 46 entries are time-gated.
+// Run 145 live count: 15 of 49 entries are time-gated.
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
  * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test
