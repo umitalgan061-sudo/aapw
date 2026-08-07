@@ -12234,7 +12234,7 @@ Reviewer follow-up for run 117: guarded the `localStorage` property access itsel
 `SecurityError`. Added a throwing-storage regression scenario; gameplay and presentation are
 otherwise unchanged.
 
-## This Run (2026-08-07, run 119 — scheduled autonomous routine)
+### Run 119 — `CATCH_UP.md` owner-facing summary (runs 109-118)
 
 **Concurrency/snapshot:** `git fetch origin main` confirmed local detached HEAD already matched
 `origin/main`'s real tip (`45931b2`, run 118's merge). Read `GOVERNANCE.md` in full — already
@@ -12335,6 +12335,106 @@ flavor addition (matches runs 115/116/141's own low-risk precedent) or growing
 `PHASE1_PREVIEW_RADIUS_CHUNKS` for Xaro/Night King's vegetation clustering (ADR-0140's own noted
 follow-up, needs its own perf-measurement sub-task per `debug/README.md`). Next platform check
 ~run 132-142 (unchanged). Next rule consolidation ~run 136 (unchanged).
+
+**Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
+recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-07, run 120 — scheduled autonomous routine)
+
+**Concurrency/snapshot:** `git fetch origin main` confirmed the local container's detached HEAD
+already matched `origin/main`'s real tip (`709dce3`, run 119's stable-tag commit). Read
+`GOVERNANCE.md` in full — already populated and current (every § the fired prompt lists, including
+every 🆕-tagged item, is already present under its own numbered section; no recreation needed).
+`CREDITS.md` likewise already exists and covers the asset sources on file. `3D_GAME_PROGRESS.md`'s
+run 119 entry, `DECISIONS.md`'s ADR-0142/0143/0144 (+ the 0144 addendum), and `QUESTIONS_FOR_OWNER.md`
+in full (no new unresolved item; the run-63 leaked-key entry stays open, unchanged, pending owner
+action) all read first. `ARCHITECTURE.md` not re-read (last touched 2026-08-07, same day, under the
+7-day threshold). `git checkout -B work origin/main` before any edit.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`)
+clean, 88 files. `checkSmokeCheckRegistry.js`: 34 checks/14 modules, all wired, 80 JS files within
+the 600-line cap. `terrainSeatSafetyCheck.js` **PASS 14/14**, `roadNetworkSafetyCheck.js` **PASS**
+13/13 edges — both byte-identical to run 119's recorded values.
+
+**Priority re-scan (§18):** items 1-3 remain closed per their own standing safety-check guards
+(re-run above, unchanged). Item 4 (texture the remaining 6 kingdom seats) stays asset-blocked.
+Items 5-11 all clean per the baseline sweep. Items 12-13 remain model/owner-decision-blocked. With
+1-13 exhausted, item 14 taken, following run 102/103/110-116/119's own low-risk precedent: grow
+`worldEvents.js`'s flavor pool by one entry (`PHASE1_PREVIEW_RADIUS_CHUNKS` growth still needs its
+own dedicated perf-measurement sub-task, not attempted half-measured here).
+
+### Sub-task: `falconer_flight` world event (ADR-0145)
+
+**Değişiklik Etki Analizi (§8.4):** affected system — `gameplay/worldEvents.js` only (one new
+`WORLD_EVENTS` entry + two relative-count comment updates). No `world/terrain.js`/`world/roads.js`/
+`world/rivers.js`/`world/settlements.js`/height-sampler edit, so **Arazi Değişikliği Güvenlik
+Kontrolü does not apply** (both safety scripts re-run anyway as due diligence — see Baseline above,
+unchanged). No edit to `pickWeightedEvent`/`isEligible`/`ui/worldEventToast.js`. **Gelecek Faz
+Etkisi:** none — purely additive flavor content, no new system, no persistence hook; FAZ 11's
+creature registry is unaffected.
+
+Added a COMMON, day-gated (`timeOfDay: 'day'`) entry — "Şahin Uçuşu" / a falconer flying a trained
+hawk in a castle yard by daylight — distinct from every prior entry (closest tonal neighbor,
+`hunting_party`, is an already-finished hunt's *return*, not a live training moment). Full rationale,
+alternatives considered, and the real-Node gating/reachability proof (4000-seed reachability sweep +
+a separate 2000-seed × 5-forced-midnight-draw proof that the day gate never leaks) are in
+`DECISIONS.md` ADR-0145.
+
+**DoD durumu:**
+- [x] `node --check` — clean on the one changed file + full 88-file repo sweep
+- [x] Smoke test — baseline **34/34 PASS** captured before the edit; full re-run after: **34/34
+      PASS**, 0 FAIL, zero unexpected console/page errors (log: this session's own scratchpad,
+      matching ADR-0141-0144's own "not committed" precedent for throwaway proof artifacts)
+- [x] Görsel Doğrulama — n/a per this pool's own established precedent (ADR-0141/0142/0143 all used
+      real-toast-DOM/real-Node proof instead of a screenshot, since a flavor-event toast has no new
+      visual surface — same icon/title/desc/color rendering path every prior entry already exercises)
+- [x] Performans bütçesi — `collectPerfSnapshot.js run120` sample: `50/608296/48/17`, bit-identical
+      to run119's last recorded row (expected — config-data-only change)
+- [x] Teknik borç sayacı — **0** (unchanged)
+- [x] `3D_GAME_PROGRESS.md` güncellendi (this entry)
+- [x] ADR yazıldı — `DECISIONS.md` ADR-0145 (Decision/Alternatives/Sonuç/Etkilenen sistemler/Geri
+      alma planı/Risk seviyesi all present)
+- [x] Commit atıldı (below)
+- [x] Konsol Temizliği — zero unexpected console/page errors across the full smoke-suite re-run
+
+**AI Self-Review 2. Geçiş (§8.3):** re-read all 31 prior `desc` strings before writing the ADR (not
+assumed), confirmed no genuine overlap; hand-checked the comment-count arithmetic (7 gated + 24
+ungated = 31 before; 8 gated + 24 ungated = 32 after, consistent with `WORLD_EVENTS.length`);
+confirmed the real-Node proof script never mutates a committed file and disposes every one of its
+6000 systems. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a, config-data-only
+change; the proof script is never committed, its own instances are explicitly disposed.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — low-risk, well-proven pattern (same shape as
+seven prior `worldEvents.js` flavor additions), a genuinely distinct new entry verified against
+every prior entry's text, real repeated-sampling proof of both reachability and gate correctness,
+zero regression in the full smoke suite, zero open design ambiguity. "6 ay sonra hâlâ net mi"
+tereddüdü yok — the ADR names the exact closest-neighbor entry it was checked against and proves the
+gate under 2000 seeds × 5 forced draws, not a single spot-check.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 120 end) | Delta |
+|---|---|---|---|
+| `worldEvents.js` flavor-pool entries | 31 | **32** | +1 (`falconer_flight`) |
+| `worldEvents.js` day-gated entries | 7 | **8** | +1 (newly-gated addition) |
+| Draw calls / triangles / geometries / textures | 50 / 608,296 / 48 / 17 | **unchanged** | 0 |
+| Smoke suite | 34/34 | **34/34** | unchanged |
+| `checkSmokeCheckRegistry.js` | 34 checks/14 modules | **34 checks/14 modules** | unchanged |
+| ADR headers in `DECISIONS.md` | 144 | **145** | +1 (ADR-0145) |
+| `perf_log.csv` rows | 59 | **60** | +1 (`run120`) |
+| Open questions in `QUESTIONS_FOR_OWNER.md` | unchanged | **unchanged** | none added |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** evet, ama küçük — dünya olayları havuzuna bir tane daha eklendi; oyuncu
+yeterince uzun oynarsa gündüz vakti bir kale avlusunda şahin uçuran bir doğancı bildirimini
+görebilir. Dünyanın görsel/3D tarafında hiçbir değişiklik yok.
+
+**Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §18.
+Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları (at/araba/köpek-kedi/kuş)
+model bekliyor. `CATCH_UP.md`'nin next summary ~run 128 (last done run 118, one run to go before the
+10-run cadence — 119 doesn't count as its own catch-up run). Next platform check ~run 132-142
+(unchanged). Next rule consolidation ~run 136 (unchanged). No file near the 600-line cap.
 
 **Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
 recorded in `STABLE_TAGS.md`.
