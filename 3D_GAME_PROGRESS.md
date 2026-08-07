@@ -12553,3 +12553,39 @@ Catch-up ~run 128, platform kontrolü ~run 132-142, kural konsolidasyonu ~run 13
 `perf_log.csv`'ye 1 FPS / 50 draw call / 608,296 triangle / 48 geometry / 17 texture / 242 MB heap
 satırı eklendi. Kaynak metrikleri run-120 doğrulanmış baseline ile aynıdır ve bütçelerin altındadır.
 Tam browser smoke suite **34/34 PASS** tamamlandı.
+
+## This Run (2026-08-07, run 124 — Codex continuation)
+
+**Concurrency/snapshot:** `origin/main` fetch edildi, açık PR olmadığı doğrulandı ve `work` run-123
+stable merge'i (`5f25f0b`) üzerine kuruldu. Öncelik taramasında asset blokları değişmedi; run-122/123
+keşif ilerlemesinin pusula hedefiyle uyumsuz kalan davranışı seçildi.
+
+### Sub-task: keşfedilmemiş yerleşim pusulası (ADR-0149)
+
+Pusula artık bulunan kaleyi tekrar göstermek yerine en yakın keşfedilmemiş koltuğa yöneliyor; 14/14
+sonrasında gizleniyor. Discovery salt-okunur id sorgusu, compass opsiyonel predicate ve ana oyunda
+tek wiring satırı kullanıyor. Filtre kullanmayan tüketicilerde eski davranış korunuyor. Değişiklik
+mevcut satır silmeden tamamen eklemelidir.
+
+**DoD / doğrulama:** Değişen dört JS dosyası syntax-clean. Gerçek Chromium compass testi; normal en
+yakın hedefi, keşfedilen koltuğu filtreleyince sıradaki hedefe geçişi, tümünü filtreleyince gizlenmeyi,
+yaw/distance, mobil sığma ve dispose'u doğruladı. 390×844 görsel kanıtta “Sıradaki Kale / 120 m”
+viewport içinde görüldü. Full smoke, registry, PWA/cache ve perf sonuçları bu run'ın test kaydına
+eklendi. Teknik borç **0**, güven **5/5**.
+
+**Memory-leak / performans:** predicate closure mevcut iki uzun ömürlü state nesnesini referanslar ve
+bunlarla birlikte teardown edilir; listener/timer/DOM/3D kaynak tahsisi yok. Frame başına en fazla 14
+Set.has çağrısı mevcut 14 mesafe hesabına eklenir; render bütçesi değişmez.
+
+**World Evolution Report:** 14 koltuğun keşif kapsamı değişmedi; pusula hedef havuzu “tümü”nden
+“keşfedilmemişler”e ilerlemeli hale geldi; smoke registry 34/14 ve coverage 96.2% / 4.5% değişmedi;
+ADR sayısı 148'den **149**'a çıktı. Oyuncu fark eder: evet — keşfettiği kaleden ayrılırken pusula yeni
+bir hedef gösterir.
+
+**Next step:** taze fetch/öncelik taraması; 6 kale ve FAZ 6 modelleri asset bekliyor. Catch-up ~run
+128, platform kontrolü ~run 132-142, kural konsolidasyonu ~run 136.
+
+**Run-124 performans addendum:** `collectPerfSnapshot.js run124` başarıyla tamamlandı:
+1 FPS / 50 draw call / 608,296 triangle / 48 geometry / 17 texture / 307 MB heap. Render kaynakları
+run-123 ile aynıdır ve bütçe altındadır; yalnız headless heap örneği değişmiştir. `perf_log.csv`
+güncellendi ve full browser smoke **34/34 PASS** tamamlandı.

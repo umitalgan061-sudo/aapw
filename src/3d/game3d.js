@@ -295,6 +295,7 @@ export async function initGame3D() {
 		state.controlsHelp = new ControlsHelp({ isMobileClass: isCoarsePointerDevice() });
 		state.settlementCompass = new SettlementCompass({ seats: state.settlementSeats });
 		state.settlementDiscovery = new SettlementDiscovery({ seats: state.settlementSeats });
+		state.settlementCompass.setSeatFilter((seat) => !state.settlementDiscovery.isDiscovered(seat.id));
 		state.dayNightClock = new DayNightClock();
 
 		let frameId;

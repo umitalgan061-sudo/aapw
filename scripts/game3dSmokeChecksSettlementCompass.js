@@ -23,6 +23,13 @@ async function checkSettlementCompass(browser, baseUrl) {
 			const selectsNearest = root.querySelector('strong').textContent === 'Doğu Kalesi'
 				&& root.querySelector('.g3d-settlement-compass-distance').textContent === '40 m';
 			const eastBearing = root.querySelector('.g3d-settlement-compass-arrow').style.transform;
+			compass.setSeatFilter((seat) => seat.name !== 'Doğu Kalesi');
+			compass.update({ x: 0, z: 0 }, 0);
+			if (root.querySelector('strong').textContent !== 'Kuzey Kalesi') throw new Error('Seat filter did not advance the compass target');
+			compass.setSeatFilter(() => false);
+			compass.update({ x: 0, z: 0 }, 0);
+			if (!root.hidden) throw new Error('Compass stayed visible after every seat was filtered out');
+			compass.setSeatFilter(null);
 			compass.update({ x: 0, z: 0 }, Math.PI / 2);
 			const yawChangesArrow = root.querySelector('.g3d-settlement-compass-arrow').style.transform !== eastBearing;
 			compass.update({ x: 39, z: 0 }, 0);
