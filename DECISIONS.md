@@ -12179,3 +12179,219 @@ risk. "6 ay sonra hâlâ net mi" tereddüdü yok.
 **Geri alma planı:** delete `scripts/analyzePerfTrend.js`; `perf_log.csv`'s `run110` row (from the
 now-normal `collectPerfSnapshot.js run110` sampling, not specific to this ADR) is independent and
 would stay regardless. Nothing imports or depends on this script.
+
+## ADR-0138: `world/vegetation.js` — procedural instanced trees (GOVERNANCE.md §3's long-named-but-never-built world system)
+
+**Status:** Accepted (run 111 — scheduled autonomous routine).
+
+**Risk Seviyesi:** MEDIUM. Justification: this adds a new, always-rendered world system (two
+`InstancedMesh`es, two new draw calls) built at scene-construction time, in the same risk class
+ADR-0076 (roads) already reasoned through for the same shape of change — but, like that change, this
+one touches no height-sampler math itself (a purely additive, read-only consumer of the existing,
+unmodified `sampleHeightMeters`), is easy to fully disable by removing the two `createVegetation`/
+`disposeVegetation` call sites, and a rejection-sampling placement bug (a wrong exclusion radius, a
+slope-check sign error) could at worst place trees somewhere visually wrong — it cannot corrupt
+terrain geometry, road routing, or any of the 14 kingdom seats' own positions/heights, all of which
+stay entirely untouched. Not LOW because it is real new geometry/instancing code with its own
+non-trivial rejection-sampling loop (a bug there could in principle place zero trees silently, or
+place them somewhere that reads as broken) — mitigated by a dedicated smoke-check module
+(`scripts/game3dSmokeChecksVegetation.js`) asserting the placement rules directly, and by real
+before/after visual proof.
+
+**Context:** priority re-scan this run (§18) found items 1-8/10-11 all clean (full `node --check`
+sweep clean; baseline `smokeTestGame3D.js` **32/32 PASS**, 0 FAIL, zero console/page errors; every
+standing guard clean, matching run 110's own baseline exactly bit-for-bit — `46/393231/44/17`).
+Item 9 (teknik borç) had no fresh candidate — the largest file (`game3d.js`, 479/600) has real
+headroom, no file is within reach of the cap. Item 4 (remaining 6 kingdom-seat textures) stays
+asset-blocked, unchanged. Items 12-13 (FAZ 7 dragon follow-ups, FAZ 11 species) remain owner-
+decision/asset-model-blocked, re-confirmed unchanged (no new model files under `assets/models/`).
+That left item 14 (new feature) — but rather than another small discoverability-widget addition
+(the run 104/106/107 precedent, now fairly exhausted — `ui/README.md`'s full widget list was
+re-read and shows no obvious remaining gap of that shape), this run's own `world/README.md`/
+`gameplay/README.md` re-read (same "read the full file list before picking anything" discipline
+run 108's ADR-0135 established) surfaced that `GOVERNANCE.md` §3's target architecture has named
+`world/` Vegetation since this project's very first architecture doc, and `config.js`'s
+`WORLD_DEFAULTS.WORLD_SEED` comment has said "terrain, later vegetation/rivers/etc." since before
+rivers even existed — yet grepping `DECISIONS.md` for "Vegetation" turns up only two mentions, both
+literally "(not started)" (ADR-0075/ADR-0076's own Gelecek Faz Etkisi notes). Unlike FAZ 6/FAZ 11's
+still-missing horse/bird/etc. models, a tree needs no rig/animation/UV-textured model to read
+correctly on screen — so, unlike those, this gap was never actually asset-blocked, just never
+picked up. GOVERNANCE.md §18 doesn't name vegetation explicitly (it predates the priority list
+entirely), so this is a genuine item-14 "new feature," not a reprioritization of an existing item.
+
+**Değişiklik Etki Analizi (GOVERNANCE.md §8.4, written before code):** affected systems —
+`sceneManager.js` (one new `createVegetation` call after `buildRoadNetwork`, one new `scene.add`),
+`game3d.js` (one new `disposeVegetation` call in the `pagehide` teardown block), `service-worker.js`
+(one new shell-file entry, `SHELL_CACHE` bumped v10→v11 — an offline install would otherwise fetch
+`sceneManager.js` from cache and immediately fail on its now-uncached `world/vegetation.js` import,
+same failure mode every prior shell-file-list entry in that file's own history describes). **Not**
+affected: terrain height/noise/macro-relief math itself (read-only consumer of
+`groundCollider.getGroundHeight`, the same pattern `world/rivers.js`/`world/settlements.js`/
+`world/roads.js` already use), the 14 kingdom seats' own positions/heights (read-only; see the
+explicit exclusion-radius check below), road routing/topology (read-only; roads are excluded from,
+never placed by, this module), any gameplay system (no collision was added — see Alternatives —
+player/NPC/animal/dragon movement is entirely unaffected), World Coverage (chunk streaming/area
+accounting untouched — vegetation places into whatever terrain chunks are already loaded, never
+triggers loading a new one). **Arazi Değişiklik Güvenlik Kontrolü (§8.4) applicability:** this gate
+is written for changes to the height sampler itself (ADR-0075's macro relief being the canonical
+case) — this change makes zero edits to `world/terrain.js`, `createHeightSampler`, or any noise/
+macro-relief constant, so the formal pre/post 14-seat check doesn't strictly apply. As due diligence
+anyway (the same "purely additive, but verify anyway" posture ADR-0076 took for roads), both
+existing safety-check scripts were re-run after this change: `scripts/terrainSeatSafetyCheck.js`
+**PASS 14/14** (heights/margins/slopes bit-identical to run 110's own last recorded values — expected,
+nothing here reads or writes seat data) and `scripts/roadNetworkSafetyCheck.js` **PASS** (13/13 edges
+still connected, same grades, mountain-avoidance and river-non-collision checks both still pass) —
+confirming this change disturbed neither system. **Gelecek Faz Etkisi:** a future pass could add
+species variety (deciduous vs. evergreen silhouettes, matching `gameplay/creatureSpeciesConfig.js`'s
+own "one sub-task per addition" precedent), seat-local clusters outside the origin-centered scatter
+disc (see Alternatives), or wind-sway vertex animation — none of that is blocked by anything this ADR
+does; `createVegetation`'s parameters (`radiusMeters`, `densityPerKm2`) are already the knobs a
+future pass would tune, not something to redesign.
+
+**Decision:**
+
+1. **Procedural primitives, not an external model.** Two low-poly shapes (a narrow cylinder trunk +
+   a cone foliage cap, 6/7 radial segments) — same "primitives + a shared material, no external file"
+   technique `world/settlements.js`'s procedural castle keep/tower/roof and `world/materials.js`'s
+   procedural stone/roof textures already established for exactly this situation (a visual gap with
+   no asset yet available). No `CREDITS.md` entry needed — same as `materials.js`'s own procedural
+   generation, which has never needed one either (confirmed: `CREDITS.md` has zero "materials.js" or
+   "procedural" mentions).
+2. **Two `InstancedMesh`es (trunk, foliage) — one draw call per part, not per tree.** Same technique
+   `world/settlements.js`'s keep/tower/roof `InstancedMesh`es already use. At this run's density (30
+   trees/km², a deliberately sparse first pass — see the density note below), the real desktop
+   scatter placed 1,865 of a 1,865-tree target (100% — the exclusion zones cover a small fraction of
+   the ~95km² boot-preview disc) at a cost of exactly 2 additional draw calls and ~89,520 triangles
+   (1,865 × 48 — 32 for the 6-sided trunk cylinder, 16 for the 7-sided foliage cone) — trivial against
+   the desktop budget (drawCalls<2500, triangles<5M) and still comfortably inside the mobile budget
+   (drawCalls<500, triangles<500K) even before accounting for mobile's much smaller scatter radius
+   (see point 4).
+3. **Deterministic rejection-sampling over a disc, not a grid or Poisson-disc packing.** Each
+   candidate point uses uniform-disc sampling (`r = R*sqrt(u)`, not naive polar `r = R*u`, which
+   would bias density toward the center) from a seeded `mulberry32(seed ^ tag)` stream — same
+   XOR-tagged-independent-stream convention `world/rivers.js` already established for its own
+   PRNG derived from the shared world seed. A candidate is rejected (and re-tried, up to
+   `MAX_ATTEMPTS_PER_TREE = 8` times before that tree slot is simply skipped — a bounded, always-
+   terminating search, same "finite search space" guarantee `world/roadPathfinder.js`'s padded A*
+   corridor already commits to) if: below `seaLevelMeters + 1.5m` (no trees in the water or right at
+   the shoreline edge), on ground steeper than 45° by a cheap two-tap finite-difference slope estimate
+   (generous — real forests grow on real slopes; this only rejects near-cliff-face placements, and is
+   deliberately much looser than `QUESTIONS_FOR_OWNER.md` run 55's 35° foot-*walkable* limit, which
+   answers a different question), within 90m of a kingdom seat (`SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS`
+   75m + a 15m margin, hand-copied with a comment citing its source — same convention
+   `world/settlements.js`'s own `KINGDOM_SEATS` already uses for its copy of `script.js`'s
+   `INIT_KINGDOMS`), or within 10m of any road-network edge segment (`ROAD_WIDTH_METERS` 8, half-width
+   4, + a 6m margin). A full Poisson-disc/blue-noise packing (even spacing between trees, not just
+   uniform density) was considered and rejected as unnecessary precision for a first pass — the
+   uniform-disc + per-point rejection approach already reads as a natural, non-gridlike scatter at
+   this density, and Poisson-disc packing's own relaxation/dart-throwing algorithm is real additional
+   code for a visual difference unlikely to be perceptible at 30 trees/km².
+4. **Scatter radius matches whatever terrain radius the caller already loaded, not a fixed constant.**
+   `sceneManager.js` passes `previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS` — the exact same
+   value it already computed to decide how much terrain to load for this device class (desktop:
+   `PHASE1_PREVIEW_RADIUS_CHUNKS` 11 chunks → 5,500m radius, ~95km²; mobile: `STREAM_RADIUS_CHUNKS` 2
+   chunks → 1,000m radius, ~3.1km²). This means tree count naturally scales down on the mobile-budget
+   path with **no separate device-specific density knob** to keep in sync — the same self-consistency
+   `world/settlements.js`'s own mobile-vs-desktop force-load split already relies on one shared
+   signal for. It also guarantees no tree ever renders over a terrain chunk that was never generated
+   (a literal floating-tree-over-a-hole bug that a fixed, device-independent scatter radius could
+   have produced on mobile). A future pass adding seat-local clusters (trees near settlements outside
+   this origin-centered disc, wherever a settlement's own chunk neighborhood is force-loaded — desktop
+   only, see `sceneManager.js`'s existing per-seat `loadSquare` call) is a natural, separately-scoped
+   follow-up, not blocked by anything here.
+5. **Density (30 trees/km²) is engineering judgment, not calibrated against a real playtest** — see
+   `QUESTIONS_FOR_OWNER.md`'s newest entry, the same "feel constant nobody has played against yet"
+   pattern ADR-0089 (starfield twinkle)/ADR-0096 (combat-stance)/ADR-0111 (day/night event gating)/
+   ADR-0116 (dragon attack tuning) already logged there for their own tuning values.
+
+**Alternatives considered:**
+- *Wait for a real tree/foliage model instead of shipping procedural geometry now.* Rejected: unlike
+  FAZ 6/FAZ 11's animal species (which genuinely cannot read correctly without a rigged model — a
+  "wolf" made of two cylinders would not look like a wolf), a tree's silhouette is legible with just a
+  trunk + a foliage cap, the same reasoning that already justified `world/settlements.js`'s procedural
+  castle (run 13, long before real castle models arrived in run 67) and `world/materials.js`'s
+  procedural stone/roof textures. Revisit (add real tree models as a drop-in replacement, keeping the
+  same placement/exclusion logic) if/when the owner uploads foliage assets — this ADR's Gelecek Faz
+  Etkisi note above already flags the swap point.
+- *Grid-based placement (evenly-spaced lattice, optionally jittered) instead of rejection-sampled
+  scatter.* Rejected: a visible grid pattern reads as obviously artificial for organic vegetation in
+  a way it wouldn't for, say, a planted orchard — this project's terrain/river/road generation is all
+  built on organic-reading noise/pathing, and a lattice-based forest would visually clash with that.
+- *Real collision (blocking player movement through tree trunks).* Rejected for this first pass: none
+  of `world/`'s other decorative-for-now geometry has collision either (the river/waterfall meshes,
+  the road ribbon) — only settlements/dragons have real colliders, both because walking through a
+  castle wall or a dragon reads as much more jarring than clipping through a thin trunk at typical
+  camera distance. Revisit if a future playtest finds trunk clipping specifically distracting; adding
+  it later is a pure addition (a new `physics.js` collider fed this module's own placed positions),
+  not a rework of anything placement-related here.
+- *Wind-sway vertex/shader animation.* Rejected for this first pass as unnecessary complexity for the
+  system's first real ship — matches `world/water.js`'s own ADR-0048 precedent (a static/analytic
+  fragment-shader ripple was chosen over per-vertex animation specifically to avoid a shoreline-
+  flicker class of bug); a future pass could add a cheap per-instance sway via a vertex shader once
+  the base placement system has been live long enough to be worth the added complexity.
+
+**Verification:** `node --check` clean on every changed/new file (`world/vegetation.js`,
+`sceneManager.js`, `game3d.js`, `service-worker.js`, `scripts/game3dSmokeChecksVegetation.js`,
+`scripts/smokeTestGame3D.js`) plus a full repo sweep (79 JS files now, up from 78). New dedicated
+smoke-check module (`game3dSmokeChecksVegetation.js`, 1 check covering 16 sub-assertions): exact-value
+`distancePointToSegment2D` on a known segment, `isPlaceablePosition` rejecting each exclusion rule in
+isolation (underwater, steep slope, near-seat, near-road) and accepting ordinary flat ground far from
+all four, same-seed scatter producing a bit-identical first-instance transform matrix across two
+independent calls, a different seed producing a different result, placed count never exceeding target
+count, exactly 2 draw calls (children) regardless of tree count, a fully-excluded disc (seat placed at
+the disc's own center, radius smaller than the seat exclusion radius) placing exactly zero trees —
+proving the rejection logic actually rejects, not merely a plausible-looking no-op — a zero-radius
+disc being fully inert (no throw, no trees), and `disposeVegetation` not throwing on a real non-empty
+scatter. `checkSmokeCheckRegistry.js`: **33 checks/13 modules** (up from 32/12), 79 files all within
+the 600-line cap. `checkServiceWorkerCache.js`: **61 JS files** precached (up from 60), the new entry
+present. Full `smokeTestGame3D.js` re-run after the change: **33/33 PASS**, 0 FAIL, zero console/page
+errors (before-baseline was 32/32 PASS — regresyon yok, +1 new check, every pre-existing check
+unchanged). `scripts/terrainSeatSafetyCheck.js`/`scripts/roadNetworkSafetyCheck.js` both re-run as due
+diligence (see Değişiklik Etki Analizi above): both still **PASS**, byte-identical to their pre-change
+output. `collectPerfSnapshot.js`'s `run111` row: drawCalls 46→48 (+2, the two new `InstancedMesh`es),
+triangles 393,231→482,751 (+89,520, exactly 1,865 trees × 48 triangles — matches the real placed count
+precisely, not an estimate), geometries 44→46 (+2), textures unchanged (17 — no new texture, flat
+vertex colors only). Both new totals stay far inside the desktop budget (drawCalls<2500,
+triangles<5M) with wide headroom left for a future density increase or species-variety pass. Real
+headless-Chromium visual proof, 2 camera angles via F4 free-cam (dev-only proof script, scratchpad-
+only, never committed): before this change, the area immediately around the player spawn/origin
+showed bare terrain with only the pre-existing river/road/settlement geometry; after, the same two
+camera angles show scattered low-poly trees across the visible terrain, correctly absent from the
+cart-road surface and from the settlement footprint pads, none floating above or sinking below the
+visible ground mesh.
+
+**AI Self-Review 2. Geçiş (§8.3):** confirmed the trunk/foliage geometry's `translate()` calls
+correctly place the local origin at the tree's *base* (not center), matching every other
+placed-by-ground-height object in this project (settlements/NPCs/animals all place at "feet," not
+"center") — verified by the real render showing tree bases sitting on the visible terrain, not half-
+buried or floating. Confirmed the uniform-disc sampling formula (`r = R*sqrt(u)`) is the standard
+area-uniform derivation, not the common `r = R*u` mistake that would bias density toward the center
+(spot-checked by eye in the captured screenshots — no visible center-clustering). Confirmed
+`MAX_ATTEMPTS_PER_TREE`'s bounded retry means a heavily-excluded disc degrades to *fewer trees*, never
+an infinite loop — the fully-excluded-disc smoke assertion proves this directly rather than trusting
+the loop bound by inspection alone. Confirmed `.count` is set to the real `placedCount`, not the
+allocated `targetCount`, so unused trailing instance-matrix buffer slots (identity matrices at the
+world origin) are never rendered — the same class of bug `world/settlements.js`'s own
+`proceduralSeatCount`-sized `InstancedMesh` comment already flags as a real risk for this exact
+pattern, checked here rather than assumed safe by analogy. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+Memory leak checklist: `disposeVegetation` disposes both `InstancedMesh`es' geometry + material
+(confirmed by the smoke check calling it and asserting no throw, plus the pagehide-teardown call site
+in `game3d.js` mirroring every other world-system disposer's call-site pattern exactly); no
+listeners/timers/GPU resources are created outside those two geometries + two materials.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — a real, previously-never-attempted world system
+closing a gap this project's own architecture doc named from the very first run, built with the same
+proven "primitives + InstancedMesh + deterministic seeded placement" techniques this codebase already
+trusts elsewhere (settlements, roads), verified by a dedicated smoke-check module asserting the exact
+placement rules (not just "it renders something"), a real before/after visual proof, and two
+independent safety-check scripts re-confirming zero disturbance to terrain/roads. "6 ay sonra hâlâ net
+mi" tereddüdü yok — the module's own header and this ADR both spell out exactly why each constant/
+exclusion rule has the value it does, and what a future species/clustering/wind-sway pass would touch.
+
+**Geri alma planı:** delete `src/3d/world/vegetation.js` and `scripts/game3dSmokeChecksVegetation.js`;
+remove the `createVegetation`/`scene.add(vegetationResult.group)` block and the `vegetation:` field
+from `sceneManager.js`'s return object; remove the `disposeVegetation` import/call from `game3d.js`;
+remove the one shell-file-list entry from `service-worker.js` (leave `SHELL_CACHE` at v11 or bump
+again — either is safe, a version bump is never harmful, only a missed one is); remove the
+`vegetationChecks` require/push from `smokeTestGame3D.js`. Nothing else references any export from
+`world/vegetation.js` — a single, clean, fully-reversible commit revert.

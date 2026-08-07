@@ -11436,3 +11436,138 @@ fresh regression/tech-debt signal appears first.
 
 **Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
 recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-07, run 111 — scheduled autonomous routine)
+
+**Concurrency/snapshot:** container booted with local `main` HEAD detached (same recurring
+container-boot symptom runs 70-72/109/110 already documented). Resynced via `git fetch origin
+main` + `git checkout -B main origin/main`, confirmed zero open PRs via
+`mcp__github__list_pull_requests` first rather than trusting the local ref, landed exactly on
+`origin/main`'s real tip (`f4bc193`, run 110's stable-tag commit). Read `GOVERNANCE.md` in full
+(already populated from prior runs, no recreation needed — the fired prompt's own "create it first"
+instruction was already satisfied before this run). `CREDITS.md` likewise already exists, not
+recreated. Read `3D_GAME_PROGRESS.md`'s run 109/110 entries, `DECISIONS.md`'s ADR-0136/0137, and
+`QUESTIONS_FOR_OWNER.md` in full (no unresolved item forcing this run's hand; run-63 leaked-key
+entry stays open pending owner action, unchanged).
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`)
+clean, 78 files pre-change. Standing guards clean (`checkSmokeCheckRegistry.js`: 32 checks/12
+modules, zero line-count WARNs; `checkAssetsManifest.js`: 41 entries; `checkServiceWorkerCache.js`:
+60 JS files precached). Full `scripts/smokeTestGame3D.js`: **32/32 PASS**, 0 FAIL, zero console/page
+errors (pre-change baseline).
+
+**Priority re-scan (§18):** items 1-3 (macro relief/road network/terrain color) confirmed closed.
+Item 4 (remaining 6 kingdom-seat textures) stays asset-blocked — no new castle model files. Items
+5-8/10-11 all clean per the baseline sweep. Item 9 (teknik borç): zero line-count WARNs, no fresh
+candidate (largest file `game3d.js` at 479/600 has real headroom). Items 12-13 (FAZ 7 dragon
+follow-ups, FAZ 11 species) remain owner-decision/asset-model-blocked, re-confirmed unchanged. With
+1-13 exhausted, `world/README.md`/`gameplay/README.md` re-read surfaced that `GOVERNANCE.md` §3's
+target architecture has named `world/` Vegetation since this project's very first architecture doc,
+yet `DECISIONS.md` has never picked it up (only two "(not started)" mentions in ADR-0075/ADR-0076).
+Unlike FAZ 6/FAZ 11's animal species, a tree needs no rig/model to read correctly — never actually
+asset-blocked, just never picked up. Item 14 (new feature) taken.
+
+### Sub-task: `world/vegetation.js` — procedural instanced trees (DECISIONS.md ADR-0138)
+
+Added a new `world/` system: deterministic, seeded, rejection-sampled scatter of low-poly trees
+(cylinder trunk + cone foliage, two `InstancedMesh`es for the whole forest — 2 draw calls
+regardless of tree count) over a disc centered on the world origin, matching whichever terrain
+radius the device's own preview-radius setting already loaded. Placement rejects points under water,
+on ground steeper than 45°, inside a kingdom seat's exclusion radius, or within a road edge's
+exclusion corridor — reusing the same `sampleHeightMeters`/seat/road-edge data every other `world/`
+generator already consumes, read-only. `createVegetation({sampleHeightMeters, seaLevelMeters, seed,
+seats, roadEdges, radiusMeters, densityPerKm2?})` returns `{group, targetCount, placedCount}`;
+`disposeVegetation(group)` follows the same single-argument disposer convention as
+`disposeSettlements`/`disposeRoadNetwork`/`disposeWater`. Wired into `sceneManager.js` (one call
+after `buildRoadNetwork`) and `game3d.js`'s `pagehide` teardown. New dedicated smoke-check module
+`scripts/game3dSmokeChecksVegetation.js` (1 check, 16 sub-assertions) added to
+`scripts/smokeTestGame3D.js`. Full reasoning, risk analysis (MEDIUM — new always-rendered geometry,
+but read-only w.r.t. terrain/roads/seats, easy single-site disable, mitigated by a dedicated smoke
+check), impact analysis, and alternatives considered (wait for real tree models / grid placement /
+add collision / wind-sway — all rejected for this first pass, reasons in the ADR) are in
+`DECISIONS.md` ADR-0138.
+
+**Değişiklik Etki Analizi confirms:** no edits to `world/terrain.js`/`createHeightSampler`/any
+noise or macro-relief constant — the formal Arazi Değişiklik Güvenlik Kontrolü pre/post 14-seat gate
+doesn't strictly apply, but both existing safety scripts were re-run as due diligence anyway:
+`scripts/terrainSeatSafetyCheck.js` **PASS 14/14** (heights/margins/slopes bit-identical to run
+110's last recorded values) and `scripts/roadNetworkSafetyCheck.js` **PASS** (13/13 edges connected,
+grades/mountain-avoidance/river-non-collision all unchanged) — confirming zero disturbance.
+
+**DoD durumu:**
+- [x] `node --check` clean on every changed/new file plus a full repo sweep (79 JS files, up from 78)
+- [x] Smoke test — baseline **32/32 PASS** before, **33/33 PASS** after (1 new check, 0 FAIL, zero
+      console/page errors both times), independently re-confirmed by this session directly (not just
+      trusting the sub-task's own claim) via a full `scripts/smokeTestGame3D.js` re-run
+- [x] Görsel kanıt — real headless-Chromium F4 free-cam capture, 2 camera angles, before/after:
+      before shows bare terrain around the origin with only pre-existing river/road/settlement
+      geometry; after shows scattered low-poly trees, correctly absent from the road surface and
+      settlement footprint pads, none floating/sinking relative to the visible ground mesh
+- [x] Performans bütçesi — this session's own independent `collectPerfSnapshot.js run111` sample:
+      drawCalls 46→48 (+2, the two new `InstancedMesh`es), triangles 393,231→521,526 (+128,295, more
+      than the sub-task's own in-flight estimate — expected, this session's real device-class/
+      preview-radius at sample time placed more trees than the earlier estimate's run), geometries
+      44→46 (+2), textures unchanged (17, no new texture — flat vertex colors only). Both totals stay
+      far inside the desktop budget (drawCalls<2500, triangles<5M)
+- [x] Teknik borç sayacı — **0** (unchanged; new file well under the 600-line cap: 247/600)
+- [x] `3D_GAME_PROGRESS.md` güncellendi (this entry)
+- [x] ADR yazıldı — `DECISIONS.md` ADR-0138 (Risk Seviyesi: MEDIUM, Alternatives Considered, Geri
+      alma planı all present)
+- [x] Commit atıldı (below)
+- [x] Konsol Temizliği — zero console/page errors across the full smoke suite re-run
+- [x] Terrain/road safety scripts re-run as due diligence — both PASS, bit-identical to pre-change
+
+**Yeni soru:** a new `QUESTIONS_FOR_OWNER.md` entry was added (run 111, ADR-0138) — this project's
+first real vegetation density, `TARGET_DENSITY_PER_KM2 = 30`, is engineering judgment with no prior
+reference value and no real playtest to calibrate against; a temporary default is in place and
+flagged as the first place to look if it feels too sparse/dense.
+
+**AI Self-Review 2. Geçiş (§8.3):** independently re-verified (not just re-reading the sub-task's
+own self-review) — confirmed `translate()` places each tree's local origin at its base, matching
+every other placed-by-ground-height object in this project; confirmed the uniform-disc sampling
+formula (`r = R*sqrt(u)`) is the area-uniform derivation, not the center-biased `r = R*u` mistake;
+confirmed the bounded per-tree retry means a heavily-excluded disc degrades to fewer trees, never an
+infinite loop (the fully-excluded-disc and zero-radius-disc smoke assertions prove this directly);
+confirmed `.count` is set to the real `placedCount`, never the allocated `targetCount`. No
+`TEMP`/`HACK`/`FIXME`/`WORKAROUND` anywhere in the new code. Memory leak checklist:
+`disposeVegetation` disposes both `InstancedMesh`es' geometry+material, called from `game3d.js`'s
+`pagehide` teardown alongside every other world-system disposer; no listeners/timers/GPU resources
+created outside those two geometries+materials.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — a real, previously-never-attempted world
+system closing a gap named in the architecture doc since run 0, built with the same proven
+primitives+InstancedMesh+seeded-placement technique this codebase already trusts for settlements/
+roads, independently re-verified end-to-end by this session (not just accepted on the sub-task's own
+word) via a fresh full smoke-suite run, a fresh perf snapshot, and both terrain/road safety scripts.
+"6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 111 end) | Delta |
+|---|---|---|---|
+| `world/` systems | 8 (terrain/water/rivers/settlements/roads/materials/roadPathfinder + sky/stars in `src/3d/`) | **9** | +1 (`vegetation.js`) |
+| Trees placed (desktop preview radius) | 0 | **~1,865-2,500 (device/radius dependent)** | new |
+| Draw calls / triangles | 46 / 393,231 | **48 / 521,526** | +2 / +128,295 |
+| Geometries / textures | 44 / 17 | **46 / 17** | +2 / unchanged |
+| Smoke suite | 32/32 | **33/33** | +1 check (16 sub-assertions) |
+| `checkSmokeCheckRegistry.js` | 32 checks/12 modules | **33 checks/13 modules** | +1/+1 |
+| `checkServiceWorkerCache.js` shell files | 60 | **61** | +1 |
+| ADR headers in `DECISIONS.md` | 137 | **138** | +1 (ADR-0138) |
+| `perf_log.csv` rows | 52 | **53** | +1 (`run111`) |
+| Open questions in `QUESTIONS_FOR_OWNER.md` | (unchanged count from run 90) | **+1** | vegetation density calibration |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi (chunk-streaming/area accounting untouched) |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** evet — bu, oyuncunun ilk kez fark edeceği görsel bir değişiklik: dünyanın
+önceden çıplak olan zemini artık gerçek ağaçlarla kaplı (yol/kale alanları hariç). Yoğunluk sabiti
+henüz gerçek bir oyun testiyle kalibre edilmedi (bkz. `QUESTIONS_FOR_OWNER.md`'nin yeni maddesi).
+
+**Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §18.
+Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. No file near
+the 600-line cap. `RULES_CHANGELOG.md`'s next consolidation ~run 116, `CATCH_UP.md`'s next summary
+~run 118 (last done run 108) — both close, worth checking first next run. A natural item-14
+follow-up (not required, just available) is `world/vegetation.js`'s own Gelecek Faz Etkisi note:
+species variety or seat-local clusters, whenever the priority scan lands there again.
+
+**Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
+recorded in `STABLE_TAGS.md`.
