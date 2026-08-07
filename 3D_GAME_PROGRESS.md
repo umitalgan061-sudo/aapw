@@ -12977,3 +12977,14 @@ bu run'da tekrar dokunulmadı. Sonraki catch-up ~run 138, platform kontrolü ~ru
 güven skoru 5/5, "6 ay sonra hâlâ net mi" tereddüdü yok. Çalışma Süresi Sınırı/Çalıştırma Geneli
 Süre Tavanı içinde kalındı; bu run eşzamanlı-oturum çakışmasını çözmek için normalden uzun sürdü,
 bu yüzden tek alt görevden sonra durup checkpoint atıldı.
+
+
+## Run 132 — mobile render-budget gate (2026-08-07 12:26 UTC)
+- Alt görev 1: gerçek mobile+touch Chromium context kullanan scripts/checkMobilePerfBudget.js eklendi; mobil coverage artışları için DrawCalls<500 ve Triangles<500K otomatik kapı oldu.
+- Mobil ölçüm: [checkMobilePerfBudget] sample {"profile":{"coarse":true,"fine":false,"touchPoints":1},"fps":1,"drawCalls":27,"triangles":206871,"geometries":22,"textures":22,"budgets":{"drawCallsExclusiveMax":500,"trianglesExclusiveMax":500000},"textureMemoryMB":null,"textureMemoryReason":"renderer.info exposes texture count, not resident texture-memory bytes"}
+- DoD: node --check PASS; tüm statik/PWA/cache/checkpoint/terrain/road/mobile-streaming guardları PASS; browser smoke 34/34+ PASS; additive-only PASS; konsol/page error yok.
+- Platform kontrolü: PWA installability PASS; service-worker cache PASS; WebGL browser smoke PASS; npm audit N/A (package.json yok).
+- Desktop trend kaydı: 2026-08-07,run132,1,50,608296,48,17,307
+- World Coverage: desktop %96.2; mobil resident footprint yaklaşık %8.9 (run130 radius 3) korunuyor. Bu run yeni radius artırmadı; önce ölçüm kapısını kalıcılaştırdı.
+- Memory leak: yeni runtime listener/timer/DOM/geometry/material yok. Teknik borç: 0 yeni. ADR-0156. Risk LOW. Güven 5/5.
+- World Evolution Report delta: yol 0 km, orman 0 km², kale/NPC/event/hayvan 0; oyuncu davranışı değişmez; sonraki güvenli adım mobil terrain/vegetation LOD+culling ölçümü.
