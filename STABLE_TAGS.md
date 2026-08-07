@@ -810,3 +810,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-07-2139 — run 153 settlement discovery atomic accessibility; 34/34+ browser smoke and a11y/governance/mobile/PWA gates PASS.
 - stable-2026-08-07-2154 — run 154 dialogue box atomic accessibility; 34/34+ browser smoke and a11y/governance/mobile/PWA gates PASS.
 - stable-2026-08-07-2238 — run 155 player health meter accessibility; 34/34+ browser smoke and a11y/governance/mobile/PWA gates PASS.
+- stable-2026-08-07-2300 — run 156 §8.12 rule consolidation (fixed stale §15 platform-check note, doc-only, no runtime change); 34/34 browser smoke, additive-only guard PASS. (Local tag only — `git push origin <tag>` HTTP 403 per known §8.11 constraint.)
