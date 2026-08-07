@@ -12890,3 +12890,90 @@ değerlerle birebir aynı (veri-only ekleme, yeni render yüzeyi yok); beklenen 
 - Memory-leak: eviction unloadChunk→disposeTerrainChunk yolunu kullanır; runtime testi hareket sonrası resident=49 ve disposeAll sonrası 0 doğruladı. Teknik borç: 0 yeni borç.
 - World Evolution Report: yol/orman/kale/NPC/event/hayvan/asset/diyalog sayıları delta 0; yalnız mobil resident terrain footprint +6.00 km². Oyuncu fark eder: evet, mobilde aynı anda daha geniş terrain çevresi görünür.
 - Oturum kalite kapısı: güven 5/5. Risk MEDIUM. Sonraki adım: mobil vegetation/terrain distance LOD + culling, ardından ölçüm uygunsa radius 4 değerlendirmesi.
+
+## Run 131 — `silent_sisters_procession` world event + ADR numbering fix (2026-08-07 11:56 UTC)
+
+**Session Snapshot:** `git fetch origin main` sırasında local `13ed64e`'nin (run 129) *arkasında*
+kaldığı, `origin/main`'in eşzamanlı bir oturumun run 130'u (`b298567`, mobil bounded streaming +
+coverage radius 3, ADR-0154 — bkz. GOVERNANCE.md §23) ile ilerlemiş olduğu görüldü — bu run kendi
+çalışmasını "run 130" olarak etiketlemişti (bu dosyaya henüz push edilmemişti), gerçek çakışma
+push anında ortaya çıktı. `GOVERNANCE.md` tam okundu (yeni §23 dahil — mobil World Coverage
+politikası artık kalıcı kural). `DECISIONS.md` son 3 ADR (0152/0153/0154) okundu; bu sırada
+**gerçek bir numaralandırma çakışması** bulundu: run 130'un mobil-streaming ADR'ı da `ADR-0153`
+olarak commit edilmişti — run 128'in `nightswatch_levy`'sinin zaten kullandığı numarayla aynı
+(iki eşzamanlı oturumun `origin/main`'i aynı anda görüp aynı boş numarayı seçmesinden). Düzeltildi:
+mobil-streaming ADR'ı `ADR-0154`'e yeniden numaralandırıldı (yalnız başlık, karar metni değişmedi —
+`.md` dosyaları additive-only diff guard kapsamı dışında olduğundan mümkün), bu run'ın kendi ADR'ı
+`ADR-0155` olarak commit edildi. `QUESTIONS_FOR_OWNER.md` tam okundu (yeni belirsizlik yok).
+
+**Baseline regression guard (merge sonrası):** tam `node --check` taraması sıfır hata.
+`checkSmokeCheckRegistry.js` 34 check/14 modül, 85 dosya 600 satır sınırının altında (run 130'un
+yeni dosyaları dahil). `checkAssetsManifest.js` 41/41, `checkPwaInstallability.js`/
+`checkServiceWorkerCache.js`/`checkCreatureSpeciesConfig.js`/`checkDialogueChoicesShape.js`/
+`checkWorldEventCatalog.js`/`checkMobileChunkStreaming.js` (run 130'un yeni guard'ı) hepsi OK.
+`terrainSeatSafetyCheck.js` **14/14 PASS**, `roadNetworkSafetyCheck.js` **13/13 PASS**.
+`checkAdditiveOnlyDiff.js` PASS. Tam `smokeTestGame3D.js` merge sonrası **34/34 PASS**, 0 FAIL, 0
+konsol/sayfa hatası.
+
+**Öncelik taraması (§18):** madde 1/1.2/1.5/1.7 değişmedi (1.7 hâlâ 6 koltuk için manuel asset
+bekliyor). Madde 2-10 (sözdizimi/bug/perf/memory/tech-debt/smoke) temiz. Madde 11 (World Coverage):
+run 130 zaten aktif olarak ilerletiyor (mobil %4.5→%8.9, bkz. GOVERNANCE.md §23) — bu run'da tekrar
+seçilmedi, aynı alanı ikinci kez açmak gereksiz risk/çakışma yaratırdı. Madde 12-13 (FAZ 7/FAZ 11)
+hâlâ model/sahip kararı bekliyor. Bu da madde 14'ü (yeni özellik) tek uygulanabilir kulvar olarak
+bıraktı.
+
+### Sub-task: zamandan bağımsız `silent_sisters_procession` (Sessiz Kızkardeşler Alayı) dünya olayı (ADR-0155)
+
+FAZ 8 dünya olayı havuzuna RARE ağırlıklı, gate'siz `silent_sisters_procession` girdisi eklendi —
+Westeros lore'undaki Sessiz Kızkardeşler'in örtülü bir tabutu kale kapısından taşımasını anlatan,
+mevcut `mourning_bells` (yalnız işitsel çan sesi, görsel alay yok) ile aynı yas ailesinden ama farklı,
+somut bir an. Mevcut ağırlıklı seçim/toast sunum yolu aynen kullanıldı; yeni geometri/materyal/
+timer/listener yok. Tam gerekçe/alternatifler `DECISIONS.md` ADR-0155'te.
+
+**DoD / doğrulama:** Değişen tek gerçek kod dosyası (`gameplay/worldEvents.js`) syntax-clean
+(`node --check` PASS). `checkWorldEventCatalog.js` PASS (37 unique, 9 gated).
+`checkSmokeCheckRegistry.js` PASS (34/14). `checkAdditiveOnlyDiff.js` PASS — yalnız ekleme, hiçbir
+satır silinmedi/değiştirilmedi (yeni entry mevcut son entry'nin ARDINA eklendi). 500 seed × 30
+tetikleme (15.000 çekiliş, alternan gündüz/gece `nightFactor`) ile gerçek modül üzerinden (geçici
+`.mjs` kopya, committed değil, çalıştırma sonunda silindi) yapılan bir erişilebilirlik ispatı
+`silent_sisters_procession`'ın hem gündüz (105) hem gece (127) erişilebilir olduğunu ve havuzdaki
+37 id'nin hepsinin en az bir kez çekildiğini (eksiksiz, çakışmasız) doğruladı. Merge sonrası tam
+Playwright smoke suite yeniden çalıştırıldı: **34/34 PASS**, 0 FAIL, 0 konsol/sayfa hatası. Veri-only
+ekleme yeni bir görsel yüzey oluşturmadığından yeni ekran görüntüsü gerektirmedi. Teknik borç
+sayacı: **0**. Güven: **5/5**.
+
+**AI Self-Review 2. Geçiş:** Yeni girişten önceki 36 entry'nin `desc` metinleri tek tek yeniden
+okunarak hiçbirinin "cenaze alayı/Sessiz Kızkardeşler" temasını zaten kapsamadığı teyit edildi.
+İkon seçimi (`🥀`) `mourning_bells`'in `🖤`'ından ve `crow_flock`/`raven`'ın `🐦`'sından bilinçli
+olarak farklı tutuldu. `TEMP`/`HACK`/`FIXME`/`WORKAROUND` yorumu yok. ADR numaralandırma
+çakışmasının düzeltmesi de aynı özenle ikinci kez kontrol edildi: `grep "^## ADR-01[45][0-9]"` ile
+0150-0155 aralığının artık ardışık ve tekil olduğu doğrulandı.
+
+**Memory-leak checklist:** veri-only ekleme; listener/timer/DOM/geometry/material tahsisi yok.
+**Performans:** olay seçimi yalnız tetikleme anında 37 elemanlı sabit bir dizi üzerinde çalışır;
+frame başına yeni maliyet yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start, post-run130-merge) | After (run 131 end) | Delta |
+|---|---|---|---|
+| `worldEvents.js` flavor-pool entries | 36 | **37** | +1 (`silent_sisters_procession`) |
+| `worldEvents.js` gated entries | 9 | **9** | değişmedi (ungated) |
+| Smoke suite | 34/34 | **34/34** | değişmedi |
+| ADR headers in `DECISIONS.md` | 154 (1 numaralandırma çakışması düzeltildi) | **155** | +1 (ADR-0155) + 1 düzeltme |
+| World Coverage (desktop / mobil) | 96.2% / 8.9% (run 130 sonrası) | 96.2% / 8.9% | değişmedi (bu run mobil coverage'a dokunmadı) |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** evet, küçük ölçekte — seyrek bir Sessiz Kızkardeşler cenaze alayı bildirimi
+görebilir. ADR numaralandırma düzeltmesi tamamen belge-içi, oyunda görünmez.
+
+**Next step:** her zamanki taze `origin/main` fetch ve öncelik taraması; 6 dokusuz kale ile FAZ 6
+model bekleyen türler (araba/köpek-kedi/kuş) hâlâ manuel asset kaynağı bekliyor. Mobil World
+Coverage programı (GOVERNANCE.md §23) run 130'da başladı, sıradaki adımı muhtemelen LOD/culling —
+bu run'da tekrar dokunulmadı. Sonraki catch-up ~run 138, platform kontrolü ~run 132-142
+(yaklaşıyor), kural konsolidasyonu ~run 136 — hepsi güncel.
+
+**Oturum Kalite Kapısı:** 1 alt görev tamamlandı (+ 1 gerçek numaralandırma-çakışması düzeltmesi),
+güven skoru 5/5, "6 ay sonra hâlâ net mi" tereddüdü yok. Çalışma Süresi Sınırı/Çalıştırma Geneli
+Süre Tavanı içinde kalındı; bu run eşzamanlı-oturum çakışmasını çözmek için normalden uzun sürdü,
+bu yüzden tek alt görevden sonra durup checkpoint atıldı.

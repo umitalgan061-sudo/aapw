@@ -744,3 +744,11 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   restriction (§8.11) — local tag + this line serve as the checkpoint.
 - stable-2026-08-07-1125 — run 129 checkpoint continuity guard; browser smoke 34/34+ PASS, additive-only PASS, perf snapshot recorded.
 - stable-2026-08-07-1143 — run 130 mobile bounded streaming; 49-chunk / 12.25 km² mobile footprint (~8.9%%), browser smoke 34/34+ PASS, mobile runtime eviction PASS.
+- stable-2026-08-07-1201 — run 131: `silent_sisters_procession` world event (ADR-0155) +
+  ADR numbering-collision fix (run 130's mobile-streaming ADR renumbered 0153→0154, this run's own
+  ADR is 0155). Full Playwright smoke suite 34/34 PASS, 0 FAIL, exit code 0 on the merged tip
+  (run 130's mobile bounded-streaming work included); additive-only guard, world-event catalog guard
+  (37 unique/9 gated), mobile chunk-streaming guard all re-verified clean. Perf 50 draw call /
+  608,296 triangle / 48 geometry / 17 texture / 290 MB heap (run120's baseline, unchanged — data-only
+  addition). `git tag`/`git push origin <tag>` attempted per usual; local tag + this line serve as
+  the checkpoint if the push hits the known `HTTP 403` restriction (§8.11).

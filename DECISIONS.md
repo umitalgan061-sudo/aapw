@@ -13608,7 +13608,14 @@ bağımlılık eklemez; ileride böyle bir mekanik gelirse bu toast bağımsız 
 bağlanabilir.
 
 
-## ADR-0153 — Mobil bounded streaming ile coverage radius 2→3 (run 130)
+## ADR-0154 — Mobil bounded streaming ile coverage radius 2→3 (run 130)
+
+**Numaralandırma düzeltmesi (run 131):** Bu ADR, bir önceki eşzamanlı çalıştırmanın (run 128'in
+`nightswatch_levy`'si) zaten kullandığı `ADR-0153` numarasıyla çakışacak şekilde commit edilmişti —
+iki farklı oturumun `origin/main`'i aynı anda ADR-0153 boşluğundan görmesinden kaynaklanan bir
+numaralandırma yarışı. Bu run (131) çakışmayı `git fetch` sırasında fark etti ve yalnızca bu başlığı
+`ADR-0154`'e yeniden numaralandırdı (belge içeriği/karar/gerekçe değişmedi) — `.md` dosyaları
+additive-only diff guard'ın kapsamı dışında olduğu için bu mümkün. Aşağıdaki gövde metni değişmedi.
 
 **Risk seviyesi:** MEDIUM
 
@@ -13637,3 +13644,57 @@ no-eviction davranışına dönülebilir. Kalıcı save/schema migrasyonu yoktur
 **Gelecek faz etkisi:** FAZ 9-10 ve daha büyük asset dünyası için olumlu; sınırlı resident terrain
 LOD, vegetation culling ve asset streaming çalışmalarına ölçülebilir temel sağlar. Yeni SaveSystem
 veya public API bağımlılığı oluşturmaz.
+
+## ADR-0155 — Zamandan bağımsız `silent_sisters_procession` (Sessiz Kızkardeşler Alayı) dünya olayı (run 131)
+
+**Risk seviyesi:** LOW
+
+**Karar:** FAZ 8 dünya olayı havuzuna RARE ağırlıklı, `timeOfDay` gate'i olmayan
+`silent_sisters_procession` ("Sessiz Kızkardeşler Alayı") girdisi eklendi. Westeros lore'unda
+ölüleri hazırlayıp gömüye taşıyan kendine özgü tarikat olan Sessiz Kızkardeşler'in, örtülü bir
+tabutu kale kapısından sessizce taşıdığını anlatan yeni bir "cenaze alayı" görüntüsü — havuzdaki
+tek yakın komşusu `mourning_bells` (yalnız işitsel bir çan sesi ipucu, hiçbir görsel alay
+anlatmıyor) ile aynı yas/kayıp temasını paylaşıyor ama farklı, somut bir an tasvir ediyor. Mevcut
+ağırlıklı seçim/toast sunum yolu aynen kullanıldı; yeni geometri/materyal/timer/listener eklemedi.
+
+**Neden:** Bu run'ın öncelik taraması (bkz. bu run'ın Session Snapshot bölümü) madde 1-9'un hepsini
+temiz/tamamlanmış, madde 1.7 (kale dokulandırma) ve FAZ 6 hayvanlarını (madde 12) hâlâ manuel asset
+bekler, madde 13'ü (FAZ 11 türleri) hâlâ model/sahip kararı bekler halde buldu; madde 11 (World
+Coverage) de bu run'ın kendi `git fetch`'inde eşzamanlı run 130'un mobil coverage programını
+(ADR-0154, GOVERNANCE.md §23) başlattığını ortaya çıkardı — o alan artık aktif ve ayrı bir alt
+görev tarafından ilerletiliyor, bu run'da tekrar seçilmedi. Madde 14 (yeni özellik) kapsamında,
+ölüm/yas Westeros lore'unda önemli bir yer tuttuğundan (bkz. mevcut `mourning_bells`) ama havuzdaki
+hiçbir mevcut girdi somut bir cenaze *alayını* (prosedür/görüntü, sadece ses değil) doğrudan
+işlemediğinden düşük riskli, kendi kendine yeten bir veri eklemesi seçildi.
+
+**Alternatifler:**
+- **`timeOfDay` gate'i** reddedildi — bir cenaze alayı günün her saatinde gerçekleşebilir, metin
+  belirli bir zamanı ima etmiyor; ADR-0111/ADR-0150/ADR-0152/ADR-0153 ile aynı "yalnız metni
+  belirsiz olmayanlar gate'lenir" kuralı.
+- **UNCOMMON ağırlık** reddedildi — bir cenaze alayı `feast_fires`/`market_day` gibi günlük yaşamın
+  sıradan bir parçası değil, `mourning_bells`/`wildling_rumor`/`red_comet` gibi seyrek ve ağır bir
+  an; RARE bu üçüyle aynı kayıtta.
+- **`mourning_bells` ile birleştirme** reddedildi — o yalnız işitsel bir ipucu (çan sesi, kimin
+  kaybedildiği belirsiz), bu ise somut, görülebilir bir alay (kimin cenazesi olduğu yine
+  belirtilmiyor ama alayın kendisi görünür); ikisi farklı bir okunuş taşıyor (bkz. Karar bölümü).
+  **Doğrulama:** yeni girişten önceki 36 (35 önceki flavor entry + bu run başındaki
+  `nightswatch_levy`) entry'nin `desc` metinleri tek tek yeniden okunarak hiçbirinin "cenaze
+  alayı/Sessiz Kızkardeşler" temasını zaten kapsamadığı teyit edildi (en yakın tonal komşular
+  `mourning_bells`/`shackled_prisoner`/`midwife_summoned` ile karşılaştırıldı — üçü de kale kapısı
+  etrafında bir insan/grup hareketini anlatıyor ama farklı olaylar).
+
+**Sonuç / etkilenen sistemler:** Yalnız `gameplay/worldEvents.js` veri havuzu 36'dan 37 girdiye
+büyüdü (gated sayısı 9 olarak değişmedi, ungated sayısı 27'den 28'e çıktı). Mevcut ağırlıklı seçim,
+toast, güvenli-mod, day/night ve PWA cache yolları değişmez. 500 seed × 30 tetikleme (15.000 çekiliş,
+alternan gündüz/gece `nightFactor`) ile gerçek modül üzerinden yapılan bir erişilebilirlik ispatı
+(committed değil, atılan `.mjs` script) `silent_sisters_procession`'ın hem gündüz hem gece
+erişilebilir olduğunu (105 gündüz, 127 gece, toplam 232 çekiliş) ve havuzdaki 37 id'nin hepsinin en
+az bir kez çekildiğini (eksiksiz, çakışmasız) doğruladı.
+
+**Geri alma planı:** Tek `silent_sisters_procession` veri satırı, bir açıklama yorum bloğu ve bir
+yorum-satırı sayaç güncellemesi kaldırılarak önceki 36-entry havuza dönülebilir; şema veya kalıcı
+kayıt migrasyonu yoktur.
+
+**Gelecek faz etkisi:** Yok. FAZ 9 ses/cila veya ilerideki bir ölüm/cenaze quest hattına bağımlılık
+eklemez; ileride böyle bir mekanik gelirse bu toast bağımsız kalabilir veya ayrı ADR ile
+bağlanabilir.
