@@ -603,3 +603,25 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies
   the checkpoint). No new open question in `QUESTIONS_FOR_OWNER.md` (discrete tier choice, not a
   calibration constant needing a real playtest).
+
+- **Run 115 (2026-08-07):** Session Quality Gate passed (confidence 5/5, §8.6) — item-14 new
+  feature, `gameplay/worldEvents.js`'s `alms_giving` world event, a new COMMON/day-gated
+  flavor-pool entry (ADR-0142), following run 102/103/110-114's own established low-risk pattern.
+  33/33 baseline → 33/33 real-browser smoke suite clean both before and after (existing gating
+  assertions unmodified; two new assertions added for the new day-gated entry), both
+  `terrainSeatSafetyCheck.js` (14/14) and `roadNetworkSafetyCheck.js` (13/13 edges) re-confirmed
+  unaffected (out-of-scope change, checked as due diligence anyway), `collectPerfSnapshot.js run115`
+  bit-identical to run114 (config-data-only change, no geometry/texture/renderer code touched), real
+  2-viewport headless-Chromium proof (desktop 1280x720 + mobile 390x844) showing the exact toast
+  title/desc text and an independently-proven day gate (never fires across 1000 forced-midnight
+  draws), mobile toast position (`top: 184px`) matching ADR-0141's own recorded anchor exactly,
+  zero console/page errors throughout. Game opens without issue post-merge (merge commit `f0556a1`
+  is a real merge of `work` into `main`, no conflicts; full `node --check` sweep +
+  `checkSmokeCheckRegistry.js` + a full post-merge `smokeTestGame3D.js` re-run — **33/33 PASS**, 0
+  FAIL — all re-confirmed clean against the merged tree). Local tag `stable-2026-08-07-0453` created
+  at `f0556a1` (PR #15 merge). `git push origin work` + PR #15 → `main` merge succeeded
+  (`31d7a38..f0556a1`). `git push origin <tag>` still rejected, same `HTTP 403` standing block since
+  run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint). No new open
+  question in `QUESTIONS_FOR_OWNER.md` (discrete tier/gate choice, not a calibration constant
+  needing a real playtest); the run-63 leaked-NVIDIA-key item remains open, unchanged, still pending
+  owner action.
