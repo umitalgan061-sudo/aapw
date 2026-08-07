@@ -6,6 +6,7 @@ on:
       - agent/run139-mobile-radius-readiness
     paths:
       - 'scripts/checkMobileRadiusReadiness.js'
+      - 'scripts/applyRun139Records.py'
       - '.github/workflows/run139-mobile-radius-readiness.yml'
 
 permissions:
@@ -60,6 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/checkMobileRadiusReadiness.js
+          python -m py_compile scripts/applyRun139Records.py
           node scripts/checkCheckpointConsistency.js
           node scripts/checkWorldEventCatalog.js
           node scripts/checkAssetsManifest.js
@@ -104,7 +106,7 @@ jobs:
           echo "PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
           git diff --check
           node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
-          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkMobileRadiusReadiness.js; then exit 1; fi
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkMobileRadiusReadiness.js scripts/applyRun139Records.py; then exit 1; fi
 
       - name: Append governance records and publish
         shell: bash
@@ -112,61 +114,16 @@ jobs:
           set -euo pipefail
           git fetch origin main
           test "$(git rev-parse origin/main)" = "33ca1df856429d62d70797912853ae38d5e49d7a"
-          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
-          TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
-          cat >> GOVERNANCE.md <<'EOF'
-
-## 27. Mobil Radius Readiness Kanıt Kapısı (run 139)
-
-Canlı mobil streaming radius'u, `QUESTIONS_FOR_OWNER.md` / ADR-0157'deki sahip kararı çözülmeden
-değiştirilemez. Bununla birlikte kararın performans tarafı tahmine bırakılmaz: `scripts/checkMobileRadiusReadiness.js`
-önce mevcut radius-3 + terrain FAR=16 politikasının kaynakta hâlâ geçerli olduğunu doğrular, sonra gerçek
-mobile/touch Chromium `checkMobilePerfBudget.js` örneğini alır ve radius 4'e eklenecek 32 dış-halka terrain
-chunk'ının tamamının aynı karede çizildiğini varsayan kötümser bir üst sınır hesaplar. Bu üst sınır bile
-DrawCalls<500 ve Triangles<500K kapılarını geçmiyorsa yalnızca "ölçülebilir render bütçesi açısından hazır"
-sinyali verilir; `governanceApproval` özellikle false kalır. Texture-memory <512 MB ve gerçek telefon 30-60 FPS
-hedefleri uygun gerçek cihaz/profiler olmadan uydurulmaz. Bu gate PASS olması radius artışı için sahip onayının
-yerine geçmez.
-EOF
-          cat >> DECISIONS.md <<'EOF'
-
-## ADR-0162 — Mobil radius 4 için konservatif readiness gate (run 139)
-
-**Risk Seviyesi:** LOW
-
-**Karar:** Canlı radius'u değiştirmeden `scripts/checkMobileRadiusReadiness.js` eklendi. Araç gerçek mobile/touch
-Chromium render ölçümünü alır; mevcut run-130 radius=3 ve run-134 FAR=16 politikasının kaynakta hâlâ aynı olduğunu
-kanıtlar; radius 4'ün 49→81 resident chunk farkı olan 32 yeni dış-halka chunk'ının her birini 16x16 segmentli
-PlaneGeometry kabul ederek 16.384 ek terrain triangle ve en fazla 32 ek draw submission üst sınırı hesaplar.
-
-**Neden:** ADR-0157 / QUESTIONS_FOR_OWNER.md canlı radius 3→4 değişikliğini sahip kararına bağladı. Aynı engeli yeniden
-demek yerine kararın performans tarafını ölçülebilir kanıta çevirmek, §22 regression-guard ruhuna ve §23-24 mobil
-coverage politikasına daha uygundur.
-
-**Alternatifler:** Radius'u doğrudan 4 yapmak reddedildi (sahip kararı bekliyor). Sadece teorik formül kullanmak reddedildi
-(gerçek mobile Chromium baseline'ı olmadan sahne maliyetini kaçırır). Gerçek telefon FPS/texture MB değeri uydurmak
-reddedildi (mevcut CI bu ölçümleri güvenilir biçimde sağlayamıyor).
-
-**Sonuç:** Gate PASS ise radius 4'ün ölçülebilir draw-call/triangle bütçesinde konservatif headroom'u olduğu kanıtlanır,
-ama runtime davranışı değişmez ve coverage ~%8.9'da kalır.
-
-**Etkilenen sistemler:** Yalnız `scripts/` doğrulama katmanı + yönetişim kayıtları; gameplay/render/PWA runtime davranışı yok.
-
-**Geri alma planı:** Yeni guard çağrısını gelecekte kullanmamak yeterlidir; runtime kodu değiştirilmedi.
-EOF
-          printf '\n## Run 139 — mobile radius-4 readiness evidence (%s)\n' "$STAMP" >> 3D_GAME_PROGRESS.md
-          printf '%s\n' '- Alt görev: canlı mobil radius değiştirilmeden, gerçek mobile/touch Chromium baseline + konservatif radius-4 üst-sınır hesabı yapan scripts/checkMobileRadiusReadiness.js eklendi.' >> 3D_GAME_PROGRESS.md
-          printf '%s\n' "- Kanıt: ${RADIUS_PROJECTION}" >> 3D_GAME_PROGRESS.md
-          printf '%s\n' "- DoD: node --check PASS; mobil streaming/terrain-LOD/spawn-vegetation/vegetation-LOD/PWA/cache/assets/checkpoint/world-event/terrain/road guard PASS; browser smoke ${SMOKE_PASS_COUNT}/34+ PASS; additive-only PASS; konsol/page error yok." >> 3D_GAME_PROGRESS.md
-          printf '%s\n' "- Performans: ${PERF_ROW}" >> 3D_GAME_PROGRESS.md
-          printf '%s\n' '- Görsel doğrulama: runtime/render davranışı değişmedi; yeni araç yalnız CI/readiness ölçümü. Bu nedenle yeni görsel delta yok.' >> 3D_GAME_PROGRESS.md
-          printf '%s\n' '- Teknik borç: 1 (game3d.js 540/600); yeni borç 0. World Coverage: desktop %96.2 / mobile resident ~%8.9 değişmedi. World Evolution delta: 0; oyuncu fark etmez. Risk: LOW. Güven: 5/5.' >> 3D_GAME_PROGRESS.md
-          printf '%s\n' "- $TAG — run 139 mobile radius readiness evidence; smoke ${SMOKE_PASS_COUNT}/34+ PASS, additive-only PASS." >> STABLE_TAGS.md
+          echo "RUN139_STAMP=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+          echo "RUN139_TAG=stable-$(date -u +'%Y-%m-%d-%H%M')" >> "$GITHUB_ENV"
+          export RUN139_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN139_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          python scripts/applyRun139Records.py
           node scripts/checkCheckpointConsistency.js
           git config user.name "Westeros Automation"
           git config user.email "actions@users.noreply.github.com"
-          git add GOVERNANCE.md DECISIONS.md 3D_GAME_PROGRESS.md STABLE_TAGS.md perf_log.csv scripts/checkMobileRadiusReadiness.js .github/workflows/run139-mobile-radius-readiness.yml
+          git add GOVERNANCE.md DECISIONS.md 3D_GAME_PROGRESS.md STABLE_TAGS.md perf_log.csv scripts/checkMobileRadiusReadiness.js scripts/applyRun139Records.py .github/workflows/run139-mobile-radius-readiness.yml
           git commit -m "test(3d): record mobile radius readiness evidence (run 139)"
-          git tag "$TAG"
+          git tag "$RUN139_TAG"
           git push origin HEAD:agent/run139-mobile-radius-readiness
-          git push origin "$TAG"
+          git push origin "$RUN139_TAG"
