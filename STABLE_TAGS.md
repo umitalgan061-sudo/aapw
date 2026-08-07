@@ -722,3 +722,15 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   48 geometry / 17 texture / 347 MB heap. `stable-2026-08-07-0907` etiketi bu run'da `git push
   origin <tag>` ile denendi, yine `HTTP 403` ile reddedildi (§8.11'in bilinen kısıt kaydıyla
   tutarlı) — yerel tag + bu satır kontrol noktası için yeterli sayıldı.
+
+- **Run 126 (2026-08-07):** Owner'ın doğrudan `main`'e eklediği additive-only diff guard
+  (`scripts/checkAdditiveOnlyDiff.js`, commit `3c7e4fb`) `GOVERNANCE.md`'ye kalıcı Altın Kural
+  olarak kaydedildi (ADR-0151), ve FAZ 8 dünya olayı havuzuna UNCOMMON ağırlıklı `midwife_summoned`
+  (Ebe Çağrısı) girdisi eklendi (ADR-0152) — 192 ekleme/0 silme, additive-only guard PASS. PR #32
+  `main` dalına `c4dc120` ile birleşti. Full Playwright smoke suite değişiklik öncesi/sonrası
+  **34/34 PASS**, 0 konsol/sayfa hatası; merge sonrası `main` üzerinde de additive-only guard ve
+  smoke-check registry yeniden doğrulandı. Perf 50 draw call / 608,296 triangle / 48 geometry /
+  17 texture / 257 MB heap (run120'den beri değişmeyen render bütçesiyle birebir aynı). `stable-
+  2026-08-07-1002` etiketi bu run'da `git push origin <tag>` ile denendi, yine `HTTP 403` ile
+  reddedildi (§8.11'in bilinen kısıt kaydıyla tutarlı) — yerel tag + bu satır kontrol noktası için
+  yeterli sayıldı.
