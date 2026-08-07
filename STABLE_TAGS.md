@@ -814,3 +814,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-07-2305 — run 156b interaction prompt accessible status semantics (ADR-0178); 34/34 browser smoke, additive-only guard, smoke-check registry PASS.
 
 - stable-2026-08-07-2340 — run 157 day/night clock quiet timer accessibility (ADR-0179); 34/34+ browser smoke, additive-only/PWA/mobile/governance gates PASS.
+- stable-2026-08-07-2358 — run 158 settlement compass quiet accessible status semantics (ADR-0180) + CATCH_UP.md refresh; 34/34 browser smoke, additive-only/PWA/mobile/governance/a11y gates all PASS. (Local tag only — `git push origin <tag>` HTTP 403 per known §8.11 constraint.)
