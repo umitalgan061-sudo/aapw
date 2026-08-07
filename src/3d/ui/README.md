@@ -69,3 +69,6 @@ convention below.
 - **Own DOM, own disposal.** Any DOM a module here creates must be removable via its own
   `dispose()` — mirrors the memory-leak checklist every other system in this project follows.
 - **Dialogue touch path (run 99, ADR-0125):** `DialogueBox` can register delegated choice and close handlers; choices expose 44px focusable role-button targets for pointer/Enter/Space input, and `dispose()` removes all three listeners. Desktop Digit1–Digit3/E/Escape remains owned by `gameplay/interaction.js`.
+
+
+- **Run 150 accessibility note:** `worldEventToast.js` keeps its existing visual/timer/EventBus behavior but now exposes each shown event as a polite atomic `status` live region; the decorative emoji is hidden from assistive technology so screen readers announce the Turkish title + description rather than redundant icon speech.

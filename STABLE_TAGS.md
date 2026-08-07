@@ -802,3 +802,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-07-1837 — run 147 FAZ 8 world-event expansion; 34/34+ browser smoke, diversity/catalog/PWA/cache/mobile/road/terrain/additive gates PASS.
 - stable-2026-08-07-1936 — run 148 fixed-seed world-event checksum guard; 34/34+ browser smoke, determinism/catalog/diversity/PWA/cache/mobile/road/terrain/additive gates PASS.
 - stable-2026-08-07-1952 — run 149 catch-up summary + world-event determinism/additive-only conflict (ADR-0172, doc-only, no runtime change); 34/34 browser smoke baseline unchanged, additive-only guard PASS. (Local tag only — `git push origin <tag>` HTTP 403 per known §8.11 constraint.)
+
+- stable-2026-08-07-2031 — run 150 world-event toast accessibility; full browser smoke + a11y/PWA/mobile/additive gates PASS.

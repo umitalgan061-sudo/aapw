@@ -14339,3 +14339,20 @@ EventBus/UI/save/PWA/terrain hiçbiri etkilenmedi.
 
 **Geri alma planı:** Bu run kod/veri değişikliği yapmadı; geri alınacak bir şey yok. Sahip karar
 verince (aşağıdaki üç seçenekten biri) ilgili run o kararı uygulayacak commit'i atar.
+
+
+## ADR-0173 — Dünya olayı toast'ı için erişilebilir canlı durum semantiği (run 150)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `WorldEventToast` gerçek bir olay gösterdiğinde görsel davranışı değiştirmeden WAI-ARIA canlı durum semantiği kazanır: `role="status"`, `aria-live="polite"`, `aria-atomic="true"`; yalnız dekoratif olan emoji `aria-hidden="true"` olur. Değişiklik additive-only gereği mevcut `_show()` kodunu silmeden/değiştirmeden, önceki davranışı çağıran kalıcı bir prototype extension ile uygulanır.
+
+**Neden:** Dünya olayları bugün yalnız görsel toast olarak sunuluyor. Ekran okuyucu kullanan oyuncular aynı Türkçe atmosfer bilgisini alamıyor. `status/polite` kritik olmayan, periyodik bildirimler için uygun; `atomic=true` başlık ile açıklamanın tek güncelleme olarak okunmasını sağlar. Emoji içerik taşımadığı için erişilebilirlik ağacından gizlenir.
+
+**Alternatifler:** (1) Constructor/_show satırlarını doğrudan değiştirmek daha sade olurdu fakat kaynak satırı değiştirmeyi yasaklayan additive-only guard'ı ihlal eder. (2) Ayrı yeni UI widget'ı eklemek çift DOM/EventBus aboneliği ve `game3d.js` wiring'i gerektirerek gereksiz blast radius yaratır. (3) Hiçbir şey yapmamak erişilebilirlik açığını korurdu.
+
+**Sonuç:** Görsel piksel çıktısı, timer süresi, event seçimi, determinism, PWA cache içeriği, pointer/klavye girişi ve render bütçesi değişmez. Ekran okuyucu tarafında toast artık nazik ve atomik bir canlı bildirimdir.
+
+**Etkilenen sistemler:** `src/3d/ui/worldEventToast.js`; test-only `scripts/checkWorldEventToastAccessibility.js`; run150 CI/records. `game3d.js`, `gameplay/worldEvents.js`, EventBus API, save formatı ve WORLD_EVENTS katalog/fixture'ı değişmez.
+
+**Geri alma planı:** Additive extension sonraki bir additive policy katmanı ile devre dışı bırakılabilir. Owner gelecekte additive-only guard için kaynak-refactor istisnası verirse semantik attribute'lar constructor içine taşınabilir; o zamana kadar mevcut satırlar korunur.
