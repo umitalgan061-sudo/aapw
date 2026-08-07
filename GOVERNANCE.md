@@ -271,10 +271,13 @@ bırakıldı — Gece Nöbeti nöbetçisinin kapalı/uğursuz tek satırlık sel
 zayıflıyor. "13/14" ifadesi bir eksik iş gibi okunduğu için birçok çalıştırma aynı sahte boşluğu
 tekrar tekrar keşfetti. Bu bir ürün/tasarım kararı olduğundan geri çevrilmesi §14 gereği sahibe
 soruldu — bkz. `QUESTIONS_FOR_OWNER.md`. Sahip aksini söylemedikçe FAZ 5 kapalı sayılır.)
-FAZ 6: kurt tamam, at/araba/köpek-kedi/kuş kaldı. FAZ 7: ilk ejderha (fark etme + reaktif
-uçuş + dalış/swoop + **gerçek sürekli kovalama** var — run 66/ADR-0085: ejderha artık
-kalesini terk edip oyuncuyu 18 saniye boyunca kovalıyor, sonra vazgeçip dönüyor; saldırı/
-hasar hâlâ yok, sağlık/hasar sistemi olmadığı için). FAZ 8: dünya olayları büyüyor.
+FAZ 6: kurt tamam, at/araba/köpek-kedi/kuş kaldı. **FAZ 7: TAMAMLANDI** (fark etme + reaktif
+uçuş + dalış/swoop + gerçek sürekli kovalama — run 66/ADR-0085: ejderha kalesini terk edip
+oyuncuyu 18 saniye boyunca kovalıyor, sonra vazgeçip dönüyor — **+ gerçek saldırı/hasar — run
+90/ADR-0116:** sürekli kışkırtma bir ısırık lunge'ına eskale oluyor, `gameplay/health.js` +
+`ui/healthBar.js` can/hasar durumunu yönetiyor, ölüm oyuncuyu spawn noktasında tam canla
+yeniden başlatıyor — bu satır run 137'de düzeltildi, önceki metin run 90'dan sonra
+güncellenmemişti). FAZ 8: dünya olayları büyüyor.
 FAZ 9-10 başlamadı. **FAZ 11 (run 72, ADR-0095, sahibin canlı çalıştırma dışı canlı istek): Canlı
 Çeşitliliği** — her canlı türü için karakteristik hareket/davranış planı `src/3d/gameplay/
 creatureSpeciesConfig.js`'deki `CREATURE_SPECIES` registry'sinde veri olarak kayıtlı (15 tür: kedi,

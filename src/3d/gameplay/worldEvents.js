@@ -114,12 +114,20 @@ const WORLD_EVENTS = Object.freeze([
 	 * service/lodging). No `timeOfDay` gate: a knight can plausibly arrive at any hour, same "only gate
 	 * unambiguous text" rule as every other ungated entry here. */
 	{ id: 'hedge_knight_arrival', icon: '🛡️', title: 'Gezgin Şövalye', desc: 'Zırhı hırpalanmış bir gezgin şövalye kale kapısında dizginlerini çekiyor — bir efendiye hizmet mi arıyor, yoksa sadece bir gecelik yatak mı istiyor?', color: '#6a7a8a', weight: WEIGHT.UNCOMMON },
+	/** Run 137 addition: a lord's wedding procession passing through the gate — distinct from
+	 * `feast_fires` (a purely auditory celebration cue, no procession described) and from
+	 * `traveling_singer`/`hedge_knight_arrival` (single arriving figures, not a two-house
+	 * procession). Westeros weddings are a distinct social/political occasion (two houses' colors
+	 * carried together), not just generic festivity. No `timeOfDay` gate: the text names no specific
+	 * hour, same "only gate unambiguous text" rule as every other ungated entry here. */
+	{ id: 'wedding_procession', icon: '💍', title: 'Düğün Alayı', desc: 'Kale kapısından çiçeklerle süslenmiş bir düğün alayı geçiyor — gelinin ve damadın pelerinlerinde iki farklı evin renkleri bir arada taşınıyor.', color: '#c86a9a', weight: WEIGHT.UNCOMMON },
 ]);
 // Run 126 live count: 9 of 35 entries are time-gated; the JSDoc/comment above retain earlier runs'
 // snapshots rather than being edited in place (GOVERNANCE.md §2 madde 9, additive-only diff guard).
 // Run 128 live count: 9 of 36 entries are time-gated.
 // Run 131 live count: 9 of 37 entries are time-gated.
 // Run 133 live count: 9 of 38 entries are time-gated.
+// Run 137 live count: 9 of 39 entries are time-gated.
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
  * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test

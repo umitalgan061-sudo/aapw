@@ -768,3 +768,11 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   mobil render bütçesi 31 draw call / 174.173 üçgen (hâlâ 500/500K bütçesinin çok altında).
 - stable-2026-08-07-1420 — run 135 checkpoint-format compatibility alias; same validated spawn-anchored vegetation checkpoint, 34/34 smoke PASS and mobile budget 31 draw calls / 174173 triangles.
 - stable-2026-08-07-1437 — run 136 mobile vegetation geometry LOD + rule consolidation; 34/34+ browser smoke PASS; mobile/perf/additive guards PASS.
+- stable-2026-08-07-1455 — run 137: `wedding_procession` world event (ADR-0161) + GOVERNANCE.md §17
+  FAZ 7 documentation fix (stale "no attack/damage" text, superseded by run 90/ADR-0116) +
+  QUESTIONS_FOR_OWNER.md escalation for the mobile-radius/additive-guard conflict documented but
+  never filed since run 133/ADR-0157. Full Playwright smoke suite 34/34 PASS, 0 FAIL, 0
+  console/page errors both before and after; additive-only guard, world-event catalog (39
+  unique/9 gated), assets/PWA/cache/checkpoint guards all PASS. Perf 50 draw call / 608,296
+  triangle / 48 geometry / 17 texture / 307 MB heap (run129-136 baseline, unchanged — data-only
+  addition).

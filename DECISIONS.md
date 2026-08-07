@@ -13961,3 +13961,66 @@ içeriği değişmez.
 
 **Geri alma planı:** Run 136 additive wrapper'ını devre dışı bırakan yeni bir additive override ile
 `_createVegetationBeforeMobileLodRun136` davranışına dön; mevcut satırları silme/değiştirme.
+
+
+## ADR-0161 — `wedding_procession` (Düğün Alayı) dünya olayı + FAZ 7 dokümantasyon düzeltmesi (run 137)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** FAZ 8 dünya olayı havuzuna UNCOMMON ağırlıklı, `timeOfDay` gate'i olmayan
+`wedding_procession` ("Düğün Alayı") girdisi eklendi — kale kapısından geçen, iki evin renklerini
+bir arada taşıyan bir gelin/damat alayı. Ayrıca `GOVERNANCE.md` §17'nin FAZ 7 satırındaki, run
+90/ADR-0116'nın gerçek saldırı/hasar sistemini (health.js/healthBar.js, ısırık lunge) yansıtmayan
+eski "saldırı/hasar hâlâ yok" ifadesi düzeltildi (belgeleme dosyası, additive-only guard kapsamı
+dışında).
+
+**Neden:** Bu run'ın öncelik taraması (GOVERNANCE.md §18): madde 1-3 tamam; madde 4 (kale
+dokulandırma) hâlâ manuel asset bekliyor; madde 5-10 (sözdizimi/bug/perf/memory/tech-debt/smoke)
+tam baseline taramasıyla (34/34 Playwright smoke, additive-only guard, asset/PWA/cache/checkpoint/
+world-event guard'ları) temiz bulundu. **Madde 11 (World Coverage):** mobil bounded-streaming
+radius'unu 3'ün ötesine çıkarmak, run 133/ADR-0157'de belgelenen additive-only guard ↔
+`checkMobileChunkStreaming.js` sabit-literal çakışmasına hâlâ takılıyor; bu run bu belgelenmiş
+engeli tekrar denemek yerine onu resmen `QUESTIONS_FOR_OWNER.md`'ye taşıdı (GOVERNANCE.md §2 madde
+9'un öngördüğü ama run 133'te atlanan adım) ve sahibin iki yoldan birini seçmesini bekliyor. **Madde
+12 (FAZ 7/FAZ 5-6):** araştırma FAZ 7'nin (fark etme/reaktif uçuş/dalış/kovalama/saldırı-hasar)
+run 90'dan beri fiilen TAMAMLANDIĞINI, ama `GOVERNANCE.md` §17'nin bunu hiç yansıtmadığını buldu —
+bu run'ın kendi kod değişikliği olmayan, düşük riskli ikinci bir düzeltmesi oldu; FAZ 6 (at/araba/
+kedi-köpek/kuş) hâlâ model bekliyor. Bu da madde 14'ü (yeni özellik) tek uygulanabilir kulvar olarak
+bıraktı — `silent_sisters_procession` (run 131) / `hedge_knight_arrival` (run 133) ile aynı desen:
+düşük riskli, kendi kendine yeten bir dünya-olayı veri eklemesi.
+
+**Alternatifler:**
+- **`feast_fires` ile birleştirme** reddedildi — o saf işitsel bir kutlama ipucu (ateş/ses), görsel
+  bir alay tanımlamıyor; düğün ise iki evin renklerini taşıyan, kendine özgü sosyal/politik bir an.
+- **`timeOfDay` gate'i** reddedildi — metin belirli bir saati ima etmiyor, ADR-0111/0150/0152/0155/
+  0157 ile aynı "yalnız metni belirsiz olmayanlar gate'lenir" kuralı.
+- **RARE ağırlık** reddedildi — bir düğün alayı `tourney_announce`/`trade_caravan` gibi belirgin ama
+  rutin-dışı bir ziyaretçi/olay anı; `mourning_bells`/`red_comet` gibi ürkütücü/uğurlu bir alâmet
+  değil — UNCOMMON bu ikisiyle aynı kayıtta.
+- **Mobil coverage radius artışını bu run'da tekrar denemek** reddedildi — run 133'ün bulduğu teknik
+  engel (additive-only guard ↔ test sabit literalleri) değişmedi; tekrar denemek §22'nin "aynı
+  hatada 2. başarısız denemeden sonra bırak" ruhuna aykırı olurdu. Bunun yerine gerekli
+  `QUESTIONS_FOR_OWNER.md` eskalasyonu tamamlandı. **Doğrulama:** yeni girişten önceki 38 entry'nin
+  `desc` metinleri tek tek yeniden okunarak hiçbirinin "düğün/iki ev birleşimi" temasını zaten
+  kapsamadığı teyit edildi.
+
+**Sonuç / etkilenen sistemler:** `gameplay/worldEvents.js` veri havuzu 38'den 39 girdiye büyüdü
+(gated sayı 9 değişmedi, ungated 29'dan 30'a çıktı). `GOVERNANCE.md` §17 FAZ 7 satırı düzeltildi
+(kod/davranış değişikliği yok). `QUESTIONS_FOR_OWNER.md`'ye mobil radius kararı için yeni bir madde
+eklendi. Mevcut ağırlıklı seçim, toast, güvenli-mod, day/night ve PWA cache yolları değişmez.
+`scripts/checkWorldEventCatalog.js` PASS (39 unique, 9 gated, şema geçerli). Tam Playwright smoke
+suite değişiklik ÖNCESİ ve SONRASI 34/34 PASS, 0 FAIL, 0 konsol/sayfa hatası. `node --check` PASS.
+`checkAdditiveOnlyDiff.js` PASS. `checkAssetsManifest.js`/`checkPwaInstallability.js`/
+`checkServiceWorkerCache.js`/`checkCheckpointConsistency.js` PASS. Desktop perf run137 snapshot:
+50 draw call / 608.296 triangle / 48 geometry / 17 texture (run129-136 baseline ile bit-eşit —
+data-only ekleme beklenen etkiyle uyumlu). `TEMP`/`HACK`/`FIXME`/`WORKAROUND` yorumu yok.
+
+**Geri alma planı:** Tek `wedding_procession` veri satırı + açıklama yorum bloğu + bir yorum-satırı
+sayaç güncellemesi kaldırılarak önceki 38-entry havuza dönülebilir; `GOVERNANCE.md` §17 düzeltmesi
+bağımsız olarak geri alınabilir (salt dokümantasyon, kalıcı kayıt/migrasyon yoktur).
+
+**Gelecek Faz Etkisi:** Runtime/gameplay davranışında değişiklik yok — sıradaki fazları (FAZ 9-10,
+FAZ 11 canlı türleri) etkilemez. Mobil World Coverage radius kararı artık sahibin elinde;
+`QUESTIONS_FOR_OWNER.md`'deki iki seçenekten biri yanıtlanana kadar gelecekteki runlar radius
+artışını tekrar denemeyecek, LOD/culling'e odaklanmaya devam edecek. SaveSystem/public API yok; save/
+API uyumluluk kapıları tetiklenmez. Yeni asset yok, lisans/PWA cache manifest değişikliği gerekmez.

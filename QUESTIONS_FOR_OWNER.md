@@ -145,6 +145,24 @@ instead of guessed at silently. Newest entry at the bottom.
   şu an ölümde can yenilenmesi dışında bir bedel yok (ceza/geri yükleme mekaniği yok) — bunun
   yeterli mi yoksa ileride bir bedel eklenmeli mi, ayrı bir tasarım kararı olarak açık bırakıldı.
 
+- **(run 133/137, ADR-0157, GOVERNANCE.md §2 madde 9) Mobil World Coverage'ı bounded-streaming
+  yarıçapını (`world/chunkManager.js`'in run-130 `streamTowards` sarmalayıcısı) 3'ten büyütmek,
+  additive-only guard ile mevcut `scripts/checkMobileChunkStreaming.js`'in sabit literal beklenti
+  değerleri (`result.initial.loaded === 49`, `area === 12.25`) arasında gerçek bir çakışmaya
+  giriyor — yeni bir radius sarmalayıcısı eklemek (run-130/134/136'nın kendi üzerine bindiği desen)
+  additive-only kalır, ama bu, mevcut testin sabit beklentilerini artık YANLIŞ hâle getirir ve test
+  gerçek bir regresyon olarak FAIL eder; testin kendisini sabit literaller yerine dinamik/türetilmiş
+  beklenen değerlere geçirmek ise mevcut satırların silinmesini/değiştirilmesini gerektirir — bu da
+  additive-only guard'ın kendisiyle çelişir. Run 133 bunu denedi, teknik engeli belgeledi
+  (ADR-0157), radius artışını commit ETMEDEN geri aldı; run 134/136 bunun yerine terrain/vegetation
+  LOD ile performans marjı biriktirdi (radius artışını çözmüyor, sadece hazırlık). **Geçici
+  varsayılan:** radius 3'te sabit kalınıyor, mobil resident footprint ~%8.9 (49 chunk/12.25 km²)
+  değişmiyor. **Sahipten istenen karar (ikisinden biri):** (1) `checkMobileChunkStreaming.js`'in bu
+  tek dosya için additive-only guard'dan istisna tutulmasına (gerçek bir satır değiştirme/silme
+  içeren bir "dinamik beklenen değer" yeniden yazımına) açık onay, YA DA (2) mevcut radius-3 sınırının
+  kalıcı olarak kabul edilmesi (bu durumda bu madde kapatılır, gelecekteki mobil coverage çalışması
+  yalnızca LOD/culling'e odaklanır, radius büyütme bir daha denenmez).
+
 - **(run 111, ADR-0138) Yeni prosedürel ağaç sistemi (`world/vegetation.js`) ne kadar yoğun/seyrek
   olmalı — 30 ağaç/km² doğru mu hissettiriyor?** Bu projenin ilk gerçek bitki örtüsü eklemesi, gerçek
   bir oyun testiyle kalibre edilmedi (bu türden hiçbir önceki referans değer de yok).

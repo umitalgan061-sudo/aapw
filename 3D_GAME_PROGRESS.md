@@ -13199,6 +13199,85 @@ guard'a tam uyumlu, masaüstü regresyonu yok (ölçülerek doğrulandı). "6 ay
 tereddüdü yok — ADR-0159 hem bulunan boşluğu hem seçilen çözümü hem reddedilen alternatifleri açıkça
 kaydediyor. Çalışma Süresi Sınırı/Çalıştırma Geneli Süre Tavanı içinde kalındı.
 
+## Run 137 — `wedding_procession` dünya olayı + FAZ 7 dokümantasyon düzeltmesi + QUESTIONS_FOR_OWNER eskalasyonu (2026-08-07 14:5x UTC)
+
+**Session Snapshot / Concurrency:** `git fetch origin main` → local `4913ccf` (run 136) origin/main
+ile aynıydı, divergence yok. `GOVERNANCE.md` tam okundu (§17-26 dahil). `3D_GAME_PROGRESS.md` son
+~300 satırı (run 134-136), `DECISIONS.md` son 3 karar (ADR-0158/0159/0160), `QUESTIONS_FOR_OWNER.md`
+tam (yeni belirsizlik yok — NVIDIA anahtarı hâlâ açık, sahip aksiyonu bekliyor) okundu.
+
+**Baseline regression guard:** tam `node --check` taraması sıfır hata. `checkAdditiveOnlyDiff.js`
+PASS. Tam `smokeTestGame3D.js` değişiklik ÖNCESİ **34/34 PASS**, 0 FAIL, 0 konsol/sayfa hatası.
+`checkAssetsManifest.js`/`checkPwaInstallability.js`/`checkServiceWorkerCache.js`/
+`checkCheckpointConsistency.js`/`checkWorldEventCatalog.js`/`checkSmokeCheckRegistry.js` hepsi PASS
+(son ikisi sadece `game3d.js`'in 540/600 satır WARN'ını tekrarladı, yeni bir FAIL yok).
+
+**Öncelik taraması (§18):** madde 1-3 tamam. Madde 4 (kale dokulandırma) hâlâ manuel asset bekliyor.
+Madde 5-10 (sözdizimi/blocking bug/performans/memory leak/teknik borç/smoke) baseline taramasıyla
+temiz — teknik borç sayacı hâlâ 1 (`game3d.js` 540/600, bölünmesi additive-only guard altında gerçek
+bir satır silme gerektirdiği için şimdilik ertelendi, aşağıya bakınız). **Madde 11 (World Coverage):**
+mobil radius artışı run 133/ADR-0157'nin belgelediği additive-only guard ↔ `checkMobileChunkStreaming.js`
+sabit-literal çakışmasına hâlâ takılı — bu run onu tekrar denemek yerine (§22 "aynı hatada 2.
+denemeden sonra bırak" ruhu) gerekli `QUESTIONS_FOR_OWNER.md` eskalasyonunu (GOVERNANCE §2 madde 9,
+run 133'te atlanmıştı) tamamladı. **Madde 12 (FAZ 7/FAZ 5-6):** araştırma FAZ 7'nin run 90/ADR-0116'dan
+beri fiilen TAMAMLANDIĞINI (fark etme+reaktif uçuş+dalış+kovalama+saldırı/hasar hepsi mevcut smoke
+suite'te PASS) ama `GOVERNANCE.md` §17'nin bunu hiç yansıtmadığını buldu; ikinci alt görev olarak
+düzeltildi (salt dokümantasyon, additive-only guard kapsamı dışında — .md dosyaları guard'a tabi
+değil). FAZ 6 hâlâ hayvan modeli bekliyor. Madde 14 (yeni özellik) tek uygulanabilir kulvar kaldı.
+
+### Alt görev 1: `wedding_procession` dünya olayı (ADR-0161)
+
+38 mevcut girdi tek tek okunarak "düğün/iki ev birleşimi" temasının kapsanmadığı teyit edildi. Yeni
+UNCOMMON, gate'siz `wedding_procession` girdisi eklendi (💍, "Düğün Alayı"). `checkWorldEventCatalog.js`
+39/9 doğru okuyor. Tam Playwright smoke suite değişiklik SONRASI da **34/34 PASS**, 0 FAIL, 0 konsol/
+sayfa hatası (regresyon yok).
+
+### Alt görev 2: `GOVERNANCE.md` §17 FAZ 7 dokümantasyon düzeltmesi
+
+Eski metin ("saldırı/hasar hâlâ yok") run 90/ADR-0116'nın gerçek `gameplay/health.js`/
+`ui/healthBar.js` + ısırık-lunge saldırı sistemini yansıtmıyordu — düzeltildi. Kod/davranış
+değişikliği yok, yalnız belgeleme doğruluğu.
+
+### Alt görev 3: `QUESTIONS_FOR_OWNER.md` eskalasyonu
+
+Run 133/ADR-0157'nin belgelediği ama hiç dosyaya düşürülmemiş mobil radius/additive-guard çatışması
+artık `QUESTIONS_FOR_OWNER.md`'de resmi bir madde — sahibe iki net yol sunuyor (test dosyası için
+guard istisnası VEYA radius-3 kalıcı kabul). Sahip yanıtlayana kadar gelecekteki runlar radius
+artışını tekrar denemeyecek.
+
+**DoD:** node --check PASS (worldEvents.js); baseline+post-change 34/34 smoke PASS; additive-only
+PASS; world-event/assets/PWA/cache/checkpoint guard'ları PASS; konsol/page error yok; teknik borç
+sayacı güncellendi (hâlâ 1, yeni borç eklenmedi); `3D_GAME_PROGRESS.md`/`DECISIONS.md`/
+`QUESTIONS_FOR_OWNER.md`/`GOVERNANCE.md`/`STABLE_TAGS.md`/`perf_log.csv` güncellendi; commit atıldı.
+Görsel doğrulama gerekmedi (bu run runtime/render davranışını değiştirmedi — DoD'un §8.5 istisnası:
+salt veri/dokümantasyon eklemesi, yeni geometri/materyal/kamera açısı yok).
+
+**Performans:** Desktop run137 snapshot: `2026-08-07,run137,2,50,608296,48,17,307` — 50 draw call /
+608.296 triangle / 48 geometry / 17 texture, run129-136 ile bit-eşit (data-only ekleme beklenen
+etkiyle uyumlu, hiçbir yeni geometri/materyal eklenmedi).
+
+**Memory leak checklist:** Yeni listener/timer/DOM/geometry/material yok — salt veri satırı +
+dokümantasyon. Teknik borç: 1 (değişmedi, `game3d.js` 540/600 hâlâ bölünme bekliyor — additive-only
+guard altında gerçek bir bölme mümkün değil, gelecekte ya owner-approval ile ya da yeni eklemelerin
+tamamen yeni dosyalara yönlendirilmesiyle ele alınabilir).
+
+**World Coverage:** desktop %96.2, mobil resident footprint ~%8.9 (49 chunk / 12.25 km²) —
+değişmedi (bu run coverage'ı hedeflemedi).
+
+**Next step:** 6 dokusuz kale + FAZ 6 hayvan modelleri (at/araba/köpek-kedi/kuş) hâlâ manuel asset
+kaynağı bekliyor. Mobil World Coverage radius kararı artık `QUESTIONS_FOR_OWNER.md`'de sahibi
+bekliyor — yanıtlanmadan gelecekteki runlar radius artışını tekrar denemeyecek. `game3d.js`'in
+540/600 satır durumu izlenmeye devam ediyor; yeni mobil-only eklemeler mümkünse ayrı bir dosyaya
+yönlendirilmeli. Sonraki catch-up ~run 138 (bu run onu tetiklemedi, madde 14 alt görevi küçük/
+self-contained kaldı — CATCH_UP.md güncellemesi ~run 138'e ertelendi), platform kontrolü ~run
+132-142 (run 132'de zaten yapıldı), kural konsolidasyonu ~run 136'da zaten yapıldı, sıradaki ~run 156.
+
+**Oturum Kalite Kapısı:** 3 alt görev tamamlandı (1 world-event verisi + 2 dokümantasyon düzeltmesi/
+eskalasyonu), güven skoru 5/5 — hiçbiri tahmin/fabrikasyon içermiyor, hepsi gerçek smoke/guard
+sonuçlarıyla doğrulandı. "6 ay sonra hâlâ net mi" tereddüdü yok — ADR-0161 hem kararı hem
+`QUESTIONS_FOR_OWNER.md`'ye taşınan açık soruyu açıkça kaydediyor. Çalışma Süresi Sınırı/Çalıştırma
+Geneli Süre Tavanı içinde kalındı.
+
 ## Run 136 — mobile vegetation geometry LOD + kural konsolidasyonu (2026-08-07 14:37 UTC)
 - RCA: Run 135 checkpoint verisi aslında STABLE_TAGS.md içinde vardı fakat backtickli madde biçimi checkpoint parser tarafından görülmüyordu. Prevention: uyumlu additive alias satırı eklendi; mevcut Run 135 kaydı değiştirilmedi. Regression Test: checkCheckpointConsistency.js artık bu repo durumunda tekrar PASS.
 - Alt görev 1: ~20-run kural konsolidasyonu (run116→136) yapıldı; ertelenmiş kuralların aktivasyon koşulları yeniden kontrol edildi, mevcut aktif kurallarda çelişki/geçersizlik bulunmadı. Yeni mobil vegetation LOD kapısı §26 olarak eklendi.
