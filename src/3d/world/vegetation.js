@@ -2,20 +2,22 @@
  * Procedural instanced trees — closes a real, long-standing gap: `GOVERNANCE.md` §3's target
  * architecture has named "Vegetation" as a `world/` system since this project's very first
  * architecture doc, and `config.js`'s `WORLD_DEFAULTS.WORLD_SEED` comment ("terrain, later
- * vegetation/rivers/etc.") has said so since before rivers even existed — but no code for it has
- * ever been written (confirmed: no `world/vegetation.js`, DECISIONS.md's only two "Vegetation"
- * mentions both say "not started"). Unlike FAZ 6/FAZ 11's still-missing horse/bird/etc. models,
- * a tree needs no rig/animation/UV-mapped texture to read correctly, so — same "primitives + a
- * shared material, no external file" technique `world/settlements.js`'s procedural castle and
- * `world/materials.js`'s procedural stone/roof already established — this ships a real first pass
- * now instead of waiting indefinitely for a tree/foliage model to arrive. v1 scope is scatter-only
- * (no per-species variety, no seat-local clustering) — see DECISIONS.md's newest ADR for the full
- * reasoning and what a future pass could add.
+ * vegetation/rivers/etc.") has said so since before rivers even existed. Run 111/ADR-0138 shipped
+ * the first pass (scatter-only, one species). Run 112/ADR-0139 adds the "species variety" follow-up
+ * ADR-0138 itself named as the natural next step: two low-poly species (a narrow conical "pine" —
+ * ADR-0138's original tree, unchanged — and a rounder "round-crown" tree with a sphere foliage cap)
+ * mixed by a deterministic per-tree weighted roll, so the scatter no longer reads as visually
+ * uniform. Still no per-species rig/animation/UV-mapped texture needed — same "primitives + a shared
+ * material, no external file" technique `world/settlements.js`'s procedural castle and
+ * `world/materials.js`'s procedural stone/roof already established. Seat-local clustering remains
+ * out of scope for this pass too — see DECISIONS.md's newest ADR for the full reasoning.
  *
- * Two low-poly primitives per tree (a narrow cylinder trunk, a cone foliage cap) rendered as two
- * `THREE.InstancedMesh`es (one draw call each, regardless of tree count) — the same "one draw call
- * per part, not per object" technique `world/settlements.js`'s keep/tower/roof `InstancedMesh`es
- * already use for the procedural castle silhouette.
+ * Two low-poly primitives per tree (a trunk + a foliage cap) rendered as instanced meshes — each
+ * species gets its own trunk/foliage `THREE.InstancedMesh` pair (one draw call per part per species,
+ * regardless of tree count within that species), the same "one draw call per part, not per object"
+ * technique `world/settlements.js`'s keep/tower/roof `InstancedMesh`es already use for the procedural
+ * castle silhouette. With `SPECIES.length` species that's `SPECIES.length * 2` total draw calls for
+ * the whole forest (4 today), still trivial against the desktop/mobile draw-call budgets.
  *
  * Placement is deterministic rejection-sampling over a disc centered on the world origin (uniform-
  * disc sampling, not naive polar coordinates, which would bias density toward the center — same
@@ -24,39 +26,49 @@
  * (no trees in the water), on ground steeper than `MAX_GROUND_SLOPE_DEGREES` (no trees floating off
  * a near-vertical cliff face), inside `SEAT_EXCLUSION_RADIUS_METERS` of a kingdom seat (no trees
  * poking up through a castle's flattened footprint pad), or within `ROAD_EXCLUSION_RADIUS_METERS`
- * of any road-network edge segment (no trees blocking the road itself). This module never modifies
- * terrain height/noise/world-scale — it only *reads* the existing, unmodified height field to decide
- * where an additional, purely additive render object goes — so GOVERNANCE.md §8.4's "Arazi
- * Değişiklik Güvenlik Kontrolü" (which gates changes to the height sampler itself) doesn't apply the
- * way it did for ADR-0075's macro relief; the *placement* exclusion logic below is this module's own
- * equivalent safety net instead, verified by this module's own smoke checks.
+ * of any road-network edge segment (no trees blocking the road itself). This placement logic is
+ * entirely species-agnostic (species is chosen only *after* a position is accepted) — this module
+ * never modifies terrain height/noise/world-scale, it only *reads* the existing, unmodified height
+ * field to decide where an additional, purely additive render object goes — so GOVERNANCE.md §8.4's
+ * "Arazi Değişiklik Güvenlik Kontrolü" (which gates changes to the height sampler itself) doesn't
+ * apply the way it did for ADR-0075's macro relief; the *placement* exclusion logic below is this
+ * module's own equivalent safety net instead, verified by this module's own smoke checks.
  * @module world/vegetation
  */
 
 import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
 
-/** Trunk/foliage silhouette, in meters — a simple, low-poly "pine-ish" shape (narrow cylinder +
- * cone), not a specific real species. Same 6-8 sided low-poly primitive count `world/settlements.js`'s
- * castle towers/roofs already use for its own procedural silhouette, for the same reason: cheap
- * enough to instance by the hundreds without a real triangle-budget cost. */
-const TRUNK_RADIUS_TOP_METERS = 0.22;
-const TRUNK_RADIUS_BOTTOM_METERS = 0.38;
-const TRUNK_HEIGHT_METERS = 3.4;
-const TRUNK_RADIAL_SEGMENTS = 6;
-const FOLIAGE_RADIUS_METERS = 2.15;
-const FOLIAGE_HEIGHT_METERS = 5.6;
-const FOLIAGE_RADIAL_SEGMENTS = 7;
-/** How far the foliage cone's base drops below its own full height above the trunk top — a small
- * deliberate overlap so no visible gap/seam shows between trunk and foliage at any scale/angle. */
-const FOLIAGE_TRUNK_OVERLAP_METERS = 0.3;
-const TRUNK_COLOR = 0x5b4028;
-const FOLIAGE_COLOR = 0x2f5c26;
+/**
+ * Two low-poly species, each a self-contained silhouette recipe. `weight` values are relative and
+ * need not sum to 1 — `pickSpeciesIndex` normalizes against their running total, so adding a third
+ * species later is a pure addition (one more array entry), never a rebalance of the existing two.
+ * `pine` is exactly ADR-0138's original v1 tree, unchanged, so every run-111 visual/placement
+ * assumption about "the tree" still holds for this species specifically. `round` is new: a shorter
+ * trunk and a sphere foliage cap (a simple, low-poly "deciduous-ish" read, not a specific real
+ * species) in a distinguishably lighter green, so the two species are easy to tell apart even at
+ * typical camera distance.
+ */
+const SPECIES = [
+	{
+		id: 'pine',
+		weight: 0.6,
+		trunk: { radiusTop: 0.22, radiusBottom: 0.38, height: 3.4, radialSegments: 6, color: 0x5b4028 },
+		foliage: { kind: 'cone', radius: 2.15, height: 5.6, radialSegments: 7, overlapMeters: 0.3, color: 0x2f5c26 },
+	},
+	{
+		id: 'round',
+		weight: 0.4,
+		trunk: { radiusTop: 0.2, radiusBottom: 0.34, height: 2.8, radialSegments: 6, color: 0x5b4028 },
+		foliage: { kind: 'sphere', radius: 2.4, widthSegments: 7, heightSegments: 6, overlapMeters: 0.7, color: 0x4a7a2e },
+	},
+];
 
 /** Trees per km² of the scatter disc — this run's own engineering judgment (sparse scatter, not a
  * dense forest — a first pass establishing the system), not calibrated against a real playtest. See
- * `QUESTIONS_FOR_OWNER.md`'s newest entry: the same "feel constant nobody has played against yet"
- * pattern ADR-0089/ADR-0096/ADR-0111/ADR-0116 already logged there for their own tuning values. */
+ * `QUESTIONS_FOR_OWNER.md`'s density entry (run 111) and species-mix entry (run 112) — the same
+ * "feel constant nobody has played against yet" pattern ADR-0089/ADR-0096/ADR-0111/ADR-0116 already
+ * logged there for their own tuning values. */
 const TARGET_DENSITY_PER_KM2 = 30;
 /** Rejection-sampling attempts allowed per tree still needed, so a heavily-excluded disc (e.g. one
  * that happens to be mostly water) terminates in bounded time instead of looping forever — same
@@ -109,8 +121,9 @@ export function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
 /**
  * Whether `(x, z)` is a valid tree-placement point: above the shore margin, not too steep, not
  * inside any kingdom seat's exclusion radius, and not within any road-network edge's exclusion
- * corridor. Pure/stateless (given the sampler and data arrays) — exported so this module's own
- * smoke checks can assert known good/bad points directly, without spinning up a full
+ * corridor. Pure/stateless (given the sampler and data arrays), and species-agnostic — species is
+ * decided only after a position passes this check (see `pickSpeciesIndex`). Exported so this
+ * module's own smoke checks can assert known good/bad points directly, without spinning up a full
  * `createVegetation` scatter pass.
  * @param {number} x World-space X, meters.
  * @param {number} z World-space Z, meters.
@@ -145,21 +158,77 @@ export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, 
 }
 
 /**
- * Scatters deterministic procedural trees over a disc of radius `radiusMeters` centered on the
- * world origin — matching whatever radius the caller actually loaded terrain for (`sceneManager.js`
- * passes its own boot-preview radius, so trees never render over a chunk that was never generated,
- * on either desktop or mobile-budget devices), so tree count naturally scales down with the smaller
- * mobile preview area instead of needing a second, device-specific density knob.
+ * Deterministically picks a `SPECIES` index from one `[0, 1)` random draw, weighted by each entry's
+ * `weight` (normalized against the running total so weights need not sum to 1). Pure function,
+ * exported for this module's own smoke checks. Falls through to the last species on any floating-
+ * point edge case at `roll === 1` (unreachable from `rng()`'s own `[0, 1)` contract, but kept as a
+ * defensive bound rather than an off-by-one risk).
+ * @param {number} roll A `[0, 1)` random draw.
+ * @returns {number} Index into `SPECIES`.
+ */
+export function pickSpeciesIndex(roll) {
+	const totalWeight = SPECIES.reduce((sum, species) => sum + species.weight, 0);
+	let cumulative = 0;
+	for (let i = 0; i < SPECIES.length; i++) {
+		cumulative += SPECIES[i].weight / totalWeight;
+		if (roll < cumulative) return i;
+	}
+	return SPECIES.length - 1;
+}
+
+/**
+ * Builds one species' trunk + foliage geometry/material pair. Both primitives are Y-centered by
+ * THREE.js default — each is translated so the whole silhouette's local origin sits at the tree's
+ * actual base (y=0), matching every other placed-by-ground-height object in this project
+ * (settlements/NPCs/animals all place at a ground-Y that means "feet", not "center"). The foliage
+ * cap's translate additionally overlaps the trunk top by `overlapMeters` so no visible seam shows
+ * between trunk and foliage at any scale/angle, regardless of which `kind` of cap this species uses.
+ * @param {(typeof SPECIES)[number]} species
+ * @returns {{trunkGeometry: THREE.BufferGeometry, foliageGeometry: THREE.BufferGeometry, trunkMaterial: THREE.Material, foliageMaterial: THREE.Material}}
+ */
+function buildSpeciesAssets(species) {
+	const { trunk, foliage } = species;
+	const trunkGeometry = new THREE.CylinderGeometry(trunk.radiusTop, trunk.radiusBottom, trunk.height, trunk.radialSegments);
+	trunkGeometry.translate(0, trunk.height / 2, 0);
+
+	let foliageGeometry;
+	if (foliage.kind === 'cone') {
+		foliageGeometry = new THREE.ConeGeometry(foliage.radius, foliage.height, foliage.radialSegments);
+		foliageGeometry.translate(0, trunk.height + foliage.height / 2 - foliage.overlapMeters, 0);
+	} else if (foliage.kind === 'sphere') {
+		foliageGeometry = new THREE.SphereGeometry(foliage.radius, foliage.widthSegments, foliage.heightSegments);
+		foliageGeometry.translate(0, trunk.height + foliage.radius - foliage.overlapMeters, 0);
+	} else {
+		throw new Error(`world/vegetation.js: unknown foliage kind "${foliage.kind}" for species "${species.id}"`);
+	}
+
+	const trunkMaterial = new THREE.MeshStandardMaterial({ color: trunk.color, roughness: 1, metalness: 0 });
+	const foliageMaterial = new THREE.MeshStandardMaterial({ color: foliage.color, roughness: 0.9, metalness: 0 });
+	return { trunkGeometry, foliageGeometry, trunkMaterial, foliageMaterial };
+}
+
+/**
+ * Scatters deterministic procedural trees, mixed across `SPECIES`, over a disc of radius
+ * `radiusMeters` centered on the world origin — matching whatever radius the caller actually loaded
+ * terrain for (`sceneManager.js` passes its own boot-preview radius, so trees never render over a
+ * chunk that was never generated, on either desktop or mobile-budget devices), so tree count
+ * naturally scales down with the smaller mobile preview area instead of needing a second,
+ * device-specific density knob.
  * @param {object} options
  * @param {(x: number, z: number) => number} options.sampleHeightMeters Same shared sampler every
  *   other world system reads through (`physics.js`'s ground collider).
  * @param {number} options.seaLevelMeters `WORLD_DEFAULTS.WATER_LEVEL_METERS`.
- * @param {number} options.seed World seed — same seed always reproduces the same scatter.
+ * @param {number} options.seed World seed — same seed always reproduces the same scatter (both
+ *   position/rejection AND species mix — species is drawn from the same seeded stream).
  * @param {{x: number, z: number}[]} options.seats Kingdom-seat positions (exclusion).
  * @param {{points: {x: number, z: number}[]}[]} options.roadEdges Road-network edges (exclusion).
  * @param {number} options.radiusMeters Scatter disc radius, meters.
  * @param {number} [options.densityPerKm2] Overridable for testing; defaults to `TARGET_DENSITY_PER_KM2`.
- * @returns {{group: THREE.Group, targetCount: number, placedCount: number}}
+ * @returns {{group: THREE.Group, targetCount: number, placedCount: number}} `group.children` is
+ *   `SPECIES.length * 2` meshes long (trunk+foliage per species, in `SPECIES` order), even if a
+ *   species happens to place zero trees for a given seed/area (that species' pair simply renders
+ *   nothing — `.count` stays 0 — rather than being omitted, so `group.children.length` is always
+ *   predictable from `SPECIES.length` alone).
  */
 export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2 }) {
 	const group = new THREE.Group();
@@ -172,23 +241,21 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	const rng = mulberry32(seed ^ 0x56454745); // "VEGE"-ish tag
 	const up = new THREE.Vector3(0, 1, 0);
 
-	const trunkGeometry = new THREE.CylinderGeometry(TRUNK_RADIUS_TOP_METERS, TRUNK_RADIUS_BOTTOM_METERS, TRUNK_HEIGHT_METERS, TRUNK_RADIAL_SEGMENTS);
-	const foliageGeometry = new THREE.ConeGeometry(FOLIAGE_RADIUS_METERS, FOLIAGE_HEIGHT_METERS, FOLIAGE_RADIAL_SEGMENTS);
-	// Both primitives are Y-centered by default — shift each so the whole silhouette's local origin
-	// sits at the tree's actual base (y=0), matching every other placed-by-ground-height object in
-	// this project (settlements/NPCs/animals all place at a ground-Y that means "feet", not "center").
-	trunkGeometry.translate(0, TRUNK_HEIGHT_METERS / 2, 0);
-	foliageGeometry.translate(0, TRUNK_HEIGHT_METERS + FOLIAGE_HEIGHT_METERS / 2 - FOLIAGE_TRUNK_OVERLAP_METERS, 0);
-
-	const trunkMaterial = new THREE.MeshStandardMaterial({ color: TRUNK_COLOR, roughness: 1, metalness: 0 });
-	const foliageMaterial = new THREE.MeshStandardMaterial({ color: FOLIAGE_COLOR, roughness: 0.9, metalness: 0 });
-
-	const trunkMesh = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, targetCount);
-	const foliageMesh = new THREE.InstancedMesh(foliageGeometry, foliageMaterial, targetCount);
-	// Placed once at scene-build time, never moved afterward — same "static, no per-frame update"
-	// category `world/rivers.js`'s river/waterfall meshes are already in, unlike `water.js`'s ripple.
-	trunkMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-	foliageMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+	// Instance buffers are allocated at the disc's full `targetCount` per species (the true worst
+	// case: every tree happens to roll the same species) — trivial extra memory for a few thousand
+	// 4x4 matrices, and avoids a two-pass "count per species first" scan. `.count` is trimmed down to
+	// each species' real placed count below, same "unused trailing slots never rendered" reasoning
+	// `world/settlements.js`'s own `proceduralSeatCount`-sized `InstancedMesh` comment documents.
+	const perSpecies = SPECIES.map((species) => {
+		const { trunkGeometry, foliageGeometry, trunkMaterial, foliageMaterial } = buildSpeciesAssets(species);
+		const trunkMesh = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, targetCount);
+		const foliageMesh = new THREE.InstancedMesh(foliageGeometry, foliageMaterial, targetCount);
+		// Placed once at scene-build time, never moved afterward — same "static, no per-frame update"
+		// category `world/rivers.js`'s river/waterfall meshes are already in, unlike `water.js`'s ripple.
+		trunkMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+		foliageMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+		return { trunkMesh, foliageMesh, placedCount: 0 };
+	});
 
 	const matrix = new THREE.Matrix4();
 	const position = new THREE.Vector3();
@@ -206,6 +273,12 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			const z = Math.sin(angle) * radius;
 			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
 
+			// Species is drawn only for an accepted position, from the same seeded stream, so v1's
+			// (ADR-0138) position/count behavior is unaffected in shape — only which species-specific
+			// mesh a given placed tree's matrix lands in changes from what was a single-species module.
+			const speciesIndex = pickSpeciesIndex(rng());
+			const entry = perSpecies[speciesIndex];
+
 			const groundY = sampleHeightMeters(x, z);
 			const scale = SCALE_MIN + rng() * (SCALE_MAX - SCALE_MIN);
 			const yaw = rng() * Math.PI * 2;
@@ -213,30 +286,30 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			quaternion.setFromAxisAngle(up, yaw);
 			scaleVector.set(scale, scale, scale);
 			matrix.compose(position, quaternion, scaleVector);
-			trunkMesh.setMatrixAt(placedCount, matrix);
-			foliageMesh.setMatrixAt(placedCount, matrix);
+			entry.trunkMesh.setMatrixAt(entry.placedCount, matrix);
+			entry.foliageMesh.setMatrixAt(entry.placedCount, matrix);
+			entry.placedCount++;
 			placedCount++;
 			break;
 		}
 	}
-	// Instance buffers were allocated at `targetCount`; `.count` caps actual rendering/iteration to
-	// the (possibly smaller, if some attempts were exhausted) real placed count — unused trailing
-	// instance-matrix slots are simply never drawn, not zeroed/identity-rendered at the origin (same
-	// "count must match what's actually written" reasoning `world/settlements.js`'s own
-	// `proceduralSeatCount`-sized `InstancedMesh` comment already documents for its own case).
-	trunkMesh.count = placedCount;
-	foliageMesh.count = placedCount;
-	trunkMesh.instanceMatrix.needsUpdate = true;
-	foliageMesh.instanceMatrix.needsUpdate = true;
 
-	group.add(trunkMesh, foliageMesh);
+	for (const entry of perSpecies) {
+		entry.trunkMesh.count = entry.placedCount;
+		entry.foliageMesh.count = entry.placedCount;
+		entry.trunkMesh.instanceMatrix.needsUpdate = true;
+		entry.foliageMesh.instanceMatrix.needsUpdate = true;
+		group.add(entry.trunkMesh, entry.foliageMesh);
+	}
+
 	return { group, targetCount, placedCount };
 }
 
 /**
  * Disposes a `createVegetation` group's geometry + materials — same `disposeSettlements`/
  * `disposeRoadNetwork`/`disposeWater` single-argument convention every other `world/` disposer here
- * already follows.
+ * already follows. Iterates all `group.children` regardless of species count, so this needs no
+ * change if `SPECIES` grows a third entry later.
  * @param {THREE.Group} group
  */
 export function disposeVegetation(group) {

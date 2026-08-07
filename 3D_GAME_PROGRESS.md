@@ -11571,3 +11571,142 @@ species variety or seat-local clusters, whenever the priority scan lands there a
 
 **Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
 recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-07, run 112 — scheduled autonomous routine)
+
+**Concurrency/snapshot:** container booted fresh (ephemeral, per-session). Local `main` started
+detached at `origin/main`'s tip; resynced via `git checkout -B main origin/main`, confirmed zero
+open PRs via `mcp__github__list_pull_requests` before touching anything, landed exactly on
+`origin/main`'s real tip (`550c309`, run 111's stable-tag commit). Read `GOVERNANCE.md` in full —
+already exists and is complete (the fired prompt's "create it first" instruction was already
+satisfied by an earlier run; re-verified section-by-section against the prompt's full rule list,
+nothing missing). `CREDITS.md`, `CATCH_UP.md`, `RULES_CHANGELOG.md`, `STABLE_TAGS.md` all likewise
+already exist, none recreated. Read `3D_GAME_PROGRESS.md`'s run 110/111 entries, `DECISIONS.md`'s
+ADR-0137/0138, and `QUESTIONS_FOR_OWNER.md` in full (no unresolved item forcing this run's hand;
+run-63 leaked-key entry stays open pending owner action, unchanged).
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`)
+clean, 78 files pre-change. Standing guards clean (`checkSmokeCheckRegistry.js`: 33 checks/13
+modules, zero line-count WARNs; `checkAssetsManifest.js`: 41 entries; `checkServiceWorkerCache.js`:
+61 JS files precached; `checkPwaInstallability.js`/`checkCreatureSpeciesConfig.js`/
+`checkDialogueChoicesShape.js` all OK; `terrainSeatSafetyCheck.js` 14/14;
+`roadNetworkSafetyCheck.js` 13/13 edges). Full `scripts/smokeTestGame3D.js`: **33/33 PASS**, 0 FAIL,
+zero console/page errors (pre-change baseline).
+
+**Priority re-scan (§18):** items 1-3 (macro relief/road network/terrain color) confirmed closed.
+Item 4 (remaining 6 kingdom-seat textures) stays asset-blocked. Items 5-8/10-11 all clean per the
+baseline sweep. Item 9 (teknik borç): zero line-count WARNs, no fresh candidate (largest file
+`game3d.js` at 482/600 has real headroom). Items 12-13 (FAZ 7 dragon follow-ups, FAZ 11 species)
+remain owner-decision/asset-model-blocked, re-confirmed unchanged. §8.12/§13 maintenance windows
+(rule consolidation ~run 116, `CATCH_UP.md` ~run 118, §15 platform check ~111-121) all checked —
+none due this specific run. With 1-13 exhausted, item 14 (new feature) taken — this time using run
+111's own ADR-0138 "Alternatives Considered" section, which had already named its most natural,
+lowest-risk next step explicitly: species variety.
+
+### Sub-task: `world/vegetation.js` species variety — a second tree species (DECISIONS.md ADR-0139)
+
+Extended run 111's procedural vegetation system with a second species: alongside the original narrow
+conical "pine" tree (unchanged in every numeric value), a new rounder "round" tree with a sphere
+foliage cap in a distinguishably lighter green, mixed by a deterministic weighted roll (60/40)
+drawn from the same seeded stream, only after a placement position is already accepted — the
+placement/exclusion logic itself (`isPlaceablePosition`, `distancePointToSegment2D`) is entirely
+untouched. `createVegetation`'s call signature and return shape (`{group, targetCount,
+placedCount}`) are unchanged; `group.children` grows from 2 to `SPECIES.length * 2` (4 today, one
+trunk+foliage `InstancedMesh` pair per species). New pure helper `pickSpeciesIndex(roll)` exported
+for direct smoke-test assertions. Full reasoning, risk analysis (LOW — pure extension of an
+already-shipped, already-tested system, no terrain/road/height-sampler touch), impact analysis, and
+alternatives considered (seat-local clustering deferred as a larger separate sub-task / a third
+species deferred pending the mix-ratio question / per-instance tint deferred as visually too subtle)
+are in `DECISIONS.md` ADR-0139.
+
+**Değişiklik Etki Analizi confirms:** no edits to `world/terrain.js`/`world/roads.js`/any height-
+sampler or noise code — Arazi Değişikliği Güvenlik Kontrolü doesn't apply, but both existing safety
+scripts were re-run as due diligence anyway: `scripts/terrainSeatSafetyCheck.js` **PASS 14/14**
+(byte-identical to run 111's recorded values) and `scripts/roadNetworkSafetyCheck.js` **PASS**
+(13/13 edges, byte-identical) — confirming zero disturbance.
+
+**DoD durumu:**
+- [x] `node --check` clean on every changed file (`world/vegetation.js`,
+      `scripts/game3dSmokeChecksVegetation.js`) plus a full repo sweep (78 JS files, unchanged —
+      no new file this run)
+- [x] Smoke test — baseline **33/33 PASS** before, **33/33 PASS** after (same check count, that
+      check's own assertions widened in place — 0 FAIL, zero console/page errors both times)
+- [x] Görsel kanıt — real headless-Chromium F4 free-cam capture, 2 distinct real camera angles
+      (a rolling-terrain-plus-river view and a hillside-plus-river view): both show small tree
+      silhouettes correctly scattered on ordinary ground, absent from the visible water, none
+      floating/sinking relative to the terrain. Honestly noted limitation: at this framing
+      distance the two screenshots don't themselves resolve individual pine-vs-round silhouettes
+      by eye — that specific claim is proven instead by the smoke suite's `bothSpeciesRepresented`/
+      `speciesCountsSumToPlaced` assertions inspecting the real instanced-mesh data directly, a
+      stronger guarantee than an eyeballed screenshot
+- [x] Performans bütçesi — this session's own independent `collectPerfSnapshot.js run112` sample:
+      drawCalls 48→50 (+2, the second species' own InstancedMesh pair), triangles 521,526→577,043
+      (+55,517, a real measured delta — the sphere-foliage species has a different per-tree
+      triangle count than the cone-foliage one, total tree count unchanged), geometries 46→48
+      (+2), textures unchanged (17). Both totals stay far inside the desktop budget
+      (drawCalls<2500, triangles<5M)
+- [x] Teknik borç sayacı — **0** (unchanged; `world/vegetation.js` grew to 320/600, still well
+      under the cap)
+- [x] `3D_GAME_PROGRESS.md` güncellendi (this entry)
+- [x] ADR yazıldı — `DECISIONS.md` ADR-0139 (Risk Seviyesi: LOW, Alternatives Considered, Geri
+      alma planı all present)
+- [x] Commit atıldı (below)
+- [x] Konsol Temizliği — zero console/page errors across the full smoke suite re-run
+- [x] Terrain/road safety scripts re-run as due diligence — both PASS, byte-identical to pre-change
+
+**Yeni soru:** a new `QUESTIONS_FOR_OWNER.md` entry was added (run 112, ADR-0139) — the 60/40
+pine/round mix ratio is engineering judgment with no real playtest to calibrate against, same
+pattern as run 111's density question.
+
+**AI Self-Review 2. Geçiş (§8.3):** independently re-verified — confirmed the `pine` species entry
+reproduces ADR-0138's original tree exactly (no silent visual change to the majority-weighted
+species); confirmed `pickSpeciesIndex`'s weighted-pick math normalizes against the running total
+rather than assuming weights sum to 1 (verified by boundary-exact smoke assertions at 0.599/0.6,
+not just read by eye); confirmed the sphere foliage's translate placement keeps the same
+"local-origin-at-base" convention every other placed object in this project uses, worked through by
+hand against the same overlap arithmetic ADR-0138's own cone case already used (this run's captured
+screenshots frame trees too small/distant to eyeball a single tree's seam directly — an honestly
+noted limitation, see the Görsel kanıt line above); confirmed per-species
+`InstancedMesh` capacity allocation at the disc's full `targetCount` is a deliberate, documented,
+trivial-memory-cost simplification, not an oversight. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`.
+Memory leak checklist: `disposeVegetation`'s existing generic loop-over-`group.children` needed no
+change to cover the now-4-child group — confirmed by the smoke suite's own dispose-does-not-throw
+assertion running unmodified against the wider group.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — small, well-scoped, low-risk extension of an
+already-proven system, explicitly named as the next step by the prior run's own ADR, independently
+re-verified end-to-end by this session via a widened smoke-check module (proving the species mix is
+real, not a silent single-species fallback), two independent terrain/road safety re-runs, a fresh
+perf snapshot, and real 2-angle visual proof. "6 ay sonra hâlâ net mi" tereddüdü yok.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 112 end) | Delta |
+|---|---|---|---|
+| Tree species | 1 (pine) | **2** (pine/round, 60/40 mix) | +1 |
+| Draw calls / triangles | 48 / 521,526 | **50 / 577,043** | +2 / +55,517 |
+| Geometries / textures | 46 / 17 | **48 / 17** | +2 / unchanged |
+| Smoke suite | 33/33 | **33/33** | unchanged (existing check widened, no new check) |
+| `checkSmokeCheckRegistry.js` | 33 checks/13 modules | **33 checks/13 modules** | unchanged |
+| ADR headers in `DECISIONS.md` | 138 | **139** | +1 (ADR-0139) |
+| `perf_log.csv` rows | 53 | **54** | +1 (`run112`) |
+| Open questions in `QUESTIONS_FOR_OWNER.md` | (unchanged count from run 111) | **+1** | species-mix-ratio calibration |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** evet — küçük ama gerçek bir görsel değişiklik: dünyanın ağaçları artık tek
+tip değil, iki farklı silüet (sivri köknar-benzeri / yuvarlak kubbeli) karışık dağılıyor. Karışım
+oranı henüz gerçek bir oyun testiyle kalibre edilmedi (bkz. `QUESTIONS_FOR_OWNER.md`'nin yeni
+maddesi).
+
+**Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §8.14.
+Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. No file near
+the 600-line cap. `RULES_CHANGELOG.md`'s next consolidation ~run 116 (getting close),
+`CATCH_UP.md`'s next summary ~run 118 (last done run 108), GOVERNANCE.md §15's next platform check
+window is 111-121 (open now, worth doing in the next run or two if no fresher item-1-13 lever
+appears). A natural item-14 follow-up (not required, just available), per ADR-0139's own
+Alternatives Considered: seat-local clustering, as its own dedicated sub-task with its own
+Değişiklik Etki Analizi.
+
+**Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
+recorded in `STABLE_TAGS.md`.

@@ -1,4 +1,4 @@
-/** Procedural vegetation regression check (run 111, ADR-0138). */
+/** Procedural vegetation regression check (run 111/ADR-0138, extended run 112/ADR-0139 for species variety). */
 
 const NAV_TIMEOUT_MS = 10_000;
 
@@ -9,7 +9,7 @@ async function checkVegetation(browser, baseUrl) {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
 		result = await page.evaluate(async () => {
 			const THREE = await import('/src/3d/vendor/three/three.module.js');
-			const { createVegetation, disposeVegetation, isPlaceablePosition, distancePointToSegment2D } =
+			const { createVegetation, disposeVegetation, isPlaceablePosition, distancePointToSegment2D, pickSpeciesIndex } =
 				await import('/src/3d/world/vegetation.js');
 
 			// Flat ground well above sea level everywhere, except a steep ridge along x=200 and a
@@ -39,24 +39,51 @@ async function checkVegetation(browser, baseUrl) {
 			const acceptsFarFromRoad = isPlaceablePosition(0, 200, { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats, roadEdges }) === true;
 			const rejectsSteepSlope = isPlaceablePosition(200, 2000, { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats, roadEdges }) === false;
 
-			// createVegetation — determinism: identical seed produces an identical scatter (compared
-			// via getMatrixAt on the first instance, not just placedCount, so a same-count-different-
-			// layout bug would still be caught).
+			// pickSpeciesIndex — pure weighted-pick function, exact-value at and around the boundary
+			// (weights 0.6/0.4 normalized against a 1.0 total: index 0 covers [0, 0.6), index 1 covers
+			// [0.6, 1)).
+			const speciesPickLowRoll = pickSpeciesIndex(0) === 0;
+			const speciesPickJustBelowBoundary = pickSpeciesIndex(0.599) === 0;
+			const speciesPickAtBoundary = pickSpeciesIndex(0.6) === 1;
+			const speciesPickHighRoll = pickSpeciesIndex(0.999999) === 1;
+
+			// createVegetation — determinism: identical seed produces an identical scatter (compared via
+			// every placed instance's transform across every species' mesh, not just placedCount or a
+			// single instance, so a same-count-different-layout OR same-count-different-species-mix bug
+			// would still be caught).
+			const collectAllMatrices = (group) => {
+				const out = [];
+				const m = new THREE.Matrix4();
+				for (const mesh of group.children) {
+					for (let i = 0; i < mesh.count; i++) {
+						mesh.getMatrixAt(i, m);
+						out.push(...m.toArray());
+					}
+				}
+				return out;
+			};
 			const baseParams = { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats: [], roadEdges: [], radiusMeters: 500, densityPerKm2: 40 };
 			const runA = createVegetation({ ...baseParams, seed: 777 });
 			const runB = createVegetation({ ...baseParams, seed: 777 });
 			const runC = createVegetation({ ...baseParams, seed: 999 });
-			const matrixA = new THREE.Matrix4();
-			const matrixB = new THREE.Matrix4();
-			runA.group.children[0].getMatrixAt(0, matrixA);
-			runB.group.children[0].getMatrixAt(0, matrixB);
+			const matricesA = collectAllMatrices(runA.group);
+			const matricesB = collectAllMatrices(runB.group);
+			const matricesC = collectAllMatrices(runC.group);
 			const sameSeedIsDeterministic = runA.placedCount === runB.placedCount
 				&& runA.placedCount > 0
-				&& matrixA.toArray().every((value, index) => value === matrixB.toArray()[index]);
+				&& matricesA.length === matricesB.length
+				&& matricesA.every((value, index) => value === matricesB[index]);
 			const differentSeedDiffers = runA.placedCount !== runC.placedCount
-				|| matrixA.toArray().some((value, index) => value !== (() => { const m = new THREE.Matrix4(); runC.group.children[0].getMatrixAt(0, m); return m.toArray(); })()[index]);
+				|| matricesA.length !== matricesC.length
+				|| matricesA.some((value, index) => value !== matricesC[index]);
 			const placedNeverExceedsTarget = runA.placedCount <= runA.targetCount;
-			const twoDrawCallsOnly = runA.group.children.length === 2;
+			// 2 species * (trunk + foliage) = 4 draw calls for the whole forest, species pairs always
+			// present in `SPECIES` order regardless of whether a given seed/area placed 0 of one species.
+			const fourDrawCallsForTwoSpecies = runA.group.children.length === 4;
+			// This seed/area/density combination places enough trees (verified, not assumed) that both
+			// species are actually represented — proves the mix is real, not one species starving out.
+			const bothSpeciesRepresented = runA.group.children[0].count > 0 && runA.group.children[2].count > 0;
+			const speciesCountsSumToPlaced = runA.group.children[0].count + runA.group.children[2].count === runA.placedCount;
 
 			// Total exclusion: a seat placed at the disc's own center with a disc radius (80m) smaller
 			// than the seat's own 90m exclusion radius means every candidate point is rejected — proves
@@ -86,7 +113,9 @@ async function checkVegetation(browser, baseUrl) {
 				segmentDistanceExact, segmentDistancePastEndpoint,
 				acceptsOrdinaryFlatGround, rejectsUnderwater, rejectsNearSeat, acceptsFarFromSeat,
 				rejectsNearRoad, acceptsFarFromRoad, rejectsSteepSlope,
-				sameSeedIsDeterministic, differentSeedDiffers, placedNeverExceedsTarget, twoDrawCallsOnly,
+				speciesPickLowRoll, speciesPickJustBelowBoundary, speciesPickAtBoundary, speciesPickHighRoll,
+				sameSeedIsDeterministic, differentSeedDiffers, placedNeverExceedsTarget,
+				fourDrawCallsForTwoSpecies, bothSpeciesRepresented, speciesCountsSumToPlaced,
 				rejectionActuallyRejects, zeroRadiusIsInert, disposeDidNotThrow: !disposeThrew,
 			};
 		});
@@ -95,10 +124,10 @@ async function checkVegetation(browser, baseUrl) {
 	}
 	const ok = Object.values(result).every(Boolean);
 	return {
-		name: 'procedural vegetation (world/vegetation.js, ADR-0138)',
+		name: 'procedural vegetation (world/vegetation.js, ADR-0138/ADR-0139)',
 		ok,
 		details: ok
-			? 'segment-distance exact-value, isPlaceablePosition rejects water/steep-slope/near-seat/near-road and accepts ordinary ground, same-seed scatter is bit-identical, different seed differs, placed never exceeds target, 2 draw calls, full-exclusion disc places zero, zero-radius disc is inert, dispose does not throw'
+			? 'segment-distance exact-value, isPlaceablePosition rejects water/steep-slope/near-seat/near-road and accepts ordinary ground, pickSpeciesIndex exact at/around its weight boundary, same-seed scatter is bit-identical across every species mesh, different seed differs, placed never exceeds target, 4 draw calls (2 species x trunk+foliage), both species represented and their counts sum to placedCount, full-exclusion disc places zero, zero-radius disc is inert, dispose does not throw'
 			: `FAILED assertion(s): ${JSON.stringify(result)}`,
 	};
 }
