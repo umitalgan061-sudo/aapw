@@ -1,0 +1,166 @@
+name: Run 138 Recovery Mobile Vegetation Culling
+
+on:
+  push:
+    branches:
+      - agent/run138-mobile-vegetation-culling
+    paths:
+      - '.github/workflows/run138-recovery-mobile-vegetation-culling.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run138-recovery-mobile-vegetation-culling
+  cancel-in-progress: false
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "33ca1df856429d62d70797912853ae38d5e49d7a"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 220 3D_GAME_PROGRESS.md
+          tail -n 140 DECISIONS.md
+          tail -n 120 QUESTIONS_FOR_OWNER.md
+          git worktree add --detach "$RUNNER_TEMP/run138-baseline" origin/main
+
+      - name: Baseline guards and full smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/run138-baseline"
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/baseline-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/baseline-smoke.log")" -ge 34
+
+      - name: Apply additive runtime and docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/applyRun138MobileVegetationCulling.py
+          node --check src/3d/config.js
+          node --check src/3d/world/mobileVegetationCulling.js
+          node --check src/3d/game3d.js
+          node --check service-worker.js
+          node --check scripts/checkMobileVegetationCulling.js
+          git diff --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Post-change governance gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationCulling.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/mobile-perf.log"
+          MOBILE_PERF="$(grep '\[checkMobilePerfBudget\] sample' "$RUNNER_TEMP/mobile-perf.log" | tail -n 1)"
+          echo "MOBILE_PERF=$MOBILE_PERF" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke after change
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/post-smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/post-smoke.log")"
+          test "$PASS_COUNT" -ge 34
+          echo "SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Mobile visual evidence corrected path
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureRun130MobileEvidence.js
+          test "$(find artifacts/run130-mobile -type f -name '*.png' | wc -l)" -ge 2
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run138-mobile-vegetation-culling-evidence
+          path: artifacts/run130-mobile/*.png
+          if-no-files-found: error
+
+      - name: Performance snapshot and self-review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run138 | tee "$RUNNER_TEMP/perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/perf-trend.log"
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/mobileVegetationCulling.js scripts/checkMobileVegetationCulling.js; then exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Append run records and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "33ca1df856429d62d70797912853ae38d5e49d7a"
+          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          printf '\n## Run 138 — mobile vegetation distance culling (%s)\n' "$STAMP" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Alt görev: mobile/coarse-pointer modunda resident terrain ile kesişmeyen vegetation diskleri grup seviyesinde cull ediliyor; desktop yolu değişmedi.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Etki: spawn konumunda world-origin vegetation diski hidden, spawn vegetation visible; instance/seed verisi korunuyor ve oyuncu yaklaşınca görünürlük geri geliyor.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- DoD: origin/main baseline + post-change browser smoke ${SMOKE_PASS_COUNT}/34+ PASS; mobile culling/perf + terrain/vegetation/spawn/PWA/cache/asset/road/seat guards PASS; additive-only PASS; iki mobil görsel kanıt artifact olarak saklandı." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Mobil performans: ${MOBILE_PERF}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Desktop perf trend: ${PERF_ROW}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Memory leak: yeni listener/timer/DOM/geometry/material yok; yalnız group.visible ve küçük userData tanısı. Teknik borç: 1 (game3d.js 546/600 civarı, yeni ağır özellikler ayrı dosyaya yönlendirilmeli).' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- World Coverage: desktop %96.2 / mobile resident ~%8.9 değişmedi; radius 3→4 owner kararı bekliyor. World Evolution içerik deltası 0; oyuncu mobilde uzaktaki gereksiz ağaç çizimlerinin kalkmasını performans/temizlik olarak hisseder. Risk LOW, güven 5/5.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- $TAG — run 138 mobile vegetation distance culling; ${SMOKE_PASS_COUNT}/34+ browser smoke PASS, mobile perf/culling/PWA PASS, additive-only PASS." >> STABLE_TAGS.md
+          node scripts/checkCheckpointConsistency.js
+          git config user.name "Westeros Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/3d/config.js src/3d/game3d.js src/3d/world/mobileVegetationCulling.js scripts/checkMobileVegetationCulling.js service-worker.js GOVERNANCE.md DECISIONS.md CATCH_UP.md 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git commit -m "perf(3d): cull remote mobile vegetation discs (run 138)"
+          git push origin HEAD:agent/run138-mobile-vegetation-culling
+          git tag "$TAG"
+          git push origin "$TAG"
