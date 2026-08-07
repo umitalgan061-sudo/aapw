@@ -64,7 +64,7 @@ const DAY_THRESHOLD = 0.15;
  * ungated rather than guessed at. Currently 8 of 32 entries carry a `timeOfDay` gate (kept as a
  * relative, not a hardcoded count, so future additions don't leave this comment stale the way
  * run 102's `harvest_wagons` addition briefly did). */
-// Run 121 live count: 9 of 33 entries are time-gated; the JSDoc above retains run 120's snapshot.
+// Run 123 live count: 9 of 34 entries are time-gated; the JSDoc above retains run 120's snapshot.
 const WORLD_EVENTS = Object.freeze([
 	{ id: 'raven', icon: '🐦', title: 'Kuzgun Ulaştı', desc: 'Uzak bir kaleden kuzgun mesajı geldi.', color: '#8faabb', weight: WEIGHT.COMMON },
 	{ id: 'distant_storm', icon: '🌩️', title: 'Uzak Fırtına', desc: 'Ufukta fırtına bulutları toplanıyor.', color: '#4a88c8', weight: WEIGHT.COMMON },
@@ -99,6 +99,7 @@ const WORLD_EVENTS = Object.freeze([
 	{ id: 'direwolf_track', icon: '🐾', title: 'Direwolf İzi', desc: 'Ormanın kenarında bir insan avucundan büyük pençe izleri bulundu — Stark\'ların efsanevi direwolf\'larından biri mi, yoksa sadece sıradan bir kurt mu?', color: '#5a6a72', weight: WEIGHT.RARE },
 	{ id: 'falconer_flight', icon: '🦅', title: 'Şahin Uçuşu', desc: 'Kale avlusunda bir doğancı, kolundaki şahini gün ışığında gökyüzüne salıyor.', color: '#8a6a3a', weight: WEIGHT.COMMON, timeOfDay: 'day' },
 	{ id: 'owl_watch', icon: '🦉', title: 'Baykuş Nöbeti', desc: 'Ay ışığında bir baykuş kale surlarına konuyor; nöbetçiler sessiz kanat sesini dinliyor.', color: '#6f7898', weight: WEIGHT.COMMON, timeOfDay: 'night' },
+	{ id: 'crow_flock', icon: '🐦', title: 'Karga Sürüsü', desc: 'Kale surlarının üzerinde toplanan bir karga sürüsü aniden havalanıp dağılıyor — kimileri bunu kötü bir işaret sayar.', color: '#2e2e33', weight: WEIGHT.RARE },
 ]);
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
@@ -127,7 +128,7 @@ function pickWeightedEvent(random, nightFactor) {
 	// 24 of 32 entries carry no `timeOfDay` at all, so `eligible` can only ever come up empty from a
 	// bug in this function itself — this fallback is a safety net against ever emitting nothing, not
 	// an expected runtime path.
-	// Run 121 live fallback basis: 24 ungated entries remain available within the 33-entry pool.
+	// Run 123 live fallback basis: 25 ungated entries remain available within the 34-entry pool.
 	const pool = eligible.length > 0 ? eligible : WORLD_EVENTS;
 	const totalWeight = pool.reduce((sum, event) => sum + event.weight, 0);
 	let remaining = random() * totalWeight;
