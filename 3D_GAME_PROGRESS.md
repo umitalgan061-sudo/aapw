@@ -12872,3 +12872,12 @@ run'ın aşağıdaki addendum satırında ve `STABLE_TAGS.md`'de kayıtlıdır.
 17 texture / 326 MB heap — draw call/triangle/geometry/texture sayıları run120'den beri değişmeyen
 değerlerle birebir aynı (veri-only ekleme, yeni render yüzeyi yok); beklenen sonuç budur.
 `perf_log.csv` güncellendi.
+
+## Run 129 — checkpoint continuity guard (2026-08-07 11:25 UTC)
+- Alt görev: Çoklu ajan/saatlik çalışma kayıtlarının progress + perf + stable-tag arasında kopmasını otomatik yakalayan scripts/checkCheckpointConsistency.js eklendi.
+- Değişiklik: yalnız yeni dev-tool/CI dosyaları; mevcut runtime/PWA/gameplay kaynaklarından hiçbir satır veya dosya silinmedi/değiştirilmedi.
+- DoD: node --check PASS; checkpoint/world-event/PWA/cache/asset/smoke-registry/terrain/road guard PASS; browser smoke 34/34+ PASS; additive-only PASS.
+- Performans: 2026-08-07,run129,1,50,608296,48,17,326
+- Görsel doğrulama: runtime görsel davranışı değişmedi; gerçek Chromium 2D/3D boot ve UI smoke doğrulandı, görsel delta yok.
+- ADR: runtime/mimari ürün davranışı değişmediği için yeni ADR gerekmiyor. Memory-leak: yeni runtime listener/timer/DOM/geometry/material yok.
+- Teknik borç: 0 yeni borç. World Coverage: desktop 96.2% / mobile 4.5% değişmedi. World Evolution delta: 0. Oyuncu fark etmez. Risk: LOW. Güven: 5/5.

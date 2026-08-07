@@ -742,3 +742,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   triangle / 48 geometry / 17 texture / 326 MB heap (run120's baseline, unchanged — data-only
   addition). `git push origin stable-2026-08-07-1100` again hit the known `HTTP 403` tag-push
   restriction (§8.11) — local tag + this line serve as the checkpoint.
+- stable-2026-08-07-1125 — run 129 checkpoint continuity guard; browser smoke 34/34+ PASS, additive-only PASS, perf snapshot recorded.
