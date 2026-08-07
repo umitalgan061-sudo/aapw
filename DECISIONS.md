@@ -14390,3 +14390,20 @@ verince (aşağıdaki üç seçenekten biri) ilgili run o kararı uygulayacak co
 **Etkilenen sistemler:** `src/3d/ui/settlementDiscovery.js`, hedef regresyon scripti ve run153 CI/kayıtları. `game3d.js`, world generation, EventBus, save formatı ve service-worker cache içeriği etkilenmez.
 
 **Geri alma planı:** Additive extension ileride daha yeni bir erişilebilirlik policy katmanı tarafından gölgelenebilir; owner additive-only refactor istisnası verirse semantik constructor içine taşınabilir. Mevcut satırları silmek/değiştirmek gerekmez.
+
+
+## ADR-0176 — NPC diyalog kutusu için erişilebilir canlı durum semantiği (run 154)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `DialogueBox` mevcut görsel/DOM davranışını değiştirmeden `role="status"` + `aria-live="polite"` kazanır (constructor'da, additive yeni satırlar); her `show()` çağrısı ayrıca `aria-atomic="true"` uygular (run150/ADR-0173 ve run153/ADR-0175 ile aynı "atomic yalnız gerçek bir güncellemede" zamanlaması).
+
+**Neden:** `DialogueBox` FAZ 5'in ana etkileşim yüzeyi (13/14 NPC) ama bugüne kadar hiçbir ARIA canlı bölge semantiği yoktu — ekran okuyucu kullanan bir oyuncu selamlama metninin veya seçim listesinin ne zaman değiştiğini bilemiyordu. Bu, run 150/153'te toast ve keşif bildirimlerine uygulanan aynı desenin üçüncü ve son ana etkileşim-yüzeyi uygulamasıdır.
+
+**Alternatifler:** (1) Constructor/`show()` satırlarını doğrudan değiştirmek daha sade olurdu ama additive-only guard'ı ihlal eder — bu yüzden reddedildi, yeni satır eklemekle çözüldü. (2) Ayrı bir gizli live-region DOM'u eklemek çift metin kaynağı ve senkronizasyon riski yaratacağı için reddedildi. (3) Hiçbir şey yapmamak erişilebilirlik açığını üçüncü ana yüzeyde de sürdürürdü.
+
+**Sonuç:** Görsel piksel çıktısı, seçim/kapatma pointer+klavye davranışı, hint metni, `interaction.js` açma/kapama mantığı ve render bütçesi değişmez. Ekran okuyucu artık her selamlama/seçim güncellemesini tek atomik "status" bildirimi olarak alır.
+
+**Etkilenen sistemler:** `src/3d/ui/dialogueBox.js`; yeni test-only `scripts/checkDialogueBoxAccessibility.js`; run154 CI/kayıtları. `gameplay/interaction.js`, NPC diyalog verisi, save formatı, service-worker cache listesi ve mobil/masaüstü render yolu etkilenmez.
+
+**Geri alma planı:** Additive extension ileride daha yeni bir erişilebilirlik policy katmanı tarafından gölgelenebilir; owner additive-only refactor istisnası verirse semantik attribute'lar constructor içine taşınabilir. Mevcut satırları silmek/değiştirmek gerekmez.

@@ -808,3 +808,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-07-2100 — run 151 session-snapshot audit + owner escalation (security key + 3 structural blockers pushed to owner, doc-only, no runtime change); 34/34 browser smoke, additive-only guard PASS. (Local tag only — `git push origin <tag>` HTTP 403 per known §8.11 constraint.)
 - stable-2026-08-07-2128 — run 152 latest-run checkpoint uniqueness guard; 34/34+ browser smoke and governance/mobile/PWA gates PASS.
 - stable-2026-08-07-2139 — run 153 settlement discovery atomic accessibility; 34/34+ browser smoke and a11y/governance/mobile/PWA gates PASS.
+- stable-2026-08-07-2154 — run 154 dialogue box atomic accessibility; 34/34+ browser smoke and a11y/governance/mobile/PWA gates PASS.

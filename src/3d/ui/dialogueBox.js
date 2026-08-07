@@ -18,6 +18,12 @@ export class DialogueBox {
 	constructor(container = document.body) {
 		this._el = document.createElement('div');
 		this._el.className = 'g3d-dialogue-box';
+		// Run 154, additive-only a11y layer (same pattern as ui/worldEventToast.js ADR-0173 and
+		// ui/settlementDiscovery.js ADR-0175): a screen-reader user gets no signal today that opening
+		// an NPC or selecting a dialogue choice replaced the box's text — `role=status` + `aria-live`
+		// announce it politely without any visual/layout change.
+		this._el.setAttribute('role', 'status');
+		this._el.setAttribute('aria-live', 'polite');
 
 		this._textEl = document.createElement('p');
 		this._textEl.className = 'g3d-dialogue-box-text';
@@ -87,6 +93,10 @@ export class DialogueBox {
 		if (this._closeHandler) this._hintEl.textContent += ' • Dokunarak kapat';
 		this._visible = true;
 		this._el.hidden = false;
+		// Same "atomic on a real update, not from construction" timing as settlementDiscovery.js
+		// ADR-0175 — set here (not in the constructor) so the greeting, any choice list and the hint
+		// are announced together as one update each time show() replaces them.
+		this._el.setAttribute('aria-atomic', 'true');
 	}
 
 	/** Registers an optional touch/keyboard activation path for numbered choices. */
