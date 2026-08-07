@@ -12211,3 +12211,18 @@ run 108, one run away). Next platform check ~run 132-142. Next rule consolidatio
 
 **Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
 recorded in `STABLE_TAGS.md`.
+
+### Run 117 — FAZ 8 persistent settlement discovery (ADR-0144)
+
+Added a first-arrival settlement notification for desktop, mobile, and installed/offline PWA play.
+The system announces a kingdom seat once within 55m, remembers its id in guarded versioned storage,
+and degrades to session-only memory when storage is unavailable. The mobile card sits above the
+touch controls, fits a 390px viewport, is a polite live region, never captures input, auto-hides,
+and clears its timer/DOM during disposal. The module is included in the service-worker app shell and
+has a dedicated real-browser smoke check covering distance gating, persistence, repeat suppression,
+mobile fit, timeout, and teardown. Change set is additive: no existing source lines were removed.
+
+**World Evolution Report:** 14 existing seats become discoverable; geometry, materials, textures,
+draw calls, and terrain are unchanged. Smoke registry grows from 33 checks/13 modules to 34/14.
+**Next step:** fetch fresh `origin/main` before the next run, then perform the due run-118 catch-up
+summary or select the next unblocked FAZ 8 improvement. Asset-blocked FAZ 6 items remain unchanged.

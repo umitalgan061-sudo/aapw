@@ -516,3 +516,44 @@ html, body {
     left: 12px;
   }
 }
+
+/* First-arrival feedback (FAZ 8): a non-blocking discovery card above movement controls. */
+.g3d-settlement-discovery {
+  position: fixed;
+  bottom: max(28px, calc(env(safe-area-inset-bottom, 0px) + 28px));
+  left: 50%;
+  z-index: 21;
+  display: flex;
+  min-width: min(280px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  padding: 11px 18px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(200, 150, 10, 0.72);
+  border-radius: 10px;
+  background: rgba(10, 6, 2, 0.9);
+  color: #f0d9a0;
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(5px);
+}
+
+.g3d-settlement-discovery-eyebrow {
+  color: rgba(232, 212, 160, 0.76);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.g3d-settlement-discovery strong {
+  margin-top: 3px;
+  font-size: 18px;
+}
+
+@media (max-width: 600px) {
+  .g3d-settlement-discovery {
+    bottom: max(168px, calc(env(safe-area-inset-bottom, 0px) + 168px));
+  }
+}

@@ -119,6 +119,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/ui/healthBar.js',
     './src/3d/ui/controlsHelp.js',
     './src/3d/ui/settlementCompass.js',
+    './src/3d/ui/settlementDiscovery.js',
     './src/3d/ui/dayNightClock.js',
     './src/3d/gameplay/health.js',
     './src/3d/gameplay/gameplayConfig.js',

@@ -51,6 +51,7 @@ import { WorldEventToast } from './ui/worldEventToast.js';
 import { HealthBar } from './ui/healthBar.js';
 import { ControlsHelp } from './ui/controlsHelp.js';
 import { SettlementCompass } from './ui/settlementCompass.js';
+import { SettlementDiscovery } from './ui/settlementDiscovery.js';
 import { DayNightClock } from './ui/dayNightClock.js';
 import { createPlayer } from './gameplay/player.js';
 import { createHealthState } from './gameplay/health.js';
@@ -293,6 +294,7 @@ export async function initGame3D() {
 		state.worldEventToast = new WorldEventToast({ eventsBus: gameEvents, eventName: EVENTS.WORLD_EVENT_TRIGGERED });
 		state.controlsHelp = new ControlsHelp({ isMobileClass: isCoarsePointerDevice() });
 		state.settlementCompass = new SettlementCompass({ seats: state.settlementSeats });
+		state.settlementDiscovery = new SettlementDiscovery({ seats: state.settlementSeats });
 		state.dayNightClock = new DayNightClock();
 
 		let frameId;
@@ -320,6 +322,7 @@ export async function initGame3D() {
 			// flee-awareness check below.
 			const playerPos = state.player.object3D.position;
 			state.settlementCompass.update(playerPos, state.player.object3D.rotation.y);
+			state.settlementDiscovery.update(playerPos);
 			// Every gameplay-subsystem update below goes through `safeMode.js` (GOVERNANCE.md §8.13:
 			// one subsystem throwing disables only itself, never the whole frame loop). Dragons got
 			// this at run 64, the other four at run 81; run 82 extracted the five near-identical
@@ -449,6 +452,7 @@ export async function initGame3D() {
 			state.worldEventToast.dispose();
 			state.controlsHelp.dispose();
 			state.settlementCompass.dispose();
+			state.settlementDiscovery.dispose();
 			state.dayNightClock.dispose();
 			unsubscribePlayerDied();
 			state.playerHealth.dispose();
