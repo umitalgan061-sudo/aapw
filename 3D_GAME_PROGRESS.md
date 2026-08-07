@@ -13359,3 +13359,13 @@ Süre Tavanı içinde kalındı.
 küçük ölçekte — periyodik dünya olayı bildirim havuzunda %2.5 ihtimalle yeni bir kart (vesayet
 alayı) görebilir; oyuncu ayrıca `CATCH_UP.md` sayesinde (sahip döndüğünde) son 10 run'ın özetini
 okuyabilir.
+
+
+## Run 139 — mobile radius-4 readiness evidence (2026-08-07 16:04 UTC)
+- Alt görev: canlı mobil radius değiştirilmeden gerçek mobile/touch Chromium baseline + konservatif radius-4 üst-sınır hesabı eklendi.
+- Kanıt: {"currentRadius":3,"candidateRadius":4,"currentResidentChunks":49,"candidateResidentChunks":81,"addedOuterRingChunks":32,"farSegments":16,"currentMeasured":{"drawCalls":31,"triangles":170393,"geometries":26,"textures":22,"fpsTrendOnly":1},"conservativeProjection":{"drawCallsUpperBound":63,"trianglesUpperBound":186777,"drawCallHeadroom":437,"triangleHeadroom":313223,"addedTerrainTrianglesUpperBound":16384},"budgets":{"drawCallsExclusiveMax":500,"trianglesExclusiveMax":500000},"governanceApproval":false,"governanceReason":"ADR-0157 / QUESTIONS_FOR_OWNER.md owner decision is still required before changing live radius"}
+- DoD: node --check PASS; mobil streaming/terrain-LOD/spawn-vegetation/vegetation-LOD/PWA/cache/assets/checkpoint/world-event/terrain/road guard PASS; browser smoke 34/34+ PASS; additive-only PASS; konsol/page error yok.
+- Performans: 2026-08-07,run139,1,50,608296,48,17,391
+- Görsel doğrulama: runtime/render davranışı değişmedi; yeni araç yalnız CI/readiness ölçümü, görsel delta yok.
+- Teknik borç: 1 (`game3d.js` 540/600); yeni borç 0. World Coverage: desktop %96.2 / mobile resident ~%8.9 değişmedi. World Evolution delta: 0; oyuncu fark etmez. Risk: LOW. Güven: 5/5.
+- Next step: ADR-0157 sahip kararı çözülmeden radius değişmez; FAZ 6 modelleri ve kale texture asset'leri beklenir; yeni runtime eklemeleri `game3d.js` yerine ayrı modüllere yönlendirilir.

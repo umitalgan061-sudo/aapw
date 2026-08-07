@@ -14079,3 +14079,25 @@ yorum-satırı sayaç güncellemesi kaldırılarak önceki 39-entry havuza dön�
 FAZ 11 canlı türleri) etkilemez. Mobil World Coverage radius kararı hâlâ sahibin elinde, bu run
 tetiklemedi. SaveSystem/public API yok; save/API uyumluluk kapıları tetiklenmez. Yeni asset yok,
 lisans/PWA cache manifest değişikliği gerekmez.
+
+
+## ADR-0163 — Mobil radius 4 için konservatif readiness gate (run 139)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Canlı radius'u değiştirmeden `scripts/checkMobileRadiusReadiness.js` eklendi. Araç gerçek mobile/touch
+Chromium ölçümünü alır, run-130 radius=3 ve run-134 FAR=16 politikasını doğrular ve radius 4'ün 49→81 resident
+chunk farkı olan 32 yeni dış-halka chunk'ını konservatif olarak hesaba katar.
+
+**Neden:** ADR-0157 / QUESTIONS_FOR_OWNER.md canlı radius 3→4 değişikliğini sahip kararına bağladı. Aynı engeli tekrar
+demek yerine kararın performans tarafını ölçülebilir kanıta çevirmek §22 ve §23-24 ile uyumludur.
+
+**Alternatifler:** Radius'u doğrudan 4 yapmak reddedildi; sahip kararı bekliyor. Yalnız teorik formül reddedildi;
+gerçek mobil Chromium baseline gerekir. Gerçek telefon FPS/texture-MB değeri uydurmak reddedildi.
+
+**Sonuç:** Gate PASS ise radius 4 için ölçülebilir draw-call/triangle headroom'u kanıtlanır; runtime değişmez ve
+coverage ~%8.9'da kalır.
+
+**Etkilenen sistemler:** Yalnız doğrulama katmanı ve kayıtlar; gameplay/render/PWA runtime davranışı yok.
+
+**Geri alma planı:** Yeni guard gelecekte çağrılmayabilir; runtime kodu değiştirilmedi.

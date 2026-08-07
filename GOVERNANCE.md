@@ -412,3 +412,13 @@ regresyon-korumalı ilerler:
   PASS olmadan vegetation optimizasyonu veya sonraki mobil radius artışı DONE sayılamaz.
 - Görsel doğrulama en az iki mobil açıyla yapılır; belirgin silhouette kaybı/bozuk mesh varsa daha
   yüksek segment seviyesi seçilir.
+
+
+## 27. Mobil Radius Readiness Kanıt Kapısı (run 139)
+
+Canlı mobil streaming radius'u, `QUESTIONS_FOR_OWNER.md` / ADR-0157'deki sahip kararı çözülmeden değiştirilemez.
+`scripts/checkMobileRadiusReadiness.js` mevcut radius-3 + terrain FAR=16 politikasını doğrular, gerçek mobile/touch
+Chromium render örneğini alır ve radius 4'e eklenecek 32 dış-halka terrain chunk'ının tamamı aynı karede çiziliyormuş
+gibi kötümser bir üst sınır hesaplar. Üst sınır DrawCalls<500 ve Triangles<500K kapılarını geçse bile bu yalnız
+"ölçülebilir render bütçesi açısından hazır" sinyalidir; sahip onayının yerine geçmez. Texture-memory <512 MB ve
+gerçek telefon 30-60 FPS hedefleri uygun gerçek cihaz/profiler olmadan uydurulmaz.
