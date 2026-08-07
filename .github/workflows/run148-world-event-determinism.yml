@@ -76,7 +76,7 @@ jobs:
           node scripts/checkSmokeCheckRegistry.js
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
-          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkWorldEventDeterminism.js scripts/finalizeRun148.py .github/workflows/world-event-determinism.yml .github/workflows/run148-world-event-determinism.yml; then exit 1; fi
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkWorldEventDeterminism.js scripts/finalizeRun148.py; then exit 1; fi
       - name: Mobile and world safety gates
         run: |
           set -euo pipefail
