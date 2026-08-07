@@ -12226,3 +12226,10 @@ mobile fit, timeout, and teardown. Change set is additive: no existing source li
 draw calls, and terrain are unchanged. Smoke registry grows from 33 checks/13 modules to 34/14.
 **Next step:** fetch fresh `origin/main` before the next run, then perform the due run-118 catch-up
 summary or select the next unblocked FAZ 8 improvement. Asset-blocked FAZ 6 items remain unchanged.
+
+### Run 118 — FAZ 8 discovery storage hardening
+
+Reviewer follow-up for run 117: guarded the `localStorage` property access itself, not only
+`getItem`/`setItem`, so strict privacy and embedded PWA contexts cannot abort UI construction with a
+`SecurityError`. Added a throwing-storage regression scenario; gameplay and presentation are
+otherwise unchanged.
