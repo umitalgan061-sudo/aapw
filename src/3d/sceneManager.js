@@ -214,7 +214,10 @@ export function createScene(canvas) {
 	// system — see world/vegetation.js's own module doc). Scatter radius matches whatever terrain
 	// radius this device class actually loaded above (`previewRadiusChunks`), so trees never render
 	// over a chunk that was never generated and density naturally scales down on the mobile-budget
-	// path with no separate device-specific knob — see DECISIONS.md's newest ADR.
+	// path with no separate device-specific knob — see DECISIONS.md's newest ADR. Also layers in
+	// run 113/ADR-0140's seat-local clustering ring for whichever seats qualify (see
+	// `createVegetation`'s own doc comment) — `clusterSeatCount` reports how many, so this log line
+	// stays honest about mobile's expected 0.
 	const vegetationResult = createVegetation({
 		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
@@ -225,7 +228,8 @@ export function createScene(canvas) {
 	});
 	scene.add(vegetationResult.group);
 	console.info(
-		`[sceneManager] Scattered vegetation: ${vegetationResult.placedCount}/${vegetationResult.targetCount} tree(s) placed.`,
+		`[sceneManager] Scattered vegetation: ${vegetationResult.placedCount}/${vegetationResult.targetCount} tree(s) placed ` +
+			`(${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,
 	);
 
 	return {

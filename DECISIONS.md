@@ -12537,3 +12537,144 @@ ADR-0138's single implicit "pine" species (or simply `git revert` this commit �
 of a working ADR-0138 baseline, no other file's behavior depends on the second species existing).
 `scripts/game3dSmokeChecksVegetation.js` reverts to its ADR-0138-era assertions (2 draw calls, single-
 mesh determinism check) in the same revert.
+
+## ADR-0140: `world/vegetation.js` seat-local clustering — a denser tree ring around qualifying kingdom seats (ADR-0139's own named follow-up)
+
+**Status:** Accepted (run 113 — scheduled autonomous routine).
+
+**Risk Seviyesi:** LOW. Justification: purely additive second placement pass layered on top of the
+already-shipped, already-smoke-tested base scatter (ADR-0138/ADR-0139) — the base pass's own code
+path, rng draw order, and output are byte-for-byte unchanged (verified: the existing determinism
+test, which calls `createVegetation` with `seats: []`, still reproduces its pre-change baseline
+exactly, and this run's new `emptySeatsGetsNoCluster` assertion locks that in going forward). No
+`isPlaceablePosition`/`pickSpeciesIndex`/`distancePointToSegment2D` change. No terrain/road/river/
+height-sampler edit — Arazi Değişikliği Güvenlik Kontrolü does not apply (confirmed below).
+
+**Karar:** Add a second, independent tree-placement pass to `world/vegetation.js`'s `createVegetation`:
+for every kingdom seat whose entire clustering ring already fits inside the base scatter disc
+(`Math.hypot(seat.x, seat.z) + CLUSTER_RING_OUTER_RADIUS_METERS <= radiusMeters`), scatter extra trees
+in an annulus starting `CLUSTER_RING_INNER_MARGIN_METERS` (10m) past `SEAT_EXCLUSION_RADIUS_METERS`
+(90m) and running out to `CLUSTER_RING_OUTER_RADIUS_METERS` (260m), at `CLUSTER_DENSITY_PER_KM2` (220
+— roughly 7x the base scatter's own 30/km²). New pure helper `sampleAnnulusPoint(rng, centerX,
+centerZ, innerRadius, outerRadius)` (uniform-area annulus sampling, `r = sqrt(u*(R_outer²-R_inner²) +
+R_inner²)` — the direct generalization of the base pass's own `r = R*sqrt(u)` uniform-disc formula),
+exported for this module's own smoke checks. A new `placeTreeInstance` helper factors out the
+per-tree "sample ground height, roll scale/yaw, compose matrix, write into the instanced mesh" body
+both passes now share, so they can't silently drift apart on how a tree is actually placed. The
+cluster pass draws from its own XOR-tagged `mulberry32(seed ^ 0x434c5354)` ("CLST") stream — entirely
+independent of the base pass's own `0x56454745` ("VEGE") stream — and reuses the exact same
+`isPlaceablePosition` exclusion check every base-pass candidate point already goes through (so a
+cluster point too close to a *different* seat, on water, on a steep slope, or too close to a road is
+rejected identically). `createVegetation`'s return shape gains one new field, `clusterSeatCount` (how
+many seats actually qualified for a ring) — `group`/`targetCount`/`placedCount` keep their existing
+meaning (the latter two now combined totals across both passes), so every existing call site
+(`sceneManager.js`) keeps working with no required changes; `sceneManager.js`'s own console.info line
+was extended (not required, just an honest log) to report `clusterSeatCount` alongside the existing
+placed/target counts.
+
+**Neden:** ADR-0139's own "Alternatives Considered" section named seat-local clustering as the other
+natural follow-up to the base scatter, deferred at the time specifically because it reasons about
+placement *density* relative to a seat rather than just *which* pre-existing valid position gets which
+species — a strictly larger change deserving its own dedicated sub-task with its own Değişiklik Etki
+Analizi, which this ADR is. With GOVERNANCE.md §18 items 1-13 all confirmed closed/blocked again this
+run (fresh priority re-scan per §8.14, below), this was the clearest, most concretely-scoped item-14
+candidate available — a real visual improvement (a castle framed by a denser treeline instead of
+sitting in open scatter) using only already-proven mechanisms (annulus sampling is the disc formula's
+own direct generalization; exclusion reuses `isPlaceablePosition` verbatim).
+
+**Değişiklik Etki Analizi:** affected systems — `world/vegetation.js` (this pass, the only file with
+placement-logic changes), `sceneManager.js` (one-line log-message extension, no behavioral change to
+what's passed into `createVegetation` or how its result is consumed), `scripts/
+game3dSmokeChecksVegetation.js` (widened, not replaced — every existing assertion still runs). Zero
+edits to `world/terrain.js`/`world/roads.js`/`world/rivers.js`/`world/settlements.js`/any height-
+sampler code, so **Arazi Değişikliği Güvenlik Kontrolü does not apply** — confirmed anyway as due
+diligence, not assumed: `scripts/terrainSeatSafetyCheck.js` **PASS 14/14** and `scripts/
+roadNetworkSafetyCheck.js` **PASS** (13/13 edges), both byte-identical to run 112's own recorded
+values. **Gelecek Faz Etkisi:** a future third species still needs no change here (species selection
+inside a cluster ring already reuses the shared `pickSpeciesIndex`/`SPECIES` machinery, unmodified); a
+future "grounding" pass that force-loads terrain chunks around *every* seat (not just the ones
+`chunkManager.js` already grounds via its own desktop-only per-seat `loadSquare` call) would let more
+seats' rings qualify without any change to this pass's own qualification math — it already recomputes
+`clusterSeats` fresh from whatever `radiusMeters`/`seats` it's called with, no hardcoded seat list.
+
+**Qualification-rule scope note (worked through by hand, not assumed):** this project's real 14
+kingdom seats' actual world-space distances from the origin (`mapToWorldXZ` applied to each seat's
+`mapX`/`mapY`, `WORLD_SCALE.MAP_BOUNDS`/`METERS_PER_MAP_UNIT` from `config.js`) range from ~2567m
+(`stannis`, closest) to ~6163m (`Night King`, farthest). Desktop's boot-preview disc radius is
+`PHASE1_PREVIEW_RADIUS_CHUNKS` (11) * `CHUNK_SIZE_METERS` (500) = 5500m, so **12 of 14 seats qualify
+for a ring on desktop** (every seat except `Xaro` ~5848m and `Night King` ~6163m, both just past
+5500m - 260m = 5240m). Mobile's disc radius is `STREAM_RADIUS_CHUNKS` (2) * 500m = 1000m, smaller than
+even the closest seat's own distance, so **0 seats qualify on mobile** — trees don't cluster there at
+all, an honest, expected consequence of the same mobile-budget scoping `world/vegetation.js`'s own
+module doc already documents for the base scatter (smaller disc -> naturally fewer base trees too;
+this pass adds "and zero cluster rings" to that same existing story, not a new gap).
+
+**Sonuç:** `node --check` clean on every changed file (`world/vegetation.js` 429/600 lines — real
+headroom, `scripts/game3dSmokeChecksVegetation.js`, `sceneManager.js`) plus a full repo sweep (78 JS
+files, unchanged count — no new file this run, only edits). `checkSmokeCheckRegistry.js`: unchanged
+**33 checks/13 modules**, zero line-count WARNs. Full `smokeTestGame3D.js` re-run after the change:
+see this run's own `3D_GAME_PROGRESS.md` entry for the exact pass count (baseline was 33/33 PASS
+before this change). The vegetation check's own new assertions: `sampleAnnulusPoint` exact-value at
+its inner edge, outer edge, and with a non-zero center (proves the offset is actually applied, not
+just the radius math); a seat placed at the disc's own center with a disc radius (400m) comfortably
+larger than its own ring (0 + 260 <= 400) gets exactly one cluster ring and at least one placed tree
+(density forced to 0 so every placed instance is provably a cluster tree, not a base-scatter one);
+every one of those placed instances' real decomposed world position sits within
+`[SEAT_EXCLUSION_RADIUS_METERS, CLUSTER_RING_OUTER_RADIUS_METERS]` of the seat, proving the ring
+actually *bounds* where cluster trees land, not just that some trees appeared somewhere; a seat far
+outside the disc (10000m) gets zero cluster trees and zero seats counted, proving the qualification
+rule actually excludes, not merely a plausible no-op; the pre-existing determinism test's three runs
+(`seats: []`) all report `clusterSeatCount === 0`, locking in that ADR-0138/ADR-0139's own
+scatter-only behavior is unchanged for every caller that doesn't pass seats.
+
+**AI Self-Review 2. Geçiş (§8.3):** independently re-verified — confirmed the cluster pass's rng reads
+(`clusterRng`) never interleave with the base pass's own `rng` reads (two fully separate
+`mulberry32` instances, cluster loop runs strictly after the base loop completes), which is what
+makes `seats: []` reproduce the pre-existing baseline exactly rather than merely "probably still
+close"; confirmed `sampleAnnulusPoint`'s radius formula reduces to the base disc's own `R*sqrt(u)`
+formula at `innerRadius=0` (worked through algebraically: `sqrt(u*(R²-0)+0) = R*sqrt(u)`), so it's a
+true generalization, not a coincidentally-similar but structurally different formula; confirmed
+`isPlaceablePosition` reused verbatim in the cluster loop means a cluster point that happens to land
+inside a *different* seat's own 90m exclusion, or within 10m of a road edge, or below the shore
+margin, or on a >45° slope, is rejected exactly like it would be in the base pass — no separate,
+possibly-inconsistent exclusion logic was written for the cluster pass; confirmed the new
+`placeTreeInstance` helper's parameter list, while long (9 params), is a deliberate "pass the shared
+mutable scratch objects in" pattern matching how the base pass's own loop already used
+`matrix`/`position`/`quaternion`/`scaleVector` — allocated once per `createVegetation` call, reused
+across every instance in both passes, not reallocated per tree (a real, if small, GC-pressure
+consideration on top of code-sharing); confirmed the smoke check's own `allClusterTreesWithinRing`
+assertion checks the seat's own 90m exclusion radius as its lower bound (not the tighter
+100m-ring-inner-margin) specifically so the test doesn't need to hand-duplicate
+`CLUSTER_RING_INNER_MARGIN_METERS`, a private (non-exported) constant — a deliberate looser-but-still-
+meaningful bound, not an oversight. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist:
+`disposeVegetation`'s existing generic loop-over-`group.children` needed no change (species count,
+and therefore mesh count, is unaffected by clustering — only per-species `.count` changes, already
+correctly set from `entry.placedCount` after both passes finish).
+
+**Alternatives considered:**
+- *Grounding every seat's terrain neighborhood (not just the disc-qualifying ones) so all 14 seats
+  could cluster, including on mobile.* Rejected for this pass — that's a `sceneManager.js`/
+  `chunkManager.js` change (force-loading more chunks), a different system with its own real perf
+  cost (see the existing ADR-0013 measurement: unconditionally grounding every seat on mobile alone
+  added ~92 chunks / ~753K triangles, 1.9x the entire mobile triangle budget). Bundling that into a
+  vegetation-only change would violate this module's own "every generator here stays independently
+  testable" blast-radius rule (`world/README.md`). Deferred as a real, separately-scoped future item —
+  see this ADR's own Gelecek Faz Etkisi note on why the qualification math already supports it without
+  changes here.
+- *A single combined density field (higher near seats, falling off with distance) instead of a
+  separate second pass.* Rejected — would require rewriting the base pass's own sampling loop (risking
+  the base pass's byte-for-byte-unchanged-for-`seats:[]` guarantee this ADR leans on for its LOW risk
+  rating) rather than layering cleanly on top of it. Two independent passes is more code but strictly
+  safer to reason about and revert.
+- *A fixed number of cluster trees per seat instead of an area-density formula.* Rejected — a
+  fixed count wouldn't scale if `CLUSTER_RING_OUTER_RADIUS_METERS` is ever tuned later (a wider ring
+  with the same tree count would look sparser, silently undermining the "denser than the wild
+  scatter" goal); the area-density approach the base pass already uses generalizes correctly to any
+  future ring-size tuning for free.
+
+**Rollback:** revert this commit. `world/vegetation.js`'s `createVegetation` reduces back to
+ADR-0139's single-pass base scatter (the cluster-pass code block and its 3 new constants/1 new
+exported helper/1 new private helper are the entire diff — no other file's behavior depends on
+clustering existing beyond the one-line `sceneManager.js` log message, which reverts in the same
+commit). `scripts/game3dSmokeChecksVegetation.js` reverts to its ADR-0139-era assertions in the same
+revert.

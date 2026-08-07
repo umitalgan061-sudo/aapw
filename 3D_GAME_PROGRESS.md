@@ -11710,3 +11710,156 @@ Değişiklik Etki Analizi.
 
 **Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
 recorded in `STABLE_TAGS.md`.
+
+## This Run (2026-08-07, run 113 — scheduled autonomous routine)
+
+**Concurrency/snapshot:** container booted fresh (ephemeral, per-session). Local repo started HEAD-
+detached at `origin/main`'s tip; resynced via `git checkout -B main origin/main`, confirmed zero open
+PRs via `mcp__github__list_pull_requests` before touching anything, landed exactly on `origin/main`'s
+real tip (`9957c32`, run 112's stable-tag/§15-close commit). This run's own fired-prompt text still
+says "create GOVERNANCE.md first" — already satisfied by an earlier run (re-confirmed: `GOVERNANCE.md`
+exists, complete, all 22 sections present; `CREDITS.md`/`CATCH_UP.md`/`RULES_CHANGELOG.md`/
+`STABLE_TAGS.md` all likewise already exist, none recreated). Read `3D_GAME_PROGRESS.md`'s run 111/112
+entries, `DECISIONS.md`'s ADR-0138/0139, and `QUESTIONS_FOR_OWNER.md` in full (no unresolved item
+forcing this run's hand; run-63 leaked-key entry stays open pending owner action, unchanged). Repeated
+`git fetch origin main` immediately before committing below (§8.14) — still `9957c32`, no drift.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`) clean,
+78 files pre-change. Standing guards clean (`checkSmokeCheckRegistry.js`: 33 checks/13 modules, zero
+line-count WARNs; `terrainSeatSafetyCheck.js` 14/14; `roadNetworkSafetyCheck.js` 13/13 edges). Full
+`scripts/smokeTestGame3D.js`: **33/33 PASS**, 0 FAIL, zero console/page errors (pre-change baseline).
+
+**Priority re-scan (§18):** items 1-3 (macro relief/road network/terrain color) confirmed closed.
+Item 4 (remaining 6 kingdom-seat textures) stays asset-blocked. Items 5-8/10-11 all clean per the
+baseline sweep. Item 9 (teknik borç): zero line-count WARNs, no fresh candidate (largest file
+`game3d.js` at 482/600 has real headroom). Items 12-13 (FAZ 7 dragon follow-ups, FAZ 11 species) remain
+owner-decision/asset-model-blocked, re-confirmed unchanged. §8.12/§13 maintenance windows (rule
+consolidation ~run 116, `CATCH_UP.md` ~run 118, §15 platform check closed last run 111-121, next
+~132-142) all checked — none due this specific run. With 1-13 exhausted, item 14 (new feature) taken —
+this time using run 112's own ADR-0139 "Alternatives Considered" section, which had already named its
+own most natural, lowest-risk next step explicitly: seat-local clustering.
+
+### Sub-task: `world/vegetation.js` seat-local clustering — a denser tree ring around qualifying kingdom seats (DECISIONS.md ADR-0140)
+
+Added a second, independent tree-placement pass to `createVegetation`: for every kingdom seat whose
+entire clustering ring already fits inside the base scatter disc, scatter extra trees in an annulus
+just outside the seat's own flattened footprint (`CLUSTER_RING_INNER_MARGIN_METERS`/
+`CLUSTER_RING_OUTER_RADIUS_METERS`/`CLUSTER_DENSITY_PER_KM2` — ~7x the base scatter's density), reading
+as a managed treeline around a castle rather than open wild forest. New pure `sampleAnnulusPoint`
+helper (uniform-area annulus sampling, the direct generalization of the base pass's own uniform-disc
+formula) and a shared `placeTreeInstance` helper factor out per-tree placement so both passes can't
+silently drift apart. The cluster pass draws from its own XOR-tagged rng stream, entirely independent
+of the base pass's — verified (not assumed) to leave `seats: []` callers byte-for-byte unchanged.
+`createVegetation`'s return shape gains one additive field, `clusterSeatCount`; `sceneManager.js`'s own
+log line was extended to report it. Full reasoning, risk analysis (LOW — additive second pass, base
+pass provably unchanged), impact analysis (including a hand-worked-out scope note: 12/14 seats qualify
+on desktop, 0/14 on mobile — an honest, expected consequence of the existing mobile-budget disc size,
+not a bug), and alternatives considered (force-grounding every seat's terrain deferred as a separate,
+larger `sceneManager.js`/`chunkManager.js` change; a combined density field rejected as riskier to the
+base pass's own unchanged-output guarantee; a fixed per-seat tree count rejected as not scaling with
+future ring-size tuning) are in `DECISIONS.md` ADR-0140.
+
+**Değişiklik Etki Analizi confirms:** no edits to `world/terrain.js`/`world/roads.js`/`world/rivers.js`/
+`world/settlements.js`/any height-sampler code — Arazi Değişikliği Güvenlik Kontrolü doesn't apply, but
+both existing safety scripts were re-run as due diligence anyway: `scripts/terrainSeatSafetyCheck.js`
+**PASS 14/14** (byte-identical to run 112's recorded values) and `scripts/roadNetworkSafetyCheck.js`
+**PASS** (13/13 edges, byte-identical) — confirming zero disturbance.
+
+**DoD durumu:**
+- [x] `node --check` clean on every changed file (`world/vegetation.js`, `sceneManager.js`,
+      `scripts/game3dSmokeChecksVegetation.js`) plus a full repo sweep (78 JS files, unchanged — no
+      new file this run)
+- [x] Smoke test — baseline **33/33 PASS** before, **33/33 PASS** after (same check count, that
+      check's own assertions widened in place — 0 FAIL, zero console/page errors both times)
+- [x] Görsel kanıt — real headless-Chromium F4 free-cam capture (dev-only capture script, direct
+      `createScene` import into a fresh canvas, scratchpad-only, never committed), 2 distinct real
+      camera angles around the real `stannis` kingdom seat (one of the 12 desktop-qualifying seats):
+      a close/low oblique angle clearly shows a visibly denser ring of both tree species (pine +
+      round) hugging the castle compared to the sparser background scatter beyond it, and a high
+      near-overhead angle clearly shows the ring's own annular shape — a bare gap immediately around
+      the castle footprint (the exclusion radius), then a denser tree band starting just past it,
+      thinning back out to ordinary scatter density farther away. Honestly noted limitation: this
+      capture technique builds its own independent scene via direct module import rather than driving
+      the real game3d.html boot path, so day/night lighting/sky wasn't wired up the same way (the
+      close shot's sky renders black) — the terrain/tree/castle geometry itself is the real, same
+      `createScene` output every other system uses, so the placement claim being proven is unaffected
+- [x] Performans bütçesi — this session's own `collectPerfSnapshot.js run113` sample (after
+      discarding one transient/anomalous first sample whose drawCalls/textures didn't match the
+      unchanged-mesh-count expectation and re-sampling to a clean, expectation-matching result — see
+      `perf_log.csv`'s own single `run113` row): drawCalls unchanged 50→50 (correct — clustering adds
+      instances to the same 4 existing per-species meshes, never new meshes), triangles
+      577,043→608,296 (+31,253, a real measured delta from the added cluster-ring tree instances),
+      geometries unchanged 48→48, textures unchanged 17→17 (still flat vertex colors). All totals stay
+      far inside the desktop budget (drawCalls<2500, triangles<5M)
+- [x] Teknik borç sayacı — **0** (unchanged; `world/vegetation.js` grew to 429/600, still well under
+      the cap)
+- [x] `3D_GAME_PROGRESS.md` güncellendi (this entry)
+- [x] ADR yazıldı — `DECISIONS.md` ADR-0140 (Risk Seviyesi: LOW, Alternatives Considered, Geri alma
+      planı, Gelecek Faz Etkisi all present)
+- [x] Commit atıldı (below)
+- [x] Konsol Temizliği — zero console/page errors across the full smoke suite re-run
+- [x] Terrain/road safety scripts re-run as due diligence — both PASS, byte-identical to pre-change
+
+**Yeni soru:** a new `QUESTIONS_FOR_OWNER.md` entry was added (run 113, ADR-0140) — the cluster ring's
+density/radius constants are engineering judgment with no real playtest to calibrate against, same
+pattern as runs 111/112's density/mix-ratio questions.
+
+**AI Self-Review 2. Geçiş (§8.3):** independently re-verified — confirmed the cluster pass's rng reads
+never interleave with the base pass's own reads (two fully separate `mulberry32` instances, cluster
+loop runs strictly after the base loop finishes), the actual mechanism that keeps `seats: []` callers
+byte-for-byte unchanged, not just a hopeful comment; confirmed `sampleAnnulusPoint`'s formula reduces
+algebraically to the base pass's own `R*sqrt(u)` at `innerRadius=0`, a true generalization; confirmed
+the cluster loop reuses `isPlaceablePosition` verbatim (no parallel, possibly-inconsistent exclusion
+logic written for it); confirmed the qualification rule (`seat distance + ring outer radius <= disc
+radius`) was verified against this project's *real* 14 seat coordinates by hand (via `mapToWorldXZ`),
+not just asserted to work in the abstract — 12/14 qualify on desktop, 0/14 on mobile, both honestly
+recorded rather than discovered later as a surprise. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak
+checklist: `disposeVegetation`'s existing generic loop-over-`group.children` needed no change (species/
+mesh count is unaffected by clustering, only per-species `.count` — confirmed by the smoke suite's own
+dispose-does-not-throw assertion running unmodified).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — a well-scoped, low-risk additive second pass on
+an already-proven system, explicitly named as the next step by the prior run's own ADR, independently
+re-verified end-to-end: new smoke assertions that inspect real decomposed instance positions (not just
+counts) to prove the ring actually bounds placement, two independent terrain/road safety re-runs, a
+re-sampled (not blindly-trusted) perf snapshot, and real 2-angle visual proof from a real kingdom seat
+showing the ring's actual shape. "6 ay sonra hâlâ net mi" tereddüdü yok — the qualification rule's own
+hand-worked-out scope note (12/14 desktop, 0/14 mobile) is recorded in the ADR precisely so a future
+run doesn't have to re-derive it from scratch.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 113 end) | Delta |
+|---|---|---|---|
+| Seats with a local tree-cluster ring (desktop) | 0 | **12 / 14** | +12 |
+| Seats with a local tree-cluster ring (mobile) | 0 | **0 / 14** | unchanged (disc too small — expected) |
+| Draw calls | 50 | **50** | unchanged (same 4 species meshes, more instances) |
+| Triangles | 577,043 | **608,296** | +31,253 |
+| Geometries / textures | 48 / 17 | **48 / 17** | unchanged |
+| Smoke suite | 33/33 | **33/33** | unchanged (existing check widened, no new check) |
+| `checkSmokeCheckRegistry.js` | 33 checks/13 modules | **33 checks/13 modules** | unchanged |
+| ADR headers in `DECISIONS.md` | 139 | **140** | +1 (ADR-0140) |
+| `perf_log.csv` rows | 54 | **55** | +1 (`run113`, after discarding one transient anomalous sample) |
+| Open questions in `QUESTIONS_FOR_OWNER.md` | (unchanged count from run 112) | **+1** | cluster ring density/radius calibration |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** evet — çoğu kalenin (masaüstünde 12/14) artık kendi çevresinde gözle görülür
+biçimde daha yoğun bir ağaç halkası var; kale duvarlarının hemen dışında çıplak bir zemin şeridi, sonra
+daha yoğun bir ağaçlık, sonra tekrar normal seyrek dağılıma dönen bir geçiş okunuyor — "vahşi orman"
+değil "korunan/işlenmiş arazi" hissi. Mobilde bu özellik şu an görünmüyor (bkz. yukarıdaki tablo ve
+ADR-0140'ın scope notu) — bilinçli bir kapsam kararı.
+
+**Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §8.14.
+Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları model bekliyor. No file near the
+600-line cap (`world/vegetation.js` itself 429/600, real headroom left even after this run's growth).
+`RULES_CHANGELOG.md`'s next consolidation ~run 116 (yaklaşıyor — sıradaki 1-2 çalıştırmada ele
+alınabilir), `CATCH_UP.md`'s next summary ~run 118 (last done run 108). A natural item-14 follow-up
+(not required, just available), per ADR-0140's own Alternatives Considered: force-grounding more
+seats' terrain neighborhoods so mobile (or the 2 remaining desktop seats, Xaro/Night King) could
+qualify too — its own dedicated `sceneManager.js`/`chunkManager.js` sub-task with its own Değişiklik
+Etki Analizi and its own perf measurement (see ADR-0013's existing mobile-triangle-budget warning
+before attempting this on mobile specifically).
+
+**Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
+recorded in `STABLE_TAGS.md`.

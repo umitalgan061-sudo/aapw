@@ -3,14 +3,19 @@
  * architecture has named "Vegetation" as a `world/` system since this project's very first
  * architecture doc, and `config.js`'s `WORLD_DEFAULTS.WORLD_SEED` comment ("terrain, later
  * vegetation/rivers/etc.") has said so since before rivers even existed. Run 111/ADR-0138 shipped
- * the first pass (scatter-only, one species). Run 112/ADR-0139 adds the "species variety" follow-up
+ * the first pass (scatter-only, one species). Run 112/ADR-0139 added the "species variety" follow-up
  * ADR-0138 itself named as the natural next step: two low-poly species (a narrow conical "pine" —
  * ADR-0138's original tree, unchanged — and a rounder "round-crown" tree with a sphere foliage cap)
  * mixed by a deterministic per-tree weighted roll, so the scatter no longer reads as visually
- * uniform. Still no per-species rig/animation/UV-mapped texture needed — same "primitives + a shared
- * material, no external file" technique `world/settlements.js`'s procedural castle and
- * `world/materials.js`'s procedural stone/roof already established. Seat-local clustering remains
- * out of scope for this pass too — see DECISIONS.md's newest ADR for the full reasoning.
+ * uniform. Run 113/ADR-0140 adds the other follow-up ADR-0139 itself named: seat-local clustering —
+ * a denser ring of trees just outside each kingdom seat's flattened footprint (reads as a managed
+ * treeline/windbreak/hunting ground near a castle, not open wild forest), an independent *second*
+ * placement pass layered on top of the unchanged base disc scatter (own tagged rng stream, own
+ * annulus sampling, same shared `isPlaceablePosition`/`pickSpeciesIndex` — see `createVegetation`'s
+ * own doc comment for why only seats near the loaded terrain disc qualify). Still no per-species
+ * rig/animation/UV-mapped texture needed — same "primitives + a shared material, no external file"
+ * technique `world/settlements.js`'s procedural castle and `world/materials.js`'s procedural
+ * stone/roof already established.
  *
  * Two low-poly primitives per tree (a trunk + a foliage cap) rendered as instanced meshes — each
  * species gets its own trunk/foliage `THREE.InstancedMesh` pair (one draw call per part per species,
@@ -102,6 +107,22 @@ const SLOPE_SAMPLE_OFFSET_METERS = 3;
 const SCALE_MIN = 0.75;
 const SCALE_MAX = 1.35;
 
+/** Margin, in meters, past `SEAT_EXCLUSION_RADIUS_METERS` before a seat's clustering ring begins —
+ * keeps a visible "walls, then bare flattened ground, then trees" transition instead of the ring's
+ * inner edge immediately hugging the exclusion boundary. */
+const CLUSTER_RING_INNER_MARGIN_METERS = 10;
+/** Outer radius, in meters, of a seat's clustering ring, measured from the seat's own center — well
+ * inside a single `CHUNK_CONFIG.CHUNK_SIZE_METERS` (500) chunk, so a ring around any qualifying seat
+ * (see `createVegetation`'s doc comment for the qualification rule) never reaches past terrain that
+ * seat's own neighborhood already has grounded. */
+const CLUSTER_RING_OUTER_RADIUS_METERS = 260;
+/** Trees per km² *within a seat's own ring* — deliberately denser than `TARGET_DENSITY_PER_KM2`
+ * (reads as a managed treeline near a castle, not open wild forest); this run's own engineering
+ * judgment, not calibrated against a real playtest — same "feel constant nobody has played against
+ * yet" pattern as `TARGET_DENSITY_PER_KM2` and `SPECIES`' `weight` values above (see
+ * `QUESTIONS_FOR_OWNER.md`'s newest entry). */
+const CLUSTER_DENSITY_PER_KM2 = 220;
+
 /**
  * Shortest 2D (X/Z-plane) distance from point `(px, pz)` to the line segment `(ax, az)-(bx, bz)`.
  * Pure function, exported for this module's own smoke checks (no THREE.js/scene dependency, so it's
@@ -177,6 +198,25 @@ export function pickSpeciesIndex(roll) {
 }
 
 /**
+ * Uniform random point inside the annulus (ring) `[innerRadius, outerRadius)` centered on
+ * `(centerX, centerZ)` — `r = sqrt(u * (R_outer² - R_inner²) + R_inner²)`, the direct generalization
+ * of the base disc scatter's own `r = R*sqrt(u)` uniform-disc formula (that formula is this one's own
+ * `innerRadius = 0` case): uniform *area* density across the ring, not biased toward either edge.
+ * Pure function, exported for this module's own smoke checks.
+ * @param {() => number} rng A `[0, 1)` seeded random source.
+ * @param {number} centerX
+ * @param {number} centerZ
+ * @param {number} innerRadius
+ * @param {number} outerRadius
+ * @returns {{x: number, z: number}}
+ */
+export function sampleAnnulusPoint(rng, centerX, centerZ, innerRadius, outerRadius) {
+	const angle = rng() * Math.PI * 2;
+	const radius = Math.sqrt(rng() * (outerRadius * outerRadius - innerRadius * innerRadius) + innerRadius * innerRadius);
+	return { x: centerX + Math.cos(angle) * radius, z: centerZ + Math.sin(angle) * radius };
+}
+
+/**
  * Builds one species' trunk + foliage geometry/material pair. Both primitives are Y-centered by
  * THREE.js default — each is translated so the whole silhouette's local origin sits at the tree's
  * actual base (y=0), matching every other placed-by-ground-height object in this project
@@ -208,44 +248,106 @@ function buildSpeciesAssets(species) {
 }
 
 /**
- * Scatters deterministic procedural trees, mixed across `SPECIES`, over a disc of radius
- * `radiusMeters` centered on the world origin — matching whatever radius the caller actually loaded
- * terrain for (`sceneManager.js` passes its own boot-preview radius, so trees never render over a
- * chunk that was never generated, on either desktop or mobile-budget devices), so tree count
- * naturally scales down with the smaller mobile preview area instead of needing a second,
- * device-specific density knob.
+ * Places one tree's transform into `entry`'s trunk+foliage instance buffers at `entry.placedCount`,
+ * then increments it — the exact per-tree body both the base scatter pass and the seat-cluster pass
+ * below share, factored out so the two passes can never silently drift apart on how a tree is
+ * actually written (ground-snap/scale/yaw all identical regardless of which pass placed it).
+ * @param {{trunkMesh: THREE.InstancedMesh, foliageMesh: THREE.InstancedMesh, placedCount: number}} entry
+ * @param {number} x
+ * @param {number} z
+ * @param {(x: number, z: number) => number} sampleHeightMeters
+ * @param {() => number} rng
+ * @param {THREE.Vector3} up
+ * @param {THREE.Matrix4} matrix
+ * @param {THREE.Vector3} position
+ * @param {THREE.Quaternion} quaternion
+ * @param {THREE.Vector3} scaleVector
+ */
+function placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, position, quaternion, scaleVector) {
+	const groundY = sampleHeightMeters(x, z);
+	const scale = SCALE_MIN + rng() * (SCALE_MAX - SCALE_MIN);
+	const yaw = rng() * Math.PI * 2;
+	position.set(x, groundY, z);
+	quaternion.setFromAxisAngle(up, yaw);
+	scaleVector.set(scale, scale, scale);
+	matrix.compose(position, quaternion, scaleVector);
+	entry.trunkMesh.setMatrixAt(entry.placedCount, matrix);
+	entry.foliageMesh.setMatrixAt(entry.placedCount, matrix);
+	entry.placedCount++;
+}
+
+/**
+ * Scatters deterministic procedural trees, mixed across `SPECIES`, in two layered passes:
+ *
+ * 1. **Base scatter** — over a disc of radius `radiusMeters` centered on the world origin, matching
+ *    whatever radius the caller actually loaded terrain for (`sceneManager.js` passes its own
+ *    boot-preview radius, so trees never render over a chunk that was never generated, on either
+ *    desktop or mobile-budget devices), so tree count naturally scales down with the smaller mobile
+ *    preview area instead of needing a second, device-specific density knob. Unchanged since
+ *    ADR-0138/ADR-0139 — same rng draw order, same output for the same inputs.
+ * 2. **Seat-local clustering** (run 113/ADR-0140) — an additive second pass placing extra trees in an
+ *    annulus ring (`CLUSTER_RING_INNER_MARGIN_METERS` past `SEAT_EXCLUSION_RADIUS_METERS`, out to
+ *    `CLUSTER_RING_OUTER_RADIUS_METERS`) around each seat in `seats`, at `CLUSTER_DENSITY_PER_KM2` —
+ *    denser than the base scatter, reading as a managed treeline near a castle. Draws from its own
+ *    XOR-tagged rng stream (never perturbs the base pass's own draw sequence, so passing `seats: []`
+ *    reproduces ADR-0138/ADR-0139's scatter bit-for-bit) and reuses the same `isPlaceablePosition`
+ *    exclusion check (so a cluster point too close to a *different* seat, or on water/a steep
+ *    slope/a road, is rejected exactly like a base-pass point would be). **Only seats whose entire
+ *    ring already fits inside the base scatter disc get one** — `Math.hypot(seat.x, seat.z) +
+ *    CLUSTER_RING_OUTER_RADIUS_METERS <= radiusMeters` — the same "no trees over a chunk that was
+ *    never generated" guarantee the base pass already gives itself, generalized to the ring's own
+ *    outer edge. In this project's actual geography this means most of the 14 kingdom seats qualify
+ *    on desktop (`PHASE1_PREVIEW_RADIUS_CHUNKS` 11 * 500m = 5500m disc) and none qualify on mobile
+ *    (`STREAM_RADIUS_CHUNKS` 2 * 500m = 1000m disc, smaller than every seat's own distance from
+ *    origin) — an honest, expected consequence of the existing mobile-budget scoping, not a bug; see
+ *    DECISIONS.md's newest ADR.
  * @param {object} options
  * @param {(x: number, z: number) => number} options.sampleHeightMeters Same shared sampler every
  *   other world system reads through (`physics.js`'s ground collider).
  * @param {number} options.seaLevelMeters `WORLD_DEFAULTS.WATER_LEVEL_METERS`.
  * @param {number} options.seed World seed — same seed always reproduces the same scatter (both
  *   position/rejection AND species mix — species is drawn from the same seeded stream).
- * @param {{x: number, z: number}[]} options.seats Kingdom-seat positions (exclusion).
+ * @param {{x: number, z: number}[]} options.seats Kingdom-seat positions (exclusion + cluster centers).
  * @param {{points: {x: number, z: number}[]}[]} options.roadEdges Road-network edges (exclusion).
  * @param {number} options.radiusMeters Scatter disc radius, meters.
  * @param {number} [options.densityPerKm2] Overridable for testing; defaults to `TARGET_DENSITY_PER_KM2`.
- * @returns {{group: THREE.Group, targetCount: number, placedCount: number}} `group.children` is
+ * @returns {{group: THREE.Group, targetCount: number, placedCount: number, clusterSeatCount: number}}
+ *   `targetCount`/`placedCount` are combined totals across both passes. `group.children` is
  *   `SPECIES.length * 2` meshes long (trunk+foliage per species, in `SPECIES` order), even if a
  *   species happens to place zero trees for a given seed/area (that species' pair simply renders
  *   nothing — `.count` stays 0 — rather than being omitted, so `group.children.length` is always
- *   predictable from `SPECIES.length` alone).
+ *   predictable from `SPECIES.length` alone). `clusterSeatCount` is how many seats actually qualified
+ *   for a ring (0 on mobile-sized discs — see above).
  */
 export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2 }) {
 	const group = new THREE.Group();
 	const areaKm2 = (Math.PI * radiusMeters * radiusMeters) / 1_000_000;
-	const targetCount = Math.max(0, Math.round(areaKm2 * densityPerKm2));
-	if (targetCount === 0) return { group, targetCount: 0, placedCount: 0 };
+	const baseTargetCount = Math.max(0, Math.round(areaKm2 * densityPerKm2));
+
+	const clusterInnerRadius = SEAT_EXCLUSION_RADIUS_METERS + CLUSTER_RING_INNER_MARGIN_METERS;
+	const clusterSeats = seats.filter((seat) => Math.hypot(seat.x, seat.z) + CLUSTER_RING_OUTER_RADIUS_METERS <= radiusMeters);
+	const ringAreaKm2 = (Math.PI * (CLUSTER_RING_OUTER_RADIUS_METERS ** 2 - clusterInnerRadius ** 2)) / 1_000_000;
+	const clusterTargetPerSeat = Math.max(0, Math.round(ringAreaKm2 * CLUSTER_DENSITY_PER_KM2));
+	const clusterTargetTotal = clusterSeats.length * clusterTargetPerSeat;
+
+	const targetCount = baseTargetCount + clusterTargetTotal;
+	if (targetCount === 0) return { group, targetCount: 0, placedCount: 0, clusterSeatCount: 0 };
 
 	// XOR-tagged seed, independent random stream from terrain's own noise / rivers' own tagged
 	// stream — same convention `world/rivers.js` already established for `mulberry32(seed ^ tag)`.
 	const rng = mulberry32(seed ^ 0x56454745); // "VEGE"-ish tag
+	// Its own independent tag/stream so the cluster pass's rng draws never perturb the base pass's
+	// own draw order above — this is what keeps `seats: []` reproducing ADR-0138/ADR-0139's scatter
+	// bit-for-bit (see this function's own doc comment).
+	const clusterRng = mulberry32(seed ^ 0x434c5354); // "CLST" tag
 	const up = new THREE.Vector3(0, 1, 0);
 
-	// Instance buffers are allocated at the disc's full `targetCount` per species (the true worst
-	// case: every tree happens to roll the same species) — trivial extra memory for a few thousand
-	// 4x4 matrices, and avoids a two-pass "count per species first" scan. `.count` is trimmed down to
-	// each species' real placed count below, same "unused trailing slots never rendered" reasoning
-	// `world/settlements.js`'s own `proceduralSeatCount`-sized `InstancedMesh` comment documents.
+	// Instance buffers are allocated at the combined disc-plus-ring `targetCount` per species (the
+	// true worst case: every tree from both passes happens to roll the same species) — trivial extra
+	// memory for a few thousand 4x4 matrices, and avoids a two-pass "count per species first" scan.
+	// `.count` is trimmed down to each species' real placed count below, same "unused trailing slots
+	// never rendered" reasoning `world/settlements.js`'s own `proceduralSeatCount`-sized
+	// `InstancedMesh` comment documents.
 	const perSpecies = SPECIES.map((species) => {
 		const { trunkGeometry, foliageGeometry, trunkMaterial, foliageMaterial } = buildSpeciesAssets(species);
 		const trunkMesh = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, targetCount);
@@ -263,7 +365,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	const scaleVector = new THREE.Vector3();
 
 	let placedCount = 0;
-	for (let treeIndex = 0; treeIndex < targetCount; treeIndex++) {
+	for (let treeIndex = 0; treeIndex < baseTargetCount; treeIndex++) {
 		for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
 			// Uniform-disc sampling: r = R*sqrt(u), not r = R*u (which would over-concentrate points
 			// near the center) — see this module's own header comment.
@@ -278,19 +380,26 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			// mesh a given placed tree's matrix lands in changes from what was a single-species module.
 			const speciesIndex = pickSpeciesIndex(rng());
 			const entry = perSpecies[speciesIndex];
-
-			const groundY = sampleHeightMeters(x, z);
-			const scale = SCALE_MIN + rng() * (SCALE_MAX - SCALE_MIN);
-			const yaw = rng() * Math.PI * 2;
-			position.set(x, groundY, z);
-			quaternion.setFromAxisAngle(up, yaw);
-			scaleVector.set(scale, scale, scale);
-			matrix.compose(position, quaternion, scaleVector);
-			entry.trunkMesh.setMatrixAt(entry.placedCount, matrix);
-			entry.foliageMesh.setMatrixAt(entry.placedCount, matrix);
-			entry.placedCount++;
+			placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, position, quaternion, scaleVector);
 			placedCount++;
 			break;
+		}
+	}
+
+	// Seat-local clustering ring (run 113/ADR-0140) — see this function's own doc comment for the
+	// qualification rule and the reasoning behind it.
+	for (const seat of clusterSeats) {
+		for (let treeIndex = 0; treeIndex < clusterTargetPerSeat; treeIndex++) {
+			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
+				const { x, z } = sampleAnnulusPoint(clusterRng, seat.x, seat.z, clusterInnerRadius, CLUSTER_RING_OUTER_RADIUS_METERS);
+				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+
+				const speciesIndex = pickSpeciesIndex(clusterRng());
+				const entry = perSpecies[speciesIndex];
+				placeTreeInstance(entry, x, z, sampleHeightMeters, clusterRng, up, matrix, position, quaternion, scaleVector);
+				placedCount++;
+				break;
+			}
 		}
 	}
 
@@ -302,7 +411,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		group.add(entry.trunkMesh, entry.foliageMesh);
 	}
 
-	return { group, targetCount, placedCount };
+	return { group, targetCount, placedCount, clusterSeatCount: clusterSeats.length };
 }
 
 /**
