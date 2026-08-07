@@ -13606,3 +13606,34 @@ kaldırılarak önceki 35-entry havuza dönülebilir; şema veya kalıcı kayıt
 **Gelecek faz etkisi:** Yok. FAZ 9 ses/cila veya ilerideki bir Gece Nöbeti/devşirme quest hattına
 bağımlılık eklemez; ileride böyle bir mekanik gelirse bu toast bağımsız kalabilir veya ayrı ADR ile
 bağlanabilir.
+
+
+## ADR-0153 — Mobil bounded streaming ile coverage radius 2→3 (run 130)
+
+**Risk seviyesi:** MEDIUM
+
+**Karar:** Coarse-pointer mobil cihazlarda `ChunkManager.streamTowards` additive bir wrapper ile
+radius 3 kullanacak ve aynı radius dışındaki terrain chunk'larını her chunk geçişinde `unloadChunk`
+ile dispose edecek. Desktop path aynen korunacak. Böylece resident terrain 49 chunk ile sınırlı
+kalırken oyuncunun gezdiği yeni chunk'lar `everGenerated` üzerinden kümülatif World Coverage'e
+katılmaya devam edecek.
+
+**Neden:** Önceki radius 2 footprint'i 25×0.25=6.25 km², yani 137.5 km² hedef dünyanın yaklaşık
+%4.5'iydi. Radius'u eviction olmadan büyütmek uzun mobil oturumlarda resident geometry/material
+sayısını sınırsız büyütürdü. Önce bounded eviction eklemek, radius artışını bellek açısından güvenli
+hale getirir. Radius 3 footprint'i 49×0.25=12.25 km² (~%8.9) ile ilk ölçülü artıştır.
+
+**Alternatifler:** Radius'u doğrudan 4+ yapmak reddedildi; gerçek mobil ölçüm olmadan fazla agresif.
+Sadece eviction ekleyip radius 2'de kalmak güvenli ama sahibin açık coverage artışı talebini bu run'da
+ilerletmiyor. Tüm world'ü resident tutmak mobil performans/bellek bütçeleriyle çelişiyor.
+
+**Sonuç / etkilenen sistemler:** `world/chunkManager.js` mobil streaming davranışı; terrain reload,
+camera collision'ın yakın-chunk lookup'u ve kümülatif coverage metriği. NPC/dragon/road/settlement,
+2D oyun ve desktop streaming davranışı değişmez. Resident terrain üst sınırı mobilde 49 chunk olur.
+
+**Geri alma planı:** Additive wrapper devre dışı bırakılarak önceki `streamTowards` radius 2 ve
+no-eviction davranışına dönülebilir. Kalıcı save/schema migrasyonu yoktur.
+
+**Gelecek faz etkisi:** FAZ 9-10 ve daha büyük asset dünyası için olumlu; sınırlı resident terrain
+LOD, vegetation culling ve asset streaming çalışmalarına ölçülebilir temel sağlar. Yeni SaveSystem
+veya public API bağımlılığı oluşturmaz.

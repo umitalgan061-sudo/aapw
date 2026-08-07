@@ -148,3 +148,33 @@ export class ChunkManager {
 		}
 	}
 }
+
+
+// Run 130 / ADR-0153 — mobile bounded streaming policy. Kept as an additive prototype wrapper so
+// GOVERNANCE.md's additive-only rule is preserved: the proven desktop implementation above remains
+// byte-for-byte intact. Coarse-pointer devices widen the active terrain neighborhood from radius 2
+// (25 chunks / 6.25 km²) to radius 3 (49 chunks / 12.25 km²) while evicting chunks outside that
+// same radius after every chunk-boundary crossing. Cumulative World Coverage still grows through
+// `everGenerated`; resident GPU/RAM terrain stays bounded at <=49 chunks instead of growing without
+// limit during exploration. Desktop behavior is deliberately unchanged.
+const MOBILE_STREAMING_RADIUS_CHUNKS_RUN130 = 3;
+const _streamTowardsBeforeMobileCoverageRun130 = ChunkManager.prototype.streamTowards;
+ChunkManager.prototype.streamTowards = function streamTowardsWithMobileBoundRun130(centerChunkX, centerChunkZ, radius) {
+	const isMobileCoarsePointer = typeof window !== 'undefined' &&
+		typeof window.matchMedia === 'function' &&
+		window.matchMedia('(pointer: coarse)').matches;
+	const effectiveRadius = isMobileCoarsePointer
+		? Math.max(radius, MOBILE_STREAMING_RADIUS_CHUNKS_RUN130)
+		: radius;
+
+	_streamTowardsBeforeMobileCoverageRun130.call(this, centerChunkX, centerChunkZ, effectiveRadius);
+	if (!isMobileCoarsePointer) return;
+
+	for (const key of [...this.loaded.keys()]) {
+		const [chunkX, chunkZ] = key.split(',').map(Number);
+		const outsideResidentSquare =
+			Math.abs(chunkX - centerChunkX) > effectiveRadius ||
+			Math.abs(chunkZ - centerChunkZ) > effectiveRadius;
+		if (outsideResidentSquare) this.unloadChunk(chunkX, chunkZ);
+	}
+};
