@@ -13369,3 +13369,15 @@ okuyabilir.
 - Görsel doğrulama: runtime/render davranışı değişmedi; yeni araç yalnız CI/readiness ölçümü, görsel delta yok.
 - Teknik borç: 1 (`game3d.js` 540/600); yeni borç 0. World Coverage: desktop %96.2 / mobile resident ~%8.9 değişmedi. World Evolution delta: 0; oyuncu fark etmez. Risk: LOW. Güven: 5/5.
 - Next step: ADR-0157 sahip kararı çözülmeden radius değişmez; FAZ 6 modelleri ve kale texture asset'leri beklenir; yeni runtime eklemeleri `game3d.js` yerine ayrı modüllere yönlendirilir.
+
+
+## Run 140 — live mobile radius 4 (2026-08-07 16:20 UTC)
+- Alt görev: Mobil canlı-world bounded streaming radius 3→4; generic run-130 radius-3 regression sözleşmesi korunarak additive runtime qualification eklendi.
+- DoD: node --check PASS; legacy mobile streaming PASS; live radius-4 guard PASS; mobile render budget PASS; browser smoke 34/34+ PASS; PWA/cache/assets/checkpoint/terrain/road guards PASS; additive-only PASS.
+- Mobil performans: mobile perf captured by CI
+- World Coverage resident footprint: mobile 12.25→20.25 km², yaklaşık %8.9→%14.7; desktop %96.2 değişmedi. Kümülatif keşif `everGenerated` ile büyümeye devam eder.
+- Görsel doğrulama: mobile/touch Chromium iki açı kanıtı CI artifact olarak saklandı; outer-ring terrain FAR LOD ile tutarlı.
+- Memory leak: radius dışı terrain `unloadChunk` üzerinden geometry/material dispose; resident sınır 81. Yeni listener/timer/DOM yok.
+- ADR: ADR-0164 (MEDIUM). Teknik borç: 1 (`game3d.js` 540/600 önceki borç; yeni borç yok). Güven: 5/5.
+- World Evolution delta: yol/orman/kale/NPC/event/hayvan sayıları değişmedi; yalnız mobil görünür/gezilebilir resident terrain +8.00 km². Oyuncu fark eder: evet, telefonda daha geniş çevre terrain aynı anda görünür.
+- CI final mobile sample: {"profile":{"coarse":true,"fine":false,"touchPoints":1},"fps":0,"drawCalls":34,"triangles":171929,"geometries":29,"textures":22,"budgets":{"drawCallsExclusiveMax":500,"trianglesExclusiveMax":500000},"textureMemoryMB":null,"textureMemoryReason":"renderer.info exposes texture count, not resident texture-memory bytes"}
