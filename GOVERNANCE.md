@@ -25,6 +25,20 @@ bırakma yasak — belirsizlik varsa ADR yaz ya da `QUESTIONS_FOR_OWNER.md`'ye s
 6. Refactor sadece bug/perf/okunabilirlik/mimari nedenlerle yapılır.
 7. Dosya 600 satırı geçmezse iyi, geçerse böl.
 8. Her alt görev sonu memory-leak checklist (listener/timer/DOM/geometry-material dispose).
+9. **Additive-only diff guard (run 126, proje sahibi tarafından doğrudan `main`'e eklendi —
+   commit `3c7e4fb`, `scripts/checkAdditiveOnlyDiff.js`):** her commit'ten önce
+   `node scripts/checkAdditiveOnlyDiff.js` (varsayılan `origin/main...HEAD`) çalıştırılır.
+   Kaynak dosyalarda (`.js/.mjs/.cjs/.html/.css/.json/.xml/.glsl/.vert/.frag`) satır SİLİNEMEZ
+   veya DEĞİŞTİRİLEMEZ (bir satırı değiştirmek git diff'te 1 silme + 1 ekleme sayılır ve guard'ı
+   FAIL ettirir) — yalnız yeni satır EKLENEBİLİR. Mevcut bir davranışı düzeltmek gerekiyorsa: eski
+   kodu olduğu gibi bırakıp yanına/üstüne yeni bir ekleme ile üzerine yazacak bir yapı kur (ör. yeni
+   bir opsiyonel parametre, yeni bir sarmalayıcı fonksiyon, yeni bir koşul dalı) — tıpkı
+   ADR-0111'in `nightFactor` opsiyonel parametresinde veya `ARCHITECTURE.md`'nin 3D mod/2D oyun
+   sınırında zaten yıllardır uygulanan "yalnız ekleme, asla mevcut satırı değiştirme" desenini genel
+   kaynak ağacına yaymak gibi düşünülebilir. FAIL olursa: değişikliği sadece-ekleme biçiminde yeniden
+   tasarla; bu mümkün değilse (gerçek bir satır silme/değiştirme zorunluysa) commit atma, durumu
+   `QUESTIONS_FOR_OWNER.md`'ye kısa bir satır olarak düş ve sahibin açık onayını bekle. Belgeleme
+   dosyaları (`.md`) guard kapsamı dışında ama iyi pratik olarak mümkün olduğunca additive tutulur.
 
 ## 3. Hedef Mimari
 
@@ -71,6 +85,7 @@ her çalıştırma sonunda ölçülüp raporlanır.
 - [ ] Commit atıldı
 - [ ] **Konsol Temizliği:** tarayıcı konsolunda yakalanmamış hata/uyarı yok (headless
       Chromium boot sırasında `console.error`/sayfa hatası sıfır olmalı)
+- [ ] **Additive-only guard:** `node scripts/checkAdditiveOnlyDiff.js` PASS (bkz. §2 madde 9)
 
 ### 8.2 Root Cause Analysis
 Aynı hata 2. kez görülürse: önce **Root Cause / Prevention / Regression Test** yazılır,
