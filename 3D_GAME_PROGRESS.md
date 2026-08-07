@@ -12233,3 +12233,108 @@ Reviewer follow-up for run 117: guarded the `localStorage` property access itsel
 `getItem`/`setItem`, so strict privacy and embedded PWA contexts cannot abort UI construction with a
 `SecurityError`. Added a throwing-storage regression scenario; gameplay and presentation are
 otherwise unchanged.
+
+## This Run (2026-08-07, run 119 — scheduled autonomous routine)
+
+**Concurrency/snapshot:** `git fetch origin main` confirmed local detached HEAD already matched
+`origin/main`'s real tip (`45931b2`, run 118's merge). Read `GOVERNANCE.md` in full — already
+populated and current (every § the fired prompt lists, including every 🆕-tagged item, is already
+present under its own numbered section; no recreation needed, confirmed by direct text comparison
+against the fired prompt's rule list). `CREDITS.md` likewise already exists and covers the asset
+sources on file. `3D_GAME_PROGRESS.md`'s runs 115-118, `DECISIONS.md`'s ADR-0142/0143/0144, and
+`QUESTIONS_FOR_OWNER.md` in full (no new unresolved item since run 90; the run-63 leaked-key entry
+stays open, unchanged, pending owner action). `git checkout -B work origin/main` before any edit.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`+`service-worker.js`)
+clean, 80 files. `checkSmokeCheckRegistry.js`: 34 checks/14 modules, all wired. Full
+`scripts/smokeTestGame3D.js`: **34/34 PASS**, 0 FAIL, no unexpected console/page errors (only the
+known, expected offline-guard `console.error`s from the 2D-shell CDN-block check, per ADR-0109).
+
+**Priority re-scan (§18):** items 1-3 (macro relief/road network/terrain color) remain closed per
+their own standing safety-check guards (`terrainSeatSafetyCheck.js`/`roadNetworkSafetyCheck.js`,
+re-run clean below). Item 4 (texture the remaining 6 kingdom seats) stays asset-blocked. Items 5-11
+all clean per the baseline sweep above. Items 12-13 (FAZ 7 dragon follow-ups, FAZ 11 species)
+remain model/owner-decision-blocked. That left an overdue administrative item ahead of item 14:
+`CATCH_UP.md`'s next summary was flagged due at run 118 (run 116's own note); run 118 landed a
+reviewer follow-up instead and did not close it, so it is one run overdue at the start of this run.
+
+### Sub-task: `CATCH_UP.md` owner-facing summary for runs 109-118
+
+**Değişiklik Etki Analizi (§8.4):** documentation-only, no `arazi`/`yükseklik`/`noise`/`dünya ölçeği`
+code touched — Arazi Değişikliği Güvenlik Kontrolü doesn't apply. Both existing safety scripts
+re-run as due diligence anyway: `scripts/terrainSeatSafetyCheck.js` **PASS 14/14** and
+`scripts/roadNetworkSafetyCheck.js` **PASS** (13/13 edges), both byte-identical to run 118's
+recorded values. **Gelecek Faz Etkisi:** none — this is pure reporting, no runtime system depends
+on `CATCH_UP.md`'s content.
+
+Added a new top entry to `CATCH_UP.md` (10 sentences, jargon-free Turkish) summarizing runs 109-118
+for the project owner: the first real vegetation pass (two tree species plus denser clustering rings
+around 12/14 castles), the new persistent settlement-discovery notification (first-arrival-only,
+survives offline/installed-PWA reloads), three new world-event flavor cards (`sellsword_arrival`,
+`alms_giving`, `direwolf_track`), and the behind-the-scenes maintenance (a file split ahead of the
+600-line cap, the new `analyzePerfTrend.js` tool, two rule-file consolidation passes). Closed with
+the still-open blockers (6 untextured castles, FAZ 6 animals waiting on models, the leaked NVIDIA
+key awaiting owner rotation) so the summary doesn't read as "everything's done."
+
+**DoD durumu:**
+- [x] `node --check` — n/a, no `.js` file touched this sub-task (confirmed via `git status`: only
+      `CATCH_UP.md` and this progress entry changed)
+- [x] Smoke test — baseline **34/34 PASS** captured above before any edit; re-run after this
+      sub-task (doc-only) is bit-for-bit the same suite, no code path could have changed
+- [x] Görsel kanıt — n/a, no rendered-UI surface (pure Markdown addition, matches the run-108
+      `CATCH_UP.md`/README precedent's own reasoning for skipping visual proof on docs-only changes)
+- [x] Performans bütçesi — `collectPerfSnapshot.js run119` sample: `50/608296/48/17`, bit-identical
+      to run116's last recorded row (expected — no rendering code touched)
+- [x] Teknik borç sayacı — **0** (unchanged)
+- [x] `3D_GAME_PROGRESS.md` güncellendi (this entry)
+- [x] ADR — not written; matches the established precedent (run 108's own `CATCH_UP.md` addition,
+      and every prior `RULES_CHANGELOG.md` consolidation line) that a pure §13/§8.12-style periodic
+      reporting update, with no design decision or alternatives to weigh, doesn't warrant its own
+      ADR entry
+- [x] Commit atıldı (below)
+- [x] Konsol Temizliği — n/a, no page rendered by this sub-task specifically; the baseline
+      `smokeTestGame3D.js` run above (which does render both `index.html` and `game3d.html`)
+      recorded zero unexpected console/page errors
+
+**AI Self-Review 2. Geçiş (§8.3):** re-read all ten run-109-through-118 entries in
+`3D_GAME_PROGRESS.md` directly (not summarized from memory or an earlier run's own recap) before
+writing the new `CATCH_UP.md` paragraph, to avoid restating a stale or incomplete picture; cross-
+checked every concrete claim (tree species count, seat-clustering fraction "12/14", the three named
+world events, the still-open blockers) against its own source ADR/entry rather than paraphrasing
+loosely. No `TEMP`/`HACK`/`FIXME`/`WORKAROUND`. Memory leak checklist: n/a, no runtime code touched.
+
+**Session Quality Gate (§8.6):** confidence **5/5** — mechanical, fully-verified reporting update,
+zero runtime risk, closes a real one-run-overdue governance cadence item. "6 ay sonra hâlâ net mi"
+tereddüdü yok — the entry names concrete features and file names, not vague "several improvements"
+language, matching the bar every prior `CATCH_UP.md` entry set.
+
+**World Evolution Report:**
+
+| Metric | Before (run start) | After (run 119 end) | Delta |
+|---|---|---|---|
+| `CATCH_UP.md` entries | 11 (last: run 108) | **12** | +1 (run 118 recap) |
+| Smoke suite | 34/34 | **34/34** | unchanged (docs-only) |
+| `checkSmokeCheckRegistry.js` | 34 checks/14 modules | **34 checks/14 modules** | unchanged |
+| ADR headers in `DECISIONS.md` | 144 | **144** | unchanged (no ADR this sub-task, by design) |
+| `perf_log.csv` rows | 58 | **59** | +1 (`run119`) |
+| Draw calls / triangles / geometries / textures | 50 / 608,296 / 48 / 17 | **unchanged** | 0 |
+| Open questions in `QUESTIONS_FOR_OWNER.md` | unchanged | **unchanged** | none added |
+| World Coverage (desktop / mobile) | 96.2% / 4.5% | 96.2% / 4.5% | değişmedi |
+| Tech debt count | 0 | **0** | değişmedi |
+
+**Oyuncu fark eder mi:** hayır — bu tamamen proje sahibine yönelik bir özet dosyası, oyunun kendisinde
+hiçbir şey değişmedi. Ama proje sahibi aylarca uzak kaldıktan sonra döndüğünde artık son 10
+çalıştırmada ne eklendiğini (ağaçlar, kale keşif bildirimi, üç yeni dünya olayı) hızlıca
+okuyabilecek, `3D_GAME_PROGRESS.md`'nin 12000+ satırını taramak zorunda kalmadan.
+
+**Next step for the next run:** fresh `origin/main` fetch and priority re-scan first, per §18.
+Bloklu kalan her şey değişmedi: 6 kale hâlâ dokusuz, FAZ 6 hayvanları (at/araba/köpek-kedi/kuş)
+model bekliyor. Given this run's own effort budget was spent on the overdue catch-up item rather
+than a further item-14 pick, the most natural next lever is either another `worldEvents.js`-style
+flavor addition (matches runs 115/116/141's own low-risk precedent) or growing
+`PHASE1_PREVIEW_RADIUS_CHUNKS` for Xaro/Night King's vegetation clustering (ADR-0140's own noted
+follow-up, needs its own perf-measurement sub-task per `debug/README.md`). Next platform check
+~run 132-142 (unchanged). Next rule consolidation ~run 136 (unchanged).
+
+**Addendum:** `git commit`/`git push origin work` (then PR) outcome and the stable-tag attempt are
+recorded in `STABLE_TAGS.md`.
