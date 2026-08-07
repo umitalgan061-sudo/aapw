@@ -356,3 +356,20 @@ Proje sahibinin mobil World Coverage'i yükseltme talebi kalıcı bir mühendisl
    kurallarını sıfırlayamaz.
 8. **Dinamik öncelik:** mobil World Coverage %98'in altındayken ve daha üst sırada blocking bug /
    performans / memory-leak problemi yokken bu program aktif iyileştirme alanlarından biridir.
+
+
+## 24. Gerçek Mobil Render Bütçesi Kapısı (run 132)
+
+Mobil World Coverage yarıçapı/LOD/vegetation yoğunluğu gibi resident yükü artırabilecek her yeni
+adım öncesinde `node scripts/checkMobilePerfBudget.js` PASS olmalıdır. Bu test Chromium'u gerçek
+`isMobile + hasTouch` context'iyle açar, `(pointer: coarse)` yolunun aktif olduğunu doğrular ve F2
+panelindeki gerçek `renderer.info` sayaçlarını kullanarak `DrawCalls < 500` ve `Triangles < 500K`
+bütçelerini otomatik uygular. Headless FPS yalnız trend sinyalidir; gerçek telefon 30-60 FPS hedefi
+olarak yorumlanmaz. `renderer.info` texture nesne sayısını verir fakat resident texture-memory byte
+miktarını vermediği için `<512 MB TextureMem` için sahte bir tahmin üretilmez; o madde gerçek cihaz /
+uygun profiler doğrulaması gerektirir. Bu kapı geçmeden mobil streaming radius'u bir üst seviyeye
+çıkarılmaz.
+
+**Periyodik platform kontrolü — run 132:** PWA installability + service-worker cache kontrolleri
+PASS, WebGL gerçek Chromium smoke ile PASS; repoda `package.json` olmadığı için `npm audit` hâlâ
+N/A. Bir sonraki periyodik kontrol yaklaşık run 152-162 aralığında yapılır.

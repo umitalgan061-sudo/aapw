@@ -1,0 +1,136 @@
+name: Run 132 Mobile Performance Budget
+
+on:
+  push:
+    branches:
+      - agent/run132-mobile-perf-budget
+    paths:
+      - 'scripts/checkMobilePerfBudget.js'
+      - 'scripts/applyRun132Records.py'
+      - '.github/workflows/run132-mobile-perf-budget.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run132-mobile-perf-budget
+  cancel-in-progress: false
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "7160b1c6cee8ed7252c59c1f6f19bc18c81cc479"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 180 GOVERNANCE.md
+          tail -n 220 3D_GAME_PROGRESS.md
+          tail -n 140 DECISIONS.md
+          tail -n 80 QUESTIONS_FOR_OWNER.md
+
+      - name: Syntax and integrity gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkMobilePerfBudget.js
+          python -m py_compile scripts/applyRun132Records.py
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Real mobile render-budget gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/mobile-perf.log"
+          MOBILE_SAMPLE="$(grep '\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/mobile-perf.log" | tail -n 1)"
+          test -n "$MOBILE_SAMPLE"
+          echo "MOBILE_SAMPLE=$MOBILE_SAMPLE" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log")"
+          test "$PASS_COUNT" -ge 34
+          echo "SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Periodic platform control
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          if test -f package.json; then npm audit --audit-level=high; else echo 'npm audit N/A: repository has no package.json'; fi
+          echo 'WebGL/browser boot covered by full smoke step.'
+
+      - name: Performance snapshot and self-review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run132 | tee "$RUNNER_TEMP/perf.log"
+          node scripts/analyzePerfTrend.js
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          echo "PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkMobilePerfBudget.js scripts/applyRun132Records.py; then exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Append governance records and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "7160b1c6cee8ed7252c59c1f6f19bc18c81cc479"
+          export RUN132_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN132_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          export RUN132_MOBILE_SAMPLE="$MOBILE_SAMPLE"
+          export RUN132_SMOKE_PASS_COUNT="$SMOKE_PASS_COUNT"
+          export RUN132_PERF_ROW="$PERF_ROW"
+          python scripts/applyRun132Records.py
+          node scripts/checkCheckpointConsistency.js
+          git config user.name 'Westeros Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add GOVERNANCE.md DECISIONS.md 3D_GAME_PROGRESS.md STABLE_TAGS.md perf_log.csv scripts/checkMobilePerfBudget.js scripts/applyRun132Records.py .github/workflows/run132-mobile-perf-budget.yml
+          git commit -m 'test(3d): enforce real mobile render budget before coverage growth'
+          git tag "$RUN132_TAG"
+          git push origin HEAD:agent/run132-mobile-perf-budget
+          git push origin "$RUN132_TAG"

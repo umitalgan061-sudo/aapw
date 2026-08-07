@@ -752,3 +752,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   608,296 triangle / 48 geometry / 17 texture / 290 MB heap (run120's baseline, unchanged — data-only
   addition). `git tag`/`git push origin <tag>` attempted per usual; local tag + this line serve as
   the checkpoint if the push hits the known `HTTP 403` restriction (§8.11).
+
+- stable-2026-08-07-1226 — run 132 mobile render-budget gate; mobile budget PASS, browser smoke 34/34+ PASS, platform checks PASS.

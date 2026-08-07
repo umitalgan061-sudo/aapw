@@ -13698,3 +13698,28 @@ kayıt migrasyonu yoktur.
 **Gelecek faz etkisi:** Yok. FAZ 9 ses/cila veya ilerideki bir ölüm/cenaze quest hattına bağımlılık
 eklemez; ileride böyle bir mekanik gelirse bu toast bağımsız kalabilir veya ayrı ADR ile
 bağlanabilir.
+
+
+## ADR-0156 — Mobil coverage artışı öncesinde gerçek mobile-context render-budget kapısı
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkMobilePerfBudget.js`, Playwright Chromium'u mobile+touch context'inde açıp
+coarse-pointer yolunu doğrular ve F2 `renderer.info` üzerinden DrawCalls<500 / Triangles<500K
+bütçelerini zorunlu kapı yapar. Texture-memory bytes tarayıcı tarafından doğrudan sunulmadığından
+bu CI aracı MB değeri tahmin etmez.
+
+**Neden:** Run 130 bounded streaming ile mobil resident footprint'i büyüttü. Sonraki radius/LOD
+adımlarının tahminle değil aynı gerçek runtime yolundan alınan ölçülebilir GPU-submission sayılarıyla
+yönetilmesi gerekiyor.
+
+**Alternatifler:** (1) Yalnız desktop `collectPerfSnapshot` kullanmak reddedildi; mobile coarse-pointer
+yolunu çalıştırmıyor. (2) Texture nesne sayısından MB uydurmak reddedildi; çözünürlük/format/mipmap
+bilgisi olmadan yanlış güven üretir. (3) Gerçek cihaz lab'ı tek zorunlu kapı yapmak şimdilik reddedildi;
+saatlik otomasyon için sürekli erişilebilir değil.
+
+**Sonuç:** Coverage büyütme işleri önce otomatik mobile render bütçesini kanıtlayacak. Gerçek cihaz
+FPS ve texture-memory doğrulaması ayrıca geçerliliğini korur.
+
+**Etkilenen sistemler:** dev-tool/CI, mobil performans yönetişimi; runtime gameplay davranışı yok.
+
+**Geri alma planı:** Yeni script/workflow kullanılmaz; runtime kaynakları bu ADR ile değiştirilmedi.
