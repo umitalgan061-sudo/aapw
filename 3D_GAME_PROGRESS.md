@@ -13532,3 +13532,13 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Memory leak checklist: yeni runtime listener/timer/DOM/geometry/material yok. Teknik borç: 1 (game3d.js 545/600, owner kararı bekliyor). Risk LOW. Güven 5/5.
 - ADR: runtime/mimari davranış değişmediği için yeni ADR gerekmiyor. World Evolution delta: oyun içeriği 0; test kapsamı +1 kalıcı katalog kalite guard'ı. Oyuncu fark eder mi: doğrudan hayır; gelecekte yinelenen event metninin oyuna girmesini engeller.
 - Sıradaki bağımsız adım: owner/asset blokları sürerken FAZ 8 düşük-risk içerik veya test-kalite ilerlemesi; catch-up ~run150.
+
+
+## Run 147 — FAZ 8 world-event expansion (2026-08-07 18:37 UTC)
+- Session Snapshot / concurrency: origin/main Run 146 diversity guard (`1616868`) üzerinden senkronize edildi. İlk Run 146 içerik girişimi tüm testleri geçti ancak başka oturum main'i ilerlettiği için final concurrency gate tarafından yayınlanmadan durduruldu; bu run temiz yeni base üzerinde 147 olarak yeniden kuruldu.
+- Alt görev: FAZ 8 WORLD_EVENTS kataloğuna üç özgün veri-only olay eklendi: mühürlü haberci, gündüz avlu talimi ve gece mezarlık nöbeti. Katalog 49→52; time-gated olaylar 15→17. Run 146 diversity guard yeni metinleri de doğruladı.
+- DoD: temiz origin/main baseline + post-change browser smoke 34/34+ PASS; diversity/catalog/Run143-145/Run147/PWA/cache/assets/dialogue/mobile/terrain/road/checkpoint/additive-only PASS; 3D boot zero console/page error.
+- World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi. Radius-5 ADR-0166 owner kararına bağlı kaldı.
+- Performans: 2026-08-07,run147,2,50,608296,48,17,368. Memory leak checklist: veri-kataloğu dışında yeni runtime state/listener/timer/DOM/geometry/material yok.
+- Teknik borç: 1 (`game3d.js` 545/600, değişmedi). Risk LOW. Güven 5/5.
+- World Evolution Report delta: +3 dünya olayı (toplam 52); yol/orman/kale/NPC/hayvan 0. Oyuncu fark eder mi: evet, gündüz/gece ve nötr atmosfer olay havuzu daha çeşitli.

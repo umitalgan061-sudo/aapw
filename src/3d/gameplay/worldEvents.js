@@ -163,6 +163,15 @@ const WORLD_EVENTS = Object.freeze([
 	 * stargazing). Gated `night`: studying the stars requires true darkness, same unambiguous-text rule
 	 * as every other gated entry here. */
 	{ id: 'stargazing_maester', icon: '🔭', title: 'Yıldız Gözlemi', desc: 'Gece yarısına yakın, kale kulesinde bir maester bakır bir aletle gökyüzünü inceliyor; kayıtlarına usulca bir şeyler not düşüyor.', color: '#3a5a7a', weight: WEIGHT.RARE, timeOfDay: 'night' },
+	/** Run 147 addition: a sealed-scroll courier arriving without a fixed hour, distinct from
+	 * `raven`/`maester_raven` (bird-delivered messages) and `horse_gallop` (unidentified distant rider). */
+	{ id: 'sealed_courier', icon: '✉️', title: 'Mühürlü Haberci', desc: 'Toz içindeki bir haberci kale kapısında atından inip balmumuyla mühürlenmiş bir tomar uzatıyor; üzerindeki arma uzaktan seçilemiyor.', color: '#8a5d45', weight: WEIGHT.UNCOMMON },
+	/** Run 147 addition: daylight weapons drill in the yard, distinct from `guard_change` (handover)
+	 * and `blacksmith_hammer` (crafting); explicitly day-gated by the text. */
+	{ id: 'training_yard_drill', icon: '🛡️', title: 'Avlu Talimi', desc: 'Gün ışığında kale avlusunda askerler kalkan ve tahta kılıçlarla sıra talimi yapıyor; komut sesleri taş duvarlarda yankılanıyor.', color: '#7f6f58', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	/** Run 147 addition: a quiet graveyard vigil, distinct from `mourning_bells` (audible loss
+	 * announcement) and `sept_prayer` (generic worship); true-night only. */
+	{ id: 'graveyard_vigil', icon: '🕯️', title: 'Mezarlık Nöbeti', desc: 'Gece karanlığında kale dışındaki mezarlıkta tek bir mum yanıyor; pelerinli bir siluet eski bir mezarın başında sessizce bekliyor.', color: '#57506f', weight: WEIGHT.RARE, timeOfDay: 'night' },
 ]);
 // Run 126 live count: 9 of 35 entries are time-gated; the JSDoc/comment above retain earlier runs'
 // snapshots rather than being edited in place (GOVERNANCE.md §2 madde 9, additive-only diff guard).
@@ -174,6 +183,7 @@ const WORLD_EVENTS = Object.freeze([
 // Run 143 live count: 11 of 43 entries are time-gated.
 // Run 144 live count: 13 of 46 entries are time-gated.
 // Run 145 live count: 15 of 49 entries are time-gated.
+// Run 147 live count: 17 of 52 entries are time-gated.
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
  * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test

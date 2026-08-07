@@ -14263,3 +14263,18 @@ yeniden numaralandırıldı — iki oturumun çalışması da korunuyor, hiçbir
 **Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` veri kataloğu, yeni `scripts/checkRun145WorldEvents.js` regresyon guard'ı. EventBus/UI API şekli, save formatı, terrain, PWA runtime listesi, deterministic PRNG algoritması ve mevcut event ağırlıkları değişmez.
 
 **Geri alma:** Yeni girdiler additive veri satırlarıdır; gelecekte yeni bir eligibility/filter katmanı ile devre dışı bırakılabilir. Mevcut satır silme/değiştirme gerektirmez.
+
+
+## ADR-0170 — FAZ 8 dördüncü üçlü dünya-olayı paketi (run 147)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Owner kararı bekleyen mobil radius-5 ve `game3d.js` 545/600 yapısal borç alanlarına dokunmadan FAZ 8 dünya-olayı havuzu üç veri-only olayla genişletilir. `sealed_courier` günün her saatinde, `training_yard_drill` yalnız gerçek gündüzde, `graveyard_vigil` yalnız gerçek gecede seçilebilir. Mevcut olaylar, ağırlıklar, eşikler, deterministic seçim algoritması ve EventBus/UI sözleşmesi değiştirilmez. Run 146'nın yeni diversity guard'ı da bu girdileri tekrar/benzerlik açısından doğrulamak zorundadır.
+
+**Neden:** Yüksek öncelikli açık maddeler hâlen manuel asset veya owner kararı bekliyor. Bu paket yeni asset istemeden mevcut güvenli world-event mekanizmasıyla oyuncunun gündelik/siyasi/tekinsiz atmosfer çeşitliliğini artırır.
+
+**Alternatifler:** Radius-5 tekrar denenmedi (ADR-0166); `game3d.js` bölünmedi (run 145 owner sorusu); kale/hayvan asset işi yeni lisanslı model girdisi olmadan başlatılmadı.
+
+**Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` veri kataloğu, Run 147 regresyon guard'ı. Terrain, save formatı, PWA runtime listesi, PRNG tüketim sayısı, mevcut event ağırlıkları ve 2D oyun değişmez.
+
+**Geri alma planı:** Yeni girdiler additive veri satırlarıdır; gelecekte eligibility/filter katmanı ile devre dışı bırakılabilir. Mevcut satır silme/değiştirme gerekmez.
