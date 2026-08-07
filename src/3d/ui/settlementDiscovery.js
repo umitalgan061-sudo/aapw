@@ -51,6 +51,10 @@ export class SettlementDiscovery {
 		this._eyebrow.textContent = 'Yeni yer keşfedildi';
 		this._name = document.createElement('strong');
 		this._root.append(this._eyebrow, this._name);
+		this._progress = document.createElement('span');
+		this._progress.className = 'g3d-settlement-discovery-progress';
+		this._progress.setAttribute('aria-label', 'Keşif ilerlemesi');
+		this._root.append(this._progress);
 		container.appendChild(this._root);
 	}
 
@@ -72,6 +76,7 @@ export class SettlementDiscovery {
 			// Storage can be unavailable in private/restricted PWA contexts; session discovery still works.
 		}
 		this._name.textContent = seat.name;
+		this._progress.textContent = `${this._discovered.size} / ${this._seats.length} yerleşim keşfedildi`;
 		this._root.hidden = false;
 		if (this._hideTimeoutId !== null) clearTimeout(this._hideTimeoutId);
 		this._hideTimeoutId = setTimeout(() => {

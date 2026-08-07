@@ -13329,3 +13329,33 @@ kalıcı kayıt migrasyonu yoktur.
 **Gelecek faz etkisi:** Yok. FAZ 9 ses/cila veya ilerideki canlı-model sistemine bağımlılık eklemez;
 bir baykuş modeli ileride gelirse bu toast bağımsız kalabilir veya ayrı ADR ile görsel olaya
 bağlanabilir.
+
+## ADR-0147 — Yerleşim keşfi bildiriminde kalıcı ilerleme bağlamı (run 122)
+
+**Risk seviyesi:** LOW
+
+**Karar:** FAZ 8 `SettlementDiscovery` bildirimine, yeni yer adı altında “keşfedilen / toplam
+yerleşim” sayacı eklendi. Sayaç aynı `role=status` canlı bölgesinin parçasıdır ve ayrıca Türkçe
+`aria-label="Keşif ilerlemesi"` taşır. Mevcut bildirim süresi, radius, storage anahtarı ve tekrar
+göstermeme davranışı değiştirilmedi.
+
+**Neden:** Run 117 bildirimi oyuncuya ilk varışı söylüyor fakat 14 koltuğun ne kadarının bulunduğunu
+göstermiyordu. Mevcut `_discovered` kümesi ve `_seats.length` zaten doğru ve maliyetsiz kaynaktır;
+ayrı menü veya ikinci kalıcı HUD yerine bildirimin içinde kısa bağlam sunmak masaüstü, mobil ve PWA
+kullanıcılarına keşif hedefini açıklarken ekranı sürekli kaplamaz.
+
+**Alternatifler:** (1) Sürekli açık bir koleksiyon paneli bu küçük adım için gereksiz DOM/listener ve
+mobil ekran yükü doğuracağı için reddedildi. (2) Yalnız yüzde göstermek 14 koltuk için somut ilerleme
+sayısından daha az anlaşılır bulundu. (3) Sayacı storage'a ayrıca yazmak reddedildi; mevcut id kümesi
+tek doğruluk kaynağıdır.
+
+**Sonuç / etkilenen sistemler:** `ui/settlementDiscovery.js` yalnız yeni bir span üretir ve keşif
+anında text günceller; `game3d.css` aynı kart içinde küçük responsive tipografi sağlar. Mevcut smoke
+kontrolü erişilebilir etiket ve `1 / 1` metnini doğrular. Yeni timer, listener, geometri, materyal,
+texture veya storage yazımı yoktur.
+
+**Geri alma planı:** Progress span, tek text güncellemesi, CSS bloğu ve ilgili assertion kaldırılarak
+önceki bildirim görünümüne dönülebilir; veri migrasyonu yoktur.
+
+**Gelecek faz etkisi:** İleride SaveSystem veya keşif günlüğü eklenirse bu sayaç mevcut id kümesini
+sunmaya devam edebilir; yeni fazı belirli bir UI mimarisine kilitlemez.
