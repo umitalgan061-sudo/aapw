@@ -22,6 +22,12 @@ export class SettlementCompass {
 		container.appendChild(this._root);
 		this._lastSeat = null;
 		this._lastDistanceBucket = -1;
+		this._seatFilter = null;
+	}
+
+	/** @param {((seat: {id?: string, name: string, x: number, z: number}) => boolean)|null} filter */
+	setSeatFilter(filter) {
+		this._seatFilter = typeof filter === 'function' ? filter : null;
 	}
 
 	/** @param {{x: number, z: number}} playerPosition @param {number} playerYawRadians */
@@ -29,6 +35,7 @@ export class SettlementCompass {
 		let nearest = null;
 		let nearestDistance = Infinity;
 		for (const seat of this._seats) {
+			if (this._seatFilter && !this._seatFilter(seat)) continue;
 			const distance = Math.hypot(seat.x - playerPosition.x, seat.z - playerPosition.z);
 			if (distance < nearestDistance) {
 				nearest = seat;

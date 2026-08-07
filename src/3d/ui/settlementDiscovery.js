@@ -58,6 +58,11 @@ export class SettlementDiscovery {
 		container.appendChild(this._root);
 	}
 
+	/** @param {string} seatId @returns {boolean} */
+	isDiscovered(seatId) {
+		return this._discovered.has(seatId);
+	}
+
 	/** @param {{x: number, z: number}} playerPosition */
 	update(playerPosition) {
 		for (const seat of this._seats) {

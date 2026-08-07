@@ -13386,3 +13386,34 @@ kalıcı veri migrasyonu gerekmez.
 
 **Gelecek faz etkisi:** İleride achievement veya ses sistemi gelirse `is-complete` durumu ayrı ADR
 ile event'e bağlanabilir; bu değişiklik şimdiden ödül mekaniği dayatmaz.
+
+## ADR-0149 — Pusula yalnız keşfedilmemiş yerleşimleri hedefler (run 124)
+
+**Risk seviyesi:** LOW
+
+**Karar:** FAZ 8 `SettlementCompass` opsiyonel bir seat filter kabul eder. Ana oyun bu filtreyi
+`SettlementDiscovery.isDiscovered(id)` ile bağlayarak pusulayı en yakın *keşfedilmemiş* koltuğa
+yöneltir; bütün koltuklar bulunduğunda pusula gizlenir. Filtre verilmezse önceki en-yakın davranış
+aynen sürer.
+
+**Neden:** Önceki pusula oyuncu yeni bir kaleye ulaştıktan sonra hâlâ en yakın olduğu için aynı
+kaleyi göstermeye devam ediyor, run-122/123 keşif hedefinin sonraki adımına yardım etmiyordu. Mevcut
+kalıcı id kümesini tek doğruluk kaynağı olarak kullanmak pusulayı gerçek bir keşif rehberine çevirir
+ve yeni storage şeması gerektirmez.
+
+**Alternatifler:** (1) Pusula içinde doğrudan localStorage okumak UI bileşenleri arasında anahtar
+çoğaltacağı için reddedildi. (2) Discovery'nin compass DOM'una doğrudan yazması sıkı bağımlılık
+oluşturur. (3) Keşfedilmiş koltukları göstermeye devam etmek yeni progress hedefiyle çelişir.
+Opsiyonel predicate iki modülü gevşek bağlı tutar.
+
+**Sonuç / etkilenen sistemler:** `SettlementDiscovery` salt-okunur `isDiscovered(id)` sunar;
+`SettlementCompass` `setSeatFilter()` ile filtre uygular; `game3d.js` ikisini bir kez bağlar. Filtre
+frame içinde mevcut 14 koltuk taramasına yalnız bir Set.has ekler. Tam filtre durumunda mevcut empty
+state yolu pusulayı gizler. Yeni listener, timer, DOM, geometry, material, texture veya storage yazımı
+yoktur.
+
+**Geri alma planı:** Tek wiring satırı ile iki küçük public method/filter guard kaldırıldığında eski
+en-yakın pusula davranışına dönülür; veri migrasyonu yoktur.
+
+**Gelecek faz etkisi:** İleride görev/fast-travel hedefleri aynı opsiyonel filtre API'sini farklı
+predicate ile kullanabilir; discovery storage formatına bağlanmak zorunda değildir.
