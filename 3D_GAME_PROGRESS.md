@@ -13633,3 +13633,48 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Memory leak checklist: yeni listener/timer/DOM/geometry/material yok; mevcut iki EventBus subscription ve flash timeout dispose sırasında temizlenmeye devam ediyor. Teknik borç: 1 (`game3d.js` 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
 - World Evolution Report delta: yol 0 km; orman 0 km²; kale/NPC/event/hayvan 0; coverage 0; asset/diyalog 0; ADR +1. Oyuncu fark eder mi: görsel olarak hayır; ekran okuyucu kullanan oyuncu artık can göstergesini semantik bir ölçer ve güncel sayısal değer olarak okuyabilir.
 - Sıradaki güvenli adım: run156 civarı kural konsolidasyonunu önceliklendir; owner bloklarına dokunma ve final concurrency gate'i koru.
+
+
+## Run 156 — §8.12 kural konsolidasyonu (2026-08-07 UTC, otonom zamanlanmış çalıştırma)
+- Session Snapshot / concurrency: container detached HEAD'de run155'in (`36d16fc`) tam ucunda başladı;
+  yerel `main` ref'i `git update-ref` ile origin/main'e hizalanıp `git checkout main` ile attached hale
+  getirildi (kayıp iş yok — origin/main zaten run155'teydi, yalnız container'ın klon anındaki yerel dal
+  referansı eskiydi/detached'tı, run154'ün notundaki aynı sınıf ortam tuhaflığı). `git fetch origin main`
+  başında ve commit öncesi çalıştırıldı, origin/main bu run boyunca değişmedi. `GOVERNANCE.md` (§1-29),
+  `CREDITS.md`, `3D_GAME_PROGRESS.md` run143-155, `DECISIONS.md` son 3 ADR (0175-0177),
+  `QUESTIONS_FOR_OWNER.md` tam okundu — operatör talimatındaki tüm "🆕" GOVERNANCE maddeleri daha önceki
+  runlarca zaten işlenmiş bulundu (paraphrase edilmiş biçimde), `GOVERNANCE.md`/`CREDITS.md` bu run'ın
+  başında değiştirilmedi.
+- Baseline: temiz origin/main üzerinde `node scripts/smokeTestGame3D.js` **34/34 PASS**, 0 console/page
+  error.
+- Alt görev — §8.12 Kural Seti Bakımı (run136'dan beri ~20 çalıştırma sonra beşinci konsolidasyon
+  geçişi, tam bu run'da düşüyordu): `GOVERNANCE.md` §1-29 baştan sona gözden geçirildi. §16 Ertelenmiş
+  Kurallar tablosu: SaveSystem/public API hâlâ yok (sahte pozitifler doğrulandı), smoke test hâlâ yeterli,
+  F2 `renderer.info` hâlâ yeterli — dördü de aktive olmadı. **Gerçek bulgu:** §15 Periyodik Platform
+  Kontrolü satırı run 112'den beri güncellenmemişti, oysa run 143 kendi kontrolünü zaten yapmıştı — kural
+  metni ile gerçek geçmiş arasında bir tutarsızlıktı, tam §8.12'nin yakalaması gereken türden. Kontrol
+  fiilen yeniden çalıştırıldı: `checkPwaInstallability.js` OK, `checkServiceWorkerCache.js` OK, `npm audit`
+  hâlâ N/A (package.json yok), WebGL smoke 34/34 PASS. §15 satırı run156/sonraki pencere ~176-186 olarak
+  güncellendi. `perf_log.csv` 95 satıra ulaştı (30+ eşiği zaten run96'da geçilmiş ve ADR-0137 ile ele
+  alınmıştı, yeniden açılacak bir şey yok). `RULES_CHANGELOG.md`'ye tek satırlık run156 girdisi eklendi.
+  Owner'a run151'de iletilen 4 açık madde (🔴 sızmış API anahtarı, mobil radius-5/ADR-0166,
+  `game3d.js` bölünmesi, world-event determinism/ADR-0172) hâlâ yanıt bekliyor; anti-spam kuralı gereği
+  bu run tekrar bildirmedi, yalnız Session Snapshot'ta okundu.
+- DoD: `node --check` N/A (bu run yalnız `.md` dosyalarına dokundu, hiçbir `.js` değişmedi); runtime
+  kodu/veri hiç değişmedi, mevcut 34/34 smoke baseline'ı geçerliliğini koruyor (§8.5 istisnası — net etki
+  salt dokümantasyon/denetim); `checkAdditiveOnlyDiff.js` PASS; `3D_GAME_PROGRESS.md` güncellendi; commit
+  atılacak. ADR gerekmedi (önceki konsolidasyon geçişleriyle — run76/96/116/136 — aynı desen: saf
+  denetim/düzeltme, yeni bir mimari/tasarım kararı yok).
+- Görsel doğrulama gerekmedi (§8.5 istisnası — render/UI/gameplay davranışı bit-eşit kaldı).
+- Performans: `2026-08-07,run156,2,50,608296,48,17,347` (`collectPerfSnapshot.js` ile gerçek ölçüm) —
+  drawCalls/triangles/geometries/textures run129-155 baseline ile bit-eşit (kod hiç değişmedi).
+- Memory leak checklist: N/A (kod değişmedi, yalnız dokümantasyon). Teknik borç: 1 (`game3d.js` 545/600,
+  owner kararı bekliyor, değişmedi). Risk LOW. Güven 5/5 — hiçbir tahmin/fabrikasyon yok, §15 düzeltmesi
+  gerçek script çıktılarıyla doğrulandı, "6 ay sonra hâlâ net mi" tereddüdü yok.
+- World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi. World
+  Evolution Report delta: yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog sayıları 0; toplam ADR
+  sayısı değişmedi (177). Oyuncu fark eder mi: hayır — bu run'ın net etkisi yalnızca yönetişim
+  dokümantasyonunun tutarlılığı, oyunun kendisi run 155'teki hâliyle bit-eşit kaldı.
+- Sıradaki adım: owner bloklarına (radius-5, `game3d.js` bölünmesi, world-event checksum fixture,
+  güvenlik anahtarı) dokunmadan bağımsız UI/erişilebilirlik veya test-kalite işi; sıradaki catch-up
+  ~run158, sıradaki platform kontrolü ~run176-186, sıradaki kural konsolidasyonu ~run176.

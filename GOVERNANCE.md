@@ -238,13 +238,16 @@ göreve geçilir.
   (`checkServiceWorkerCache.js`, ADR-0083), kota izlemesi run 66'da (F2 panelinin
   `navigator.storage.estimate()` satırı, ADR-0084) — ikisi de kalıcı regresyon korumasıyla.
 - **Periyodik Platform Kontrolü:** ~ayda bir (20-30 çalıştırmada bir) `npm audit`, PWA hâlâ
-  kurulabiliyor mu, WebGL bekleneni veriyor mu kontrol edilir. **Son kontrol: run 112 (2026-08-07,
-  bu çalıştırma, yeni ADR yok — bulgular değişmedi, sadece yeniden doğrulandı; bu run zaten kendi
-  Session Snapshot baseline'ının bir parçası olarak çalıştırdığı kontrolleri buraya da saydı, ayrı
-  bir alt görev açmadı)** — `npm audit`: hâlâ N/A (repoda hâlâ `package.json`/npm bağımlılığı yok).
-  PWA kurulabilirliği: `checkPwaInstallability.js` yeniden çalıştırıldı, hâlâ OK. WebGL:
-  `smokeTestGame3D.js` (33/33 PASS) bu run'ın kendi baseline+post-change re-run'larında da temiz.
-  (Önceki kontrol: run 91, 2026-08-06.) Bir sonraki kontrol ~run 132-142 civarında.
+  kurulabiliyor mu, WebGL bekleneni veriyor mu kontrol edilir. **Son kontrol: run 156 (2026-08-07,
+  bu çalıştırma, §8.12 kural konsolidasyonu geçişiyle birlikte — yeni ADR yok, bulgular değişmedi,
+  sadece yeniden doğrulandı)** — `npm audit`: hâlâ N/A (repoda hâlâ `package.json`/npm bağımlılığı
+  yok). PWA kurulabilirliği: `checkPwaInstallability.js` yeniden çalıştırıldı, hâlâ OK.
+  Service-worker cache tamlığı: `checkServiceWorkerCache.js` yeniden çalıştırıldı, hâlâ OK. WebGL:
+  `smokeTestGame3D.js` (34/34 PASS) bu run'ın kendi baseline'ında temiz. (Önceki kontrol: run 143,
+  2026-08-07 — bu maddenin run 112'den beri güncellenmediği fark edildi ve düzeltildi; run 143'ün
+  kendi kontrolü zaten yapılmıştı ama bu satıra hiç işlenmemişti, §8.12'nin kendisinin yakalaması
+  gereken tam da bu tür bir "geçersiz kalmış madde" örneğiydi.) Bir sonraki kontrol ~run 176-186
+  civarında.
 
 ---
 
