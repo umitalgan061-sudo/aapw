@@ -710,3 +710,15 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   silme. Full Playwright smoke 34/34 PASS, odaklı filter testi ve 390×844 mobil görsel kontrol PASS;
   perf 50 draw call / 608,296 triangle / 48 geometry / 17 texture / 307 MB heap.
   `stable-2026-08-07-0857` etiketi GitHub'a gönderildi.
+
+- **Run 125 (2026-08-07):** FAZ 8 dünya olayı havuzuna zamandan bağımsız `crow_flock` (Karga
+  Sürüsü) RARE-tier omen girdisi eklendi (ADR-0150) — iki eşzamanlı run'ın (`origin/main`
+  `87bd507`→`5f25f0b`→`9716657`) merkezinde iki gerçek merge çakışmasından sonra rebase edilip
+  ADR-0148→0150/run 123→125 olarak yeniden numaralandırıldı; Codex otomatik incelemesinin işaret
+  ettiği bir ZWJ-emoji iOS uyumluluk sorunu da (`🐦‍⬛`→`🐦`) aynı PR'da düzeltildi. PR #27 `main`
+  dalına `3c41b67` ile birleşti; 137 ekleme/2 silme. Full Playwright smoke suite değişiklik öncesi/
+  sonrası ve her iki rebase sonrası (toplam 5 kez) **34/34 PASS**; merge sonrası `main` üzerinde de
+  tekrar **34/34 PASS** doğrulandı, zero console/page error. Perf 50 draw call / 608,296 triangle /
+  48 geometry / 17 texture / 347 MB heap. `stable-2026-08-07-0907` etiketi bu run'da `git push
+  origin <tag>` ile denendi, yine `HTTP 403` ile reddedildi (§8.11'in bilinen kısıt kaydıyla
+  tutarlı) — yerel tag + bu satır kontrol noktası için yeterli sayıldı.
