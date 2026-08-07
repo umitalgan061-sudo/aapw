@@ -553,6 +553,11 @@ html, body {
 }
 
 
+.g3d-settlement-discovery.is-complete {
+  border-color: rgba(240, 217, 160, 0.95);
+  box-shadow: 0 0 18px rgba(200, 150, 10, 0.28);
+}
+
 .g3d-settlement-discovery-progress {
   margin-top: 4px;
   color: rgba(232, 212, 160, 0.82);

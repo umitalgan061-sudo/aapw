@@ -13359,3 +13359,30 @@ texture veya storage yazımı yoktur.
 
 **Gelecek faz etkisi:** İleride SaveSystem veya keşif günlüğü eklenirse bu sayaç mevcut id kümesini
 sunmaya devam edebilir; yeni fazı belirli bir UI mimarisine kilitlemez.
+
+## ADR-0148 — Son yerleşimde keşif tamamlama durumu (run 123)
+
+**Risk seviyesi:** LOW
+
+**Karar:** FAZ 8 `SettlementDiscovery`, mevcut keşfedilen/toplam sayacı son koltuğa ulaştığında
+bildirimin üst metnini “Tüm yerleşimler keşfedildi” yapar ve root'a `is-complete` sınıfı ekler.
+Tamamlama kartı mevcut 5 saniyelik timeout, polite live-region ve storage davranışını aynen kullanır.
+
+**Neden:** Run 122 toplam ilerlemeyi görünür yaptı ancak son `14 / 14` keşif, sıradan ara keşifle aynı
+geri bildirimi veriyordu. Oyuncunun dünya keşfi hedefini bitirdiğini kısa ve açık bir Türkçe mesajla
+belirtmek, yeni bir ödül/ekonomi sistemi icat etmeden hedefi anlamlı biçimde kapatır.
+
+**Alternatifler:** Kalıcı modal oyuncu kontrolünü keser; ses efekti FAZ 9 asset/lisans kararı
+ister; oyun içi para/başarım ödülü henüz var olmayan ekonomi/achievement sistemine bağımlılık
+oluşturur. Bu nedenle mevcut karta yalnız semantik metin ve hafif görsel vurgu seçildi.
+
+**Sonuç / etkilenen sistemler:** `ui/settlementDiscovery.js` yalnız son keşifte mevcut eyebrow
+metnini günceller ve sınıf ekler; CSS sınır/parlama vurgusu sağlar. Smoke kontrolü tek-koltuk fixture
+ile tamamlanma dalını deterministik doğrular. Yeni listener, timer, storage anahtarı, DOM root,
+geometri, materyal veya texture yoktur.
+
+**Geri alma planı:** Dört koşul/metin/sınıf satırı, beş CSS satırı ve üç assertion satırı kaldırılır;
+kalıcı veri migrasyonu gerekmez.
+
+**Gelecek faz etkisi:** İleride achievement veya ses sistemi gelirse `is-complete` durumu ayrı ADR
+ile event'e bağlanabilir; bu değişiklik şimdiden ödül mekaniği dayatmaz.
