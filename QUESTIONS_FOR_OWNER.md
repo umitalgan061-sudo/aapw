@@ -3,6 +3,13 @@
 Per `GOVERNANCE.md` §14: a real design/product decision logged here (with a temporary default)
 instead of guessed at silently. Newest entry at the bottom.
 
+**(run 151 not, 2026-08-07)** Bu dosyadaki 🔴 güvenlik maddesi (run 63, ADR-0081 — açık NVIDIA API
+anahtarı) ve üç açık yapısal madde (run 142/ADR-0166 mobil radius-5, run 145 `game3d.js` bölünmesi,
+run 149/ADR-0172 world-event determinism-checksum) run 151'de bir push bildirimiyle sahibe aktif
+olarak iletildi — artık yalnızca bu dosyada sessizce bekleyen kayıtlar değil. Sahip yanıt verene
+kadar gelecekteki runlar bu maddeleri tekrar bildirmeyecek (spam önleme), yalnız normal Session
+Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
+
 - **(run 55, ADR-0075) What ground slope should count as "too steep to walk" for kingdom seats /
   future terrain features?** No code in this project enforces a walkable-slope limit yet
   (`physics.js`'s ground-height snap follows terrain regardless of steepness), so there was no
