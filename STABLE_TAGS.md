@@ -782,3 +782,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   guard, world-event catalog (40 unique/9 gated), assets/PWA/cache/checkpoint/smoke-check-registry
   guards all PASS. Perf 50 draw call / 608,296 triangle / 48 geometry / 17 texture / 273 MB heap
   (run129-137 baseline, unchanged — data-only addition).
+
+- stable-2026-08-07-1604 — run 139 mobile radius readiness evidence; smoke 34/34+ PASS, additive-only PASS.
