@@ -245,3 +245,27 @@ instead of guessed at silently. Newest entry at the bottom.
   hiçbiri seçilmedi; gelecekteki runlar `game3d.js`'e yeni satır eklemekten kaçınıp (3)'ü fiilen
   uygulayarak dosyayı 600'ün altında tutmaya çalışacak, tavana ulaşılırsa (1) ya da (2) için owner
   yanıtı beklenecek.
+
+- **(run 149, ADR-0172) FAZ 8 dünya-olayı kataloğuna yeni içerik eklemek artık run 148'in kendi
+  sabit-checksum determinism guard'ıyla YAPISAL olarak çakışıyor — ADR-0166 (mobil radius-5) ve run
+  145'in `game3d.js` gözlemiyle aynı additive-only kısıtı.** Kataloğa TEK bir yeni olay eklemek bile
+  (mevcut hiçbir satır silinmeden/değiştirilmeden, sadece dizinin sonuna eklense bile) ağırlıklı
+  seçim havuzunun toplam ağırlığını değiştirdiği için `scripts/checkWorldEventDeterminism.js`'in
+  sabit seed'li 24 adımlık dizisini değiştiriyor — bu ampirik olarak denendi (geçici 1 olayluk deneme,
+  hemen geri alındı, commit edilmedi). Fixture'ı (`scripts/fixtures/world-events-seed-148.json`)
+  düzeltmenin tek yolu mevcut JSON içeriğini silip yeniden yazmak, bu da additive-only guard'ın
+  `.json` dosyaları için satır silme/değiştirme yasağını ihlal ediyor. **Sahipten istenen karar
+  (üçünden biri):** (1) Yalnızca bu tarz "sabit içerik kataloğunun anlık davranışını pinleyen"
+  determinism fixture dosyaları (`scripts/fixtures/world-events-seed-*.json` deseni ve onu tüketen
+  test dosyası) için additive-only guard'dan istisna — kataloğa her yeni içerik eklendiğinde fixture
+  yeni bir run numarasıyla yeniden üretilip üzerine yazılabilsin (silinen tek şey kendi eski
+  checksum'ını doğrulayan veri, gameplay/render kaynak kodu değil). (2) `checkWorldEventDeterminism.js`'i
+  invariant-only bir teste indirger (tam ID dizisini pinlemeden yalnız "aynı seed→aynı sonuç",
+  "farklı seed→farklı sonuç", gating kuralları — zaten smoke suite'in #7/#8 testleri bunun büyük
+  kısmını ayrıca kapsıyor) — additive-only'i ihlal etmeden YENİ bir dosya olarak eklenebilir, ama eski
+  checksum testi hâlâ FAIL etmeye devam edeceğinden bu tek başına yeterli değil; eski testin devre dışı
+  bırakılması/silinmesi de gerekir ve bu da (1) ile aynı istisnayı gerektirir. (3) FAZ 8 dünya-olayı
+  katalog büyümesini kalıcı olarak burada durdur — bu durumda item 14'ün bu alt-yolu kapanır,
+  gelecekteki "yeni özellik" çalışması başka, kataloğa dokunmayan alanlara yönelir. **Geçici
+  varsayılan:** hiçbiri seçilmedi; gelecekteki runlar sahip yanıtı gelene kadar `WORLD_EVENTS`
+  kataloğuna yeni girdi eklemeyecek (mevcut 52 olay ve determinism guard'ı olduğu gibi korunuyor).

@@ -14295,3 +14295,47 @@ yeniden numaralandırıldı — iki oturumun çalışması da korunuyor, hiçbir
 **Etkilenen sistemler:** test/CI (`scripts/checkWorldEventDeterminism.js`, fixture, GitHub Actions). Runtime `worldEvents.js`, EventBus, UI, PWA cache listesi ve save formatı değişmez.
 
 **Geri alma planı:** Yeni guard ve fixture additive dosyalardır; yanlış pozitif üretiyorsa sonraki additive policy katmanıyla koşullu devre dışı bırakılabilir. Mevcut kaynak satırı silme/değiştirme gerekmez.
+
+
+## ADR-0172 — FAZ 8 world-event determinism-checksum, additive-only ile YAPISAL çakışması (run 149)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Bu run FAZ 8 WORLD_EVENTS kataloğuna yeni içerik EKLEMEDİ. Bunun yerine, run 148'in
+`checkWorldEventDeterminism.js` sabit-checksum guard'ının kataloğa her yeni içerik eklendiğinde
+kaçınılmaz olarak FAIL edeceği, geçici bir üç-olayluk deneme (eklenip hemen geri alındı, commit
+edilmedi) ile ampirik olarak doğrulandı: `pickWeightedEvent`'in `totalWeight`/`pool` hesaplaması
+kataloğun TÜM içeriğine bağlı olduğundan, yeni bir olay eklemek — hatta dizinin sonuna, mevcut hiçbir
+satırı değiştirmeden eklense bile — sabit seed'in 24 adımlık seçim dizisini değiştiriyor.
+`scripts/fixtures/world-events-seed-148.json` içindeki checksum bu yüzden her katalog büyümesinde
+FAIL eder; fixture'ı düzeltmenin tek yolu mevcut JSON dosyasının içeriğini SİLİP yeniden yazmak, bu da
+`checkAdditiveOnlyDiff.js`'in `.json` dosyaları için satır silme/değiştirme yasağını ihlal eder.
+
+**Neden:** Bu, ADR-0166 (mobil radius-5) ve run 145'in `game3d.js` gözleminin AYNI yapısal sınıfı:
+additive-only guard, meşru/kasıtlı bir davranış değişikliği gerektiren bir dosyayı güncellemeyi
+teknik olarak imkânsız kılıyor. Fark: önceki ikisi "gelecekte bir gün" tavan sorunu iken, bu üçüncüsü
+FAZ 8'in kendi en aktif ilerleme alanını (item 14, run 143-147'nin doğrudan devamı) HEMEN bloke
+ediyor — kataloğa dokunan hiçbir gelecek run bu fixture'ı bozmadan geçemez.
+
+**Alternatifler:** (a) Fixture'ı yine de `--write-fixture` ile üzerine yazıp commit etmek — reddedildi,
+additive-only guard'ı doğrudan ihlal eder, kural proje sahibinin kendi eklediği (`3c7e4fb`) bir
+güvenlik kontrolü. (b) `checkWorldEventDeterminism.js`'in kendisini invariant-only bir teste
+dönüştürmek (tam ID dizisini pinlemeden yalnız "aynı seed aynı sonucu üretir" + "farklı seed farklı
+sonuç" + gating kurallarını doğrulamak — zaten smoke suite'in #7/#8 testleri bunun büyük kısmını
+kapsıyor) — bu, dosyanın MEVCUT satırlarını silmeyi/değiştirmeyi gerektirdiği için yine additive-only
+guard'a takılıyor; yalnız YENİ bir dosya (`scripts/checkWorldEventDeterminismInvariants.js`) olarak
+EKLENEBİLİR ama eski checksum testi hâlâ kataloğa her dokunuşta FAIL etmeye devam eder ve DoD'un
+"smoke test regresyonsuz" maddesini bloke eder — bu yalnız YARI bir çözüm, tam çözüm değil, bu yüzden
+bu run'da commit edilmedi. (c) Bu run kataloğa hiç dokunmadı, bulguyu belgeledi, sahibe sordu —
+seçilen yol.
+
+**Sonuç:** `checkWorldEventDeterminism.js`/fixture değişmedi, hâlâ mevcut 52 olayı doğru şekilde PASS
+ediyor. FAZ 8 içerik büyümesi (item 14'ün bu alt-yolu) sahip kararına kadar DURAKLATILDI — gelecekteki
+runlar `QUESTIONS_FOR_OWNER.md`'deki bu maddeye bakmadan yeni `WORLD_EVENTS` girdisi eklemeyecek.
+
+**Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` (dokunulmadı), `scripts/
+checkWorldEventDeterminism.js` + fixture'ı (dokunulmadı), gelecekteki FAZ 8 içerik runları.
+EventBus/UI/save/PWA/terrain hiçbiri etkilenmedi.
+
+**Geri alma planı:** Bu run kod/veri değişikliği yapmadı; geri alınacak bir şey yok. Sahip karar
+verince (aşağıdaki üç seçenekten biri) ilgili run o kararı uygulayacak commit'i atar.

@@ -6,6 +6,28 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 148 itibarıyla (2026-08-07)
+
+Telefonda görülebilen dünya alanı bir kez daha büyüdü: mobil cihazlar artık aynı anda 81 arazi
+parçasını canlı tutuyor (öncekinin neredeyse iki katı), uzaktaki ağaçlar da artık görünmüyor
+gerektiğinde otomatik gizlenip performansı koruyor — oyuncu bunu fark etmez, sadece telefon daha
+akıcı çalışır. Dünya olayları bildirim havuzu ciddi büyüdü: geceleyin işaret ateşleri ve meşaleli
+devriyeler, gündüz dilekçe kuyrukları ve avlu talimleri, gezgin şifacılar, soytarılar, çobanlar,
+yıldız gözleyen bir maester ve daha fazlası — havuz artık 40'tan 52 farklı karta çıktı, hepsi
+Türkçe ve özgün içerik. Perde arkasında iki koruma eklendi: artık hiçbir yeni olay metni bir
+öncekiyle kelimesi kelimesine aynı olamıyor (kopya-önleyici kontrol), ve dünyanın olay üretim
+sırası artık sabit bir "parmak izi" ile korunuyor — biri istemeden rastgelelik mantığını bozarsa
+hemen fark edilecek. Bir sonraki adım denendi ama bilerek geri alındı: telefonda alanı BİR kez daha
+büyütmek (radius 5) teknik olarak mümkün görünüyor ama projeye eklenen "sadece ekleme, asla
+satır silme" güvenlik kuralıyla çelişiyor — bu artık senin kararını bekleyen bir madde
+(`QUESTIONS_FOR_OWNER.md`, üç seçenek sunuluyor). Aynı çelişki, en büyük kod dosyasının (game3d.js)
+bir gün bölünmesi gerektiğinde de karşımıza çıkacak — şimdilik sorun değil ama bu da nota düşüldü.
+Açık kalan en büyük konular hâlâ aynı: 6 kale hâlâ dokusuz duruyor, at/araba/köpek-kedi/kuş gibi
+hayvanlar için gerçek 3D model bekleniyor, ve sızmış NVIDIA API anahtarını kendi tarafında iptal
+etmen hâlâ senin yapman gereken bir iş.
+
+---
+
 ## Run 138 itibarıyla (2026-08-07)
 
 Son 10 çalıştırmanın (129-138) en görünür gelişmesi telefonda: mobil dünyada aynı anda görülebilen
