@@ -35,8 +35,12 @@ export class DayNightClock {
 		this._root = document.createElement('aside');
 		this._root.className = 'g3d-day-night-clock';
 		this._root.setAttribute('aria-label', 'Oyun içi saat');
+		this._root.setAttribute('role', 'timer');
+		this._root.setAttribute('aria-live', 'off');
+		this._root.setAttribute('aria-atomic', 'true');
 		this._icon = document.createElement('span');
 		this._icon.className = 'g3d-day-night-clock-icon';
+		this._icon.setAttribute('aria-hidden', 'true');
 		this._icon.textContent = ICON_DAY;
 		this._time = document.createElement('span');
 		this._time.className = 'g3d-day-night-clock-time';
@@ -65,6 +69,7 @@ export class DayNightClock {
 			const hours = Math.floor(minuteOfDay / 60);
 			const minutes = minuteOfDay % 60;
 			this._time.textContent = `${pad2(hours)}:${pad2(minutes)}`;
+			this._root.setAttribute('aria-label', `Oyun içi saat ${pad2(hours)}:${pad2(minutes)}`);
 			this._lastMinuteOfDay = minuteOfDay;
 		}
 
