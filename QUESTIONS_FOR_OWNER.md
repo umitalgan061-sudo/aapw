@@ -196,3 +196,34 @@ instead of guessed at silently. Newest entry at the bottom.
   flatten-pad setiyle oluşturulan canlı mobil dünya manager'ı radius 4'e opt-in edildi. Böylece
   hiçbir mevcut kaynak/test satırı silinmedi veya değiştirilmedi, eski 49-chunk sözleşmesi tarihsel
   guard olarak yaşamaya devam ederken canlı oyun 81 resident chunk / 20.25 km²'ye çıktı.
+
+- **(run 142, ADR-0166) Radius 4→5 aynı additive-only çatışmasını BİR SONRAKİ artışta da tekrar
+  üretti — bu artık tek seferlik değil, YAPISAL/TEKRARLI bir kısıt görünüyor.** Run 140'ın kendi
+  `scripts/checkMobileRadius4LiveWorld.js` testi, run 130'un `checkMobileChunkStreaming.js`'inin
+  aksine, canlı oyunla AYNI "flattenPads.length >= 14" sinyalini kullanan bir manager kuruyor (bilinçli
+  bir tasarım: gerçek canlı-dünya yolunu test etmek için). Bu, onu run 130'un testinin sahip olduğu
+  doğal bağışıklığı vermiyor: radius 4'ten radius 5'e run-140 tekniğinin BİREBİR aynısıyla (aynı
+  dosyada zaten var olan `_loadSquareBeforeMobileRadius4Run140`/`_streamTowardsBeforeMobileRadius4Run140`
+  referanslarını radius 5 ile yeniden kullanan, hiçbir satırı silmeyen/değiştirmeyen bir sarmalayıcı)
+  geçmek denendi ve **run öncesi node ile doğrulandı** — ölçülebilir performans marjı bol (radius-5
+  readiness kanıtı: 74 draw call / 192.409 üçgen, 500/500.000 bütçesine göre — bkz.
+  `scripts/checkMobileRadius5Readiness.js`). Ama canlı davranış radius 5'e geçtiği an
+  `checkMobileRadius4LiveWorld.js`'in kendi sabit `loaded===81`/`area===20.25` beklentisi gerçek bir
+  regresyon olarak FAIL etti (additive-only guard bu satırların düzeltilmesini yasaklıyor). Değişiklik
+  bu run'da commit EDİLMEDİ — geri alındı, yalnız kanıt scripti (`checkMobileRadius5Readiness.js`,
+  runtime davranışı değiştirmiyor) kaldı. **Yapısal gözlem:** her gelecekteki radius artışı, bir
+  öncekinin kendi "canlı-dünya" testini aynı sebeple bozacak — çünkü o testin TÜM amacı o anki tam
+  sözleşmeyi sabitlemek. Bu, additive-only kuralı DEĞİŞMEDİKÇE mobil radius büyümesine fiilen bir tavan
+  koyuyor (şu an: 4, 81 chunk / 20.25 km² / ~%14.7 resident footprint). **Sahipten istenen karar
+  (üçünden biri):** (1) Yalnızca bu tarz "o anki canlı-dünya sözleşmesini doğrulayan" dev-only test
+  dosyaları (`scripts/checkMobile*LiveWorld.js` deseni) için additive-only guard'dan istisna — bir
+  sonraki artış geldiğinde eskisi SİLİNİP yenisiyle değiştirilebilsin (silinen tek şey kendi eski
+  sözleşmesini doğrulayan bir test, gameplay/render kaynak kodu değil). (2) Radius 4'ü kalıcı tavan
+  kabul et — bu durumda bu madde ve run 133/137/140/141/142'nin tamamı kapatılır, gelecekteki mobil
+  coverage çalışması yalnızca LOD/culling'e odaklanır. (3) Gelecekteki bu tarz testler baştan "floor"
+  (`loaded >= N`) biçiminde yazılsın ki bir sonraki artışta hâlâ PASS etsinler — ama bu yalnız BİR
+  sonraki artışı kurtarır, ondan sonrakini kurtarmaz (aynı sorun birkaç artış sonra geri döner), yine
+  de (1)'e göre daha az invaziftir ve owner onayı gerektirmez, bu yüzden owner (1) yerine bunu tercih
+  ederse run 143+ bunu uygulayabilir. Geçici varsayılan: hiçbiri seçilmedi, radius 4'te sabit kalınıyor
+  (run 140'ın durumu aynen korunuyor), gelecekteki runlar bu maddeye owner yanıtı gelene kadar tekrar
+  radius artışı denemeyecek.

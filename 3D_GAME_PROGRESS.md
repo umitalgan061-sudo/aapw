@@ -13389,3 +13389,104 @@ okuyabilir.
 - World Coverage: desktop %96.2; mobil resident terrain ~%14.7 (81 chunk / 20.25 km²), bu run coverage'i büyütmedi.
 - Memory leak checklist: yeni geometry/material/listener/timer yok; yalnız group.visible + küçük userData state. Teknik borç: 1 (`game3d.js` 545/600 civarı). Risk LOW. Güven 5/5.
 - World Evolution Report delta: yol 0 km, orman/ağaç sayısı 0, kale/NPC/event/hayvan 0; oyuncu uzaktaki gereksiz ağaç disklerinin çizilmemesini performans/temizlik olarak hisseder. Sıradaki adım: radius-5 readiness ölçümü.
+
+
+## Run 142 — mobile radius-5 readiness evidence; radius-5 live activation attempted and reverted (2026-08-07 ~19:40 UTC)
+
+**Session Snapshot / Concurrency:** Container started `HEAD` detached at an older `main` ref; `git
+fetch origin main` initially showed origin at run 140's `521e5d8` (same commit local `HEAD` was
+already detached at) — reset local `main` to `origin/main`, worked from there. **Mid-run
+concurrency hit (GOVERNANCE.md §8.14):** at commit time, `git fetch origin main` found origin had
+advanced past this run's starting point to `ee4709e` — a *different* concurrent autonomous session
+had independently landed its own "run 141" (live-radius-aware mobile vegetation culling,
+`ADR-0165` in that session's numbering) while this session was working. Per §8.14, rebased this
+run's commit onto the new `origin/main` tip instead of racing a duplicate push, and renumbered this
+run from the now-collided "run 141"/"ADR-0165" to **run 142**/**ADR-0166** throughout (this note,
+`STABLE_TAGS.md`, `perf_log.csv`) so both sessions' work coexist with no duplicate identifiers.
+`GOVERNANCE.md` read in full (§1-28). `3D_GAME_PROGRESS.md` tail (run 136-140), `DECISIONS.md` last 3
+ADRs (ADR-0162/0163/0164), `QUESTIONS_FOR_OWNER.md` in full (open items: leaked NVIDIA key still
+owner-side, radius question ✅ resolved via ADR-0164) all read before starting; the other session's
+run 141 vegetation-culling work was reviewed post-hoc during rebase (touches
+`world/mobileVegetationCulling.js` + a new exported `MOBILE_LIVE_WORLD_RADIUS_CHUNKS` binding in
+`chunkManager.js` — orthogonal to this run's radius work, no functional overlap).
+
+**Baseline regression guard:** full `node --check` sweep across every tracked `.js` file: zero errors.
+`checkAdditiveOnlyDiff.js` PASS. Full `smokeTestGame3D.js` **34/34 PASS** before any change, 0 FAIL, 0
+console/page errors. `checkAssetsManifest.js`/`checkWorldEventCatalog.js` (40/9)/`checkCheckpointConsistency.js`
+all PASS (re-verified again after the rebase onto run 141's tip).
+
+**Öncelik taraması (§18):** madde 1-3 önceki runlarda tamam doğrulandı (bu run yeniden dokunmadı).
+Madde 4 (kale dokulandırma) hâlâ manuel asset bekliyor. Madde 5-10 baseline taramasıyla temiz —
+`game3d.js` 540/600 WARN'ı değişmedi (teknik borç hâlâ 1). Madde 11 (World Coverage) bu run'ın odağı
+oldu (aşağıda). Madde 12 (FAZ 7 TAMAMLANDI, FAZ 5-6 model bekliyor), madde 13 (FAZ 11 model bekliyor).
+
+### Alt görev: Mobil radius 4→5 — readiness kanıtı tutuldu, aktivasyon denendi ve geri alındı (ADR-0166)
+
+`scripts/checkMobileRadius5Readiness.js` eklendi (run 139'un radius-4 readiness deseninin birebir
+aynısı, şu anki canlı radius 4'ü temel alarak radius 5'i projekte ediyor — runtime'a dokunmuyor).
+Gerçek `checkMobilePerfBudget.js` ölçümü: 34 draw call / 171.929 triangle (mevcut canlı radius-4
+dünyası). Radius 5 için konservatif projeksiyon: **74 draw call / 192.409 triangle**, 500/500.000
+bütçesine göre bol marj (426 draw call / 307.591 triangle headroom) — `governanceApproval: true`
+(owner'ın ADR-0164/QUESTIONS_FOR_OWNER.md'deki "Devam et" talimatı burada da geçerli sayıldı).
+
+Ardından ADR-0164'ün (run 140) BİREBİR aynı tekniğiyle — aynı dosyadaki
+`_loadSquareBeforeMobileRadius4Run140`/`_streamTowardsBeforeMobileRadius4Run140` referanslarını
+radius 5 ile yeniden kullanan, hiçbir mevcut satırı silmeyen/değiştirmeyen yeni bir additive
+sarmalayıcı katmanı — canlı radius 5'e geçiş denendi. `node --check` PASS, yeni yazılan
+`checkMobileRadius5LiveWorld.js` (run-140'ın kendi testinin birebir aynı deseni) 121 chunk/30.25 km²
+bekleyerek PASS etti. **Ama bu, run-140'ın KENDİ `checkMobileRadius4LiveWorld.js` testini gerçek bir
+regresyon olarak FAIL ettirdi** (`loaded===81`/`area===20.25` artık doğru değil, gerçek 121/30.25) —
+additive-only guard o dosyanın satırlarının düzeltilmesini yasaklıyor, GOVERNANCE.md §22 bilerek
+kırık bir testi bırakmayı yasaklıyor. **Runtime değişikliği (chunkManager.js sarmalayıcısı + yeni
+checkMobileRadius5LiveWorld.js) commit EDİLMEDEN tamamen geri alındı** — bu denemenin
+`src/3d/world/chunkManager.js` üzerindeki tek net etkisi sıfır fark, `checkMobileRadius4LiveWorld.js`
+tekrar 81/20.25 ile PASS. Yalnız runtime'a dokunmayan `checkMobileRadius5Readiness.js` kaldı.
+
+Bu, run 133/137/140'ın (ADR-0157/ADR-0164) çözdüğü sanılan additive-only/regresyon-testi çatışmasının
+TEK SEFERLİK olmadığını, YAPISAL/TEKRARLI olduğunu kanıtlıyor: her gelecekteki radius artışı, bir
+öncekinin kendi "canlı-dünya" testini aynı sebeple bozacak. `QUESTIONS_FOR_OWNER.md`'ye üç seçenekli
+yeni bir madde eklendi (run 142, ADR-0166) — bkz. ADR-0166 tam gerekçe için.
+
+**DoD:** node --check PASS (yeni script + chunkManager.js hem deneme hem geri-alma sonrası, rebase
+sonrası tekrar); baseline + post-change (post-revert) 34/34 smoke PASS; additive-only PASS;
+`checkMobileChunkStreaming.js`/`checkMobileRadius4LiveWorld.js`/`checkMobileTerrainLod.js`/
+`checkMobileVegetationLod.js`/`checkMobileSpawnVegetation.js`/`checkMobileRadiusReadiness.js`(eski)/
+`checkPwaInstallability.js`/`checkServiceWorkerCache.js`/`checkCheckpointConsistency.js`/
+`checkSmokeCheckRegistry.js` hepsi PASS; konsol/page error yok; teknik borç sayacı değişmedi (1);
+`3D_GAME_PROGRESS.md`/`DECISIONS.md`/`QUESTIONS_FOR_OWNER.md`/`STABLE_TAGS.md`/`perf_log.csv`
+güncellendi; commit atıldı. Görsel doğrulama gerekmedi (runtime davranışı sonuçta değişmedi — DoD'un
+§8.5 istisnası: net etki salt kanıt/dokümantasyon, gerçek geometri/materyal/kamera açısı değişmedi).
+
+**Performans:** Desktop run142 snapshot: `2026-08-07,run142,2,50,608296,48,17,347` — 50 draw call /
+608.296 triangle / 48 geometry / 17 texture, run129-141 ile bit-eşit (beklenen — bu run'ın
+chunkManager.js'e net katkısı sıfır). Mobil (canlı radius-4, değişmedi): 34 draw call / 171.929 triangle.
+
+**Memory leak checklist:** Denenen radius-5 wrapper geri alındığı için yeni listener/timer/DOM/
+geometry/material kalıcı olarak eklenmedi (deneme sırasında oluşan her şey `disposeAll()`/test
+teardown'ıyla veya dosya silme/revert ile temizlendi). Teknik borç: 1 (değişmedi, `game3d.js`
+540/600).
+
+**World Coverage:** desktop %96.2, mobil resident footprint ~%14.7 (81 chunk / 20.25 km²) — run 140/
+141'den değişmedi (bu run'daki radius-5 denemesi commit edilmediği için canlı davranış aynı kaldı).
+
+**Next step:** Radius 4→5 artık `QUESTIONS_FOR_OWNER.md`'de üç seçenekli yeni bir owner kararı
+bekliyor (additive-only istisnası / radius-4 kalıcı tavan / gelecekteki testleri "floor" biçiminde
+yazma) — yanıtlanmadan gelecekteki runlar radius artışını tekrar denemeyecek (readiness kanıtı zaten
+mevcut, tekrar ölçmeye gerek yok). 6 dokusuz kale + FAZ 6 hayvan modelleri hâlâ manuel asset kaynağı
+bekliyor. `game3d.js`'in 540/600 satır durumu izlenmeye devam ediyor. Sonraki catch-up ~run 148,
+platform kontrolü ~run 142-152 penceresinde, kural konsolidasyonu ~run 156. **Yeni:** birden fazla
+otonom oturumun aynı anda çalıştığı doğrulandı (bu run + run 141 aynı saatlerde farklı makinelerden
+push etti) — gelecekteki her run, GOVERNANCE.md §8.14'ü daha da titizlikle uygulamalı (commit'ten
+hemen önce mutlaka `git fetch`, run numarası/ADR numarası çakışması varsa yeniden numaralandır).
+
+**Oturum Kalite Kapısı:** 1 alt görev tamamlandı (readiness kanıtı + denenip-geri-alınan aktivasyon +
+üç seçenekli eskalasyon + bir eşzamanlılık çakışmasının temiz çözümü), güven skoru 5/5 — hiçbir
+tahmin/fabrikasyon yok, hepsi gerçek ölçüm/guard sonuçlarıyla doğrulandı; geri alma temiz ve tam.
+"6 ay sonra hâlâ net mi" tereddüdü yok — ADR-0166 hem denemeyi hem geri alma gerekçesini hem de
+owner'a sorulan üç seçeneği açıkça kaydediyor. Çalışma Süresi Sınırı/Çalıştırma Geneli Süre Tavanı
+içinde kalındı.
+
+**World Evolution Report:** yol/orman/kale/NPC/event/hayvan sayıları değişmedi, World Coverage
+değişmedi (radius-5 commit edilmedi), toplam ADR sayısı 165→166 (+1, run 141'in ADR-0165'i dahil).
+Oyuncu fark eder mi: hayır — bu run'ın net etkisi yalnızca gelecekteki bir karar için kanıt/
+dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.

@@ -14161,3 +14161,60 @@ mobileVegetationCulling runtime modülü, service-worker precache ve mobil regre
 
 **Geri alma planı:** Additive bir override ile updater no-op yapılabilir veya margin güvenli biçimde
 büyütülebilir; mevcut kaynak satırlarını silmek/değiştirmek gerekmez.
+
+
+## ADR-0166 — Radius 4→5 aynı additive-only çatışmasını tekrar üretti; readiness kanıtı tutuldu, aktivasyon geri alındı (run 142)
+
+**Risk:** LOW (yalnız kanıt/dokümantasyon değişikliği kaldı; runtime denemesi commit edilmeden geri alındı)
+
+**Karar:** `scripts/checkMobileRadius5Readiness.js` eklendi (run 139'un `checkMobileRadiusReadiness.js`
+deseninin birebir aynısı, ama şu anki canlı radius 4 temel alınarak radius 5 için ölçüldü — runtime
+davranışı değiştirmiyor, yalnız `checkMobilePerfBudget.js`'in gerçek ölçümünü okuyup konservatif üst
+sınır projeksiyonu yapıyor). Ardından ADR-0164/run-140'ın BİREBİR aynı tekniğiyle (aynı dosyadaki
+`_loadSquareBeforeMobileRadius4Run140`/`_streamTowardsBeforeMobileRadius4Run140` referanslarını radius
+5 ile yeniden kullanan yeni bir additive sarmalayıcı katmanı — hiçbir mevcut satır silinmedi/
+değiştirilmedi) canlı radius 5'e geçiş denendi. `node --check` PASS, yeni `checkMobileRadius5LiveWorld.js`
+(run-140'ın kendi `checkMobileRadius4LiveWorld.js`'inin birebir aynı deseni, 121 chunk/30.25 km²
+beklentisiyle) PASS oldu — ama bu, run-140'ın KENDİ `checkMobileRadius4LiveWorld.js` testini gerçek bir
+regresyon olarak FAIL ettirdi (`loaded===81`/`area===20.25` artık yanlış, gerçek değer 121/30.25).
+additive-only guard o dosyadaki satırların düzeltilmesini yasaklıyor, ve GOVERNANCE.md §22 (Regression
+Guard) mevcut bir testi bilerek FAIL bırakmayı yasaklıyor — bu yüzden runtime değişikliği (chunkManager.js
+sarmalayıcısı + yeni checkMobileRadius5LiveWorld.js) commit EDİLMEDEN tamamen geri alındı;
+`git diff --stat` `src/3d/world/chunkManager.js` için sıfır fark gösteriyor, `checkMobileRadius4LiveWorld.js`
+tekrar 81/20.25 ile PASS. Yalnız `checkMobileRadius5Readiness.js` (runtime'a dokunmayan kanıt scripti)
+kaldı ve commit edildi.
+
+**Neden:** Bu, run 133/137/140'ın (ADR-0157) çözdüğünü sandığı çatışmanın TEK SEFERLİK olmadığını,
+YAPISAL/TEKRARLI olduğunu kanıtlıyor. Run-140'ın kendi `checkMobileRadius4LiveWorld.js`'i, run-130'un
+`checkMobileChunkStreaming.js`'inin sahip olduğu doğal bağışıklığa (generic/test manager'ın canlı
+sinyalden — flattenPads>=14 — kasıtlı olarak ayrı tutulması) sahip DEĞİL, çünkü amacı zaten canlı
+davranışı doğrudan doğrulamaktı. Bu yüzden her gelecekteki radius artışı aynı duvara çarpacak: bir
+önceki artışın kendi canlı-dünya testi.
+
+**Alternatifler:** (1) `checkMobileRadius4LiveWorld.js`'i additive-only'den istisna tutup düzeltmek —
+reddedildi, sahibin açık onayı olmadan tek taraflı bir istisna kullanmak riskli, `QUESTIONS_FOR_OWNER.md`'ye
+üç seçenekli bir eskalasyon olarak bırakıldı. (2) Radius 5'i commit edip eski testi FAIL bırakmak —
+reddedildi, GOVERNANCE.md §22 açıkça yasaklıyor, "bilinen kırık test" bir sonraki run'ın baseline'ını
+kirletirdi. (3) Hiçbir kanıt bırakmadan tamamen vazgeçmek — reddedildi, ölçülebilir headroom kanıtı
+(74 draw call/192.409 üçgen, 500/500.000 bütçeye göre) gelecekteki bir karar için değerli, at gitmemeli.
+
+**Sonuç:** Canlı mobil radius 4'te sabit kalıyor (81 chunk/20.25 km², ADR-0164'ten değişmedi). Yeni
+`checkMobileRadius5Readiness.js` gelecekteki bir owner kararı için kanıt biriktiriyor.
+`QUESTIONS_FOR_OWNER.md`'ye üç seçenekli yeni bir madde eklendi (additive-only istisnası / radius-4
+kalıcı tavan / gelecekteki testleri "floor" biçiminde yazma). Regresyon: sıfır — tüm 34 smoke check +
+tüm guard scriptleri değişiklik öncesi/sonrası PASS.
+
+**Etkilenen sistemler:** Yalnız kanıt/dokümantasyon katmanı (`scripts/checkMobileRadius5Readiness.js`,
+bu ADR, `QUESTIONS_FOR_OWNER.md`). `src/3d/world/chunkManager.js` runtime davranışı ADR-0164'teki
+haliyle bit-eşit korunuyor.
+
+**Geri alma planı:** Gerekmez — hiçbir runtime kaynak dosyası değişmedi. Kanıt scripti gelecekte
+owner kararı sonrası kullanılabilir veya kullanılmayabilir; kaldırılması additive-only guard kapsamı
+dışında zaten (`.md` dosyaları gibi dev-only tooling script'leri de teknik olarak kaldırılabilir, ama
+bu script kaldırılmadı, sadece runtime denemesi geri alındı).
+
+**Not (eşzamanlılık, GOVERNANCE.md §8.14):** Bu ADR başlangıçta "run 141"/"ADR-0165" olarak yazıldı;
+commit'ten hemen önceki `git fetch` başka bir otonom oturumun aynı saatlerde bağımsız olarak
+"run 141"/"ADR-0165" (yukarıdaki, mobil vegetation culling) kullanıp origin/main'e push ettiğini
+ortaya çıkardı. Bu değişiklik, o oturumun tepesine rebase edilip run 142/ADR-0166 olarak
+yeniden numaralandırıldı — iki oturumun çalışması da korunuyor, hiçbir kimlik/numara çakışmıyor.

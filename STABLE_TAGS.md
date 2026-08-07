@@ -786,3 +786,12 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-07-1604 — run 139 mobile radius readiness evidence; smoke 34/34+ PASS, additive-only PASS.
 - stable-2026-08-07-1620 — run 140 live mobile radius 4; 81 chunks / 20.25 km², full governance validation pending this same CI run.
 - stable-2026-08-07-1641 — run 141 live-radius mobile vegetation culling; 34/34+ browser smoke, mobile/culling/PWA/additive gates PASS.
+- stable-2026-08-07-1940 — run 142 mobile radius-5 readiness evidence (74 draw call/192,409 triangle
+  projection); radius-5 live activation attempted then cleanly reverted (broke run-140's own
+  checkMobileRadius4LiveWorld.js — structural additive-only conflict, escalated to
+  QUESTIONS_FOR_OWNER.md/ADR-0166). World stays at run-140's radius 4 (81 chunks/20.25 km², before
+  run 141's vegetation-culling addition on top). Full Playwright smoke suite 34/34 PASS, 0 FAIL, 0
+  console/page errors both before and after; additive-only guard PASS (chunkManager.js's own
+  content bit-identical to the run-141-merged base this rebased onto); all mobile/PWA/cache/
+  checkpoint/world-event guards PASS. Desktop perf 50 draw call / 608,296 triangle / 48 geometry /
+  17 texture / 347 MB heap (run129-141 baseline, bit-identical).
