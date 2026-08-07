@@ -13499,3 +13499,12 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi. Radius-5 ADR-0166 owner kararına bağlı kaldı ve bu run tekrar denenmedi.
 - Memory leak checklist: veri-kataloğu dışında yeni runtime state/listener/timer/geometry/material yok. Teknik borç: 1 (game3d.js cap yaklaşımı, değişmedi). Risk LOW. Güven 5/5.
 - World Evolution Report delta: +3 dünya olayı; yol/orman/kale/NPC/hayvan 0. Oyuncu fark eder: evet, periyodik 3D dünya olayı toast havuzu daha çeşitli. Sıradaki bağımsız adım: bloklu asset/radius kararları sürerken FAZ 8 içerik ve düşük-risk gameplay iyileştirmeleri.
+
+
+## Run 144 — FAZ 8 world-event expansion (2026-08-07 17:41 UTC)
+- Alt görevler: FAZ 8 WORLD_EVENTS kataloğuna üç özgün olay eklendi: meşaleli gece devriyesi, gündüz meydan fermanı ve yırtık sancak bulgusu. Katalog 43→46; time-gated olaylar 11→13.
+- DoD: temiz origin/main baseline + post-change browser smoke 34/34+ PASS; world-event catalog/Run143/Run144 guard/PWA/cache/assets/dialogue/mobile/terrain/road/checkpoint/additive-only PASS; 3D boot zero console/page error.
+- World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²), değişmedi. Radius-5 ADR-0166 owner kararına bağlı kaldı ve bu run tekrar denenmedi.
+- Performans: 2026-08-07,run144,1,50,608296,48,17,347. Memory leak checklist: veri-kataloğu dışında yeni runtime state/listener/timer/geometry/material yok.
+- Teknik borç: 1 (game3d.js cap yaklaşımı, değişmedi). Risk LOW. Güven 5/5.
+- World Evolution Report delta: +3 dünya olayı; yol/orman/kale/NPC/hayvan 0. Oyuncu fark eder: evet, gündüz/gece atmosfer olay havuzu daha çeşitli. Sıradaki bağımsız adım: bloklu asset/radius kararları sürerken FAZ 8 düşük-risk içerik/gameplay ilerlemesi.

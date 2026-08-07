@@ -139,6 +139,15 @@ const WORLD_EVENTS = Object.freeze([
 	/** Run 143 addition: an itinerant healer offering herbs and remedies, distinct from maesters,
 	 * merchants, singers and sellswords already represented in the catalog. */
 	{ id: 'wandering_healer', icon: '🌿', title: 'Gezgin Şifacı', desc: 'Omzunda ot demetleri taşıyan gezgin bir şifacı kale yolunda durup yaralara merhem, ateşe çay ve uykusuzluğa kök sattığını söylüyor.', color: '#5f8a58', weight: WEIGHT.UNCOMMON },
+	/** Run 144 addition: a routine torch patrol visible only at true night, distinct from
+	 * `guard_change` (shift handover) and `night_signal_fire` (a distant warning beacon). */
+	{ id: 'torch_patrol', icon: '🔥', title: 'Meşaleli Devriye', desc: 'Karanlık bastığında kale dış yolunda meşaleli bir devriye ağır adımlarla ilerliyor; zırhların metal sesi gecede kısa kısa yankılanıyor.', color: '#b86a3c', weight: WEIGHT.COMMON, timeOfDay: 'night' },
+	/** Run 144 addition: a daylight public proclamation, distinct from tournament announcements and
+	 * petitioners waiting to speak; this is the lordship broadcasting a formal order to the crowd. */
+	{ id: 'herald_proclamation', icon: '📣', title: 'Meydan Fermanı', desc: 'Gün ışığında bir haberci kale meydanında tomarını açıp lordun yeni fermanını yüksek sesle okuyor; kalabalık her cümleden sonra birbirine bakıyor.', color: '#b8924a', weight: WEIGHT.UNCOMMON, timeOfDay: 'day' },
+	/** Run 144 addition: a silent aftermath clue rather than an active battle event; no time gate
+	 * because the discovered banner can plausibly remain beside the road at any hour. */
+	{ id: 'broken_banner_found', icon: '🚩', title: 'Yırtık Sancak', desc: 'Kale yolunun kenarında çamura bulanmış, arması seçilemeyen yırtık bir sancak bulundu — yakınlarda bir çatışma yaşanmış olabilir.', color: '#6f4a45', weight: WEIGHT.RARE },
 ]);
 // Run 126 live count: 9 of 35 entries are time-gated; the JSDoc/comment above retain earlier runs'
 // snapshots rather than being edited in place (GOVERNANCE.md §2 madde 9, additive-only diff guard).
@@ -148,6 +157,7 @@ const WORLD_EVENTS = Object.freeze([
 // Run 137 live count: 9 of 39 entries are time-gated.
 // Run 138 live count: 9 of 40 entries are time-gated.
 // Run 143 live count: 11 of 43 entries are time-gated.
+// Run 144 live count: 13 of 46 entries are time-gated.
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
  * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test

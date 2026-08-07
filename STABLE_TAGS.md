@@ -796,3 +796,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   checkpoint/world-event guards PASS. Desktop perf 50 draw call / 608,296 triangle / 48 geometry /
   17 texture / 347 MB heap (run129-141 baseline, bit-identical).
 - stable-2026-08-07-1726 — run 143 FAZ 8 world-event expansion + periodic platform check; 34/34+ browser smoke, catalog/PWA/cache/mobile/additive gates PASS.
+- stable-2026-08-07-1741 — run 144 FAZ 8 world-event expansion; 34/34+ browser smoke, catalog/PWA/cache/mobile/additive gates PASS.

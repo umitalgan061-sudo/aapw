@@ -14233,3 +14233,18 @@ yeniden numaralandırıldı — iki oturumun çalışması da korunuyor, hiçbir
 **Etkilenen sistemler:** `gameplay/worldEvents.js` veri kataloğu ve yeni statik regresyon guard'ı. EventBus/UI API şekli, save formatı, terrain, PWA runtime listesi ve deterministic PRNG algoritması değişmez.
 
 **Geri alma:** Olaylar veri-only additive girdilerdir; gelecekte yeni bir eligibility/filter katmanı ile devre dışı bırakılabilir. Mevcut satır silme/değiştirme gerektirmez.
+
+
+## ADR-0168 — FAZ 8 ikinci üçlü dünya-olayı paketi (run 144)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** ADR-0166 ile radius-5 owner kararına bağlı kalmaya devam ederken FAZ 8 dünya-olayı havuzu üç veri-only olayla genişletilir. `torch_patrol` yalnız gerçek gecede, `herald_proclamation` yalnız gerçek gündüzde, `broken_banner_found` ise günün her saatinde seçilebilir. Mevcut olaylar, ağırlıklar, eşikler, seçim algoritması ve EventBus/UI sözleşmesi değiştirilmez.
+
+**Neden:** Bu paket yeni asset veya ürün kararı gerektirmeden oyuncunun dünyada gördüğü atmosfer çeşitliliğini artırır. İki olay mevcut day/night eligibility mekanizmasını kullanır; üçüncü olay zaman bağımsız nadir bir çevresel hikâye izi ekler. Üçü de mevcut katalogdaki nöbet değişimi, işaret ateşi, turnuva duyurusu, dilekçe kuyruğu ve savaşçı gelişlerinden içerik olarak ayrıdır.
+
+**Alternatifler:** Radius-5 yeniden denenmedi çünkü ADR-0166 açık owner kararına bağlı; jon-guard 14/14 yapılmadı çünkü mevcut ton kararı korunuyor; kale/hayvan asset işi lisanslı model girdisi beklediği için bu run kapsamına alınmadı.
+
+**Etkilenen sistemler:** `src/3d/gameplay/worldEvents.js` veri kataloğu, Run 144 regresyon guard'ı ve CI doğrulama akışı. Terrain, save formatı, PWA runtime listesi, PRNG tüketim sayısı ve mevcut event ağırlıkları değişmez.
+
+**Geri alma:** Yeni girdiler additive veri satırlarıdır; gelecekte eligibility/filter katmanı ile devre dışı bırakılabilir. Mevcut satır silme/değiştirme gerektirmez.
