@@ -766,3 +766,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   `sceneManager.js`'e hiç dokunmayan additive `game3d.js` bloğu. Doğruluk + entegrasyon testleri
   (`checkMobileSpawnVegetation.js`) ve tam Playwright smoke suite 34/34 PASS, 0 konsol/sayfa hatası;
   mobil render bütçesi 31 draw call / 174.173 üçgen (hâlâ 500/500K bütçesinin çok altında).
+- stable-2026-08-07-1420 — run 135 checkpoint-format compatibility alias; same validated spawn-anchored vegetation checkpoint, 34/34 smoke PASS and mobile budget 31 draw calls / 174173 triangles.
+- stable-2026-08-07-1437 — run 136 mobile vegetation geometry LOD + rule consolidation; 34/34+ browser smoke PASS; mobile/perf/additive guards PASS.

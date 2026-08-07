@@ -427,3 +427,96 @@ export function disposeVegetation(group) {
 		mesh.material.dispose();
 	}
 }
+
+
+// Run 136 / ADR-0160 — mobile-only vegetation geometry LOD. The deterministic placement, species
+// rolls, instance transforms, materials, and desktop geometry above remain untouched. On coarse-
+// pointer devices only, this wrapper swaps each already-built InstancedMesh geometry for a lower-
+// segment equivalent while preserving the exact instance matrices/counts. Old geometries are
+// disposed immediately so the lower-detail path does not retain a full-resolution GPU duplicate.
+const MOBILE_VEGETATION_LOD_RUN136 = Object.freeze({
+	trunkRadialSegments: 4,
+	coneRadialSegments: 5,
+	sphereWidthSegments: 5,
+	sphereHeightSegments: 4,
+});
+
+function geometryTriangleCountRun136(geometry) {
+	if (geometry.index) return geometry.index.count / 3;
+	const positions = geometry.getAttribute('position');
+	return positions ? positions.count / 3 : 0;
+}
+
+function buildMobileVegetationGeometryRun136(species) {
+	const { trunk, foliage } = species;
+	const trunkGeometry = new THREE.CylinderGeometry(
+		trunk.radiusTop,
+		trunk.radiusBottom,
+		trunk.height,
+		MOBILE_VEGETATION_LOD_RUN136.trunkRadialSegments,
+	);
+	trunkGeometry.translate(0, trunk.height / 2, 0);
+
+	let foliageGeometry;
+	if (foliage.kind === 'cone') {
+		foliageGeometry = new THREE.ConeGeometry(
+			foliage.radius,
+			foliage.height,
+			MOBILE_VEGETATION_LOD_RUN136.coneRadialSegments,
+		);
+		foliageGeometry.translate(0, trunk.height + foliage.height / 2 - foliage.overlapMeters, 0);
+	} else if (foliage.kind === 'sphere') {
+		foliageGeometry = new THREE.SphereGeometry(
+			foliage.radius,
+			MOBILE_VEGETATION_LOD_RUN136.sphereWidthSegments,
+			MOBILE_VEGETATION_LOD_RUN136.sphereHeightSegments,
+		);
+		foliageGeometry.translate(0, trunk.height + foliage.radius - foliage.overlapMeters, 0);
+	} else {
+		throw new Error(`world/vegetation.js: unknown mobile LOD foliage kind "${foliage.kind}" for species "${species.id}"`);
+	}
+	return { trunkGeometry, foliageGeometry };
+}
+
+const _createVegetationBeforeMobileLodRun136 = createVegetation;
+createVegetation = function createVegetationWithMobileLodRun136(options) {
+	const result = _createVegetationBeforeMobileLodRun136(options);
+	const isMobileCoarsePointer = typeof window !== 'undefined' &&
+		typeof window.matchMedia === 'function' &&
+		window.matchMedia('(pointer: coarse)').matches;
+	if (!isMobileCoarsePointer || result.group.children.length === 0) return result;
+
+	let desktopTriangles = 0;
+	let mobileTriangles = 0;
+	for (let speciesIndex = 0; speciesIndex < SPECIES.length; speciesIndex++) {
+		const trunkMesh = result.group.children[speciesIndex * 2];
+		const foliageMesh = result.group.children[speciesIndex * 2 + 1];
+		desktopTriangles += geometryTriangleCountRun136(trunkMesh.geometry) * trunkMesh.count;
+		desktopTriangles += geometryTriangleCountRun136(foliageMesh.geometry) * foliageMesh.count;
+
+		const oldTrunkGeometry = trunkMesh.geometry;
+		const oldFoliageGeometry = foliageMesh.geometry;
+		const mobileGeometry = buildMobileVegetationGeometryRun136(SPECIES[speciesIndex]);
+		trunkMesh.geometry = mobileGeometry.trunkGeometry;
+		foliageMesh.geometry = mobileGeometry.foliageGeometry;
+		oldTrunkGeometry.dispose();
+		oldFoliageGeometry.dispose();
+
+		mobileTriangles += geometryTriangleCountRun136(trunkMesh.geometry) * trunkMesh.count;
+		mobileTriangles += geometryTriangleCountRun136(foliageMesh.geometry) * foliageMesh.count;
+	}
+
+	result.group.userData.mobileVegetationLodRun136 = Object.freeze({
+		active: true,
+		desktopTriangles,
+		mobileTriangles,
+		reductionRatio: desktopTriangles > 0 ? 1 - mobileTriangles / desktopTriangles : 0,
+		placedCount: result.placedCount,
+	});
+	return result;
+};
+
+/** Read-only diagnostics used by the Run 136 mobile vegetation regression gate. */
+export function getMobileVegetationLodStatsRun136(group) {
+	return group?.userData?.mobileVegetationLodRun136 ?? null;
+}

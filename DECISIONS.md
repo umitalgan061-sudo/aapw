@@ -13928,3 +13928,36 @@ terrain gibi chunk-bazlı akması) ayrı, kendi ADR'sini hak eden daha büyük b
 kaydırma tekniği (shifted-sampler + group.position telafi) o gelecekteki chunk-bazlı sisteme de
 doğrudan taşınabilir bir örüntü. SaveSystem/public API yok; save/API uyumluluk kapıları
 tetiklenmez. Yeni asset yok, lisans/PWA cache manifest değişikliği gerekmez.
+
+
+## ADR-0160 — Mobile vegetation geometry LOD
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Coarse-pointer mobil cihazlarda procedural vegetation'ın deterministik yerleşim ve
+instance matrisi aynen korunurken trunk/foliage primitive segmentleri daha düşük geometriyle
+çizilecek. Pine/round türleri, renkler, materyaller ve tree count değişmeyecek; desktop yolu mevcut
+geometriyi kullanmaya devam edecek. Run 135'in mobil spawn-çapalı ikinci vegetation diski de aynı
+`createVegetation` canlı binding'ini kullandığı için otomatik olarak aynı LOD politikasına tabi olur.
+
+**Neden:** Run 134 terrain distance-LOD mobil triangle yükünü düşürdü. Run 135, mobil spawn çevresinde
+134 ağacı görünür hale getirerek gerçek görsel-tamlık boşluğunu kapattı fakat mobil toplamı
+31 draw call / 174.173 triangle'a çıkardı. Vegetation zaten InstancedMesh kullandığı için draw-call
+ucuz; en anlamlı sıradaki kazanç instance sayısını veya seed yerleşimini bozmadan mesh başına
+vertex/triangle azaltımıdır.
+
+**Alternatifler:** (1) Ağaç yoğunluğunu düşürmek reddedildi; görsel içerik ve deterministik yerleşim
+sayısını azaltır. (2) Billboard/impostor texture eklemek ertelendi; yeni asset/cache/texture-memory
+yükü getirir. (3) Per-instance her-frame distance compaction şimdilik ertelendi; önce statik mobile
+geometry LOD'nin gerçek kazancı ölçülür.
+
+**Sonuç:** Mobilde aynı ağaçlar ve aynı yerleşim daha düşük triangle maliyetiyle çizilir. Eski
+geometry swap sırasında dispose edilir. `checkMobileVegetationLod.js` gerçek Chromium mobile/touch
+context'inde en az %25 vegetation triangle azaltımını regresyon kapısı yapar.
+
+**Etkilenen sistemler:** `world/vegetation.js`, hem orijin hem spawn-çapalı mobil vegetation grupları,
+mobil render bütçesi ve görsel doğrulama. Terrain, roads, settlements, gameplay, 2D oyun ve PWA cache
+içeriği değişmez.
+
+**Geri alma planı:** Run 136 additive wrapper'ını devre dışı bırakan yeni bir additive override ile
+`_createVegetationBeforeMobileLodRun136` davranışına dön; mevcut satırları silme/değiştirme.
