@@ -703,3 +703,10 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   özellik diff'i 76 ekleme/0 silmedir. Full Playwright smoke 34/34 PASS, odaklı completion kontrolü
   ve 390×844 mobil görsel kontrol PASS; perf 50 draw call / 608,296 triangle / 48 geometry /
   17 texture / 242 MB heap. `stable-2026-08-07-0848` etiketi GitHub'a gönderildi.
+
+- **Run 124 (2026-08-07):** FAZ 8 pusulası en yakın keşfedilmemiş yerleşime ilerleyecek ve 14/14
+  sonrasında gizlenecek şekilde discovery state'e bağlandı (ADR-0149). Eşzamanlı Claude PR #27'nin
+  `work` dalı korunarak özellik ayrı PR #28 ile `main` dalına `18fc13e` olarak birleşti; 88 ekleme/0
+  silme. Full Playwright smoke 34/34 PASS, odaklı filter testi ve 390×844 mobil görsel kontrol PASS;
+  perf 50 draw call / 608,296 triangle / 48 geometry / 17 texture / 307 MB heap.
+  `stable-2026-08-07-0857` etiketi GitHub'a gönderildi.
