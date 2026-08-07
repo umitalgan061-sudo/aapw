@@ -77,6 +77,10 @@ export class SettlementDiscovery {
 		}
 		this._name.textContent = seat.name;
 		this._progress.textContent = `${this._discovered.size} / ${this._seats.length} yerleşim keşfedildi`;
+		if (this._seats.length > 0 && this._discovered.size === this._seats.length) {
+			this._eyebrow.textContent = 'Tüm yerleşimler keşfedildi';
+			this._root.classList.add('is-complete');
+		}
 		this._root.hidden = false;
 		if (this._hideTimeoutId !== null) clearTimeout(this._hideTimeoutId);
 		this._hideTimeoutId = setTimeout(() => {

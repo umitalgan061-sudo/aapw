@@ -12517,3 +12517,39 @@ konsolidasyonu ~run 136.
 kaynak bütçeleri desktop limitlerinin çok altındadır. Yeni sayaç bir HTML span olduğundan 3D metrik
 artışının nedeni değildir; önceki “son bütçe değişmedi” ifadesi kod-etki analizidir, bu satır ise bu
 konteynerin ölçülen gerçek anlık değeridir. Tam browser smoke suite **34/34 PASS** tamamlandı.
+
+## This Run (2026-08-07, run 123 — Codex continuation)
+
+**Concurrency/snapshot:** `origin/main` yeniden fetch edildi, açık PR olmadığı doğrulandı ve `work`
+güncel run-122 stable merge'i (`87bd507`) üzerine kuruldu. Asset blokları değişmedi; FAZ 8 keşif
+akışında run-122 sayacının doğal son-durum boşluğu seçildi.
+
+### Sub-task: tüm yerleşimler keşfedildi tamamlama geri bildirimi (ADR-0148)
+
+Son koltuk keşfedildiğinde mevcut kart artık “Tüm yerleşimler keşfedildi” diyor ve hafif altın
+parlama taşıyor. İlerleme satırı (`14 / 14`) korunuyor; modal, yeni ödül sistemi veya kalıcı HUD
+eklenmiyor. Desktop, mobil ve offline PWA aynı mevcut modülü kullandığından üç platformu kapsıyor.
+Değişiklik eklemelidir: mevcut kaynak satırı silinmedi.
+
+**DoD / doğrulama:** Değişen JS dosyaları syntax-clean. Gerçek Chromium odaklı testi mevcut range,
+persistence, privacy-storage fallback, timeout ve dispose kontrollerinin yanında completion metni ve
+`is-complete` sınıfını doğruladı. 390×844 mobil ekran görüntüsü incelendi; vurgu viewport içinde ve
+kontrolleri kapatmıyor. Tam smoke suite, registry, PWA/cache ve performans kontrolleri bu run'ın test
+kaydında yer alır. Teknik borç: **0**; güven: **5/5**.
+
+**Memory-leak / performans:** Mevcut root ile birlikte temizlenen yalnız bir CSS sınıfı/metin
+mutasyonu; yeni listener/timer/DOM root/geometry/material/texture/storage yazımı yok. 3D render
+bütçesine etkisi yoktur.
+
+**World Evolution Report:** 14 keşfedilebilir koltuk değişmedi; keşif kartı bir yeni completion
+durumuna sahip oldu; smoke registry 34/14 ve coverage 96.2% / 4.5% değişmedi; ADR sayısı 147'den
+**148**'e çıktı. Oyuncu fark eder: evet — Westeros'taki son koltuğa vardığında keşif hedefinin
+bittiğini açıkça görür.
+
+**Next step:** taze fetch/öncelik taraması; asset bekleyen 6 kale ve FAZ 6 türleri değişmedi.
+Catch-up ~run 128, platform kontrolü ~run 132-142, kural konsolidasyonu ~run 136.
+
+**Run-123 performans addendum:** `collectPerfSnapshot.js run123` başarıyla tamamlandı ve
+`perf_log.csv`'ye 1 FPS / 50 draw call / 608,296 triangle / 48 geometry / 17 texture / 242 MB heap
+satırı eklendi. Kaynak metrikleri run-120 doğrulanmış baseline ile aynıdır ve bütçelerin altındadır.
+Tam browser smoke suite **34/34 PASS** tamamlandı.

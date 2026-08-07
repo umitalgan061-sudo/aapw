@@ -28,6 +28,9 @@ async function checkSettlementDiscovery(browser, baseUrl) {
 			const reportsDiscoveryProgress = root.textContent.includes('1 / 1 yerleşim keşfedildi')
 				&& root.querySelector('.g3d-settlement-discovery-progress')?.getAttribute('aria-label') === 'Keşif ilerlemesi';
 			if (!reportsDiscoveryProgress) throw new Error('Settlement discovery progress is missing or inaccessible');
+			const celebratesCompletion = root.classList.contains('is-complete')
+				&& root.textContent.includes('Tüm yerleşimler keşfedildi');
+			if (!celebratesCompletion) throw new Error('Final settlement discovery is not celebrated');
 			const fitsMobileViewport = root.getBoundingClientRect().left >= 0
 				&& root.getBoundingClientRect().right <= window.innerWidth;
 			await new Promise((resolve) => setTimeout(resolve, 30));
