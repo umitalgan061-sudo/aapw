@@ -697,3 +697,9 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   desktop/mobile görsel kontrol PASS; perf snapshot 55 draw call / 646,282 triangle / 49 geometry /
   22 texture / 242 MB heap. `stable-2026-08-07-0832` etiketi merge commit'ine oluşturuldu ve
   GitHub'a başarıyla gönderildi.
+
+- **Run 123 (2026-08-07):** FAZ 8 keşif akışına son yerleşimde Türkçe completion mesajı ve
+  `is-complete` görsel vurgusu eklendi (ADR-0148). PR #25 `main` dalına `ce0d7bf` ile birleşti;
+  özellik diff'i 76 ekleme/0 silmedir. Full Playwright smoke 34/34 PASS, odaklı completion kontrolü
+  ve 390×844 mobil görsel kontrol PASS; perf 50 draw call / 608,296 triangle / 48 geometry /
+  17 texture / 242 MB heap. `stable-2026-08-07-0848` etiketi GitHub'a gönderildi.
