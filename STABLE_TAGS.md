@@ -625,3 +625,23 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   question in `QUESTIONS_FOR_OWNER.md` (discrete tier/gate choice, not a calibration constant
   needing a real playtest); the run-63 leaked-NVIDIA-key item remains open, unchanged, still pending
   owner action.
+
+- **Run 116 (2026-08-07):** Sub-tasks — (1) §8.12 rule consolidation pass (3rd, run 96 -> run 116,
+  no stale/conflicting rule found, logged to `RULES_CHANGELOG.md`); (2) `direwolf_track`, a new RARE,
+  ungated `worldEvents.js` flavor entry (DECISIONS.md ADR-0143). Baseline + post-change: full
+  `node --check` sweep clean, `checkSmokeCheckRegistry.js` 33 checks/13 modules unaffected,
+  `terrainSeatSafetyCheck.js` 14/14 and `roadNetworkSafetyCheck.js` 13/13 unaffected (out-of-scope
+  change, checked as due diligence anyway), `collectPerfSnapshot.js run116` bit-identical to run115
+  (config-data-only change), real 2-viewport headless-Chromium proof (desktop 1280x720 + mobile
+  390x844) showing the exact toast title/desc text and an independently-proven *ungated* claim (fires
+  at both forced-noon and forced-midnight `nightFactor`), mobile toast position (`top: 184px`)
+  matching ADR-0141/0142's own recorded anchor exactly, zero console/page errors throughout. Game
+  opens without issue post-merge (merge commit `ae2f0b5` is a real merge of `work` into `main`, no
+  conflicts; full `node --check` sweep + `checkSmokeCheckRegistry.js` + a full post-merge
+  `smokeTestGame3D.js` re-run — **33/33 PASS**, 0 FAIL — all re-confirmed clean against the merged
+  tree). Local tag `stable-2026-08-07-0555` created at `ae2f0b5` (PR #16 merge). `git push origin
+  work` + PR #16 → `main` merge succeeded (`8f167cc..ae2f0b5`). `git push origin <tag>` still
+  rejected, same `HTTP 403` standing block since run 58 (GOVERNANCE.md §8.11: a local tag + this
+  entry satisfies the checkpoint). No new open question in `QUESTIONS_FOR_OWNER.md` (discrete
+  tier/gate choice, not a calibration constant needing a real playtest); the run-63
+  leaked-NVIDIA-key item remains open, unchanged, still pending owner action.
