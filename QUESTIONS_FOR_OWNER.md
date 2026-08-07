@@ -186,3 +186,13 @@ instead of guessed at silently. Newest entry at the bottom.
   şu an masaüstünde 14 koltuktan 12'sinde aktif (Xaro ve Night King, önizleme diskinin dışında kaldığı
   için hariç), mobilde hiçbirinde (bkz. ADR-0140'ın Qualification-rule scope notu) — bu bilinçli bir
   kapsam kararı, hata değil.
+
+
+- **✅ ÇÖZÜLDÜ (run 140, ADR-0164) Mobil World Coverage radius 3→4 için run 133/137'deki
+  additive-only / sabit regression testi çatışması:** Proje sahibi 2026-08-07'de doğrudan
+  **"Devam et"** diyerek radius büyütme çalışmasına devam edilmesini istedi. Run 140, iki seçenekten
+  birini zorla seçmek yerine üçüncü ve daha güvenli additive yolu uyguladı: eski generic radius-3
+  regression testi aynen çalışır bırakıldı; yalnız gerçek `sceneManager` tarafından settlement
+  flatten-pad setiyle oluşturulan canlı mobil dünya manager'ı radius 4'e opt-in edildi. Böylece
+  hiçbir mevcut kaynak/test satırı silinmedi veya değiştirilmedi, eski 49-chunk sözleşmesi tarihsel
+  guard olarak yaşamaya devam ederken canlı oyun 81 resident chunk / 20.25 km²'ye çıktı.

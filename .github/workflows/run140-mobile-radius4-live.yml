@@ -1,0 +1,179 @@
+name: Run 140 Live Mobile Radius 4
+
+on:
+  push:
+    branches:
+      - agent/run140-mobile-radius4-live
+    paths:
+      - '.github/workflows/run140-mobile-radius4-live.yml'
+
+permissions:
+  contents: write
+
+env:
+  BASE_SHA: 8ee92da632543a5d5bf5c2bed0c2a986ba7710f6
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 80 QUESTIONS_FOR_OWNER.md
+          tail -n 120 GOVERNANCE.md
+
+      - name: Baseline browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke-before.log"
+          BEFORE_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke-before.log")"
+          test "$BEFORE_COUNT" -ge 34
+
+      - name: Apply additive live radius-4 implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN140_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN140_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          echo "RUN140_TAG=$RUN140_TAG" >> "$GITHUB_ENV"
+          python scripts/applyRun140MobileRadius4.py
+          printf '%s\n' "- $RUN140_TAG — run 140 live mobile radius 4; 81 chunks / 20.25 km², full governance validation pending this same CI run." >> STABLE_TAGS.md
+
+      - name: Syntax and integrity gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/chunkManager.js
+          node --check scripts/checkMobileRadius4LiveWorld.js
+          python -m py_compile scripts/applyRun140MobileRadius4.py
+          node scripts/checkCheckpointConsistency.js || true
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git diff --check
+
+      - name: Legacy radius-3 regression must remain green
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+
+      - name: Live radius-4 regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileRadius4LiveWorld.js
+
+      - name: Live mobile render budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/mobile-perf.log"
+          MOBILE_SAMPLE="$(grep '\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/mobile-perf.log" | tail -n 1)"
+          test -n "$MOBILE_SAMPLE"
+          echo "RUN140_MOBILE_PERF=${MOBILE_SAMPLE#*sample }" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke after change
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          echo "RUN140_SMOKE=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Mobile visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureRun130MobileEvidence.js
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run140-mobile-radius4-evidence
+          path: artifacts/run130-mobile/*.png
+          if-no-files-found: error
+
+      - name: Performance snapshot and self-review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run140
+          node scripts/analyzePerfTrend.js
+          git diff --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          grep -q 'MOBILE_LIVE_WORLD_RADIUS_RUN140 = 4' src/3d/world/chunkManager.js
+          grep -q '## 28. Mobil Radius-4 Canlı-Dünya Aktivasyon Kapısı' GOVERNANCE.md
+          grep -q 'ADR-0164' DECISIONS.md
+
+      - name: Finalize checkpoint records
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path('3D_GAME_PROGRESS.md')
+          text = p.read_text()
+          marker = '- CI final mobile sample:'
+          if marker in text:
+              raise SystemExit('final marker already present')
+          with p.open('a') as f:
+              f.write(f"- CI final mobile sample: {os.environ['RUN140_MOBILE_PERF']}\n")
+          PY
+          node scripts/checkCheckpointConsistency.js
+
+      - name: Final concurrency gate, commit, tag and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "Westeros Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/3d/world/chunkManager.js GOVERNANCE.md QUESTIONS_FOR_OWNER.md DECISIONS.md 3D_GAME_PROGRESS.md STABLE_TAGS.md perf_log.csv scripts/applyRun140MobileRadius4.py scripts/checkMobileRadius4LiveWorld.js .github/workflows/run140-mobile-radius4-live.yml
+          git commit -m "perf(3d): enable live mobile radius 4 (run 140)"
+          git tag "$RUN140_TAG"
+          git push origin HEAD:agent/run140-mobile-radius4-live
+          git push origin "$RUN140_TAG"

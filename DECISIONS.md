@@ -14101,3 +14101,37 @@ coverage ~%8.9'da kalır.
 **Etkilenen sistemler:** Yalnız doğrulama katmanı ve kayıtlar; gameplay/render/PWA runtime davranışı yok.
 
 **Geri alma planı:** Yeni guard gelecekte çağrılmayabilir; runtime kodu değiştirilmedi.
+
+
+## ADR-0164 — Live mobile world radius 4 via additive runtime qualification
+
+**Risk:** MEDIUM
+
+**Karar:** Run 130'un generic radius-3 `ChunkManager` sözleşmesini değiştirmeden, yalnız gerçek mobil
+oyun dünyası manager'ını run-140 additive sarmalayıcısı ile radius 4'e yükselt. Canlı manager,
+`sceneManager` tarafından verilen tam settlement flatten-pad seti ve mobil boot `loadSquare(0,0,2)`
+yolunun birlikte görülmesiyle nitelendirilir. Bu durumda boot ve sonraki streaming 4 chunk yarıçapı
+kullanır; run-134 terrain LOD dış halkayı 16 segmentte tutar.
+
+**Neden:** Run 139 ölçümü radius 4 için konservatif olarak 63 draw call / 186,777 triangle üst sınırı
+gösterdi; mevcut mobil bütçeler 500 draw call / 500K triangle. Ancak doğrudan eski radius sabitini veya
+`scripts/checkMobileChunkStreaming.js` beklentilerini değiştirmek additive-only kuralıyla çatışıyordu.
+Canlı-runtime qualification hem performans kazanımını açar hem de tarihsel regression testini bozmadan
+korur.
+
+**Alternatifler:** (1) `checkMobileChunkStreaming.js` için additive-only istisnası verip testi yeniden
+yazmak — reddedildi, çünkü artık gerekli değil. (2) Radius 3'ü kalıcı tutmak — reddedildi, owner devam
+etme talimatı verdi ve ölçülebilir performans marjı var. (3) Eski testi atlamak — reddedildi; regression
+guard değeri kaybolurdu.
+
+**Sonuç:** Canlı mobil resident terrain 49→81 chunk, 12.25→20.25 km², yaklaşık %8.9→%14.7 resident
+footprint. Generic/test `ChunkManager` radius-3 davranışı değişmez. Ek outer ring FAR LOD kullanır ve
+bounded eviction 81 resident chunk sınırını korur.
+
+**Etkilenen sistemler:** `world/chunkManager.js` mobil canlı-world streaming; mobil terrain LOD;
+world coverage raporlama; mobil performans/test kapıları. Desktop, 2D oyun, PWA cache formatı, seed ve
+height sampler etkilenmez.
+
+**Geri alma planı:** Run-140 additive wrapper'ı gelecekte devre dışı bırakacak daha yeni bir additive
+qualification/feature gate eklenebilir; eski run-130/134 wrapper'ları yerinde olduğundan fallback radius
+3 davranışı korunmuştur. Mevcut satır silme/değiştirme gerekmez.

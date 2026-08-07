@@ -249,3 +249,48 @@ ChunkManager.prototype.streamTowards = function streamTowardsWithMobileTerrainLo
 		this.loaded.set(key, replacement);
 	}
 };
+
+
+// Run 140 / ADR-0164 — live mobile world radius 4 without invalidating the historical run-130
+// radius-3 regression contract. The old generic ChunkManager behavior remains intact: a standalone
+// mobile manager that calls streamTowards(..., 2) still gets radius 3, so
+// scripts/checkMobileChunkStreaming.js continues to verify the exact run-130 baseline. The real
+// game-world manager is distinguishable because sceneManager supplies the full settlement flatten-
+// pad set and performs the mobile boot loadSquare(0, 0, STREAM_RADIUS_CHUNKS) before player
+// streaming begins. Only that live-world path is promoted to radius 4. This keeps additive-only
+// governance intact, avoids a one-off test rewrite exception, and raises resident terrain from
+// 49 chunks / 12.25 km² to 81 chunks / 20.25 km² while run-134 distance LOD keeps the new outer
+// ring at FAR=16 segments. Desktop and generic/test managers remain unchanged.
+const MOBILE_LIVE_WORLD_RADIUS_RUN140 = 4;
+const MOBILE_LIVE_WORLD_MIN_FLATTEN_PADS_RUN140 = 14;
+
+function isLiveMobileWorldManagerRun140(manager) {
+	return isMobileCoarsePointerRun134() &&
+		Array.isArray(manager.flattenPads) &&
+		manager.flattenPads.length >= MOBILE_LIVE_WORLD_MIN_FLATTEN_PADS_RUN140;
+}
+
+const _loadSquareBeforeMobileRadius4Run140 = ChunkManager.prototype.loadSquare;
+ChunkManager.prototype.loadSquare = function loadSquareWithLiveMobileRadius4Run140(centerX, centerZ, radius) {
+	const isLiveBoot = isLiveMobileWorldManagerRun140(this) &&
+		radius === 2 &&
+		centerX === 0 &&
+		centerZ === 0;
+	if (!isLiveBoot) return _loadSquareBeforeMobileRadius4Run140.call(this, centerX, centerZ, radius);
+	this.mobileLiveWorldRadius4Run140 = true;
+	this.mobileTerrainLodCenterRun134 = { x: centerX, z: centerZ };
+	return _loadSquareBeforeMobileRadius4Run140.call(this, centerX, centerZ, MOBILE_LIVE_WORLD_RADIUS_RUN140);
+};
+
+const _streamTowardsBeforeMobileRadius4Run140 = ChunkManager.prototype.streamTowards;
+ChunkManager.prototype.streamTowards = function streamTowardsWithLiveMobileRadius4Run140(centerChunkX, centerChunkZ, radius) {
+	if (!this.mobileLiveWorldRadius4Run140) {
+		return _streamTowardsBeforeMobileRadius4Run140.call(this, centerChunkX, centerChunkZ, radius);
+	}
+	return _streamTowardsBeforeMobileRadius4Run140.call(
+		this,
+		centerChunkX,
+		centerChunkZ,
+		Math.max(radius, MOBILE_LIVE_WORLD_RADIUS_RUN140),
+	);
+};

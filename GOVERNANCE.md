@@ -422,3 +422,27 @@ Chromium render örneğini alır ve radius 4'e eklenecek 32 dış-halka terrain 
 gibi kötümser bir üst sınır hesaplar. Üst sınır DrawCalls<500 ve Triangles<500K kapılarını geçse bile bu yalnız
 "ölçülebilir render bütçesi açısından hazır" sinyalidir; sahip onayının yerine geçmez. Texture-memory <512 MB ve
 gerçek telefon 30-60 FPS hedefleri uygun gerçek cihaz/profiler olmadan uydurulmaz.
+
+
+## 28. Mobil Radius-4 Canlı-Dünya Aktivasyon Kapısı (run 140)
+
+Mobil World Coverage radius artışı artık iki ayrı sözleşmeyi birlikte korur:
+
+1. **Tarihsel/generic regression sözleşmesi:** `scripts/checkMobileChunkStreaming.js`, run 130'un
+   bağımsız `ChunkManager` davranışını 49 resident chunk / 12.25 km² olarak doğrulamaya devam eder.
+   Bu test silinmez, gevşetilmez veya atlanmaz.
+2. **Canlı oyun dünyası sözleşmesi:** gerçek `sceneManager` tarafından settlement flatten-pad setiyle
+   oluşturulan ve mobil boot `loadSquare(0,0,STREAM_RADIUS_CHUNKS)` yolundan geçen manager, additive
+   run-140 sarmalayıcısı ile radius 4'e yükselir: 81 resident chunk / 20.25 km² (~%14.7 resident
+   footprint). Run-134 terrain LOD dış halkayı FAR=16 segmentte tutar.
+3. Radius-4 DONE sayılmadan önce hem eski radius-3 regression guard hem yeni
+   `scripts/checkMobileRadius4LiveWorld.js`, `scripts/checkMobilePerfBudget.js`, 34/34 browser smoke,
+   additive-only guard, PWA/cache/terrain/road/checkpoint kapıları PASS olmalıdır.
+4. Canlı mobil render ölçümü `<500 draw call` ve `<500K triangle` bütçelerini aşarsa radius 4
+   yayınlanmaz; branch geri alınır veya sonraki optimizasyon görevine dönülür.
+5. Desktop davranışı değiştirilemez. Yeni radius artışları (4→5+) ayrıca yeni readiness ölçümü,
+   görsel kanıt ve ayrı ADR gerektirir; run 140 otomatik emsal sayılmaz.
+
+Bu desen, additive-only kuralını delmeden eski regression sözleşmesini koruyup gerçek oyun manager'ı
+ayrı bir opt-in/live-runtime yolu olarak büyütür. Yeni test veya runtime kodu bu ayrımı belirsizleştirirse
+6 ay sonra okunabilirlik kapısı gereği refactor/ADR değerlendirmesi yapılır.
