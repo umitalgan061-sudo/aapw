@@ -664,3 +664,21 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   entry satisfies the checkpoint). No new open question in `QUESTIONS_FOR_OWNER.md` (pure reporting
   update, no design decision to weigh); the run-63 leaked-NVIDIA-key item remains open, unchanged,
   still pending owner action.
+
+- **Run 120 (2026-08-07):** Sub-task — `falconer_flight` world event (ADR-0145), a COMMON, day-gated
+  `worldEvents.js` flavor-pool addition. Baseline + post-change: full `node --check` sweep clean
+  (88 files), `checkSmokeCheckRegistry.js` 34 checks/14 modules unaffected, `terrainSeatSafetyCheck.js`
+  14/14 and `roadNetworkSafetyCheck.js` 13/13 unaffected (out-of-scope change, checked as due
+  diligence anyway), full `smokeTestGame3D.js` **34/34 PASS** both before and after,
+  `collectPerfSnapshot.js run120` bit-identical to run119's last recorded row (`50/608296/48/17`).
+  Real-Node proof (4000-seed reachability sweep + 2000-seed × 5-forced-midnight-draw gate-leak
+  check) recorded in `DECISIONS.md` ADR-0145. Game opens without issue post-merge (merge commit
+  `a790371` is a real merge of `work` into `main`, no conflicts; full `node --check` sweep +
+  `checkSmokeCheckRegistry.js` + a full post-merge `smokeTestGame3D.js` re-run — **34/34 PASS**,
+  0 FAIL — all re-confirmed clean against the merged tree). Local tag `stable-2026-08-07-0810`
+  created at `a790371` (PR #20 merge). `git push origin work` + PR #20 → `main` merge succeeded
+  (`709dce3..a790371`). `git push origin <tag>` still rejected, same `HTTP 403` standing block
+  since run 58 (GOVERNANCE.md §8.11: a local tag + this entry satisfies the checkpoint). No new
+  open question in `QUESTIONS_FOR_OWNER.md` (discrete tier/gate choice, not a calibration constant
+  needing a real playtest); the run-63 leaked-NVIDIA-key item remains open, unchanged, still
+  pending owner action.
