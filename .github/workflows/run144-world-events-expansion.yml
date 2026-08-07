@@ -6,6 +6,13 @@ on:
       - agent/run144-world-events-expansion
     paths:
       - '.github/workflows/run144-world-events-expansion.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/run144-world-events-expansion.yml'
+      - 'scripts/applyRun144WorldEvents.py'
+      - 'scripts/checkRun144WorldEvents.js'
 
 permissions:
   contents: write
@@ -20,6 +27,7 @@ jobs:
       - name: Checkout full history
         uses: actions/checkout@v4
         with:
+          ref: agent/run144-world-events-expansion
           fetch-depth: 0
 
       - name: Setup Node
