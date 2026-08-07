@@ -144,3 +144,10 @@ instead of guessed at silently. Newest entry at the bottom.
   bir oyun testi "çok kolay ölüyorum"/"hiç saldırmıyor" derse ilk bakılacak yer bu sabitler. Ayrıca
   şu an ölümde can yenilenmesi dışında bir bedel yok (ceza/geri yükleme mekaniği yok) — bunun
   yeterli mi yoksa ileride bir bedel eklenmeli mi, ayrı bir tasarım kararı olarak açık bırakıldı.
+
+- **(run 111, ADR-0138) Yeni prosedürel ağaç sistemi (`world/vegetation.js`) ne kadar yoğun/seyrek
+  olmalı — 30 ağaç/km² doğru mu hissettiriyor?** Bu projenin ilk gerçek bitki örtüsü eklemesi, gerçek
+  bir oyun testiyle kalibre edilmedi (bu türden hiçbir önceki referans değer de yok).
+  **Geçici varsayılan:** `world/vegetation.js`'in `TARGET_DENSITY_PER_KM2 = 30` sabiti kullanılıyor —
+  tek satırlık bir değişiklik. Çok seyrek/çok yoğun hissettirirse veya belirli bir bölgede (örn.
+  kale çevresi kümeleri) farklı yoğunluk istenirse, bu sabit ilk bakılacak yer.

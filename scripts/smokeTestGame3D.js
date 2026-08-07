@@ -33,6 +33,7 @@
  * - `game3dSmokeChecksControlsHelp.js` — responsive controls-reference widget (run 104, ADR-0131).
  * - `game3dSmokeChecksSettlementCompass.js` — nearest-settlement compass widget (run 106, ADR-0133).
  * - `game3dSmokeChecksDayNightClock.js` — day/night clock widget (run 107, ADR-0134).
+ * - `game3dSmokeChecksVegetation.js` — procedural instanced-tree scatter placement rules (run 111, ADR-0138).
  *
  * The split history: run 40 (`game3dSmokeChecks.js` hit 596/600), run 64 (a fifth check module rather
  * than growing `game3dSmokeChecksMovement.js`, already at 614/600), run 68 (that 614-line violation
@@ -64,6 +65,7 @@ const dialogueTouchChecks = require('./game3dSmokeChecksDialogueTouch.js');
 const controlsHelpChecks = require('./game3dSmokeChecksControlsHelp.js');
 const settlementCompassChecks = require('./game3dSmokeChecksSettlementCompass.js');
 const dayNightClockChecks = require('./game3dSmokeChecksDayNightClock.js');
+const vegetationChecks = require('./game3dSmokeChecksVegetation.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
@@ -100,6 +102,7 @@ async function main() {
 		results.push(await controlsHelpChecks.checkControlsHelp(browser, baseUrl));
 		results.push(await settlementCompassChecks.checkSettlementCompass(browser, baseUrl));
 		results.push(await dayNightClockChecks.checkDayNightClock(browser, baseUrl));
+		results.push(await vegetationChecks.checkVegetation(browser, baseUrl));
 		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));

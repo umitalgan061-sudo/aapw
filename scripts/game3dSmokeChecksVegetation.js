@@ -1,0 +1,106 @@
+/** Procedural vegetation regression check (run 111, ADR-0138). */
+
+const NAV_TIMEOUT_MS = 10_000;
+
+async function checkVegetation(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const THREE = await import('/src/3d/vendor/three/three.module.js');
+			const { createVegetation, disposeVegetation, isPlaceablePosition, distancePointToSegment2D } =
+				await import('/src/3d/world/vegetation.js');
+
+			// Flat ground well above sea level everywhere, except a steep ridge along x=200 and a
+			// synthetic depression south of z=-500 (below sea level) — a deliberately simple sampler,
+			// not real terrain.js noise, so every assertion below is exact-value, not approximate.
+			const FLAT_HEIGHT = 50;
+			const SEA_LEVEL = 6;
+			const sampleHeightMeters = (x, z) => {
+				if (z < -500) return 0; // "underwater" region
+				if (Math.abs(x - 200) < 1) return FLAT_HEIGHT + 40; // near-vertical ridge face
+				return FLAT_HEIGHT;
+			};
+			const seats = [{ x: 1000, z: 1000 }];
+			const roadEdges = [{ points: [{ x: -50, z: 0 }, { x: 50, z: 0 }] }];
+
+			// distancePointToSegment2D — exact-value on a known horizontal segment.
+			const segmentDistanceExact = distancePointToSegment2D(0, 10, -50, 0, 50, 0) === 10;
+			const segmentDistancePastEndpoint = distancePointToSegment2D(100, 0, -50, 0, 50, 0) === 50;
+
+			// isPlaceablePosition — one assertion per exclusion rule, all far from every OTHER rule's
+			// trigger zone so each test isolates exactly one condition.
+			const acceptsOrdinaryFlatGround = isPlaceablePosition(2000, 2000, { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats, roadEdges }) === true;
+			const rejectsUnderwater = isPlaceablePosition(2000, -2000, { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats, roadEdges }) === false;
+			const rejectsNearSeat = isPlaceablePosition(1010, 1000, { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats, roadEdges }) === false;
+			const acceptsFarFromSeat = isPlaceablePosition(1200, 1200, { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats, roadEdges }) === true;
+			const rejectsNearRoad = isPlaceablePosition(0, 0, { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats, roadEdges }) === false;
+			const acceptsFarFromRoad = isPlaceablePosition(0, 200, { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats, roadEdges }) === true;
+			const rejectsSteepSlope = isPlaceablePosition(200, 2000, { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats, roadEdges }) === false;
+
+			// createVegetation — determinism: identical seed produces an identical scatter (compared
+			// via getMatrixAt on the first instance, not just placedCount, so a same-count-different-
+			// layout bug would still be caught).
+			const baseParams = { sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seats: [], roadEdges: [], radiusMeters: 500, densityPerKm2: 40 };
+			const runA = createVegetation({ ...baseParams, seed: 777 });
+			const runB = createVegetation({ ...baseParams, seed: 777 });
+			const runC = createVegetation({ ...baseParams, seed: 999 });
+			const matrixA = new THREE.Matrix4();
+			const matrixB = new THREE.Matrix4();
+			runA.group.children[0].getMatrixAt(0, matrixA);
+			runB.group.children[0].getMatrixAt(0, matrixB);
+			const sameSeedIsDeterministic = runA.placedCount === runB.placedCount
+				&& runA.placedCount > 0
+				&& matrixA.toArray().every((value, index) => value === matrixB.toArray()[index]);
+			const differentSeedDiffers = runA.placedCount !== runC.placedCount
+				|| matrixA.toArray().some((value, index) => value !== (() => { const m = new THREE.Matrix4(); runC.group.children[0].getMatrixAt(0, m); return m.toArray(); })()[index]);
+			const placedNeverExceedsTarget = runA.placedCount <= runA.targetCount;
+			const twoDrawCallsOnly = runA.group.children.length === 2;
+
+			// Total exclusion: a seat placed at the disc's own center with a disc radius (80m) smaller
+			// than the seat's own 90m exclusion radius means every candidate point is rejected — proves
+			// rejection actually rejects, not merely a plausible-looking no-op. Density raised well
+			// above the default so `targetCount` is unambiguously > 0 at this small a radius (a disc
+			// this size at the default 30/km² would round `targetCount` down to 0, which would make the
+			// assertion below pass for the wrong reason — an untested no-op, not a proven rejection).
+			const fullyExcluded = createVegetation({
+				sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seed: 1, seats: [{ x: 0, z: 0 }], roadEdges: [],
+				radiusMeters: 80, densityPerKm2: 300,
+			});
+			const rejectionActuallyRejects = fullyExcluded.targetCount > 0 && fullyExcluded.placedCount === 0;
+
+			// Zero-area disc: radiusMeters=0 must not throw and must yield nothing.
+			const zeroRadius = createVegetation({ sampleHeightMeters, seaLevelMeters: SEA_LEVEL, seed: 1, seats: [], roadEdges: [], radiusMeters: 0 });
+			const zeroRadiusIsInert = zeroRadius.targetCount === 0 && zeroRadius.placedCount === 0 && zeroRadius.group.children.length === 0;
+
+			// dispose() must not throw on a real (non-empty) scatter.
+			let disposeThrew = false;
+			try {
+				disposeVegetation(runA.group);
+			} catch {
+				disposeThrew = true;
+			}
+
+			return {
+				segmentDistanceExact, segmentDistancePastEndpoint,
+				acceptsOrdinaryFlatGround, rejectsUnderwater, rejectsNearSeat, acceptsFarFromSeat,
+				rejectsNearRoad, acceptsFarFromRoad, rejectsSteepSlope,
+				sameSeedIsDeterministic, differentSeedDiffers, placedNeverExceedsTarget, twoDrawCallsOnly,
+				rejectionActuallyRejects, zeroRadiusIsInert, disposeDidNotThrow: !disposeThrew,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	return {
+		name: 'procedural vegetation (world/vegetation.js, ADR-0138)',
+		ok,
+		details: ok
+			? 'segment-distance exact-value, isPlaceablePosition rejects water/steep-slope/near-seat/near-road and accepts ordinary ground, same-seed scatter is bit-identical, different seed differs, placed never exceeds target, 2 draw calls, full-exclusion disc places zero, zero-radius disc is inert, dispose does not throw'
+			: `FAILED assertion(s): ${JSON.stringify(result)}`,
+	};
+}
+
+module.exports = { checkVegetation };

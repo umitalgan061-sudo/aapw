@@ -16,7 +16,8 @@
  * to sea level, with vertical "curtain" meshes marking its steepest (waterfall-grade) segments. A
  * slope-aware road network (`world/roads.js`, run 56, DECISIONS.md ADR-0076) connects all 14
  * kingdom seats via a minimum-spanning-tree of A*-routed cart roads, rendered as one merged dirt-
- * colored ribbon mesh.
+ * colored ribbon mesh. Procedural instanced trees (`world/vegetation.js`, run 111) scatter over the
+ * same loaded terrain, avoiding water/steep slopes/kingdom seats/roads.
  * FAZ 4 (in progress): a playable character (`gameplay/player.js`) spawns at the world origin,
  * moves via WASD/arrow keys (`input.js`) or an on-screen joystick on touch-primary devices
  * (`ui/touchJoystick.js`) relative to the camera's facing, snaps to ground height (`physics.js`),
@@ -62,6 +63,7 @@ import { updateWater, disposeWater } from './world/water.js';
 import { disposeRiverMesh, disposeWaterfallMesh } from './world/rivers.js';
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.js';
 import { disposeRoadNetwork } from './world/roads.js';
+import { disposeVegetation } from './world/vegetation.js';
 import { resolveCameraCollision } from './camera.js';
 import { updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { updateStarfield, disposeStarfield } from './stars.js';
@@ -460,6 +462,7 @@ export async function initGame3D() {
 			disposeSettlements(state.settlements);
 			disposeRealCastleModels(state.realCastles);
 			disposeRoadNetwork(state.roads);
+			disposeVegetation(state.vegetation);
 			disposeDayNightLighting(state.scene, state.lights);
 			state.renderer.dispose();
 		}, { once: true });

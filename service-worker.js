@@ -6,7 +6,7 @@
 
 const SW_VERSION = 'westeros-media-v4';
 const MEDIA_CACHE = 'westeros-media-v4';
-const SHELL_CACHE = 'westeros-shell-v10';
+const SHELL_CACHE = 'westeros-shell-v11';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -88,6 +88,10 @@ const SHELL_FILES = [
 // as the run 71/ADR-0092 `dragons.js` split above). Without this entry an offline install would
 // fetch `dragonController.js` from cache and immediately fail on its uncached import — the same
 // failure mode every entry above without a new module describes. `SHELL_CACHE` bumped v9->v10.
+//
+// run 111 (DECISIONS.md ADR-0138): added `world/vegetation.js` — procedural instanced trees, now
+// imported directly by `sceneManager.js`/`game3d.js`. Same failure mode as every entry above
+// without it. `SHELL_CACHE` bumped v10->v11.
 const GAME3D_SHELL_FILES = [
     './game3d.html',
     './game3d.css',
@@ -143,6 +147,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/materials.js',
     './src/3d/world/roadPathfinder.js',
     './src/3d/world/roads.js',
+    './src/3d/world/vegetation.js',
     './src/3d/vendor/three/three.module.js',
     './src/3d/vendor/three/LICENSE',
     './src/3d/vendor/three/addons/loaders/GLTFLoader.js',
