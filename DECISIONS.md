@@ -14024,3 +14024,58 @@ FAZ 11 canlı türleri) etkilemez. Mobil World Coverage radius kararı artık sa
 `QUESTIONS_FOR_OWNER.md`'deki iki seçenekten biri yanıtlanana kadar gelecekteki runlar radius
 artışını tekrar denemeyecek, LOD/culling'e odaklanmaya devam edecek. SaveSystem/public API yok; save/
 API uyumluluk kapıları tetiklenmez. Yeni asset yok, lisans/PWA cache manifest değişikliği gerekmez.
+
+## ADR-0162 — `ward_hostage_arrival` (Vesayet Genci) dünya olayı (run 138)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** FAZ 8 dünya olayı havuzuna UNCOMMON ağırlıklı, `timeOfDay` gate'i olmayan
+`ward_hostage_arrival` ("Vesayet Genci") girdisi eklendi — soylu bir ailenin genç oğlunun, kendi
+evinin sadakatini garanti altına almak için başka bir evin vesayetine (fiilen bir rehine olarak)
+gönderilişini betimleyen bir sahne.
+
+**Neden:** Bu run'ın öncelik taraması (GOVERNANCE.md §18): madde 1-3 tamam (run 137'de doğrulandı);
+madde 4 (kale dokulandırma) hâlâ manuel asset bekliyor; madde 5-10 (sözdizimi/bug/perf/memory/
+tech-debt/smoke) tam baseline taramasıyla (34/34 Playwright smoke, additive-only guard, asset/PWA/
+cache/checkpoint/world-event-catalog/smoke-check-registry guard'ları) temiz bulundu — `game3d.js`
+540/600 WARN'ı run 137'den değişmeden devam ediyor, yeni borç yok. Madde 11 (World Coverage) hâlâ
+`QUESTIONS_FOR_OWNER.md`'de sahip kararı bekliyor (run 137/ADR-0161). Madde 12 (FAZ 7/FAZ 5-6): FAZ 7
+zaten TAMAMLANDI (run 137'de belgeleme düzeltildi), FAZ 6 hâlâ hayvan modeli bekliyor. Bu da madde
+14'ü (yeni özellik) yine tek uygulanabilir kulvar bıraktı — `silent_sisters_procession` (run 131) /
+`hedge_knight_arrival` (run 133) / `wedding_procession` (run 137) ile aynı desen: düşük riskli,
+kendi kendine yeten bir dünya-olayı veri eklemesi. Ayrıca bu run GOVERNANCE.md §13'ün öngördüğü
+~10-run İnsan Yakalama Özeti kadansına göre `CATCH_UP.md`'yi güncelledi (run 137'nin notuyla bu
+run'a ertelenmişti — bkz. o dosyanın kendi güncellemesi).
+
+**Alternatifler:**
+- **`shackled_prisoner` ile birleştirme** reddedildi — o cezai bir mahkûmu (zincirli, suçu belirsiz)
+  betimliyor; vesayet genci ise siyasi bir güvence, suç değil — muhafızlarla birlikte, zincirsiz
+  yürüyen bir soylu çocuk. Farklı bir toplumsal an.
+- **`midwife_summoned`/`hedge_knight_arrival`/`sellsword_arrival` ile örtüşme** kontrol edildi ve
+  reddedildi — hiçbiri "kendi ailesi tarafından başka bir eve gönderilen bir soylu çocuk" temasını
+  kapsamıyor; `hedge_knight_arrival`/`sellsword_arrival` kendi iradesiyle gelen yetişkinler,
+  `midwife_summoned` bir doğum anı. **Doğrulama:** yeni girişten önceki 39 entry'nin `desc`
+  metinleri tek tek yeniden okunarak hiçbirinin "vesayet/rehine çocuk" temasını zaten kapsamadığı
+  teyit edildi.
+- **`timeOfDay` gate'i** reddedildi — metin belirli bir saati ima etmiyor, ADR-0111/0150/0152/0155/
+  0157/0161 ile aynı "yalnız metni belirsiz olmayanlar gate'lenir" kuralı.
+- **RARE ağırlık** reddedildi — bir vesayet alayının varışı `hedge_knight_arrival`/
+  `wedding_procession` gibi belirgin ama rutin-dışı bir an; `mourning_bells`/`red_comet` gibi
+  ürkütücü/uğurlu bir alâmet değil — UNCOMMON bu ikisiyle aynı kayıtta.
+
+**Sonuç / etkilenen sistemler:** `gameplay/worldEvents.js` veri havuzu 39'dan 40 girdiye büyüdü
+(gated sayı 9 değişmedi, ungated 30'dan 31'e çıktı). Mevcut ağırlıklı seçim, toast, güvenli-mod,
+day/night ve PWA cache yolları değişmez. `scripts/checkWorldEventCatalog.js` PASS (40 unique, 9
+gated, şema geçerli). Tam Playwright smoke suite değişiklik ÖNCESİ ve SONRASI 34/34 PASS, 0 FAIL,
+0 konsol/sayfa hatası. `node --check` PASS. `checkAdditiveOnlyDiff.js` PASS. `checkAssetsManifest.js`/
+`checkPwaInstallability.js`/`checkServiceWorkerCache.js`/`checkCheckpointConsistency.js`/
+`checkSmokeCheckRegistry.js` PASS (son biri yalnız run 137'den değişmeyen 540/600 WARN'ı
+tekrarladı). `TEMP`/`HACK`/`FIXME`/`WORKAROUND` yorumu yok.
+
+**Geri alma planı:** Tek `ward_hostage_arrival` veri satırı + açıklama yorum bloğu + bir
+yorum-satırı sayaç güncellemesi kaldırılarak önceki 39-entry havuza dönülebilir.
+
+**Gelecek Faz Etkisi:** Runtime/gameplay davranışında değişiklik yok — sıradaki fazları (FAZ 9-10,
+FAZ 11 canlı türleri) etkilemez. Mobil World Coverage radius kararı hâlâ sahibin elinde, bu run
+tetiklemedi. SaveSystem/public API yok; save/API uyumluluk kapıları tetiklenmez. Yeni asset yok,
+lisans/PWA cache manifest değişikliği gerekmez.

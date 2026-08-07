@@ -121,6 +121,15 @@ const WORLD_EVENTS = Object.freeze([
 	 * carried together), not just generic festivity. No `timeOfDay` gate: the text names no specific
 	 * hour, same "only gate unambiguous text" rule as every other ungated entry here. */
 	{ id: 'wedding_procession', icon: '💍', title: 'Düğün Alayı', desc: 'Kale kapısından çiçeklerle süslenmiş bir düğün alayı geçiyor — gelinin ve damadın pelerinlerinde iki farklı evin renkleri bir arada taşınıyor.', color: '#c86a9a', weight: WEIGHT.UNCOMMON },
+	/** Run 138 addition: a highborn child sent to another house's wardship — Westeros's real
+	 * political custom of fostering a lord's son with a rival/ally house as a de facto hostage,
+	 * guaranteeing the birth house's loyalty (canon precedent: Theon Greyjoy fostered/held at
+	 * Winterfell after Balon Greyjoy's rebellion). Distinct from `shackled_prisoner` (a chained
+	 * criminal, punitive, no political-guarantee framing) and from `hedge_knight_arrival`/
+	 * `sellsword_arrival` (adults arriving of their own will seeking service, not a child sent by
+	 * his own family). No `timeOfDay` gate: the text names no specific hour, same "only gate
+	 * unambiguous text" rule as every other ungated entry here. */
+	{ id: 'ward_hostage_arrival', icon: '🧒', title: 'Vesayet Genci', desc: 'Soylu bir ailenin genç oğlu, kendi evinin sadakatini garanti altına almak için başka bir evin vesayetine gönderiliyor — fiilen bir rehine olarak. Atının yanında yürüyen muhafızlar dışında kimse tek kelime etmiyor.', color: '#7a9a6a', weight: WEIGHT.UNCOMMON },
 ]);
 // Run 126 live count: 9 of 35 entries are time-gated; the JSDoc/comment above retain earlier runs'
 // snapshots rather than being edited in place (GOVERNANCE.md §2 madde 9, additive-only diff guard).
@@ -128,6 +137,7 @@ const WORLD_EVENTS = Object.freeze([
 // Run 131 live count: 9 of 37 entries are time-gated.
 // Run 133 live count: 9 of 38 entries are time-gated.
 // Run 137 live count: 9 of 39 entries are time-gated.
+// Run 138 live count: 9 of 40 entries are time-gated.
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
  * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test

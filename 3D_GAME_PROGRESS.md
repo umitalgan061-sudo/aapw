@@ -13291,3 +13291,71 @@ Geneli Süre Tavanı içinde kalındı.
 - World Coverage: desktop %96.2; mobil resident terrain footprint yaklaşık %8.9 (49 chunk / 12.25 km²) değişmedi. Run135 spawn vegetation görsel kapsamı korunurken bu run render maliyetini düşürdü.
 - Memory leak checklist: eski vegetation geometry swap anında dispose ediliyor; yeni listener/timer/DOM yok. Teknik borç: run135ten devreden game3d.js 540/600 bölünme ihtiyacı = 1, yeni borç eklenmedi. ADR-0160. Risk LOW. Güven 5/5.
 - World Evolution Report delta: yol 0 km, orman yerleşim/ağaç sayısı 0, kale/NPC/event/hayvan 0; oyuncu aynı mobil ağaçları görür, primitive tessellation daha hafiftir. Sıradaki adım: gerçek ölçümle procedural castle sabit maliyeti/frustum-culling adayını değerlendirmek.
+
+## Run 138 — `ward_hostage_arrival` dünya olayı + CATCH_UP.md 10-run güncellemesi (2026-08-07 15:5x UTC)
+
+**Session Snapshot / Concurrency:** `git fetch origin main` → local main run 137 (`33ca1df`)
+origin/main ile aynıydı, divergence yok (HEAD detached olarak başladı, `main`'e reset edildi).
+`GOVERNANCE.md` tam okundu (§1-26). `3D_GAME_PROGRESS.md` son ~300 satırı (run 134-137),
+`DECISIONS.md` son 3 karar (ADR-0159/0160/0161), `QUESTIONS_FOR_OWNER.md` tam (yeni belirsizlik
+yok — NVIDIA anahtarı hâlâ açık, mobil radius kararı hâlâ sahibi bekliyor) okundu.
+
+**Baseline regression guard:** tam `node --check` taraması sıfır hata. `checkAdditiveOnlyDiff.js`
+PASS. Tam `smokeTestGame3D.js` değişiklik ÖNCESİ **34/34 PASS**, 0 FAIL, 0 konsol/sayfa hatası.
+`checkWorldEventCatalog.js` (39 unique/9 gated) PASS.
+
+**Öncelik taraması (§18):** madde 1-3 run 137'de tamam olarak doğrulandı. Madde 4 (kale
+dokulandırma) hâlâ manuel asset bekliyor. Madde 5-10 baseline taramasıyla temiz — `game3d.js`
+540/600 WARN'ı değişmedi (teknik borç sayacı hâlâ 1, yeni borç eklenmedi). Madde 11 (World
+Coverage) hâlâ `QUESTIONS_FOR_OWNER.md`'de sahip kararı bekliyor. Madde 12 (FAZ 7/FAZ 5-6): FAZ 7
+zaten TAMAMLANDI, FAZ 6 hâlâ hayvan modeli bekliyor. Bu da madde 14'ü (yeni özellik) yine tek
+uygulanabilir kulvar bıraktı.
+
+### Alt görev 1: `ward_hostage_arrival` dünya olayı (ADR-0162)
+
+39 mevcut girdi tek tek okunarak "vesayet/rehine olarak gönderilen soylu çocuk" temasının
+kapsanmadığı teyit edildi (canon örnek: Theon Greyjoy'un Kışyarı'nda vesayet/rehine olarak
+tutulması). Yeni UNCOMMON, gate'siz `ward_hostage_arrival` girdisi eklendi (🧒, "Vesayet Genci").
+`checkWorldEventCatalog.js` artık 40/9 doğru okuyor. Tam Playwright smoke suite değişiklik
+SONRASI da **34/34 PASS**, 0 FAIL, 0 konsol/sayfa hatası (regresyon yok).
+
+### Alt görev 2: `CATCH_UP.md` 10-run güncellemesi
+
+Run 128'den beri (run 137'nin notuyla bu run'a ertelenmişti) `CATCH_UP.md` güncellenmedi — bu run
+run 129-138 arasının jargonsuz özetini en üste ekledi (GOVERNANCE.md §13). Kod/davranış değişikliği
+yok, yalnız dokümantasyon.
+
+**DoD:** node --check PASS (worldEvents.js); baseline+post-change 34/34 smoke PASS; additive-only
+PASS; world-event/assets/PWA/cache/checkpoint/smoke-check-registry guard'ları PASS; konsol/page
+error yok; teknik borç sayacı güncellendi (hâlâ 1, yeni borç eklenmedi); `3D_GAME_PROGRESS.md`/
+`DECISIONS.md`/`CATCH_UP.md`/`STABLE_TAGS.md`/`perf_log.csv` güncellendi; commit atıldı. Görsel
+doğrulama gerekmedi (bu run runtime/render davranışını değiştirmedi — DoD'un §8.5 istisnası: salt
+veri/dokümantasyon eklemesi, yeni geometri/materyal/kamera açısı yok).
+
+**Performans:** Desktop run138 snapshot: `2026-08-07,run138,2,50,608296,48,17,273` — 50 draw
+call / 608.296 triangle / 48 geometry / 17 texture, run129-137 ile bit-eşit (data-only ekleme
+beklenen etkiyle uyumlu, hiçbir yeni geometri/materyal eklenmedi).
+
+**Memory leak checklist:** Yeni listener/timer/DOM/geometry/material yok — salt veri satırı +
+dokümantasyon. Teknik borç: 1 (değişmedi, `game3d.js` 540/600 hâlâ bölünme bekliyor).
+
+**World Coverage:** desktop %96.2, mobil resident footprint ~%8.9 (49 chunk / 12.25 km²) —
+değişmedi (bu run coverage'ı hedeflemedi).
+
+**Next step:** 6 dokusuz kale + FAZ 6 hayvan modelleri (at/araba/köpek-kedi/kuş) hâlâ manuel asset
+kaynağı bekliyor. Mobil World Coverage radius kararı hâlâ `QUESTIONS_FOR_OWNER.md`'de sahibi
+bekliyor. `game3d.js`'in 540/600 satır durumu izlenmeye devam ediyor. Sonraki catch-up ~run 148,
+platform kontrolü ~run 132-142 aralığında (run 132'de yapıldı, bir sonraki pencere ~run 142-152),
+kural konsolidasyonu ~run 156.
+
+**Oturum Kalite Kapısı:** 2 alt görev tamamlandı (1 world-event verisi + 1 insan-yakalama
+dokümantasyonu), güven skoru 5/5 — hiçbiri tahmin/fabrikasyon içermiyor, hepsi gerçek smoke/guard
+sonuçlarıyla doğrulandı. "6 ay sonra hâlâ net mi" tereddüdü yok — ADR-0162 kararı açıkça kaydediyor,
+`CATCH_UP.md` doğrudan bu tereddüdü gidermeyi hedefliyor. Çalışma Süresi Sınırı/Çalıştırma Geneli
+Süre Tavanı içinde kalındı.
+
+**World Evolution Report:** yol 0 km, orman 0 km², kale/NPC/hayvan sayısı 0, dünya olayı havuzu
+39→40 (+1), World Coverage değişmedi, toplam ADR sayısı 161→162 (+1). Oyuncu fark eder mi: evet,
+küçük ölçekte — periyodik dünya olayı bildirim havuzunda %2.5 ihtimalle yeni bir kart (vesayet
+alayı) görebilir; oyuncu ayrıca `CATCH_UP.md` sayesinde (sahip döndüğünde) son 10 run'ın özetini
+okuyabilir.

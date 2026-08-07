@@ -776,3 +776,9 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
   unique/9 gated), assets/PWA/cache/checkpoint guards all PASS. Perf 50 draw call / 608,296
   triangle / 48 geometry / 17 texture / 307 MB heap (run129-136 baseline, unchanged — data-only
   addition).
+- stable-2026-08-07-1552 — run 138: `ward_hostage_arrival` world event (ADR-0162) + `CATCH_UP.md`
+  10-run update (due since run 128, deferred to this run per run 137's note). Full Playwright
+  smoke suite 34/34 PASS, 0 FAIL, 0 console/page errors both before and after; additive-only
+  guard, world-event catalog (40 unique/9 gated), assets/PWA/cache/checkpoint/smoke-check-registry
+  guards all PASS. Perf 50 draw call / 608,296 triangle / 48 geometry / 17 texture / 273 MB heap
+  (run129-137 baseline, unchanged — data-only addition).

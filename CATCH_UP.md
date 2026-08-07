@@ -6,6 +6,26 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 138 itibarıyla (2026-08-07)
+
+Son 10 çalıştırmanın (129-138) en görünür gelişmesi telefonda: mobil dünyada aynı anda görülebilen
+arazi alanı neredeyse iki katına çıktı (49 parça, öncekinin iki katı) ve bunu hafif tutmak için
+uzaktaki arazi ve ağaçlar artık basitleştirilmiş (daha az köşeli) şekillerle çiziliyor — oyuncu
+farkına bile varmıyor ama telefonun GPU'su daha az yoruluyor. Ayrıca telefonda spawn noktanın
+etrafında artık gerçek ağaçlar görüyorsun (öncesinde o bölge çıplaktı). Dünya olayları bildirim
+havuzu da büyümeye devam etti: bir gezgin şövalyenin kale kapısına gelişi, bir düğün alayının
+geçişi, ve bir soylu ailenin çocuğunu başka bir eve vesayet/rehine olarak göndermesi — havuz artık
+40 farklı karta çıktı. Perde arkasında iki önemli şey oldu: proje sahibi doğrudan repoya bir "sadece
+ekleme" güvenlik kontrolü eklemişti (artık hiçbir commit mevcut bir kod satırını silemez/değiştiremez,
+sadece yeni satır ekleyebilir) ve bu kural, mobil dünyanın daha da genişletilmesini teknik olarak
+engelleyen bir çakışmaya yol açtı — bu artık senin kararını bekleyen bir madde olarak
+`QUESTIONS_FOR_OWNER.md`'de duruyor (iki basit seçenek sunuluyor). Açık kalan en büyük konular hâlâ
+aynı: 6 kale hâlâ dokusuz duruyor (gerçek 3D model bekleniyor), at/araba/köpek-kedi/kuş gibi
+hayvanlar için model bekleniyor, ve sızmış NVIDIA API anahtarını kendi tarafında iptal etmen hâlâ
+senin yapman gereken bir iş (bkz. `QUESTIONS_FOR_OWNER.md`).
+
+---
+
 ## Run 128 itibarıyla (2026-08-07)
 
 Son 10 çalıştırmanın (119-128) en görünür gelişmesi kale keşfi etrafında: artık bir kaleye ilk kez
