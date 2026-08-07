@@ -12881,3 +12881,12 @@ değerlerle birebir aynı (veri-only ekleme, yeni render yüzeyi yok); beklenen 
 - Görsel doğrulama: runtime görsel davranışı değişmedi; gerçek Chromium 2D/3D boot ve UI smoke doğrulandı, görsel delta yok.
 - ADR: runtime/mimari ürün davranışı değişmediği için yeni ADR gerekmiyor. Memory-leak: yeni runtime listener/timer/DOM/geometry/material yok.
 - Teknik borç: 0 yeni borç. World Coverage: desktop 96.2% / mobile 4.5% değişmedi. World Evolution delta: 0. Oyuncu fark etmez. Risk: LOW. Güven: 5/5.
+
+## Run 130 — mobil bounded streaming + coverage radius 3 (2026-08-07 11:43 UTC)
+- Alt görev: mobil World Coverage büyütme programının ilk runtime adımı; coarse-pointer streaming radius 2→3 ve radius-dışı terrain eviction (ADR-0153).
+- Coverage: mobil resident footprint 25→49 chunk, 6.25→12.25 km²; 137.5 km² hedef bazında yaklaşık %4.5→%8.9. Kümülatif everGenerated keşifle büyürken resident terrain 49 chunkta bounded kalır.
+- DoD: node --check PASS; mobile runtime streaming test PASS; checkpoint/world-event/PWA/cache/asset/smoke-registry/terrain/road guard PASS; browser smoke 34/34+ PASS; additive-only PASS; iki mobil görsel kanıt artifact olarak saklandı.
+- Performans: 2026-08-07,run130,1,50,608296,48,17,347. Headless desktop snapshot mobil FPS iddiası değildir; sıradaki adım gerçek mobil LOD/culling ölçümüdür.
+- Memory-leak: eviction unloadChunk→disposeTerrainChunk yolunu kullanır; runtime testi hareket sonrası resident=49 ve disposeAll sonrası 0 doğruladı. Teknik borç: 0 yeni borç.
+- World Evolution Report: yol/orman/kale/NPC/event/hayvan/asset/diyalog sayıları delta 0; yalnız mobil resident terrain footprint +6.00 km². Oyuncu fark eder: evet, mobilde aynı anda daha geniş terrain çevresi görünür.
+- Oturum kalite kapısı: güven 5/5. Risk MEDIUM. Sonraki adım: mobil vegetation/terrain distance LOD + culling, ardından ölçüm uygunsa radius 4 değerlendirmesi.

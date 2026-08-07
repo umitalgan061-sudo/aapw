@@ -322,3 +322,37 @@ Report.
 
 Her alt görev öncesi/sonrası smoke test. Aynı hatada 2 başarısız denemeden sonra bırak,
 geri al, sıradakine geç.
+
+
+---
+
+## 23. Mobil World Coverage Büyütme Politikası (run 130)
+
+Proje sahibinin mobil World Coverage'i yükseltme talebi kalıcı bir mühendislik hedefidir. Bu hedef
+"daha fazla chunk'ı aynı anda telefona yükle" şeklinde uygulanmaz; mobil bütçeyi koruyan kademeli
+**streaming + eviction + LOD/asset optimizasyonu** programı olarak yürütülür.
+
+1. **Bounded streaming zorunlu:** mobil/coarse-pointer cihazda oyuncu ilerledikçe yeni chunk'lar
+   yüklenebilir fakat aktif yarıçapın dışında kalan terrain chunk'ları GPU/RAM'den boşaltılır.
+   `everGenerated` korunur; böylece kümülatif keşif/World Coverage büyürken resident bellek sınırsız
+   büyümez.
+2. **Kademeli radius artışı:** her radius artışı ayrı bir alt görevdir. Önce mevcut mobile bütçeler
+   (`DrawCalls<500`, `Triangles<500K`, `TextureMem<512MB`, hedef 30-60 FPS), sonra coarse-pointer
+   runtime testi, sonra full browser smoke kontrol edilir. Bütçe aşılırsa radius geri büyütülmez;
+   önce LOD/culling/texture optimizasyonu yapılır.
+3. **Run 130 başlangıç seviyesi:** mobil streaming radius 2'den 3'e çıkarılır. Kare footprint 25
+   chunk'tan 49 chunk'a, 6.25 km²'den 12.25 km²'ye çıkar; 137.5 km² dünya hedefi bazında başlangıç
+   footprint coverage yaklaşık %4.5'ten %8.9'a yükselir. Bu değer gerçek mobil runtime testleriyle
+   doğrulanmadan daha yüksek bir oran raporlanmaz.
+4. **Sonraki optimizasyon sırası:** (a) mesafe tabanlı terrain/vegetation LOD, (b) frustum ve mümkün
+   olduğunda occlusion culling, (c) kale/ağaç uzak-mesafe düşük-poly veya impostor yaklaşımı,
+   (d) texture atlas/sıkıştırma ve mobil texture boyutu, (e) ölçüm sonrası yeni radius artışı.
+5. **Görsel kalite koruması:** LOD geçişleri belirgin pop-in üretmemeli; yeni mobil coverage alt
+   görevlerinde yakın+uzak en az iki görsel kanıt ve F4/free-camera kontrolü tutulur.
+6. **PWA/offline koruması:** streaming yalnız repoda/service-worker cache politikasınca erişilebilir
+   asset'leri kullanır. Mobil coverage artırmak CDN/HBO asset bağımlılığı eklemek için gerekçe değildir.
+7. **Deterministik dünya korunur:** chunk unload/reload aynı seed+koordinatta aynı terrain sonucunu
+   üretmek zorundadır; eviction kümülatif `everGenerated` metriğini veya prosedürel checksum
+   kurallarını sıfırlayamaz.
+8. **Dinamik öncelik:** mobil World Coverage %98'in altındayken ve daha üst sırada blocking bug /
+   performans / memory-leak problemi yokken bu program aktif iyileştirme alanlarından biridir.
