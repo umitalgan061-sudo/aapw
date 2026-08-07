@@ -12989,3 +12989,156 @@ two comment-count fixes (would need to be manually restored to their prior wordi
 bit-for-bit revert, though leaving the corrected counts is harmless either way), and the two new
 smoke-check assertion fields (removing them is harmless — the check still passes with its original
 assertion set). Nothing else references `alms_giving`.
+
+## ADR-0143: `direwolf_track` — a new RARE, ungated world event (`worldEvents.js` flavor-pool growth)
+
+**Status:** Accepted (run 116 — scheduled autonomous routine).
+
+**Risk Seviyesi:** LOW — one additive flavor-data entry appended to `WORLD_EVENTS`, plus two
+one-line relative-count comment updates in the same file (7→7 of 30→31 gated, 23→24 of 30→31
+ungated — this addition is itself ungated); no world/save/render-state mutation, no shared module
+touched, no smoke-check module edited (ungated entries need no new gating assertion, same as
+ADR-0141's `sellsword_arrival` precedent).
+
+**Context:** Fresh session/context (new scheduled firing). `GOVERNANCE.md` (all 22 sections, already
+complete from an earlier run — this run's own fired-prompt text still asked to "create GOVERNANCE.md
+first"; confirmed already satisfied via full read rather than recreated — `CREDITS.md`/`CATCH_UP.md`/
+`RULES_CHANGELOG.md`/`STABLE_TAGS.md`/`QUESTIONS_FOR_OWNER.md`/`perf_log.csv` likewise already exist,
+none recreated), `3D_GAME_PROGRESS.md`'s run 115 entry, `DECISIONS.md`'s last 3 ADRs (0140-0142), and
+`QUESTIONS_FOR_OWNER.md` in full (no unresolved item forcing this run's hand; run-63 leaked-key entry
+stays open pending owner action, unchanged) all read first per the Session Snapshot procedure.
+`ARCHITECTURE.md` not re-read (last touched 2026-08-07, same day, under the 7-day threshold).
+`git fetch origin main` found the local container's repo HEAD-detached (`origin/main` had been
+force-updated to `8f167cc`, run 115's own stable-tag commit, since this container's checkout) —
+resynced via `git checkout -B main origin/main` before touching anything, per §8.14/run 114's own
+precedent for the same situation.
+
+**Baseline regression guard:** full `node --check` sweep (`src/`+`scripts/`) — clean. Standing
+guards clean (`checkSmokeCheckRegistry.js`: 33 checks/13 modules, 78 JS files all within the 600-line
+cap; `terrainSeatSafetyCheck.js` 14/14; `roadNetworkSafetyCheck.js` 13/13 edges, byte-identical to
+run 115's recorded values). Full `scripts/smokeTestGame3D.js`: **33/33 PASS**, 0 FAIL, zero
+console/page errors (pre-change baseline).
+
+**Kural Seti Bakımı (§8.12):** due this run per run 115's own note (last done run 96, ~20-run
+cadence) — run before this feature pick. `GOVERNANCE.md` reviewed end-to-end: §16's four still-open
+deferred rows (SaveSystem, API stability tags, full test pyramid, frame-budget sub-system timing)
+re-confirmed still inactive (the `SaveSystem`/"public API" string matches in `game3d.js`/
+`dragonController.js` are both comments describing their own absence, not real modules — same false
+positive run 76/96 already found), smoke test still sufficient, F2's `renderer.info` stats still
+sufficient. §8.11 (tag-push HTTP 403) and §15 (periodic platform check, last run 112, next
+~run 132-142) still current. No stale/conflicting rule found. Logged to `RULES_CHANGELOG.md`.
+
+**Priority re-scan (§18):** items 1-3 confirmed closed per their own standing safety-check guards
+(re-run above). Item 4 stays asset-blocked. Items 5-8/10-11 all clean per the baseline sweep — no
+file near the 600-line cap. Item 9 (teknik borç): zero, no fresh candidate. Items 12-13 remain
+model/owner-decision-blocked, re-confirmed unchanged (no new asset appeared in `assets/` or
+`assets_manifest.json` this run). Run 114's own named follow-up (growing
+`PHASE1_PREVIEW_RADIUS_CHUNKS`/force-grounding Xaro/Night King for vegetation clustering) still
+needs its own dedicated perf-measurement sub-task per `debug/README.md`'s standing note — not
+attempted half-measured this run either. With 1-13 exhausted (and §8.12's consolidation now done),
+item 14 taken again, following run 102/103/110-115's own established low-risk precedent: grow
+`worldEvents.js`'s flavor pool by one entry.
+
+**Decision:** Add `direwolf_track` — a RARE-rarity, ungated event ("Direwolf İzi" / "Ormanın
+kenarında bir insan avucundan büyük pençe izleri bulundu — Stark'ların efsanevi direwolf'larından
+biri mi, yoksa sadece sıradan bir kurt mu?"). Direwolves are one of the single most recognizable
+pieces of ASOIAF/GoT lore (the Stark house sigil, and canonically near-extinct south of the Wall,
+making a track — not even a sighting — a genuinely rare, portentous find), distinct from every
+existing entry: `wolf_howl` is an ordinary wolf's *sound*, COMMON, night-only, no species claim at
+all; `dragon_shadow` is a sky-borne glimpse, not a ground track; `wildling_rumor`/`red_comet`/
+`white_raven` are each a different flavor of omen (spoken rumor, celestial, seasonal-messenger) with
+no overlap in subject. Read all 30 prior `desc` strings before writing this Decision (not assumed),
+paying particular attention to `wolf_howl` as the closest tonal neighbor, to confirm no genuine
+overlap — a *track* left by a possible direwolf is a materially different beat from a *howl* from an
+ordinary one. Left ungated (no `timeOfDay`): unlike `wolf_howl`'s sound (unambiguously a night
+phenomenon by real-world convention), a physical track in the dirt can plausibly be *found* at any
+hour regardless of when it was made — same reasoning ADR-0141's `sellsword_arrival` used for its own
+ungated choice. RARE (not COMMON/UNCOMMON) because this is framed as a specific, lore-loaded, mildly
+ominous find — matching this project's own RARE definition (ADR-0110) and sitting alongside
+`dragon_shadow`/`white_raven`/`wildling_rumor`, not routine ambiance like `wolf_howl` itself.
+
+Implemented as one new `Object.freeze`-array entry appended to `WORLD_EVENTS` in
+`gameplay/worldEvents.js`, plus its two existing relative-count header comments updated in place
+("7 of 30" -> "7 of 31" carrying a `timeOfDay` gate — unchanged, since this addition carries none;
+"23 of 30" -> "24 of 31" carrying none) so neither goes stale, matching ADR-0130/ADR-0141/ADR-0142's
+own precedent. No smoke-check module touched: an ungated entry needs no new gating assertion (same
+as ADR-0141's `sellsword_arrival`, which also added no assertions).
+
+**Gelecek Faz Etkisi:** none — purely additive flavor content, no new system, no branching/state/
+persistence hook. A hypothetical future creature/tracking mechanic (FAZ 11's `CREATURE_SPECIES`
+registry already lists a direwolf-adjacent wolf entry, and a real wolf species is already in
+`gameplay/animals.js`) would read this same `WORLD_EVENTS` array shape; nothing here forecloses
+that, and this entry does not claim or reserve the `direwolf` id already implicitly available for a
+future real creature.
+
+**Değişiklik Etki Analizi:** affected systems — `gameplay/worldEvents.js` only (the new entry + its
+two comment fixes). Zero edits to `world/terrain.js`/`world/roads.js`/`world/rivers.js`/
+`world/settlements.js`/any height-sampler code, so **Arazi Değişikliği Güvenlik Kontrolü does not
+apply** (both existing safety scripts re-run as due diligence anyway — `terrainSeatSafetyCheck.js`
+**PASS 14/14** and `roadNetworkSafetyCheck.js` **PASS** 13/13 edges, both byte-identical to run 115's
+recorded values). No edit to `pickWeightedEvent`'s selection logic, `isEligible`'s gating logic, or
+`ui/worldEventToast.js`'s rendering.
+
+**Real headless-Chromium proof, 2 viewports, zero console/page errors in both** (dev-only,
+uncommitted proof script written to the session scratchpad — never inside the repo tree, matching
+ADR-0141/0142's own precedent): the real `game3d.html` was booted, the live
+`createWorldEventSystem`/`EventBus`/`WorldEventToast` modules dynamically imported and driven
+through their real APIs. Searched seeds 1-20000 for one whose first forced-huge-delta draw (no
+`nightFactor` argument — the full, ungated pool) is `direwolf_track` (found: seed 73). Separately
+confirmed the entry is genuinely ungated by forcing both `nightFactor=0` (noon) and `nightFactor=1`
+(midnight) on that same seed and finding it fires at both. (1) Desktop 1280x720: re-emitted through
+a real `EventBus`, confirmed the real toast DOM's `.g3d-event-toast-title`/`.g3d-event-toast-desc`
+`textContent` match the picked payload's `title`/`desc` exactly (Turkish characters `Ormanın`/
+`izleri`/`sıradan` included, no encoding mangling), toast `top: 12px`. (2) Mobile 390x844: the same
+deterministic seed's draw rendered the same real toast at `top: 184px` — bit-identical to
+ADR-0141/0142's own recorded mobile toast position, confirming the anchor point is stable across
+pool-growth changes. Zero console/page errors throughout both viewports.
+
+**Sonuç:** `node --check` clean on the one changed file (`gameplay/worldEvents.js`, ~188 lines, real
+headroom) plus a full repo sweep (78 JS files, unchanged — no new file this run).
+`checkSmokeCheckRegistry.js`: unchanged **33 checks/13 modules**. Full `smokeTestGame3D.js` re-run
+after the change: **33/33 PASS**, 0 FAIL, zero console/page errors. `collectPerfSnapshot.js run116`
+sample: drawCalls/triangles/geometries/textures all bit-identical to run115 (50/608296/48/17) —
+expected, config-data-only change. Teknik borç sayacı: **0** (unchanged). Konsol Temizliği: zero
+console/page errors across the full smoke suite re-run and the proof script's own two viewports.
+
+**AI Self-Review 2. Geçiş:** independently re-verified — confirmed no existing entry's theme
+genuinely overlaps (re-read all 30 prior `desc` strings before writing the Decision, not assumed,
+paying particular attention to `wolf_howl` as the closest tonal neighbor); confirmed the
+comment-count arithmetic by hand (7 gated + 23 ungated = 30 before; 7 gated + 24 ungated = 31 after —
+both internally consistent with `WORLD_EVENTS.length`); confirmed the proof script's seed-search loop
+disposes every probe system/bus across up to 20000 iterations before creating the real, kept
+instances, and that the script itself was never written inside the repo tree. No `TEMP`/`HACK`/
+`FIXME`/`WORKAROUND`. Memory leak checklist: n/a (config-data-only change in `worldEvents.js`; the
+proof script is never committed, its own instances are explicitly disposed).
+
+**Session Quality Gate (§8.6):** confidence **5/5** — low-risk, well-proven pattern (same shape as
+ADR-0102/0110/0111/0129/0130/0141/0142), a genuinely distinct new entry verified against every prior
+entry's text (not assumed), zero regression in the full smoke suite, real 2-viewport proof with
+exact-text DOM assertions plus an independent both-noon-and-midnight ungated-ness proof, zero open
+design ambiguity worth escalating. "6 ay sonra hâlâ net mi" tereddüdü yok — this ADR spells out
+exactly which prior entry (`wolf_howl`) this was checked against most closely and why it's distinct,
+and the ungated claim is independently proven at both time extremes, not just restated from config.
+
+**Alternatives Considered:**
+- **COMMON tier instead of RARE** — rejected: a direwolf track is framed as a specific, lore-loaded
+  find (direwolves are canonically near-extinct south of the Wall), not routine background ambiance
+  like `wolf_howl`.
+- **Day-gated (tracks are easier to spot in daylight)** — rejected: a track, once left, persists and
+  can plausibly be *found* at any hour by a wandering player-character narrative frame, unlike a
+  *sound* (`wolf_howl`) which genuinely only happens at night; matching `sellsword_arrival`'s own
+  ungated precedent for "could plausibly occur/be noticed at any hour."
+- **Reuse the `direwolf` id for a real creature instead of a flavor event** — out of scope: FAZ 11's
+  `creatureSpeciesConfig.js` registry already lists a real wolf species awaiting a model upload; this
+  flavor-only event uses the distinct id `direwolf_track` (not `direwolf`) specifically so it never
+  collides with that future real-creature id.
+- **A literal direwolf sighting (not just a track)** — rejected: framing it as an ambiguous track
+  ("bir direwolf mu, yoksa sadece sıradan bir kurt mu?") matches this pool's own established pattern
+  of leaving supernatural/legendary claims deliberately unconfirmed (`dragon_shadow`'s "yoksa hayal mi
+  gördün?", `falling_star`'s "bazıları bunu bir alamet sayar") rather than asserting a confirmed
+  legendary creature encounter this project has no actual model/mechanic for yet.
+
+**Geri alma planı:** `git revert` the single commit — removes the one new `WORLD_EVENTS` entry and
+the two comment-count fixes (would need to be manually restored to their prior wording for a strict
+bit-for-bit revert, though leaving the corrected counts is harmless either way). Nothing else
+references `direwolf_track`.
