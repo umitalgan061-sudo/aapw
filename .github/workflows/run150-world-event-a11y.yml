@@ -1,0 +1,158 @@
+name: Run 150 World Event Toast Accessibility
+
+on:
+  push:
+    branches:
+      - agent/run150-world-event-a11y
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    env:
+      BASE_SHA: 2756816e7c4ab39cf4c6a4006f4262ce39d9d5ad
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          grep -q 'ADR-0172' DECISIONS.md
+          grep -q 'Run 149' 3D_GAME_PROGRESS.md
+
+      - name: Baseline validation on clean main worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run150-baseline"
+          git worktree add --detach "$BASELINE" origin/main
+          (
+            cd "$BASELINE"
+            node scripts/checkCheckpointConsistency.js
+            node scripts/checkWorldEventCatalog.js
+            node scripts/checkWorldEventDiversity.js
+            node scripts/checkWorldEventDeterminism.js
+            node scripts/checkPwaInstallability.js
+            node scripts/checkServiceWorkerCache.js
+            node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run150-smoke-before.log"
+            test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run150-smoke-before.log")" -ge 34
+          )
+          git worktree remove "$BASELINE"
+
+      - name: Syntax and additive-only gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/ui/worldEventToast.js
+          node --check scripts/checkWorldEventToastAccessibility.js
+          python -m py_compile scripts/applyRun150Records.py
+          git diff --check origin/main...HEAD
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Feature accessibility regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventToastAccessibility.js
+
+      - name: PWA and world-event invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Mobile and world safety regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Full browser and WebGL smoke after change
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run150-smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run150-smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          echo "RUN150_SMOKE=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and self-review gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run150
+          node scripts/analyzePerfTrend.js
+          node scripts/checkWorldEventToastAccessibility.js
+          git diff --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Finalize governance records
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN150_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN150_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          echo "RUN150_TAG=$RUN150_TAG" >> "$GITHUB_ENV"
+          python scripts/applyRun150Records.py
+          node scripts/checkCheckpointConsistency.js
+          git diff --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Final concurrency gate, commit, tag and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "Westeros Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/3d/ui/worldEventToast.js src/3d/ui/README.md scripts/checkWorldEventToastAccessibility.js scripts/applyRun150Records.py .github/workflows/run150-world-event-a11y.yml 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git commit -m "docs(3d): record run150 stable checkpoint"
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git tag "$RUN150_TAG"
+          git push origin HEAD:agent/run150-world-event-a11y
+          git push origin "$RUN150_TAG" || echo "[run150] tag push blocked by known remote permission; STABLE_TAGS.md remains authoritative per GOVERNANCE.md §8.11"
