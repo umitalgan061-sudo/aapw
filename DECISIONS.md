@@ -13142,3 +13142,22 @@ and the ungated claim is independently proven at both time extremes, not just re
 the two comment-count fixes (would need to be manually restored to their prior wording for a strict
 bit-for-bit revert, though leaving the corrected counts is harmless either way). Nothing else
 references `direwolf_track`.
+
+## ADR-0144 — Persistent settlement discovery feedback (run 117)
+
+**Status:** Accepted. **Risk:** LOW. **Phase:** FAZ 8.
+
+**Decision:** Add a DOM-only `SettlementDiscovery` UI system that announces the first time the
+player comes within 55 metres of a kingdom seat. Discovered seat ids are stored under the versioned
+`westeros-pwa:settlement-discoveries:v1` key. Storage access is guarded because private browsing,
+quota policy, or a restricted installed-PWA context can reject it; in that case the in-memory set
+still prevents repeat notices for the current session. The status uses `aria-live="polite"`, never
+captures pointer input, auto-hides, clears its timer during disposal, and is precached with the 3D
+PWA shell. The existing nearest-settlement compass remains unchanged and complementary: it guides
+the journey, while this system confirms arrival.
+
+**Alternatives considered:** deriving discovery from compass distance was rejected because it would
+mix navigation rendering with persistence; EventBus routing was rejected because no other consumer
+needs this private first-arrival state; permanent onscreen badges were rejected to avoid HUD
+clutter. **Performance:** one 14-seat distance scan per frame, no WebGL resources, and no new network
+request. **Rollback:** revert the run-117 commit; the unused versioned storage value is harmless.
