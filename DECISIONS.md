@@ -14424,3 +14424,42 @@ verince (aşağıdaki üç seçenekten biri) ilgili run o kararı uygulayacak co
 **Etkilenen sistemler:** `src/3d/ui/healthBar.js`, hedef regresyon scripti ve run155 CI/kayıtları. `gameplay/health.js`, dragon combat, `game3d.js`, save formatı, PWA/cache ve renderer etkilenmez.
 
 **Geri alma planı:** Eklenen ARIA attribute'ları ileride owner onaylı bir erişilebilirlik policy/refactor katmanı tarafından gölgelenebilir; mevcut runtime satırlarını silmek/değiştirmek gerekmez.
+
+## ADR-0178 — Interaction prompt için statik erişilebilir durum semantiği (run 156)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `InteractionPrompt` mevcut görsel/tıklama davranışını değiştirmeden additive-only
+`role="status"` + `aria-live="polite"` + `aria-atomic="true"` kazanır — üçü de constructor'da,
+tek seferlik ve statik (bu widget'ın metni hiç değişmez, yalnız `hidden` durumu değişir; bu yüzden
+run150/153/154'teki gibi her `show()`/güncellemede `aria-atomic` yeniden uygulamaya gerek yok).
+
+**Neden:** `InteractionPrompt`, oyuncu bir NPC/etkileşilebilire yaklaştığında görünen "E - Selamla"
+ipucu — FAZ 5'in birincil keşif affordance'ı ama bugüne kadar ekran okuyucu için tamamen sessizdi
+(sadece `hidden` özniteliğiyle DOM'dan çıkarılan/eklenen düz bir `div`). Bu, run150 (toast)/153
+(keşif)/154 (diyalog)/155 (can çubuğu) ile aynı erişilebilirlik desenini beşinci ana UI yüzeyine
+taşıyor; `src/3d/ui/` altında artık yalnız `dayNightClock.js`/`settlementCompass.js` (zaten kısmi
+aria etiketli) ve `touchJoystick.js` (salt dokunmatik kontrol, canlı-bölge semantiği anlamsız)
+dokunulmamış kalıyor.
+
+**Alternatifler:** (1) `aria-atomic`'i her `setVisible(true)` çağrısında yeniden uygulamak (diğer
+dört widget'ın deseni) — reddedildi, çünkü bu widget'ın metni sabit, dinamik yeniden-uygulama
+gereksiz karmaşıklık eklerdi. (2) `role="button"` eklemek (widget dokunmatikte tıklanabilir de
+olduğu için) — reddedildi: mevcut `setActivateHandler`/`pointerup` davranışına klavye eş değeri
+(Enter/Space) olmadan yalnızca `role="button"` eklemek yanıltıcı bir erişilebilirlik sözü verir;
+bu, ayrı bir davranış değişikliği gerektiren gelecekteki bir ADR'nin konusu. (3) Hiçbir şey
+yapmamak beşinci ana yüzeyde de erişilebilirlik açığını sürdürürdü.
+
+**Sonuç:** Görsel piksel çıktısı, `hidden` tabanlı görünürlük mekaniği, dokunmatik aktivasyon
+(`setActivateHandler`/`pointerup`) ve `game3d.js`'in her karede çağırdığı `setVisible()` sözleşmesi
+değişmez. Ekran okuyucu artık ipucu göründüğünde "E - Selamla" metnini nazik bir durum bildirimi
+olarak duyar.
+
+**Etkilenen sistemler:** `src/3d/ui/interactionPrompt.js`; yeni test-only
+`scripts/checkInteractionPromptAccessibility.js`; run156 CI/kayıtları. `gameplay/interaction.js`
+(proximity/E-tuşu mantığı), NPC diyalog verisi, save formatı, service-worker cache listesi ve
+mobil/masaüstü render yolu etkilenmez.
+
+**Geri alma planı:** Eklenen üç ARIA attribute'u ileride owner onaylı bir erişilebilirlik
+policy/refactor katmanı tarafından gölgelenebilir (ör. `role="button"` + klavye desteği eklenirken).
+Mevcut runtime satırlarını silmek/değiştirmek gerekmez.

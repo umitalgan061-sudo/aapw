@@ -13678,3 +13678,44 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Sıradaki adım: owner bloklarına (radius-5, `game3d.js` bölünmesi, world-event checksum fixture,
   güvenlik anahtarı) dokunmadan bağımsız UI/erişilebilirlik veya test-kalite işi; sıradaki catch-up
   ~run158, sıradaki platform kontrolü ~run176-186, sıradaki kural konsolidasyonu ~run176.
+
+
+## Run 156b — Interaction prompt accessibility (2026-08-07 UTC, aynı çalıştırmanın 2. alt görevi)
+- Zincirleme: run156'nın kural konsolidasyonu commit'ledikten sonra Çalışma Süresi Sınırı/Çalıştırma
+  Geneli Süre Tavanı/Oturum Kalite Kapısı hâlâ izin verdiği ve bütçe (1200 satır/25 dosya) müsait
+  olduğu için §19 gereği sıradaki maddeye geçildi. `git fetch origin main` commit öncesi tekrarlandı,
+  rakip değişiklik yoktu.
+- Alt görev: item 14 (yeni özellik/owner bloklarına dokunmayan tek serbest kulvar) — run150/153/154/155
+  desenini `src/3d/ui/`'daki beşinci ana yüzeye taşıdı. `ui/interactionPrompt.js` (FAZ 5'in NPC/etkileşim
+  yakınlık ipucu, "E - Selamla") additive-only statik `role="status"` + `aria-live="polite"` +
+  `aria-atomic="true"` kazandı (constructor'da, tek seferlik — widget metni hiç değişmeden yalnız
+  `hidden` durumu değiştiği için önceki dört widget'ın "her `show()`'da yeniden uygula" deseninden
+  bilinçli olarak farklı, bkz. ADR-0178 Alternatifler).
+- DoD: `node --check src/3d/ui/interactionPrompt.js` PASS; temiz run156 baseline + post-change tam
+  Playwright smoke suite 34/34 PASS, 0 FAIL, 0 console/page error; yeni
+  `scripts/checkInteractionPromptAccessibility.js` (Node-only, worldEventToast/settlementDiscovery
+  desenini izleyen fake-DOM harness) PASS; `checkAdditiveOnlyDiff.js` PASS (yalnız ekleme);
+  `checkSmokeCheckRegistry.js` PASS (34 check/14 modül tutarlı, `game3d.js` WARN 545/600 değişmedi,
+  108 dosya hepsi 600 altında).
+- Görsel doğrulama gerekmedi (§8.5 istisnası — yalnız ARIA metadata eklendi, `hidden` tabanlı
+  görünürlük/piksel çıktısı/dokunmatik aktivasyon bit-eşit kaldı; tam browser smoke render davranışının
+  değişmediğini, hedef Node testi ise erişilebilirlik attribute'larını ve mevcut `pointerup`
+  aktivasyonunun korunduğunu doğruladı).
+- Performans: `2026-08-07,run156b,2,50,608296,48,17,273` (`collectPerfSnapshot.js`) — drawCalls/
+  triangles/geometries/textures bit-eşit (yalnız attribute eklendi).
+- Memory leak checklist: yeni listener/timer/geometry/material yok; mevcut `pointerup` listener'ı ve
+  `dispose()`'daki `remove()` aynen korunuyor.
+- Teknik borç: 1 (`game3d.js` 545/600, owner kararı bekliyor, değişmedi). Risk LOW. Güven 5/5 —
+  hiçbir tahmin/fabrikasyon yok, tüm kapılar gerçek sonuçlarla doğrulandı, "6 ay sonra hâlâ net mi"
+  tereddüdü yok (ADR-0178 hem kararı hem üç alternatifi kaydediyor).
+- ADR: ADR-0178 (LOW). World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) —
+  değişmedi.
+- World Evolution Report delta: yol/orman/kale/NPC/event/hayvan sayıları 0; toplam ADR sayısı
+  177→178 (+1); erişilebilirlik test kapsamı +1 (`checkInteractionPromptAccessibility.js`). Oyuncu
+  fark eder mi: görsel olarak hayır; ekran okuyucu kullanan oyuncu artık bir etkileşilebilire
+  yaklaştığında "E - Selamla" ipucunu nazik bir durum bildirimi olarak duyar. `src/3d/ui/`'da artık
+  yalnız `dayNightClock.js`/`settlementCompass.js` (kısmi) ve `touchJoystick.js` (kasıtlı olarak
+  dokunulmadı — salt dokunmatik kontrol, canlı-bölge semantiği anlamsız) dışında ana yüzey kalmadı.
+- Sıradaki adım: owner bloklarına (radius-5, `game3d.js` bölünmesi, world-event checksum fixture,
+  güvenlik anahtarı) dokunmadan bağımsız iş; bu run'ın Çalıştırma Geneli Süre Tavanı/Oturum Kalite
+  Kapısı burada değerlendirilip run kapatıldı (bkz. çalıştırma sonu özeti).

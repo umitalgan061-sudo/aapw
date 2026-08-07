@@ -17,6 +17,14 @@ export class InteractionPrompt {
 		this._el.className = 'g3d-interaction-prompt';
 		this._el.textContent = 'E - Selamla';
 		this._el.hidden = true;
+		// Additive-only accessibility (run156, same pattern as worldEventToast/settlementDiscovery/
+		// dialogueBox): the prompt's text never changes, only its visibility toggles, so a static
+		// role=status + aria-live=polite + aria-atomic=true (set once here, not per-setVisible call)
+		// is enough for a screen reader to announce "E - Selamla" whenever it becomes available near
+		// an interactable, without altering the existing hidden-attribute visibility mechanics.
+		this._el.setAttribute('role', 'status');
+		this._el.setAttribute('aria-live', 'polite');
+		this._el.setAttribute('aria-atomic', 'true');
 		this._activateHandler = null;
 		this._onPointerUp = (event) => {
 			if (!this._activateHandler || !this._visible) return;
