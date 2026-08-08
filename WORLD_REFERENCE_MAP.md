@@ -42,3 +42,10 @@ The integration check uses protected Balon and Jon plus an open Summer Sea probe
 ## Canonical road/water policy measurement — run 188
 
 Run188 preserves Run187's 399/1020 canonical-water road-point result across 6/13 MST edges and measures policy consequences without selecting one. Bridge-only interpretation needs 6.16 km total diagnostic chord span (longest 3.11 km); ferry-only interpretation traverses 6.51 km total canonical water (longest 3.32 km); a 40m-grid full-world dry-cart search with water impassable and the current 20° hard-grade ceiling finds 3/6 affected edges feasible. Mixed remains owner-mapped per edge. Checksum `c47d6ecbacff41a6ffc4e18623642905c1865c46f37f3f82fbd69a9eecd57214`.
+
+
+## Canonical rock/stone placement qualification — run 189
+
+Run189, mevcut canonical mountain/rocky-hills biome zoneları ile relief-chain anchorlarını deterministic geology influence olarak kullanıp full-reference planned world üzerinde 120m hücreli, seed=1337 shadow-only kaya/taş aday taraması yaptı. Canonical water elendi, 14/14 kingdom-seat center protected-land olarak doğrulandı, adaylar mevcut temporary 35° walkable-slope safety sınırının üstüne çıkmadı. 343 aday üretildi: stone 241, rock 77, boulder 25; geology coverage 5 zone/source (bone-mountains:123, dorne-mountains:23, relief-chain:111, vale-mountains:28, westerlands:58). Checksum `137567a4b8a6ce24c8cbb9792096a06a98063ea29c0011e58cdd1e11e4800ce0`.
+
+Qualification boundary: bu çıktı canlı rock mesh/spawn sistemi değildir; runtime scene/terrain/road/PWA import graphı değişmez. Yol-su policy owner kararı açık olduğu için rock-road clearance veya canonical live-road adoption bu run içinde varsayılmaz. Macro-relief height değişikliği de yapılmaz; bu yalnız ilerideki kaya geometry/placement katmanı için deterministik, su/yerleşim-güvenli aday sözleşmesidir.

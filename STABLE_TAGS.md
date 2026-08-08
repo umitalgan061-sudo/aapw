@@ -880,3 +880,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1419 — run 188 canonical road/water owner-policy shadow comparison (ADR-0208); deterministic policy matrix + full regression gates PASS; no policy selected, live runtime delta 0.
+
+
+- stable-2026-08-08-1444 — run 189 canonical deterministic rock/stone placement shadow qualification (ADR-0209); fixture determinism + full regression gates PASS; live runtime delta 0.
