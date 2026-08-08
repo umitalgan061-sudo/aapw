@@ -1,5 +1,27 @@
 import assert from 'node:assert/strict';
-import { integrateJumpArc } from '../src/3d/physics.js';
+import fs from 'node:fs';
+
+const physicsSource = fs.readFileSync(new URL('../src/3d/physics.js', import.meta.url), 'utf8');
+const marker = 'export function integrateJumpArc';
+const functionStart = physicsSource.indexOf(marker);
+assert.notEqual(functionStart, -1, 'physics.js must export integrateJumpArc');
+
+const bodyStart = physicsSource.indexOf('{', functionStart);
+assert.notEqual(bodyStart, -1, 'integrateJumpArc must have a function body');
+let braceDepth = 0;
+let functionEnd = -1;
+for (let index = bodyStart; index < physicsSource.length; index += 1) {
+	if (physicsSource[index] === '{') braceDepth += 1;
+	if (physicsSource[index] === '}') braceDepth -= 1;
+	if (braceDepth === 0) {
+		functionEnd = index;
+		break;
+	}
+}
+assert.notEqual(functionEnd, -1, 'integrateJumpArc function body must be balanced');
+
+const functionSource = physicsSource.slice(functionStart, functionEnd + 1).replace(/^export\s+/, '');
+const integrateJumpArc = new Function(`${functionSource}\nreturn integrateJumpArc;`)();
 
 const EPSILON = 1e-9;
 const approxEqual = (actual, expected, message) => {
@@ -72,5 +94,5 @@ const secondArc = simulateArc();
 assert.deepEqual(secondArc.snapshots, firstArc.snapshots, 'same inputs must produce a deterministic jump trajectory');
 
 console.log(
-	`[checkJumpArcContract] PASS: semi-implicit launch/descent, landing clamp, eventual landing and deterministic trajectory (${firstArc.airborneFrames} airborne frames).`,
+	`[checkJumpArcContract] PASS: source-isolated semi-implicit launch/descent, landing clamp, eventual landing and deterministic trajectory (${firstArc.airborneFrames} airborne frames).`,
 );
