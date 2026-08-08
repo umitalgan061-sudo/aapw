@@ -1,0 +1,252 @@
+name: Run 184 Full Map Migration Dry Run
+
+on:
+  push:
+    branches: [agent/run184-full-map-migration-dry-run]
+    paths:
+      - 'src/3d/world/worldReferenceMigrationPlan.js'
+      - 'scripts/checkWorldReferenceMigrationDryRun.js'
+      - 'scripts/applyRun184Additions.js'
+      - 'scripts/recordRun184Governance.js'
+      - '.github/workflows/run184-full-map-migration-dry-run.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: 66226d8b75ae8a79b9171e02d0ba20b9fc18f148
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and start concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md && test -f 3D_GAME_PROGRESS.md && test -f DECISIONS.md && test -f QUESTIONS_FOR_OWNER.md
+          if grep -q '^## ADR-0204 ' DECISIONS.md; then echo 'ADR-0204 already occupied on main'; exit 1; fi
+          git log -12 --oneline
+          tail -n 280 GOVERNANCE.md
+          tail -n 240 3D_GAME_PROGRESS.md
+          tail -n 240 DECISIONS.md
+
+      - name: Baseline full browser smoke on Run 183 main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run184-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run184-smoke-before.log" && test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run184-smoke-before.log")" -ge 34)
+          git worktree remove "$BASELINE"
+
+      - name: Apply additive migration-plan records
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferenceMigrationPlan.js
+          node --check scripts/checkWorldReferenceMigrationDryRun.js
+          node --check scripts/applyRun184Additions.js
+          node --check scripts/recordRun184Governance.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          node scripts/applyRun184Additions.js
+          node --check service-worker.js
+          grep -F "./src/3d/world/worldReferenceMigrationPlan.js" service-worker.js
+          grep -F '## Full-map runtime migration dry-run — run 184' WORLD_REFERENCE_MAP.md
+          git diff --check
+          test "$(git diff --numstat -- service-worker.js WORLD_REFERENCE_MAP.md | awk '{s += $2} END {print s + 0}')" -eq 0
+
+      - name: Full-map migration dry-run proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldReferenceMigrationDryRun.js | tee "$RUNNER_TEMP/run184-migration.log"
+          SUMMARY="$(grep '^\[checkWorldReferenceMigrationDryRun\] PASS:' "$RUNNER_TEMP/run184-migration.log" | tail -n1 | sed 's/^\[checkWorldReferenceMigrationDryRun\] PASS: //')"
+          test -n "$SUMMARY"
+          echo "RUN184_DRY_RUN_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+
+      - name: Canonical map hydrology extent and world safety gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkWorldReferenceMigrationDryRun.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkSkyVisualContract.js
+          node scripts/checkFogVisualContract.js
+          node scripts/checkLightingVisualContract.js
+          node scripts/checkStarfieldVisualContract.js
+          node scripts/checkCameraContract.js
+
+      - name: Determinism assets PWA grass and governance gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkWindGrassContractRun180.js
+          node scripts/checkWindGrassSceneIntegrationRun180.js
+
+      - name: Accessibility input and physics regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkControlsHelpAccessibility.js
+          node scripts/checkJumpArcContract.js
+          node scripts/checkEventBusContract.js
+          node scripts/checkHealthStateContract.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkMobileJumpControl.js
+
+      - name: Mobile streaming LOD and render-budget regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run184-mobile-budget.log"
+          SAMPLE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run184-mobile-budget.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$SAMPLE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$SAMPLE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$SAMPLE")"
+          test "$DRAW" -eq 35
+          test "$TRI" -eq 195929
+
+      - name: Full browser smoke after dry-run additions and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run184-smoke-after.log"
+          AFTER_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run184-smoke-after.log")"
+          test "$AFTER_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run184-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run184-smoke-after.log"; then exit 1; fi
+          echo "RUN184_SMOKE_PASS_COUNT=$AFTER_COUNT" >> "$GITHUB_ENV"
+
+      - name: Mobile near and F4 far visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureRun130MobileEvidence.js
+
+      - name: Upload Run 184 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run184-full-map-migration-dry-run-evidence
+          path: artifacts/run130-mobile/*.png
+          if-no-files-found: error
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run184 | tee "$RUNNER_TEMP/run184-perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/run184-trend.log"
+          PERF_ROW="$(grep '^\[collectPerfSnapshot\] sampled:' "$RUNNER_TEMP/run184-perf.log" | tail -n1 | sed 's/^\[collectPerfSnapshot\] sampled: //')"
+          test -n "$PERF_ROW"
+          test "$(printf '%s\n' "$PERF_ROW" | awk -F',' '{print NF}')" -eq 8
+          echo "RUN184_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+          git checkout -- perf_log.csv
+
+      - name: Senior self-review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          test "$(git diff --numstat -- service-worker.js WORLD_REFERENCE_MAP.md | awk '{s += $2} END {print s + 0}')" -eq 0
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/worldReferenceMigrationPlan.js scripts/checkWorldReferenceMigrationDryRun.js scripts/applyRun184Additions.js scripts/recordRun184Governance.js; then exit 1; fi
+          git diff --quiet "$BASE_SHA" HEAD -- src/3d/config.js src/3d/sceneManager.js src/3d/world/terrain.js src/3d/world/water.js src/3d/world/roads.js src/3d/world/settlements.js
+          node scripts/checkWorldReferenceMigrationDryRun.js
+          node scripts/checkWindGrassSceneIntegrationRun180.js
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if grep -q '^## ADR-0204 ' DECISIONS.md; then echo 'ADR-0204 occupied before publish'; exit 1; fi
+
+      - name: Prepare Run 184 governance values
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RUN184_STAMP=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+          echo "RUN184_STABLE_TAG=stable-$(date -u +'%Y-%m-%d-%H%M')" >> "$GITHUB_ENV"
+
+      - name: Record Run 184 governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/recordRun184Governance.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkCheckpointConsistency.js
+
+      - name: Final publish concurrency gate and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git ls-remote --tags origin "refs/tags/$RUN184_STABLE_TAG" | grep -q .; then echo 'stable tag already exists'; exit 1; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add service-worker.js WORLD_REFERENCE_MAP.md 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          git commit -m "feat(world): record full-map migration dry-run proof"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git push origin HEAD:agent/run184-full-map-migration-dry-run
+
+      - name: Push stable checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag "$RUN184_STABLE_TAG"
+          git push origin "$RUN184_STABLE_TAG"
