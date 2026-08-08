@@ -7,6 +7,12 @@ on:
       - 'scripts/checkSeededRandomPolicy.js'
       - 'src/3d/**'
       - '.github/workflows/run167-determinism-policy.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/checkSeededRandomPolicy.js'
+      - 'src/3d/**'
+      - '.github/workflows/run167-determinism-policy.yml'
 
 permissions:
   contents: read
