@@ -189,6 +189,8 @@ const GAME3D_SHELL_FILES = [
     './assets/models/settlements/castles/greystone_castle_decimated.glb',
     './assets/models/settlements/castles/brickstone_citadel_decimated.glb',
     './assets/models/settlements/castles/gatehouse_reference_decimated.glb'
+    ,
+    './src/3d/world/worldReferenceMap.js'
 ];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
