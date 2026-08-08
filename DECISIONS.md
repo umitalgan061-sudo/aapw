@@ -14769,3 +14769,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkLightingVisualContract.js`, run 174 CI workflow'u ve governance kayıtları. `src/3d/lighting.js`, 2D oyun, sky/fog/water/terrain runtime'ı, world seed, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
 
 **Geri alma planı:** lighting/day-night sanat veya zaman sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
+
+
+## ADR-0197 — Starfield has a live deterministic Points-dome/shader/update contract (run 175)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkStarfieldVisualContract.js`, gerçek tarayıcı/import-map ortamında mevcut `createStarfield()` / `updateStarfield()` / `disposeStarfield()` fonksiyonlarını çağırır; 1200 yıldızlı BufferGeometry/Points yapısını, tüm yıldızların ~1850m upper-dome yarıçapını ve en az 0.05 height-factor sınırını, aPhase/aFreq attribute şekil ve aralıklarını, same-seed position/phase/frequency buffer'larının bit-identical olmasını, farklı seed'in ayrışmasını, ShaderMaterial transparent/depthWrite/fog + fixed-size/color + shader-output imzasını, frustum/render-order politikasını, camera-follow + uTime/uNightFactor güncellemelerini ve geometry/material dispose olaylarını fail-fast regresyon sözleşmesi olarak doğrular. Runtime kaynağı değiştirilmez.
+
+**Neden:** mevcut smoke check star twinkle'ın seeded phase/frequency ve update uniform davranışını koruyor, fakat rendered THREE.Points dome'unun star count/radius/horizon sınırı, material/render-order/fixed-size imzası, position determinism'i ve teardown'u tek açıklayıcı canlı render kontratında pinlemiyor. Run 172-174 sky/fog/lighting atmosfer zincirinden sonra starfield aynı katmandaki kalan düşük-riskli render boşluğudur.
+
+**Alternatifler:** piksel snapshot GPU/headless farklarına kırılgandır; yalnız kaynak regex'i BufferGeometry/ShaderMaterial gerçek nesnelerini ve dispose zincirini ölçmez; mevcut smoke testini büyütmek dolu smoke registry'sine gereksiz kapsam ekler; çalışan `stars.js` runtime'ını refactor etmek additive-only altında gereksiz risk taşır.
+
+**Sonuç:** yıldız dome topolojisi, deterministik dağılım/twinkle buffer'ları, görünüm material/shader sözleşmesi, kamera takip güncellemesi ve teardown davranışı CI'da canlı modül üzerinde korunur; runtime maliyeti sıfırdır. Owner'ın run 87 playtest sorusundaki twinkle tuning değerleri yalnız mevcut davranış olarak test edilir, yeniden kalibre edilmez.
+
+**Etkilenen sistemler:** yeni `scripts/checkStarfieldVisualContract.js`, run 175 CI workflow'u ve governance kayıtları. `src/3d/stars.js`, 2D oyun, lighting/sky/fog/water/terrain runtime'ı, world seed, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
+
+**Geri alma planı:** starfield sanat/shader/twinkle sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
