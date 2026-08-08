@@ -32,6 +32,16 @@ export class InteractionPrompt {
 			this._activateHandler();
 		};
 		this._el.addEventListener('pointerup', this._onPointerUp);
+		// Additive-only run160 keyboard parity: when a touch/click activation handler exists, the
+		// same visible prompt can also be reached and activated with Enter/Space. The handler and
+		// visibility guards mirror pointer activation so hidden/non-interactive prompts stay inert.
+		this._onKeyDown = (event) => {
+			if (!this._activateHandler || !this._visible) return;
+			if (event.key !== 'Enter' && event.key !== ' ') return;
+			event.preventDefault();
+			this._activateHandler();
+		};
+		this._el.addEventListener('keydown', this._onKeyDown);
 		container.appendChild(this._el);
 		this._visible = false;
 	}
@@ -55,9 +65,16 @@ export class InteractionPrompt {
 	setActivateHandler(handler) {
 		this._activateHandler = handler;
 		this._el.classList.toggle('g3d-interaction-prompt-action', Boolean(handler));
+		// Run160: advertise true interactive semantics only while a real activation handler exists.
+		// Reapplying the original status role when disabled preserves run156 announcement behavior.
+		this._el.setAttribute('role', handler ? 'button' : 'status');
+		this._el.setAttribute('tabindex', handler ? '0' : '-1');
+		this._el.setAttribute('aria-label', handler ? 'Selamla' : 'E - Selamla');
 	}
 
 	dispose() {
 		this._el.remove();
+		this._el.removeEventListener('pointerup', this._onPointerUp);
+		this._el.removeEventListener('keydown', this._onKeyDown);
 	}
 }
