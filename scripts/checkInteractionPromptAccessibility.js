@@ -26,7 +26,9 @@ class FakeElement {
 	getAttribute(name) { return this.attributes.get(name) ?? null; }
 	appendChild(child) { this.children.push(child); return child; }
 	addEventListener(type, handler) { this._listeners.set(type, handler); }
+	removeEventListener(type, handler) { if (this._listeners.get(type) === handler) this._listeners.delete(type); }
 	dispatchPointerUp(event) { this._listeners.get('pointerup')?.(event); }
+	dispatchKeyDown(event) { this._listeners.get('keydown')?.(event); }
 	remove() { this.removed = true; }
 }
 
@@ -68,3 +70,35 @@ prompt.dispose();
 assert.equal(prompt._el.removed, true);
 
 console.log('Interaction prompt accessibility guard PASS: static status/live/atomic Turkish hint, tap-activation and disposal preserved.');
+
+// Run160 additive keyboard parity: an actionable visible prompt is a focusable button and Enter/
+// Space invoke exactly the same activation callback; unrelated keys, hidden state and disabled state
+// stay inert. Listener cleanup is also explicit so retained prompt instances cannot react post-dispose.
+const keyboardPrompt = new InteractionPrompt(body);
+let keyboardActivations = 0;
+keyboardPrompt.setActivateHandler(() => { keyboardActivations += 1; });
+assert.equal(keyboardPrompt._el.getAttribute('role'), 'button');
+assert.equal(keyboardPrompt._el.getAttribute('tabindex'), '0');
+assert.equal(keyboardPrompt._el.getAttribute('aria-label'), 'Selamla');
+keyboardPrompt.setVisible(true);
+let prevented = 0;
+keyboardPrompt._el.dispatchKeyDown({ key: 'Enter', preventDefault() { prevented += 1; } });
+keyboardPrompt._el.dispatchKeyDown({ key: ' ', preventDefault() { prevented += 1; } });
+keyboardPrompt._el.dispatchKeyDown({ key: 'Escape', preventDefault() { prevented += 1; } });
+assert.equal(keyboardActivations, 2, 'Enter and Space activate; unrelated keys do not');
+assert.equal(prevented, 2, 'only handled activation keys prevent default');
+keyboardPrompt.setVisible(false);
+keyboardPrompt._el.dispatchKeyDown({ key: 'Enter', preventDefault() { prevented += 1; } });
+assert.equal(keyboardActivations, 2, 'hidden prompt is keyboard-inert');
+keyboardPrompt.setActivateHandler(null);
+assert.equal(keyboardPrompt._el.getAttribute('role'), 'status');
+assert.equal(keyboardPrompt._el.getAttribute('tabindex'), '-1');
+assert.equal(keyboardPrompt._el.getAttribute('aria-label'), 'E - Selamla');
+keyboardPrompt.setVisible(true);
+keyboardPrompt._el.dispatchKeyDown({ key: 'Enter', preventDefault() { prevented += 1; } });
+assert.equal(keyboardActivations, 2, 'prompt without handler is keyboard-inert');
+keyboardPrompt.dispose();
+assert.equal(keyboardPrompt._el._listeners.has('pointerup'), false);
+assert.equal(keyboardPrompt._el._listeners.has('keydown'), false);
+
+console.log('Interaction prompt keyboard accessibility guard PASS: button semantics, Enter/Space parity, inert states and listener cleanup preserved.');
