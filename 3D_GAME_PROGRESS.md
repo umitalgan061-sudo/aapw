@@ -13923,3 +13923,18 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0193. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: water/terrain/yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; water visual regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak su mesh çözünürlüğü, fog/shader imzası, kamera-follow ve teardown regresyonlarının main'e sızma riski azaldı.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız world/render kalite adaylarını güncel main üzerinde yeniden sırala; başlamadan ve yayınlamadan önce eşzamanlılık kapısını uygula.
+
+
+## Run 172 — Aurora sky visual/shader regression contract (2026-08-08 08:36 UTC)
+- Alt görev: gerçek `createAuroraSky()` / `updateAuroraSky()` / `disposeAuroraSky()` çıktısını tarayıcı içinde doğrulayan additive-only `scripts/checkSkyVisualContract.js` eklendi. Kontrat 1900m sky sphere topolojisini, BackSide/depth/fog/render-order imzasını, procedural aurora shader/uniform paletini, day/night gradient aktarımını, kamera takip güncellemesini, Three.js pole UV seam padding davranışını, deterministik geometry buffer'larını ve teardown zincirini doğruluyor.
+- İlk unmerged denemede test UV'yi hatalı biçimde yalnız [0,1] kabul ederek Three.js SphereGeometry'nin kutup seam düzeltmesini false-positive saydı; runtime değişmedi. İkinci temiz dal gerçek 32-segment yarım-texel pole padding'ini (±0.015625) ölçerek bu test varsayımını düzeltti.
+- Runtime/2D/PWA davranışı değiştirilmedi; sky shader, day/night sabitleri, fog, terrain, mobil radius/LOD ve owner kalibrasyon değerlerine dokunulmadı. Owner kararı bekleyen radius-5, game3d.js yapısal borcu ve world-event checksum maddeleri aynen bırakıldı.
+- Additive-only: yayınlanan dal yalnız yeni checker, yeni run workflow'u ve yeni governance recorder ekledi; mevcut source satırı silinmedi/değiştirilmedi.
+- DoD: node --check PASS; 561 vertices, 2880 indices, 1900m camera-follow BackSide sphere, pole UV padding ±0.015625, aurora/day-night shader contract PASS, disposal 1/1.; baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; determinism, assets, accessibility, input/physics, mobile streaming/LOD/perf, terrain-seat/terrain-visual, road-network/road-visual, vegetation-visual, water-visual, PWA installability/cache ve additive-only kapıları PASS.
+- Görsel doğrulama: 390x844 mobile Chromium yakın + F4 uzak render kanıtı artifact olarak üretildi; runtime görseli değişmediği için no-delta regresyon kanıtıdır.
+- Performans: 2026-08-08,run172,2,50,608296,48,17,326
+- Memory leak checklist: runtime allocation eklenmedi; checker `disposeAuroraSky()` için 1 geometry + 1 material dispose olayını canlı doğruluyor ve testte oluşturduğu iki sky meshini temizliyor.
+- Teknik borç: 1 (önceden var olan `game3d.js` yapısal borcu); run 172 yeni runtime borcu eklemedi. Risk LOW. Güven 5/5.
+- ADR: ADR-0194. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: sky/water/terrain/yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; sky visual regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak gökyüzü sphere çözünürlüğü, shader/palet, day-night güncellemesi ve teardown regresyonlarının main'e sızma riski azaldı.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız world/render kalite adaylarını güncel main üzerinde yeniden sırala; fog/lighting gibi kalan sistemler mevcut smoke kapsamına göre tekrar değerlendirilir.

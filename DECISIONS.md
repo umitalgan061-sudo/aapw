@@ -14718,3 +14718,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkWaterVisualContract.js`, run 171 CI workflow'u ve governance kayıtları. `src/3d/world/water.js`, 2D oyun, terrain/world seed, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
 
 **Geri alma planı:** water render sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
+
+
+## ADR-0194 — Rendered aurora sky has a live sphere/shader/update contract (run 172)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkSkyVisualContract.js`, gerçek tarayıcı/import-map ortamında mevcut `createAuroraSky()` fonksiyonunu iki kez çağırır; 1900m radius / 32x16 segment SphereGeometry'nin 561 vertex / 2880 index topolojisini, finite unit normals, standart V aralığını ve Three.js'in kutup seam'i için uyguladığı yarım-segment U padding'ini (0.5/32 = 0.015625), BackSide ShaderMaterial / depthWrite=false / fog=false imzasını, frustum-culling kapalı + renderOrder=-1 kamera-surround davranışını, dusk horizon/zenith + aurora renkleri + time/night uniformlarını, procedural hash/value-noise ve night-masked aurora shader imzasını, deterministik geometry buffer'larını, `updateAuroraSky()` kamera kopyalama + zaman + day/night gradient aktarımını ve `disposeAuroraSky()` teardown olaylarını fail-fast regresyon sözleşmesi olarak doğrular. Runtime kaynağı değiştirilmez.
+
+**Neden:** mevcut full smoke sky'ı dolaylı render ediyor; sphere çözünürlüğü/radius'u, inside-render material yönü, day/night uniform aktarımı, aurora shader imzası veya dispose zinciri drift ederse açıklayıcı sistem-seviyesi kontrat yok. İlk test denemesi UV'yi yalnız [0,1] kabul ederek Three.js'in pole seam UV offset'ini yanlışlıkla hata saydı; runtime yerine test varsayımının düzeltilmesi gerektiği logla doğrulandı ve başarısız dal merge edilmedi.
+
+**Alternatifler:** piksel snapshot GPU farklarına kırılgandır; yalnız shader regex'i geometry/update/dispose zincirini ölçmez; çalışan sky runtime'ını refactor etmek gereksiz additive-only riski taşır; yanlış UV beklentisini zorlamak gerçek SphereGeometry davranışını test etmek yerine implementasyona ters bir sözleşme yaratır.
+
+**Sonuç:** sky sphere topolojisi, gerçek pole UV seam davranışı, inside-render material ayarları, procedural aurora görünüm sözleşmesi, day/night + camera-follow update'i ve teardown davranışı CI'da canlı modül üzerinde korunur; runtime maliyeti sıfırdır.
+
+**Etkilenen sistemler:** yeni `scripts/checkSkyVisualContract.js`, run 172 CI workflow'u ve governance kayıtları. `src/3d/sky.js`, 2D oyun, lighting/fog runtime'ı, terrain/world seed, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
+
+**Geri alma planı:** sky render sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
