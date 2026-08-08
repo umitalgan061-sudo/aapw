@@ -883,3 +883,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1444 — run 189 canonical deterministic rock/stone placement shadow qualification (ADR-0209); fixture determinism + full regression gates PASS; live runtime delta 0.
+
+
+- stable-2026-08-08-1510 — run 190 canonical real rock geometry/LOD shadow proof (ADR-0210); Run189 checksum + road-clear diagnostic + real renderer cost + full regression PASS; live runtime delta 0.

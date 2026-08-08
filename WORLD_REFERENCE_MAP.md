@@ -49,3 +49,12 @@ Run188 preserves Run187's 399/1020 canonical-water road-point result across 6/13
 Run189, mevcut canonical mountain/rocky-hills biome zoneları ile relief-chain anchorlarını deterministic geology influence olarak kullanıp full-reference planned world üzerinde 120m hücreli, seed=1337 shadow-only kaya/taş aday taraması yaptı. Canonical water elendi, 14/14 kingdom-seat center protected-land olarak doğrulandı, adaylar mevcut temporary 35° walkable-slope safety sınırının üstüne çıkmadı. 343 aday üretildi: stone 241, rock 77, boulder 25; geology coverage 5 zone/source (bone-mountains:123, dorne-mountains:23, relief-chain:111, vale-mountains:28, westerlands:58). Checksum `137567a4b8a6ce24c8cbb9792096a06a98063ea29c0011e58cdd1e11e4800ce0`.
 
 Qualification boundary: bu çıktı canlı rock mesh/spawn sistemi değildir; runtime scene/terrain/road/PWA import graphı değişmez. Yol-su policy owner kararı açık olduğu için rock-road clearance veya canonical live-road adoption bu run içinde varsayılmaz. Macro-relief height değişikliği de yapılmaz; bu yalnız ilerideki kaya geometry/placement katmanı için deterministik, su/yerleşim-güvenli aday sözleşmesidir.
+
+
+## Canonical rock geometry shadow proof — run 190
+
+Run190, Run189 canonical candidate sözleşmesini yeni shadow-only `worldReferenceRockShadow.js` içinde bağımsız olarak yeniden üretti ve candidate checksum `5917875bd2a937abf6560875a86809f11da09af50449b73c280da24d9fc8ab2b` değerini korudu. 343 adayın provisional canonical-target MST/pathfinder centerline'larına minimum 24m koridoru ölçüldü: safe=332, conflict=11. Bu corridor Run188 bridge/ferry/dry/mixed owner kararını seçmez ve live road policy değildir.
+
+Real geometry proof: mobile local bounded profile 96 instance, near/far 52/44, 6 gerçek renderer draw call / 3300 triangle; desktop 127 instance, near/far 40/87, 6 draw call / 3920 triangle. En fazla 3 tier x 2 LOD InstancedMesh resident olur; full 137.5 km² candidate set tek seferde resident yapılmaz. Proof checksum `7957c0e6dee8f64538753c0dc4a82060e5932ab66ff9d4035c793e8145239999`.
+
+Boundary: shadow modül live scene/chunk/terrain/road/vegetation/game3d import graphına bağlı değildir. Service worker listesine yalnız offline-loadability için additive precache entry eklenir. Canlı kaya spawn, collision veya macro-relief height değişikliği bu runın kapsamında değildir.

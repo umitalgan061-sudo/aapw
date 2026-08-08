@@ -15020,3 +15020,26 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Rocks ileride cave/habitat okunabilirliğine doğal anchor sağlayabilir; fakat bu fixture cave veya dragon habitat spawn politikasını belirlemez. Macro-relief değişikliği ayrı §8.4 terrain-safety alt görevidir.
 
 **Geri alma planı:** Runtime consumer yoktur. Qualification varsayımı yanlışlanırsa yeni versioned checker/fixture additive olarak eklenir; canonical map/hydrology ve Run188 road-water owner gate korunur.
+
+
+## ADR-0210 — Prove bounded real rock geometry and LOD off-runtime before any live spawn (run 190)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run189 canonical rock candidate contract yeni `worldReferenceRockShadow.js` içinde bağımsız biçimde tekrar üretilir ve Run189 candidate checksum ile kilitlenir. Render proof tüm dünya adaylarını tek seferde resident yapmaz: mobile ve desktop için ayrı local render radius + hard instance cap vardır; stone/rock/boulder tierleri near/far LOD olarak en fazla altı `THREE.InstancedMesh` submission üretir. Geometri low-poly procedural primitive ve texture-free MeshStandardMaterial kullanır. Modül live scene/chunk/gameplay tarafından import edilmez.
+
+**Road-clearance kararı:** Run188 owner road-water policy açıkken hiçbir bridge/ferry/dry/mixed seçenek seçilmez. Bunun yerine mevcut canonical-target MST/pathfinder centerline geometry yalnız diagnostic olarak kullanılır ve 24m corridor dışında kalan 332/343 candidate shadow geometry proof için safe subset sayılır. 11 conflict silinmez/saklanmaz; fixture içinde sayısal olarak pinlenir. Future road mapping değişirse clearance yeniden ölçülür.
+
+**Ölçüm:** Run189 checksum `5917875bd2a937abf6560875a86809f11da09af50449b73c280da24d9fc8ab2b` korundu. Mobile 96 instance (52 near/44 far), actual 6 calls/3300 triangles. Desktop 127 instance (40 near/87 far), actual 6 calls/3920 triangles. Predicted ve renderer.info submission değerleri eşit; dispose sonrası group child count 0. Run190 checksum `7957c0e6dee8f64538753c0dc4a82060e5932ab66ff9d4035c793e8145239999`.
+
+**Neden:** Placement correctness tek başına gerçek geometry maliyetini, LOD davranışını veya resident-set boundunu kanıtlamaz. Canlı spawnı doğrudan eklemek ise full-reference road policy hâlâ unresolved iken collision/readability/perf riskini runtimea taşır. Shadow module gelecekteki implementation shapeini gerçek THREE nesneleriyle kanıtlarken rollback maliyetini sıfıra yakın tutar.
+
+**Alternatifler:** 343 kayanın tamamını tek world-resident group yapmak reddedildi (streaming hedefiyle çelişir); her kayayı ayrı Mesh yapmak reddedildi (draw-call explosion); external rock asset indirmek reddedildi (bu proof için lisans/asset maliyeti gereksiz); live sceneManager wiring aynı run içinde reddedildi; provisional road centerlineı final owner policy saymak reddedildi.
+
+**Sonuç:** Deterministic site contract artık gerçek bounded InstancedMesh + near/far LOD + renderer.info maliyet ölçümü seviyesinde kanıtlıdır, fakat oyuncu runtimeı unchanged kalır. Service worker yalnız yeni shadow module offline-loadability için additive entry alır.
+
+**Etkilenen sistemler:** yeni src/3d/world/worldReferenceRockShadow.js, Run190 checker/fixture/PWA applicator/recorder/CI, service-worker GAME3D_SHELL_FILES additive entry ve append-only world/progress/ADR/stable/perf kayıtları. game3d/sceneManager/chunkManager/terrain/roads/vegetation/physics/2D runtime değiştirilmez.
+
+**Gelecek Faz Etkisi:** Bir sonraki shadow integration camera-cell/chunk ownership, frustum/occlusion ve optional collider footprintlerini test edebilir. Macro-relief height sampler değişikliği hâlâ ayrı GOVERNANCE §8.4 terrain-safety runı gerektirir.
+
+**Geri alma planı:** Live consumer yoktur. Geometry/LOD policy yanlışlanırsa yeni versioned shadow module/checker additive eklenir; Run189 site fixture ve Run188 owner road gate korunur.
