@@ -13749,3 +13749,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Alt görev 2 (zincirleme, §19 gereği): §13 "İnsan Yakalama Özeti" kuralı — son `CATCH_UP.md` girişi run148'deydi, ~10 çalıştırma geçti. `CATCH_UP.md`'ye run158 girişi eklendi (en yeni en üstte), jargonsuz 2026-08-07 özeti: erişilebilirlik geçişinin tamamlandığı (artık tüm ana HUD yüzeyleri ekran okuyucuyla uyumlu), açık owner maddelerinin (API anahtarı, mobil radius-5, `game3d.js` bölünmesi, world-event katalog büyümesi) hâlâ yanıt beklediği not edildi.
 - DoD (alt görev 2): `node --check` N/A (yalnız `.md`); `checkAdditiveOnlyDiff.js` PASS; commit atılacak.
 - Sıradaki adım: owner bloklarına (radius-5/ADR-0166, `game3d.js` bölünmesi, world-event determinism-checksum/ADR-0172, güvenlik anahtarı rotasyonu) dokunmadan bağımsız test-kalite/dokümantasyon işi; `src/3d/ui/` erişilebilirlik geçişi artık tamamlandığı için gelecekteki "madde 14" çalışması yeni bir alan bulmalı (ör. gameplay tarafındaki henüz dokunulmamış UI'lar, ya da §16'daki ertelenmiş kuralların aktivasyon koşulları). Bu run'ın Oturum Kalite Kapısı/Çalışma Süresi Sınırı burada değerlendirilip run kapatıldı (bkz. çalıştırma sonu özeti).
+
+
+## Run 159 — Controls help accessibility relation (2026-08-08 00:31 UTC)
+- Alt görev: owner bloklarına dokunmadan FAZ 8 UI erişilebilirliği — kontrol yardımındaki mevcut `?` düğmesi, açtığı panelin sabit kimliğine `aria-controls` ile programatik olarak bağlandı.
+- Additive-only: ilk deneme newline farkı nedeniyle +3/-1 görünerek guard öncesi reddedildi; temiz Run 158 tabanından V2 yeniden kuruldu ve gerçek net diff +2/-0 oldu. Mevcut kaynak satırı silinmedi/değiştirilmedi.
+- DoD: `node --check` PASS; hedef ControlsHelp a11y guard PASS; checkpoint/uniqueness, world-event determinism/catalog/diversity, PWA/cache, asset/dialogue, terrain/road, mobil streaming/LOD/culling/perf ve mevcut a11y regresyonları PASS; browser smoke 34/34+ PASS; 3D console/page error 0; additive-only PASS.
+- Görsel doğrulama: yalnız DOM erişilebilirlik metadata'sı eklendi; piksel/CSS çıktısı değişmedi. Baseline ve post-change gerçek Chromium/WebGL smoke mevcut görünür davranışı doğruladı.
+- Performans: 2026-08-08,run159,1,50,608296,48,17,368
+- Memory leak checklist: yeni listener/timer/DOM node/geometry/material yok; mevcut click+keydown listener yaşam döngüsü ve `dispose()` temizliği aynen korunuyor.
+- Teknik borç: 1 (`game3d.js` 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
+- ADR: ADR-0181. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: yol/orman/kale/NPC/event/hayvan 0; asset/diyalog 0; ADR +1; erişilebilirlik regresyon kapsamı +1. Oyuncu farkı: görsel olarak hayır; ekran okuyucu yardım düğmesinin hangi paneli yönettiğini artık programatik olarak çözebilir.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız test-kalite/dokümantasyon veya yeni, küçük ve deterministik gameplay/UI iyileştirmesi; yeni owner kararı gerektiren kalibrasyon yapılmayacak.

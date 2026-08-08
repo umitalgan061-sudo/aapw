@@ -14497,3 +14497,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** `src/3d/ui/settlementCompass.js`; yeni `scripts/checkSettlementCompassAccessibility.js`; run158 CI/kayıtları. `game3d.js`'in pusula çağırma sırası, seat/flatten-pad verisi, save formatı, PWA/cache ve render bütçesi etkilenmez.
 
 **Geri alma planı:** İleride owner onaylı ortak erişilebilirlik policy katmanı gelirse eklenen dört attribute additive biçimde gölgelenebilir. Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
+
+
+## ADR-0181 — Kontrol yardım düğmesini açtığı panele programatik olarak bağla (run 159)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `ControlsHelp` içindeki mevcut yardım paneline sabit `id="g3d-controls-help-panel"` eklenir ve mevcut `?` düğmesi `aria-controls` ile bu kimliğe bağlanır. Mevcut `aria-expanded`, Türkçe aç/gizle etiketi, click/Escape davranışı ve görünürlük mekanizması aynen korunur.
+
+**Neden:** Düğme zaten erişilebilir ada ve açık/kapalı durumuna sahipti, panel de etiketliydi; fakat yardımcı teknoloji açısından "bu düğme hangi bölgeyi açıyor?" ilişkisi programatik olarak belirtilmiyordu. `aria-controls` bu bağı mevcut DOM/görsel davranışa dokunmadan açıklar.
+
+**Alternatifler:** (1) Paneli focusable yapıp açılışta odağı taşımak — reddedildi; mevcut klavye akışını değiştirir ve owner kararı gerektirecek etkileşim tasarımı yaratır. (2) `aria-describedby` kullanmak — reddedildi; açıklama ilişkisi aç/kapa kontrolü ilişkisini doğru ifade etmez. (3) Hiç değiştirmemek — reddedildi; mevcut erişilebilirlik zincirinde küçük ama gerçek bir semantik boşluk bırakır.
+
+**Sonuç:** Piksel çıktısı, panel içeriği, masaüstü/mobil kontrol metinleri, click/Escape davranışı, 2D oyun, PWA/cache ve deterministik gameplay değişmez. Ekran okuyucu düğmenin kontrol ettiği paneli doğrudan çözebilir.
+
+**Etkilenen sistemler:** `src/3d/ui/controlsHelp.js`, yeni `scripts/checkControlsHelpAccessibility.js`, Run 159 CI/kayıtları. Gameplay/world/terrain/renderer etkilenmez.
+
+**Geri alma planı:** İleride ortak bir erişilebilirlik/ID üretim katmanı eklenirse yeni kimlik ve ilişki additive bir üst katmanla gölgelenebilir; mevcut runtime satırlarını silmek/değiştirmek gerekmez.
