@@ -14531,3 +14531,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** `src/3d/ui/interactionPrompt.js`, `scripts/checkInteractionPromptAccessibility.js`, run160 CI/kayıtları. 2D oyun, world generation, seed, PWA cache ve render bütçesi etkilenmez.
 
 **Geri alma planı:** İleride prompt gerçek bir native button bileşenine additive bir sarmalayıcıyla taşınırsa yeni katman bu semantiği devralabilir; mevcut satırların silinmesi/değiştirilmesi gerekmez.
+
+
+## ADR-0183 — Touch joystick input contract regression guard (run 161)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Mevcut `TouchJoystick` runtime kodunu değiştirmeden; pointer capture sahipliği, ikinci parmağın yok sayılması, deadzone, radius clamp, forward/strafe eksen eşlemesi, running eşiği, pointercancel reset'i ve dispose listener temizliğini tek bir deterministik Node regresyon testiyle sabitle.
+
+**Neden:** Mobil 3D hareketin temel girdisi joystick'tir; bu davranışlar bugüne kadar browser smoke içinde dolaylı olarak geçse de düşük seviyeli input sözleşmesi ayrı bir testle pinlenmiyordu. Additive-only kuralı altında runtime'a gereksiz semantik/işlev eklemek yerine mevcut doğru davranışı doğrudan korumak en düşük riskli kalite artışıdır.
+
+**Alternatifler:** (1) Runtime joystick kodunu refactor etmek — ihtiyaç yok ve additive-only guard gereksiz risk yaratır. (2) Yalnız browser smoke'a güvenmek — deadzone/capture/cancel edge-case'leri tek tek izole etmez. (3) Tam Playwright gesture testi — daha pahalı ve bu saf eksen sözleşmesi için gereksiz; gerçek mobil Chromium yolu zaten mevcut mobil/perf smoke kapılarında çalışıyor.
+
+**Sonuç:** Oyuncu davranışı, render, PWA cache, seed/determinism ve 2D oyun bit-eşit kalır; mobil input regresyonları daha erken ve daha açıklayıcı yakalanır.
+
+**Etkilenen sistemler:** yeni `scripts/checkTouchJoystickInputContract.js`, run161 CI/governance kayıtları. Runtime kaynak kodu etkilenmez.
+
+**Geri alma planı:** İleride joystick sözleşmesi bilinçli olarak değişirse yeni davranış için yeni bir additive test/ADR eklenebilir; mevcut guard tarihsel kontrat olarak kalabilir veya owner onaylı test-fixture istisnası gündeme alınabilir.

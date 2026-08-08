@@ -819,3 +819,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-08-0030 — run 159 controls-help trigger/panel accessibility (ADR-0181); 34/34+ browser smoke, additive-only/PWA/mobile/governance/a11y gates PASS.
 
 - stable-2026-08-08-0128 — run 160 interaction-prompt keyboard accessibility (ADR-0182); 34/34+ browser smoke, additive-only/PWA/mobile/governance/a11y gates PASS.
+
+- stable-2026-08-08-0240 — run 161 touch-joystick input contract regression guard (ADR-0183); 34/34+ browser smoke, additive-only/PWA/mobile/governance/a11y gates PASS.
