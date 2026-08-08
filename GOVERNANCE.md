@@ -525,3 +525,7 @@ Proje sahibi Run188/ADR-0208 yol-su kararını doğrudan çözdü: **bir yol der
 3. **Açıklığa göre çoklu kemer:** Uzun su geçişleri tek fiziksel olarak anlamsız dev kemer yapılmaz. Aynı deterministic bridge segmenti içinde açıklık bütçesine göre birden çok masonry arch/pier üretilir; yol genişliği mevcut ana cart-road genişliğiyle uyumlu kalır.
 4. **Determinism + güvenlik:** Bridge anchor/crossing listesi canonical hydrology + road route girdilerinden deterministik üretilir. Yol connectivity, <=20° live cart-road güvenliği, settlement protection, hydrology, PWA ve mobile perf kapıları korunmadan canlı adoption yapılmaz.
 5. **Kademeli yayın:** Run191 gerçek THREE geometry/materialı shadow-only kanıtlar. Live terrain/road scene adoption ayrı bir alt görevdir; önce bridge fixture, iki görsel açı, renderer budget, dispose ve pre/post smoke PASS olmalıdır.
+
+
+### Run199 platform-control superseding note (2026-08-08 23:29 UTC)
+GOVERNANCE §15'teki eski “Son kontrol: run 156” metni tarihsel kayıt olarak korunur; en yeni periyodik platform kontrolü **run 199 (2026-08-09)**'dur. package.json/npm bağımlılığı hâlâ yok (npm audit N/A); PWA installability, service-worker cache completeness, Chromium/WebGL 3D boot, console cleanliness, mobile streaming/LOD/perf ve perf trend kontrolleri yeniden PASS oldu. Bir sonraki periyodik platform kontrolü yaklaşık run 219-229 civarında yapılmalıdır. Bu not additive-only kuralı nedeniyle eski satırı silmeden/değiştirmeden onu supersede eder.
