@@ -34,6 +34,8 @@ export class ControlsHelp {
 		this._panel.className = 'g3d-controls-help-panel';
 		this._panel.hidden = true;
 		this._panel.setAttribute('aria-label', 'Oyun kontrolleri');
+		this._panel.id = 'g3d-controls-help-panel';
+		this._button.setAttribute('aria-controls', this._panel.id);
 		const title = document.createElement('h2');
 		title.textContent = isMobileClass ? 'Dokunmatik Kontroller' : 'Masaüstü Kontrolleri';
 		this._panel.appendChild(title);
