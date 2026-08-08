@@ -856,3 +856,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1129 — run 179 canonical-map coastline/water-mask contract (ADR-0200); 34/34+ browser smoke, map/mask checksum, terrain/road, PWA/mobile/perf/governance gates PASS; runtime render delta 0.
+
+
+- stable-2026-08-08-1148 — run 181 exact 2D-map/reference alignment contract (ADR-0201); 34/34+ browser smoke, CSS/map alignment, terrain/road, PWA/mobile/perf/governance gates PASS; runtime render delta 0.

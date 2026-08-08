@@ -11,3 +11,9 @@ No single giant terrain rewrite is allowed. Each visual layer remains a separate
 ## Coastline / water mask — run 179
 
 `src/3d/world/worldReferenceWaterMask.js` adds the first deterministic raster-derived macro layer: a 96x64 one-bit coastline/water mask (4052 water / 2092 land cells), persisted as compact hex rows with SHA-256 `2ca2bed8d8a137ba532a56e10b079fa845b0f7214e24f955388c8dd0a4517f27`. The mask is data-only in run 179: it does not yet alter terrain height or the water plane. Runtime adoption is intentionally deferred until the existing 2D kingdom-marker/world coordinate system is proven to align with this normalized image space; a naive direct full-extent mapping is not an acceptable substitute because terrain-seat and road safety remain hard constraints.
+
+## Exact 2D canvas alignment — run 181
+
+The normalized reference transform is no longer an assumption. The live 2D shell defines `#map-canvas` as exactly **9000x7000** units and stretches `resimler/map.png` across that canvas with `background-size: 100% 100%`. Therefore `src/3d/world/worldReferenceAlignment.js` maps 2D coordinates exactly as `normalizedX = mapX / 9000`, `normalizedY = mapY / 7000`, and provides inverse/world-space round trips through the existing `WORLD_SCALE.MAP_BOUNDS` convention.
+
+The alignment check also exposes two separate safety facts that must not be conflated with transform correctness: the coarse run179 mask classifies 12/14 kingdom-seat samples as land and flags `balon` + `jon` as raw-water cells, so a seat-safe hydrology override/refined mask is mandatory before runtime terrain adoption; and the current padded 3D `MAP_BOUNDS` span only about **67.3%** of the full normalized 2D reference rectangle, so whole-map 3D coverage requires a later measured world-extent/scale decision rather than silently pretending the current crop already represents the entire image.
