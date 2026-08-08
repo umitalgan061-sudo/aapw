@@ -504,3 +504,13 @@ additive-only, PWA ve mobil performans kapılarına tabidir.
 8. **Uygulama sırası:** güvenli varsayılan sıra ortaçağ yol görünümü → çimen+rüzgâr → kaya/dağ →
    mağara girişleri → vahşi ejderha habitatı → Dragonstone büyük mağarası/eğitimli ejderhalardır.
    Her adım ayrı ölçüm, ADR ve pre/post smoke ile yayınlanır; tek dev commit halinde topluca yapılmaz.
+
+## 31. Canonical 2D → 3D Harita Referansı — Owner Direktifi (run 179, 2026-08-08)
+
+Proje sahibinin 2026-08-08'de paylaştığı 1536x1024 dünya haritası, 3D dünyanın **canonical makro-coğrafya referansıdır**. Bundan sonraki fiziksel dünya çalışmaları rastgele Westeros-benzeri bir arazi üretmek yerine bu haritanın kara/deniz dağılımını, ana kıyı karakterini, dağ zincirlerini, kar-soğuk bölgeleri, bataklıkları, bozkırları, orman/jungle alanlarını, çölleri ve büyük yol yönelimlerini kademeli olarak 3D dünyaya taşır.
+
+1. Harita yönü normalize görüntü uzayında x=batı→doğu, y=kuzey→güney olarak sabittir; kalıcı kontrol noktaları `worldReferenceMap.js` ve ondan türetilen versioned veri modüllerinde tutulur.
+2. Mevcut canonical kingdom-seat koordinatları sessizce taşınamaz. Harita-görseli ile mevcut 2D marker/world koordinat sistemi arasında runtime dönüşümü uygulanmadan önce hizalama doğrulanmalı; doğrudan [0,1] world-extent eşlemesi varsayılmamalıdır.
+3. Arazi yüksekliği/kıyı runtime'ına geçen her adım §8.4 terrain-seat safety + road safety + deterministic snapshot + browser smoke + console + mobile perf + PWA/cache kapılarını geçer. Bir koltuğu su altına sokan veya mevcut yol erişilebilirliğini bozan makro-coğrafya değişikliği yayınlanmaz.
+4. Canonical haritanın kendisi runtime'da OCR/renk sınıflandırmasına tabi tutulmaz. Görselden çıkarılan maskeler/anchor'lar repoda deterministik, checksum'lı, gözden geçirilebilir veri olarak saklanır.
+5. Uygulama katmanları ayrı yayımlanır: referans sözleşmesi → kıyı/su maskesi → koordinat hizalama → makro relief/dağ → biyom materyalleri → nehir/yol uyarlaması → yerel fiziksel detay. Tek dev terrain rewrite yasaktır.

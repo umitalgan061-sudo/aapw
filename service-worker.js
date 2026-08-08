@@ -191,6 +191,8 @@ const GAME3D_SHELL_FILES = [
     './assets/models/settlements/castles/gatehouse_reference_decimated.glb'
     ,
     './src/3d/world/worldReferenceMap.js'
+    ,
+    './src/3d/world/worldReferenceWaterMask.js'
 ];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
