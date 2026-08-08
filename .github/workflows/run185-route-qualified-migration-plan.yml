@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/3d/world/worldReferenceMigrationPlan.js'
       - 'scripts/checkWorldReferenceMigrationDryRun.js'
+      - 'scripts/applyRun185PwaPrecacheAddition.js'
       - 'scripts/recordRun185Governance.js'
       - '.github/workflows/run185-route-qualified-migration-plan.yml'
 
@@ -63,14 +64,19 @@ jobs:
           (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run185-smoke-before.log" && test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run185-smoke-before.log")" -ge 34)
           git worktree remove "$BASELINE"
 
-      - name: Syntax additive-only and migration qualification
+      - name: Syntax additive-only PWA addition and migration qualification
         shell: bash
         run: |
           set -euo pipefail
           node --check src/3d/world/worldReferenceMigrationPlan.js
           node --check scripts/checkWorldReferenceMigrationDryRun.js
+          node --check scripts/applyRun185PwaPrecacheAddition.js
           node --check scripts/recordRun185Governance.js
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          node scripts/applyRun185PwaPrecacheAddition.js
+          node --check service-worker.js
+          grep -F "./src/3d/world/worldReferenceMigrationPlan.js" service-worker.js
+          test "$(git diff --numstat -- service-worker.js | awk '{s += $2} END {print s + 0}')" -eq 0
           git diff --check
           node scripts/checkFullReferenceMigrationDryRun.js
           node scripts/checkWorldReferenceMigrationDryRun.js | tee "$RUNNER_TEMP/run185-proof.log"
@@ -199,11 +205,13 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check
-          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/worldReferenceMigrationPlan.js scripts/checkWorldReferenceMigrationDryRun.js scripts/recordRun185Governance.js; then exit 1; fi
-          git diff --quiet "$BASE_SHA" HEAD -- src/3d/config.js src/3d/sceneManager.js src/3d/world/terrain.js src/3d/world/water.js src/3d/world/roads.js src/3d/world/settlements.js service-worker.js script.js
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/worldReferenceMigrationPlan.js scripts/checkWorldReferenceMigrationDryRun.js scripts/applyRun185PwaPrecacheAddition.js scripts/recordRun185Governance.js; then exit 1; fi
+          git diff --quiet "$BASE_SHA" HEAD -- src/3d/config.js src/3d/sceneManager.js src/3d/world/terrain.js src/3d/world/water.js src/3d/world/roads.js src/3d/world/settlements.js script.js
+          test "$(git diff --numstat -- service-worker.js | awk '{s += $2} END {print s + 0}')" -eq 0
           node scripts/checkFullReferenceMigrationDryRun.js
           node scripts/checkWorldReferenceMigrationDryRun.js
           node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkServiceWorkerCache.js
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           if grep -q '^## ADR-0205 ' DECISIONS.md; then echo 'ADR-0205 occupied before publish'; exit 1; fi
@@ -232,7 +240,7 @@ jobs:
           if git ls-remote --tags origin "refs/tags/$RUN185_STABLE_TAG" | grep -q .; then echo 'stable tag already exists'; exit 1; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git add service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
           git diff --cached --check
           git commit -m "test(world): record route-qualified migration plan"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
