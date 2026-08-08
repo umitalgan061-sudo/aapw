@@ -1,0 +1,63 @@
+{
+  "policy": {
+    "cellMeters": 120,
+    "jitterMeters": 34,
+    "maxSlopeDegrees": 35,
+    "minGeologyScore": 0.18,
+    "seed": 1337
+  },
+  "world": {
+    "widthMeters": 13296.078906418774,
+    "depthMeters": 10341.394704992379,
+    "areaKm2": 137.49999999999997
+  },
+  "counts": {
+    "scanned": 9460,
+    "dryLand": 3231,
+    "waterExcluded": 6229,
+    "protectedExcluded": 15,
+    "protectedSeatCenters": 14,
+    "geologyExcluded": 2641,
+    "slopeExcluded": 2,
+    "eligible": 343,
+    "tierCounts": {
+      "stone": 241,
+      "rock": 77,
+      "boulder": 25
+    }
+  },
+  "maxSlopeDegrees": 32.394,
+  "heightRangeMeters": [
+    6.95,
+    111.32
+  ],
+  "slopeBins": {
+    "0-10": 331,
+    "10-20": 8,
+    "20-35": 4
+  },
+  "zoneCoverage": [
+    [
+      "bone-mountains",
+      123
+    ],
+    [
+      "dorne-mountains",
+      23
+    ],
+    [
+      "relief-chain",
+      111
+    ],
+    [
+      "vale-mountains",
+      28
+    ],
+    [
+      "westerlands",
+      58
+    ]
+  ],
+  "candidateChecksum": "5917875bd2a937abf6560875a86809f11da09af50449b73c280da24d9fc8ab2b",
+  "checksum": "137567a4b8a6ce24c8cbb9792096a06a98063ea29c0011e58cdd1e11e4800ce0"
+}

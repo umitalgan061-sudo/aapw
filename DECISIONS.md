@@ -14999,3 +14999,24 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yalnız yeni Run188 checker/fixture/CI/governance recorder ve append-only ROAD_WATER_OWNER_GATE/WORLD_REFERENCE_MAP/progress/ADR/question/stable/perf kayıtları. Live src/3d ve 2D source değiştirilmez.
 
 **Geri alma planı:** Runtime consumer yoktur. Diagnostic varsayımlar değişirse yeni versioned comparison fixture/ADR additive eklenir; Run187 blocker ve canonical source truth silinmez.
+
+
+## ADR-0209 — Qualify deterministic canonical rock sites before adding any live rock geometry or macro relief (run 189)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** GOVERNANCE §30 taş/kaya/dağ hedefinin ilk adımı runtime geometry veya height-sampler değişikliği değil, deterministic shadow placement qualification olacaktır. Run179 canonical reference içindeki mountain/rocky-hills biome zoneları ve relief-chain anchorları geology influence üretir; Run186 canonical hydrology target sampler kuru/sulu sınıflandırma ve slope ölçümü sağlar. WORLD_SEED tabanlı integer hash, 120m full-reference grid üzerinde bounded jitter/density/tier/yaw/scale üretir. Canonical water aday değildir; 14 kingdom-seat center protected-land sözleşmesi ayrıca doğrulanır; yalnız mevcut 35° temporary walkable-slope safety sınırı altında kalan adaylar fixturea alınır.
+
+**Neden:** §30 item 3 kaya/dağ zenginliğini aktif ürün hedefi yapıyor; ancak full-reference live road adoption Run188 owner road-water kararıyla hâlâ gatedir. Kaya meshlerini doğrudan canlı dünyaya serpmek yol koridorlarını veya performans bütçesini sessizce bozabilir. Önce immutable/checksummed aday uzayı üretmek placement mantığını görsel maliyetten ve açık road policy kararından ayırır.
+
+**Ölçüm:** 9460 full-reference grid hücresi tarandı; 343 dry/unprotected/geology-qualified aday bulundu. Tierler stone/rock/boulder 241/77/25; 6229 canonical-water sample elendi; 14/14 exact seat center protected; max eligible slope 32.4°. Candidate checksum `5917875bd2a937abf6560875a86809f11da09af50449b73c280da24d9fc8ab2b`; report checksum `137567a4b8a6ce24c8cbb9792096a06a98063ea29c0011e58cdd1e11e4800ce0`.
+
+**Alternatifler:** Live InstancedMesh katmanını aynı run içinde eklemek reddedildi (placement + render/perf riskini karıştırır); canonical mountain reliefini doğrudan height samplerına yazmak reddedildi (§8.4 pre/post terrain safety ve road-water blocker çözülmeden yüksek etki); road clearance için Run188 bridge/ferry/dry/mixed seçeneklerinden birini tahmin etmek reddedildi; tüm kara üzerinde uniform random kaya dağıtımı reddedildi çünkü canonical geology direktifini kullanmaz.
+
+**Sonuç:** Reproducible rock-site fixture ve geology coverage metriği vardır; live runtime sıfır değişmiştir. Bir sonraki shadow geometry proof bu fixtureı tüketebilir ve gerçek draw/triangle maliyetini ölçebilir; live adoption ayrı karar/gate olarak kalır.
+
+**Etkilenen sistemler:** yalnız Run189 checker/fixture/CI/governance kayıtları ve WORLD_REFERENCE_MAP/progress/ADR/stable/perf appendleri. src/3d runtime, 2D oyun, road topology, terrain height sampler, service worker ve asset kataloğu değişmez.
+
+**Gelecek Faz Etkisi:** Rocks ileride cave/habitat okunabilirliğine doğal anchor sağlayabilir; fakat bu fixture cave veya dragon habitat spawn politikasını belirlemez. Macro-relief değişikliği ayrı §8.4 terrain-safety alt görevidir.
+
+**Geri alma planı:** Runtime consumer yoktur. Qualification varsayımı yanlışlanırsa yeni versioned checker/fixture additive olarak eklenir; canonical map/hydrology ve Run188 road-water owner gate korunur.
