@@ -199,3 +199,73 @@ export function disposeRoadNetwork(group) {
 		mesh.material.dispose();
 	}
 }
+
+
+// RUN 177 — owner-approved medieval road surface. This is intentionally appended instead of
+// rewriting the proven road topology/geometry so the additive-only source contract remains intact.
+const RUN177_MEDIEVAL_ROAD_SURFACE_KEY = 'run177-medieval-road-surface-v1';
+const buildRoadNetworkBeforeMedievalSurfaceRun177 = buildRoadNetwork;
+
+function applyMedievalRoadSurfaceRun177(network) {
+	const mesh = network?.group?.children?.[0];
+	if (!mesh?.isMesh || !mesh.geometry || !mesh.material?.isMeshStandardMaterial) return network;
+
+	const positions = mesh.geometry.getAttribute('position');
+	if (!positions || positions.count % 2 !== 0) return network;
+
+	const roadSide = new Float32Array(positions.count);
+	for (let i = 0; i < positions.count; i += 2) {
+		roadSide[i] = -1;
+		roadSide[i + 1] = 1;
+	}
+	mesh.geometry.setAttribute('roadSide', new THREE.BufferAttribute(roadSide, 1));
+
+	const material = mesh.material;
+	material.userData.medievalRoadSurfaceRun177 = Object.freeze({
+		key: RUN177_MEDIEVAL_ROAD_SURFACE_KEY,
+		wheelRutOffsetNormalized: 0.47,
+		proceduralStoneThreshold: 0.955,
+		extraDrawCalls: 0,
+	});
+
+	const previousOnBeforeCompile = material.onBeforeCompile.bind(material);
+	material.onBeforeCompile = (shader, renderer) => {
+		previousOnBeforeCompile(shader, renderer);
+		shader.vertexShader = shader.vertexShader
+			.replace(
+				'#include <common>',
+				'#include <common>\nattribute float roadSide;\nvarying float vRun177RoadSide;\nvarying vec3 vRun177RoadPosition;',
+			)
+			.replace(
+				'#include <begin_vertex>',
+				'#include <begin_vertex>\nvRun177RoadSide = roadSide;\nvRun177RoadPosition = position;',
+			);
+		shader.fragmentShader = shader.fragmentShader
+			.replace(
+				'#include <common>',
+				'#include <common>\nvarying float vRun177RoadSide;\nvarying vec3 vRun177RoadPosition;\nfloat run177RoadHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }',
+			)
+			.replace(
+				'#include <color_fragment>',
+				`#include <color_fragment>
+float run177Across = abs(vRun177RoadSide);
+float run177WheelRut = 1.0 - smoothstep(0.07, 0.17, abs(run177Across - 0.47));
+float run177CenterCrown = 1.0 - smoothstep(0.00, 0.28, run177Across);
+float run177ShoulderWear = smoothstep(0.72, 1.00, run177Across);
+float run177StoneNoise = run177RoadHash(floor(vRun177RoadPosition.xz * 0.70));
+float run177Stone = step(0.955, run177StoneNoise) * (1.0 - run177WheelRut) * (1.0 - run177ShoulderWear * 0.4);
+float run177MudNoise = run177RoadHash(floor(vRun177RoadPosition.xz * 0.12) + vec2(19.0, 7.0));
+float run177MudPatch = step(0.82, run177MudNoise) * (0.35 + run177WheelRut * 0.65);
+diffuseColor.rgb *= 1.0 - run177WheelRut * 0.22 - run177ShoulderWear * 0.10 - run177MudPatch * 0.08;
+diffuseColor.rgb *= 1.0 + run177CenterCrown * 0.035;
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.38, 0.31), run177Stone * 0.35);`,
+			);
+	};
+	material.customProgramCacheKey = () => RUN177_MEDIEVAL_ROAD_SURFACE_KEY;
+	material.needsUpdate = true;
+	return network;
+}
+
+buildRoadNetwork = function buildRoadNetworkWithMedievalSurfaceRun177(options) {
+	return applyMedievalRoadSurfaceRun177(buildRoadNetworkBeforeMedievalSurfaceRun177(options));
+};

@@ -469,3 +469,38 @@ yaklaşınca aynı deterministik ağaçlar yeniden görünür.
   34+ browser smoke ve iki mobil görsel kanıt birlikte PASS olmadan DONE yoktur.
 - Bu optimizasyon coverage yüzdesini tek başına artırmaz; radius-4 (~%14.7 resident footprint) üzerinde
   gereksiz uzak vegetation çizimini engelleyerek sonraki coverage artışları için güvenli temel sağlar.
+
+
+## 30. Fiziksel Dünya / Sanat Yönü — Owner Direktifi (run 177, 2026-08-08)
+
+Proje sahibi fiziksel dünya görünümünü aktif ürün önceliği olarak belirledi. Aşağıdaki maddeler artık
+owner kararı bekleyen fikirler değil, kalıcı sanat/dünya hedefleridir; her biri mevcut DoD, determinism,
+additive-only, PWA ve mobil performans kapılarına tabidir.
+
+1. **Ortaçağ yol ağı:** Tüm canonical krallık koltukları tek, ulaşılabilir bir yol grafiğinde bağlı
+   kalmalıdır. Mevcut eğime duyarlı MST bağlantısı korunabilir/genişletilebilir; amaç her koltuk çifti
+   arasında doğrudan yol çizmek değil, bütün krallıkların gerçekçi bir ağ üzerinden birbirine
+   ulaşabilmesidir. Yol görünümü modern/asfalt değil; toprak, teker izi, aşınma, yerel taş/çamur
+   varyasyonu ve araziye oturan Game-of-Thrones-esintili ortaçağ karakteri taşımalıdır. Topoloji,
+   maksimum eğim ve nehir/dağ güvenliği mevcut road safety guard'larını geçmeye devam eder.
+2. **Çimen ve rüzgâr:** Açık arazide deterministik çimen/ot katmanı oluşturulur. Rüzgâr etkisi doğal,
+   sürekli ve GPU-dostu salınım olarak uygulanır; yol, su, kale/yerleşim ve uygunsuz dik yüzeylerde
+   çimen spawn edilmez. Mobilde LOD/culling/yoğunluk bütçesi zorunludur; masaüstü kalite korunur.
+3. **Taş, kaya ve dağ zenginliği:** Araziye küçük taşlardan büyük kaya kümelerine ve belirgin dağ
+   kütlelerine kadar ölçekli fiziksel detay eklenir. Makro relief değişiklikleri §8.4 Arazi Değişikliği
+   Güvenlik Kontrolü'ne tabidir; 14 koltuk, yollar, su ve deterministik height sampler bozulamaz.
+4. **Büyük mağaralar:** Tepeler/dağlarda büyük, okunabilir mağara girişleri ve mağara habitatları
+   bulunacaktır. Yerleşimler deterministik olmalı; girişler erişilebilir araziye oturmalı ve gelecek
+   vahşi ejderha habitatı için metadata/anchor sağlayabilmelidir. İç mekân kapsamı ayrı alt görevdir.
+5. **Vahşi ejderha habitatı:** Vahşi ejderhalar dağ/mağara habitatlarıyla ilişkilendirilecektir.
+   Habitat yerleşimi ile mevcut ejderha saldırı/kovalama AI'sı ayrı sorumluluklardır; AI kalibrasyonu
+   yalnız kendi alt görevinde ve mevcut gameplay guard'larıyla değiştirilir.
+6. **Dragonstone büyük mağarası:** Canonical Dragonstone yerleşiminin altında/içinde özel, büyük bir
+   ejderha mağarası hedeflenir ve eğitimli ejderhaların ana habitatı olarak tasarlanır. Repo içindeki
+   canonical Dragonstone kimliği/koordinatı mevcut settlement verisinden doğrulanmadan tahmin edilmez;
+   doğrulandıktan sonra özel landmark/habitat olarak uygulanır.
+7. **Eğitimli/vahşi ayrımı:** Eğitimli ejderha anchor'ları ile vahşi habitat spawn noktaları veri
+   seviyesinde ayrıdır; biri diğerinin davranışını veya spawn politikasını sessizce devralamaz.
+8. **Uygulama sırası:** güvenli varsayılan sıra ortaçağ yol görünümü → çimen+rüzgâr → kaya/dağ →
+   mağara girişleri → vahşi ejderha habitatı → Dragonstone büyük mağarası/eğitimli ejderhalardır.
+   Her adım ayrı ölçüm, ADR ve pre/post smoke ile yayınlanır; tek dev commit halinde topluca yapılmaz.

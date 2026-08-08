@@ -13994,3 +13994,18 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0198. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: camera/stars/lighting/fog/sky/water/terrain/yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; camera lifecycle/collision regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak kamera zoom/orbit sınırı, pointer/wheel cleanup ve duvar-arazi clipping önleme regresyonlarının main'e sızma riski azaldı.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan sceneManager/renderer lifecycle veya F4 free-camera gibi kalan bağımsız kontrat boşluklarını güncel main üzerinde yeniden sırala; başlamadan ve yayınlamadan önce eşzamanlılık kapısını uygula.
+
+
+## Run 177 — Owner world-art directive + medieval road surface (2026-08-08 10:23 UTC)
+- Owner direktifi kalıcılaştırıldı: `GOVERNANCE.md` sonuna §30 Fiziksel Dünya / Sanat Yönü append edildi. Ortaçağ yol ağı, deterministik çimen+rüzgâr, taş/kaya/dağ, büyük mağaralar, vahşi ejderha habitatları ve Dragonstone altında eğitimli ejderha mağarası artık owner-onaylı ürün hedefleridir; her biri ayrı DoD/ADR ile uygulanacaktır.
+- İlk fiziksel-görsel alt görev: mevcut 14/14 kingdom-seat slope-aware MST yol topolojisi ve 8m ribbon geometrisi bozulmadan yol yüzeyi ortaçağ toprak/at-arabası karakterine yükseltildi. Additive wrapper mevcut tek road meshine `roadSide` attribute'u ve deterministik shader katmanı ekler: iki teker izi, aşınmış omuz, merkez crown, yerel çamur patch'i ve seyrek taş varyasyonu. Yeni texture/asset/mesh yoktur.
+- 13 edges connect 14/14 seats, 20.24km one-mesh road, 2424 vertices; procedural wheel-rut/mud/stone surface, +0 draw-call meshes.
+- Additive-only: mevcut source satırı silinmedi/değiştirilmedi; `src/3d/world/roads.js` ve `GOVERNANCE.md` yalnız sona append edildi. Eski road topology/geometry/material sözleşmesi yaşamaya devam eder.
+- DoD: node --check PASS; baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; road-network safety + eski road-visual + yeni medieval-road surface, determinism, assets, accessibility, input/physics, mobile streaming/LOD/perf, terrain/vegetation/water/sky/fog/lighting/starfield/camera, PWA installability/cache ve additive-only kapıları PASS.
+- Görsel doğrulama: gerçek 390x844 mobile Chromium yakın + F4 uzak iki screenshot artifact üretildi; shader gerçek oyun render yolunda compile edildi, console/page error 0.
+- Performans: 2026-08-08,run177,1,50,608296,48,17,368
+- Memory leak checklist: yeni runtime listener/timer/DOM/texture/geometry/material/mesh oluşturulmadı; yalnız mevcut road geometry'ye tek Float32 attribute ve mevcut material'e shader hook eklendi. Road teardown mevcut geometry/material dispose zincirini korur.
+- Teknik borç: 1 (önceden var olan `game3d.js` yapısal borcu); run 177 yeni yapısal runtime borcu eklemedi. Risk LOW. Güven 5/5.
+- ADR: ADR-0199. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: yol uzunluğu 0 km (topoloji aynı 20.24 km), road visual quality +1, governance world-art directive +1; orman/terrain/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1. Oyuncu farkı: EVET — mevcut yollar artık düz tek-renk ribbon yerine teker izli, çamurlu/taşlı, aşınmış ortaçağ toprak yolu olarak render edilir.
+- Sıradaki güvenli adım: §30 sırasına göre deterministik instanced çimen + GPU rüzgâr salınımı; yol/su/kale exclusion, mobile LOD/culling ve yakın+uzak görsel kanıt zorunlu.

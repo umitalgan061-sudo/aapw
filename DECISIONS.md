@@ -14803,3 +14803,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkCameraContract.js`, run 176 CI workflow'u ve governance kayıtları. `src/3d/camera.js`, `src/3d/game3d.js`, player/physics, F4 debug/free-camera, terrain/settlement runtime'ı, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
 
 **Geri alma planı:** kamera kontrolleri veya collision sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
+
+
+## ADR-0199 — Medieval road realism is a zero-extra-mesh procedural surface layer (run 177)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Owner'ın fiziksel dünya talebi `GOVERNANCE.md` §30 olarak kalıcılaştırılır. İlk uygulama olarak mevcut `buildRoadNetwork()` topolojisi/geometrisi değiştirilmez; run-177 additive wrapper gerçek tek merged road meshine bir `roadSide` vertex attribute ekler ve mevcut `MeshStandardMaterial.onBeforeCompile` yoluyla deterministic fragment variation uygular. İki normalize teker izi, merkez crown, shoulder wear, düşük frekanslı çamur patch'i ve seyrek taş tonu dünya/road pozisyonundan saf hash ile üretilir. Texture, ikinci mesh veya ek draw call yoktur; 14 koltuğun 13-edge slope-aware MST bağlantısı aynen kalır.
+
+**Neden:** Kullanıcı görünür fiziksel kaliteyi artık öncelik yaptı. Mevcut yol ağı topolojik olarak zaten tamam ve safety guard'ları güçlü; onu yeniden kurmak gereksiz regresyon riski. Buna karşılık tek-renk dirt ribbon ortaçağ yol hissini vermiyor. Aynı mesh/material üzerinde procedural yüzey, Game-of-Thrones-esintili aşınmış cart-road görünümünü hemen artırırken mobil draw-call/triangle bütçesini değiştirmiyor ve additive-only kuralına uyuyor.
+
+**Alternatifler:** (1) Yeni PBR yol texture seti: daha yüksek sanat kalitesi mümkün ama yeni asset/lisans/cache/texture-memory maliyeti getirir; ilk adım için gereksiz. (2) Yol kenarına ayrı taş/çimen meshleri: daha güçlü silhouette fakat draw-call/triangle ve dispose kapsamını büyütür; çimen/kaya zaten §30'da ayrı alt görev. (3) 13 yolu ayrı mesh yapmak: materyal çeşitliliği kolaylaşır ama mevcut tek-draw-call kontratını gereksiz bozar. (4) Topolojiyi complete graph'a çevirmek: gerçekçi değil, 91 bağlantı üretir ve mevcut slope-aware MST'nin amaçladığı okunabilir yol ağını bozar.
+
+**Sonuç:** 20.24 km mevcut yol ağının ulaşılabilirliği, genişliği, terrain lift'i ve safety davranışı korunurken görünen yüzey deterministic teker izi/çamur/taş/aşınma detayına kavuşur. Runtime'a yeni asset yükleme veya ek draw-call yoktur. Gelecek çimen/kaya görevleri yol çevresini ayrıca fiziksel olarak zenginleştirebilir.
+
+**Etkilenen sistemler:** `GOVERNANCE.md` §30, additive append ile `src/3d/world/roads.js`, yeni `scripts/checkMedievalRoadSurface.js`, run177 applicator/CI ve governance kayıtları. 2D oyun, road pathfinder/topology, terrain height sampler, settlement coordinates, PWA import grafiği, world seed ve dragon AI değişmez.
+
+**Geri alma planı:** Bilinçli yeni yol sanat yönü gelirse yeni versioned additive surface wrapper/ADR mevcut run177 katmanını supersede edebilir. Topoloji değişimi ayrı alt görevdir; eski road safety/visual guard'ları sessizce gevşetilmez.
