@@ -14786,3 +14786,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkStarfieldVisualContract.js`, run 175 CI workflow'u ve governance kayıtları. `src/3d/stars.js`, 2D oyun, lighting/sky/fog/water/terrain runtime'ı, world seed, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
 
 **Geri alma planı:** starfield sanat/shader/twinkle sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
+
+
+## ADR-0198 — Orbit/chase camera has a live controls-lifecycle and collision contract (run 176)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkCameraContract.js`, gerçek tarayıcı/import-map ortamında mevcut `createOrbitCamera()` ve `resolveCameraCollision()` fonksiyonlarını çağırır. OrbitControls'un origin target, damping 0.08, mevcut 20-1800m varsayılan distance politikası, custom distance override'ları, ground-safe maxPolarAngle ve touch-action davranışı canlı nesne üzerinde doğrulanır. Teste özel boş bir DOM hedefinde contextmenu/pointerdown/pointercancel/wheel listener'ları izlenir ve `dispose()` sonrası sıfır aktif listener beklenir. Collision tarafında gerçek Three.js BoxGeometry ray hit'i ile target→desiredPosition hattı, margin pull-in, minimum-distance clamp, raycaster far sınırı, desiredPosition immutability ve ray menzili dışındaki collider'ın yok sayılması fail-fast doğrulanır. Runtime kaynağı değiştirilmez.
+
+**Neden:** mevcut full smoke kamera ile oyunu gerçekten açıyor ve tarihsel FAZ 4 kontrolleri chase-camera davranışını dolaylı kapsıyor; fakat camera.js'in OrbitControls konfigürasyonu, event-listener teardown'u ve wall-avoidance fonksiyonunun gerçek Raycaster geometrisi üzerindeki matematiksel sözleşmesi tek açıklayıcı canlı kontratta korunmuyordu. Run 172-175 render/atmosfer kontratlarından sonra progress tracker'ın açıkça işaret ettiği camera lifecycle boşluğu düşük-riskli sıradaki bağımsız alandır.
+
+**Alternatifler:** yalnız kaynak regex'i OrbitControls'un gerçek DOM listener yaşam döngüsünü veya Three.js ray hit mesafesini ölçmez; piksel snapshot kamera matematiği için açıklayıcı değildir ve GPU/headless farklarına kırılgandır; mevcut smoke suite'i büyütmek genel registry'yi kamera iç detaylarıyla gereksiz şişirir; çalışan `camera.js` runtime'ını refactor etmek additive-only altında gereksiz risk taşır.
+
+**Sonuç:** orbit/chase kamera sınırları, damping, listener cleanup, çarpışma pull-in/min-clamp ve immutable desired-position semantiği CI'da gerçek browser/Three.js nesneleri üzerinde korunur; runtime maliyeti sıfırdır. Testte kullanılan margin/min-distance sayıları ürün kalibrasyonu değildir, yalnız mevcut fonksiyonun parametre semantiğini doğrulayan fixture değerleridir.
+
+**Etkilenen sistemler:** yeni `scripts/checkCameraContract.js`, run 176 CI workflow'u ve governance kayıtları. `src/3d/camera.js`, `src/3d/game3d.js`, player/physics, F4 debug/free-camera, terrain/settlement runtime'ı, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
+
+**Geri alma planı:** kamera kontrolleri veya collision sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
