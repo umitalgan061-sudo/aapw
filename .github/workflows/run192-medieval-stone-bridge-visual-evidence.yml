@@ -1,0 +1,114 @@
+name: Run 192 Medieval Stone Bridge Visual Evidence
+
+on:
+  push:
+    branches: [chatgpt/run192-medieval-stone-bridge-visual-evidence]
+    paths:
+      - 'scripts/checkCanonicalStoneBridgeVisualEvidenceRun192.js'
+      - '.github/workflows/run192-medieval-stone-bridge-visual-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BASE_SHA: 8626dd011e9b8b8f44fb693372d2edfbde6b8f1b
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Concurrency syntax additive and owner topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node --check scripts/checkCanonicalStoneBridgeVisualEvidenceRun192.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          node scripts/checkRoadWaterPolicyComparison.js
+          node scripts/checkCanonicalStoneBridgeShadow.js --verify-fixture
+
+      - name: Render corrected V2 visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCanonicalStoneBridgeVisualEvidenceRun192.js | tee "$RUNNER_TEMP/run192-visual.log"
+          grep -F '[checkCanonicalStoneBridgeVisualEvidenceRun192] PASS:' "$RUNNER_TEMP/run192-visual.log"
+          test -s artifacts/run192-stone-bridge-visual-evidence/medieval-masonry-closeup.png
+          test -s artifacts/run192-stone-bridge-visual-evidence/medieval-87arch-perspective.png
+          test -s artifacts/run192-stone-bridge-visual-evidence/proof.json
+
+      - name: Determinism hydrology roads PWA and mobile budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkCanonicalHydrologyTerrainShadow.js
+          node scripts/checkCanonicalChunkIntegrationShadow.js
+          node scripts/checkCanonicalStoneBridgeShadow.js --verify-fixture
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run192-mobile.log"
+          SAMPLE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run192-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$SAMPLE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$SAMPLE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+
+      - name: Full browser smoke and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run192-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run192-smoke.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run192-smoke.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run192-smoke.log"; then exit 1; fi
+
+      - name: Upload manual-review evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run192-medieval-stone-bridge-visual-evidence
+          path: |
+            artifacts/run192-stone-bridge-visual-evidence/medieval-masonry-closeup.png
+            artifacts/run192-stone-bridge-visual-evidence/medieval-87arch-perspective.png
+            artifacts/run192-stone-bridge-visual-evidence/proof.json
+          if-no-files-found: error
+
+      - name: Final concurrency and additive gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkCanonicalStoneBridgeShadow.js --verify-fixture
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
