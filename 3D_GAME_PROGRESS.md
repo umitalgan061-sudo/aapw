@@ -14297,3 +14297,14 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Perf snapshot: 2026-08-08,run198,1,51,688296,49,17,347
 - World Coverage unchanged: desktop %96.2; mobile radius-4 81 chunks / 20.25 km² (~%14.7). World Evolution Report: lifecycle replacement-boundary readiness +1; live world delta 0. Oyuncu farkı: HAYIR.
 - Sıradaki güvenli adım: default canonical startup hâlâ otomatik değiştirilmesin. Run198 lifecycle kapısı geçtiği için bir sonraki adım, default `game3d.html` yerine ayrı opt-in developer entry pointinde canonical startup source-of-truth seçimini gerçek boot akışında kanıtlamak; current fallback/rollback yolu ve PWA offline boot aynı kanıt içinde korunmadan varsayılan oyuncu startup'ı değiştirilmez.
+
+
+## Run 199 — Overdue periodic platform/PWA/WebGL audit (2026-08-09)
+- Session/concurrency: started from remote main 5cbae455 after re-reading GOVERNANCE, Run198/ADR-0218, recent commits and QUESTIONS_FOR_OWNER. Remote main was checked before work and is rechecked by CI immediately before publication.
+- Alt görev: GOVERNANCE §15'in Run176-186 civarında yapılması gereken periyodik platform kontrolünü gecikmiş olarak kapattı. No live runtime/source/PWA shell line changed; this run adds only its validation workflow + append-only recorder.
+- Platform/PWA/WebGL: package.json remains absent, so npm audit is N/A by repository design; service-worker cache completeness PASS; PWA installability PASS; full Chromium 3D boot PASS with zero console/page errors; smoke PASS count 34.
+- Mobile/perf: live mobile sample {"profile":{"coarse":true,"fine":false,"touchPoints":1},"fps":1,"drawCalls":35,"triangles":195929,"geometries":30,"textures":22,"budgets":{"drawCallsExclusiveMax":500,"trianglesExclusiveMax":500000},"textureMemoryMB":null,"textureMemoryReason":"renderer.info exposes texture count, not resident texture-memory bytes"}. Existing exclusive budgets remain drawCalls<500 and triangles<500000. Perf snapshot 2026-08-08,run199,1,51,688296,49,17,347. perf trend analysis PASS.
+- Governance/regression: additive-only guard PASS; canonical Run195-198 readiness checks remain PASS; seeded/world-reference, accessibility/input/physics, mobile streaming/LOD and smoke registry gates remain PASS. Default canonical startup remains unchanged.
+- Technical debt: new live runtime debt 0. This run closes one overdue governance/platform-maintenance debt item. Risk LOW. Güven 5/5.
+- World Coverage unchanged: desktop %96.2; mobile radius-4 81 chunks / 20.25 km² (~%14.7). World Evolution Report: live world delta 0; platform assurance +1. Oyuncu farkı: HAYIR.
+- Sıradaki güvenli adım: Run198'in migration planına dön. Default game3d.html değiştirilmeden, ayrı opt-in developer startup entry pointinin additive boot seam ihtiyacını tasarla ve current fallback/rollback + offline/PWA boot eşdeğerliğini aynı kanıtta doğrula. Mevcut game3d.js satırı değiştirme gerektiriyorsa owner onayı olmadan yapma.

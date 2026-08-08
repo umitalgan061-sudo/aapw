@@ -63,3 +63,5 @@
   Başka çelişen/geçersiz madde bulunmadı; geri kalan tüm kurallar hâlâ geçerli ve aktif.
 
 - **Run 136 (2026-08-07, dördüncü konsolidasyon geçişi):** Run 116dan ~20 çalıştırma sonra GOVERNANCE.md yeniden gözden geçirildi. SaveSystem/public API aktivasyon koşulları hâlâ karşılanmıyor; smoke ve F2/mobile perf kapıları yeterli çalışıyor; run132 platform kontrolü güncel. Çelişen/geçersiz kural bulunmadı. Mobil coverage programına yeni §26 vegetation geometry-LOD kapısı eklendi. Run135 checkpoint satır biçimi parser uyumluluğu additive alias ile onarıldı. Sıradaki konsolidasyon ~run 156 veya FAZ tamamlanınca.
+
+- 2026-08-09 run199 — §15 periodic platform control refreshed: latest verified run is now 199; next window ~219-229. No rule semantics changed, only stale maintenance state superseded additively.
