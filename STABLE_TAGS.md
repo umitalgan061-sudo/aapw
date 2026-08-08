@@ -849,3 +849,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-08-0926 — run 174 day/night lighting visual contract (ADR-0196); 34/34+ browser smoke, lighting behavior, PWA/world/determinism/mobile gates PASS; runtime delta 0.
 
 - stable-2026-08-08-0940 — run 175 starfield visual contract (ADR-0197); 34/34+ browser smoke, star Points/shader/update/disposal, PWA/world/determinism/mobile gates PASS; runtime delta 0.
+
+- stable-2026-08-08-0956 — run 176 Orbit/chase camera contract (ADR-0198); 34/34+ browser smoke, controls listener lifecycle + collision math, PWA/world/determinism/mobile gates PASS; runtime delta 0.
