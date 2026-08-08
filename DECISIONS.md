@@ -15173,3 +15173,24 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Bir sonraki adım yalnız ayrı developer/preflight entry pointinde gerçek tick update zincirini transaction gate'e bağlayabilir. NPC/animal/dragon/world-event/player updates ve rollback equality orada kanıtlanmadan default activation değerlendirilmez.
 
 **Geri alma planı:** Live consumer yoktur. Run196 contractı yanlışlanırsa yeni versioned shadow transaction module eklenir; Run195/Run194/current runtime byte-unchanged kalır.
+
+
+## ADR-0217 — Canonical transaction may freeze the unchanged real game tick only through reversible instance method gates (run 197)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run196 current-runtime transaction, default runtime import graphına bağlanmadan önce ayrı opt-in Run197 tick gate ile compose edilir. Canonical active iken gerçek `game3d.js` requestAnimationFrame döngüsü çalışmaya devam eder fakat o döngünün mevcut instance'lardan çağırdığı keyboard/touch input read, player, NPC, animal, dragon, interaction ve world-event `update` girişleri deterministic inert wrapperlarla bloklanır. Wrapperlar prototype'a değil yalnız mevcut instance'a yazılır; rollbackte varsa original own property descriptor, yoksa prototype lookup semantiği geri getirilir ve exact function identity doğrulanır.
+
+**Neden:** Run196 `shouldRunCurrentSimulation()` ve `runCurrentPlayerUpdate()` preflight API'leri transaction niyetini kanıtladı ama live tick bu API'leri çağırmıyordu. Default `game3d.js` wiringini şimdi değiştirmek additive-only sınırını ve bir sonraki migration kapısını gereksiz yere birleştirirdi. Instance gate, gerçek tick'in unchanged call graphını doğrudan gözlemleyip durdurur; aynı zamanda başarısız/rollback yolunda mevcut canlı subsystem nesnelerini recreate etmeden exact identity ile geri bırakır.
+
+**Ölçüm:** realTickFreeze=player+npc+animal+dragon+interaction+worldEvents; cycles=2; pausedMethods=23; resumePaths=6; resourcesDisposed=0; consoleErrors=0; checksum=7bba25998f7ceb841929985219d209cd4a92f41495a5979af91f3b78a742dfe7 İki canonical cycle boyunca player/NPC/animal/dragon transformları byte-equivalent JSON snapshot seviyesinde değişmez; her pause target gerçek RAF tick tarafından en az bir kez çağrılıp bloklanır. Rollback sonrası pass-through observers gerçek tick'in altı temsilî update yolunu yeniden çağırdığını kanıtlar ve observerlar exact method identity ile temizlenir. Current geometry/material dispose-event count 0. Current pre/post submission countları eşit; budget {"current":{"calls":54,"triangles":709898},"canonical":{"calls":1,"triangles":32768},"restored":{"calls":54,"triangles":709898}}.
+
+**Alternatifler:** (1) `game3d.js` içine şimdi canonical if-branch eklemek reddedildi; default import graphını gerçek-tick kapısı kanıtlanmadan değiştirirdi. (2) RAF'ı tamamen durdurmak reddedildi; renderer/UI/lifecycle davranışını da dondurup hangi subsystemin gerçekten gated olduğunu gizlerdi. (3) Prototype monkey-patch reddedildi; başka instance/testleri etkileyebilir. (4) Entityleri dispose/recreate etmek reddedildi; animation/AI hidden state identitysi kaybolur. (5) Synthetic tick kopyası reddedildi; gerçek `game3d.js` call graphını kanıtlamaz. Bu nedenle checker yalnız HTTP response içinde state referansını gözlem için ekler; repo `game3d.js` değişmez.
+
+**Sonuç:** Player/NPC/animal/dragon/interaction/world-event current simulation zinciri gerçek live tick altında reversible biçimde freeze/resume edilebiliyor. Run197 default oyuncu runtimeını değiştirmez ve canonical source-of-truth hâlâ opt-in shadow düzeyindedir.
+
+**Etkilenen sistemler:** new Run197 shadow gate/checker/PWA applicator/CI/recorder; additive service-worker entry; append-only progress/ADR/stable/perf. Existing `game3d.js`, gameplay modules, Run196/Run195 modules and default HTML imports unchanged.
+
+**Gelecek Faz Etkisi:** Sıradaki migration preflight gerçek lifecycle teardown/re-init sınırını kapsamalı. Default canonical startup ancak current tick freeze/resume ile birlikte pagehide/dispose sonrası listener/RAF/resource temizliği de kanıtlandıktan sonra değerlendirilebilir.
+
+**Geri alma planı:** Live consumer yoktur. Run197 contractı yanlışlanırsa yeni versioned shadow gate eklenir; Run196/Run195/current runtime byte-unchanged kalır.

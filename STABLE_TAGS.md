@@ -904,3 +904,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-2025 — run 196 real current-runtime transaction preflight (ADR-0216); complete non-light current scene ownership + Run180 grass borrow/restore + instance-scoped ChunkManager pause/resume + input/physics freeze/restore + static byte-exact rollback/full submission equality PASS; live runtime delta 0.
+
+
+- stable-2026-08-08-2136 — run 197 real game-tick freeze/resume preflight (ADR-0217); unchanged live RAF tick + player/NPC/animal/dragon/interaction/world-event instance gates + held-input preservation + two exact rollback cycles + zero borrowed-resource disposal + pre/post submission equality PASS; live runtime delta 0.
