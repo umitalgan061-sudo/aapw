@@ -14650,3 +14650,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** `scripts/checkSeededRandomPolicy.js`, `.github/workflows/run167-determinism-policy.yml`, CI determinism/pull-request kalite kapısı ve governance kayıtları. Runtime, 2D oyun, 3D dünya üretimi, asset/PWA import grafiği değişmez.
 
 **Geri alma planı:** Politika gelecekte AST tabanlı analizörle genişletilirse yeni analizör additive bir script olarak eklenip workflow ikinci kapı olarak çalıştırılabilir; mevcut guard satırlarını silmeye gerek yoktur.
+
+
+## ADR-0190 — Rendered road ribbon has a live visual geometry contract (run 168)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkRoadVisualContract.js`, gerçek tarayıcı/import-map ortamında mevcut `buildRoadNetwork()` fonksiyonunu çağırır ve rendered road ağının tek merged mesh/topoloji, 8m ribbon genişliği, terrain üzerinde 0.4m lift, dirt vertex-color + MeshStandardMaterial özellikleri, finite normal/index verisi ve `disposeRoadNetwork()` teardown davranışını fail-fast bir regresyon sözleşmesi olarak doğrular. Mevcut runtime kaynağı değiştirilmez.
+
+**Neden:** `roadNetworkSafetyCheck.js` yolun nereye gittiğini ve dünya güvenliğini güçlü biçimde doğruluyor; ancak görsel mesh'in yanlışlıkla daralması/genişlemesi, terrain içine gömülmesiyle z-fighting üretmesi, birleşik tek draw-call yapısının parçalanması, material özelliğinin kayması veya dispose zincirinin bozulması aynı safety testinden kaçabilir. Run 167'nin sıradaki güvenli yönü bağımsız terrain/road/visual kalite olduğu için en düşük riskli anlamlı adım mevcut çalışan davranışı değiştirmek yerine bu görünür sözleşmeyi otomatik korumaktır.
+
+**Alternatifler:** (1) Yalnız ekran görüntüsü karşılaştırması — headless renderer/piksel farklarına kırılgan ve geometry nedenini izole etmiyor. (2) `roads.js` kaynak metnini regex ile taramak — uygulama detayına bağımlı, gerçek render çıktısını ölçmüyor. (3) Yol runtime'ını refactor edip sabitleri export etmek — mevcut davranışta arıza yokken gereksiz kapsam ve additive-only riski. (4) Hiç guard eklememek — mevcut world-safety testinin görsel geometri boşluğunu açık bırakıyor.
+
+**Sonuç:** Yol renderer'ının kullanıcıya görünen temel geometrisi, tek-mesh bütçesi ve teardown davranışı CI'da canlı modül üzerinde korunur; runtime maliyeti sıfırdır. İleride bilinçli bir yol sanat yönü değişikliği yapılırsa yeni değerler yeni additive test/ADR ile açıkça sürümlenir.
+
+**Etkilenen sistemler:** yeni `scripts/checkRoadVisualContract.js`, yeni run 168 CI workflow'u ve governance kayıtları. `src/3d/world/roads.js`, 2D oyun, PWA runtime/import grafiği, dünya seed'i ve asset seti değişmez.
+
+**Geri alma planı:** Yol renderer sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede edebilir; mevcut kaynak veya tarihsel guard satırlarını silmek gerekmez.

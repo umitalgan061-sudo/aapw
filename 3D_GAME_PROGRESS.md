@@ -13867,3 +13867,17 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0189. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; determinism regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak prosedürel regresyonların main'e sızma riski azaldı.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan governance öncelik sırasındaki bağımsız terrain/road/visual kalite işine, zorunlu pre/post safety + F4 kanıt zinciriyle dönmek; başlamadan remote main ve paralel ajan değişiklikleri yeniden kontrol edilmeli.
+
+
+## Run 168 — Road visual geometry regression contract (2026-08-08 07:15 UTC)
+- Alt görev: run 167'nin sıradaki güvenli terrain/road/visual kalite yönüne uygun olarak, gerçek `buildRoadNetwork()` çıktısını tarayıcı içinde doğrulayan additive-only `scripts/checkRoadVisualContract.js` eklendi. Kontrat yol ağının tek merged mesh olarak kalmasını, ribbon topolojisini, 8m genişliği, 0.4m terrain lift'ini, dirt vertex color/material ayarlarını, finite normal/index verisini ve geometry/material disposal zincirini doğruluyor.
+- Kapsam ayrımı: mevcut `roadNetworkSafetyCheck.js` topology/eğim/dağdan kaçınma/nehir güvenliğini korumaya devam ediyor; yeni guard yalnız rendered-road görsel geometri sözleşmesini kapatıyor. Runtime, 2D oyun, dünya üretimi ve mevcut yol kodu değiştirilmedi.
+- Additive-only: yalnız yeni checker, yeni run workflow'u ve yeni governance recorder eklendi; mevcut kaynak satırı silinmedi/değiştirilmedi. Nihai source diff 0 deletion.
+- DoD: node --check PASS; 13 edges, 2424 vertices, 7194 indices, width 8.000-8.000m, road 20.24km, disposal 1/1.; baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; seeded-random/world-event determinism, assets, accessibility, input/physics, mobile streaming/LOD/perf, terrain-seat, road-network, PWA installability/cache ve additive-only kapıları PASS.
+- Görsel doğrulama: gerçek 390x844 mobile Chromium yakın + F4 uzak render kanıtı artifact olarak üretildi; yeni iş runtime görselini değiştirmediği için bu kanıt regresyon/no-delta doğrulamasıdır.
+- Performans: 2026-08-08,run168,2,50,608296,48,17,368
+- Memory leak checklist: runtime allocation eklenmedi; ayrıca yeni kontrat `disposeRoadNetwork()` çağrısında road geometry ve material için birer `dispose` olayı bekleyerek mevcut teardown sözleşmesini canlı doğruluyor.
+- Teknik borç: 1 (önceden var olan `game3d.js` yapısal borcu; run 168 yeni runtime borcu eklemedi). Risk LOW. Güven 5/5.
+- ADR: ADR-0190. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: yol km 0; orman km² 0; kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; road visual regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak yol genişliği/z-fighting/material/draw-call ve teardown regresyonlarının main'e sızma riski azaldı.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız terrain/vegetation/visual kalite adaylarını güncel main üzerinde yeniden sırala; başlamadan ve yayınlamadan önce eşzamanlılık kapısını yine uygula.
