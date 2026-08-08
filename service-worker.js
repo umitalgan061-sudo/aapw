@@ -151,6 +151,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/vegetation.js',
     './src/3d/world/mobileVegetationCulling.js',
     './src/3d/world/worldReferenceRockShadow.js',
+    './src/3d/world/worldReferenceStoneBridgeShadow.js',
     './src/3d/vendor/three/three.module.js',
     './src/3d/vendor/three/LICENSE',
     './src/3d/vendor/three/addons/loaders/GLTFLoader.js',
@@ -207,6 +208,7 @@ const GAME3D_SHELL_FILES = [
     ,
     './src/3d/world/worldReferenceChunkShadow.js'
 ];
+GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceStoneBridgeMedievalArtV2.js');
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];

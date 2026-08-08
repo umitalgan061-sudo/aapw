@@ -279,3 +279,6 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
 
 
 - **(run 188, ADR-0208) Canonical full-reference yol/su politikası hangisi olmalı: bridge, ferry, water-impassable dry reroute veya edge-bazlı mixed?** Run188 karar vermeden ölçtü: bridge diagnostic total 6.16 km (longest 3.11 km), ferry canonical-water route total 6.51 km (longest 3.32 km), mevcut <=20° cart-road safety ile 40m-grid dry reroute 3/6 affected edge için feasible. Exact edge matrix `ROAD_WATER_OWNER_GATE.md` içinde. **Temporary default:** NONE; full-reference default terrain/road runtime adoption blocked kalır. Owner yanıtı gelmeden bridge span limiti, ferry gameplay veya mixed mapping tahmin edilmez.
+
+
+- **✅ ÇÖZÜLDÜ (run 188, ADR-0208 → run 191, ADR-0211) Canonical full-reference yol/su politikası:** Owner 2026-08-08 tarihinde doğrudan karar verdi: "Eğer derelerden ve göllerden yol geçiyorsa oraya taş kemer köprü yap. Ortaçağa uygun dokusu olsun." Buna göre temporary default NONE sona erdi ve policy **STONE ARCH BRIDGE** oldu. Ferry, dry-reroute veya edge-bazlı mixed policy varsayılmayacak; canonical yol suyu kestiğinde bağlantı deterministic ortaçağ taş kemer köprüyle korunacak. Eski run188 soru satırı kayıt amacıyla silinmedi; bu çözüm girdisi onu supersede eder.

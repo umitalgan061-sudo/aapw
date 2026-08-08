@@ -15043,3 +15043,26 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Bir sonraki shadow integration camera-cell/chunk ownership, frustum/occlusion ve optional collider footprintlerini test edebilir. Macro-relief height sampler değişikliği hâlâ ayrı GOVERNANCE §8.4 terrain-safety runı gerektirir.
 
 **Geri alma planı:** Live consumer yoktur. Geometry/LOD policy yanlışlanırsa yeni versioned shadow module/checker additive eklenir; Run189 site fixture ve Run188 owner road gate korunur.
+
+
+## ADR-0211 — Resolve canonical road/water policy as medieval stone arch bridges and prove the geometry off-runtime (run 191)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Owner Run188/ADR-0208 açık ürün kararını 2026-08-08 tarihinde çözdü: canonical yol dere/göl/su yüzeyini keserse bağlantı taş kemer köprüyle sürer ve köprü ortaçağa uygun taş doku taşır. Run191 bu kararı yeni `worldReferenceStoneBridgeShadow.js` ile shadow-only uygular. Aynı 13-edge canonical-target MST/pathfinder ve seat-safe hydrology girdilerinde her contiguous water crossing deterministic bridge record olur. Uzun crossingler target 36m / hard-max 40m açıklığa göre tekrarlanan masonry arches/pierlere bölünür; tek dev kemer kullanılmaz.
+
+**Ölçüm:** 6/13 affected road edge, 7 bridge structure, 6.17 km aggregate water chord, 3.12 km longest structural bridge, 177 total arches. Full batched geometry 4 actual renderer calls / 37860 triangles; predicted=actual. Deterministic checksum `13fadc3dbc3d3554c583215883614a56b5e9ee406ae74d66e335fd56fe4cf7f4`.
+
+**Sanat/material:** Bridge deck, arch ring, pier ve parapetler original procedural 256x256 CanvasTexture masonry kullanır. Taş bloklar staggered örgü, koyu mortar gap ve seeded weather/moss variation içerir; modern asfalt/beton veya HBO media yoktur.
+
+**Neden:** Owner doğrudan bridge politikasını seçtiği için Run188 blockerı artık karar beklemiyor. Buna rağmen full-reference road/terrain runtime adoption ile art asset/physics/perf değişikliklerini tek committe birleştirmek GOVERNANCE kademeli yayın kuralına aykırı ve rollback riskini büyütür. Önce crossing/geometry/material/render/dispose kanıtı, sonra ayrı scene integration en düşük riskli yoldur.
+
+**Alternatifler:** Ferry, water-through-road, automatic dry reroute ve edge-based mixed artık owner-selected default değildir. Tek 3.11km taş kemer reddedildi; multi-arch viaduct seçildi. Her bridge parçasını ayrı Mesh yapmak draw-call maliyeti nedeniyle reddedildi; four-family InstancedMesh batching seçildi. External texture indirmek gerekli olmadığı için reddedildi.
+
+**Sonuç:** Run188 owner gate ürün düzeyinde çözülmüştür ve canonical bridge listesi deterministik fixture ile pinlenmiştir. Ancak live legacy scene hâlâ unchanged; Run191 live default world graphı değiştirmez.
+
+**Etkilenen sistemler:** yeni stone-bridge shadow module/checker/harness/PWA applicator/recorder/CI, generated fixture, service-worker additive precache ve append-only GOVERNANCE/QUESTIONS/ROAD_WATER/WORLD_REFERENCE/progress/ADR/stable/perf kayıtları. Existing terrain/roads/rivers/sceneManager/game3d/2D runtime değiştirilmez.
+
+**Gelecek Faz Etkisi:** Next integration proof bridge deck approach grade ve road ribbon transitionı doğrulamalı; collision ancak geometry placement ve live scene budget kanıtlandıktan sonra eklenir. Mağara/ejderha habitat sırası bu owner road-water kararından etkilenmez.
+
+**Geri alma planı:** Shadow runtime consumer yoktur. Bridge geometry/art policy teknik olarak yanlışlanırsa yeni versioned bridge module/checker additive eklenir. Owner kararı değişmedikçe product policy bridge olarak kalır.

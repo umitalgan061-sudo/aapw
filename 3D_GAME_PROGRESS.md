@@ -14175,3 +14175,20 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Memory leak checklist: live listener/timer/DOM eklenmedi; shadow geometry dispose helper PASS; checker browser/server/renderer finally/dispose zinciriyle kapanır. Teknik borç 1 (mevcut game3d.js). Yeni runtime borcu 0. Risk LOW. Güven 5/5. ADR: ADR-0210.
 - World Coverage live değerleri değişmedi: desktop %96,2; mobile resident radius-4 81 chunk / 20,25 km² (~%14,7). World Evolution Report: canonical rock render-readiness +1; live terrain/road/gameplay delta 0. Oyuncu farkı: HAYIR.
 - Sıradaki güvenli adım: owner road-water policy hâlâ yanıtsızsa canlı kaya spawn etmeden önce camera-cell/chunk streaming shadow integration + occlusion/frustum/collider-readiness proof; live adoption ancak route policy ve scene-level perf/visual gates birlikte geçerse değerlendirilir.
+
+
+## Run 191 — Owner-approved medieval stone arch bridges for canonical road/water crossings (2026-08-08 15:56 UTC)
+- Owner kararı: Run188/ADR-0208 blocker çözüldü. Yol canonical suyu kesiyorsa policy artık STONE ARCH BRIDGE; ferry/dry-reroute/mixed default değil. QUESTIONS_FOR_OWNER eski soru satırı silinmeden çözüm girdisiyle supersede edildi; GOVERNANCE §32 kalıcı direktif olarak eklendi.
+- Alt görev: yeni shadow-only `worldReferenceStoneBridgeShadow.js` aynı canonical full-reference hydrology + 13-edge MST/pathfinder girdilerini yeniden üretir, contiguous water crossingleri deterministic bridge planına dönüştürür ve gerçek THREE InstancedMesh geometry üretir.
+- Ölçüm: 6/13 affected road edges -> 7 medieval stone bridge structures, 177 arches; water chord 6.17 km; batched 4 calls/37860 tris; masonry texture + two visual angles + dispose PASS.
+- Bridge art: 256x256 original procedural medieval masonry CanvasTexture; staggered stone blocks, mortar, deterministic weather/moss; deck + repeated arch rings + stone piers + parapets. External/HBO asset yok.
+- Structural policy: target arch span 36m, hard max 40m; uzun crossings tek dev arch yerine çoklu kemer/pier viyadük. Total structural span 6.25 km, total arches 177.
+- Memory/resource lifecycle: bridge group four batched InstancedMesh part families; geometry/material/CanvasTexture dispose events birebir PASS ve group children teardown sonrası 0.
+- PWA: yeni shadow module `GAME3D_SHELL_FILES` içine tek additive precache satırı ile eklendi; installability/cache gate PASS.
+- Additive-only: yeni bridge module/checker/harness/PWA applicator/recorder/CI + generated fixture ve append-only governance kayıtları; mevcut source satırı silinmedi/değiştirilmedi.
+- DoD: baseline + after browser smoke 34/34+ PASS; zero 3D console/page errors; Run188 comparison checksum, Run189/190 rock fixtures, canonical map/hydrology/terrain/chunk/road gates, world visuals, determinism/assets/PWA/cache, a11y/input/physics, mobile streaming/LOD/perf ve bridge-specific iki görsel açı PASS.
+- Live mobil performans: live mobile F2 35 draw calls / 195929 triangles, under <500 / <500K; Run191 bridge system remains shadow-only and adds zero live render cost.
+- Performans: 2026-08-08,run191,1,51,688296,49,17,347. Bridge module shadow-only olduğu için live render delta 0; isolated full bridge proof cost yukarıdaki draw/triangle ölçümüdür.
+- Memory leak checklist: live listener/timer/DOM eklenmedi; checker browser/server/renderer finally/dispose zinciriyle kapanır. Teknik borç 1 (mevcut game3d.js). Yeni runtime borcu 0. Risk LOW. Güven 5/5. ADR: ADR-0211.
+- World Coverage live değerleri değişmedi: desktop %96,2; mobile resident radius-4 81 chunk / 20,25 km² (~%14,7). World Evolution Report: road/water product blocker RESOLVED + bridge render-readiness +1; live terrain/road/gameplay delta 0. Oyuncu farkı: henüz HAYIR.
+- Sıradaki güvenli adım: Run191 fixtureını tüketen canonical full-reference road+bridge scene integration shadow proof; live adoption ancak road deck transition/approach grade, water occlusion, camera/frustum, collision-readiness ve scene-level mobile budget birlikte geçerse yapılır.
