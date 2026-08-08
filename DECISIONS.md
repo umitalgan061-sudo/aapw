@@ -15194,3 +15194,24 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Sıradaki migration preflight gerçek lifecycle teardown/re-init sınırını kapsamalı. Default canonical startup ancak current tick freeze/resume ile birlikte pagehide/dispose sonrası listener/RAF/resource temizliği de kanıtlandıktan sonra değerlendirilebilir.
 
 **Geri alma planı:** Live consumer yoktur. Run197 contractı yanlışlanırsa yeni versioned shadow gate eklenir; Run196/Run195/current runtime byte-unchanged kalır.
+
+
+## ADR-0218 — Canonical ownership must survive ordered pagehide teardown and a clean second init before any startup source-of-truth switch (run 198)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run197 tick-ownership transaction default runtime'a bağlanmadan önce developer-only browser preflightte gerçek `pagehide` lifecycle sınırından geçirilir. Test-only lifecycle owner runtime bootundan önce kaydolur; pagehide olduğunda canonical gate'i rollback+dispose eder, ardından mevcut `game3d.js`'in değişmemiş once-only teardown listener'ı current runtime kaynaklarını kapatır. Aynı document içinde gerçek exported `initGame3D()` ikinci kez çağrılır ve tamamen yeni current-runtime nesneleriyle temiz boot kanıtlanır. İkinci generation da canonical active→pagehide yolunu tekrarlar.
+
+**Neden:** Run197 gerçek RAF tick altında simulation freeze/resume kanıtladı fakat navigation/lifecycle sınırı ayrı bir failure sınıfıdır: RAF/input listener sızıntısı, EventBus subscription birikmesi, iki kez F4 toggle, eski scene/resource identity reuse veya canonical gate'in already-disposed current resources üzerinde rollback denemesi ancak teardown+re-init ile görünür. İlk iki Run198 deneysel checker dalı bu test altyapısındaki iki varsayım hatasını erken yakaladı ve main'e alınmadı: async entity readiness yarışı ve aynı targetta sonradan eklenen pagehide listener'ının kayıt sırası. Final checker bu kök nedenleri çözmek için full-state readiness bekler ve lifecycle owner'ını runtime'dan önce kurar.
+
+**Ölçüm:** cycles=2; canonicalPagehide=2; gateBeforeRuntimeDispose=2; rafLeaks=0; timeoutLeaks=0; intervalLeaks=0; f4SingleToggle=true; cleanReinit=true; consoleErrors=0; checksum=6bd043a64825d134e470676f09aa188318fbfb8bf7bf0fbd0052ce44628c96e9 Lifecycle sayaçları {"firstActiveListeners":42,"teardownListeners":14,"secondActiveListeners":42,"teardownEventBus":5,"dynamicDomActive":28,"dynamicDomTeardown":0}. Her generation'da canonical tick pause hedeflerinin tamamı gerçek RAF tarafından çağrılıp bloklanır; pagehide başlangıcında mode `canonical`dır. Lifecycle order logunda `gate-dispose`, `runtime-renderer-dispose`dan önce gelir. Runtime teardown renderer/chunk/input/player/controls/free-camera/world-event/HUD ve tüm entity dispose yollarını tam bir kez çağırır. Her teardown sonunda tracked RAF/timeout/interval sayıları 0'dır. İkinci boot first-generation scene/player/renderer/chunk-manager nesnelerini reuse etmez. F4 ilk keydown'da true, ikinci keydown'da false olur; duplicate key listener yoktur. İki generation'ın active ve teardown EventTarget/EventBus/DOM imzaları birbirine eşittir; console/page error 0.
+
+**Alternatifler:** (1) Gerçek navigation ile yeni document açmak tek başına reddedildi; document GC'si same-document duplicate-listener/re-init problemlerini maskeleyebilir. (2) Yalnız unit-level `dispose()` çağrıları reddedildi; gerçek pagehide listener sırasını doğrulamaz. (3) Default `game3d.html` importlarını şimdi değiştirmek reddedildi; lifecycle kanıtından önce ürün yolunu etkilerdi. (4) Canonical gate'i runtime teardown'dan sonra dispose etmek reddedildi; zaten dispose edilmiş borrowed current scene üzerinde rollback riski taşır. (5) Sonradan eklenen capture listener'a güvenmek reddedildi; aynı target üzerindeki listener registration ordering'i güvenli lifecycle ownership kontratı değildir.
+
+**Sonuç:** Run196+Run197 canonical transaction gerçek lifecycle sınırında iki ardışık generation boyunca temiz kapanıp yeniden başlayabiliyor. Bu yalnız migration readiness kanıtıdır; default oyuncu runtime davranışı Run198'de değişmez.
+
+**Etkilenen sistemler:** new Run198 checker/workflow/recorder; append-only progress/ADR/stable/perf. Existing runtime JS/HTML/CSS/service-worker, Run197/196 shadows, gameplay/world modules unchanged.
+
+**Gelecek Faz Etkisi:** Sıradaki migration preflight ayrı opt-in developer startup entry pointinde canonical source-of-truth'u boot anından seçebilir. Current fallback ve offline/PWA boot eşdeğerliği kanıtlanmadan default `game3d.html` startup değişmez.
+
+**Geri alma planı:** Live consumer yoktur. Run198 checker/CI kaldırılmadan da runtime etkisi sıfırdır; contract yanlışlanırsa yeni versioned checker eklenir, current runtime ve Run197/Run196 byte-unchanged kalır.
