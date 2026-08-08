@@ -14839,3 +14839,24 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** macro-relief/dağ, biyom, nehir ve yol uyarlamaları aynı normalize reference space'i paylaşabilecek. Hizalama dönüşümü tek kaynaktan çözülürse bütün bu katmanlar birbirinden kopuk koordinat sistemleri üretmez.
 
 **Geri alma planı:** Mask sınıflandırmasının belirli kıyı bölgelerinde hatalı olduğu kanıtlanırsa eski veri silinmez; yeni versioned mask module + checksum + ADR eklenir ve consumer yeni sürüme opt-in edilir. Runtime davranışı bu ADR'de değişmediği için geri alma gameplay rollback gerektirmez.
+
+
+## ADR-0201 — 2D map/reference alignment is the existing 9000x7000 CSS stretch, not WORLD_SCALE.MAP_BOUNDS normalization (run 181)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Canonical owner image ile 2D oyun koordinatları arasındaki tek doğru normalize dönüşüm `mapX / 9000`, `mapY / 7000` olarak pinlendi. Kanıt repo içindeki mevcut 2D CSS sözleşmesidir: `#map-canvas` 9000x7000 ve `.map-base` üzerindeki `resimler/map.png` görüntüsü `100% 100%` ile canvas'ın tamamına gerilir. Yeni `worldReferenceAlignment.js` map↔reference ve mevcut `WORLD_SCALE.MAP_BOUNDS`/`METERS_PER_MAP_UNIT` üzerinden worldXZ↔reference round-trip helper'larını içerir. Runtime terrain/water bu run'da değişmez.
+
+**Neden:** Run179'da güvenli biçimde reddedilen yaklaşım owner görselini mevcut padded **3D world bounds** içine doğrudan normalize etmekti; bu, 2D haritanın gerçek görüntü yerleşimini temsil etmiyordu. Repo CSS'i artık gerçek hizayı kanıtlıyor: marker koordinatları 9000x7000 canvas uzayında ve harita rasterı da birebir bu canvas'a stretch ediliyor. Böylece coğrafi referans koordinatları tahmine gerek kalmadan yeniden üretilebilir.
+
+**Ölçüm / safety bulguları:** 14/14 kingdom-seat map→reference→map ve world→reference→world round-trip'ı numerik tolerans içinde birebir. Run179 96x64 maskesi bu doğru transform altında 12/14 seat'i kara, `balon` + `jon`u raw-water sınıflıyor; bu coarse raster/classifier sınırı runtime wiring'i hâlâ bloke eder. Mevcut `MAP_BOUNDS` [120..6990]×[0..6170], tam 9000×7000 canvasın normalize dikdörtgen alanının yaklaşık %67.3'ünü kapsar; mevcut 3D world extent tüm owner haritası değildir.
+
+**Alternatifler:** (1) `WORLD_SCALE.MAP_BOUNDS`'u [0,1] referans extent'i saymak: CSS kanıtıyla yanlış olduğu gösterildi ve reddedildi. (2) Görsel landmark'larından manuel affine transform uydurmak: gereksiz; 2D CSS zaten exact transformu veriyor. (3) Runtime maskeyi hemen terrain'e bağlamak: `balon`/`jon` false-water ve eksik full-map extent nedeniyle reddedildi. (4) Mevcut seat koordinatlarını yeni haritaya göre taşımak: owner onayı olmadan canonical seats'i değiştireceği ve 2D davranışı bozacağı için reddedildi.
+
+**Sonuç:** Her gelecekteki coastline, mountain, biome, river ve road reference sampler tek, denetlenebilir koordinat dönüşümünü paylaşabilir. Aynı zamanda iki kalan engel açıkça ölçüldü: seat-safe hydrology ve full-map extent.
+
+**Etkilenen sistemler:** yeni alignment module + check, service-worker precache, WORLD_REFERENCE_MAP dokümanı, progress/ADR/perf/stable kayıtları. Terrain, water, roads, settlements, gameplay, 2D render ve assetler runtime açısından bit-eşit kalır.
+
+**Gelecek Faz Etkisi:** Tam haritanın 3D'leştirilmesi sırasında doğu/güney bölgelerinin yanlış world noktalarına sıkıştırılması engellenir. Full-map extent büyütmesi daha sonra aynı reference transform üzerinde yapılabilir; transform tekrar icat edilmez.
+
+**Geri alma planı:** 2D shell bir gün map canvas boyutunu veya background sizing modunu değiştirirse yeni versioned alignment contract eklenir ve CSS guard buna göre güncellenir. Mevcut contract silinmez; eski kayıtlar hangi harita sürümünde hangi dönüşümün geçerli olduğunu korur.
