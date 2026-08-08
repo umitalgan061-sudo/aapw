@@ -60,9 +60,18 @@ async function main() {
 			const { createWater, updateWater, disposeWater } = await import('/src/3d/world/water.js');
 			const { mapCanvasToNormalizedReference, normalizedReferenceToMapCanvas } = await import('/src/3d/world/worldReferenceAlignment.js');
 			const { referenceProtectionRadiiFromMeters, sampleSeatSafeReferenceHydrology } = await import('/src/3d/world/worldReferenceHydrology.js');
-			const { FULL_REFERENCE_MAP_BOUNDS, FULL_REFERENCE_WORLD_MIGRATION_PLAN, mapCanvasToPlannedWorldXZ } = await import('/src/3d/world/worldReferenceMigrationPlan.js');
+			const {
+				FULL_REFERENCE_MAP_BOUNDS,
+				FULL_REFERENCE_WORLD_MIGRATION_PLAN,
+				mapCanvasToPlannedWorldXZ,
+				plannedWorldXZToMapCanvas,
+			} = await import('/src/3d/world/worldReferenceMigrationPlan.js');
 			const { createCanonicalHydrologyTerrainSampler } = await import('/src/3d/world/worldReferenceTerrainAdapter.js');
-			const { createCanonicalTerrainShadowChunk, createCanonicalGroundShadowCollider, disposeCanonicalTerrainShadowChunk } = await import('/src/3d/world/worldReferenceChunkShadow.js');
+			const {
+				createCanonicalTerrainShadowChunk,
+				createCanonicalGroundShadowCollider,
+				disposeCanonicalTerrainShadowChunk,
+			} = await import('/src/3d/world/worldReferenceChunkShadow.js');
 
 			const plan = FULL_REFERENCE_WORLD_MIGRATION_PLAN;
 			const sea = WORLD_DEFAULTS.WATER_LEVEL_METERS;
@@ -81,6 +90,11 @@ async function main() {
 			const canonicalSampler = createCanonicalHydrologyTerrainSampler({ baseHeightSampler: base, seaLevelMeters: sea, protectedSites, protectionRadii });
 			const collider = createCanonicalGroundShadowCollider(canonicalSampler);
 			const containingChunk = (worldX, worldZ) => ({ x: Math.round(worldX / chunkSize), z: Math.round(worldZ / chunkSize) });
+			const hydrologyAtWorld = (worldX, worldZ) => {
+				const map = plannedWorldXZToMapCanvas(worldX, worldZ);
+				const normalized = mapCanvasToNormalizedReference(map.x, map.y);
+				return sampleSeatSafeReferenceHydrology(normalized.x, normalized.y, protectedSites, protectionRadii);
+			};
 
 			const balonSeat = KINGDOM_SEATS.find((seat) => seat.id === 'balon');
 			const jonSeat = KINGDOM_SEATS.find((seat) => seat.id === 'jon');
@@ -133,9 +147,7 @@ async function main() {
 			const probeResults = probes.map((probe) => {
 				const meshHeight = raycastTerrainAt(probe);
 				const colliderHeight = collider.getGroundHeight(probe.world.x, probe.world.z);
-				const mapPoint = { x: probe.world.x / plan.metersPerMapUnit + plan.mapCenter.x, y: probe.world.z / plan.metersPerMapUnit + plan.mapCenter.y };
-				const normalized = mapCanvasToNormalizedReference(mapPoint.x, mapPoint.y);
-				const hydrology = sampleSeatSafeReferenceHydrology(normalized.x, normalized.y, protectedSites, protectionRadii);
+				const hydrology = hydrologyAtWorld(probe.world.x, probe.world.z);
 				return {
 					id: probe.id,
 					expected: probe.expected,
@@ -167,11 +179,7 @@ async function main() {
 				let edgeWaterPoints = 0;
 				for (const point of route.points) {
 					routePointCount += 1;
-					const mapX = point.x / plan.metersPerMapUnit + plan.mapCenter.x;
-					const mapY = point.z / plan.metersPerMapUnit + plan.mapCenter.y;
-					const normalized = mapCanvasToNormalizedReference(mapX, mapY);
-					const hydrology = sampleSeatSafeReferenceHydrology(normalized.x, normalized.y, protectedSites, protectionRadii);
-					if (hydrology.water) {
+					if (hydrologyAtWorld(point.x, point.z).water) {
 						edgeWaterPoints += 1;
 						canonicalWaterRoutePointCount += 1;
 					}
