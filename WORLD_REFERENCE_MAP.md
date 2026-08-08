@@ -67,3 +67,12 @@ Owner bridge policy is now explicit and deterministic. Same full-reference road/
 Geometry proof batches all 177 arches plus decks/piers/parapets into 4 renderer submissions / 37860 triangles. Original procedural 256x256 masonry CanvasTexture uses staggered stone blocks, mortar seams and sparse deterministic weather/moss variation. Proof checksum `13fadc3dbc3d3554c583215883614a56b5e9ee406ae74d66e335fd56fe4cf7f4`.
 
 Canonical boundary: bridge anchors derive from the planned full-reference road centerlines and seat-safe hydrology. Live legacy road/terrain coordinates are not silently replaced by this shadow module.
+
+
+## Canonical road + bridge scene-integration shadow contract — run 192
+
+Run192 composes the owner-approved Run191 stone-bridge plan with the canonical target-scale road routes in an isolated browser scene. All 399 canonical route points classified as water are covered by deterministic suppression ranges, so a future bridge-aware road renderer has an explicit rule for omitting the dirt ribbon underneath bridge/water spans rather than drawing both surfaces at once.
+
+Each of the 7 bridges receives two deterministic dry-bank approach candidates (14 total). Maximum measured approach grade is 17.87° and maximum approach length is 37.7m; 18° / 320m are proof-only safety caps, not new live product tuning. Bridge deck-center collider probes resolve above canonical terrain at all 7 structures.
+
+Core bridge-aware road candidate cost is 6 draw calls / 39184 triangles before live-world baseline composition. Near-camera frustum includes 1/7 bridge bounds and includes the selected target bridge, proving the candidate does not require treating every bridge as locally visible. This remains shadow-only; live scene imports are unchanged.

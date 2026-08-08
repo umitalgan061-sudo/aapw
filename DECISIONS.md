@@ -15066,3 +15066,26 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Next integration proof bridge deck approach grade ve road ribbon transitionı doğrulamalı; collision ancak geometry placement ve live scene budget kanıtlandıktan sonra eklenir. Mağara/ejderha habitat sırası bu owner road-water kararından etkilenmez.
 
 **Geri alma planı:** Shadow runtime consumer yoktur. Bridge geometry/art policy teknik olarak yanlışlanırsa yeni versioned bridge module/checker additive eklenir. Owner kararı değişmedikçe product policy bridge olarak kalır.
+
+
+## ADR-0212 — Prove bridge-aware canonical road scene composition before any live full-reference switch (run 192)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run192 composes the owner-approved Run191 stone bridges and canonical target-scale road routes only inside a browser proof. Every canonical route point classified as water is covered by an edge/crossing replacement range; the candidate road ribbon omits those ranges, two bounded dry-bank ramps per bridge connect actual canonical route points to exact bridge deck endpoints, and a proof-only deck-height resolver demonstrates collider precedence. The merged PR #71 traversal-readiness guard is rerun as a prerequisite. No live runtime import is added.
+
+**Ölçüm:** 7 bridges, 14 approaches, water suppression 399/399; max approach 17.87° / 37.7m; core candidate 6 draw calls / 39184 triangles; near frustum 1/7 bridge bounds.
+
+**Neden:** Run191 proved bridge topology/art/geometry and PR #71 proved player traversal-readiness, but the live world remains unchanged. Direct live adoption would still combine several risks at once: dirt-road geometry continuing underwater, abrupt bank/deck transitions, terrain-only physics taking precedence over bridge decks, and unbounded bridge visibility. A separate scene-integration proof makes those contracts measurable before any migration switch.
+
+**Proof-only sınırlar:** 18° maximum approach grade and 320m maximum approach search length are conservative qualification caps used only by this isolated checker. They do not supersede owner-pending gameplay calibration or create new live road/vehicle policy.
+
+**Alternatifler:** (1) Wire Run191 bridge group directly into `game3d` and accept overlapping road/water geometry — rejected. (2) Modify existing `roads.js` in place — prohibited by additive-only and unnecessarily risks the proven legacy road path. (3) Hide all canonical roads at water edges without approach geometry — rejected because visual/physics continuity would remain unqualified. (4) Reuse the stale parallel Run192 branch directly — rejected because it diverged behind current main after PR #71. (5) Consolidate only its unique test-only composition idea on current main and rerun all gates — selected.
+
+**Sonuç:** A bridge-aware canonical-road composition algorithm is measured and visually demonstrated, and current traversal-readiness remains green, but everything remains deliberately outside the live import graph. Run192 does not claim full-reference runtime adoption.
+
+**Etkilenen sistemler:** new Run192 checker/CI/recorder plus generated evidence and append-only WORLD_REFERENCE_MAP/progress/ADR/stable/perf records. Existing 2D game and all live 3D source modules remain byte-unchanged.
+
+**Gelecek Faz Etkisi:** A reusable versioned shadow adapter can implement the proven suppression/ramp/deck precedence contract and be composed with canonical terrain/chunks and Run190 rocks for a single bounded scene budget/streaming proof. Live migration remains a later, separately gated high-impact step.
+
+**Geri alma planı:** No runtime consumer exists. If the approach/suppression contract is disproved, add a new versioned checker/adapter and leave all live systems untouched.
