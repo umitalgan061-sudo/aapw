@@ -280,3 +280,17 @@ vRun179GrassVariation=fract(sin(dot(run179XZ,vec2(12.9898,78.233)))*43758.5453);
 	const initialX=Math.round(centerX/RUN179_WIND_GRASS_CONFIG.cellMeters),initialZ=Math.round(centerZ/RUN179_WIND_GRASS_CONFIG.cellMeters);let placed=run179Populate(mesh,params,initialX,initialZ);mesh.onBeforeRender=(_r,_s,camera)=>{const shader=mat.userData.run179Shader;if(shader)shader.uniforms.uRun179WindTime.value=performance.now()*.001;const x=Math.round(camera.position.x/RUN179_WIND_GRASS_CONFIG.cellMeters),z=Math.round(camera.position.z/RUN179_WIND_GRASS_CONFIG.cellMeters);if(x!==mesh.userData.run179Cell.x||z!==mesh.userData.run179Cell.z){placed=run179Populate(mesh,params,x,z);group.userData.run179WindGrass.placedCount=placed;group.userData.run179WindGrass.centerCell={x,z};}};group.add(mesh);group.userData.run179WindGrass={active:true,isMobileClass,placedCount:placed,maxPatches:cfg.maxPatches,radiusMeters:cfg.radiusMeters,centerCell:{x:initialX,z:initialZ}};return {group,mesh};
 }
 const _createSceneBeforeWindGrassRun179=createScene;createScene=function createSceneWithWindGrassRun179(canvas){const state=_createSceneBeforeWindGrassRun179(canvas),mobile=isCoarsePointerDevice(),grass=createWindGrassRun179({sampleHeightMeters:state.groundCollider.getGroundHeight,seaLevelMeters:WORLD_DEFAULTS.WATER_LEVEL_METERS,seed:WORLD_DEFAULTS.WORLD_SEED,seats:state.settlementSeats,roadEdges:state.roadEdges,isMobileClass:mobile,centerX:state.camera.position.x,centerZ:state.camera.position.z});state.scene.add(grass.group);state.vegetation.userData.run179GrassGroup=grass.group;state.grass=grass.group;state.grassStats=grass.group.userData.run179WindGrass;return state;};
+
+
+// Run 180 / ADR-0201 — guarantee the camera-local grass can recenter on the first rendered frame.
+// The player camera is moved several kilometres after createScene() returns; leaving this single
+// bounded grass mesh frustum-culled could prevent its own onBeforeRender recenter callback from
+// ever running when the old cell is outside the new camera frustum. One always-submitted mesh is
+// deliberate here: its instance buffer is bounded and onBeforeRender immediately recenters it.
+const _createWindGrassRun179BeforeFirstFrameSafetyRun180 = createWindGrassRun179;
+createWindGrassRun179 = function createWindGrassRun179FirstFrameSafeRun180(options) {
+	const result = _createWindGrassRun179BeforeFirstFrameSafetyRun180(options);
+	result.mesh.frustumCulled = false;
+	result.mesh.userData.run180FirstFrameSafe = true;
+	return result;
+};

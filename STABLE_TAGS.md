@@ -855,3 +855,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-08-1023 — run 177 owner world-art §30 + medieval road surface (ADR-0199); 34/34+ browser smoke, road safety/visual/surface + PWA/determinism/mobile gates PASS.
 
 - stable-2026-08-08-1104 — run 179 deterministic instanced wind grass (ADR-0200); 34/34+ smoke + canonical-map/mobile/PWA/determinism gates PASS.
+
+- stable-2026-08-08-1129 — run 180 wind-grass first-frame real-render integration hardening (ADR-0201); 34/34+ smoke + integrated grass/mobile/PWA/determinism gates PASS.

@@ -14833,3 +14833,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Alternatifler:** milyonlarca world-resident blade (bütçe riski), texture-only grass (fiziksel salınım yok), game3d tick wiring (547/600 borcunu büyütür), yeni runtime module (PWA cache/import blast radius), biome density tuning'i aynı run'a eklemek (tek alt görev sınırını aşar).
 
 **Sonuç:** fiziksel grass/wind kullanıcıya görünür olur; seed, terrain, roads, 2D, canonical map ve gameplay değişmez. Teardown mevcut vegetation dispose zincirine bağlanır; density/radius/biome sanat değişimleri yeni versioned ADR/guard ile yapılır.
+
+
+## ADR-0201 — Camera-local grass bypasses frustum culling to guarantee its own recenter callback (run 180)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run179'un tek bounded grass InstancedMesh'i `frustumCulled=false` kullanır. Grass'ın mevcut camera-cell streaming'i mesh `onBeforeRender` callback'inde kalır; callback world-seed deterministik instance buffer'ını gerektiğinde yeni 120m hücreye yeniden doldurur. Run180 başka density/radius/shader/exclusion sabiti değiştirmez.
+
+**Neden:** Scene bootstrap kamerası oyuncu yaratılmadan önce `(0,700,1200)` civarındadır; `game3d.js` player load tamamlanınca aynı kamerayı oyuncu spawn'ına birkaç kilometre taşır. Run179 mesh'i eski bootstrap cell çevresinde kaldığında normal frustum culling, `onBeforeRender` çağrısından önce mesh'i eleme hakkına sahiptir. Böyle bir durumda recenter mekanizması kendi kendini tetikleyemez. İlk Run179 CI'ın gerçek mobile F2 sayaçlarının grass eklendiği halde baseline'da kalması bu entegrasyon boşluğunu görünür kıldı.
+
+**Alternatifler:** (1) Grass recenter'ı `game3d.js` tick loop'a taşımak: 547/600 owner-blocked yapısal borcu büyütür ve grass lifecycle'ını iki dosyaya böler. (2) Bootstrap'ta grass'ı oyuncu spawn'ına tahmin ederek üretmek: sceneManager oyuncu spawn lifecycle'ını sahiplenmemeli ve gelecekteki spawn/respawn davranışıyla drift eder. (3) Devasa bounding sphere ile frustum'u kandırmak: gerçek bounded alanı yanlış temsil eder. (4) Sorunu görmezden gelmek: isolated checker yeşil kalırken kullanıcı grass görmeyebilir. Tek bounded mesh için culling'i kapatmak en dar ve ölçülebilir düzeltmedir.
+
+**Sonuç:** Kamera kilometrelerce taşınsa bile grass mesh ilk render submission'a girer, callback güncel hücreye recenter eder ve sonraki frame'lerde aynı bounded mesh çalışır. Mobilde beklenen maliyet yalnız +1 draw call ve gerçek patch sayısı × 20 triangle'dır; yeni resource, timer veya gameplay state yoktur.
+
+**Etkilenen sistemler:** additive append ile `src/3d/sceneManager.js`, yeni `scripts/checkWindGrassSceneIntegrationRun180.js`, Run180 CI/governance kayıtları. Run179 placement/shader, `game3d.js`, canonical world map, terrain, road, 2D, PWA import grafiği ve world seed değişmez.
+
+**Geri alma planı:** Gelecekte grass streaming ayrı bir dedicated per-frame world-decoration manager'a taşınırsa yeni manager kendi pre-cull recenter/update sözleşmesini kanıtlayıp versioned ADR ile bu bypass'ı supersede edebilir; mevcut source satırlarını sessizce değiştirmek yerine additive migration uygulanır.
