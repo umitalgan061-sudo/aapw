@@ -1,0 +1,46 @@
+name: Run 198 Lifecycle Diagnostic
+
+on:
+  push:
+    branches: [chatgpt/run198-lifecycle-reinit-preflight-v2]
+    paths:
+      - '.github/workflows/run198-lifecycle-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Enrich first lifecycle assertion in runner only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/checkLifecycleReinitShadow.js')
+          s = p.read_text()
+          old = "if (!first.gate.isDisposed() || !first.lifecycle.isDisposed()) throw new Error('first canonical lifecycle did not dispose before current teardown');"
+          new = "if (!first.gate.isDisposed() || !first.lifecycle.isDisposed()) throw new Error(`first lifecycle diagnostic gateDisposed=${first.gate.isDisposed()} lifecycleDisposed=${first.lifecycle.isDisposed()} stats=${JSON.stringify(first.lifecycle.getStats())} disposes=${JSON.stringify(first.disposes.snapshot())} order=${JSON.stringify(first.order)} resources=${JSON.stringify(first.resources.snapshot())}`);"
+          if old not in s:
+              raise SystemExit('diagnostic assertion anchor missing')
+          p.write_text(s.replace(old, new))
+          PY
+          node --check scripts/checkLifecycleReinitShadow.js
+      - name: Run focused diagnostic
+        shell: bash
+        run: node scripts/checkLifecycleReinitShadow.js
