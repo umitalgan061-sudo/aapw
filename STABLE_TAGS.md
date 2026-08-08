@@ -874,3 +874,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1327 — run 186 canonical hydrology target-terrain shadow adapter (ADR-0206); 34/34+ smoke + 96x64 terrain grid + 14/14 seat/PWA/mobile/determinism gates PASS; live runtime delta 0.
+
+
+- stable-2026-08-08-1348 — run 187 canonical chunk/water/collider integration shadow (ADR-0207); real mesh raycast + water-plane + collider + road-water diagnostics and full regression gates PASS; live runtime delta 0.

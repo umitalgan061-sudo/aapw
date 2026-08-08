@@ -14113,3 +14113,18 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Memory leak checklist: runtime listener/timer/DOM/geometry/material/texture yok; pure sampler factory + frozen policy. Checker browser/server finally ile kapanır. Teknik borç 1; yeni runtime borcu 0. Risk LOW. Güven 5/5. ADR: ADR-0206.
 - World Coverage live değerleri değişmedi. World Evolution Report: canonical terrain migration readiness +1; runtime world delta 0. Oyuncu farkı: HAYIR.
 - Sıradaki güvenli adım: canonical terrain adapterı default yapmadan önce opt-in scene/chunk integration harness ile gerçek chunk geometry + water plane + player/seat/road çevresinde görsel/physics shadow proof; ancak ondan sonra ayrı yüksek-etki runında full-reference runtime switch değerlendirilsin.
+
+
+## Run 187 — Canonical chunk + water + collider integration shadow (2026-08-08 13:48 UTC)
+- Yeni `worldReferenceChunkShadow.js`, Run186 numeric canonical samplerı gerçek THREE terrain geometrysine bake eder ve aynı samplerdan physics-compatible `getGroundHeight(x,z)` facade üretir; live import graphına bağlanmaz.
+- Integration proof: 3 real 64-segment shadow chunks / 12675 vertices agree with canonical sampler (max error 9.496931276942178e-7); Balon 11.40m + Jon 11.16m render/collider flat+dry; Summer Sea terrain -2.00m under existing water plane 6.00m; submerged vertices 9895; canonical-road diagnostic 399/1020 route points in water across 6/13 edges, max route grade 37.0°; live runtime remains unwired.
+- Balon/Jon protected-land örnekleri gerçek raycast edilen chunk geometry üzerinde dry/flat kalır; Summer Sea aynı sahnede existing `createWater()` düzleminin altında gerçek seabed olarak doğrulanır.
+- Road migration readiness artık yalnız grade ile değil canonical-water diagnostic ile de ölçülür. Water-crossing edge varsa live road switch bloke kalır; sonraki run bridge/ferry veya hydrology-aware avoidance politikasını çözmelidir.
+- PWA: yeni src/3d shadow module GAME3D_SHELL_FILES listesine additive precache edildi; offline cache/installability gate PASS.
+- Additive-only: yeni chunk-shadow/check/PWA-applicator/recorder/CI + append-only ledgers. Live 2D/3D runtime kaynakları değiştirilmedi.
+- DoD: baseline + after browser smoke 34/34+ PASS; zero console/page errors; Run184/185/186 canonical gates, real chunk/water/collider shadow, terrain/road/visual/grass, determinism/assets/PWA, a11y/input/physics, mobile streaming/LOD/perf, visual evidence ve additive-only PASS.
+- Mobil performans: live mobile F2 35 draw calls / 195929 triangles, under <500 / <500K; Run187 shadow modules add zero live render cost.
+- Performans: 2026-08-08,run187,1,51,688296,49,17,326. Shadow-only olduğu için live render delta 0.
+- Memory leak checklist: shadow chunk geometry/material ve existing water geometry/material dispose edilir; checker browser/server finally ile kapanır; runtime listener/timer/DOM eklenmez. Teknik borç 1; yeni runtime borcu 0. Risk LOW. Güven 5/5. ADR: ADR-0207.
+- World Evolution Report: canonical runtime-integration readiness +1; live terrain/water/road/gameplay delta 0. Oyuncu farkı: HAYIR.
+- Sıradaki güvenli adım: canonical road-water diagnostic sonucuna göre bridge/ferry veya water-avoidance route policy; road güvenliği çözülmeden full-reference default runtime switch yapma.

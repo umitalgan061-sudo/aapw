@@ -14961,3 +14961,22 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Bir sonraki integration harness aynı samplerı opt-in chunk geometry üretiminde test edebilir. Live adoption yapılırsa coast visual smoothing, water mesh coverage, route water-crossing/bridge policy ve physics collider eşleşmesi aynı versioned adapter üstünde ayrıca kanıtlanmalıdır.
 
 **Geri alma planı:** Runtime import yoktur; adapter veya policy yanlışlanırsa yeni versioned shadow policy additive eklenir. Run179 mask, Run181 alignment, Run182 hydrology/extent ve Run185 migration plan korunur.
+
+
+## ADR-0207 — Prove canonical terrain as real chunk geometry against the existing water plane and collider shape before live integration (run 187)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run186 canonical target-height sampler, yeni shadow-only chunk integration module üzerinden real `THREE.PlaneGeometry` terrain meshine bake edilir. Mesh chunk merkezi/size/segments conventionı live terrain ile aynı tutulur. Aynı numeric sampler ayrıca physics public shape ile uyumlu `getGroundHeight(x,z)` facade verir; existing `createWater()` water plane aynen kullanılır. Live scene/chunk/physics source hiçbir import veya default davranış değişikliği almaz.
+
+**Neden:** Numeric grid doğrulaması tek başına render geometry, water surface ve gameplay-ground source arasında drift olmadığını kanıtlamaz. Runtime switchten önce aynı samplerın gerçek mesh vertexlerine taşındığı, seat raycast/collider değerlerinin uyuştuğu ve canonical seabed'in existing sea plane altında kaldığı ölçülmelidir.
+
+**Road diagnostic:** Target MST road routes canonical sampler üzerinde ayrıca hydrology-classify edilir. Bu run water-crossing route bulursa bunu hata diye saklamaz veya roadu keyfi taşımaya çalışmaz; live migration blocker olarak kaydeder. Bridge/ferry ya da deterministic water-avoidance routing ayrı ADR gerektirir.
+
+**Alternatifler:** `terrain.js` mevcut creatorını doğrudan değiştirmek reddedildi (live davranış riski); yalnız numeric sampler testine güvenmek reddedildi (render/collider integration kanıtı yok); water plane yerine yeni shadow water implementation yazmak reddedildi (gerçek runtime surface test edilmez); road-water crossingleri sessizce görmezden gelmek reddedildi.
+
+**Sonuç:** Canonical coast artık numeric policy yanında gerçek renderable terrain + existing water + collider-shape integration seviyesinde test edilir. Live runtime hâlâ değişmez; road-water diagnostic bir sonraki migration gateini belirler.
+
+**PWA:** Yeni src/3d module standing offline-shell policy gereği additive precache edilir.
+
+**Geri alma planı:** Runtime consumer yoktur. Shadow geometry helper yanlışlanırsa yeni versioned helper/policy eklenir; Run179-186 canonical source truth korunur.
