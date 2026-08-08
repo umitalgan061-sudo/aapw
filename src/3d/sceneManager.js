@@ -247,3 +247,36 @@ export function createScene(canvas) {
 		cameraCollisionRaycaster: new THREE.Raycaster(),
 	};
 }
+
+
+// Run 179 / ADR-0200 — owner-approved bounded grass field with GPU wind sway.
+const RUN179_WIND_GRASS_CONFIG = Object.freeze({ desktop: Object.freeze({ radiusMeters: 350, maxPatches: 4000 }), mobile: Object.freeze({ radiusMeters: 260, maxPatches: 1200 }), cellMeters: 120, bladesPerPatch: 10, patchRadiusMeters: 4.5, roadClearanceMeters: 10, seatClearanceMeters: 100, shoreMarginMeters: 1.5, maxSlopeDegrees: 38 });
+function run179Rng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
+function run179SegmentDistance(px,pz,a,b){const x=b.x-a.x,z=b.z-a.z,l=x*x+z*z;if(!l)return Math.hypot(px-a.x,pz-a.z);const t=Math.max(0,Math.min(1,((px-a.x)*x+(pz-a.z)*z)/l));return Math.hypot(px-(a.x+x*t),pz-(a.z+z*t));}
+function run179GrassAllowed(x,z,{sampleHeightMeters,seaLevelMeters,seats,roadEdges}){
+	for(const seat of seats) if(Math.hypot(x-seat.x,z-seat.z)<RUN179_WIND_GRASS_CONFIG.seatClearanceMeters)return false;
+	for(const edge of roadEdges) for(let i=1;i<edge.points.length;i++) if(run179SegmentDistance(x,z,edge.points[i-1],edge.points[i])<RUN179_WIND_GRASS_CONFIG.roadClearanceMeters)return false;
+	const y=sampleHeightMeters(x,z);if(y<=seaLevelMeters+RUN179_WIND_GRASS_CONFIG.shoreMarginMeters)return false;
+	const d=4,dx=sampleHeightMeters(x+d,z)-y,dz=sampleHeightMeters(x,z+d)-y;return Math.atan2(Math.max(Math.abs(dx),Math.abs(dz)),d)*180/Math.PI<=RUN179_WIND_GRASS_CONFIG.maxSlopeDegrees;
+}
+function run179GrassGeometry(){
+	const p=[],idx=[],flex=[],phase=[],n=RUN179_WIND_GRASS_CONFIG.bladesPerPatch,r=RUN179_WIND_GRASS_CONFIG.patchRadiusMeters;
+	for(let i=0;i<n;i++){const a=i*2.3999632297,rr=r*Math.sqrt((i+.35)/n),cx=Math.cos(a)*rr,cz=Math.sin(a)*rr,h=.58+.42*((i*37%101)/100),w=.11+.07*((i*53%97)/96),sx=Math.cos(a+Math.PI/2)*w,sz=Math.sin(a+Math.PI/2)*w,b=p.length/3;p.push(cx-sx,0,cz-sz,cx+sx,0,cz+sz,cx-sx,h,cz-sz,cx+sx,h,cz+sz);idx.push(b,b+1,b+2,b+1,b+3,b+2);flex.push(0,0,1,1);phase.push(i/n,i/n,i/n,i/n);}
+	const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('run179Flex',new THREE.Float32BufferAttribute(flex,1));g.setAttribute('run179Phase',new THREE.Float32BufferAttribute(phase,1));g.setIndex(idx);g.computeVertexNormals();return g;
+}
+function run179Populate(mesh,params,cellX,cellZ){
+	const cfg=params.isMobileClass?RUN179_WIND_GRASS_CONFIG.mobile:RUN179_WIND_GRASS_CONFIG.desktop,seed=(params.seed^Math.imul(cellX,73856093)^Math.imul(cellZ,19349663)^0x47524153)>>>0,rng=run179Rng(seed),m=new THREE.Matrix4(),q=new THREE.Quaternion(),s=new THREE.Vector3(),pos=new THREE.Vector3(),up=new THREE.Vector3(0,1,0),cx=cellX*RUN179_WIND_GRASS_CONFIG.cellMeters,cz=cellZ*RUN179_WIND_GRASS_CONFIG.cellMeters;let placed=0;
+	for(let i=0;i<cfg.maxPatches;i++)for(let attempt=0;attempt<8;attempt++){const a=rng()*Math.PI*2,r=cfg.radiusMeters*Math.sqrt(rng()),x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;if(!run179GrassAllowed(x,z,params))continue;pos.set(x,params.sampleHeightMeters(x,z)+.03,z);q.setFromAxisAngle(up,rng()*Math.PI*2);const scale=.78+rng()*.47;s.set(scale,scale,scale);m.compose(pos,q,s);mesh.setMatrixAt(placed++,m);break;}
+	mesh.count=placed;mesh.instanceMatrix.needsUpdate=true;if(typeof mesh.computeBoundingSphere==='function')mesh.computeBoundingSphere();mesh.userData.run179Cell={x:cellX,z:cellZ};return placed;
+}
+export function createWindGrassRun179({sampleHeightMeters,seaLevelMeters,seed,seats,roadEdges,isMobileClass=false,centerX=0,centerZ=0}){
+	const cfg=isMobileClass?RUN179_WIND_GRASS_CONFIG.mobile:RUN179_WIND_GRASS_CONFIG.desktop,g=run179GrassGeometry(),mat=new THREE.MeshStandardMaterial({color:0x4f7f36,roughness:1,metalness:0,side:THREE.DoubleSide}),mesh=new THREE.InstancedMesh(g,mat,cfg.maxPatches),group=new THREE.Group(),params={sampleHeightMeters,seaLevelMeters,seed,seats,roadEdges,isMobileClass};mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+	mat.userData.run179WindGrass=Object.freeze({key:'run179-wind-grass-v1',radiusMeters:cfg.radiusMeters,maxPatches:cfg.maxPatches,bladesPerPatch:RUN179_WIND_GRASS_CONFIG.bladesPerPatch});mat.onBeforeCompile=(shader)=>{shader.uniforms.uRun179WindTime={value:0};shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nuniform float uRun179WindTime;\nattribute float run179Flex;\nattribute float run179Phase;\nvarying float vRun179GrassVariation;').replace('#include <begin_vertex>',`#include <begin_vertex>
+vec2 run179XZ=instanceMatrix[3].xz;
+float run179P=dot(run179XZ,vec2(0.021,0.017))+run179Phase*6.2831853;
+float run179Wave=sin(uRun179WindTime*1.05+run179P)+0.35*sin(uRun179WindTime*2.15+run179P*1.73);
+transformed.xz+=vec2(0.78,0.62)*run179Wave*run179Flex*run179Flex*0.24;
+vRun179GrassVariation=fract(sin(dot(run179XZ,vec2(12.9898,78.233)))*43758.5453);`);shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying float vRun179GrassVariation;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=mix(0.84,1.10,vRun179GrassVariation);');mat.userData.run179Shader=shader;};mat.customProgramCacheKey=()=> 'run179-wind-grass-v1';
+	const initialX=Math.round(centerX/RUN179_WIND_GRASS_CONFIG.cellMeters),initialZ=Math.round(centerZ/RUN179_WIND_GRASS_CONFIG.cellMeters);let placed=run179Populate(mesh,params,initialX,initialZ);mesh.onBeforeRender=(_r,_s,camera)=>{const shader=mat.userData.run179Shader;if(shader)shader.uniforms.uRun179WindTime.value=performance.now()*.001;const x=Math.round(camera.position.x/RUN179_WIND_GRASS_CONFIG.cellMeters),z=Math.round(camera.position.z/RUN179_WIND_GRASS_CONFIG.cellMeters);if(x!==mesh.userData.run179Cell.x||z!==mesh.userData.run179Cell.z){placed=run179Populate(mesh,params,x,z);group.userData.run179WindGrass.placedCount=placed;group.userData.run179WindGrass.centerCell={x,z};}};group.add(mesh);group.userData.run179WindGrass={active:true,isMobileClass,placedCount:placed,maxPatches:cfg.maxPatches,radiusMeters:cfg.radiusMeters,centerCell:{x:initialX,z:initialZ}};return {group,mesh};
+}
+const _createSceneBeforeWindGrassRun179=createScene;createScene=function createSceneWithWindGrassRun179(canvas){const state=_createSceneBeforeWindGrassRun179(canvas),mobile=isCoarsePointerDevice(),grass=createWindGrassRun179({sampleHeightMeters:state.groundCollider.getGroundHeight,seaLevelMeters:WORLD_DEFAULTS.WATER_LEVEL_METERS,seed:WORLD_DEFAULTS.WORLD_SEED,seats:state.settlementSeats,roadEdges:state.roadEdges,isMobileClass:mobile,centerX:state.camera.position.x,centerZ:state.camera.position.z});state.scene.add(grass.group);state.vegetation.userData.run179GrassGroup=grass.group;state.grass=grass.group;state.grassStats=grass.group.userData.run179WindGrass;return state;};

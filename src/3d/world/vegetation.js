@@ -520,3 +520,8 @@ createVegetation = function createVegetationWithMobileLodRun136(options) {
 export function getMobileVegetationLodStatsRun136(group) {
 	return group?.userData?.mobileVegetationLodRun136 ?? null;
 }
+
+
+// Run 179 — dispose the separately-rendered wind-grass group through the existing vegetation teardown.
+const _disposeVegetationBeforeWindGrassRun179=disposeVegetation;
+disposeVegetation=function disposeVegetationWithWindGrassRun179(group){const grass=group?.userData?.run179GrassGroup;if(grass){grass.parent?.remove(grass);for(const mesh of grass.children){mesh.geometry?.dispose();mesh.material?.dispose();}delete group.userData.run179GrassGroup;}return _disposeVegetationBeforeWindGrassRun179(group);};

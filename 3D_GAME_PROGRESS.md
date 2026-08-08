@@ -14009,3 +14009,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0199. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: yol uzunluğu 0 km (topoloji aynı 20.24 km), road visual quality +1, governance world-art directive +1; orman/terrain/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1. Oyuncu farkı: EVET — mevcut yollar artık düz tek-renk ribbon yerine teker izli, çamurlu/taşlı, aşınmış ortaçağ toprak yolu olarak render edilir.
 - Sıradaki güvenli adım: §30 sırasına göre deterministik instanced çimen + GPU rüzgâr salınımı; yol/su/kale exclusion, mobile LOD/culling ve yakın+uzak görsel kanıt zorunlu.
+
+
+## Run 179 — Deterministic instanced grass + natural GPU wind (2026-08-08 11:04 UTC)
+- §30 owner sanat sırasının ikinci adımı uygulandı: canonical 2D→3D world-reference foundation korunarak, mevcut world/terrain/vegetation kaynakları bozulmadan kamera çevresinde bounded olarak yeniden merkezlenen tek InstancedMesh çimen alanı eklendi. one InstancedMesh, mobile 1200/1200 patches, desktop 4000/4000, 20 triangles/patch; deterministic road/seat/water exclusion, camera-cell streaming, GPU two-frequency wind + teardown PASS.
+- Çimen placement aynı world seed + quantized camera cell için bit-identical; yol koridoru, 100m settlement/kale çevresi, su/shore ve >38° dik yüzeyler reddedilir. Desktop 350m/4000 patch, mobile 260m/1200 patch tavanıyla ayrı bütçe kullanır.
+- Rüzgâr: vertex shader iki frekanslı sinüs/gust bileşeni, blade-tip flex ve world-position phase kullanır; time yalnız görsel uniformdur, gameplay/world seed/checksum'a girmez. Yeni timer/listener yok; uniform mevcut mesh onBeforeRender callback'inde güncellenir.
+- Additive-only: mevcut satır silinmedi/değiştirilmedi; sceneManager.js ve vegetation.js yalnız sona append edildi. Yeni runtime modülü/asset/texture yok, canonical worldReferenceMap modülü ve PWA cache bağlantısı aynen korunur.
+- DoD: node --check PASS; baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; wind-grass live contract, world-reference-map contract, road safety+medieval surface, determinism, PWA/cache, terrain/vegetation, accessibility/input/physics ve mobile streaming/LOD/culling/perf kapıları PASS.
+- Görsel doğrulama: 390x844 mobile Chromium yakın + F4 uzak artifact üretildi; grass gerçek render yolunda shader compile ederek çalıştı, console/page error 0.
+- Performans: 2026-08-08,run179,1,50,608296,48,17,326. Memory: grass tek bounded InstancedMesh; recenter aynı buffer'ı yeniden kullanır; vegetation teardown grass geometry/material için dispose zincirini doğrular.
+- Teknik borç: 1 (mevcut game3d.js yapısal borcu); yeni modül/debt eklenmedi. Risk LOW. Güven 5/5. ADR: ADR-0200. World Coverage desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report: grass/wind visual +1; canonical-map kontratı korunur; yol/terrain/kale/NPC/event/hayvan/coverage/asset/diyalog 0. Oyuncu farkı: EVET — yakın arazide fiziksel çimen kümeleri var ve rüzgârla doğal olarak salınıyor.
+- Sıradaki güvenli adım: §30 sırasıyla canonical worldReferenceMap relief/biome verisini kullanabilen deterministik taş/kaya kümeleri; ardından Arazi Değişiklik Güvenlik Kontrolü altında dağ zenginliği.

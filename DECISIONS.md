@@ -14820,3 +14820,16 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** `GOVERNANCE.md` §30, additive append ile `src/3d/world/roads.js`, yeni `scripts/checkMedievalRoadSurface.js`, run177 applicator/CI ve governance kayıtları. 2D oyun, road pathfinder/topology, terrain height sampler, settlement coordinates, PWA import grafiği, world seed ve dragon AI değişmez.
 
 **Geri alma planı:** Bilinçli yeni yol sanat yönü gelirse yeni versioned additive surface wrapper/ADR mevcut run177 katmanını supersede edebilir. Topoloji değişimi ayrı alt görevdir; eski road safety/visual guard'ları sessizce gevşetilmez.
+
+
+## ADR-0200 — Grass is a bounded deterministic InstancedMesh with shader-only wind (run 179)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Çimen, yeni runtime modülü açmadan sceneManager'ın additive katmanında tek InstancedMesh olarak üretilir. Yerleşim world seed + 120m quantized camera-cell ile deterministiktir ve kamera cell değiştirdiğinde aynı instance buffer yeniden doldurulur. Desktop 350m/4000, mobile 260m/1200 patch tavanı kullanır. Her patch 10 düşük-poly blade taşır; yol, settlement, shore ve dik-yüzey exclusion zorunludur. MeshStandardMaterial vertex shader'ına iki frekanslı zaman tabanlı wind sway eklenir; gameplay state mutasyonu yoktur. Canonical worldReferenceMap coğrafya kontratı korunur; bu run henüz biome-specific grass dağılımı uygulamaz.
+
+**Neden:** Dünya ölçeğinde her blade'i sürekli resident tutmak mobil/desktop triangle ve RAM maliyetini gereksiz büyütür. Bounded camera-local field oyuncunun çevresinde görünür çim sağlarken instance sayısını kesin sınırlar, +1 draw call ile kalır ve oyuncu dünyada ilerledikçe cell bazında yeniden üretilebilir. Shader rüzgârı CPU'da her blade'i hareket ettirmez. Canonical map foundation grass runtime'ıyla çakışmaz; ayrı geography source-of-truth olarak doğrulanır.
+
+**Alternatifler:** milyonlarca world-resident blade (bütçe riski), texture-only grass (fiziksel salınım yok), game3d tick wiring (547/600 borcunu büyütür), yeni runtime module (PWA cache/import blast radius), biome density tuning'i aynı run'a eklemek (tek alt görev sınırını aşar).
+
+**Sonuç:** fiziksel grass/wind kullanıcıya görünür olur; seed, terrain, roads, 2D, canonical map ve gameplay değişmez. Teardown mevcut vegetation dispose zincirine bağlanır; density/radius/biome sanat değişimleri yeni versioned ADR/guard ile yapılır.
