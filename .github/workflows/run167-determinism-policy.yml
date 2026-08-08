@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/checkSeededRandomPolicy.js'
+      - 'src/3d/**'
       - '.github/workflows/run167-determinism-policy.yml'
 
 permissions:
@@ -45,6 +46,21 @@ jobs:
           node scripts/checkServiceWorkerCache.js
           node scripts/terrainSeatSafetyCheck.js
           node scripts/roadNetworkSafetyCheck.js
+
+      - name: Determinism guard regression fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          FIXTURE_ROOT="$RUNNER_TEMP/determinism-policy-fixture"
+          mkdir -p "$FIXTURE_ROOT/vendor"
+          printf '/** Math.random() documentation only */\nexport const seeded = 1;\n' > "$FIXTURE_ROOT/fixture.js"
+          printf 'export const thirdParty = Math.random();\n' > "$FIXTURE_ROOT/vendor/third-party.js"
+          node scripts/checkSeededRandomPolicy.js "$FIXTURE_ROOT"
+          printf 'export const forbidden = Math.random();\n' >> "$FIXTURE_ROOT/fixture.js"
+          if node scripts/checkSeededRandomPolicy.js "$FIXTURE_ROOT"; then
+            echo 'Determinism guard fixture FAILED: executable Math.random() was accepted.' >&2
+            exit 1
+          fi
 
       - name: Browser smoke
         shell: bash
