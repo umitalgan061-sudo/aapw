@@ -886,3 +886,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1510 — run 190 canonical real rock geometry/LOD shadow proof (ADR-0210); Run189 checksum + road-clear diagnostic + real renderer cost + full regression PASS; live runtime delta 0.
+
+
+- stable-2026-08-08-1556 — run 191 owner-approved canonical medieval stone-arch bridge shadow proof (ADR-0211); road-water owner gate resolved, deterministic bridge fixture + masonry visual evidence + full regression PASS; live runtime delta 0.

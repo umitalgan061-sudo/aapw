@@ -514,3 +514,14 @@ Proje sahibinin 2026-08-08'de paylaştığı 1536x1024 dünya haritası, 3D dün
 3. Arazi yüksekliği/kıyı runtime'ına geçen her adım §8.4 terrain-seat safety + road safety + deterministic snapshot + browser smoke + console + mobile perf + PWA/cache kapılarını geçer. Bir koltuğu su altına sokan veya mevcut yol erişilebilirliğini bozan makro-coğrafya değişikliği yayınlanmaz.
 4. Canonical haritanın kendisi runtime'da OCR/renk sınıflandırmasına tabi tutulmaz. Görselden çıkarılan maskeler/anchor'lar repoda deterministik, checksum'lı, gözden geçirilebilir veri olarak saklanır.
 5. Uygulama katmanları ayrı yayımlanır: referans sözleşmesi → kıyı/su maskesi → koordinat hizalama → makro relief/dağ → biyom materyalleri → nehir/yol uyarlaması → yerel fiziksel detay. Tek dev terrain rewrite yasaktır.
+
+
+## 32. Canonical Yol/Su Taş Kemer Köprü Politikası — Owner Direktifi (run 191, 2026-08-08)
+
+Proje sahibi Run188/ADR-0208 yol-su kararını doğrudan çözdü: **bir yol dere, göl veya canonical su yüzeyini kesiyorsa yol suyun içinden yürütülmez; kesişime ortaçağa uygun taş kemer köprü yapılır.** Bu karar gelecekteki canonical road/water çalışmalarında kalıcı ürün politikasıdır.
+
+1. **Policy = bridge:** Ferry, su içinden yol ve otomatik dry-reroute varsayılanı kullanılmaz. Su kesişimi varsa yol bağlantısı taş kemer köprü ile korunur.
+2. **Ortaçağ sanat dili:** Köprü yüzeyi modern beton/asfalt değil; yaşlanmış taş blok örgü, belirgin harç derzleri, hafif renk/aşınma varyasyonu ve taş parapet/korkuluk taşır. Dış HBO asseti kullanılmaz; original/procedural veya uygun lisanslı generic materyal kullanılır.
+3. **Açıklığa göre çoklu kemer:** Uzun su geçişleri tek fiziksel olarak anlamsız dev kemer yapılmaz. Aynı deterministic bridge segmenti içinde açıklık bütçesine göre birden çok masonry arch/pier üretilir; yol genişliği mevcut ana cart-road genişliğiyle uyumlu kalır.
+4. **Determinism + güvenlik:** Bridge anchor/crossing listesi canonical hydrology + road route girdilerinden deterministik üretilir. Yol connectivity, <=20° live cart-road güvenliği, settlement protection, hydrology, PWA ve mobile perf kapıları korunmadan canlı adoption yapılmaz.
+5. **Kademeli yayın:** Run191 gerçek THREE geometry/materialı shadow-only kanıtlar. Live terrain/road scene adoption ayrı bir alt görevdir; önce bridge fixture, iki görsel açı, renderer budget, dispose ve pre/post smoke PASS olmalıdır.

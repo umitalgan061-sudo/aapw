@@ -40,3 +40,12 @@ No policy is selected by this measurement. The same six Run187 water-crossing MS
 Aggregate: bridge chord total 6.16 km, longest 3.11 km; ferry water-route total 6.51 km, longest 3.32 km; dry-cart route feasible 3/6. Comparison checksum: `c47d6ecbacff41a6ffc4e18623642905c1865c46f37f3f82fbd69a9eecd57214`.
 
 Interpretation boundary: bridge/ferry span limits, boat gameplay, bridge art/physics and the exact mixed edge mapping are product decisions and are not inferred from these numbers. Dry-cart feasibility is a deterministic diagnostic route, not a live road implementation. Full-reference default runtime road adoption remains blocked until the owner chooses a policy.
+
+
+## Owner resolution — run 191 / ADR-0211
+
+Owner, 2026-08-08: roads crossing streams/lakes/canonical water use **medieval stone arch bridges**. Run188 temporary default NONE is superseded by BRIDGE. Ferry, water-through-road and automatic dry-reroute are not the selected default policy.
+
+Run191 shadow qualification recomputed the same canonical MST/hydrology inputs and produced 6 affected edges / 7 distinct bridge structures / 177 total masonry arches. Water chord aggregate 6.17 km; longest structural bridge 3.12 km. Long crossings are multi-arch viaducts rather than one giant arch. Deterministic checksum: `13fadc3dbc3d3554c583215883614a56b5e9ee406ae74d66e335fd56fe4cf7f4`.
+
+Boundary: Run191 proves owner-policy resolution, placement, original procedural medieval masonry material, batched geometry cost and visual evidence. It does not silently switch the live default terrain/road graph in the same commit; live adoption remains a separately tested integration step.

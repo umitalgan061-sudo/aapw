@@ -58,3 +58,12 @@ Run190, Run189 canonical candidate sözleşmesini yeni shadow-only `worldReferen
 Real geometry proof: mobile local bounded profile 96 instance, near/far 52/44, 6 gerçek renderer draw call / 3300 triangle; desktop 127 instance, near/far 40/87, 6 draw call / 3920 triangle. En fazla 3 tier x 2 LOD InstancedMesh resident olur; full 137.5 km² candidate set tek seferde resident yapılmaz. Proof checksum `7957c0e6dee8f64538753c0dc4a82060e5932ab66ff9d4035c793e8145239999`.
 
 Boundary: shadow modül live scene/chunk/terrain/road/vegetation/game3d import graphına bağlı değildir. Service worker listesine yalnız offline-loadability için additive precache entry eklenir. Canlı kaya spawn, collision veya macro-relief height değişikliği bu runın kapsamında değildir.
+
+
+## Canonical road/water medieval stone bridge policy — run 191
+
+Owner bridge policy is now explicit and deterministic. Same full-reference road/hydrology inputs resolve to 6/13 affected road edges and 7 distinct water crossings. Every crossing gets a stone arch structure; no ferry/dry-route/mixed optimizer is used.
+
+Geometry proof batches all 177 arches plus decks/piers/parapets into 4 renderer submissions / 37860 triangles. Original procedural 256x256 masonry CanvasTexture uses staggered stone blocks, mortar seams and sparse deterministic weather/moss variation. Proof checksum `13fadc3dbc3d3554c583215883614a56b5e9ee406ae74d66e335fd56fe4cf7f4`.
+
+Canonical boundary: bridge anchors derive from the planned full-reference road centerlines and seat-safe hydrology. Live legacy road/terrain coordinates are not silently replaced by this shadow module.
