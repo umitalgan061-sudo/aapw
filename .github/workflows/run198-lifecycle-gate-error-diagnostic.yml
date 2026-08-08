@@ -1,0 +1,56 @@
+name: Run 198 Lifecycle Gate Error Diagnostic
+
+on:
+  push:
+    branches: [chatgpt/run198-lifecycle-reinit-preflight-v2]
+    paths:
+      - '.github/workflows/run198-lifecycle-gate-error-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Capture gate dispose exception in runner only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          module = Path('src/3d/world/worldReferenceLifecycleReinitShadow.js')
+          source = module.read_text()
+          old = "\t\tgate.dispose();\n\t\tgateDisposeCount += 1;"
+          new = "\t\ttry {\n\t\t\tgate.dispose();\n\t\t} catch (error) {\n\t\t\tglobalThis.__RUN198_GATE_DISPOSE_ERROR__ = { message: error?.message || String(error), stack: error?.stack || null };\n\t\t\tthrow error;\n\t\t}\n\t\tgateDisposeCount += 1;"
+          if old not in source:
+              raise SystemExit('gate.dispose diagnostic anchor missing')
+          module.write_text(source.replace(old, new))
+
+          checker = Path('scripts/checkLifecycleReinitShadow.js')
+          source = checker.read_text()
+          old = "if (!first.gate.isDisposed() || !first.lifecycle.isDisposed()) throw new Error('first canonical lifecycle did not dispose before current teardown');"
+          new = "if (!first.gate.isDisposed() || !first.lifecycle.isDisposed()) throw new Error(`first gate error diagnostic=${JSON.stringify(globalThis.__RUN198_GATE_DISPOSE_ERROR__ || null)} gateDisposed=${first.gate.isDisposed()} lifecycleDisposed=${first.lifecycle.isDisposed()} stats=${JSON.stringify(first.lifecycle.getStats())} integrationMode=${first.integration.getMode()} gateMode=${first.gate.getMode()} transitions=${JSON.stringify(first.gate.getTransitions())}`);"
+          if old not in source:
+              raise SystemExit('checker diagnostic assertion anchor missing')
+          checker.write_text(source.replace(old, new))
+          PY
+          node --check src/3d/world/worldReferenceLifecycleReinitShadow.js
+          node --check scripts/checkLifecycleReinitShadow.js
+      - name: Run focused gate-error diagnostic
+        shell: bash
+        run: node scripts/checkLifecycleReinitShadow.js
