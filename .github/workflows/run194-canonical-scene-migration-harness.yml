@@ -1,0 +1,235 @@
+name: Run 194 Canonical Scene Migration Harness
+
+on:
+  push:
+    branches: [chatgpt/run194-canonical-scene-migration-harness]
+    paths:
+      - 'src/3d/world/worldReferenceSceneShadowMigrationHarness.js'
+      - 'scripts/checkCanonicalSceneShadowMigrationHarness.js'
+      - 'scripts/applyRun194PwaPrecacheAddition.js'
+      - 'scripts/recordRun194CanonicalSceneShadowMigrationHarness.js'
+      - '.github/workflows/run194-canonical-scene-migration-harness.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: 62387c238377373b02076518fb8ca4e4092c56c1
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot additive PWA and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F '## Run 193 — Reusable canonical scene shadow adapter + bounded streaming proof' 3D_GAME_PROGRESS.md
+          grep -F '## ADR-0213 — Canonical full-reference candidate uses disposable bounded shadow scene windows before live adoption (run 193)' DECISIONS.md
+          if grep -q '^## Run 194 ' 3D_GAME_PROGRESS.md; then echo 'Run194 already occupied on main'; exit 1; fi
+          if grep -q '^## ADR-0214 ' DECISIONS.md; then echo 'ADR-0214 already occupied on main'; exit 1; fi
+          node --check src/3d/world/worldReferenceSceneShadowMigrationHarness.js
+          node --check scripts/checkCanonicalSceneShadowMigrationHarness.js
+          node --check scripts/applyRun194PwaPrecacheAddition.js
+          node --check scripts/recordRun194CanonicalSceneShadowMigrationHarness.js
+          node scripts/applyRun194PwaPrecacheAddition.js
+          grep -F "GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSceneShadowMigrationHarness.js');" service-worker.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+
+      - name: Baseline full browser smoke on current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run194-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run194-smoke-before.log")
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run194-smoke-before.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run194-smoke-before.log" | grep -F 'zero console/page errors'
+          git worktree remove "$BASELINE"
+
+      - name: Prior canonical scene bridge and traversal invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCanonicalRockPlacementShadow.js --verify-fixture
+          node scripts/checkCanonicalRockGeometryShadow.js --verify-fixture
+          node scripts/checkRoadWaterPolicyComparison.js
+          node scripts/checkCanonicalStoneBridgeShadow.js --verify-fixture
+          node scripts/checkCanonicalStoneBridgeTraversalReadiness.js
+          node scripts/checkCanonicalRoadBridgeSceneShadow.js
+          node scripts/checkCanonicalSceneShadowAdapter.js
+
+      - name: Run194 full-grid edge and all-bridge ownership proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCanonicalSceneShadowMigrationHarness.js | tee "$RUNNER_TEMP/run194-migration.log"
+          BUDGET="$(grep '^\[checkCanonicalSceneShadowMigrationHarness\] BUDGET:' "$RUNNER_TEMP/run194-migration.log" | tail -n1 | sed 's/^\[checkCanonicalSceneShadowMigrationHarness\] BUDGET: //')"
+          SUMMARY="$(grep '^\[checkCanonicalSceneShadowMigrationHarness\] PASS:' "$RUNNER_TEMP/run194-migration.log" | tail -n1 | sed 's/^\[checkCanonicalSceneShadowMigrationHarness\] PASS: //')"
+          test -n "$BUDGET"
+          test -n "$SUMMARY"
+          echo "RUN194_BUDGET_JSON=$BUDGET" >> "$GITHUB_ENV"
+          echo "RUN194_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+          test -s artifacts/run194-canonical-scene-migration-harness/proof.json
+          test -s artifacts/run194-canonical-scene-migration-harness/world-edge-northwest.png
+          test -s artifacts/run194-canonical-scene-migration-harness/world-edge-southeast.png
+
+      - name: Canonical world visual and lifecycle regression gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkFullReferenceMigrationDryRun.js
+          node scripts/checkWorldReferenceMigrationDryRun.js
+          node scripts/checkCanonicalHydrologyTerrainShadow.js
+          node scripts/checkCanonicalChunkIntegrationShadow.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkSkyVisualContract.js
+          node scripts/checkFogVisualContract.js
+          node scripts/checkLightingVisualContract.js
+          node scripts/checkStarfieldVisualContract.js
+          node scripts/checkCameraContract.js
+          node scripts/checkWindGrassContractRun180.js
+          node scripts/checkWindGrassSceneIntegrationRun180.js
+
+      - name: Determinism PWA accessibility input and physics gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkControlsHelpAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkMobileJumpControl.js
+          node scripts/checkJumpArcContract.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Mobile streaming LOD and live budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run194-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run194-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$LIVE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$LIVE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$LIVE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+          echo "RUN194_LIVE_MOBILE_JSON=$LIVE" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke and console gate after harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run194-smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run194-smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run194-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run194-smoke-after.log"; then exit 1; fi
+          echo "RUN194_SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run194 | tee "$RUNNER_TEMP/run194-perf.log"
+          ROW="$(tail -n1 perf_log.csv)"
+          echo "$ROW" | grep -F ',run194,'
+          echo "RUN194_PERF_ROW=$ROW" >> "$GITHUB_ENV"
+          node scripts/analyzePerfTrend.js
+
+      - name: Senior self review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/worldReferenceSceneShadowMigrationHarness.js scripts/checkCanonicalSceneShadowMigrationHarness.js scripts/recordRun194CanonicalSceneShadowMigrationHarness.js; then exit 1; fi
+          node scripts/checkCanonicalSceneShadowMigrationHarness.js > "$RUNNER_TEMP/run194-final.log"
+          grep -F '[checkCanonicalSceneShadowMigrationHarness] PASS:' "$RUNNER_TEMP/run194-final.log"
+          node scripts/checkCanonicalSceneShadowAdapter.js >/dev/null
+          node scripts/checkCanonicalStoneBridgeTraversalReadiness.js >/dev/null
+          node scripts/checkServiceWorkerCache.js
+          git diff --check "$BASE_SHA"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 194 '; then echo 'Run194 occupied before publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0214 '; then echo 'ADR-0214 occupied before publish'; exit 1; fi
+
+      - name: Upload Run194 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run194-canonical-scene-migration-harness
+          path: |
+            artifacts/run194-canonical-scene-migration-harness/proof.json
+            artifacts/run194-canonical-scene-migration-harness/world-edge-northwest.png
+            artifacts/run194-canonical-scene-migration-harness/world-edge-southeast.png
+          if-no-files-found: error
+
+      - name: Record validated governance checkpoint on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN194_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN194_STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          export RUN194_SUMMARY RUN194_BUDGET_JSON RUN194_LIVE_MOBILE_JSON RUN194_SMOKE_PASS_COUNT RUN194_PERF_ROW
+          node scripts/recordRun194CanonicalSceneShadowMigrationHarness.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js WORLD_REFERENCE_MAP.md 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git commit -m 'docs(run194): record validated canonical migration ownership checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 194 '; then echo 'Run194 occupied immediately before branch publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0214 '; then echo 'ADR-0214 occupied immediately before branch publish'; exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git tag "$RUN194_STABLE_TAG"
+          git push origin "$RUN194_STABLE_TAG" || echo '[run194] stable tag push unavailable; STABLE_TAGS record retained per governance known limitation.'
