@@ -85,3 +85,12 @@ Run193 moves the validated Run192 road/bridge composition rules into versioned s
 The mobile shadow profile keeps 25 terrain chunks resident around its anchor, 60 rock instances in the first window and 0 after a 4487.4m recenter. Full canonical suppression remains 399/399; Run190 road-clear rock classification remains 332 safe / 11 conflicts.
 
 Measured candidate renderer budgets are 24/63566 near, 29/73806 far and 21/109516 after recenter, all below the mobile <500 draw-call / <500K triangle hard limits. Dispose leaves both bounded windows empty and removes the proof canvas.
+
+
+## Exact-reference clipped 27x21 owner grid — run 194
+
+Run194 V1 deliberately failed when a fixed full 500m edge chunk asked the canonical sampler for a point beyond the 9000x7000 owner map. V2 preserves the existing 27x21 = 567 owner coordinates but clips each outer footprint to the exact planned 13296.079m x 10341.395m rectangle before any height sample.
+
+The resulting tiling has 475 full 500m cells and 92 partial edge cells. Area remains exactly 137.5 km² within 2.9802322387695312e-8m² numeric error and maximum seam error 0m. Outer cells trim 101.961m in X and 79.303m in Z from their nominal 500m footprint; no canonical terrain is owned or sampled beyond the reference rectangle.
+
+An exact corner mobile ownership window now contains 9 canonical chunks, 5 of them partial edge cells, rather than requesting out-of-map padding. Seven bridge-centered ownership windows then replace each other sequentially with deck-collider precedence preserved; minimum bridge-center clearance is 15.474m. Live scene/chunk managers remain unchanged.

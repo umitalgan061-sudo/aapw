@@ -15110,3 +15110,24 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Full-reference migration harness bu adapterı kullanarak world-edge chunk ownership, window replacement and all-bridge spatial coverage test edebilir. Mağara/dragon habitat ve macro relief daha sonra aynı bounded ownership modeline katılabilir; bu ADR onların spawn/art kararını belirlemez.
 
 **Geri alma planı:** Live consumer yoktur. Adapter kontratı yanlışlanırsa yeni versioned shadow adapter eklenir; Run179-192 source truth ve current live scene değiştirilmeden kalır.
+
+
+## ADR-0214 — Outer canonical owner chunks are clipped to exact reference bounds; no canonical terrain exists outside them (run 194)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Existing 27x21 / 500m full-reference extent plan remains the canonical ownership index, centered at x -13..13 and z -10..10. However, the outer row/column cells are not full 500m render footprints: each nominal cell is intersected with the exact planned owner-map world rectangle before geometry generation or height sampling. Coordinates outside that intersection have no canonical terrain owner. Window replacement uses one active shadow root at a time and disposes the previous root/resources before constructing the next.
+
+**Ölçüm:** 475 full + 92 clipped owner cells = 567; target area 137.5km² with area error 2.9802322387695312e-8m² and seam error 0m. Edge footprint trims X 101.961m / Z 79.303m. Exact-corner mobile window 9 cells (5 clipped). Seven bridge targets plus corner target produce 8 generations / 8 clean disposals; min deck clearance 15.474m. Deterministic checksum `8978e9b0cf0b947b0662c58295ce5408ba507a98d304687e5cb693df47d0d99f`.
+
+**Neden:** Run194 V1 proved that treating ceil-grid edge ownership as full nominal 500m geometry can call the canonical sampler outside the 9000x7000 source map. The sampler rejection is correct and must not be weakened. Clipping preserves both source-map truth and the already-approved 27x21 ownership count without silently expanding the world.
+
+**Alternatifler:** (1) Samplerı out-of-map clamp edecek şekilde değiştirmek reddedildi; source truth sınır hatalarını gizlerdi. (2) Grid’i 25x19 gibi küçültmek reddedildi; exact reference rectangle coverage kaybolurdu. (3) Full 500m edge chunksı canonical sayıp dış kısmı sentetik doldurmak reddedildi; owner map dışında yeni coğrafya icat ederdi. (4) Run193 562/600 adapterı edge clipping için büyütmek reddedildi; checkpoint kapalı ve file-size debt artırılmıyor. (5) Bu run’da live scene/chunk wiring reddedildi; rollback yüzeyi ayrı preflightta kalır.
+
+**Sonuç:** Full-reference candidate, 567 unique owner coordinates plus exact partial outer footprints ile boşluksuz ve taşmasız 137.5km² tiling sözleşmesine sahiptir. Seven-bridge sequential ownership/collider lifecycle aynı exact-bound model üzerinde browserda kanıtlanır; live player world değişmez.
+
+**Etkilenen sistemler:** retained historical Run194 V1 shadow files; new V2 clipped ownership module/checker/PWA applicator/CI/recorder; additive service-worker entries; append-only map/progress/ADR/stable/perf records. Existing Run193 adapter and live 2D/3D consumers byte-unchanged.
+
+**Gelecek Faz Etkisi:** Opt-in migration-controller preflight, clipped footprint ownershipini gerçek replacement boundary shape’ine taşıyabilir; current live worldün restore/rollback ve pre/post perf/console eşitliği kanıtlanmadan default activation değerlendirilemez.
+
+**Geri alma planı:** Live consumer yoktur. Clipped ownership kontratı yanlışlanırsa yeni versioned shadow module eklenir; current live scene, Run193 adapter ve canonical source map değişmeden kalır.

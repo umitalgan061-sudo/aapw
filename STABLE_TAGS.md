@@ -895,3 +895,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1831 — run 193 reusable canonical terrain+road+bridge+rock bounded scene-window shadow adapter (ADR-0213); two-window recenter/dispose + mobile scene budget + full regression PASS; live runtime delta 0.
+
+
+- stable-2026-08-08-1912 — run 194 exact-reference clipped 27x21 owner-grid + 7/7 bridge sequential replacement shadow proof (ADR-0214); V1 edge failure superseded by V2; full regression PASS; live runtime delta 0.
