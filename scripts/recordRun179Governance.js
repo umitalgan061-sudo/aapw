@@ -44,3 +44,12 @@ append('STABLE_TAGS.md', `- \`${process.env.RUN179_STABLE_TAG}\` — run 179 can
 fs.appendFileSync(path.join(ROOT, 'perf_log.csv'), `${process.env.RUN179_PERF_ROW}\n`);
 
 console.log('[recordRun179Governance] PASS: progress + ADR-0200 + stable checkpoint + perf row recorded.');
+
+// Additive-only compatibility repair for the standing ledger parsers. The historical writes above
+// are intentionally preserved; these extra rows are the parser-visible checkpoint/perf records.
+fs.appendFileSync(
+	path.join(ROOT, 'STABLE_TAGS.md'),
+	`\n- ${process.env.RUN179_STABLE_TAG} — run 179 canonical-map coastline/water-mask contract (ADR-0200); ${process.env.RUN179_SMOKE_PASS_COUNT}/34+ browser smoke and governance gates PASS.\n`,
+);
+fs.appendFileSync(path.join(ROOT, 'perf_log.csv'), `\n${process.env.RUN179_PERF_ROW}\n`);
+console.log('[recordRun179Governance] PASS: additive parser-compatible ledger rows appended.');
