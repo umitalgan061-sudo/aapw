@@ -40,7 +40,7 @@ append('DECISIONS.md', `## ADR-0200 — Canonical coastline mask is immutable da
 
 **Geri alma planı:** Mask sınıflandırmasının belirli kıyı bölgelerinde hatalı olduğu kanıtlanırsa eski veri silinmez; yeni versioned mask module + checksum + ADR eklenir ve consumer yeni sürüme opt-in edilir. Runtime davranışı bu ADR'de değişmediği için geri alma gameplay rollback gerektirmez.`);
 
-append('STABLE_TAGS.md', `- \`${process.env.RUN179_STABLE_TAG}\` — run 179 canonical-map coastline/water-mask contract (ADR-0200); ${process.env.RUN179_SMOKE_PASS_COUNT}/34+ browser smoke, map/mask checksum, terrain/road, PWA/mobile/perf/governance gates PASS; runtime render delta 0.`);
-fs.appendFileSync(path.join(ROOT, 'perf_log.csv'), `${process.env.RUN179_PERF_ROW}\n`);
+append('STABLE_TAGS.md', `- ${process.env.RUN179_STABLE_TAG} — run 179 canonical-map coastline/water-mask contract (ADR-0200); ${process.env.RUN179_SMOKE_PASS_COUNT}/34+ browser smoke, map/mask checksum, terrain/road, PWA/mobile/perf/governance gates PASS; runtime render delta 0.`);
+fs.appendFileSync(path.join(ROOT, 'perf_log.csv'), `\n${process.env.RUN179_PERF_ROW}\n`);
 
-console.log('[recordRun179Governance] PASS: progress + ADR-0200 + stable checkpoint + perf row recorded.');
+console.log('[recordRun179Governance] PASS: progress + ADR-0200 + parseable stable checkpoint + newline-safe perf row recorded.');
