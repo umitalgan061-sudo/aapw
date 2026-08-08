@@ -19,7 +19,8 @@ append('3D_GAME_PROGRESS.md', [
 	'- Route-qualified dry-run: ' + process.env.RUN185_PROOF_SUMMARY,
 	'- Settlement proof: hedef ölçekte gerçek terrain sampler + gerçek computeSettlementFlattenPads yeniden kuruldu; 14/14 seat round-trip, flat inner pad, water-clearance floor, protected hydrology ve world-edge safety doğrulandı.',
 	'- Road proof: gerçek deterministic MST + gerçek findSlopeAwarePath hedef sampler üzerinde 13/13 yol için tekrar çözüldü; topology korunur, her route target extent içinde kalır ve 20° hard-grade ceiling aşılmaz. Open Summer Sea negative-control olarak su kalır.',
-	'- Additive-only: yalnız yeni migration plan modülü, yeni route-qualified checker, Run185 recorder ve CI eklendi; mevcut source/runtime satırı silinmedi veya değiştirilmedi.',
+	'- PWA regression fix: ilk CI denemesinde yeni src/3d shadow modülü standing checkServiceWorkerCache kuralı gereği offline precache listesinde eksik bulundu. Yeni applicator GAME3D_SHELL_FILES listesine yalnız tek yeni satır ekledi; mevcut service-worker satırı silinmedi/değiştirilmedi ve PWA/cache gate yeniden PASS oldu.',
+	'- Additive-only: yeni migration plan/checker/applicator/recorder/CI dosyaları + service-worker.js içinde tek yeni precache satırı; mevcut source/runtime satırı silinmedi veya değiştirilmedi.',
 	'- DoD: node --check PASS; baseline + after browser smoke ' + process.env.RUN185_SMOKE_PASS_COUNT + '/34+ PASS; 3D console/page error 0; Run184 proof + Run185 route qualification + canonical map/mask/alignment/hydrology/extent + terrain/road + visual contracts + grass + determinism/assets/a11y/input/physics + mobile streaming/LOD/culling/perf + PWA/cache + additive-only kapıları PASS.',
 	'- Görsel doğrulama: gerçek 390x844 mobile Chromium yakın + F4 uzak iki screenshot artifact yeniden üretildi; shadow-only değişiklikte runtime/görsel delta beklenmedi ve console/page error 0 kaldı.',
 	'- Mobil performans: ' + process.env.RUN185_MOBILE_BUDGET_SUMMARY,
@@ -40,15 +41,17 @@ append('DECISIONS.md', [
 	'',
 	'**Eşzamanlılık/Konsolidasyon:** Aynı eski base üzerinde Claude tarafından açılan PR #61 aynı alanı daha geniş test ediyordu. Main Run184 ile ilerlediği için PR #61 doğrudan merge edilmedi; çakışan Run184 recorder/ADR/stable kayıtları atıldı, benzersiz migration-plan ve target-scale slope-aware qualification fikri güncel main üzerinde Run185 olarak yeniden doğrulandı.',
 	'',
-	'**Alternatifler:** PR #61\'i artık farklı base ve aynı ADR/run numarasıyla zorla merge etmek governance/history çakışması yaratırdı. Sadece Run184 MST endpoint proof ile yetinmek target terrain/road grade riskini sonraya bırakırdı. Runtime WORLD_SCALE\'i şimdi değiştirmek ise bu runın düşük-risk shadow amacını aşardı.',
+	'**PWA sonucu:** worldReferenceMigrationPlan.js runtime tarafından import edilmese bile standing checkServiceWorkerCache bütün src/3d JS dosyalarının offline app-shell listesinde olmasını zorunlu tutar. İlk Run185 CI bu nedenle doğru biçimde durdu. Çözüm mevcut service-worker satırlarını değiştirmek değil, GAME3D_SHELL_FILES içine yeni modül için tek additive precache girdisi eklemektir; aynı cache adı altında service-worker script byte değişimi yeni install döngüsünü ve cache.addAll listesini yeniden çalıştırır, bu run hiçbir cache girdisi kaldırmadığı için eski-cache cleanup ihtiyacı doğurmaz.',
 	'',
-	'**Sonuç:** worldReferenceMigrationPlan.js runtime tarafından henüz tüketilmeyen reusable planning contractıdır. CI target settlement pads, canonical hydrology, open-sea negative control ve slope-aware target roads için executable migration gate sağlar. Runtime davranışı bit-eşit kalır.',
+	'**Alternatifler:** PR #61\'i artık farklı base ve aynı ADR/run numarasıyla zorla merge etmek governance/history çakışması yaratırdı. Sadece Run184 MST endpoint proof ile yetinmek target terrain/road grade riskini sonraya bırakırdı. Yeni shadow modülü src/3d dışında saklayarak PWA guardı atlatmak proje kuralını delmek olurdu. Runtime WORLD_SCALE\'i şimdi değiştirmek ise bu runın düşük-risk shadow amacını aşardı.',
 	'',
-	'**Etkilenen sistemler:** Yeni src/3d/world/worldReferenceMigrationPlan.js, scripts/checkWorldReferenceMigrationDryRun.js, Run185 recorder/CI ve append-only governance/perf kayıtları. Mevcut config/scene/terrain/water/roads/settlements/service-worker/2D kodu değiştirilmez.',
+	'**Sonuç:** worldReferenceMigrationPlan.js runtime tarafından henüz tüketilmeyen reusable planning contractıdır. CI target settlement pads, canonical hydrology, open-sea negative control ve slope-aware target roads için executable migration gate sağlar. PWA offline bütünlüğü yeni modülün additive precache girdisiyle korunur; 3D runtime davranışı bit-eşit kalır.',
+	'',
+	'**Etkilenen sistemler:** Yeni src/3d/world/worldReferenceMigrationPlan.js, scripts/checkWorldReferenceMigrationDryRun.js, scripts/applyRun185PwaPrecacheAddition.js, Run185 recorder/CI ve append-only governance/perf kayıtları; service-worker.js GAME3D_SHELL_FILES listesine tek yeni satır eklenir. Mevcut config/scene/terrain/water/roads/settlements/2D kodu değiştirilmez.',
 	'',
 	'**Gelecek Faz Etkisi:** Opt-in canonical terrain/hydrology adapter ve eventual WORLD_SCALE/chunk migration bu planı tek transform kaynağı olarak import edebilir; default runtime switch yapılınca aynı checker canlı consumer importlarını kabul edecek yeni versioned migration gate ile genişletilmelidir.',
 	'',
-	'**Geri alma planı:** Plan varsayımları değişirse yeni versioned migration plan/checker additive olarak eklenir; mevcut shadow module hiçbir runtime consumer tarafından import edilmediği için oyun davranışını geri almak gerekmez.'
+	'**Geri alma planı:** Plan varsayımları değişirse yeni versioned migration plan/checker additive olarak eklenir; mevcut shadow module hiçbir runtime consumer tarafından import edilmediği için oyun davranışını geri almak gerekmez. Offline precache girdisi additive geçmiş kaydı olarak kalabilir.'
 ]);
 
 append('STABLE_TAGS.md', [
