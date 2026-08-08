@@ -520,3 +520,19 @@ createVegetation = function createVegetationWithMobileLodRun136(options) {
 export function getMobileVegetationLodStatsRun136(group) {
 	return group?.userData?.mobileVegetationLodRun136 ?? null;
 }
+
+
+// Run 180 — dispose the bounded wind-grass resource through the existing vegetation teardown.
+const _disposeVegetationBeforeWindGrassRun180 = disposeVegetation;
+disposeVegetation = function disposeVegetationWithWindGrassRun180(group) {
+	const grass = group?.userData?.run180GrassGroup;
+	if (grass) {
+		grass.parent?.remove(grass);
+		for (const mesh of grass.children) {
+			mesh.geometry?.dispose();
+			mesh.material?.dispose();
+		}
+		delete group.userData.run180GrassGroup;
+	}
+	return _disposeVegetationBeforeWindGrassRun180(group);
+};

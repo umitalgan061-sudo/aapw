@@ -862,3 +862,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1208 — run 182 seat-safe hydrology + full-map extent plan (ADR-0202); 34/34+ browser smoke and all world/PWA/mobile/perf/governance gates PASS; runtime render delta 0.
+
+
+- stable-2026-08-08-1226 — run 183 deterministic physical wind grass (ADR-0203); 34/34+ smoke + canonical-map/hydrology/mobile/PWA/determinism gates PASS.

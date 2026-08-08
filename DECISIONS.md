@@ -14879,3 +14879,22 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Mountain/biome/river/road katmanları tam reference extent'e ortak bir ölçekle taşınabilir; seat protection aynı zamanda gelecekte mağara/landmark gibi zorunlu kara anchor'larına genellenebilir.
 
 **Geri alma planı:** Runtime consumer yok; yanlış radius/extent politikası kanıtlanırsa yeni versioned policy/ADR eklenir. Raw run179 mask ve run181 alignment değişmeden kalır.
+
+
+## ADR-0203 — Grass is one bounded deterministic InstancedMesh with shader wind and first-frame-safe recenter (run 183)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Fiziksel grass, sceneManager additive katmanında tek InstancedMesh olarak üretilir. World seed + 120m quantized camera-cell determinism kullanılır; desktop 350m/4000, mobile 260m/1200 patch tavanıdır. Road, settlement, shore ve dik-yüzey exclusion zorunludur. Her patch 10 low-poly blade ve 20 triangle taşır. MeshStandardMaterial vertex shaderına iki frekanslı zaman tabanlı sway eklenir. Tek bounded mesh frustumCulled=false kullanır; createScene bootstrap kamerası ile async player-spawn kamerası ayrışsa bile recenter callback ilk player-camera renderında çalışır.
+
+**Neden:** World-resident milyonlarca blade mobil RAM ve triangle maliyetini büyütür; CPU per-blade animasyonu gereksizdir. Camera-local bounded field + GPU wind görünür fiziksel detay üretirken maliyeti kesin sınırlar. Frustum bypass yalnız bu tek bounded mesh içindir ve callbackin ilk player-camera renderında çalışmasını garanti eder.
+
+**Alternatifler:** Texture-only grass fiziksel salınım vermez. Milyonlarca world-resident blade bütçe riski taşır. game3d tick wiring mevcut yapısal borcu büyütür. Devasa bounding sphere gerçek boundsu yanlış temsil eder. Run182 canonical hydrology/extent verisini aynı run içinde density tuninge bağlamak, full-map migration henüz runtimea alınmadığı için sorumlulukları gereksiz birleştirir.
+
+**Sonuç:** Grass gerçek render yolunda +1 draw-call bounded maliyetle görünür; aynı seed/cell bit-identical placement, doğal shader sway, first-frame camera teleport recenter ve teardown CI ile korunur. Run179-182 canonical map/hydrology kontratları, 2D, terrain relief, roads topology, gameplay ve world-event checksum değişmez.
+
+**Etkilenen sistemler:** src/3d/sceneManager.js ve src/3d/world/vegetation.js sonuna additive runtime katmanı; tarihsel Run180 adlı grass applicator/contract/real-scene harness; Run183 CI/governance kayıtları. Terrain sampler, worldReferenceHydrology, worldReferenceExtent, water, roads topology, settlements ve 2D oyun değiştirilmez.
+
+**Gelecek Faz Etkisi:** Taş/kaya, makro relief, mağara ve wild-dragon habitat katmanları grass exclusion/density sözleşmesini yeniden kullanabilir. Full-map migration tamamlanırsa grass camera-local olduğundan dünya merkez/ölçek dönüşümüne düşük bağlanımla yeniden seed-cell üzerinden üretilebilir.
+
+**Geri alma planı:** İleride grass rendererı değişirse yeni versioned grass katmanı additive biçimde eklenebilir ve mevcut Run183 yayını feature-gate/no-op ile devre dışı bırakılabilir; geçmiş kayıt ve deterministik kontrat korunur.

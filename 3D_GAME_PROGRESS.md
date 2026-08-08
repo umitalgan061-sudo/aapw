@@ -14045,3 +14045,22 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - DoD: node --check PASS; baseline+after browser smoke 34/34+ PASS; console/page error 0; reference map/alignment/mask/hydrology/extent, terrain/road safety, determinism, visual, PWA/cache, a11y/input, mobile streaming/LOD/perf ve additive-only kapıları PASS; iki mobil görsel evidence PASS.
 - Performans: 2026-08-08,run182,1,50,608296,48,17,368. Runtime render delta 0. World Coverage current extent desktop %96.2, mobile resident ~%14.7 değişmedi. Teknik borç 1. Risk LOW. Güven 5/5.
 - ADR-0202. World Evolution delta: seat-safe hydrology contract +1, full-map extent plan +1; runtime terrain/water/yol/orman/kale/NPC/event/hayvan/asset/diyalog/coverage 0. Sıradaki güvenli adım: full-map scale/re-center migration için dry-run safety sampler ve road transform proof; bunun ardından canonical hydrology terrain'e opt-in edilebilir.
+
+
+## Run 183 — Deterministic physical grass + natural GPU wind (2026-08-08 12:26 UTC)
+- GOVERNANCE §30 owner sanat sırasının çimen+rüzgâr adımı uygulandı. Run179 canonical mask, Run181 exact alignment ve Run182 seat-safe hydrology/full-map extent kontratları korunur; bu run terrain/water scale veya canonical-map adoption davranışını değiştirmez.
+- Tarihsel provenance: runtime applicator/test fonksiyon adlarında Run180 etiketi korunmuştur; o erken deneme publish edilmedi. Nihai yayın kimliği Run183 / ADR-0203 olup uygulanan kod preflight ile aynı doğrulanmış byte içeriğidir.
+- one first-frame-safe InstancedMesh, mobile 1200/1200 patches, desktop 4000/4000, 20 triangles/patch; deterministic road/seat/water exclusion, camera-cell streaming, two-frequency GPU wind + teardown PASS.
+- Gerçek scene bootstrap entegrasyonu: bootstrap cell (0,0) -> player-camera cell (5,34) on first render; 1200 mobile patches are really submitted as +1 draw call / +24,000 triangles (20/patch), teardown PASS.
+- Placement: world seed + 120m camera-cell için deterministik; yol koridoru, 100m settlement/kale çevresi, water/shore ve 38° üzeri eğim dışlanır. Desktop 350m/4000 patch, mobile 260m/1200 patch. Her patch 10 blade / 20 triangle.
+- Rüzgâr: vertex shader iki frekanslı sway/gust, blade-tip flex ve world-position phase kullanır. Time yalnız görsel uniformdur; gameplay/world seed/checksum etkilenmez.
+- İlk-frame güvenliği: tek bounded grass InstancedMesh frustum-culling dışıdır; async player load sonrası kamera kilometrelerce taşındığında onBeforeRender aynı bounded instance bufferını güncel camera-cell konumuna recenter eder.
+- live mobile F2 35 draw calls / 195929 triangles; grass is +1 draw call / +24,000 triangles over the 34 / 171,929 pre-grass baseline.
+- Additive-only: sceneManager.js ve vegetation.js yalnız sona append edildi; mevcut source satırı silinmedi/değiştirilmedi. Yeni model, texture, CDN veya runtime module yok.
+- DoD: node --check PASS; baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; isolated+real-scene grass, canonical map+water mask+alignment+hydrology/extent, medieval roads, terrain/vegetation/water/sky/fog/lighting/starfield/camera, determinism, assets, a11y/input/physics, mobile streaming/LOD/culling/perf, PWA/cache ve additive-only kapıları PASS.
+- Görsel doğrulama: gerçek 390x844 mobile Chromium yakın + F4 uzak iki screenshot artifact, console/page error 0.
+- Performans: 2026-08-08,run183,1,51,688296,49,17,307. Heap trend ayrıca kontrol edildi; grass tek bounded InstancedMesh ve teardown geometry/material dispose zinciri canlı doğrulandı.
+- Memory leak checklist: grass mesh teardown sırasında geometry/material dispose edilir; yeni kalıcı listener/timer veya world-resident sınırsız koleksiyon yok.
+- Teknik borç: 1 (mevcut game3d.js yapısal borcu). Risk LOW. Güven 5/5. ADR: ADR-0203. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report: fiziksel grass/wind +1; road/terrain relief/castle/NPC/event/animal/coverage/asset/dialogue 0; ADR +1. Oyuncu farkı: EVET — açık arazide fiziksel çimen görünür ve doğal rüzgârla salınır.
+- Sıradaki güvenli adım: canonical full-map migrationı runtimea bağlamadan önce Run182 kararındaki dry-run re-center/scale proof; sanat sırasındaki taş/kaya ve makro relief işi de aynı terrain-safety kanıtlarıyla hazırlanabilir.
