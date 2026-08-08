@@ -892,3 +892,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1717 — run 192 canonical road + owner-approved stone-bridge scene-integration shadow proof (ADR-0212); Run191 traversal readiness + water-road suppression + bounded deck approaches + collider/frustum/mobile budget + full regression PASS; live runtime delta 0.
+
+
+- stable-2026-08-08-1831 — run 193 reusable canonical terrain+road+bridge+rock bounded scene-window shadow adapter (ADR-0213); two-window recenter/dispose + mobile scene budget + full regression PASS; live runtime delta 0.
