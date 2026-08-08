@@ -14980,3 +14980,22 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **PWA:** Yeni src/3d module standing offline-shell policy gereği additive precache edilir.
 
 **Geri alma planı:** Runtime consumer yoktur. Shadow geometry helper yanlışlanırsa yeni versioned helper/policy eklenir; Run179-186 canonical source truth korunur.
+
+
+## ADR-0208 — Measure road/water policy consequences without selecting the owner decision (run 188)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run187 canonical road-water blockerı çözülmüş gibi davranılmaz. Yeni test-only Run188 checker aynı deterministic target terrain/hydrology/MST girdilerinde affected edge başına üç ölçülebilir shadow interpretation üretir: mevcut route üzerindeki bridge chord spans, aynı canonical-water traversalın ferry mesafesi ve canonical waterı impassable kabul edip mevcut 20° cart-road hard ceiling altında çalışan 40m full-world grid dry-route feasibility. Dördüncü seçenek olan mixed policy sayısal olarak otomatik seçilmez; owner tarafından edge bazında map edilmesi gereken karar olarak kalır.
+
+**Neden:** Run187 yalnız sorunun varlığını ölçtü. Owner bridge/ferry/dry/mixed arasında seçim yapmadan live migration yapılamaz; ancak bu seçimi veri olmadan istemek de gereksiz belirsizlik bırakır. Shadow comparison her seçeneğin fiziksel boyutunu görünür kılar fakat ürün kararını mühendislik metriğine dönüştürüp sessizce ele geçirmez.
+
+**Ölçüm:** Run187 invariant 399/1020 water points, 6/13 affected edges. Bridge diagnostic total 6.16 km, longest 3.11 km. Ferry diagnostic total 6.51 km, longest 3.32 km. Water-impassable <=20° dry-cart diagnostic 3/6 feasible. Deterministic checksum `c47d6ecbacff41a6ffc4e18623642905c1865c46f37f3f82fbd69a9eecd57214`.
+
+**Alternatifler:** En kısa/ucuz seçeneği otomatik owner kararı saymak reddedildi; bridge veya ferry için keyfi maksimum span belirlemek reddedildi; live roads.js/pathfinderı bu run içinde değiştirmek reddedildi; yalnız Run187 sayımlarını tekrar belgelemek reddedildi çünkü seçeneklerin gerçek route-length/feasibility farkını göstermiyordu.
+
+**Sonuç:** Owner artık aynı altı edge için karşılaştırılabilir deterministic ölçüme sahiptir. Runtime ve PWA import graphı değişmez; full-reference road adoption hâlâ açık owner kararıyla gatedir.
+
+**Etkilenen sistemler:** yalnız yeni Run188 checker/fixture/CI/governance recorder ve append-only ROAD_WATER_OWNER_GATE/WORLD_REFERENCE_MAP/progress/ADR/question/stable/perf kayıtları. Live src/3d ve 2D source değiştirilmez.
+
+**Geri alma planı:** Runtime consumer yoktur. Diagnostic varsayımlar değişirse yeni versioned comparison fixture/ADR additive eklenir; Run187 blocker ve canonical source truth silinmez.

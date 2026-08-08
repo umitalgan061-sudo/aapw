@@ -37,3 +37,8 @@ The policy is intentionally conservative for qualification rather than final art
 Run187 bakes the Run186 canonical hydrology-aware sampler into real 64-segment `THREE.PlaneGeometry` chunks using the same chunk-center convention as the live world, pairs those meshes with the existing `world/water.js` flat sea plane, and exposes a `getGroundHeight(x,z)` collider facade backed by the identical sampler. This is still opt-in shadow infrastructure: live `game3d`, `sceneManager`, `ChunkManager`, terrain, water, roads, settlements and physics do not import it.
 
 The integration check uses protected Balon and Jon plus an open Summer Sea probe, proves every baked vertex agrees with the numeric canonical sampler, raycasts the actual meshes, verifies rendered terrain and collider agreement at protected settlement centers, and proves the existing water surface raycasts above the canonical seabed. It also diagnoses every target-scale road route against canonical hydrology; any water-crossing route is recorded as an explicit blocker for bridge/ferry/water-avoidance policy before live road migration.
+
+
+## Canonical road/water policy measurement — run 188
+
+Run188 preserves Run187's 399/1020 canonical-water road-point result across 6/13 MST edges and measures policy consequences without selecting one. Bridge-only interpretation needs 6.16 km total diagnostic chord span (longest 3.11 km); ferry-only interpretation traverses 6.51 km total canonical water (longest 3.32 km); a 40m-grid full-world dry-cart search with water impassable and the current 20° hard-grade ceiling finds 3/6 affected edges feasible. Mixed remains owner-mapped per edge. Checksum `c47d6ecbacff41a6ffc4e18623642905c1865c46f37f3f82fbd69a9eecd57214`.

@@ -276,3 +276,6 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   gelecekteki "yeni özellik" çalışması başka, kataloğa dokunmayan alanlara yönelir. **Geçici
   varsayılan:** hiçbiri seçilmedi; gelecekteki runlar sahip yanıtı gelene kadar `WORLD_EVENTS`
   kataloğuna yeni girdi eklemeyecek (mevcut 52 olay ve determinism guard'ı olduğu gibi korunuyor).
+
+
+- **(run 188, ADR-0208) Canonical full-reference yol/su politikası hangisi olmalı: bridge, ferry, water-impassable dry reroute veya edge-bazlı mixed?** Run188 karar vermeden ölçtü: bridge diagnostic total 6.16 km (longest 3.11 km), ferry canonical-water route total 6.51 km (longest 3.32 km), mevcut <=20° cart-road safety ile 40m-grid dry reroute 3/6 affected edge için feasible. Exact edge matrix `ROAD_WATER_OWNER_GATE.md` içinde. **Temporary default:** NONE; full-reference default terrain/road runtime adoption blocked kalır. Owner yanıtı gelmeden bridge span limiti, ferry gameplay veya mixed mapping tahmin edilmez.
