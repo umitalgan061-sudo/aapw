@@ -124,6 +124,11 @@ jobs:
           PERF_ROW="$(tail -n 1 perf_log.csv)"
           test -n "$PERF_ROW"
           echo "RUN161_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+      - name: Restore tracked perf ledger before governance append
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -- perf_log.csv
       - name: Senior self-review and final concurrency gate
         shell: bash
         run: |
