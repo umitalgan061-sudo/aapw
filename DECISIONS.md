@@ -15152,3 +15152,24 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Bir sonraki preflight gerçek current scene root inventorysini, chunk streaming pause/resume ve input/physics state restorationını bu controller şekline bağlayabilir. Bu doğrulanmadan default canonical activation yapılmaz.
 
 **Geri alma planı:** Live consumer yoktur. Controller contractı yanlışlanırsa yeni versioned shadow controller eklenir; Run194 clipped ownership ve current runtime değiştirilmeden kalır.
+
+
+## ADR-0216 — Canonical opt-in transaction must pause the real current ChunkManager, own every non-light current scene root, and freeze current simulation (run 196)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run195 replacement controller yalnız real current-runtime inventory üzerinden bir transaction-preflight tarafından kullanılabilir. Inventory `createScene()` state alanlarından, `ChunkManager.loaded` resident terrain mapinden ve final direct-scene-child sweep'inden türetilir. Sun/hemisphere dışında hiçbir direct current scene root unmanaged bırakılamaz; Run180 wind grass da ayrı borrowed root'tur. Canonical active iken current ChunkManager instance'ının `streamTowards` çağrıları reversible wrapper ile bloklanır; current keyboard input tüketilmez ve current player-update preflight entry pointi çalıştırılmaz. Rollback canonical kaynakları dispose eder, original `streamTowards` method identitysini, `lastStreamChunk`, camera/controls/player transformlarını, input object identitysini, grass/root identity-orderını ve current ground colliderı geri yükler.
+
+**Neden:** Run195 root/collider rollback şeklini sentetik current rootlarla kanıtladı. Gerçek live adoption öncesinde asıl risk, current terrain streaming'in canonical görüntü sırasında scene'e tekrar mesh eklemesi, ayrı current roots'un transaction dışında kalması veya input/physics güncellemelerinin current state'i rollback yapılamayacak biçimde ilerletmesidir. Run196 diagnostics ayrıca Run180 grass'ın `performance.now()` tabanlı `onBeforeRender` animasyonuyla full framebuffer'ı doğal olarak frame-to-frame değiştirdiğini ortaya koydu; bu nedenle canlı full-frame byte equality yanlış oracle'dır.
+
+**Ölçüm:** inventory=104/106 direct roots with 2 light infrastructure; terrain=81; grass=borrowed+restored; streamPause=1; streamResume=+81; input=held-state-exact; physics=current-collider-restored; resourcesDisposedDuringCycle=0; staticVisualRollback=byte-exact; fullSubmissionRollback=exact; checksum=353a2b69bb150a7d16b21835496b35198ec2f05a1da853dbf4393d8cd5b30b26 Full current scene pre/post draw-call/triangle submission sayıları birebir eşit ve screenshots korunur. Deterministik visual oracle yalnız bilinen time-varying Run180 grass root'unu gizler ve pre/post byte-exact olmak zorundadır; grass'ın mobile katkısı ayrı olarak +1 call/+24,000 tris sabitlenir. Current geometry/material dispose-event sayısı canonical cycle boyunca 0. Existing `streamAroundOrbitTarget` paused durumda current coverage değiştirmez, rollbackten sonra yeni chunk üretir. Budget: {"currentBefore":{"calls":35,"triangles":115277},"canonicalNear":{"calls":21,"triangles":70128},"canonicalFar":{"calls":11,"triangles":53248},"currentAfter":{"calls":35,"triangles":115277}}.
+
+**Alternatifler:** (1) `ChunkManager` sınıfına şimdi global pause flag eklemek reddedildi; live behaviorı gereksiz yere değiştirirdi. (2) Canonical modda current streaming'e izin vermek reddedildi; detached current terrain scene'e geri sızardı. (3) KeyboardInput/player/grass state'i dispose/recreate etmek reddedildi; hidden runtime state identitysi kaybolurdu. (4) Full animated framebuffer için byte-exact equality dayatmak reddedildi; Run180 shader zamanı render sırasında bilinçli değişir. (5) Run195 controllerı büyütmek reddedildi; Run195 checkpoint kapalı ve additive-only sınırı korunuyor. (6) Default `game3d.html` wiring reddedildi; gerçek tick zinciri henüz ayrı opt-in kapıdan geçmedi.
+
+**Sonuç:** Real current scene/chunk/input/physics transaction şekli ve complete direct-root ownership shadow preflight seviyesinde kanıtlandı; current world hâlâ startup source of truth ve default oyuncu runtimeı değişmedi.
+
+**Etkilenen sistemler:** new Run196 shadow integration/checker/diagnostic/PWA applicator/CI/recorder; additive service-worker entry; append-only progress/ADR/stable/perf. Existing sceneManager/chunkManager/game3d/input/physics source lines and live imports unchanged.
+
+**Gelecek Faz Etkisi:** Bir sonraki adım yalnız ayrı developer/preflight entry pointinde gerçek tick update zincirini transaction gate'e bağlayabilir. NPC/animal/dragon/world-event/player updates ve rollback equality orada kanıtlanmadan default activation değerlendirilmez.
+
+**Geri alma planı:** Live consumer yoktur. Run196 contractı yanlışlanırsa yeni versioned shadow transaction module eklenir; Run195/Run194/current runtime byte-unchanged kalır.

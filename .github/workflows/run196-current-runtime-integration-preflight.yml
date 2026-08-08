@@ -1,0 +1,242 @@
+name: Run 196 Current Runtime Integration Preflight
+
+on:
+  push:
+    branches: [chatgpt/run196-current-runtime-integration-preflight]
+    paths:
+      - 'src/3d/world/worldReferenceCurrentRuntimeIntegrationShadow.js'
+      - 'scripts/checkCurrentRuntimeIntegrationShadow.js'
+      - 'scripts/applyRun196PwaPrecacheAddition.js'
+      - 'scripts/recordRun196CurrentRuntimeIntegrationShadow.js'
+      - '.github/workflows/run196-current-runtime-integration-preflight.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: 81434839250d72950d7fed70a5e6024d0411c6d3
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session additive PWA source-freeze and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F '## Run 195 — Opt-in canonical replacement + exact rollback preflight' 3D_GAME_PROGRESS.md
+          grep -F '## ADR-0215 — Canonical migration replacement boundary must borrow current roots and restore exact identity before any default activation' DECISIONS.md
+          if grep -q '^## Run 196 ' 3D_GAME_PROGRESS.md; then echo 'Run196 already occupied on main'; exit 1; fi
+          if grep -q '^## ADR-0216 ' DECISIONS.md; then echo 'ADR-0216 already occupied on main'; exit 1; fi
+          node --check src/3d/world/worldReferenceCurrentRuntimeIntegrationShadow.js
+          node --check scripts/checkCurrentRuntimeIntegrationShadow.js
+          node --check scripts/applyRun196PwaPrecacheAddition.js
+          node --check scripts/recordRun196CurrentRuntimeIntegrationShadow.js
+          node scripts/applyRun196PwaPrecacheAddition.js
+          grep -F "GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCurrentRuntimeIntegrationShadow.js');" service-worker.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git diff --quiet "$BASE_SHA" HEAD -- src/3d/game3d.js src/3d/sceneManager.js src/3d/world/chunkManager.js src/3d/input.js src/3d/physics.js src/3d/gameLoopHelpers.js src/3d/world/worldReferenceOptInMigrationControllerShadow.js
+
+      - name: Baseline full browser smoke on current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run196-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run196-smoke-before.log")
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run196-smoke-before.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run196-smoke-before.log" | grep -F 'zero console/page errors'
+          git worktree remove "$BASELINE"
+
+      - name: Prior canonical transaction invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCanonicalStoneBridgeTraversalReadiness.js
+          node scripts/checkCanonicalRoadBridgeSceneShadow.js
+          node scripts/checkCanonicalSceneShadowAdapter.js
+          node scripts/checkClippedCanonicalWindowOwnershipShadow.js
+          node scripts/checkOptInMigrationControllerShadow.js
+
+      - name: Run196 real current runtime integration proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCurrentRuntimeIntegrationShadow.js | tee "$RUNNER_TEMP/run196-integration.log"
+          BUDGET="$(grep '^\[checkCurrentRuntimeIntegrationShadow\] BUDGET:' "$RUNNER_TEMP/run196-integration.log" | tail -n1 | sed 's/^\[checkCurrentRuntimeIntegrationShadow\] BUDGET: //')"
+          SUMMARY="$(grep '^\[checkCurrentRuntimeIntegrationShadow\] PASS:' "$RUNNER_TEMP/run196-integration.log" | tail -n1 | sed 's/^\[checkCurrentRuntimeIntegrationShadow\] PASS: //')"
+          test -n "$BUDGET"
+          test -n "$SUMMARY"
+          echo "RUN196_BUDGET_JSON=$BUDGET" >> "$GITHUB_ENV"
+          echo "RUN196_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+          test -s artifacts/run196-current-runtime-integration-shadow/proof.json
+          test -s artifacts/run196-current-runtime-integration-shadow/current-before.png
+          test -s artifacts/run196-current-runtime-integration-shadow/canonical-near.png
+          test -s artifacts/run196-current-runtime-integration-shadow/canonical-far.png
+          test -s artifacts/run196-current-runtime-integration-shadow/current-restored.png
+
+      - name: Canonical world visual lifecycle and determinism gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkFullReferenceMigrationDryRun.js
+          node scripts/checkWorldReferenceMigrationDryRun.js
+          node scripts/checkCanonicalHydrologyTerrainShadow.js
+          node scripts/checkCanonicalChunkIntegrationShadow.js
+          node scripts/checkCanonicalRockPlacementShadow.js --verify-fixture
+          node scripts/checkCanonicalRockGeometryShadow.js --verify-fixture
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkSkyVisualContract.js
+          node scripts/checkFogVisualContract.js
+          node scripts/checkLightingVisualContract.js
+          node scripts/checkStarfieldVisualContract.js
+          node scripts/checkCameraContract.js
+          node scripts/checkWindGrassContractRun180.js
+          node scripts/checkWindGrassSceneIntegrationRun180.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkSeededRandomPolicy.js
+
+      - name: PWA accessibility input and physics gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkControlsHelpAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkMobileJumpControl.js
+          node scripts/checkJumpArcContract.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Mobile streaming LOD and live budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run196-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run196-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$LIVE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$LIVE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$LIVE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+          echo "RUN196_LIVE_MOBILE_JSON=$LIVE" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke and console gate after Run196
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run196-smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run196-smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run196-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run196-smoke-after.log"; then exit 1; fi
+          echo "RUN196_SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run196 | tee "$RUNNER_TEMP/run196-perf.log"
+          ROW="$(tail -n1 perf_log.csv)"
+          echo "$ROW" | grep -F ',run196,'
+          echo "RUN196_PERF_ROW=$ROW" >> "$GITHUB_ENV"
+          node scripts/analyzePerfTrend.js
+
+      - name: Senior self review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/worldReferenceCurrentRuntimeIntegrationShadow.js scripts/checkCurrentRuntimeIntegrationShadow.js scripts/recordRun196CurrentRuntimeIntegrationShadow.js; then exit 1; fi
+          node scripts/checkCurrentRuntimeIntegrationShadow.js > "$RUNNER_TEMP/run196-final.log"
+          grep -F '[checkCurrentRuntimeIntegrationShadow] PASS:' "$RUNNER_TEMP/run196-final.log"
+          node scripts/checkOptInMigrationControllerShadow.js >/dev/null
+          node scripts/checkClippedCanonicalWindowOwnershipShadow.js >/dev/null
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          git diff --quiet "$BASE_SHA" HEAD -- src/3d/game3d.js src/3d/sceneManager.js src/3d/world/chunkManager.js src/3d/input.js src/3d/physics.js src/3d/gameLoopHelpers.js src/3d/world/worldReferenceOptInMigrationControllerShadow.js
+          git diff --check "$BASE_SHA"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 196 '; then echo 'Run196 occupied before publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0216 '; then echo 'ADR-0216 occupied before publish'; exit 1; fi
+
+      - name: Upload Run196 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run196-current-runtime-integration-shadow
+          path: |
+            artifacts/run196-current-runtime-integration-shadow/proof.json
+            artifacts/run196-current-runtime-integration-shadow/current-before.png
+            artifacts/run196-current-runtime-integration-shadow/canonical-near.png
+            artifacts/run196-current-runtime-integration-shadow/canonical-far.png
+            artifacts/run196-current-runtime-integration-shadow/current-restored.png
+          if-no-files-found: error
+
+      - name: Record validated Run196 checkpoint on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN196_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN196_STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          export RUN196_SUMMARY RUN196_BUDGET_JSON RUN196_LIVE_MOBILE_JSON RUN196_SMOKE_PASS_COUNT RUN196_PERF_ROW
+          node scripts/recordRun196CurrentRuntimeIntegrationShadow.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git commit -m 'docs(run196): record validated current runtime transaction checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 196 '; then echo 'Run196 occupied immediately before branch publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0216 '; then echo 'ADR-0216 occupied immediately before branch publish'; exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git tag "$RUN196_STABLE_TAG"
+          git push origin "$RUN196_STABLE_TAG" || echo '[run196] stable tag push unavailable; STABLE_TAGS record retained per governance known limitation.'
