@@ -13,18 +13,14 @@ function appendOnce(filePath, marker, block) {
 
 function addPrecacheEntries() {
 	const filePath = path.join(ROOT, 'service-worker.js');
-	let source = fs.readFileSync(filePath, 'utf8');
-	const entries = [
-		"    './src/3d/world/worldReferenceHydrology.js'",
-		"    './src/3d/world/worldReferenceExtent.js'",
-	];
-	for (const entry of entries) {
-		if (source.includes(entry)) continue;
-		const anchor = "    './src/3d/world/worldReferenceAlignment.js'\n];";
-		if (!source.includes(anchor)) throw new Error('run181 alignment precache anchor not found');
-		source = source.replace(anchor, `    './src/3d/world/worldReferenceAlignment.js'\n    ,\n${entry}\n];`);
-	}
-	fs.writeFileSync(filePath, source);
+	const source = fs.readFileSync(filePath, 'utf8');
+	const hydrologyEntry = "    './src/3d/world/worldReferenceHydrology.js'";
+	const extentEntry = "    './src/3d/world/worldReferenceExtent.js'";
+	if (source.includes(hydrologyEntry) && source.includes(extentEntry)) return;
+	const anchor = "    './src/3d/world/worldReferenceAlignment.js'\n];";
+	if (!source.includes(anchor)) throw new Error('run181 alignment precache anchor not found');
+	const additions = [hydrologyEntry, extentEntry].filter((entry) => !source.includes(entry));
+	fs.writeFileSync(filePath, source.replace(anchor, `    './src/3d/world/worldReferenceAlignment.js'\n    ,\n${additions.join('\n    ,\n')}\n];`));
 }
 
 addPrecacheEntries();
