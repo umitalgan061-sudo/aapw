@@ -129,8 +129,11 @@ function restoreCurrentRuntimeSnapshot(state, snapshot) {
 	if ((state.keyboardInput || null) !== snapshot.keyboardInput) throw new Error('keyboard input identity changed');
 	if ((state.touchJoystick || null) !== snapshot.touchJoystick) throw new Error('touch input identity changed');
 	if (state.groundCollider !== snapshot.groundCollider) throw new Error('current ground collider identity changed');
+	// The exact camera transform is part of the borrowed current-runtime snapshot. Do not call
+	// OrbitControls.update() here: that would derive a second transform from controls' internal
+	// spherical/damping state after the snapshot has already been restored. The normal live tick may
+	// call update next; the Run196 checker separately proves that first post-rollback update is inert.
 	state.camera.updateMatrixWorld?.(true);
-	state.controls.update?.();
 }
 
 function installCurrentStreamingPause(chunkManager) {
