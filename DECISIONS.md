@@ -14917,3 +14917,26 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Canonical hydrology/terrain adapter, full-map chunk grid ve macro-relief katmanları aynı normalized-reference invariantını kullanabilir. Böylece ilerideki makro coğrafya işleri map-center veya eski crop center sabitlerine gizlice bağlanmaz.
 
 **Geri alma planı:** Checker/CI yanlış varsayım içerirse yeni versioned proof eklenir ve Run184 checker publish kapısından çıkarılır; runtime etkisi olmadığı için oyun davranışını geri almak gerekmez. Actual full-map migration bu ADR’nin kanıtları geçmeden başlamaz.
+
+
+## ADR-0205 — Planned full-reference migration requires reusable reversible transforms plus target-scale settlement and routed-road qualification (run 185)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** ADR-0204'ün normalized seat/MST invariantsına ek olarak full-map runtime geçişinden önce tek bir shadow migration-plan modülü canonical 9000x7000 bounds, target meters-per-map-unit, 137.5 km² extent ve reversible current-world↔map↔planned-world dönüşümlerini tanımlar. Target world için gerçek terrain sampler ve computeSettlementFlattenPads yeniden oluşturulur; 14/14 seat flat/water-clear/protected-land/world-edge güvenli olmalı. Gerçek deterministic MST üzerinde gerçek findSlopeAwarePath ile 13/13 route tekrar çözülmeli; her route target world içinde kalmalı ve mevcut 20° hard-grade ceiling altında olmalıdır. Açık Summer Sea örneği protected override dışında su kalmalıdır.
+
+**Neden:** Run184 koordinat ve MST topolojisini güvenceye aldı ancak actual runtime migration terrain sampler ölçeğini, settlement flatten padlerini ve slope-aware route geometrisini de etkiler. Bu ek shadow qualification yüksek-etki switch yapılmadan önce aynı gerçek modüller üzerinde fiziksel yol/yerleşim güvenliğini kanıtlar ve gelecekteki state migration için tek reversible transform contractı bırakır.
+
+**Eşzamanlılık/Konsolidasyon:** Aynı eski base üzerinde Claude tarafından açılan PR #61 aynı alanı daha geniş test ediyordu. Main Run184 ile ilerlediği için PR #61 doğrudan merge edilmedi; çakışan Run184 recorder/ADR/stable kayıtları atıldı, benzersiz migration-plan ve target-scale slope-aware qualification fikri güncel main üzerinde Run185 olarak yeniden doğrulandı.
+
+**PWA sonucu:** worldReferenceMigrationPlan.js runtime tarafından import edilmese bile standing checkServiceWorkerCache bütün src/3d JS dosyalarının offline app-shell listesinde olmasını zorunlu tutar. İlk Run185 CI bu nedenle doğru biçimde durdu. Çözüm mevcut service-worker satırlarını değiştirmek değil, GAME3D_SHELL_FILES içine yeni modül için tek additive precache girdisi eklemektir; aynı cache adı altında service-worker script byte değişimi yeni install döngüsünü ve cache.addAll listesini yeniden çalıştırır, bu run hiçbir cache girdisi kaldırmadığı için eski-cache cleanup ihtiyacı doğurmaz.
+
+**Alternatifler:** PR #61'i artık farklı base ve aynı ADR/run numarasıyla zorla merge etmek governance/history çakışması yaratırdı. Sadece Run184 MST endpoint proof ile yetinmek target terrain/road grade riskini sonraya bırakırdı. Yeni shadow modülü src/3d dışında saklayarak PWA guardı atlatmak proje kuralını delmek olurdu. Runtime WORLD_SCALE'i şimdi değiştirmek ise bu runın düşük-risk shadow amacını aşardı.
+
+**Sonuç:** worldReferenceMigrationPlan.js runtime tarafından henüz tüketilmeyen reusable planning contractıdır. CI target settlement pads, canonical hydrology, open-sea negative control ve slope-aware target roads için executable migration gate sağlar. PWA offline bütünlüğü yeni modülün additive precache girdisiyle korunur; 3D runtime davranışı bit-eşit kalır.
+
+**Etkilenen sistemler:** Yeni src/3d/world/worldReferenceMigrationPlan.js, scripts/checkWorldReferenceMigrationDryRun.js, scripts/applyRun185PwaPrecacheAddition.js, Run185 recorder/CI ve append-only governance/perf kayıtları; service-worker.js GAME3D_SHELL_FILES listesine tek yeni satır eklenir. Mevcut config/scene/terrain/water/roads/settlements/2D kodu değiştirilmez.
+
+**Gelecek Faz Etkisi:** Opt-in canonical terrain/hydrology adapter ve eventual WORLD_SCALE/chunk migration bu planı tek transform kaynağı olarak import edebilir; default runtime switch yapılınca aynı checker canlı consumer importlarını kabul edecek yeni versioned migration gate ile genişletilmelidir.
+
+**Geri alma planı:** Plan varsayımları değişirse yeni versioned migration plan/checker additive olarak eklenir; mevcut shadow module hiçbir runtime consumer tarafından import edilmediği için oyun davranışını geri almak gerekmez. Offline precache girdisi additive geçmiş kaydı olarak kalabilir.

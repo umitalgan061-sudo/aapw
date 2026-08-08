@@ -868,3 +868,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1248 — run 184 canonical full-map migration dry-run proof (ADR-0204); 34/34+ smoke + 14/14 seat + 13/13 road MST + mobile/PWA/determinism gates PASS.
+
+
+- stable-2026-08-08-1308 — run 185 route-qualified full-reference migration shadow plan (ADR-0205); 34/34+ smoke + 14/14 target seats + 13/13 slope-aware roads + mobile/PWA/determinism gates PASS.
