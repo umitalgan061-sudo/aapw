@@ -214,6 +214,7 @@ GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSceneWindowMigrationShadow
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceClippedWindowOwnershipShadow.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceOptInMigrationControllerShadow.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCurrentRuntimeIntegrationShadow.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCurrentTickOwnershipShadow.js');
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];
