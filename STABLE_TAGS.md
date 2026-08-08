@@ -853,3 +853,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-08-0956 — run 176 Orbit/chase camera contract (ADR-0198); 34/34+ browser smoke, controls listener lifecycle + collision math, PWA/world/determinism/mobile gates PASS; runtime delta 0.
 
 - stable-2026-08-08-1023 — run 177 owner world-art §30 + medieval road surface (ADR-0199); 34/34+ browser smoke, road safety/visual/surface + PWA/determinism/mobile gates PASS.
+
+
+- stable-2026-08-08-1129 — run 179 canonical-map coastline/water-mask contract (ADR-0200); 34/34+ browser smoke, map/mask checksum, terrain/road, PWA/mobile/perf/governance gates PASS; runtime render delta 0.

@@ -14009,3 +14009,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0199. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: yol uzunluğu 0 km (topoloji aynı 20.24 km), road visual quality +1, governance world-art directive +1; orman/terrain/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1. Oyuncu farkı: EVET — mevcut yollar artık düz tek-renk ribbon yerine teker izli, çamurlu/taşlı, aşınmış ortaçağ toprak yolu olarak render edilir.
 - Sıradaki güvenli adım: §30 sırasına göre deterministik instanced çimen + GPU rüzgâr salınımı; yol/su/kale exclusion, mobile LOD/culling ve yakın+uzak görsel kanıt zorunlu.
+
+
+## Run 179 — Canonical map coastline/water mask contract (2026-08-08 11:29 UTC)
+- Owner'ın 1536x1024 2D dünya haritası GOVERNANCE §31 ile canonical makro-coğrafya kaynağı olarak kalıcılaştırıldı. Runtime dünya artık rastgele kıyı/dağ/biyom icat etmek yerine versioned map-reference katmanları üzerinden ilerleyecek.
+- Yeni `src/3d/world/worldReferenceWaterMask.js`: 96x64 deterministik 1-bit mask; 96x64, 4052 water / 2092 land cells, checksum 2ca2bed8d8a1…. Veriler 24-hex-character satırlar halinde tutulur; production runtime görsel OCR/renk analizi yapmaz.
+- Güvenlik kararı: bu run maskeyi **runtime terrain'e bağlamaz**. Mevcut 2D kingdom-seat koordinat sisteminin referans görselin normalize uzayıyla hizası henüz kanıtlanmadığı için doğrudan world-extent→image-extent eşleme yapılmadı; koltukları su altına sokabilecek tahmine dayalı dönüşüm §8.4/§14'e aykırı olurdu.
+- Additive-only: yeni module/check/workflow/applicator/recorder dosyaları eklendi; service-worker, GOVERNANCE ve WORLD_REFERENCE_MAP yalnız satır eklemeleri aldı. Mevcut 2D/3D runtime kaynak satırı silinmedi/değiştirilmedi.
+- DoD: node --check PASS; baseline + after browser smoke 34/34+ PASS; console/page error 0; canonical-map + new water-mask contract, terrain/road safety, determinism, assets, a11y, input/physics, mobile streaming/LOD/perf, visual contracts, PWA installability/cache ve additive-only kapıları PASS. İki mobil görsel kanıt artifact üretildi.
+- Performans: 2026-08-08,run179,1,50,608296,48,17,368. Runtime render delta 0; yeni mask module henüz scene import graph'ında tüketilmiyor.
+- Memory leak checklist: listener/timer/DOM/geometry/material/texture/mesh eklenmedi; data-only frozen constants + pure sampler helpers. Teknik borç: 1 (önceden var olan game3d.js yapısal borcu). Risk LOW. Güven 5/5.
+- ADR: ADR-0200. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: canonical coastline data +1; terrain runtime 0, yol 0 km, orman 0 km², kale/NPC/event/hayvan/asset/diyalog 0, coverage 0, ADR +1. Oyuncu farkı: doğrudan HAYIR; bundan sonraki kıyı/deniz/dağ dönüşümünün güvenli veri temeli oluştu.
+- Sıradaki güvenli adım: mevcut 2D marker koordinatları ile owner görselinin normalize uzayı arasında doğrulanabilir hizalama/anchor dönüşümü oluştur; **hizalama + 14/14 seat land-safety kanıtı çıkmadan** height sampler veya water runtime'ını maskeye bağlama.
