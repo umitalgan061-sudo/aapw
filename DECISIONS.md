@@ -14940,3 +14940,24 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Opt-in canonical terrain/hydrology adapter ve eventual WORLD_SCALE/chunk migration bu planı tek transform kaynağı olarak import edebilir; default runtime switch yapılınca aynı checker canlı consumer importlarını kabul edecek yeni versioned migration gate ile genişletilmelidir.
 
 **Geri alma planı:** Plan varsayımları değişirse yeni versioned migration plan/checker additive olarak eklenir; mevcut shadow module hiçbir runtime consumer tarafından import edilmediği için oyun davranışını geri almak gerekmez. Offline precache girdisi additive geçmiş kaydı olarak kalabilir.
+
+
+## ADR-0206 — Canonical coastline affects target terrain through an opt-in shadow adapter before any live world switch (run 186)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run179 immutable water mask + Run182 protected-land hydrology + Run185 reversible full-reference transform, yeni `worldReferenceTerrainAdapter.js` içinde deterministic target-height policy olarak compose edilir. Planned world X/Z exact map/reference uzayına geri projekte edilir. Unprotected canonical water terraini shared water plane altına bastırılır; canonical raw land water plane üstünde kuru tutulur; protected land mevcut settlement flatten padini bozmayacak şekilde dry floor uygular. Bu modül Run186'da yalnız shadow/qualification consumerlarına açıktır; live scene/chunk/terrain/water/road/settlement import graphı değişmez.
+
+**Neden:** Önceki runlar coğrafya verisini, koordinat dönüşümünü, extent ve target-scale route güvenliğini kanıtladı fakat canonical mask henüz gerçek bir height sampler sonucu üretmiyordu. Runtime switchten önce coast/hydrology kararının mevcut seeded relief + settlement flatten ile executable biçimde çakışmadığı kanıtlanmalıdır.
+
+**Height policy:** water depth = 2.5..8m below shared water plane, water-neighbour density ile deterministik derinleşir; unprotected land dry clearance = 0.35..1.25m; protected-land edge minimum 0.08m ve protection weight arttıkça 1.25m'ye yaklaşır. `Math.min`/`Math.max` yalnız canonical classification ile base samplerı compose eder; raw mask/pad verisi mutasyona uğramaz.
+
+**Alternatifler:** Maskeyi doğrudan `terrain.js` içine gömmek reddedildi (yüksek etki ve rollback zor); yalnız water meshini maskeye göre kesmek reddedildi (terrain altında yanlış kara/deniz fiziği kalır); raw mask bitlerini Balon/Jon için değiştirmek reddedildi (source truth checksum bozulur); tüm landı sabit yüksekliğe çekmek reddedildi (relief yok olur).
+
+**Sonuç:** Canonical coast artık target-scale numeric height sampler üretebilir ve 96x64 bütün reference grid üzerinde deterministik dry/wet invariantlarla ölçülebilir. 14 settlement padinin flat/dry özelliği korunur, açık deniz gerçek su tabanına dönüşür, fakat oyuncunun gördüğü runtime henüz değişmez.
+
+**PWA:** Standing `checkServiceWorkerCache` gereği yeni src/3d module offline shell listesine tek additive precache entry ile eklenir. Existing service-worker satırı silinmez/değiştirilmez.
+
+**Gelecek Faz Etkisi:** Bir sonraki integration harness aynı samplerı opt-in chunk geometry üretiminde test edebilir. Live adoption yapılırsa coast visual smoothing, water mesh coverage, route water-crossing/bridge policy ve physics collider eşleşmesi aynı versioned adapter üstünde ayrıca kanıtlanmalıdır.
+
+**Geri alma planı:** Runtime import yoktur; adapter veya policy yanlışlanırsa yeni versioned shadow policy additive eklenir. Run179 mask, Run181 alignment, Run182 hydrology/extent ve Run185 migration plan korunur.
