@@ -15089,3 +15089,24 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** A reusable versioned shadow adapter can implement the proven suppression/ramp/deck precedence contract and be composed with canonical terrain/chunks and Run190 rocks for a single bounded scene budget/streaming proof. Live migration remains a later, separately gated high-impact step.
 
 **Geri alma planı:** No runtime consumer exists. If the approach/suppression contract is disproved, add a new versioned checker/adapter and leave all live systems untouched.
+
+
+## ADR-0213 — Canonical full-reference candidate uses disposable bounded shadow scene windows before live adoption (run 193)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run192'nin doğruladığı bridge-aware canonical road composition, yeni versioned `worldReferenceSceneShadowAdapter.js` içinde reusable shadow API olarak ifade edilir. Adapter bir local window için planned canonical terrain chunks, globally suppressed dry-road ribbon, bounded bridge approaches, owner-approved stone-bridge Art V2, road-clear Run190 rocks and existing water üretir; player-compatible composite ground facade bridge deckini terrain üzerinde önceliklendirir. Window tamamen disposable’dır ve live scene/chunk/gameplay import graphına bağlanmaz.
+
+**Ölçüm:** first mobile window 25 terrain chunks / 60 rocks / 3 local bridges; second window 25 chunks / 0 rocks / 2 bridges after 4487.4m recenter. Render budgets: near 24/63566, far 29/73806, recentered 21/109516; all below mobile hard limits. Deterministic checksum `a55f1c734ac9c614b97344aac4dce3202169f22650a47b27edce66d9ec5f9631`.
+
+**Neden:** Run192 checker içinde çalışan algoritmayı doğrudan live runtime’a taşımak, proof logic ile production ownership’i aynı adımda birleştirirdi. Reusable shadow adapter önce lifecycle sınırını, resident-set boundunu, terrain/road/bridge/rock birlikte render maliyetini ve recenter-dispose davranışını gerçek THREE nesneleri üzerinde kanıtlar; live migration kararı ayrı kalır.
+
+**Alternatifler:** (1) Full 137.5 km² terrain/rocks/bridges’i world-resident oluşturmak reddedildi; streaming hedefi ve mobil bütçe ile çelişir. (2) Run192 checker kopyasını büyütmek reddedildi; reusable contract oluşmaz. (3) Adapter’ı hemen `sceneManager`/`chunkManager` içine import etmek reddedildi; rollback alanını büyütür ve current live worldü aynı committe değiştirir. (4) Bridge Art V1 kullanmak reddedildi; PR #70 ile düzeltilen Art V2 evidence canonical visual candidate olarak korunur.
+
+**Sonuç:** Canonical full-reference world artık sadece veri/tekil component proof değil, bounded disposable terrain+road+bridge+rock+water scene window olarak da ölçülebilir. Ancak current player runtime, world scale, chunk ownership ve physics wiring byte-equivalent kalır.
+
+**Etkilenen sistemler:** new shadow adapter/checker/PWA applicator/CI/recorder; additive service-worker precache line; append-only WORLD_REFERENCE_MAP/progress/ADR/stable/perf records. Live 2D and 3D systems are not consumers.
+
+**Gelecek Faz Etkisi:** Full-reference migration harness bu adapterı kullanarak world-edge chunk ownership, window replacement and all-bridge spatial coverage test edebilir. Mağara/dragon habitat ve macro relief daha sonra aynı bounded ownership modeline katılabilir; bu ADR onların spawn/art kararını belirlemez.
+
+**Geri alma planı:** Live consumer yoktur. Adapter kontratı yanlışlanırsa yeni versioned shadow adapter eklenir; Run179-192 source truth ve current live scene değiştirilmeden kalır.

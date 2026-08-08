@@ -209,6 +209,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/worldReferenceChunkShadow.js'
 ];
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceStoneBridgeMedievalArtV2.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSceneShadowAdapter.js');
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];

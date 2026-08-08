@@ -76,3 +76,12 @@ Run192 composes the owner-approved Run191 stone-bridge plan with the canonical t
 Each of the 7 bridges receives two deterministic dry-bank approach candidates (14 total). Maximum measured approach grade is 17.87° and maximum approach length is 37.7m; 18° / 320m are proof-only safety caps, not new live product tuning. Bridge deck-center collider probes resolve above canonical terrain at all 7 structures.
 
 Core bridge-aware road candidate cost is 6 draw calls / 39184 triangles before live-world baseline composition. Near-camera frustum includes 1/7 bridge bounds and includes the selected target bridge, proving the candidate does not require treating every bridge as locally visible. This remains shadow-only; live scene imports are unchanged.
+
+
+## Reusable bounded canonical scene-window contract — run 193
+
+Run193 moves the validated Run192 road/bridge composition rules into versioned shadow module `worldReferenceSceneShadowAdapter.js`. The module still has no live scene consumer. It composes canonical terrain chunks, globally bridge-suppressed dry road ribbons, owner-approved medieval bridge Art V2, bounded Run190 rocks and the existing water surface inside one disposable local window.
+
+The mobile shadow profile keeps 25 terrain chunks resident around its anchor, 60 rock instances in the first window and 0 after a 4487.4m recenter. Full canonical suppression remains 399/399; Run190 road-clear rock classification remains 332 safe / 11 conflicts.
+
+Measured candidate renderer budgets are 24/63566 near, 29/73806 far and 21/109516 after recenter, all below the mobile <500 draw-call / <500K triangle hard limits. Dispose leaves both bounded windows empty and removes the proof canvas.
