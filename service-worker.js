@@ -201,6 +201,8 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/worldReferenceExtent.js'
     ,
     './src/3d/world/worldReferenceMigrationPlan.js'
+    ,
+    './src/3d/world/worldReferenceTerrainAdapter.js'
 ];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];

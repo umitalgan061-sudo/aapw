@@ -14097,3 +14097,19 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Memory leak checklist: yeni runtime listener/timer/DOM/geometry/material yok; checker browser/server kaynaklarını finally ile kapatır. Teknik borç: 1 (mevcut game3d.js yapısal borcu); yeni runtime borcu 0. Risk LOW. Güven 5/5. ADR: ADR-0205.
 - World Coverage: desktop %96.2; mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi. World Evolution Report: runtime world delta 0; migration qualification +1; ADR +1. Oyuncu farkı: HAYIR.
 - Sıradaki güvenli adım: runtime varsayılanlarını değiştirmeden canonical hydrology-aware target terrain sampler için opt-in shadow adapter; ardından ayrı yüksek-etki runında WORLD_SCALE/chunk extent migration + live settlement/road/streaming transform + determinism/mobile/PWA/visual proof.
+
+
+## Run 186 — Canonical hydrology-aware target terrain shadow adapter (2026-08-08 13:27 UTC)
+- Yeni `worldReferenceTerrainAdapter.js`, Run185 full-reference migration planındaki planned-world X/Z noktasını exact owner-map koordinatına geri çözüp Run179 raw water mask + Run182 seat-safe hydrology üzerinden target height üretir. Live runtime consumer yok; opt-in shadow-only.
+- Grid proof: 96x64 grid 4050 water / 2094 land (11 protected samples); changed water=4050, land=90; min water depth 3.11m, min land clearance 0.55m; 14/14 seat pads remain flat+dry; open Summer Sea -2.00m; deterministic error 0; target range -2.00..162.83m; runtime remains unwired.
+- Water shaping: canonical water base terraini gerektiğinde water plane altına indirir; minimum kıyı derinliği 2.5m, open-water hedefi 8m. Land shaping: raw land water plane üzerinde minimum 0.35m kuru tutulur; protected-land edge minimum 0.08m, settlement centerları mevcut 1.5m clearance/pad anchorını korur.
+- Settlement safety: gerçek target-scale `computeSettlementFlattenPads` + existing seeded terrain sampler üzerinde 14/14 seat center ve ±20m inner-pad probe bit-eşit flat/dry kaldı; Balon/Jon coarse false-water vakaları protected-land olarak korunur.
+- Negative control: açık Summer Sea canonical-water kuralında ve water plane altında kaldı. 96x64 bütün mask cell centerları finite/deterministic tarandı; water/land iki sınıf da gerçek yükseklik delta üretiyor, yani adapter no-op değil.
+- PWA: yeni src/3d shadow module standing offline-shell kuralı gereği service-worker GAME3D_SHELL_FILES listesine tek additive satırla eklendi; cache/installability gate PASS.
+- Additive-only: yeni adapter/check/applicator/recorder/CI + append-only docs/ledgers + service-worker precache satırı; live config/game3d/scene/chunk/terrain/water/roads/settlements/2D runtime satırı değiştirilmedi.
+- DoD: baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; Run184/185 migration gates + canonical map/mask/alignment/hydrology/extent + Run186 terrain shadow + terrain/road/visual/grass + determinism/assets/PWA + a11y/input/physics + mobile streaming/LOD/perf + visual evidence + additive-only PASS.
+- Mobil performans: live mobile F2 35 draw calls / 195929 triangles, both under GOVERNANCE budgets (<500 / <500K); shadow adapter adds zero live render cost.
+- Performans: 2026-08-08,run186,1,51,688296,49,17,391. Shadow adapter runtime graphına bağlı olmadığı için live render delta 0.
+- Memory leak checklist: runtime listener/timer/DOM/geometry/material/texture yok; pure sampler factory + frozen policy. Checker browser/server finally ile kapanır. Teknik borç 1; yeni runtime borcu 0. Risk LOW. Güven 5/5. ADR: ADR-0206.
+- World Coverage live değerleri değişmedi. World Evolution Report: canonical terrain migration readiness +1; runtime world delta 0. Oyuncu farkı: HAYIR.
+- Sıradaki güvenli adım: canonical terrain adapterı default yapmadan önce opt-in scene/chunk integration harness ile gerçek chunk geometry + water plane + player/seat/road çevresinde görsel/physics shadow proof; ancak ondan sonra ayrı yüksek-etki runında full-reference runtime switch değerlendirilsin.
