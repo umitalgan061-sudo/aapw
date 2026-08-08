@@ -174,32 +174,19 @@ jobs:
           set -euo pipefail
           STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
           STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
-          cat >> 3D_GAME_PROGRESS.md <<EOF
-
-## Run 196 — Live runtime ownership inventory + migration readiness guard (${STAMP})
-- Added shadow-only `canonicalRuntimeOwnershipInventoryShadow.js`; live runtime imports remain unchanged.
-- Inventory now explicitly covers resident terrain chunks plus sky/stars/water/river/waterfalls/settlements/roads/vegetation while intentionally leaving lights/camera/debug infrastructure alive.
-- Readiness proof confirms canonical live activation is still BLOCKED by three missing explicit contracts: ChunkManager streaming pause/resume, KeyboardInput snapshot/restore, and player jump-physics snapshot/restore. No owner choice was guessed and no unsafe activation was enabled.
-- Run195 reversible scene/collider proof remains green; full browser/PWA/determinism/mobile regression gates remain green.
-- Smoke PASS count: ${RUN196_SMOKE_PASS_COUNT}. Mobile sample: ${RUN196_LIVE_MOBILE_JSON}. Perf row: ${RUN196_PERF_ROW}.
-- Coverage is unchanged by design: desktop 96.2%; live mobile radius-4 remains 81 resident terrain chunks / 20.25 km2 (~14.7% world coverage).
-- Next safe step: design a shadow quiescence/restore contract that can preserve the three mutable runtime surfaces without changing current live imports; do not enable canonical startup until that proof is lossless.
-EOF
-          cat >> DECISIONS.md <<EOF
-
-## ADR-0216 — Canonical live migration stays blocked until runtime-owned streaming/input/jump state has an explicit lossless contract (run 196)
-**Status:** Accepted (${STAMP})
-
-**Context.** Run195 proved reversible scene-root and ground-collider ownership, but the real live runtime also owns mutable state outside that controller. `ChunkManager` exposes `streamTowards` but no pause/resume API; `KeyboardInput` keeps held keys and the edge-triggered jump request internally without snapshot/restore; `createPlayer` keeps `heightAboveGround`, `velocityY`, and `isGrounded` in closure state with no snapshot/restore surface.
-
-**Decision.** Add a shadow-only ownership inventory and a deterministic readiness check. Keep canonical live activation disabled while any of those three contracts is absent. Do not infer replacement semantics, reset airborne state, consume pending input, or silently freeze streaming. The current scene, 2D path, desktop/mobile/PWA behavior and Run195 controller remain untouched.
-
-**Consequence.** This run intentionally improves migration safety rather than visible coverage. A future additive preflight must prove lossless quiescence/restoration for streaming, input and jump physics before the canonical controller can be wired into live startup.
-EOF
-          cat >> STABLE_TAGS.md <<EOF
-
-- `${STABLE_TAG}` — Run196 validated shadow runtime-ownership/readiness guard; canonical live activation remains blocked on explicit streaming/input/player-physics restoration contracts. Base `${BASE_SHA}`.
-EOF
+          printf '\n%s\n' "## Run 196 — Live runtime ownership inventory + migration readiness guard ($STAMP)" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Added shadow-only canonicalRuntimeOwnershipInventoryShadow.js; live runtime imports remain unchanged.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Inventory covers resident terrain plus sky/stars/water/river/waterfalls/settlements/roads/vegetation; lights/camera/debug infrastructure remains outside replacement ownership.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Canonical live activation remains BLOCKED on explicit streaming pause/resume, keyboard input snapshot/restore, and player jump-physics snapshot/restore contracts; no owner choice was guessed.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Smoke PASS count: $RUN196_SMOKE_PASS_COUNT. Mobile sample: $RUN196_LIVE_MOBILE_JSON. Perf row: $RUN196_PERF_ROW." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Coverage unchanged: desktop 96.2%; live mobile radius-4 remains 81 resident terrain chunks / 20.25 km2 (~14.7%).' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Next safe step: prove a shadow quiescence/restore contract for the three mutable surfaces before any canonical startup wiring.' >> 3D_GAME_PROGRESS.md
+          printf '\n%s\n' "## ADR-0216 — Canonical live migration stays blocked until runtime-owned streaming/input/jump state has an explicit lossless contract (run 196)" >> DECISIONS.md
+          printf '%s\n' "**Status:** Accepted ($STAMP)" >> DECISIONS.md
+          printf '%s\n' '**Context.** Run195 proved scene-root/collider rollback, but ChunkManager has no pause/resume API, KeyboardInput has no snapshot/restore API, and createPlayer keeps jump state in closure variables with no snapshot/restore surface.' >> DECISIONS.md
+          printf '%s\n' '**Decision.** Keep canonical live activation disabled and add a shadow ownership/readiness proof. Do not infer reset, input consumption, or streaming-freeze semantics.' >> DECISIONS.md
+          printf '%s\n' '**Consequence.** Run196 improves migration safety without changing visible runtime behavior or coverage; a future additive preflight must prove lossless quiescence/restoration first.' >> DECISIONS.md
+          printf '\n%s\n' "- $STABLE_TAG — Run196 validated shadow runtime-ownership/readiness guard; canonical live activation remains blocked on explicit streaming/input/player-physics restoration contracts. Base $BASE_SHA." >> STABLE_TAGS.md
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA"
           git config user.name 'github-actions[bot]'
