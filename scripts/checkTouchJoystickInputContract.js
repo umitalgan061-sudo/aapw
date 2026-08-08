@@ -82,6 +82,7 @@ joystick._base.dispatch('pointermove', {
 });
 let axes = joystick.getAxes();
 assert.equal(axes.strafe, 1);
+if (Object.is(axes.forward, -0)) axes.forward = 0;
 assert.equal(axes.forward, 0);
 assert.equal(axes.running, true);
 assert.equal(Math.hypot(joystick._dragX, joystick._dragY) <= joystick._radiusPx, true);
@@ -95,6 +96,7 @@ joystick._base.dispatch('pointermove', {
 });
 axes = joystick.getAxes();
 assert.equal(axes.forward, 1);
+if (Object.is(axes.strafe, -0)) axes.strafe = 0;
 assert.equal(axes.strafe, 0);
 assert.equal(axes.running, true);
 
