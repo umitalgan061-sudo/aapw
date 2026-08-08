@@ -195,6 +195,10 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/worldReferenceWaterMask.js'
     ,
     './src/3d/world/worldReferenceAlignment.js'
+    ,
+    './src/3d/world/worldReferenceHydrology.js'
+    ,
+    './src/3d/world/worldReferenceExtent.js'
 ];
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
