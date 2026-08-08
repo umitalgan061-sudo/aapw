@@ -14565,3 +14565,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkKeyboardInputContract.js`, run162 CI/governance kayıtları. Runtime kaynak kodu etkilenmez.
 
 **Geri alma planı:** İleride keyboard input sözleşmesi bilinçli olarak değişirse yeni davranış için yeni additive test/ADR eklenir; mevcut guard tarihsel kontrat olarak tutulabilir veya owner onaylı test-fixture istisnası değerlendirilebilir.
+
+
+## ADR-0185 — EventBus contract regression guard (run 163)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Mevcut `EventBus` runtime kodunu değiştirmeden; `on/off`, aynı handler'ın Set ile tekilleştirilmesi, `once`, emit sırasında handler listesinin snapshot olarak gezilmesi, listener exception izolasyonu ve `clear()` temizliğini deterministik Node regresyon testiyle sabitle.
+
+**Neden:** EventBus; player, NPC, dünya olayları, UI ve diğer 3D alt sistemlerinin gevşek bağlı iletişim omurgasıdır. Bir listener hatasının diğer sistemleri durdurmaması ve teardown sırasında aboneliklerin temizlenebilmesi GOVERNANCE hata-sınırı/memory-leak kurallarıyla doğrudan ilişkilidir. Bu sözleşme browser smoke içinde dolaylı olarak çalışsa da bugüne kadar izole, açıklayıcı bir kontrat testi yoktu.
+
+**Alternatifler:** (1) Runtime EventBus refactor etmek — ihtiyaç yok ve additive-only altında gereksiz risk. (2) Yalnız full browser smoke'a güvenmek — once, duplicate suppression ve hata izolasyonunu izole biçimde kanıtlamaz. (3) Alt sistem başına ayrı entegrasyon testi — daha pahalı ve aynı temel bus sözleşmesini tekrar eder.
+
+**Sonuç:** Oyuncu davranışı, render, PWA cache, seed/determinism ve 2D oyun değişmez; EventBus sözleşmesindeki regresyonlar daha erken ve daha açıklayıcı yakalanır. Listener exception izolasyonu, bir bozuk abonenin diğer dünya sistemlerini durdurmaması beklentisini doğrudan korur.
+
+**Etkilenen sistemler:** yeni `scripts/checkEventBusContract.js`, run163 CI/governance kayıtları. Runtime kaynak kodu etkilenmez.
+
+**Geri alma planı:** İleride EventBus sözleşmesi bilinçli olarak değişirse yeni davranış için yeni additive test/ADR eklenir; mevcut guard tarihsel kontrat olarak tutulabilir veya owner onaylı test istisnası değerlendirilebilir.
