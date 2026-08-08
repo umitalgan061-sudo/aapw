@@ -14064,3 +14064,13 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Teknik borç: 1 (mevcut game3d.js yapısal borcu). Risk LOW. Güven 5/5. ADR: ADR-0203. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report: fiziksel grass/wind +1; road/terrain relief/castle/NPC/event/animal/coverage/asset/dialogue 0; ADR +1. Oyuncu farkı: EVET — açık arazide fiziksel çimen görünür ve doğal rüzgârla salınır.
 - Sıradaki güvenli adım: canonical full-map migrationı runtimea bağlamadan önce Run182 kararındaki dry-run re-center/scale proof; sanat sırasındaki taş/kaya ve makro relief işi de aynı terrain-safety kanıtlarıyla hazırlanabilir.
+
+## Run 184 — Full canonical-map migration dry-run (2026-08-08 12:47 UTC)
+- Run182'nin full-map extent planı ilk kez gerçek settlements/terrain/road/hydrology modülleri üzerinden dry-run edildi; runtime `WORLD_SCALE` henüz değiştirilmedi.
+- full-map 137.5 km² 27x21; 14/14 seats round-trip+flat+hydrology safe; min seat edge margin 443.2m; MST 13/13 invariant; target roads 17.17km maxGrade 19.6° min edge margin 443.2m; max seat migration 2418.3m; runtime remains unwired.
+- Gelecek runtime hedefi: map bounds 0..9000 × 0..7000, 1.4773421007 m/map-unit, 137.5 km², 27×21=567 chunk. Mevcut 500m chunk ve streaming yarıçapları korunabildiği için total-grid artışı 550→567 (~%3.1); projected desktop preview 529/567 ~%93.3, mobile radius-4 resident 81/567 ~%14.3.
+- Reversible migration helper, current world X/Z'yi önce canonical 2D map koordinatına çözer sonra full-reference world'e taşır; saved-position migration için tek source-of-truth hazırdır.
+- Additive-only: yeni plan/check/workflow/applicator/recorder dosyaları ve PWA/docs satırları eklendi; live config/terrain/water/roads/scene kaynakları değiştirilmedi.
+- Performans: 2026-08-08,run184,1,51,688296,49,17,368. Teknik borç: 1. Risk LOW. Güven 5/5. ADR: ADR-0204.
+- World Evolution Report: full-map migration safety proof +1; runtime terrain/water/road/grass/castle/NPC/event/animal/asset/dialogue delta 0. Oyuncu farkı doğrudan HAYIR.
+- Sıradaki güvenli adım: exact full-reference scale/bounds'u additive opt-in runtime adapter ile scene build'e bağla; pre/post 14-seat, 13-road, hydrology, mobile budget ve visual evidence geçmeden default runtime switch yapma.

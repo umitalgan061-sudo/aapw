@@ -865,3 +865,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1226 — run 183 deterministic physical wind grass (ADR-0203); 34/34+ smoke + canonical-map/hydrology/mobile/PWA/determinism gates PASS.
+
+- stable-2026-08-08-1247 — run 184 full canonical-map migration dry-run (ADR-0204); reversible scale/re-center, 14-seat, hydrology, 13-road and full regression gates PASS; runtime render delta 0.

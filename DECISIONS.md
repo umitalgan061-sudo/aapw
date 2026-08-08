@@ -14898,3 +14898,21 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Taş/kaya, makro relief, mağara ve wild-dragon habitat katmanları grass exclusion/density sözleşmesini yeniden kullanabilir. Full-map migration tamamlanırsa grass camera-local olduğundan dünya merkez/ölçek dönüşümüne düşük bağlanımla yeniden seed-cell üzerinden üretilebilir.
 
 **Geri alma planı:** İleride grass rendererı değişirse yeni versioned grass katmanı additive biçimde eklenebilir ve mevcut Run183 yayını feature-gate/no-op ile devre dışı bırakılabilir; geçmiş kayıt ve deterministik kontrat korunur.
+
+## ADR-0204 — Full-map runtime migration requires reversible canonical-coordinate dry-run proof (run 184)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run182'nin 137.5 km² full-reference hedefi doğrudan `WORLD_SCALE` satırlarını değiştirmek yerine önce versioned `worldReferenceMigrationPlan.js` ile temsil edilir. Hedef bounds owner map'in tamamı olan x:[0,9000], y:[0,7000], center (4500,3500), 1.4773421007 m/map-unit ve 27×21 chunk'tır. Current-world→target-world migration doğrudan world-space scale/offset tahmini yapmaz; mevcut world noktasını current map bounds üzerinden canonical 2D map koordinatına geri çözer ve target projection'a yeniden uygular.
+
+**Neden:** Run181 coordinate alignment ve Run182 hydrology/extent hesapları doğru olsa bile runtime re-center/scale; kaleleri, flatten padleri, MST yol topolojisini, slope-aware route'ları ve dünya kenarlarını etkileyebilir. Bu etkiler ölçülmeden config switch yapmak yüksek risklidir. Browser dry-run gerçek module graph üzerinde 14/14 seat round-trip/flat/hydrology safety, 13/13 MST invariance ve bütün routed yolların <=20°/extent-inside olmasını zorunlu kapı yapar.
+
+**Alternatifler:** WORLD_SCALE'i tek committe doğrudan değiştirmek reddedildi; persisted world X/Z'yi yalnız sabit affine katsayıyla taşımak reddedildi; mevcut crop'u canonical full-map saymak reddedildi; testsiz road regeneration reddedildi.
+
+**Sonuç:** Runtime davranış değiştirmeden full-map switch için executable migration contract ve safety proof oluşur. Bu gate geçmeden terrain/water canonical adoption yapılamaz.
+
+**Etkilenen sistemler:** yeni migration-plan module + browser check, PWA precache, WORLD_REFERENCE_MAP ve governance ledgers. Live config/scene/terrain/water/roads/settlements değiştirilmez.
+
+**Gelecek Faz Etkisi:** Sonraki run exact aynı planı opt-in runtime adapter olarak kullanabilir; scale/bounds tekrar hesaplanmaz. Runtime switch sonrası desktop/mobile coverage yüzdeleri yeni 567-chunk denominator ile yeniden raporlanacaktır.
+
+**Geri alma planı:** Runtime consumer yoktur. Plan yanlışlanırsa yeni versioned migration policy eklenir; Run179 raw mask, Run181 alignment ve Run182 hydrology/extent source truth korunur.
