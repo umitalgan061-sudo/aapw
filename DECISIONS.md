@@ -14582,3 +14582,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkEventBusContract.js`, run163 CI/governance kayıtları. Runtime kaynak kodu etkilenmez.
 
 **Geri alma planı:** İleride EventBus sözleşmesi bilinçli olarak değişirse yeni davranış için yeni additive test/ADR eklenir; mevcut guard tarihsel kontrat olarak tutulabilir veya owner onaylı test istisnası değerlendirilebilir.
+
+
+## ADR-0186 — Health state contract regression guard (run 164)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Mevcut `gameplay/health.js` runtime kodunu değiştirmeden; ilk full-health yayını, malformed/non-positive damage no-op davranışı, hasarın 0..maxHealth clamp'i, ölüm olayının edge-triggered tek-sefer yayını, heal/reset ile ölümün yeniden silahlanması, full-health'te redundant heal yayını olmaması ve `dispose()` damage abonelik temizliğini deterministik Node regresyon testiyle sabitle.
+
+**Neden:** FAZ 7 ejderha saldırısının gerçek oyuncu etkisi bu generic health state üzerinden geçer. Browser smoke bu yolu dolaylı olarak çalıştırsa da lethal overkill, tekrar damage while dead, yeniden canlandıktan sonra ikinci ölüm ve teardown abonelik temizliği izole biçimde pinlenmiyordu. EventBus kontratının run 163'te korunmaya alınmasının doğal devamı olarak, gameplay tarafındaki en kritik tüketicilerden birinin sözleşmesini de runtime değişikliği olmadan güvenceye almak düşük riskli ve anlamlıdır.
+
+**Alternatifler:** (1) Health runtime'ını refactor etmek — ihtiyaç yok ve additive-only altında gereksiz risk. (2) Yalnız dragon/browser smoke'a güvenmek — edge-trigger/re-arm/invalid-payload/dispose ayrıntılarını izole etmez. (3) Ejderha AI testine daha fazla sorumluluk yüklemek — generic health sözleşmesini tek bir düşman türüne gereksiz yere bağlar.
+
+**Sonuç:** Oyuncu davranışı, render, PWA cache, seed/determinism ve 2D oyun değişmez; hasar/ölüm/respawn temel sözleşmesindeki regresyonlar daha erken ve açıklayıcı yakalanır.
+
+**Etkilenen sistemler:** yeni `scripts/checkHealthStateContract.js`, run164 CI/governance kayıtları. Runtime kaynak kodu etkilenmez.
+
+**Geri alma planı:** İleride health sözleşmesi bilinçli olarak değişirse yeni davranış için yeni additive test/ADR eklenir; mevcut guard tarihsel kontrat olarak tutulabilir veya owner onaylı test istisnası değerlendirilebilir.

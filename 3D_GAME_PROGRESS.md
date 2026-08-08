@@ -13814,3 +13814,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0185. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: yol/orman/kale/NPC/event/hayvan 0; asset/diyalog 0; ADR +1; core EventBus regresyon kapsamı +1. Oyuncu farkı: görsel olarak hayır; sistemler arası olay iletiminin abonelik/once/hata izolasyonu/temizlik davranışı artık kalıcı testle korunuyor.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız gameplay/UI/test-kalite işi; başlamadan remote main ve paralel ajan branch'leri yeniden kontrol edilmeli.
+
+
+## Run 164 — Health state contract regression guard (2026-08-08 05:35 UTC)
+- Alt görev: FAZ 7 ejderha saldırısı/oyuncu can zincirinin temel health state davranışı için kalıcı düşük-seviye regresyon kontratı eklendi; runtime kaynak satırı değiştirilmedi.
+- Additive-only: yalnız yeni test/CI/governance dosyaları ve append-only kayıtlar eklendi; mevcut kaynak satırı silinmedi/değiştirilmedi.
+- DoD: node --check PASS; health state + EventBus + keyboard/touch input kontratları PASS; checkpoint/uniqueness, world-event determinism/catalog/diversity, PWA/cache, assets/dialogue, terrain/road, mobil streaming/LOD/culling/perf ve mevcut a11y regresyonları PASS; browser smoke 34/34+ PASS; 3D console/page error 0; additive-only PASS.
+- Görsel doğrulama: runtime/CSS/render üretimi değişmedi; baseline ve post-change gerçek Chromium/WebGL smoke aynı görsel yolu doğruladı.
+- Performans: 2026-08-08,run164,1,50,608296,48,17,347
+- Memory leak checklist: yeni runtime listener/timer/DOM/geometry/material eklenmedi; guard health.dispose() sonrası damage aboneliğinin etkisiz kaldığını ve EventBus clear temizliğini doğrular.
+- Teknik borç: 1 (game3d.js 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
+- ADR: ADR-0186. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: yol/orman/kale/NPC/event/hayvan 0; asset/diyalog 0; ADR +1; health/gameplay regresyon kapsamı +1. Oyuncu farkı: görsel olarak hayır; hasar clamp, tek-sefer ölüm, heal/reset yeniden-silahlanma ve dispose davranışı artık kalıcı testle korunuyor.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız gameplay/core/UI kalite işi; başlamadan remote main ve paralel ajan branch'leri yeniden kontrol edilmeli.
