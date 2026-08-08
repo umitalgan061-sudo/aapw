@@ -14548,3 +14548,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkTouchJoystickInputContract.js`, run161 CI/governance kayıtları. Runtime kaynak kodu etkilenmez.
 
 **Geri alma planı:** İleride joystick sözleşmesi bilinçli olarak değişirse yeni davranış için yeni bir additive test/ADR eklenebilir; mevcut guard tarihsel kontrat olarak kalabilir veya owner onaylı test-fixture istisnası gündeme alınabilir.
+
+
+## ADR-0184 — Keyboard input contract regression guard (run 162)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Mevcut `KeyboardInput` runtime kodunu değiştirmeden; WASD ve ok tuşu eksen eşlemesini, karşıt tuşların deterministik iptalini, Shift koşu modifier'ını, Space için tek-okumalık edge-triggered jump sözleşmesini ve dispose listener/state temizliğini tek bir deterministik Node regresyon testiyle sabitle.
+
+**Neden:** FAZ 4 masaüstü hareketinin temel girdisi klavyedir. Bu davranış browser smoke içinde dolaylı olarak geçse de input sözleşmesinin özellikle Space tekrar-keydown ve karşıt yön kombinasyonları ayrı bir düşük seviyeli testle pinlenmiyordu. Run 161'de touch joystick kontratı korunmaya alındı; masaüstü eşleniğini aynı kalite seviyesine getirmek, runtime davranışını değiştirmeden anlamlı ve düşük riskli bir devam adımıdır.
+
+**Alternatifler:** (1) Runtime input kodunu refactor etmek — ihtiyaç yok ve additive-only guard altında gereksiz risk. (2) Yalnız browser smoke'a güvenmek — edge-triggered jump ve karşıt-key kombinasyonlarını izole etmez. (3) Tam Playwright klavye senaryosu — daha pahalı; saf input-state sözleşmesi Node seviyesinde deterministik olarak kanıtlanabilir, gerçek Chromium/WebGL yolu zaten full smoke ile ayrıca çalışır.
+
+**Sonuç:** Oyuncu davranışı, render, PWA cache, seed/determinism ve 2D oyun değişmez; masaüstü hareket/jump regresyonları daha erken ve daha açıklayıcı yakalanır.
+
+**Etkilenen sistemler:** yeni `scripts/checkKeyboardInputContract.js`, run162 CI/governance kayıtları. Runtime kaynak kodu etkilenmez.
+
+**Geri alma planı:** İleride keyboard input sözleşmesi bilinçli olarak değişirse yeni davranış için yeni additive test/ADR eklenir; mevcut guard tarihsel kontrat olarak tutulabilir veya owner onaylı test-fixture istisnası değerlendirilebilir.
