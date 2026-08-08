@@ -839,3 +839,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-08-0747 — run 169 vegetation visual geometry contract (ADR-0191); 34/34+ browser smoke, vegetation InstancedMesh/material/disposal, PWA/world/determinism/mobile gates PASS; runtime delta 0.
 
 - stable-2026-08-08-0804 — run 170 terrain visual geometry/color/seam contract (ADR-0192); 34/34+ browser smoke, terrain render/disposal, PWA/world/determinism/mobile gates PASS; runtime delta 0.
+
+- stable-2026-08-08-0819 — run 171 water visual plane/shader/update contract (ADR-0193); 34/34+ browser smoke, water render/disposal, PWA/world/determinism/mobile gates PASS; runtime delta 0.

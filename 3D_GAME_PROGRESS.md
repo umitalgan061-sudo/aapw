@@ -13909,3 +13909,17 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0192. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: terrain alanı/yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; terrain visual regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak terrain mesh çözünürlüğü, renk eğrisi, seam, sampler-bake ve teardown regresyonlarının main'e sızma riski azaldı.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız world/visual kalite adaylarını güncel main üzerinde yeniden sırala; başlamadan ve yayınlamadan önce eşzamanlılık kapısını uygula.
+
+
+## Run 171 — Water visual/shader regression contract (2026-08-08 08:19 UTC)
+- Alt görev: run 170 sonrası owner bloklarına girmeden world/visual kalite dizisini sürdürmek için gerçek `createWater()` / `updateWater()` / `disposeWater()` çıktısını tarayıcı içinde doğrulayan additive-only `scripts/checkWaterVisualContract.js` eklendi. Kontrat tek düz su meshinin 4000m PlaneGeometry topolojisini, ShaderMaterial/fog/uniform imzasını, fragment-only ripple sözleşmesini, kamera takip güncellemesini, deterministik geometry buffer'larını ve teardown zincirini doğruluyor.
+- Runtime/2D/PWA davranışı değiştirilmedi; su seviyesi, shader kaynakları, terrain, mobil radius/LOD ve owner kalibrasyon sabitlerine dokunulmadı. Owner kararı bekleyen radius-5, game3d.js yapısal borcu ve world-event checksum maddeleri aynen bırakıldı.
+- Additive-only: yalnız yeni checker, yeni run workflow'u ve yeni governance recorder eklendi; mevcut source satırı silinmedi/değiştirilmedi.
+- DoD: node --check PASS; 16641 vertices, 98304 indices, flat 4000m camera-follow plane, shader/fog/uniform contract PASS, disposal 1/1.; baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; determinism, assets, accessibility, input/physics, mobile streaming/LOD/perf, terrain-seat/terrain-visual, road-network/road-visual, vegetation-visual, water-static-shader, PWA installability/cache ve additive-only kapıları PASS.
+- Görsel doğrulama: 390x844 mobile Chromium yakın + F4 uzak render kanıtı artifact olarak üretildi; runtime görseli değişmediği için no-delta regresyon kanıtıdır.
+- Performans: 2026-08-08,run171,2,50,608296,48,17,307
+- Memory leak checklist: runtime allocation eklenmedi; yeni checker `disposeWater()` için 1 geometry + 1 material dispose olayını canlı doğruluyor ve testte oluşturduğu iki water meshini temizliyor.
+- Teknik borç: 1 (önceden var olan `game3d.js` yapısal borcu); run 171 yeni runtime borcu eklemedi. Risk LOW. Güven 5/5.
+- ADR: ADR-0193. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: water/terrain/yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; water visual regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak su mesh çözünürlüğü, fog/shader imzası, kamera-follow ve teardown regresyonlarının main'e sızma riski azaldı.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız world/render kalite adaylarını güncel main üzerinde yeniden sırala; başlamadan ve yayınlamadan önce eşzamanlılık kapısını uygula.
