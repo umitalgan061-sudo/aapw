@@ -1,0 +1,217 @@
+name: Run 196 Runtime Ownership Preflight
+
+on:
+  push:
+    branches: [chatgpt/run196-runtime-ownership-preflight]
+    paths:
+      - 'src/3d/world/canonicalRuntimeOwnershipInventoryShadow.js'
+      - 'scripts/checkCanonicalRuntimeMigrationReadiness.js'
+      - '.github/workflows/run196-runtime-ownership-preflight.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: 81434839250d72950d7fed70a5e6024d0411c6d3
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and additive concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F '## Run 195 —' 3D_GAME_PROGRESS.md
+          grep -F '## ADR-0215 —' DECISIONS.md
+          if grep -q '^## Run 196 ' 3D_GAME_PROGRESS.md; then echo 'Run196 already occupied on main'; exit 1; fi
+          if grep -q '^## ADR-0216 ' DECISIONS.md; then echo 'ADR-0216 already occupied on main'; exit 1; fi
+          node --check src/3d/world/canonicalRuntimeOwnershipInventoryShadow.js
+          node --check scripts/checkCanonicalRuntimeMigrationReadiness.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+
+      - name: Baseline full browser smoke on current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run196-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run196-smoke-before.log")
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run196-smoke-before.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run196-smoke-before.log" | grep -F 'zero console/page errors'
+          git worktree remove "$BASELINE"
+
+      - name: Run196 live runtime ownership readiness proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCanonicalRuntimeMigrationReadiness.js | tee "$RUNNER_TEMP/run196-readiness.log"
+          grep -F '[checkCanonicalRuntimeMigrationReadiness] PASS: migrationReady=false' "$RUNNER_TEMP/run196-readiness.log"
+          grep -F 'streaming-pause-resume,input-snapshot-restore,player-physics-snapshot-restore' "$RUNNER_TEMP/run196-readiness.log"
+          node scripts/checkOptInMigrationControllerShadow.js
+          node scripts/checkClippedCanonicalWindowOwnershipShadow.js
+          node scripts/checkCanonicalStoneBridgeTraversalReadiness.js
+
+      - name: Determinism world and visual regression gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkCanonicalHydrologyTerrainShadow.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkSkyVisualContract.js
+          node scripts/checkFogVisualContract.js
+          node scripts/checkLightingVisualContract.js
+          node scripts/checkStarfieldVisualContract.js
+          node scripts/checkCameraContract.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkSeededRandomPolicy.js
+
+      - name: PWA cache input physics and accessibility gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkMobileJumpControl.js
+          node scripts/checkJumpArcContract.js
+          node scripts/checkControlsHelpAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Mobile streaming LOD and live budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run196-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run196-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$LIVE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$LIVE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$LIVE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+          echo "RUN196_LIVE_MOBILE_JSON=$LIVE" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run196-smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run196-smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run196-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run196-smoke-after.log"; then exit 1; fi
+          echo "RUN196_SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run196 | tee "$RUNNER_TEMP/run196-perf.log"
+          ROW="$(tail -n1 perf_log.csv)"
+          echo "$ROW" | grep -F ',run196,'
+          echo "RUN196_PERF_ROW=$ROW" >> "$GITHUB_ENV"
+          node scripts/analyzePerfTrend.js
+
+      - name: Senior review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/canonicalRuntimeOwnershipInventoryShadow.js scripts/checkCanonicalRuntimeMigrationReadiness.js; then exit 1; fi
+          node scripts/checkCanonicalRuntimeMigrationReadiness.js
+          node scripts/checkOptInMigrationControllerShadow.js >/dev/null
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 196 '; then echo 'Run196 occupied before publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0216 '; then echo 'ADR-0216 occupied before publish'; exit 1; fi
+
+      - name: Record validated Run196 checkpoint on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          cat >> 3D_GAME_PROGRESS.md <<EOF
+
+## Run 196 — Live runtime ownership inventory + migration readiness guard (${STAMP})
+- Added shadow-only `canonicalRuntimeOwnershipInventoryShadow.js`; live runtime imports remain unchanged.
+- Inventory now explicitly covers resident terrain chunks plus sky/stars/water/river/waterfalls/settlements/roads/vegetation while intentionally leaving lights/camera/debug infrastructure alive.
+- Readiness proof confirms canonical live activation is still BLOCKED by three missing explicit contracts: ChunkManager streaming pause/resume, KeyboardInput snapshot/restore, and player jump-physics snapshot/restore. No owner choice was guessed and no unsafe activation was enabled.
+- Run195 reversible scene/collider proof remains green; full browser/PWA/determinism/mobile regression gates remain green.
+- Smoke PASS count: ${RUN196_SMOKE_PASS_COUNT}. Mobile sample: ${RUN196_LIVE_MOBILE_JSON}. Perf row: ${RUN196_PERF_ROW}.
+- Coverage is unchanged by design: desktop 96.2%; live mobile radius-4 remains 81 resident terrain chunks / 20.25 km2 (~14.7% world coverage).
+- Next safe step: design a shadow quiescence/restore contract that can preserve the three mutable runtime surfaces without changing current live imports; do not enable canonical startup until that proof is lossless.
+EOF
+          cat >> DECISIONS.md <<EOF
+
+## ADR-0216 — Canonical live migration stays blocked until runtime-owned streaming/input/jump state has an explicit lossless contract (run 196)
+**Status:** Accepted (${STAMP})
+
+**Context.** Run195 proved reversible scene-root and ground-collider ownership, but the real live runtime also owns mutable state outside that controller. `ChunkManager` exposes `streamTowards` but no pause/resume API; `KeyboardInput` keeps held keys and the edge-triggered jump request internally without snapshot/restore; `createPlayer` keeps `heightAboveGround`, `velocityY`, and `isGrounded` in closure state with no snapshot/restore surface.
+
+**Decision.** Add a shadow-only ownership inventory and a deterministic readiness check. Keep canonical live activation disabled while any of those three contracts is absent. Do not infer replacement semantics, reset airborne state, consume pending input, or silently freeze streaming. The current scene, 2D path, desktop/mobile/PWA behavior and Run195 controller remain untouched.
+
+**Consequence.** This run intentionally improves migration safety rather than visible coverage. A future additive preflight must prove lossless quiescence/restoration for streaming, input and jump physics before the canonical controller can be wired into live startup.
+EOF
+          cat >> STABLE_TAGS.md <<EOF
+
+- `${STABLE_TAG}` — Run196 validated shadow runtime-ownership/readiness guard; canonical live activation remains blocked on explicit streaming/input/player-physics restoration contracts. Base `${BASE_SHA}`.
+EOF
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git commit -m 'docs(run196): record runtime ownership readiness checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 196 '; then echo 'Run196 occupied immediately before branch publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0216 '; then echo 'ADR-0216 occupied immediately before branch publish'; exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git tag "$STABLE_TAG"
+          git push origin "$STABLE_TAG" || echo '[run196] stable tag push unavailable; STABLE_TAGS record retained.'
