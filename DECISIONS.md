@@ -14735,3 +14735,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkSkyVisualContract.js`, run 172 CI workflow'u ve governance kayıtları. `src/3d/sky.js`, 2D oyun, lighting/fog runtime'ı, terrain/world seed, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
 
 **Geri alma planı:** sky render sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
+
+
+## ADR-0195 — Distance fog has a live day/night density and horizon-color contract (run 173)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkFogVisualContract.js`, gerçek tarayıcı/import-map ortamında mevcut `createFog()` / `updateFog()` fonksiyonlarını çağırır; FogExp2 tipini, başlangıç 0.0004 yoğunluğunu, day/night 0.0004→0.00055 doğrusal interpolasyonunu (0/0.25/0.5/1 örnekleri), horizon renginin `Color.copy` ile kopyalanmasını, iki fog instance'ının mutable state paylaşmamasını ve Three.js FogExp2 formülündeki 500/1000/2000m gündüz/gece temsilî visibility bantlarını fail-fast regresyon sözleşmesi olarak doğrular. Runtime kaynağı değiştirilmez.
+
+**Neden:** mevcut full smoke fog'u sahne içinde dolaylı kullanıyor; fog tipinin, day/night density uçlarının/interpolasyonunun veya horizon renk senkronizasyonunun drift etmesi halinde açıklayıcı sistem-seviyesi bir kontrat yoktu. Bu parametreler terrain ile sky arasındaki uzak-mesafe görsel birleşimini doğrudan etkiliyor.
+
+**Alternatifler:** yalnız kaynak metni/regex kontrolü gerçek Three.js nesne tipini ve mutable Color semantiğini ölçmez; piksel snapshot GPU/render-driver farklarına kırılgandır; çalışan `fog.js` runtime'ını refactor etmek additive-only riski taşır.
+
+**Sonuç:** fog nesne tipi, bağımsız instance davranışı, sky-horizon renk aktarımı ve day/night mesafe görünürlüğü CI'da canlı modül üzerinde korunur; runtime maliyeti sıfırdır.
+
+**Etkilenen sistemler:** yeni `scripts/checkFogVisualContract.js`, run 173 CI workflow'u ve governance kayıtları. `src/3d/fog.js`, 2D oyun, lighting/sky/water/terrain runtime'ı, dünya seed'i, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
+
+**Geri alma planı:** fog render sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.

@@ -13938,3 +13938,17 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0194. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: sky/water/terrain/yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; sky visual regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak gökyüzü sphere çözünürlüğü, shader/palet, day-night güncellemesi ve teardown regresyonlarının main'e sızma riski azaldı.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız world/render kalite adaylarını güncel main üzerinde yeniden sırala; fog/lighting gibi kalan sistemler mevcut smoke kapsamına göre tekrar değerlendirilir.
+
+
+## Run 173 — Distance fog/day-night visual regression contract (2026-08-08 09:07 UTC)
+- Alt görev: gerçek `createFog()` / `updateFog()` çıktısını tarayıcı içinde doğrulayan additive-only `scripts/checkFogVisualContract.js` eklendi. Kontrat `THREE.FogExp2` tipini, 0.0004→0.00055 day/night density interpolasyonunu, horizon-color copy semantiğini, bağımsız fog instance durumunu ve 500/1000/2000m temsilî atmosferik falloff bantlarını doğruluyor.
+- Runtime/2D/PWA davranışı değiştirilmedi; `src/3d/fog.js`, lighting/day-night sabitleri, sky/water/terrain, mobil radius/LOD ve owner kalibrasyon değerlerine dokunulmadı. Owner kararı bekleyen radius-5, game3d.js yapısal borcu ve world-event checksum maddeleri aynen bırakıldı.
+- Additive-only: yayınlanan dal yalnız yeni checker, yeni run workflow'u ve yeni governance recorder ekledi; mevcut source satırı silinmedi/değiştirilmedi.
+- DoD: node --check PASS; FogExp2 day/night density 0.00040→0.00055, horizon-color copy PASS, 500/1000/2000m day factors 3.9%/14.8%/47.3%, 2000m night 70.2%.; baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; determinism, assets, accessibility, input/physics, mobile streaming/LOD/perf, terrain-seat/terrain-visual, road-network/road-visual, vegetation-visual, water-visual, sky-visual, fog-visual, PWA installability/cache ve additive-only kapıları PASS.
+- Görsel doğrulama: 390x844 mobile Chromium yakın + F4 uzak render kanıtı artifact olarak üretildi; runtime görseli değişmediği için no-delta regresyon kanıtıdır.
+- Performans: 2026-08-08,run173,1,50,608296,48,17,290
+- Memory leak checklist: runtime allocation eklenmedi; FogExp2 disposable GPU kaynağı taşımaz, checker iki bağımsız fog instance'ının mutable Color state paylaşmadığını doğruluyor.
+- Teknik borç: 1 (önceden var olan `game3d.js` yapısal borcu); run 173 yeni runtime borcu eklemedi. Risk LOW. Güven 5/5.
+- ADR: ADR-0195. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: fog/sky/water/terrain/yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; fog visual regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak fog tipi, day/night yoğunluk rampası, sky-horizon renk senkronizasyonu ve mesafe falloff regresyonlarının main'e sızma riski azaldı.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan lighting/day-night gibi kalan bağımsız world/render kontrat boşluklarını güncel main üzerinde yeniden sırala; başlamadan ve yayınlamadan önce eşzamanlılık kapısını uygula.

@@ -843,3 +843,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-08-0819 — run 171 water visual plane/shader/update contract (ADR-0193); 34/34+ browser smoke, water render/disposal, PWA/world/determinism/mobile gates PASS; runtime delta 0.
 
 - stable-2026-08-08-0836 — run 172 aurora sky visual sphere/shader/update contract (ADR-0194); 34/34+ browser smoke, sky render/disposal, PWA/world/determinism/mobile gates PASS; runtime delta 0.
+
+- stable-2026-08-08-0907 — run 173 distance fog/day-night visual contract (ADR-0195); 34/34+ browser smoke, fog behavior, PWA/world/determinism/mobile gates PASS; runtime delta 0.
