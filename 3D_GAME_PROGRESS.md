@@ -13895,3 +13895,17 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0191. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: orman km²/yol/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; vegetation visual regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak ağaç mesh/material/instance/dispose regresyonlarının main'e sızma riski azaldı.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız terrain/vegetation/visual kalite adaylarını güncel main üzerinde yeniden sırala; başlamadan ve yayınlamadan önce eşzamanlılık kapısını uygula.
+
+
+## Run 170 — Terrain visual geometry regression contract (2026-08-08 08:04 UTC)
+- Alt görev: run 169 sonrası bağımsız terrain/visual kalite boşluğunu kapatmak için gerçek `createTerrainChunk()` çıktısını tarayıcı içinde doğrulayan additive-only `scripts/checkTerrainVisualContract.js` eklendi. Kontrat desktop terrain PlaneGeometry topolojisini, gerçek height sampler ile vertex yüksekliği eşleşmesini, mevcut grass→rock vertex-color eğrisini, MeshStandardMaterial imzasını, komşu chunk sınırındaki yükseklik/renk sürekliliğini, deterministik aynı-seed çıktısını, metadata ve teardown zincirini doğruluyor.
+- Runtime/2D/PWA davranışı değiştirilmedi; height sampler, macro relief, flatten-pad, mobil terrain LOD ve owner kalibrasyon sabitlerine dokunulmadı. Owner kararı bekleyen radius-5, game3d.js yapısal borcu ve world-event checksum maddeleri aynen bırakıldı.
+- Additive-only: yalnız yeni checker, yeni run workflow'u ve yeni governance recorder eklendi; mevcut source satırı silinmedi/değiştirilmedi.
+- DoD: node --check PASS; 4225 vertices, 24576 indices, 65/65 seam vertices continuous, sampler/color/material contract PASS, disposal 1/1.; baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; determinism, assets, accessibility, input/physics, mobile streaming/LOD/perf, terrain-seat, road-network/road-visual, vegetation-visual, PWA installability/cache ve additive-only kapıları PASS.
+- Görsel doğrulama: 390x844 mobile Chromium yakın + F4 uzak render kanıtı artifact olarak üretildi; runtime görseli değişmediği için no-delta regresyon kanıtıdır.
+- Performans: 2026-08-08,run170,1,50,608296,48,17,368
+- Memory leak checklist: runtime allocation eklenmedi; yeni checker `disposeTerrainChunk()` için 1 geometry + 1 material dispose olayını canlı doğruluyor ve testte oluşturduğu üç terrain meshini temizliyor.
+- Teknik borç: 1 (önceden var olan `game3d.js` yapısal borcu); run 170 yeni runtime borcu eklemedi. Risk LOW. Güven 5/5.
+- ADR: ADR-0192. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: terrain alanı/yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; terrain visual regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak terrain mesh çözünürlüğü, renk eğrisi, seam, sampler-bake ve teardown regresyonlarının main'e sızma riski azaldı.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız world/visual kalite adaylarını güncel main üzerinde yeniden sırala; başlamadan ve yayınlamadan önce eşzamanlılık kapısını uygula.

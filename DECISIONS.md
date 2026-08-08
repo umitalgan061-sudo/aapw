@@ -14684,3 +14684,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkVegetationVisualContract.js`, run 169 CI workflow'u ve governance kayıtları. `src/3d/world/vegetation.js`, 2D oyun, dünya seed'i, asset seti ve PWA import grafiği değişmez.
 
 **Geri alma planı:** vegetation render sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
+
+
+## ADR-0192 — Rendered terrain has a live geometry/color/seam contract (run 170)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkTerrainVisualContract.js`, gerçek tarayıcı/import-map ortamında mevcut `createTerrainChunk()` fonksiyonunu aynı seed/input ile tekrarlı çağırır ve bir komşu chunk üretir; desktop PlaneGeometry'nin 64x64 segment / 4225 vertex / 24576 index topolojisini, her render vertex yüksekliğinin gerçek `createHeightSampler()` ile eşleşmesini, mevcut grass→rock vertex-color eğrisini, MeshStandardMaterial vertexColors/roughness/metalness imzasını, aynı-seed deterministik position/normal/color/index verisini, doğu-batı chunk sınırında 65 vertex boyunca yükseklik+renk sürekliliğini, chunk metadata'sını ve `disposeTerrainChunk()` teardown davranışını fail-fast regresyon sözleşmesi olarak doğrular. Runtime kaynağı değiştirilmez.
+
+**Neden:** mevcut `terrainSeatSafetyCheck.js` height-field'in 14 koltuk için su/eğim güvenliğini, smoke suite flatten-pad davranışını, `checkMobileTerrainLod.js` ise mobil segment halkalarını koruyor. Bunlar desktop'ta gerçekten bake edilen terrain meshinin topolojisi/material/renk eğrisi, sampler↔vertex uyumu, komşu chunk seam sürekliliği veya dispose olayını tek bir canlı sözleşmede pinlemiyor. Road ve vegetation render boşlukları run 168-169'da kapatıldığı için aynı dünya katmanının terrain tarafını runtime değişikliği yapmadan güvenceye almak en düşük riskli anlamlı devam adımıdır.
+
+**Alternatifler:** piksel snapshot karşılaştırması GPU/headless farklarına kırılgandır; yalnız kaynak regex'i gerçek Three.js BufferGeometry sonucunu ölçmez; height sampler testini genişletmek rendered material/color/seam zincirini kapsamaz; çalışan terrain runtime'ını refactor etmek additive-only altında gereksiz risk yaratır.
+
+**Sonuç:** desktop terrain render topolojisi, renk/material görünümü, sampler-bake eşleşmesi, komşu chunk seam'i ve teardown davranışı CI'da canlı modül üzerinde korunur; runtime maliyeti sıfırdır. Bilinçli terrain sanat/LOD değişiklikleri ileride yeni versioned checker/ADR ile açıkça sürümlenir.
+
+**Etkilenen sistemler:** yeni `scripts/checkTerrainVisualContract.js`, run 170 CI workflow'u ve governance kayıtları. `src/3d/world/terrain.js`, 2D oyun, world seed, mobil LOD politikası, asset seti ve PWA import grafiği değişmez.
+
+**Geri alma planı:** terrain render sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
