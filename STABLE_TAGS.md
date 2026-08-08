@@ -877,3 +877,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1348 — run 187 canonical chunk/water/collider integration shadow (ADR-0207); real mesh raycast + water-plane + collider + road-water diagnostics and full regression gates PASS; live runtime delta 0.
+
+
+- stable-2026-08-08-1419 — run 188 canonical road/water owner-policy shadow comparison (ADR-0208); deterministic policy matrix + full regression gates PASS; no policy selected, live runtime delta 0.

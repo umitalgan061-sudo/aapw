@@ -14128,3 +14128,18 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Memory leak checklist: shadow chunk geometry/material ve existing water geometry/material dispose edilir; checker browser/server finally ile kapanır; runtime listener/timer/DOM eklenmez. Teknik borç 1; yeni runtime borcu 0. Risk LOW. Güven 5/5. ADR: ADR-0207.
 - World Evolution Report: canonical runtime-integration readiness +1; live terrain/water/road/gameplay delta 0. Oyuncu farkı: HAYIR.
 - Sıradaki güvenli adım: canonical road-water diagnostic sonucuna göre bridge/ferry veya water-avoidance route policy; road güvenliği çözülmeden full-reference default runtime switch yapma.
+
+
+## Run 188 — Canonical road/water owner-policy shadow comparison (2026-08-08 14:19 UTC)
+- Alt görev: Run187 tarafından bulunan 6 water-crossing MST edge için bridge, ferry ve water-impassable dry-cart seçeneklerini shadow-only ölçen deterministic comparison checker eklendi. Mixed policy otomatik seçilmez; yalnız per-edge veri matrisi üretilir.
+- Baseline invariant: Run187 399/1020 water-route-point ve 6/13 affected-edge sonucu aynen korunur. Run187 399/1020 water-point diagnostic preserved across 6/13 edges; bridge diagnostic total 6162.304m max 3112.202m; ferry diagnostic total 6509.346m max 3322.238m; 40m-grid water-impassable <=20deg dry-cart route feasible 3/6; mixed policy remains owner-selected per edge; live runtime unchanged.
+- Aggregate ölçüm: bridge chord total 6.16 km / max 3.11 km; ferry water-route total 6.51 km / max 3.32 km; <=20° dry-cart diagnostic 3/6 feasible. Checksum c47d6ecbacff41a6ffc4e18623642905c1865c46f37f3f82fbd69a9eecd57214.
+- Owner kararı tahmin edilmedi: bridge span limiti, ferry gameplay, mixed edge mapping ve canlı adoption seçimi QUESTIONS_FOR_OWNER/ROAD_WATER_OWNER_GATE içinde açık kalır; temporary default NONE.
+- Runtime/2D/PWA davranışı değiştirilmedi; src/3d, service-worker, config, terrain, water, roads, settlements, physics ve script.js byte davranışı aynı. Yeni kod yalnız scripts/CI/fixture/governance recorder katmanıdır.
+- Additive-only: yeni checker + checksum fixture + recorder + CI ve append-only ledgers; mevcut source satırı silinmedi/değiştirilmedi.
+- DoD: baseline + after browser smoke 34/34+ PASS; zero 3D console/page errors; Run184-187 canonical gates, road/terrain/visual/grass, determinism/assets/PWA/cache, a11y/input/physics, mobile streaming/LOD/perf, two visual evidence screenshots, policy checksum fixture ve additive-only PASS.
+- Mobil performans: live mobile F2 35 draw calls / 195929 triangles, under <500 / <500K; Run188 test-only comparison adds zero live render cost.
+- Performans: 2026-08-08,run188,1,51,688296,49,17,368. Test-only olduğu için live render delta 0.
+- Memory leak checklist: runtime allocation/listener/timer/DOM/GPU kaynağı eklenmedi; checker browser/server finally ile kapanır ve yalnız bounded test arrays kullanır. Teknik borç 1; yeni runtime borcu 0. Risk LOW. Güven 5/5. ADR: ADR-0208.
+- World Coverage live değerleri değişmedi. World Evolution Report: road/water migration decision evidence +1; live terrain/water/road/gameplay delta 0. Oyuncu farkı: HAYIR.
+- Sıradaki güvenli adım: owner road-water policy yanıtı gelirse seçilen mapping için ayrı opt-in implementation proof; yanıt gelmezse bu kararı gerektirmeyen GOVERNANCE §30 fiziksel dünya işlerinden taş/kaya/makro-relief gibi bağımsız shadow-safe alt göreve geç.
