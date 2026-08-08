@@ -1,0 +1,150 @@
+name: Run 183 Wind Grass Preflight
+
+on:
+  push:
+    branches: [agent/run183-wind-grass-preflight]
+    paths:
+      - 'scripts/applyRun180WindGrassAdditions.js'
+      - 'scripts/checkWindGrassContractRun180.js'
+      - 'scripts/checkWindGrassSceneIntegrationRun180.js'
+      - 'scripts/fixtures/run180-scene-harness.html'
+      - '.github/workflows/run183-wind-grass-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      BASE_SHA: 48feb96fad5dddf1787ff94c931d7e3b3300dfe8
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Verify preflight base and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git merge-base HEAD "$BASE_SHA")" = "$BASE_SHA"
+          node --check scripts/applyRun180WindGrassAdditions.js
+          node --check scripts/checkWindGrassContractRun180.js
+          node --check scripts/checkWindGrassSceneIntegrationRun180.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+
+      - name: Baseline browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run183-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run183-before.log" && test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run183-before.log")" -ge 34)
+          git worktree remove "$BASELINE"
+
+      - name: Apply additive grass in CI workspace only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/applyRun180WindGrassAdditions.js
+          node --check src/3d/sceneManager.js
+          node --check src/3d/world/vegetation.js
+          git diff --check
+          test "$(git diff --numstat -- src/3d/sceneManager.js src/3d/world/vegetation.js | awk '{s += $2} END {print s + 0}')" -eq 0
+          grep -F 'RUN180_WIND_GRASS_CONFIG' src/3d/sceneManager.js
+          grep -F 'disposeVegetationWithWindGrassRun180' src/3d/world/vegetation.js
+
+      - name: Grass contracts and real scene integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWindGrassContractRun180.js
+          node scripts/checkWindGrassSceneIntegrationRun180.js
+
+      - name: Determinism world PWA and safety gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+
+      - name: Mobile live render budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run183-mobile.log"
+          SAMPLE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run183-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$SAMPLE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$SAMPLE")"
+          test "$DRAW" -eq 35
+          test "$TRI" -eq 195929
+
+      - name: Post-change browser smoke and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run183-after.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run183-after.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run183-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run183-after.log"; then exit 1; fi
+
+      - name: Mobile near and F4 far evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureRun130MobileEvidence.js
+
+      - name: Upload preflight evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run183-wind-grass-preflight-evidence
+          path: artifacts/run130-mobile/*.png
+          if-no-files-found: error
+
+      - name: Performance and self review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run183-preflight | tee "$RUNNER_TEMP/run183-perf.log"
+          node scripts/analyzePerfTrend.js
+          git checkout -- perf_log.csv
+          git diff --check
+          test "$(git diff --numstat -- src/3d/sceneManager.js src/3d/world/vegetation.js | awk '{s += $2} END {print s + 0}')" -eq 0
+          node scripts/checkWindGrassSceneIntegrationRun180.js
+          echo 'Run183 preflight PASS: no runtime/governance/tag publication performed.'
