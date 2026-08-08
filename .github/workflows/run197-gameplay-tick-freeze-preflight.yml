@@ -1,0 +1,226 @@
+name: Run 197 Gameplay Tick Freeze Preflight
+
+on:
+  push:
+    branches: [chatgpt/run197-gameplay-tick-freeze-preflight]
+    paths:
+      - 'src/3d/world/worldReferenceGameplayTickFreezeShadow.js'
+      - 'scripts/checkGameplayTickFreezeShadow.js'
+      - 'scripts/applyRun197PwaPrecacheAddition.js'
+      - 'scripts/recordRun197GameplayTickFreezeShadow.js'
+      - '.github/workflows/run197-gameplay-tick-freeze-preflight.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: b3037e4784b6a6f4018129ee1d7deac82b22628d
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session source-freeze and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F '## Run 196 — Real current-runtime ownership + streaming/input/physics rollback integration preflight' 3D_GAME_PROGRESS.md
+          grep -F '## ADR-0216 — Canonical opt-in transaction must pause the real current ChunkManager' DECISIONS.md
+          if grep -q '^## Run 197 ' 3D_GAME_PROGRESS.md; then echo 'Run197 already occupied on main'; exit 1; fi
+          if grep -q '^## ADR-0217 ' DECISIONS.md; then echo 'ADR-0217 already occupied on main'; exit 1; fi
+          node --check src/3d/world/worldReferenceGameplayTickFreezeShadow.js
+          node --check scripts/checkGameplayTickFreezeShadow.js
+          node --check scripts/applyRun197PwaPrecacheAddition.js
+          node --check scripts/recordRun197GameplayTickFreezeShadow.js
+          node scripts/applyRun197PwaPrecacheAddition.js
+          grep -F "GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceGameplayTickFreezeShadow.js');" service-worker.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git diff --quiet "$BASE_SHA" HEAD -- src/3d/game3d.js src/3d/sceneManager.js src/3d/safeMode.js src/3d/world/chunkManager.js src/3d/input.js src/3d/physics.js src/3d/gameLoopHelpers.js src/3d/world/worldReferenceCurrentRuntimeIntegrationShadow.js
+
+      - name: Baseline full browser smoke on current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run197-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run197-smoke-before.log")
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run197-smoke-before.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run197-smoke-before.log" | grep -F 'zero console/page errors'
+          git worktree remove "$BASELINE"
+
+      - name: Prior canonical transaction invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkOptInMigrationControllerShadow.js
+          node scripts/checkClippedCanonicalWindowOwnershipShadow.js
+          node scripts/checkCurrentRuntimeIntegrationShadow.js
+
+      - name: Run197 gameplay tick freeze proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkGameplayTickFreezeShadow.js | tee "$RUNNER_TEMP/run197-focused.log"
+          BUDGET="$(grep '^\[checkGameplayTickFreezeShadow\] BUDGET:' "$RUNNER_TEMP/run197-focused.log" | tail -n1 | sed 's/^\[checkGameplayTickFreezeShadow\] BUDGET: //')"
+          SUMMARY="$(grep '^\[checkGameplayTickFreezeShadow\] PASS:' "$RUNNER_TEMP/run197-focused.log" | tail -n1 | sed 's/^\[checkGameplayTickFreezeShadow\] PASS: //')"
+          test -n "$BUDGET"
+          test -n "$SUMMARY"
+          echo "RUN197_BUDGET_JSON=$BUDGET" >> "$GITHUB_ENV"
+          echo "RUN197_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+          test -s artifacts/run197-gameplay-tick-freeze-shadow/proof.json
+          test -s artifacts/run197-gameplay-tick-freeze-shadow/current-before.png
+          test -s artifacts/run197-gameplay-tick-freeze-shadow/canonical-active.png
+          test -s artifacts/run197-gameplay-tick-freeze-shadow/current-restored.png
+
+      - name: Determinism world and regression gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkCanonicalHydrologyTerrainShadow.js
+          node scripts/checkCanonicalChunkIntegrationShadow.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkSkyVisualContract.js
+          node scripts/checkFogVisualContract.js
+          node scripts/checkLightingVisualContract.js
+          node scripts/checkStarfieldVisualContract.js
+          node scripts/checkCameraContract.js
+          node scripts/checkWindGrassContractRun180.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkSeededRandomPolicy.js
+
+      - name: PWA cache input physics and accessibility gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkMobileJumpControl.js
+          node scripts/checkJumpArcContract.js
+          node scripts/checkControlsHelpAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Mobile streaming LOD and live budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run197-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run197-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$LIVE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$LIVE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$LIVE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+          echo "RUN197_LIVE_MOBILE_JSON=$LIVE" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke and console gate after Run197
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run197-smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run197-smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run197-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run197-smoke-after.log"; then exit 1; fi
+          echo "RUN197_SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run197 | tee "$RUNNER_TEMP/run197-perf.log"
+          ROW="$(tail -n1 perf_log.csv)"
+          echo "$ROW" | grep -F ',run197,'
+          echo "RUN197_PERF_ROW=$ROW" >> "$GITHUB_ENV"
+          node scripts/analyzePerfTrend.js
+
+      - name: Senior self review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/worldReferenceGameplayTickFreezeShadow.js scripts/checkGameplayTickFreezeShadow.js scripts/recordRun197GameplayTickFreezeShadow.js; then exit 1; fi
+          node scripts/checkGameplayTickFreezeShadow.js > "$RUNNER_TEMP/run197-final.log"
+          grep -F '[checkGameplayTickFreezeShadow] PASS:' "$RUNNER_TEMP/run197-final.log"
+          node scripts/checkCurrentRuntimeIntegrationShadow.js >/dev/null
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          git diff --quiet "$BASE_SHA" HEAD -- src/3d/game3d.js src/3d/sceneManager.js src/3d/safeMode.js src/3d/world/chunkManager.js src/3d/input.js src/3d/physics.js src/3d/gameLoopHelpers.js src/3d/world/worldReferenceCurrentRuntimeIntegrationShadow.js
+          git diff --check "$BASE_SHA"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 197 '; then echo 'Run197 occupied before publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0217 '; then echo 'ADR-0217 occupied before publish'; exit 1; fi
+
+      - name: Upload Run197 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run197-gameplay-tick-freeze-shadow
+          path: |
+            artifacts/run197-gameplay-tick-freeze-shadow/proof.json
+            artifacts/run197-gameplay-tick-freeze-shadow/current-before.png
+            artifacts/run197-gameplay-tick-freeze-shadow/canonical-active.png
+            artifacts/run197-gameplay-tick-freeze-shadow/current-restored.png
+          if-no-files-found: error
+
+      - name: Record validated Run197 checkpoint on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN197_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN197_STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          export RUN197_SUMMARY RUN197_BUDGET_JSON RUN197_LIVE_MOBILE_JSON RUN197_SMOKE_PASS_COUNT RUN197_PERF_ROW
+          node scripts/recordRun197GameplayTickFreezeShadow.js
+          node scripts/checkLatestRunUniqueness.js
+          git diff --check "$BASE_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git commit -m 'docs(run197): record validated gameplay tick freeze checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 197 '; then echo 'Run197 occupied immediately before publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0217 '; then echo 'ADR-0217 occupied immediately before publish'; exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git tag "$RUN197_STABLE_TAG"
+          git push origin "$RUN197_STABLE_TAG" || echo '[run197] stable tag push unavailable; STABLE_TAGS record retained per governance known limitation.'
