@@ -13840,3 +13840,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0187. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: yol/orman/kale/NPC/event/hayvan 0; asset/diyalog 0; ADR +1; jump/physics regresyon kapsamı +1. Oyuncu farkı: görsel olarak hayır; zıplama kalkış/iniş clamp ve deterministik yörünge sözleşmesi artık kalıcı testle korunuyor.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız gameplay/core/UI kalite işi; başlamadan remote main ve paralel ajan branch'leri yeniden kontrol edilmeli.
+
+
+## Run 166 — Mobile jump control / FAZ 4 input parity (2026-08-08 06:11 UTC)
+- Alt görev: FAZ 4'ün masaüstünde Space ile çalışan mevcut edge-trigger zıplaması mobil/coarse-pointer oyunculara da açıldı. Mevcut `TouchJoystick` kendi yaşam döngüsü içinde 64px, native-button semantiğine sahip Türkçe `Zıpla` düğmesi oluşturuyor; tek dokunuş tek `consumeJumpRequested()` edge'i üretiyor. `game3d.js` yalnız iki additive satırla bu edge'i mevcut `keyboardAxes.jumpRequested` yoluna OR ediyor; player/physics runtime sözleşmesi değiştirilmedi.
+- Additive-only: mevcut kaynak satırı silinmedi/değiştirilmedi. `touchJoystick.js`, `game3d.js`, `controlsHelp.js`, `game3d.css` ve mevcut joystick regresyonuna yalnız yeni satırlar eklendi; yeni runtime modülü olmadığı için PWA precache listesi değişmedi.
+- DoD: node --check PASS; güncellenmiş touch-joystick + keyboard + jump-arc + health + EventBus kontratları PASS; yeni gerçek-mobile jump layout/click guard PASS; checkpoint/uniqueness, world-event determinism/catalog/diversity, PWA/cache, assets/dialogue, terrain/road, mobil streaming/LOD/culling/perf ve mevcut a11y regresyonları PASS; browser smoke 34/34+ PASS; 3D console/page error 0; additive-only PASS.
+- Görsel doğrulama: gerçek 390x844 mobile Chromium'da yakın + F4 uzak iki screenshot artifact üretildi; `Zıpla` butonu iki görünümde de joystick ve yardım düğmesinden ayrı, viewport/safe-area içinde kaldı. Layout guard: live mobile button 64x64px, no joystick/help overlap, click path clean..
+- Performans: 2026-08-08,run166,1,50,608296,48,17,368
+- Memory leak checklist: yeni timer/geometry/material yok; jump click listener `TouchJoystick.dispose()` içinde kaldırılıyor, pending edge temizleniyor ve jump DOM'u kaldırılıyor.
+- Teknik borç: 1 (`game3d.js` 547/600; owner yapısal kararını bekleyen mevcut borç, bu özellik zorunlu entegrasyonu yalnız 2 additive satır büyüttü). Risk LOW. Güven 5/5.
+- ADR: ADR-0188. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; mobil oyuncu kontrol kabiliyeti +1. Oyuncu farkı: EVET — telefonda oyuncu artık sağ alttaki `Zıpla` düğmesiyle masaüstündeki aynı ~1.2m fizik zıplamasını yapabiliyor.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız gameplay/core/UI kalite veya kullanıcı-değeri işi; başlamadan remote main ve paralel ajan branch'leri yeniden kontrol edilmeli.

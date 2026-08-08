@@ -370,6 +370,8 @@ export async function initGame3D() {
 			const previousTargetZ = state.controls.target.z;
 			// Jump is keyboard-only for now (`touchJoystick.js` has no jump button yet — see
 			// 3D_GAME_PROGRESS.md Known Issues) — read straight off `keyboardAxes`, not the merged `axes`.
+			// Run 166 supersedes the legacy keyboard-only note above: the mobile button feeds the same edge-trigger flag.
+			if (state.touchJoystick?.consumeJumpRequested()) keyboardAxes.jumpRequested = true;
 			state.player.update(delta, moveDirection, axes.running, keyboardAxes.jumpRequested);
 			// player.update() above already moved player.object3D synchronously this frame, so this
 			// read is current — safe to feed into each NPC's combat-stance check and each animal's

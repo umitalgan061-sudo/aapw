@@ -14616,3 +14616,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkJumpArcContract.js`, run165 CI/governance kayıtları. Runtime kaynak kodu etkilenmez.
 
 **Geri alma planı:** İleride jump entegrasyon modeli bilinçli olarak değiştirilirse yeni davranış için yeni additive test/ADR eklenir; mevcut guard tarihsel kontrat olarak tutulabilir veya owner onaylı test istisnası değerlendirilebilir.
+
+
+## ADR-0188 — Mobile jump control uses TouchJoystick-owned edge-trigger button (run 166)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Mobil/coarse-pointer input için ayrı bir yeni global input sistemi kurmak yerine mevcut `TouchJoystick`, aynı container'a 64px native `button` olarak `Zıpla` kontrolünü ekler ve `consumeJumpRequested()` ile tek-okumalık edge-trigger verir. `game3d.js` bu edge'i, zaten `player.update(..., jumpRequested)` çağrısına giden mevcut `keyboardAxes.jumpRequested` boolean'ına OR eder. Masaüstü Space yolu, `integrateJumpArc`, player movement ve joystick eksen sözleşmesi aynen korunur.
+
+**Neden:** Repo ve `game3d.js` açıkça zıplamanın yalnız masaüstü klavyesinde olduğunu belgeliyordu; mobil kontrol paritesi eksikti. Zıplama fiziği run 36'dan beri mevcut ve run 165'te ayrı kontratla korunuyor, dolayısıyla mobil için yeni fizik/animasyon üretmek yerine aynı edge'i ikinci bir giriş yüzeyinden beslemek en küçük ve en az riskli davranış değişikliğidir. `TouchJoystick` zaten yalnız coarse-pointer cihazlarda oluşturulup dispose edildiği için butonun yaşam döngüsü ve platform gate'i için ikinci bir sahip yaratılmaz.
+
+**Alternatifler:** (1) Yeni `TouchJumpButton` runtime modülü + ayrı game3d import/state/dispose wiring'i — gereksiz dosya/PWA-precache yükü ve `game3d.js`'de daha fazla satır. (2) Sentetik Space KeyboardEvent dispatch etmek — touch UI'yi klavye implementasyon ayrıntısına bağlayan dolaylı bir coupling, reddedildi. (3) Mobil zıplamayı kapalı tutmak — masaüstü/mobil gameplay kabiliyet eşitsizliğini sürdürür. (4) `combineAxes` sözleşmesini jump ile genişletmek — mevcut joystick `getAxes()` hareket-only sözleşmesini gereksiz yere değiştirir; ayrı edge consumer daha açık.
+
+**Sonuç:** Mobil oyuncu artık native, erişilebilir ve en az 44px hedefi aşan bir butonla mevcut zıplama mekaniğini kullanır. Tek dokunuş bir kez tüketilir; basılı tutma zincir-zıplama üretmez. Masaüstü, 2D oyun, seed/determinism, dünya üretimi ve PWA import grafiği değişmez. `game3d.js` 545→547 satır olur; 600 tavanı aşılmaz ve yeni teknik borç sayacı açılmaz.
+
+**Etkilenen sistemler:** `src/3d/ui/touchJoystick.js`, `src/3d/game3d.js`, `src/3d/ui/controlsHelp.js`, `game3d.css`, `scripts/checkTouchJoystickInputContract.js`, yeni `scripts/checkMobileJumpControl.js`, run166 CI/governance kayıtları.
+
+**Geri alma planı:** İleride mobil jump farklı bir input katmanına taşınırsa yeni katman eski edge consumer'ı additive bir feature gate ile no-op bırakabilir; mevcut satırların silinmesi/değiştirilmesi gerekmez.

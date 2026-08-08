@@ -570,3 +570,33 @@ html, body {
     bottom: max(168px, calc(env(safe-area-inset-bottom, 0px) + 168px));
   }
 }
+
+/* Run 166 / ADR-0188 — touch-primary FAZ 4 jump control. Kept clear of the bottom-left
+   movement joystick and bottom-right controls-help affordance; 64px exceeds the 44px touch target. */
+.g3d-touch-jump-button {
+  position: fixed;
+  right: max(72px, calc(env(safe-area-inset-right, 0px) + 72px));
+  bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 22px));
+  z-index: 23;
+  width: 64px;
+  height: 64px;
+  border: 1px solid rgba(200, 150, 10, 0.72);
+  border-radius: 50%;
+  background: rgba(10, 6, 2, 0.72);
+  color: #e8d4a0;
+  font: 700 13px/1 Georgia, 'Times New Roman', serif;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-touch-jump-button:active {
+  background: rgba(200, 150, 10, 0.28);
+  border-color: rgba(232, 212, 160, 0.9);
+}
+
+.g3d-touch-jump-button:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
+}

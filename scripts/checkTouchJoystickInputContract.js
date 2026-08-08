@@ -14,12 +14,17 @@ class FakeElement {
 		this.className = '';
 		this.classList = new FakeClassList();
 		this.style = {};
+		this.attributes = new Map();
+		this.textContent = '';
+		this.type = '';
 		this.removed = false;
 		this._listeners = new Map();
 		this.capturedPointerIds = [];
 	}
 	appendChild(child) { this.children.push(child); return child; }
 	addEventListener(type, handler) { this._listeners.set(type, handler); }
+	setAttribute(name, value) { this.attributes.set(name, String(value)); }
+	getAttribute(name) { return this.attributes.get(name) ?? null; }
 	removeEventListener(type, handler) {
 		if (this._listeners.get(type) === handler) this._listeners.delete(type);
 	}
@@ -40,6 +45,14 @@ const { TouchJoystick } = await import('../src/3d/ui/touchJoystick.js');
 const joystick = new TouchJoystick(body);
 assert.equal(body.children[0], joystick._base);
 assert.equal(joystick._base.children[0], joystick._knob);
+assert.equal(body.children[1], joystick._jumpButton);
+assert.equal(joystick._jumpButton.type, 'button');
+assert.equal(joystick._jumpButton.textContent, 'Zıpla');
+assert.equal(joystick._jumpButton.getAttribute('aria-label'), 'Zıpla');
+assert.equal(joystick.consumeJumpRequested(), false, 'jump starts unrequested');
+joystick._jumpButton.dispatch('click', {});
+assert.equal(joystick.consumeJumpRequested(), true, 'one tap produces one jump edge');
+assert.equal(joystick.consumeJumpRequested(), false, 'reading the jump edge consumes it');
 assert.deepEqual(joystick.getAxes(), { forward: 0, strafe: 0, running: false });
 
 let prevented = 0;
@@ -121,6 +134,9 @@ assert.equal(prevented, 4, 'only accepted pointerdown/move events prevent defaul
 
 joystick.dispose();
 assert.equal(joystick._base.removed, true);
+assert.equal(joystick._jumpButton.removed, true);
+assert.equal(joystick._jumpButton._listeners.has('click'), false, 'jump click listener removed on dispose');
+assert.equal(joystick.consumeJumpRequested(), false, 'dispose clears pending jump state');
 for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
 	assert.equal(joystick._base._listeners.has(type), false, `${type} listener removed on dispose`);
 }
