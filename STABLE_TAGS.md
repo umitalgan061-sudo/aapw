@@ -901,3 +901,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1940 — run 195 opt-in canonical replacement/rollback controller shadow proof (ADR-0215); exact current root/collider restoration, failure-safe rollback, pre/post render equality and full regression PASS; live runtime delta 0.
+
+
+- stable-2026-08-08-2025 — run 196 real current-runtime transaction preflight (ADR-0216); complete non-light current scene ownership + Run180 grass borrow/restore + instance-scoped ChunkManager pause/resume + input/physics freeze/restore + static byte-exact rollback/full submission equality PASS; live runtime delta 0.
