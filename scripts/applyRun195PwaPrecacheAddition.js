@@ -15,3 +15,4 @@ if (!source.includes(ENTRY)) {
 }
 
 console.log('[applyRun195PwaPrecacheAddition] PASS: opt-in migration controller shadow module is included in GAME3D_SHELL_FILES with one additive line.');
+// Run195 CI compatibility entrypoint is validated in the same additive branch.
