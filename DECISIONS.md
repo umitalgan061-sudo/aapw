@@ -14701,3 +14701,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkTerrainVisualContract.js`, run 170 CI workflow'u ve governance kayıtları. `src/3d/world/terrain.js`, 2D oyun, world seed, mobil LOD politikası, asset seti ve PWA import grafiği değişmez.
 
 **Geri alma planı:** terrain render sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
+
+
+## ADR-0193 — Rendered water has a live plane/shader/update contract (run 171)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkWaterVisualContract.js`, gerçek tarayıcı/import-map ortamında mevcut `createWater()` fonksiyonunu iki kez çağırır; 4000m x 4000m / 128x128 segment düz PlaneGeometry'nin 16641 vertex / 98304 index topolojisini, yukarı bakan finite normal ve UV aralığını, ShaderMaterial transparent/depthWrite/fog imzasını, shallow/deep color + sun/camera/time ve fog uniformlarını, vertex aşamasında zaman/trigonometri bulunmaması invariantını, fragment-only ripple/fog/output imzasını, aynı girdide deterministik geometry buffer'larını, `updateWater()` kamera-XZ + zaman + kamera-uniform kopyalama davranışını ve `disposeWater()` teardown olaylarını fail-fast regresyon sözleşmesi olarak doğrular. Runtime kaynağı değiştirilmez.
+
+**Neden:** mevcut smoke suite ADR-0048'i korumak için yalnız water vertex shader'ında `uTime`/`sin`/`cos` bulunmamasını doğruluyor; bu çok önemli ama su düzleminin topolojisi, material/fog/uniform sözleşmesi, fragment ripple yolu, camera-follow update'i veya dispose zinciri drift ederse aynı test bunu yakalamaz. Run 168-170 road/vegetation/terrain render boşluklarını canlı kontratlarla kapattığı için aynı dünya-render katmanının su tarafını runtime değişikliği yapmadan güvenceye almak düşük riskli ve anlamlı devam adımıdır.
+
+**Alternatifler:** piksel snapshot karşılaştırması headless/GPU farklarına kırılgandır; yalnız shader-source regex'i geometry/update/dispose zincirini ölçmez; mevcut smoke check'i büyütmek dolu smoke modüllerinde gereksiz satır-bütçesi baskısı yaratır; çalışan water runtime'ını refactor etmek additive-only altında gereksiz risk taşır.
+
+**Sonuç:** water plane topolojisi, düz-yüzey invariantı, fog/shader görünüm sözleşmesi, camera-follow update'i ve teardown davranışı CI'da canlı modül üzerinde korunur; runtime maliyeti sıfırdır. Bilinçli su sanat/shader değişiklikleri ileride yeni versioned checker/ADR ile açıkça sürümlenir.
+
+**Etkilenen sistemler:** yeni `scripts/checkWaterVisualContract.js`, run 171 CI workflow'u ve governance kayıtları. `src/3d/world/water.js`, 2D oyun, terrain/world seed, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
+
+**Geri alma planı:** water render sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
