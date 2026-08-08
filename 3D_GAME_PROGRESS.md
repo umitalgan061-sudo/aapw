@@ -13762,3 +13762,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0181. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: yol/orman/kale/NPC/event/hayvan 0; asset/diyalog 0; ADR +1; erişilebilirlik regresyon kapsamı +1. Oyuncu farkı: görsel olarak hayır; ekran okuyucu yardım düğmesi ile yönettiği paneli açıkça ilişkilendirebilir.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız UI/test-kalite işi veya FAZ 8 içerik kalite guard'ı; başlamadan remote main ve paralel ajan branch'leri yeniden kontrol edilmeli.
+
+
+## Run 160 — Interaction prompt keyboard accessibility (2026-08-08 01:28 UTC)
+- Alt görev: FAZ 5/8 HUD kalite erişilebilirliği — touch/click ile çalışabilen etkileşim promptu artık handler varken focusable button semantiği ve Enter/Space aktivasyonu sunuyor.
+- Additive-only: mevcut kaynak/test satırları silinmedi/değiştirilmedi; yalnız keyboard listener, semantik metadata, cleanup, regresyon ve CI/kayıt satırları eklendi.
+- DoD: node --check PASS; interaction-prompt a11y regresyonu PASS; checkpoint/uniqueness, world-event determinism/catalog/diversity, PWA/cache, assets/dialogue, terrain/road, mobil streaming/LOD/culling/perf ve mevcut a11y regresyonları PASS; browser smoke 34/34+ PASS; 3D console/page error 0; additive-only PASS.
+- Görsel doğrulama: CSS/layout/piksel üretimi değişmedi; baseline ve post-change gerçek Chromium/WebGL smoke aynı yolu doğruladı.
+- Performans: 2026-08-08,run160,1,50,608296,48,17,347
+- Memory leak checklist: yeni keydown listener dispose sırasında, mevcut pointer listener ile birlikte explicit kaldırılıyor; timer/geometry/material yok.
+- Teknik borç: 1 (game3d.js 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
+- ADR: ADR-0182. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: yol/orman/kale/NPC/event/hayvan 0; asset/diyalog 0; ADR +1; erişilebilirlik regresyon kapsamı güçlendirildi. Oyuncu farkı: görsel olarak hayır; klavye/switch kullanıcıları promptu Enter/Space ile çalıştırabilir.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız UI/test-kalite veya FAZ 8 içerik kalite işi; başlamadan remote main ve paralel ajan branch'leri yeniden kontrol edilmeli.

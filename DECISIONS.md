@@ -14514,3 +14514,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** `src/3d/ui/controlsHelp.js`, yeni `scripts/checkControlsHelpAccessibility.js`, run159 CI/kayıtları. 2D oyun, world generation, PWA/cache, gameplay ve seed davranışı etkilenmez.
 
 **Geri alma planı:** İleride ortak bir erişilebilirlik-id sağlayıcısı eklenirse yeni sağlayıcı, mevcut panel kimliği/`aria-controls` değerini additive biçimde devralabilir; var olan kaynak satırlarını silmek/değiştirmek gerekmez.
+
+
+## ADR-0182 — Etkileşim isteminde klavye erişilebilirliği (run 160)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `InteractionPrompt`, gerçek bir activation handler bağlıyken mevcut pointer davranışına ek olarak Enter/Space klavye aktivasyonunu kabul eder; aynı anda `role=button`, `tabindex=0` ve Türkçe `aria-label=Selamla` kullanır. Handler kaldırıldığında run156'nın salt durum bildirimi semantiğine geri döner.
+
+**Neden:** Mobil/PWA için tıklanabilir hale gelen aynı DOM yüzeyi klavye ile odaklanabilir/çalıştırılabilir değildi. Bu, mouse/touch ile klavye arasında işlev eşitsizliği yaratıyordu.
+
+**Alternatifler:** (1) Etkileşim promptunu gerçek `button` elementine dönüştürmek — additive-only kuralı nedeniyle mevcut DOM oluşturma satırını değiştirmek gerekir, reddedildi. (2) Yalnız `tabindex` eklemek — semantik ve Enter/Space davranışı eksik kalır. (3) Global yeni klavye listener — mevcut öğe yerelken gereksiz ve cleanup riski daha yüksek.
+
+**Sonuç:** Görsel düzen, E tuşu akışı, pointer davranışı ve gameplay değişmez; sadece mevcut prompt DOM'u handler varken klavye ile eşdeğer erişilebilir olur. Dispose iki yerel listener'ı açıkça temizler.
+
+**Etkilenen sistemler:** `src/3d/ui/interactionPrompt.js`, `scripts/checkInteractionPromptAccessibility.js`, run160 CI/kayıtları. 2D oyun, world generation, seed, PWA cache ve render bütçesi etkilenmez.
+
+**Geri alma planı:** İleride prompt gerçek bir native button bileşenine additive bir sarmalayıcıyla taşınırsa yeni katman bu semantiği devralabilir; mevcut satırların silinmesi/değiştirilmesi gerekmez.

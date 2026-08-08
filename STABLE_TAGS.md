@@ -817,3 +817,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-07-2358 — run 158 settlement compass quiet accessible status semantics (ADR-0180) + CATCH_UP.md refresh; 34/34 browser smoke, additive-only/PWA/mobile/governance/a11y gates all PASS. (Local tag only — `git push origin <tag>` HTTP 403 per known §8.11 constraint.)
 
 - stable-2026-08-08-0030 — run 159 controls-help trigger/panel accessibility (ADR-0181); 34/34+ browser smoke, additive-only/PWA/mobile/governance/a11y gates PASS.
+
+- stable-2026-08-08-0128 — run 160 interaction-prompt keyboard accessibility (ADR-0182); 34/34+ browser smoke, additive-only/PWA/mobile/governance/a11y gates PASS.
