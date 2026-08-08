@@ -1,0 +1,197 @@
+name: Run 182 Seat Safe Hydrology Extent
+on:
+  push:
+    branches: [agent/run182-seat-safe-hydrology-extent]
+    paths:
+      - 'src/3d/world/worldReferenceHydrology.js'
+      - 'src/3d/world/worldReferenceExtent.js'
+      - 'scripts/checkWorldReferenceHydrologyExtent.js'
+      - 'scripts/applyRun182Additions.js'
+      - 'scripts/recordRun182Governance.js'
+      - '.github/workflows/run182-seat-safe-hydrology-extent.yml'
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      BASE_SHA: 48feb96fad5dddf1787ff94c931d7e3b3300dfe8
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Snapshot + start concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git log -10 --oneline
+          tail -n 200 GOVERNANCE.md
+          tail -n 200 3D_GAME_PROGRESS.md
+          tail -n 180 DECISIONS.md
+          tail -n 150 QUESTIONS_FOR_OWNER.md
+      - name: Baseline smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run182-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run182-before.log" && test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run182-before.log")" -ge 34)
+          git worktree remove "$BASELINE"
+      - name: Apply additive records
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferenceHydrology.js
+          node --check src/3d/world/worldReferenceExtent.js
+          node --check scripts/checkWorldReferenceHydrologyExtent.js
+          node --check scripts/applyRun182Additions.js
+          node --check scripts/recordRun182Governance.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          node scripts/applyRun182Additions.js
+          node --check service-worker.js
+          grep -F "./src/3d/world/worldReferenceHydrology.js" service-worker.js
+          grep -F "./src/3d/world/worldReferenceExtent.js" service-worker.js
+          test "$(git diff --numstat -- service-worker.js WORLD_REFERENCE_MAP.md | awk '{s += $2} END {print s + 0}')" -eq 0
+          git diff --check
+      - name: Reference hydrology and extent contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js | tee "$RUNNER_TEMP/run182-contract.log"
+          SUMMARY="$(grep '^\[checkWorldReferenceHydrologyExtent\] PASS:' "$RUNNER_TEMP/run182-contract.log" | tail -n1 | sed 's/^\[checkWorldReferenceHydrologyExtent\] PASS: //')"
+          test -n "$SUMMARY"
+          echo "RUN182_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+      - name: World governance PWA visual gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkSkyVisualContract.js
+          node scripts/checkFogVisualContract.js
+          node scripts/checkLightingVisualContract.js
+          node scripts/checkStarfieldVisualContract.js
+          node scripts/checkCameraContract.js
+      - name: Accessibility input physics gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkControlsHelpAccessibility.js
+          node scripts/checkJumpArcContract.js
+          node scripts/checkEventBusContract.js
+          node scripts/checkHealthStateContract.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkMobileJumpControl.js
+      - name: Mobile streaming LOD perf gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js
+      - name: After smoke and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run182-after.log"
+          COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run182-after.log")"
+          test "$COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run182-after.log" | grep -F 'zero console/page errors'
+          echo "RUN182_SMOKE_PASS_COUNT=$COUNT" >> "$GITHUB_ENV"
+      - name: Mobile visual evidence
+        run: node scripts/captureRun130MobileEvidence.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: run182-seat-safe-hydrology-extent-evidence
+          path: artifacts/run130-mobile/*.png
+          if-no-files-found: error
+      - name: Perf snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run182 | tee "$RUNNER_TEMP/run182-perf.log"
+          node scripts/analyzePerfTrend.js
+          ROW="$(grep '^\[collectPerfSnapshot\] sampled:' "$RUNNER_TEMP/run182-perf.log" | tail -n1 | sed 's/^\[collectPerfSnapshot\] sampled: //')"
+          test "$(printf '%s\n' "$ROW" | awk -F',' '{print NF}')" -eq 8
+          echo "RUN182_PERF_ROW=$ROW" >> "$GITHUB_ENV"
+          git checkout -- perf_log.csv
+      - name: Self-review + final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/worldReferenceHydrology.js src/3d/world/worldReferenceExtent.js scripts/checkWorldReferenceHydrologyExtent.js scripts/applyRun182Additions.js scripts/recordRun182Governance.js; then exit 1; fi
+          test "$(git diff --numstat -- service-worker.js WORLD_REFERENCE_MAP.md | awk '{s += $2} END {print s + 0}')" -eq 0
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          echo "RUN182_STAMP=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+          echo "RUN182_STABLE_TAG=stable-$(date -u +'%Y-%m-%d-%H%M')" >> "$GITHUB_ENV"
+      - name: Record governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/recordRun182Governance.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkCheckpointConsistency.js
+      - name: Commit and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add service-worker.js WORLD_REFERENCE_MAP.md 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          git commit -m "feat(world): record seat-safe hydrology and full extent plan"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git push origin HEAD:agent/run182-seat-safe-hydrology-extent
+      - name: Best-effort stable tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag "$RUN182_STABLE_TAG"
+          git push origin "$RUN182_STABLE_TAG" || true

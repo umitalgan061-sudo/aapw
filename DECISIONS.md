@@ -14860,3 +14860,22 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Tam haritanın 3D'leştirilmesi sırasında doğu/güney bölgelerinin yanlış world noktalarına sıkıştırılması engellenir. Full-map extent büyütmesi daha sonra aynı reference transform üzerinde yapılabilir; transform tekrar icat edilmez.
 
 **Geri alma planı:** 2D shell bir gün map canvas boyutunu veya background sizing modunu değiştirirse yeni versioned alignment contract eklenir ve CSS guard buna göre güncellenir. Mevcut contract silinmez; eski kayıtlar hangi harita sürümünde hangi dönüşümün geçerli olduğunu korur.
+
+
+## ADR-0202 — Preserve raw coastline mask; compose settlement protection and target full-map scale at 137.5 km² (run 182)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Run179'un checksum'lı 96x64 maskesi immutable kalır. Coarse rasterın zorunlu kara noktalarını boğmasını önlemek için yeni hydrology layer caller-supplied protected reference sites üzerinde smooth elliptical land weight uygular; raw data hiçbir zaman sessizce düzeltilmez. Validation protected radius'u mevcut `SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS=75` değerinden okur ve doğru run181 coordinate transformuyla 14 seat'e uygular. Tam owner-map 3D extent planı, 9000x7000 canvası mevcut ~137.5 km² hedefe sığdırmak için `sqrt(137.5e6/(9000*7000)) = 1.4773421007 m/map-unit` kullanır; 500m chunk grid 27×21 olur. Bu run runtime WORLD_SCALE/terrain/water değiştirmez.
+
+**Neden:** `balon` küçük ada ve `jon` kuzey kıyı/kar sınırı coarse maskte suya düşüyor; canonical settlement'ı taşımak veya raw mask checksum'ını oynatmak yerine safety overlay daha denetlenebilir. Öte yandan full 9000x7000 map mevcut 1.75 m/unit ile ~192.9 km² olup 150 km² sınırını aşar; 137.5 km² hedef ölçek tam haritayı ~13.296×10.341 km'ye indirir ve mevcut ~129.8 km² crop'tan yalnız ~%5.9 daha büyük alan ister.
+
+**Alternatifler:** raw mask bitlerini elle değiştirmek reddedildi (source truth kaybolur); seats'i taşımak reddedildi (2D/canonical davranış); 1.75 m/unit ile full map reddedildi (>150 km²); yalnız current crop'u sürdürmek reddedildi (owner tam map hedefi karşılanmaz); runtime migration'ı aynı committe yapmak reddedildi (yüksek etki, ayrı pre/post safety gerektirir).
+
+**Sonuç:** Hydrology artık seat-safe biçimde compose edilebilir ve full-map extent'in bütçe içinde matematiksel hedefi nettir; fakat canlı terrain henüz değişmez.
+
+**Etkilenen sistemler:** yeni hydrology/extent modülleri ve check, PWA precache, WORLD_REFERENCE_MAP ve governance ledgers. Runtime scene/terrain/water/road/settlement/gameplay değişmez.
+
+**Gelecek Faz Etkisi:** Mountain/biome/river/road katmanları tam reference extent'e ortak bir ölçekle taşınabilir; seat protection aynı zamanda gelecekte mağara/landmark gibi zorunlu kara anchor'larına genellenebilir.
+
+**Geri alma planı:** Runtime consumer yok; yanlış radius/extent politikası kanıtlanırsa yeni versioned policy/ADR eklenir. Raw run179 mask ve run181 alignment değişmeden kalır.
