@@ -18,6 +18,15 @@ def insert_after(path: str, anchor: str, addition: str) -> None:
     write(path, content.replace(anchor, anchor + addition, 1))
 
 
+def insert_before(path: str, anchor: str, addition: str) -> None:
+    content = read(path)
+    if addition.strip() in content:
+        return
+    if anchor not in content:
+        raise RuntimeError(f'Anchor not found in {path}: {anchor!r}')
+    write(path, content.replace(anchor, addition + anchor, 1))
+
+
 def append_once(path: str, marker: str, addition: str) -> None:
     content = read(path)
     if marker in content:
@@ -44,9 +53,9 @@ insert_after(
     "\t\tcontainer.appendChild(this._jumpButton);\n",
 )
 
-insert_after(
+insert_before(
     'src/3d/ui/touchJoystick.js',
-    "\t}\n\n\t/** Removes DOM elements and listeners. Call on teardown (memory-leak checklist). */\n",
+    "\t/** Removes DOM elements and listeners. Call on teardown (memory-leak checklist). */\n",
     "\t/** Returns one edge-triggered mobile jump request and clears it immediately. */\n"
     "\tconsumeJumpRequested() {\n"
     "\t\tconst requested = this._jumpRequested;\n"
