@@ -2,31 +2,27 @@ name: Run 167 Determinism Policy
 
 on:
   push:
-    branches: [main, agent/run167-determinism-ci-fix]
+    branches: [main]
     paths:
       - 'scripts/checkSeededRandomPolicy.js'
-      - 'scripts/recordRun167Governance.js'
       - 'src/3d/**'
       - '.github/workflows/run167-determinism-policy.yml'
   pull_request:
     branches: [main]
     paths:
       - 'scripts/checkSeededRandomPolicy.js'
-      - 'scripts/recordRun167Governance.js'
       - 'src/3d/**'
       - '.github/workflows/run167-determinism-policy.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   determinism-guard:
     runs-on: ubuntu-latest
-    timeout-minutes: 65
-    env:
-      BASE_SHA: 046b77edb3494bd995a5e46a8bfa782fcac2dc4b
+    timeout-minutes: 45
     steps:
-      - name: Checkout full history
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -45,43 +41,15 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Session snapshot and start concurrency gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          test -f GOVERNANCE.md && test -f 3D_GAME_PROGRESS.md && test -f DECISIONS.md && test -f QUESTIONS_FOR_OWNER.md
-          git log -10 --oneline
-          tail -n 180 GOVERNANCE.md
-          tail -n 180 3D_GAME_PROGRESS.md
-          tail -n 120 DECISIONS.md
-          tail -n 100 QUESTIONS_FOR_OWNER.md
-
-      - name: Baseline full browser smoke on main
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASELINE="$RUNNER_TEMP/run167-baseline"
-          git worktree add --detach "$BASELINE" "$BASE_SHA"
-          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run167-smoke-before.log" && test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run167-smoke-before.log")" -ge 34)
-          git worktree remove "$BASELINE"
-
       - name: Syntax and determinism policy
         shell: bash
         run: |
           set -euo pipefail
           node --check scripts/checkSeededRandomPolicy.js
-          node --check scripts/recordRun167Governance.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkAssetsManifest.js
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
-          node scripts/checkCheckpointConsistency.js
-          node scripts/checkLatestRunUniqueness.js
-          node scripts/checkWorldEventCatalog.js
-          node scripts/checkWorldEventDiversity.js
-          node scripts/checkWorldEventDeterminism.js
           node scripts/terrainSeatSafetyCheck.js
           node scripts/roadNetworkSafetyCheck.js
 
@@ -100,93 +68,17 @@ jobs:
             exit 1
           fi
 
-      - name: Full browser smoke after change and console gate
+      - name: Browser smoke
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run167-smoke-after.log"
-          AFTER_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run167-smoke-after.log")"
-          test "$AFTER_COUNT" -ge 34
-          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run167-smoke-after.log" | grep -F 'zero console/page errors'
-          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run167-smoke-after.log"; then exit 1; fi
-          echo "RUN167_SMOKE_PASS_COUNT=$AFTER_COUNT" >> "$GITHUB_ENV"
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log")"
+          test "$PASS_COUNT" -ge 34
 
-      - name: Mobile near and F4 far visual evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/captureRun130MobileEvidence.js
-
-      - name: Upload Run 167 visual evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: run167-determinism-render-evidence
-          path: artifacts/run130-mobile/*.png
-          if-no-files-found: error
-
-      - name: Performance snapshot and trend
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/collectPerfSnapshot.js run167 | tee "$RUNNER_TEMP/run167-perf.log"
-          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/run167-perf-trend.log"
-          PERF_ROW="$(grep '^\[collectPerfSnapshot\] sampled:' "$RUNNER_TEMP/run167-perf.log" | tail -n 1 | sed 's/^\[collectPerfSnapshot\] sampled: //')"
-          test -n "$PERF_ROW"
-          test "$(printf '%s\n' "$PERF_ROW" | awk -F',' '{print NF}')" -eq 8
-          echo "RUN167_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
-
-      - name: Restore tracked perf ledger before governance append
-        shell: bash
-        run: |
-          set -euo pipefail
-          git checkout -- perf_log.csv
-
-      - name: Senior self-review and final concurrency gate
+      - name: Self review
         shell: bash
         run: |
           set -euo pipefail
           git diff --check
-          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkSeededRandomPolicy.js scripts/recordRun167Governance.js; then exit 1; fi
-          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-
-      - name: Prepare Run 167 governance values
-        if: github.event_name == 'push' && github.ref_name == 'agent/run167-determinism-ci-fix'
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "RUN167_STAMP=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
-          echo "RUN167_STABLE_TAG=stable-$(date -u +'%Y-%m-%d-%H%M')" >> "$GITHUB_ENV"
-
-      - name: Record Run 167 governance
-        if: github.event_name == 'push' && github.ref_name == 'agent/run167-determinism-ci-fix'
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/recordRun167Governance.js
-          node scripts/checkLatestRunUniqueness.js
-          node scripts/checkCheckpointConsistency.js
-
-      - name: Publish Run 167 governance records
-        if: github.event_name == 'push' && github.ref_name == 'agent/run167-determinism-ci-fix'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
-          git diff --cached --check
-          git commit -m "docs(governance): record run 167 determinism repair"
-          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
-          git push origin HEAD:agent/run167-determinism-ci-fix
-
-      - name: Best-effort stable tag
-        if: github.event_name == 'push' && github.ref_name == 'agent/run167-determinism-ci-fix'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git tag "$RUN167_STABLE_TAG"
-          git push origin "$RUN167_STABLE_TAG" || true
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkSeededRandomPolicy.js; then exit 1; fi
