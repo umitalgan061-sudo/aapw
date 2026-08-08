@@ -1,0 +1,171 @@
+name: Run 192 Road Bridge Scene Shadow V2
+
+on:
+  push:
+    branches: [chatgpt/run192-road-bridge-scene-shadow]
+    paths:
+      - '.github/workflows/run192-road-bridge-scene-shadow-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: 8626dd011e9b8b8f44fb693372d2edfbde6b8f1b
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and start concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F '## Run 191 — Owner-approved medieval stone arch bridges for canonical road/water crossings' 3D_GAME_PROGRESS.md
+          grep -F '## ADR-0211 — Resolve canonical road/water policy as medieval stone arch bridges and prove the geometry off-runtime (run 191)' DECISIONS.md
+          grep -F '✅ ÇÖZÜLDÜ (run 188, ADR-0208 → run 191, ADR-0211)' QUESTIONS_FOR_OWNER.md
+          if grep -q '^## Run 192 ' 3D_GAME_PROGRESS.md; then echo 'Run192 already occupied on main'; exit 1; fi
+          if grep -q '^## ADR-0212 ' DECISIONS.md; then echo 'ADR-0212 already occupied on main'; exit 1; fi
+          node --check scripts/checkCanonicalRoadBridgeSceneShadow.js
+          node --check scripts/recordRun192RoadBridgeSceneShadow.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Baseline full browser smoke on Run 191 main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run192-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run192-smoke-before.log")
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run192-smoke-before.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run192-smoke-before.log" | grep -F 'zero console/page errors'
+          git worktree remove "$BASELINE"
+
+      - name: Canonical road bridge scene integration shadow proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCanonicalRoadBridgeSceneShadow.js | tee "$RUNNER_TEMP/run192-scene.log"
+          grep -F '[checkCanonicalRoadBridgeSceneShadow] CORE:' "$RUNNER_TEMP/run192-scene.log"
+          grep -F '[checkCanonicalRoadBridgeSceneShadow] PASS:' "$RUNNER_TEMP/run192-scene.log"
+          test -s artifacts/run192-road-bridge-scene-shadow/proof.json
+          test -s artifacts/run192-road-bridge-scene-shadow/road-bridge-near.png
+          test -s artifacts/run192-road-bridge-scene-shadow/road-bridge-far.png
+
+      - name: Canonical world and visual regression gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkFullReferenceMigrationDryRun.js
+          node scripts/checkWorldReferenceMigrationDryRun.js
+          node scripts/checkCanonicalHydrologyTerrainShadow.js
+          node scripts/checkCanonicalChunkIntegrationShadow.js
+          node scripts/checkRoadWaterPolicyComparison.js
+          node scripts/checkCanonicalRockPlacementShadow.js --verify-fixture
+          node scripts/checkCanonicalRockGeometryShadow.js --verify-fixture
+          node scripts/checkCanonicalStoneBridgeShadow.js --verify-fixture
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkSkyVisualContract.js
+          node scripts/checkFogVisualContract.js
+          node scripts/checkLightingVisualContract.js
+          node scripts/checkStarfieldVisualContract.js
+          node scripts/checkCameraContract.js
+          node scripts/checkWindGrassContractRun180.js
+          node scripts/checkWindGrassSceneIntegrationRun180.js
+
+      - name: Determinism PWA accessibility input and physics gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkAccessibility.js
+          node scripts/checkInputContract.js
+          node scripts/checkPhysicsContract.js
+
+      - name: Mobile streaming and performance budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run192-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run192-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          CORE="$(grep '^\[checkCanonicalRoadBridgeSceneShadow\] CORE:' "$RUNNER_TEMP/run192-scene.log" | tail -n1 | sed 's/^\[checkCanonicalRoadBridgeSceneShadow\] CORE: //')"
+          node -e 'const live=JSON.parse(process.argv[1]); const core=JSON.parse(process.argv[2]); const drawCalls=live.drawCalls+core.drawCalls; const triangles=live.triangles+core.triangles; console.log(`[run192-mobile-composed] live=${JSON.stringify(live)} core=${JSON.stringify(core)} composed=${JSON.stringify({drawCalls,triangles})}`); if(drawCalls>=500||triangles>=500000) process.exit(1)' "$LIVE" "$CORE"
+
+      - name: Full browser smoke and console gate after proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run192-smoke-after.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run192-smoke-after.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run192-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run192-smoke-after.log"; then exit 1; fi
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run192 | tee "$RUNNER_TEMP/run192-perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/run192-trend.log"
+          grep -F '[collectPerfSnapshot] sampled:' "$RUNNER_TEMP/run192-perf.log"
+          git checkout -- perf_log.csv
+
+      - name: Senior self-review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkCanonicalRoadBridgeSceneShadow.js scripts/recordRun192RoadBridgeSceneShadow.js; then exit 1; fi
+          node scripts/checkCanonicalRoadBridgeSceneShadow.js > "$RUNNER_TEMP/run192-scene-final.log"
+          grep -F '[checkCanonicalRoadBridgeSceneShadow] PASS:' "$RUNNER_TEMP/run192-scene-final.log"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+
+      - name: Upload Run 192 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run192-road-bridge-scene-shadow-v2
+          path: |
+            artifacts/run192-road-bridge-scene-shadow/proof.json
+            artifacts/run192-road-bridge-scene-shadow/road-bridge-near.png
+            artifacts/run192-road-bridge-scene-shadow/road-bridge-far.png
+          if-no-files-found: error
