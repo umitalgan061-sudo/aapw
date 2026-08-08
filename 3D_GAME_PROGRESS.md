@@ -14064,3 +14064,19 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Teknik borç: 1 (mevcut game3d.js yapısal borcu). Risk LOW. Güven 5/5. ADR: ADR-0203. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report: fiziksel grass/wind +1; road/terrain relief/castle/NPC/event/animal/coverage/asset/dialogue 0; ADR +1. Oyuncu farkı: EVET — açık arazide fiziksel çimen görünür ve doğal rüzgârla salınır.
 - Sıradaki güvenli adım: canonical full-map migrationı runtimea bağlamadan önce Run182 kararındaki dry-run re-center/scale proof; sanat sırasındaki taş/kaya ve makro relief işi de aynı terrain-safety kanıtlarıyla hazırlanabilir.
+
+
+## Run 184 — Canonical full-map migration dry-run safety + road transform proof (2026-08-08 12:48 UTC)
+- Run182/ADR-0202 tarafından zorunlu bırakılan runtime-öncesi full-reference migration kanıtı tamamlandı. Bu run WORLD_SCALE, CHUNK_CONFIG, terrain, water, roads, settlements veya 2D runtime davranışını değiştirmez.
+- Dry-run: target 137.5 km² (13296x10341m), scale ratio=0.844195486; seat transform/hydrology 14/14; road MST topology/endpoints 13/13 preserved; max transform error=6.82e-13m, pair-scale error=1.82e-12m. This is a dry-run proof only; slope-aware routed grades remain a mandatory gate when runtime terrain scale is actually migrated.
+- Seat safety: gerçek KINGDOM_SEATS + exact 9000x7000 reference alignment + 137.5 km² extent plan birlikte çalıştırıldı; hedef-scale seat-safe hydrology 14/14 land ve reference round-trip korunur.
+- Road transform proof: gerçek roads.js::computeSeatMST mevcut world coordinates ve full-reference target coordinates üzerinde çalıştırıldı; 13/13 edge sırası/topolojisi ve tüm endpoint reference koordinatları uniform scale+translation altında korunur. Bu yalnız topology/endpoint proof’tur; slope-aware routed grade gerçek runtime migration sırasında yeniden roadNetworkSafetyCheck ile zorunlu doğrulanacaktır.
+- Additive-only: yalnız yeni checker, recorder ve Run184 CI dosyaları eklendi; mevcut source/runtime satırı silinmedi veya değiştirilmedi.
+- DoD: node --check PASS; baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; canonical map/mask/alignment/hydrology/extent + Run184 migration proof + terrain/road + visual contracts + grass + determinism/assets/a11y/input/physics + mobile streaming/LOD/culling/perf + PWA/cache + additive-only kapıları PASS.
+- Görsel doğrulama: runtime-neutral değişiklikte gerçek 390x844 mobile Chromium yakın + F4 uzak iki screenshot artifact yeniden üretildi; görsel/runtime delta beklenmedi ve console/page error 0 kaldı.
+- Mobil performans: live mobile F2 35 draw calls / 195929 triangles, both under GOVERNANCE mobile budgets (<500 / <500K); runtime-neutral proof adds zero render cost.
+- Performans: 2026-08-08,run184,1,51,688296,49,17,368. Runtime code değişmediği için yeni draw/triangle/geometry/texture maliyeti eklenmedi.
+- Memory leak checklist: yeni runtime listener/timer/DOM/geometry/material yok; checker Playwright browser/server kaynaklarını finally ile kapatır.
+- Teknik borç: 1 (mevcut game3d.js yapısal borcu). Risk LOW. Güven 5/5. ADR: ADR-0204. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report: runtime world delta 0; migration-safety proof +1; ADR +1. Oyuncu farkı: HAYIR — bu run yalnız gelecekteki canonical full-map migration için kanıt/guard ekler.
+- Sıradaki güvenli adım: actual runtime migration’dan önce canonical hydrology-aware target terrain sampler için opt-in shadow/dry-run adapter hazırlanabilir; ardından aynı committe değil, ayrı yüksek-etki runında WORLD_SCALE/chunk extent migration + pre/post 14-seat + routed-road grade + determinism + mobile budget + visual proof uygulanmalıdır.
