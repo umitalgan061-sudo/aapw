@@ -14599,3 +14599,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkHealthStateContract.js`, run164 CI/governance kayıtları. Runtime kaynak kodu etkilenmez.
 
 **Geri alma planı:** İleride health sözleşmesi bilinçli olarak değişirse yeni davranış için yeni additive test/ADR eklenir; mevcut guard tarihsel kontrat olarak tutulabilir veya owner onaylı test istisnası değerlendirilebilir.
+
+
+## ADR-0187 — Jump arc contract regression guard (run 165)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Mevcut `physics.js` runtime kodunu değiştirmeden; `integrateJumpArc` için semi-implicit gravity/height entegrasyon sırasını, yükseliş ve iniş durumunu, tam/overstep inişte yükseklik ve dikey hızın sıfıra clamp edilmesini, sonlu bir zıplamanın mutlaka yere dönmesini ve aynı girdilerin bit-eşit deterministik yörünge üretmesini tek bir Node regresyon testiyle sabitle.
+
+**Neden:** FAZ 4 oyuncu zıplaması, `gameplay/player.js` içinde her frame bu saf fizik fonksiyonuna dayanır. Browser smoke hareket yolunu dolaylı olarak çalıştırsa da gravity entegrasyon sırası, zeminin altına taşmama ve aynı başlangıç koşullarında aynı frame-yörüngesini üretme sözleşmesi izole biçimde pinlenmiyordu. Health/EventBus/input kontratlarından sonra oyuncu kontrol zincirindeki bir sonraki saf ve kritik sınır budur.
+
+**Alternatifler:** (1) Player runtime'ını/refactor'ını değiştirmek — ihtiyaç yok ve additive-only altında gereksiz risk. (2) Yalnız browser smoke'a güvenmek — frame-seviyeli yörünge ve landing clamp ayrıntılarını izole etmez. (3) Tam görsel jump testi — daha pahalı ve saf matematik sözleşmesini daha az açıklayıcı test eder; gerçek Chromium/WebGL yolu yine full smoke ile ayrıca doğrulanır.
+
+**Sonuç:** Oyuncu davranışı, render, PWA cache, dünya seed/determinism ve 2D oyun değişmez; zıplama fizik regresyonları daha erken ve açıklayıcı yakalanır.
+
+**Etkilenen sistemler:** yeni `scripts/checkJumpArcContract.js`, run165 CI/governance kayıtları. Runtime kaynak kodu etkilenmez.
+
+**Geri alma planı:** İleride jump entegrasyon modeli bilinçli olarak değiştirilirse yeni davranış için yeni additive test/ADR eklenir; mevcut guard tarihsel kontrat olarak tutulabilir veya owner onaylı test istisnası değerlendirilebilir.

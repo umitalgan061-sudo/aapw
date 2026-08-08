@@ -13827,3 +13827,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0186. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: yol/orman/kale/NPC/event/hayvan 0; asset/diyalog 0; ADR +1; health/gameplay regresyon kapsamı +1. Oyuncu farkı: görsel olarak hayır; hasar clamp, tek-sefer ölüm, heal/reset yeniden-silahlanma ve dispose davranışı artık kalıcı testle korunuyor.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız gameplay/core/UI kalite işi; başlamadan remote main ve paralel ajan branch'leri yeniden kontrol edilmeli.
+
+
+## Run 165 — Jump arc contract regression guard (2026-08-08 05:52 UTC)
+- Alt görev: FAZ 4 oyuncu zıplama/fizik zincirindeki saf `integrateJumpArc` davranışı için kalıcı düşük-seviye regresyon kontratı eklendi; runtime kaynak satırı değiştirilmedi.
+- Additive-only: yalnız yeni test/CI/governance dosyaları ve append-only kayıtlar eklendi; mevcut kaynak satırı silinmedi/değiştirilmedi.
+- DoD: node --check PASS; jump arc + health state + EventBus + keyboard/touch input kontratları PASS; checkpoint/uniqueness, world-event determinism/catalog/diversity, PWA/cache, assets/dialogue, terrain/road, mobil streaming/LOD/culling/perf ve mevcut a11y regresyonları PASS; browser smoke 34/34+ PASS; 3D console/page error 0; additive-only PASS.
+- Görsel doğrulama: runtime/CSS/render üretimi değişmedi; baseline ve post-change gerçek Chromium/WebGL smoke aynı görsel yolu doğruladı.
+- Performans: 2026-08-08,run165,1,50,608296,48,17,307
+- Memory leak checklist: yeni runtime listener/timer/DOM/geometry/material eklenmedi; saf fizik guard'ı shared state/resource oluşturmadan çalışır.
+- Teknik borç: 1 (game3d.js 545/600 owner kararı bekliyor). Risk LOW. Güven 5/5.
+- ADR: ADR-0187. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: yol/orman/kale/NPC/event/hayvan 0; asset/diyalog 0; ADR +1; jump/physics regresyon kapsamı +1. Oyuncu farkı: görsel olarak hayır; zıplama kalkış/iniş clamp ve deterministik yörünge sözleşmesi artık kalıcı testle korunuyor.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız gameplay/core/UI kalite işi; başlamadan remote main ve paralel ajan branch'leri yeniden kontrol edilmeli.
