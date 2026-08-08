@@ -13952,3 +13952,17 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0195. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: fog/sky/water/terrain/yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; fog visual regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak fog tipi, day/night yoğunluk rampası, sky-horizon renk senkronizasyonu ve mesafe falloff regresyonlarının main'e sızma riski azaldı.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan lighting/day-night gibi kalan bağımsız world/render kontrat boşluklarını güncel main üzerinde yeniden sırala; başlamadan ve yayınlamadan önce eşzamanlılık kapısını uygula.
+
+
+## Run 174 — Day/night lighting visual regression contract (2026-08-08 09:26 UTC)
+- Alt görev: gerçek `createDayNightLighting()` / `updateDayNightLighting()` / `disposeDayNightLighting()` çıktısını tarayıcı içinde doğrulayan additive-only `scripts/checkLightingVisualContract.js` eklendi. Kontrat DirectionalLight + HemisphereLight oluşturma/sahne üyeliğini, mevcut day/night keyframe renk-intensity interpolasyonunu, nightFactor + horizon/zenith senkronunu, 500m güneş yörüngesini, pozitif/negatif zaman wraparound'unu, bağımsız lighting instance durumunu ve teardown zincirini doğruluyor.
+- Runtime/2D/PWA davranışı değiştirilmedi; `src/3d/lighting.js`, day/night keyframe sabitleri, sky/fog/water/terrain, mobil radius/LOD ve owner kalibrasyon değerlerine dokunulmadı. Owner kararı bekleyen radius-5, game3d.js yapısal borcu ve world-event checksum maddeleri aynen bırakıldı.
+- Additive-only: yayınlanan dal yalnız yeni checker, yeni run workflow'u ve yeni governance recorder ekledi; mevcut source satırı silinmedi/değiştirilmedi.
+- DoD: node --check PASS; Directional+Hemisphere lights, midnight/noon nightFactor 1.00→0.00, sun intensity 0.05→1.40, dawn-mid 0.675, dusk-mid 0.675, ±time wrap + 500m sun orbit + teardown PASS.; baseline + after browser smoke 34/34+ PASS; 3D console/page error 0; determinism, assets, accessibility, input/physics, mobile streaming/LOD/perf, terrain-seat/terrain-visual, road-network/road-visual, vegetation-visual, water-visual, sky-visual, fog-visual, lighting-visual, PWA installability/cache ve additive-only kapıları PASS.
+- Görsel doğrulama: 390x844 mobile Chromium yakın + F4 uzak render kanıtı artifact olarak üretildi; runtime görseli değişmediği için no-delta regresyon kanıtıdır.
+- Performans: 2026-08-08,run174,1,50,608296,48,17,326
+- Memory leak checklist: runtime allocation eklenmedi; DirectionalLight/HemisphereLight geometry/texture/shadow-map taşımıyor ve checker dispose sonrası iki light node'un da scene parent'ından ayrıldığını doğruluyor.
+- Teknik borç: 1 (önceden var olan `game3d.js` yapısal borcu); run 174 yeni runtime borcu eklemedi. Risk LOW. Güven 5/5.
+- ADR: ADR-0196. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: lighting/fog/sky/water/terrain/yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; day/night lighting regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak güneş/hemisphere ışık tipi, keyframe renk-intensity geçişleri, sun-orbit ve sky-gradient senkron regresyonlarının main'e sızma riski azaldı.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan stars/camera gibi kalan bağımsız world/render kontrat boşluklarını güncel main üzerinde yeniden sırala; başlamadan ve yayınlamadan önce eşzamanlılık kapısını uygula.

@@ -14752,3 +14752,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkFogVisualContract.js`, run 173 CI workflow'u ve governance kayıtları. `src/3d/fog.js`, 2D oyun, lighting/sky/water/terrain runtime'ı, dünya seed'i, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
 
 **Geri alma planı:** fog render sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
+
+
+## ADR-0196 — Day/night lighting has a live keyframe, sun-orbit and sky-sync contract (run 174)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkLightingVisualContract.js`, gerçek tarayıcı/import-map ortamında mevcut `createDayNightLighting()` / `updateDayNightLighting()` / `disposeDayNightLighting()` fonksiyonlarını çağırır; DirectionalLight + HemisphereLight tip/sahne üyeliğini, mevcut 0.00/0.22/0.27/0.50/0.73/0.78/1.00 keyframe sözleşmesini ve ara interpolasyonlarını, nightFactor'dan türeyen horizon/zenith gradientini, 500m XY + 200m Z sun-orbit matematiğini, pozitif/negatif zaman wraparound'unu, output Color bağımsızlığını, iki lighting instance'ının mutable state izolasyonunu ve scene teardown davranışını fail-fast regresyon sözleşmesi olarak doğrular. Runtime kaynağı değiştirilmez.
+
+**Neden:** full browser smoke lighting sistemini dolaylı çalıştırıyor, sky/fog kontratları ise onun çıktısını tüketen katmanları koruyor; ancak light tipleri, dawn/noon/dusk keyframe değerleri, güneş yörüngesi veya sky-gradient üretimi drift ettiğinde hangi sınırın bozulduğunu açıklayan doğrudan canlı lighting kontratı yoktu. Run 172-173 sky/fog zincirinden sonra bu, world/render katmanındaki en küçük bağımsız kapsam boşluğudur.
+
+**Alternatifler:** yalnız kaynak regex'i Three.js light nesnelerini, Color interpolasyonunu ve scene teardown'u ölçmez; piksel snapshot GPU/render-driver farklarına kırılgandır; çalışan `lighting.js` runtime'ını refactor etmek additive-only altında gereksiz risk taşır.
+
+**Sonuç:** day/night light nesneleri, keyframe geçişleri, time wrapping, sun-orbit ve sky-gradient senkronu CI'da canlı modül üzerinde korunur; runtime maliyeti sıfırdır.
+
+**Etkilenen sistemler:** yeni `scripts/checkLightingVisualContract.js`, run 174 CI workflow'u ve governance kayıtları. `src/3d/lighting.js`, 2D oyun, sky/fog/water/terrain runtime'ı, world seed, mobil streaming/LOD, asset seti ve PWA import grafiği değişmez.
+
+**Geri alma planı:** lighting/day-night sanat veya zaman sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
