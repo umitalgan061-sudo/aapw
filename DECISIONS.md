@@ -14633,3 +14633,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** `src/3d/ui/touchJoystick.js`, `src/3d/game3d.js`, `src/3d/ui/controlsHelp.js`, `game3d.css`, `scripts/checkTouchJoystickInputContract.js`, yeni `scripts/checkMobileJumpControl.js`, run166 CI/governance kayıtları.
 
 **Geri alma planı:** İleride mobil jump farklı bir input katmanına taşınırsa yeni katman eski edge consumer'ı additive bir feature gate ile no-op bırakabilir; mevcut satırların silinmesi/değiştirilmesi gerekmez.
+
+
+## ADR-0189 — Determinism policy scans project-owned executable code, not vendored/comment text (run 167)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkSeededRandomPolicy.js`, `src/3d` altında project-owned JavaScript'te executable `Math.random()` çağrılarını reddeder; `vendor/` dizinini sahiplik sınırının dışında tutar ve line/block comment içindeki salt dokümantasyon metnini tarama kararından çıkarır. CI aynı politikayı `src/3d/**` değişikliklerinde ve pull request'lerde çalıştırır.
+
+**Neden:** İlk run 167 uygulaması doğru determinism niyetini otomatikleştirdi ancak ham-text taraması nedeniyle yorumlar ve vendored Three.js yanlış pozitif üreterek kendi ilk main koşusunu kırdı. Bir politika kapısının project-owned executable davranışı ölçmesi, üçüncü taraf kaynak metnini veya dokümantasyon sözcüklerini ölçmesinden daha doğru ve sürdürülebilirdir.
+
+**Alternatifler:** (1) Tüm `Math.random` metnini yasaklamak — false positive ve vendor bakım maliyeti nedeniyle reddedildi. (2) Vendor dosyalarını değiştirmek — üçüncü taraf koduna müdahale ve lisans/upgrade riski nedeniyle reddedildi. (3) Guard'ı kaldırmak — GOVERNANCE determinism sözleşmesini yeniden manuel kontrole düşüreceği için reddedildi. (4) Tam AST parser bağımlılığı eklemek — mevcut dar politika için gereksiz dependency/cache yüzeyi; ihtiyaç büyürse ileride değerlendirilebilir.
+
+**Sonuç:** Project-owned runtime'da doğrudan unseeded random kullanımına karşı fail-fast CI korunur; yorumlar ve vendored kod false positive üretmez. Regression fixture hem kabul edilmesi gereken comment/vendor örneklerini hem de reddedilmesi gereken executable çağrıyı her koşuda doğrular.
+
+**Etkilenen sistemler:** `scripts/checkSeededRandomPolicy.js`, `.github/workflows/run167-determinism-policy.yml`, CI determinism/pull-request kalite kapısı ve governance kayıtları. Runtime, 2D oyun, 3D dünya üretimi, asset/PWA import grafiği değişmez.
+
+**Geri alma planı:** Politika gelecekte AST tabanlı analizörle genişletilirse yeni analizör additive bir script olarak eklenip workflow ikinci kapı olarak çalıştırılabilir; mevcut guard satırlarını silmeye gerek yoktur.

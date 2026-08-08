@@ -13853,3 +13853,17 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - ADR: ADR-0188. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
 - World Evolution Report delta: yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; mobil oyuncu kontrol kabiliyeti +1. Oyuncu farkı: EVET — telefonda oyuncu artık sağ alttaki `Zıpla` düğmesiyle masaüstündeki aynı ~1.2m fizik zıplamasını yapabiliyor.
 - Sıradaki güvenli adım: owner bloklarını zorlamadan bağımsız gameplay/core/UI kalite veya kullanıcı-değeri işi; başlamadan remote main ve paralel ajan branch'leri yeniden kontrol edilmeli.
+
+
+## Run 167 — Determinism policy CI repair (2026-08-08 06:44 UTC)
+- Alt görev: seeded-random politikasını otomatikleştiren run 167 guard'ının ilk main koşusunda ortaya çıkan false-positive CI kırığı düzeltildi. Guard artık proje-owned `src/3d` kodunda executable `Math.random()` çağrılarını engellerken yorum metinlerini ve üçüncü taraf `vendor/` ağacını politika ihlali saymıyor. Workflow `src/3d/**` değişikliklerinde ve pull request'lerde de çalışıyor.
+- Root Cause: ilk guard ham satır metnine regex uyguluyor ve tüm alt dizinleri aynı sahiplik alanı kabul ediyordu; bu nedenle yorumlardaki API adı ile vendored Three.js içindeki üçüncü taraf çağrılar project-owned runtime ihlali gibi raporlandı. Prevention: comment-aware tarama + vendor ownership boundary + pozitif/negatif regression fixture.
+- Additive-only: mevcut kaynak satırı silinmedi; nihai PR diff'i 0 deletion. Runtime/gameplay/world kodu değiştirilmedi.
+- DoD: node --check PASS; determinism baseline + injected-call regression fixture PASS; assets/PWA/cache, terrain-seat ve road-network güvenlik kapıları PASS; browser smoke 34/34+ PASS; 3D console/page error 0; World Event Determinism Guard PASS; additive-only PASS.
+- Görsel doğrulama: runtime görsel deltası yok; yine de gerçek 390x844 mobile Chromium yakın + F4 uzak iki render kanıtı üretildi ve console/page error 0 doğrulandı.
+- Performans: 2026-08-08,run167,2,50,608296,48,17,307
+- Memory leak checklist: runtime nesnesi, listener, timer, geometry, material veya asset eklenmedi; CI-only değişiklik.
+- Teknik borç: 1 (önceden var olan game3d.js yapısal borcu; run 167 yeni runtime borcu eklemedi). Risk LOW. Güven 5/5.
+- ADR: ADR-0189. World Coverage: desktop %96.2, mobil resident ~%14.7 (81 chunk / 20.25 km²) — değişmedi.
+- World Evolution Report delta: yol/orman/kale/NPC/event/hayvan/coverage/asset/diyalog 0; ADR +1; determinism regression coverage +1. Oyuncu farkı: doğrudan HAYIR; dolaylı olarak prosedürel regresyonların main'e sızma riski azaldı.
+- Sıradaki güvenli adım: owner bloklarını zorlamadan governance öncelik sırasındaki bağımsız terrain/road/visual kalite işine, zorunlu pre/post safety + F4 kanıt zinciriyle dönmek; başlamadan remote main ve paralel ajan değişiklikleri yeniden kontrol edilmeli.

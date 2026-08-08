@@ -831,3 +831,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-08-0552 — run 165 jump arc contract regression guard (ADR-0187); 34/34+ browser smoke, additive-only/PWA/mobile/governance/a11y/core-input gates PASS.
 
 - stable-2026-08-08-0611 — run 166 mobile jump control / FAZ 4 input parity (ADR-0188); 34/34+ browser smoke, real-mobile layout/click, additive-only/PWA/mobile/core-input gates PASS.
+
+- stable-2026-08-08-0644 — run 167 determinism policy CI repair (ADR-0189); 34/34+ browser smoke, comment/vendor + injected-call regression fixture, PWA/world/determinism gates PASS; runtime delta 0.
