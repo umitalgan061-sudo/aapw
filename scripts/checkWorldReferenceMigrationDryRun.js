@@ -146,6 +146,7 @@ async function main() {
 				roadResults,
 				openSea: { rawWater: openSea.rawWater, water: openSea.water, protectedLand: openSea.protectedLand },
 			};
+		});
 	} finally {
 		await browser.close();
 		server.close();
