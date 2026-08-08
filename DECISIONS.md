@@ -14497,3 +14497,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** `src/3d/ui/settlementCompass.js`; yeni `scripts/checkSettlementCompassAccessibility.js`; run158 CI/kayıtları. `game3d.js`'in pusula çağırma sırası, seat/flatten-pad verisi, save formatı, PWA/cache ve render bütçesi etkilenmez.
 
 **Geri alma planı:** İleride owner onaylı ortak erişilebilirlik policy katmanı gelirse eklenen dört attribute additive biçimde gölgelenebilir. Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
+
+
+## ADR-0181 — Kontrol yardımı tetikleyici/panel ARIA ilişkisi (run 159)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `ControlsHelp` örnekleri, mevcut soru işareti düğmesini kontrol ettiği yardım paneline `aria-controls` ile bağlar. Her panel, modül içi monoton sayaçtan üretilen `g3d-controls-help-panel-N` kimliğini alır; aynı sayfada birden fazla örnek oluşsa bile kimlikler çakışmaz. Mevcut `aria-expanded`, Türkçe aç/kapa etiketi, Escape davranışı ve mobil/masaüstü içerik ayrımı korunur.
+
+**Neden:** Düğme bugün açık/kapalı durumunu `aria-expanded` ile bildiriyor fakat hangi DOM bölgesini yönettiğini erişilebilirlik ağacında açıkça belirtmiyordu. `aria-controls` bu ilişkiyi düşük riskle tamamlar. Sabit tek bir id yerine sayaç kullanmak, testlerde veya gelecekte birden çok HUD kökü oluştuğunda yinelenen DOM id üretimini önler.
+
+**Alternatifler:** (1) Sabit `id="g3d-controls-help-panel"` — reddedildi, aynı anda iki örnekte yinelenen id riski yaratır. (2) `Math.random()` ile id üretmek — reddedildi, proje determinizm ilkesine aykırı ve gereksizdir. (3) Paneli focusable/dialog yapmak — reddedildi, mevcut yüzey yalnız yardım içeriği ve modal değil.
+
+**Sonuç:** Görsel DOM sırası, CSS, aç/kapa davranışı, dokunmatik hedef boyutu, oyun mantığı ve performans değişmez. Ekran okuyucu yardım düğmesinin hangi paneli yönettiğini açıkça çözebilir.
+
+**Etkilenen sistemler:** `src/3d/ui/controlsHelp.js`, yeni `scripts/checkControlsHelpAccessibility.js`, run159 CI/kayıtları. 2D oyun, world generation, PWA/cache, gameplay ve seed davranışı etkilenmez.
+
+**Geri alma planı:** İleride ortak bir erişilebilirlik-id sağlayıcısı eklenirse yeni sağlayıcı, mevcut panel kimliği/`aria-controls` değerini additive biçimde devralabilir; var olan kaynak satırlarını silmek/değiştirmek gerekmez.
