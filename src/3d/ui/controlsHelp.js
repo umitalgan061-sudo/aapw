@@ -1,5 +1,7 @@
 /** Accessible desktop/mobile controls reference for the 3D mode (FAZ 8 UI). */
 
+let controlsHelpInstanceCounter = 0;
+
 const DESKTOP_CONTROLS = Object.freeze([
 	['WASD / Oklar', 'Yürü'],
 	['Shift', 'Koş'],
@@ -31,6 +33,8 @@ export class ControlsHelp {
 		this._button.setAttribute('aria-expanded', 'false');
 
 		this._panel = document.createElement('section');
+		this._panel.id = `g3d-controls-help-panel-${++controlsHelpInstanceCounter}`;
+		this._button.setAttribute('aria-controls', this._panel.id);
 		this._panel.className = 'g3d-controls-help-panel';
 		this._panel.hidden = true;
 		this._panel.setAttribute('aria-label', 'Oyun kontrolleri');
