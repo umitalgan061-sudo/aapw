@@ -147,3 +147,22 @@ function main() {
 }
 
 main();
+
+/**
+ * Run 191 additive-only extension: source-file policy forbids rewriting the existing array literal,
+ * so legal post-declaration `NAME.push('...')` precache additions are part of the effective list.
+ * A later same-scope function declaration intentionally supersedes the legacy extractor above;
+ * JavaScript function declarations are instantiated before `main()` executes.
+ */
+function extractArrayLiteral(source, constName) {
+	const match = source.match(new RegExp(`const ${constName}\\s*=\\s*\\[([\\s\\S]*?)\\n\\];`));
+	if (!match) return null;
+	const entries = [];
+	const stringRe = /'([^']*)'/g;
+	let m;
+	while ((m = stringRe.exec(match[1])) !== null) entries.push(m[1]);
+	const escapedName = constName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const pushRe = new RegExp(`${escapedName}\\.push\\(\\s*'([^']+)'\\s*\\)`, 'g');
+	while ((m = pushRe.exec(source)) !== null) entries.push(m[1]);
+	return entries;
+}
