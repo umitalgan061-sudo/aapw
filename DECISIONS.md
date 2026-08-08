@@ -15131,3 +15131,24 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Opt-in migration-controller preflight, clipped footprint ownershipini gerçek replacement boundary shape’ine taşıyabilir; current live worldün restore/rollback ve pre/post perf/console eşitliği kanıtlanmadan default activation değerlendirilemez.
 
 **Geri alma planı:** Live consumer yoktur. Clipped ownership kontratı yanlışlanırsa yeni versioned shadow module eklenir; current live scene, Run193 adapter ve canonical source map değişmeden kalır.
+
+
+## ADR-0215 — Canonical migration replacement boundary must borrow current roots and restore exact identity before any default activation (run 195)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Canonical full-reference candidate için ilk replacement controller yalnız opt-in shadow modülüdür. Current scene rootları ve current ground collider controller tarafından ödünç alınır; canonical modda scene'den detach edilir ama dispose edilmez. Run194 clipped candidate ayrı ownership harnessıyla oluşturulur. Rollback canonical kaynakları dispose eder, current rootların aynı object identity/visibility/order durumunu ve aynı ground-collider objectini geri bağlar. Başarısız activation da current ownershipi restore etmeden hata döndüremez.
+
+**Neden:** Run194 exact edge/window ownershipini kanıtladı fakat gerçek migration için en kritik geri dönüş sınırı current world kaynaklarının yanlışlıkla yok edilmemesidir. Live wiring yapmadan önce replacement API'nin rollback semantiği object identity seviyesinde kanıtlanmalıdır.
+
+**Ölçüm:** İki başarılı activate→rollback cycle, bir kasıtlı başarısız activation, canonical bridge-deck collider ownershipi ve current collider identity restoration geçer. Current pre/post renderer call/triangle sayıları ve sampled framebuffer digest birebir eşittir; canonical candidate mobile hard budgetın altındadır. target=cersei->stannis#1 currentCollider=restored rootIdentity=restored renderEquality=exact failedActivation=safe cycles=2 checksum=a3b49e365f580fc427722461fe9b59dbe41b06fa1bc8c338e730ec07edf29fe0
+
+**Alternatifler:** (1) Current rootları activation sırasında dispose etmek reddedildi; rollback deterministik olamazdı. (2) Current colliderı yeni eşdeğer object ile yeniden yaratmak reddedildi; mutable runtime state kaybı riski taşır. (3) Controllerı şimdi `game3d.js`/`sceneManager.js` içine import etmek reddedildi; gerçek live ownership inventory/streaming pause-resume henüz ayrı kapıdan geçmedi. (4) Run194 closed modulesını edit etmek reddedildi; additive-only ve checkpoint sınırı korunur.
+
+**Sonuç:** Canonical migration için reversible scene/collider ownership API şekli kanıtlandı ancak default oyuncu runtimeı değişmedi. Current world hâlâ source of truth ve startup defaultudur.
+
+**Etkilenen sistemler:** new shadow controller/checker/PWA applicator/CI/recorder; additive service-worker entry; append-only progress/ADR/stable/perf records. Live 2D/3D import graph unchanged.
+
+**Gelecek Faz Etkisi:** Bir sonraki preflight gerçek current scene root inventorysini, chunk streaming pause/resume ve input/physics state restorationını bu controller şekline bağlayabilir. Bu doğrulanmadan default canonical activation yapılmaz.
+
+**Geri alma planı:** Live consumer yoktur. Controller contractı yanlışlanırsa yeni versioned shadow controller eklenir; Run194 clipped ownership ve current runtime değiştirilmeden kalır.

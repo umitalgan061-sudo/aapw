@@ -898,3 +898,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-1912 — run 194 exact-reference clipped 27x21 owner-grid + 7/7 bridge sequential replacement shadow proof (ADR-0214); V1 edge failure superseded by V2; full regression PASS; live runtime delta 0.
+
+
+- stable-2026-08-08-1940 — run 195 opt-in canonical replacement/rollback controller shadow proof (ADR-0215); exact current root/collider restoration, failure-safe rollback, pre/post render equality and full regression PASS; live runtime delta 0.

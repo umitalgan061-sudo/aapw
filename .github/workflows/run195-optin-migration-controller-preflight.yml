@@ -1,0 +1,234 @@
+name: Run 195 Opt-in Migration Controller Preflight
+
+on:
+  push:
+    branches: [chatgpt/run195-optin-migration-controller-preflight]
+    paths:
+      - 'src/3d/world/worldReferenceOptInMigrationControllerShadow.js'
+      - 'scripts/checkOptInMigrationControllerShadow.js'
+      - 'scripts/checkOptInMigrationControllerVisualEvidence.js'
+      - 'scripts/applyRun195PwaPrecacheAddition.js'
+      - 'scripts/recordRun195OptInMigrationControllerShadow.js'
+      - '.github/workflows/run195-optin-migration-controller-preflight.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: dc7d25d627d88d640779879ef38fda8a3525fc5c
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot additive PWA and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F '## Run 194 — Exact-reference clipped chunk ownership + 7/7 bridge replacement shadow proof' 3D_GAME_PROGRESS.md
+          grep -F '## ADR-0214 — Outer canonical owner chunks are clipped to exact reference bounds; no canonical terrain exists outside them (run 194)' DECISIONS.md
+          if grep -q '^## Run 195 ' 3D_GAME_PROGRESS.md; then echo 'Run195 already occupied on main'; exit 1; fi
+          if grep -q '^## ADR-0215 ' DECISIONS.md; then echo 'ADR-0215 already occupied on main'; exit 1; fi
+          node --check src/3d/world/worldReferenceOptInMigrationControllerShadow.js
+          node --check scripts/checkOptInMigrationControllerShadow.js
+          node --check scripts/checkOptInMigrationControllerVisualEvidence.js
+          node --check scripts/applyRun195PwaPrecacheAddition.js
+          node --check scripts/recordRun195OptInMigrationControllerShadow.js
+          node scripts/applyRun195PwaPrecacheAddition.js
+          grep -F "GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceOptInMigrationControllerShadow.js');" service-worker.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+
+      - name: Baseline full browser smoke on current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run195-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run195-smoke-before.log")
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run195-smoke-before.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run195-smoke-before.log" | grep -F 'zero console/page errors'
+          git worktree remove "$BASELINE"
+
+      - name: Prior canonical ownership invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCanonicalStoneBridgeTraversalReadiness.js
+          node scripts/checkCanonicalRoadBridgeSceneShadow.js
+          node scripts/checkCanonicalSceneShadowAdapter.js
+          node scripts/checkClippedCanonicalWindowOwnershipShadow.js
+
+      - name: Run195 reversible replacement boundary proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkOptInMigrationControllerShadow.js | tee "$RUNNER_TEMP/run195-controller.log"
+          node scripts/checkOptInMigrationControllerVisualEvidence.js
+          BUDGET="$(grep '^\[checkOptInMigrationControllerShadow\] BUDGET:' "$RUNNER_TEMP/run195-controller.log" | tail -n1 | sed 's/^\[checkOptInMigrationControllerShadow\] BUDGET: //')"
+          SUMMARY="$(grep '^\[checkOptInMigrationControllerShadow\] PASS:' "$RUNNER_TEMP/run195-controller.log" | tail -n1 | sed 's/^\[checkOptInMigrationControllerShadow\] PASS: //')"
+          test -n "$BUDGET"
+          test -n "$SUMMARY"
+          echo "RUN195_BUDGET_JSON=$BUDGET" >> "$GITHUB_ENV"
+          echo "RUN195_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+          test -s artifacts/run195-optin-migration-controller-shadow/proof.json
+          test -s artifacts/run195-optin-migration-controller-shadow/current-before.png
+          test -s artifacts/run195-optin-migration-controller-shadow/canonical-active.png
+          test -s artifacts/run195-optin-migration-controller-shadow/current-restored-visible.png
+
+      - name: Canonical world visual lifecycle and determinism gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkFullReferenceMigrationDryRun.js
+          node scripts/checkWorldReferenceMigrationDryRun.js
+          node scripts/checkCanonicalHydrologyTerrainShadow.js
+          node scripts/checkCanonicalChunkIntegrationShadow.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkSkyVisualContract.js
+          node scripts/checkFogVisualContract.js
+          node scripts/checkLightingVisualContract.js
+          node scripts/checkStarfieldVisualContract.js
+          node scripts/checkCameraContract.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkSeededRandomPolicy.js
+
+      - name: PWA accessibility input and physics gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkControlsHelpAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkMobileJumpControl.js
+          node scripts/checkJumpArcContract.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Mobile streaming LOD and live budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run195-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run195-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$LIVE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$LIVE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$LIVE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+          echo "RUN195_LIVE_MOBILE_JSON=$LIVE" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke and console gate after controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run195-smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run195-smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run195-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run195-smoke-after.log"; then exit 1; fi
+          echo "RUN195_SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run195 | tee "$RUNNER_TEMP/run195-perf.log"
+          ROW="$(tail -n1 perf_log.csv)"
+          echo "$ROW" | grep -F ',run195,'
+          echo "RUN195_PERF_ROW=$ROW" >> "$GITHUB_ENV"
+          node scripts/analyzePerfTrend.js
+
+      - name: Senior self review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/worldReferenceOptInMigrationControllerShadow.js scripts/checkOptInMigrationControllerShadow.js scripts/recordRun195OptInMigrationControllerShadow.js; then exit 1; fi
+          node scripts/checkOptInMigrationControllerShadow.js > "$RUNNER_TEMP/run195-final.log"
+          grep -F '[checkOptInMigrationControllerShadow] PASS:' "$RUNNER_TEMP/run195-final.log"
+          node scripts/checkClippedCanonicalWindowOwnershipShadow.js >/dev/null
+          node scripts/checkServiceWorkerCache.js
+          git diff --check "$BASE_SHA"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 195 '; then echo 'Run195 occupied before publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0215 '; then echo 'ADR-0215 occupied before publish'; exit 1; fi
+
+      - name: Upload Run195 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run195-optin-migration-controller-shadow
+          path: |
+            artifacts/run195-optin-migration-controller-shadow/proof.json
+            artifacts/run195-optin-migration-controller-shadow/current-before.png
+            artifacts/run195-optin-migration-controller-shadow/canonical-active.png
+            artifacts/run195-optin-migration-controller-shadow/current-restored-visible.png
+          if-no-files-found: error
+
+      - name: Record validated governance checkpoint on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN195_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN195_STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          export RUN195_SUMMARY RUN195_BUDGET_JSON RUN195_LIVE_MOBILE_JSON RUN195_SMOKE_PASS_COUNT RUN195_PERF_ROW
+          node scripts/recordRun195OptInMigrationControllerShadow.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git commit -m 'docs(run195): record validated opt-in rollback checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 195 '; then echo 'Run195 occupied immediately before branch publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0215 '; then echo 'ADR-0215 occupied immediately before branch publish'; exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git tag "$RUN195_STABLE_TAG"
+          git push origin "$RUN195_STABLE_TAG" || echo '[run195] stable tag push unavailable; STABLE_TAGS record retained per governance known limitation.'

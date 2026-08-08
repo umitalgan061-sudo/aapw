@@ -212,6 +212,7 @@ GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceStoneBridgeMedievalArtV2.j
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSceneShadowAdapter.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSceneWindowMigrationShadow.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceClippedWindowOwnershipShadow.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceOptInMigrationControllerShadow.js');
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];
