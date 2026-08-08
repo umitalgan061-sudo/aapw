@@ -14667,3 +14667,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Etkilenen sistemler:** yeni `scripts/checkRoadVisualContract.js`, yeni run 168 CI workflow'u ve governance kayıtları. `src/3d/world/roads.js`, 2D oyun, PWA runtime/import grafiği, dünya seed'i ve asset seti değişmez.
 
 **Geri alma planı:** Yol renderer sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede edebilir; mevcut kaynak veya tarihsel guard satırlarını silmek gerekmez.
+
+
+## ADR-0191 — Rendered vegetation has a live InstancedMesh contract (run 169)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** `scripts/checkVegetationVisualContract.js`, gerçek tarayıcı/import-map ortamında mevcut `createVegetation()` fonksiyonunu iki kez aynı seed/input ile çağırır; dört InstancedMesh'ten oluşan iki tür trunk/foliage yapısını, deterministic instance matrislerini, geometry attribute sonluluğunu, MeshStandardMaterial renk/roughness/metalness imzasını, StaticDrawUsage kullanımını ve `disposeVegetation()` teardown davranışını fail-fast regresyon sözleşmesi olarak doğrular. Runtime kaynağı değiştirilmez.
+
+**Neden:** mevcut smoke/mobile testleri placement, LOD, culling ve mobil bütçeyi koruyor; fakat desktop render tarafında tür-pair eşleşmesi, material drift'i, instance buffer kullanımının değişmesi, non-finite geometry/transform veya dispose zincirinin bozulması ayrı bir canlı sözleşmeyle pinlenmemişti. Run 168'in sıradaki güvenli yönü vegetation/visual kalite olduğu için en düşük riskli anlamlı adım çalışan davranışı değiştirmek yerine onu otomatik korumaktır.
+
+**Alternatifler:** piksel-snapshot karşılaştırması renderer kırılganlığı taşır; kaynak regex'i gerçek Three.js nesnelerini ölçmez; vegetation runtime refactor'u çalışan sistemde gereksiz additive-only riski yaratır; hiç guard eklememek mevcut render kapsam boşluğunu açık bırakır.
+
+**Sonuç:** desktop vegetation render yapısı ve teardown zinciri CI'da canlı modül üzerinde korunur; runtime maliyeti sıfırdır. Bilinçli sanat yönü değişiklikleri ileride yeni versioned checker/ADR ile sürümlenebilir.
+
+**Etkilenen sistemler:** yeni `scripts/checkVegetationVisualContract.js`, run 169 CI workflow'u ve governance kayıtları. `src/3d/world/vegetation.js`, 2D oyun, dünya seed'i, asset seti ve PWA import grafiği değişmez.
+
+**Geri alma planı:** vegetation render sözleşmesi bilinçli olarak değişirse yeni bir versioned checker/ADR mevcut kontratı supersede eder; mevcut runtime veya tarihsel guard satırlarını silmek gerekmez.
