@@ -14898,3 +14898,22 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Taş/kaya, makro relief, mağara ve wild-dragon habitat katmanları grass exclusion/density sözleşmesini yeniden kullanabilir. Full-map migration tamamlanırsa grass camera-local olduğundan dünya merkez/ölçek dönüşümüne düşük bağlanımla yeniden seed-cell üzerinden üretilebilir.
 
 **Geri alma planı:** İleride grass rendererı değişirse yeni versioned grass katmanı additive biçimde eklenebilir ve mevcut Run183 yayını feature-gate/no-op ile devre dışı bırakılabilir; geçmiş kayıt ve deterministik kontrat korunur.
+
+
+## ADR-0204 — Full-reference migration must preserve normalized seat identity and road MST topology before runtime adoption (run 184)
+
+**Risk Seviyesi:** LOW
+
+**Karar:** Canonical 9000x7000 reference rectangle’ın 137.5 km² full-map extentine runtime geçiş yapılmadan önce mevcut world koordinatları normalized reference uzayına çevrilip hedef full-map bounds/scale’e taşınır. Tüm 14 kingdom seat için map→current-world→reference→target-world ile doğrudan map→target-world aynı sonucu vermeli; hedef ölçekli seat-safe hydrology 14/14 land kalmalı; roads.js’nin gerçek deterministic Prim MST çıktısı mevcut ve hedef seat koordinatlarında aynı 13 edge topolojisini üretmelidir.
+
+**Neden:** Run182 full-map extent planı area/chunk matematiğini kanıtladı ancak canlı world origin/scale değişimi settlements, roads, streaming ve terrain güvenliğini aynı anda etkileyebilir. Normalize edilmiş reference kimliğini invarianta çevirmek re-center ile scale değişimini canonical map verisinden ayırır; uniform positive scale+translation Euclidean MST orderingini koruduğunu gerçek runtime algoritmasıyla doğrulamak road topology riskini migration öncesinde kapatır.
+
+**Alternatifler:** Runtime WORLD_SCALE’i doğrudan değiştirip smoke sonucuna bakmak yüksek etkili ve geri dönüşü zor bir sıçramadır. Road MST’yi test tarafında yeniden uygulamak gerçek roads.js ile drift riski taşır. Eski routed polylineleri yalnız geometrik olarak ölçeklemek slope/terrain grade davranışını kanıtlamaz; bu nedenle Run184 bunu iddia etmez.
+
+**Sonuç:** Runtime davranışı değişmeden full-map re-center/scale için deterministic safety contract oluşur. 14/14 seat reference/hydrology güvenliği ve 13/13 road MST topology/endpoint invariance CI’da korunur. Actual terrain scale migration hâlâ ayrı yüksek-etki değişikliktir ve gerçek slope-aware route grade, seat terrain safety, mobile budget, PWA/cache, console ve görsel kanıtları yeniden geçmeden yayımlanamaz.
+
+**Etkilenen sistemler:** Yeni scripts/checkFullReferenceMigrationDryRun.js, Run184 governance recorder/CI ve dokümantasyon kayıtları. WORLD_SCALE, CHUNK_CONFIG, terrain, water, roads runtime, settlements runtime, service worker ve 2D oyun değiştirilmez.
+
+**Gelecek Faz Etkisi:** Canonical hydrology/terrain adapter, full-map chunk grid ve macro-relief katmanları aynı normalized-reference invariantını kullanabilir. Böylece ilerideki makro coğrafya işleri map-center veya eski crop center sabitlerine gizlice bağlanmaz.
+
+**Geri alma planı:** Checker/CI yanlış varsayım içerirse yeni versioned proof eklenir ve Run184 checker publish kapısından çıkarılır; runtime etkisi olmadığı için oyun davranışını geri almak gerekmez. Actual full-map migration bu ADR’nin kanıtları geçmeden başlamaz.
