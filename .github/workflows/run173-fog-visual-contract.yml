@@ -1,0 +1,222 @@
+name: Run 173 Fog Visual Contract
+
+on:
+  push:
+    branches:
+      - agent/run173-fog-visual-contract
+    paths:
+      - 'scripts/checkFogVisualContract.js'
+      - 'scripts/recordRun173Governance.js'
+      - '.github/workflows/run173-fog-visual-contract.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      BASE_SHA: 94c34b85cbbc28e39992963b57f5117319a852a7
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and start concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md && test -f 3D_GAME_PROGRESS.md && test -f DECISIONS.md && test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 180 GOVERNANCE.md
+          tail -n 180 3D_GAME_PROGRESS.md
+          tail -n 140 DECISIONS.md
+          tail -n 100 QUESTIONS_FOR_OWNER.md
+
+      - name: Baseline full browser smoke on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run173-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run173-smoke-before.log" && test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run173-smoke-before.log")" -ge 34)
+          git worktree remove "$BASELINE"
+
+      - name: Syntax and fog visual contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkFogVisualContract.js
+          node --check scripts/recordRun173Governance.js
+          node scripts/checkFogVisualContract.js | tee "$RUNNER_TEMP/run173-fog-contract.log"
+          SUMMARY="$(grep '^\[checkFogVisualContract\] PASS:' "$RUNNER_TEMP/run173-fog-contract.log" | tail -n 1 | sed 's/^\[checkFogVisualContract\] PASS: //')"
+          test -n "$SUMMARY"
+          echo "RUN173_FOG_CONTRACT_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+          git diff --check
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+
+      - name: Governance deterministic PWA world gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkSkyVisualContract.js
+          node scripts/checkFogVisualContract.js
+
+      - name: Existing accessibility regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkControlsHelpAccessibility.js
+
+      - name: Core gameplay physics and input contract regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkJumpArcContract.js
+          node scripts/checkEventBusContract.js
+          node scripts/checkHealthStateContract.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkMobileJumpControl.js
+
+      - name: Mobile streaming LOD and budget regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js
+
+      - name: Full browser smoke after change and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run173-smoke-after.log"
+          AFTER_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run173-smoke-after.log")"
+          test "$AFTER_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run173-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run173-smoke-after.log"; then exit 1; fi
+          echo "RUN173_SMOKE_PASS_COUNT=$AFTER_COUNT" >> "$GITHUB_ENV"
+
+      - name: Mobile near and F4 far visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureRun130MobileEvidence.js
+
+      - name: Upload Run 173 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run173-fog-visual-evidence
+          path: artifacts/run130-mobile/*.png
+          if-no-files-found: error
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run173 | tee "$RUNNER_TEMP/run173-perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/run173-perf-trend.log"
+          PERF_ROW="$(grep '^\[collectPerfSnapshot\] sampled:' "$RUNNER_TEMP/run173-perf.log" | tail -n 1 | sed 's/^\[collectPerfSnapshot\] sampled: //')"
+          test -n "$PERF_ROW"
+          test "$(printf '%s\n' "$PERF_ROW" | awk -F',' '{print NF}')" -eq 8
+          echo "RUN173_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+
+      - name: Restore tracked perf ledger before governance append
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -- perf_log.csv
+
+      - name: Senior self-review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkFogVisualContract.js scripts/recordRun173Governance.js; then exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+
+      - name: Prepare Run 173 governance values
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RUN173_STAMP=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+          echo "RUN173_STABLE_TAG=stable-$(date -u +'%Y-%m-%d-%H%M')" >> "$GITHUB_ENV"
+
+      - name: Record Run 173 governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/recordRun173Governance.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkCheckpointConsistency.js
+
+      - name: Final publish concurrency gate and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          git commit -m "docs(governance): record run 173 fog visual contract"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git push origin HEAD:agent/run173-fog-visual-contract
+
+      - name: Best-effort stable tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag "$RUN173_STABLE_TAG"
+          git push origin "$RUN173_STABLE_TAG" || true
