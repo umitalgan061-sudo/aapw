@@ -24,6 +24,7 @@ const OPTIONAL_ROOT_FIELDS = Object.freeze([
 	['settlements', 'settlements'],
 	['roads', 'roads'],
 	['vegetation', 'vegetation'],
+	['grass', 'grass'],
 	['realCastles', 'real-castles'],
 	['mobileSpawnVegetation', 'mobile-spawn-vegetation'],
 ]);
@@ -51,8 +52,10 @@ function addRoot(entries, seen, scene, root, label) {
 
 /**
  * Builds the current-world ownership inventory from the real scene-state API shape. Terrain chunks
- * come from ChunkManager.loaded; named roots come from createScene/game3d state fields. Renderer,
- * camera, controls and lights stay infrastructure and are deliberately not replacement roots.
+ * come from ChunkManager.loaded; named roots come from createScene/game3d state fields. Run180's
+ * wind-grass root is separate from vegetation and is borrowed explicitly. A final direct-child
+ * sweep catches any future current-world root not yet exposed by a named state field. Only the
+ * two day/night lights are infrastructure and remain attached during a canonical opt-in cycle.
  */
 export function buildCurrentSceneOwnershipInventory(state) {
 	assertRuntimeState(state);
@@ -66,6 +69,18 @@ export function buildCurrentSceneOwnershipInventory(state) {
 		addRoot(entries, seen, state.scene, mesh, `terrain:${key}`);
 	}
 	addRoot(entries, seen, state.scene, state.player?.object3D, 'player');
+
+	const infrastructure = new Set([
+		state.lights?.sun,
+		state.lights?.hemisphere,
+	].filter(Boolean));
+	for (const child of state.scene.children) {
+		if (infrastructure.has(child) || seen.has(child)) continue;
+		addRoot(entries, seen, state.scene, child, `scene:${child.name || child.uuid || 'unnamed'}`);
+	}
+
+	const unmanaged = state.scene.children.filter((child) => !infrastructure.has(child) && !seen.has(child));
+	if (unmanaged.length) throw new Error(`unmanaged current scene roots remain: ${unmanaged.length}`);
 	entries.sort((a, b) => a.index - b.index);
 	return Object.freeze({
 		roots: Object.freeze(entries.map((entry) => entry.root)),
@@ -75,6 +90,8 @@ export function buildCurrentSceneOwnershipInventory(state) {
 			uuid: entry.root.uuid || null,
 			name: entry.root.name || '',
 		}))),
+		infrastructureCount: infrastructure.size,
+		directSceneRootCount: state.scene.children.length,
 	});
 }
 
