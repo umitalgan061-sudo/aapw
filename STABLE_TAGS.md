@@ -910,3 +910,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 
 
 - stable-2026-08-08-2249 — run 198 ordered canonical-active pagehide + same-document clean re-init preflight (ADR-0218); two lifecycle generations + gate-before-runtime teardown + exact single-dispose paths + zero RAF/timeout/interval leak + listener/EventBus/DOM baseline equality + distinct runtime identities + single F4 toggle + zero console error PASS; live runtime delta 0.
+
+
+- stable-2026-08-09-0751 — run 199 owner-model live showcase (ADR-0219); 8 optimized static GLBs / 151.742 showcase triangles, post-ready fail-isolated loading, lifecycle disposal, mobile 45 calls / 385.606 triangles and zero console/page error PASS; existing source lines and high-detail originals preserved.

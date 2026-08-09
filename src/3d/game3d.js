@@ -65,6 +65,7 @@ import { disposeRiverMesh, disposeWaterfallMesh } from './world/rivers.js';
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.js';
 import { disposeRoadNetwork } from './world/roads.js';
 import { disposeVegetation } from './world/vegetation.js';
+import { spawnModelShowcase } from './world/modelShowcase.js';
 // Run 135 / ADR-0159 — new import, additive: `createVegetation` itself is unchanged, this file just
 // also calls it a second time (see the mobile spawn-anchored vegetation block below).
 import { createVegetation } from './world/vegetation.js';
@@ -286,6 +287,16 @@ export async function initGame3D() {
 		for (const npc of state.npcs) state.scene.add(npc.object3D);
 		console.info(`[game3d] Spawned ${state.npcs.length} FAZ 5 NPC(s).`);
 
+		// Owner-supplied static model collection: two people, five dragons/wyverns, and the Iron
+		// Throne, arranged between the initial player and the Umit settlement. The showcase module
+		// normalizes the decimated runtime copies and ground-aligns each against this same terrain
+		// sampler; originals remain untouched as provenance/high-detail assets.
+		state.modelShowcase = null;
+		state.modelShowcaseLoadCancelled = false;
+		state.modelShowcasePromise = null;
+		state.modelShowcaseStartTimer = null;
+		canvas.dataset.modelShowcaseCount = 'pending';
+
 		state.animals = await spawnConfiguredAnimals({
 			assetLoader,
 			animalConfig: ANIMAL_CONFIG,
@@ -505,6 +516,10 @@ export async function initGame3D() {
 			state.npcs.forEach((npc) => npc.dispose());
 			state.animals.forEach((animal) => animal.dispose());
 			state.dragons.forEach((dragon) => dragon.dispose());
+			state.modelShowcaseLoadCancelled = true;
+			canvas.dataset.modelShowcaseCount = 'disposed';
+			if (state.modelShowcaseStartTimer !== null) window.clearTimeout(state.modelShowcaseStartTimer);
+			state.modelShowcase?.dispose();
 			state.controls.dispose();
 			state.freeCamera.dispose();
 			state.perfPanel.dispose();
@@ -539,6 +554,31 @@ export async function initGame3D() {
 				`${state.chunkManager.loadedCount} terrain chunks rendering, player spawned at ` +
 				`(${player.object3D.position.x.toFixed(1)}, ${player.object3D.position.y.toFixed(1)}, ${player.object3D.position.z.toFixed(1)}).`,
 		);
+		// Load the owner collection only after the core scene has emitted GAME_READY. These optional
+		// static assets therefore never extend time-to-play; they appear together once decoded.
+		state.modelShowcaseStartTimer = window.setTimeout(() => {
+			state.modelShowcaseStartTimer = null;
+			if (state.modelShowcaseLoadCancelled) return;
+			state.modelShowcasePromise = spawnModelShowcase({
+				assetLoader,
+				anchor: spawnWorld,
+				sampleGroundY: sampleClampedGroundY,
+			}).then((modelShowcase) => {
+				if (state.modelShowcaseLoadCancelled) {
+					modelShowcase.dispose();
+					return null;
+				}
+				state.modelShowcase = modelShowcase;
+				state.scene.add(modelShowcase.object3D);
+				canvas.dataset.modelShowcaseCount = String(modelShowcase.models.length);
+				console.info(`[game3d] Spawned ${modelShowcase.models.length} owner showcase model(s).`);
+				return modelShowcase;
+			}).catch((error) => {
+				canvas.dataset.modelShowcaseCount = 'failed';
+				console.warn('[game3d] Owner model showcase could not be placed; core game remains available.', error);
+				return null;
+			});
+		}, 2000);
 	} catch (error) {
 		gameState.set('error', error.message);
 		gameEvents.emit(EVENTS.GAME_ERROR, { error });

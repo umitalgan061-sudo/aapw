@@ -67,6 +67,7 @@ const settlementCompassChecks = require('./game3dSmokeChecksSettlementCompass.js
 const settlementDiscoveryChecks = require('./game3dSmokeChecksSettlementDiscovery.js');
 const dayNightClockChecks = require('./game3dSmokeChecksDayNightClock.js');
 const vegetationChecks = require('./game3dSmokeChecksVegetation.js');
+const modelShowcaseChecks = require('./game3dSmokeChecksModelShowcase.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
@@ -105,6 +106,7 @@ async function main() {
 		results.push(await settlementDiscoveryChecks.checkSettlementDiscovery(browser, baseUrl));
 		results.push(await dayNightClockChecks.checkDayNightClock(browser, baseUrl));
 		results.push(await vegetationChecks.checkVegetation(browser, baseUrl));
+		results.push(await modelShowcaseChecks.checkModelShowcase(browser, baseUrl));
 		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));

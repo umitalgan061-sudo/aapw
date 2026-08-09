@@ -28,3 +28,17 @@ Orijinal indirmeler ve dokulu FBX çıktıları
 [`source_assets/meshy_aug_2026`](../../source_assets/meshy_aug_2026/) altında korunur.
 Bu altı model statik, rigsiz ve yüksek poligonludur; oyunun başlangıç sahnesine bağlanmadan
 önce düşük poligonlu çalışma zamanı kopyaları üretilmelidir.
+
+## Oyunda kullanılan optimize kopyalar
+
+Bu kopyalar üretildi ve başlangıç bölgesindeki statik model vitrinine bağlandı. Yukarıdaki dokulu
+GLB bağlantıları yüksek ayrıntılı arşiv kopyaları olarak korunmaya devam eder.
+
+- [`casual_confidence_runtime.glb`](characters/casual_confidence_runtime.glb)
+- [`elven_warrior_runtime.glb`](characters/elven_warrior_runtime.glb)
+- [`storm_dragon_textured_runtime.glb`](creatures/dragons/storm_dragon_textured_runtime.glb)
+- [`verdant_dragon_textured_runtime.glb`](creatures/dragons/verdant_dragon_textured_runtime.glb)
+- [`frostwing_dragon_textured_runtime.glb`](creatures/dragons/frostwing_dragon_textured_runtime.glb)
+- [`golden_ember_dragon_textured_runtime.glb`](creatures/dragons/golden_ember_dragon_textured_runtime.glb)
+- [`obsidian_wyvern_textured_runtime.glb`](creatures/dragons/obsidian_wyvern_textured_runtime.glb)
+- [`iron_throne_textured_runtime.glb`](props/iron_throne/iron_throne_textured_runtime.glb)

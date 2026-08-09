@@ -72,6 +72,11 @@ async function main() {
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
 			{ timeout: 60000, polling: 250 },
 		);
+		await page.waitForFunction(
+			() => document.getElementById('game3d-canvas')?.dataset.modelShowcaseCount === '8',
+			null,
+			{ timeout: 120000, polling: 250 },
+		);
 
 		const pointerProfile = await page.evaluate(() => ({
 			coarse: window.matchMedia('(pointer: coarse)').matches,
@@ -86,6 +91,10 @@ async function main() {
 		await page.waitForTimeout(SAMPLE_WAIT_MS);
 		const panelText = await page.locator('.g3d-perf-panel').textContent();
 		const result = parsePanel(panelText ?? '');
+		const localizedTriangles = Number(
+			((panelText ?? '').match(/Triangles:\s*([\d.,]+)/) ?? [])[1]?.replace(/[.,]/g, '') ?? NaN,
+		);
+		if (Number.isFinite(localizedTriangles)) result.triangles = localizedTriangles;
 
 		if (Object.values(result).some(Number.isNaN)) {
 			throw new Error(`could not parse F2 panel: ${JSON.stringify(panelText)}`);

@@ -215,6 +215,22 @@ GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceClippedWindowOwnershipShad
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceOptInMigrationControllerShadow.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCurrentRuntimeIntegrationShadow.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCurrentTickOwnershipShadow.js');
+// Owner-model showcase (additive-only): the module and all eight decimated runtime GLBs are part
+// of the offline 3D shell. The untouched high-detail originals remain reference/source assets and
+// are deliberately not duplicated in the startup cache.
+// The owner required a strict zero-deletion diff, so the existing v11 declaration stays intact.
+// This update is safe without namespace cleanup: every entry below is a brand-new URL, no prior
+// shell URL was removed/renamed, and the changed worker's install-time addAll refreshes v11 while
+// adding this complete set. A future same-URL byte replacement must use the next cache namespace.
+GAME3D_SHELL_FILES.push('./src/3d/world/modelShowcase.js');
+GAME3D_SHELL_FILES.push('./assets/models/characters/casual_confidence_runtime.glb');
+GAME3D_SHELL_FILES.push('./assets/models/characters/elven_warrior_runtime.glb');
+GAME3D_SHELL_FILES.push('./assets/models/creatures/dragons/storm_dragon_textured_runtime.glb');
+GAME3D_SHELL_FILES.push('./assets/models/creatures/dragons/verdant_dragon_textured_runtime.glb');
+GAME3D_SHELL_FILES.push('./assets/models/creatures/dragons/frostwing_dragon_textured_runtime.glb');
+GAME3D_SHELL_FILES.push('./assets/models/creatures/dragons/golden_ember_dragon_textured_runtime.glb');
+GAME3D_SHELL_FILES.push('./assets/models/creatures/dragons/obsidian_wyvern_textured_runtime.glb');
+GAME3D_SHELL_FILES.push('./assets/models/props/iron_throne/iron_throne_textured_runtime.glb');
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];

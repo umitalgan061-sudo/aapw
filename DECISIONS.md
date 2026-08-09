@@ -15215,3 +15215,24 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Sıradaki migration preflight ayrı opt-in developer startup entry pointinde canonical source-of-truth'u boot anından seçebilir. Current fallback ve offline/PWA boot eşdeğerliği kanıtlanmadan default `game3d.html` startup değişmez.
 
 **Geri alma planı:** Live consumer yoktur. Run198 checker/CI kaldırılmadan da runtime etkisi sıfırdır; contract yanlışlanırsa yeni versioned checker eklenir, current runtime ve Run197/Run196 byte-unchanged kalır.
+
+
+## ADR-0219 — Owner-supplied unrigged models use an optimized, post-ready static showcase (run 199)
+
+**Risk Seviyesi:** MEDIUM
+
+**Karar:** İki mevcut statik karakter ile owner'ın eklediği beş ejderha/wyvern ve Iron Throne, başlangıç alanında tek bir `world/modelShowcase.js` koleksiyonu olarak canlı oyuna bağlanır. Kaynak/yüksek ayrıntılı dosyalar değişmeden tutulur; runtime yalnız Blender ile doğrulanmış, tek mesh/node içeren, toplam 151.742 üçgenlik sekiz `_runtime.glb` kopyasını yükler. Modül gerçek bounds üzerinden hedef boyuta ölçekler, oyuncu spawn'ına göre konumlandırır ve terrain sampler ile ground-align eder; uçuş pozundaki iki model 5m lift alır.
+
+Koleksiyon core `GAME_READY` sonrasında iki saniyelik gecikmeyle asenkron yüklenir. Böylece 25,4MB GLB decode işlemi oynanabilirlik sinyalini bekletmez. Her entry kendi hata sınırına sahiptir; tek bozuk model atlanır, diğerleri ve core runtime çalışmaya devam eder. Pagehide başlamamış timer'ı iptal eder, tamamlanmış koleksiyonun tüm sahip olunan Three.js kaynaklarını idempotent biçimde dispose eder.
+
+**Neden:** Bu sekiz dosyanın hiçbirinde kullanılabilir rig/animation clip yoktur. Bunları `createNPC` veya uçan dragon controller'ına vermek asset kabiliyetini yanlış temsil eder ve FBX/Mixamo varsayımlarını ihlal eder. Altı yeni yüksek ayrıntılı original tek başına yaklaşık 1,15M üçgendir ve canlı mobil bütçeyi aşar; optimize kopyalar ise bütün canlı kareyi ölçülen en ağır durumda 45 draw call / 385.606 triangle seviyesinde tutar. Blocking startup ilk gerçek deneyde core readiness'i yaklaşık 61 saniyeye uzattığı için post-ready yükleme ürün açısından gerekli sınırdır.
+
+**Alternatifler:** (1) Orijinalleri doğrudan yüklemek mobil üçgen/payload maliyeti nedeniyle reddedildi. (2) Varlıkları NPC/dragon animation pipeline'ına sokmak rig bulunmadığı için reddedildi. (3) Yalnız altı yeni modeli ekleyip mevcut erkek/kadın GLB'yi orphan bırakmak, owner'ın “onların yanına” tarifini oyunda kuramayacağı için reddedildi. (4) Sekiz asseti core boot sırasında await etmek time-to-play'i uzattığı için reddedildi. (5) Tek bir Promise failure'ının bütün bootu bozması safe-mode kontratına aykırı olduğu için per-entry containment seçildi.
+
+**Sonuç:** Oyuncu başlangıç alanında sekiz parçalı koleksiyonu görür; mevcut oyuncu/NPC/hayvan/uçan-ejderha kod yolları korunur. Orijinaller provenance için kalır; offline shell yalnız runtime kopyalarını içerir. Yeni focused browser kontratı sekiz unique URL, finite normalize/placement, ground/lift, shadow metadata ve çift-dispose güvenliğini doğrular. Gerçek mobile/F2 ölçümü hard render bütçesini geçer; console/page error sıfırdır.
+
+**Etkilenen sistemler:** yeni `src/3d/world/modelShowcase.js`, sekiz runtime GLB, additive `game3d.js` lifecycle/startup çağrısı, service-worker shell push girdileri, manifest/katalog ve focused smoke check. Terrain, player/NPC/animal/dragon controller'ları, 2D mod ve yüksek ayrıntılı source varlıklar değiştirilmez.
+
+**Gelecek Faz Etkisi:** statik koleksiyon daha sonra yer/ölçek/ışık açısından owner tarafından ayarlanabilir. Yürüme, idle veya uçuş animasyonu ancak ilgili model için gerçek armature, skin weight ve clip üretildikten sonra ayrı bir versioned entegrasyonla eklenmelidir; mevcut static loader animasyon kabiliyeti vaat etmez.
+
+**Geri alma planı:** owner yerleşimi istemezse yeni bir versioned showcase config/module bu koleksiyonu devre dışı bırakacak şekilde supersede edilir; provenance dosyaları ve tarihsel additive kayıtlar silinmez. Runtime kopyaları başka sahnelerde yeniden kullanılabilir ve mevcut oyun sistemleri bu modülden bağımsız kalır.
