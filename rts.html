@@ -36,7 +36,9 @@
 <div class="rts-help">Sol tık: asker seç • Sol sürükle: alan seçimi • Shift: seçime ekle • Sağ tık: seçili orduyu formasyon halinde yürüt • WASD / oklar: kamerayı kaydır • Fare tekeri / pinch: yakınlaş</div>
 <script type="module">
   import { initRtsGame } from './src/3d/rts/rtsGame.js';
+  import { installRtsSurfaceTexture } from './src/rts/rtsSurfaceTexture.js';
 
+  installRtsSurfaceTexture();
   initRtsGame().catch((error) => {
     console.error('[rts.html] RTS initialization failed', error);
     const loading = document.getElementById('rts-loading');
