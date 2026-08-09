@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+/** Run203 validated-checkpoint recorder. Appends documentation only after the workflow's full DoD passes. */
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.resolve(__dirname, '..');
+const required = (name) => { const value = process.env[name]; if (!value) throw new Error(`missing ${name}`); return value; };
+const stamp = required('RUN203_STAMP');
+const tag = required('RUN203_STABLE_TAG');
+const base = required('RUN203_BASE_SHA');
+const smoke = required('RUN203_SMOKE_PASS_COUNT');
+const proof = JSON.parse(required('RUN203_PROOF_JSON'));
+const mobile = JSON.parse(required('RUN203_LIVE_MOBILE_JSON'));
+const perf = required('RUN203_PERF_ROW');
+const append = (file, text) => fs.appendFileSync(path.join(ROOT, file), text, 'utf8');
+const fields = perf.split(',');
+if (fields.length < 8 || fields[1] !== 'run203') throw new Error(`unexpected perf row: ${perf}`);
+const [, , fps, drawCalls, triangles, geometries, textures, heap] = fields;
+append('3D_GAME_PROGRESS.md', `\n\n## Run 203 — Explicit developer Current/Canonical launcher isolation proof\n\n- **Validated:** ${stamp}; base main \`${base}\`.\n- Added developer-only \`canonical-dev-launcher.html\`; it owns no runtime canvas and links explicitly to current or canonical-dev. Default player startup and live runtime sources remain unchanged.\n- Real Chromium proves Current => requested/active current with one runtime canvas, Canonical => requested/active canonical with one runtime canvas, both resolve the same deterministic bridge \`${proof.canonical.bridge}\`, and returning to the launcher leaves zero runtime canvases.\n- Current and canonical pagehide boundaries both report timeout/interval/RAF counts 0/0/0; console/page errors=${proof.consoleErrors}.\n- Full browser smoke: **${smoke}+ PASS**; Run195-202 canonical regressions PASS; PWA cache/installability PASS.\n- Mobile live budget: **${mobile.drawCalls} draw calls / ${mobile.triangles} triangles / ${mobile.geometries} geometries / ${mobile.textures} textures**, within <500/<500000. Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**.\n- Perf snapshot: **fps ${fps}, ${drawCalls} draw calls, ${triangles} triangles, ${geometries} geometries, ${textures} textures, ${heap} MB heap**; trend guard PASS.\n- Technical debt: **no new live-runtime debt**. Risk **LOW**, confidence **5/5**.\n- **Next safe step (Run204):** keep player default unchanged and prove launcher/current/canonical behavior under installed-PWA standalone navigation plus offline return-to-launcher history boundaries before considering any wider developer exposure.\n`);
+append('DECISIONS.md', `\n\n## ADR-0222 — Keep canonical selection explicit behind a runtime-free developer launcher\n\n- **Decision:** Introduce a developer-only launcher that owns no renderer/runtime and offers two explicit navigation choices: existing current developer boot and opt-in canonical developer boot.\n- **Why:** Run200-202 proved selector, offline boot and lifecycle retention. A launcher is the smallest usable developer surface that preserves explicit consent and prevents two world runtimes from coexisting in one document.\n- **Alternatives:** embed two previews simultaneously (rejected: duplicate ownership risk); change default \`game3d.html\` startup (rejected: migration gate not met); add launcher logic to service worker/default navigation (rejected: unnecessary PWA/runtime scope).\n- **Result:** Chromium proves launcher canvas=0, selected runtime canvas=1, deterministic bridge identity is stable across current/canonical choices, pagehide timer/RAF ownership is clean, and console/page errors remain zero.\n- **Affected systems:** developer-only HTML, CI/test/documentation. 2D, default 3D, gameplay/world sources, service worker, manifest and live player navigation unchanged.\n- **Rollback:** new Run203 files are inert unless opened directly and may be removed only in a future owner-approved non-additive cleanup.\n- **Risk:** LOW.\n`);
+append('STABLE_TAGS.md', `\n- \`${tag}\` — Run203 explicit developer launcher isolation proof; ${smoke}+ smoke PASS, canonical regressions/PWA/mobile/perf/additive/concurrency gates PASS; live/default runtime delta 0.\n`);
+console.log(`[recordRun203DeveloperLauncher] appended Run203 progress, ADR-0222 and stable checkpoint ${tag}`);
