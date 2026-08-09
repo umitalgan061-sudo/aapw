@@ -932,3 +932,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - `stable-2026-08-09-0827` — Run208 RTS destination-command feedback; desktop+mobile visual proof, 34+ legacy smoke, PWA/perf/additive/concurrency gates PASS.
 
 - stable-2026-08-09-1443 — Run211 RTS keyboard command parity: M/F delegate to established controls; pre/post smoke, PWA/offline, mobile budget, determinism, terrain/roads and console gates PASS.
+
+- `stable-2026-08-09-1545` — Run212 RTS command-state chip + ARIA live status; focused desktop/mobile proof, 34+ smoke, PWA/mobile/determinism/world-safety/additive/concurrency gates PASS.

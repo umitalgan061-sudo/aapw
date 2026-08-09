@@ -15354,3 +15354,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Rollback:** because the implementation is isolated, a future owner-approved cleanup can stop loading the module and remove its shell entry; existing RTS button/mouse/touch behavior remains the rollback baseline.
 
 **Future-phase impact:** later rally markers, formation UI or richer keyboard controls can delegate through the same established command surface rather than creating parallel simulation ownership.
+
+## ADR-0230 — Mirror established RTS command state into a DOM/ARIA readability layer
+**Risk:** LOW
+
+**Decision:** Add an additive inline module in `rts.html` that observes the existing RTS status text, selection count and Move button class. It renders a small visual command-state chip and a visually-hidden Turkish polite live region. It does not import or mutate simulation modules.
+
+**Why:** Run211 improved keyboard command ergonomics but command mode was still primarily encoded by button styling/status copy. Mirroring already-owned DOM state improves visual and assistive-technology readability without creating a second command, selection or camera owner.
+
+**Alternatives considered:** add new state/events to `rtsGame.js` (rejected: additive-only policy plus unnecessary second interface); add a world-space rally mesh (deferred: extra render/runtime ownership is unnecessary for this accessibility/readability gap); poll every frame (rejected: MutationObserver reacts only when the established UI changes).
+
+**Consequences:** Desktop/mobile gain explicit command-mode readability and polite screen-reader announcements. Existing RTS simulation, deterministic seed behavior, 2D game, surface texture, PWA asset graph and render object counts are unchanged. The inline implementation requires no new service-worker shell entry.
+
+**Affected systems:** `rts.html` presentation/accessibility only; focused Run212 CI/test/docs.
+
+**Rollback:** a future owner-approved cleanup can stop loading/removing the additive inline block; established RTS controls and state remain the baseline because this layer never owns gameplay state.
+
+**Future-phase impact:** future RTS formation/rally UI can expose its established state through the same observer/mirroring principle rather than duplicating simulation ownership.
