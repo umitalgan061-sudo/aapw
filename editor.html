@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="description" content="Westeros World Editor — tarayıcı içinde 3D dünya düzenleyici">
+<title>Westeros World Editor</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="stylesheet" href="editor.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./src/3d/vendor/three/three.module.js",
+    "three/addons/": "./src/3d/vendor/three/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<div class="we-shell">
+  <header class="we-toolbar">
+    <div class="we-brand">WESTEROS <span>WORLD EDITOR</span></div>
+    <div class="we-toolbar-actions" role="toolbar" aria-label="Editör araçları">
+      <button id="we-save" type="button">Kaydet JSON</button>
+      <button id="we-load" type="button">Yükle JSON</button>
+      <button id="we-duplicate" type="button">Kopyala</button>
+      <button id="we-delete" type="button">Sil</button>
+      <button id="we-focus" type="button">Odaklan (F)</button>
+      <a class="we-link" href="game3d.html">▶ Oyuna Dön</a>
+    </div>
+  </header>
+
+  <aside class="we-panel we-assets-panel" aria-label="Asset kitaplığı">
+    <div class="we-panel-title">ASSETS</div>
+    <input id="we-asset-search" class="we-input" type="search" placeholder="Asset ara…" autocomplete="off">
+    <div id="we-asset-categories" class="we-categories" aria-label="Asset kategorileri"></div>
+    <div id="we-assets" class="we-assets"></div>
+    <div class="we-formation">
+      <div class="we-section-title">FORMASYON</div>
+      <label>Satır <input id="we-rows" class="we-number" type="number" min="1" max="100" value="20"></label>
+      <label>Sütun <input id="we-columns" class="we-number" type="number" min="1" max="100" value="25"></label>
+      <label>Aralık (m) <input id="we-spacing" class="we-number" type="number" min="0.25" max="20" step="0.25" value="1.5"></label>
+      <button id="we-create-formation" type="button">Seçili Asset ile Oluştur</button>
+    </div>
+  </aside>
+
+  <main class="we-viewport-wrap">
+    <canvas id="we-canvas" aria-label="Westeros 3D editör görünümü"></canvas>
+    <div class="we-viewport-badge">EDIT MODE</div>
+    <div id="we-toast" class="we-toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <aside class="we-panel we-right-panel">
+    <section class="we-hierarchy-wrap">
+      <div class="we-panel-title">HIERARCHY</div>
+      <input id="we-hierarchy-search" class="we-input" type="search" placeholder="Obje ara…" autocomplete="off">
+      <div id="we-hierarchy" class="we-hierarchy" role="tree"></div>
+    </section>
+    <section class="we-inspector-wrap">
+      <div class="we-panel-title">INSPECTOR</div>
+      <div id="we-inspector-empty" class="we-muted">Bir obje seç.</div>
+      <div id="we-inspector" hidden>
+        <label>Ad <input id="we-name" class="we-input" type="text"></label>
+        <div class="we-section-title">POSITION</div>
+        <div class="we-vector-row">
+          <label>X <input id="we-pos-x" class="we-number" type="number" step="0.1"></label>
+          <label>Y <input id="we-pos-y" class="we-number" type="number" step="0.1"></label>
+          <label>Z <input id="we-pos-z" class="we-number" type="number" step="0.1"></label>
+        </div>
+        <div class="we-section-title">ROTATION °</div>
+        <div class="we-vector-row">
+          <label>X <input id="we-rot-x" class="we-number" type="number" step="1"></label>
+          <label>Y <input id="we-rot-y" class="we-number" type="number" step="1"></label>
+          <label>Z <input id="we-rot-z" class="we-number" type="number" step="1"></label>
+        </div>
+        <div class="we-section-title">SCALE</div>
+        <div class="we-vector-row">
+          <label>X <input id="we-scale-x" class="we-number" type="number" step="0.1" min="0.01"></label>
+          <label>Y <input id="we-scale-y" class="we-number" type="number" step="0.1" min="0.01"></label>
+          <label>Z <input id="we-scale-z" class="we-number" type="number" step="0.1" min="0.01"></label>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <footer class="we-statusbar">
+    <label class="we-toggle"><input id="we-grid-toggle" type="checkbox" checked> Grid</label>
+    <label class="we-toggle"><input id="we-snap-toggle" type="checkbox" checked> Snap</label>
+    <label>Snap <input id="we-snap-size" class="we-number we-snap-size" type="number" min="0.1" max="100" step="0.1" value="1"> m</label>
+    <span id="we-selection-status">Seçim: yok</span>
+    <span id="we-render-status">0 obje</span>
+  </footer>
+</div>
+<input id="we-load-file" type="file" accept="application/json,.json" hidden>
+<script type="module" src="./src/3d/editor/worldEditor.js"></script>
+</body>
+</html>

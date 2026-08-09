@@ -1,3 +1,15 @@
+// Run214 Westeros World Editor offline authoring shell; registered before the established cache install handler.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./editor.html');
+    GAME3D_SHELL_FILES.push('./editor.css');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/worldEditor.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/editorAssetLibrary.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorAssetManager.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceManager.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorSceneSerializer.js');
+    GAME3D_SHELL_FILES.push('./scenes/westeros-world.example.json');
+});
+
 // Run207 registers first so the established install handler receives the RTS entries without replacing any prior cache line.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./rts.html');

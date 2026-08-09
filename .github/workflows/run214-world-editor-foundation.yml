@@ -1,0 +1,156 @@
+name: Run 214 World Editor Foundation
+
+on:
+  push:
+    branches:
+      - agent/run214-world-editor-foundation
+    paths:
+      - '.github/workflows/run214-world-editor-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Eşzamanlılık Kontrolü' GOVERNANCE.md
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --package-lock=false playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Syntax foundation and additive gates
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/editor/editorAssetLibrary.js
+          node --check src/3d/editor/EditorAssetManager.js
+          node --check src/3d/editor/EditorInstanceManager.js
+          node --check src/3d/editor/EditorSceneSerializer.js
+          node --check scripts/checkWorldEditorFoundation.js
+          node --check scripts/checkRun214WorldEditorFoundation.js
+          node scripts/checkWorldEditorFoundation.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+      - name: Existing game pre-cache baseline smoke
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run214-pre-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run214-pre-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run214-pre-smoke.log"
+      - name: Focused World Editor desktop mobile proof
+        run: node scripts/checkRun214WorldEditorFoundation.js
+      - name: Add editor shell to existing offline cache additively
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('service-worker.js')
+          s = p.read_text()
+          block = """// Run214 Westeros World Editor offline authoring shell; registered before the established cache install handler.\nself.addEventListener('install', () => {\n    GAME3D_SHELL_FILES.push('./editor.html');\n    GAME3D_SHELL_FILES.push('./editor.css');\n    GAME3D_SHELL_FILES.push('./src/3d/editor/worldEditor.js');\n    GAME3D_SHELL_FILES.push('./src/3d/editor/editorAssetLibrary.js');\n    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorAssetManager.js');\n    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceManager.js');\n    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorSceneSerializer.js');\n    GAME3D_SHELL_FILES.push('./scenes/westeros-world.example.json');\n});\n\n"""
+          if block not in s:
+              p.write_text(block + s)
+          PY
+          node --check service-worker.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+      - name: PWA performance determinism and world safety gates
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+      - name: Existing game post-cache smoke
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run214-post-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run214-post-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run214-post-smoke.log"
+      - name: Append verified records
+        run: |
+          set -euo pipefail
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+          ## Run 214 — Westeros World Editor foundation
+          - Added a standalone in-browser Three.js authoring surface at `editor.html`, isolated from 2D, game3d and RTS simulation ownership.
+          - Asset library supports local GLB/GLTF + FBX through the existing vendored loaders and caches each source template once. Grid and Snap are independent controls; Snap defaults to 1 metre.
+          - Added raycast selection, Hierarchy, XYZ/rotation/scale Inspector, duplicate/delete/focus, schema-v1 JSON save/load for normal objects, and deterministic 20x25 = 500 static-mesh `InstancedMesh` formation serialization.
+          - Rigged/skinned and multi-mesh assets are deliberately rejected by the first static GPU-instancing path rather than silently rendered incorrectly; animated crowd batching remains a later editor layer.
+          - Focused desktop/mobile Chromium proof, zero console/page errors, pre/post 34+ game smoke, PWA/cache/installability, mobile render budget, seeded RNG/world-reference, terrain-seat and road-network safety gates PASS.
+          - Memory-leak checklist: editor pagehide disposes OrbitControls/renderer; InstancedMesh groups dispose their instance buffers on removal/clear. No gameplay timer, world event, physics or simulation owner was added.
+          - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; events +0; creatures +0. Existing game world coverage is unchanged.
+          - Technical debt introduced: 1 explicit editor item — TransformControls r160 + full formation JSON rehydration/animated skinned crowd path are not part of this foundation. Risk: LOW. Confidence: 4/5.
+          - Next safe step: vendor the matching Three.js r160 TransformControls and add W/E/R move/rotate/scale with 1m translation snap without changing game runtime ownership.
+          EOF
+          cat >> DECISIONS.md <<'EOF'
+
+          ## ADR-0232 — Keep World Editor as an isolated JSON authoring surface
+          **Risk:** LOW
+
+          **Decision:** Build the Westeros World Editor as a standalone `editor.html` + `src/3d/editor/*` authoring layer. It may load local GLB/GLTF/FBX assets and serialize scene transforms, but it does not own or mutate the existing 2D/game3d/RTS simulation state.
+
+          **Why:** A Unity-like editor is safest when authoring data and game runtime communicate through a versioned JSON contract. This preserves current gameplay, determinism and mobile/PWA budgets while allowing the editor to evolve independently.
+
+          **Alternatives considered:** embed editing controls directly into `game3d.js`; make RTS scene state the editor database; store hundreds of duplicate model files. Rejected because they couple authoring to runtime ownership or waste asset/storage/GPU resources.
+
+          **Consequences:** normal objects use cached model templates plus per-object transforms; repeated single-static-mesh formations use `THREE.InstancedMesh` and deterministic instance records. Rigged/multi-mesh crowds require a later purpose-built path. Editor files join the existing offline shell without replacing the service worker owner.
+
+          **Affected systems:** new editor-only HTML/CSS/JS/JSON surface and additive service-worker shell entries. Existing game simulation remains unchanged.
+
+          **Rollback:** remove the editor-only files and additive cache registration in a future owner-approved change; no existing game state depends on this editor foundation.
+          EOF
+          TAG="stable-$(TZ=Europe/Istanbul date +%Y-%m-%d-%H%M)"
+          echo "$TAG — Run214 World Editor foundation; isolated JSON authoring shell and deterministic static instancing verified." >> STABLE_TAGS.md
+          echo "RUN214_STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+          git diff --numstat "$CURRENT_MAIN" -- editor.html editor.css service-worker.js src/3d/editor scripts/checkWorldEditorFoundation.js scripts/checkRun214WorldEditorFoundation.js scenes/westeros-world.example.json | awk '$2 != 0 { exit 1 }'
+      - name: Commit verified Run214 records and cache wiring
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'feat(run214): finalize verified World Editor foundation'
+          git tag "$RUN214_STABLE_TAG"
+          git push origin HEAD:agent/run214-world-editor-foundation
+          git push origin "$RUN214_STABLE_TAG" || true
+      - name: Upload World Editor visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run214-world-editor-foundation
+          path: artifacts/run214/*.png
+          if-no-files-found: error
