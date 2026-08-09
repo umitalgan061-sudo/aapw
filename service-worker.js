@@ -1,3 +1,11 @@
+// Run207 registers first so the established install handler receives the RTS entries without replacing any prior cache line.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./rts.html');
+    GAME3D_SHELL_FILES.push('./rts.css');
+    GAME3D_SHELL_FILES.push('./src/3d/rts/rtsArmy.js');
+    GAME3D_SHELL_FILES.push('./src/3d/rts/rtsGame.js');
+});
+
 // ══ WESTEROS SERVICE WORKER v4 — iOS VIDEO FIX + OFFLINE APP SHELL ══
 // Video (mp4): SW BYPASS — iOS Safari Range request için direkt ağa git
 // Resimler: cache-first

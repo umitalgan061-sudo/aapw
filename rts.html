@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1710">
+<meta name="description" content="Westeros RTS — yüksekten ordu yönetimi, kaleler, yollar, hayvanlar ve ejderhalar">
+<title>Westeros — RTS Komutanlık</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="stylesheet" href="rts.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./src/3d/vendor/three/three.module.js",
+    "three/addons/": "./src/3d/vendor/three/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="rts-canvas" aria-label="Westeros RTS savaş alanı"></canvas>
+<div id="rts-loading" class="rts-loading">Westeros orduları konuşlanıyor&hellip;</div>
+<div id="rts-selection-box" hidden></div>
+<header class="rts-topbar">
+  <div class="rts-title">WESTEROS RTS</div>
+  <div id="rts-status" class="rts-status">Dünya hazırlanıyor&hellip;</div>
+  <div id="rts-selection-count" class="rts-selection-count">0 / 48 asker seçili</div>
+</header>
+<nav class="rts-commandbar" aria-label="RTS komutları">
+  <button id="rts-select-all" type="button">Tüm Ordu</button>
+  <button id="rts-move-command" type="button">Hareket Emri</button>
+  <button id="rts-focus-army" type="button">Orduya Odaklan</button>
+  <a class="rts-mode-link" href="game3d.html">Karakter Modu</a>
+  <a class="rts-mode-link" href="index.html">2D Harita</a>
+</nav>
+<div class="rts-help">Sol tık: asker seç • Sol sürükle: alan seçimi • Shift: seçime ekle • Sağ tık: seçili orduyu formasyon halinde yürüt • WASD / oklar: kamerayı kaydır • Fare tekeri / pinch: yakınlaş</div>
+<script type="module">
+  import { initRtsGame } from './src/3d/rts/rtsGame.js';
+
+  initRtsGame().catch((error) => {
+    console.error('[rts.html] RTS initialization failed', error);
+    const loading = document.getElementById('rts-loading');
+    if (loading) loading.textContent = 'RTS modu başlatılamadı. Sayfayı yenilemeyi deneyin.';
+  });
+</script>
+</body>
+</html>

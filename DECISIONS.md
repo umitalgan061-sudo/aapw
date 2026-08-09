@@ -15297,3 +15297,15 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Affected systems:** CI/test/documentation only. Production service worker/manifest, developer service worker/manifest, 2D, default 3D and live gameplay/world code unchanged.
 - **Rollback:** Run206 files are inert unless executed by CI and may be removed only in a future owner-approved non-additive cleanup.
 - **Risk:** LOW.
+
+
+## ADR-0226 — Add a separate high-camera RTS surface instead of replacing the existing character runtime
+
+- **Decision:** Introduce `rts.html` + `src/3d/rts/` as an additive command surface that reuses the established deterministic world and gameplay creatures while leaving `game3d.html`'s player-character runtime operational. Expose the RTS mode from the existing 3D page with one additive navigation link.
+- **Why:** The owner explicitly reprioritized visible gameplay toward Age-of-Empires-style group control and away from single-character attachment, while the permanent rules still forbid deleting/changing existing source lines and require 2D/3D/PWA regressions to remain intact. A sibling surface gives a playable RTS immediately without destabilizing the proven character runtime.
+- **Alternatives:** replace `game3d.js` startup (rejected: non-additive/high regression risk); retrofit the existing player loop with mode branches (deferred: requires touching a near-600-line orchestrator and couples RTS ownership to the avatar); build a second world implementation (rejected: duplicates terrain/roads/water/castles and threatens determinism).
+- **Result:** a deterministic 48-unit selectable army, formation movement, high camera, real castles, vegetation/roads/water, animals and dragon coexist in one visible RTS surface; desktop/mobile browser proofs stay within budgets and legacy smoke/PWA checks remain green.
+- **Affected systems:** new RTS HTML/CSS/controller/army/test/CI surfaces; one additive navigation line in `game3d.html`; additive service-worker cache registration for the RTS shell. Existing player/gameplay/world source lines and the 2D runtime are unchanged.
+- **Rollback:** the RTS files and additive navigation/cache registrations are isolated; a future owner-approved non-additive cleanup can remove the sibling surface without changing the legacy world/runtime architecture.
+- **Future-phase impact:** this establishes a safe visible-game seam for richer troops/civilians, formations, selection feedback and eventual RTS combat/economy without forcing canonical-world migration to become the player's default startup.
+- **Risk:** LOW-MEDIUM.

@@ -14396,3 +14396,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 368 MB heap**; trend guard PASS.
 - Technical debt: **no new live-runtime debt**. Risk **LOW**, confidence **5/5**.
 - **Next safe step (Run207):** keep production startup unchanged and prove repeated offline Current/Canonical round-trips cannot accumulate service-worker registrations, caches, clients, timers/listeners or canvases across multiple navigation cycles.
+
+
+## Run 207 — Visible RTS command surface / high-camera army control
+
+- **Validated:** 2026-08-09 08:12 UTC; base main `00b01010bbeb3ac3b120c2232d03955d4e27e3c7`.
+- Development priority pivoted from background canonical/PWA migration to the player's visible game surface. The existing 2D game and character-driven 3D mode remain intact; `rts.html` is a new additive command surface and `game3d.html` gains only an RTS entry link.
+- Added a character-independent high command camera and a deterministic **48-soldier** instanced army. Soldiers support single selection, Shift additive selection, drag-box selection, Select All, desktop right-click formation movement, touch Move Command, WASD/arrow camera pan, zoom and army focus.
+- Reuses the established world rather than duplicating it: real castle GLBs (**8 roots loaded in proof**), terrain/grass/vegetation, roads, water/lakes/rivers, configured animals (**4**) and dragon (**1**) render together with the controllable army.
+- Real Chromium visual proof: desktop overview + command view + mobile command screenshots; console/page errors **0**. Desktop after-command render: **59 draw calls / 764139 triangles** (<2500/<5M). RTS mobile render: **28 draw calls / 202770 triangles** (<500/<500000).
+- Full legacy browser smoke: **34+ PASS**; seeded/world-reference/terrain/road regressions PASS; production PWA cache/installability PASS. Existing mobile live budget: **35 draw calls / 195929 triangles / 30 geometries / 22 textures**.
+- World Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**. Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 326 MB heap**; trend guard PASS.
+- Technical debt: the first controllable army deliberately uses lightweight procedural/instanced soldier geometry rather than the heavier authored human FBX roster; the initial overview camera is functionally readable but still wider/darker than the intended Age-of-Empires-style presentation; per-frame instance transform scratch allocation is a future GC optimization target. No debt was added to the legacy character/2D runtimes. Risk **LOW-MEDIUM**, confidence **4/5**.
+- **Next safe visible step (Run208):** stay on the visible RTS track: improve AoE-style camera framing/readability and daylight presentation, introduce visually richer licensed/reused human/guard populations with LOD/instancing discipline, add destination/formation feedback, and prove the richer scene stays inside desktop/mobile budgets. Background canonical migration remains paused unless the owner reprioritizes it.
