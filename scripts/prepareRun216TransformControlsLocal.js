@@ -82,6 +82,7 @@ function runSelfTest() {
   if (hash !== 'ce013625030ba8dba906f756967f9e9ca394464a') fail(`Git blob self-test drift: ${hash}`);
   if (!REQUIRED_CHECKS.includes('service-worker.js')) fail('Self-test missing service-worker syntax gate');
   if (!REQUIRED_CHECKS.includes('scripts/checkRun216WorldEditorTransformControls.js')) fail('Self-test missing browser proof syntax gate');
+  if (!REQUIRED_CHECKS.includes('scripts/checkRun216ServiceWorkerMaterializer.js')) fail('Self-test missing real service-worker materializer regression gate');
   console.log('[prepareRun216TransformControlsLocal] PASS: self-test');
 }
 
