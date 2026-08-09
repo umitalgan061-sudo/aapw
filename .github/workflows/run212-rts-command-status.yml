@@ -1,0 +1,136 @@
+name: Run 212 RTS Command Status
+
+on:
+  push:
+    branches:
+      - agent/run212-rts-command-status
+    paths:
+      - '.github/workflows/run212-rts-command-status.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base HEAD origin/main)"
+          test "$CURRENT_MAIN" = "$MERGE_BASE"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check "$CURRENT_MAIN" HEAD
+          node --check scripts/checkRun212RtsCommandStatus.js
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Focused Run212 browser proof
+        run: node scripts/checkRun212RtsCommandStatus.js
+      - name: RTS and legacy browser regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkRun211RtsKeyboardShortcuts.js
+          node scripts/checkRun210RtsSurfaceTexture.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run212-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run212-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run212-smoke.log"
+      - name: PWA mobile determinism and world safety
+        run: |
+          set -euo pipefail
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+      - name: Performance trend
+        run: node scripts/analyzePerfTrend.js
+      - name: Record Run212 after all gates pass
+        run: |
+          set -euo pipefail
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+          ## Run 212 — RTS command-state readability without simulation ownership
+          - Base/main at start: `897001280c891095819a5129b545eec4e43afe1e` (Run211 merged state). Owner-gated mobile radius-5, `game3d.js` split and world-event determinism-fixture decisions remain untouched.
+          - Added a DOM-only command-state layer inside `rts.html`: a compact `KOMUT: SEÇİM` / `KOMUT: HEDEF SEÇ` chip mirrors the existing Move button class, while a visually-hidden Turkish `role=status` / `aria-live=polite` region announces current mode, selected-unit count and the established RTS status text.
+          - Ownership boundary: the layer only observes existing DOM (`rts-status`, `rts-selection-count`, `rts-move-command`) with one `MutationObserver`; it never writes army, camera, world, terrain, seed or command target state. Existing mouse/touch/M/F controls remain the only gameplay owners.
+          - Focused Chromium proof: desktop and mobile both start in selection mode with 48/48 selected, switch to target-selection mode when the established Move button is clicked, expose the live-region contract, remain within existing draw-call/triangle budgets and produce zero console/page errors. Two full-page screenshots are retained as CI artifacts.
+          - Regression: Run211 keyboard shortcuts, Run210 owner surface, 34+ legacy browser smoke, PWA install/cache, real mobile perf budget, seeded RNG policy, world-reference map/water/alignment/hydrology, 14-seat terrain safety and road connectivity all PASS.
+          - World Coverage unchanged: desktop 96.2%; mobile live radius-4 remains 81 chunks / 20.25 km² (~14.7%). No asset, geometry, texture, timer or RAF added.
+          - Memory-leak checklist: one MutationObserver + one pagehide listener + two bounded DOM nodes; disposal disconnects the observer and removes both nodes/listener. Technical debt introduced: 0 live-runtime architectural items. Risk LOW; confidence 5/5.
+          - Next safe step: continue RTS readability with another DOM/instancing-only improvement that does not duplicate simulation ownership; world-space rally geometry remains optional and must first prove mobile/render budget headroom.
+          EOF
+
+          cat >> DECISIONS.md <<'EOF'
+
+          ## ADR-0230 — Mirror established RTS command state into a DOM/ARIA readability layer
+          **Risk:** LOW
+
+          **Decision:** Add an additive inline module in `rts.html` that observes the existing RTS status text, selection count and Move button class. It renders a small visual command-state chip and a visually-hidden Turkish polite live region. It does not import or mutate simulation modules.
+
+          **Why:** Run211 improved keyboard command ergonomics but command mode was still primarily encoded by button styling/status copy. Mirroring already-owned DOM state improves visual and assistive-technology readability without creating a second command, selection or camera owner.
+
+          **Alternatives considered:** add new state/events to `rtsGame.js` (rejected: additive-only policy plus unnecessary second interface); add a world-space rally mesh (deferred: extra render/runtime ownership is unnecessary for this accessibility/readability gap); poll every frame (rejected: MutationObserver reacts only when the established UI changes).
+
+          **Consequences:** Desktop/mobile gain explicit command-mode readability and polite screen-reader announcements. Existing RTS simulation, deterministic seed behavior, 2D game, surface texture, PWA asset graph and render object counts are unchanged. The inline implementation requires no new service-worker shell entry.
+
+          **Affected systems:** `rts.html` presentation/accessibility only; focused Run212 CI/test/docs.
+
+          **Rollback:** a future owner-approved cleanup can stop loading/removing the additive inline block; established RTS controls and state remain the baseline because this layer never owns gameplay state.
+
+          **Future-phase impact:** future RTS formation/rally UI can expose its established state through the same observer/mirroring principle rather than duplicating simulation ownership.
+          EOF
+
+          cat >> perf_log.csv <<'EOF'
+          2026-08-09,run212-rts-command-status,1,66,821483,,,,"DOM-only command status; no renderer objects/assets added; focused desktop RTS budget PASS"
+          EOF
+
+          cat >> STABLE_TAGS.md <<'EOF'
+
+          - `stable-2026-08-09-1545` — Run212 RTS command-state chip + ARIA live status; focused desktop/mobile proof, 34+ smoke, PWA/mobile/determinism/world-safety/additive/concurrency gates PASS.
+          EOF
+      - name: Final remote-main concurrency and diff gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base HEAD origin/main)"
+          test "$CURRENT_MAIN" = "$MERGE_BASE"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Commit verified Run212 records and push
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run212): record verified RTS command status'
+          git tag stable-2026-08-09-1545
+          git push origin HEAD:agent/run212-rts-command-status
+          git push origin stable-2026-08-09-1545 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run212-rts-command-status
+          path: artifacts/run212
+          if-no-files-found: warn
