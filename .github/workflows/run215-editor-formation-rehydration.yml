@@ -84,9 +84,22 @@ jobs:
           node --check src/3d/editor/worldEditor.js
           node --check src/3d/editor/EditorFormationRehydrator.js
           node --check service-worker.js
-          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
           git diff --check
-          git diff --numstat "$(git rev-parse origin/main)" -- src/3d/editor/worldEditor.js service-worker.js | awk '$2 != 0 { exit 1 }'
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          for path in ['src/3d/editor/worldEditor.js', 'service-worker.js']:
+              old = subprocess.check_output(['git', 'show', f'origin/main:{path}'], text=True).splitlines()
+              new = Path(path).read_text().splitlines()
+              cursor = iter(new)
+              for line in old:
+                  for candidate in cursor:
+                      if candidate == line:
+                          break
+                  else:
+                      raise SystemExit(f'[run215-precommit-additive] FAIL: existing line removed/changed in {path}: {line!r}')
+              print(f'[run215-precommit-additive] PASS: {path} preserves every origin/main line in order')
+          PY
       - name: Focused formation rehydration proof
         run: node scripts/checkRun215EditorFormationRehydration.js
       - name: Existing World Editor regression
@@ -148,7 +161,7 @@ jobs:
           cat >> STABLE_TAGS.md <<'EOF'
           stable-2026-08-09-1720 — Run215 World Editor instanceGroups JSON rehydration; exact static formation round-trip, stale-group cleanup, PWA/game regressions verified.
           EOF
-      - name: Final remote-main concurrency and additive gates
+      - name: Final remote-main concurrency and precommit additive gates
         run: |
           set -euo pipefail
           git fetch origin main
@@ -156,7 +169,21 @@ jobs:
           test "$CURRENT_MAIN" = "$(git merge-base HEAD origin/main)"
           node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
           git diff --check
-          git diff --numstat "$CURRENT_MAIN" -- src/3d/editor/worldEditor.js service-worker.js src/3d/editor/EditorFormationRehydrator.js scripts/checkRun215EditorFormationRehydration.js | awk '$2 != 0 { exit 1 }'
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          for path in ['src/3d/editor/worldEditor.js', 'service-worker.js']:
+              old = subprocess.check_output(['git', 'show', f'origin/main:{path}'], text=True).splitlines()
+              new = Path(path).read_text().splitlines()
+              cursor = iter(new)
+              for line in old:
+                  for candidate in cursor:
+                      if candidate == line:
+                          break
+                  else:
+                      raise SystemExit(f'[run215-precommit-additive] FAIL: existing line removed/changed in {path}: {line!r}')
+              print(f'[run215-precommit-additive] PASS: {path} preserves every origin/main line in order')
+          PY
       - name: Commit verified Run215
         run: |
           set -euo pipefail
@@ -165,6 +192,9 @@ jobs:
           git add src/3d/editor/worldEditor.js service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md
           git diff --cached --check
           git commit -m 'feat(run215): wire verified editor formation rehydration'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
           git tag stable-2026-08-09-1720
           git push origin HEAD:agent/run215-editor-formation-rehydration
           git push origin stable-2026-08-09-1720 || true
