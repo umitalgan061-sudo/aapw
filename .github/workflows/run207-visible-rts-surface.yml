@@ -41,6 +41,7 @@ jobs:
           grep -F 'run 149' QUESTIONS_FOR_OWNER.md
           node --check src/3d/rts/rtsArmy.js
           node --check src/3d/rts/rtsGame.js
+          node --check service-worker.js
           node --check scripts/checkRun207RtsSurface.js
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
