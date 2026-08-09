@@ -1,0 +1,171 @@
+name: Run 216 Editor Live Workspace
+
+on:
+  push:
+    branches:
+      - agent/run216-editor-live-workspace-v2
+    paths:
+      - '.github/workflows/run216-editor-live-workspace.yml'
+      - '.vscode/tasks.json'
+      - 'editor.html'
+      - 'src/3d/editor/worldEditor.js'
+      - 'scripts/editorLiveServer.js'
+      - 'scripts/checkRun216EditorLiveWorkspace.js'
+      - 'scripts/checkRun216EditorLiveWorkspaceBrowser.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Starting main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Eşzamanlılık Kontrolü' GOVERNANCE.md
+          grep -F '## Run 215 — World Editor formation JSON rehydration' 3D_GAME_PROGRESS.md
+
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Syntax additive and local workspace bridge gates
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/worldEditor.js
+          node --check scripts/editorLiveServer.js
+          node --check scripts/checkRun216EditorLiveWorkspace.js
+          node --check scripts/checkRun216EditorLiveWorkspaceBrowser.js
+          node scripts/checkRun216EditorLiveWorkspace.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+          git diff --numstat "$(git rev-parse origin/main)" HEAD -- editor.html src/3d/editor/worldEditor.js scripts/editorLiveServer.js scripts/checkRun216EditorLiveWorkspace.js scripts/checkRun216EditorLiveWorkspaceBrowser.js .vscode/tasks.json | awk '$2 != 0 { exit 1 }'
+
+      - name: Existing game pre-change smoke
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run216-pre-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run216-pre-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run216-pre-smoke.log"
+
+      - name: Focused live workspace desktop mobile visual proof
+        run: node scripts/checkRun216EditorLiveWorkspaceBrowser.js
+
+      - name: Existing World Editor foundation regression
+        run: node scripts/checkRun214WorldEditorFoundation.js
+
+      - name: Existing formation rehydration regression
+        run: node scripts/checkRun215EditorFormationRehydration.js
+
+      - name: PWA performance determinism and world safety gates
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+
+      - name: Existing game post-change smoke
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run216-post-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run216-post-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run216-post-smoke.log"
+
+      - name: Append verified records
+        run: |
+          set -euo pipefail
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+          ## Run 216 — World Editor live workspace and exact game preview
+          - Added an owner-prioritized VS Code live-authoring path without taking ownership away from the existing 2D/game3d/RTS runtimes. `editor.html` now opens on the real `game3d.html` view by default and offers Edit / Live Game / Side-by-side modes.
+          - The Assets panel removes search/category filtering in the live workspace and enumerates every `.fbx`, `.glb` and `.gltf` recursively under `assets/models/**` through a localhost-only Node bridge. Hosted/PWA use falls back to model records from `assets_manifest.json` without breaking the original seven-asset editor path.
+          - `Koda Kaydet` writes deterministic immutable scene revisions under `scenes/editor-live/` and appends an idempotent `scenes/westeros-world.editor.ndjson` journal. Re-saving byte-equivalent scene data creates no duplicate revision or journal entry, so repeated local authoring remains additive-only and Git-friendly.
+          - Added a VS Code task (`Westeros: World Editor Live`) that starts the bridge/static server at `127.0.0.1:4173`; the client also discovers that bridge when the page itself is served by a separate VS Code Live Server origin.
+          - Focused Chromium proof verifies the actual game3d loading overlay reaches ready inside the Editor iframe, captures near/far views using the existing F4 free camera, checks exact filesystem catalog count with no filters, preserves Run214's default 500-instance marker formation, and covers mobile plus split/edit modes with zero console/page errors.
+          - Run214 editor + Run215 formation regressions, pre/post 34+ game smoke, PWA/cache/installability, mobile render budget, seeded RNG/world-reference, terrain-seat and road-network safety all PASS.
+          - Memory-leak checklist: live workspace owns only DOM listeners, one iframe and transient styles/status nodes and removes them on pagehide; local server owns no file watcher. Scene saves are explicit POST operations only.
+          - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; events +0; creatures +0. Existing gameplay coverage and deterministic world state are unchanged.
+          - Technical debt: live game mode is an exact runtime reference view, while transform editing still occurs on the isolated editor canvas; direct manipulation inside the live game renderer and TransformControls r160 remain future editor layers. Risk: LOW. Confidence: 5/5 after gates.
+          - Next safe step: add an editor-preview-only synchronization bridge so saved authoring objects can be mirrored into the exact game3d renderer without changing production game state, then proceed to TransformControls.
+          EOF
+
+          cat >> DECISIONS.md <<'EOF'
+
+          ## ADR-0234 — Use a localhost workspace bridge for additive World Editor source persistence
+          **Risk:** LOW
+
+          **Decision:** Keep the World Editor isolated from production simulation ownership, but allow local VS Code authoring to discover a loopback-only Node bridge. The bridge recursively exposes every model under `assets/models/**` and persists editor saves as immutable content-addressed scene revisions plus an append-only NDJSON journal. The Editor embeds the real `game3d.html` as its exact live reference view rather than recreating that renderer a second time.
+
+          **Why:** Browsers cannot write arbitrary repository files directly. A localhost bridge gives the owner a one-click Save-to-repo workflow while preserving additive-only history and avoiding a backend/cloud dependency. Embedding the existing game page guarantees the live reference is the actual current 3D runtime rather than a drifting visual imitation.
+
+          **Alternatives considered:** overwrite one canonical JSON file on every save; rejected because later commits would replace existing source lines and violate additive-only governance. Rebuild the entire game scene inside `worldEditor.js`; rejected because it would duplicate world/game ownership and inevitably drift. Make production `game3d.js` directly editable from the authoring UI in this run; rejected as a larger ownership change that requires a dedicated preview synchronization layer.
+
+          **Consequences:** local saves create Git-visible files immediately and can be committed/pushed normally. The full filesystem model catalog is authoritative only when the localhost bridge is available; hosted/offline usage keeps a manifest/original-editor fallback. Live mode is exact game3d rendering, while object manipulation remains on the isolated editor canvas for this run.
+
+          **Affected systems:** World Editor authoring UI, localhost developer tooling, scene-source persistence and editor browser proof. Existing 2D/game3d/RTS simulation behavior is unchanged.
+
+          **Rollback:** stop the local bridge and use the existing JSON-download editor behavior; the production game remains independent of the saved authoring journal.
+          EOF
+
+          TAG="stable-$(TZ=Europe/Istanbul date +%Y-%m-%d-%H%M)"
+          echo "$TAG — Run216 World Editor live workspace; exact game preview, full model catalog and additive local scene persistence verified." >> STABLE_TAGS.md
+          echo "RUN216_STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+          git diff --numstat "$CURRENT_MAIN" HEAD -- editor.html src/3d/editor/worldEditor.js scripts/editorLiveServer.js scripts/checkRun216EditorLiveWorkspace.js scripts/checkRun216EditorLiveWorkspaceBrowser.js .vscode/tasks.json | awk '$2 != 0 { exit 1 }'
+
+      - name: Commit verified Run216 records
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'feat(run216): finalize verified editor live workspace'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git tag "$RUN216_STABLE_TAG"
+          git push origin HEAD:agent/run216-editor-live-workspace-v2
+          git push origin "$RUN216_STABLE_TAG" || true
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run216-editor-live-workspace
+          path: artifacts/run216-editor-live-workspace/*
+          if-no-files-found: error
