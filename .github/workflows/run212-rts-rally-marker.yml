@@ -1,0 +1,185 @@
+name: Run 212 RTS Rally Marker
+
+on:
+  push:
+    branches:
+      - agent/run212-rts-rally-marker
+    paths:
+      - '.github/workflows/run212-rts-rally-marker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Concurrency and governance baseline
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base HEAD origin/main)"
+          test "$CURRENT_MAIN" = "$MERGE_BASE"
+          test "$CURRENT_MAIN" = "897001280c891095819a5129b545eec4e43afe1e"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Eşzamanlılık Kontrolü' GOVERNANCE.md
+          grep -F 'Run 211 — RTS keyboard command parity' 3D_GAME_PROGRESS.md
+          grep -F 'ADR-0229' DECISIONS.md
+          grep -F 'radius-5' QUESTIONS_FOR_OWNER.md
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Baseline smoke before runtime wiring
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/pre-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/pre-smoke.log")" -ge 34
+          node scripts/checkRun211RtsKeyboardShortcuts.js
+          node scripts/checkServiceWorkerCache.js
+      - name: Wire rally marker by insertion only
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/3d/rts/rtsGame.js')
+          text = path.read_text()
+          insertions = [
+              ("import { createRtsArmy } from './rtsArmy.js';\n", "import { createRtsArmy } from './rtsArmy.js';\nimport { createRtsRallyMarker } from './rtsRallyMarker.js';\n"),
+              ("\tconst state = createScene(canvas);\n", "\tconst state = createScene(canvas);\n\tconst rallyMarker = createRtsRallyMarker(state.scene);\n"),
+              ("\t\tconst commanded = army.commandMove(target);\n", "\t\tconst commanded = army.commandMove(target);\n\t\trallyMarker.show(target.x, sampleClampedGroundY(target.x, target.z), target.z, commanded);\n"),
+              ("\t\tarmy.update(delta);\n", "\t\tarmy.update(delta);\n\t\trallyMarker.update(delta);\n"),
+              ("\t\tarmy.dispose();\n", "\t\tarmy.dispose();\n\t\trallyMarker.dispose();\n"),
+              ("\tframeId = requestAnimationFrame(tick);\n}\n", "\twindow.__WESTEROS_RTS_RALLY__ = { getSnapshot: rallyMarker.getSnapshot };\n\tframeId = requestAnimationFrame(tick);\n}\n"),
+          ]
+          for old, new in insertions:
+              if new in text:
+                  continue
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected unique insertion anchor not found: {old!r}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+
+          sw = Path('service-worker.js')
+          text = sw.read_text()
+          anchor = "// Run211 RTS keyboard-command parity: module-only shell entry; no new asset/cache role.\n"
+          addition = "// Run212 RTS rally marker: module-only shell entry; procedural geometry adds no asset fetch.\nGAME3D_SHELL_FILES.push('./src/3d/rts/rtsRallyMarker.js');\n\n"
+          if addition not in text:
+              if anchor not in text:
+                  raise SystemExit('Run211 service-worker anchor missing')
+              text = text.replace(anchor, addition + anchor, 1)
+          sw.write_text(text)
+          PY
+          node --check src/3d/rts/rtsRallyMarker.js
+          node --check src/3d/rts/rtsGame.js
+          node --check scripts/checkRun212RtsRallyMarker.js
+          node --check service-worker.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+          test "$(git diff --numstat origin/main -- src/3d/rts/rtsGame.js service-worker.js | awk '{s+=$2} END{print s+0}')" -eq 0
+      - name: Focused desktop mobile visual and console proof
+        run: node scripts/checkRun212RtsRallyMarker.js
+      - name: Regression PWA determinism and budgets
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/post-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/post-smoke.log")" -ge 34
+          node scripts/checkRun210RtsSurfaceTexture.js
+          node scripts/checkRun210RtsSurfaceOffline.js
+          node scripts/checkRun211RtsKeyboardShortcuts.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+      - name: Record Run212 evidence additively
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const proof = JSON.parse(fs.readFileSync('artifacts/run212/proof.json', 'utf8'));
+          const d = proof.desktop.active.rts;
+          const m = proof.mobile.active.rts;
+          fs.appendFileSync('perf_log.csv', `run212,2026-08-09,desktop-rts-rally,,${d.drawCalls},${d.triangles},,,,"world-space rally marker active; one bounded procedural mesh; console/page errors 0"\n`);
+          fs.appendFileSync('perf_log.csv', `run212,2026-08-09,mobile-rts-rally,,${m.drawCalls},${m.triangles},,,,"world-space rally marker active; coarse-pointer budget preserved; console/page errors 0"\n`);
+          NODE
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+          ## Run 212 — RTS world-space rally destination marker
+          - Base/main at start: `897001280c891095819a5129b545eec4e43afe1e` (Run211 merged state). Owner-gated radius-5, `game3d.js` split and world-event checksum items remain untouched.
+          - Added isolated `rtsRallyMarker.js`: successful existing Move commands now show one short-lived procedural gold ring at the real clamped terrain height. `issueMoveAt()` remains the sole command owner; formation, selection, camera, seeded world and terrain behavior are unchanged.
+          - Render/memory discipline: one reusable `RingGeometry` + one `MeshBasicMaterial`, hidden after 1.6s rather than recreated per command; both disposed with the RTS runtime. No texture, asset, timer, extra RAF or network fetch is introduced.
+          - Focused Chromium proof covers desktop and true mobile/touch context, successful right-click movement, terrain-clamped marker position, expiry, existing command status/selection ownership, two visual screenshots and zero console/page errors.
+          - Regression: pre/post 34+ browser smoke, Run210 online/offline surface, Run211 keyboard parity, mobile render budget, PWA installability/cache, seeded RNG, world-reference map/water/alignment/hydrology, 14-seat terrain safety and road connectivity all PASS.
+          - World Coverage unchanged: desktop 96.2%; mobile radius-4 81 chunks / 20.25 km² (~14.7%). Technical debt introduced: 0 live-runtime architectural items; one small isolated visual module + focused regression check. Risk LOW; confidence 5/5.
+          - Next safe step: continue isolated RTS readability only; prefer selection/unit readability that reuses existing instancing/material ownership. Do not touch owner-gated radius-5, `game3d.js` split or world-event checksum decisions.
+          EOF
+          cat >> DECISIONS.md <<'EOF'
+
+          ## ADR-0230 — Show successful RTS move destinations with one bounded procedural world-space marker
+          **Risk:** LOW
+
+          **Decision:** Add `src/3d/rts/rtsRallyMarker.js` and instantiate exactly one reusable ring mesh inside the existing RTS scene. `issueMoveAt()` continues to own ray projection and `army.commandMove()`; only after that established command call returns a positive commanded count does the marker receive the target X/Z plus the existing clamped terrain sampler's Y. The marker fades after 1.6 seconds and is reused on later commands.
+
+          **Why:** Run208's screen-space click cross confirms input receipt but disappears independently of the world as the camera moves. A short-lived world-space ring makes the commanded destination readable while preserving deterministic command ownership and avoiding a texture/asset dependency.
+
+          **Alternatives considered:** persistent rally flags were rejected because they introduce state/cleanup semantics beyond feedback; a textured decal was rejected because it adds cache/asset provenance and texture memory for no demonstrated need; duplicating the raycast outside `rtsGame.js` was rejected because it would create a second command-coordinate authority.
+
+          **Consequences:** successful RTS movement gains one extra draw call only while the marker is visible; geometry/material are allocated once and explicitly disposed. Desktop/mobile budgets, 2D, character mode, terrain, roads, castles, water and PWA behavior remain unchanged except for precaching the new JS module.
+
+          **Affected systems:** RTS visual feedback (`rtsGame.js`, `rtsRallyMarker.js`) and service-worker JS shell inventory only.
+
+          **Rollback:** an owner-approved future change can stop calling/instantiating the additive marker module; movement commands themselves remain owned by the pre-existing RTS code path.
+          EOF
+          TAG="stable-$(TZ=Europe/Istanbul date +%Y-%m-%d-%H%M)"
+          echo "$TAG — Run212 RTS world-space rally marker; focused desktop/mobile visual proof + full smoke/PWA/determinism safety passed." >> STABLE_TAGS.md
+          echo "TAG_NAME=$TAG" >> "$GITHUB_ENV"
+      - name: Final concurrency additive and publish gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base HEAD origin/main)"
+          test "$CURRENT_MAIN" = "$MERGE_BASE"
+          test "$CURRENT_MAIN" = "897001280c891095819a5129b545eec4e43afe1e"
+          git diff --check
+          test "$(git diff --numstat "$CURRENT_MAIN" | awk '{s+=$2} END{print s+0}')" -eq 0
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git status --short
+      - name: Commit push and stable checkpoint
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/rts/rtsGame.js service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'feat(run212): wire RTS world-space rally marker'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "897001280c891095819a5129b545eec4e43afe1e"
+          git push origin HEAD:agent/run212-rts-rally-marker
+          git tag "$TAG_NAME"
+          git push origin "$TAG_NAME" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run212-rts-rally-proof
+          path: artifacts/run212
+          if-no-files-found: ignore
