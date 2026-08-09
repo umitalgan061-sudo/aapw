@@ -1,0 +1,148 @@
+name: Run 208 RTS Command Feedback
+
+on:
+  push:
+    branches: [agent/run208-rts-command-feedback]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.event.head_commit.message != 'run208 validated checkpoint'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: 2dd8059d374ce9cda49f7cad9c5e72a281cc5689
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Run 207 — Visible RTS command surface / high-camera army control' 3D_GAME_PROGRESS.md
+          grep -F 'ADR-0226' DECISIONS.md
+          grep -F 'run 145' QUESTIONS_FOR_OWNER.md
+          grep -F 'run 149' QUESTIONS_FOR_OWNER.md
+          node --check scripts/checkRun208RtsCommandFeedback.js
+          node --check scripts/recordRun208RtsCommandFeedback.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+      - name: Run208 visible browser proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun208RtsCommandFeedback.js
+          test -s artifacts/run208-rts-command-feedback/proof.json
+          PROOF="$(node -e "const fs=require('fs');process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync('artifacts/run208-rts-command-feedback/proof.json','utf8'))))")"
+          echo "RUN208_PROOF_JSON=$PROOF" >> "$GITHUB_ENV"
+      - name: Baseline full browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run208-smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run208-smoke.log")"
+          test "$PASS_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run208-smoke.log" | grep -F 'zero console/page errors'
+          echo "RUN208_SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+      - name: Determinism and world regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+      - name: Production PWA cache and installability
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+      - name: Existing mobile streaming and performance budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run208-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run208-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$LIVE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]);process.stdout.write(String(x.drawCalls))' "$LIVE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]);process.stdout.write(String(x.triangles))' "$LIVE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+          echo "RUN208_LIVE_MOBILE_JSON=$LIVE" >> "$GITHUB_ENV"
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run208-rts-feedback | tee "$RUNNER_TEMP/run208-perf.log"
+          ROW="$(tail -n1 perf_log.csv)"
+          echo "$ROW" | grep -F ',run208-rts-feedback,'
+          echo "RUN208_PERF_ROW=$ROW" >> "$GITHUB_ENV"
+          node scripts/analyzePerfTrend.js
+      - name: Senior review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkRun208RtsCommandFeedback.js scripts/recordRun208RtsCommandFeedback.js; then exit 1; fi
+          node scripts/checkRun208RtsCommandFeedback.js >/dev/null
+          node scripts/checkServiceWorkerCache.js >/dev/null
+          node scripts/checkPwaInstallability.js >/dev/null
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+      - name: Record validated checkpoint on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN208_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN208_STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          export RUN208_BASE_SHA="$BASE_SHA"
+          export RUN208_SMOKE_PASS_COUNT RUN208_PROOF_JSON RUN208_LIVE_MOBILE_JSON RUN208_PERF_ROW
+          node scripts/recordRun208RtsCommandFeedback.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git commit -m 'run208 validated checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git tag "$RUN208_STABLE_TAG"
+          git push origin "$RUN208_STABLE_TAG" || echo '[run208] stable tag push unavailable; STABLE_TAGS record retained.'
+      - name: Upload Run208 visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run208-rts-command-feedback-proof
+          path: artifacts/run208-rts-command-feedback
+          if-no-files-found: warn
