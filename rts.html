@@ -85,3 +85,60 @@
 </script>
 </body>
 </html>
+<script type="module">
+  const commandbar = document.querySelector('.rts-commandbar');
+  const canvas = document.getElementById('rts-canvas');
+  const closeButton = document.createElement('button');
+  const overviewButton = document.createElement('button');
+  closeButton.id = 'rts-camera-close';
+  closeButton.type = 'button';
+  closeButton.textContent = 'Yakın Komuta';
+  closeButton.title = 'Seçili orduya odaklanıp taktik yakın görünüme geç';
+  overviewButton.id = 'rts-camera-overview';
+  overviewButton.type = 'button';
+  overviewButton.textContent = 'Genel Görünüm';
+  overviewButton.title = 'Savaş alanını daha geniş kadraja al';
+  commandbar?.append(closeButton, overviewButton);
+
+  const emitZoomSteps = (direction, count) => {
+    if (!canvas) return;
+    for (let step = 0; step < count; step += 1) {
+      canvas.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        deltaY: direction,
+        view: window,
+      }));
+    }
+  };
+
+  const applyClosePreset = () => {
+    window.__WESTEROS_RTS__?.focusArmy?.();
+    emitZoomSteps(-1, 6);
+    document.body.dataset.rtsCameraPreset = 'close';
+  };
+
+  const applyOverviewPreset = () => {
+    emitZoomSteps(1, 7);
+    document.body.dataset.rtsCameraPreset = 'overview';
+  };
+
+  const onKeyDown = (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.code === 'Digit1') applyClosePreset();
+    if (event.code === 'Digit2') applyOverviewPreset();
+  };
+
+  const disposeCameraPresets = () => {
+    closeButton.removeEventListener('click', applyClosePreset);
+    overviewButton.removeEventListener('click', applyOverviewPreset);
+    window.removeEventListener('keydown', onKeyDown);
+    closeButton.remove();
+    overviewButton.remove();
+  };
+
+  closeButton.addEventListener('click', applyClosePreset);
+  overviewButton.addEventListener('click', applyOverviewPreset);
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('pagehide', disposeCameraPresets, { once: true });
+</script>
