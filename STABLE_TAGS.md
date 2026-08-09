@@ -926,3 +926,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - `stable-2026-08-09-0628` — Run205 isolated developer standalone PWA proof; 34+ smoke PASS, canonical regressions/production-PWA/mobile/perf/additive/concurrency gates PASS; live/default runtime delta 0.
 
 - `stable-2026-08-09-0730` — Run206 service-worker ownership boundary proof; 34+ smoke PASS, canonical/PWA/mobile/perf/additive/concurrency gates PASS; live/default runtime delta 0.
+
+- `stable-2026-08-09-0812` — Run207 first visible RTS command surface; 48 selectable soldiers, real castles/roads/water/animals/dragon, desktop+mobile visual proofs, 34+ legacy smoke, PWA/perf/additive/concurrency gates PASS.
