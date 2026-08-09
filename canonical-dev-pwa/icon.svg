@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Westeros Developer Standalone">
+  <rect width="512" height="512" rx="96" fill="#06040a"/>
+  <path d="M128 360h256v40H128zm32-48h192l-20-160-76 56-76-56z" fill="#c49a52"/>
+  <circle cx="180" cy="148" r="24" fill="#f0dfb5"/>
+  <circle cx="256" cy="124" r="24" fill="#f0dfb5"/>
+  <circle cx="332" cy="148" r="24" fill="#f0dfb5"/>
+</svg>
