@@ -15336,3 +15336,21 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Affected systems:** `rts.html`, `src/3d/rts/rtsSurfaceTexture.js`, `service-worker.js`, PWA shell/media caches, RTS terrain visuals. 2D and character-mode behavior are unchanged.
 
 **Rollback:** disable the additive RTS surface installer/cache additions in an owner-approved future change; deterministic terrain underneath remains the rollback target.
+
+
+## ADR-0229 — Add RTS keyboard command parity by delegating to existing command-bar ownership
+**Risk:** LOW
+
+**Decision:** Add a small isolated `src/3d/rts/rtsCommandShortcuts.js` module. Plain M clicks the existing Move Command button and plain F clicks the existing Focus Army button. The module annotates those buttons with `aria-keyshortcuts`, adds a desktop-only discoverability hint, ignores editable targets and Ctrl/Alt/Meta chords, and disposes its listener/hint on pagehide.
+
+**Why:** RTS already has deterministic, tested button handlers for both actions. Delegating keyboard input to those established controls improves desktop command ergonomics without duplicating movement/focus logic or requiring edits to `rtsGame.js`/`rtsArmy.js`.
+
+**Alternatives considered:** modify the established `rtsGame.js` key handler (rejected: additive-only policy forbids editing existing source lines and would duplicate ownership); synthesize world/camera commands in the shortcut module (rejected: would create a second gameplay owner); add mobile-visible keyboard hints (rejected: wastes scarce coarse-pointer UI space for controls unavailable on normal touch use).
+
+**Consequences:** Desktop gains M/F command parity and keyboard discoverability; mobile rendering/UI remains unchanged apart from inert ARIA button metadata. No seeded state, formation order, movement target, camera math, world generation, 2D behavior, renderer object count or asset set is changed. The module is included in the 3D/RTS shell cache for offline PWA use.
+
+**Affected systems:** `rts.html` additive module hook, `src/3d/rts/rtsCommandShortcuts.js`, `service-worker.js` shell membership, focused Run211 test/CI/docs only.
+
+**Rollback:** because the implementation is isolated, a future owner-approved cleanup can stop loading the module and remove its shell entry; existing RTS button/mouse/touch behavior remains the rollback baseline.
+
+**Future-phase impact:** later rally markers, formation UI or richer keyboard controls can delegate through the same established command surface rather than creating parallel simulation ownership.

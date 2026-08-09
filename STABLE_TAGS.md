@@ -930,3 +930,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - `stable-2026-08-09-0812` — Run207 first visible RTS command surface; 48 selectable soldiers, real castles/roads/water/animals/dragon, desktop+mobile visual proofs, 34+ legacy smoke, PWA/perf/additive/concurrency gates PASS.
 
 - `stable-2026-08-09-0827` — Run208 RTS destination-command feedback; desktop+mobile visual proof, 34+ legacy smoke, PWA/perf/additive/concurrency gates PASS.
+
+- stable-2026-08-09-1443 — Run211 RTS keyboard command parity: M/F delegate to established controls; pre/post smoke, PWA/offline, mobile budget, determinism, terrain/roads and console gates PASS.

@@ -235,6 +235,9 @@ self.addEventListener('install', (event) => {
     );
 });
 
+// Run211 RTS keyboard-command parity: module-only shell entry; no new asset/cache role.
+GAME3D_SHELL_FILES.push('./src/3d/rts/rtsCommandShortcuts.js');
+
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];
 
