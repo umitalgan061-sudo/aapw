@@ -4,7 +4,7 @@ on:
   push:
     branches: [chatgpt/run200-canonical-startup-policy]
     paths:
-      - 'src/3d/world/worldReferenceCanonicalStartupPolicy.js'
+      - 'dev/canonicalStartupPolicy.js'
       - 'scripts/checkCanonicalStartupPolicy.js'
       - 'scripts/recordRun200CanonicalStartupPolicy.js'
       - '.github/workflows/run200-canonical-startup-policy.yml'
@@ -47,20 +47,20 @@ jobs:
           grep -F '## Run 199 — Overdue periodic platform/PWA/WebGL audit' 3D_GAME_PROGRESS.md
           grep -F '## ADR-0218 — Canonical ownership must survive ordered pagehide teardown and a clean second init before any startup source-of-truth switch' DECISIONS.md
           if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 200 '; then echo 'Run200 already occupied on main'; exit 1; fi
-          node --check src/3d/world/worldReferenceCanonicalStartupPolicy.js
+          node --check dev/canonicalStartupPolicy.js
           node --check scripts/checkCanonicalStartupPolicy.js
           node --check scripts/recordRun200CanonicalStartupPolicy.js
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA"
           git diff --quiet "$BASE_SHA" HEAD -- game3d.html game3d.css service-worker.js index.html script.js style.css manifest.json assets_manifest.json
-          git diff --quiet "$BASE_SHA" HEAD -- src/3d/game3d.js src/3d/sceneManager.js src/3d/gameLoopHelpers.js
+          git diff --quiet "$BASE_SHA" HEAD -- src
 
       - name: Canonical startup policy contract
         shell: bash
         run: |
           set -euo pipefail
           node scripts/checkCanonicalStartupPolicy.js
-          grep -R "worldReferenceCanonicalStartupPolicy" -n game3d.html src/3d/game3d.js src/3d/sceneManager.js src/3d/gameLoopHelpers.js && exit 1 || true
+          grep -R "canonicalStartupPolicy" -n game3d.html src/3d && exit 1 || true
 
       - name: Baseline full browser smoke
         shell: bash
@@ -145,7 +145,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/worldReferenceCanonicalStartupPolicy.js scripts/checkCanonicalStartupPolicy.js scripts/recordRun200CanonicalStartupPolicy.js; then exit 1; fi
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' dev/canonicalStartupPolicy.js scripts/checkCanonicalStartupPolicy.js scripts/recordRun200CanonicalStartupPolicy.js; then exit 1; fi
           node scripts/checkCanonicalStartupPolicy.js
           node scripts/checkServiceWorkerCache.js
           node scripts/checkPwaInstallability.js
