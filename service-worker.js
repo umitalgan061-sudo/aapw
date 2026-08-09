@@ -346,3 +346,10 @@ self.addEventListener('notificationclick', (event) => {
         })
     );
 });
+
+// Run207 RTS additions are appended rather than replacing the established cache policy.
+// A changed service-worker script runs install again; cache.addAll then adds these new entries to the existing shell cache.
+GAME3D_SHELL_FILES.push('./rts.html');
+GAME3D_SHELL_FILES.push('./rts.css');
+GAME3D_SHELL_FILES.push('./src/3d/rts/rtsArmy.js');
+GAME3D_SHELL_FILES.push('./src/3d/rts/rtsGame.js');
