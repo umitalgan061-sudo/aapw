@@ -14331,3 +14331,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 347 MB heap**; trend guard reports no sustained upward heap drift.
 - Technical debt: **no new live-runtime debt**. Existing structural warnings remain: `game3d.js` 547/600 and `worldReferenceSceneShadowAdapter.js` 562/600; owner-gated radius-5/game3d split/world-event-fixture decisions remain untouched. Risk **LOW**, confidence **5/5**.
 - **Next safe step (Run202):** keep default startup unchanged and extend the real developer-document proof to explicit current/unknown-source fallback plus pagehide→offline reopen disposal/leak assertions; only after that consider any wider developer launcher integration.
+
+
+## Run 202 — Canonical developer fallback matrix + pagehide/offline lifecycle retention proof
+
+- **Validated:** 2026-08-09 03:39 UTC; base main `5ed575fb501ed00b55c96c47905ecd03f196417d`.
+- No live/default runtime source changed. Run202 adds only a browser proof, CI workflow and post-DoD recorder around the existing Run201 developer-only surface.
+- Real Chromium proves three non-opt-in requests (default, explicit `worldSource=current`, unknown source) all remain `current`; explicit `worldSource=canonical-dev` remains the only canonical path.
+- After online canonical cache warm, three same-tab network-offline canonical navigations cross real `pagehide` boundaries and reopen the same deterministic bridge `cersei->stannis#1`. Every active document has one canvas, prior pagehide timer/interval/RAF counts remain zero, disposal hook tokens remain present, post-GC document/node/listener retention stays bounded, and console/page errors=0. Final DOM counters: documents=1, nodes=36, listeners=30.
+- Full browser smoke: **34+ PASS**, default 3D boot zero console/page errors; Run195-201 canonical migration/offline regressions PASS; seeded/world-reference contracts PASS; PWA cache/installability PASS.
+- Mobile live budget: **35 draw calls / 195929 triangles / 30 geometries / 22 textures**, inside <500/<500000. Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**.
+- Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 368 MB heap**; trend guard reports no sustained upward heap drift.
+- Technical debt: **no new live-runtime debt**. Existing structural warnings and owner-gated decisions remain untouched. Risk **LOW**, confidence **5/5**.
+- **Next safe step (Run203):** keep default startup unchanged and prove a developer launcher can select current/canonical explicitly without duplicating runtime ownership or changing PWA/default navigation; do not promote canonical to player default without a separate migration gate.

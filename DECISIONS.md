@@ -15242,3 +15242,14 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Affected systems:** developer validation surface and CI only; existing canonical shadow modules are consumed, not changed. 2D, default 3D, gameplay, world, mobile runtime and PWA shell behavior are unchanged unless this developer page is explicitly opened.
 - **Rollback:** remove the newly added Run201 developer files/workflow in a future owner-approved non-additive cleanup; until then they are inert because no default surface links/imports them.
 - **Risk:** LOW.
+
+
+## ADR-0221 — Require fallback and disposal-retention proof before any wider canonical developer launcher
+
+- **Decision:** Keep canonical startup developer-only and add a real-browser gate covering default/current/unknown fallback plus repeated pagehide→offline canonical reopen, bounded DOM/listener retention and zero outstanding page-owned timeout/interval/RAF handles at the disposal boundary.
+- **Why:** Run201 proved one online→offline canonical reload, but did not jointly prove that non-opt-in inputs stay current or that repeated document boundaries do not accumulate browser-owned surface state. This is the smallest safe migration proof before any broader developer launcher is considered.
+- **Alternatives:** promote canonical to default now (rejected: migration evidence remains intentionally developer-scoped); modify Run201 live developer boot for extra observability (rejected: unnecessary runtime delta); rely only on synthetic selector tests (rejected: misses real service-worker/document lifecycle behavior).
+- **Result:** three fallback forms resolve to current, explicit canonical survives repeated offline reopens on a deterministic bridge, one canvas remains active, timer/RAF counts are zero at pagehide capture, post-GC document/node/listener counts remain bounded, and console/page errors remain zero.
+- **Affected systems:** CI/test/documentation only. 2D, default 3D, gameplay/world code, service worker source, manifest and live mobile/desktop/PWA behavior remain unchanged.
+- **Rollback:** the Run202 test/workflow files are inert outside CI and may be removed only in a future owner-approved non-additive cleanup.
+- **Risk:** LOW.
