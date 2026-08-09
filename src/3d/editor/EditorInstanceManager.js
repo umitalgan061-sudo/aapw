@@ -5,14 +5,15 @@ const tempPosition = new THREE.Vector3();
 const tempQuaternion = new THREE.Quaternion();
 const tempScale = new THREE.Vector3(1, 1, 1);
 
-function firstInstancableMesh(root) {
-  let found = null;
-  let rejected = false;
+function singleInstancableMesh(root) {
+  const meshes = [];
+  let hasSkinnedMesh = false;
   root.traverse((child) => {
-    if (child.isSkinnedMesh) rejected = true;
-    if (!found && child.isMesh && !child.isSkinnedMesh) found = child;
+    if (child.isSkinnedMesh) hasSkinnedMesh = true;
+    if (child.isMesh && !child.isSkinnedMesh) meshes.push(child);
   });
-  return rejected ? null : found;
+  if (hasSkinnedMesh || meshes.length !== 1) return null;
+  return meshes[0];
 }
 
 export class EditorInstanceManager {
@@ -20,15 +21,22 @@ export class EditorInstanceManager {
     this.scene = scene;
     this.assetManager = assetManager;
     this.groups = [];
+    this.groupCounter = 1;
+  }
+
+  nextGroupId(assetId) {
+    const id = `formation-${assetId}-${String(this.groupCounter).padStart(4, '0')}`;
+    this.groupCounter += 1;
+    return id;
   }
 
   async createFormation(asset, rows, columns, spacing, origin = new THREE.Vector3()) {
     const template = await this.assetManager.loadTemplate(asset);
-    const sourceMesh = firstInstancableMesh(template);
-    if (!sourceMesh) throw new Error('Bu asset rigged/skinned olduğu için bu sürümde GPU InstancedMesh formasyonuna uygun değil.');
+    const sourceMesh = singleInstancableMesh(template);
+    if (!sourceMesh) throw new Error('Bu asset tek statik Mesh olmadığı için bu sürümde GPU InstancedMesh formasyonuna uygun değil.');
     const count = rows * columns;
     const mesh = new THREE.InstancedMesh(sourceMesh.geometry, sourceMesh.material, count);
-    const groupId = `formation-${asset.id}-${Date.now()}`;
+    const groupId = this.nextGroupId(asset.id);
     mesh.name = `${asset.name} ×${count}`;
     mesh.userData.editorInstanceGroupId = groupId;
     mesh.userData.editorAssetId = asset.id;
@@ -61,6 +69,15 @@ export class EditorInstanceManager {
     this.scene.remove(record.object);
     record.object.dispose();
     return true;
+  }
+
+  clear() {
+    for (const record of this.groups) {
+      this.scene.remove(record.object);
+      record.object.dispose();
+    }
+    this.groups.length = 0;
+    this.groupCounter = 1;
   }
 
   serialize() {
