@@ -76,9 +76,11 @@ jobs:
 
           p = Path('service-worker.js')
           s = p.read_text()
-          line = "\n// Run215 World Editor formation JSON rehydration module.\nGAME3D_SHELL_FILES.push('./src/3d/editor/EditorFormationRehydrator.js');\n"
+          line = "// Run215 World Editor formation JSON rehydration module.\nGAME3D_SHELL_FILES.push('./src/3d/editor/EditorFormationRehydrator.js');\n\n"
           if "./src/3d/editor/EditorFormationRehydrator.js" not in s:
-              s += line
+              anchor = "const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];"
+              assert anchor in s
+              s = s.replace(anchor, line + anchor, 1)
           p.write_text(s)
           PY
           node --check src/3d/editor/worldEditor.js
