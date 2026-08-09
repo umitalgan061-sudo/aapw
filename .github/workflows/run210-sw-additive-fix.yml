@@ -1,0 +1,70 @@
+name: Run 210 SW Additive Fix
+
+on:
+  push:
+    branches:
+      - agent/run210-owner-surface-texture-final
+    paths:
+      - '.github/workflows/run210-sw-additive-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-prove:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Concurrency gate and rebuild SW from main with insertion-only diff
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          git show origin/main:service-worker.js > service-worker.js
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('service-worker.js')
+          text = p.read_text()
+          marker = "const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];"
+          assert text.count(marker) == 1
+          block = """// Run210 owner surface offline cache: additive-only extension for the current RTS terrain detail.\n// Image requests are cache-first in MEDIA_CACHE, while the JS module belongs to the shell graph.\nGAME3D_SHELL_FILES.push('./src/3d/rts/rtsSurfaceTexture.js');\nself.addEventListener('install', (event) => {\n    event.waitUntil(\n        caches.open(MEDIA_CACHE)\n            .then(cache => cache.add('./assets/textures/yüzey/overlay/overlay.png'))\n            .catch(error => console.warn('[SW] Run210 surface media cache skipped:', error))\n    );\n});\n\n"""
+          p.write_text(text.replace(marker, block + marker, 1))
+          PY
+          node --check service-worker.js
+          node scripts/checkServiceWorkerCache.js
+          git diff --check origin/main -- service-worker.js
+          git diff --numstat origin/main -- service-worker.js
+          test "$(git diff --numstat origin/main -- service-worker.js | awk '{print $2}')" = "0"
+      - name: Commit insertion-only service worker state locally
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js
+          git commit -m 'fix(run210): keep service worker cache diff strictly additive'
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git diff --check origin/main HEAD
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Fresh-install offline proof on corrected SW
+        run: node scripts/checkRun210RtsSurfaceOffline.js
+      - name: Final remote-main gate and push
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git push origin HEAD:agent/run210-owner-surface-texture-final
