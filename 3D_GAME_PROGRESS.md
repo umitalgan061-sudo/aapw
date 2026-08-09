@@ -14383,3 +14383,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 368 MB heap**; trend guard PASS.
 - Technical debt: **no new live-runtime debt**. Developer-only maintenance surface +1 isolated PWA subtree. Risk **LOW**, confidence **5/5**.
 - **Next safe step (Run206):** keep production startup unchanged and prove the isolated developer standalone shell's out-of-scope Current/Canonical launches cannot capture or replace the production service-worker controller; verify controller ownership before/after return navigation, including offline recovery.
+
+
+## Run 206 — Developer/production service-worker ownership boundary proof
+
+- **Validated:** 2026-08-09 07:30 UTC; base main `c336d863e3f1ece14e9a0424ddc4fddc34e00551`.
+- Added only a browser proof + CI/recorder; production/default runtime, 2D game, manifests and service workers remain byte-unchanged.
+- Real Chromium proves the production service worker stays rooted at `/`, the developer standalone worker stays narrowed to `/canonical-dev-pwa/`, and opening either Current or Canonical from the developer shell is controlled by the production worker rather than the developer worker.
+- Returning to the developer shell restores the narrow developer controller; offline shell reload and offline Canonical recovery both succeed without controller capture, runtime-canvas leakage or console/page errors. Deterministic bridge remains `cersei->stannis#1`.
+- Full browser smoke: **34+ PASS**; Run195-205 canonical regressions PASS; production PWA cache/installability PASS.
+- Mobile live budget: **35 draw calls / 195929 triangles / 30 geometries / 22 textures**, within <500/<500000. Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**.
+- Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 368 MB heap**; trend guard PASS.
+- Technical debt: **no new live-runtime debt**. Risk **LOW**, confidence **5/5**.
+- **Next safe step (Run207):** keep production startup unchanged and prove repeated offline Current/Canonical round-trips cannot accumulate service-worker registrations, caches, clients, timers/listeners or canvases across multiple navigation cycles.
