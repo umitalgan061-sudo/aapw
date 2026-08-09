@@ -15215,3 +15215,15 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Sıradaki migration preflight ayrı opt-in developer startup entry pointinde canonical source-of-truth'u boot anından seçebilir. Current fallback ve offline/PWA boot eşdeğerliği kanıtlanmadan default `game3d.html` startup değişmez.
 
 **Geri alma planı:** Live consumer yoktur. Run198 checker/CI kaldırılmadan da runtime etkisi sıfırdır; contract yanlışlanırsa yeni versioned checker eklenir, current runtime ve Run197/Run196 byte-unchanged kalır.
+
+
+## ADR-0219 — Canonical startup önce ayrı opt-in developer entry'de gerçek boot/rollback/offline sınırını geçmelidir
+- **Tarih / Run:** 2026-08-09 00:43 UTC / run 200
+- **Risk:** LOW
+- **Karar:** Varsayılan `game3d.html` ve mevcut `game3d.js` satırları değiştirilmeden, canonical migration için ayrı `game3d-canonical-dev.html` kullanılacak. Bu entry import-map ile yalnız kendi oturumunda scene-state capture proxy'sini enjekte eder; canonical niyet/lifecycle owner `initGame3D()` öncesi kurulur, gerçek phase1 state hazır olduğunda Run196 + Run197 transaction zinciri canonical ownership'e geçirir. Explicit rollback ve aynı-document reactivation zorunlu doğrulamadır.
+- **Neden:** Run198 lifecycle kanıtı source-of-truth switch öncesi lifecycle ordering'i doğruladı ama default startup'ı değiştirmedi. Bir sonraki en küçük güvenli adım, default oyuncu yoluna risk taşımadan gerçek HTML boot yolunda aynı transaction'ı çalıştırmak ve PWA-controlled offline reload ile deterministik eşdeğerliği ölçmekti.
+- **Alternatifler:** (1) default `game3d.html`i hemen canonical yapmak reddedildi — rollback/fallback startup kanıtı yoktu. (2) `game3d.js`ten state export etmek reddedildi — additive-only altında mevcut satır değişikliği/refactor riski doğurur ve 547/600 teknik borcunu büyütür. (3) Run198'in test-server source transformini kalıcı developer yol olarak kullanmak reddedildi — gerçek browser import graph'ı değildi.
+- **Sonuç:** Developer-only gerçek entry canonical seçimi init öncesi kaydeder; unchanged current runtime state import-map proxy üzerinden görünür olur; canonical activate→rollback→reactivate ve service-worker warm-cache offline reload aynı dedicated browser check'te kanıtlanır. Default 2D/3D/PWA startup davranışı değişmez.
+- **Etkilenen sistemler:** Yeni developer HTML ve `dev/run200*.js`; test/workflow/docs. Existing `src/3d`, `game3d.html`, service worker shell listesi ve 2D runtime değiştirilmez.
+- **Geri alma planı:** Yeni developer entry/proxy/startup/check/workflow yüzeyleri future owner-approved cleanup sırasında kaldırılabilir; default runtime bunları import etmediği için geri alma canlı oyuncu davranışını etkilemez. Additive-only mevcutken silme yapılmaz; yalnız kullanılmaması yeterlidir.
+- **Gelecek faz etkisi:** Canonical source-of-truth switch için gerçek startup transaction kanıtı sağlar; fakat current runtime önce boot edildiği için canonical'ın nihai doğrudan-boot performans mimarisi olduğunu iddia etmez. Fresh-install developer precache ve current-bootstrap bypass ayrı kapılardır.
