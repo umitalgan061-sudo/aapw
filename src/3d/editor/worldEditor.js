@@ -345,3 +345,22 @@ renderer.setAnimationLoop(() => {
   controls.update();
   renderer.render(scene, camera);
 });
+
+// Run216 additive editor ownership bridge for the isolated TransformControls controller.
+window.__WESTEROS_WORLD_EDITOR__ = Object.freeze({
+  scene,
+  camera,
+  canvas,
+  renderer,
+  orbitControls: controls,
+  grid,
+  editableObjects,
+  instanceManager,
+  getSelectedObject: () => selectedObject,
+  getEditorState: editorState,
+  writeInspector,
+  refreshHierarchy
+});
+import('./EditorTransformControls.js')
+  .then(({ installEditorTransformControls }) => installEditorTransformControls(window.__WESTEROS_WORLD_EDITOR__))
+  .catch((error) => console.error('[worldEditor] TransformControls boot failed', error));
