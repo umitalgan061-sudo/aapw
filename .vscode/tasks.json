@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Westeros: Materialize TransformControls r160",
+      "type": "shell",
+      "command": "node scripts/materializeRun216TransformControls.js",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Verify TransformControls r160",
+      "type": "shell",
+      "command": "node scripts/materializeRun216TransformControls.js --verify-only",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Self-test TransformControls materializer",
+      "type": "shell",
+      "command": "node scripts/materializeRun216TransformControls.js --self-test",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
