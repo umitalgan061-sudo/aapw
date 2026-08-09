@@ -10,7 +10,8 @@ function playwrightModule() { for (const id of ['playwright', '/opt/node22/lib/n
 function contentType(file) { const ext = path.extname(file); if (ext === '.html') return 'text/html; charset=utf-8'; if (ext === '.js' || ext === '.mjs') return 'text/javascript; charset=utf-8'; if (ext === '.json') return 'application/json; charset=utf-8'; if (ext === '.css') return 'text/css; charset=utf-8'; if (ext === '.glb') return 'model/gltf-binary'; return 'application/octet-stream'; }
 function server() { const s = http.createServer((req, res) => { const clean = decodeURIComponent(req.url.split('?')[0]); const file = path.join(ROOT, clean === '/' ? 'index.html' : clean.replace(/^\//, '')); if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end('Not found'); return; } res.writeHead(200, { 'content-type': contentType(file) }); fs.createReadStream(file).pipe(res); }); return new Promise(resolve => s.listen(0, '127.0.0.1', () => resolve(s))); }
 async function waitActive(page, value, timeout = 20000) { await page.waitForFunction(v => document.body?.dataset?.run201ActiveSource === v, value, { timeout }); }
-async function runtimeSnapshot(page) { return page.evaluate(() => ({ surface: document.body.dataset.run201Surface || null, requested: document.body.dataset.run201RequestedSource || null, active: document.body.dataset.run201ActiveSource || null, bridge: document.body.dataset.run201BridgeId || null, canvas: document.querySelectorAll('canvas').length, href: location.href })); }
+async function waitOfflineCacheReady(page, timeout = 20000) { await page.waitForFunction(() => document.body?.dataset?.run201CacheReady === 'true', null, { timeout }); }
+async function runtimeSnapshot(page) { return page.evaluate(() => ({ surface: document.body.dataset.run201Surface || null, requested: document.body.dataset.run201RequestedSource || null, active: document.body.dataset.run201ActiveSource || null, bridge: document.body.dataset.run201BridgeId || null, cacheReady: document.body.dataset.run201CacheReady || null, canvas: document.querySelectorAll('canvas').length, href: location.href })); }
 async function runChoice(context, base, choiceId, expectedSource) {
   const errors = [];
   const page = await context.newPage();
@@ -20,8 +21,10 @@ async function runChoice(context, base, choiceId, expectedSource) {
   assert(await page.locator('canvas').count() === 0, `${expectedSource}: launcher owns canvas`);
   await page.click(choiceId);
   await waitActive(page, expectedSource);
+  await waitOfflineCacheReady(page);
   const online = await runtimeSnapshot(page);
   assert(online.canvas === 1, `${expectedSource}: online runtime canvas mismatch`);
+  assert(online.cacheReady === 'true', `${expectedSource}: developer offline cache was not ready before network cut`);
   await context.setOffline(true);
   const back = await page.goBack({ waitUntil: 'domcontentloaded' });
   assert(back, `${expectedSource}: offline history back returned no response`);
@@ -63,10 +66,10 @@ async function main() {
     const current = await runChoice(context, base, '#run203-current', 'current');
     const canonical = await runChoice(context, base, '#run203-canonical', 'canonical');
     assert(current.online.bridge === canonical.online.bridge, 'current/canonical deterministic bridge identity mismatch');
-    const proof = { current, canonical, launcherCanvas: 0, runtimeCanvas: 1, deterministicBridge: canonical.online.bridge, offlineHistoryBackForward: true, consoleErrors: current.consoleErrors + canonical.consoleErrors };
+    const proof = { current, canonical, launcherCanvas: 0, runtimeCanvas: 1, deterministicBridge: canonical.online.bridge, cacheReadyBeforeOffline: true, offlineHistoryBackForward: true, consoleErrors: current.consoleErrors + canonical.consoleErrors };
     fs.writeFileSync(path.join(OUT, 'proof.json'), JSON.stringify(proof, null, 2) + '\n');
     console.log(`[checkRun204DeveloperOfflineHistory] PROOF: ${JSON.stringify(proof)}`);
-    console.log('[checkRun204DeveloperOfflineHistory] PASS: currentOfflineHistory=true canonicalOfflineHistory=true launcherCanvas=0 runtimeCanvas=1 pagehideTimers=0 consoleErrors=0');
+    console.log('[checkRun204DeveloperOfflineHistory] PASS: cacheReadyBeforeOffline=true currentOfflineHistory=true canonicalOfflineHistory=true launcherCanvas=0 runtimeCanvas=1 pagehideTimers=0 consoleErrors=0');
     await context.close();
   } finally {
     await browser.close();
