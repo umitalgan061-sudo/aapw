@@ -147,5 +147,143 @@
     dispose: disposeCommandStatus,
   };
 </script>
+<script type="module">
+  const PANEL_ID = 'rts-tactical-command-center';
+  const HISTORY_LIMIT = 6;
+  const PAN_CODES = { up: 'KeyW', left: 'KeyA', right: 'KeyD', down: 'KeyS' };
+  const waitForRts = (callback) => {
+    if (document.body.dataset.rtsReady === 'true' && window.__WESTEROS_RTS__) return callback();
+    const readyObserver = new MutationObserver(() => {
+      if (document.body.dataset.rtsReady !== 'true' || !window.__WESTEROS_RTS__) return;
+      readyObserver.disconnect();
+      callback();
+    });
+    readyObserver.observe(document.body, { attributes: true, attributeFilter: ['data-rts-ready'] });
+  };
+  waitForRts(() => {
+    if (document.getElementById(PANEL_ID)) return;
+    const api = window.__WESTEROS_RTS__;
+    const canvas = document.getElementById('rts-canvas');
+    const selectAll = document.getElementById('rts-select-all');
+    const move = document.getElementById('rts-move-command');
+    const focus = document.getElementById('rts-focus-army');
+    const status = document.getElementById('rts-status');
+    const selection = document.getElementById('rts-selection-count');
+    const style = document.createElement('style');
+    style.dataset.rtsCommandCenter = 'true';
+    style.textContent = '#rts-tactical-command-center{position:fixed;left:16px;top:82px;z-index:42;width:min(324px,calc(100vw - 32px));max-height:calc(100vh - 152px);display:grid;grid-template-rows:auto 1fr;border:1px solid rgba(229,194,102,.48);border-radius:14px;background:linear-gradient(180deg,rgba(28,24,17,.95),rgba(15,14,11,.93));box-shadow:0 18px 48px rgba(0,0,0,.42);backdrop-filter:blur(12px);color:#f3e4b2;font:500 13px/1.35 system-ui,sans-serif;overflow:hidden}#rts-tactical-command-center[data-collapsed=true] .rts-cc-body{display:none}.rts-cc-head{display:flex;align-items:center;gap:8px;min-height:44px;padding:7px 9px;border-bottom:1px solid rgba(229,194,102,.22);background:rgba(229,194,102,.06)}.rts-cc-title{flex:1;font-size:11px;font-weight:900;letter-spacing:.14em;color:#e5c266}.rts-cc-head button,.rts-cc-button,.rts-cc-camera button{border:1px solid rgba(229,194,102,.32);border-radius:9px;background:rgba(49,41,25,.94);color:#f3e4b2;cursor:pointer;touch-action:manipulation}.rts-cc-head button{width:38px;height:38px}.rts-cc-body{overflow:auto;padding:9px;display:grid;gap:9px}.rts-cc-section{display:grid;gap:7px;padding:8px;border:1px solid rgba(229,194,102,.15);border-radius:10px;background:rgba(0,0,0,.17)}.rts-cc-label{font-size:9px;font-weight:900;letter-spacing:.14em;color:#a99767}.rts-cc-orders{display:grid;grid-template-columns:1fr 1fr;gap:6px}.rts-cc-button{min-height:44px;padding:7px;font:700 12px system-ui,sans-serif}.rts-cc-button[data-active=true]{border-color:#e5c266;background:rgba(118,87,31,.72)}.rts-cc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.rts-cc-stat{padding:6px 3px;text-align:center;border-radius:7px;background:rgba(255,255,255,.04)}.rts-cc-stat strong{display:block;font-size:13px;color:#fff2c9}.rts-cc-stat span{font-size:8px;color:#94876a;letter-spacing:.08em}.rts-cc-camera{display:grid;grid-template-columns:44px 44px 44px 1fr;grid-template-rows:44px 44px 44px;gap:5px}.rts-cc-camera button{width:44px;height:44px;padding:0;font-weight:900;font-size:16px;touch-action:none}.rts-cc-camera [data-pan=up]{grid-column:2;grid-row:1}.rts-cc-camera [data-pan=left]{grid-column:1;grid-row:2}.rts-cc-camera [data-pan=right]{grid-column:3;grid-row:2}.rts-cc-camera [data-pan=down]{grid-column:2;grid-row:3}.rts-cc-zoom{grid-column:4;grid-row:1/4;display:grid;grid-template-rows:1fr 1fr;gap:5px}.rts-cc-zoom button{width:100%;height:auto;min-height:44px}.rts-cc-history{list-style:none;padding:0;margin:0;display:grid;gap:4px;counter-reset:rtscc}.rts-cc-history li{counter-increment:rtscc;display:grid;grid-template-columns:23px 1fr;gap:5px;padding:4px 0;border-bottom:1px solid rgba(229,194,102,.08);color:#d7cba8}.rts-cc-history li:before{content:counter(rtscc,decimal-leading-zero);font:700 9px ui-monospace,monospace;color:#80765e}.rts-cc-foot{font-size:9px;color:#8e846d}.rts-cc-foot kbd{padding:1px 4px;border:1px solid rgba(229,194,102,.24);border-radius:4px;color:#e5c266}@media(max-width:720px),(pointer:coarse){#rts-tactical-command-center{left:8px;top:auto;bottom:82px;width:calc(100vw - 16px);max-height:min(58vh,520px)}.rts-cc-body{grid-template-columns:1fr 1fr}.rts-cc-section[data-wide=true]{grid-column:1/-1}}@media(max-width:480px){.rts-cc-body{grid-template-columns:1fr}.rts-cc-section{grid-column:1!important}.rts-cc-stats{grid-template-columns:repeat(4,1fr)}}';
+    document.head.appendChild(style);
+    const panel = document.createElement('section');
+    panel.id = PANEL_ID;
+    panel.dataset.collapsed = 'false';
+    panel.setAttribute('role', 'region');
+    panel.setAttribute('aria-label', 'RTS taktik komuta merkezi');
+    panel.innerHTML = '<div class="rts-cc-head"><div class="rts-cc-title">TAKTİK KOMUTA MERKEZİ</div><button type="button" data-action="collapse" aria-label="Komuta merkezini daralt" aria-expanded="true">−</button></div><div class="rts-cc-body"><section class="rts-cc-section"><div class="rts-cc-label">EMİRLER</div><div class="rts-cc-orders"><button class="rts-cc-button" type="button" data-action="select-all">Tüm Ordu</button><button class="rts-cc-button" type="button" data-action="move">Hedef Ver</button><button class="rts-cc-button" type="button" data-action="focus">Orduyu Bul</button><button class="rts-cc-button" type="button" data-action="clear">Seçimi Temizle</button></div></section><section class="rts-cc-section"><div class="rts-cc-label">TAKTİK KAMERA</div><div class="rts-cc-camera"><button type="button" data-pan="up" aria-label="Kamerayı ileri kaydır">▲</button><button type="button" data-pan="left" aria-label="Kamerayı sola kaydır">◀</button><button type="button" data-pan="right" aria-label="Kamerayı sağa kaydır">▶</button><button type="button" data-pan="down" aria-label="Kamerayı geri kaydır">▼</button><div class="rts-cc-zoom"><button type="button" data-action="zoom-in" aria-label="Yakınlaştır">+</button><button type="button" data-action="zoom-out" aria-label="Uzaklaştır">−</button></div></div></section><section class="rts-cc-section" data-wide="true"><div class="rts-cc-label">SAHA TELEMETRİSİ</div><div class="rts-cc-stats"><div class="rts-cc-stat"><strong data-stat="selection">—</strong><span>SEÇİLİ</span></div><div class="rts-cc-stat"><strong data-stat="draws">—</strong><span>DRAW</span></div><div class="rts-cc-stat"><strong data-stat="triangles">—</strong><span>ÜÇGEN</span></div><div class="rts-cc-stat"><strong data-stat="threats">—</strong><span>YARATIK</span></div></div></section><section class="rts-cc-section" data-wide="true"><div class="rts-cc-label">KOMUT GÜNLÜĞÜ</div><ol class="rts-cc-history"></ol><div class="rts-cc-foot">Panel <kbd>H</kbd> • mevcut <kbd>M</kbd>/<kbd>F</kbd> kısayolları korunur</div></section></div>';
+    document.body.appendChild(panel);
+    const collapse = panel.querySelector('[data-action="collapse"]');
+    const tacticalMove = panel.querySelector('[data-action="move"]');
+    const historyList = panel.querySelector('.rts-cc-history');
+    const activePanCodes = new Set();
+    const history = [];
+    const removers = [];
+    let disposed = false;
+    let collapsed = false;
+    let panDispatchCount = 0;
+    const listen = (target, type, handler, options) => {
+      target?.addEventListener(type, handler, options);
+      removers.push(() => target?.removeEventListener(type, handler, options));
+    };
+    const keyEvent = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code === 'Escape' ? 'Escape' : code.replace('Key', '').toLowerCase(), bubbles: true }));
+    const record = (message) => {
+      const text = String(message || '').trim();
+      if (!text || history.at(-1) === text) return;
+      history.push(text);
+      if (history.length > HISTORY_LIMIT) history.shift();
+      historyList.replaceChildren(...history.map((entry) => Object.assign(document.createElement('li'), { textContent: entry })));
+    };
+    const setCollapsed = (value) => {
+      collapsed = Boolean(value);
+      panel.dataset.collapsed = String(collapsed);
+      collapse.textContent = collapsed ? '+' : '−';
+      collapse.setAttribute('aria-expanded', String(!collapsed));
+      collapse.setAttribute('aria-label', collapsed ? 'Komuta merkezini genişlet' : 'Komuta merkezini daralt');
+    };
+    const beginPan = (code) => {
+      if (!code || activePanCodes.has(code)) return;
+      activePanCodes.add(code);
+      panDispatchCount += 1;
+      keyEvent('keydown', code);
+    };
+    const endPan = (code) => {
+      if (!activePanCodes.delete(code)) return;
+      keyEvent('keyup', code);
+    };
+    const releasePan = () => [...activePanCodes].forEach(endPan);
+    const zoom = (deltaY) => canvas?.dispatchEvent(new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true, clientX: innerWidth / 2, clientY: innerHeight / 2 }));
+    const refresh = () => {
+      if (disposed) return null;
+      const snapshot = api.getSnapshot?.() || {};
+      const moveMode = move?.classList.contains('is-active') === true;
+      tacticalMove.dataset.active = String(moveMode);
+      tacticalMove.setAttribute('aria-pressed', String(moveMode));
+      move?.setAttribute('aria-pressed', String(moveMode));
+      panel.querySelector('[data-stat="selection"]').textContent = `${snapshot.selectedCount ?? 0}/${snapshot.unitCount ?? 0}`;
+      panel.querySelector('[data-stat="draws"]').textContent = new Intl.NumberFormat('tr-TR').format(snapshot.drawCalls || 0);
+      panel.querySelector('[data-stat="triangles"]').textContent = new Intl.NumberFormat('tr-TR', { notation: 'compact', maximumFractionDigits: 1 }).format(snapshot.triangles || 0);
+      panel.querySelector('[data-stat="threats"]').textContent = String((snapshot.animalCount || 0) + (snapshot.dragonCount || 0));
+      return snapshot;
+    };
+    const getSnapshot = () => {
+      const snapshot = refresh() || api.getSnapshot?.() || {};
+      return { disposed, collapsed, moveMode: move?.classList.contains('is-active') === true, selectedCount: snapshot.selectedCount ?? 0, unitCount: snapshot.unitCount ?? 0, drawCalls: snapshot.drawCalls ?? 0, triangles: snapshot.triangles ?? 0, history: [...history], historyCount: history.length, activePanCodes: [...activePanCodes].sort(), panDispatchCount };
+    };
+    const statusObserver = new MutationObserver(() => { record(status?.textContent); refresh(); });
+    const selectionObserver = new MutationObserver(refresh);
+    const moveObserver = new MutationObserver(refresh);
+    status && statusObserver.observe(status, { childList: true, characterData: true, subtree: true });
+    selection && selectionObserver.observe(selection, { childList: true, characterData: true, subtree: true });
+    move && moveObserver.observe(move, { attributes: true, attributeFilter: ['class'] });
+    listen(collapse, 'click', () => setCollapsed(!collapsed));
+    listen(panel.querySelector('[data-action="select-all"]'), 'click', () => selectAll?.click());
+    listen(tacticalMove, 'click', () => move?.click());
+    listen(panel.querySelector('[data-action="focus"]'), 'click', () => focus?.click());
+    listen(panel.querySelector('[data-action="clear"]'), 'click', () => keyEvent('keydown', 'Escape'));
+    listen(panel.querySelector('[data-action="zoom-in"]'), 'click', () => zoom(-420));
+    listen(panel.querySelector('[data-action="zoom-out"]'), 'click', () => zoom(420));
+    panel.querySelectorAll('[data-pan]').forEach((button) => {
+      const code = PAN_CODES[button.dataset.pan];
+      listen(button, 'pointerdown', (event) => { event.preventDefault(); button.setPointerCapture?.(event.pointerId); beginPan(code); });
+      listen(button, 'pointerup', () => endPan(code));
+      listen(button, 'pointercancel', () => endPan(code));
+      listen(button, 'lostpointercapture', () => endPan(code));
+    });
+    listen(window, 'blur', releasePan);
+    listen(window, 'keydown', (event) => {
+      if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.code !== 'KeyH' || event.target?.closest?.('input,textarea,select,[contenteditable]')) return;
+      event.preventDefault();
+      setCollapsed(!collapsed);
+    });
+    const telemetryTimer = window.setInterval(refresh, 250);
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      releasePan();
+      window.clearInterval(telemetryTimer);
+      statusObserver.disconnect();
+      selectionObserver.disconnect();
+      moveObserver.disconnect();
+      removers.splice(0).reverse().forEach((remove) => remove());
+      panel.remove();
+      style.remove();
+      if (window.__WESTEROS_RTS_COMMAND_CENTER__ === surface) delete window.__WESTEROS_RTS_COMMAND_CENTER__;
+    };
+    listen(window, 'pagehide', dispose, { once: true });
+    record(status?.textContent);
+    refresh();
+    const surface = Object.freeze({ getSnapshot, refresh, setCollapsed, dispose });
+    window.__WESTEROS_RTS_COMMAND_CENTER__ = surface;
+    document.body.dataset.rtsCommandCenter = 'ready';
+  });
+</script>
 </body>
 </html>
