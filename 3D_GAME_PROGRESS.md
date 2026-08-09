@@ -14319,3 +14319,15 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Mobile/perf: {"profile":{"coarse":true,"fine":false,"touchPoints":1},"fps":1,"drawCalls":35,"triangles":195929,"geometries":30,"textures":22,"budgets":{"drawCallsExclusiveMax":500,"trianglesExclusiveMax":500000},"textureMemoryMB":null,"textureMemoryReason":"renderer.info exposes texture count, not resident texture-memory bytes"}; perf 2026-08-09,run200,1,51,688296,49,17,307; trend PASS. World Coverage unchanged: desktop %96.2; mobile radius-4 81 chunks / 20.25 km² (~%14.7).
 - Technical debt: new live-runtime debt 0; preflight-only selector +1 architecture proof. Risk LOW. Güven 5/5. Oyuncu farkı: HAYIR.
 - Sıradaki güvenli adım: bu selector seam'i ayrı opt-in developer document/boot surface'ine bağla ve o entry pointin service-worker cache/offline bootunu gerçek browser install+offline turunda kanıtla. Default game3d.html canonical yapılmaz; current fallback ve lifecycle rollback korunmadan ilerleme yok.
+
+
+## Run 201 — Opt-in canonical developer startup + real offline reload proof
+
+- **Validated:** 2026-08-09 02:42 UTC; base main `af01405fea592318c45d1c3955aa38aa049b1912`.
+- Added developer-only `canonical-dev.html` + `scripts/run201CanonicalDevBoot.mjs`; default `game3d.html`, 2D shell, `src/3d`, service-worker source, manifest and assets remain byte-unchanged. Live/default runtime delta: **0**.
+- Explicit `?worldSource=canonical-dev` boots the Run200 canonical ownership path on deterministic bridge `cersei->stannis#1`; first online load warms only the developer surface/module URLs into the existing shell cache, then a real Chromium network-offline reload reboots canonical successfully. Online active=`canonical`, offline active=`canonical`, deterministic bridge=true, console/page errors=0.
+- Full browser smoke: **34+ PASS**, default 3D boot zero console/page errors; Run195-200 migration/ownership/tick/lifecycle regressions PASS; seeded/world-reference contracts PASS; PWA cache/installability PASS.
+- Mobile live budget: **35 draw calls / 195929 triangles / 30 geometries / 22 textures**, inside <500/<500000. Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**.
+- Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 347 MB heap**; trend guard reports no sustained upward heap drift.
+- Technical debt: **no new live-runtime debt**. Existing structural warnings remain: `game3d.js` 547/600 and `worldReferenceSceneShadowAdapter.js` 562/600; owner-gated radius-5/game3d split/world-event-fixture decisions remain untouched. Risk **LOW**, confidence **5/5**.
+- **Next safe step (Run202):** keep default startup unchanged and extend the real developer-document proof to explicit current/unknown-source fallback plus pagehide→offline reopen disposal/leak assertions; only after that consider any wider developer launcher integration.
