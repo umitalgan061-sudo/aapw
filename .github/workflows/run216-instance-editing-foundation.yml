@@ -70,3 +70,20 @@ jobs:
           node --check src/3d/editor/EditorInstanceEditOperations.js
           node --check scripts/checkEditorInstanceEditOperations.js
           node scripts/checkEditorInstanceEditOperations.js
+
+  instance-editing-coordinator:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify instance edit coordinator
+        run: |
+          node --check src/3d/editor/EditorInstanceEditCoordinator.js
+          node --check scripts/checkEditorInstanceEditCoordinator.js
+          node scripts/checkEditorInstanceEditCoordinator.js
