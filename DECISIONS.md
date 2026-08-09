@@ -15231,3 +15231,14 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Geri alma planı:** Run200 yeni preflight dosyalarını kullanmayı bırak; default runtime zaten değişmediği için oyuncu rollback'i gerekmez.
 
 **Risk:** LOW.
+
+
+## ADR-0220 — Canonical startup remains opt-in; developer-only surface may warm itself into the existing PWA shell cache
+
+- **Decision:** Add a separate developer-only document that invokes the already-proven Run200 selector only when explicitly opened, and let that document cache its own HTML/boot/selector URLs after a successful online service-worker registration. Do not change `game3d.html`, the 2D entry, service-worker source/version, or default startup ownership.
+- **Why:** Run200 proved explicit source selection/fallback/rollback but not a real document surviving an offline reopen. Reusing the existing network-first shell cache proves actual PWA behavior without making canonical the player default or changing the service-worker contract.
+- **Alternatives:** modify default `game3d.html` (rejected: migration gate not mature enough); edit/bump `service-worker.js` to precache the dev page globally (rejected: unnecessary default-PWA surface change); keep a synthetic harness only (rejected: does not prove document + service-worker offline reopen).
+- **Result:** real Chromium online→offline reload keeps requested/active source canonical on the same deterministic bridge, with zero console/page errors; default runtime remains untouched.
+- **Affected systems:** developer validation surface and CI only; existing canonical shadow modules are consumed, not changed. 2D, default 3D, gameplay, world, mobile runtime and PWA shell behavior are unchanged unless this developer page is explicitly opened.
+- **Rollback:** remove the newly added Run201 developer files/workflow in a future owner-approved non-additive cleanup; until then they are inert because no default surface links/imports them.
+- **Risk:** LOW.
