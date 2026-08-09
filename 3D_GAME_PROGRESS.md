@@ -14454,3 +14454,12 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - World Coverage unchanged: desktop 96.2%; mobile live radius-4 remains 81 chunks / 20.25 km² (~14.7%). No asset, geometry, texture, timer or RAF added.
 - Memory-leak checklist: one MutationObserver + one pagehide listener + two bounded DOM nodes; disposal disconnects the observer and removes both nodes/listener. Technical debt introduced: 0 live-runtime architectural items. Risk LOW; confidence 5/5.
 - Next safe step: continue RTS readability with another DOM/instancing-only improvement that does not duplicate simulation ownership; world-space rally geometry remains optional and must first prove mobile/render budget headroom.
+
+## Run 213 — RTS selection readability
+- Added a read-only DOM/ARIA selection meter that mirrors the existing `rts-selection-count`; it owns no army, command, camera, terrain, seed or simulation state.
+- Desktop/mobile focused Chromium proof verifies 48/48 -> 100%, `progressbar` semantics, zero console/page errors and unchanged renderer budgets. Existing Run210 surface, Run211 shortcuts and Run212 command-status contracts remain PASS.
+- Pre/post 34+ browser smoke, PWA/cache/installability, mobile render budget, deterministic RNG/world-reference, terrain-seat and road-network safety all PASS.
+- Memory-leak checklist: one MutationObserver + one pagehide listener; observer disconnects and DOM host is removed on dispose. No timer, RAF, geometry, material, texture, asset or simulation owner added.
+- World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; world events +0; creatures +0. Desktop coverage remains 96.2%; mobile radius-4 remains 81 chunks / 20.25 km² (~14.7%).
+- Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+- Next safe step: improve RTS formation/selection readability only through existing DOM or instancing observations; do not change radius-5, `game3d.js` split or world-event checksum without owner resolution.

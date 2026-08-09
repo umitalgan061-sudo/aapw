@@ -227,6 +227,8 @@ GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCurrentTickOwnershipShadow
 // Run210 owner surface offline cache: additive-only extension for the current RTS terrain detail.
 // Image requests are cache-first in MEDIA_CACHE, while the JS module belongs to the shell graph.
 GAME3D_SHELL_FILES.push('./src/3d/rts/rtsSurfaceTexture.js');
+// Run213 read-only RTS selection readability module.
+GAME3D_SHELL_FILES.push('./src/3d/rts/rtsSelectionReadability.js');
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(MEDIA_CACHE)
