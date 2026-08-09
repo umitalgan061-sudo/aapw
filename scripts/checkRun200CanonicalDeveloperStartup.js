@@ -81,17 +81,26 @@ async function main() {
   const origin = `http://127.0.0.1:${server.address().port}`;
 
   try {
-    await page.goto(`${origin}/index.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // First developer boot is intentionally network-backed and uncontrolled. It proves the
+    // developer entry can own startup without relying on the existing index shell, then installs
+    // the unchanged service worker from the same clean path. This avoids unrelated legacy index
+    // media 404s from contaminating the strict developer console-error gate.
+    await page.goto(`${origin}/game3d-canonical-dev.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await waitCanonical(page);
     await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.register('/service-worker.js');
       await navigator.serviceWorker.ready;
       if (!navigator.serviceWorker.controller) {
         await new Promise((resolve) => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
       }
-      if (!registration.active) throw new Error('service worker did not become active');
+      if (!registration.active || !navigator.serviceWorker.controller) {
+        throw new Error('service worker did not become active/controller on developer path');
+      }
     });
 
-    await page.goto(`${origin}/game3d-canonical-dev.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // Reload once while online under service-worker control. This both exercises ordered pagehide
+    // teardown from the first canonical document and warm-caches the developer entry/module graph.
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
     await waitCanonical(page);
 
     const online = await page.evaluate(() => {
@@ -108,8 +117,10 @@ async function main() {
         freezeStats: stats,
         currentRoots: state.scene.children.length,
         loadedChunks: state.chunkManager.loadedCount,
+        controller: Boolean(navigator.serviceWorker.controller),
       };
     });
+    assert(online.controller, 'online developer reload was not service-worker controlled');
     assert(online.requestedBeforeInit === true, 'canonical selection was not requested before initGame3D');
     assert(online.mode === 'canonical', `online developer mode expected canonical, got ${online.mode}`);
     assert(!online.activationError, `online activation error: ${online.activationError}`);
@@ -186,7 +197,8 @@ async function main() {
     await page.screenshot({ path: path.join(OUT, 'canonical-offline.png'), fullPage: true });
     await context.setOffline(false);
 
-    assert(consoleErrors.length === 0, `console/page errors: ${JSON.stringify(consoleErrors)}; httpErrors=${JSON.stringify(httpErrors)}`);
+    assert(consoleErrors.length === 0, `console/page errors: ${JSON.stringify(consoleErrors)}`);
+    assert(httpErrors.length === 0, `HTTP errors: ${JSON.stringify(httpErrors)}`);
     const report = {
       version: 'run200-canonical-developer-startup-v1',
       online,
@@ -198,7 +210,7 @@ async function main() {
       httpErrors,
     };
     fs.writeFileSync(path.join(OUT, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
-    console.log(`[checkRun200CanonicalDeveloperStartup] PASS: ${JSON.stringify({ bridgeId: online.bridgeId, frozen: Object.keys(online.freezeStats).length, rollback: rollback.mode, offline: offline.mode, consoleErrors: consoleErrors.length })}`);
+    console.log(`[checkRun200CanonicalDeveloperStartup] PASS: ${JSON.stringify({ bridgeId: online.bridgeId, frozen: Object.keys(online.freezeStats).length, rollback: rollback.mode, offline: offline.mode, consoleErrors: consoleErrors.length, httpErrors: httpErrors.length })}`);
   } finally {
     await context.setOffline(false).catch(() => {});
     await browser.close();
