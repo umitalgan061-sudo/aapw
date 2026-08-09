@@ -94,5 +94,412 @@
 </div>
 <input id="we-load-file" type="file" accept="application/json,.json" hidden>
 <script type="module" src="./src/3d/editor/worldEditor.js"></script>
+<script type="module">
+const BRIDGE_FALLBACK = 'http://127.0.0.1:4173';
+const SUPPORTED_FORMATS = new Set(['fbx', 'glb', 'gltf']);
+const VIEW_MODES = new Set(['edit', 'live', 'split']);
+const VIEW_MODE_LABELS = Object.freeze({ edit: 'DÜZENLEME', live: 'CANLI OYUN', split: 'YAN YANA' });
+
+let disposed = false;
+let bridgeBase = null;
+let currentMode = 'live';
+let selectedAsset = null;
+let assetCatalog = [];
+let iframe = null;
+let style = null;
+let controls = null;
+let catalogStatus = null;
+let saveStatus = null;
+const removers = [];
+
+function listen(target, type, handler, options) {
+  target?.addEventListener(type, handler, options);
+  removers.push(() => target?.removeEventListener(type, handler, options));
+}
+
+function editorApi() {
+  return window.__WESTEROS_WORLD_EDITOR__ || null;
+}
+
+function extensionOf(file) {
+  const match = String(file || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+  return match ? match[1] : '';
+}
+
+function assetIdForPath(file) {
+  let hash = 2166136261;
+  for (const character of String(file)) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `manifest-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+function humanName(file) {
+  const name = String(file || '').split('/').pop()?.replace(/\.[^.]+$/, '') || 'Model';
+  return name.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function categoryFor(file) {
+  const parts = String(file || '').split('/');
+  const modelsIndex = parts.indexOf('models');
+  const afterModels = modelsIndex >= 0 ? parts.slice(modelsIndex + 1) : [];
+  if (afterModels[0] === 'settlements' && afterModels[1]) return afterModels[1];
+  return afterModels[0] || 'models';
+}
+
+function normalizeManifestAsset(record) {
+  const file = record?.file;
+  const format = extensionOf(file);
+  if (!String(file || '').startsWith('assets/models/') || !SUPPORTED_FORMATS.has(format)) return null;
+  const descriptor = {
+    id: record.id ? `manifest-${record.id}` : assetIdForPath(file),
+    name: humanName(file),
+    category: categoryFor(file),
+    format,
+    src: file,
+    sizeBytes: null,
+  };
+  if (record.textures && format === 'fbx') descriptor.resourcePath = record.textures;
+  return descriptor;
+}
+
+async function fetchJson(url, options) {
+  const response = await fetch(url, { cache: 'no-store', ...options });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return response.json();
+}
+
+async function resolveBridge() {
+  if (bridgeBase !== null) return bridgeBase;
+  const candidates = [window.location.origin, BRIDGE_FALLBACK];
+  for (const candidate of [...new Set(candidates)]) {
+    try {
+      const health = await fetchJson(`${candidate}/__editor/health`);
+      if (health?.ok) {
+        bridgeBase = candidate;
+        return bridgeBase;
+      }
+    } catch {}
+  }
+  bridgeBase = '';
+  return bridgeBase;
+}
+
+async function loadAssetCatalog() {
+  const bridge = await resolveBridge();
+  if (bridge) {
+    const payload = await fetchJson(`${bridge}/__editor/models`);
+    const models = Array.isArray(payload.models) ? payload.models : [];
+    if (models.length > 0) return { source: 'workspace', models };
+  }
+  const manifest = await fetchJson('./assets_manifest.json');
+  const models = (Array.isArray(manifest.assets) ? manifest.assets : [])
+    .map(normalizeManifestAsset)
+    .filter(Boolean)
+    .sort((a, b) => a.src.localeCompare(b.src, 'tr'));
+  return { source: 'manifest', models };
+}
+
+function createStyle() {
+  const element = document.createElement('style');
+  element.dataset.editorLiveWorkspace = 'true';
+  element.textContent = `
+    #we-asset-search,#we-asset-categories{display:none!important}
+    .we-live-controls{position:absolute;right:12px;top:12px;z-index:50;display:flex;gap:5px;padding:5px;border:1px solid rgba(240,195,79,.5);border-radius:7px;background:rgba(11,15,22,.88);backdrop-filter:blur(8px)}
+    .we-live-controls button{padding:6px 8px;font-size:10px;font-weight:800;letter-spacing:.06em}
+    .we-live-controls button.is-active{border-color:var(--we-gold-2);color:var(--we-gold-2);background:#201a0b}
+    #we-live-game-preview{position:absolute;z-index:2;top:0;bottom:0;left:0;width:100%;height:100%;border:0;background:#05070a}
+    #we-canvas{position:absolute;z-index:1;inset:0}
+    body[data-we-view-mode="live"] #we-canvas{visibility:visible;pointer-events:none}
+    body[data-we-view-mode="live"] #we-live-game-preview{display:block}
+    body[data-we-view-mode="edit"] #we-canvas{visibility:visible;width:100%;height:100%}
+    body[data-we-view-mode="edit"] #we-live-game-preview{display:none}
+    body[data-we-view-mode="split"] #we-canvas{visibility:visible;width:50%;height:100%;right:auto}
+    body[data-we-view-mode="split"] #we-live-game-preview{display:block;left:50%;width:50%}
+    .we-live-catalog-status{margin:0 0 8px;padding:6px 7px;border:1px solid var(--we-line);border-radius:5px;background:#0b1220;color:var(--we-muted);font-size:11px;line-height:1.35}
+    .we-live-catalog-status strong{color:var(--we-gold-2)}
+    .we-live-asset-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;align-items:stretch}
+    .we-live-asset-select{min-width:0;text-align:left;display:grid;gap:2px}
+    .we-live-asset-select strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+    .we-live-asset-select span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--we-muted);font-size:10px}
+    .we-live-asset-select.is-selected{border-color:var(--we-gold);box-shadow:inset 3px 0 0 var(--we-gold)}
+    .we-live-asset-add{min-width:42px;padding:6px 9px;font-weight:900;color:var(--we-gold-2)}
+    .we-live-save-state{display:inline-flex;align-items:center;gap:5px;color:var(--we-muted)}
+    .we-live-save-state::before{content:'';width:7px;height:7px;border-radius:50%;background:#8b6b20}
+    .we-live-save-state[data-connected="true"]::before{background:#4aa96c}
+    @media(max-width:640px){.we-live-controls{right:6px;top:6px;max-width:calc(100% - 12px);overflow:auto}.we-live-controls button{min-height:38px}.we-live-asset-add{min-width:46px}.we-live-controls button[data-mode="split"]{display:none}}
+  `;
+  return element;
+}
+
+function toast(message) {
+  const api = editorApi();
+  if (api?.toast) {
+    api.toast(message);
+    return;
+  }
+  const target = document.getElementById('we-toast');
+  if (!target) return;
+  target.textContent = message;
+  target.classList.add('is-visible');
+  window.setTimeout(() => target.classList.remove('is-visible'), 1800);
+}
+
+function setMode(mode) {
+  if (!VIEW_MODES.has(mode)) return;
+  currentMode = mode;
+  document.body.dataset.weViewMode = mode;
+  controls?.querySelectorAll('[data-mode]').forEach((button) => button.classList.toggle('is-active', button.dataset.mode === mode));
+  const badge = document.querySelector('.we-viewport-badge');
+  if (badge) badge.textContent = mode === 'edit' ? 'WORLD EDITOR' : `${VIEW_MODE_LABELS[mode]} · GAME3D`;
+  window.dispatchEvent(new Event('resize'));
+}
+
+function installLivePreview() {
+  const viewport = document.querySelector('.we-viewport-wrap');
+  if (!viewport) return;
+  iframe = document.createElement('iframe');
+  iframe.id = 'we-live-game-preview';
+  iframe.title = 'Mevcut Westeros 3D oyununun birebir canlı görünümü';
+  iframe.src = './game3d.html?editorPreview=1';
+  iframe.allow = 'fullscreen';
+  viewport.prepend(iframe);
+
+  controls = document.createElement('div');
+  controls.className = 'we-live-controls';
+  controls.setAttribute('role', 'group');
+  controls.setAttribute('aria-label', 'Editör görünüm modu');
+  for (const mode of ['edit', 'live', 'split']) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.mode = mode;
+    button.textContent = VIEW_MODE_LABELS[mode];
+    listen(button, 'click', () => setMode(mode));
+    controls.append(button);
+  }
+  viewport.append(controls);
+  setMode('live');
+}
+
+function bytesLabel(value) {
+  if (!Number.isFinite(value) || value <= 0) return '';
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+  return `${Math.ceil(value / 1024)} KB`;
+}
+
+function renderCatalog() {
+  const container = document.getElementById('we-assets');
+  if (!container) return;
+  container.replaceChildren();
+  for (const asset of assetCatalog) {
+    const row = document.createElement('div');
+    row.className = 'we-live-asset-row';
+    const select = document.createElement('button');
+    select.type = 'button';
+    select.className = `we-live-asset-select${selectedAsset?.id === asset.id ? ' is-selected' : ''}`;
+    const size = bytesLabel(asset.sizeBytes);
+    select.innerHTML = `<strong></strong><span></span>`;
+    select.querySelector('strong').textContent = asset.name;
+    select.querySelector('span').textContent = `${asset.category} · ${asset.format.toUpperCase()}${size ? ` · ${size}` : ''} · ${asset.src}`;
+    listen(select, 'click', () => {
+      selectedAsset = asset;
+      editorApi()?.selectAssetDescriptor?.(asset);
+      renderCatalog();
+    });
+    listen(select, 'dblclick', () => {
+      editorApi()?.addAssetDescriptor?.(asset).then((object) => {
+        if (object) setMode('edit');
+      }).catch((error) => {
+        console.error('[editorLiveWorkspace] asset add failed', error);
+        toast(`${asset.name} eklenemedi: ${error.message}`);
+      });
+    });
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'we-live-asset-add';
+    add.textContent = '+';
+    add.title = `${asset.name} sahneye ekle`;
+    add.setAttribute('aria-label', `${asset.name} sahneye ekle`);
+    listen(add, 'click', async () => {
+      selectedAsset = asset;
+      editorApi()?.selectAssetDescriptor?.(asset);
+      const object = await editorApi()?.addAssetDescriptor?.(asset);
+      if (object) setMode('edit');
+      renderCatalog();
+    });
+    row.append(select, add);
+    container.append(row);
+  }
+}
+
+async function installCatalog() {
+  const panelTitle = document.querySelector('.we-assets-panel .we-panel-title');
+  catalogStatus = document.createElement('div');
+  catalogStatus.className = 'we-live-catalog-status';
+  catalogStatus.textContent = 'Tüm model dosyaları taranıyor…';
+  panelTitle?.after(catalogStatus);
+  try {
+    const result = await loadAssetCatalog();
+    assetCatalog = result.models;
+    catalogStatus.innerHTML = `<strong>${assetCatalog.length} MODEL</strong> · filtre yok · ${result.source === 'workspace' ? 'dosya sisteminden canlı tarama' : 'assets_manifest yedeği'}`;
+    selectedAsset = null;
+    renderCatalog();
+  } catch (error) {
+    console.error('[editorLiveWorkspace] asset catalog failed', error);
+    catalogStatus.textContent = 'Model kataloğu yüklenemedi.';
+  }
+}
+
+function downloadScene(scene) {
+  const blob = new Blob([JSON.stringify(scene, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'westeros-world.scene.json';
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+async function saveToWorkspace() {
+  const api = editorApi();
+  const scene = api?.serializeScene?.();
+  if (!scene) throw new Error('Editör scene verisi hazır değil.');
+  const bridge = await resolveBridge();
+  if (!bridge) {
+    downloadScene(scene);
+    saveStatus?.setAttribute('data-connected', 'false');
+    if (saveStatus) saveStatus.textContent = 'Köprü yok · JSON indirildi';
+    toast('Yerel kayıt köprüsü bulunamadı; JSON indirildi.');
+    return;
+  }
+  const result = await fetchJson(`${bridge}/__editor/save`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scene }),
+  });
+  if (!result.ok) throw new Error(result.error || 'Kayıt başarısız.');
+  saveStatus?.setAttribute('data-connected', 'true');
+  if (saveStatus) saveStatus.textContent = `Koda kaydedildi · ${result.revision.slice(0, 8)}`;
+  toast(`Repo içine kaydedildi: ${result.revisionFile}`);
+}
+
+function installSaveBridge() {
+  const save = document.getElementById('we-save');
+  if (!save) return;
+  save.textContent = 'Koda Kaydet';
+  saveStatus = document.createElement('span');
+  saveStatus.className = 'we-live-save-state';
+  saveStatus.dataset.connected = 'false';
+  saveStatus.textContent = 'Kayıt köprüsü aranıyor';
+  document.querySelector('.we-statusbar')?.append(saveStatus);
+  listen(save, 'click', (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    saveToWorkspace().catch((error) => {
+      console.error('[editorLiveWorkspace] workspace save failed', error);
+      saveStatus?.setAttribute('data-connected', 'false');
+      if (saveStatus) saveStatus.textContent = 'Kayıt başarısız';
+      toast(`Kayıt başarısız: ${error.message}`);
+    });
+  }, true);
+  resolveBridge().then((bridge) => {
+    saveStatus?.setAttribute('data-connected', String(Boolean(bridge)));
+    if (saveStatus) saveStatus.textContent = bridge ? 'Yerel repo bağlantısı hazır' : 'Köprü yok · indirme modu';
+  });
+}
+
+function installExtendedLoad() {
+  const input = document.getElementById('we-load-file');
+  if (!input) return;
+  listen(input, 'change', (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.stopImmediatePropagation();
+    file.text()
+      .then((text) => JSON.parse(text))
+      .then((data) => editorApi()?.loadSceneData?.(data, assetCatalog))
+      .then(() => toast('Scene tüm workspace assetleriyle yüklendi.'))
+      .catch((error) => {
+        console.error('[editorLiveWorkspace] extended scene load failed', error);
+        toast(`Scene yüklenemedi: ${error.message}`);
+      })
+      .finally(() => { event.target.value = ''; });
+  }, true);
+}
+
+function installFormationBridge() {
+  const button = document.getElementById('we-create-formation');
+  if (!button) return;
+  listen(button, 'click', (event) => {
+    if (!selectedAsset) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const rows = Math.max(1, Math.min(100, Number(document.getElementById('we-rows')?.value) || 1));
+    const columns = Math.max(1, Math.min(100, Number(document.getElementById('we-columns')?.value) || 1));
+    const spacing = Math.max(0.25, Number(document.getElementById('we-spacing')?.value) || 1.5);
+    editorApi()?.createFormation?.(selectedAsset, rows, columns, spacing)
+      .then(() => toast(`${rows * columns} instance oluşturuldu.`))
+      .catch((error) => {
+        console.error('[editorLiveWorkspace] formation failed', error);
+        toast(error.message);
+      });
+  }, true);
+}
+
+function installKeyboard() {
+  listen(window, 'keydown', (event) => {
+    const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target?.isContentEditable;
+    if (typing || !event.ctrlKey || !event.shiftKey || event.code !== 'KeyL') return;
+    event.preventDefault();
+    setMode(currentMode === 'live' ? 'edit' : 'live');
+  });
+}
+
+function dispose() {
+  if (disposed) return;
+  disposed = true;
+  removers.splice(0).reverse().forEach((remove) => remove());
+  iframe?.remove();
+  controls?.remove();
+  catalogStatus?.remove();
+  saveStatus?.remove();
+  style?.remove();
+  delete document.body.dataset.weViewMode;
+}
+
+async function install() {
+  const api = editorApi();
+  if (!api) throw new Error('World Editor extension API hazır değil.');
+  style = createStyle();
+  document.head.append(style);
+  installLivePreview();
+  installSaveBridge();
+  installExtendedLoad();
+  installFormationBridge();
+  installKeyboard();
+  await installCatalog();
+  window.__WESTEROS_EDITOR_LIVE_WORKSPACE__ = Object.freeze({
+    getSnapshot: () => ({
+      disposed,
+      bridgeBase,
+      currentMode,
+      catalogCount: assetCatalog.length,
+      selectedAssetId: selectedAsset?.id || null,
+      previewLoaded: Boolean(iframe?.isConnected),
+    }),
+    setMode,
+    save: saveToWorkspace,
+    dispose,
+  });
+  document.body.dataset.editorLiveWorkspace = 'ready';
+  listen(window, 'pagehide', dispose, { once: true });
+}
+
+install().catch((error) => {
+  console.error('[editorLiveWorkspace] install failed', error);
+  toast(`Canlı workspace başlatılamadı: ${error.message}`);
+});
+</script>
 </body>
 </html>
