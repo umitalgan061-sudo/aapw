@@ -912,3 +912,6 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-08-2249 — run 198 ordered canonical-active pagehide + same-document clean re-init preflight (ADR-0218); two lifecycle generations + gate-before-runtime teardown + exact single-dispose paths + zero RAF/timeout/interval leak + listener/EventBus/DOM baseline equality + distinct runtime identities + single F4 toggle + zero console error PASS; live runtime delta 0.
 
 - stable-2026-08-08-2329 — run 199 overdue periodic platform/PWA/WebGL audit; full smoke + zero console errors + SW cache/installability + mobile streaming/LOD/perf + perf trend + canonical readiness regression PASS; live runtime delta 0.
+
+
+- stable-2026-08-09-0129 — run 200 deterministic canonical developer-startup selection policy preflight (ADR-0219); explicit opt-in + current fallback + offline-cache semantics + full smoke/console/PWA/mobile/perf/canonical regression PASS; live runtime delta 0.

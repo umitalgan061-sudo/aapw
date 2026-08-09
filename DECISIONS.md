@@ -15215,3 +15215,13 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Sıradaki migration preflight ayrı opt-in developer startup entry pointinde canonical source-of-truth'u boot anından seçebilir. Current fallback ve offline/PWA boot eşdeğerliği kanıtlanmadan default `game3d.html` startup değişmez.
 
 **Geri alma planı:** Live consumer yoktur. Run198 checker/CI kaldırılmadan da runtime etkisi sıfırdır; contract yanlışlanırsa yeni versioned checker eklenir, current runtime ve Run197/Run196 byte-unchanged kalır.
+
+
+## ADR-0219 — Canonical developer startup must be explicit, deterministic, and fail closed to current runtime
+- **Karar:** Future developer-only canonical startup selection uses the pure Run200 policy contract: default/unknown requests stay on current runtime; canonical is selected only by explicit `?worldSource=canonical` plus ready prerequisites; offline canonical additionally requires confirmed cached prerequisites. Any unmet prerequisite deterministically falls back to current.
+- **Neden:** Run198 proved lifecycle rollback/re-init safety, but a boot source-of-truth switch still needs a stable decision boundary before wiring. Encoding that boundary as a side-effect-free module prevents URL/offline/fallback semantics from being guessed independently by later boot code.
+- **Alternatifler:** (1) make canonical the implicit default — rejected because migration is not yet ready; (2) throw when canonical is unavailable — rejected because developer/offline boot must retain a safe current-runtime escape hatch; (3) inspect network/global state inside the policy — rejected because it would make the decision non-deterministic and hard to regression-test.
+- **Sonuç:** `dev/canonicalStartupPolicy.js` is added outside the live `src/3d`/PWA module tree and is not imported by default player runtime. Run200 proves eight explicit/default/offline/fallback cases and repeated deterministic equality. Real developer entry wiring remains a later task and must supply readiness/cache facts rather than letting this policy discover them itself.
+- **Etkilenen sistemler:** developer migration policy/test surface only; default `game3d.html`, current runtime, 2D game, PWA shell/cache list, scene/gameplay code and deterministic world generation remain unchanged.
+- **Geri alma planı:** module/test/workflow can be removed as an isolated opt-in preflight surface before adoption; no live runtime rollback is required because nothing imports it by default.
+- **Risk:** LOW.
