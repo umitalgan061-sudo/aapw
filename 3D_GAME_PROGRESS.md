@@ -14344,3 +14344,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 368 MB heap**; trend guard reports no sustained upward heap drift.
 - Technical debt: **no new live-runtime debt**. Existing structural warnings and owner-gated decisions remain untouched. Risk **LOW**, confidence **5/5**.
 - **Next safe step (Run203):** keep default startup unchanged and prove a developer launcher can select current/canonical explicitly without duplicating runtime ownership or changing PWA/default navigation; do not promote canonical to player default without a separate migration gate.
+
+
+## Run 203 — Explicit developer Current/Canonical launcher isolation proof
+
+- **Validated:** 2026-08-09 04:29 UTC; base main `dd855df3f188ec1640c14414ad79d1d29d9cdfc1`.
+- Added developer-only `canonical-dev-launcher.html`; it owns no runtime canvas and links explicitly to current or canonical-dev. Default player startup and live runtime sources remain unchanged.
+- Real Chromium proves Current => requested/active current with one runtime canvas, Canonical => requested/active canonical with one runtime canvas, both resolve the same deterministic bridge `cersei->stannis#1`, and returning to the launcher leaves zero runtime canvases.
+- Current and canonical pagehide boundaries both report timeout/interval/RAF counts 0/0/0; console/page errors=0.
+- Full browser smoke: **34+ PASS**; Run195-202 canonical regressions PASS; PWA cache/installability PASS.
+- Mobile live budget: **35 draw calls / 195929 triangles / 30 geometries / 22 textures**, within <500/<500000. Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**.
+- Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 326 MB heap**; trend guard PASS.
+- Technical debt: **no new live-runtime debt**. Risk **LOW**, confidence **5/5**.
+- **Next safe step (Run204):** keep player default unchanged and prove launcher/current/canonical behavior under installed-PWA standalone navigation plus offline return-to-launcher history boundaries before considering any wider developer exposure.

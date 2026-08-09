@@ -15253,3 +15253,14 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Affected systems:** CI/test/documentation only. 2D, default 3D, gameplay/world code, service worker source, manifest and live mobile/desktop/PWA behavior remain unchanged.
 - **Rollback:** the Run202 test/workflow files are inert outside CI and may be removed only in a future owner-approved non-additive cleanup.
 - **Risk:** LOW.
+
+
+## ADR-0222 — Keep canonical selection explicit behind a runtime-free developer launcher
+
+- **Decision:** Introduce a developer-only launcher that owns no renderer/runtime and offers two explicit navigation choices: existing current developer boot and opt-in canonical developer boot.
+- **Why:** Run200-202 proved selector, offline boot and lifecycle retention. A launcher is the smallest usable developer surface that preserves explicit consent and prevents two world runtimes from coexisting in one document.
+- **Alternatives:** embed two previews simultaneously (rejected: duplicate ownership risk); change default `game3d.html` startup (rejected: migration gate not met); add launcher logic to service worker/default navigation (rejected: unnecessary PWA/runtime scope).
+- **Result:** Chromium proves launcher canvas=0, selected runtime canvas=1, deterministic bridge identity is stable across current/canonical choices, pagehide timer/RAF ownership is clean, and console/page errors remain zero.
+- **Affected systems:** developer-only HTML, CI/test/documentation. 2D, default 3D, gameplay/world sources, service worker, manifest and live player navigation unchanged.
+- **Rollback:** new Run203 files are inert unless opened directly and may be removed only in a future owner-approved non-additive cleanup.
+- **Risk:** LOW.
