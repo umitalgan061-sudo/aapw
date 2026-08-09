@@ -29,7 +29,7 @@ async function main(){
       window.requestAnimationFrame=(fn)=>{let id; id=raf((time)=>{timers.rafs.delete(id); fn(time);}); timers.rafs.add(id); return id;};
       window.cancelAnimationFrame=(id)=>{timers.rafs.delete(id); return caf(id);};
       window.__run202TimerSnapshot=()=>({timeouts:timers.timeouts.size,intervals:timers.intervals.size,rafs:timers.rafs.size});
-      addEventListener('pagehide',()=>{localStorage.setItem('run202-pagehide-count',String(Number(localStorage.getItem('run202-pagehide-count')||0)+1));},{capture:true});
+      addEventListener('pagehide',()=>{try{localStorage.setItem('run202-pagehide-count',String(Number(localStorage.getItem('run202-pagehide-count')||0)+1));}catch{}},{capture:true});
     });
     const page=await context.newPage(); const cdp=await context.newCDPSession(page);
     page.on('console',m=>{if(m.type()==='error') errors.push(m.text());}); page.on('pageerror',e=>errors.push(String(e)));
