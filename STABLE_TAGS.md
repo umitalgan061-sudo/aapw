@@ -916,3 +916,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - stable-2026-08-09-0144 — run 200 explicit canonical startup-source selector preflight; default current + explicit canonical opt-in + invalid-request current fallback + rollback + full smoke/PWA/mobile/perf gates PASS; live runtime delta 0.
 
 - `stable-2026-08-09-0242` — Run201 opt-in canonical developer startup + real online→offline reload proof; 34+ smoke PASS, canonical regressions/PWA/mobile/perf/additive/concurrency gates PASS; default runtime delta 0.
+
+- `stable-2026-08-09-0339` — Run202 developer fallback + pagehide/offline lifecycle-retention proof; 34+ smoke PASS, canonical regressions/PWA/mobile/perf/additive/concurrency gates PASS; live/default runtime delta 0.
