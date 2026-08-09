@@ -1,0 +1,71 @@
+name: Run 210 Owner Surface Clean
+on:
+  push:
+    branches: [agent/run210-owner-surface-clean-v3]
+    paths: ['.github/workflows/run210-owner-surface-clean.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Concurrency and governance gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          MAIN="$(git rev-parse origin/main)"
+          test "$MAIN" = "$(git merge-base HEAD origin/main)"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          git log -10 --oneline
+          tail -n 120 3D_GAME_PROGRESS.md
+          tail -n 100 DECISIONS.md
+          tail -n 100 QUESTIONS_FOR_OWNER.md
+      - name: Syntax additive cache contract
+        run: |
+          set -euo pipefail
+          node --check src/rts/rtsSurfaceTexture.js
+          node --check scripts/checkRun210OwnerSurface.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          test -z "$(git diff --numstat origin/main...HEAD -- '*.js' '*.mjs' '*.cjs' '*.html' '*.css' '*.json' '*.xml' '*.glsl' '*.vert' '*.frag' | awk '$2 != 0 {print}')"
+          git diff --check origin/main...HEAD
+      - name: Install Chromium proof tooling
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Owner surface desktop mobile PWA proof
+        run: node scripts/checkRun210OwnerSurface.js
+      - name: Legacy smoke console regression
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/smoke.log" | grep -F 'zero console/page errors'
+      - name: Determinism world safety and mobile budget
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          if test -f scripts/checkMobilePerfBudget.js; then node scripts/checkMobilePerfBudget.js; fi
+      - name: Final remote-main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          MAIN="$(git rev-parse origin/main)"
+          test "$MAIN" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$MAIN" HEAD
+          test -z "$(git diff --numstat "$MAIN"...HEAD -- '*.js' '*.mjs' '*.cjs' '*.html' '*.css' '*.json' '*.xml' '*.glsl' '*.vert' '*.frag' | awk '$2 != 0 {print}')"
+          git diff --check "$MAIN"...HEAD
