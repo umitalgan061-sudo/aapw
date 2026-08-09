@@ -15286,3 +15286,14 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Affected systems:** new developer-only PWA subtree, CI/test/documentation. 2D, default 3D, gameplay/world sources, production service worker/manifest and player navigation unchanged.
 - **Rollback:** new Run205 files are inert unless the developer subtree is opened directly and may be removed only in a future owner-approved non-additive cleanup.
 - **Risk:** LOW.
+
+
+## ADR-0225 — Preserve service-worker ownership by URL scope across developer runtime launches
+
+- **Decision:** Keep the Run205 developer worker confined to `/canonical-dev-pwa/`; Current/Canonical runtime documents remain outside that scope and therefore stay under the existing production root service worker. Add a real Chromium ownership regression proof rather than changing runtime/service-worker code.
+- **Why:** A nested developer PWA is safe only if its narrower worker cannot capture root runtime documents or replace the production registration during online/offline navigation.
+- **Alternatives:** widen the developer worker scope (rejected: risks production capture); move runtime documents under the developer subtree (rejected: changes ownership/navigation semantics); alter the root service worker (rejected: unnecessary live-PWA risk).
+- **Result:** production registration remains present at scope `/`; developer registration remains at `/canonical-dev-pwa/`; Current/Canonical use the production controller, shell uses the developer controller, and offline recovery preserves the same separation with zero console/page errors.
+- **Affected systems:** CI/test/documentation only. Production service worker/manifest, developer service worker/manifest, 2D, default 3D and live gameplay/world code unchanged.
+- **Rollback:** Run206 files are inert unless executed by CI and may be removed only in a future owner-approved non-additive cleanup.
+- **Risk:** LOW.
