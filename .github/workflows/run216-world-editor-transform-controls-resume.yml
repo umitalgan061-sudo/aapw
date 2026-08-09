@@ -1,0 +1,132 @@
+name: Run 216 TransformControls Current-Head Resume
+
+on:
+  push:
+    branches:
+      - agent/run216-world-editor-transform-controls-resume-guard
+    paths:
+      - '.github/workflows/run216-world-editor-transform-controls-resume.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  replay-validated-run216:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Current-head and source-workflow guard
+        run: |
+          set -euo pipefail
+          git fetch origin main agent/run216-world-editor-transform-controls
+          test "$(git rev-parse origin/main)" = '0d29693b16ee12b00ae1a2c2d7ccafaeb43d0b7e'
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          test "$(git rev-parse origin/agent/run216-world-editor-transform-controls)" = '8bd93d3010dbb1a4ff32d4edf18d49e016e536d3'
+          test "$(git hash-object .github/workflows/run216-world-editor-transform-controls.yml)" = 'ee8b8a7063a3fc94b860eaf72550312528c23179'
+          git diff --check origin/main...HEAD
+          git diff --numstat origin/main...HEAD | awk '$2 ~ /^[0-9]+$/ && $2 != 0 { exit 1 }'
+
+      - name: Replay original Run216 run-steps at current head
+        env:
+          RUN216_SOURCE_WORKFLOW: .github/workflows/run216-world-editor-transform-controls.yml
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import subprocess
+
+          workflow = pathlib.Path(os.environ['RUN216_SOURCE_WORKFLOW'])
+          lines = workflow.read_text(encoding='utf-8').splitlines()
+          expected = [
+              'Starting main concurrency gate',
+              'Install temporary browser and minifier tooling',
+              'Pre-change editor and game baseline',
+              'Vendor exact Three.js r160 TransformControls provenance and runtime',
+              'Add isolated TransformControls controller and proof',
+              'Wire editor bridge and offline shell additively',
+              'Syntax additive and run-budget gates',
+              'Focused desktop mobile TransformControls proof',
+              'PWA performance determinism and world safety gates',
+              'Existing game post-change smoke',
+              'Append verified progress ADR and stable record',
+              'Final remote-main concurrency and additive gates',
+              'Commit verified Run216',
+          ]
+
+          steps = []
+          i = 0
+          while i < len(lines):
+              line = lines[i]
+              if line.startswith('      - name: '):
+                  name = line[len('      - name: '):].strip()
+                  j = i + 1
+                  while j < len(lines) and not lines[j].startswith('      - '):
+                      if lines[j] == '        run: |':
+                          j += 1
+                          block = []
+                          while j < len(lines) and not lines[j].startswith('      - '):
+                              raw = lines[j]
+                              block.append(raw[10:] if raw.startswith('          ') else raw)
+                              j += 1
+                          steps.append((name, '\n'.join(block) + '\n'))
+                          break
+                      j += 1
+                  i = max(i + 1, j)
+                  continue
+              i += 1
+
+          names = [name for name, _ in steps]
+          if names != expected:
+              raise SystemExit(f'Run216 workflow run-step topology drifted: {names!r}')
+
+          github_env = pathlib.Path(os.environ['GITHUB_ENV'])
+
+          def merged_env():
+              env = os.environ.copy()
+              if github_env.exists():
+                  for raw in github_env.read_text(encoding='utf-8').splitlines():
+                      if '=' not in raw or raw.startswith('#'):
+                          continue
+                      key, value = raw.split('=', 1)
+                      if key:
+                          env[key] = value
+              return env
+
+          for name, script in steps:
+              print(f'::group::Replay: {name}', flush=True)
+              result = subprocess.run(
+                  ['bash', '-lc', script],
+                  cwd=os.environ['GITHUB_WORKSPACE'],
+                  env=merged_env(),
+                  text=True,
+              )
+              print('::endgroup::', flush=True)
+              if result.returncode:
+                  raise SystemExit(result.returncode)
+          PY
+
+      - name: Verify published Run216 branch contains this resume lineage
+        run: |
+          set -euo pipefail
+          git fetch origin main agent/run216-world-editor-transform-controls
+          PUBLISHED="$(git rev-parse origin/agent/run216-world-editor-transform-controls)"
+          test "$(git merge-base HEAD "$PUBLISHED")" = "$(git rev-parse HEAD)"
+          test "$(git rev-parse origin/main)" = '0d29693b16ee12b00ae1a2c2d7ccafaeb43d0b7e'
+
+      - name: Upload TransformControls visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run216-world-editor-transform-controls-resumed
+          path: artifacts/run216/*.png
+          if-no-files-found: error
