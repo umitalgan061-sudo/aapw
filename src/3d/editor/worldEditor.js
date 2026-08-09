@@ -4,6 +4,7 @@ import { EDITOR_ASSETS, findEditorAsset } from './editorAssetLibrary.js';
 import { EditorAssetManager } from './EditorAssetManager.js';
 import { EditorInstanceManager } from './EditorInstanceManager.js';
 import { serializeEditorScene, validateEditorScene } from './EditorSceneSerializer.js';
+import { rehydrateInstanceGroups } from './EditorFormationRehydrator.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('we-canvas');
@@ -246,6 +247,7 @@ function saveScene() {
 
 async function loadSceneFile(file) {
   const data = validateEditorScene(JSON.parse(await file.text()));
+  instanceManager.clear();
   for (const object of [...editableObjects]) {
     scene.remove(object);
     editableObjects.splice(editableObjects.indexOf(object), 1);
@@ -260,6 +262,7 @@ async function loadSceneFile(file) {
     object.rotation.set(...record.transform.rotation);
     object.scale.set(...record.transform.scale);
   }
+  await rehydrateInstanceGroups(data.instanceGroups, instanceManager, findEditorAsset);
   $('we-grid-toggle').checked = data.editor?.gridVisible !== false;
   $('we-snap-toggle').checked = data.editor?.snapEnabled !== false;
   $('we-snap-size').value = Number(data.editor?.snapSize) || 1;

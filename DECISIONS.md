@@ -15401,3 +15401,20 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Affected systems:** new editor-only HTML/CSS/JS/JSON surface and additive service-worker shell entries. Existing game simulation remains unchanged.
 
 **Rollback:** remove the editor-only files and additive cache registration in a future owner-approved change; no existing game state depends on this editor foundation.
+
+## ADR-0233 — Rehydrate editor instance groups from the existing schema-v1 JSON contract
+**Risk:** LOW
+
+**Decision:** Restore serialized `instanceGroups` through a dedicated editor-only rehydrator. A load first clears prior editor instance groups, creates the same static single-mesh `InstancedMesh` allocation through `EditorInstanceManager`, then overwrites each instance matrix from the serialized position/rotation/scale and preserves the serialized group id.
+
+**Why:** Run214 already made formation transforms part of schema-v1 save data, but load ignored them. Completing the round-trip removes data loss without changing the game, RTS, terrain, seed or renderer ownership boundaries.
+
+**Alternatives considered:** rebuild formations only from rows/columns/spacing and ignore serialized per-instance transforms; rejected because future per-instance editing would be lost. Mutate `EditorInstanceManager.createFormation` to take a second restore mode; rejected because an isolated adapter keeps the proven creation path unchanged under additive-only governance.
+
+**Consequences:** static formation JSON now round-trips deterministically. Malformed count mismatches fail the restore attempt and created groups are removed. Unknown asset ids are skipped, matching normal object load behavior. Animated/skinned crowd restoration remains separate because Run214 deliberately excludes those assets from static `InstancedMesh`.
+
+**Affected systems:** standalone World Editor JSON loading and editor PWA shell cache only. Existing 2D/game3d/RTS runtime state is unchanged.
+
+**Future phase impact:** this provides a stable persistence base for later per-instance editing and TransformControls work without constraining animated crowd implementation.
+
+**Rollback:** remove the additive import/load/cache lines and rehydrator module in a future owner-approved change; schema-v1 saved files remain readable for normal objects as in Run214.

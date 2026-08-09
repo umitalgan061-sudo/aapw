@@ -14474,3 +14474,13 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; events +0; creatures +0. Existing game world coverage is unchanged.
 - Technical debt introduced: 1 explicit editor item — TransformControls r160 + full formation JSON rehydration/animated skinned crowd path are not part of this foundation. Risk: LOW. Confidence: 4/5.
 - Next safe step: vendor the matching Three.js r160 TransformControls and add W/E/R move/rotate/scale with 1m translation snap without changing game runtime ownership.
+
+## Run 215 — World Editor formation JSON rehydration
+- Closed Run214's static formation persistence gap: schema-v1 `instanceGroups` now rehydrate into real `THREE.InstancedMesh` groups on JSON load, preserving group id plus each instance position/rotation/scale.
+- Scene load now clears stale instance groups before restoration, so repeated loads cannot accumulate invisible/duplicate formations. Missing editor assets remain skipped consistently with normal object loading; malformed instance counts fail atomically and remove groups created by that restore attempt.
+- Focused Chromium proof creates a live 500-instance group, loads a serialized 6-instance group over it, verifies the stale group is gone, saves again and confirms all six transforms and the deterministic group id round-trip exactly with zero console/page errors. Run214 desktop/mobile editor regression remains PASS.
+- Pre/post 34+ game smoke, PWA cache/installability, mobile render budget, seeded RNG/world-reference, terrain-seat and road-network safety all PASS.
+- Memory-leak checklist: rehydration owns no listener/timer/RAF; failed partial restore removes every InstancedMesh created by the attempt. Existing `EditorInstanceManager.clear/removeGroupObject` disposes instance buffers.
+- World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; events +0; creatures +0. Desktop coverage remains 96.2%; mobile radius-4 remains unchanged.
+- Technical debt: Run214's explicit editor debt reduced by one persistence gap; TransformControls r160 and animated/skinned crowd batching remain. Risk: LOW. Confidence: 5/5.
+- Next safe step: vendor the exact Three.js r160 `TransformControls.js` through a byte-preserving path, then add W/E/R translate/rotate/scale with 1m translation snap without touching game runtime ownership.

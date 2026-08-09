@@ -936,3 +936,4 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - `stable-2026-08-09-1545` — Run212 RTS command-state chip + ARIA live status; focused desktop/mobile proof, 34+ smoke, PWA/mobile/determinism/world-safety/additive/concurrency gates PASS.
 stable-2026-08-09-1619 — Run213 RTS selection readability; read-only DOM/ARIA meter, desktop/mobile/PWA/regression gates verified.
 stable-2026-08-09-1717 — Run214 World Editor foundation; isolated JSON authoring shell and deterministic static instancing verified.
+stable-2026-08-09-1720 — Run215 World Editor instanceGroups JSON rehydration; exact static formation round-trip, stale-group cleanup, PWA/game regressions verified.

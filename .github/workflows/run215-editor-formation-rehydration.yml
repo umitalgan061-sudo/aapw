@@ -1,0 +1,208 @@
+name: Run 215 Editor Formation Rehydration
+
+on:
+  push:
+    branches:
+      - agent/run215-editor-formation-rehydration
+    paths:
+      - '.github/workflows/run215-editor-formation-rehydration.yml'
+      - 'src/3d/editor/EditorFormationRehydrator.js'
+      - 'scripts/checkRun215EditorFormationRehydration.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Eşzamanlılık Kontrolü' GOVERNANCE.md
+          grep -F 'Next safe step: vendor the matching Three.js r160 TransformControls' 3D_GAME_PROGRESS.md
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Pre-change syntax and game smoke
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorFormationRehydrator.js
+          node --check scripts/checkRun215EditorFormationRehydration.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run215-pre-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run215-pre-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run215-pre-smoke.log"
+      - name: Wire formation rehydration additively
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/3d/editor/worldEditor.js')
+          s = p.read_text()
+          imp = "import { rehydrateInstanceGroups } from './EditorFormationRehydrator.js';\n"
+          if imp not in s:
+              anchor = "import { serializeEditorScene, validateEditorScene } from './EditorSceneSerializer.js';\n"
+              assert anchor in s
+              s = s.replace(anchor, anchor + imp, 1)
+          clear = "  instanceManager.clear();\n"
+          if clear not in s:
+              anchor = "  const data = validateEditorScene(JSON.parse(await file.text()));\n"
+              assert anchor in s
+              s = s.replace(anchor, anchor + clear, 1)
+          restore = "  await rehydrateInstanceGroups(data.instanceGroups, instanceManager, findEditorAsset);\n"
+          if restore not in s:
+              anchor = "  $('we-grid-toggle').checked = data.editor?.gridVisible !== false;\n"
+              assert anchor in s
+              s = s.replace(anchor, restore + anchor, 1)
+          p.write_text(s)
+
+          p = Path('service-worker.js')
+          s = p.read_text()
+          line = "// Run215 World Editor formation JSON rehydration module.\nGAME3D_SHELL_FILES.push('./src/3d/editor/EditorFormationRehydrator.js');\n\n"
+          if "./src/3d/editor/EditorFormationRehydrator.js" not in s:
+              anchor = "const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];"
+              assert anchor in s
+              s = s.replace(anchor, line + anchor, 1)
+          p.write_text(s)
+          PY
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/editor/EditorFormationRehydrator.js
+          node --check service-worker.js
+          git diff --check
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          for path in ['src/3d/editor/worldEditor.js', 'service-worker.js']:
+              old = subprocess.check_output(['git', 'show', f'origin/main:{path}'], text=True).splitlines()
+              new = Path(path).read_text().splitlines()
+              cursor = iter(new)
+              for line in old:
+                  for candidate in cursor:
+                      if candidate == line:
+                          break
+                  else:
+                      raise SystemExit(f'[run215-precommit-additive] FAIL: existing line removed/changed in {path}: {line!r}')
+              print(f'[run215-precommit-additive] PASS: {path} preserves every origin/main line in order')
+          PY
+      - name: Focused formation rehydration proof
+        run: node scripts/checkRun215EditorFormationRehydration.js
+      - name: Existing World Editor regression
+        run: node scripts/checkRun214WorldEditorFoundation.js
+      - name: PWA performance determinism and world safety gates
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+      - name: Existing game post-change smoke
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run215-post-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run215-post-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run215-post-smoke.log"
+      - name: Append verified records
+        run: |
+          set -euo pipefail
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+          ## Run 215 — World Editor formation JSON rehydration
+          - Closed Run214's static formation persistence gap: schema-v1 `instanceGroups` now rehydrate into real `THREE.InstancedMesh` groups on JSON load, preserving group id plus each instance position/rotation/scale.
+          - Scene load now clears stale instance groups before restoration, so repeated loads cannot accumulate invisible/duplicate formations. Missing editor assets remain skipped consistently with normal object loading; malformed instance counts fail atomically and remove groups created by that restore attempt.
+          - Focused Chromium proof creates a live 500-instance group, loads a serialized 6-instance group over it, verifies the stale group is gone, saves again and confirms all six transforms and the deterministic group id round-trip exactly with zero console/page errors. Run214 desktop/mobile editor regression remains PASS.
+          - Pre/post 34+ game smoke, PWA cache/installability, mobile render budget, seeded RNG/world-reference, terrain-seat and road-network safety all PASS.
+          - Memory-leak checklist: rehydration owns no listener/timer/RAF; failed partial restore removes every InstancedMesh created by the attempt. Existing `EditorInstanceManager.clear/removeGroupObject` disposes instance buffers.
+          - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; events +0; creatures +0. Desktop coverage remains 96.2%; mobile radius-4 remains unchanged.
+          - Technical debt: Run214's explicit editor debt reduced by one persistence gap; TransformControls r160 and animated/skinned crowd batching remain. Risk: LOW. Confidence: 5/5.
+          - Next safe step: vendor the exact Three.js r160 `TransformControls.js` through a byte-preserving path, then add W/E/R translate/rotate/scale with 1m translation snap without touching game runtime ownership.
+          EOF
+          cat >> DECISIONS.md <<'EOF'
+
+          ## ADR-0233 — Rehydrate editor instance groups from the existing schema-v1 JSON contract
+          **Risk:** LOW
+
+          **Decision:** Restore serialized `instanceGroups` through a dedicated editor-only rehydrator. A load first clears prior editor instance groups, creates the same static single-mesh `InstancedMesh` allocation through `EditorInstanceManager`, then overwrites each instance matrix from the serialized position/rotation/scale and preserves the serialized group id.
+
+          **Why:** Run214 already made formation transforms part of schema-v1 save data, but load ignored them. Completing the round-trip removes data loss without changing the game, RTS, terrain, seed or renderer ownership boundaries.
+
+          **Alternatives considered:** rebuild formations only from rows/columns/spacing and ignore serialized per-instance transforms; rejected because future per-instance editing would be lost. Mutate `EditorInstanceManager.createFormation` to take a second restore mode; rejected because an isolated adapter keeps the proven creation path unchanged under additive-only governance.
+
+          **Consequences:** static formation JSON now round-trips deterministically. Malformed count mismatches fail the restore attempt and created groups are removed. Unknown asset ids are skipped, matching normal object load behavior. Animated/skinned crowd restoration remains separate because Run214 deliberately excludes those assets from static `InstancedMesh`.
+
+          **Affected systems:** standalone World Editor JSON loading and editor PWA shell cache only. Existing 2D/game3d/RTS runtime state is unchanged.
+
+          **Future phase impact:** this provides a stable persistence base for later per-instance editing and TransformControls work without constraining animated crowd implementation.
+
+          **Rollback:** remove the additive import/load/cache lines and rehydrator module in a future owner-approved change; schema-v1 saved files remain readable for normal objects as in Run214.
+          EOF
+          cat >> STABLE_TAGS.md <<'EOF'
+          stable-2026-08-09-1720 — Run215 World Editor instanceGroups JSON rehydration; exact static formation round-trip, stale-group cleanup, PWA/game regressions verified.
+          EOF
+      - name: Final remote-main concurrency and precommit additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          for path in ['src/3d/editor/worldEditor.js', 'service-worker.js']:
+              old = subprocess.check_output(['git', 'show', f'origin/main:{path}'], text=True).splitlines()
+              new = Path(path).read_text().splitlines()
+              cursor = iter(new)
+              for line in old:
+                  for candidate in cursor:
+                      if candidate == line:
+                          break
+                  else:
+                      raise SystemExit(f'[run215-precommit-additive] FAIL: existing line removed/changed in {path}: {line!r}')
+              print(f'[run215-precommit-additive] PASS: {path} preserves every origin/main line in order')
+          PY
+      - name: Commit verified Run215
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/editor/worldEditor.js service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'feat(run215): wire verified editor formation rehydration'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git tag stable-2026-08-09-1720
+          git push origin HEAD:agent/run215-editor-formation-rehydration
+          git push origin stable-2026-08-09-1720 || true
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run215-editor-formation-rehydration
+          path: artifacts/run215/*.png
+          if-no-files-found: error
