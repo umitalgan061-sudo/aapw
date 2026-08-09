@@ -14,6 +14,7 @@ on:
       - 'scripts/materializeRun216TransformControls.js'
       - 'scripts/materializeRun216ServiceWorkerCache.js'
       - 'scripts/checkRun216TransformControlsCoreContract.js'
+      - 'scripts/checkRun216ServiceWorkerMaterializer.js'
       - 'scripts/checkRun216WorldEditorTransformControls.js'
       - 'scripts/prepareRun216TransformControlsLocal.js'
   workflow_dispatch:
