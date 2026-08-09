@@ -15336,3 +15336,18 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Affected systems:** `rts.html`, `src/3d/rts/rtsSurfaceTexture.js`, `service-worker.js`, PWA shell/media caches, RTS terrain visuals. 2D and character-mode behavior are unchanged.
 
 **Rollback:** disable the additive RTS surface installer/cache additions in an owner-approved future change; deterministic terrain underneath remains the rollback target.
+
+## ADR-0229 — Keep the owner-selected RTS surface lifecycle cleanup as a permanent browser regression contract
+**Risk:** LOW
+
+**Decision:** Add a standalone Chromium regression check that verifies the Run210 RTS surface is active exactly once during runtime and that its additive `ChunkManager` prototype hooks are restored when `pagehide` fires. Keep production runtime code unchanged.
+
+**Why:** Run210 introduced a shared runtime texture, manager registry, two prototype wrappers and a pagehide cleanup path. GOVERNANCE requires a memory-leak checklist after every subtask; a durable browser contract is more reliable than repeatedly reviewing the cleanup path by inspection.
+
+**Alternatives considered:** Modify the Run210 production module to expose internal manager/texture counters (rejected: unnecessary runtime API and violates the goal of test-only hardening); fold the assertions into the large existing Run210 visual proof (rejected: lifecycle failure deserves an isolated diagnostic); skip a standing test and rely on code review (rejected: prototype restoration is cheap to prove automatically).
+
+**Consequences:** CI can now detect leaked Run210 prototype wrappers or a failure to enter disposed state. Runtime behavior, 2D mode, deterministic world generation, PWA cache contents and rendering budgets are unchanged. The test intentionally does not guess or alter any owner-pending visual calibration.
+
+**Affected systems:** test/CI only: `scripts/checkRun211RtsSurfaceLifecycle.js` and its workflow; Run210 RTS surface lifecycle is observed but not modified.
+
+**Rollback:** Remove/disable the Run211 test and workflow in a future owner-approved change. No runtime rollback is required because no production source changed.

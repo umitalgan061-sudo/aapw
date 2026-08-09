@@ -14432,3 +14432,14 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Provenance: embedded metadata identifies Photoshop/Autodesk tooling but no reliable author/source URL/license. Owner authorizes private-project runtime use; public/commercial redistribution remains gated until a real source/license is supplied. No license value was guessed.
 - Technical debt: +1 bounded provenance item (upstream surface source/license unknown); runtime integration debt introduced: 0.
 - Next safe step: real-device visual calibration only if needed; do not replace deterministic height/physics data with the uploaded OBJ.
+
+## Run 211 — RTS surface lifecycle / memory-leak regression guard
+- Safe subtask: added a permanent Chromium lifecycle check for the Run210 owner-selected RTS ground surface. No gameplay, terrain geometry, texture tuning, 2D behavior or owner-pending decision changed.
+- Regression contract: while RTS is live, `ChunkManager.loadChunk` and `streamTowards` must be the Run210 wrappers and the surface source must load exactly once; after `pagehide`, surface state must become `disposed` and both prototype hooks must be restored. Console/page errors must remain zero.
+- DoD evidence: lifecycle proof PASS; existing Run210 desktop/mobile visual+performance proof PASS; fresh-install offline PWA surface boot PASS; 34+ legacy browser smoke PASS; seeded-random/world-reference/hydrology/14-seat terrain/14-seat road safety PASS; service-worker cache contract PASS; additive-only guard PASS.
+- Performance: production runtime code is unchanged, so no new draw calls/triangles/texture memory were introduced. Revalidated Run210 budgets remain desktop 66 draw calls / 821483 triangles and mobile 28 draw calls / 202770 triangles.
+- Memory-leak checklist: no new production listeners/timers/DOM/geometries/materials were added. The new guard specifically verifies the existing surface pagehide lifecycle restores patched prototypes and reaches disposed state.
+- Technical-debt counter: +0 runtime debt. Test-only maintenance surface: +1 small standing browser regression script. Existing Run210 provenance gate remains unchanged.
+- Risk: LOW. Test-only addition plus records; no runtime source line changed.
+- Future-phase impact: none; this strengthens the cleanup contract that future RTS/PWA visual layers must preserve.
+- Next safe step: select the next additive-only RTS readability or lifecycle hardening task from the then-current `main`; do not calibrate owner-pending feel constants or provenance without owner input.
