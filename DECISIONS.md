@@ -15321,3 +15321,18 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Rollback:** the additive inline module block is isolated and can be removed only in a future owner-approved non-additive cleanup; leaving it disabled is not necessary because it has no gameplay-state ownership.
 - **Future-phase impact:** a later world-space rally/formation visualization can coexist with or supersede this acknowledgement layer without changing command determinism.
 - **Risk:** LOW.
+
+## ADR-0228 — Activate the owner-uploaded surface as current RTS terrain detail while keeping provenance as a distribution gate
+**Risk:** MEDIUM
+
+**Decision:** Following the owner's direct 2026-08-09 merge/use instruction, `assets/textures/yüzey/overlay/overlay.png` becomes the current RTS terrain detail layer. It is blended at 0.24 over existing deterministic terrain with world-space UVs; desktop derives 1024² and coarse-pointer/mobile derives 512². The service worker caches the module in the shell graph and the image in media cache for fresh-install offline RTS boot.
+
+**Why:** Real Chromium proof shows the surface improves ground detail without replacing world geometry or violating desktop/mobile budgets. World-space UVs avoid chunk seams and adaptive downsampling avoids keeping a 3072² runtime texture.
+
+**Alternatives:** Keep unused pending provenance (conflicts with explicit owner private-use decision); replace terrain with uploaded OBJ (rejected: no usable UV contract and needless height/physics risk); display raw aerial image (rejected: excessive visual strength and memory cost).
+
+**Consequences:** RTS ground uses the selected surface online and offline while terrain heights, seeded generation, roads, castles, water and movement remain unchanged. Upstream source/author/license remains unknown and is not guessed; the owner instruction is a project-use decision, not a third-party rights claim. Public/commercial redistribution stays gated on provenance.
+
+**Affected systems:** `rts.html`, `src/3d/rts/rtsSurfaceTexture.js`, `service-worker.js`, PWA shell/media caches, RTS terrain visuals. 2D and character-mode behavior are unchanged.
+
+**Rollback:** disable the additive RTS surface installer/cache additions in an owner-approved future change; deterministic terrain underneath remains the rollback target.

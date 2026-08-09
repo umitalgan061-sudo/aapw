@@ -1,0 +1,73 @@
+name: Run 210 Surface Technical Proof
+
+on:
+  push:
+    branches: [agent/run210-owner-surface-texture-final]
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: aa4a2d7eba352c77de811b51e5c521f02ea1174e
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Current-main and surface-stability gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          if [ "$CURRENT_MAIN" != "$BASE_SHA" ]; then
+            git diff --quiet "$BASE_SHA" "$CURRENT_MAIN" -- 'assets/textures/yüzey' || exit 1
+          fi
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Run 208 — RTS destination-command visual feedback' 3D_GAME_PROGRESS.md
+          grep -F 'ADR-0227' DECISIONS.md
+          grep -F 'run 145' QUESTIONS_FOR_OWNER.md
+          node --check src/3d/rts/rtsSurfaceTexture.js
+          node --check scripts/checkRun210RtsSurfaceTexture.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Owner surface browser proof
+        run: node scripts/checkRun210RtsSurfaceTexture.js
+      - name: Legacy browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run210-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run210-smoke.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run210-smoke.log" | grep -F 'zero console/page errors'
+      - name: Determinism and final additive gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+      - name: Upload visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run210-rts-surface-technical-proof
+          path: artifacts/run210-rts-surface-texture
+          if-no-files-found: warn

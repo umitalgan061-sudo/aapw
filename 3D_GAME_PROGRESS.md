@@ -14421,3 +14421,14 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - World Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**. Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 368 MB heap**; trend guard PASS.
 - Technical debt: command feedback is intentionally screen-space and does not yet persist as a world-space formation/rally decal; that richer feedback can be added later without coupling it to the current marker. No new live-runtime architectural debt outside this isolated overlay. Risk **LOW**, confidence **5/5**.
 - **Next safe visible step (Run209):** keep the visible RTS track and improve camera/daylight readability with additive overrides or introduce richer reused guard/human silhouettes under LOD/instancing discipline, while preserving current budgets and deterministic commands.
+
+## Run 210 — Owner surface texture production activation
+- Owner decision (2026-08-09): the project owner explicitly instructed that the uploaded `assets/textures/yüzey` surface be merged and used as the current RTS ground texture. This resolves the product-use decision; it does not invent an upstream third-party license.
+- Runtime: `overlay/overlay.png` is projected onto the existing deterministic terrain with full-world, world-space clamped UVs. Terrain heights, roads, castles, water, physics and gameplay geometry are unchanged. Detail opacity is 0.24 so the procedural medieval palette remains dominant.
+- Adaptive path: 3072x3072 source -> 1024x1024 desktop runtime texture / 512x512 coarse-pointer-mobile runtime texture; source image decodes once per page.
+- Browser proof: desktop 529 textured chunks, 66 draw calls, 821483 triangles; mobile 90 textured chunks, 28 draw calls, 202770 triangles; zero console/page errors on both.
+- PWA/offline: `rtsSurfaceTexture.js` is in `GAME3D_SHELL_FILES` and `overlay.png` is installed into `MEDIA_CACHE`. Fresh-install -> network offline -> RTS + surface cache boot is proven by `checkRun210RtsSurfaceOffline.js` with zero offline RTS console/page errors.
+- Regression: 34+ legacy browser smoke checks, deterministic RNG policy, world-reference map/water/alignment/hydrology, 14/14 terrain-seat safety and 14/14 road connectivity PASS; additive-only policy PASS.
+- Provenance: embedded metadata identifies Photoshop/Autodesk tooling but no reliable author/source URL/license. Owner authorizes private-project runtime use; public/commercial redistribution remains gated until a real source/license is supplied. No license value was guessed.
+- Technical debt: +1 bounded provenance item (upstream surface source/license unknown); runtime integration debt introduced: 0.
+- Next safe step: real-device visual calibration only if needed; do not replace deterministic height/physics data with the uploaded OBJ.
