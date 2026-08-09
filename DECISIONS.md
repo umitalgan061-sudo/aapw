@@ -15275,3 +15275,14 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Affected systems:** CI/test/documentation only. 2D, default 3D, gameplay/world sources, service worker, manifest and player navigation unchanged.
 - **Rollback:** new Run204 files are inert outside CI and may be removed only in a future owner-approved non-additive cleanup.
 - **Risk:** LOW.
+
+
+## ADR-0224 — Isolate standalone developer installability in its own service-worker scope
+
+- **Decision:** Add a developer-only PWA shell under `/canonical-dev-pwa/` with its own manifest, icon and service worker scoped to that subtree; keep Current/Canonical runtime targets outside that scope.
+- **Why:** Run204 proved offline history ownership but did not prove a standalone/installable developer shell. A narrow subtree scope provides that proof without modifying the production manifest, root service worker, default startup or live runtime.
+- **Alternatives:** extend the production manifest/root service worker (rejected: widens live PWA scope); make canonical startup the production start URL (rejected: owner-visible behavior change); skip standalone proof (rejected: leaves Run204's next gate open).
+- **Result:** Chromium sees `display=standalone`; the developer SW controls only `/canonical-dev-pwa/`; all developer precache entries remain inside that subtree; offline shell reload succeeds with zero runtime canvas and zero console/page errors.
+- **Affected systems:** new developer-only PWA subtree, CI/test/documentation. 2D, default 3D, gameplay/world sources, production service worker/manifest and player navigation unchanged.
+- **Rollback:** new Run205 files are inert unless the developer subtree is opened directly and may be removed only in a future owner-approved non-additive cleanup.
+- **Risk:** LOW.

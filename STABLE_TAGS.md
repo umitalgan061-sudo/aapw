@@ -922,3 +922,5 @@ and the game boots with zero console/page errors. Newest entry at the bottom.
 - `stable-2026-08-09-0429` — Run203 explicit developer launcher isolation proof; 34+ smoke PASS, canonical regressions/PWA/mobile/perf/additive/concurrency gates PASS; live/default runtime delta 0.
 
 - `stable-2026-08-09-0538` — Run204 developer offline history ownership proof; 34+ smoke PASS, canonical regressions/PWA/mobile/perf/additive/concurrency gates PASS; live/default runtime delta 0.
+
+- `stable-2026-08-09-0628` — Run205 isolated developer standalone PWA proof; 34+ smoke PASS, canonical regressions/production-PWA/mobile/perf/additive/concurrency gates PASS; live/default runtime delta 0.
