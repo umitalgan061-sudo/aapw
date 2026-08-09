@@ -14444,3 +14444,13 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Memory-leak checklist: one window keydown listener + one pagehide listener + one desktop hint span; all have one bounded owner and explicit disposal/removal. No timers, RAFs, geometry, materials, textures or new asset fetches are introduced.
 - Technical debt introduced: **0 live-runtime architectural items**. New maintenance surface: one small isolated RTS input module + one focused regression test. Risk **LOW**, confidence **5/5**.
 - Next safe step: retain the same isolated RTS track and evaluate a world-space rally/destination decal only if it can attach without moving command ownership or breaching render/mobile budgets; otherwise continue unit/selection readability with instanced or DOM-only additions.
+
+## Run 212 — RTS world-space rally destination marker
+- Started from `main` `897001280c891095819a5129b545eec4e43afe1e`; governance, Run211, ADR-0229 and owner questions re-read. Radius-5, `game3d.js` split and world-event checksum remain untouched.
+- Added one isolated reusable procedural gold ring for successful existing Move commands at the existing clamped terrain height. `issueMoveAt()` / `army.commandMove()` remain sole command owners; formation, selection, camera, seeded world and terrain logic are unchanged.
+- One `RingGeometry` + one `MeshBasicMaterial`, allocated once, runtime-time fade/expiry, reused, explicitly disposed. No texture, asset, timer, extra RAF or network fetch.
+- Chromium desktop/mobile lifecycle proof validates visible target, runtime-time countdown/expiry, 48/48 selection, command status, budgets, screenshots and zero console/page errors.
+- Pre/post 34+ smoke, Run210 online/offline surface, Run211 keyboard parity, mobile perf, PWA install/cache, seeded RNG, world-reference map/water/alignment/hydrology, 14-seat terrain and road safety all PASS.
+- Coverage unchanged: desktop 96.2%; mobile radius-4 81 chunks / 20.25 km² (~14.7%). New live-runtime architectural debt: 0. Risk LOW; confidence 5/5.
+- RCA/prevention: an earlier focused proof incorrectly assumed 1.9 wall seconds equals 1.6 simulation seconds despite the RTS tick's 0.05s delta cap. Permanent regression now waits for measured runtime-time countdown and expiry instead of wall time.
+- Next safe step: isolated RTS selection/unit readability using existing instancing/material ownership; avoid owner-gated structural work.

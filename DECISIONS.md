@@ -15354,3 +15354,14 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Rollback:** because the implementation is isolated, a future owner-approved cleanup can stop loading the module and remove its shell entry; existing RTS button/mouse/touch behavior remains the rollback baseline.
 
 **Future-phase impact:** later rally markers, formation UI or richer keyboard controls can delegate through the same established command surface rather than creating parallel simulation ownership.
+
+## ADR-0230 — Use one bounded procedural world-space marker for successful RTS move destinations
+**Risk:** LOW
+
+**Decision:** `rtsRallyMarker.js` owns one reusable ring. Existing `issueMoveAt()` keeps coordinate projection and `army.commandMove()` ownership; a positive commanded count only triggers visual feedback at target X/Z plus the existing terrain sampler Y. Expiry follows the existing clamped simulation delta.
+
+**Why:** Run208 screen-space feedback confirms input but does not remain world-attached. The ring adds destination readability without duplicate raycasting, persistent state, textures or a second command authority.
+
+**Consequences:** One additional draw call only while visible; one geometry/material pair is allocated once and disposed. 2D, character mode, terrain, movement, PWA and deterministic world behavior remain unchanged except shell-caching the new module.
+
+**Rollback:** a future owner-approved additive override can stop showing/instantiating the marker; the existing move path is independent.
