@@ -27,6 +27,52 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Materialize Run216 PWA cache",
+      "type": "shell",
+      "command": "node scripts/materializeRun216ServiceWorkerCache.js",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Verify Run216 PWA cache",
+      "type": "shell",
+      "command": "node scripts/materializeRun216ServiceWorkerCache.js --verify-only",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Self-test Run216 PWA cache materializer",
+      "type": "shell",
+      "command": "node scripts/materializeRun216ServiceWorkerCache.js --self-test",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Check Run216 TransformControls core contract",
+      "type": "shell",
+      "command": "node scripts/checkRun216TransformControlsCoreContract.js",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Prepare Run216 TransformControls locally",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Westeros: Materialize TransformControls r160",
+        "Westeros: Materialize Run216 PWA cache",
+        "Westeros: Check Run216 TransformControls core contract"
+      ],
+      "problemMatcher": []
     }
   ]
 }
