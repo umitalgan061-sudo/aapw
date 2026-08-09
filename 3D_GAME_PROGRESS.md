@@ -14432,3 +14432,15 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Provenance: embedded metadata identifies Photoshop/Autodesk tooling but no reliable author/source URL/license. Owner authorizes private-project runtime use; public/commercial redistribution remains gated until a real source/license is supplied. No license value was guessed.
 - Technical debt: +1 bounded provenance item (upstream surface source/license unknown); runtime integration debt introduced: 0.
 - Next safe step: real-device visual calibration only if needed; do not replace deterministic height/physics data with the uploaded OBJ.
+
+
+## Run 211 — RTS keyboard command parity without gameplay ownership
+- Base/main at start: `846cba8d61e5077d75034a1de8cef677d5917a7f` (Run210 merged state). Owner-gated radius-5 / game3d split / world-event checksum items remain untouched.
+- Added an isolated `rtsCommandShortcuts.js` layer: plain **M** delegates to the established **Hareket Emri** button and plain **F** delegates to **Orduya Odaklan**. No army/world/terrain/camera state is reimplemented; deterministic command ownership remains in the existing RTS runtime.
+- Safety/accessibility: editable targets plus Ctrl/Alt/Meta chords are ignored; command buttons expose `aria-keyshortcuts`; desktop help gains a small M/F hint while coarse-pointer/mobile intentionally gets no keyboard-hint UI. Listener and hint have an explicit dispose path tied to `pagehide`.
+- Focused Chromium proof: desktop selected=48/48, drawCalls=66, triangles=821483; mobile drawCalls=28, triangles=202770. Both remain inside project budgets with zero console/page errors. Two visual artifacts prove Move-mode feedback and Focus feedback.
+- Regression: pre-change and post-change 34+ browser smoke PASS; Run210 surface online + fresh-install offline PWA PASS; mobile perf budget, installability/cache, seeded RNG, world-reference map/water/alignment/hydrology, 14-seat terrain safety and road connectivity PASS.
+- Perf log appended by the standing real-scene collector: `2026-08-09,run211-rts-shortcuts,1,51,688296,49,17,347`; trend guard PASS. World Coverage unchanged: desktop **96.2%**, mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**.
+- Memory-leak checklist: one window keydown listener + one pagehide listener + one desktop hint span; all have one bounded owner and explicit disposal/removal. No timers, RAFs, geometry, materials, textures or new asset fetches are introduced.
+- Technical debt introduced: **0 live-runtime architectural items**. New maintenance surface: one small isolated RTS input module + one focused regression test. Risk **LOW**, confidence **5/5**.
+- Next safe step: retain the same isolated RTS track and evaluate a world-space rally/destination decal only if it can attach without moving command ownership or breaching render/mobile budgets; otherwise continue unit/selection readability with instanced or DOM-only additions.
