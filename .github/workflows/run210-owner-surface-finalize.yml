@@ -1,0 +1,150 @@
+name: Run 210 Owner Surface Finalize
+
+on:
+  push:
+    branches:
+      - agent/run210-owner-surface-texture-final
+    paths:
+      - '.github/workflows/run210-owner-surface-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Current-main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base HEAD origin/main)"
+          test "$CURRENT_MAIN" = "$MERGE_BASE"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'ADR-0227' DECISIONS.md
+      - name: Add owner surface to offline caches additively
+        run: |
+          set -euo pipefail
+          if ! grep -Fq "Run210 owner surface offline cache" service-worker.js; then
+            cat >> service-worker.js <<'EOF'
+
+          // Run210 owner surface offline cache: additive-only extension for the current RTS terrain detail.
+          // The module belongs to the shell import graph; the PNG belongs to MEDIA_CACHE because image fetches
+          // are cache-first there. Keeping the large source image out of SHELL_CACHE also preserves cache roles.
+          GAME3D_SHELL_FILES.push('./src/3d/rts/rtsSurfaceTexture.js');
+          self.addEventListener('install', (event) => {
+              event.waitUntil(
+                  caches.open(MEDIA_CACHE)
+                      .then(cache => cache.add('./assets/textures/yüzey/overlay/overlay.png'))
+                      .catch(error => console.warn('[SW] Run210 surface media cache skipped:', error))
+              );
+          });
+          EOF
+          fi
+          node --check service-worker.js
+          node --check src/3d/rts/rtsSurfaceTexture.js
+          node --check scripts/checkRun210RtsSurfaceTexture.js
+          node --check scripts/checkRun210RtsSurfaceOffline.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Online owner-surface browser proof
+        run: node scripts/checkRun210RtsSurfaceTexture.js
+      - name: Fresh-install offline PWA owner-surface proof
+        run: node scripts/checkRun210RtsSurfaceOffline.js
+      - name: Legacy browser smoke
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run210-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run210-smoke.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run210-smoke.log" | grep -F 'zero console/page errors'
+      - name: Determinism world and terrain safety
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+      - name: Append Run210 records only after all gates pass
+        run: |
+          set -euo pipefail
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+          ## Run 210 — Owner surface texture production activation
+          - Owner decision (2026-08-09): project owner explicitly instructed that the uploaded `assets/textures/yüzey` surface be merged and used as the game's current RTS ground texture. This resolves the product-use decision; it does not invent or assert an upstream third-party license.
+          - Runtime: `overlay/overlay.png` is projected onto the existing deterministic terrain with full-world, world-space clamped UVs. The current terrain height sampler, chunks, roads, castles, water, physics and gameplay geometry are unchanged. Detail is blended at 0.24 so the medieval procedural palette remains dominant instead of displaying the source aerial image raw.
+          - Adaptive memory path: source is 3072x3072; runtime derivative is 1024x1024 desktop and 512x512 coarse-pointer/mobile. Source decode is shared and loaded once per page.
+          - Browser proof: desktop RTS = 529 textured chunks, 66 draw calls, 821483 triangles; mobile RTS = 90 textured chunks, 28 draw calls, 202770 triangles; both below project budgets and both zero console/page errors.
+          - PWA/offline: `rtsSurfaceTexture.js` is now part of `GAME3D_SHELL_FILES`; `overlay.png` is installed into `MEDIA_CACHE`, matching the service worker's image cache-first route. Fresh-install -> network-offline -> RTS surface boot is a standing Chromium proof (`checkRun210RtsSurfaceOffline.js`).
+          - Regression: 34+ legacy browser smoke checks, deterministic RNG policy, world-reference map/water/alignment/hydrology, 14/14 terrain-seat safety and 14/14 road connectivity all PASS. Additive-only policy remains intact.
+          - Asset provenance: embedded metadata identifies Photoshop/Autodesk tooling but no reliable author/source URL/license. Owner has authorized use inside this private project; public/commercial redistribution of this uploaded surface remains a provenance gate until an actual source/license is supplied. No license value was guessed.
+          - Technical-debt counter: +1 bounded provenance item (surface upstream source/license unknown); runtime debt introduced by the integration: 0. Rollback is additive surface installer removal/disable in a future owner-approved change; underlying deterministic terrain remains unchanged.
+          - Next safe step: after real-device visual review, calibrate surface blend/lighting only if needed; do not replace height/physics data with the uploaded OBJ because that mesh has no UV contract and the current world systems are already deterministic.
+          EOF
+
+          cat >> DECISIONS.md <<'EOF'
+
+          ## ADR-0228 — Activate the owner-uploaded surface as the current RTS terrain detail while keeping provenance as a distribution gate
+          **Risk:** MEDIUM
+
+          **Decision:** Following the project owner's direct 2026-08-09 instruction to merge and use the uploaded surface, `assets/textures/yüzey/overlay/overlay.png` becomes the current RTS terrain detail layer. It is applied as a low-strength (0.24) world-space texture over existing deterministic terrain rather than replacing terrain geometry. Desktop derives a 1024² runtime texture and coarse-pointer/mobile derives 512². The service worker precaches the new module in the shell cache and the image in the media cache so a fresh install can boot the textured RTS offline.
+
+          **Why:** Real Chromium proof showed the uploaded visual can materially break up flat procedural ground while preserving the existing medieval terrain palette and all world/gameplay geometry. World-space UVs keep chunk boundaries continuous. Adaptive downsampling keeps the layer comfortably inside desktop/mobile rendering budgets. The owner explicitly chose this visual as the current ground appearance.
+
+          **Alternatives considered:** (1) Leave the uploaded files unused pending provenance: technically safest for redistribution but conflicts with the owner's explicit current private-project use decision. (2) Import `model.obj`/`model.mtl` as replacement terrain: rejected because the OBJ export has no usable UV contract and replacing geometry would unnecessarily risk height, road, settlement, water and physics determinism. (3) Display the 3072² aerial image raw: rejected because it is needlessly expensive and visually exposes modern-looking aerial detail too strongly.
+
+          **Consequences:** RTS ground now has the owner-selected surface detail online and after fresh-install offline PWA boot. Terrain heights, seeded generation, roads, castles, water and movement remain unchanged. Upstream source/author/license could not be established from embedded metadata and is therefore not guessed: the owner's instruction authorizes project use, not a factual claim about third-party rights. Public/commercial redistribution remains blocked on real provenance.
+
+          **Affected systems:** `rts.html`, `src/3d/rts/rtsSurfaceTexture.js`, `service-worker.js`, PWA media/shell cache, RTS visual surface only. 2D and character-mode runtime behavior is not altered by this ADR.
+
+          **Rollback:** Disable/remove the additive RTS surface installer and its cache additions in an owner-approved future change; because no terrain geometry or sampler was replaced, the previous deterministic terrain remains underneath and is the rollback target.
+          EOF
+
+          cat >> QUESTIONS_FOR_OWNER.md <<'EOF'
+
+          - **✅ ÇÖZÜLDÜ (run 210, ADR-0228) Uploaded `yüzey` package should be used as the current ground texture?** Owner answered directly on 2026-08-09: merge it and make the game's current ground texture look like this. Run210 therefore activates the proven `overlay.png` detail layer for RTS. Separate factual provenance remains unknown (embedded files contain no reliable source URL/author/license), so no third-party license was guessed; public/commercial redistribution remains gated until that provenance is supplied.
+          EOF
+
+          cat >> perf_log.csv <<'EOF'
+          run210,2026-08-09,desktop-rts,,66,821483,,,,"owner surface detail; 529 textured chunks; 3072 source -> 1024 runtime; console/page errors 0"
+          run210,2026-08-09,mobile-rts,,28,202770,,,,"owner surface detail; 90 textured chunks; 3072 source -> 512 runtime; console/page errors 0"
+          EOF
+      - name: Final concurrency additive and diff gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base HEAD origin/main)"
+          test "$CURRENT_MAIN" = "$MERGE_BASE"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+          git status --short
+      - name: Commit verified production activation
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md QUESTIONS_FOR_OWNER.md perf_log.csv
+          git diff --cached --check
+          git commit -m 'feat(run210): activate owner surface with offline PWA support'
+          git push origin HEAD:agent/run210-owner-surface-texture-final
