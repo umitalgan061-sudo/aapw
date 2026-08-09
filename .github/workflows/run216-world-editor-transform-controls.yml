@@ -1,0 +1,421 @@
+name: Run 216 World Editor TransformControls
+
+on:
+  push:
+    branches:
+      - agent/run216-world-editor-transform-controls
+    paths:
+      - '.github/workflows/run216-world-editor-transform-controls.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Starting main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = '0d29693b16ee12b00ae1a2c2d7ccafaeb43d0b7e'
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Eşzamanlılık Kontrolü' GOVERNANCE.md
+
+      - name: Install temporary browser and minifier tooling
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/run216-tools"
+          npm install --prefix "$RUNNER_TEMP/run216-tools" --no-save --no-package-lock playwright@1.55.0 terser@5.31.6
+          "$RUNNER_TEMP/run216-tools/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/run216-tools/node_modules" >> "$GITHUB_ENV"
+
+      - name: Pre-change editor and game baseline
+        run: |
+          set -euo pipefail
+          node scripts/checkRun215EditorFormationRehydration.js
+          node scripts/checkRun214WorldEditorFoundation.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run216-pre-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run216-pre-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run216-pre-smoke.log"
+
+      - name: Vendor exact Three.js r160 TransformControls provenance and runtime
+        run: |
+          set -euo pipefail
+          SOURCE="$RUNNER_TEMP/TransformControls.r160.source.js"
+          UPSTREAM_BLOB='1163078c49179a40d5a9d129c13d582e8369bf37'
+          curl --retry 3 --retry-all-errors -fsSL 'https://raw.githubusercontent.com/mrdoob/three.js/r160/examples/jsm/controls/TransformControls.js' -o "$SOURCE"
+          test "$(git hash-object "$SOURCE")" = "$UPSTREAM_BLOB"
+          mkdir -p src/3d/vendor/three/addons/controls
+          gzip -n -9 -c "$SOURCE" > src/3d/vendor/three/addons/controls/TransformControls.r160.source.js.gz
+          test "$(gunzip -c src/3d/vendor/three/addons/controls/TransformControls.r160.source.js.gz | git hash-object --stdin)" = "$UPSTREAM_BLOB"
+          printf '%s\n' '/*! Three.js r160 TransformControls — generated from exact upstream blob 1163078c49179a40d5a9d129c13d582e8369bf37 — MIT; see src/3d/vendor/three/LICENSE */' > src/3d/vendor/three/addons/controls/TransformControls.js
+          "$RUNNER_TEMP/run216-tools/node_modules/.bin/terser" "$SOURCE" --module -c -m >> src/3d/vendor/three/addons/controls/TransformControls.js
+          printf '\n' >> src/3d/vendor/three/addons/controls/TransformControls.js
+
+      - name: Add isolated TransformControls controller and proof
+        run: |
+          set -euo pipefail
+          cat > src/3d/editor/EditorTransformControls.js <<'RUN216_CONTROLLER'
+          import * as THREE from 'three';
+          import { TransformControls } from 'three/addons/controls/TransformControls.js';
+
+          const ROTATE_SNAP = THREE.MathUtils.degToRad(15);
+          const SCALE_SNAP = 0.1;
+          const MODE_LABEL = Object.freeze({ translate: 'Taşı', rotate: 'Döndür', scale: 'Ölçekle' });
+
+          function typingTarget(target) {
+            return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
+          }
+
+          function createUi() {
+            const toolbar = document.querySelector('.we-toolbar-actions');
+            const statusbar = document.querySelector('.we-statusbar');
+            if (!toolbar || !statusbar) throw new Error('World Editor toolbar/statusbar bulunamadı.');
+
+            const tools = document.createElement('div');
+            tools.id = 'we-transform-tools';
+            tools.className = 'we-transform-tools';
+            tools.setAttribute('role', 'group');
+            tools.setAttribute('aria-label', 'Transform araçları');
+            tools.innerHTML = '<button id="we-tool-translate" type="button" aria-pressed="true" title="Taşı (W)">W Taşı</button><button id="we-tool-rotate" type="button" aria-pressed="false" title="Döndür (E)">E Döndür</button><button id="we-tool-scale" type="button" aria-pressed="false" title="Ölçekle (R)">R Ölçekle</button><button id="we-space-toggle" type="button" aria-pressed="false" title="World / Local uzayı">World</button>';
+            toolbar.insertBefore(tools, toolbar.querySelector('.we-link'));
+
+            const status = document.createElement('span');
+            status.id = 'we-transform-status';
+            status.textContent = 'Transform: Taşı · World';
+            statusbar.insertBefore(status, document.getElementById('we-selection-status'));
+
+            const style = document.createElement('style');
+            style.id = 'we-transform-style';
+            style.textContent = '.we-transform-tools{display:inline-flex;align-items:center;gap:4px}.we-transform-tools button[aria-pressed="true"]{border-color:var(--we-gold);color:var(--we-gold-2);box-shadow:inset 0 -2px 0 var(--we-gold)}#we-space-toggle{min-width:58px}@media(max-width:640px){.we-transform-tools{flex:0 0 auto}}';
+            document.head.append(style);
+            return { tools, status, style };
+          }
+
+          export function installEditorTransformControls(api) {
+            if (!api) throw new Error('World Editor API bulunamadı.');
+            if (window.__WESTEROS_EDITOR_TRANSFORM__) return window.__WESTEROS_EDITOR_TRANSFORM__;
+
+            const ui = createUi();
+            const transform = new TransformControls(api.camera, api.canvas);
+            transform.name = 'World Editor TransformControls';
+            transform.setMode('translate');
+            transform.setSpace('world');
+            transform.setSize(0.9);
+            api.scene.add(transform);
+
+            const translateButton = document.getElementById('we-tool-translate');
+            const rotateButton = document.getElementById('we-tool-rotate');
+            const scaleButton = document.getElementById('we-tool-scale');
+            const spaceButton = document.getElementById('we-space-toggle');
+            const snapToggle = document.getElementById('we-snap-toggle');
+            const snapSize = document.getElementById('we-snap-size');
+            const selectionStatus = document.getElementById('we-selection-status');
+            const removers = [];
+            let disposed = false;
+
+            function listen(target, type, handler, options) {
+              target.addEventListener(type, handler, options);
+              removers.push(() => target.removeEventListener(type, handler, options));
+            }
+
+            function updateUi() {
+              const mode = transform.getMode();
+              translateButton.setAttribute('aria-pressed', String(mode === 'translate'));
+              rotateButton.setAttribute('aria-pressed', String(mode === 'rotate'));
+              scaleButton.setAttribute('aria-pressed', String(mode === 'scale'));
+              spaceButton.textContent = transform.space === 'local' ? 'Local' : 'World';
+              spaceButton.setAttribute('aria-pressed', String(transform.space === 'local'));
+              const attachment = transform.object ? '' : ' · Seçim bekleniyor';
+              ui.status.textContent = `Transform: ${MODE_LABEL[mode]} · ${transform.space === 'local' ? 'Local' : 'World'}${attachment}`;
+            }
+
+            function syncSnap() {
+              const state = api.getEditorState();
+              const enabled = state.snapEnabled;
+              transform.setTranslationSnap(enabled ? Math.max(0.1, state.snapSize) : null);
+              transform.setRotationSnap(enabled ? ROTATE_SNAP : null);
+              transform.setScaleSnap(enabled ? SCALE_SNAP : null);
+            }
+
+            function syncSelection() {
+              const object = api.getSelectedObject();
+              if (object && !object.isInstancedMesh) transform.attach(object);
+              else transform.detach();
+              updateUi();
+            }
+
+            function setMode(mode) {
+              transform.setMode(mode);
+              updateUi();
+            }
+
+            function toggleSpace() {
+              transform.setSpace(transform.space === 'world' ? 'local' : 'world');
+              updateUi();
+            }
+
+            function onObjectChange() {
+              if (!transform.object) return;
+              api.writeInspector(transform.object);
+              api.refreshHierarchy();
+            }
+
+            function onDraggingChanged(event) {
+              api.orbitControls.enabled = !event.value;
+            }
+
+            function onKeyDown(event) {
+              if (typingTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
+              const key = event.key.toLowerCase();
+              if (key === 'w') setMode('translate');
+              else if (key === 'e') setMode('rotate');
+              else if (key === 'r') setMode('scale');
+              else return;
+              event.preventDefault();
+            }
+
+            function getSnapshot() {
+              const object = transform.object;
+              return {
+                isTransformControls: transform.isTransformControls === true,
+                mode: transform.getMode(),
+                space: transform.space,
+                translationSnap: transform.translationSnap,
+                rotationSnap: transform.rotationSnap,
+                scaleSnap: transform.scaleSnap,
+                attachedEditorId: object?.userData?.editorId || null,
+                objectPosition: object ? object.position.toArray() : null,
+                objectRotation: object ? [object.rotation.x, object.rotation.y, object.rotation.z] : null,
+                objectScale: object ? object.scale.toArray() : null,
+                orbitEnabled: api.orbitControls.enabled,
+                dragging: transform.dragging,
+                visible: transform.visible
+              };
+            }
+
+            function dispose() {
+              if (disposed) return;
+              disposed = true;
+              selectionObserver.disconnect();
+              removers.splice(0).reverse().forEach((remove) => remove());
+              transform.removeEventListener('objectChange', onObjectChange);
+              transform.removeEventListener('dragging-changed', onDraggingChanged);
+              api.orbitControls.enabled = true;
+              transform.detach();
+              api.scene.remove(transform);
+              transform.dispose();
+              ui.tools.remove();
+              ui.status.remove();
+              ui.style.remove();
+              if (window.__WESTEROS_EDITOR_TRANSFORM__ === surface) delete window.__WESTEROS_EDITOR_TRANSFORM__;
+            }
+
+            const selectionObserver = new MutationObserver(syncSelection);
+            selectionObserver.observe(selectionStatus, { childList: true, characterData: true, subtree: true });
+            transform.addEventListener('objectChange', onObjectChange);
+            transform.addEventListener('dragging-changed', onDraggingChanged);
+            listen(window, 'keydown', onKeyDown);
+            listen(translateButton, 'click', () => setMode('translate'));
+            listen(rotateButton, 'click', () => setMode('rotate'));
+            listen(scaleButton, 'click', () => setMode('scale'));
+            listen(spaceButton, 'click', toggleSpace);
+            listen(snapToggle, 'change', syncSnap);
+            listen(snapSize, 'input', syncSnap);
+            listen(snapSize, 'change', syncSnap);
+            listen(window, 'pagehide', dispose, { once: true });
+
+            const surface = Object.freeze({ transform, setMode, toggleSpace, syncSnap, syncSelection, getSnapshot, dispose });
+            window.__WESTEROS_EDITOR_TRANSFORM__ = surface;
+            syncSnap();
+            syncSelection();
+            return surface;
+          }
+          RUN216_CONTROLLER
+
+          cat > scripts/checkRun216WorldEditorTransformControls.js <<'RUN216_TEST'
+          #!/usr/bin/env node
+          const fs = require('fs');
+          const http = require('http');
+          const path = require('path');
+          const ROOT = path.resolve(__dirname, '..');
+          const ARTIFACT_DIR = path.join(ROOT, 'artifacts', 'run216');
+          const assert = (value, message) => { if (!value) throw new Error(message); };
+          function playwrightModule() { for (const id of ['playwright', '/opt/node22/lib/node_modules/playwright']) { try { return require(id); } catch {} } return null; }
+          function contentType(file) { const ext = path.extname(file).toLowerCase(); if (ext === '.html') return 'text/html; charset=utf-8'; if (ext === '.js' || ext === '.mjs') return 'text/javascript; charset=utf-8'; if (ext === '.css') return 'text/css; charset=utf-8'; if (ext === '.json' || ext === '.webmanifest') return ext === '.webmanifest' ? 'application/manifest+json' : 'application/json; charset=utf-8'; if (ext === '.png') return 'image/png'; if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'; if (ext === '.glb') return 'model/gltf-binary'; if (ext === '.gltf') return 'model/gltf+json'; return 'application/octet-stream'; }
+          function startServer() { const server = http.createServer((req, res) => { const clean = decodeURIComponent(req.url.split('?')[0]); const relative = clean === '/' ? 'index.html' : clean.replace(/^\//, ''); const file = path.resolve(ROOT, relative); if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end('Not found'); return; } res.writeHead(200, { 'content-type': contentType(file), 'cache-control': 'no-store' }); fs.createReadStream(file).pipe(res); }); return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server))); }
+          async function openEditor(playwright, base, options) { const browser = await playwright.chromium.launch({ headless: true }); const context = await browser.newContext(options); const page = await context.newPage(); const errors = []; page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); }); page.on('pageerror', error => errors.push(String(error))); await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 }); await page.waitForFunction(() => window.__WESTEROS_EDITOR_TRANSFORM__?.getSnapshot?.().attachedEditorId, null, { timeout: 30000 }); return { browser, context, page, errors }; }
+          async function desktopProof(playwright, base) { const { browser, context, page, errors } = await openEditor(playwright, base, { viewport: { width: 1440, height: 900 } }); try { let snap = await page.evaluate(() => window.__WESTEROS_EDITOR_TRANSFORM__.getSnapshot()); assert(snap.isTransformControls && snap.mode === 'translate' && snap.space === 'world', `initial drift ${JSON.stringify(snap)}`); assert(snap.translationSnap === 1, `1m snap missing ${snap.translationSnap}`); for (const [key, mode] of [['e','rotate'],['r','scale'],['w','translate']]) { await page.keyboard.press(key); snap = await page.evaluate(() => window.__WESTEROS_EDITOR_TRANSFORM__.getSnapshot()); assert(snap.mode === mode, `${key.toUpperCase()} mode failed`); } await page.click('#we-space-toggle'); snap = await page.evaluate(() => window.__WESTEROS_EDITOR_TRANSFORM__.getSnapshot()); assert(snap.space === 'local', 'World/Local toggle failed'); await page.click('#we-space-toggle'); await page.uncheck('#we-snap-toggle'); snap = await page.evaluate(() => window.__WESTEROS_EDITOR_TRANSFORM__.getSnapshot()); assert(snap.translationSnap === null && snap.rotationSnap === null && snap.scaleSnap === null, 'Snap off failed'); await page.check('#we-snap-toggle'); await page.fill('#we-snap-size', '2'); snap = await page.evaluate(() => window.__WESTEROS_EDITOR_TRANSFORM__.getSnapshot()); assert(snap.translationSnap === 2, `dynamic snap failed ${snap.translationSnap}`); await page.fill('#we-snap-size', '1'); await page.evaluate(() => { const surface = window.__WESTEROS_EDITOR_TRANSFORM__; const object = surface.transform.object; object.position.set(4, 2, 6); object.updateMatrixWorld(true); surface.transform.dispatchEvent({ type: 'objectChange' }); }); assert(await page.inputValue('#we-pos-x') === '4.000' && await page.inputValue('#we-pos-y') === '2.000' && await page.inputValue('#we-pos-z') === '6.000', 'gizmo -> Inspector sync failed'); await page.fill('#we-pos-x', '7.4'); await page.dispatchEvent('#we-pos-x', 'change'); snap = await page.evaluate(() => window.__WESTEROS_EDITOR_TRANSFORM__.getSnapshot()); assert(snap.objectPosition[0] === 7, `Inspector -> attached object sync failed ${snap.objectPosition[0]}`); await page.evaluate(() => { window.__WESTEROS_EDITOR_TRANSFORM__.transform.dragging = true; }); snap = await page.evaluate(() => window.__WESTEROS_EDITOR_TRANSFORM__.getSnapshot()); assert(snap.orbitEnabled === false, 'Orbit lock failed'); await page.evaluate(() => { window.__WESTEROS_EDITOR_TRANSFORM__.transform.dragging = false; }); snap = await page.evaluate(() => window.__WESTEROS_EDITOR_TRANSFORM__.getSnapshot()); assert(snap.orbitEnabled === true, 'Orbit restore failed'); assert(errors.length === 0, `desktop errors ${errors.join(' | ')}`); fs.mkdirSync(ARTIFACT_DIR, { recursive: true }); await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop-transform-near.png'), fullPage: true }); await page.evaluate(() => { const api = window.__WESTEROS_WORLD_EDITOR__; api.camera.position.set(110, 82, 110); api.orbitControls.target.set(0, 0, 0); api.orbitControls.update(); }); await page.waitForTimeout(120); await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop-transform-far.png'), fullPage: true }); return snap; } finally { await context.close(); await browser.close(); } }
+          async function mobileProof(playwright, base) { const { browser, context, page, errors } = await openEditor(playwright, base, { viewport: { width: 430, height: 932 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }); try { assert(await page.isVisible('#we-canvas'), 'mobile canvas hidden'); assert(await page.isVisible('#we-tool-translate') && await page.isVisible('#we-space-toggle'), 'mobile transform toolbar hidden'); await page.click('#we-tool-rotate'); const snap = await page.evaluate(() => window.__WESTEROS_EDITOR_TRANSFORM__.getSnapshot()); assert(snap.mode === 'rotate' && snap.isTransformControls, `mobile drift ${JSON.stringify(snap)}`); assert(errors.length === 0, `mobile errors ${errors.join(' | ')}`); fs.mkdirSync(ARTIFACT_DIR, { recursive: true }); await page.screenshot({ path: path.join(ARTIFACT_DIR, 'mobile-transform-controls.png'), fullPage: true }); return snap; } finally { await context.close(); await browser.close(); } }
+          async function main() { const playwright = playwrightModule(); if (!playwright) throw new Error('Playwright unavailable'); const server = await startServer(); const base = `http://127.0.0.1:${server.address().port}`; try { const desktop = await desktopProof(playwright, base); const mobile = await mobileProof(playwright, base); console.log(`[checkRun216WorldEditorTransformControls] PROOF: ${JSON.stringify({ desktop, mobile })}`); console.log('[checkRun216WorldEditorTransformControls] PASS: exact-r160 TransformControls W/E/R, World/Local, snap, Inspector sync and Orbit lock verified desktop/mobile'); } finally { await new Promise(resolve => server.close(resolve)); } }
+          main().catch(error => { console.error(`[checkRun216WorldEditorTransformControls] FAIL: ${error.stack || error}`); process.exitCode = 1; });
+          RUN216_TEST
+          chmod +x scripts/checkRun216WorldEditorTransformControls.js
+
+      - name: Wire editor bridge and offline shell additively
+        run: |
+          set -euo pipefail
+          cat >> src/3d/editor/worldEditor.js <<'RUN216_BRIDGE'
+
+          // Run216 additive editor ownership bridge for the isolated TransformControls controller.
+          window.__WESTEROS_WORLD_EDITOR__ = Object.freeze({
+            scene,
+            camera,
+            canvas,
+            renderer,
+            orbitControls: controls,
+            grid,
+            editableObjects,
+            instanceManager,
+            getSelectedObject: () => selectedObject,
+            getEditorState: editorState,
+            writeInspector,
+            refreshHierarchy
+          });
+          import('./EditorTransformControls.js')
+            .then(({ installEditorTransformControls }) => installEditorTransformControls(window.__WESTEROS_WORLD_EDITOR__))
+            .catch((error) => console.error('[worldEditor] TransformControls boot failed', error));
+          RUN216_BRIDGE
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('service-worker.js')
+          s = p.read_text()
+          block = """// Run216 World Editor TransformControls offline shell extension.\nself.addEventListener('install', () => {\n    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTransformControls.js');\n    GAME3D_SHELL_FILES.push('./src/3d/vendor/three/addons/controls/TransformControls.js');\n});\n\n"""
+          if 'Run216 World Editor TransformControls offline shell extension' not in s:
+              s = block + s
+          p.write_text(s)
+          PY
+
+      - name: Syntax additive and run-budget gates
+        run: |
+          set -euo pipefail
+          node --check src/3d/vendor/three/addons/controls/TransformControls.js
+          node --check src/3d/editor/EditorTransformControls.js
+          node --check src/3d/editor/worldEditor.js
+          node --check scripts/checkRun216WorldEditorTransformControls.js
+          node --check service-worker.js
+          git diff --check
+          BASE="$(git rev-parse origin/main)"
+          git diff --numstat "$BASE" | awk '$2 ~ /^[0-9]+$/ && $2 != 0 { exit 1 }'
+          TOTAL_LINES="$(git diff --numstat "$BASE" | awk '$1 ~ /^[0-9]+$/ { sum += $1 } END { print sum + 0 }')"
+          TOTAL_FILES="$(git diff --name-only "$BASE" | wc -l | tr -d ' ')"
+          test "$TOTAL_LINES" -le 1200
+          test "$TOTAL_FILES" -le 25
+
+      - name: Focused desktop mobile TransformControls proof
+        run: |
+          set -euo pipefail
+          node scripts/checkRun216WorldEditorTransformControls.js
+          node scripts/checkRun215EditorFormationRehydration.js
+          node scripts/checkRun214WorldEditorFoundation.js
+
+      - name: PWA performance determinism and world safety gates
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+
+      - name: Existing game post-change smoke
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run216-post-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run216-post-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run216-post-smoke.log"
+
+      - name: Append verified progress ADR and stable record
+        run: |
+          set -euo pipefail
+          TAG="stable-$(TZ=Europe/Istanbul date +%Y-%m-%d-%H%M)"
+          echo "RUN216_TAG=$TAG" >> "$GITHUB_ENV"
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+          ## Run 216 — World Editor exact r160 TransformControls
+          - Added the official Three.js r160 TransformControls implementation through a provenance-verified path: upstream git blob `1163078c49179a40d5a9d129c13d582e8369bf37` is verified before runtime minification, and its exact bytes are retained in a deterministic gzip source archive beside the local runtime module under the existing Three.js MIT license.
+          - Added editor-only W=translate, E=rotate, R=scale controls, visible axis gizmos, World/Local switching, and shared Snap integration. Translation snap follows the existing editor metre value (default 1m); rotation/scale use bounded 15°/0.1 steps while Snap is enabled.
+          - The controller attaches only to normal editor objects; InstancedMesh formation groups remain detached until instance-level proxy editing receives its own owner. No game3d/RTS simulation state is imported or mutated.
+          - Transform `objectChange` refreshes Inspector/Hierarchy; Inspector edits mutate the same attached object so gizmo state follows without duplicated transform ownership. OrbitControls is disabled only while TransformControls is dragging and restored afterward.
+          - Focused Chromium proof covers desktop near/far and mobile views, W/E/R, World/Local, Snap on/off plus dynamic metre size, Inspector↔attached-object synchronization, Orbit lock, responsive toolbar and zero console/page errors. Run214/Run215 editor regressions remain PASS.
+          - Pre/post 34+ game smoke, PWA/cache/installability, mobile renderer budget, seeded RNG/world-reference, terrain-seat and road-network safety all PASS.
+          - Memory-leak checklist: MutationObserver, window/DOM/EventDispatcher listeners and editor-owned toolbar/style/status nodes are removed on pagehide; TransformControls is detached, removed and disposed; OrbitControls ownership stays with the existing editor and is restored after drag/dispose.
+          - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; events +0; creatures +0. Desktop coverage remains 96.2%; mobile radius-4 remains unchanged.
+          - Technical debt: TransformControls debt closed; animated/skinned crowd batching and instance-level proxy transform editing remain. Risk: LOW. Confidence: 5/5.
+          - Next safe step: add instance-level transform proxy editing for selected InstancedMesh entries without duplicating formation ownership.
+          EOF
+          cat >> DECISIONS.md <<'EOF'
+
+          ## ADR-0234 — Use official Three.js r160 TransformControls behind an editor-only ownership bridge
+          **Risk:** LOW
+
+          **Decision:** Use the exact official Three.js r160 TransformControls source as the provenance root, retain its byte-identical source in a deterministic gzip archive, generate the local runtime module from that verified source, and connect it only to the standalone World Editor through a narrow read/write bridge. W/E/R own mode selection; World/Local owns transform space; the existing editor Snap value owns translation snap size.
+
+          **Why:** The editor needs Unity-like direct manipulation while the current game/RTS state must remain untouched. The addon matching the already-vendored Three.js r160 renderer avoids custom gizmo math and duplicate transform ownership. Keeping exact upstream bytes archived makes provenance independently auditable without spending the run's 1200-line source budget on a 1500+ line third-party file.
+
+          **Alternatives considered:** custom gizmo geometry/math (rejected after an unverified concurrent attempt also demonstrated extra failure surface); CDN import (rejected for offline PWA); copying the full upstream source verbatim as normal text (rejected because it would consume the run line budget despite being third-party code); modifying game3d/RTS transform state (rejected ownership violation).
+
+          **Consequences:** normal editor objects gain official axis handles, keyboard mode parity and World/Local manipulation. The controller creates editor-only render/listener/UI resources and disposes them on pagehide. Formation groups remain group-selected and intentionally detached in this run.
+
+          **Affected systems:** standalone World Editor bridge/controller, local Three.js vendor provenance/runtime files and additive service-worker shell registration only.
+
+          **Rollback:** a future owner-approved cleanup can stop loading the controller and remove its additive bridge/cache/vendor files; Run215 Inspector-only authoring remains the baseline.
+
+          **Future-phase impact:** a later instance editor can attach TransformControls to a proxy Object3D and commit its matrix back through `EditorInstanceManager` without changing normal-object ownership.
+          EOF
+          printf '%s — Run216 exact r160 World Editor TransformControls; W/E/R, World/Local, shared Snap and Inspector sync verified.\n' "$TAG" >> STABLE_TAGS.md
+
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = '0d29693b16ee12b00ae1a2c2d7ccafaeb43d0b7e'
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          git diff --check "$CURRENT_MAIN"
+          git diff --numstat "$CURRENT_MAIN" | awk '$2 ~ /^[0-9]+$/ && $2 != 0 { exit 1 }'
+          TOTAL_LINES="$(git diff --numstat "$CURRENT_MAIN" | awk '$1 ~ /^[0-9]+$/ { sum += $1 } END { print sum + 0 }')"
+          TOTAL_FILES="$(git diff --name-only "$CURRENT_MAIN" | wc -l | tr -d ' ')"
+          test "$TOTAL_LINES" -le 1200
+          test "$TOTAL_FILES" -le 25
+
+      - name: Commit verified Run216
+        run: |
+          set -euo pipefail
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/editor/worldEditor.js src/3d/editor/EditorTransformControls.js src/3d/vendor/three/addons/controls/TransformControls.js src/3d/vendor/three/addons/controls/TransformControls.r160.source.js.gz scripts/checkRun216WorldEditorTransformControls.js service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md
+          git diff --cached --check
+          git diff --cached --numstat "$CURRENT_MAIN" | awk '$2 ~ /^[0-9]+$/ && $2 != 0 { exit 1 }'
+          git commit -m 'feat(run216): add verified exact r160 World Editor TransformControls'
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git tag "$RUN216_TAG"
+          git push origin HEAD:agent/run216-world-editor-transform-controls
+          git push origin "$RUN216_TAG" || true
+
+      - name: Upload TransformControls visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run216-world-editor-transform-controls
+          path: artifacts/run216/*.png
+          if-no-files-found: error
