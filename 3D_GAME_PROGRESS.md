@@ -14370,3 +14370,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 347 MB heap**; trend guard PASS.
 - Technical debt: **no new live-runtime debt**. Risk **LOW**, confidence **5/5**.
 - **Next safe step (Run205):** keep default player startup unchanged and add a developer-only installed/standalone PWA shell or equivalent installability proof only if it can remain additive and isolated from the existing production manifest/service-worker navigation contract.
+
+
+## Run 205 — Isolated developer standalone PWA shell proof
+
+- **Validated:** 2026-08-09 06:28 UTC; base main `dc3d79089b1d3fe5448dbdb6ccf5e41c487dbd8e`.
+- Added only a developer-scoped PWA shell under `/canonical-dev-pwa/`; production `manifest.json`, root `service-worker.js`, default 2D/3D startup and live runtime sources remain byte-unchanged.
+- Real Chromium proves a dedicated `display=standalone` developer manifest, a dedicated service-worker controller scoped only to `/canonical-dev-pwa/`, exactly 3 cached developer-shell entries all inside that subtree, and a clean offline shell reload with canvas=0 and console/page errors=0.
+- Current/Canonical links intentionally remain outside the developer PWA scope and continue targeting the existing explicit developer runtime URLs; no default-player navigation is widened.
+- Full browser smoke: **34+ PASS**; Run195-204 canonical regressions PASS; production PWA cache/installability PASS.
+- Mobile live budget: **35 draw calls / 195929 triangles / 30 geometries / 22 textures**, within <500/<500000. Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**.
+- Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 368 MB heap**; trend guard PASS.
+- Technical debt: **no new live-runtime debt**. Developer-only maintenance surface +1 isolated PWA subtree. Risk **LOW**, confidence **5/5**.
+- **Next safe step (Run206):** keep production startup unchanged and prove the isolated developer standalone shell's out-of-scope Current/Canonical launches cannot capture or replace the production service-worker controller; verify controller ownership before/after return navigation, including offline recovery.
