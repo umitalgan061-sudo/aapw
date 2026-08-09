@@ -15309,3 +15309,15 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Rollback:** the RTS files and additive navigation/cache registrations are isolated; a future owner-approved non-additive cleanup can remove the sibling surface without changing the legacy world/runtime architecture.
 - **Future-phase impact:** this establishes a safe visible-game seam for richer troops/civilians, formations, selection feedback and eventual RTS combat/economy without forcing canonical-world migration to become the player's default startup.
 - **Risk:** LOW-MEDIUM.
+
+
+## ADR-0227 — Keep first RTS destination feedback screen-space and isolated
+
+- **Decision:** Add destination-command feedback as an inline, screen-space DOM marker in `rts.html` instead of changing `rtsGame.js`, `rtsArmy.js`, world geometry, or service-worker cache lists.
+- **Why:** Run207's next safe step explicitly calls for destination/formation feedback, while the permanent additive-only rule forbids changing existing source lines. A screen-space marker gives immediate player-visible command acknowledgement on desktop and touch without touching deterministic movement or adding a cache dependency.
+- **Alternatives:** world-space Three.js decal/ring (deferred: stronger coupling to camera/raycast/world lifecycle); modify `rtsArmy.commandMove` to emit feedback state (rejected for this run: requires editing established runtime code); external feedback module (rejected: creates a new offline precache obligation for a tiny isolated behavior).
+- **Result:** desktop right-click and mobile Move Command both display visible short-lived command feedback; browser proof covers two desktop views and mobile, with zero console/page errors and unchanged render budgets.
+- **Affected systems:** `rts.html` UI overlay only, plus Run208 test/CI/documentation. Army movement, world generation, PWA shell membership, 2D and character-mode code remain unchanged.
+- **Rollback:** the additive inline module block is isolated and can be removed only in a future owner-approved non-additive cleanup; leaving it disabled is not necessary because it has no gameplay-state ownership.
+- **Future-phase impact:** a later world-space rally/formation visualization can coexist with or supersede this acknowledgement layer without changing command determinism.
+- **Risk:** LOW.
