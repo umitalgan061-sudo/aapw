@@ -5,10 +5,11 @@ on:
     branches: [agent/run207-visible-rts-surface]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
+    if: github.event.head_commit.message != 'run207 validated checkpoint'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -43,6 +44,7 @@ jobs:
           node --check src/3d/rts/rtsGame.js
           node --check service-worker.js
           node --check scripts/checkRun207RtsSurface.js
+          node --check scripts/recordRun207VisibleRtsSurface.js
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
       - name: Visible RTS browser proof
@@ -51,6 +53,8 @@ jobs:
           set -euo pipefail
           node scripts/checkRun207RtsSurface.js
           test -s artifacts/run207-rts-surface/proof.json
+          PROOF="$(node -e "const fs=require('fs');process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync('artifacts/run207-rts-surface/proof.json','utf8'))))")"
+          echo "RUN207_PROOF_JSON=$PROOF" >> "$GITHUB_ENV"
       - name: Baseline full browser smoke
         shell: bash
         run: |
@@ -59,6 +63,7 @@ jobs:
           PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run207-smoke.log")"
           test "$PASS_COUNT" -ge 34
           grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run207-smoke.log" | grep -F 'zero console/page errors'
+          echo "RUN207_SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
       - name: Determinism and world regressions
         shell: bash
         run: |
@@ -86,20 +91,28 @@ jobs:
           node scripts/checkMobileRadius4LiveWorld.js
           node scripts/checkMobileTerrainLod.js
           node scripts/checkMobileVegetationLod.js
-          node scripts/checkMobilePerfBudget.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run207-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run207-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$LIVE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]);process.stdout.write(String(x.drawCalls))' "$LIVE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]);process.stdout.write(String(x.triangles))' "$LIVE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+          echo "RUN207_LIVE_MOBILE_JSON=$LIVE" >> "$GITHUB_ENV"
       - name: Performance snapshot and trend
         shell: bash
         run: |
           set -euo pipefail
-          cp perf_log.csv "$RUNNER_TEMP/perf_log.csv.before"
-          node scripts/collectPerfSnapshot.js run207-rts
+          node scripts/collectPerfSnapshot.js run207-rts | tee "$RUNNER_TEMP/run207-perf.log"
+          ROW="$(tail -n1 perf_log.csv)"
+          echo "$ROW" | grep -F ',run207-rts,'
+          echo "RUN207_PERF_ROW=$ROW" >> "$GITHUB_ENV"
           node scripts/analyzePerfTrend.js
-          mv "$RUNNER_TEMP/perf_log.csv.before" perf_log.csv
       - name: Senior review and final concurrency gate
         shell: bash
         run: |
           set -euo pipefail
-          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/rts/rtsArmy.js src/3d/rts/rtsGame.js scripts/checkRun207RtsSurface.js; then exit 1; fi
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/rts/rtsArmy.js src/3d/rts/rtsGame.js scripts/checkRun207RtsSurface.js scripts/recordRun207VisibleRtsSurface.js; then exit 1; fi
           node scripts/checkRun207RtsSurface.js >/dev/null
           node scripts/checkServiceWorkerCache.js >/dev/null
           node scripts/checkPwaInstallability.js >/dev/null
@@ -107,6 +120,28 @@ jobs:
           git diff --check "$BASE_SHA" HEAD
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
+      - name: Record validated checkpoint on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN207_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN207_STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          export RUN207_BASE_SHA="$BASE_SHA"
+          export RUN207_SMOKE_PASS_COUNT RUN207_PROOF_JSON RUN207_LIVE_MOBILE_JSON RUN207_PERF_ROW
+          node scripts/recordRun207VisibleRtsSurface.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git commit -m 'run207 validated checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git tag "$RUN207_STABLE_TAG"
+          git push origin "$RUN207_STABLE_TAG" || echo '[run207] stable tag push unavailable; STABLE_TAGS record retained.'
       - name: Upload RTS visual proof
         if: always()
         uses: actions/upload-artifact@v4
