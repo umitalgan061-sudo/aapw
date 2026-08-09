@@ -342,3 +342,200 @@ renderer.setAnimationLoop(() => {
   controls.update();
   renderer.render(scene, camera);
 });
+
+// Run215 additive transform-authoring layer. It deliberately reuses the existing editor scene,
+// selection, Inspector and OrbitControls owners instead of introducing parallel scene state.
+const transformGizmo = new THREE.Group();
+transformGizmo.name = 'Editor Transform Gizmo';
+transformGizmo.visible = false;
+transformGizmo.userData.editorLocked = true;
+scene.add(transformGizmo);
+
+const transformRaycaster = new THREE.Raycaster();
+const transformPointer = new THREE.Vector2();
+const transformPlane = new THREE.Plane();
+const transformPlaneHit = new THREE.Vector3();
+const transformStartHit = new THREE.Vector3();
+const transformStartPosition = new THREE.Vector3();
+const transformStartScale = new THREE.Vector3();
+const transformStartQuaternion = new THREE.Quaternion();
+const transformAxisWorld = new THREE.Vector3();
+const transformUnitAxes = { X: new THREE.Vector3(1, 0, 0), Y: new THREE.Vector3(0, 1, 0), Z: new THREE.Vector3(0, 0, 1) };
+let transformMode = 'translate';
+let transformSpace = 'world';
+let transformDragging = false;
+let transformAxis = null;
+let transformPointerStartX = 0;
+let transformPointerStartY = 0;
+
+function makeTransformHandle(axis, geometry, color, position, rotation) {
+  const material = new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false, transparent: true, opacity: 0.92, toneMapped: false });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.userData.transformAxis = axis;
+  mesh.renderOrder = 1000;
+  if (position) mesh.position.copy(position);
+  if (rotation) mesh.rotation.set(rotation.x, rotation.y, rotation.z);
+  transformGizmo.add(mesh);
+  return mesh;
+}
+
+const transformTranslateHandles = [
+  makeTransformHandle('X', new THREE.BoxGeometry(2.4, 0.16, 0.16), 0xff5555, new THREE.Vector3(1.2, 0, 0)),
+  makeTransformHandle('Y', new THREE.BoxGeometry(0.16, 2.4, 0.16), 0x55ff77, new THREE.Vector3(0, 1.2, 0)),
+  makeTransformHandle('Z', new THREE.BoxGeometry(0.16, 0.16, 2.4), 0x5599ff, new THREE.Vector3(0, 0, 1.2))
+];
+const transformRotateHandles = [
+  makeTransformHandle('X', new THREE.TorusGeometry(1.7, 0.08, 8, 48), 0xff5555, null, new THREE.Euler(0, Math.PI / 2, 0)),
+  makeTransformHandle('Y', new THREE.TorusGeometry(1.7, 0.08, 8, 48), 0x55ff77, null, new THREE.Euler(Math.PI / 2, 0, 0)),
+  makeTransformHandle('Z', new THREE.TorusGeometry(1.7, 0.08, 8, 48), 0x5599ff)
+];
+const transformScaleHandles = [
+  makeTransformHandle('X', new THREE.BoxGeometry(0.32, 0.32, 0.32), 0xff5555, new THREE.Vector3(1.8, 0, 0)),
+  makeTransformHandle('Y', new THREE.BoxGeometry(0.32, 0.32, 0.32), 0x55ff77, new THREE.Vector3(0, 1.8, 0)),
+  makeTransformHandle('Z', new THREE.BoxGeometry(0.32, 0.32, 0.32), 0x5599ff, new THREE.Vector3(0, 0, 1.8))
+];
+
+function transformHandlesForMode() {
+  if (transformMode === 'rotate') return transformRotateHandles;
+  if (transformMode === 'scale') return transformScaleHandles;
+  return transformTranslateHandles;
+}
+
+function syncTransformGizmo() {
+  const object = selectedObject && !selectedObject.isInstancedMesh ? selectedObject : null;
+  transformGizmo.visible = Boolean(object);
+  if (!object) return;
+  transformGizmo.position.copy(object.position);
+  transformGizmo.quaternion.copy(transformSpace === 'local' ? object.quaternion : new THREE.Quaternion());
+  for (const handle of [...transformTranslateHandles, ...transformRotateHandles, ...transformScaleHandles]) handle.visible = transformHandlesForMode().includes(handle);
+}
+
+function setTransformMode(mode) {
+  transformMode = mode;
+  syncTransformGizmo();
+  const modeLabel = mode === 'translate' ? 'Taşı' : mode === 'rotate' ? 'Döndür' : 'Ölçekle';
+  $('we-transform-mode').textContent = `Araç: ${modeLabel}`;
+}
+
+function setTransformSpace(space) {
+  transformSpace = space;
+  $('we-transform-space').textContent = space === 'world' ? 'World' : 'Local';
+  syncTransformGizmo();
+}
+
+function transformAxisForObject(axis, object) {
+  transformAxisWorld.copy(transformUnitAxes[axis]);
+  if (transformSpace === 'local') transformAxisWorld.applyQuaternion(object.quaternion);
+  return transformAxisWorld.normalize();
+}
+
+function updateTransformPointer(event) {
+  const rect = canvas.getBoundingClientRect();
+  transformPointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  transformPointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  transformRaycaster.setFromCamera(transformPointer, camera);
+}
+
+function intersectTransformPlane(event) {
+  updateTransformPointer(event);
+  return transformRaycaster.ray.intersectPlane(transformPlane, transformPlaneHit);
+}
+
+function applyTransformDrag(event) {
+  const object = selectedObject;
+  if (!transformDragging || !object || object.isInstancedMesh || !transformAxis) return;
+  const axis = transformAxisForObject(transformAxis, object);
+  if (transformMode === 'rotate') {
+    const deltaPixels = (event.clientX - transformPointerStartX) + (transformPointerStartY - event.clientY);
+    let angle = deltaPixels * 0.01;
+    if (editorState().snapEnabled) angle = Math.round(angle / THREE.MathUtils.degToRad(15)) * THREE.MathUtils.degToRad(15);
+    object.quaternion.copy(transformStartQuaternion).premultiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
+  } else if (intersectTransformPlane(event)) {
+    let amount = transformPlaneHit.clone().sub(transformStartHit).dot(axis);
+    if (editorState().snapEnabled) {
+      const size = editorState().snapSize;
+      amount = Math.round(amount / size) * size;
+    }
+    if (transformMode === 'translate') {
+      object.position.copy(transformStartPosition).addScaledVector(axis, amount);
+    } else {
+      const component = transformAxis === 'X' ? 'x' : transformAxis === 'Y' ? 'y' : 'z';
+      const factor = Math.max(0.01, 1 + amount / 3);
+      object.scale.copy(transformStartScale);
+      object.scale[component] = Math.max(0.01, transformStartScale[component] * factor);
+    }
+  }
+  writeInspector(object);
+  refreshHierarchy();
+  syncTransformGizmo();
+}
+
+function onTransformPointerDown(event) {
+  if (event.button !== 0 || !selectedObject || selectedObject.isInstancedMesh) return;
+  updateTransformPointer(event);
+  const hit = transformRaycaster.intersectObjects(transformHandlesForMode(), false)[0];
+  if (!hit) return;
+  transformAxis = hit.object.userData.transformAxis;
+  transformDragging = true;
+  transformPointerStartX = event.clientX;
+  transformPointerStartY = event.clientY;
+  transformStartPosition.copy(selectedObject.position);
+  transformStartScale.copy(selectedObject.scale);
+  transformStartQuaternion.copy(selectedObject.quaternion);
+  const cameraDirection = camera.getWorldDirection(new THREE.Vector3());
+  transformPlane.setFromNormalAndCoplanarPoint(cameraDirection, selectedObject.position);
+  intersectTransformPlane(event);
+  transformStartHit.copy(transformPlaneHit);
+  controls.enabled = false;
+  canvas.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+}
+
+function onTransformPointerMove(event) {
+  if (transformDragging) applyTransformDrag(event);
+}
+
+function onTransformPointerUp(event) {
+  if (!transformDragging) return;
+  transformDragging = false;
+  transformAxis = null;
+  controls.enabled = true;
+  canvas.releasePointerCapture?.(event.pointerId);
+  writeInspector(selectedObject);
+  syncTransformGizmo();
+}
+
+const transformToolbar = document.createElement('div');
+transformToolbar.className = 'we-transform-toolbar';
+transformToolbar.innerHTML = '<button id="we-transform-translate" type="button">W · Taşı</button><button id="we-transform-rotate" type="button">E · Döndür</button><button id="we-transform-scale" type="button">R · Ölçekle</button><button id="we-transform-space" type="button">World</button><span id="we-transform-mode">Araç: Taşı</span>';
+$('we-statusbar').prepend(transformToolbar);
+$('we-transform-translate').addEventListener('click', () => setTransformMode('translate'));
+$('we-transform-rotate').addEventListener('click', () => setTransformMode('rotate'));
+$('we-transform-scale').addEventListener('click', () => setTransformMode('scale'));
+$('we-transform-space').addEventListener('click', () => setTransformSpace(transformSpace === 'world' ? 'local' : 'world'));
+canvas.addEventListener('pointerdown', onTransformPointerDown);
+canvas.addEventListener('pointermove', onTransformPointerMove);
+canvas.addEventListener('pointerup', onTransformPointerUp);
+const transformSelectionObserver = new MutationObserver(syncTransformGizmo);
+transformSelectionObserver.observe($('we-selection-status'), { childList: true, characterData: true, subtree: true });
+window.addEventListener('keydown', (event) => {
+  const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target?.isContentEditable;
+  if (typing) return;
+  const key = event.key.toLowerCase();
+  if (key === 'w') setTransformMode('translate');
+  if (key === 'e') setTransformMode('rotate');
+  if (key === 'r') setTransformMode('scale');
+  if (key === 'q') setTransformSpace(transformSpace === 'world' ? 'local' : 'world');
+});
+window.addEventListener('pagehide', () => {
+  transformSelectionObserver.disconnect();
+  canvas.removeEventListener('pointerdown', onTransformPointerDown);
+  canvas.removeEventListener('pointermove', onTransformPointerMove);
+  canvas.removeEventListener('pointerup', onTransformPointerUp);
+  for (const handle of [...transformTranslateHandles, ...transformRotateHandles, ...transformScaleHandles]) {
+    handle.geometry.dispose();
+    handle.material.dispose();
+  }
+  scene.remove(transformGizmo);
+});
+syncTransformGizmo();
