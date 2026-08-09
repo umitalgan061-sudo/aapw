@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const POLICY_PATH = path.join(ROOT, 'src', '3d', 'world', 'worldReferenceCanonicalStartupPolicy.js');
+const POLICY_PATH = path.join(ROOT, 'dev', 'canonicalStartupPolicy.js');
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 
 async function loadPolicy() {
