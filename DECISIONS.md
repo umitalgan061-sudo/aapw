@@ -15264,3 +15264,14 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Affected systems:** developer-only HTML, CI/test/documentation. 2D, default 3D, gameplay/world sources, service worker, manifest and live player navigation unchanged.
 - **Rollback:** new Run203 files are inert unless opened directly and may be removed only in a future owner-approved non-additive cleanup.
 - **Risk:** LOW.
+
+
+## ADR-0223 — Require offline history restoration proof before wider canonical developer exposure
+
+- **Decision:** Keep Run203's launcher and both runtime surfaces unchanged, and prove browser history back/forward boundaries for Current and Canonical while Chromium is offline.
+- **Why:** A developer launcher is only safe if navigation teardown is reversible without duplicate renderer ownership or hidden timer/RAF retention when network availability changes mid-session.
+- **Alternatives:** change the production manifest/service worker to install the developer launcher (rejected: unnecessary live PWA scope); merge Current and Canonical into one document (rejected: duplicate ownership risk); skip offline history proof (rejected: leaves a lifecycle gap).
+- **Result:** both routes restore one runtime canvas with the same deterministic bridge identity; launcher owns zero canvases; pagehide timer/RAF ownership is clean; console/page errors remain zero.
+- **Affected systems:** CI/test/documentation only. 2D, default 3D, gameplay/world sources, service worker, manifest and player navigation unchanged.
+- **Rollback:** new Run204 files are inert outside CI and may be removed only in a future owner-approved non-additive cleanup.
+- **Risk:** LOW.
