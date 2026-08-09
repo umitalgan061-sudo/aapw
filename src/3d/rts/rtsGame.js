@@ -16,6 +16,7 @@ import { updateStarfield, disposeStarfield } from '../stars.js';
 import { updateDayNightLighting, disposeDayNightLighting } from '../lighting.js';
 import { updateFog } from '../fog.js';
 import { createRtsArmy } from './rtsArmy.js';
+import { createRtsRallyMarker } from './rtsRallyMarker.js';
 
 const CAMERA_MIN_DISTANCE = 135;
 const CAMERA_MAX_DISTANCE = 1450;
@@ -77,6 +78,7 @@ export async function initRtsGame() {
 	const focusButton = document.getElementById('rts-focus-army');
 
 	const state = createScene(canvas);
+	const rallyMarker = createRtsRallyMarker(state.scene);
 	const assetLoader = new AssetLoader({ events: gameEvents });
 	const unbindResize = createResizeBinding(state);
 	const seatsById = new Map(state.settlementSeats.map((seat) => [seat.id, seat]));
@@ -162,6 +164,7 @@ export async function initRtsGame() {
 		const target = projectRayToCommandPlane(raycaster, state.camera, ndc, centerSeat.groundY);
 		if (!target) return false;
 		const commanded = army.commandMove(target);
+		rallyMarker.show(target.x, sampleClampedGroundY(target.x, target.z), target.z, commanded);
 		moveMode = false;
 		refreshHud(commanded > 0 ? `${commanded} asker hedefe ilerliyor.` : 'Önce asker seç.');
 		return commanded > 0;
@@ -284,6 +287,7 @@ export async function initRtsGame() {
 		elapsedSeconds += delta;
 		panCamera(delta);
 		army.update(delta);
+		rallyMarker.update(delta);
 		for (const animal of state.animals) animal.update(delta, { x: centerSeat.x + 50000, z: centerSeat.z + 50000 }, []);
 		for (const dragon of state.dragons) dragon.update(delta, { x: centerSeat.x + 50000, z: centerSeat.z + 50000 });
 		const dayNight = updateDayNightLighting(
@@ -313,6 +317,7 @@ export async function initRtsGame() {
 		window.removeEventListener('keydown', onKeyDown);
 		window.removeEventListener('keyup', onKeyUp);
 		army.dispose();
+		rallyMarker.dispose();
 		for (const animal of state.animals) animal.dispose();
 		for (const dragon of state.dragons) dragon.dispose();
 		state.controls.dispose();
@@ -350,5 +355,6 @@ export async function initRtsGame() {
 		focusArmy,
 		dispose,
 	};
+	window.__WESTEROS_RTS_RALLY__ = { getSnapshot: rallyMarker.getSnapshot };
 	frameId = requestAnimationFrame(tick);
 }

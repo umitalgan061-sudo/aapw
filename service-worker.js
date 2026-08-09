@@ -235,6 +235,9 @@ self.addEventListener('install', (event) => {
     );
 });
 
+// Run212 RTS rally marker: module-only shell entry; procedural geometry adds no asset fetch.
+GAME3D_SHELL_FILES.push('./src/3d/rts/rtsRallyMarker.js');
+
 // Run211 RTS keyboard-command parity: module-only shell entry; no new asset/cache role.
 GAME3D_SHELL_FILES.push('./src/3d/rts/rtsCommandShortcuts.js');
 
