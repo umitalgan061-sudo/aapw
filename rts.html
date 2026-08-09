@@ -83,5 +83,39 @@
   canvas?.addEventListener('pointerup', onPointerUpCapture, true);
   window.addEventListener('pagehide', disposeCommandFeedback, { once: true });
 </script>
+<script type="module">
+  const selectionCount = document.getElementById('rts-selection-count');
+  const commandbar = document.querySelector('.rts-commandbar');
+  const meter = document.createElement('div');
+  meter.id = 'rts-selection-readability';
+  meter.setAttribute('role', 'status');
+  meter.setAttribute('aria-live', 'polite');
+  meter.style.cssText = 'position:fixed;z-index:34;left:50%;bottom:max(76px,calc(env(safe-area-inset-bottom) + 76px));transform:translateX(-50%);width:min(360px,calc(100vw - 32px));padding:9px 12px;border:1px solid rgba(229,194,102,.46);border-radius:10px;background:rgba(20,17,12,.78);backdrop-filter:blur(8px);box-shadow:0 10px 28px rgba(0,0,0,.28);font:600 12px/1.2 system-ui,sans-serif;color:#f3e8c8;pointer-events:none;';
+  meter.innerHTML = '<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:7px"><span>Komuta Hazırlığı</span><span data-rts-selection-label>0 / 48</span></div><div style="height:5px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden"><span data-rts-selection-fill style="display:block;height:100%;width:0%;border-radius:inherit;background:linear-gradient(90deg,#b68b2f,#f0cf72);transition:width .18s ease"></span></div>';
+  document.body.appendChild(meter);
+  const label = meter.querySelector('[data-rts-selection-label]');
+  const fill = meter.querySelector('[data-rts-selection-fill]');
+  const update = () => {
+    const text = selectionCount?.textContent || '';
+    const match = text.match(/(\d+)\s*\/\s*(\d+)/);
+    const selected = Number(match?.[1] || 0);
+    const total = Math.max(1, Number(match?.[2] || 48));
+    const ratio = Math.max(0, Math.min(1, selected / total));
+    label.textContent = `${selected} / ${total}`;
+    fill.style.width = `${Math.round(ratio * 100)}%`;
+    meter.dataset.selected = String(selected);
+    meter.dataset.total = String(total);
+    meter.setAttribute('aria-label', `${selected} / ${total} asker komuta için seçili`);
+    commandbar?.toggleAttribute('data-has-selection', selected > 0);
+  };
+  const observer = new MutationObserver(update);
+  if (selectionCount) observer.observe(selectionCount, { childList: true, characterData: true, subtree: true });
+  update();
+  const disposeSelectionReadability = () => {
+    observer.disconnect();
+    meter.remove();
+  };
+  window.addEventListener('pagehide', disposeSelectionReadability, { once: true });
+</script>
 </body>
 </html>
