@@ -37,8 +37,10 @@
 <script type="module">
   import { initRtsGame } from './src/3d/rts/rtsGame.js';
   import { installRtsSurfaceTexture } from './src/3d/rts/rtsSurfaceTexture.js';
+  import { installRtsSelectionReadability } from './src/3d/rts/rtsSelectionReadability.js';
 
   installRtsSurfaceTexture();
+  installRtsSelectionReadability();
   initRtsGame().catch((error) => {
     console.error('[rts.html] RTS initialization failed', error);
     const loading = document.getElementById('rts-loading');

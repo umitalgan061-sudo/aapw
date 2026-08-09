@@ -15371,3 +15371,18 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Rollback:** a future owner-approved cleanup can stop loading/removing the additive inline block; established RTS controls and state remain the baseline because this layer never owns gameplay state.
 
 **Future-phase impact:** future RTS formation/rally UI can expose its established state through the same observer/mirroring principle rather than duplicating simulation ownership.
+
+## ADR-0231 — Keep RTS selection readability read-only and DOM-owned
+**Risk:** LOW
+
+**Decision:** Add an isolated RTS selection readability meter that observes the existing `#rts-selection-count` text and exposes selected/total/percentage visually plus `role=progressbar` semantics. It may not mutate army, command, camera, world or renderer state.
+
+**Why:** Run211 added command parity and Run212 added command-state readability; selection ratio is the next useful tactical signal that can be improved without duplicating simulation ownership or adding render objects.
+
+**Alternatives considered:** modify `rtsGame.js` or `rtsArmy.js` to emit a new selection API/event; add world-space selection geometry; change unit materials. Rejected because each increases ownership/render coupling while the authoritative HUD text already provides the required state.
+
+**Consequences:** desktop/mobile/PWA gain a compact accessible selection percentage with no draw-call or triangle cost. A MutationObserver is disposed on pagehide. Existing 2D, deterministic world generation and RTS simulation remain untouched.
+
+**Affected systems:** RTS DOM presentation and service-worker shell cache only.
+
+**Rollback:** remove the additive installer/import/cache line and module in a future owner-approved change; underlying selection behavior is unchanged.
