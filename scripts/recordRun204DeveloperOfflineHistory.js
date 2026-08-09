@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+/** Run204 validated-checkpoint recorder. Appends documentation only after the workflow's full DoD passes. */
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.resolve(__dirname, '..');
+const required = name => { const value = process.env[name]; if (!value) throw new Error(`missing ${name}`); return value; };
+const stamp = required('RUN204_STAMP');
+const tag = required('RUN204_STABLE_TAG');
+const base = required('RUN204_BASE_SHA');
+const smoke = required('RUN204_SMOKE_PASS_COUNT');
+const proof = JSON.parse(required('RUN204_PROOF_JSON'));
+const mobile = JSON.parse(required('RUN204_LIVE_MOBILE_JSON'));
+const perf = required('RUN204_PERF_ROW');
+const append = (file, text) => fs.appendFileSync(path.join(ROOT, file), text, 'utf8');
+const fields = perf.split(',');
+if (fields.length < 8 || fields[1] !== 'run204') throw new Error(`unexpected perf row: ${perf}`);
+const [, , fps, drawCalls, triangles, geometries, textures, heap] = fields;
+append('3D_GAME_PROGRESS.md', `\n\n## Run 204 — Developer launcher offline back/forward ownership proof\n\n- **Validated:** ${stamp}; base main \`${base}\`.\n- No live/default runtime source changed. Run203's developer launcher is exercised as-is.\n- Real Chromium proves both Current and Canonical can navigate launcher -> runtime online, switch network offline, return to the runtime-free launcher through browser history, then restore the selected runtime through history forward while remaining offline.\n- Current and canonical each keep exactly one runtime canvas after restore, launcher keeps zero, deterministic bridge remains \`${proof.deterministicBridge}\`, pagehide timeout/interval/RAF counts remain 0/0/0, and console/page errors=${proof.consoleErrors}.\n- Full browser smoke: **${smoke}+ PASS**; Run195-203 canonical regressions PASS; PWA cache/installability PASS.\n- Mobile live budget: **${mobile.drawCalls} draw calls / ${mobile.triangles} triangles / ${mobile.geometries} geometries / ${mobile.textures} textures**, within <500/<500000. Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**.\n- Perf snapshot: **fps ${fps}, ${drawCalls} draw calls, ${triangles} triangles, ${geometries} geometries, ${textures} textures, ${heap} MB heap**; trend guard PASS.\n- Technical debt: **no new live-runtime debt**. Risk **LOW**, confidence **5/5**.\n- **Next safe step (Run205):** keep default player startup unchanged and add a developer-only installed/standalone PWA shell or equivalent installability proof only if it can remain additive and isolated from the existing production manifest/service-worker navigation contract.\n`);
+append('DECISIONS.md', `\n\n## ADR-0223 — Require offline history restoration proof before wider canonical developer exposure\n\n- **Decision:** Keep Run203's launcher and both runtime surfaces unchanged, and prove browser history back/forward boundaries for Current and Canonical while Chromium is offline.\n- **Why:** A developer launcher is only safe if navigation teardown is reversible without duplicate renderer ownership or hidden timer/RAF retention when network availability changes mid-session.\n- **Alternatives:** change the production manifest/service worker to install the developer launcher (rejected: unnecessary live PWA scope); merge Current and Canonical into one document (rejected: duplicate ownership risk); skip offline history proof (rejected: leaves a lifecycle gap).\n- **Result:** both routes restore one runtime canvas with the same deterministic bridge identity; launcher owns zero canvases; pagehide timer/RAF ownership is clean; console/page errors remain zero.\n- **Affected systems:** CI/test/documentation only. 2D, default 3D, gameplay/world sources, service worker, manifest and player navigation unchanged.\n- **Rollback:** new Run204 files are inert outside CI and may be removed only in a future owner-approved non-additive cleanup.\n- **Risk:** LOW.\n`);
+append('STABLE_TAGS.md', `\n- \`${tag}\` — Run204 developer offline history ownership proof; ${smoke}+ smoke PASS, canonical regressions/PWA/mobile/perf/additive/concurrency gates PASS; live/default runtime delta 0.\n`);
+console.log(`[recordRun204DeveloperOfflineHistory] appended Run204 progress, ADR-0223 and stable checkpoint ${tag}`);

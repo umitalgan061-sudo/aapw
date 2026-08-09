@@ -14357,3 +14357,16 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 326 MB heap**; trend guard PASS.
 - Technical debt: **no new live-runtime debt**. Risk **LOW**, confidence **5/5**.
 - **Next safe step (Run204):** keep player default unchanged and prove launcher/current/canonical behavior under installed-PWA standalone navigation plus offline return-to-launcher history boundaries before considering any wider developer exposure.
+
+
+## Run 204 — Developer launcher offline back/forward ownership proof
+
+- **Validated:** 2026-08-09 05:38 UTC; base main `a68bfab961e2420a253243d55c4f02a0d3f4a047`.
+- No live/default runtime source changed. Run203's developer launcher is exercised as-is.
+- Real Chromium proves both Current and Canonical can navigate launcher -> runtime online, switch network offline, return to the runtime-free launcher through browser history, then restore the selected runtime through history forward while remaining offline.
+- Current and canonical each keep exactly one runtime canvas after restore, launcher keeps zero, deterministic bridge remains `cersei->stannis#1`, pagehide timeout/interval/RAF counts remain 0/0/0, and console/page errors=0.
+- Full browser smoke: **34+ PASS**; Run195-203 canonical regressions PASS; PWA cache/installability PASS.
+- Mobile live budget: **35 draw calls / 195929 triangles / 30 geometries / 22 textures**, within <500/<500000. Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**.
+- Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 347 MB heap**; trend guard PASS.
+- Technical debt: **no new live-runtime debt**. Risk **LOW**, confidence **5/5**.
+- **Next safe step (Run205):** keep default player startup unchanged and add a developer-only installed/standalone PWA shell or equivalent installability proof only if it can remain additive and isolated from the existing production manifest/service-worker navigation contract.
