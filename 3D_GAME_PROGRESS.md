@@ -14421,3 +14421,15 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - World Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**. Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 368 MB heap**; trend guard PASS.
 - Technical debt: command feedback is intentionally screen-space and does not yet persist as a world-space formation/rally decal; that richer feedback can be added later without coupling it to the current marker. No new live-runtime architectural debt outside this isolated overlay. Risk **LOW**, confidence **5/5**.
 - **Next safe visible step (Run209):** keep the visible RTS track and improve camera/daylight readability with additive overrides or introduce richer reused guard/human silhouettes under LOD/instancing discipline, while preserving current budgets and deterministic commands.
+
+
+## Run 209 — RTS close/overview camera framing presets
+
+- **Validated:** 2026-08-09 09:29 UTC; base main `9b6e366d3a36cb79c9e288532b6077d9a8c926fd`.
+- Added two strictly additive RTS camera framing controls to `rts.html`: **Yakın Komuta** focuses the selected army then applies bounded OrbitControls zoom-in steps; **Genel Görünüm** applies bounded zoom-out steps. Keyboard shortcuts `1`/`2` mirror the buttons.
+- The implementation reuses the already-exposed `window.__WESTEROS_RTS__.focusArmy()` seam and the canvas' existing wheel/OrbitControls path; no army, world-generation, deterministic movement, 2D, character runtime, service-worker cache list, or asset manifest changes were made. Listeners/buttons are disposed on `pagehide`.
+- Real Chromium visual proof: desktop close + desktop overview + mobile close screenshots; console/page errors **0**. Desktop close render: **66 draw calls / 821483 triangles**; desktop overview: **66 / 821483** (<2500/<5M). RTS mobile close: **28 / 202770** (<500/<500000).
+- Full legacy browser smoke: **34+ PASS**; seeded/world-reference/terrain/road regressions PASS; production PWA cache/installability PASS. Existing mobile live budget: **35 draw calls / 195929 triangles / 30 geometries / 22 textures**.
+- World Coverage unchanged: desktop **96.2%**; mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**. Perf snapshot: **fps 1, 51 draw calls, 688296 triangles, 49 geometries, 17 textures, 347 MB heap**; trend guard PASS.
+- Technical debt: preset zoom intentionally delegates to OrbitControls' existing wheel-event semantics rather than exposing camera distance through a new runtime API. This keeps the change isolated/additive but couples the preset to the established input seam; browser regression coverage now protects that contract. Risk **LOW**, confidence **5/5**.
+- **Next safe visible step (Run210):** stay on visible RTS work and improve daylight/contrast readability or add richer reused human/guard silhouettes with LOD/instancing, without touching owner-gated mobile radius/world-event constraints.

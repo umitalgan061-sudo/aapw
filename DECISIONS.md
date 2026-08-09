@@ -15321,3 +15321,15 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Rollback:** the additive inline module block is isolated and can be removed only in a future owner-approved non-additive cleanup; leaving it disabled is not necessary because it has no gameplay-state ownership.
 - **Future-phase impact:** a later world-space rally/formation visualization can coexist with or supersede this acknowledgement layer without changing command determinism.
 - **Risk:** LOW.
+
+
+## ADR-0228 — Add RTS camera presets through the existing focus/zoom input seam
+
+- **Decision:** Implement close/overview RTS framing as additive UI controls in `rts.html`, reusing `window.__WESTEROS_RTS__.focusArmy()` plus the canvas' existing wheel-driven OrbitControls zoom path.
+- **Why:** Run208 identified camera/readability as the next safe visible track. The additive-only rule forbids rewriting established camera code, while the RTS runtime already exposes a safe focus seam and a proven zoom input path.
+- **Alternatives:** edit `rtsGame.js` camera constants (rejected: modifies existing source lines); expose a new camera-distance API in the RTS runtime (deferred: requires established-module changes); CSS-only readability polish (rejected for this run because it would not materially improve tactical framing).
+- **Result:** players can switch between a closer army-centric tactical view and a wider battlefield view on desktop/mobile, with 1/2 keyboard shortcuts on desktop; deterministic army/world state is untouched.
+- **Affected systems:** `rts.html` additive UI/input overlay plus Run209 test/CI/documentation only. 2D, character-mode, army movement, world generation and PWA cache membership remain unchanged.
+- **Rollback:** the appended camera-preset module is isolated and can be removed only in a future owner-approved non-additive cleanup; no persistent state migration exists.
+- **Future-phase impact:** a later explicit camera-controller API may supersede this input seam, but current presets provide immediate AoE-style framing without blocking that architecture.
+- **Risk:** LOW.
