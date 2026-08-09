@@ -1,0 +1,111 @@
+name: Run 202 Dev Fallback Lifecycle
+
+on:
+  push:
+    branches: [agent/run202-dev-fallback-lifecycle]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: 5ed575fb501ed00b55c96c47905ecd03f196417d
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Session snapshot and additive-only gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F 'Run199 platform-control superseding note' GOVERNANCE.md
+          grep -F 'run 142' QUESTIONS_FOR_OWNER.md
+          grep -F 'run 145' QUESTIONS_FOR_OWNER.md
+          grep -F 'run 149' QUESTIONS_FOR_OWNER.md
+          node --check scripts/checkRun202CanonicalDevFallbackLifecycle.js
+          node --check scripts/run201CanonicalDevBoot.mjs
+          node --check scripts/run200CanonicalStartupSelectorShadow.mjs
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git diff --quiet "$BASE_SHA" HEAD -- src game3d.html game3d.css service-worker.js index.html script.js style.css manifest.json assets_manifest.json canonical-dev.html scripts/run201CanonicalDevBoot.mjs scripts/run200CanonicalStartupSelectorShadow.mjs
+      - name: Full browser smoke and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run202-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run202-smoke.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run202-smoke.log" | grep -F 'zero console/page errors'
+      - name: Run202 developer fallback and lifecycle proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun202CanonicalDevFallbackLifecycle.js
+          test -s artifacts/run202-canonical-dev-fallback-lifecycle/proof.json
+      - name: Canonical and deterministic regression chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun201CanonicalDevOffline.js
+          node scripts/checkRun200CanonicalStartupSelector.js
+          node scripts/checkOptInMigrationControllerShadow.js
+          node scripts/checkCurrentRuntimeIntegrationShadow.js
+          node scripts/checkCurrentTickOwnershipShadow.js
+          node scripts/checkCurrentLifecycleReinitShadow.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+      - name: PWA cache and installability
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+      - name: Mobile streaming and performance budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run202-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run202-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          node -e 'const x=JSON.parse(process.argv[1]);if(!(x.drawCalls<500&&x.triangles<500000))process.exit(1)' "$LIVE"
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run202
+          node scripts/analyzePerfTrend.js
+      - name: Senior review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkRun202CanonicalDevFallbackLifecycle.js .github/workflows/run202-dev-fallback-lifecycle.yml; then exit 1; fi
+          node scripts/checkRun202CanonicalDevFallbackLifecycle.js >/dev/null
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
