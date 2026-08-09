@@ -16,6 +16,7 @@ const REQUIRED_CHECKS = Object.freeze([
   'scripts/materializeRun216TransformControls.js',
   'scripts/materializeRun216ServiceWorkerCache.js',
   'scripts/checkRun216TransformControlsCoreContract.js',
+  'scripts/checkRun216ServiceWorkerMaterializer.js',
   'scripts/checkRun216WorldEditorTransformControls.js',
   'scripts/prepareRun216TransformControlsLocal.js'
 ]);
@@ -97,6 +98,7 @@ function main() {
   run(process.execPath, ['scripts/materializeRun216ServiceWorkerCache.js', '--verify-only']);
   checkSyntax();
   run(process.execPath, ['scripts/checkRun216TransformControlsCoreContract.js']);
+  run(process.execPath, ['scripts/checkRun216ServiceWorkerMaterializer.js']);
   verifyWorkingTreeAdditiveServiceWorker();
   run('git', ['diff', '--check']);
 
