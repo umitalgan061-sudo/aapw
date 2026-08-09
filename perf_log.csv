@@ -164,3 +164,4 @@ date,run,fps,drawCalls,triangles,geometries,textures,jsHeapUsedMB
 run210,2026-08-09,desktop-rts,,66,821483,,,,"owner surface; 529 textured chunks; 3072 source -> 1024 runtime; console/page errors 0"
 run210,2026-08-09,mobile-rts,,28,202770,,,,"owner surface; 90 textured chunks; 3072 source -> 512 runtime; console/page errors 0"
 2026-08-09,run211-rts-shortcuts,1,51,688296,49,17,347
+2026-08-09,run212-rts-command-status,1,66,821483,,,,"DOM-only command status; no renderer objects/assets added; focused desktop RTS budget PASS"
