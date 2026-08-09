@@ -8,6 +8,7 @@ on:
       - '.github/workflows/run215-world-editor-transform-controls.yml'
       - 'src/3d/editor/worldEditor.js'
       - 'scripts/checkRun215WorldEditorTransformControls.js'
+      - 'editor.html'
   workflow_dispatch:
 
 permissions:
@@ -53,7 +54,7 @@ jobs:
           node scripts/checkWorldEditorFoundation.js
           node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
           git diff --check
-          git diff --numstat "$(git rev-parse origin/main)" -- src/3d/editor/worldEditor.js scripts/checkRun215WorldEditorTransformControls.js .github/workflows/run215-world-editor-transform-controls.yml | awk '$2 != 0 { exit 1 }'
+          git diff --numstat "$(git rev-parse origin/main)" -- editor.html src/3d/editor/worldEditor.js scripts/checkRun215WorldEditorTransformControls.js .github/workflows/run215-world-editor-transform-controls.yml | awk '$2 != 0 { exit 1 }'
       - name: Existing editor baseline proof
         run: node scripts/checkRun214WorldEditorFoundation.js
       - name: Focused transform controls desktop mobile proof
@@ -135,7 +136,7 @@ jobs:
           test "$CURRENT_MAIN" = "$(git merge-base HEAD origin/main)"
           node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
           git diff --check
-          git diff --numstat "$CURRENT_MAIN" -- src/3d/editor/worldEditor.js scripts/checkRun215WorldEditorTransformControls.js .github/workflows/run215-world-editor-transform-controls.yml | awk '$2 != 0 { exit 1 }'
+          git diff --numstat "$CURRENT_MAIN" -- editor.html src/3d/editor/worldEditor.js scripts/checkRun215WorldEditorTransformControls.js .github/workflows/run215-world-editor-transform-controls.yml | awk '$2 != 0 { exit 1 }'
       - name: Commit verified Run215 records and stable checkpoint
         run: |
           set -euo pipefail
