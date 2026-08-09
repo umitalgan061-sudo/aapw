@@ -1,0 +1,66 @@
+name: Run 210 Surface Inspection
+
+on:
+  push:
+    branches: [agent/run210-owner-surface-texture]
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_SHA: 3f64c46e37f1774fe11ed1f26d877e71ca64265e
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Run 208 — RTS destination-command visual feedback' 3D_GAME_PROGRESS.md
+          grep -F 'ADR-0227' DECISIONS.md
+          grep -F 'run 145' QUESTIONS_FOR_OWNER.md
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+      - name: Install inspection dependency outside project manifest
+        run: python -m pip install --disable-pip-version-check Pillow==11.3.0
+      - name: Inspect uploaded surface package
+        run: python scripts/inspectRun210SurfaceAssets.py | tee "$RUNNER_TEMP/run210-surface-report.log"
+      - name: Structural assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('artifacts/run210-surface-inspection/report.json').read_text(encoding='utf-8'))
+          assert r['assessment']['mtlReferencesOverlay'] is True
+          assert r['obj']['vertices'] > 0
+          assert r['obj']['faces'] > 0
+          assert r['overlay']['width'] > 0 and r['overlay']['height'] > 0
+          print('[run210] overlay', r['overlay']['width'], 'x', r['overlay']['height'], 'mipMiB=', r['overlay']['decodedRgbaWithMipmapsMiB'])
+          print('[run210] obj vertices=', r['obj']['vertices'], 'faces=', r['obj']['faces'], 'vt=', r['obj']['textureCoordinates'], 'facesWithUv=', r['obj']['facesWithUv'])
+          print('[run210] assessment=', r['assessment'])
+          PY
+      - name: Final additive/concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+      - name: Upload surface inspection proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run210-surface-inspection
+          path: artifacts/run210-surface-inspection
+          if-no-files-found: error
