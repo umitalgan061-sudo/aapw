@@ -43,5 +43,45 @@
     if (loading) loading.textContent = 'RTS modu başlatılamadı. Sayfayı yenilemeyi deneyin.';
   });
 </script>
+<script type="module">
+  const canvas = document.getElementById('rts-canvas');
+  const moveButton = document.getElementById('rts-move-command');
+  const marker = document.createElement('div');
+  marker.id = 'rts-command-feedback';
+  marker.setAttribute('aria-hidden', 'true');
+  marker.innerHTML = '<span></span><span></span><span></span><span></span>';
+  marker.style.cssText = 'position:fixed;z-index:35;width:46px;height:46px;pointer-events:none;opacity:0;transform:translate(-50%,-50%) scale(.72);transition:opacity .16s ease,transform .16s ease;filter:drop-shadow(0 0 10px rgba(229,194,102,.45));';
+  for (const [index, arm] of Array.from(marker.children).entries()) {
+    arm.style.cssText = `position:absolute;left:50%;top:50%;width:17px;height:2px;background:#e5c266;transform-origin:0 50%;transform:rotate(${index * 90}deg) translateX(7px);box-shadow:0 0 0 1px rgba(24,19,11,.6);`;
+  }
+  document.body.appendChild(marker);
+  let hideTimer = 0;
+  const showCommandFeedback = (event) => {
+    window.clearTimeout(hideTimer);
+    marker.style.left = `${event.clientX}px`;
+    marker.style.top = `${event.clientY}px`;
+    marker.style.opacity = '1';
+    marker.style.transform = 'translate(-50%,-50%) scale(1)';
+    marker.dataset.visible = 'true';
+    hideTimer = window.setTimeout(() => {
+      marker.style.opacity = '0';
+      marker.style.transform = 'translate(-50%,-50%) scale(1.3)';
+      marker.dataset.visible = 'false';
+    }, 900);
+  };
+  const onContextMenu = (event) => showCommandFeedback(event);
+  const onPointerUpCapture = (event) => {
+    if (event.button === 0 && moveButton?.classList.contains('is-active')) showCommandFeedback(event);
+  };
+  const disposeCommandFeedback = () => {
+    window.clearTimeout(hideTimer);
+    canvas?.removeEventListener('contextmenu', onContextMenu);
+    canvas?.removeEventListener('pointerup', onPointerUpCapture, true);
+    marker.remove();
+  };
+  canvas?.addEventListener('contextmenu', onContextMenu);
+  canvas?.addEventListener('pointerup', onPointerUpCapture, true);
+  window.addEventListener('pagehide', disposeCommandFeedback, { once: true });
+</script>
 </body>
 </html>
