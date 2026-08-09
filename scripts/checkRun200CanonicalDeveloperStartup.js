@@ -39,7 +39,17 @@ function startServer() {
 }
 
 async function waitCanonical(page) {
-  await page.waitForFunction(() => window.__WESTEROS_CANONICAL_DEV__?.getMode?.() === 'canonical', null, { timeout: 90000 });
+  await page.waitForFunction(() => Boolean(window.__WESTEROS_CANONICAL_DEV__), null, { timeout: 90000 });
+  const diagnostic = await page.evaluate(() => {
+    const api = window.__WESTEROS_CANONICAL_DEV__;
+    return {
+      mode: api?.getMode?.() || null,
+      activationError: api?.getActivationError?.() || null,
+      capturedState: Boolean(window.__WESTEROS_RUN200_RUNTIME_STATE__),
+      bridgeId: api?.getBridgeId?.() || null,
+    };
+  });
+  assert(diagnostic.mode === 'canonical', `canonical developer startup did not activate: ${JSON.stringify(diagnostic)}`);
   await page.waitForTimeout(350);
 }
 
@@ -52,8 +62,14 @@ async function main() {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const consoleErrors = [];
-  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
-  page.on('pageerror', (error) => consoleErrors.push(String(error)));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+    if (message.type() === 'error' || message.type() === 'warning') console.log(`[run200-browser-${message.type()}] ${message.text()}`);
+  });
+  page.on('pageerror', (error) => {
+    consoleErrors.push(String(error));
+    console.log(`[run200-pageerror] ${String(error)}`);
+  });
   const origin = `http://127.0.0.1:${server.address().port}`;
 
   try {
