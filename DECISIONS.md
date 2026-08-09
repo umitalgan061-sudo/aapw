@@ -15215,3 +15215,19 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Sıradaki migration preflight ayrı opt-in developer startup entry pointinde canonical source-of-truth'u boot anından seçebilir. Current fallback ve offline/PWA boot eşdeğerliği kanıtlanmadan default `game3d.html` startup değişmez.
 
 **Geri alma planı:** Live consumer yoktur. Run198 checker/CI kaldırılmadan da runtime etkisi sıfırdır; contract yanlışlanırsa yeni versioned checker eklenir, current runtime ve Run197/Run196 byte-unchanged kalır.
+
+
+## ADR-0219 — Startup source selection must be explicit and reversible before a developer canonical entry point exists
+**Karar:** Run200, default runtimea bağlanmayan preflight-only startup selector ekler. Varsayılan kaynak current kalır; canonical yalnız açık `worldSource=canonical-dev` isteğiyle seçilebilir. Canonical activation başarısızsa selector current runtimeı korur; başarılı activation rollback ile current ownership'a döner.
+
+**Neden:** Run195-198 replacement, tick ve lifecycle sınırlarını kanıtladı; fakat doğrudan default startup switch yapmak bu kanıtı boot policy kararıyla karıştırırdı. Önce seçim semantiğinin deterministik ve fail-closed/current-fallback olması ayrı doğrulanmalıdır.
+
+**Alternatifler:** (1) Default game3d.html'i canonical yapmak: reddedildi, owner kararı ve offline lifecycle kanıtı yok. (2) Bilinmeyen query değerlerini canonical saymak: reddedildi, tahmin yasağına aykırı. (3) Activation hatasında bootu tamamen düşürmek: reddedildi, mevcut çalışan current dünya güvenli fallback.
+
+**Sonuç:** Developer entry point bir sonraki bağımsız adım olabilir; live runtime/PWA graph bu ADR'de değişmez.
+
+**Etkilenen sistemler:** yalnız scripts/ preflight ve CI kayıtları; live 2D/3D/PWA kaynakları yok.
+
+**Geri alma planı:** Run200 yeni preflight dosyalarını kullanmayı bırak; default runtime zaten değişmediği için oyuncu rollback'i gerekmez.
+
+**Risk:** LOW.
