@@ -73,6 +73,7 @@ async function main() {
 			return required.every(Boolean);
 		}, null, { timeout: 180000 });
 		await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, { timeout: 30000 });
+		errors.length = 0;
 		await context.setOffline(true);
 		await page.goto(`${base}/rts.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 		await page.waitForSelector('body[data-rts-ready="true"]', { timeout: 180000 });
