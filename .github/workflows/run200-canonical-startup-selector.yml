@@ -1,0 +1,153 @@
+name: Run 200 Canonical Startup Selector
+
+on:
+  push:
+    branches: [chatgpt/run200-canonical-startup-selector]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: 115724f77728cda79a2bed3e03403a7562c809ce
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F '## Run 199 — Overdue periodic platform/PWA/WebGL audit' 3D_GAME_PROGRESS.md
+          grep -F '## ADR-0218 — Canonical ownership must survive ordered pagehide teardown and a clean second init before any startup source-of-truth switch' DECISIONS.md
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 200 '; then echo 'Run200 occupied'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0219 '; then echo 'ADR-0219 occupied'; exit 1; fi
+          node --check scripts/checkRun200CanonicalStartupSelector.js
+          node --check scripts/recordRun200CanonicalStartupSelector.js
+          node --check scripts/run200CanonicalStartupSelectorShadow.mjs
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git diff --quiet "$BASE_SHA" HEAD -- src game3d.html game3d.css service-worker.js index.html script.js style.css manifest.json assets_manifest.json
+      - name: Baseline full browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run200-smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run200-smoke.log")"
+          test "$PASS_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run200-smoke.log" | grep -F 'zero console/page errors'
+          echo "RUN200_SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+      - name: Run200 startup selector proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun200CanonicalStartupSelector.js | tee "$RUNNER_TEMP/run200-selector.log"
+          SUMMARY="$(grep '^\[checkRun200CanonicalStartupSelector\] PASS:' "$RUNNER_TEMP/run200-selector.log" | tail -n1 | sed 's/^\[checkRun200CanonicalStartupSelector\] PASS: //')"
+          PROOF="$(grep '^\[checkRun200CanonicalStartupSelector\] PROOF:' "$RUNNER_TEMP/run200-selector.log" | tail -n1 | sed 's/^\[checkRun200CanonicalStartupSelector\] PROOF: //')"
+          test -n "$SUMMARY"; test -n "$PROOF"; test -s artifacts/run200-canonical-startup-selector/proof.json
+          echo "RUN200_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+          echo "RUN200_PROOF_JSON=$PROOF" >> "$GITHUB_ENV"
+      - name: Canonical migration regression chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkOptInMigrationControllerShadow.js
+          node scripts/checkCurrentRuntimeIntegrationShadow.js
+          node scripts/checkCurrentTickOwnershipShadow.js
+          node scripts/checkCurrentLifecycleReinitShadow.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+      - name: PWA cache and installability
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+      - name: Mobile streaming and performance budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run200-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run200-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$LIVE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]);process.stdout.write(String(x.drawCalls))' "$LIVE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]);process.stdout.write(String(x.triangles))' "$LIVE")"
+          test "$DRAW" -lt 500; test "$TRI" -lt 500000
+          echo "RUN200_LIVE_MOBILE_JSON=$LIVE" >> "$GITHUB_ENV"
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run200 | tee "$RUNNER_TEMP/run200-perf.log"
+          ROW="$(tail -n1 perf_log.csv)"
+          echo "$ROW" | grep -F ',run200,'
+          echo "RUN200_PERF_ROW=$ROW" >> "$GITHUB_ENV"
+          node scripts/analyzePerfTrend.js
+      - name: Senior review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkRun200CanonicalStartupSelector.js scripts/run200CanonicalStartupSelectorShadow.mjs scripts/recordRun200CanonicalStartupSelector.js; then exit 1; fi
+          node scripts/checkRun200CanonicalStartupSelector.js >/dev/null
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git diff --quiet "$BASE_SHA" HEAD -- src game3d.html game3d.css service-worker.js index.html script.js style.css manifest.json assets_manifest.json
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 200 '; then echo 'Run200 occupied before publish'; exit 1; fi
+          if git show origin/main:DECISIONS.md | grep -q '^## ADR-0219 '; then echo 'ADR-0219 occupied before publish'; exit 1; fi
+      - name: Upload proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: run200-canonical-startup-selector
+          path: artifacts/run200-canonical-startup-selector/proof.json
+          if-no-files-found: error
+      - name: Record validated checkpoint on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN200_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN200_STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          export RUN200_BASE_SHA="$BASE_SHA"
+          export RUN200_SUMMARY RUN200_PROOF_JSON RUN200_SMOKE_PASS_COUNT RUN200_LIVE_MOBILE_JSON RUN200_PERF_ROW
+          node scripts/recordRun200CanonicalStartupSelector.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git commit -m 'docs(run200): record validated canonical startup selector checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git tag "$RUN200_STABLE_TAG"
+          git push origin "$RUN200_STABLE_TAG" || echo '[run200] stable tag push unavailable; STABLE_TAGS record retained.'
