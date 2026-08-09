@@ -1,0 +1,184 @@
+name: Run 200 Canonical Developer Startup
+
+on:
+  push:
+    branches: [chatgpt/run200-canonical-dev-startup]
+    paths:
+      - 'game3d-canonical-dev.html'
+      - 'dev/run200SceneManagerProxy.js'
+      - 'dev/run200CanonicalStartup.js'
+      - 'scripts/checkRun200CanonicalDeveloperStartup.js'
+      - 'scripts/recordRun200CanonicalDeveloperStartup.js'
+      - '.github/workflows/run200-canonical-dev-startup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      BASE_SHA: 115724f77728cda79a2bed3e03403a7562c809ce
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and initial concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F '## Run 199 — Overdue periodic platform/PWA/WebGL audit' 3D_GAME_PROGRESS.md
+          grep -F 'ADR-0218' DECISIONS.md
+          grep -F 'run 145' QUESTIONS_FOR_OWNER.md
+          grep -F 'run 149' QUESTIONS_FOR_OWNER.md
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 200 '; then echo 'Run200 already occupied on main'; exit 1; fi
+          node --check dev/run200SceneManagerProxy.js
+          node --check dev/run200CanonicalStartup.js
+          node --check scripts/checkRun200CanonicalDeveloperStartup.js
+          node --check scripts/recordRun200CanonicalDeveloperStartup.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git diff --quiet "$BASE_SHA" HEAD -- src game3d.html game3d.css service-worker.js index.html script.js style.css manifest.json assets_manifest.json
+          test ! -f package.json
+
+      - name: Run200 canonical developer startup proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun200CanonicalDeveloperStartup.js | tee "$RUNNER_TEMP/run200-startup.log"
+          SUMMARY="$(grep '^\[checkRun200CanonicalDeveloperStartup\] PASS:' "$RUNNER_TEMP/run200-startup.log" | tail -n1 | sed 's/^\[checkRun200CanonicalDeveloperStartup\] PASS: //')"
+          test -n "$SUMMARY"
+          echo "RUN200_STARTUP_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+
+      - name: Full browser smoke and canonical regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run200-smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run200-smoke.log")"
+          test "$PASS_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run200-smoke.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run200-smoke.log"; then exit 1; fi
+          echo "RUN200_SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+          node scripts/checkOptInMigrationControllerShadow.js
+          node scripts/checkCurrentRuntimeIntegrationShadow.js
+          node scripts/checkCurrentTickOwnershipShadow.js
+          node scripts/checkCurrentLifecycleReinitShadow.js
+
+      - name: PWA cache determinism accessibility and input gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkControlsHelpAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkMobileJumpControl.js
+          node scripts/checkJumpArcContract.js
+
+      - name: Mobile streaming LOD and performance budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run200-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run200-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$LIVE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$LIVE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$LIVE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+          echo "RUN200_LIVE_MOBILE_JSON=$LIVE" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run200 | tee "$RUNNER_TEMP/run200-perf.log"
+          ROW="$(tail -n1 perf_log.csv)"
+          echo "$ROW" | grep -F ',run200,'
+          echo "RUN200_PERF_ROW=$ROW" >> "$GITHUB_ENV"
+          node scripts/analyzePerfTrend.js
+
+      - name: Upload Run200 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run200-canonical-developer-startup-evidence
+          path: artifacts/run200-canonical-developer-startup/
+          if-no-files-found: error
+
+      - name: Senior self review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' dev/run200SceneManagerProxy.js dev/run200CanonicalStartup.js scripts/checkRun200CanonicalDeveloperStartup.js scripts/recordRun200CanonicalDeveloperStartup.js; then exit 1; fi
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git diff --quiet "$BASE_SHA" HEAD -- src game3d.html game3d.css service-worker.js index.html script.js style.css manifest.json assets_manifest.json
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 200 '; then echo 'Run200 occupied before publish'; exit 1; fi
+
+      - name: Record validated Run200 checkpoint on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN200_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN200_STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          export RUN200_BASE_SHA="$BASE_SHA"
+          export RUN200_SMOKE_PASS_COUNT RUN200_STARTUP_SUMMARY RUN200_LIVE_MOBILE_JSON RUN200_PERF_ROW
+          node scripts/recordRun200CanonicalDeveloperStartup.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git commit -m 'docs(run200): record validated canonical developer startup'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git show origin/main:3D_GAME_PROGRESS.md | grep -q '^## Run 200 '; then echo 'Run200 occupied immediately before branch publish'; exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git tag "$RUN200_STABLE_TAG"
+          git push origin "$RUN200_STABLE_TAG" || echo '[run200] stable tag push unavailable; STABLE_TAGS record retained per governance known limitation.'
