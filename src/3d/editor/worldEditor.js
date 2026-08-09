@@ -345,3 +345,82 @@ renderer.setAnimationLoop(() => {
   controls.update();
   renderer.render(scene, camera);
 });
+
+// Run216 additive workspace bridge: exposes the existing editor ownership without replacing it.
+async function loadWorkspaceSceneData(data, externalAssets = []) {
+  const validated = validateEditorScene(data);
+  const assetsById = new Map(EDITOR_ASSETS.map((asset) => [asset.id, asset]));
+  for (const asset of externalAssets) if (asset?.id) assetsById.set(asset.id, asset);
+  const resolveAsset = (assetId) => assetsById.get(assetId) || findEditorAsset(assetId);
+
+  instanceManager.clear();
+  for (const object of [...editableObjects]) {
+    scene.remove(object);
+    editableObjects.splice(editableObjects.indexOf(object), 1);
+  }
+  for (const record of validated.objects) {
+    const asset = resolveAsset(record.asset);
+    if (!asset) continue;
+    const object = await addAsset(asset, new THREE.Vector3(...record.transform.position));
+    if (!object) continue;
+    object.userData.editorId = record.id;
+    object.name = record.name;
+    object.rotation.set(...record.transform.rotation);
+    object.scale.set(...record.transform.scale);
+  }
+  await rehydrateInstanceGroups(validated.instanceGroups, instanceManager, resolveAsset);
+  $('we-grid-toggle').checked = validated.editor?.gridVisible !== false;
+  $('we-snap-toggle').checked = validated.editor?.snapEnabled !== false;
+  $('we-snap-size').value = Number(validated.editor?.snapSize) || 1;
+  grid.visible = $('we-grid-toggle').checked;
+  selectObject(null);
+  toast('Workspace scene yüklendi.');
+  return validated;
+}
+
+function serializeWorkspaceScene() {
+  return serializeEditorScene(editableObjects, instanceManager.serialize(), editorState());
+}
+
+function selectWorkspaceAsset(asset) {
+  if (!asset?.id) return false;
+  selectedAssetId = asset.id;
+  return true;
+}
+
+async function addWorkspaceAsset(asset, position) {
+  if (!asset?.id) throw new Error('Geçerli asset descriptor gerekli.');
+  selectedAssetId = asset.id;
+  const target = Array.isArray(position) ? new THREE.Vector3(...position) : controls.target.clone();
+  return addAsset(asset, target);
+}
+
+async function createWorkspaceFormation(asset, rows, columns, spacing) {
+  if (!asset?.id) throw new Error('Geçerli asset descriptor gerekli.');
+  selectedAssetId = asset.id;
+  const safeRows = Math.max(1, Math.min(100, Number(rows) || 1));
+  const safeColumns = Math.max(1, Math.min(100, Number(columns) || 1));
+  const safeSpacing = Math.max(0.25, Number(spacing) || 1.5);
+  const record = await instanceManager.createFormation(asset, safeRows, safeColumns, safeSpacing, controls.target.clone().setY(0));
+  selectObject(record.object);
+  return record;
+}
+
+window.__WESTEROS_WORLD_EDITOR__ = Object.freeze({
+  serializeScene: serializeWorkspaceScene,
+  loadSceneData: loadWorkspaceSceneData,
+  selectAssetDescriptor: selectWorkspaceAsset,
+  addAssetDescriptor: addWorkspaceAsset,
+  createFormation: createWorkspaceFormation,
+  focusSelected,
+  toast,
+  getSnapshot: () => ({
+    editableObjectCount: editableObjects.length,
+    instanceGroupCount: instanceManager.groups.length,
+    selectedObjectId: selectedObject?.userData?.editorId || null,
+    selectedAssetId,
+    gridVisible: grid.visible,
+    snap: editorState(),
+  }),
+});
+document.body.dataset.worldEditorApi = 'ready';
