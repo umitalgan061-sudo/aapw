@@ -62,6 +62,14 @@ async function main() {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const consoleErrors = [];
+  const httpErrors = [];
+  page.on('response', (response) => {
+    if (response.status() >= 400) {
+      const entry = `${response.status()} ${response.url()}`;
+      httpErrors.push(entry);
+      console.log(`[run200-http-error] ${entry}`);
+    }
+  });
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
     if (message.type() === 'error' || message.type() === 'warning') console.log(`[run200-browser-${message.type()}] ${message.text()}`);
@@ -89,7 +97,7 @@ async function main() {
     const online = await page.evaluate(() => {
       const api = window.__WESTEROS_CANONICAL_DEV__;
       const state = api.getState();
-      window.__RUN200_ORIGINAL_PLAYER_UPDATE__ = state.player.update;
+      window.__RUN200_CANONICAL_PLAYER_UPDATE__ = state.player.update;
       const stats = api.getFreezeStats();
       return {
         requestedBeforeInit: api.requestedBeforeInit,
@@ -127,15 +135,15 @@ async function main() {
       return {
         mode: api.getMode(),
         counts: api.getCounts(),
-        playerMethodRestored: state.player.update === window.__RUN200_ORIGINAL_PLAYER_UPDATE__,
+        playerMethodChangedFromCanonicalPause: state.player.update !== window.__RUN200_CANONICAL_PLAYER_UPDATE__,
         transitions: api.getTransitions(),
         rollbackKeys: Object.keys(result?.freezeStats || {}),
       };
     });
     assert(rollback.mode === 'current', `rollback mode expected current, got ${rollback.mode}`);
-    assert(rollback.playerMethodRestored, 'player update method identity was not restored on rollback');
+    assert(rollback.playerMethodChangedFromCanonicalPause, 'player update remained the canonical pause wrapper after rollback');
     assert(rollback.counts.rollbackCount === 1, 'rollback count expected 1');
-    assert(rollback.transitions.some((entry) => entry.type === 'rollback' && entry.methodIdentityRestored), 'rollback transition did not prove method restoration');
+    assert(rollback.transitions.some((entry) => entry.type === 'rollback' && entry.methodIdentityRestored), 'Run197 rollback transition did not prove exact pre-freeze method identity restoration');
     assert(rollback.rollbackKeys.length >= 5, 'rollback did not report the frozen simulation set');
 
     const reactivated = await page.evaluate(() => {
@@ -178,7 +186,7 @@ async function main() {
     await page.screenshot({ path: path.join(OUT, 'canonical-offline.png'), fullPage: true });
     await context.setOffline(false);
 
-    assert(consoleErrors.length === 0, `console/page errors: ${JSON.stringify(consoleErrors)}`);
+    assert(consoleErrors.length === 0, `console/page errors: ${JSON.stringify(consoleErrors)}; httpErrors=${JSON.stringify(httpErrors)}`);
     const report = {
       version: 'run200-canonical-developer-startup-v1',
       online,
@@ -187,6 +195,7 @@ async function main() {
       cached,
       offline,
       consoleErrors,
+      httpErrors,
     };
     fs.writeFileSync(path.join(OUT, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
     console.log(`[checkRun200CanonicalDeveloperStartup] PASS: ${JSON.stringify({ bridgeId: online.bridgeId, frozen: Object.keys(online.freezeStats).length, rollback: rollback.mode, offline: offline.mode, consoleErrors: consoleErrors.length })}`);
