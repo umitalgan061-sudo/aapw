@@ -282,3 +282,5 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
 
 
 - **✅ ÇÖZÜLDÜ (run 188, ADR-0208 → run 191, ADR-0211) Canonical full-reference yol/su politikası:** Owner 2026-08-08 tarihinde doğrudan karar verdi: "Eğer derelerden ve göllerden yol geçiyorsa oraya taş kemer köprü yap. Ortaçağa uygun dokusu olsun." Buna göre temporary default NONE sona erdi ve policy **STONE ARCH BRIDGE** oldu. Ferry, dry-reroute veya edge-bazlı mixed policy varsayılmayacak; canonical yol suyu kestiğinde bağlantı deterministic ortaçağ taş kemer köprüyle korunacak. Eski run188 soru satırı kayıt amacıyla silinmedi; bu çözüm girdisi onu supersede eder.
+
+- **✅ ÇÖZÜLDÜ (run 210, ADR-0228) Uploaded `yüzey` package should be used as the current ground texture?** Owner answered directly on 2026-08-09: merge it and make the game's current ground texture look like this. Run210 therefore activates the proven `overlay.png` detail layer for RTS. Separate factual provenance remains unknown (embedded files contain no reliable source URL/author/license), so no third-party license was guessed; public/commercial redistribution remains gated until that provenance is supplied.

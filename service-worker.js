@@ -354,3 +354,14 @@ self.addEventListener('notificationclick', (event) => {
         })
     );
 });
+// Run210 owner surface offline cache: additive-only extension for the current RTS terrain detail.
+// The module belongs to the shell import graph; the PNG belongs to MEDIA_CACHE because image fetches
+// are cache-first there. Keeping the large source image out of SHELL_CACHE also preserves cache roles.
+GAME3D_SHELL_FILES.push('./src/3d/rts/rtsSurfaceTexture.js');
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(MEDIA_CACHE)
+            .then(cache => cache.add('./assets/textures/yüzey/overlay/overlay.png'))
+            .catch(error => console.warn('[SW] Run210 surface media cache skipped:', error))
+    );
+});

@@ -15321,3 +15321,18 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Rollback:** the additive inline module block is isolated and can be removed only in a future owner-approved non-additive cleanup; leaving it disabled is not necessary because it has no gameplay-state ownership.
 - **Future-phase impact:** a later world-space rally/formation visualization can coexist with or supersede this acknowledgement layer without changing command determinism.
 - **Risk:** LOW.
+
+## ADR-0228 — Activate the owner-uploaded surface as the current RTS terrain detail while keeping provenance as a distribution gate
+**Risk:** MEDIUM
+
+**Decision:** Following the project owner's direct 2026-08-09 instruction to merge and use the uploaded surface, `assets/textures/yüzey/overlay/overlay.png` becomes the current RTS terrain detail layer. It is applied as a low-strength (0.24) world-space texture over existing deterministic terrain rather than replacing terrain geometry. Desktop derives a 1024² runtime texture and coarse-pointer/mobile derives 512². The service worker precaches the new module in the shell cache and the image in the media cache so a fresh install can boot the textured RTS offline.
+
+**Why:** Real Chromium proof showed the uploaded visual can materially break up flat procedural ground while preserving the existing medieval terrain palette and all world/gameplay geometry. World-space UVs keep chunk boundaries continuous. Adaptive downsampling keeps the layer comfortably inside desktop/mobile rendering budgets. The owner explicitly chose this visual as the current ground appearance.
+
+**Alternatives considered:** (1) Leave the uploaded files unused pending provenance: technically safest for redistribution but conflicts with the owner's explicit current private-project use decision. (2) Import `model.obj`/`model.mtl` as replacement terrain: rejected because the OBJ export has no usable UV contract and replacing geometry would unnecessarily risk height, road, settlement, water and physics determinism. (3) Display the 3072² aerial image raw: rejected because it is needlessly expensive and visually exposes modern-looking aerial detail too strongly.
+
+**Consequences:** RTS ground now has the owner-selected surface detail online and after fresh-install offline PWA boot. Terrain heights, seeded generation, roads, castles, water and movement remain unchanged. Upstream source/author/license could not be established from embedded metadata and is therefore not guessed: the owner's instruction authorizes project use, not a factual claim about third-party rights. Public/commercial redistribution remains blocked on real provenance. The focused offline contract distinguishes critical RTS/surface failures from unrelated legacy 404 console noise while still failing on any critical request failure or page exception.
+
+**Affected systems:** `rts.html`, `src/3d/rts/rtsSurfaceTexture.js`, `service-worker.js`, PWA media/shell cache, RTS visual surface and its regression proofs only. 2D and character-mode runtime behavior are not altered by this ADR.
+
+**Rollback:** Disable/remove the additive RTS surface installer and its cache additions in an owner-approved future change; because no terrain geometry or sampler was replaced, the previous deterministic terrain remains underneath and is the rollback target.
