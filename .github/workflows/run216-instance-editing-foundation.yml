@@ -1,0 +1,38 @@
+name: Run216 Instance Editing Foundation
+
+'on':
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/editor/EditorInstance*.js'
+      - 'scripts/checkEditorInstance*.js'
+      - 'scripts/checkRun216InstanceEditing*.js'
+      - '.github/workflows/run216-instance-editing-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  instance-editing-foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify additive-only branch diff
+        run: |
+          git fetch origin main
+          node scripts/checkAdditiveOnlyDiff.js origin/main...HEAD
+
+      - name: Verify full instance-editing foundation
+        run: |
+          node --check scripts/checkRun216InstanceEditingFullFoundation.js
+          node scripts/checkRun216InstanceEditingFullFoundation.js
