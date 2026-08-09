@@ -14463,3 +14463,14 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; world events +0; creatures +0. Desktop coverage remains 96.2%; mobile radius-4 remains 81 chunks / 20.25 km² (~14.7%).
 - Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
 - Next safe step: improve RTS formation/selection readability only through existing DOM or instancing observations; do not change radius-5, `game3d.js` split or world-event checksum without owner resolution.
+
+## Run 214 — Westeros World Editor foundation
+- Added a standalone in-browser Three.js authoring surface at `editor.html`, isolated from 2D, game3d and RTS simulation ownership.
+- Asset library supports local GLB/GLTF + FBX through the existing vendored loaders and caches each source template once. Grid and Snap are independent controls; Snap defaults to 1 metre.
+- Added raycast selection, Hierarchy, XYZ/rotation/scale Inspector, duplicate/delete/focus, schema-v1 JSON save/load for normal objects, and deterministic 20x25 = 500 static-mesh `InstancedMesh` formation serialization.
+- Rigged/skinned and multi-mesh assets are deliberately rejected by the first static GPU-instancing path rather than silently rendered incorrectly; animated crowd batching remains a later editor layer.
+- Focused desktop/mobile Chromium proof, zero console/page errors, pre/post 34+ game smoke, PWA/cache/installability, mobile render budget, seeded RNG/world-reference, terrain-seat and road-network safety gates PASS.
+- Memory-leak checklist: editor pagehide disposes OrbitControls/renderer; InstancedMesh groups dispose their instance buffers on removal/clear. No gameplay timer, world event, physics or simulation owner was added.
+- World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; events +0; creatures +0. Existing game world coverage is unchanged.
+- Technical debt introduced: 1 explicit editor item — TransformControls r160 + full formation JSON rehydration/animated skinned crowd path are not part of this foundation. Risk: LOW. Confidence: 4/5.
+- Next safe step: vendor the matching Three.js r160 TransformControls and add W/E/R move/rotate/scale with 1m translation snap without changing game runtime ownership.

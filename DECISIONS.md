@@ -15386,3 +15386,18 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Affected systems:** RTS DOM presentation and service-worker shell cache only.
 
 **Rollback:** remove the additive installer/import/cache line and module in a future owner-approved change; underlying selection behavior is unchanged.
+
+## ADR-0232 — Keep World Editor as an isolated JSON authoring surface
+**Risk:** LOW
+
+**Decision:** Build the Westeros World Editor as a standalone `editor.html` + `src/3d/editor/*` authoring layer. It may load local GLB/GLTF/FBX assets and serialize scene transforms, but it does not own or mutate the existing 2D/game3d/RTS simulation state.
+
+**Why:** A Unity-like editor is safest when authoring data and game runtime communicate through a versioned JSON contract. This preserves current gameplay, determinism and mobile/PWA budgets while allowing the editor to evolve independently.
+
+**Alternatives considered:** embed editing controls directly into `game3d.js`; make RTS scene state the editor database; store hundreds of duplicate model files. Rejected because they couple authoring to runtime ownership or waste asset/storage/GPU resources.
+
+**Consequences:** normal objects use cached model templates plus per-object transforms; repeated single-static-mesh formations use `THREE.InstancedMesh` and deterministic instance records. Rigged/multi-mesh crowds require a later purpose-built path. Editor files join the existing offline shell without replacing the service worker owner.
+
+**Affected systems:** new editor-only HTML/CSS/JS/JSON surface and additive service-worker shell entries. Existing game simulation remains unchanged.
+
+**Rollback:** remove the editor-only files and additive cache registration in a future owner-approved change; no existing game state depends on this editor foundation.
