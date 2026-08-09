@@ -14308,3 +14308,14 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - Technical debt: new live runtime debt 0. This run closes one overdue governance/platform-maintenance debt item. Risk LOW. Güven 5/5.
 - World Coverage unchanged: desktop %96.2; mobile radius-4 81 chunks / 20.25 km² (~%14.7). World Evolution Report: live world delta 0; platform assurance +1. Oyuncu farkı: HAYIR.
 - Sıradaki güvenli adım: Run198'in migration planına dön. Default game3d.html değiştirilmeden, ayrı opt-in developer startup entry pointinin additive boot seam ihtiyacını tasarla ve current fallback/rollback + offline/PWA boot eşdeğerliğini aynı kanıtta doğrula. Mevcut game3d.js satırı değiştirme gerektiriyorsa owner onayı olmadan yapma.
+
+
+## Run 200 — Opt-in canonical developer startup + production-SW offline rollback equivalence
+
+- **Validated:** 2026-08-09 01:21 UTC. Added dormant `developer/canonicalDeveloperStartup.js`; it requires an explicit bridge id and composes the proven Run196 current-runtime ownership transaction with Run197's reversible real-tick freeze. Default game3d imports/startup remain unchanged and no owner policy is inferred.
+- **Browser proof:** bridge=cersei->stannis#1; freezeTargets=23; productionSwDynamicCache=true; offlineEquivalent=true; consoleErrors=0. Online activation, rollback, production service-worker controlled boot, fully offline current boot, and offline canonical activation/disposal passed. The unchanged production service worker dynamically cached the developer module through its existing network-first same-origin path.
+- **Regression/DoD:** full Chromium smoke 34 PASS; canonical Run195–198 chain, world/determinism/visual contracts, PWA/cache/installability, accessibility/input/physics, mobile streaming/LOD/perf, additive-only and final concurrency gates PASS.
+- **Performance:** live mobile {"profile":{"coarse":true,"fine":false,"touchPoints":1},"fps":1,"drawCalls":35,"triangles":195929,"geometries":30,"textures":22,"budgets":{"drawCallsExclusiveMax":500,"trianglesExclusiveMax":500000},"textureMemoryMB":null,"textureMemoryReason":"renderer.info exposes texture count, not resident texture-memory bytes"}; perf snapshot `2026-08-09,run200,1,51,688296,49,17,368`. Dormant developer module adds zero default-runtime frame cost.
+- **Coverage:** desktop 132.25/137.5 km² = **96.2%**; mobile radius-4 resident footprint 81 chunks / 20.25 km² ≈ **14.7%**.
+- **Technical debt:** delta **0**; owner-blocked radius-5, game3d.js split, and world-event checksum decisions untouched. **Risk:** LOW.
+- **Next safe step:** prove a no-source-transform live-state handoff seam for this developer controller without touching default startup; if additive-only blocks that seam, record the blocker rather than altering existing lines.

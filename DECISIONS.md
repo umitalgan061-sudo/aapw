@@ -15215,3 +15215,11 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Gelecek Faz Etkisi:** Sıradaki migration preflight ayrı opt-in developer startup entry pointinde canonical source-of-truth'u boot anından seçebilir. Current fallback ve offline/PWA boot eşdeğerliği kanıtlanmadan default `game3d.html` startup değişmez.
 
 **Geri alma planı:** Live consumer yoktur. Run198 checker/CI kaldırılmadan da runtime etkisi sıfırdır; contract yanlışlanırsa yeni versioned checker eklenir, current runtime ve Run197/Run196 byte-unchanged kalır.
+
+
+## ADR-0219 — Canonical developer startup stays explicit, dormant, reversible, and production-SW offline-equivalent
+
+- **Decision:** keep the reusable opt-in composition outside `src/3d` at `developer/canonicalDeveloperStartup.js`. It accepts an already-created current runtime state plus an explicit bridge id, composes Run196 + Run197, and never enters the default `game3d.html`/`game3d.js` import graph.
+- **Why:** Run198 proved lifecycle ownership but assembled it inline. A reusable developer boundary reduces duplication while preserving zero-risk default startup. Keeping it outside `src/3d` avoids changing the strict precache inventory; the existing production service worker already runtime-caches explicitly requested same-origin files.
+- **Rejected:** default canonical startup (migration gate incomplete); inferred bridge choice (owner policy); modifying existing initGame3D lines (additive-only violation); editing service-worker EOF solely for precache registration (Git records its no-newline EOF as a deletion, so additive guard correctly rejects it).
+- **Result/Rollback:** explicit developer/preflight callers gain one deterministic reversible entry point; stop importing the dormant module to roll back. 2D, default 3D, desktop/mobile/PWA navigation, world generation and gameplay defaults are unchanged. **Risk:** LOW.
