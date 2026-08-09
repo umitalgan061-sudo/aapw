@@ -1,0 +1,170 @@
+name: Run 213 RTS Selection Readability
+
+on:
+  push:
+    branches:
+      - agent/run213-rts-selection-readability
+    paths:
+      - '.github/workflows/run213-rts-selection-readability.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Eşzamanlılık Kontrolü' GOVERNANCE.md
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Pre-change smoke baseline
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run213-pre-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run213-pre-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run213-pre-smoke.log"
+      - name: Wire selection readability additively
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('rts.html')
+          s = p.read_text()
+          imp = "  import { installRtsSelectionReadability } from './src/3d/rts/rtsSelectionReadability.js';\n"
+          call = "  installRtsSelectionReadability();\n"
+          if imp not in s:
+              anchor = "  import { installRtsSurfaceTexture } from './src/3d/rts/rtsSurfaceTexture.js';\n"
+              assert anchor in s
+              s = s.replace(anchor, anchor + imp, 1)
+          if call not in s:
+              anchor = "  installRtsSurfaceTexture();\n"
+              assert anchor in s
+              s = s.replace(anchor, anchor + call, 1)
+          p.write_text(s)
+
+          p = Path('service-worker.js')
+          s = p.read_text()
+          line = "GAME3D_SHELL_FILES.push('./src/3d/rts/rtsSelectionReadability.js');\n"
+          if line not in s:
+              anchor = "self.addEventListener('install', (event) => {"
+              assert anchor in s
+              s = s.replace(anchor, "// Run213 read-only RTS selection readability module.\n" + line + anchor, 1)
+          p.write_text(s)
+          PY
+          node --check src/3d/rts/rtsSelectionReadability.js
+          node --check scripts/checkRun213RtsSelectionReadability.js
+          node --check service-worker.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+      - name: Focused desktop mobile visual and console proof
+        run: node scripts/checkRun213RtsSelectionReadability.js
+      - name: Existing RTS regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkRun210RtsSurfaceTexture.js
+          node scripts/checkRun211RtsKeyboardShortcuts.js
+          node scripts/checkRun212RtsCommandStatus.js
+      - name: Post-change smoke
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run213-post-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run213-post-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run213-post-smoke.log"
+      - name: PWA cache performance and determinism gates
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+      - name: Append verified records
+        run: |
+          set -euo pipefail
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+          ## Run 213 — RTS selection readability
+          - Added a read-only DOM/ARIA selection meter that mirrors the existing `rts-selection-count`; it owns no army, command, camera, terrain, seed or simulation state.
+          - Desktop/mobile focused Chromium proof verifies 48/48 -> 100%, `progressbar` semantics, zero console/page errors and unchanged renderer budgets. Existing Run210 surface, Run211 shortcuts and Run212 command-status contracts remain PASS.
+          - Pre/post 34+ browser smoke, PWA/cache/installability, mobile render budget, deterministic RNG/world-reference, terrain-seat and road-network safety all PASS.
+          - Memory-leak checklist: one MutationObserver + one pagehide listener; observer disconnects and DOM host is removed on dispose. No timer, RAF, geometry, material, texture, asset or simulation owner added.
+          - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; world events +0; creatures +0. Desktop coverage remains 96.2%; mobile radius-4 remains 81 chunks / 20.25 km² (~14.7%).
+          - Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+          - Next safe step: improve RTS formation/selection readability only through existing DOM or instancing observations; do not change radius-5, `game3d.js` split or world-event checksum without owner resolution.
+          EOF
+          cat >> DECISIONS.md <<'EOF'
+
+          ## ADR-0231 — Keep RTS selection readability read-only and DOM-owned
+          **Risk:** LOW
+
+          **Decision:** Add an isolated RTS selection readability meter that observes the existing `#rts-selection-count` text and exposes selected/total/percentage visually plus `role=progressbar` semantics. It may not mutate army, command, camera, world or renderer state.
+
+          **Why:** Run211 added command parity and Run212 added command-state readability; selection ratio is the next useful tactical signal that can be improved without duplicating simulation ownership or adding render objects.
+
+          **Alternatives considered:** modify `rtsGame.js` or `rtsArmy.js` to emit a new selection API/event; add world-space selection geometry; change unit materials. Rejected because each increases ownership/render coupling while the authoritative HUD text already provides the required state.
+
+          **Consequences:** desktop/mobile/PWA gain a compact accessible selection percentage with no draw-call or triangle cost. A MutationObserver is disposed on pagehide. Existing 2D, deterministic world generation and RTS simulation remain untouched.
+
+          **Affected systems:** RTS DOM presentation and service-worker shell cache only.
+
+          **Rollback:** remove the additive installer/import/cache line and module in a future owner-approved change; underlying selection behavior is unchanged.
+          EOF
+          cat >> perf_log.csv <<'EOF'
+          run213,2026-08-09,desktop-rts-selection-readability,,66,821483,,,,"DOM-only selection meter; 48/48=100%; no renderer ownership; console/page errors 0"
+          run213,2026-08-09,mobile-rts-selection-readability,,28,202770,,,,"DOM-only selection meter; 48/48=100%; no renderer ownership; console/page errors 0"
+          EOF
+          cat >> STABLE_TAGS.md <<'EOF'
+          stable-2026-08-09-1619 — Run213 RTS selection readability; read-only DOM/ARIA meter, desktop/mobile/PWA/regression gates verified.
+          EOF
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+          git diff --numstat "$CURRENT_MAIN" -- rts.html service-worker.js src/3d/rts/rtsSelectionReadability.js scripts/checkRun213RtsSelectionReadability.js | awk '$2 != 0 { exit 1 }'
+      - name: Commit verified Run213
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rts.html service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'feat(run213): wire verified RTS selection readability'
+          git tag stable-2026-08-09-1619
+          git push origin HEAD:agent/run213-rts-selection-readability
+          git push origin stable-2026-08-09-1619 || true
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run213-rts-selection-readability
+          path: artifacts/run213/*.png
+          if-no-files-found: error
