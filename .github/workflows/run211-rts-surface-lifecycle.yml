@@ -1,0 +1,129 @@
+name: Run 211 RTS Surface Lifecycle
+
+on:
+  push:
+    branches:
+      - agent/run211-rts-surface-lifecycle
+    paths:
+      - '.github/workflows/run211-rts-surface-lifecycle.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Start concurrency and governance gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base HEAD origin/main)"
+          test "$CURRENT_MAIN" = "$MERGE_BASE"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Eşzamanlılık Kontrolü' GOVERNANCE.md
+          grep -F 'ADR-0228' DECISIONS.md
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Syntax checks
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun211RtsSurfaceLifecycle.js
+          node --check scripts/checkRun210RtsSurfaceTexture.js
+          node --check scripts/checkRun210RtsSurfaceOffline.js
+          node --check service-worker.js
+      - name: PWA cache contract
+        run: node scripts/checkServiceWorkerCache.js
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Surface lifecycle memory-leak proof
+        run: node scripts/checkRun211RtsSurfaceLifecycle.js
+      - name: Existing Run210 visual and performance proof
+        run: node scripts/checkRun210RtsSurfaceTexture.js
+      - name: Existing fresh-install offline PWA proof
+        run: node scripts/checkRun210RtsSurfaceOffline.js
+      - name: Legacy browser smoke regression
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run211-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run211-smoke.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run211-smoke.log" | grep -F 'zero console/page errors'
+      - name: Determinism and world safety regression
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+      - name: Append Run211 records after all gates pass
+        run: |
+          set -euo pipefail
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+          ## Run 211 — RTS surface lifecycle / memory-leak regression guard
+          - Safe subtask: added a permanent Chromium lifecycle check for the Run210 owner-selected RTS ground surface. No gameplay, terrain geometry, texture tuning, 2D behavior or owner-pending decision changed.
+          - Regression contract: while RTS is live, `ChunkManager.loadChunk` and `streamTowards` must be the Run210 wrappers and the surface source must load exactly once; after `pagehide`, surface state must become `disposed` and both prototype hooks must be restored. Console/page errors must remain zero.
+          - DoD evidence: lifecycle proof PASS; existing Run210 desktop/mobile visual+performance proof PASS; fresh-install offline PWA surface boot PASS; 34+ legacy browser smoke PASS; seeded-random/world-reference/hydrology/14-seat terrain/14-seat road safety PASS; service-worker cache contract PASS; additive-only guard PASS.
+          - Performance: production runtime code is unchanged, so no new draw calls/triangles/texture memory were introduced. Revalidated Run210 budgets remain desktop 66 draw calls / 821483 triangles and mobile 28 draw calls / 202770 triangles.
+          - Memory-leak checklist: no new production listeners/timers/DOM/geometries/materials were added. The new guard specifically verifies the existing surface pagehide lifecycle restores patched prototypes and reaches disposed state.
+          - Technical-debt counter: +0 runtime debt. Test-only maintenance surface: +1 small standing browser regression script. Existing Run210 provenance gate remains unchanged.
+          - Risk: LOW. Test-only addition plus records; no runtime source line changed.
+          - Future-phase impact: none; this strengthens the cleanup contract that future RTS/PWA visual layers must preserve.
+          - Next safe step: select the next additive-only RTS readability or lifecycle hardening task from the then-current `main`; do not calibrate owner-pending feel constants or provenance without owner input.
+          EOF
+
+          cat >> DECISIONS.md <<'EOF'
+
+          ## ADR-0229 — Keep the owner-selected RTS surface lifecycle cleanup as a permanent browser regression contract
+          **Risk:** LOW
+
+          **Decision:** Add a standalone Chromium regression check that verifies the Run210 RTS surface is active exactly once during runtime and that its additive `ChunkManager` prototype hooks are restored when `pagehide` fires. Keep production runtime code unchanged.
+
+          **Why:** Run210 introduced a shared runtime texture, manager registry, two prototype wrappers and a pagehide cleanup path. GOVERNANCE requires a memory-leak checklist after every subtask; a durable browser contract is more reliable than repeatedly reviewing the cleanup path by inspection.
+
+          **Alternatives considered:** Modify the Run210 production module to expose internal manager/texture counters (rejected: unnecessary runtime API and violates the goal of test-only hardening); fold the assertions into the large existing Run210 visual proof (rejected: lifecycle failure deserves an isolated diagnostic); skip a standing test and rely on code review (rejected: prototype restoration is cheap to prove automatically).
+
+          **Consequences:** CI can now detect leaked Run210 prototype wrappers or a failure to enter disposed state. Runtime behavior, 2D mode, deterministic world generation, PWA cache contents and rendering budgets are unchanged. The test intentionally does not guess or alter any owner-pending visual calibration.
+
+          **Affected systems:** test/CI only: `scripts/checkRun211RtsSurfaceLifecycle.js` and its workflow; Run210 RTS surface lifecycle is observed but not modified.
+
+          **Rollback:** Remove/disable the Run211 test and workflow in a future owner-approved change. No runtime rollback is required because no production source changed.
+          EOF
+      - name: Final concurrency and additive-only gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base HEAD origin/main)"
+          test "$CURRENT_MAIN" = "$MERGE_BASE"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Commit verified Run211 records
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md
+          git diff --cached --check
+          git commit -m 'docs(run211): record RTS surface lifecycle guard'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          git push origin HEAD:agent/run211-rts-surface-lifecycle
