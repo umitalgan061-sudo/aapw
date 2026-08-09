@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no">
+<meta name="theme-color" content="#c8960a">
+<meta name="description" content="Westeros 3D Dünya — canonical developer startup preflight">
+<title>Westeros — Canonical Developer Preflight</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="stylesheet" href="game3d.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./src/3d/vendor/three/three.module.js",
+    "three/addons/": "./src/3d/vendor/three/addons/",
+    "./src/3d/sceneManager.js": "./dev/run200SceneManagerProxy.js"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="game3d-canvas"></canvas>
+<div id="game3d-loading" class="g3d-loading">
+  <div>Canonical developer preflight yükleniyor&hellip;</div>
+</div>
+<a class="g3d-back-link" href="game3d.html">&larr; Varsayılan 3D Moduna Dön</a>
+<script type="module">
+  import { gameEvents } from './src/3d/eventBus.js';
+  import { EVENTS } from './src/3d/config.js';
+  import { bootCanonicalDeveloperSession } from './dev/run200CanonicalStartup.js';
+
+  const loadingEl = document.getElementById('game3d-loading');
+
+  gameEvents.on(EVENTS.GAME_READY, ({ phase }) => {
+    if (phase === 'phase1-scene' && loadingEl) {
+      loadingEl.textContent = 'Canonical ownership doğrulanıyor…';
+    }
+  });
+
+  gameEvents.on(EVENTS.GAME_ERROR, ({ error }) => {
+    if (loadingEl) {
+      loadingEl.textContent = 'Developer preflight başlatılamadı.';
+      loadingEl.classList.remove('g3d-loading-hidden');
+      loadingEl.classList.add('g3d-loading-error');
+    }
+    console.error('[game3d-canonical-dev.html] game error', error);
+  });
+
+  const session = await bootCanonicalDeveloperSession();
+  if (loadingEl) {
+    loadingEl.textContent = session.getMode() === 'canonical'
+      ? 'Canonical developer ownership aktif.'
+      : 'Current runtime fallback aktif.';
+    loadingEl.classList.add('g3d-loading-hidden');
+  }
+</script>
+</body>
+</html>
