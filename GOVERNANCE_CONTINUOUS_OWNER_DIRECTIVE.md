@@ -53,3 +53,16 @@ ChatGPT görev altyapısının desteklediği otomatik yeniden çağırma frekans
 ## 6. Öncelik
 
 Bu owner directive ile `GOVERNANCE.md` arasında süre/çalıştırmayı sonlandırma konusunda çelişki varsa **bu dosya geçerlidir**. Diğer bütün kalıcı governance, determinism, additive-only, owner-gate, kalite ve güvenlik kuralları yürürlükte kalır.
+
+## 7. GitHub Actions 2.000 dakika dolumunda public-runner fallback — Owner kararı 2026-08-10
+
+2026-08-10 tarihinde private repository için GitHub Free hesabındaki aylık 2.000 GitHub-hosted Actions dakikası tamamen doldu ve Run216 DoD işleri `runner_id=0` / boş `steps` ile checkout başlamadan bloke oldu. Proje sahibi, geliştirme ve governance doğrulamalarının beklemeden devam edebilmesi için repository görünürlüğünü **public** yapmayı ve repository adını `westeros-pwa` yerine **`aapw`** olarak değiştirmeyi açıkça onayladı.
+
+Bu kararın kalıcı operasyon kuralları:
+
+1. Canonical repository kimliği aynı repo ID'sini koruyan `umitalgan061-sudo/aapw`'dir. Eski `westeros-pwa` adı yalnız geçmiş referans/redirect olarak kabul edilir; yeni commit, PR, workflow ve otomasyonlarda mümkün olduğunda `aapw` adı kullanılır.
+2. Repository public kaldığı sürece standart GitHub-hosted runner'lar governance/DoD zincirini çalıştırmak için kullanılabilir. Public'e geçiş hiçbir DoD, additive-only, determinism, PWA, performans, visual-proof, console-zero veya concurrency kapısını gevşetmez.
+3. `aapw` adına geçiş **güvenlik veya gizlilik kontrolü değildir**; yalnız operasyonel/adlandırma kararıdır. Public repository'deki içerik herkes tarafından okunabilir/forklanabilir kabul edilir.
+4. Public repository current tree'sinde yeni secret, token, API key, credential veya private veri commitlenmesi yasaktır. Daha önce history'ye girdiği bilinen credential'lar (özellikle `QUESTIONS_FOR_OWNER.md` içinde kayıtlı eski NVIDIA API key olayı) public durumunda da compromised kabul edilir; ilgili credential owner tarafından revoke/rotate edilmelidir. Repo adının değiştirilmesi bu riski azaltılmış saydırmaz.
+5. Actions tüketimini gereksiz büyütmemek için ağır browser/PWA/perf workflow'larında mümkün olan her yerde workflow/ref-scoped `concurrency` + `cancel-in-progress: true` kullanılır. Aynı head için anlamsız tekrarlar yapılmaz; önce hafif contract probe ile runner sağlığı doğrulanır.
+6. Repository daha sonra tekrar private yapılırsa bu bölüm silinmez; tarihsel operasyon kaydı olarak kalır. Private'a dönüş yalnız owner kararıyla yapılır ve o anda geçerli GitHub-hosted runner kotası/billing durumu yeniden kontrol edilir.
