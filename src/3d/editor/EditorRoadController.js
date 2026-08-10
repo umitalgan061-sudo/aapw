@@ -195,6 +195,12 @@ export function installEditorRoadController(api) {
 
   function startDrawing() {
     if (busy) return;
+    const terrain = window.__WESTEROS_EDITOR_TERRAIN__;
+    if (terrain?.isBusy?.()) {
+      toast('Önce kara/deniz işleminin tamamlanmasını bekle.');
+      return;
+    }
+    terrain?.setMode?.(null);
     drawing = true;
     lastPoint = null;
     sessionSegments.length = 0;
