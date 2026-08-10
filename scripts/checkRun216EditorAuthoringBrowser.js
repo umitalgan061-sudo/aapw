@@ -40,8 +40,19 @@ function contentType(file) {
 function startServer() {
   const server = http.createServer((req, res) => {
     const clean = decodeURIComponent(req.url.split('?')[0]);
+    if (clean === '/favicon.ico') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
     const relative = clean === '/' ? 'index.html' : clean.replace(/^\//, '');
     const file = path.resolve(ROOT, relative);
+    const directoryIndex = path.join(file, 'index.html');
+    if (file.startsWith(ROOT + path.sep) && fs.existsSync(file) && fs.statSync(file).isDirectory() && fs.existsSync(directoryIndex)) {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      fs.createReadStream(directoryIndex).pipe(res);
+      return;
+    }
     if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       res.writeHead(404);
       res.end('Not found');
@@ -69,7 +80,10 @@ async function openEditor(playwright, base, viewport) {
     window.__WESTEROS_EDITOR_ROADS__ &&
     window.__WESTEROS_EDITOR_TERRAIN__
   ), null, { timeout: 30000 });
+  /*
   await page.waitForFunction(() => window.__WESTEROS_WORLD_EDITOR__.editableObjects.length >= 2, null, { timeout: 30000 });
+  */
+  await page.waitForFunction(() => window.__WESTEROS_EDITOR_LIVE_AUTHORING__ && window.__WESTEROS_WORLD_EDITOR__.editableObjects.length === 0, null, { timeout: 120000 });
   return { browser, context, page, errors };
 }
 
@@ -100,6 +114,11 @@ async function desktopProof(playwright, base) {
     const environment = await page.evaluate(() => window.__WESTEROS_EDITOR_ENVIRONMENT__.getSnapshot());
     assert(environment.fogDisabled === true, 'Edit Mode fog is not disabled');
 
+    if (await page.evaluate(() => window.__WESTEROS_WORLD_EDITOR__.editableObjects.length === 0)) {
+      const treeButton = page.locator('#we-assets .we-asset', { hasText: 'Ağaç İşaretçisi' }).first();
+      await treeButton.dblclick();
+      await page.waitForFunction(() => window.__WESTEROS_WORLD_EDITOR__.editableObjects.length === 1, null, { timeout: 30000 });
+    }
     await page.evaluate(() => window.__WESTEROS_EDITOR_CLIPBOARD__.syncButtons());
     await page.waitForFunction(() => !document.getElementById('we-copy').disabled);
     const beforeClipboardCount = await page.evaluate(() => window.__WESTEROS_WORLD_EDITOR__.editableObjects.length);
@@ -125,7 +144,7 @@ async function desktopProof(playwright, base) {
     await page.waitForFunction((count) => window.__WESTEROS_WORLD_EDITOR__.editableObjects.length === count + 1, beforeBuildingCount, { timeout: 120000 });
     const building = await page.evaluate(() => {
       const object = window.__WESTEROS_WORLD_EDITOR__.editableObjects.at(-1);
-      const box = new window.__WESTEROS_WORLD_EDITOR__.grid.geometry.constructor; // sentinel only; bounds are checked through object scale policy in Node contract
+      const box = new window.__WESTEROS_WORLD_EDITOR__.grid.geometry.constructor;
       void box;
       return { assetId: object.userData.editorAssetId, scale: object.scale.toArray() };
     });
