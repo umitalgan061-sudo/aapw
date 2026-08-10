@@ -943,3 +943,4 @@ stable-2026-08-10-1712 — Run220 editor history shortcut/mobile regression; key
 stable-2026-08-10-1719 — Run221 editor history input-guard regression; inspector typing protection, Ctrl+Y redo, PWA/perf/determinism/smoke gates verified.
 stable-2026-08-10-2147 — Run222 editor clipboard/history regression; deterministic paste identity/offset, undo/redo round-trip, PWA/perf/determinism/smoke gates verified.
 stable-2026-08-10-2203 — Run223 editor delete/history regression; exact object restore across delete/undo/redo, PWA/perf/determinism/smoke gates verified.
+stable-2026-08-10-2217 — Run224 editor duplicate/history regression; toolbar/Ctrl+D deterministic duplicate parity, undo/redo and clipboard isolation verified.

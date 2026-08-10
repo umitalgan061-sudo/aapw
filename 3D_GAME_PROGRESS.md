@@ -14559,3 +14559,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
 - Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: Run223 workflow `31421640607` PASS and World Event Determinism Guard `31421640543` PASS. Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
+
+## Run 224 — World Editor duplicate/history regression
+- Permanent additive-only Chromium regression verifies toolbar Çoğalt creates a deterministic marker-tree duplicate with preserved asset identity, generated `-duplicate-####` editor id and positive X offset.
+- After Undo, explicit user re-selection plus Ctrl+D reproduces the exact same duplicate state; subsequent Undo creates one redo entry and Redo restores the duplicate exactly.
+- Duplicate operations remain isolated from Copy/Paste clipboard state; paste stays unavailable until a copy action and duplicate/history flow leaves clipboard null.
+- PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
+- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: Run224 corrected workflow `31422849938` PASS. Earlier V1 proof assumptions were rejected without runtime changes; V2 is rebased on Run223 main. Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
