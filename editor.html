@@ -363,5 +363,51 @@ if (localApi?.scene && localAuthoring?.targetGroundPoint) {
   void scanProjectFolder();
 }
 </script>
+<script type="module">
+import * as THREE from 'three';
+import { WORLD_DEFAULTS, WORLD_SCALE } from './src/3d/config.js';
+
+const waterLiveState = window.__WESTEROS_EDITOR_LIVE_WORLD__?.liveState;
+const waterMesh = waterLiveState?.water;
+const groundSampler = waterLiveState?.groundCollider?.getGroundHeight;
+if (waterMesh?.material?.fragmentShader && typeof groundSampler === 'function') {
+  const resolution = 256;
+  const data = new Uint8Array(resolution * resolution);
+  const width = WORLD_SCALE.WORLD_WIDTH_METERS;
+  const depth = WORLD_SCALE.WORLD_DEPTH_METERS;
+  const minX = -width * 0.5;
+  const minZ = -depth * 0.5;
+  const seaLevel = WORLD_DEFAULTS.WATER_LEVEL_METERS;
+  let wetCells = 0;
+  for (let zIndex = 0; zIndex < resolution; zIndex += 1) {
+    const worldZ = minZ + ((zIndex + 0.5) / resolution) * depth;
+    for (let xIndex = 0; xIndex < resolution; xIndex += 1) {
+      const worldX = minX + ((xIndex + 0.5) / resolution) * width;
+      const wet = Number(groundSampler(worldX, worldZ)) < seaLevel - 0.05;
+      data[zIndex * resolution + xIndex] = wet ? 255 : 0;
+      if (wet) wetCells += 1;
+    }
+  }
+  const mask = new THREE.DataTexture(data, resolution, resolution, THREE.RedFormat, THREE.UnsignedByteType);
+  mask.minFilter = THREE.NearestFilter;
+  mask.magFilter = THREE.NearestFilter;
+  mask.generateMipmaps = false;
+  mask.flipY = false;
+  mask.needsUpdate = true;
+  const material = waterMesh.material;
+  const declarationMarker = 'uniform vec3 uCameraPosition;';
+  const mainMarker = 'void main() {';
+  if (!material.fragmentShader.includes('uEditorTerrainWaterMask') && material.fragmentShader.includes(declarationMarker) && material.fragmentShader.includes(mainMarker)) {
+    material.uniforms.uEditorTerrainWaterMask = { value: mask };
+    material.uniforms.uEditorTerrainMaskMin = { value: new THREE.Vector2(minX, minZ) };
+    material.uniforms.uEditorTerrainMaskSize = { value: new THREE.Vector2(width, depth) };
+    material.fragmentShader = material.fragmentShader.replace(declarationMarker, `${declarationMarker}\nuniform sampler2D uEditorTerrainWaterMask;\nuniform vec2 uEditorTerrainMaskMin;\nuniform vec2 uEditorTerrainMaskSize;`);
+    material.fragmentShader = material.fragmentShader.replace(mainMarker, `${mainMarker}\n\t\tvec2 editorMaskUv = (vWorldPosition.xz - uEditorTerrainMaskMin) / uEditorTerrainMaskSize;\n\t\tbool editorMaskInside = editorMaskUv.x >= 0.0 && editorMaskUv.x <= 1.0 && editorMaskUv.y >= 0.0 && editorMaskUv.y <= 1.0;\n\t\tif (editorMaskInside && texture2D(uEditorTerrainWaterMask, editorMaskUv).r < 0.5) discard;`);
+    material.needsUpdate = true;
+    waterMesh.userData.editorTerrainWaterMask = Object.freeze({ resolution, wetCells, dryCells: data.length - wetCells, seaLevel });
+    material.addEventListener('dispose', () => mask.dispose());
+  }
+}
+</script>
 </body>
 </html>
