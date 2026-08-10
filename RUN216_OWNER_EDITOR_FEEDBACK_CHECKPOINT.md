@@ -55,3 +55,4 @@ Run216 PR consolidation checkpoint (2026-08-10):
 - PR #97 is intentionally NOT absorbed: its sole resume workflow hard-codes obsolete `main` and Run216 SHAs, so carrying it forward would create a knowingly stale/failing workflow rather than preserve useful behavior.
 - Direct `main` comparison before PR retarget: head `fb9c9f5753fe90ff7361e2e00b2df2077898fb9b` was 266 commits ahead / 0 behind, with zero deletions in the compare file set.
 - Consolidation changes do not relax DoD: the consolidated PR stays draft / NOT DONE until hosted Chromium, console, PWA/cache, performance, determinism and governance gates can actually run.
+- Final pre-retarget remote-main recheck remained `4aa0d2a04ed23502ec3250ecec1ba4a07eb4dc7f`; no concurrent main advance was observed before publishing the consolidated PR shape.
