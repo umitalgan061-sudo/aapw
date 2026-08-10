@@ -6,6 +6,8 @@ on:
       - 'src/3d/editor/EditorSceneSerializer.js'
       - 'scripts/checkRun216PreciseScalePersistence.mjs'
       - '.github/workflows/run216-precise-scale-persistence.yml'
+      - 'src/3d/editor/worldEditor.js'
+      - 'scripts/checkRun216PreciseScaleLoadWiring.js'
   workflow_dispatch:
 
 permissions:
@@ -22,3 +24,5 @@ jobs:
       - run: node --check src/3d/editor/EditorSceneSerializer.js
       - run: node --check scripts/checkRun216PreciseScalePersistence.mjs
       - run: node scripts/checkRun216PreciseScalePersistence.mjs
+      - run: node --check scripts/checkRun216PreciseScaleLoadWiring.js
+      - run: node scripts/checkRun216PreciseScaleLoadWiring.js
