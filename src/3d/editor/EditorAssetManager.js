@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { computeEditorAssetImportScale } from './EditorAssetScalePolicy.js';
 import { EDITOR_ROAD_POLICY } from './EditorRoadModel.js';
+import { EDITOR_TERRAIN_CELL_POLICY } from './EditorTerrainCellModel.js';
 
 function createPrimitive(asset) {
   if (asset.primitive === 'tree') {
@@ -19,6 +20,28 @@ function createPrimitive(asset) {
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 1.1, 4, 8), new THREE.MeshStandardMaterial({ color: 0x6c788b }));
     body.position.y = 1.05;
     group.add(body);
+    return group;
+  }
+  if (asset.primitive === 'land-cell') {
+    const group = new THREE.Group();
+    const land = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshStandardMaterial({ color: 0x3d6b28, roughness: 1, metalness: 0, side: THREE.DoubleSide })
+    );
+    land.rotation.x = -Math.PI / 2;
+    land.position.y = EDITOR_TERRAIN_CELL_POLICY.landSurfaceOffsetMeters;
+    group.add(land);
+    return group;
+  }
+  if (asset.primitive === 'water-cell') {
+    const group = new THREE.Group();
+    const water = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshStandardMaterial({ color: 0x0a3a4a, roughness: 0.25, metalness: 0, transparent: true, opacity: 0.82, depthWrite: false, side: THREE.DoubleSide })
+    );
+    water.rotation.x = -Math.PI / 2;
+    water.position.y = EDITOR_TERRAIN_CELL_POLICY.waterSurfaceOffsetMeters;
+    group.add(water);
     return group;
   }
   if (asset.primitive === 'road-segment') {
