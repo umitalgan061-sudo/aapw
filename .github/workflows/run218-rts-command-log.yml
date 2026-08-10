@@ -1,0 +1,86 @@
+name: Run 218 RTS Command Log
+
+on:
+  push:
+    branches:
+      - agent/run218-rts-command-log-current
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run218-rts-command-log-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+      - name: Install Chromium proof dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Syntax and additive-only gates
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun217RtsCommandLog.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+          git diff --numstat origin/main...HEAD -- rts.html scripts/checkRun217RtsCommandLog.js .github/workflows/run218-rts-command-log.yml | awk '$2 != 0 { exit 1 }'
+      - name: Focused desktop mobile browser proof
+        run: node scripts/checkRun217RtsCommandLog.js
+      - name: Existing RTS regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkRun207RtsSurface.js
+          node scripts/checkRun208RtsCommandFeedback.js
+          node scripts/checkRun210RtsSurfaceTexture.js
+          node scripts/checkRun211RtsKeyboardShortcuts.js
+          node scripts/checkRun212RtsCommandStatus.js
+          node scripts/checkRun213RtsSelectionReadability.js
+      - name: Full smoke and governance gates
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Final remote-main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run218-rts-command-log
+          path: artifacts/run218-rts-command-log
+          if-no-files-found: error
