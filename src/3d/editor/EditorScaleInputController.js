@@ -62,6 +62,7 @@ export function installEditorScaleInputController(api) {
   const surface = Object.freeze({ dispose, minimumScale: MIN_EDITOR_SCALE });
   window.__WESTEROS_EDITOR_SCALE_INPUT__ = surface;
   window.addEventListener('pagehide', dispose, { once: true });
+  removers.push(() => window.removeEventListener('pagehide', dispose));
   return surface;
 }
 
