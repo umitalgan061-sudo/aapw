@@ -1,0 +1,87 @@
+name: Run221 Aurora Exact Head Postflight V2
+
+on:
+  push:
+    branches:
+      - agent/run221-realistic-game-aurora
+    paths:
+      - '.github/workflows/run221-aurora-exact-head-postflight-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run221-aurora-exact-head-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-postflight-v2:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting remote-main and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Prove runtime bytes unchanged since exact Chromium head
+        run: |
+          set -euo pipefail
+          EXACT_CHROMIUM_HEAD='2a0741b08d54aec5c97575e421d053489598a71e'
+          git cat-file -e "$EXACT_CHROMIUM_HEAD^{commit}"
+          git diff --exit-code "$EXACT_CHROMIUM_HEAD" HEAD -- \
+            src/3d/auroraRealism.js \
+            src/3d/auroraRayCurtainV4.js \
+            src/3d/auroraNightAtmosphereV5.js \
+            src/3d/nightVisualEnhancement.js \
+            src/3d/lighting.js \
+            src/3d/sky.js \
+            service-worker.js \
+            scripts/checkRun221RealisticGameAuroraBrowser.js \
+            scripts/checkRun221AuroraFinalContract.js \
+            3D_GAME_PROGRESS.md \
+            DECISIONS.md \
+            RUN221_AURORA_VISUAL_RCA.md
+      - name: Final source contracts and offline PWA
+        run: |
+          set -euo pipefail
+          node --check src/3d/auroraRealism.js
+          node --check src/3d/auroraRayCurtainV4.js
+          node --check src/3d/auroraNightAtmosphereV5.js
+          node --check src/3d/nightVisualEnhancement.js
+          node --check src/3d/lighting.js
+          node --check src/3d/sky.js
+          node --check service-worker.js
+          node --check scripts/checkRun221AuroraFinalContract.js
+          node scripts/checkRun221AuroraFinalContract.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+      - name: Determinism performance trend and debt postflight
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Governance records present
+        run: |
+          set -euo pipefail
+          grep -F 'Run221 Gameplay Night + Realistic Aurora — 2026-08-10' 3D_GAME_PROGRESS.md
+          grep -F 'ADR-0234 — Gameplay night readability and aurora realism stay additive to canonical day/night semantics' DECISIONS.md
+          grep -F 'Run221 Aurora Visual Calibration RCA' RUN221_AURORA_VISUAL_RCA.md
+      - name: Final publish concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
