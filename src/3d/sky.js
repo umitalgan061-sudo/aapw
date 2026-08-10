@@ -13,6 +13,7 @@
  */
 
 import * as THREE from 'three';
+import { applyRealisticAuroraMaterial } from './auroraRealism.js';
 
 const SKY_VERTEX_SHADER = /* glsl */ `
 	varying vec3 vWorldPosition;
@@ -99,6 +100,7 @@ export function createAuroraSky() {
 		depthWrite: false,
 		fog: false,
 	});
+	applyRealisticAuroraMaterial(material);
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.frustumCulled = false; // it must never disappear — it always surrounds the camera by construction.
 	mesh.renderOrder = -1; // draw first so opaque terrain/props overdraw it normally, not the other way around.
