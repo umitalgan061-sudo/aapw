@@ -14530,3 +14530,16 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, zero browser errors, and final remote-main/additive-only gates PASS.
 - Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
+
+## Run221 Gameplay Night + Realistic Aurora — 2026-08-10
+
+- **Owner requirement:** Gameplay night remains night but is substantially more readable; northern lights are abundant, phosphorescent, animated and natural rather than neon/disco/artificial.
+- **Gameplay-night lighting:** Canonical day/night keyframes and `nightFactor` remain unchanged. Existing `Game Night Readability Fill` still reaches 1.05 at full night. Additive `Game Night Cinematic Fill` contributes 0.72 at full night and only 0.02 in daylight; canonical midnight sun intensity remains 0.05 and noon 1.40.
+- **Aurora V4/V5:** Final active shader is camera-relative V4 irregular ray curtains plus V5 deep-blue atmospheric-floor calibration. V4 uses one dominant wandering lower arc, vertically stretched broken rays, a faint secondary curtain, oxygen green/cyan emission and restrained violet high-altitude fringe. V5 lifts only the night sky floor and leaves curtain geometry/gameplay timing unchanged.
+- **Visual review:** Broad neon blobs were rejected; a later parallel-ribbon calibration was also rejected. Final V5 exact-head Chromium artifact was manually reviewed and accepted: irregular curved auroral edge, upward ray curtains, visible movement and readable dark-blue night terrain/props. RCA: `RUN221_AURORA_VISUAL_RCA.md`.
+- **Strict WebGL evidence:** workflow `31417595129` passed. Frame A average luminance 26.3870, bright fraction 0.0072647, phosphorescent green/cyan fraction 0.0221682; frame B average luminance 28.9997, bright fraction 0.0128395, phosphorescent fraction 0.0345505; mean animation delta 3.88347. Canonical midnight `nightFactor=1`, cinematic fill 0.72; daylight fill returns to 0.02.
+- **PWA/offline:** `checkServiceWorkerCache` passed with 140 JS files plus referenced resources; all four new aurora/night modules are persisted in `GAME3D_SHELL_FILES`. Installability passed.
+- **Mobile/perf:** coarse/touch sample stayed inside budget at 35 draw calls, 195,929 triangles, 30 geometries and 22 textures. Perf-history analyzer reported heap 316.6 MB first half vs 340.6 MB second half (1.08x), no sustained upward drift.
+- **Determinism/world safety:** no `Math.random()` under `src/3d`; world-reference, hydrology, all 14 settlement safety checks and road-network safety passed. World Coverage was not re-measured or changed by this visual-only task.
+- **Regression/debt:** full 2D/3D browser smoke passed; 3D boot had zero console/page errors and zero external requests. Technical-debt guard: 0 forbidden temporary-solution additions and 0 newly-added debt markers. Final additive-only gate passed with zero source deletions.
+- **Evidence:** strict runtime workflow `31417595129`; V5 diagnostic workflow `31417167227`; strict artifact `9074126630`.
