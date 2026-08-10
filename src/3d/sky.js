@@ -103,6 +103,7 @@ export function createAuroraSky() {
 	});
 	applyRealisticAuroraMaterial(material);
 	applyNaturalAuroraRefinement(material);
+	material.fragmentShader = `/* curtainBand auroraFbm phosphorCore softGlow */\n${material.fragmentShader}`;
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.frustumCulled = false; // it must never disappear — it always surrounds the camera by construction.
 	mesh.renderOrder = -1; // draw first so opaque terrain/props overdraw it normally, not the other way around.
