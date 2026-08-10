@@ -10,6 +10,7 @@ const TARGET_PATH = path.join(ROOT, 'service-worker.js');
 const MARKER = '// Run216 World Editor TransformControls offline shell extension.';
 const REQUIRED_PATHS = Object.freeze([
   './src/3d/editor/EditorTransformControls.js',
+  './src/3d/editor/EditorClipboardController.js',
   './src/3d/vendor/three/addons/controls/TransformControls.js'
 ]);
 const BLOCK = `${MARKER}\nself.addEventListener('install', () => {\n${REQUIRED_PATHS.map((entry) => `    GAME3D_SHELL_FILES.push('${entry}');`).join('\n')}\n});\n\n`;
