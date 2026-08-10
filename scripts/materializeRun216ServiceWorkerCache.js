@@ -16,6 +16,7 @@ const REQUIRED_PATHS = Object.freeze([
   './src/3d/editor/EditorRoadController.js',
   './src/3d/editor/EditorTerrainCellModel.js',
   './src/3d/editor/EditorTerrainPaintController.js',
+  './src/3d/editor/EditorTerrainSemantics.js',
   './src/3d/editor/EditorClipboardController.js',
   './src/3d/editor/EditorEditModeEnvironment.js',
   './src/3d/editor/EditorLiveWorldBridge.js',
