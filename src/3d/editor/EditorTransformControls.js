@@ -48,6 +48,14 @@ export function installEditorTransformControls(api) {
   transform.setSize(0.9);
   api.scene.add(transform);
 
+  // Run216 live-world safety: canonical world transfer can remove a formerly selected object.
+  // Three.js treats an attached object with no parent as invalid, so detach it before matrix updates.
+  const run216TransformUpdateMatrixWorld = transform.updateMatrixWorld.bind(transform);
+  transform.updateMatrixWorld = function run216SafeTransformUpdateMatrixWorld() {
+    if (transform.object && transform.object.parent === null) transform.detach();
+    return run216TransformUpdateMatrixWorld();
+  };
+
   const translateButton = document.getElementById('we-tool-translate');
   const rotateButton = document.getElementById('we-tool-rotate');
   const scaleButton = document.getElementById('we-tool-scale');
