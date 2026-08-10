@@ -14,6 +14,7 @@ on:
       - 'scripts/checkRun216EditorLiveWorldResourceCleanup.js'
       - 'scripts/materializeRun216ServiceWorkerCache.js'
       - 'scripts/checkRun216ServiceWorkerMaterializer.js'
+      - 'scripts/checkTechnicalDebt.js'
       - '.github/workflows/run216-editor-usability-browser.yml'
   workflow_dispatch:
 
