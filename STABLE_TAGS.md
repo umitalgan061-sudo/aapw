@@ -951,3 +951,4 @@ stable-2026-08-11-0005 — Run230 editor mobile responsive layout integrity; ful
 stable-2026-08-11-0106 — Run234 editor invalid scene load atomicity; unsupported schema rejected without mutating live editor state; full safety gates verified.
 stable-2026-08-11-0139 — Run235 periodic platform control; PWA/cache, mobile 35 draw calls/195929 triangles, determinism/world safety, perf trend/debt and full browser smoke verified; runtime delta 0.
 stable-2026-08-11-0208 — Run236 editor unknown asset scene-load regression V2; missing asset record skipped while known scene data and editor settings restore correctly; full safety gates verified.
+stable-2026-08-11-0235 — Run237 editor malformed scene-load atomicity regression V2 clean; malformed JSON and JSON null preserve prepared editor state; full safety gates verified.
