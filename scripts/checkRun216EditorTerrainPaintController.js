@@ -21,6 +21,10 @@ if (!manager.includes("asset.primitive === 'land-cell'")) throw new Error('land 
 if (!manager.includes("asset.primitive === 'water-cell'")) throw new Error('water renderer missing');
 if (!manager.includes('EDITOR_TERRAIN_CELL_POLICY.landSurfaceOffsetMeters')) throw new Error('land offset policy not shared');
 if (!manager.includes('EDITOR_TERRAIN_CELL_POLICY.waterSurfaceOffsetMeters')) throw new Error('water offset policy not shared');
+if (!manager.includes('water.userData.editorNoShadow = true;')) throw new Error('transparent water no-shadow marker missing');
+if (!manager.includes('if (child.userData.editorNoShadow)')) throw new Error('water no-shadow traversal override missing');
+if (!manager.includes('child.castShadow = false;')) throw new Error('water cast-shadow disable missing');
+if (!manager.includes('child.receiveShadow = false;')) throw new Error('water receive-shadow disable missing');
 if (!model.includes('defaultCellSizeMeters: DEFAULT_TERRAIN_CELL_SIZE_METERS')) throw new Error('terrain cell size policy missing');
 for (const mode of ['land-add', 'land-remove', 'water-add', 'water-remove']) {
   if (!controller.includes(`'${mode}'`)) throw new Error(`terrain mode missing: ${mode}`);
@@ -40,4 +44,4 @@ if (!controller.includes('@media(max-width:900px)')) throw new Error('terrain to
 if (!materializer.includes("'./src/3d/editor/EditorTerrainCellModel.js'")) throw new Error('terrain model missing from PWA materializer');
 if (!materializer.includes("'./src/3d/editor/EditorTerrainPaintController.js'")) throw new Error('terrain controller missing from PWA materializer');
 
-console.log('PASS Run216 land/sea editor: add/remove modes, deterministic metric cells, opposite-surface exclusion, normal scene persistence, mobile and PWA contracts present.');
+console.log('PASS Run216 land/sea editor: add/remove modes, deterministic metric cells, overlap exclusion, transparent-water shadow safety, scene persistence, mobile and PWA contracts present.');
