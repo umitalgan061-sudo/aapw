@@ -43,6 +43,7 @@ jobs:
           node --check src/3d/lighting.js
           node --check scripts/checkRun221RealisticGameAuroraBrowser.js
           node --check scripts/checkLightingVisualContract.js
+          node --check scripts/applyRun221AuroraPwaPrecacheAddition.js
       - name: Install isolated Chromium proof tooling
         run: |
           set -euo pipefail
@@ -57,8 +58,10 @@ jobs:
       - name: PWA cache and installability
         run: |
           set -euo pipefail
+          node scripts/applyRun221AuroraPwaPrecacheAddition.js
           node scripts/checkServiceWorkerCache.js
           node scripts/checkPwaInstallability.js
+          git diff --check
       - name: Mobile performance and deterministic world safety
         run: |
           set -euo pipefail
