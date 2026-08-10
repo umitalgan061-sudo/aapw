@@ -1,0 +1,125 @@
+name: Run 237 Editor Malformed Scene Atomicity V2 Clean
+
+on:
+  push:
+    branches:
+      - agent/run237-editor-malformed-scene-atomicity-v2-clean
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run237-editor-malformed-scene-atomicity-v2-clean-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-and-finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Install Chromium proof dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Syntax and clean malformed scene-load atomicity regression
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun237EditorMalformedSceneAtomicityV2Clean.js
+          node scripts/checkRun237EditorMalformedSceneAtomicityV2Clean.js
+      - name: PWA cache and installability
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+      - name: Performance, determinism, world and debt safety
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Full browser smoke
+        run: node scripts/smokeTestGame3D.js
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run237 records
+        run: |
+          set -euo pipefail
+          MARKER='## Run 237 — World Editor malformed/non-object scene-load atomicity regression (V2 clean)'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent Chromium regression covers syntactically malformed JSON and parsed JSON `null` scene-file inputs against a deterministic prepared editor object.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- V1 was rejected by RCA #127 because it incorrectly depended on eventual completion of asynchronous boot seed objects; clean V2 uses the already-proven editor bridge/early-empty contract and explicitly creates its own test object.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Verified both handled failures preserve live object identity/assets/names/transforms, hierarchy, selection, instance-group count, and grid/snap settings exactly; two expected load errors are isolated while unexpected console/page errors remain zero.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- This extends Run234 invalid-schema atomicity without changing loader semantics and intentionally leaves Run236 RCA #125 fractional-position/snap-ordering behavior separate.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines. Test/workflow only; additive-only. Full PWA/cache, mobile performance, deterministic world safety, technical-debt and browser smoke gates passed before publication.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Technical debt introduced: 0. Risk: LOW. ADR not required. Next safe step: continue isolated serializer/scene-load structural validation coverage without crossing owner gates.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'editor-malformed-scene-atomicity-v2-clean' perf_log.csv; then
+            printf 'run237,%s,editor-malformed-scene-atomicity-v2-clean,,,,,,,"test-only malformed/non-object scene-load atomicity regression; runtime unchanged; full PWA/perf/determinism/world/smoke gates PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          if ! grep -Fq 'Run237 editor malformed scene-load atomicity regression V2 clean' STABLE_TAGS.md; then
+            printf '%s — Run237 editor malformed scene-load atomicity regression V2 clean; malformed JSON and JSON null preserve prepared editor state; full safety gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit and publish checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run237 clean V2 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run237): record clean malformed scene atomicity checkpoint'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check "$CURRENT_MAIN" HEAD
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run237-editor-malformed-scene-atomicity-v2-clean
+          git push origin "$STABLE_TAG" || true
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run237-editor-malformed-scene-atomicity-v2-clean
+          path: artifacts/run237-editor-malformed-scene-atomicity-v2-clean
+          if-no-files-found: error
