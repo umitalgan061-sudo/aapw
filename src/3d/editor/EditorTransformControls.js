@@ -78,6 +78,7 @@ export function installEditorTransformControls(api) {
     transform.setTranslationSnap(enabled ? Math.max(0.1, state.snapSize) : null);
     transform.setRotationSnap(enabled ? ROTATE_SNAP : null);
     transform.setScaleSnap(enabled ? SCALE_SNAP : null);
+    transform.setScaleSnap(null);
   }
 
   function syncSelection() {
