@@ -32,6 +32,7 @@ jobs:
           set -euo pipefail
           git fetch origin main
           CURRENT_MAIN="$(git rev-parse origin/main)"
+          CURRENT_MAIN="$(git rev-parse FETCH_HEAD)"
           test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
       - name: Materialize prepend-only cache
         run: |
@@ -48,6 +49,7 @@ jobs:
           set -euo pipefail
           git fetch origin main
           CURRENT_MAIN="$(git rev-parse origin/main)"
+          CURRENT_MAIN="$(git rev-parse FETCH_HEAD)"
           node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
           node scripts/checkAdditiveOnlyDiff.js HEAD service-worker.js || true
           if git diff -- service-worker.js | grep -E '^-' | grep -v '^---'; then
@@ -59,6 +61,7 @@ jobs:
           set -euo pipefail
           git fetch origin main
           CURRENT_MAIN="$(git rev-parse origin/main)"
+          CURRENT_MAIN="$(git rev-parse FETCH_HEAD)"
           test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
