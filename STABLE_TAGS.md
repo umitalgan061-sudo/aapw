@@ -944,3 +944,4 @@ stable-2026-08-10-1719 — Run221 editor history input-guard regression; inspect
 stable-2026-08-10-2147 — Run222 editor clipboard/history regression; deterministic paste identity/offset, undo/redo round-trip, PWA/perf/determinism/smoke gates verified.
 stable-2026-08-10-2203 — Run223 editor delete/history regression; exact object restore across delete/undo/redo, PWA/perf/determinism/smoke gates verified.
 stable-2026-08-10-2217 — Run224 editor duplicate/history regression; toolbar/Ctrl+D deterministic duplicate parity, undo/redo and clipboard isolation verified.
+stable-2026-08-10-2241 — Run225 editor sub-0.01 scale/history regression; `0.007` scene scale survives undo/redo and Inspector reflects it after explicit re-selection; PWA/perf/determinism/smoke gates verified.
