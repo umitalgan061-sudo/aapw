@@ -14586,3 +14586,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Corrected V2 workflow `31427884497` PASS: syntax, focused Chromium proof, PWA cache/installability, mobile performance, seeded/world-reference/hydrology/terrain/road safety, performance trend, technical debt, full browser smoke, final remote-main/additive-only gate, console-zero and three visual artifacts.
 - World Event Determinism Guard `31427884571` PASS. Runtime/product source delta: 0 lines changed. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: continue additive-only World Editor transform/history boundary coverage or another isolated owner-visible editor usability regression without crossing unresolved owner gates.
+
+## Run 227 — World Editor non-uniform scale/history + responsive-resize regression
+- Permanent additive-only Chromium coverage applies three non-uniform Inspector scale states: `[0.007,1,1]`, `[0.007,0.125,1]`, and `[0.007,0.125,0.75]`.
+- Undo traverses the exact intermediate states back to the original `[1,1,1]`; Redo round-trips through the same states to the final vector while editor identity, position and rotation remain unchanged. Explicit re-selection resynchronizes all three Inspector scale fields.
+- Artifact-review RCA: the first proof produced a 2293px-wide `fullPage` PNG after resizing a live Chromium page from desktop to 390px. Existing Run220 fresh-mobile no-overflow coverage and the new Run227 DOM-geometry desktop-to-mobile resize regression both pass, so this is a Playwright/Chromium full-page capture geometry artifact rather than document overflow. No runtime/CSS change was made.
+- Run227 V2 workflow `31429192965` PASS: syntax, focused Chromium history proof, fresh-mobile baseline, responsive-resize DOM gate, PWA cache/installability, mobile performance, seeded/world-reference/hydrology/terrain/road safety, performance trend, technical debt, full browser smoke, final remote-main/additive-only gate, console-zero and visual artifacts.
+- World Event Determinism Guard `31429192908` PASS. Runtime/product source delta: 0 lines changed. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: continue additive-only World Editor transform/history boundary and usability coverage without crossing unresolved owner gates.
