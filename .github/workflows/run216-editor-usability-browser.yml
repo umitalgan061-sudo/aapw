@@ -10,6 +10,7 @@ on:
       - 'src/3d/editor/**'
       - 'scripts/checkRun216EditorUsabilityContract.js'
       - 'scripts/checkRun216EditorUsabilityBrowser.js'
+      - 'scripts/checkRun216EditorLiveWorldResourceCleanup.js'
       - 'scripts/materializeRun216ServiceWorkerCache.js'
       - 'scripts/checkRun216ServiceWorkerMaterializer.js'
       - '.github/workflows/run216-editor-usability-browser.yml'
@@ -42,9 +43,12 @@ jobs:
           node --check src/3d/editor/EditorLiveWorldAuthoring.js
           node --check src/3d/editor/EditorLiveWorldVisualSync.js
           node --check src/3d/editor/EditorPlacementControllerSafe.js
+          node --check src/3d/editor/EditorLiveWorldResourceCleanup.js
           node --check scripts/checkRun216EditorUsabilityContract.js
           node --check scripts/checkRun216EditorUsabilityBrowser.js
+          node --check scripts/checkRun216EditorLiveWorldResourceCleanup.js
           node scripts/checkRun216EditorUsabilityContract.js
+          node scripts/checkRun216EditorLiveWorldResourceCleanup.js
           node scripts/materializeRun216ServiceWorkerCache.js --self-test
           node scripts/checkRun216ServiceWorkerMaterializer.js
       - name: Install isolated Chromium proof tooling
