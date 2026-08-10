@@ -1,4 +1,7 @@
 import { createScene } from '../sceneManager.js';
+import { AssetLoader } from '../assetLoader.js';
+import { WORLD_DEFAULTS } from '../config.js';
+import { spawnRealCastleModels, disposeRealCastleModels } from '../world/settlements.js';
 
 function findEditorGround(scene) {
   return scene.children.find((child) => child?.name === 'Editor Ground') || null;
@@ -59,6 +62,29 @@ export function installEditorLiveWorldBridge(api) {
   liveState.renderer?.dispose?.();
 
   let disposed = false;
+  let realCastles = null;
+  let realCastlesReady = false;
+  const liveAssetLoader = new AssetLoader();
+  const realCastlesPromise = spawnRealCastleModels({
+    assetLoader: liveAssetLoader,
+    seats: liveState.settlementSeats,
+    seed: WORLD_DEFAULTS.WORLD_SEED
+  }).then((group) => {
+    realCastlesReady = true;
+    if (disposed) {
+      disposeRealCastleModels(group);
+      return null;
+    }
+    realCastles = group;
+    liveChildren.push(group);
+    editorScene.add(group);
+    return group;
+  }).catch((error) => {
+    realCastlesReady = true;
+    console.error('[EditorLiveWorldBridge] real castle load failed', error);
+    return null;
+  });
+
   function getSnapshot() {
     return Object.freeze({
       liveWorldVisible: liveChildren.some((child) => child.parent === editorScene && child.visible !== false),
@@ -67,7 +93,9 @@ export function installEditorLiveWorldBridge(api) {
       fogDisabled: editorScene.fog === null,
       terrainChunkCount: Number(liveState.chunkManager?.loadedCount || 0),
       roadSegmentCount: Number(liveState.roadEdges?.length || 0),
-      settlementCount: Number(liveState.settlementSeats?.length || 0)
+      settlementCount: Number(liveState.settlementSeats?.length || 0),
+      realCastlesReady,
+      realCastleCount: Number(realCastles?.children?.length || 0)
     });
   }
 
@@ -77,6 +105,10 @@ export function installEditorLiveWorldBridge(api) {
     window.removeEventListener('pagehide', dispose);
     for (const child of liveChildren) {
       if (child.parent === editorScene) editorScene.remove(child);
+    }
+    if (realCastles) {
+      disposeRealCastleModels(realCastles);
+      realCastles = null;
     }
     if (editorGround) editorGround.visible = true;
     setEditorLightsVisible(editorChildrenBeforeWorld, true);
@@ -90,7 +122,7 @@ export function installEditorLiveWorldBridge(api) {
     if (window.__WESTEROS_EDITOR_LIVE_WORLD__ === surface) delete window.__WESTEROS_EDITOR_LIVE_WORLD__;
   }
 
-  const surface = Object.freeze({ liveState, getSnapshot, dispose });
+  const surface = Object.freeze({ liveState, ready: realCastlesPromise, getSnapshot, dispose });
   window.__WESTEROS_EDITOR_LIVE_WORLD__ = surface;
   window.addEventListener('pagehide', dispose, { once: true });
   return surface;
