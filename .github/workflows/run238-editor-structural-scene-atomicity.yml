@@ -1,0 +1,124 @@
+name: Run 238 Editor Structural Scene Atomicity
+
+on:
+  push:
+    branches:
+      - agent/run238-editor-structural-scene-atomicity
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run238-editor-structural-scene-atomicity-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-and-finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Install Chromium proof dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Syntax and structural scene atomicity regression
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun238EditorStructuralSceneAtomicity.js
+          node scripts/checkRun238EditorStructuralSceneAtomicity.js
+      - name: PWA cache and installability
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+      - name: Performance, determinism, world and debt safety
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Full browser smoke
+        run: node scripts/smokeTestGame3D.js
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run238 records
+        run: |
+          set -euo pipefail
+          MARKER='## Run 238 — World Editor structural scene-validation atomicity regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Added a permanent Chromium regression for schema-valid JSON whose `objects` or `instanceGroups` field has the wrong structural type.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Both validation failures preserve the deterministic prepared live editor state exactly: objects, hierarchy, selection, instance-group count and grid/snap settings remain unchanged.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Expected validation errors are isolated through the existing scene-load error path while unexpected console/page errors remain zero.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines. Test/workflow only; additive-only. Full PWA/cache, mobile performance, deterministic world safety, technical-debt and browser smoke gates passed before publication.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Technical debt introduced: 0. Risk: LOW. ADR not required. Next safe step: continue isolated serializer boundary/default-field coverage without changing existing loader lines or crossing owner gates.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'editor-structural-scene-atomicity' perf_log.csv; then
+            printf 'run238,%s,editor-structural-scene-atomicity,,,,,,,"test-only wrong-type objects/instanceGroups atomicity regression; runtime unchanged; full PWA/perf/determinism/world/smoke gates PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          if ! grep -Fq 'Run238 editor structural scene-validation atomicity regression' STABLE_TAGS.md; then
+            printf '%s — Run238 editor structural scene-validation atomicity regression; wrong-type objects/instanceGroups preserve editor state; full safety gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit and publish checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run238 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run238): record structural scene atomicity checkpoint'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check "$CURRENT_MAIN" HEAD
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run238-editor-structural-scene-atomicity
+          git push origin "$STABLE_TAG" || true
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run238-editor-structural-scene-atomicity
+          path: artifacts/run238-editor-structural-scene-atomicity
+          if-no-files-found: error
