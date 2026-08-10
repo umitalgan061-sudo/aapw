@@ -59,7 +59,10 @@ async function main() {
   const page = await context.newPage();
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  /* additive-only Run216 syntax quarantine for the malformed legacy listener below
   page.on('pageerror', (error) => errors.push(String(error));
+  */
+  page.on('pageerror', (error) => errors.push(String(error)));
 
   try {
     await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
