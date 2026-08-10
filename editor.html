@@ -108,5 +108,47 @@
 <script type="module" src="./src/3d/editor/EditorGamePreviewLauncher.js"></script>
 <script type="module" src="./src/3d/editor/EditorLocationNavigator.js"></script>
 <script type="module" src="./src/3d/editor/EditorLiveWorldResourceCleanup.js"></script>
+<script type="module">
+const ownerApi = window.__WESTEROS_WORLD_EDITOR__;
+if (ownerApi?.grid) {
+  const gridToggle = document.getElementById('we-grid-toggle');
+  const hierarchy = document.getElementById('we-hierarchy');
+  const scaleAxes = Object.freeze({ 'we-scale-x': 'x', 'we-scale-y': 'y', 'we-scale-z': 'z' });
+  const hideMovingGridBase = () => {
+    if (gridToggle) {
+      gridToggle.checked = false;
+      gridToggle.disabled = true;
+      gridToggle.title = 'Canlı dünya editöründe hareketli grid tabanı gizlendi';
+    }
+    ownerApi.grid.visible = false;
+  };
+  const applyPreciseScale = (event) => {
+    const axis = scaleAxes[event.currentTarget?.id];
+    if (!axis) return;
+    const object = ownerApi.getSelectedObject?.();
+    if (!object || object.isInstancedMesh) return;
+    const raw = String(event.currentTarget.value).trim();
+    if (!raw) return;
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) return;
+    event.stopImmediatePropagation();
+    object.scale[axis] = Math.max(0.001, numeric);
+    ownerApi.writeInspector?.(object);
+    ownerApi.refreshHierarchy?.();
+  };
+  hideMovingGridBase();
+  const hierarchyObserver = hierarchy ? new MutationObserver(hideMovingGridBase) : null;
+  hierarchyObserver?.observe(hierarchy, { childList: true, subtree: true });
+  for (const id of Object.keys(scaleAxes)) {
+    const input = document.getElementById(id);
+    if (!input) continue;
+    input.min = '0.001';
+    input.step = '0.001';
+    input.setAttribute('inputmode', 'decimal');
+    input.addEventListener('change', applyPreciseScale, true);
+  }
+  window.addEventListener('pagehide', () => hierarchyObserver?.disconnect(), { once: true });
+}
+</script>
 </body>
 </html>
