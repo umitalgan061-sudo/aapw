@@ -1,0 +1,90 @@
+name: Run216 Editor Game Preview
+
+on:
+  push:
+    branches:
+      - agent/run216-world-editor-transform-controls
+    paths:
+      - 'editor.html'
+      - 'game3d.html'
+      - 'src/3d/editor/EditorGamePreviewLauncher.js'
+      - 'src/3d/editor/EditorGamePatchPreviewGateSafe.js'
+      - 'src/3d/editor/EditorGamePatchPreview.js'
+      - 'scripts/checkRun216EditorGamePreviewContract.js'
+      - 'scripts/checkRun216EditorGamePreviewBrowser.js'
+      - 'scripts/materializeRun216ServiceWorkerCache.js'
+      - 'scripts/checkRun216ServiceWorkerMaterializer.js'
+      - '.github/workflows/run216-editor-game-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-game-preview:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Syntax and preview contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorGamePreviewLauncher.js
+          node --check src/3d/editor/EditorGamePatchPreviewGateSafe.js
+          node --check src/3d/editor/EditorGamePatchPreview.js
+          node --check scripts/checkRun216EditorGamePreviewContract.js
+          node --check scripts/checkRun216EditorGamePreviewBrowser.js
+          node scripts/checkRun216EditorGamePreviewContract.js
+          node scripts/materializeRun216ServiceWorkerCache.js --self-test
+          node scripts/checkRun216ServiceWorkerMaterializer.js
+      - name: Install isolated Chromium proof tooling
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/run216-editor-game-preview-tools"
+          npm install --prefix "$RUNNER_TEMP/run216-editor-game-preview-tools" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/run216-editor-game-preview-tools/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/run216-editor-game-preview-tools/node_modules" >> "$GITHUB_ENV"
+      - name: Normal and preview gameplay browser proof
+        run: node scripts/checkRun216EditorGamePreviewBrowser.js
+      - name: Existing game smoke and safety
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run216-preview-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run216-preview-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run216-preview-smoke.log"
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+      - name: Final concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Upload preview evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run216-editor-game-preview
+          path: artifacts/run216-editor-game-preview/*.png
+          if-no-files-found: error
