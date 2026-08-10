@@ -1,0 +1,29 @@
+name: Run216 Editor Buildings
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/editorAssetLibrary.js'
+      - 'src/3d/editor/EditorAssetScalePolicy.js'
+      - 'scripts/checkEditorAssetScalePolicy.mjs'
+      - 'scripts/checkRun216EditorBuildingLibrary.mjs'
+      - '.github/workflows/run216-editor-buildings.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-buildings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check src/3d/editor/editorAssetLibrary.js
+      - run: node --check src/3d/editor/EditorAssetScalePolicy.js
+      - run: node --check scripts/checkEditorAssetScalePolicy.mjs
+      - run: node --check scripts/checkRun216EditorBuildingLibrary.mjs
+      - run: node scripts/checkEditorAssetScalePolicy.mjs
+      - run: node scripts/checkRun216EditorBuildingLibrary.mjs
