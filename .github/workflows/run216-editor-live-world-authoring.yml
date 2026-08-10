@@ -91,3 +91,7 @@ jobs:
           name: run216-editor-live-authoring
           path: artifacts/run216-editor-live-authoring/*.png
           if-no-files-found: error
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
