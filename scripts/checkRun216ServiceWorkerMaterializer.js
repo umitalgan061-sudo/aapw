@@ -26,6 +26,9 @@ const REQUIRED_PATHS = Object.freeze([
   './src/3d/editor/EditorLiveWorldVisualSync.js',
   './src/3d/editor/EditorPlacementControllerSafe.js',
   './src/3d/editor/EditorLocalSession.js',
+  './src/3d/editor/EditorGamePreviewLauncher.js',
+  './src/3d/editor/EditorGamePatchPreviewGateSafe.js',
+  './src/3d/editor/EditorGamePatchPreview.js',
   './src/3d/editor/EditorLocationNavigator.js',
   './src/3d/editor/EditorLiveWorldResourceCleanup.js',
   './src/3d/editor/EditorWorldPatchCompiler.js',
@@ -88,7 +91,7 @@ function main() {
     if (!fs.readFileSync(SOURCE_SW).equals(original)) fail('Regression test mutated repository service-worker.js');
 
     console.log(`[checkRun216ServiceWorkerMaterializer] PROOF: originalBytes=${original.length} materializedBytes=${first.length} additiveBytes=${originalOffset}`);
-    console.log('[checkRun216ServiceWorkerMaterializer] PASS: real service-worker copy preserves all existing bytes, adds TransformControls + scale + road + terrain + clipboard + fog-free edit + live-world bridge + world-patch compiler cache paths once, remains syntactically valid, verifies cleanly and is idempotent');
+    console.log('[checkRun216ServiceWorkerMaterializer] PASS: real service-worker copy preserves all existing bytes, adds editor live-world authoring/preview/session/cache paths exactly once, remains syntactically valid, verifies cleanly and is idempotent.');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
