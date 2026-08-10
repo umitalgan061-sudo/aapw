@@ -177,3 +177,4 @@ run224,2026-08-10,editor-duplicate-history,,,,,,,"test-only duplicate/Ctrl+D/und
 run225,2026-08-10,editor-sub001-scale-history,,,,,,,"test-only sub-0.01 scale/undo/redo/reselect regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run226,2026-08-10,editor-signed-rotation-history,,,,,,,"test-only signed -179.9deg rotation undo/redo persistence regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run228,2026-08-10,editor-mixed-position-history,,,,,,,"test-only mixed-sign decimal position/undo/redo/reselect regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run230,2026-08-11,editor-responsive-layout-integrity,,35,195929,30,22,,"390px fresh+desktop-to-mobile layout fixed from bodyScrollWidth 2293 to 390; internal toolbar/status scrolling preserved; PWA/perf/determinism/full smoke PASS"
