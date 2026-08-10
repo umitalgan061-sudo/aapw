@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { applyRealisticAuroraMaterial } from './auroraRealism.js';
 import { applyNaturalAuroraRefinement } from './auroraRealism.js';
+import { applyAuroraCurtainRaysV3 } from './auroraRealism.js';
 
 const SKY_VERTEX_SHADER = /* glsl */ `
 	varying vec3 vWorldPosition;
@@ -112,6 +113,7 @@ export function createAuroraSky() {
 		.replace('0.67, 0.030, 0.021', '0.67, 0.043, 0.021')
 		.replace('curtainEnergy * visibility * breathe * 0.58', 'curtainEnergy * visibility * breathe * 0.78')
 		.replace('broadGlow * visibility * 0.095', 'broadGlow * visibility * 0.12');
+	applyAuroraCurtainRaysV3(material);
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.frustumCulled = false; // it must never disappear — it always surrounds the camera by construction.
 	mesh.renderOrder = -1; // draw first so opaque terrain/props overdraw it normally, not the other way around.
