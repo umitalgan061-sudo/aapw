@@ -87,3 +87,7 @@ jobs:
           name: run216-editor-live-world
           path: artifacts/run216-editor-live-world/*.png
           if-no-files-found: error
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
