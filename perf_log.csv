@@ -171,3 +171,4 @@ run218,2026-08-10,editor-authoring-regression,,,,,,,"test-only orchestration; ru
 run219,2026-08-10,editor-history-regression,,,,,,,"test-only browser regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run220,2026-08-10,editor-history-shortcuts-mobile,,,,,,,"test-only keyboard/mobile browser regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run221,2026-08-10,editor-history-input-guard,,,,,,,"test-only inspector shortcut guard and Ctrl+Y redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run222,2026-08-10,realistic-game-aurora,,,,,,,"layered 3-octave procedural aurora; mobile perf budget + full browser smoke PASS; world geometry/coverage unchanged"

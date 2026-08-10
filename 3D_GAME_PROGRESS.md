@@ -14530,3 +14530,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, zero browser errors, and final remote-main/additive-only gates PASS.
 - Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
+
+## Run 222 — Realistic game-night aurora curtains
+- Game-mode aurora now uses an additive layered procedural fragment-shader override inside the already-cached `src/3d/sky.js` contract: three independently drifting curtains, broad/fine warping, vertical striations, broken edges, phosphor-like core glow, soft atmospheric lift, green/cyan body and restrained violet edge variation.
+- Existing day/night uniforms, sky geometry/lifecycle, deterministic gameplay/world state, 2D game, editor/RTS ownership and PWA module graph remain unchanged. No external texture or asset dependency was added.
+- Mobile fragment cost is bounded by a three-octave FBM and cheaper single-noise secondary modulation. The earlier separate-module candidate was rejected by the standing PWA cache guard; final implementation stays in the existing cached sky module.
+- Validation PASS: syntax, additive-only/diff, service-worker cache, PWA installability, mobile performance, deterministic world-reference/hydrology/terrain/road safety, perf trend, technical-debt audit, full Chromium game3d smoke and final remote-main concurrency gates.
+- Runtime source delta is additive only; no source lines/files deleted. World coverage and simulation ownership unchanged. Residual risk is visual/GPU-device variance only; gameplay risk LOW.
+- Next safe step: focused real-browser aurora visual contract/evidence gate without changing gameplay ownership.

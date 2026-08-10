@@ -15418,3 +15418,14 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Future phase impact:** this provides a stable persistence base for later per-instance editing and TransformControls work without constraining animated crowd implementation.
 
 **Rollback:** remove the additive import/load/cache lines and rehydrator module in a future owner-approved change; schema-v1 saved files remain readable for normal objects as in Run214.
+
+## ADR-0234 — Keep realistic aurora inside the existing cached sky contract
+**Risk:** LOW
+
+**Decision:** Upgrade game-mode northern lights by additively replacing the already-created `ShaderMaterial.fragmentShader` inside `src/3d/sky.js`, rather than introducing a new runtime module or external texture. The replacement keeps established uniforms/lifecycle while rendering three procedural curtain layers with independent drift, warped/broken edges, vertical striation, phosphor-style core/soft glow and restrained green-cyan/violet variation. Procedural FBM is bounded to three octaves for mobile cost control.
+
+**Why:** The owner requested a brighter, realistic, visibly moving aurora without an artificial neon look. The first isolated-module candidate correctly failed the standing PWA cache guard because every `src/3d` module must be offline-cached. Keeping the implementation in the existing cached sky module satisfies strict additive-only source policy without widening the PWA dependency graph, changing deterministic world state, or altering the public sky/day-night contract.
+
+**Affected systems:** game-mode sky rendering only, plus Run222 validation/governance records. 2D, editor, RTS simulation, terrain/water, gameplay determinism, service-worker source/version and asset manifests remain unchanged.
+
+**Rollback/Future:** A future owner-approved visual direction can add a versioned shader override that supersedes this one; existing historical shader source remains preserved under additive-only policy. A focused browser visual-evidence guard is the next safe follow-up before further GPU-heavy sky effects.
