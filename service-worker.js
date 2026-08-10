@@ -1,3 +1,52 @@
+// Run216 complete World Editor offline shell extension.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorAssetScalePolicy.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorClipboardController.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorEditModeEnvironment.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorGamePatchPreview.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorGamePatchPreviewGate.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorGamePatchPreviewGateSafe.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorGamePreviewLauncher.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorHistoryController.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceBoundsSafety.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceCoordinatorLifecycle.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceEditCoordinator.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceEditCoordinatorSafe.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceEditOperations.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceEditSession.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceInteractionBootstrap.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceInteractionInstaller.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceInteractionPipeline.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceInteractionRuntime.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceInteractionSingleton.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceLifecycleSafety.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstancePickingModel.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstancePointerController.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstancePointerOwnership.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceRaycastSource.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceRenderAdapter.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceSelectionModel.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceTransformBridge.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceTransformProxy.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLiveWorldAuthoring.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLiveWorldBridge.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLiveWorldResourceCleanup.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLiveWorldVisualSync.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLocalSession.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLocationNavigator.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorPlacementController.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorPlacementControllerSafe.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorRoadController.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorRoadModel.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorScaleInputController.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTerrainCellModel.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTerrainPaintController.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTerrainSemantics.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTransformControls.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorWorldPatchCompiler.js');
+    GAME3D_SHELL_FILES.push('./src/3d/vendor/three/addons/controls/TransformControls.js');
+});
+
 // Run214 Westeros World Editor offline authoring shell; registered before the established cache install handler.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./editor.html');
