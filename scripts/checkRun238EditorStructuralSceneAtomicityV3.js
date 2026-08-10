@@ -1,0 +1,182 @@
+#!/usr/bin/env node
+'use strict';
+
+const fs = require('fs');
+const http = require('http');
+const path = require('path');
+
+const ROOT = process.cwd();
+const ARTIFACT_DIR = path.join(ROOT, 'artifacts', 'run238-editor-structural-scene-atomicity-v3');
+const BASELINE_ID = 'run238-v3-baseline-castle';
+
+function assert(value, message) { if (!value) throw new Error(message); }
+function playwrightModule() {
+  for (const id of ['playwright', '/opt/node22/lib/node_modules/playwright']) {
+    try { return require(id); } catch {}
+  }
+  return null;
+}
+function contentType(file) {
+  const ext = path.extname(file).toLowerCase();
+  if (ext === '.html') return 'text/html; charset=utf-8';
+  if (ext === '.js' || ext === '.mjs') return 'text/javascript; charset=utf-8';
+  if (ext === '.css') return 'text/css; charset=utf-8';
+  if (ext === '.json' || ext === '.webmanifest') return ext === '.webmanifest' ? 'application/manifest+json' : 'application/json; charset=utf-8';
+  if (ext === '.png') return 'image/png';
+  if (ext === '.glb') return 'model/gltf-binary';
+  if (ext === '.gltf') return 'model/gltf+json';
+  return 'application/octet-stream';
+}
+function startServer() {
+  const server = http.createServer((req, res) => {
+    const clean = decodeURIComponent(req.url.split('?')[0]);
+    const relative = clean === '/' ? 'index.html' : clean.replace(/^\//, '');
+    const file = path.resolve(ROOT, relative);
+    const index = path.join(file, 'index.html');
+    if (file.startsWith(ROOT + path.sep) && fs.existsSync(file) && fs.statSync(file).isDirectory() && fs.existsSync(index)) {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); fs.createReadStream(index).pipe(res); return;
+    }
+    if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      res.writeHead(clean === '/favicon.ico' ? 204 : 404); res.end(); return;
+    }
+    res.writeHead(200, { 'content-type': contentType(file), 'cache-control': 'no-store' }); fs.createReadStream(file).pipe(res);
+  });
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
+}
+function waitForCount(array, expected, timeoutMs = 30000) {
+  const started = Date.now();
+  return new Promise((resolve, reject) => {
+    const poll = () => {
+      if (array.length >= expected) return resolve();
+      if (Date.now() - started >= timeoutMs) return reject(new Error(`Timed out waiting for handled load error count ${expected}; observed ${array.length}`));
+      setTimeout(poll, 25);
+    };
+    poll();
+  });
+}
+async function waitForStableScene(page, requiredId, quietMs = 2500, timeoutMs = 30000) {
+  const started = Date.now();
+  let lastSignature = null;
+  let stableSince = 0;
+  while (Date.now() - started < timeoutMs) {
+    const sample = await page.evaluate((id) => {
+      const objects = window.__WESTEROS_WORLD_EDITOR__?.editableObjects || [];
+      const signature = objects.map((object) => ({
+        id: object.userData?.editorId || '',
+        asset: object.userData?.editorAssetId || '',
+        name: object.name || '',
+        position: object.position.toArray().map((value) => Number(value.toFixed(6))),
+        rotation: [object.rotation.x, object.rotation.y, object.rotation.z].map((value) => Number(value.toFixed(6))),
+        scale: object.scale.toArray().map((value) => Number(value.toFixed(6)))
+      })).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      return { hasRequired: signature.some((entry) => entry.id === id), signature: JSON.stringify(signature) };
+    }, requiredId);
+    if (!sample.hasRequired) {
+      lastSignature = null;
+      stableSince = 0;
+    } else if (sample.signature !== lastSignature) {
+      lastSignature = sample.signature;
+      stableSince = Date.now();
+    } else if (stableSince && Date.now() - stableSince >= quietMs) {
+      return JSON.parse(sample.signature);
+    }
+    await page.waitForTimeout(100);
+  }
+  throw new Error(`Timed out waiting for stable editor scene containing ${requiredId}`);
+}
+
+async function main() {
+  const playwright = playwrightModule();
+  assert(playwright, 'Playwright unavailable');
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+  const validScene = path.join(ARTIFACT_DIR, 'valid-baseline.scene.json');
+  const badObjects = path.join(ARTIFACT_DIR, 'objects-not-array.scene.json');
+  const badGroups = path.join(ARTIFACT_DIR, 'instance-groups-not-array.scene.json');
+  fs.writeFileSync(validScene, JSON.stringify({
+    schemaVersion: 1,
+    world: { name: 'Westeros', coordinateSystem: 'threejs-y-up', units: 'meters' },
+    editor: { gridVisible: false, snapEnabled: false, snapSize: 2.5 },
+    objects: [{
+      id: BASELINE_ID,
+      name: 'Run238 V3 Baseline Castle',
+      asset: 'marker-castle',
+      transform: { position: [-16, 4, 28], rotation: [-0.25, 0.5, 1.25], scale: [0.125, 1.75, 2.5] }
+    }],
+    instanceGroups: []
+  }, null, 2));
+  fs.writeFileSync(badObjects, JSON.stringify({ schemaVersion: 1, objects: {}, instanceGroups: [], editor: { gridVisible: true, snapEnabled: true, snapSize: 1 } }, null, 2));
+  fs.writeFileSync(badGroups, JSON.stringify({ schemaVersion: 1, objects: [], instanceGroups: {}, editor: { gridVisible: true, snapEnabled: true, snapSize: 1 } }, null, 2));
+
+  const server = await startServer();
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const browser = await playwright.chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const handled = [];
+  const unexpected = [];
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    const text = message.text();
+    if (text.includes('[worldEditor] scene load failed')) handled.push(text); else unexpected.push(text);
+  });
+  page.on('pageerror', (error) => unexpected.push(String(error)));
+
+  const capture = () => page.evaluate(() => ({
+    objects: window.__WESTEROS_WORLD_EDITOR__.editableObjects.map((object) => ({
+      id: object.userData.editorId,
+      asset: object.userData.editorAssetId,
+      name: object.name,
+      position: object.position.toArray().map((value) => Number(value.toFixed(6))),
+      rotation: [object.rotation.x, object.rotation.y, object.rotation.z].map((value) => Number(value.toFixed(6))),
+      scale: object.scale.toArray().map((value) => Number(value.toFixed(6)))
+    })).sort((a, b) => String(a.id).localeCompare(String(b.id))),
+    groups: window.__WESTEROS_WORLD_EDITOR__.instanceManager.groups.length,
+    hierarchy: [...document.querySelectorAll('#we-hierarchy .we-hierarchy-item')].map((node) => node.textContent).sort(),
+    selection: document.getElementById('we-selection-status').textContent,
+    gridVisible: document.getElementById('we-grid-toggle').checked,
+    snapEnabled: document.getElementById('we-snap-toggle').checked,
+    snapSize: Number(document.getElementById('we-snap-size').value)
+  }));
+
+  try {
+    await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await page.waitForFunction(() => Boolean(window.__WESTEROS_WORLD_EDITOR__?.editableObjects), null, { timeout: 120000 });
+
+    await page.locator('#we-load-file').setInputFiles(validScene);
+    await page.waitForFunction(() => document.getElementById('we-toast')?.textContent === 'Scene JSON yüklendi.', null, { timeout: 120000 });
+    const stabilizedObjects = await waitForStableScene(page, BASELINE_ID);
+    assert(stabilizedObjects.some((entry) => entry.id === BASELINE_ID), `Stable scene lost required baseline object: ${JSON.stringify(stabilizedObjects)}`);
+
+    const baselineItem = page.locator('#we-hierarchy .we-hierarchy-item').filter({ hasText: 'Run238 V3 Baseline Castle' }).first();
+    await baselineItem.click();
+    await page.waitForTimeout(150);
+    const before = await capture();
+    assert(before.objects.some((entry) => entry.id === BASELINE_ID), `Prepared baseline object missing: ${JSON.stringify(before.objects)}`);
+    assert(before.gridVisible === false && before.snapEnabled === false && before.snapSize === 2.5, `Baseline editor settings drifted: ${JSON.stringify(before)}`);
+    assert(before.selection.includes('Run238 V3 Baseline Castle'), `Baseline selection missing: ${before.selection}`);
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, '01-stable-valid-baseline.png'), fullPage: true });
+
+    await page.locator('#we-load-file').setInputFiles(badObjects);
+    await waitForCount(handled, 1);
+    await page.waitForTimeout(150);
+    const afterObjects = await capture();
+    assert(JSON.stringify(afterObjects) === JSON.stringify(before), `objects-not-array mutated live state: ${JSON.stringify({ before, afterObjects })}`);
+    assert(handled[0].includes('Scene objects bir dizi olmalı.'), `objects validation contract drifted: ${handled[0]}`);
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, '02-after-objects-not-array.png'), fullPage: true });
+
+    await page.locator('#we-load-file').setInputFiles(badGroups);
+    await waitForCount(handled, 2);
+    await page.waitForTimeout(150);
+    const afterGroups = await capture();
+    assert(JSON.stringify(afterGroups) === JSON.stringify(before), `instanceGroups-not-array mutated live state: ${JSON.stringify({ before, afterGroups })}`);
+    assert(handled[1].includes('Scene instanceGroups bir dizi olmalı.'), `instanceGroups validation contract drifted: ${handled[1]}`);
+    assert(unexpected.length === 0, `Unexpected browser errors: ${unexpected.join(' | ')}`);
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, '03-after-instance-groups-not-array.png'), fullPage: true });
+
+    console.log(`[checkRun238EditorStructuralSceneAtomicityV3] PASS ${JSON.stringify({ stableObjectCount: before.objects.length, baselinePresent: true, handledErrors: handled.length, unexpectedErrors: unexpected.length, screenshots: 3 })}`);
+  } finally {
+    await context.close(); await browser.close(); await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+main().catch((error) => { console.error(`[checkRun238EditorStructuralSceneAtomicityV3] FAIL: ${error.stack || error}`); process.exitCode = 1; });
