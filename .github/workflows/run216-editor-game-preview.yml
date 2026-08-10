@@ -88,3 +88,7 @@ jobs:
           name: run216-editor-game-preview
           path: artifacts/run216-editor-game-preview/*.png
           if-no-files-found: error
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
