@@ -170,3 +170,4 @@ run213,2026-08-09,mobile-rts-selection-readability,,28,202770,,,,"DOM-only selec
 run218,2026-08-10,editor-authoring-regression,,,,,,,"test-only orchestration; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run219,2026-08-10,editor-history-regression,,,,,,,"test-only browser regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run220,2026-08-10,editor-history-shortcuts-mobile,,,,,,,"test-only keyboard/mobile browser regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run221,2026-08-10,editor-history-input-guard,,,,,,,"test-only inspector shortcut guard and Ctrl+Y redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"

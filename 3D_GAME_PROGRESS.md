@@ -14523,3 +14523,10 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
 - Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
+
+## Run 221 — World Editor history input-guard regression
+- Permanent additive-only Chromium regression verifies Ctrl+Z is ignored by scene history while the Inspector name input is focused, preserving the selected scene object and redo stack.
+- After leaving the input, Ctrl+Z performs scene undo and Ctrl+Y performs the alternate redo path, restoring the exact marker-tree asset and consuming the redo stack.
+- PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, zero browser errors, and final remote-main/additive-only gates PASS.
+- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
