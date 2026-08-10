@@ -14500,3 +14500,12 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - ADR not required: this is editor-only visual calibration on the established authoring environment; no architecture, persistence, deterministic generation, gameplay day/night state, asset-license or public-API decision changed.
 - Technical debt/risk: no new runtime debt marker; editor aurora boost owns one RAF/listener surface with explicit cleanup. Remaining risk is only display-dependent aesthetic calibration.
 - Next safe step: merge the narrow visible-aurora follow-up after documentation-only exact-head postflight.
+
+## Run 218 — Editor authoring regression suite
+- Added a permanent additive-only regression orchestrator covering the owner-visible World Editor guarantees: bright authoring mode, prominent aurora, fog disabled in edit mode, sub-0.01 scale precision, clipboard wiring, and instance-editing safety.
+- Browser proof verified bright-authoring lighting floors, aurora factor >=3.4, editor fog disabled, and zero console/page errors with captured visual evidence.
+- Node 22 RCA: legacy fog contract requires `--experimental-vm-modules`; the new orchestrator supplies that runtime flag without modifying the legacy test or production source.
+- PWA cache/installability, mobile performance, deterministic RNG/world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates all PASS.
+- Runtime/product source delta: 0 lines changed. New permanent files are test/workflow only. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+- World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; world events +0; creatures +0. Existing desktop/mobile coverage metrics unchanged.
+- Next safe step: continue additive-only editor/RTS usability work from current main; do not cross unresolved owner gates.
