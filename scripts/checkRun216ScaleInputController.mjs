@@ -41,6 +41,11 @@ globalThis.window = {
     if (type === 'pagehide') pagehideListeners.push(handler);
   }
 };
+globalThis.window.removeEventListener = (type, handler) => {
+  if (type !== 'pagehide') return;
+  const index = pagehideListeners.indexOf(handler);
+  if (index >= 0) pagehideListeners.splice(index, 1);
+};
 
 const { installEditorScaleInputController, EDITOR_SCALE_INPUT_POLICY } = await import('../src/3d/editor/EditorScaleInputController.js');
 
@@ -80,9 +85,11 @@ selected = ordinary;
 
 if (inspectorWrites < 3) throw new Error('Inspector was not synchronized after scale changes');
 if (hierarchyRefreshes !== 2) throw new Error(`unexpected hierarchy refresh count: ${hierarchyRefreshes}`);
+if (pagehideListeners.length !== 1) throw new Error('pagehide cleanup listener not installed exactly once');
 
 surface.dispose();
 if (scaleX.listenerCount() || scaleY.listenerCount() || scaleZ.listenerCount()) throw new Error('dispose leaked scale listeners');
+if (pagehideListeners.length !== 0) throw new Error('dispose leaked pagehide listener');
 surface.dispose();
 
 console.log('PASS Run216 precise Inspector scale input: sub-0.01 values persist, zero stays non-singular, invalid input is non-destructive, cleanup is idempotent.');
