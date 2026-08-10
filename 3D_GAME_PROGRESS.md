@@ -14509,3 +14509,10 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Runtime/product source delta: 0 lines changed. New permanent files are test/workflow only. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
 - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; world events +0; creatures +0. Existing desktop/mobile coverage metrics unchanged.
 - Next safe step: continue additive-only editor/RTS usability work from current main; do not cross unresolved owner gates.
+
+## Run 219 — World Editor undo/redo browser regression
+- Permanent additive-only Chromium regression verifies EditorHistoryController clean boot, object-create capture, exact undo to empty scene, exact marker-tree redo restoration, redo-stack transitions, visual proof and zero console/page errors.
+- PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
+- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+- World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; world events +0; creatures +0. ADR not required because runtime behavior/architecture/persistence/public API did not change.
+- Next safe step: continue additive-only World Editor/RTS usability work from current main without crossing unresolved owner gates.
