@@ -80,6 +80,7 @@ export function installEditorRoadController(api) {
   const sessionSegments = [];
   let lastPoint = null;
   let drawing = false;
+  let busy = false;
   let creationQueue = Promise.resolve();
   let toastTimer = 0;
   let disposed = false;
@@ -101,7 +102,8 @@ export function installEditorRoadController(api) {
   function syncUi() {
     ui.drawButton.setAttribute('aria-pressed', String(drawing));
     ui.drawButton.textContent = drawing ? 'Yolu Bitir' : 'Yol Çiz';
-    ui.undoButton.disabled = !lastPoint && sessionSegments.length === 0;
+    ui.drawButton.disabled = busy;
+    ui.undoButton.disabled = busy || (!lastPoint && sessionSegments.length === 0);
   }
 
   function selectObjectThroughHierarchy(object) {
@@ -114,9 +116,10 @@ export function installEditorRoadController(api) {
   async function createSegment(fromPoint, toPoint) {
     const direction = toPoint.clone().sub(fromPoint);
     const length = direction.length();
-    if (length < MIN_SEGMENT_LENGTH_METERS) return null;
+    if (length < MIN_SEGMENT_LENGTH_METERS || disposed) return null;
 
     const object = await assetManager.createObject(roadAsset);
+    if (disposed) return null;
     object.position.copy(fromPoint).add(toPoint).multiplyScalar(0.5);
     object.quaternion.setFromUnitVectors(localXAxis, direction.normalize());
     object.scale.set(length, 1, 1);
@@ -142,7 +145,7 @@ export function installEditorRoadController(api) {
   }
 
   function onCanvasPointerDown(event) {
-    if (!drawing || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (!drawing || busy || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey) return;
     const point = groundPointFromPointerEvent(event);
     if (!point) return;
     event.preventDefault();
@@ -158,20 +161,25 @@ export function installEditorRoadController(api) {
     const fromPoint = lastPoint.clone();
     const toPoint = point.clone();
     lastPoint = point;
+    busy = true;
+    syncUi();
     creationQueue = creationQueue
       .then(() => createSegment(fromPoint, toPoint))
       .then((segment) => {
         if (segment) sessionSegments.push(segment);
-        syncUi();
       })
       .catch((error) => {
         console.error('[EditorRoadController] segment creation failed', error);
         toast('Yol segmenti oluşturulamadı.');
+      })
+      .finally(() => {
+        busy = false;
+        syncUi();
       });
   }
 
   function finishDrawing() {
-    if (!drawing) return;
+    if (!drawing || busy) return;
     drawing = false;
     lastPoint = null;
     const lastSegment = sessionSegments.at(-1) || null;
@@ -186,6 +194,7 @@ export function installEditorRoadController(api) {
   }
 
   function startDrawing() {
+    if (busy) return;
     drawing = true;
     lastPoint = null;
     sessionSegments.length = 0;
@@ -194,12 +203,13 @@ export function installEditorRoadController(api) {
   }
 
   function toggleDrawing() {
+    if (busy) return;
     if (drawing) finishDrawing();
     else startDrawing();
   }
 
   function undoLastSegment() {
-    if (!drawing) return;
+    if (!drawing || busy) return;
     const object = sessionSegments.pop();
     if (!object) {
       lastPoint = null;
@@ -220,6 +230,7 @@ export function installEditorRoadController(api) {
     if (disposed) return;
     disposed = true;
     drawing = false;
+    busy = false;
     lastPoint = null;
     removers.splice(0).reverse().forEach((remove) => remove());
     window.clearTimeout(toastTimer);
@@ -239,6 +250,7 @@ export function installEditorRoadController(api) {
     toggleDrawing,
     undoLastSegment,
     isDrawing: () => drawing,
+    isBusy: () => busy,
     waitForPendingSegments: () => creationQueue,
     dispose
   });
