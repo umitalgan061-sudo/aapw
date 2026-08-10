@@ -50,6 +50,7 @@ export function installEditorHistoryController(api) {
   let restoring = false;
   let disposed = false;
   let observersStarted = false;
+  let pendingRestoreTransaction = null;
 
   function listen(target, type, handler, options) {
     target?.addEventListener?.(type, handler, options);
@@ -65,6 +66,27 @@ export function installEditorHistoryController(api) {
   function syncUi() {
     ui.undo.disabled = restoring || history.length <= 1;
     ui.redo.disabled = restoring || redoStack.length === 0;
+  }
+
+  function beginRestoreTransaction() {
+    if (pendingRestoreTransaction) return false;
+    pendingRestoreTransaction = Object.freeze({ history: Object.freeze([...history]), redo: Object.freeze([...redoStack]) });
+    return true;
+  }
+
+  function rollbackPendingRestoreTransaction() {
+    if (!pendingRestoreTransaction) return false;
+    history.splice(0, history.length, ...pendingRestoreTransaction.history);
+    redoStack.splice(0, redoStack.length, ...pendingRestoreTransaction.redo);
+    pendingRestoreTransaction = null;
+    syncUi();
+    return true;
+  }
+
+  function commitPendingRestoreTransaction() {
+    if (!pendingRestoreTransaction) return false;
+    pendingRestoreTransaction = null;
+    return true;
   }
 
   function pushSnapshot(text = serializeText(), { clearRedo = true } = {}) {
@@ -96,6 +118,7 @@ export function installEditorHistoryController(api) {
 
   function finishRestore() {
     if (!restoring) return;
+    if (pendingRestoreTransaction) rollbackPendingRestoreTransaction();
     restoring = false;
     window.clearTimeout(restoreTimer);
     restoreTimer = 0;
@@ -103,6 +126,7 @@ export function installEditorHistoryController(api) {
   }
 
   function restoreText(text) {
+    if (disposed && pendingRestoreTransaction) rollbackPendingRestoreTransaction();
     if (restoring || disposed) return false;
     try {
       validateEditorScene(JSON.parse(text));
@@ -113,9 +137,11 @@ export function installEditorHistoryController(api) {
       syncUi();
       loadInput.files = transfer.files;
       loadInput.dispatchEvent(new Event('change', { bubbles: true }));
+      if (!restoring) return true;
       restoreTimer = window.setTimeout(finishRestore, RESTORE_TIMEOUT_MS);
       return true;
     } catch (error) {
+      rollbackPendingRestoreTransaction();
       restoring = false;
       console.error('[EditorHistoryController] restore failed', error);
       syncUi();
@@ -126,6 +152,7 @@ export function installEditorHistoryController(api) {
   function undo() {
     if (restoring || history.length <= 1) return false;
     captureNow();
+    beginRestoreTransaction();
     const current = history.pop();
     redoStack.push(current);
     const target = history.at(-1);
@@ -135,6 +162,7 @@ export function installEditorHistoryController(api) {
 
   function redo() {
     if (restoring || redoStack.length === 0) return false;
+    beginRestoreTransaction();
     const target = redoStack.pop();
     if (history.at(-1) !== target) history.push(target);
     if (history.length > HISTORY_LIMIT) history.shift();
@@ -161,6 +189,8 @@ export function installEditorHistoryController(api) {
   function onToastMutation() {
     if (!restoring) return;
     const text = toastNode?.textContent?.trim();
+    if (text === 'Scene JSON yüklendi.') commitPendingRestoreTransaction();
+    if (text === 'Scene JSON yüklenemedi.') rollbackPendingRestoreTransaction();
     if (text === 'Scene JSON yüklendi.' || text === 'Scene JSON yüklenemedi.') finishRestore();
   }
 
@@ -189,6 +219,7 @@ export function installEditorHistoryController(api) {
       historyDepth: history.length,
       redoDepth: redoStack.length,
       restoring,
+      pendingRestore: Boolean(pendingRestoreTransaction),
       observersStarted,
       limit: HISTORY_LIMIT
     });
