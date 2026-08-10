@@ -78,3 +78,15 @@ button:hover, .we-link:hover, button:focus-visible, .we-link:focus-visible { bor
 @media (max-width: 900px) {
   .we-toolbar-actions #we-duplicate { display: inline-block; }
 }
+
+/* Run230 prevents dynamically injected toolbar min-content from expanding the mobile editor grid beyond the viewport. */
+@media (max-width: 640px) {
+  .we-shell { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+  .we-toolbar,
+  .we-toolbar-actions,
+  .we-assets-panel,
+  .we-viewport-wrap,
+  .we-right-panel,
+  .we-statusbar { min-width: 0; max-width: 100%; }
+  .we-toolbar-actions { width: 100%; }
+}
