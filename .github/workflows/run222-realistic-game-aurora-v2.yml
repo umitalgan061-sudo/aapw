@@ -34,6 +34,13 @@ jobs:
           test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
           node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
           git diff --check
+      - name: Install Chromium proof dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Syntax
         run: node --check src/3d/sky.js
       - name: PWA cache and installability
