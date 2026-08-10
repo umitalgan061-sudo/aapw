@@ -51,5 +51,6 @@ export function endInstanceEditSession(session) {
   session.active = false;
   const proxy = session.proxy || null;
   session.proxy = null;
+  session.selection = null;
   return proxy;
 }
