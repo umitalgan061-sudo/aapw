@@ -44,6 +44,7 @@ function startServer() {
     const relative = clean === '/' ? 'index.html' : clean.replace(/^\//, '');
     const file = path.resolve(ROOT, relative);
     if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      console.error(`[checkRun216EditorLiveWorldBrowser] proof-server 404: ${clean}`);
       res.writeHead(404);
       res.end('Not found');
       return;
