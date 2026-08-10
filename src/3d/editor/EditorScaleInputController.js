@@ -49,6 +49,9 @@ export function installEditorScaleInputController(api) {
   Object.keys(SCALE_AXIS_BY_INPUT_ID).forEach((id) => {
     const input = document.getElementById(id);
     if (!input) throw new Error(`Scale Inspector input bulunamadı: ${id}`);
+    input.min = String(MIN_EDITOR_SCALE);
+    input.step = String(MIN_EDITOR_SCALE);
+    input.setAttribute('inputmode', 'decimal');
     input.addEventListener('change', onScaleChange, true);
     removers.push(() => input.removeEventListener('change', onScaleChange, true));
   });
