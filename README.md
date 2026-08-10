@@ -1,4 +1,4 @@
-# Westeros — Yedi Krallık Haritası 🐉
+
 
 ## 📱 PWA (Progressive Web App) Uygulaması
 
