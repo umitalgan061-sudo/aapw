@@ -107,3 +107,106 @@ export function applyRealisticAuroraMaterial(material) {
 	material.userData.realisticAurora = true;
 	return material;
 }
+
+// Run221 visual-review refinement. The first measured shader proved bright and animated, but its
+// broad masks read as neon blobs in the captured frame. This second additive shader keeps the same
+// uniforms/lifecycle while narrowing the emission into long, translucent magnetic curtains with
+// fine ray striation, soft atmospheric bloom and a restrained violet upper fringe.
+const NATURAL_CURTAIN_AURORA_FRAGMENT_SHADER = /* glsl */ `
+	uniform vec3 uHorizonColor;
+	uniform vec3 uZenithColor;
+	uniform vec3 uAuroraColorA;
+	uniform vec3 uAuroraColorB;
+	uniform float uTime;
+	uniform float uNightFactor;
+	varying vec3 vWorldPosition;
+
+	float naturalHash(vec2 p) {
+		p = fract(p * vec2(127.1, 311.7));
+		p += dot(p, p + 34.53);
+		return fract(p.x * p.y);
+	}
+
+	float naturalNoise(vec2 p) {
+		vec2 i = floor(p);
+		vec2 f = fract(p);
+		vec2 u = f * f * (3.0 - 2.0 * f);
+		float a = naturalHash(i);
+		float b = naturalHash(i + vec2(1.0, 0.0));
+		float c = naturalHash(i + vec2(0.0, 1.0));
+		float d = naturalHash(i + vec2(1.0, 1.0));
+		return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+	}
+
+	float naturalFbm(vec2 p) {
+		float sum = 0.0;
+		float amp = 0.5;
+		for (int i = 0; i < 4; i++) {
+			sum += naturalNoise(p) * amp;
+			p = mat2(0.86, -0.51, 0.51, 0.86) * p * 2.02 + vec2(9.7, 3.4);
+			amp *= 0.5;
+		}
+		return sum;
+	}
+
+	float naturalCurtain(vec2 uv, float phase, float altitude, float width, float speed) {
+		float t = uTime * speed;
+		float macro = sin(uv.x * 4.0 + phase + t) * 0.038;
+		macro += sin(uv.x * 9.0 - phase * 0.7 - t * 0.54) * 0.016;
+		float driftNoise = (naturalFbm(vec2(uv.x * 1.4 + phase, t * 0.035)) - 0.5) * 0.045;
+		float center = altitude + macro + driftNoise;
+		float distanceToArc = abs(uv.y - center);
+		float core = 1.0 - smoothstep(width * 0.28, width, distanceToArc);
+		float veil = 1.0 - smoothstep(width, width * 3.2, distanceToArc);
+		float rayNoise = naturalFbm(vec2(uv.x * 18.0 + phase * 5.0, t * 0.16));
+		float fineRay = pow(0.5 + 0.5 * sin(uv.x * 118.0 + rayNoise * 7.0 + t * 2.0), 10.0);
+		float rayField = 0.58 + fineRay * 0.42;
+		float envelope = 0.72 + naturalFbm(vec2(uv.x * 2.2 - t * 0.025, phase + 2.0)) * 0.28;
+		return (core * rayField * 0.72 + veil * rayField * 0.20) * envelope;
+	}
+
+	void main() {
+		vec3 dir = normalize(vWorldPosition - cameraPosition);
+		float heightFactor = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
+		vec3 canonicalSky = mix(uHorizonColor, uZenithColor, pow(heightFactor, 0.55));
+		vec3 deepNightHorizon = vec3(0.018, 0.038, 0.080);
+		vec3 deepNightZenith = vec3(0.0025, 0.007, 0.024);
+		vec3 naturalNightSky = mix(deepNightHorizon, deepNightZenith, pow(heightFactor, 0.72));
+		float nightSkyBlend = smoothstep(0.48, 1.0, uNightFactor) * 0.72;
+		vec3 skyColor = mix(canonicalSky, naturalNightSky, nightSkyBlend);
+
+		float azimuth = atan(dir.z, dir.x) / 6.28318530718 + 0.5;
+		float elevation = clamp(dir.y, -0.04, 1.0);
+		vec2 uv = vec2(azimuth * 2.0, elevation);
+		float horizonGate = smoothstep(0.10, 0.23, elevation);
+		float zenithGate = 1.0 - smoothstep(0.88, 0.99, elevation);
+		float visibility = horizonGate * zenithGate * uNightFactor;
+
+		float curtain1 = naturalCurtain(uv, 0.4, 0.47, 0.050, 0.036);
+		float curtain2 = naturalCurtain(uv + vec2(0.18, 0.0), 2.3, 0.57, 0.038, -0.029);
+		float curtain3 = naturalCurtain(uv - vec2(0.13, 0.0), 4.6, 0.67, 0.030, 0.021);
+		float curtainEnergy = curtain1 * 0.72 + curtain2 * 0.50 + curtain3 * 0.30;
+		float broadGlow = clamp(curtain1 * 0.42 + curtain2 * 0.30 + curtain3 * 0.18, 0.0, 1.0);
+		float breathe = 0.90 + 0.10 * sin(uTime * 0.17 + naturalFbm(uv * 0.8) * 5.0);
+
+		vec3 oxygenGreen = mix(uAuroraColorA, vec3(0.17, 0.92, 0.58), 0.62);
+		vec3 cyanVeil = vec3(0.20, 0.72, 0.64);
+		vec3 violetFringe = mix(uAuroraColorB, vec3(0.48, 0.31, 0.72), 0.55);
+		float upperFringe = smoothstep(0.61, 0.82, elevation) * naturalFbm(vec2(uv.x * 2.3 + 3.0, uTime * 0.006));
+		vec3 curtainColor = mix(oxygenGreen, cyanVeil, 0.20 + naturalNoise(vec2(uv.x * 3.0, uTime * 0.008)) * 0.18);
+		curtainColor = mix(curtainColor, violetFringe, upperFringe * 0.34);
+
+		float emission = curtainEnergy * visibility * breathe * 0.58;
+		float haze = broadGlow * visibility * 0.095;
+		vec3 finalColor = skyColor + oxygenGreen * haze + curtainColor * emission;
+		gl_FragColor = vec4(finalColor, 1.0);
+	}
+`;
+
+export function applyNaturalAuroraRefinement(material) {
+	material.fragmentShader = NATURAL_CURTAIN_AURORA_FRAGMENT_SHADER;
+	material.needsUpdate = true;
+	material.userData.realisticAurora = true;
+	material.userData.naturalAuroraCurtains = true;
+	return material;
+}
