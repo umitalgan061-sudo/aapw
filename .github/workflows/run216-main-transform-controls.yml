@@ -1,0 +1,76 @@
+name: Run216 Main TransformControls
+
+on:
+  push:
+    branches:
+      - agent/run216-main-transform-controls
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run216-main-transform-controls-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-and-materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax checks
+        run: |
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/editor/EditorScaleInputController.js
+          node --check src/3d/editor/EditorTransformControls.js
+          node --check src/3d/vendor/three/addons/controls/TransformControls.js
+          node --check scripts/materializeRun216MainTransformPwa.js
+          node --check scripts/checkRun216MainTransformControls.js
+
+      - name: Materializer self-test
+        run: node scripts/materializeRun216MainTransformPwa.js --self-test
+
+      - name: Materialize offline shell
+        run: node scripts/materializeRun216MainTransformPwa.js
+
+      - name: Enforce generated additive-only diff
+        shell: bash
+        run: |
+          if git diff --numstat | awk '$2 != "0" { bad=1 } END { exit bad }'; then
+            echo 'PASS generated diff has zero deletions'
+          else
+            echo 'FAIL generated diff contains deletions'
+            git diff --numstat
+            exit 1
+          fi
+
+      - name: Runtime and PWA contracts
+        run: |
+          node --check service-worker.js
+          node scripts/checkRun216MainTransformControls.js
+          node scripts/checkServiceWorkerCache.js
+
+      - name: Existing World Editor regression guard
+        run: |
+          if [ -f scripts/checkWorldEditor.js ]; then node scripts/checkWorldEditor.js; fi
+          if [ -f scripts/checkRun215EditorFormationRehydration.js ]; then node scripts/checkRun215EditorFormationRehydration.js; fi
+
+      - name: Persist additive PWA materialization
+        shell: bash
+        run: |
+          if git diff --quiet -- service-worker.js; then
+            echo 'PWA cache already materialized.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js
+          git commit -m 'build(run216): materialize TransformControls offline shell'
+          git push origin HEAD:agent/run216-main-transform-controls
