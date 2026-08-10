@@ -34,8 +34,19 @@ function contentType(file) {
 function startServer() {
   const server = http.createServer((req, res) => {
     const clean = decodeURIComponent(req.url.split('?')[0]);
+    if (clean === '/favicon.ico') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
     const relative = clean === '/' ? 'index.html' : clean.replace(/^\//, '');
     const file = path.resolve(ROOT, relative);
+    const directoryIndex = path.join(file, 'index.html');
+    if (file.startsWith(ROOT + path.sep) && fs.existsSync(file) && fs.statSync(file).isDirectory() && fs.existsSync(directoryIndex)) {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      fs.createReadStream(directoryIndex).pipe(res);
+      return;
+    }
     if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       res.writeHead(404); res.end('Not found'); return;
     }
@@ -51,7 +62,10 @@ async function openEditor(playwright, base, viewport) {
   const page = await context.newPage();
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  /*
   page.on('pageerror', (error) => errors.push(String(error));
+  */
+  page.on('pageerror', (error) => errors.push(String(error)));
   await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
   await page.waitForFunction(() => Boolean(
     window.__WESTEROS_WORLD_EDITOR__ &&
