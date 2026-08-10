@@ -20,6 +20,17 @@ function createPrimitive(asset) {
     group.add(body);
     return group;
   }
+  if (asset.primitive === 'road-segment') {
+    const group = new THREE.Group();
+    const road = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 8),
+      new THREE.MeshStandardMaterial({ color: 0x9c7b4a, roughness: 0.95, metalness: 0, side: THREE.DoubleSide })
+    );
+    road.rotation.x = -Math.PI / 2;
+    road.position.y = 0.4;
+    group.add(road);
+    return group;
+  }
   const group = new THREE.Group();
   const base = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.4, 3.5), new THREE.MeshStandardMaterial({ color: 0x6a6d73 }));
   const tower = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.2, 4.6, 8), base.material);
