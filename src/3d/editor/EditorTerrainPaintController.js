@@ -123,6 +123,15 @@ export function installEditorTerrainPaintController(api) {
 
   function setMode(nextMode) {
     if (busy) return;
+    const enabling = Boolean(nextMode && mode !== nextMode);
+    if (enabling) {
+      const roads = window.__WESTEROS_EDITOR_ROADS__;
+      if (roads?.isBusy?.()) {
+        toast('Önce yol segmentinin tamamlanmasını bekle.');
+        return;
+      }
+      if (roads?.isDrawing?.()) roads.finishDrawing();
+    }
     mode = mode === nextMode ? null : nextMode;
     syncUi();
     if (mode) toast(`${ui.buttons.get(mode)?.textContent || 'Arazi'} modu aktif.`);
@@ -245,6 +254,7 @@ export function installEditorTerrainPaintController(api) {
     setMode,
     getMode: () => mode,
     getCellSize: cellSize,
+    isBusy: () => busy,
     dispose
   });
   window.__WESTEROS_EDITOR_TERRAIN__ = surface;
