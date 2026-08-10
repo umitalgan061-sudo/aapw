@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { computeEditorAssetImportScale } from './EditorAssetScalePolicy.js';
+import { EDITOR_ROAD_POLICY } from './EditorRoadModel.js';
 
 function createPrimitive(asset) {
   if (asset.primitive === 'tree') {
@@ -23,11 +24,11 @@ function createPrimitive(asset) {
   if (asset.primitive === 'road-segment') {
     const group = new THREE.Group();
     const road = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 8),
+      new THREE.PlaneGeometry(1, EDITOR_ROAD_POLICY.defaultWidthMeters),
       new THREE.MeshStandardMaterial({ color: 0x9c7b4a, roughness: 0.95, metalness: 0, side: THREE.DoubleSide })
     );
     road.rotation.x = -Math.PI / 2;
-    road.position.y = 0.4;
+    road.position.y = EDITOR_ROAD_POLICY.verticalOffsetMeters;
     group.add(road);
     return group;
   }
