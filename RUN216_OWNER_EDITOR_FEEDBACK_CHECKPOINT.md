@@ -57,3 +57,4 @@ Run216 PR consolidation checkpoint (2026-08-10):
 - Consolidation changes do not relax DoD: the consolidated PR stays draft / NOT DONE until hosted Chromium, console, PWA/cache, performance, determinism and governance gates can actually run.
 - Final pre-retarget remote-main recheck remained `4aa0d2a04ed23502ec3250ecec1ba4a07eb4dc7f`; no concurrent main advance was observed before publishing the consolidated PR shape.
 - Consolidation head advanced only by documentation checkpoint commits after the code compare; no runtime source lines were removed or replaced during consolidation.
+- PR retarget is the next metadata-only action; no code merge to `main` is performed by this consolidation step.
