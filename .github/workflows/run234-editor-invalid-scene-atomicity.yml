@@ -1,0 +1,124 @@
+name: Run 234 Editor Invalid Scene Atomicity
+
+on:
+  push:
+    branches:
+      - agent/run234-editor-invalid-scene-atomicity
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run234-editor-invalid-scene-atomicity-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-and-finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Install Chromium proof dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Syntax and invalid scene atomicity regression
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun234EditorInvalidSceneAtomicity.js
+          node scripts/checkRun234EditorInvalidSceneAtomicity.js
+      - name: PWA cache and installability
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+      - name: Performance, determinism, world and debt safety
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Full browser smoke
+        run: node scripts/smokeTestGame3D.js
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run234 records
+        run: |
+          set -euo pipefail
+          MARKER='## Run 234 — World Editor invalid scene load atomicity'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Added a Chromium regression proving that an unsupported `scene.json` schema is rejected before any live editor mutation occurs.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- The proof prepares a selected transformed object plus non-default grid/snap settings, attempts an invalid schemaVersion load, verifies the handled load error/toast, and requires the full object transform, selection, hierarchy and editor settings snapshot to remain byte-for-byte equivalent.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product code delta: 0 lines. Test/workflow only; additive-only by construction. PWA/cache, mobile performance, seeded-random/world safety, technical-debt and full browser smoke gates all run before publication.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Technical debt introduced: 0. Risk: LOW. Memory/lifecycle impact: none in product runtime; test closes browser context/server in finally. ADR not required because this is regression coverage only.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: after currently active Run232/Run233 branches settle, add a complementary editor load regression for missing/unknown asset records without taking ownership of their mobile-scroll or valid JSON round-trip surfaces.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'editor-invalid-scene-atomicity' perf_log.csv; then
+            printf 'run234,%s,editor-invalid-scene-atomicity,,,,,,,"test-only invalid scene atomicity proof; full PWA/perf/determinism/world/smoke gates PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          if ! grep -Fq 'Run234 editor invalid scene load atomicity' STABLE_TAGS.md; then
+            printf '%s — Run234 editor invalid scene load atomicity; unsupported schema rejected without mutating live editor state; full safety gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit and publish checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run234 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run234): record invalid scene atomicity checkpoint'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check "$CURRENT_MAIN" HEAD
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run234-editor-invalid-scene-atomicity
+          git push origin "$STABLE_TAG" || true
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run234-editor-invalid-scene-atomicity
+          path: artifacts/run234-editor-invalid-scene-atomicity
+          if-no-files-found: error

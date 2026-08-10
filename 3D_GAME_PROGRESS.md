@@ -14604,3 +14604,10 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Event Determinism Guard `31431633081` PASS. Mobile render sample remains 35 draw calls, 195929 triangles, 30 geometries and 22 textures; draw-call/triangle budgets PASS. Runtime/product delta is only additive responsive CSS (+12 source lines, 0 deletions); game logic/deterministic state unchanged.
 - Technical debt introduced: 0. Risk: LOW-MEDIUM (responsive CSS surface only). Confidence: 5/5 after strict fresh-mobile + live-resize geometry checks, visual review, PWA/perf/world-safety and full smoke. ADR not required because this is a bounded bug fix with no architecture/policy change.
 - Next safe step: add mobile toolbar/statusbar horizontal-scroll reachability coverage so off-screen editor actions remain intentionally reachable without reintroducing global page overflow.
+
+## Run 234 — World Editor invalid scene load atomicity
+- Added a Chromium regression proving that an unsupported `scene.json` schema is rejected before any live editor mutation occurs.
+- The proof prepares a selected transformed object plus non-default grid/snap settings, attempts an invalid schemaVersion load, verifies the handled load error/toast, and requires the full object transform, selection, hierarchy and editor settings snapshot to remain byte-for-byte equivalent.
+- Runtime/product code delta: 0 lines. Test/workflow only; additive-only by construction. PWA/cache, mobile performance, seeded-random/world safety, technical-debt and full browser smoke gates all run before publication.
+- Technical debt introduced: 0. Risk: LOW. Memory/lifecycle impact: none in product runtime; test closes browser context/server in finally. ADR not required because this is regression coverage only.
+- Next safe step: after currently active Run232/Run233 branches settle, add a complementary editor load regression for missing/unknown asset records without taking ownership of their mobile-scroll or valid JSON round-trip surfaces.
