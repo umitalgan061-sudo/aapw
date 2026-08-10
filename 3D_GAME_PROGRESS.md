@@ -14567,3 +14567,13 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
 - Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: Run224 corrected workflow `31422849938` PASS. Earlier V1 proof assumptions were rejected without runtime changes; V2 is rebased on Run223 main. Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
+
+## Run 225 — World Editor sub-0.01 scale/history regression
+- Permanent additive-only Chromium regression verifies Inspector scale precision below the historical 0.01 floor by applying `scale.x = 0.007` to a marker-tree.
+- Undo restores the exact original scene object identity and transform; Redo restores the exact `0.007` scene scale without precision loss and consumes redo history.
+- RCA: first proof run `31424355194` correctly exposed that history restore clears selection, so Inspector values cannot be asserted until explicit user re-selection; this is not a runtime scale-history failure.
+- Corrected V2 explicitly verifies selection is cleared after restore, re-selects the restored hierarchy item, then confirms Inspector X=`0.007`, Y/Z=`1.000`; browser console/page errors remain zero.
+- Visual evidence contains three screenshots: original scale, redone/reselected sub-0.01 scale, and a second orbit camera angle.
+- PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, final remote-main/additive-only gates, artifact upload and World Event Determinism Guard PASS.
+- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: corrected Run225 V2 workflow `31424690149` PASS and World Event Determinism Guard `31424689829` PASS. Next safe step: continue additive-only World Editor transform/history usability coverage without crossing unresolved owner gates.
