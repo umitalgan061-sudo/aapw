@@ -12,6 +12,8 @@ const REQUIRED_PATHS = Object.freeze([
   './src/3d/editor/EditorTransformControls.js',
   './src/3d/editor/EditorScaleInputController.js',
   './src/3d/editor/EditorAssetScalePolicy.js',
+  './src/3d/editor/EditorRoadModel.js',
+  './src/3d/editor/EditorRoadController.js',
   './src/3d/editor/EditorClipboardController.js',
   './src/3d/editor/EditorEditModeEnvironment.js',
   './src/3d/vendor/three/addons/controls/TransformControls.js'
