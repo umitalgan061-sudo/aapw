@@ -73,3 +73,8 @@ button:hover, .we-link:hover, button:focus-visible, .we-link:focus-visible { bor
 @media (max-width: 900px) {
   .we-toolbar-actions .we-transform-tools button { display: inline-block; }
 }
+
+/* Run216 keeps the relabeled legacy duplicate control visible beside Copy/Paste on compact layouts. */
+@media (max-width: 900px) {
+  .we-toolbar-actions #we-duplicate { display: inline-block; }
+}
