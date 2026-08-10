@@ -4,6 +4,12 @@
 const fs = require('fs');
 const path = require('path');
 
+// Run216 suite compatibility: the extended foundation passes the repository root as argv[2].
+// Preserve standalone file-path invocation while resolving a directory argument to this check's canonical module.
+if (process.argv[2] && fs.existsSync(process.argv[2]) && fs.statSync(process.argv[2]).isDirectory()) {
+  process.argv[2] = path.join(process.argv[2], 'src/3d/editor/EditorInstanceBoundsSafety.js');
+}
+
 async function loadModule(target) {
   const source = fs.readFileSync(target, 'utf8');
   return import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
