@@ -10,6 +10,7 @@ const ROOT = path.resolve(__dirname, '..');
 const SOURCE_SW = path.join(ROOT, 'service-worker.js');
 const MATERIALIZER = path.join(ROOT, 'scripts', 'materializeRun216ServiceWorkerCache.js');
 const MARKER = '// Run216 World Editor TransformControls offline shell extension.';
+const COMPLETE_MARKER = '// Run216 complete World Editor offline shell extension.';
 const REQUIRED_PATHS = Object.freeze([
   './src/3d/editor/EditorTransformControls.js',
   './src/3d/editor/EditorScaleInputController.js',
@@ -71,6 +72,24 @@ function main() {
     runNode([MATERIALIZER], { env });
     const first = fs.readFileSync(tempSw);
     const firstText = first.toString('utf8');
+
+    if (original.toString('utf8').startsWith(COMPLETE_MARKER)) {
+      if (!first.equals(original)) fail('Legacy materializer changed bytes of the already-complete cache prefix');
+      for (const entry of REQUIRED_PATHS) {
+        const occurrences = count(firstText, entry);
+        if (occurrences !== 1) fail(`Expected exactly one compatible complete-cache entry for ${entry}, found ${occurrences}`);
+      }
+      runNode(['--check', tempSw]);
+      runNode([MATERIALIZER, '--verify-only'], { env });
+      runNode([MATERIALIZER], { env });
+      const secondComplete = fs.readFileSync(tempSw);
+      if (!secondComplete.equals(first)) fail('Complete-cache compatibility path is not idempotent');
+      if (!fs.readFileSync(SOURCE_SW).equals(original)) fail('Regression test mutated repository service-worker.js');
+      console.log(`[checkRun216ServiceWorkerMaterializer] PROOF: completeBytes=${original.length} legacySubsetPaths=${REQUIRED_PATHS.length} additiveBytes=0`);
+      console.log('[checkRun216ServiceWorkerMaterializer] PASS: complete Run216 cache is a strict compatible superset; legacy materializer remains byte-preserving and idempotent.');
+      return;
+    }
+
     const markerIndex = firstText.indexOf(MARKER);
     if (markerIndex !== 0) fail(`Run216 marker must be the exact prefix, got index ${markerIndex}`);
 
