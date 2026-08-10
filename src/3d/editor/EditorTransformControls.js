@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { installEditorScaleInputController } from './EditorScaleInputController.js';
 
 const ROTATE_SNAP = THREE.MathUtils.degToRad(15);
 const SCALE_SNAP = 0.1;
@@ -36,6 +37,7 @@ function createUi() {
 
 export function installEditorTransformControls(api) {
   if (!api) throw new Error('World Editor API bulunamadı.');
+  installEditorScaleInputController(api);
   if (window.__WESTEROS_EDITOR_TRANSFORM__) return window.__WESTEROS_EDITOR_TRANSFORM__;
 
   const ui = createUi();
