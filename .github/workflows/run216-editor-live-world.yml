@@ -1,0 +1,89 @@
+name: Run216 Editor Live World
+
+on:
+  push:
+    branches:
+      - agent/run216-world-editor-transform-controls
+    paths:
+      - 'editor.html'
+      - 'src/3d/editor/EditorLiveWorldBridge.js'
+      - 'src/3d/sceneManager.js'
+      - 'src/3d/world/**'
+      - 'scripts/checkRun216EditorLiveWorldBridge.js'
+      - 'scripts/checkRun216EditorLiveWorldBrowser.js'
+      - 'scripts/materializeRun216ServiceWorkerCache.js'
+      - 'scripts/checkRun216ServiceWorkerMaterializer.js'
+      - '.github/workflows/run216-editor-live-world.yml'
+  pull_request:
+    paths:
+      - 'editor.html'
+      - 'src/3d/editor/EditorLiveWorldBridge.js'
+      - 'src/3d/sceneManager.js'
+      - 'src/3d/world/**'
+      - 'scripts/checkRun216EditorLiveWorldBridge.js'
+      - 'scripts/checkRun216EditorLiveWorldBrowser.js'
+      - 'scripts/materializeRun216ServiceWorkerCache.js'
+      - 'scripts/checkRun216ServiceWorkerMaterializer.js'
+      - '.github/workflows/run216-editor-live-world.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-live-world:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+
+      - name: Syntax and source contract
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorLiveWorldBridge.js
+          node --check scripts/checkRun216EditorLiveWorldBridge.js
+          node --check scripts/checkRun216EditorLiveWorldBrowser.js
+          node scripts/checkRun216EditorLiveWorldBridge.js
+          node scripts/materializeRun216ServiceWorkerCache.js --self-test
+          node scripts/checkRun216ServiceWorkerMaterializer.js
+
+      - name: Install temporary Chromium proof tooling
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/run216-editor-live-world-tools"
+          npm install --prefix "$RUNNER_TEMP/run216-editor-live-world-tools" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/run216-editor-live-world-tools/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/run216-editor-live-world-tools/node_modules" >> "$GITHUB_ENV"
+
+      - name: Canonical Westeros editor browser proof
+        run: node scripts/checkRun216EditorLiveWorldBrowser.js
+
+      - name: Final concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+
+      - name: Upload live-world evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run216-editor-live-world
+          path: artifacts/run216-editor-live-world/*.png
+          if-no-files-found: error
