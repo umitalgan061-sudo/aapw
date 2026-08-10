@@ -14551,3 +14551,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
 - Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: Run222 current-main workflow `31420348658` PASS. Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
+
+## Run 223 — World Editor delete/history regression
+- Permanent additive-only Chromium regression verifies deleting the selected marker-tree reaches zero editable objects and is captured as a history state.
+- Undo restores the exact asset id, editor id, name, position, rotation and scale and creates one redo entry.
+- Redo reapplies deletion and consumes redo history; a second Undo restores the exact object state again; browser console/page errors remain zero.
+- PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
+- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: Run223 workflow `31421640607` PASS and World Event Determinism Guard `31421640543` PASS. Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
