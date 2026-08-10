@@ -1,0 +1,71 @@
+name: Run216 Visible Aurora Progress Append
+
+on:
+  push:
+    branches:
+      - agent/run216-visible-aurora-followup
+    paths:
+      - '.github/workflows/run216-visible-aurora-progress-append.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  append-progress:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Synchronize branch and verify main ancestry
+        run: |
+          set -euo pipefail
+          git fetch origin main agent/run216-visible-aurora-followup
+          git checkout -B agent/run216-visible-aurora-followup origin/agent/run216-visible-aurora-followup
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+      - name: Append Run216 visible aurora checkpoint
+        run: |
+          set -euo pipefail
+          MARKER='Run216 Visible Aurora Follow-up — 2026-08-10'
+          if grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            echo 'Progress checkpoint already present; no duplicate append needed.'
+            exit 0
+          fi
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+---
+
+## Run216 Visible Aurora Follow-up — 2026-08-10
+
+Owner usability follow-up after the validated Run216 World Editor baseline: edit mode must stay bright/readable and the northern lights must be visibly prominent rather than disappearing into a near-black authoring scene.
+
+- `src/3d/editor/EditorLiveWorldVisualSync.js`: the already-validated editor-only bright authoring profile remains locked to noon (`0.5`), fog remains disabled, editor sun/hemisphere readability floors remain `2.35`/`1.65`, and the new editor-only visible-aurora layer raises the existing sky `uNightFactor` to `3.4` without changing gameplay sky/day-night semantics. Aurora colors remain cyan-green `#39ffd0` and violet `#8f68ff`.
+- Gameplay night readability from the validated Run216 baseline remains intact: canonical midnight still reports `nightFactor=1.0`, sun intensity `0.05`, and canonical hemisphere intensity `0.25`; the additive child readability fill keeps night playable without turning it into day. WebGL proof measured synthetic scene luminance `2.60 -> 36.37` (~`14.01x`).
+- Two-angle editor Chromium visual proof PASS with actual aurora uniform `3.4`; screenshots show a bright usable terrain/editor view plus a clearly visible cyan/green aurora band. Desktop/mobile editor regression PASS, including live-world load, placement, ground snap, road/terrain-water authoring, save/load, copy/paste, mobile 390px layout, and zero editor console/page errors.
+- 3D smoke/console, Service Worker cache, PWA installability, seeded-random policy, performance trend and technical-debt checks PASS. Mobile budget measurement: `35` draw calls, `195929` triangles, `30` geometries, `21` textures; headless CI FPS is not treated as representative gameplay FPS.
+- Exact validated visual/runtime workflow: `Run216 Visible Aurora Followup`, run `31401447770`, head `cc207f8fbcd1ad6d5fd35dc686de88b4e6972c73`, all runtime/visual/PWA/perf/determinism/debt/final concurrency gates PASS before this documentation-only checkpoint.
+- ADR: not required for this follow-up because it is an editor-only visual calibration layered on the already-established authoring environment; no architecture, persistence, deterministic world generation, gameplay day/night state, asset license, or public API decision changed.
+- Technical debt/risk: no new runtime debt marker introduced. The visible aurora boost is editor-only and owns a single RAF/listener surface with explicit cleanup. Remaining risk is aesthetic calibration on different displays, not correctness or persistence.
+- Next safe step: merge the narrow visible-aurora follow-up after this documentation-only exact-head postflight rechecks remote `main`, additive-only, syntax/contracts and technical debt.
+EOF
+          git diff --check
+      - name: Commit and push additive progress checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md; then
+            echo 'No progress change to publish.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md
+          git commit -m 'docs(run216): record visible aurora checkpoint'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          git push origin HEAD:agent/run216-visible-aurora-followup
+
+concurrency:
+  group: run216-visible-aurora-progress-append
+  cancel-in-progress: false

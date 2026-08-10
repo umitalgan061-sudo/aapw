@@ -14484,3 +14484,19 @@ dokümantasyon, oyunun kendisi run 141'deki hâliyle bit-eşit kaldı.
 - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; events +0; creatures +0. Desktop coverage remains 96.2%; mobile radius-4 remains unchanged.
 - Technical debt: Run214's explicit editor debt reduced by one persistence gap; TransformControls r160 and animated/skinned crowd batching remain. Risk: LOW. Confidence: 5/5.
 - Next safe step: vendor the exact Three.js r160 `TransformControls.js` through a byte-preserving path, then add W/E/R translate/rotate/scale with 1m translation snap without touching game runtime ownership.
+
+---
+
+## Run216 Visible Aurora Follow-up — 2026-08-10
+
+Owner usability follow-up: edit mode stays bright/readable and northern lights remain visibly prominent.
+
+- Editor authoring time remains locked to noon ratio 0.5; fog stays disabled; editor sun/hemisphere readability floors remain 2.35/1.65.
+- Editor-only visible aurora layer raises the existing sky uNightFactor to 3.4; aurora colors remain cyan-green #39ffd0 and violet #8f68ff. Gameplay sky/day-night semantics are unchanged.
+- Gameplay night readability remains intact: canonical midnight nightFactor=1.0, sun=0.05 and canonical hemisphere=0.25; additive child fill keeps night playable. WebGL proof measured luminance 2.60 -> 36.37, about 14.01x.
+- Two-angle Chromium aurora proof PASS with actual uniform 3.4. Desktop/mobile editor regression PASS including live-world load, placement, ground snap, road and terrain/water authoring, save/load, copy/paste, 390px mobile layout and zero editor console/page errors.
+- 3D smoke/console, Service Worker cache, PWA installability, seeded-random policy, performance trend and technical-debt checks PASS. Mobile budget measurement: 35 draw calls, 195929 triangles, 30 geometries, 21 textures. Headless CI FPS is not treated as representative gameplay FPS.
+- Exact validated runtime workflow: Run216 Visible Aurora Followup, run 31401447770, head cc207f8fbcd1ad6d5fd35dc686de88b4e6972c73. Runtime, visual, PWA, perf, determinism, debt and final concurrency gates passed.
+- ADR not required: this is editor-only visual calibration on the established authoring environment; no architecture, persistence, deterministic generation, gameplay day/night state, asset-license or public-API decision changed.
+- Technical debt/risk: no new runtime debt marker; editor aurora boost owns one RAF/listener surface with explicit cleanup. Remaining risk is only display-dependent aesthetic calibration.
+- Next safe step: merge the narrow visible-aurora follow-up after documentation-only exact-head postflight.
