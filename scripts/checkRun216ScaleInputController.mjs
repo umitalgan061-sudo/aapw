@@ -6,6 +6,9 @@ function makeInput(id) {
   const input = {
     id,
     value: '1',
+    setAttribute(name, value) {
+      this[name] = String(value);
+    },
     addEventListener(type, handler, capture) {
       if (type === 'change') listeners.push({ handler, capture });
     },
