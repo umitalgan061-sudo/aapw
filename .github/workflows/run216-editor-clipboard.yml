@@ -4,9 +4,12 @@ on:
   pull_request:
     paths:
       - 'editor.html'
+      - 'service-worker.js'
       - 'src/3d/editor/EditorClipboardController.js'
       - 'scripts/checkRun216EditorClipboardController.mjs'
       - 'scripts/checkRun216EditorClipboardWiring.js'
+      - 'scripts/checkRun216ServiceWorkerMaterializer.js'
+      - 'scripts/materializeRun216ServiceWorkerCache.js'
       - '.github/workflows/run216-editor-clipboard.yml'
   workflow_dispatch:
 
@@ -24,5 +27,9 @@ jobs:
       - run: node --check src/3d/editor/EditorClipboardController.js
       - run: node --check scripts/checkRun216EditorClipboardController.mjs
       - run: node --check scripts/checkRun216EditorClipboardWiring.js
+      - run: node --check scripts/materializeRun216ServiceWorkerCache.js
+      - run: node --check scripts/checkRun216ServiceWorkerMaterializer.js
       - run: node --experimental-vm-modules scripts/checkRun216EditorClipboardController.mjs
       - run: node scripts/checkRun216EditorClipboardWiring.js
+      - run: node scripts/materializeRun216ServiceWorkerCache.js --self-test
+      - run: node scripts/checkRun216ServiceWorkerMaterializer.js
