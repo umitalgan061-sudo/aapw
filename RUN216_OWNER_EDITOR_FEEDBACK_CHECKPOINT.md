@@ -47,3 +47,11 @@ Additional owner-visible black-dragon fallback proof:
 - Existing `scripts/checkRun216ScaleInputBehaviorNode20.cjs` executed against the branch controller: PASS for `0.0002 -> 0.001` clamp, `0.007` precision, blank-input safety and cleanup.
 - `scripts/materializeRun216ServiceWorkerCache.js --self-test`: PASS for prepend-only/idempotent cache materialization; this does not replace the still-pending fresh-install browser PWA proof.
 - GitHub-hosted PR checks remain infrastructure-blocked before job steps: sampled Authoring Contract, Live World and Editor Usability Contract jobs all reported `steps=null`; therefore the branch remains **NOT DONE** rather than treating those workflow failures as source-test failures.
+
+Run216 PR consolidation checkpoint (2026-08-10):
+
+- This branch is now the intended single Run216 consolidation head to target `main`; it contains the full current World Editor lineage from PR #96 plus the equivalent 11-file / 383-addition scale-precision scope from PR #101 and the owner-feedback fixes from PR #103.
+- PR #102's free-tier concurrency scope was copied into this branch exactly: both heavy browser workflow blobs and `scripts/checkRun216FreeTierConcurrency.js` match PR #102 byte-for-byte; all three changes remain additive-only.
+- PR #97 is intentionally NOT absorbed: its sole resume workflow hard-codes obsolete `main` and Run216 SHAs, so carrying it forward would create a knowingly stale/failing workflow rather than preserve useful behavior.
+- Direct `main` comparison before PR retarget: head `fb9c9f5753fe90ff7361e2e00b2df2077898fb9b` was 266 commits ahead / 0 behind, with zero deletions in the compare file set.
+- Consolidation changes do not relax DoD: the consolidated PR stays draft / NOT DONE until hosted Chromium, console, PWA/cache, performance, determinism and governance gates can actually run.
