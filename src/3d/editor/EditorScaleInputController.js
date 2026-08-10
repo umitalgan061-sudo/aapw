@@ -7,6 +7,7 @@ const SCALE_AXIS_BY_INPUT_ID = Object.freeze({
 });
 
 function normalizedScale(value) {
+  if (String(value).trim() === '') return null;
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
   return Math.max(MIN_EDITOR_SCALE, numeric);
