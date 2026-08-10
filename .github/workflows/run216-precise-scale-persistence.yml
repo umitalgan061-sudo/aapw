@@ -1,0 +1,24 @@
+name: Run216 Precise Scale Persistence
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/EditorSceneSerializer.js'
+      - 'scripts/checkRun216PreciseScalePersistence.mjs'
+      - '.github/workflows/run216-precise-scale-persistence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  precise-scale-persistence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check src/3d/editor/EditorSceneSerializer.js
+      - run: node --check scripts/checkRun216PreciseScalePersistence.mjs
+      - run: node scripts/checkRun216PreciseScalePersistence.mjs
