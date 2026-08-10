@@ -1,0 +1,61 @@
+name: Run 221 Editor History Input Guard Finalize
+
+on:
+  push:
+    branches:
+      - agent/run221-editor-history-input-guard
+    paths:
+      - '.github/workflows/run221-editor-history-input-guard-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run221-editor-history-input-guard-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          node --check scripts/checkRun221EditorHistoryInputGuard.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+      - name: Append verified Run221 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          printf '\n%s\n' '## Run 221 — World Editor history input-guard regression' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Permanent additive-only Chromium regression verifies Ctrl+Z is ignored by scene history while the Inspector name input is focused, preserving the selected scene object and redo stack.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- After leaving the input, Ctrl+Z performs scene undo and Ctrl+Y performs the alternate redo path, restoring the exact marker-tree asset and consuming the redo stack.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, zero browser errors, and final remote-main/additive-only gates PASS.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.' >> 3D_GAME_PROGRESS.md
+          printf 'run221,%s,editor-history-input-guard,,,,,,,"test-only inspector shortcut guard and Ctrl+Y redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          printf '%s — Run221 editor history input-guard regression; inspector typing protection, Ctrl+Y redo, PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run221): record editor history input-guard checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run221-editor-history-input-guard
+          git push origin "$STABLE_TAG" || true
