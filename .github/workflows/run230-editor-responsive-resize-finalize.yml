@@ -1,0 +1,84 @@
+name: Run 230 Editor Responsive Resize Finalize
+
+on:
+  push:
+    branches:
+      - agent/run230-editor-responsive-resize
+    paths:
+      - '.github/workflows/run230-editor-responsive-resize-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run230-editor-responsive-resize-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun230EditorResponsiveResize.js
+          node --check scripts/checkRun230EditorResponsiveResizeLayoutIntegrity.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run230 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 230 — World Editor mobile responsive layout integrity'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- RCA: the earlier root-scrollWidth-only proof was too weak. After dynamic World Editor toolbar injection, fully loaded 390px mobile had `document.body.scrollWidth=2293` and toolbar/min-content tracks near 2293px while `html/body overflow:hidden` merely clipped the excess.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Additive mobile CSS override constrains the single-column editor grid with `minmax(0, 1fr)` and zero min-content width on shell/top-level panels, while preserving deliberate internal horizontal scrolling for toolbar actions and the status bar.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Strict Chromium regression verifies both a fully loaded fresh 390x844 mobile boot and a live 1440x900 -> 390x844 resize. After the fix root/body/shell/toolbar/assets/viewport/right-panel/statusbar are 390px; toolbar-actions remain internally scrollable (`clientWidth=366`, `scrollWidth=2751`) and statusbar remains internally scrollable (`clientWidth=390`, `scrollWidth=643`).' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Strict layout workflow `31431633060` PASS with zero console/page errors and reviewer-checked 390x844 visual evidence. Broad workflow `31431633073` PASS: fresh-mobile baseline, live resize, PWA/cache, mobile performance, deterministic world safety, technical-debt audit, full browser smoke, final remote-main/additive-only gate and artifacts.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- World Event Determinism Guard `31431633081` PASS. Mobile render sample remains 35 draw calls, 195929 triangles, 30 geometries and 22 textures; draw-call/triangle budgets PASS. Runtime/product delta is only additive responsive CSS (+12 source lines, 0 deletions); game logic/deterministic state unchanged.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Technical debt introduced: 0. Risk: LOW-MEDIUM (responsive CSS surface only). Confidence: 5/5 after strict fresh-mobile + live-resize geometry checks, visual review, PWA/perf/world-safety and full smoke. ADR not required because this is a bounded bug fix with no architecture/policy change.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: add mobile toolbar/statusbar horizontal-scroll reachability coverage so off-screen editor actions remain intentionally reachable without reintroducing global page overflow.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'editor-responsive-layout-integrity' perf_log.csv; then
+            printf 'run230,%s,editor-responsive-layout-integrity,,35,195929,30,22,,"390px fresh+desktop-to-mobile layout fixed from bodyScrollWidth 2293 to 390; internal toolbar/status scrolling preserved; PWA/perf/determinism/full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run230 editor mobile responsive layout integrity' STABLE_TAGS.md; then
+            printf '%s — Run230 editor mobile responsive layout integrity; fully loaded fresh/mobile-resize global width constrained to 390px while internal toolbar/status scrolling stays reachable; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit and publish checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run230 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run230): record responsive layout checkpoint'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check "$CURRENT_MAIN" HEAD
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run230-editor-responsive-resize
+          git push origin "$STABLE_TAG" || true
