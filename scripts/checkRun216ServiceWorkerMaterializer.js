@@ -16,6 +16,8 @@ const REQUIRED_PATHS = Object.freeze([
   './src/3d/editor/EditorAssetScalePolicy.js',
   './src/3d/editor/EditorRoadModel.js',
   './src/3d/editor/EditorRoadController.js',
+  './src/3d/editor/EditorTerrainCellModel.js',
+  './src/3d/editor/EditorTerrainPaintController.js',
   './src/3d/editor/EditorClipboardController.js',
   './src/3d/editor/EditorEditModeEnvironment.js',
   './src/3d/vendor/three/addons/controls/TransformControls.js'
@@ -77,7 +79,7 @@ function main() {
     if (!fs.readFileSync(SOURCE_SW).equals(original)) fail('Regression test mutated repository service-worker.js');
 
     console.log(`[checkRun216ServiceWorkerMaterializer] PROOF: originalBytes=${original.length} materializedBytes=${first.length} additiveBytes=${originalOffset}`);
-    console.log('[checkRun216ServiceWorkerMaterializer] PASS: real service-worker copy preserves all existing bytes, adds TransformControls + scale + road + clipboard + fog-free edit cache paths once, remains syntactically valid, verifies cleanly and is idempotent');
+    console.log('[checkRun216ServiceWorkerMaterializer] PASS: real service-worker copy preserves all existing bytes, adds TransformControls + scale + road + terrain + clipboard + fog-free edit cache paths once, remains syntactically valid, verifies cleanly and is idempotent');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
