@@ -1,4 +1,4 @@
-name: Run 226 Editor Signed Rotation History
+name: Run 226 Editor Signed Rotation History V2
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: run226-editor-signed-rotation-history-${{ github.ref }}
+  group: run226-editor-signed-rotation-history-v2-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -42,11 +42,11 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Syntax and signed rotation history regression
+      - name: Syntax and corrected signed rotation history regression
         run: |
           set -euo pipefail
-          node --check scripts/checkRun226EditorSignedRotationHistory.js
-          node scripts/checkRun226EditorSignedRotationHistory.js
+          node --check scripts/checkRun226EditorSignedRotationHistoryV2.js
+          node scripts/checkRun226EditorSignedRotationHistoryV2.js
       - name: PWA cache and installability
         run: |
           set -euo pipefail
@@ -78,6 +78,6 @@ jobs:
       - name: Upload visual evidence
         uses: actions/upload-artifact@v4
         with:
-          name: run226-editor-signed-rotation-history
-          path: artifacts/run226-editor-signed-rotation-history
+          name: run226-editor-signed-rotation-history-v2
+          path: artifacts/run226-editor-signed-rotation-history-v2
           if-no-files-found: error
