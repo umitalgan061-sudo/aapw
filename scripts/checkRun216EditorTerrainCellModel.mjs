@@ -6,8 +6,9 @@ import {
 } from '../src/3d/editor/EditorTerrainCellModel.js';
 
 assert.equal(EDITOR_TERRAIN_CELL_POLICY.defaultCellSizeMeters, 10);
-assert.equal(EDITOR_TERRAIN_CELL_POLICY.landSurfaceOffsetMeters, 0.02);
+assert.equal(EDITOR_TERRAIN_CELL_POLICY.landSurfaceOffsetMeters, 0.04);
 assert.equal(EDITOR_TERRAIN_CELL_POLICY.waterSurfaceOffsetMeters, 0.08);
+assert.ok(EDITOR_TERRAIN_CELL_POLICY.landSurfaceOffsetMeters > 0.02, 'land surface must stay above editor grid Y=0.02');
 
 const snapped = snapEditorTerrainCell({ x: 14, y: 3.5, z: -16 }, 10);
 assert.deepEqual({ ...snapped }, { x: 10, y: 3.5, z: -20, size: 10 });
@@ -21,4 +22,4 @@ assert.throws(() => snapEditorTerrainCell({ x: 0, y: 0, z: 0 }, 0), /positive fi
 assert.throws(() => snapEditorTerrainCell({ x: Number.NaN, y: 0, z: 0 }, 10), /finite x\/y\/z/);
 assert.throws(() => editorTerrainCellKey('lava', snapped), /land or water/);
 
-console.log('PASS Run216 terrain cell model: deterministic snapping, configurable metric cell size, land/water identity and surface offsets.');
+console.log('PASS Run216 terrain cell model: deterministic snapping, configurable metric cell size, grid-safe land/water offsets and identity.');
