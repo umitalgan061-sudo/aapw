@@ -176,3 +176,30 @@ export function installEditorTransformControls(api) {
   syncSelection();
   return surface;
 }
+
+const OWNER_QUICK_SHRINK_FACTOR = 0.1;
+const OWNER_QUICK_SHRINK_MIN_SCALE = 0.001;
+queueMicrotask(() => {
+  const api = window.__WESTEROS_WORLD_EDITOR__;
+  const toolbar = document.querySelector('.we-toolbar-actions');
+  if (!api || !toolbar || document.getElementById('we-quick-shrink')) return;
+  const button = document.createElement('button');
+  button.id = 'we-quick-shrink';
+  button.type = 'button';
+  button.textContent = '×0.1 Küçült';
+  button.title = 'Seçili objeyi her eksende 10 kat küçült';
+  button.addEventListener('click', () => {
+    const object = api.getSelectedObject?.();
+    if (!object || object.isInstancedMesh) return;
+    object.scale.set(
+      Math.max(OWNER_QUICK_SHRINK_MIN_SCALE, object.scale.x * OWNER_QUICK_SHRINK_FACTOR),
+      Math.max(OWNER_QUICK_SHRINK_MIN_SCALE, object.scale.y * OWNER_QUICK_SHRINK_FACTOR),
+      Math.max(OWNER_QUICK_SHRINK_MIN_SCALE, object.scale.z * OWNER_QUICK_SHRINK_FACTOR)
+    );
+    api.writeInspector?.(object);
+    api.refreshHierarchy?.();
+    window.__WESTEROS_EDITOR_TRANSFORM__?.syncSelection?.();
+  });
+  toolbar.insertBefore(button, toolbar.querySelector('.we-link'));
+  window.addEventListener('pagehide', () => button.remove(), { once: true });
+});
