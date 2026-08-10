@@ -26,6 +26,7 @@ const REQUIRED_PATHS = Object.freeze([
   './src/3d/editor/EditorLiveWorldVisualSync.js',
   './src/3d/editor/EditorPlacementControllerSafe.js',
   './src/3d/editor/EditorLocalSession.js',
+  './src/3d/editor/EditorLocationNavigator.js',
   './src/3d/editor/EditorLiveWorldResourceCleanup.js',
   './src/3d/editor/EditorWorldPatchCompiler.js',
   './src/3d/vendor/three/addons/controls/TransformControls.js'
