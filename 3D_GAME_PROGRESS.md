@@ -14516,3 +14516,10 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
 - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; world events +0; creatures +0. ADR not required because runtime behavior/architecture/persistence/public API did not change.
 - Next safe step: continue additive-only World Editor/RTS usability work from current main without crossing unresolved owner gates.
+
+## Run 220 — World Editor history keyboard/mobile regression
+- Permanent additive-only Chromium regression verifies Ctrl/Cmd-style history keyboard contract through Ctrl+Z and Ctrl+Shift+Z round-trip, exact marker-tree restoration, redo-stack transitions, and zero desktop console/page errors.
+- Mobile 390x844 proof verifies Geri Al/Yinele controls are visible at clean boot, correctly disabled before history exists, and the editor has no global horizontal overflow.
+- PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
+- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
