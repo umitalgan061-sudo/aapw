@@ -75,6 +75,9 @@ scaleZ.value = 'not-a-number';
 const previousZ = selected.scale.z;
 scaleZ.dispatchChange();
 if (selected.scale.z !== previousZ) throw new Error('invalid scale mutated object state');
+scaleZ.value = '   ';
+scaleZ.dispatchChange();
+if (selected.scale.z !== previousZ) throw new Error('blank scale mutated object state');
 
 const ordinary = selected;
 selected = { isInstancedMesh: true, scale: { x: 1, y: 1, z: 1 } };
@@ -83,7 +86,7 @@ if (scaleX.dispatchChange()) throw new Error('instance group scale event should 
 if (selected.scale.x !== 1) throw new Error('instance group scale was mutated by ordinary-object controller');
 selected = ordinary;
 
-if (inspectorWrites < 3) throw new Error('Inspector was not synchronized after scale changes');
+if (inspectorWrites < 4) throw new Error('Inspector was not synchronized after scale changes');
 if (hierarchyRefreshes !== 2) throw new Error(`unexpected hierarchy refresh count: ${hierarchyRefreshes}`);
 if (pagehideListeners.length !== 1) throw new Error('pagehide cleanup listener not installed exactly once');
 
@@ -92,4 +95,4 @@ if (scaleX.listenerCount() || scaleY.listenerCount() || scaleZ.listenerCount()) 
 if (pagehideListeners.length !== 0) throw new Error('dispose leaked pagehide listener');
 surface.dispose();
 
-console.log('PASS Run216 precise Inspector scale input: sub-0.01 values persist, zero stays non-singular, invalid input is non-destructive, cleanup is idempotent.');
+console.log('PASS Run216 precise Inspector scale input: sub-0.01 values persist, zero stays non-singular, invalid/blank input is non-destructive, cleanup is idempotent.');
