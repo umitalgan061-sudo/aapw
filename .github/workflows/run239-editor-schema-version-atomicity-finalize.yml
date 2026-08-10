@@ -1,0 +1,77 @@
+name: Run 239 Editor Schema Version Atomicity Finalize
+
+on:
+  push:
+    branches:
+      - agent/run239-editor-schema-version-atomicity
+    paths:
+      - '.github/workflows/run239-editor-schema-version-atomicity-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run239-editor-schema-version-atomicity-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main, syntax and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun239EditorSchemaVersionAtomicity.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run239 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 239 — World Editor unsupported schemaVersion atomicity regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium regression verifies that a syntactically valid scene file with unsupported `schemaVersion: 999` is rejected before live World Editor state mutation.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Prepared object identity/asset/name/position/signed rotation/non-uniform scale, hierarchy, selection, instance-group count, grid visibility, snap enabled state and snap size remain byte-for-byte equivalent at the captured contract level after the handled load error.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Expected loader error remains isolated (`Desteklenmeyen scene schemaVersion: 999`); unexpected browser console/page errors remain zero; two screenshots provide before/after visual proof.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, perf-trend, technical-debt, full browser smoke, final remote-main concurrency/additive gates and artifact upload PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Evidence: Run239 workflow `31443939454` PASS and World Event Determinism Guard `31443939431` PASS. Next safe step: continue additive-only World Editor scene-load validation coverage after re-reading current main and avoiding concurrent Run238 scope.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run239,' perf_log.csv; then
+            printf 'run239,%s,editor-schema-version-atomicity,,,,,,,"test-only unsupported schemaVersion atomicity regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run239 editor schema-version atomicity regression' STABLE_TAGS.md; then
+            printf '%s — Run239 editor schema-version atomicity regression; unsupported scene schema rejected atomically with live editor state preserved; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run239 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run239): record schema-version atomicity checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run239-editor-schema-version-atomicity
+          git push origin "$STABLE_TAG" || true
