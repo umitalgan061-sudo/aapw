@@ -949,3 +949,4 @@ stable-2026-08-10-2318 — Run226 editor signed rotation/history regression; sig
 stable-2026-08-10-2339 — Run228 editor mixed-sign position/history regression; decimal X/Y/Z position survives undo/redo and Inspector re-selection; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-11-0005 — Run230 editor mobile responsive layout integrity; fully loaded fresh/mobile-resize global width constrained to 390px while internal toolbar/status scrolling stays reachable; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-11-0106 — Run234 editor invalid scene load atomicity; unsupported schema rejected without mutating live editor state; full safety gates verified.
+stable-2026-08-11-0129 — Run235 periodic platform control; PWA/cache, mobile 35 draw calls/195929 triangles, determinism/world safety, perf trend/debt and full browser smoke verified; runtime delta 0.

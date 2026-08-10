@@ -14611,3 +14611,13 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Runtime/product code delta: 0 lines. Test/workflow only; additive-only by construction. PWA/cache, mobile performance, seeded-random/world safety, technical-debt and full browser smoke gates all run before publication.
 - Technical debt introduced: 0. Risk: LOW. Memory/lifecycle impact: none in product runtime; test closes browser context/server in finally. ADR not required because this is regression coverage only.
 - Next safe step: after currently active Run232/Run233 branches settle, add a complementary editor load regression for missing/unknown asset records without taking ownership of their mobile-scroll or valid JSON round-trip surfaces.
+
+## Run 235 — Periodic platform control refresh
+- Governance §15/run199 periodic platform state was due for its 20-30 run refresh; this task intentionally changes no runtime/product source.
+- RCA: initial workflow `31437856686` passed checkout, additive-only, audit-applicability and PWA gates, then failed because the new workflow invoked `checkMobilePerfBudget.js` before installing Playwright. No product/runtime failure occurred. Additive V2 corrected only the verification harness.
+- Corrected V2 workflow `31437913596` PASS and independent World Event Determinism Guard `31437913425` PASS. `package.json` remains absent, therefore npm audit is N/A.
+- PWA cache/installability PASS. Mobile Chromium sample: 35 draw calls, 195929 triangles, 30 geometries, 22 textures; measurable draw-call/triangle budgets PASS. Texture-memory bytes remain unavailable from `renderer.info` and are not invented.
+- Seed policy and canonical reference map/water/alignment/hydrology PASS; current map-bounds cover 67.3% of the normalized reference rectangle; terrain-seat safety remains 14/14 and the 13-edge/14-seat road network remains connected at 20.24 km.
+- Perf trend through run234: jsHeapUsedMB first-half 316.0 MB vs second-half 337.2 MB (1.07x), no sustained upward drift. Technical-debt guard PASS with 0 newly-added debt markers and 0 forbidden temporary-solution additions.
+- Full browser smoke PASS: 2D offline/no-CDN resilience preserved and 3D reaches GAME_READY with zero 3D console/page errors. Runtime/product source delta: 0. Technical debt introduced: 0. Risk: LOW. ADR not required.
+- Next safe step: re-read current main and concurrent Run232/Run233 state; if their editor surfaces are settled, continue the missing/unknown-asset scene-load regression, otherwise select an independent additive-only task.
