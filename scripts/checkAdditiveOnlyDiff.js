@@ -35,6 +35,19 @@ function runGit(args) {
   return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
+function ensureRemoteBaseRef(ref) {
+  if (!ref.startsWith('origin/')) return;
+  try {
+    runGit(['rev-parse', '--verify', ref]);
+    return;
+  } catch {}
+  const branch = ref.slice('origin/'.length);
+  if (!branch) return;
+  runGit(['fetch', 'origin', `${branch}:refs/remotes/origin/${branch}`, '--depth=1']);
+}
+
+ensureRemoteBaseRef(baseRef);
+
 function extensionOf(path) {
   const dot = path.lastIndexOf('.');
   return dot >= 0 ? path.slice(dot).toLowerCase() : '';
