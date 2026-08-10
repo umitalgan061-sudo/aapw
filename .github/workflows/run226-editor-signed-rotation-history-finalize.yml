@@ -1,0 +1,78 @@
+name: Run 226 Editor Signed Rotation History Finalize
+
+on:
+  push:
+    branches:
+      - agent/run226-editor-signed-rotation-history
+    paths:
+      - '.github/workflows/run226-editor-signed-rotation-history-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run226-editor-signed-rotation-history-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun226EditorSignedRotationHistoryV2.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run226 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 226 — World Editor signed rotation/history regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium regression verifies a signed near-boundary Inspector rotation (`Y=-179.9°`) without changing runtime/product source.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Live Inspector transform preserves the exact entered decimal degree value; object identity, position, scale, and the untouched rotation axes remain stable.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Undo restores the exact original scene object; Redo restores the serializer-normalized six-decimal radian value while preserving the same user-visible `-179.9°` Inspector value after explicit re-selection.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- RCA: first Run226 proof `31427349468` timed out on Redo because the test incorrectly expected the pre-serialization full-precision radian at `1e-12`; `EditorSceneSerializer` intentionally rounds transforms to six decimals. Runtime behavior was correct. V2 models that persistence contract explicitly.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Corrected V2 workflow `31427884497` PASS: syntax, focused Chromium proof, PWA cache/installability, mobile performance, seeded/world-reference/hydrology/terrain/road safety, performance trend, technical debt, full browser smoke, final remote-main/additive-only gate, console-zero and three visual artifacts.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- World Event Determinism Guard `31427884571` PASS. Runtime/product source delta: 0 lines changed. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: continue additive-only World Editor transform/history boundary coverage or another isolated owner-visible editor usability regression without crossing unresolved owner gates.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run226,2026-08-10,editor-signed-rotation-history' perf_log.csv; then
+            printf 'run226,%s,editor-signed-rotation-history,,,,,,,"test-only signed -179.9deg rotation undo/redo persistence regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run226 editor signed rotation/history regression' STABLE_TAGS.md; then
+            printf '%s — Run226 editor signed rotation/history regression; signed `-179.9°` transform survives undo/redo under serializer normalization; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run226 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run226): record signed rotation history checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run226-editor-signed-rotation-history
+          git push origin "$STABLE_TAG" || true
