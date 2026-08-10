@@ -1,0 +1,84 @@
+name: Run216 Game Night Readability
+
+on:
+  push:
+    branches:
+      - agent/run216-owner-editor-usability-fixes
+    paths:
+      - 'src/3d/lighting.js'
+      - 'scripts/checkGameNightReadabilityVisual.js'
+      - '.github/workflows/run216-game-night-readability.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  game-night-readability:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check src/3d/lighting.js
+          node --check scripts/checkGameNightReadabilityVisual.js
+          node --check scripts/checkLightingVisualContract.js
+          node --check scripts/checkTechnicalDebt.js
+      - name: Install isolated Chromium proof tooling
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/run216-night-tools"
+          npm install --prefix "$RUNNER_TEMP/run216-night-tools" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/run216-night-tools/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/run216-night-tools/node_modules" >> "$GITHUB_ENV"
+      - name: Gameplay midnight readability visual proof
+        run: node scripts/checkGameNightReadabilityVisual.js
+      - name: Existing day night visual contract
+        run: node scripts/checkLightingVisualContract.js
+      - name: Editor bright authoring regression
+        run: node scripts/checkRun216EditorBrightAuthoringBrowserV3.js
+      - name: Game smoke console PWA performance determinism and debt
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run216-night-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run216-night-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run216-night-smoke.log"
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js origin/main HEAD
+      - name: Final concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Upload night readability evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run216-game-night-readability
+          path: artifacts/run216-game-night-readability/*.png
+          if-no-files-found: warn
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
