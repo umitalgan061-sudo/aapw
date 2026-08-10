@@ -1,0 +1,96 @@
+name: Run216 Editor Authoring Contract
+
+on:
+  pull_request:
+    paths:
+      - 'editor.html'
+      - 'editor.css'
+      - 'src/3d/editor/**'
+      - 'scripts/checkRun216EditorAuthoringContract.js'
+      - 'scripts/checkRun216EditorClipboardController.mjs'
+      - 'scripts/checkRun216EditModeFog.mjs'
+      - 'scripts/checkRun216EditorBuildingLibrary.mjs'
+      - 'scripts/checkRun216EditorRoadModel.mjs'
+      - 'scripts/checkRun216EditorRoadController.js'
+      - 'scripts/checkRun216EditorTerrainCellModel.mjs'
+      - 'scripts/checkRun216EditorTerrainPaintController.js'
+      - 'scripts/checkRun216EditorToolArbitration.js'
+      - 'scripts/materializeRun216ServiceWorkerCache.js'
+      - 'scripts/checkRun216ServiceWorkerMaterializer.js'
+      - '.github/workflows/run216-editor-authoring-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-authoring-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+
+      - name: Syntax checks
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorClipboardController.js
+          node --check src/3d/editor/EditorEditModeEnvironment.js
+          node --check src/3d/editor/EditorAssetScalePolicy.js
+          node --check src/3d/editor/EditorRoadModel.js
+          node --check src/3d/editor/EditorRoadController.js
+          node --check src/3d/editor/EditorTerrainCellModel.js
+          node --check src/3d/editor/EditorTerrainPaintController.js
+          node --check scripts/checkRun216EditorAuthoringContract.js
+          node --check scripts/checkRun216EditorClipboardController.mjs
+          node --check scripts/checkRun216EditModeFog.mjs
+          node --check scripts/checkRun216EditorBuildingLibrary.mjs
+          node --check scripts/checkRun216EditorRoadModel.mjs
+          node --check scripts/checkRun216EditorRoadController.js
+          node --check scripts/checkRun216EditorTerrainCellModel.mjs
+          node --check scripts/checkRun216EditorTerrainPaintController.js
+          node --check scripts/checkRun216EditorToolArbitration.js
+          node --check scripts/materializeRun216ServiceWorkerCache.js
+          node --check scripts/checkRun216ServiceWorkerMaterializer.js
+
+      - name: Editor authoring regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkRun216EditorAuthoringContract.js
+          node --experimental-vm-modules scripts/checkRun216EditorClipboardController.mjs
+          node --experimental-vm-modules scripts/checkRun216EditModeFog.mjs
+          node scripts/checkEditorAssetScalePolicy.mjs
+          node scripts/checkRun216EditorBuildingLibrary.mjs
+          node scripts/checkRun216EditorRoadModel.mjs
+          node scripts/checkRun216EditorRoadController.js
+          node scripts/checkRun216EditorTerrainCellModel.mjs
+          node scripts/checkRun216EditorTerrainPaintController.js
+          node scripts/checkRun216EditorToolArbitration.js
+
+      - name: PWA materializer proof
+        run: |
+          set -euo pipefail
+          node scripts/materializeRun216ServiceWorkerCache.js --self-test
+          node scripts/checkRun216ServiceWorkerMaterializer.js
+
+      - name: Final concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
