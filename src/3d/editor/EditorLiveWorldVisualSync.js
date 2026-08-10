@@ -194,3 +194,64 @@ if (brightAuthoringApi && brightAuthoringLiveSurface) {
     console.error('[EditorLiveWorldVisualSync] bright authoring boot failed', error);
   }
 }
+
+// Run216 owner visual follow-up: the bright authoring sky must still read unmistakably as aurora.
+// The canonical shader intentionally uses a conservative 0.55 aurora multiplier for gameplay;
+// keep that gameplay contract untouched and boost only the editor's existing uNightFactor uniform.
+const EDITOR_VISIBLE_AURORA_FACTOR = 3.4;
+
+export function installEditorVisibleAuroraBoost(api, liveSurface = window.__WESTEROS_EDITOR_LIVE_WORLD__) {
+  if (!api?.camera) throw new Error('Visible aurora boost için editor camera gerekli.');
+  if (!liveSurface?.liveState?.sky?.material?.uniforms) throw new Error('Visible aurora boost için editor sky uniforms gerekli.');
+  if (window.__WESTEROS_EDITOR_VISIBLE_AURORA__) return window.__WESTEROS_EDITOR_VISIBLE_AURORA__;
+
+  const uniforms = liveSurface.liveState.sky.material.uniforms;
+  let disposed = false;
+  let frame = 0;
+  let lastAppliedFactor = 0;
+
+  function tick() {
+    if (disposed) return;
+    if (uniforms.uNightFactor) {
+      const current = Number(uniforms.uNightFactor.value) || 0;
+      uniforms.uNightFactor.value = Math.max(current, EDITOR_VISIBLE_AURORA_FACTOR);
+      lastAppliedFactor = uniforms.uNightFactor.value;
+    }
+    frame = window.requestAnimationFrame(tick);
+  }
+
+  function getSnapshot() {
+    return Object.freeze({
+      mode: 'visible-aurora-boost',
+      configuredFactor: EDITOR_VISIBLE_AURORA_FACTOR,
+      actualUniformFactor: Number(uniforms.uNightFactor?.value || 0),
+      lastAppliedFactor,
+      auroraColorA: uniforms.uAuroraColorA?.value?.getHexString?.() || '',
+      auroraColorB: uniforms.uAuroraColorB?.value?.getHexString?.() || ''
+    });
+  }
+
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    if (frame) window.cancelAnimationFrame(frame);
+    window.removeEventListener('pagehide', dispose);
+    if (window.__WESTEROS_EDITOR_VISIBLE_AURORA__ === surface) delete window.__WESTEROS_EDITOR_VISIBLE_AURORA__;
+  }
+
+  const surface = Object.freeze({ getSnapshot, dispose });
+  window.__WESTEROS_EDITOR_VISIBLE_AURORA__ = surface;
+  window.addEventListener('pagehide', dispose, { once: true });
+  tick();
+  return surface;
+}
+
+const visibleAuroraApi = window.__WESTEROS_WORLD_EDITOR__;
+const visibleAuroraLiveSurface = window.__WESTEROS_EDITOR_LIVE_WORLD__;
+if (visibleAuroraApi && visibleAuroraLiveSurface) {
+  try {
+    installEditorVisibleAuroraBoost(visibleAuroraApi, visibleAuroraLiveSurface);
+  } catch (error) {
+    console.error('[EditorLiveWorldVisualSync] visible aurora boost boot failed', error);
+  }
+}
