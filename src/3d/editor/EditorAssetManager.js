@@ -41,6 +41,7 @@ function createPrimitive(asset) {
     );
     water.rotation.x = -Math.PI / 2;
     water.position.y = EDITOR_TERRAIN_CELL_POLICY.waterSurfaceOffsetMeters;
+    water.userData.editorNoShadow = true;
     group.add(water);
     return group;
   }
@@ -114,6 +115,10 @@ export class EditorAssetManager {
         child.castShadow = true;
         child.receiveShadow = true;
         child.userData.editorRoot = object;
+        if (child.userData.editorNoShadow) {
+          child.castShadow = false;
+          child.receiveShadow = false;
+        }
       }
     });
     return object;
