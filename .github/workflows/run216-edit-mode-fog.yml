@@ -1,0 +1,31 @@
+name: Run216 Edit Mode Fog
+
+on:
+  pull_request:
+    paths:
+      - 'editor.html'
+      - 'src/3d/editor/EditorEditModeEnvironment.js'
+      - 'scripts/checkRun216EditModeFog.mjs'
+      - 'scripts/materializeRun216ServiceWorkerCache.js'
+      - 'scripts/checkRun216ServiceWorkerMaterializer.js'
+      - '.github/workflows/run216-edit-mode-fog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  edit-mode-fog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check src/3d/editor/EditorEditModeEnvironment.js
+      - run: node --check scripts/checkRun216EditModeFog.mjs
+      - run: node --check scripts/materializeRun216ServiceWorkerCache.js
+      - run: node --check scripts/checkRun216ServiceWorkerMaterializer.js
+      - run: node --experimental-vm-modules scripts/checkRun216EditModeFog.mjs
+      - run: node scripts/materializeRun216ServiceWorkerCache.js --self-test
+      - run: node scripts/checkRun216ServiceWorkerMaterializer.js
