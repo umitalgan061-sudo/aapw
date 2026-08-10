@@ -72,3 +72,7 @@ jobs:
           name: run216-editor-authoring-browser
           path: artifacts/run216-editor-authoring/*.png
           if-no-files-found: error
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
