@@ -169,3 +169,4 @@ run213,2026-08-09,desktop-rts-selection-readability,,66,821483,,,,"DOM-only sele
 run213,2026-08-09,mobile-rts-selection-readability,,28,202770,,,,"DOM-only selection meter; 48/48=100%; no renderer ownership; console/page errors 0"
 run218,2026-08-10,editor-authoring-regression,,,,,,,"test-only orchestration; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run219,2026-08-10,editor-history-regression,,,,,,,"test-only browser regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run220,2026-08-10,editor-history-shortcuts-mobile,,,,,,,"test-only keyboard/mobile browser regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
