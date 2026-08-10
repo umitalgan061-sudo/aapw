@@ -1,0 +1,80 @@
+name: Run 222 Realistic Game Aurora Finalize
+
+on:
+  push:
+    branches:
+      - agent/run222-realistic-game-aurora-v2
+    paths:
+      - .github/workflows/run222-realistic-game-aurora-finalize.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run222-realistic-game-aurora-finalize-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive publication gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$MAIN_SHA" = "$(git merge-base HEAD origin/main)"
+          node --check src/3d/sky.js
+          node scripts/checkAdditiveOnlyDiff.js "$MAIN_SHA" HEAD
+          git diff --check
+      - name: Append verified Run222 governance records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +'%Y-%m-%d-%H%M')"
+          cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+## Run 222 — Realistic game-night aurora curtains
+- Game-mode aurora now uses an additive layered procedural fragment-shader override inside the already-cached `src/3d/sky.js` contract: three independently drifting curtains, broad/fine warping, vertical striations, broken edges, phosphor-like core glow, soft atmospheric lift, green/cyan body and restrained violet edge variation.
+- Existing day/night uniforms, sky geometry/lifecycle, deterministic gameplay/world state, 2D game, editor/RTS ownership and PWA module graph remain unchanged. No external texture or asset dependency was added.
+- Mobile fragment cost is bounded by a three-octave FBM and cheaper single-noise secondary modulation. The earlier separate-module candidate was rejected by the standing PWA cache guard; the final implementation stays in the existing cached sky module instead of widening the offline graph.
+- Validation PASS: `node --check src/3d/sky.js`, additive-only guard, `git diff --check`, service-worker cache coverage, PWA installability, mobile performance budget, seeded-random/world-reference/hydrology/terrain/road safety, perf trend, technical-debt audit, full Chromium game3d smoke, zero final concurrency drift.
+- Runtime source delta is additive only; no source lines/files were deleted. World coverage and simulation ownership are unchanged. Residual risk is visual/GPU-device variance only; gameplay risk LOW.
+- Next safe step: add a focused real-browser aurora visual contract/evidence gate (material marker, night-factor continuity and screenshot evidence) without changing gameplay ownership.
+EOF
+          cat >> DECISIONS.md <<'EOF'
+
+## ADR-0234 — Keep realistic aurora inside the existing cached sky contract
+**Risk:** LOW
+
+**Decision:** Upgrade game-mode northern lights by additively replacing the already-created `ShaderMaterial.fragmentShader` inside `src/3d/sky.js`, rather than introducing a new runtime module or external texture. The replacement keeps the established uniforms and lifecycle intact while rendering three procedural curtain layers with independent drift, warped/broken edges, vertical striation, phosphor-style core/soft glow and restrained green-cyan/violet variation. Procedural FBM is bounded to three octaves for mobile cost control.
+
+**Why:** The owner requested a brighter, realistic, visibly moving aurora without an artificial neon look. The first isolated-module candidate correctly failed the standing PWA cache guard because every `src/3d` module must be offline-cached. Keeping the implementation in the existing cached sky module satisfies strict additive-only source policy without widening the PWA dependency graph, changing deterministic world state, or altering the public sky/day-night contract.
+
+**Affected systems:** game-mode sky rendering only, plus Run222 validation/governance records. 2D, editor, RTS simulation, terrain/water, gameplay determinism, service-worker source/version and asset manifests remain unchanged.
+
+**Rollback/Future:** A future owner-approved visual direction can add a versioned shader override that supersedes this one; existing historical shader source remains preserved under additive-only policy. A focused browser visual-evidence guard is the next safe follow-up before any further GPU-heavy sky effects.
+EOF
+          printf 'run222,2026-08-10,realistic-game-aurora,"layered 3-octave procedural aurora; mobile perf budget + full browser smoke PASS; world geometry/coverage unchanged"\n' >> perf_log.csv
+          printf '\n- stable-%s — Run222 realistic game-night aurora; additive-only, PWA/mobile/perf/full-browser gates PASS.\n' "$STAMP" >> STABLE_TAGS.md
+          echo "STABLE_TAG=stable-$STAMP" >> "$GITHUB_ENV"
+      - name: Commit checkpoint records
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git commit -m "docs(run222): record realistic aurora checkpoint"
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run222-realistic-game-aurora-v2
+          git push origin "$STABLE_TAG"
