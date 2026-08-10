@@ -12,6 +12,7 @@
  */
 
 import * as THREE from 'three';
+import { installNightVisualEnhancement, updateNightVisualEnhancement } from './nightVisualEnhancement.js';
 
 /**
  * Ordered day/night keyframes, each at a `ratio` in [0, 1) of a full day (0 = midnight, 0.5 =
@@ -81,6 +82,7 @@ export function createDayNightLighting(scene) {
 	readability.name = NIGHT_READABILITY_LIGHT_NAME;
 	readability.userData.gameNightReadability = true;
 	hemisphere.add(readability);
+	installNightVisualEnhancement(hemisphere);
 	return { sun, hemisphere };
 }
 
@@ -117,6 +119,7 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 		readability.intensity = NIGHT_READABILITY_DAY_INTENSITY +
 			(NIGHT_READABILITY_NIGHT_INTENSITY - NIGHT_READABILITY_DAY_INTENSITY) * smoothNightFactor;
 	}
+	updateNightVisualEnhancement(lights.hemisphere, nightFactor);
 
 	// Sun arcs through a fixed vertical plane: elevation via sine, tracking the same [0,1) ratio
 	// (0.25 = sunrise at the horizon, 0.5 = noon overhead, 0.75 = sunset at the horizon).

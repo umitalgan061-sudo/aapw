@@ -15418,3 +15418,16 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Future phase impact:** this provides a stable persistence base for later per-instance editing and TransformControls work without constraining animated crowd implementation.
 
 **Rollback:** remove the additive import/load/cache lines and rehydrator module in a future owner-approved change; schema-v1 saved files remain readable for normal objects as in Run214.
+
+## ADR-0234 — Gameplay night readability and aurora realism stay additive to canonical day/night semantics
+**Risk:** LOW-MEDIUM
+
+**Decision:** Preserve existing day/night keyframes, canonical `nightFactor`, sun orbit and game-event night semantics. Improve night readability through child hemisphere fill lights, and improve aurora realism through additive shader-material layers installed before first WebGL compilation. Final active visual: V4 irregular vertical ray curtains followed by V5 deep-blue atmospheric-floor calibration; no external aurora texture/media.
+
+**Why:** The owner requires a visibly brighter playable night and abundant realistic phosphorescent northern lights, but changing canonical timing/nightFactor would couple an art request to gameplay event gating and deterministic world behavior. Child fills keep scene readability independent from simulation semantics. Camera-relative procedural curtains prevent travel distortion while preserving offline/PWA operation and asset provenance.
+
+**Rejected visual alternatives:** First broad procedural pass measured bright/animated but read as neon blobs and was not published. A multi-ribbon pass removed blobs but read as mechanically parallel rings and was not published. V3 introduced the intended irregular-ray structure but contained GLSL-reserved identifier `patch`; V4 supersedes it with a compile-safe shader before material compilation. V5 changes only atmospheric floor brightness.
+
+**Validation:** strict Chromium/WebGL workflow `31417595129` passed with luminance 26.3870→28.9997, phosphorescent fraction 0.02217→0.03455 and animation delta 3.88347. Canonical lighting, PWA/cache, mobile budgets, deterministic world safety, technical debt, full browser smoke and final concurrency/additive-only gates passed. Final exact-head artifact was manually reviewed.
+
+**Rollback/Future:** Under additive-only policy later art direction should add a new final shader layer/feature gate rather than delete historical layers. Canonical lighting/game-event semantics remain the rollback baseline.

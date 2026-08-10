@@ -1,0 +1,97 @@
+name: Run221 Aurora Governance Append
+
+on:
+  push:
+    branches:
+      - agent/run221-realistic-game-aurora
+    paths:
+      - '.github/workflows/run221-aurora-governance-append.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run221-aurora-governance-append-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  append-governance:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Synchronize and verify current main ancestry
+        run: |
+          set -euo pipefail
+          git fetch origin main agent/run221-realistic-game-aurora
+          git checkout -B agent/run221-realistic-game-aurora origin/agent/run221-realistic-game-aurora
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Final runtime contract before governance append
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun221AuroraFinalContract.js
+          node scripts/checkRun221AuroraFinalContract.js
+          node scripts/checkLightingVisualContract.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+      - name: Append progress and ADR checkpoints
+        run: |
+          set -euo pipefail
+          PROGRESS_MARKER='Run221 Gameplay Night + Realistic Aurora — 2026-08-10'
+          if ! grep -Fq "$PROGRESS_MARKER" 3D_GAME_PROGRESS.md; then
+            printf '%s\n' \
+              '' \
+              '## Run221 Gameplay Night + Realistic Aurora — 2026-08-10' \
+              '' \
+              '- **Owner requirement:** Gameplay night must remain night but be substantially more readable; northern lights must be abundant, phosphorescent, animated and natural rather than neon/disco/artificial.' \
+              '- **Gameplay-night lighting:** Existing canonical day/night keyframes and `nightFactor` remain unchanged. Existing `Game Night Readability Fill` still reaches 1.05 at full night. Additive `Game Night Cinematic Fill` contributes 0.72 at full night and only 0.02 in daylight, preserving canonical midnight sun intensity 0.05 and noon 1.40.' \
+              '- **Aurora V4/V5:** Final active shader is camera-relative V4 irregular ray curtains plus V5 deep-blue atmospheric-floor calibration. V4 uses one dominant wandering lower arc, vertically stretched broken rays, a faint secondary curtain, oxygen green/cyan emission and restrained violet high-altitude fringe. V5 lifts only the night sky floor; it does not change curtain geometry or canonical gameplay timing.' \
+              '- **Visual review:** Initial broad neon blobs were rejected; a later parallel-ribbon calibration was also rejected. Final V5 exact-head Chromium artifact was manually reviewed and accepted: irregular curved auroral edge, upward ray curtains, visible movement and readable dark-blue night terrain/props without daylight flattening. RCA is recorded in `RUN221_AURORA_VISUAL_RCA.md`.' \
+              '- **Strict WebGL evidence:** workflow `31417595129` passed. Frame A average luminance 26.3870, bright fraction 0.0072647, phosphorescent green/cyan fraction 0.0221682; frame B average luminance 28.9997, bright fraction 0.0128395, phosphorescent fraction 0.0345505; mean animation delta 3.88347. Canonical midnight `nightFactor=1`, cinematic fill 0.72; daylight fill returns to 0.02.' \
+              '- **PWA/offline:** `checkServiceWorkerCache` passed with 140 JS files plus referenced model/resource paths; all four new aurora/night modules are persisted in `GAME3D_SHELL_FILES`. Installability passed.' \
+              '- **Mobile/perf:** coarse/touch browser sample stayed inside budget at 35 draw calls, 195,929 triangles, 30 geometries and 22 textures (`<500` draw calls, `<500,000` triangles). Perf history analyzer reported heap first-half 316.6 MB vs second-half 340.6 MB (1.08x), with no sustained upward drift.' \
+              '- **Determinism/world safety:** seeded-random guard found no `Math.random()` under `src/3d`; world reference, hydrology, all 14 settlement safety checks and road-network safety passed. World Coverage was not re-measured or changed by this visual-only task.' \
+              '- **Regression/debt:** full 2D/3D browser smoke passed; 3D boot had zero console/page errors and zero external requests. Technical-debt guard: 0 forbidden temporary-solution additions and 0 newly-added debt markers. Additive-only final gate passed with zero source deletions.' \
+              '- **Evidence:** strict runtime workflow `31417595129`; V5 diagnostic workflow `31417167227`; strict artifact id `9074126630`.' \
+              >> 3D_GAME_PROGRESS.md
+          fi
+
+          ADR_MARKER='ADR-0234 — Gameplay night readability and aurora realism stay additive to canonical day/night semantics'
+          if ! grep -Fq "$ADR_MARKER" DECISIONS.md; then
+            printf '%s\n' \
+              '' \
+              '## ADR-0234 — Gameplay night readability and aurora realism stay additive to canonical day/night semantics' \
+              '**Risk:** LOW-MEDIUM' \
+              '' \
+              '**Decision:** Preserve the existing day/night keyframes, canonical `nightFactor`, sun orbit and game-event night semantics. Improve night readability only through child hemisphere fill lights, and improve aurora realism only through additive shader-material layers installed before first WebGL compilation. The final active visual is V4 irregular vertical ray curtains followed by V5 deep-blue atmospheric-floor calibration; no external aurora texture/media is introduced.' \
+              '' \
+              '**Why:** The owner requires a visibly brighter playable night and abundant realistic phosphorescent northern lights, but changing canonical timing/nightFactor would couple an art request to gameplay event gating and deterministic world behavior. Child fills keep scene readability independent from simulation semantics. Camera-relative procedural curtains prevent world-position distortion while preserving offline/PWA operation and asset provenance.' \
+              '' \
+              '**Rejected visual alternatives:** The first broad procedural pass measured bright/animated but read as neon blobs and was not published. A later multi-ribbon pass removed blobs but read as mechanically parallel rings and was not published. V3 introduced the correct irregular-ray structure but contained the GLSL-reserved identifier `patch`; V4 supersedes it with a compile-safe shader before material compilation. V5 changes only atmospheric floor brightness.' \
+              '' \
+              '**Validation:** Strict Chromium/WebGL workflow `31417595129` passed with average luminance 26.3870→28.9997 across two time samples, phosphorescent fraction 0.02217→0.03455 and animation delta 3.88347. Canonical lighting, PWA/cache, mobile budgets, deterministic world safety, technical-debt, full browser smoke and final concurrency/additive-only gates all passed. Final artifact was manually reviewed for non-neon irregular curtain/ray structure.' \
+              '' \
+              '**Rollback/Future:** Because historical visual passes must remain under additive-only policy, later art direction should add a new final shader layer or feature gate rather than deleting old layers. Canonical lighting/game-event semantics remain the rollback baseline.' \
+              >> DECISIONS.md
+          fi
+          git diff --check
+      - name: Commit and push additive governance records
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md DECISIONS.md; then
+            echo 'Run221 governance checkpoints already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md
+          git commit -m 'docs(run221): record realistic gameplay aurora checkpoint'
+          git push origin HEAD:agent/run221-realistic-game-aurora

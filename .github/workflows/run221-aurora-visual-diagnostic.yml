@@ -1,0 +1,54 @@
+name: Run221 Aurora Visual Diagnostic
+
+on:
+  push:
+    branches:
+      - agent/run221-realistic-game-aurora
+    paths:
+      - 'src/3d/auroraRealism.js'
+      - 'src/3d/sky.js'
+      - 'scripts/captureRun221AuroraDiagnostic.js'
+      - '.github/workflows/run221-aurora-visual-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run221-aurora-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Current main and additive guard
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          node --check scripts/captureRun221AuroraDiagnostic.js
+      - name: Install isolated Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/run221-aurora-diagnostic-tools"
+          npm install --prefix "$RUNNER_TEMP/run221-aurora-diagnostic-tools" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/run221-aurora-diagnostic-tools/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/run221-aurora-diagnostic-tools/node_modules" >> "$GITHUB_ENV"
+      - name: Capture V3 before aesthetic thresholds
+        run: node scripts/captureRun221AuroraDiagnostic.js
+      - name: Upload V3 diagnostic frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run221-aurora-v3-diagnostic
+          path: artifacts/run221-aurora-diagnostic/*.png
+          if-no-files-found: error
