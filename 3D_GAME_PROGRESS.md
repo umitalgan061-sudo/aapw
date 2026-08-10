@@ -14637,3 +14637,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - This extends Run234 invalid-schema atomicity without changing loader semantics and intentionally leaves Run236 RCA #125 fractional-position/snap-ordering behavior separate.
 - Runtime/product source delta: 0 lines. Test/workflow only; additive-only. Full PWA/cache, mobile performance, deterministic world safety, technical-debt and browser smoke gates passed before publication.
 - Technical debt introduced: 0. Risk: LOW. ADR not required. Next safe step: continue isolated serializer/scene-load structural validation coverage without crossing owner gates.
+
+## Run 239 — World Editor unsupported schemaVersion atomicity regression
+- Permanent additive-only Chromium regression verifies that a syntactically valid scene file with unsupported `schemaVersion: 999` is rejected before live World Editor state mutation.
+- Prepared object identity/asset/name/position/signed rotation/non-uniform scale, hierarchy, selection, instance-group count, grid visibility, snap enabled state and snap size remain byte-for-byte equivalent at the captured contract level after the handled load error.
+- Expected loader error remains isolated (`Desteklenmeyen scene schemaVersion: 999`); unexpected browser console/page errors remain zero; two screenshots provide before/after visual proof.
+- PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, perf-trend, technical-debt, full browser smoke, final remote-main concurrency/additive gates and artifact upload PASS.
+- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: Run239 workflow `31443939454` PASS and World Event Determinism Guard `31443939431` PASS. Next safe step: continue additive-only World Editor scene-load validation coverage after re-reading current main and avoiding concurrent Run238 scope.
