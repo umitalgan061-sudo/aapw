@@ -70,3 +70,7 @@ jobs:
           name: run216-transform-controls-pointer-drag
           path: artifacts/run216/desktop-transform-pointer-drag.png
           if-no-files-found: error
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
