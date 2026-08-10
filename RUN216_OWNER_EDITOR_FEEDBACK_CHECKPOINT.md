@@ -39,3 +39,11 @@ Known debt / remaining gates:
 - Run216 service-worker materializer knows the editor scale/TransformControls modules, while committed `service-worker.js` is intentionally still unmaterialized; fresh-install offline proof must follow the established materialization pipeline before PWA DONE.
 - Browser-selected local FBX files are session-local capabilities. Scene persistence across a fresh browser restart needs a reconnect/rehydration contract before local-picked FBX placements can be considered fully portable.
 - The water mask is deliberately editor-only. Gameplay/full-reference water adoption remains a separate high-impact integration and must preserve the already-approved medieval bridge road/water policy.
+
+Additional owner-visible black-dragon fallback proof:
+
+- `d773668470b3e7e9e730781cb4a2b89e2c6a2a44` adds a standalone `×0.1 Küçült` toolbar action without changing existing TransformControls lines (`+27/-0`). It scales the selected non-instanced object relatively by 0.1 on all axes and keeps the `0.001` safety floor.
+- Quick-shrink delta `node --check`: PASS. Mock DOM/API behavior harness: PASS for `1.0 -> 0.1`, sub-0.01 values, `0.001` floor, Inspector refresh and transform selection synchronization.
+- Existing `scripts/checkRun216ScaleInputBehaviorNode20.cjs` executed against the branch controller: PASS for `0.0002 -> 0.001` clamp, `0.007` precision, blank-input safety and cleanup.
+- `scripts/materializeRun216ServiceWorkerCache.js --self-test`: PASS for prepend-only/idempotent cache materialization; this does not replace the still-pending fresh-install browser PWA proof.
+- GitHub-hosted PR checks remain infrastructure-blocked before job steps: sampled Authoring Contract, Live World and Editor Usability Contract jobs all reported `steps=null`; therefore the branch remains **NOT DONE** rather than treating those workflow failures as source-test failures.
