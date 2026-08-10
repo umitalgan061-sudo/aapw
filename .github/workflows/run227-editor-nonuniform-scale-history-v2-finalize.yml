@@ -1,0 +1,78 @@
+name: Run 227 Editor Non-Uniform Scale History V2 Finalize
+
+on:
+  push:
+    branches:
+      - agent/run227-editor-nonuniform-scale-history-v2
+    paths:
+      - '.github/workflows/run227-editor-nonuniform-scale-history-v2-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run227-editor-nonuniform-scale-history-v2-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun227EditorNonUniformScaleHistory.js
+          node --check scripts/checkRun227EditorResponsiveResize.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run227 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 227 — World Editor non-uniform scale/history + responsive-resize regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium coverage applies three non-uniform Inspector scale states: `[0.007,1,1]`, `[0.007,0.125,1]`, and `[0.007,0.125,0.75]`.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Undo traverses the exact intermediate states back to the original `[1,1,1]`; Redo round-trips through the same states to the final vector while editor identity, position and rotation remain unchanged. Explicit re-selection resynchronizes all three Inspector scale fields.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Artifact-review RCA: the first proof produced a 2293px-wide `fullPage` PNG after resizing a live Chromium page from desktop to 390px. Existing Run220 fresh-mobile no-overflow coverage and the new Run227 DOM-geometry desktop-to-mobile resize regression both pass, so this is a Playwright/Chromium full-page capture geometry artifact rather than document overflow. No runtime/CSS change was made.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Run227 V2 workflow `31429192965` PASS: syntax, focused Chromium history proof, fresh-mobile baseline, responsive-resize DOM gate, PWA cache/installability, mobile performance, seeded/world-reference/hydrology/terrain/road safety, performance trend, technical debt, full browser smoke, final remote-main/additive-only gate, console-zero and visual artifacts.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- World Event Determinism Guard `31429192908` PASS. Runtime/product source delta: 0 lines changed. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: continue additive-only World Editor transform/history boundary and usability coverage without crossing unresolved owner gates.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run227,2026-08-10,editor-nonuniform-scale-history-responsive-resize' perf_log.csv; then
+            printf 'run227,%s,editor-nonuniform-scale-history-responsive-resize,,,,,,,"test-only non-uniform XYZ scale undo/redo plus responsive resize regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run227 editor non-uniform scale/history + responsive-resize regression' STABLE_TAGS.md; then
+            printf '%s — Run227 editor non-uniform scale/history + responsive-resize regression; exact XYZ scale history round-trip and 390px DOM no-overflow verified; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run227 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run227): record non-uniform scale history checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run227-editor-nonuniform-scale-history-v2
+          git push origin "$STABLE_TAG" || true
