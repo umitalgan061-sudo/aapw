@@ -14543,3 +14543,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - **Determinism/world safety:** no `Math.random()` under `src/3d`; world-reference, hydrology, all 14 settlement safety checks and road-network safety passed. World Coverage was not re-measured or changed by this visual-only task.
 - **Regression/debt:** full 2D/3D browser smoke passed; 3D boot had zero console/page errors and zero external requests. Technical-debt guard: 0 forbidden temporary-solution additions and 0 newly-added debt markers. Final additive-only gate passed with zero source deletions.
 - **Evidence:** strict runtime workflow `31417595129`; V5 diagnostic workflow `31417167227`; strict artifact `9074126630`.
+
+## Run 222 — World Editor clipboard/history regression
+- Permanent additive-only Chromium regression verifies Copy -> Paste creates a second marker-tree object while preserving the copied asset identity.
+- Paste receives a deterministic generated `-paste-####` editor id and a positive snapped X offset; Undo removes only the pasted object and creates one redo entry.
+- Ctrl+Shift+Z restores the exact pasted object and consumes redo history; browser console/page errors remain zero.
+- PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
+- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: Run222 current-main workflow `31420348658` PASS. Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.

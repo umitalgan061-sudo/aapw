@@ -941,3 +941,4 @@ stable-2026-08-10-1940 — Run218 editor authoring regression suite; bright auro
 stable-2026-08-10-1704 — Run219 editor history regression; undo/redo round-trip, visual proof, PWA/perf/determinism/smoke gates verified.
 stable-2026-08-10-1712 — Run220 editor history shortcut/mobile regression; keyboard round-trip, mobile toolbar visibility/overflow, PWA/perf/determinism/smoke gates verified.
 stable-2026-08-10-1719 — Run221 editor history input-guard regression; inspector typing protection, Ctrl+Y redo, PWA/perf/determinism/smoke gates verified.
+stable-2026-08-10-2147 — Run222 editor clipboard/history regression; deterministic paste identity/offset, undo/redo round-trip, PWA/perf/determinism/smoke gates verified.
