@@ -61,6 +61,8 @@ const REALISTIC_AURORA_FRAGMENT_SHADER = /* glsl */ `
 
 	void main() {
 		vec3 dir = normalize(vWorldPosition);
+		// The sky sphere follows the player camera, so atmospheric direction must be camera-relative.
+		dir = normalize(vWorldPosition - cameraPosition);
 		float heightFactor = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
 		vec3 skyColor = mix(uHorizonColor, uZenithColor, pow(heightFactor, 0.55));
 
