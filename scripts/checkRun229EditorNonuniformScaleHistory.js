@@ -90,6 +90,7 @@ async function main() {
     await page.waitForFunction(() => (
       window.__WESTEROS_WORLD_EDITOR__ &&
       window.__WESTEROS_EDITOR_HISTORY__ &&
+      window.__WESTEROS_EDITOR_SCALE_INPUT__ &&
       window.__WESTEROS_WORLD_EDITOR__.editableObjects.length === 0
     ), null, { timeout: 120000 });
     await page.waitForFunction(() => window.__WESTEROS_EDITOR_HISTORY__.getSnapshot().observersStarted === true, null, { timeout: 30000 });
@@ -103,6 +104,7 @@ async function main() {
     const original = await readFirstObject();
     assert(original?.assetId === 'marker-tree', `Unexpected initial object: ${JSON.stringify(original)}`);
     assert(original.editorId, `Initial object missing editor id: ${JSON.stringify(original)}`);
+    assert(original.scale.every((value) => Math.abs(value - 1) < 1e-9), `Unexpected initial scale: ${JSON.stringify(original.scale)}`);
 
     fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
     await page.screenshot({ path: path.join(ARTIFACT_DIR, '01-original-scale.png'), fullPage: true });
@@ -110,7 +112,7 @@ async function main() {
     await page.evaluate((target) => {
       const ids = ['we-scale-x', 'we-scale-y', 'we-scale-z'];
       ids.forEach((id, index) => { document.getElementById(id).value = String(target[index]); });
-      document.getElementById('we-scale-x').dispatchEvent(new Event('change', { bubbles: true }));
+      ids.forEach((id) => document.getElementById(id).dispatchEvent(new Event('change', { bubbles: true })));
     }, TARGET_SCALE);
     await page.waitForFunction((target) => {
       const object = window.__WESTEROS_WORLD_EDITOR__.editableObjects[0];
