@@ -14621,3 +14621,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Perf trend through run234 reports jsHeapUsedMB first-half 316.0 MB vs second-half 337.2 MB (1.07x), no sustained upward drift. Technical-debt guard PASS with 0 newly-added debt markers and 0 forbidden temporary-solution additions.
 - Full browser smoke PASS: 2D offline/no-CDN resilience preserved and 3D reaches GAME_READY with zero 3D console/page errors. Runtime/product source delta: 0. Technical debt introduced: 0. Risk: LOW. ADR not required.
 - Next safe step: re-read current main and concurrent Run232/Run233 state; if their editor surfaces are settled, continue the missing/unknown-asset scene-load regression, otherwise select an independent additive-only task.
+
+## Run 236 — World Editor unknown asset scene-load regression (V2)
+- Added a permanent Chromium regression for valid scene JSON containing one known editor asset and one unknown/missing asset id.
+- The V1 proof was intentionally superseded after it coupled unknown-asset handling to an unrelated load-time snap-ordering behavior; V2 isolates the target contract with integer positions while still covering signed rotations and sub-0.01 non-uniform scale.
+- Verified contract: unknown asset records are skipped without blocking valid records; the known object id/name/position/rotation/scale, hierarchy, selection-clear behavior and editor grid/snap settings restore correctly.
+- Runtime/product source delta: 0 lines. Test/workflow only; additive-only. Full PWA/cache, mobile performance, deterministic world safety, technical-debt and browser smoke gates passed before publication.
+- RCA follow-up: fractional-position load fidelity under restored snap settings remains a separate behavior to address independently; it is not hidden by this regression and must not be conflated with unknown-asset skipping.
+- Technical debt introduced: 0. Risk: LOW. Next safe step: add malformed-JSON/non-object validation atomicity coverage without changing loader semantics or crossing owner gates.
