@@ -1,7 +1,7 @@
 import { EditorAssetManager } from './EditorAssetManager.js';
 import { findEditorAsset } from './editorAssetLibrary.js';
 
-const PASTE_ID_PREFIX = 'paste';
+const GENERATED_ID_KIND = Object.freeze({ paste: 'paste', duplicate: 'duplicate' });
 
 function typingTarget(target) {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
@@ -20,12 +20,12 @@ function snapshotObject(object) {
   });
 }
 
-function nextPasteId(api, assetId) {
+function nextGeneratedId(api, assetId, kind) {
   const used = new Set(api.editableObjects.map((object) => object.userData?.editorId).filter(Boolean));
   let index = 1;
   let candidate = '';
   do {
-    candidate = `${assetId}-${PASTE_ID_PREFIX}-${String(index).padStart(4, '0')}`;
+    candidate = `${assetId}-${kind}-${String(index).padStart(4, '0')}`;
     index += 1;
   } while (used.has(candidate));
   return candidate;
@@ -98,7 +98,9 @@ export function installEditorClipboardController(api) {
 
   function syncButtons() {
     const selected = api.getSelectedObject();
-    ui.copyButton.disabled = !snapshotObject(selected);
+    const selectedSnapshot = snapshotObject(selected);
+    ui.copyButton.disabled = !selectedSnapshot;
+    ui.duplicateButton.disabled = !selectedSnapshot;
     ui.pasteButton.disabled = !clipboard;
   }
 
@@ -116,29 +118,22 @@ export function installEditorClipboardController(api) {
     return true;
   }
 
-  async function pasteClipboard() {
-    if (!clipboard) {
-      toast('Önce bir obje kopyala.');
-      syncButtons();
-      return null;
-    }
-
-    const asset = findEditorAsset(clipboard.assetId);
+  async function createFromSnapshot(snapshot, kind, offsetMultiplier, nameSuffix) {
+    const asset = findEditorAsset(snapshot.assetId);
     if (!asset) {
       toast('Kopyalanan asset artık bulunamıyor.');
       return null;
     }
 
     const object = await assetManager.createObject(asset);
-    pasteCount += 1;
     const state = api.getEditorState();
     const offset = state.snapEnabled ? Math.max(0.1, Number(state.snapSize) || 1) : 1;
-    object.position.fromArray(clipboard.position);
-    object.position.x += offset * pasteCount;
-    object.rotation.set(...clipboard.rotation);
-    object.scale.fromArray(clipboard.scale);
-    object.userData.editorId = nextPasteId(api, clipboard.assetId);
-    object.name = `${clipboard.name} Kopya ${pasteCount}`;
+    object.position.fromArray(snapshot.position);
+    object.position.x += offset * offsetMultiplier;
+    object.rotation.set(...snapshot.rotation);
+    object.scale.fromArray(snapshot.scale);
+    object.userData.editorId = nextGeneratedId(api, snapshot.assetId, kind);
+    object.name = `${snapshot.name} ${nameSuffix}`;
     api.editableObjects.push(object);
     api.scene.add(object);
     api.refreshHierarchy();
@@ -146,10 +141,43 @@ export function installEditorClipboardController(api) {
     const hierarchyButton = [...document.querySelectorAll('#we-hierarchy .we-hierarchy-item')]
       .find((button) => button.textContent === object.name);
     hierarchyButton?.click();
-
-    toast(`${object.name} yapıştırıldı.`);
     syncButtons();
     return object;
+  }
+
+  async function pasteClipboard() {
+    if (!clipboard) {
+      toast('Önce bir obje kopyala.');
+      syncButtons();
+      return null;
+    }
+    pasteCount += 1;
+    const object = await createFromSnapshot(clipboard, GENERATED_ID_KIND.paste, pasteCount, `Kopya ${pasteCount}`);
+    if (object) toast(`${object.name} yapıştırıldı.`);
+    return object;
+  }
+
+  async function duplicateSelected() {
+    const snapshot = snapshotObject(api.getSelectedObject());
+    if (!snapshot) {
+      toast('Bu seçim çoğaltılamıyor.');
+      syncButtons();
+      return null;
+    }
+    const object = await createFromSnapshot(snapshot, GENERATED_ID_KIND.duplicate, 1, 'Kopya');
+    if (object) toast(`${object.name} çoğaltıldı.`);
+    return object;
+  }
+
+  function reportAsyncFailure(label, error) {
+    console.error(`[EditorClipboardController] ${label} failed`, error);
+    toast(label === 'duplicate' ? 'Çoğaltma başarısız.' : 'Yapıştırma başarısız.');
+  }
+
+  function onDuplicateClick(event) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    duplicateSelected().catch((error) => reportAsyncFailure('duplicate', error));
   }
 
   function onKeyDown(event) {
@@ -158,13 +186,16 @@ export function installEditorClipboardController(api) {
     const key = event.key.toLowerCase();
     if (key === 'c') {
       event.preventDefault();
+      event.stopImmediatePropagation();
       copySelected();
     } else if (key === 'v') {
       event.preventDefault();
-      pasteClipboard().catch((error) => {
-        console.error('[EditorClipboardController] paste failed', error);
-        toast('Yapıştırma başarısız.');
-      });
+      event.stopImmediatePropagation();
+      pasteClipboard().catch((error) => reportAsyncFailure('paste', error));
+    } else if (key === 'd') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      duplicateSelected().catch((error) => reportAsyncFailure('duplicate', error));
     }
   }
 
@@ -176,6 +207,7 @@ export function installEditorClipboardController(api) {
     window.clearTimeout(toastTimer);
     ui.group.remove();
     ui.style.remove();
+    ui.duplicateButton.disabled = false;
     ui.duplicateButton.textContent = 'Kopyala';
     ui.duplicateButton.removeAttribute('title');
     if (window.__WESTEROS_EDITOR_CLIPBOARD__ === surface) delete window.__WESTEROS_EDITOR_CLIPBOARD__;
@@ -184,14 +216,12 @@ export function installEditorClipboardController(api) {
   const selectionObserver = new MutationObserver(syncButtons);
   if (selectionStatus) selectionObserver.observe(selectionStatus, { childList: true, characterData: true, subtree: true });
   listen(ui.copyButton, 'click', copySelected);
-  listen(ui.pasteButton, 'click', () => pasteClipboard().catch((error) => {
-    console.error('[EditorClipboardController] paste failed', error);
-    toast('Yapıştırma başarısız.');
-  }));
-  listen(window, 'keydown', onKeyDown);
+  listen(ui.pasteButton, 'click', () => pasteClipboard().catch((error) => reportAsyncFailure('paste', error)));
+  listen(ui.duplicateButton, 'click', onDuplicateClick, true);
+  listen(window, 'keydown', onKeyDown, true);
   listen(window, 'pagehide', dispose, { once: true });
 
-  const surface = Object.freeze({ copySelected, pasteClipboard, syncButtons, getClipboard: () => clipboard, dispose });
+  const surface = Object.freeze({ copySelected, pasteClipboard, duplicateSelected, syncButtons, getClipboard: () => clipboard, dispose });
   window.__WESTEROS_EDITOR_CLIPBOARD__ = surface;
   syncButtons();
   return surface;
