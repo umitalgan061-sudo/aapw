@@ -938,3 +938,4 @@ stable-2026-08-09-1619 — Run213 RTS selection readability; read-only DOM/ARIA 
 stable-2026-08-09-1717 — Run214 World Editor foundation; isolated JSON authoring shell and deterministic static instancing verified.
 stable-2026-08-09-1720 — Run215 World Editor instanceGroups JSON rehydration; exact static formation round-trip, stale-group cleanup, PWA/game regressions verified.
 stable-2026-08-10-1940 — Run218 editor authoring regression suite; bright aurora/fog/scale/clipboard/instance safety plus PWA/perf/determinism/smoke gates verified.
+stable-2026-08-10-1704 — Run219 editor history regression; undo/redo round-trip, visual proof, PWA/perf/determinism/smoke gates verified.
