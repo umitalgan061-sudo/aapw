@@ -1,0 +1,54 @@
+name: Run216 Visible Aurora Exact Head Postflight V2
+
+on:
+  push:
+    branches:
+      - agent/run216-visible-aurora-followup
+    paths:
+      - '.github/workflows/run216-visible-aurora-postflight-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-postflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting remote-main and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Runtime contracts unchanged after docs checkpoint
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorLiveWorldVisualSync.js
+          node --check scripts/checkRun216EditorVisibleAuroraBrowser.js
+          node --check scripts/checkRun216EditorBrightAuthoring.js
+          node scripts/checkRun216EditorBrightAuthoring.js
+          node scripts/checkTechnicalDebt.js origin/main HEAD
+      - name: Governance checkpoint present
+        run: grep -F 'Run216 Visible Aurora Follow-up — 2026-08-10' 3D_GAME_PROGRESS.md
+      - name: Final publish concurrency and additive gate
+        run: |
+          set -euo pipefail
+          BEFORE="$(git rev-parse origin/main)"
+          git fetch origin main
+          AFTER="$(git rev-parse origin/main)"
+          test "$BEFORE" = "$AFTER"
+          test "$AFTER" = "$(git merge-base HEAD "$AFTER")"
+          node scripts/checkAdditiveOnlyDiff.js "$AFTER" HEAD
+          git diff --check
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
