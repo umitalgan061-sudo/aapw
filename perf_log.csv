@@ -175,3 +175,4 @@ run222,2026-08-10,editor-clipboard-history,,,,,,,"test-only copy/paste undo/redo
 run223,2026-08-10,editor-delete-history,,,,,,,"test-only delete/undo/redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run224,2026-08-10,editor-duplicate-history,,,,,,,"test-only duplicate/Ctrl+D/undo/redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run225,2026-08-10,editor-sub001-scale-history,,,,,,,"test-only sub-0.01 scale/undo/redo/reselect regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run226,2026-08-10,editor-signed-rotation-history,,,,,,,"test-only signed -179.9deg rotation undo/redo persistence regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
