@@ -24,6 +24,7 @@ const REQUIRED_PATHS = Object.freeze([
   './src/3d/editor/EditorLiveWorldVisualSync.js',
   './src/3d/editor/EditorPlacementControllerSafe.js',
   './src/3d/editor/EditorLocalSession.js',
+  './src/3d/editor/EditorHistoryController.js',
   './src/3d/editor/EditorGamePreviewLauncher.js',
   './src/3d/editor/EditorGamePatchPreviewGateSafe.js',
   './src/3d/editor/EditorGamePatchPreview.js',
