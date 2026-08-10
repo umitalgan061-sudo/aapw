@@ -1,0 +1,49 @@
+name: Run 226 Editor Signed Rotation History Exact Head
+
+on:
+  push:
+    branches:
+      - agent/run226-editor-signed-rotation-history
+    paths:
+      - '.github/workflows/run226-editor-signed-rotation-history-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run226-editor-signed-rotation-history-exact-head-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact head against current main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          node --check scripts/checkRun226EditorSignedRotationHistoryV2.js
+          git diff --check
+      - name: Verify Run226 checkpoint records
+        run: |
+          set -euo pipefail
+          grep -Fq '## Run 226 — World Editor signed rotation/history regression' 3D_GAME_PROGRESS.md
+          grep -Fq 'run226,2026-08-10,editor-signed-rotation-history' perf_log.csv
+          grep -Fq 'Run226 editor signed rotation/history regression' STABLE_TAGS.md
+          grep -Fq '31427349468' 3D_GAME_PROGRESS.md
+          grep -Fq '31427884497' 3D_GAME_PROGRESS.md
+          grep -Fq '31427884571' 3D_GAME_PROGRESS.md
