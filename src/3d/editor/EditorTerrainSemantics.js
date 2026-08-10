@@ -37,6 +37,8 @@ export function installEditorTerrainSemantics(terrain = window.__WESTEROS_EDITOR
     semanticMode = mode;
     landRemove.setAttribute('aria-pressed', String(mode === 'land-to-water'));
     waterRemove.setAttribute('aria-pressed', String(mode === 'water-to-land'));
+    terrainButton('land-add')?.setAttribute('aria-pressed', 'false');
+    terrainButton('water-add')?.setAttribute('aria-pressed', 'false');
   }
 
   function activateSemantic(event, semantic, underlyingMode) {
