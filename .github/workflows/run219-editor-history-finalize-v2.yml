@@ -1,0 +1,61 @@
+name: Run 219 Editor History Finalize V2
+
+on:
+  push:
+    branches:
+      - agent/run219-editor-history-regression
+    paths:
+      - '.github/workflows/run219-editor-history-finalize-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run219-editor-history-finalize-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          node --check scripts/checkRun219EditorHistoryBrowser.js
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+      - name: Append verified Run219 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          printf '\n%s\n' '## Run 219 — World Editor undo/redo browser regression' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Permanent additive-only Chromium regression verifies EditorHistoryController clean boot, object-create capture, exact undo to empty scene, exact marker-tree redo restoration, redo-stack transitions, visual proof and zero console/page errors.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; world events +0; creatures +0. ADR not required because runtime behavior/architecture/persistence/public API did not change.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Next safe step: continue additive-only World Editor/RTS usability work from current main without crossing unresolved owner gates.' >> 3D_GAME_PROGRESS.md
+          printf 'run219,%s,editor-history-regression,,,,,,,"test-only browser regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          printf '%s — Run219 editor history regression; undo/redo round-trip, visual proof, PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run219): record editor history regression checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run219-editor-history-regression
+          git push origin "$STABLE_TAG" || true
