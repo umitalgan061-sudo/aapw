@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { computeEditorAssetImportScale } from './EditorAssetScalePolicy.js';
 
 function createPrimitive(asset) {
   if (asset.primitive === 'tree') {
@@ -65,6 +66,11 @@ export class EditorAssetManager {
   async createObject(asset) {
     const template = await this.loadTemplate(asset);
     const object = template.clone(true);
+    const importBounds = new THREE.Box3().setFromObject(object);
+    const importSize = importBounds.getSize(new THREE.Vector3());
+    const importScale = computeEditorAssetImportScale(asset, Math.max(importSize.x, importSize.y, importSize.z));
+    if (importScale !== 1) object.scale.multiplyScalar(importScale);
+    object.userData.editorImportScale = importScale;
     object.userData.editorAssetId = asset.id;
     object.userData.editorFormat = asset.format;
     object.name = asset.name;
