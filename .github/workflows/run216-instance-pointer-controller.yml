@@ -1,0 +1,26 @@
+name: Run216 Instance Pointer Controller
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/EditorInstancePointerController.js'
+      - 'scripts/checkEditorInstancePointerController.js'
+      - '.github/workflows/run216-instance-pointer-controller.yml'
+  workflow_dispatch:
+
+jobs:
+  pointer-controller:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check src/3d/editor/EditorInstancePointerController.js
+          node --check scripts/checkEditorInstancePointerController.js
+      - name: Pointer routing lifecycle
+        run: node scripts/checkEditorInstancePointerController.js
+      - name: Additive diff whitespace guard
+        run: git diff --check origin/${{ github.base_ref }}...HEAD
