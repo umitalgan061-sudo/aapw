@@ -1,0 +1,49 @@
+name: Run 228 Editor Mixed Position History V2 Exact Head
+
+on:
+  push:
+    branches:
+      - agent/run228-editor-mixed-position-history-v2
+    paths:
+      - '.github/workflows/run228-editor-mixed-position-history-v2-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run228-editor-mixed-position-history-v2-exact-head-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact head against current main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          node --check scripts/checkRun228EditorMixedPositionHistory.js
+          git diff --check
+      - name: Verify Run228 checkpoint records
+        run: |
+          set -euo pipefail
+          grep -Fq '## Run 228 — World Editor mixed-sign position/history regression' 3D_GAME_PROGRESS.md
+          grep -Fq 'run228,2026-08-10,editor-mixed-position-history' perf_log.csv
+          grep -Fq 'Run228 editor mixed-sign position/history regression' STABLE_TAGS.md
+          grep -Fq '31428810647' 3D_GAME_PROGRESS.md
+          grep -Fq '31429382554' 3D_GAME_PROGRESS.md
+          grep -Fq '31429382607' 3D_GAME_PROGRESS.md
