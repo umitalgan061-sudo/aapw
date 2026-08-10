@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/run216-world-editor-transform-controls
+      - agent/run216-owner-editor-usability-fixes
     paths:
       - 'editor.html'
       - 'editor.css'
