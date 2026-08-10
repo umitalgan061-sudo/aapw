@@ -14629,3 +14629,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Runtime/product source delta: 0 lines. Test/workflow only; additive-only. Full PWA/cache, mobile performance, deterministic world safety, technical-debt and browser smoke gates passed before publication.
 - RCA follow-up: fractional-position load fidelity under restored snap settings remains a separate behavior to address independently; it is not hidden by this regression and must not be conflated with unknown-asset skipping.
 - Technical debt introduced: 0. Risk: LOW. Next safe step: add malformed-JSON/non-object validation atomicity coverage without changing loader semantics or crossing owner gates.
+
+## Run 237 — World Editor malformed/non-object scene-load atomicity regression (V2 clean)
+- Permanent Chromium regression covers syntactically malformed JSON and parsed JSON `null` scene-file inputs against a deterministic prepared editor object.
+- V1 was rejected by RCA #127 because it incorrectly depended on eventual completion of asynchronous boot seed objects; clean V2 uses the already-proven editor bridge/early-empty contract and explicitly creates its own test object.
+- Verified both handled failures preserve live object identity/assets/names/transforms, hierarchy, selection, instance-group count, and grid/snap settings exactly; two expected load errors are isolated while unexpected console/page errors remain zero.
+- This extends Run234 invalid-schema atomicity without changing loader semantics and intentionally leaves Run236 RCA #125 fractional-position/snap-ordering behavior separate.
+- Runtime/product source delta: 0 lines. Test/workflow only; additive-only. Full PWA/cache, mobile performance, deterministic world safety, technical-debt and browser smoke gates passed before publication.
+- Technical debt introduced: 0. Risk: LOW. ADR not required. Next safe step: continue isolated serializer/scene-load structural validation coverage without crossing owner gates.
