@@ -1,0 +1,50 @@
+name: Run216 Instance Pointer Yield Materializer
+
+on:
+  push:
+    branches:
+      - agent/run216-world-editor-transform-controls
+    paths:
+      - 'src/3d/editor/worldEditor.js'
+      - 'src/3d/editor/EditorInstancePointerOwnership.js'
+      - 'src/3d/editor/EditorInstanceInteractionBootstrap.js'
+      - 'scripts/materializeRun216InstancePointerYield.js'
+      - 'scripts/checkRun216InstanceLiveReadiness.mjs'
+      - '.github/workflows/run216-instance-pointer-yield-materializer.yml'
+  pull_request:
+    paths:
+      - 'src/3d/editor/worldEditor.js'
+      - 'scripts/materializeRun216InstancePointerYield.js'
+      - 'scripts/checkRun216InstanceLiveReadiness.mjs'
+      - '.github/workflows/run216-instance-pointer-yield-materializer.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pointer-yield-materializer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Self-test materializer
+        run: |
+          node --check scripts/materializeRun216InstancePointerYield.js
+          node scripts/materializeRun216InstancePointerYield.js --self-test
+      - name: Materialize on real World Editor checkout
+        run: |
+          node scripts/materializeRun216InstancePointerYield.js
+          node scripts/materializeRun216InstancePointerYield.js --verify-only
+          node --check src/3d/editor/worldEditor.js
+          node scripts/checkRun216InstanceLiveReadiness.mjs
+      - name: Prove additive-only pointer guard delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r added deleted path < <(git diff --numstat -- src/3d/editor/worldEditor.js)
+          test "$added" = "1"
+          test "$deleted" = "0"
+          test "$path" = "src/3d/editor/worldEditor.js"
+          git diff --check -- src/3d/editor/worldEditor.js
