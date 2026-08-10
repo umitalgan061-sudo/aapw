@@ -147,5 +147,90 @@
     dispose: disposeCommandStatus,
   };
 </script>
+<script type="module">
+  const statusNode = document.getElementById('rts-status');
+  const selectionNode = document.getElementById('rts-selection-count');
+  const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches === true;
+  const MAX_ENTRIES = 5;
+  const entries = [];
+  let sequence = 0;
+  let disposed = false;
+  let lastStatus = '';
+
+  const panel = document.createElement('aside');
+  panel.id = 'rts-command-log';
+  panel.setAttribute('aria-label', 'Son komutlar');
+  panel.style.cssText = `position:fixed;left:${coarsePointer ? '10px' : '18px'};bottom:${coarsePointer ? '126px' : '54px'};z-index:33;width:min(310px,calc(100vw - 20px));pointer-events:none;padding:10px 12px;border:1px solid rgba(229,194,102,.32);border-radius:12px;background:rgba(20,17,12,.76);backdrop-filter:blur(7px);box-shadow:0 5px 20px rgba(0,0,0,.24);color:#efe2bb;font:500 12px/1.35 system-ui,sans-serif;`;
+  panel.innerHTML = '<div style="font-weight:800;letter-spacing:.08em;color:#e5c266;margin-bottom:6px">KOMUTA GÜNLÜĞÜ</div><ol id="rts-command-log-list" style="list-style:none;margin:0;padding:0;display:grid;gap:4px"></ol>';
+  document.body.appendChild(panel);
+  const list = panel.querySelector('#rts-command-log-list');
+
+  const classify = (message) => {
+    const text = message.toLocaleLowerCase('tr-TR');
+    if (text.includes('hedef') || text.includes('ilerliyor')) return 'HAREKET';
+    if (text.includes('odaklandı')) return 'KAMERA';
+    if (text.includes('seç')) return 'SEÇİM';
+    return 'SİSTEM';
+  };
+
+  const render = () => {
+    if (!list) return;
+    list.replaceChildren(...entries.map((entry) => {
+      const item = document.createElement('li');
+      item.dataset.commandType = entry.type;
+      item.style.cssText = 'display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start;padding-top:4px;border-top:1px solid rgba(229,194,102,.12);';
+      const badge = document.createElement('span');
+      badge.textContent = `#${String(entry.sequence).padStart(3, '0')} ${entry.type}`;
+      badge.style.cssText = 'font:700 10px/1.35 ui-monospace,SFMono-Regular,monospace;color:#c9aa63;white-space:nowrap;';
+      const message = document.createElement('span');
+      message.textContent = `${entry.message} · ${entry.selection}`;
+      item.append(badge, message);
+      return item;
+    }));
+  };
+
+  const captureStatus = () => {
+    if (disposed) return;
+    const message = statusNode?.textContent?.trim() || '';
+    if (!message || message === lastStatus || message === 'Dünya hazırlanıyor…') return;
+    lastStatus = message;
+    sequence += 1;
+    entries.unshift({
+      sequence,
+      type: classify(message),
+      message,
+      selection: selectionNode?.textContent?.trim() || 'Seçim bilgisi yok',
+    });
+    if (entries.length > MAX_ENTRIES) entries.length = MAX_ENTRIES;
+    render();
+    panel.dataset.entryCount = String(entries.length);
+    panel.dataset.lastCommandType = entries[0]?.type || '';
+  };
+
+  const observer = new MutationObserver(captureStatus);
+  if (statusNode) observer.observe(statusNode, { childList: true, characterData: true, subtree: true });
+  captureStatus();
+
+  const disposeCommandLog = () => {
+    if (disposed) return;
+    disposed = true;
+    observer.disconnect();
+    panel.remove();
+    window.removeEventListener('pagehide', disposeCommandLog);
+  };
+
+  window.addEventListener('pagehide', disposeCommandLog, { once: true });
+  window.__WESTEROS_RTS_COMMAND_LOG__ = {
+    getSnapshot: () => ({
+      disposed,
+      maxEntries: MAX_ENTRIES,
+      entryCount: entries.length,
+      lastCommandType: entries[0]?.type || null,
+      entries: entries.map((entry) => ({ ...entry })),
+      coarsePointer,
+    }),
+    dispose: disposeCommandLog,
+  };
+</script>
 </body>
 </html>
