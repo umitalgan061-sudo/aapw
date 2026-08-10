@@ -43,6 +43,12 @@ function startServer() {
     }
     const relative = clean === '/' ? 'index.html' : clean.replace(/^\//, '');
     const file = path.resolve(ROOT, relative);
+    const directoryIndex = path.join(file, 'index.html');
+    if (file.startsWith(ROOT + path.sep) && fs.existsSync(file) && fs.statSync(file).isDirectory() && fs.existsSync(directoryIndex)) {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      fs.createReadStream(directoryIndex).pipe(res);
+      return;
+    }
     if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       console.error(`[checkRun216EditorLiveWorldBrowser] proof-server 404: ${clean}`);
       res.writeHead(404);
