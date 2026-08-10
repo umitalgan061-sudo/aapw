@@ -195,3 +195,7 @@ jobs:
           name: run216-world-editor-transform-controls
           path: artifacts/run216/*
           if-no-files-found: error
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
