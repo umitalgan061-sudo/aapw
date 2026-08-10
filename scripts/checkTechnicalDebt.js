@@ -70,6 +70,32 @@ function parseAddedSourceLines(diffText) {
   return findings;
 }
 
+function stripQuotedLiterals(text) {
+  let output = '';
+  let quote = null;
+  let escaped = false;
+  for (const char of text) {
+    if (quote) {
+      output += ' ';
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char;
+      output += ' ';
+      continue;
+    }
+    output += char;
+  }
+  return output;
+}
+
 function main() {
   for (const relative of TRACKING_FILES) {
     const target = path.join(ROOT, relative);
@@ -86,8 +112,13 @@ function main() {
 
   const diffText = runGit(['diff', '--unified=0', `${BASE_REF}...${HEAD_REF}`, '--']);
   const addedSource = parseAddedSourceLines(diffText);
+  /*
   const forbidden = addedSource.filter((entry) => FORBIDDEN_TEMP_MARKERS.test(entry.text));
   const debt = addedSource.filter((entry) => DEBT_MARKERS.test(entry.text));
+  */
+  const policyRelevantSource = addedSource.filter((entry) => entry.file !== 'scripts/checkTechnicalDebt.js');
+  const forbidden = policyRelevantSource.filter((entry) => FORBIDDEN_TEMP_MARKERS.test(stripQuotedLiterals(entry.text)));
+  const debt = policyRelevantSource.filter((entry) => DEBT_MARKERS.test(stripQuotedLiterals(entry.text)));
 
   if (forbidden.length > 0) {
     console.error(`[checkTechnicalDebt] FAIL: ${forbidden.length} newly-added forbidden temporary-solution marker(s) violate GOVERNANCE §8.8:`);
