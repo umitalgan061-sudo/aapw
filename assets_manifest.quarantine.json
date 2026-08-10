@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Primary model files already present in the repository whose provenance/license has not yet been confirmed by the owner. These files are accounted for but are not approved runtime assets.",
+  "assets": [
+    {
+      "id": "quarantine-moon-2k-fbx",
+      "file": "assets/models/Ay/Moon 2K.fbx",
+      "source": "Owner upload; original source not recorded",
+      "sourceHint": "FBX metadata shows Blender 2.79 export and an internal /foobar.fbx filename; this is not sufficient provenance.",
+      "license": "UNKNOWN",
+      "provenanceStatus": "pending-owner-confirmation",
+      "runtimeUseAllowed": false,
+      "redistributionApproved": false
+    },
+    {
+      "id": "quarantine-golden-vanguard-fbx",
+      "file": "assets/models/characters/Meshy_AI_Golden_Vanguard_Knigh_0809074809_texture.fbx",
+      "source": "Owner upload; original source not independently verified",
+      "sourceHint": "Filename contains Meshy_AI and the repository has other Meshy AI assets, but filename alone is not treated as license proof.",
+      "license": "UNKNOWN",
+      "provenanceStatus": "pending-owner-confirmation",
+      "runtimeUseAllowed": false,
+      "redistributionApproved": false
+    },
+    {
+      "id": "quarantine-iron-sentinel-fbx",
+      "file": "assets/models/characters/Meshy_AI_Iron_Sentinel_0809085351_texture.fbx",
+      "source": "Owner upload; original source not independently verified",
+      "sourceHint": "Filename contains Meshy_AI and the repository has other Meshy AI assets, but filename alone is not treated as license proof.",
+      "license": "UNKNOWN",
+      "provenanceStatus": "pending-owner-confirmation",
+      "runtimeUseAllowed": false,
+      "redistributionApproved": false
+    },
+    {
+      "id": "quarantine-surface-model-fbx",
+      "file": "assets/textures/yüzey/model.fbx",
+      "source": "Owner upload; original source not recorded",
+      "sourceHint": "Uploaded with a multi-format surface/model bundle; repository history does not record the original provider or license.",
+      "license": "UNKNOWN",
+      "provenanceStatus": "pending-owner-confirmation",
+      "runtimeUseAllowed": false,
+      "redistributionApproved": false
+    }
+  ]
+}

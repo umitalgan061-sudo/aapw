@@ -68,3 +68,13 @@ button:hover, .we-link:hover, button:focus-visible, .we-link:focus-visible { bor
   .we-statusbar { grid-row: 5; }
   .we-brand { font-size: 12px; }
 }
+
+/* Run216 keeps nested transform controls visible under the legacy compact-toolbar nth-of-type rule. */
+@media (max-width: 900px) {
+  .we-toolbar-actions .we-transform-tools button { display: inline-block; }
+}
+
+/* Run216 keeps the relabeled legacy duplicate control visible beside Copy/Paste on compact layouts. */
+@media (max-width: 900px) {
+  .we-toolbar-actions #we-duplicate { display: inline-block; }
+}

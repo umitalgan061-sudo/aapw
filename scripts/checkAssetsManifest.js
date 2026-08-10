@@ -32,6 +32,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const MANIFEST_PATH = path.join(ROOT, 'assets_manifest.json');
 const ASSETS_DIR = path.join(ROOT, 'assets');
+const QUARANTINE_PATH = path.join(ROOT, 'assets_manifest.quarantine.json');
 
 /** Extensions this project's code actually loads as a 3D model (see assetLoader.js). */
 const PRIMARY_MODEL_EXTENSIONS = new Set(['.fbx', '.glb']);
@@ -75,6 +76,17 @@ function main() {
 	const entries = Array.isArray(manifest.assets) ? manifest.assets : [];
 	const registeredAbsPaths = new Set();
 	const missingRegisteredFiles = [];
+	const quarantineErrors = [];
+	let quarantineEntries = [];
+
+	if (fs.existsSync(QUARANTINE_PATH)) {
+		try {
+			const quarantine = JSON.parse(fs.readFileSync(QUARANTINE_PATH, 'utf8'));
+			quarantineEntries = Array.isArray(quarantine.assets) ? quarantine.assets : [];
+		} catch (error) {
+			quarantineErrors.push(`assets_manifest.quarantine.json is not valid JSON — ${error.message}`);
+		}
+	}
 
 	for (const entry of entries) {
 		if (!entry.file) continue;
@@ -83,6 +95,23 @@ function main() {
 		if (!fs.existsSync(abs)) {
 			missingRegisteredFiles.push({ id: entry.id, file: entry.file });
 		}
+	}
+
+	for (const entry of quarantineEntries) {
+		if (!entry?.file || entry.provenanceStatus !== 'pending-owner-confirmation' || entry.license !== 'UNKNOWN' || entry.runtimeUseAllowed !== false || entry.redistributionApproved !== false) {
+			quarantineErrors.push(`${entry?.id || '<missing-id>'}: quarantine record must remain provenance-pending, UNKNOWN-license, runtime-disabled and redistribution-unapproved`);
+			continue;
+		}
+		const abs = path.join(ROOT, entry.file);
+		if (!fs.existsSync(abs)) {
+			quarantineErrors.push(`${entry.id}: quarantined file does not exist: ${entry.file}`);
+			continue;
+		}
+		if (!PRIMARY_MODEL_EXTENSIONS.has(path.extname(abs).toLowerCase())) {
+			quarantineErrors.push(`${entry.id}: quarantine exception is only valid for primary .fbx/.glb models: ${entry.file}`);
+			continue;
+		}
+		registeredAbsPaths.add(abs);
 	}
 
 	const diskFiles = listFilesRecursive(ASSETS_DIR);
@@ -101,6 +130,16 @@ function main() {
 	}
 
 	let hardFail = false;
+
+	if (quarantineErrors.length > 0) {
+		hardFail = true;
+		console.error(`[checkAssetsManifest] FAIL: ${quarantineErrors.length} invalid quarantine record(s):`);
+		for (const error of quarantineErrors) console.error(`  - ${error}`);
+	}
+
+	if (quarantineEntries.length > 0 && quarantineErrors.length === 0) {
+		console.warn(`[checkAssetsManifest] QUARANTINE: ${quarantineEntries.length} owner-upload primary model(s) are accounted for but remain runtime-disabled and redistribution-unapproved until provenance/license is confirmed.`);
+	}
 
 	if (missingRegisteredFiles.length > 0) {
 		hardFail = true;

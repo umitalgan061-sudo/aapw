@@ -1,0 +1,29 @@
+name: Run216 Instance Interaction Installer
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/EditorInstanceCoordinatorLifecycle.js'
+      - 'src/3d/editor/EditorInstanceInteractionPipeline.js'
+      - 'src/3d/editor/EditorInstanceInteractionInstaller.js'
+      - 'scripts/checkRun216InstanceInteractionInstaller.mjs'
+      - '.github/workflows/run216-instance-interaction-installer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  instance-interaction-installer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: |
+          node --check src/3d/editor/EditorInstanceInteractionInstaller.js
+          node --check scripts/checkRun216InstanceInteractionInstaller.mjs
+      - name: Interaction installer regression
+        run: node scripts/checkRun216InstanceInteractionInstaller.mjs src/3d/editor/EditorInstanceInteractionInstaller.js

@@ -1,0 +1,106 @@
+name: Run216 Editor Usability Browser
+
+on:
+  push:
+    branches:
+      - agent/run216-world-editor-transform-controls
+      - agent/run216-owner-editor-usability-fixes
+    paths:
+      - 'editor.html'
+      - 'editor.css'
+      - 'src/3d/editor/**'
+      - 'scripts/checkRun216EditorUsabilityContract.js'
+      - 'scripts/checkRun216EditorUsabilityBrowser.js'
+      - 'scripts/checkRun216EditorLiveWorldResourceCleanup.js'
+      - 'scripts/materializeRun216ServiceWorkerCache.js'
+      - 'scripts/checkRun216ServiceWorkerMaterializer.js'
+      - 'scripts/checkTechnicalDebt.js'
+      - '.github/workflows/run216-editor-usability-browser.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-usability-browser:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Syntax and source contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorLiveWorldAuthoring.js
+          node --check src/3d/editor/EditorLiveWorldVisualSync.js
+          node --check src/3d/editor/EditorPlacementControllerSafe.js
+          node --check src/3d/editor/EditorLiveWorldResourceCleanup.js
+          node --check scripts/checkRun216EditorUsabilityContract.js
+          node --check scripts/checkRun216EditorUsabilityBrowser.js
+          node --check scripts/checkRun216EditorLiveWorldResourceCleanup.js
+          node scripts/checkRun216EditorUsabilityContract.js
+          node scripts/checkRun216EditorLiveWorldResourceCleanup.js
+          node scripts/materializeRun216ServiceWorkerCache.js --self-test
+          node scripts/checkRun216ServiceWorkerMaterializer.js
+      - name: Install isolated Chromium proof tooling
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/run216-editor-usability-tools"
+          npm install --prefix "$RUNNER_TEMP/run216-editor-usability-tools" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/run216-editor-usability-tools/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/run216-editor-usability-tools/node_modules" >> "$GITHUB_ENV"
+      - name: Full desktop and mobile usability proof
+        run: node scripts/checkRun216EditorUsabilityBrowser.js
+      - name: Existing editor authoring contracts
+        run: |
+          set -euo pipefail
+          node scripts/checkRun216EditorAuthoringContract.js
+          node scripts/checkRun216EditorLiveWorldBridge.js
+          node scripts/checkRun216EditorLiveWorldAuthoring.js
+      - name: Existing game smoke and PWA safety
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run216-editor-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run216-editor-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run216-editor-smoke.log"
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Final concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run216-editor-usability
+          path: artifacts/run216-editor-usability/*.png
+          if-no-files-found: error
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true

@@ -1,0 +1,43 @@
+name: Run216 Instance Editing Safety
+
+'on':
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/editor/EditorInstance*.js'
+      - 'scripts/checkEditorInstance*.js'
+      - 'scripts/checkRun216InstanceEditing*.js'
+      - '.github/workflows/run216-instance-editing-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  instance-editing-safety-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify additive-only branch diff
+        run: |
+          git fetch origin main
+          node scripts/checkAdditiveOnlyDiff.js origin/main...HEAD
+
+      - name: Verify instance editing safety suite
+        run: |
+          node --check src/3d/editor/EditorInstanceLifecycleSafety.js
+          node --check src/3d/editor/EditorInstanceEditCoordinatorSafe.js
+          node --check scripts/checkEditorInstanceLifecycleSafety.js
+          node --check scripts/checkEditorInstanceEditCoordinatorSafe.js
+          node --check scripts/checkRun216InstanceEditingExtendedFoundation.js
+          node --check scripts/checkRun216InstanceEditingSafetySuite.js
+          node scripts/checkRun216InstanceEditingSafetySuite.js

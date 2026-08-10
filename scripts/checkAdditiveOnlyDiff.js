@@ -15,6 +15,16 @@
 
 import { execFileSync } from 'node:child_process';
 
+// Run216 compatibility: some existing workflows pass a complete three-dot range as argv[2].
+// Normalize that legacy form before the original base/head parsing so strict guard semantics stay identical.
+if (process.argv[2]?.includes('...') && !process.argv[3]) {
+  const [legacyBaseRef, legacyHeadRef] = process.argv[2].split('...');
+  if (legacyBaseRef && legacyHeadRef) {
+    process.argv[2] = legacyBaseRef;
+    process.argv[3] = legacyHeadRef;
+  }
+}
+
 const baseRef = process.argv[2] || 'origin/main';
 const headRef = process.argv[3] || 'HEAD';
 const SOURCE_EXTENSIONS = new Set([
@@ -24,6 +34,19 @@ const SOURCE_EXTENSIONS = new Set([
 function runGit(args) {
   return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
+
+function ensureRemoteBaseRef(ref) {
+  if (!ref.startsWith('origin/')) return;
+  try {
+    runGit(['rev-parse', '--verify', ref]);
+    return;
+  } catch {}
+  const branch = ref.slice('origin/'.length);
+  if (!branch) return;
+  runGit(['fetch', 'origin', `${branch}:refs/remotes/origin/${branch}`, '--depth=1']);
+}
+
+ensureRemoteBaseRef(baseRef);
 
 function extensionOf(path) {
   const dot = path.lastIndexOf('.');

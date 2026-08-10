@@ -1,0 +1,33 @@
+name: Run216 Instance Interaction Pipeline
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/EditorInstancePointerController.js'
+      - 'src/3d/editor/EditorInstanceTransformBridge.js'
+      - 'src/3d/editor/EditorInstanceInteractionRuntime.js'
+      - 'src/3d/editor/EditorInstanceRaycastSource.js'
+      - 'src/3d/editor/EditorInstanceInteractionPipeline.js'
+      - 'scripts/checkRun216InstanceInteractionPipeline.mjs'
+      - '.github/workflows/run216-instance-interaction-pipeline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  instance-interaction-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: |
+          node --check src/3d/editor/EditorInstanceInteractionRuntime.js
+          node --check src/3d/editor/EditorInstanceRaycastSource.js
+          node --check src/3d/editor/EditorInstanceInteractionPipeline.js
+          node --check scripts/checkRun216InstanceInteractionPipeline.mjs
+      - name: Interaction pipeline regression
+        run: node scripts/checkRun216InstanceInteractionPipeline.mjs src/3d/editor

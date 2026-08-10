@@ -1,0 +1,201 @@
+name: Run 216 World Editor TransformControls
+
+on:
+  push:
+    branches:
+      - agent/run216-world-editor-transform-controls
+    paths:
+      - '.github/workflows/run216-world-editor-transform-controls.yml'
+      - '.vscode/tasks.json'
+      - 'editor.css'
+      - 'src/3d/editor/worldEditor.js'
+      - 'src/3d/editor/EditorTransformControls.js'
+      - 'src/3d/vendor/three/addons/controls/TransformControls.js'
+      - 'scripts/materializeRun216TransformControls.js'
+      - 'scripts/materializeRun216ServiceWorkerCache.js'
+      - 'scripts/checkRun216TransformControlsCoreContract.js'
+      - 'scripts/checkRun216ServiceWorkerMaterializer.js'
+      - 'scripts/checkRun216WorldEditorTransformControls.js'
+      - 'scripts/prepareRun216TransformControlsLocal.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Starting main and governance concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Eşzamanlılık Kontrolü' GOVERNANCE.md
+          grep -F 'Süre sınırı yok' GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md
+          grep -F 'otomatik' GOVERNANCE_CONTINUATION_OVERRIDE.md
+          grep -F 'do not wait for the owner to type `Devam et`' CLAUDE.md
+          grep -F '## Run 215 — World Editor formation JSON rehydration' 3D_GAME_PROGRESS.md
+          test "$(grep -c '^## ADR-0234 ' DECISIONS.md || true)" -eq 0
+
+      - name: Install temporary browser tooling
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/run216-tools"
+          npm install --prefix "$RUNNER_TEMP/run216-tools" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/run216-tools/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/run216-tools/node_modules" >> "$GITHUB_ENV"
+
+      - name: Pre-change editor and game regression baseline
+        run: |
+          set -euo pipefail
+          node scripts/checkRun215EditorFormationRehydration.js
+          node scripts/checkRun214WorldEditorFoundation.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run216-pre-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run216-pre-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run216-pre-smoke.log"
+
+      - name: Prepare exact Run216 editor source and focused browser proof
+        run: |
+          set -euo pipefail
+          node scripts/materializeRun216TransformControls.js --verify-only
+          node scripts/prepareRun216TransformControlsLocal.js --browser
+          SW_DIFF="$(git diff --numstat -- service-worker.js)"
+          if [ -n "$SW_DIFF" ]; then
+            test "$(printf '%s\n' "$SW_DIFF" | awk '{print $2}')" = '0'
+          fi
+          git diff --check
+
+      - name: Additive-only committed source gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+
+      - name: Existing editor regressions after TransformControls
+        run: |
+          set -euo pipefail
+          node scripts/checkRun214WorldEditorFoundation.js
+          node scripts/checkRun215EditorFormationRehydration.js
+
+      - name: PWA performance determinism and world safety gates
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+
+      - name: Existing game post-change smoke
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run216-post-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run216-post-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run216-post-smoke.log"
+
+      - name: Verify final source diff before records
+        run: |
+          set -euo pipefail
+          git diff --check
+          SW_DIFF="$(git diff --numstat -- service-worker.js)"
+          if [ -n "$SW_DIFF" ]; then
+            test "$(printf '%s\n' "$SW_DIFF" | awk '{print $2}')" = '0'
+          fi
+          node scripts/materializeRun216ServiceWorkerCache.js --verify-only
+          node scripts/checkRun216TransformControlsCoreContract.js
+
+      - name: Append verified Run216 records
+        run: |
+          set -euo pipefail
+          cat >> 3D_GAME_PROGRESS.md <<'PROGRESS'
+
+          ## Run 216 — World Editor TransformControls r160
+          - Vendored the exact official Three.js r160 `TransformControls.js` blob (`1163078c49179a40d5a9d129c13d582e8369bf37`) under the existing Three.js MIT vendor tree and wired it only to the isolated World Editor ownership surface; 2D, game3d, RTS, terrain, seed and simulation ownership remain unchanged.
+          - Added W/E/R translate/rotate/scale, World/Local space, editor-owned translation snap (1m default), 15° rotation snap and 0.1 scale snap. Non-instanced selected editor objects attach to the gizmo; formation InstancedMesh groups remain detached because per-instance transform editing is a separate future path.
+          - Transform object changes update Inspector/Hierarchy and TransformControls temporarily owns OrbitControls only while dragging. Selection observer, DOM listeners, toolbar/status nodes and TransformControls geometry/material resources are disposed on pagehide.
+          - Focused Chromium proof verifies W/E/R modes, World/Local, snap enable/disable and dynamic translation snap, Inspector↔object synchronization, Orbit lock/restore, desktop near+far visual evidence, mobile controls and zero console/page errors.
+          - Run214 foundation + Run215 formation rehydration regressions, pre/post 34+ game smoke, PWA cache/installability, mobile render budget, seeded RNG/world-reference, terrain-seat and road-network safety all PASS.
+          - Offline/PWA shell now includes the Run216 editor controller and exact TransformControls vendor module through an additive service-worker prefix; existing service-worker bytes are preserved verbatim.
+          - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; events +0; creatures +0. Existing desktop/mobile World Coverage remains unchanged.
+          - Technical debt: animated/skinned formation editing and per-instance gizmo manipulation remain separate editor work; actual pointer-drag overlap with dense selectable geometry should continue to be covered by browser interaction regression as the editor grows. Risk: LOW after full gates.
+          - Next safe step: extend TransformControls proof to deterministic real pointer dragging and then add per-instance/animated formation editing without changing game runtime ownership.
+          PROGRESS
+
+          cat >> DECISIONS.md <<'ADR'
+
+          ## ADR-0234 — Keep TransformControls ownership isolated to World Editor
+          **Risk:** LOW
+
+          **Decision:** Vendor the exact official Three.js r160 TransformControls module beside the repository's matching r160 Three.js vendor tree and install it only through the World Editor's explicit frozen ownership bridge. W/E/R map to translate/rotate/scale; translation snap follows the editor's existing snap toggle/value, rotation uses 15°, scale uses 0.1, and formation InstancedMesh groups are deliberately not attached as whole-object gizmo targets.
+
+          **Why:** The editor needs Unity-like direct manipulation without transferring scene/simulation ownership from the existing 2D, game3d or RTS runtimes. Reusing the exact matching Three.js release avoids API drift, while editor-owned snap state keeps JSON/Inspector/direct manipulation behavior coherent.
+
+          **Alternatives considered:** CDN/runtime import was rejected because it breaks offline PWA guarantees. Reimplementing a custom gizmo was rejected because the matching official module already exists and is materially more mature. Attaching TransformControls to complete InstancedMesh formations was rejected because moving the allocation as one object is not equivalent to deterministic per-instance editing and would create a misleading persistence contract.
+
+          **Consequences:** World Editor gains direct W/E/R manipulation with no production game ownership change. The service-worker shell must cache both the editor controller and exact vendor module. Pointer-drag/selection interaction remains a browser-regression responsibility, and per-instance/animated formation editing remains explicit future editor work.
+
+          **Affected systems:** World Editor UI/controller, editor-only Three.js vendor surface, editor browser proof and PWA shell cache. Existing 2D/game3d/RTS simulation behavior is unchanged.
+
+          **Rollback:** stop importing `EditorTransformControls.js` from the editor ownership bridge and omit its two Run216 shell entries in a future owner-approved change; scene JSON and existing game state do not depend on the gizmo controller.
+          ADR
+
+          TAG="stable-$(TZ=Europe/Istanbul date +%Y-%m-%d-%H%M)"
+          echo "$TAG — Run216 World Editor exact-r160 TransformControls W/E/R + snap + desktop/mobile/PWA proof verified." >> STABLE_TAGS.md
+          echo "RUN216_STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md
+          git diff --cached --check
+          git diff --cached --numstat | awk '$2 != 0 { print; exit 1 }'
+          git commit -m 'feat(run216): finalize verified World Editor TransformControls'
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git tag "$RUN216_STABLE_TAG"
+
+      - name: Publish verified Run216 checkpoint
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git push origin HEAD:agent/run216-world-editor-transform-controls
+          git push origin "$RUN216_STABLE_TAG" || true
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run216-world-editor-transform-controls
+          path: artifacts/run216/*
+          if-no-files-found: error
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true

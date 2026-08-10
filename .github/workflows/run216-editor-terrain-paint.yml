@@ -1,0 +1,38 @@
+name: Run216 Editor Terrain Paint
+
+on:
+  pull_request:
+    paths:
+      - 'editor.html'
+      - 'src/3d/editor/editorAssetLibrary.js'
+      - 'src/3d/editor/EditorAssetManager.js'
+      - 'src/3d/editor/EditorTerrainCellModel.js'
+      - 'src/3d/editor/EditorTerrainPaintController.js'
+      - 'scripts/checkRun216EditorTerrainCellModel.mjs'
+      - 'scripts/checkRun216EditorTerrainPaintController.js'
+      - 'scripts/materializeRun216ServiceWorkerCache.js'
+      - 'scripts/checkRun216ServiceWorkerMaterializer.js'
+      - '.github/workflows/run216-editor-terrain-paint.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-terrain-paint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check src/3d/editor/editorAssetLibrary.js
+      - run: node --check src/3d/editor/EditorAssetManager.js
+      - run: node --check src/3d/editor/EditorTerrainCellModel.js
+      - run: node --check src/3d/editor/EditorTerrainPaintController.js
+      - run: node --check scripts/checkRun216EditorTerrainCellModel.mjs
+      - run: node --check scripts/checkRun216EditorTerrainPaintController.js
+      - run: node scripts/checkRun216EditorTerrainCellModel.mjs
+      - run: node scripts/checkRun216EditorTerrainPaintController.js
+      - run: node scripts/materializeRun216ServiceWorkerCache.js --self-test
+      - run: node scripts/checkRun216ServiceWorkerMaterializer.js

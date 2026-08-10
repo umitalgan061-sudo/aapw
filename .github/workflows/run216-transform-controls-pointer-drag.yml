@@ -1,0 +1,76 @@
+name: Run 216 TransformControls Pointer Drag Proof
+
+on:
+  push:
+    branches:
+      - agent/run216-world-editor-transform-controls
+    paths:
+      - '.github/workflows/run216-transform-controls-pointer-drag.yml'
+      - 'editor.html'
+      - 'editor.css'
+      - 'src/3d/editor/worldEditor.js'
+      - 'src/3d/editor/EditorTransformControls.js'
+      - 'src/3d/vendor/three/addons/controls/TransformControls.js'
+      - 'scripts/checkRun216TransformControlsPointerDrag.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pointer-drag-proof:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Concurrency and additive source gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          node --check scripts/checkRun216TransformControlsPointerDrag.js
+          node --check src/3d/editor/EditorTransformControls.js
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/vendor/three/addons/controls/TransformControls.js
+
+      - name: Install temporary Chromium proof tooling
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/run216-pointer-tools"
+          npm install --prefix "$RUNNER_TEMP/run216-pointer-tools" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/run216-pointer-tools/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/run216-pointer-tools/node_modules" >> "$GITHUB_ENV"
+
+      - name: Real pointer drag proof
+        run: |
+          set -euo pipefail
+          node scripts/checkRun216TransformControlsCoreContract.js
+          node scripts/checkRun216TransformControlsPointerDrag.js
+
+      - name: Final concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+
+      - name: Upload pointer-drag evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run216-transform-controls-pointer-drag
+          path: artifacts/run216/desktop-transform-pointer-drag.png
+          if-no-files-found: error
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true

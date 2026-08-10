@@ -1,0 +1,26 @@
+name: Run216 Editor Tool Arbitration
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/EditorRoadController.js'
+      - 'src/3d/editor/EditorTerrainPaintController.js'
+      - 'scripts/checkRun216EditorToolArbitration.js'
+      - '.github/workflows/run216-editor-tool-arbitration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-tool-arbitration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check src/3d/editor/EditorRoadController.js
+      - run: node --check src/3d/editor/EditorTerrainPaintController.js
+      - run: node --check scripts/checkRun216EditorToolArbitration.js
+      - run: node scripts/checkRun216EditorToolArbitration.js
