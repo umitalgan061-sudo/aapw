@@ -8,6 +8,7 @@ const path = require('path');
 const ROOT = process.env.RUN216_ROOT ? path.resolve(process.env.RUN216_ROOT) : path.resolve(__dirname, '..');
 const TARGET_PATH = path.join(ROOT, 'service-worker.js');
 const MARKER = '// Run216 World Editor TransformControls offline shell extension.';
+const COMPLETE_MARKER = '// Run216 complete World Editor offline shell extension.';
 const REQUIRED_PATHS = Object.freeze([
   './src/3d/editor/EditorTransformControls.js',
   './src/3d/editor/EditorScaleInputController.js',
@@ -49,10 +50,25 @@ function verifyContent(content) {
   return true;
 }
 
+function verifyCompleteSuperset(content) {
+  const text = content.toString('utf8');
+  if (!text.startsWith(COMPLETE_MARKER)) fail('Run216 complete service-worker marker is not the file prefix');
+  for (const entry of REQUIRED_PATHS) {
+    const count = text.split(entry).length - 1;
+    if (count !== 1) fail(`Expected exactly one compatible complete-cache entry for ${entry}, found ${count}`);
+  }
+  return true;
+}
+
 function materialize(targetPath = TARGET_PATH) {
   if (!fs.existsSync(targetPath)) fail(`Missing ${path.relative(ROOT, targetPath)}`);
   const before = fs.readFileSync(targetPath);
   const beforeText = before.toString('utf8');
+
+  if (beforeText.startsWith(COMPLETE_MARKER)) {
+    verifyCompleteSuperset(before);
+    return { created: false, before, after: before };
+  }
 
   if (beforeText.startsWith(BLOCK)) {
     verifyContent(before);
@@ -74,6 +90,11 @@ function materialize(targetPath = TARGET_PATH) {
 function verifyTarget() {
   if (!fs.existsSync(TARGET_PATH)) fail('service-worker.js is missing');
   const content = fs.readFileSync(TARGET_PATH);
+  if (content.toString('utf8').startsWith(COMPLETE_MARKER)) {
+    verifyCompleteSuperset(content);
+    console.log('[materializeRun216ServiceWorkerCache] PASS: compatible complete Run216 cache prefix present once');
+    return;
+  }
   verifyContent(content);
   console.log('[materializeRun216ServiceWorkerCache] PASS: exact Run216 cache prefix present once');
 }
