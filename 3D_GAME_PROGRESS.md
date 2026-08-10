@@ -14559,3 +14559,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
 - Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: Run223 workflow `31421640607` PASS and World Event Determinism Guard `31421640543` PASS. Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.
+
+## Run 224 — World Editor precise scale/history regression
+- Permanent additive-only Chromium regression verifies Inspector scale precision below the legacy 0.01 floor by applying `scale.x = 0.007` to a marker-tree.
+- Undo restores the exact original object identity and transform; Redo restores the exact `0.007` scale without precision loss and consumes redo history.
+- Browser console/page errors remain zero; editor id, asset id, position and rotation stay stable across the scale-history round trip.
+- PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates PASS.
+- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: Run224 workflow `31422841705` PASS. Next safe step: continue additive-only World Editor usability/regression coverage without crossing unresolved owner gates.

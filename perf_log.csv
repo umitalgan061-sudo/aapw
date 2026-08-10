@@ -173,3 +173,4 @@ run220,2026-08-10,editor-history-shortcuts-mobile,,,,,,,"test-only keyboard/mobi
 run221,2026-08-10,editor-history-input-guard,,,,,,,"test-only inspector shortcut guard and Ctrl+Y redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run222,2026-08-10,editor-clipboard-history,,,,,,,"test-only copy/paste undo/redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run223,2026-08-10,editor-delete-history,,,,,,,"test-only delete/undo/redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run224,2026-08-10,editor-scale-history,,,,,,,"test-only precise scale/undo/redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
