@@ -1,0 +1,50 @@
+name: Run 227 Editor Non-Uniform Scale History V2 Exact Head
+
+on:
+  push:
+    branches:
+      - agent/run227-editor-nonuniform-scale-history-v2
+    paths:
+      - '.github/workflows/run227-editor-nonuniform-scale-history-v2-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run227-editor-nonuniform-scale-history-v2-exact-head-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact head against current main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          node --check scripts/checkRun227EditorNonUniformScaleHistory.js
+          node --check scripts/checkRun227EditorResponsiveResize.js
+          git diff --check
+      - name: Verify Run227 checkpoint records
+        run: |
+          set -euo pipefail
+          grep -Fq '## Run 227 — World Editor non-uniform scale/history + responsive-resize regression' 3D_GAME_PROGRESS.md
+          grep -Fq 'run227,2026-08-10,editor-nonuniform-scale-history-responsive-resize' perf_log.csv
+          grep -Fq 'Run227 editor non-uniform scale/history + responsive-resize regression' STABLE_TAGS.md
+          grep -Fq '31429192965' 3D_GAME_PROGRESS.md
+          grep -Fq '31429192908' 3D_GAME_PROGRESS.md
+          grep -Fq '2293px-wide' 3D_GAME_PROGRESS.md
