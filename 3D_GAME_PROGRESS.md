@@ -14577,3 +14577,12 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, deterministic world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, final remote-main/additive-only gates, artifact upload and World Event Determinism Guard PASS.
 - Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: corrected Run225 V2 workflow `31424690149` PASS and World Event Determinism Guard `31424689829` PASS. Next safe step: continue additive-only World Editor transform/history usability coverage without crossing unresolved owner gates.
+
+## Run 226 — World Editor signed rotation/history regression
+- Permanent additive-only Chromium regression verifies a signed near-boundary Inspector rotation (`Y=-179.9°`) without changing runtime/product source.
+- Live Inspector transform preserves the exact entered decimal degree value; object identity, position, scale, and the untouched rotation axes remain stable.
+- Undo restores the exact original scene object; Redo restores the serializer-normalized six-decimal radian value while preserving the same user-visible `-179.9°` Inspector value after explicit re-selection.
+- RCA: first Run226 proof `31427349468` timed out on Redo because the test incorrectly expected the pre-serialization full-precision radian at `1e-12`; `EditorSceneSerializer` intentionally rounds transforms to six decimals. Runtime behavior was correct. V2 models that persistence contract explicitly.
+- Corrected V2 workflow `31427884497` PASS: syntax, focused Chromium proof, PWA cache/installability, mobile performance, seeded/world-reference/hydrology/terrain/road safety, performance trend, technical debt, full browser smoke, final remote-main/additive-only gate, console-zero and three visual artifacts.
+- World Event Determinism Guard `31427884571` PASS. Runtime/product source delta: 0 lines changed. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: continue additive-only World Editor transform/history boundary coverage or another isolated owner-visible editor usability regression without crossing unresolved owner gates.
