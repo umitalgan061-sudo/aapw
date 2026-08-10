@@ -75,14 +75,12 @@ async function snapshot(page) {
     const tolerance = 2;
     const toolbar = document.querySelector('.we-toolbar-actions');
     const statusbar = document.querySelector('.we-statusbar');
-    const visibleInteractive = [...toolbar.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')]
+    const controls = [...toolbar.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')]
       .filter((element) => {
         const style = getComputedStyle(element);
         const rect = element.getBoundingClientRect();
         return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
       });
-    const toolbarRect = toolbar.getBoundingClientRect();
-    const statusRect = statusbar.getBoundingClientRect();
     const rectOf = (element) => {
       const rect = element.getBoundingClientRect();
       return {
@@ -91,6 +89,8 @@ async function snapshot(page) {
         width: Math.round(rect.width * 100) / 100
       };
     };
+    const firstControl = controls[0] || null;
+    const lastControl = controls.at(-1) || null;
     return {
       viewportWidth: innerWidth,
       rootScrollWidth: document.documentElement.scrollWidth,
@@ -101,9 +101,9 @@ async function snapshot(page) {
         scrollLeft: toolbar.scrollLeft,
         maxScrollLeft: Math.max(0, toolbar.scrollWidth - toolbar.clientWidth),
         rect: rectOf(toolbar),
-        first: visibleInteractive[0] ? { id: visibleInteractive[0].id, tag: visibleInteractive[0].tagName, rect: rectOf(visibleInteractive[0]) } : null,
-        last: visibleInteractive.at(-1) ? { id: visibleInteractive.at(-1).id, tag: visibleInteractive.at(-1).tagName, rect: rectOf(visibleInteractive.at(-1]) } : null,
-        count: visibleInteractive.length
+        first: firstControl ? { id: firstControl.id, tag: firstControl.tagName, rect: rectOf(firstControl) } : null,
+        last: lastControl ? { id: lastControl.id, tag: lastControl.tagName, rect: rectOf(lastControl) } : null,
+        count: controls.length
       },
       statusbar: {
         clientWidth: statusbar.clientWidth,
@@ -179,8 +179,7 @@ async function main() {
     await page.screenshot({ path: path.join(ARTIFACT_DIR, '02-toolbar-end.png'), fullPage: false });
 
     await page.evaluate(() => {
-      const toolbar = document.querySelector('.we-toolbar-actions');
-      toolbar.scrollLeft = 0;
+      document.querySelector('.we-toolbar-actions').scrollLeft = 0;
       const statusbar = document.querySelector('.we-statusbar');
       statusbar.scrollLeft = statusbar.scrollWidth;
     });
