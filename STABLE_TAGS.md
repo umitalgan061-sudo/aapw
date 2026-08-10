@@ -946,3 +946,4 @@ stable-2026-08-10-2203 — Run223 editor delete/history regression; exact object
 stable-2026-08-10-2217 — Run224 editor duplicate/history regression; toolbar/Ctrl+D deterministic duplicate parity, undo/redo and clipboard isolation verified.
 stable-2026-08-10-2241 — Run225 editor sub-0.01 scale/history regression; `0.007` scene scale survives undo/redo and Inspector reflects it after explicit re-selection; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-10-2318 — Run226 editor signed rotation/history regression; signed `-179.9°` transform survives undo/redo under serializer normalization; PWA/perf/determinism/smoke gates verified.
+stable-2026-08-10-2339 — Run228 editor mixed-sign position/history regression; decimal X/Y/Z position survives undo/redo and Inspector re-selection; PWA/perf/determinism/smoke gates verified.

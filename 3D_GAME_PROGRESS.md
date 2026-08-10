@@ -14586,3 +14586,12 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Corrected V2 workflow `31427884497` PASS: syntax, focused Chromium proof, PWA cache/installability, mobile performance, seeded/world-reference/hydrology/terrain/road safety, performance trend, technical debt, full browser smoke, final remote-main/additive-only gate, console-zero and three visual artifacts.
 - World Event Determinism Guard `31427884571` PASS. Runtime/product source delta: 0 lines changed. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: continue additive-only World Editor transform/history boundary coverage or another isolated owner-visible editor usability regression without crossing unresolved owner gates.
+
+## Run 228 — World Editor mixed-sign position/history regression
+- Permanent additive-only Chromium regression verifies mixed-sign decimal Inspector position values (`X=-12.375`, `Y=1.25`, `Z=8.625`) with snap disabled, without changing runtime/product source.
+- The position edit preserves editor object identity, rotation, and scale; Undo restores the exact original scene object and Redo restores the exact mixed-sign position state.
+- History restore selection semantics remain explicit: selection is cleared, the restored hierarchy item is re-selected, and Inspector X/Y/Z values are verified after re-selection.
+- V1 workflow `31428810647` proved focused Chromium regression, PWA/cache, mobile performance/determinism/world safety, and full browser smoke; its final concurrency gate correctly rejected publication after concurrent Run226 advanced main.
+- V2 was rebuilt additively on Run226 main and workflow `31429382554` PASS, including start/final remote-main gates, additive-only guard, visual evidence upload, PWA/cache, mobile/perf/determinism/world safety and full browser smoke.
+- World Event Determinism Guard `31429382607` PASS. Runtime/product source delta: 0 lines changed. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: continue additive-only World Editor transform/history usability coverage without crossing unresolved owner gates and after rechecking concurrent main.
