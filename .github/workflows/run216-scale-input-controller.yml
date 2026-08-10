@@ -7,6 +7,8 @@ on:
       - 'src/3d/editor/EditorTransformControls.js'
       - 'scripts/checkRun216ScaleInputController.mjs'
       - 'scripts/checkRun216ScaleInputWiring.js'
+      - 'scripts/checkRun216ScaleInputBehaviorNode20.cjs'
+      - 'scripts/checkRun216LargeAssetScalePolicyNode20.cjs'
       - '.github/workflows/run216-scale-input-controller.yml'
   workflow_dispatch:
 
@@ -27,3 +29,7 @@ jobs:
       - run: node --check scripts/checkRun216ScaleInputWiring.js
       - run: node scripts/checkRun216ScaleInputController.mjs
       - run: node scripts/checkRun216ScaleInputWiring.js
+      - run: node --check scripts/checkRun216ScaleInputBehaviorNode20.cjs
+      - run: node --check scripts/checkRun216LargeAssetScalePolicyNode20.cjs
+      - run: node scripts/checkRun216ScaleInputBehaviorNode20.cjs
+      - run: node scripts/checkRun216LargeAssetScalePolicyNode20.cjs
