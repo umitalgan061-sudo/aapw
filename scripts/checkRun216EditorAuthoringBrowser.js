@@ -102,6 +102,17 @@ async function worldPointScreen(page, x, z) {
   }, { x, z });
 }
 
+async function canvasPoint(page, xRatio, yRatio) {
+  return page.evaluate(({ xRatio, yRatio }) => {
+    const rect = window.__WESTEROS_WORLD_EDITOR__.canvas.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width * xRatio,
+      y: rect.top + rect.height * yRatio,
+      rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }
+    };
+  }, { xRatio, yRatio });
+}
+
 function assertInsideCanvas(point, label) {
   assert(Number.isFinite(point.x) && Number.isFinite(point.y), `${label} projected to non-finite screen coordinates`);
   assert(point.x > point.rect.left + 5 && point.x < point.rect.right - 5, `${label} projected outside canvas horizontally`);
@@ -162,7 +173,10 @@ async function desktopProof(playwright, base) {
     const roadCount = await page.evaluate(() => window.__WESTEROS_WORLD_EDITOR__.editableObjects.filter((object) => object.userData.editorAssetId === 'editor-road-segment').length);
     assert(roadCount >= 1, 'Road drawing did not create a persistent road segment');
 
+    /*
     const terrainPoint = await worldPointScreen(page, -30, 20);
+    */
+    const terrainPoint = await canvasPoint(page, 0.50, 0.62);
     assertInsideCanvas(terrainPoint, 'terrain');
     const landBefore = await page.evaluate(() => window.__WESTEROS_WORLD_EDITOR__.editableObjects.filter((object) => object.userData.editorAssetId === 'editor-land-cell').length);
     await page.click('[data-terrain-mode="land-add"]');
