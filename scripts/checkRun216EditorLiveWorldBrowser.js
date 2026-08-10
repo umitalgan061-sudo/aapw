@@ -36,6 +36,11 @@ function contentType(file) {
 function startServer() {
   const server = http.createServer((req, res) => {
     const clean = decodeURIComponent(req.url.split('?')[0]);
+    if (clean === '/favicon.ico') {
+      res.writeHead(204, { 'cache-control': 'no-store' });
+      res.end();
+      return;
+    }
     const relative = clean === '/' ? 'index.html' : clean.replace(/^\//, '');
     const file = path.resolve(ROOT, relative);
     if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
