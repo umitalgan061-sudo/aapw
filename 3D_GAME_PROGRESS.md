@@ -14685,3 +14685,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates, visual artifact upload and World Event Determinism Guard PASS.
 - Runtime/product source delta: 0 lines changed. Test/docs/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: Run246 workflow `31452233990` PASS and World Event Determinism Guard `31452233955` PASS. Next safe step: re-read current main and active branches; continue only a distinct, unclaimed World Editor compatibility edge case.
+
+## Run 247 — World Editor partial editor-metadata composed defaults regression
+- Permanent additive-only Chromium regression verifies a valid schema-v1 scene with partial `editor: { gridVisible: false }` metadata loads exact object identity/name/asset and transform data without changing runtime/product source.
+- Missing snap fields compose to defaults (`enabled=true`, size `1`), selection clears, history remains stable, success toast completes, and browser console/page errors remain zero.
+- Explicit `gridVisible=false` remains authoritative while owner live-grid policy keeps Grid unchecked, disabled and hidden.
+- PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates, visual artifact upload and World Event Determinism Guard PASS.
+- Runtime/product source delta: 0 lines changed. Test/docs/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: Run247 workflow `31455193757` PASS and World Event Determinism Guard `31455193727` PASS. Next safe step: re-read current main and active branches; continue only a distinct, unclaimed World Editor compatibility edge case.
