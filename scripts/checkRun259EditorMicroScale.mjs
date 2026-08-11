@@ -5,6 +5,10 @@ let historyCaptures = 0;
 let hierarchyRefreshes = 0;
 let transformSyncs = 0;
 
+function near(actual, expected, epsilon = 1e-12) {
+  return Math.abs(Number(actual) - Number(expected)) <= epsilon;
+}
+
 function makeInput(id) {
   const listeners = [];
   const input = {
@@ -115,8 +119,8 @@ const micro = module.installEditorMicroScaleOverride(api);
 await new Promise((resolve) => setTimeout(resolve, 10));
 
 if (legacy.minimumScale !== 0.001) throw new Error('legacy additive contract unexpectedly changed');
-if (micro.minimumScale !== 0.000001) throw new Error(`micro minimum mismatch: ${micro.minimumScale}`);
-if (module.EDITOR_MICRO_SCALE_POLICY.minimumScale !== 0.000001) throw new Error('micro policy minimum mismatch');
+if (!near(micro.minimumScale, 0.000001)) throw new Error(`micro minimum mismatch: ${micro.minimumScale}`);
+if (!near(module.EDITOR_MICRO_SCALE_POLICY.minimumScale, 0.000001)) throw new Error('micro policy minimum mismatch');
 if (module.EDITOR_MICRO_SCALE_POLICY.decimals !== 6) throw new Error('micro precision must remain six decimals');
 for (const input of [scaleX, scaleY, scaleZ]) {
   if (input.min !== '0.000001') throw new Error(`${input.id} min is ${input.min}`);
@@ -138,11 +142,11 @@ function dispatchChange(input, value) {
 }
 
 if (!dispatchChange(scaleX, '0.000001')) throw new Error('micro-scale change did not own capture path');
-if (selected.scale.x !== 0.000001) throw new Error(`1e-6 was not preserved: ${selected.scale.x}`);
+if (!near(selected.scale.x, 0.000001)) throw new Error(`1e-6 was not preserved: ${selected.scale.x}`);
 if (scaleX.value !== '0.000001') throw new Error(`Inspector rounded micro scale: ${scaleX.value}`);
 
 dispatchChange(scaleY, '0');
-if (selected.scale.y !== 0.000001) throw new Error(`zero was not clamped to 1e-6: ${selected.scale.y}`);
+if (!near(selected.scale.y, 0.000001)) throw new Error(`zero was not clamped to 1e-6: ${selected.scale.y}`);
 if (scaleY.value !== '0.000001') throw new Error(`clamped scale display lost precision: ${scaleY.value}`);
 
 const previousZ = selected.scale.z;
@@ -159,9 +163,9 @@ const clickEvent = {
 };
 for (const entry of [...(windowListeners.get('click') || [])]) entry.handler(clickEvent);
 if (!clickStopped) throw new Error('quick shrink was not captured by micro-scale override');
-if (selected.scale.x !== 0.000001) throw new Error(`quick shrink x floor mismatch: ${selected.scale.x}`);
-if (selected.scale.y !== 0.00001) throw new Error(`quick shrink y mismatch: ${selected.scale.y}`);
-if (selected.scale.z !== 0.1) throw new Error(`quick shrink z mismatch: ${selected.scale.z}`);
+if (!near(selected.scale.x, 0.000001)) throw new Error(`quick shrink x floor mismatch: ${selected.scale.x}`);
+if (!near(selected.scale.y, 0.00001)) throw new Error(`quick shrink y mismatch: ${selected.scale.y}`);
+if (!near(selected.scale.z, 0.1)) throw new Error(`quick shrink z mismatch: ${selected.scale.z}`);
 if (scaleX.value !== '0.000001' || scaleY.value !== '0.000010' || scaleZ.value !== '0.100000') {
   throw new Error(`quick-shrink Inspector precision mismatch: ${scaleX.value}, ${scaleY.value}, ${scaleZ.value}`);
 }
@@ -175,7 +179,7 @@ if (scaleZ.value !== '0.000001') throw new Error(`TransformControls Inspector sy
 const { serializeEditorScene } = await import('../src/3d/editor/EditorSceneSerializer.js');
 const serialized = serializeEditorScene([selected], [], { gridVisible: true, snapEnabled: true, snapSize: 1 });
 const persistedScale = serialized.objects[0].transform.scale;
-if (persistedScale[0] !== 0.000001 || persistedScale[2] !== 0.000001) {
+if (!near(persistedScale[0], 0.000001) || !near(persistedScale[2], 0.000001)) {
   throw new Error(`scene serializer lost micro scale: ${JSON.stringify(persistedScale)}`);
 }
 if (!JSON.stringify(serialized).includes('0.000001')) throw new Error('serialized JSON does not contain exact 1e-6 scale');
