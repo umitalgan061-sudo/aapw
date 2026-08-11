@@ -94,20 +94,33 @@ async function verifyGateBasics(page) {
   return basics;
 }
 
+async function prove2DTo3DRoute(context, base) {
+  const routePage = await context.newPage();
+  try {
+    await routePage.goto(`${base}/index.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    const href = await routePage.evaluate(() => document.querySelector('a.tb-btn[href="game3d.html"]')?.getAttribute('href'));
+    assert(href === 'game3d.html', `2D 3D link changed unexpectedly: ${href}`);
+    await routePage.evaluate(() => document.querySelector('a.tb-btn[href="game3d.html"]')?.click());
+    await routePage.waitForURL(/game3d\.html$/, { timeout: 30000 });
+    await routePage.waitForSelector('#run266-entry-gate', { state: 'visible', timeout: 30000 });
+    const imageVisible = await routePage.locator('.run266-entry-art').evaluate((image) => image.naturalWidth > 0 && image.naturalHeight > 0);
+    assert(imageVisible, '2D→3D route landed without rendered giriş.png');
+    return { href, landedOnGate: true };
+  } finally {
+    await routePage.close();
+  }
+}
+
 async function desktopProof(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await context.newPage();
-  const errors = [];
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  page.on('pageerror', (error) => errors.push(String(error)));
-
   try {
-    await page.goto(`${base}/index.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-    const href = await page.evaluate(() => document.querySelector('a.tb-btn[href="game3d.html"]')?.getAttribute('href'));
-    assert(href === 'game3d.html', `2D 3D link changed unexpectedly: ${href}`);
-    await page.evaluate(() => document.querySelector('a.tb-btn[href="game3d.html"]')?.click());
-    await page.waitForURL(/game3d\.html$/, { timeout: 30000 });
+    const route = await prove2DTo3DRoute(context, base);
+    const page = await context.newPage();
+    const errors = [];
+    page.on('console', (message) => { if (message.type() === 'error') errors.push(`${page.url()} :: ${message.text()}`); });
+    page.on('pageerror', (error) => errors.push(`${page.url()} :: ${String(error)}`));
 
+    await page.goto(`${base}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
     const initial = await verifyGateBasics(page);
     fs.mkdirSync(OUT, { recursive: true });
     await page.screenshot({ path: path.join(OUT, '01-desktop-initial.png'), fullPage: true });
@@ -127,12 +140,12 @@ async function desktopProof(browser, base) {
     await page.screenshot({ path: path.join(OUT, '02-desktop-evaded.png'), fullPage: true });
 
     const enterBefore = await page.locator('#run266-entry-enter').boundingBox();
+    assert(enterBefore, 'Desktop enter button was not measurable');
     await page.locator('#run266-entry-enter').click();
     await page.waitForFunction(() => !document.getElementById('run266-entry-gate') && !window.__WESTEROS_ENTRY_GATE_RUN266__, null, { timeout: 5000 });
-    const enterAfter = enterBefore;
-    assert(enterAfter, 'Desktop enter button was not measurable');
-    assert(errors.length === 0, `Desktop console/page errors: ${errors.join(' | ')}`);
-    return { initial, backBefore: before, backAfter: after, enterRect: enterBefore, errors: errors.length };
+    assert(errors.length === 0, `Desktop 3D gate console/page errors: ${errors.join(' | ')}`);
+    await page.close();
+    return { route, initial, backBefore: before, backAfter: after, enterRect: enterBefore, errors: errors.length };
   } finally {
     await context.close();
   }
@@ -147,8 +160,8 @@ async function mobileProof(browser, base) {
   });
   const page = await context.newPage();
   const errors = [];
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  page.on('pageerror', (error) => errors.push(String(error)));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(`${page.url()} :: ${message.text()}`); });
+  page.on('pageerror', (error) => errors.push(`${page.url()} :: ${String(error)}`));
 
   try {
     await page.goto(`${base}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
@@ -171,10 +184,10 @@ async function mobileProof(browser, base) {
     await page.screenshot({ path: path.join(OUT, '04-mobile-evaded.png'), fullPage: true });
 
     const enterBefore = await page.locator('#run266-entry-enter').boundingBox();
+    assert(enterBefore, 'Mobile enter button was not measurable');
     await page.locator('#run266-entry-enter').tap();
     await page.waitForFunction(() => !document.getElementById('run266-entry-gate') && !window.__WESTEROS_ENTRY_GATE_RUN266__, null, { timeout: 5000 });
-    assert(enterBefore, 'Mobile enter button was not measurable');
-    assert(errors.length === 0, `Mobile console/page errors: ${errors.join(' | ')}`);
+    assert(errors.length === 0, `Mobile 3D gate console/page errors: ${errors.join(' | ')}`);
     return { initial, backBefore: before, backAfter: after, enterRect: enterBefore, errors: errors.length };
   } finally {
     await context.close();
