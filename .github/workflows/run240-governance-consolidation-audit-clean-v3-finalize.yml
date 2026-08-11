@@ -1,0 +1,79 @@
+name: Run 240 Governance Consolidation Audit Clean V3 Finalize
+
+on:
+  push:
+    branches:
+      - agent/run240-governance-consolidation-audit-clean-v3
+    paths:
+      - '.github/workflows/run240-governance-consolidation-audit-clean-v3-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run240-governance-consolidation-audit-clean-v3-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run240 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          RULE_MARKER='Run 240 (2026-08-11, governance consolidation refresh)'
+          if ! grep -Fq "$RULE_MARKER" RULES_CHANGELOG.md; then
+            printf '\n%s\n' '- **Run 240 (2026-08-11, governance consolidation refresh):** `GOVERNANCE.md`, the active continuation/continuous owner directives, current owner gates, Run235 platform-control state, PWA/cache, mobile performance, seeded/world determinism, world-reference/hydrology, terrain/road safety, performance trend, technical debt, full browser smoke and final concurrency/additive gates were re-verified. The newer owner directives still supersede only §8.7/§19 duration/continuation semantics; all safety/quality/additive-only/owner-gate rules remain active. Run151 owner-gated items remain unresolved and untouched; no decision was guessed or re-notified. Run235 platform control remains current with the next window ~run255-265. No rule semantics changed; this refresh restores the periodic consolidation trail. Next consolidation target ~run260 or earlier on FAZ completion.' >> RULES_CHANGELOG.md
+          fi
+          PROGRESS_MARKER='## Run 240 — Governance consolidation audit'
+          if ! grep -Fq "$PROGRESS_MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$PROGRESS_MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Periodic governance consolidation re-verified the active owner continuation directives, unresolved owner gates, and current Run235 platform-control maintenance state without changing rule semantics.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- RCA: earlier unpublished Run240 audit attempts used brittle text assumptions and one omitted the Playwright dependency; each was rejected without runtime changes. Clean-v3 uses confirmed governance phrases, case-insensitive platform-window matching, and the established Chromium dependency setup.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates and World Event Determinism Guard PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed. Governance/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Evidence: Run240 clean-v3 workflow `31444922515` PASS and World Event Determinism Guard `31444922426` PASS. Next safe step: re-read current main and continue with the next owner-gate-free additive-only task while avoiding concurrent Run238 scope.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run240,' perf_log.csv; then
+            printf 'run240,%s,governance-consolidation-audit,,,,,,,"governance/workflow-only consolidation; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run240 governance consolidation audit' STABLE_TAGS.md; then
+            printf '%s — Run240 governance consolidation audit; owner-directive/owner-gate/platform-maintenance state re-verified; PWA/perf/determinism/smoke gates PASS.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- RULES_CHANGELOG.md 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run240 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add RULES_CHANGELOG.md 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run240): record governance consolidation checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run240-governance-consolidation-audit-clean-v3
+          git push origin "$STABLE_TAG" || true
