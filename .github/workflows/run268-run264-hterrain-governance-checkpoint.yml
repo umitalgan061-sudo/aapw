@@ -1,0 +1,263 @@
+name: Run 268 Run264 HTerrain Governance Checkpoint
+
+on:
+  push:
+    branches:
+      - agent/run268-run264-governance-checkpoint
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run268-run264-governance-checkpoint-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: e6cdb65b8f09cd59d24f79fff6f771b41b66c11e
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-and-checkpoint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Starting concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE_SHA" "$CURRENT_MAIN"
+          SAFE_PATHS=(godot/terrain-authoring .github/workflows/run264-hterrain-authoring.yml .github/workflows/run264-hterrain-normal-baker.yml)
+          git diff --quiet "$BASE_SHA" "$CURRENT_MAIN" -- "${SAFE_PATHS[@]}"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+
+      - name: HTerrain import and authoring contract
+        run: |
+          set -euo pipefail
+          test -f godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
+          test -f godot/terrain-authoring/addons/zylann.hterrain/tools/plugin.gd
+          test -f godot/terrain-authoring/addons/zylann.hterrain/hterrain_data.gd
+          test -f godot/terrain-authoring/addons/zylann.hterrain/hterrain_detail_layer.gd
+          test -f godot/terrain-authoring/scripts/hterrain_normal_tile_bridge.gd
+          test -f godot/terrain-authoring/scripts/capture_hterrain_visual_evidence.gd
+          grep -F 'version="1.8"' godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
+          grep -F 'add_custom_type("HTerrain"' godot/terrain-authoring/addons/zylann.hterrain/tools/plugin.gd
+          grep -F 'add_custom_type("HTerrainDetailLayer"' godot/terrain-authoring/addons/zylann.hterrain/tools/plugin.gd
+          grep -F 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")' godot/terrain-authoring/project.godot
+          grep -F 'NormalBakeTileSchedulerBridge' godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Import resources before enabling HTerrain editor plugin
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/run268-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+
+      - name: Godot editor load and authoring data validation
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 \
+            2>&1 | tee "$RUNNER_TEMP/run268-editor.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_authoring.gd \
+            2>&1 | tee "$RUNNER_TEMP/run268-authoring-validation.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK resolution=513 texture_slots=4 detail_maps=1 seed=20260811 collision=true' \
+            "$RUNNER_TEMP/run268-authoring-validation.log"
+          test -f godot/terrain-authoring/terrain_data/data.hterrain
+
+      - name: Functional normal-baker proof with real software OpenGL
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          command -v xvfb-run
+          timeout 180s xvfb-run -a -s '-screen 0 1280x720x24' \
+            "$GODOT_BIN" --editor --path godot/terrain-authoring \
+            --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 \
+            --script res://scripts/validate_hterrain_normal_baker.gd \
+            2>&1 | tee "$RUNNER_TEMP/run268-normal-baker.log"
+          grep -F 'HTERRAIN_NORMAL_BAKER_OK bridge_pending=1' "$RUNNER_TEMP/run268-normal-baker.log"
+          if grep -F 'RendererDummy' "$RUNNER_TEMP/run268-normal-baker.log"; then
+            echo 'Normal-baker proof unexpectedly used the dummy renderer.' >&2
+            exit 1
+          fi
+
+      - name: Two-angle HTerrain visual evidence
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          rm -rf godot/terrain-authoring/artifacts/run264-hterrain
+          timeout 240s xvfb-run -a -s '-screen 0 1280x720x24' \
+            "$GODOT_BIN" --path godot/terrain-authoring \
+            --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 \
+            --script res://scripts/capture_hterrain_visual_evidence.gd \
+            2>&1 | tee "$RUNNER_TEMP/run268-visual.log"
+          grep -F 'HTERRAIN_VISUAL_EVIDENCE_OK' "$RUNNER_TEMP/run268-visual.log"
+          python3 - <<'PY'
+          import pathlib, struct
+          root = pathlib.Path('godot/terrain-authoring/artifacts/run264-hterrain')
+          for name in ('angle-far.png', 'angle-near.png'):
+              path = root / name
+              data = path.read_bytes()
+              assert data[:8] == b'\x89PNG\r\n\x1a\n', name
+              width, height = struct.unpack('>II', data[16:24])
+              assert (width, height) == (1280, 720), (name, width, height)
+              assert len(data) > 10000, (name, len(data))
+              print(f'VISUAL_OK {name} {width}x{height} bytes={len(data)}')
+          PY
+
+      - name: PWA cache and installability regression
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+
+      - name: Install Chromium smoke and performance dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Performance determinism world safety and technical debt
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run268-mobile-perf.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full Chromium smoke and console gate
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run268-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run268-smoke.log")" -ge 34
+
+      - name: Upload Run264 HTerrain two-angle evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run268-run264-hterrain-two-angle-evidence
+          path: godot/terrain-authoring/artifacts/run264-hterrain/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Final concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE_SHA" "$CURRENT_MAIN"
+          SAFE_PATHS=(godot/terrain-authoring .github/workflows/run264-hterrain-authoring.yml .github/workflows/run264-hterrain-normal-baker.yml)
+          git diff --quiet "$BASE_SHA" "$CURRENT_MAIN" -- "${SAFE_PATHS[@]}"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+
+      - name: Append verified Run264 governance records
+        run: |
+          set -euo pipefail
+          PROGRESS_MARKER='## Run 268 — finalize Run264 HTerrain authoring checkpoint'
+          if ! grep -Fq "$PROGRESS_MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$PROGRESS_MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Run264 merged the owner-provided Zylann HTerrain 1.8 package as an isolated Godot 4.6 authoring workspace; the browser HTML/JS/Three.js game remains the canonical runtime and receives no Run264 runtime behavior change.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Authoring proof PASS: a real HTerrain node creates 513x513 Terrain Data, four starter terrain texture slots, one detail map, deterministic grass seed 20260811 and restored collision; Raise/Lower/Smooth/Flatten/Level/Erode, texture and detail editor assets load through the vendor plugin.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Visual/normal proof PASS with real Mesa llvmpipe OpenGL: two 1280x720 terrain camera angles were captured, and a 17x17 same-tile height edit queued one normal tile through the compatibility bridge and changed the sampled normal from approximately (0.498,0.498,1.0) to (0.051,0.502,0.722).' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Full PWA/cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, technical-debt and Chromium smoke/console gates passed. Memory-leak review: the editor-only bridge owns one TerrainData signal connection, rebinds on data replacement and disconnects in _exit_tree; no browser listener/timer/DOM/geometry/material ownership was added.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Risk MEDIUM: isolated authoring toolchain only. Known upstream/CI Godot diagnostics remain documented; functional real-render normal baking is proven. Next safe work must refresh remote main/open PRs before selecting a runtime export/import bridge task.' >> 3D_GAME_PROGRESS.md
+          fi
+
+          ADR_MARKER='## ADR Run268-HTerrain — Isolated Godot HTerrain authoring workspace'
+          if ! grep -Fq "$ADR_MARKER" DECISIONS.md; then
+            cat >> DECISIONS.md <<'EOF'
+
+## ADR Run268-HTerrain — Isolated Godot HTerrain authoring workspace
+**Karar:** Zylann HTerrain 1.8, `godot/terrain-authoring/` altında Godot 4.6 tabanlı ve mevcut browser oyundan izole bir arazi authoring aracı olarak tutulur. HTML/JS/Three.js/PWA tarafı oyunun kanonik runtime'ı olmaya devam eder. Vendor HTerrain kaynakları yerel uyumluluk davranışları için değiştirilmez; proje-spesifik uyumluluk katmanları vendor klasörünün dışında tutulur.
+
+**Neden:** Proje sahibinin heightmap boyama, doku katmanları ve çim/detail araçlarını olgun bir editör üzerinden kullanabilmesi gerekirken mevcut 2D/3D web oyununun mimarisi ve PWA davranışı regresyon riski almamalıdır.
+
+**Alternatifler:** (1) Aynı araçların tamamını mevcut web editöründe yeniden yazmak daha yüksek geliştirme ve regresyon maliyetine sahiptir. (2) Oyunun tamamını Godot runtime'a taşımak mevcut mimariyi gereksiz yere değiştirir. (3) HTerrain vendor dosyasını doğrudan yamamak upstream senkronizasyonunu zorlaştırır. Bu nedenle izole authoring + vendor dışı compatibility bridge seçildi.
+
+**Sonuç:** Godot authoring projesi HTerrain Terrain Data, dört başlangıç texture katmanı, detail/grass haritası, collision ve deterministik grass seed ile açılır. HTerrain 1.8'in küçük fırça normal-tile scheduler açığı vendor dışı editor-only bridge ile kapatılır ve gerçek OpenGL render testiyle doğrulanır. Godot verisinin browser runtime'a hangi format ve dönüştürme sözleşmesiyle aktarılacağı bu kararın kapsamında değildir ve ayrı bir alt görev/karar gerektirir.
+
+**Etkilenen sistemler:** `godot/terrain-authoring/`, Run264/Run268 CI ve authoring dokümantasyonu. Mevcut HTML/JS/Three.js/PWA runtime davranışı etkilenmez.
+
+**Gelecek faz etkisi:** Dünya üretimi için güçlü bir authoring veri kaynağı sağlar; ancak runtime terrain import/export sözleşmesini peşinen belirlemez. Gelecek köprü çalışması deterministik veri dönüşümü, boyut/LOD ve PWA asset bütçelerini ayrı doğrulamalıdır.
+
+**Geri alma planı:** `godot/terrain-authoring/` çalışma alanı ve ona özel CI devre dışı bırakılabilir/kaldırılabilir; browser runtime'a bağımlılık eklenmediği için oyun tarafında geri alma gerektirmez. Vendor-dışı normal scheduler bridge bağımsız kaldırılabilir.
+
+**Risk:** MEDIUM. Yeni bir authoring toolchain eklenmiştir; web runtime delta 0'dır. Vendor normal baker ile Godot CI arasında tanısal log gürültüsü vardır, fakat gerçek renderer altında fonksiyonel normal üretimi ayrıca kanıtlanmıştır.
+EOF
+          fi
+
+          if ! grep -Fq 'run268,2026-08-11,run264-hterrain-authoring-checkpoint' perf_log.csv; then
+            printf '%s\n' 'run268,2026-08-11,run264-hterrain-authoring-checkpoint,,,,,,,"Godot 4.6.3 HTerrain authoring checkpoint; two-angle real-render evidence + normal-baker proof + full PWA/browser chain PASS; mobile drawCalls 35 triangles 195929 geometries 30 textures 22"' >> perf_log.csv
+          fi
+
+          TAG="stable-$(date +%Y-%m-%d-%H%M)"
+          if ! grep -Fq 'Run268 Run264 HTerrain authoring checkpoint' STABLE_TAGS.md; then
+            printf '\n- `%s` — Run268 Run264 HTerrain authoring checkpoint; Godot 4.6.3 Terrain Data/texture/detail tools, two-angle visual evidence, real-render normal-baker proof, PWA/perf/full smoke PASS.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          if git diff --cached --quiet; then
+            echo 'Run268 governance records already present on final head.'
+            exit 0
+          fi
+
+          git commit -m 'docs(run268): record Run264 HTerrain governance checkpoint'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE_SHA" "$CURRENT_MAIN"
+          SAFE_PATHS=(godot/terrain-authoring .github/workflows/run264-hterrain-authoring.yml .github/workflows/run264-hterrain-normal-baker.yml)
+          git diff --quiet "$BASE_SHA" "$CURRENT_MAIN" -- "${SAFE_PATHS[@]}"
+          git push origin HEAD:agent/run268-run264-governance-checkpoint
+          git tag "$TAG" || true
+          git push origin "$TAG" || echo 'Known stable-tag push restriction retained per governance.'
