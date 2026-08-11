@@ -1,0 +1,128 @@
+name: Run 277 Pindex01 Detail
+
+on:
+  push:
+    branches: [run277-pindex01-detail]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run277-pindex01-detail-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 91246f186fd2cc84a85932d41b4d62d197a5df77
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    if: github.event.head_commit.message != 'run277 validated pindex01 detail checkpoint'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main additive entry gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+      - name: Wire Pindex01 detail into canonical-dev and offline shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          TMP_SW="$(mktemp)"
+          printf '%s\n' '// Run277 Pindex-01 detail offline shell extension.' "self.addEventListener('install', () => {" "    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex01Detail.js');" '});' '' > "$TMP_SW"
+          cat service-worker.js >> "$TMP_SW"
+          mv "$TMP_SW" service-worker.js
+          printf '%s\n' '' '// Run277 deterministic Pindex-01 micro-surface detail activation.' "if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {" "  const { applyPindex01DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex01Detail.js');" '  const run277Detail = applyPindex01DetailToTerrainGroup(selector.activation.windowState.terrainGroup);' "  document.body.dataset.run277Pindex01Ready = 'true';" '  document.body.dataset.run277Pindex01TouchedVertices = String(run277Detail.touchedVertices);' "  status.textContent += ' | pindex01-detail=' + run277Detail.touchedVertices + 'v';" '  state.renderer.render(state.scene, state.camera);' '}' >> scripts/run201CanonicalDevBoot.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js scripts/run201CanonicalDevBoot.mjs
+          git commit -m 'feat(run277): activate pindex01 detail in canonical dev'
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test "$(git diff --numstat "$BASE_SHA" HEAD -- service-worker.js | awk '{print $2}')" = '0'
+      - name: Syntax and contract regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferencePindex01Detail.js
+          node --check scripts/checkRun277Pindex01Detail.js
+          node --check scripts/checkRun277Pindex01DetailBrowser.js
+          node --check scripts/run201CanonicalDevBoot.mjs
+          node scripts/checkRun277Pindex01Detail.js
+          node scripts/checkRun276MapSurfacePindexes.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Visual performance and full browser DoD
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun277Pindex01DetailBrowser.js
+          test -s artifacts/run277-pindex01-detail/proof.json
+          test -s artifacts/run277-pindex01-detail/pindex01-detail-online.png
+          test -s artifacts/run277-pindex01-detail/pindex01-detail-offline.png
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run277-mobile.log"
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run277-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run277-smoke.log")" -ge 34
+      - name: Upload visual proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: run277-pindex01-detail-proof
+          path: artifacts/run277-pindex01-detail/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Pre-publication exact-main concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+      - name: Record checkpoint and publish branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '\n%s\n' '## Run 277 — Pindex-01 deterministic micro-surface detail' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Canonical Pindex-01 received a deterministic color micro-detail pass after Run276 semantic classification; only vertices classified into pindex 1 are touched.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Geometry, height sampler, settlement positions, roads, bridges, hydrology, 2D runtime and Pindexes 02-10 remain unchanged. The layer creates no geometry/material ownership and reuses the semantic terrain color buffer.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Online/offline Chromium visual proof, PWA/cache/installability, mobile render budget, seeded-random policy, terrain/road safety, technical debt and full browser smoke/console DoD passed.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Next safe step: refresh main and polish Pindex-02 as a separate atomic layer; do not generalize amplitudes across pindexes without independent proof.' >> 3D_GAME_PROGRESS.md
+          printf '\n%s\n' '## ADR-RUN277 — Pindex-01 detail is a deterministic post-semantic color layer' >> DECISIONS.md
+          printf '%s\n' '- Risk: LOW.' '- Decision: apply bounded deterministic tonal micro-variation only after canonical semantic coloring and only where the canonical pindex classifier returns 1.' '- Reason: Run276 established immutable map classification plus one-pindex-at-a-time polish; this improves breakup without changing macro geography, geometry, physics or road/water ownership.' '- Alternatives: shader/PBR texture injection was deferred because it expands material ownership and mobile risk; global noise was rejected because it alters all ten pindexes at once.' '- Rollback: remove the Run277 activation and new module; Run276 semantic colors remain the fallback.' >> DECISIONS.md
+          printf '%s\n' 'run277,2026-08-11,pindex01-deterministic-detail,,,,,,,"Pindex-01 color micro-detail only; geometry delta 0; mandatory DoD PASS"' >> perf_log.csv
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv
+          git commit -m 'run277 validated pindex01 detail checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
