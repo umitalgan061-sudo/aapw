@@ -14852,3 +14852,9 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Runtime delta is zero: no geometry, material, PWA shell, gameplay, editor, road, hydrology, settlement or pindex-detail ownership changed.
 - Full world-reference/PWA/mobile/determinism/terrain-road safety/technical-debt/browser smoke chain passed before checkpoint publication.
 - Next safe step: refresh main; do not touch Terrain Polish #03 while PR #169 owns that area; only consider Pindex-03 after active terrain ownership is rechecked.
+
+## Run 281 — Pindex-03 deterministic micro-surface detail
+- Canonical Pindex-03 received an independently tuned deterministic color micro-detail pass after Run280 fingerprint locking; Pindexes 01-02 remain preserved and 04-10 remain untouched.
+- Pindex-03 is sea-heavy with a modest soil/rock/snow mix, so its bounded amplitudes are intentionally conservative; geometry, heights, roads, hydrology, gameplay, editor and 2D runtime remain unchanged.
+- Online/offline Chromium proof requires visible Pindex-03-only color change with zero non-Pindex-03 vertex drift; full PWA/perf/determinism/world-safety/debt/browser DoD must pass before publication.
+- Next safe step: refresh main and select Pindex-04 only after concurrency/owner gates are rechecked.

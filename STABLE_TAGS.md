@@ -985,3 +985,5 @@ stable-2026-08-11-1218 — Run262 editor terrain elevation brush; water lowers a
 - `stable-2026-08-11-1749` — Run276 owner-map semantic surface + 10 pindexes; map provenance, online/offline visual proof, PWA/perf/determinism/terrain-road safety/full smoke PASS.
 
 - `stable-2026-08-11-run280` — owner-map semantic byte fingerprint guard; runtime delta 0; mandatory DoD PASS.
+
+- `stable-2026-08-11-run281` — Pindex-03 deterministic micro-detail; geometry delta 0; mandatory DoD PASS.
