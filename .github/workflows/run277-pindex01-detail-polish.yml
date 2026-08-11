@@ -38,40 +38,34 @@ jobs:
           git diff --check "$BASE_SHA" HEAD
           grep -F "$OWNER_MAP_SHA" src/3d/world/worldReferencePindex01Detail.js
 
-      - name: Wire pindex01 detail and offline ownership additively
+      - name: Normalize pindex01 offline ownership without disturbing Run216 prefix
         shell: bash
         run: |
           set -euo pipefail
-          TMP_SW="$(mktemp)"
-          printf '%s\n' \
-            '// Run277 pindex01 deterministic detail offline shell extension.' \
-            "self.addEventListener('install', () => {" \
-            "    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex01Detail.js');" \
-            '});' \
-            '' > "$TMP_SW"
-          cat service-worker.js >> "$TMP_SW"
-          mv "$TMP_SW" service-worker.js
-          printf '%s\n' \
-            '' \
-            '// Run277 deterministic pindex01 dry-surface micro-detail activation.' \
-            "import { applyReferencePindex01DetailToTerrainGroup } from '../src/3d/world/worldReferencePindex01Detail.js';" \
-            "if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {" \
-            '  const run277Detail = applyReferencePindex01DetailToTerrainGroup(selector.activation.windowState.terrainGroup);' \
-            "  document.body.dataset.run277DetailReady = 'true';" \
-            '  document.body.dataset.run277DetailCount = String(run277Detail.detailedVertexCount);' \
-            '  document.body.dataset.run277DetailBySurface = JSON.stringify(run277Detail.detailedBySurface);' \
-            "  status.textContent += ' | p01-detail=' + run277Detail.detailedVertexCount + 'v';" \
-            '  state.renderer.render(state.scene, state.camera);' \
-            '}' >> scripts/run201CanonicalDevBoot.mjs
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path = 'service-worker.js';
+          const block = `// Run277 pindex01 deterministic detail offline shell extension.\nself.addEventListener('install', () => {\n    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex01Detail.js');\n});`;
+          let text = fs.readFileSync(path, 'utf8');
+          text = text.replace(`${block}\n\n`, '');
+          text = text.replace(`${block}\n`, '');
+          if (!text.endsWith('\n')) text += '\n';
+          text += `\n${block}\n`;
+          fs.writeFileSync(path, text);
+          NODE
+          grep -F "import { applyReferencePindex01DetailToTerrainGroup }" scripts/run201CanonicalDevBoot.mjs
+          grep -F "document.body.dataset.run277DetailReady = 'true'" scripts/run201CanonicalDevBoot.mjs
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add service-worker.js scripts/run201CanonicalDevBoot.mjs
-          git commit -m 'feat(run277): wire pindex01 deterministic detail'
+          git add service-worker.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(run277): preserve Run216 service worker prefix'
+          fi
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
           test "$(git diff --numstat "$BASE_SHA" HEAD -- service-worker.js | awk '{print $2}')" = '0'
 
-      - name: Syntax semantic PWA and detail regressions
+      - name: Syntax semantic PWA editor compatibility and detail regressions
         shell: bash
         run: |
           set -euo pipefail
@@ -88,6 +82,8 @@ jobs:
           node scripts/checkServiceWorkerCache.js
           node scripts/checkPwaInstallability.js
           node scripts/checkSmokeCheckRegistry.js
+          node scripts/materializeRun216ServiceWorkerCache.js --self-test
+          node scripts/checkRun216ServiceWorkerMaterializer.js
 
       - name: Install Chromium
         shell: bash
@@ -132,23 +128,27 @@ jobs:
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
 
-      - name: Record checkpoint and publish branch
+      - name: Record checkpoint once and publish branch
         shell: bash
         run: |
           set -euo pipefail
-          printf '\n%s\n' '## Run 277 — Pindex 01 deterministic dry-surface micro-detail' >> 3D_GAME_PROGRESS.md
-          printf '%s\n' '- Scope is exactly owner-map pindex 01. Run276 sea/lake/soil/rock/snow classification, geometry, heights, roads, bridges, settlements and 2D runtime remain unchanged.' >> 3D_GAME_PROGRESS.md
-          printf '%s\n' '- Soil/rock/snow vertex colors receive bounded coordinate-hashed micro-variation; sea and lake are untouched. No Math.random, textures, materials, listeners, timers or new GPU ownership are introduced.' >> 3D_GAME_PROGRESS.md
-          printf '%s\n' '- Full pindex regression, online/offline visual proof, PWA/cache/installability, mobile perf, determinism, terrain/road safety, technical debt and 34-check Chromium smoke/console DoD passed.' >> 3D_GAME_PROGRESS.md
-          printf '%s\n' '- Next safe step: refresh main and consider pindex 02 only; do not broaden polish across multiple pindexes in one run.' >> 3D_GAME_PROGRESS.md
-          printf '\n%s\n' '## ADR-RUN277 — Pindex 01 detail remains classification-preserving and deterministic' >> DECISIONS.md
-          printf '%s\n' '- Decision: add bounded coordinate-hashed color micro-detail only to dry pindex-01 vertices after Run276 semantic coloring. Water, geometry and ownership boundaries remain unchanged.' >> DECISIONS.md
-          printf '%s\n' '- Risk: LOW. Rollback is removal of the new detail activation/module; Run276 remains the complete fallback surface.' >> DECISIONS.md
-          printf '%s\n' 'run277,2026-08-11,pindex01-detail-polish,,,,,,,"bounded deterministic color detail; geometry delta 0; mandatory DoD PASS"' >> perf_log.csv
-          TAG="stable-$(date +%Y-%m-%d-%H%M)"
-          printf '\n- `%s` — Run277 pindex01 deterministic detail; full mandatory validation PASS.\n' "$TAG" >> STABLE_TAGS.md
-          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
-          git commit -m 'run277 validated pindex01 detail checkpoint'
+          if ! grep -Fq '## Run 277 — Pindex 01 deterministic dry-surface micro-detail' 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' '## Run 277 — Pindex 01 deterministic dry-surface micro-detail' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Scope is exactly owner-map pindex 01. Run276 sea/lake/soil/rock/snow classification, geometry, heights, roads, bridges, settlements and 2D runtime remain unchanged.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Soil/rock/snow vertex colors receive bounded coordinate-hashed micro-variation; sea and lake are untouched. No Math.random, textures, materials, listeners, timers or new GPU ownership are introduced.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Full pindex regression, online/offline visual proof, PWA/cache/installability, mobile perf, determinism, terrain/road safety, technical debt and 34-check Chromium smoke/console DoD passed.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: refresh main and consider pindex 02 only; do not broaden polish across multiple pindexes in one run.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq '## ADR-RUN277 — Pindex 01 detail remains classification-preserving and deterministic' DECISIONS.md; then
+            printf '\n%s\n' '## ADR-RUN277 — Pindex 01 detail remains classification-preserving and deterministic' >> DECISIONS.md
+            printf '%s\n' '- Decision: add bounded coordinate-hashed color micro-detail only to dry pindex-01 vertices after Run276 semantic coloring. Water, geometry and ownership boundaries remain unchanged.' >> DECISIONS.md
+            printf '%s\n' '- Risk: LOW. Rollback is removal of the new detail activation/module; Run276 remains the complete fallback surface.' >> DECISIONS.md
+          fi
+          grep -Fq 'run277,2026-08-11,pindex01-detail-polish' perf_log.csv || printf '%s\n' 'run277,2026-08-11,pindex01-detail-polish,,,,,,,"bounded deterministic color detail; geometry delta 0; mandatory DoD PASS"' >> perf_log.csv
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md service-worker.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'run277 validated pindex01 detail checkpoint'
+          fi
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
