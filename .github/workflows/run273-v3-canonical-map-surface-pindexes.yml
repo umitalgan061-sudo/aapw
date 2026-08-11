@@ -1,0 +1,190 @@
+name: Run 273 V3 Canonical Map Surface Pindexes
+
+on:
+  push:
+    branches:
+      - run273-map-surface-pindexes-v3
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run273-v3-canonical-map-surface-pindexes-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 85639f9e09ae553ad1fc8ca643ba9ca548bd790b
+  OWNER_MAP_SHA: 20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    if: github.event.head_commit.message != 'run273 validated map-surface checkpoint'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Starting exact-main concurrency and additive-only gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          printf '%s  %s\n' "$OWNER_MAP_SHA" 'resimler/map.png' | sha256sum --check --strict
+          grep -F "$OWNER_MAP_SHA" WORLD_REFERENCE_MAP.md
+
+      - name: Append canonical-dev surface activation and PWA ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -Fq 'Run273 canonical owner-map semantic terrain surface activation.' scripts/run201CanonicalDevBoot.mjs; then
+            printf '%s\n' \
+              '' \
+              '// Run273 canonical owner-map semantic terrain surface activation.' \
+              "import { applyReferenceSurfaceToTerrainGroup } from '../src/3d/world/worldReferenceSurfaceTerrainVisual.js';" \
+              "if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {" \
+              '  const run273Surface = applyReferenceSurfaceToTerrainGroup(selector.activation.windowState.terrainGroup);' \
+              "  document.body.dataset.run273SurfaceReady = 'true';" \
+              '  document.body.dataset.run273SurfaceSourceSha = run273Surface.sourceMapSha256;' \
+              '  document.body.dataset.run273SurfaceCounts = JSON.stringify(run273Surface.counts);' \
+              '  document.body.dataset.run273SurfacePindexes = JSON.stringify(run273Surface.pindexVertexCounts);' \
+              '  document.body.dataset.run273SurfaceMeshCount = String(run273Surface.meshCount);' \
+              '  document.body.dataset.run273SurfaceVertexCount = String(run273Surface.vertexCount);' \
+              "  status.textContent += ' | map-surface=' + run273Surface.vertexCount + 'v';" \
+              '  state.renderer.render(state.scene, state.camera);' \
+              '}' >> scripts/run201CanonicalDevBoot.mjs
+          fi
+          if ! grep -Fq 'Run273 canonical owner-map semantic terrain surface offline shell extension.' service-worker.js; then
+            printf '%s\n' \
+              '' \
+              '// Run273 canonical owner-map semantic terrain surface offline shell extension.' \
+              "self.addEventListener('install', () => {" \
+              "    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSurfacePindexes.js');" \
+              "    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSurfaceTerrainVisual.js');" \
+              '});' >> service-worker.js
+          fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Syntax and 10-pindex semantic regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferenceSurfacePindexes.js
+          node --check src/3d/world/worldReferenceSurfaceTerrainVisual.js
+          node --check scripts/checkRun273MapSurfacePindexes.js
+          node --check scripts/checkRun273CanonicalMapSurfaceBrowser.js
+          node --check scripts/run201CanonicalDevBoot.mjs
+          node scripts/checkRun273MapSurfacePindexes.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+
+      - name: PWA cache and installability regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Install Chromium smoke dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Real canonical-dev map-surface browser proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun273CanonicalMapSurfaceBrowser.js
+          test -s artifacts/run273-canonical-map-surface/proof.json
+          test -s artifacts/run273-canonical-map-surface/canonical-map-surface-online.png
+          test -s artifacts/run273-canonical-map-surface/canonical-map-surface-offline.png
+
+      - name: Performance determinism terrain and road safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run273-mobile.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full Chromium smoke and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run273-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run273-smoke.log")" -ge 34
+
+      - name: Upload Run273 visual proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: run273-canonical-map-surface-proof
+          path: artifacts/run273-canonical-map-surface/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Final exact-main concurrency and additive-only gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Record validated Run273 checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          MARKER='## Run 273 — Canonical map semantic surface + 10 pindexes'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' "- Owner map SHA-256 $OWNER_MAP_SHA remains the exact canonical source. A deterministic 96x64 five-base-surface mask distinguishes sea/lake/soil/rock/snow; road remains the existing bridge-aware canonical overlay, yielding six surface semantics without painting dirt through water." >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- The owner image is partitioned into 10 deterministic west-to-east pindexes for repeatable inspection. Canonical-dev clipped terrain receives source-map semantic vertex colors while geometry, heights, settlement seats, routes, bridge ownership and default 2D/3D runtime remain unchanged.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Dedicated full-mask/pindex checks, online+offline Chromium visual proof, PWA/cache/installability, mobile performance, seeded determinism, terrain-seat safety, road safety, technical-debt and full browser smoke/console gates passed.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Risk is bounded to opt-in canonical-dev material state. Next safe visual step is one pindex PBR/detail polish using this immutable classification rather than reinterpreting geography.' >> 3D_GAME_PROGRESS.md
+          fi
+          ADR='## ADR-RUN273 — Owner map surface semantics are classified once and inspected as 10 west-to-east pindexes'
+          if ! grep -Fq "$ADR" DECISIONS.md; then
+            printf '\n%s\n' "$ADR" >> DECISIONS.md
+            printf '%s\n' '- Decision: preserve the owner-supplied map.png SHA as macro-geography source of truth; use deterministic sea/lake/soil/rock/snow base classification and preserve road/bridge geometry as an overlay. Ten pindexes are an inspection partition only and do not replace the canonical 27x21 clipped chunk ownership grid.' >> DECISIONS.md
+            printf '%s\n' '- Rationale: this prevents terrain polish from inventing geography independently in different systems, keeps water/road safety explicit, and permits small reversible pindex-by-pindex visual improvements.' >> DECISIONS.md
+          fi
+          if ! grep -Fq 'run273,2026-08-11,canonical-map-surface-pindexes' perf_log.csv; then
+            printf '%s\n' 'run273,2026-08-11,canonical-map-surface-pindexes,,,,,,,"owner-map semantic vertex colors; geometry delta 0; visual proof + mandatory regression chain PASS"' >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run273 canonical map semantic surface' STABLE_TAGS.md; then
+            TAG="stable-$(date +%Y-%m-%d-%H%M)"
+            printf '\n- `%s` — Run273 canonical map semantic surface + 10 pindexes; source-map SHA, online/offline visual proof, PWA/perf/determinism/terrain-road safety/full smoke PASS.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/run201CanonicalDevBoot.mjs service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git commit -m 'run273 validated map-surface checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
