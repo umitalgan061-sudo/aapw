@@ -14821,3 +14821,9 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Godot 4.6.3 authoring + Iteration #01 validation, PWA/cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, technical debt and full Chromium smoke/console gates passed before checkpoint write.
 - Memory/perf review: no runtime listeners/timers/DOM/geometry ownership added; the merged terrain polish measured 35 draw calls and 195929 triangles, below existing mobile budgets.
 - Risk LOW. Next terrain polish must refresh main/log first and must not repeat grass anti-tiling Iteration #01.
+
+## Run 274 — Terrain Polish Iteration 002 governance checkpoint
+- Merged Terrain Polish Iteration #02 lowers only HTerrain starter-material specular response to 0.25 while retaining Iteration #01 grass anti-tiling; plugin core, runtime geometry, splat, UV, LOD and gameplay are unchanged.
+- Exact-main Godot 4.6.3 authoring/Iteration #02 validation, PWA/cache/installability, mobile performance, deterministic/world-reference safety, terrain/road safety, technical debt and full Chromium smoke/console gates passed before checkpoint write.
+- Memory review: no runtime listeners, timers, DOM, geometry/material ownership or disposal obligations were added. Risk LOW; expected effect is a less plastic/more matte starter terrain response.
+- Next safe terrain polish must refresh main and avoid enabling Classic4Lite triplanar while the fourth texture slot remains snow.
