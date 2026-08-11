@@ -125,3 +125,20 @@ createInteractionController = function createInteractionControllerWithSandboxCom
 	);
 	return controller;
 };
+
+// Run257 full-smoke compatibility extension. Legacy injected NPC fixtures predate `Object3D.userData`;
+// rebuild from the untouched pre-combat factory and treat absent combat metadata as neutral instead
+// of requiring every existing caller/test double to grow a Three.js-only field.
+const createInteractionControllerBeforeSandboxCompatibilityRun257 = createInteractionControllerBeforeSandboxCombatRun257;
+createInteractionController = function createInteractionControllerWithSandboxCompatibilityRun257(options) {
+	const controller = createInteractionControllerBeforeSandboxCompatibilityRun257(options);
+	const baseUpdate = controller.update.bind(controller);
+	controller.update = (npcs, playerPos) => baseUpdate(
+		npcs.filter((npc) => {
+			const userData = npc?.object3D?.userData;
+			return !userData?.sandboxCombatHostile && !userData?.sandboxCombatDefeated;
+		}),
+		playerPos,
+	);
+	return controller;
+};
