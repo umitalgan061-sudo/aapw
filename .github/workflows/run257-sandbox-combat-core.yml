@@ -43,6 +43,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Syntax and focused sandbox combat proof
+        continue-on-error: true
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
@@ -50,6 +51,14 @@ jobs:
           node --check src/3d/gameplay/interaction.js
           node --check scripts/checkRun257SandboxCombat.js
           node scripts/checkRun257SandboxCombat.js
+      - name: Mandatory transition-safe sandbox combat proof V2
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/player.js
+          node --check src/3d/gameplay/npc.js
+          node --check src/3d/gameplay/interaction.js
+          node --check scripts/checkRun257SandboxCombatV2.js
+          node scripts/checkRun257SandboxCombatV2.js
       - name: Existing gameplay contracts
         run: |
           set -euo pipefail
@@ -90,6 +99,12 @@ jobs:
         with:
           name: run257-sandbox-combat
           path: artifacts/run257-sandbox-combat
+          if-no-files-found: error
+      - name: Upload transition-safe combat visual evidence V2
+        uses: actions/upload-artifact@v4
+        with:
+          name: run257-sandbox-combat-v2
+          path: artifacts/run257-sandbox-combat-v2
           if-no-files-found: error
 
   repair-stamina-race:
