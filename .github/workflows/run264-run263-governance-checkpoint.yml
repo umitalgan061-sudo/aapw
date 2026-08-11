@@ -115,3 +115,5 @@ jobs:
           git push origin HEAD:agent/run264-run263-governance-checkpoint-v2
           git tag "$TAG" || true
           git push origin "$TAG" || echo 'Known stable-tag push restriction retained per governance.'
+
+# Exact-head retrigger after checkpoint materialization.
