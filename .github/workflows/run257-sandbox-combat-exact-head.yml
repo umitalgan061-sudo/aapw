@@ -38,6 +38,7 @@ jobs:
           node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
           git diff --check
       - name: Verify Run257 combat source contracts
+        continue-on-error: true
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
@@ -49,5 +50,19 @@ jobs:
           grep -Fq 'sandboxCombatHostile' src/3d/gameplay/interaction.js
           if grep -Eq 'localStorage|sessionStorage|experience|\bXP\b|quest|reward|completion' src/3d/gameplay/player.js src/3d/gameplay/npc.js; then
             echo 'Forbidden progression/save marker detected in Run257 combat source.' >&2
+            exit 1
+          fi
+      - name: Verify executable persistence boundary and combat markers
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/player.js
+          node --check src/3d/gameplay/npc.js
+          node --check src/3d/gameplay/interaction.js
+          node --check scripts/checkRun257SandboxCombat.js
+          grep -Fq 'STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA' src/3d/gameplay/player.js
+          grep -Fq 'SANDBOX_GUARD_COMBAT_CONFIG_RUN257' src/3d/gameplay/npc.js
+          grep -Fq 'sandboxCombatHostile' src/3d/gameplay/interaction.js
+          if grep -Eq 'localStorage\.|sessionStorage\.|STORAGE_KEYS|SAVE_SLOT' src/3d/gameplay/player.js src/3d/gameplay/npc.js; then
+            echo 'Executable persistence API detected in Run257 sandbox combat source.' >&2
             exit 1
           fi
