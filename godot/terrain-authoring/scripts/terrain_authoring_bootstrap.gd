@@ -83,7 +83,7 @@ func ensure_authoring_ready() -> bool:
 	elif bool(terrain.get("collision_enabled")) and data_changed:
 		terrain.update_collider()
 
-	if detail_layer != null:
+	if detail_layer != null and detail_layer.is_inside_tree():
 		detail_layer.update_material()
 
 	_authoring_ready = true

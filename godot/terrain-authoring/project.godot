@@ -15,5 +15,4 @@ enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")
 
 [rendering]
 
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+viewport/default_clear_color=Color(0.407806, 0.628906, 0.618542, 1)

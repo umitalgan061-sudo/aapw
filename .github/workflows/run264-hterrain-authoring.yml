@@ -77,17 +77,27 @@ jobs:
           assert expected in text
           path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
           PY
-          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import 2>&1 | tee "$RUNNER_TEMP/run264-import.log"
           restore_project
           trap - EXIT
           git diff --exit-code -- "$PROJECT_FILE"
       - name: Godot plugin load and HTerrain authoring validation
         run: |
           set -euo pipefail
-          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 \
+            2>&1 | tee "$RUNNER_TEMP/run264-editor.log"
+          if grep -F 'Terrain data is null, can'"'"'t update detail layer completely' "$RUNNER_TEMP/run264-editor.log"; then
+            echo 'Unexpected HTerrain detail-layer initialization error in editor log.' >&2
+            exit 1
+          fi
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
-            --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/run264-hterrain-validation.log"
+            --script res://scripts/validate_hterrain_authoring.gd \
+            2>&1 | tee "$RUNNER_TEMP/run264-hterrain-validation.log"
           grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/run264-hterrain-validation.log"
+          if grep -F 'Terrain data is null, can'"'"'t update detail layer completely' "$RUNNER_TEMP/run264-hterrain-validation.log"; then
+            echo 'Unexpected HTerrain detail-layer initialization error in validation log.' >&2
+            exit 1
+          fi
           test -f godot/terrain-authoring/terrain_data/data.hterrain
       - name: PWA cache and installability regression
         run: |
