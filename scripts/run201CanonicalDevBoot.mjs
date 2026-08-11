@@ -49,3 +49,17 @@ addEventListener('pagehide', () => {
   state.chunkManager.disposeAll();
   state.renderer.dispose();
 }, { once: true });
+
+// Run276 canonical owner-map semantic terrain surface activation.
+import { applyReferenceSurfaceToTerrainGroup } from '../src/3d/world/worldReferenceSurfaceTerrainVisual.js';
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const run276Surface = applyReferenceSurfaceToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run273SurfaceReady = 'true';
+  document.body.dataset.run273SurfaceSourceSha = run276Surface.sourceMapSha256;
+  document.body.dataset.run273SurfaceCounts = JSON.stringify(run276Surface.counts);
+  document.body.dataset.run273SurfacePindexes = JSON.stringify(run276Surface.pindexVertexCounts);
+  document.body.dataset.run273SurfaceMeshCount = String(run276Surface.meshCount);
+  document.body.dataset.run273SurfaceVertexCount = String(run276Surface.vertexCount);
+  status.textContent += ' | map-surface=' + run276Surface.vertexCount + 'v';
+  state.renderer.render(state.scene, state.camera);
+}

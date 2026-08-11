@@ -981,3 +981,5 @@ stable-2026-08-11-1218 — Run262 editor terrain elevation brush; water lowers a
 - `stable-2026-08-11-1633` — Run272 Terrain Polish Iteration 001 governance checkpoint; Godot/PWA/perf/determinism/world-safety/full smoke and console-zero PASS.
 
 - `stable-2026-08-11-1730` — Run274 Terrain Polish Iteration 002 governance checkpoint; Godot/PWA/perf/determinism/world-safety/full smoke and console-zero PASS.
+
+- `stable-2026-08-11-1749` — Run276 owner-map semantic surface + 10 pindexes; map provenance, online/offline visual proof, PWA/perf/determinism/terrain-road safety/full smoke PASS.

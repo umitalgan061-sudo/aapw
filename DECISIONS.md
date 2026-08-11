@@ -15437,3 +15437,7 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - **Reason:** a standalone new `src/3d` module passed the real browser behavior test but correctly failed the standing PWA cache guard. Additive-only policy forbids replacing existing service-worker lines merely to rewrite the cache list. Extending an already-cached module preserves the offline import graph and additive-only contract simultaneously.
 - **Runtime contract:** land stamps contribute positive elevation, water stamps negative elevation; the same accumulated field drives both rendered terrain vertices and `groundCollider.getGroundHeight`, preventing visual/physics divergence. Base vertex buffers are retained for deterministic reapplication and teardown restoration.
 - **Consequence:** editor terrain sculpting remains object-backed and serializable through the existing scene model. Future baked terrain/chunk persistence may supersede this adapter only through a separately validated additive migration.
+
+## ADR-RUN276 — Owner map semantics are classified once and inspected as 10 west-to-east pindexes
+- Decision: preserve the owner map SHA as macro-geography source; use deterministic sea/lake/soil/rock/snow classification with road/bridge as an overlay. Ten pindexes are inspection partitions and do not replace the canonical 27x21 chunk grid.
+- Rationale: one immutable map-derived contract prevents independent terrain systems from reinventing geography and keeps future PBR polish small, reversible and auditable.
