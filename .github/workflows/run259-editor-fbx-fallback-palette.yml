@@ -41,7 +41,9 @@ jobs:
           node --check src/3d/editor/EditorFallbackMaterialPalette.js
           node --check src/3d/editor/EditorAssetManager.js
           node --check scripts/checkRun259EditorFallbackMaterialPalette.mjs
+          node --check scripts/checkRun259EditorFallbackMaterialIntegration.mjs
           node scripts/checkRun259EditorFallbackMaterialPalette.mjs
+          node scripts/checkRun259EditorFallbackMaterialIntegration.mjs
       - name: PWA cache and installability
         run: |
           set -euo pipefail
