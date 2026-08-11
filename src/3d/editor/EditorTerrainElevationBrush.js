@@ -7,6 +7,7 @@ const DEFAULT_STRENGTH_METERS = 1;
 const MIN_STRENGTH_METERS = 0.1;
 const MAX_STRENGTH_METERS = 20;
 const APPLY_DELAY_MS = 0;
+const PENDING_PAINT_TTL_MS = 5000;
 
 function clampStrength(value) {
   const numeric = Number(value);
@@ -64,6 +65,7 @@ export function installEditorTerrainElevationBrush(
   const basePositions = new WeakMap();
   const removers = [];
   let activeStamps = Object.freeze([]);
+  let pendingPaint = null;
   let mutationObserver = null;
   let applyTimer = 0;
   let disposed = false;
@@ -149,8 +151,43 @@ export function installEditorTerrainElevationBrush(
     }
   }
 
+  function findPaintedCellByCell(mode, cell) {
+    if (mode !== 'land-add' && mode !== 'water-add') return null;
+    const assetId = mode === 'land-add' ? LAND_ASSET_ID : WATER_ASSET_ID;
+    return api.editableObjects.find((object) => (
+      object?.userData?.editorAssetId === assetId &&
+      Math.abs(object.position.x - cell.x) < 0.001 &&
+      Math.abs(object.position.z - cell.z) < 0.001 &&
+      Math.abs(Math.abs(object.scale.x) - cell.size) < 0.001 &&
+      Math.abs(Math.abs(object.scale.z) - cell.size) < 0.001
+    )) || null;
+  }
+
+  function applyStrengthToCell(object, mode, strength) {
+    if (!object) return false;
+    object.scale.y = clampStrength(strength);
+    object.userData.editorTerrainElevationMeters = mode === 'land-add' ? object.scale.y : -object.scale.y;
+    object.updateMatrixWorld?.(true);
+    api.writeInspector?.(object);
+    return true;
+  }
+
+  function applyPendingPaintStrength() {
+    if (!pendingPaint) return false;
+    if (performance.now() > pendingPaint.expiresAt) {
+      pendingPaint = null;
+      return false;
+    }
+    const object = findPaintedCellByCell(pendingPaint.mode, pendingPaint.cell);
+    if (!object) return false;
+    applyStrengthToCell(object, pendingPaint.mode, pendingPaint.strengthMeters);
+    pendingPaint = null;
+    return true;
+  }
+
   function applyNow() {
     if (disposed) return Object.freeze({ stampCount: 0, chunkCount: 0 });
+    applyPendingPaintStrength();
     activeStamps = buildStamps();
     const meshes = loadedTerrainMeshes();
     for (const mesh of meshes) applyMesh(mesh);
@@ -164,40 +201,36 @@ export function installEditorTerrainElevationBrush(
     applyTimer = window.setTimeout(applyNow, APPLY_DELAY_MS);
   }
 
-  function findPaintedCell(mode, point) {
+  function pendingCellFromEvent(event) {
+    if (event.target !== api.canvas || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey) return null;
+    const mode = terrain.getMode();
     if (mode !== 'land-add' && mode !== 'water-add') return null;
-    const assetId = mode === 'land-add' ? LAND_ASSET_ID : WATER_ASSET_ID;
-    const cell = snapEditorTerrainCell(point, terrain.getCellSize());
-    return api.editableObjects.find((object) => (
-      object?.userData?.editorAssetId === assetId &&
-      Math.abs(object.position.x - cell.x) < 0.001 &&
-      Math.abs(object.position.z - cell.z) < 0.001 &&
-      Math.abs(Math.abs(object.scale.x) - cell.size) < 0.001 &&
-      Math.abs(Math.abs(object.scale.z) - cell.size) < 0.001
-    )) || null;
+    const point = liveAuthoring.surfacePointFromClient(event.clientX, event.clientY);
+    if (!point) return null;
+    return Object.freeze({
+      mode,
+      cell: snapEditorTerrainCell(point, terrain.getCellSize()),
+      strengthMeters: strengthMeters(),
+      expiresAt: performance.now() + PENDING_PAINT_TTL_MS
+    });
+  }
+
+  function onDocumentPointerDown(event) {
+    const pending = pendingCellFromEvent(event);
+    if (pending) pendingPaint = pending;
   }
 
   function onCanvasPointerUp(event) {
     if (disposed || event.button !== 0) return;
-    const mode = terrain.getMode();
-    if (mode !== 'land-add' && mode !== 'water-add') return;
-    const point = liveAuthoring.surfacePointFromClient(event.clientX, event.clientY);
-    if (!point) return;
-    const object = findPaintedCell(mode, point);
-    if (!object) return;
-    object.scale.y = strengthMeters();
-    object.userData.editorTerrainElevationMeters = mode === 'land-add' ? object.scale.y : -object.scale.y;
-    api.writeInspector?.(object);
-    scheduleApply();
+    if (applyPendingPaintStrength()) scheduleApply();
   }
 
   function onStrengthChange() {
     const strength = strengthMeters();
     const selected = api.getSelectedObject?.();
     if (!isTerrainCell(selected)) return;
-    selected.scale.y = strength;
-    selected.userData.editorTerrainElevationMeters = selected.userData.editorAssetId === LAND_ASSET_ID ? strength : -strength;
-    api.writeInspector?.(selected);
+    const mode = selected.userData.editorAssetId === LAND_ASSET_ID ? 'land-add' : 'water-add';
+    applyStrengthToCell(selected, mode, strength);
     api.refreshHierarchy?.();
     scheduleApply();
   }
@@ -214,6 +247,7 @@ export function installEditorTerrainElevationBrush(
   const hierarchy = document.getElementById('we-hierarchy');
   mutationObserver = hierarchy ? new MutationObserver(scheduleApply) : null;
   mutationObserver?.observe(hierarchy, { childList: true, subtree: true, characterData: true });
+  listen(document, 'pointerdown', onDocumentPointerDown, true);
   listen(api.canvas, 'pointerup', onCanvasPointerUp, true);
   listen(ui.input, 'change', onStrengthChange);
   listen(api.orbitControls, 'end', onOrbitEnd);
@@ -225,7 +259,8 @@ export function installEditorTerrainElevationBrush(
       waterStampCount: activeStamps.filter((stamp) => stamp.direction < 0).length,
       strengthMeters: strengthMeters(),
       loadedTerrainChunkCount: loadedTerrainMeshes().length,
-      groundColliderPatched: groundCollider.getGroundHeight !== originalGetGroundHeight
+      groundColliderPatched: groundCollider.getGroundHeight !== originalGetGroundHeight,
+      pendingPaint: Boolean(pendingPaint)
     });
   }
 
@@ -235,6 +270,7 @@ export function installEditorTerrainElevationBrush(
     window.clearTimeout(applyTimer);
     mutationObserver?.disconnect();
     removers.splice(0).reverse().forEach((remove) => remove());
+    pendingPaint = null;
     groundCollider.getGroundHeight = originalGetGroundHeight;
     activeStamps = Object.freeze([]);
     for (const mesh of loadedTerrainMeshes()) {
