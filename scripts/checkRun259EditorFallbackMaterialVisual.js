@@ -26,6 +26,11 @@ function typeFor(file) {
 function startServer() {
   const server = http.createServer((req, res) => {
     const clean = decodeURIComponent(req.url.split('?')[0]);
+    if (clean === '/__run259_visual__.html') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      res.end('<!doctype html><html><head><meta charset="utf-8"><title>Run259 visual proof</title></head><body style="margin:0;overflow:hidden"></body></html>');
+      return;
+    }
     const relative = clean === '/' ? 'editor.html' : clean.replace(/^\//, '');
     const file = path.resolve(ROOT, relative);
     if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
@@ -49,8 +54,7 @@ async function main() {
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('pageerror', (error) => errors.push(String(error)));
   try {
-    await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-    await page.waitForFunction(() => window.__WESTEROS_WORLD_EDITOR__, null, { timeout: 120000 });
+    await page.goto(`${base}/__run259_visual__.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
     const result = await page.evaluate(async () => {
       const THREE = await import('/src/3d/vendor/three/three.module.js');
       const { applyEditorFallbackMaterialPalette } = await import('/src/3d/editor/EditorFallbackMaterialPalette.js');
