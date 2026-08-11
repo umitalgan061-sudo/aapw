@@ -63,3 +63,14 @@ if (selector.getActiveSource() === 'canonical' && selector.activation?.windowSta
   status.textContent += ' | map-surface=' + run276Surface.vertexCount + 'v';
   state.renderer.render(state.scene, state.camera);
 }
+
+// Run277 deterministic pindex01 dry-surface micro-detail activation.
+import { applyReferencePindex01DetailToTerrainGroup } from '../src/3d/world/worldReferencePindex01Detail.js';
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const run277Detail = applyReferencePindex01DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run277DetailReady = 'true';
+  document.body.dataset.run277DetailCount = String(run277Detail.detailedVertexCount);
+  document.body.dataset.run277DetailBySurface = JSON.stringify(run277Detail.detailedBySurface);
+  status.textContent += ' | p01-detail=' + run277Detail.detailedVertexCount + 'v';
+  state.renderer.render(state.scene, state.camera);
+}

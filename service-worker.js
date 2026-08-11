@@ -1,3 +1,8 @@
+// Run277 pindex01 deterministic detail offline shell extension.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex01Detail.js');
+});
+
 // Run276 owner-map semantic terrain offline shell extension.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSurfacePindexes.js');
