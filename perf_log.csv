@@ -183,3 +183,4 @@ run235,2026-08-11,periodic-platform-control,,35,195929,30,22,,"periodic platform
 run236,2026-08-11,editor-unknown-asset-load-v2,,,,,,,"test-only isolated unknown asset scene-load regression; runtime unchanged; full PWA/perf/determinism/world/smoke gates PASS"
 run237,2026-08-11,editor-malformed-scene-atomicity-v2-clean,,,,,,,"test-only malformed/non-object scene-load atomicity regression; runtime unchanged; full PWA/perf/determinism/world/smoke gates PASS"
 run239,2026-08-11,editor-schema-version-atomicity,,,,,,,"test-only unsupported schemaVersion atomicity regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run240,2026-08-11,governance-consolidation-audit,,,,,,,"governance/workflow-only consolidation; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
