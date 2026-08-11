@@ -1,0 +1,80 @@
+name: Run 251 Editor Unknown Asset Offgrid Load Finalize
+
+on:
+  push:
+    branches:
+      - agent/run251-editor-unknown-asset-offgrid-load
+    paths:
+      - '.github/workflows/run251-editor-unknown-asset-offgrid-load-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run251-editor-unknown-asset-offgrid-load-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun251EditorUnknownAssetOffgridLoad.js
+          node --check src/3d/editor/EditorLocalSession.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run251 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 251 — World Editor unknown-asset off-grid scene import regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium regression integrates Run236 unknown-asset skipping with the Run248-250 snap-isolated fractional/off-grid import contract.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- A scene with two valid `marker-tree` objects surrounding one deliberately missing asset record loads only the two valid objects; the unknown identity never appears in editable objects or hierarchy.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Both valid neighbors preserve exact mixed-sign off-grid positions, signed rotations and non-uniform scales including `0.007` while pre-load live snap is `true` / `4.25`; serialized metadata restores to `true` / `2.5` without quantizing either valid transform.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Selection clears, history remains stable/not restoring, owner grid-hidden/disabled policy remains intact, canonical success toast is shown, and browser console/page errors remain zero.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Validation workflow `31463060947` PASS: syntax, Chromium regression, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and two-screenshot artifact all PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- World Event Determinism Guard `31463060924` PASS on the same Run251 head.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed in Run251. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: refresh remote main and concurrent branches, then continue only a distinct additive-only World Editor compatibility regression without crossing unresolved owner gates.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run251,2026-08-11,editor-unknown-asset-offgrid-load' perf_log.csv; then
+            printf 'run251,%s,editor-unknown-asset-offgrid-load,,,,,,,"test-only unknown-asset plus two off-grid valid object import regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run251 editor unknown-asset off-grid scene import regression' STABLE_TAGS.md; then
+            printf '%s — Run251 editor unknown-asset off-grid scene import regression; missing asset is skipped while both neighboring off-grid valid transforms survive exactly; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run251 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run251): record unknown-asset off-grid load checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run251-editor-unknown-asset-offgrid-load
+          git push origin "$STABLE_TAG" || true

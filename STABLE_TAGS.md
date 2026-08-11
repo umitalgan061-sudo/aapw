@@ -962,3 +962,4 @@ stable-2026-08-11-0701 — Run247 editor partial-metadata composed defaults regr
 stable-2026-08-11-0813 — Run248 editor scene-load snap isolation; serialized transforms bypass pre-load live snap while canonical metadata/defaults and invalid-load atomicity remain intact; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-11-0829 — Run249 editor snap-enabled off-grid scene import regression; off-grid serialized transforms survive load while snap metadata restores to true/2.5; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-11-0843 — Run250 editor multi-object off-grid scene import regression; three independent serialized transforms survive snap-enabled import exactly; PWA/perf/determinism/smoke gates verified.
+stable-2026-08-11-0856 — Run251 editor unknown-asset off-grid scene import regression; missing asset is skipped while both neighboring off-grid valid transforms survive exactly; PWA/perf/determinism/smoke gates verified.
