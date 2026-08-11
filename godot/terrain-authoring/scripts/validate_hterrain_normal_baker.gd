@@ -6,6 +6,7 @@ const HTerrainData = preload("res://addons/zylann.hterrain/hterrain_data.gd")
 const TEST_MIN := Vector2i(80, 80)
 const TEST_SIZE := Vector2i(17, 17)
 const SAMPLE := Vector2i(88, 88)
+const NORMAL_TILE_SIZE := 64
 
 
 func _init() -> void:
@@ -64,7 +65,24 @@ func _run_validation() -> void:
 		Rect2(TEST_MIN.x, TEST_MIN.y, TEST_SIZE.x, TEST_SIZE.y),
 		HTerrainData.CHANNEL_HEIGHT)
 
-	for _frame in range(16):
+	var pending_queue: Array = baker.get("_pending_tiles_queue")
+	var scheduler_pending := pending_queue.size()
+	var direct_tile := Vector2i(
+		SAMPLE.x / NORMAL_TILE_SIZE,
+		SAMPLE.y / NORMAL_TILE_SIZE)
+
+	if scheduler_pending == 0:
+		baker.call("_request_tile", direct_tile)
+
+	var direct_queue: Array = baker.get("_pending_tiles_queue")
+	var pending_after_direct := direct_queue.size()
+	print("HTERRAIN_NORMAL_BAKER_SCHEDULER scheduler_pending=%s pending_after_direct=%s direct_tile=%s" % [
+		scheduler_pending,
+		pending_after_direct,
+		direct_tile
+	])
+
+	for _frame in range(24):
 		await process_frame
 
 	var after := normal_image.get_pixel(SAMPLE.x, SAMPLE.y)
@@ -78,14 +96,15 @@ func _run_validation() -> void:
 		and after.b < 0.86
 
 	if not changed:
-		_fail("HTerrain normal baker did not update the normal map after a height edit")
+		_fail("HTerrain normal baker did not update the normal map even after an explicit tile request")
 		return
 
 	if not expected_slope_normal:
 		_fail("HTerrain normal baker output is not a plausible deterministic slope normal: %s" % after)
 		return
 
-	print("HTERRAIN_NORMAL_BAKER_OK before=%s after=%s sample=%s delta=%s" % [
+	print("HTERRAIN_NORMAL_BAKER_OK scheduler_pending=%s before=%s after=%s sample=%s delta=%s" % [
+		scheduler_pending,
 		before,
 		after,
 		SAMPLE,
