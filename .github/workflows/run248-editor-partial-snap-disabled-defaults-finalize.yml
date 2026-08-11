@@ -76,3 +76,5 @@ jobs:
           git tag "$STABLE_TAG"
           git push origin HEAD:agent/run248-editor-partial-snap-disabled-defaults
           git push origin "$STABLE_TAG" || true
+
+# Run248 exact-head verification trigger: checkpoint records above are intentionally idempotent.
