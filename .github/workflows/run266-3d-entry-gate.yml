@@ -1,0 +1,113 @@
+name: Run 266 3D Entry Gate
+
+on:
+  push:
+    branches:
+      - agent/run266-3d-entry-gate
+    paths:
+      - 'game3d.html'
+      - 'scripts/checkRun266EntryGate.js'
+      - '.github/workflows/run266-3d-entry-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run266-3d-entry-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 491cca80dd11800e0e61eef28db53d2317116d6a
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Path-safe concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          START_MAIN="$(git rev-parse origin/main)"
+          echo "START_MAIN=$START_MAIN" >> "$GITHUB_ENV"
+          git merge-base --is-ancestor "$BASE_SHA" "$START_MAIN"
+          SAFE_PATHS=(game3d.html index.html service-worker.js giriş.png scripts/smokeTestGame3D.js scripts/checkPwaInstallability.js scripts/checkServiceWorkerCache.js)
+          if ! git diff --quiet "$BASE_SHA" "$START_MAIN" -- "${SAFE_PATHS[@]}"; then
+            echo 'Run266 related paths changed on main after branch base:'
+            git diff --name-only "$BASE_SHA" "$START_MAIN" -- "${SAFE_PATHS[@]}"
+            exit 1
+          fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+      - name: Install Chromium proof dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Baseline browser smoke on current main
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run266-baseline"
+          git worktree add --detach "$BASELINE" "$START_MAIN"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run266-before.log")
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run266-before.log")" -ge 34
+          git worktree remove "$BASELINE"
+      - name: Syntax and focused desktop-mobile gate proof
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun266EntryGate.js
+          node scripts/checkRun266EntryGate.js
+      - name: PWA installability and cache integrity
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+      - name: Performance determinism and world safety
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Full browser smoke after Run266
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run266-after.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run266-after.log")" -ge 34
+      - name: Final path-safe concurrency and additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          FINAL_MAIN="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE_SHA" "$FINAL_MAIN"
+          SAFE_PATHS=(game3d.html index.html service-worker.js giriş.png scripts/smokeTestGame3D.js scripts/checkPwaInstallability.js scripts/checkServiceWorkerCache.js)
+          if ! git diff --quiet "$BASE_SHA" "$FINAL_MAIN" -- "${SAFE_PATHS[@]}"; then
+            echo 'Run266 related paths changed on main during validation:'
+            git diff --name-only "$BASE_SHA" "$FINAL_MAIN" -- "${SAFE_PATHS[@]}"
+            exit 1
+          fi
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+      - name: Upload Run266 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run266-3d-entry-gate-evidence
+          path: artifacts/run266-entry-gate
+          if-no-files-found: error
+          retention-days: 14
