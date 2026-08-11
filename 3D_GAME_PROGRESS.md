@@ -14769,3 +14769,12 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Event Determinism Guard `31466599802` PASS on the same Run256 head.
 - Runtime/product source delta: 0 lines changed in Run256. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: refresh remote main and concurrent branches; Run257 is already claimed by parallel campaign/combat sessions, so continue only with a distinct unclaimed run number and scope.
+
+## Run 258 — World Editor mobile multi-object actual-download save→load roundtrip regression
+- Permanent additive-only Chromium regression extends the mobile persistence contract to three simultaneously loaded objects with distinct off-grid transforms.
+- The 390x844 touch-browser path imports three marker-tree objects, saves the actual `westeros-world.scene.json`, replaces the live scene, then reloads the exact downloaded file and verifies all IDs, names, signed rotations, non-uniform scales (including `0.007`) and off-grid positions are restored without quantization.
+- Roundtrip also verifies canonical downloaded bytes, unique IDs, stale replacement hierarchy removal, selection clear, reusable/reset file input, stable history, serialized snap `true` / `2.5`, owner grid-hidden/disabled policy and zero browser console/page errors. Three mobile screenshots plus the actual downloaded JSON are retained as evidence.
+- Validation workflow `31467491167` PASS: syntax, focused real mobile multi-object actual-download roundtrip, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and artifact upload all PASS.
+- World Event Determinism Guard `31467491121` PASS on the same Run258 head.
+- Runtime/product source delta: 0 lines changed in Run258. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: refresh remote main and concurrent branches, then prioritize the owner-requested World Editor work: sea brush lowers terrain, land brush raises terrain; FBX pack/child selection and independent transforms; deterministic broad fallback material/color palette for otherwise colorless models.
