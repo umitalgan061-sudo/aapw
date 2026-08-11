@@ -1,3 +1,9 @@
+// Run276 owner-map semantic terrain offline shell extension.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSurfacePindexes.js');
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSurfaceTerrainVisual.js');
+});
+
 // Run216 complete World Editor offline shell extension.
 // Run221 realistic gameplay aurora offline shell extension.
 self.addEventListener('install', () => {
