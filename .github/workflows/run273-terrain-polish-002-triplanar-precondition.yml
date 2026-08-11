@@ -1,0 +1,186 @@
+name: Run 273 Terrain Polish 002 Triplanar Precondition
+
+on:
+  push:
+    branches:
+      - agent/run273-terrain-polish-002-triplanar-precondition
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run273-terrain-polish-002-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 85639f9e09ae553ad1fc8ca643ba9ca548bd790b
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-and-checkpoint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Starting exact-main concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+
+      - name: Iteration 002 source ownership contract
+        run: |
+          set -euo pipefail
+          test -f godot/terrain-authoring/scripts/validate_terrain_polish_iteration_02.gd
+          grep -F 'Iteration #02' godot/terrain-authoring/TERRAIN_POLISH_LOG.md
+          grep -F '"res://starter_textures/ground_rock.svg"' godot/terrain-authoring/scripts/terrain_authoring_bootstrap.gd
+          grep -F '"res://starter_textures/ground_snow.svg"' godot/terrain-authoring/scripts/terrain_authoring_bootstrap.gd
+          grep -F 'ab3 = texture_triplanar(u_ground_albedo_bump_3' godot/terrain-authoring/addons/zylann.hterrain/shaders/simple4_lite.gdshader
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot import without first-scan plugin race
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/run273-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+
+      - name: Godot terrain authoring and Iteration 002 validation
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 2>&1 | tee "$RUNNER_TEMP/run273-editor.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd 2>&1 | tee "$RUNNER_TEMP/run273-base.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/run273-base.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_terrain_polish_iteration_01.gd 2>&1 | tee "$RUNNER_TEMP/run273-iteration01.log"
+          grep -F 'TERRAIN_POLISH_ITERATION_01_OK' "$RUNNER_TEMP/run273-iteration01.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_terrain_polish_iteration_02.gd 2>&1 | tee "$RUNNER_TEMP/run273-iteration02.log"
+          grep -F 'TERRAIN_POLISH_ITERATION_02_OK rock_slot=2 triplanar_slot=3 triplanar_enabled=false' "$RUNNER_TEMP/run273-iteration02.log"
+
+      - name: PWA cache and installability regression
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+
+      - name: Install Chromium dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Two-angle editor visual evidence and console gate
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/run216-editor-usability
+          node scripts/checkRun216EditorUsabilityBrowser.js
+          test -s artifacts/run216-editor-usability/desktop-live-world-01.png
+          test -s artifacts/run216-editor-usability/desktop-live-world-02.png
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run273-two-angle-editor-evidence
+          path: artifacts/run216-editor-usability/*.png
+          if-no-files-found: error
+
+      - name: Performance determinism world safety technical debt
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full Chromium smoke and console regression
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run273-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run273-smoke.log")" -ge 34
+
+      - name: Final exact-main concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+
+      - name: Append verified checkpoint records
+        run: |
+          set -euo pipefail
+          MARKER='## Run 273 — Terrain Polish Iteration 002 triplanar precondition'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Verified starter slot order is grass=0, earth=1, rock=2, snow=3 while Classic4Lite triplanar targets only slot 3; enabling it now would affect snow, not cliff rock.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Added a deterministic precondition guard and intentionally left triplanar disabled; runtime/shader/plugin/scene behavior delta is zero.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Godot 4.6.3 authoring, Iterations 001+002, two-angle visual evidence, PWA/cache, mobile performance, determinism, world/hydrology, terrain/road safety, technical debt and full Chromium smoke/console gates passed before checkpoint write.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Risk LOW. Next safe terrain-polish step must not enable Classic4Lite triplanar until the cliff/rock targeting design is additive-only and explicitly validated.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run273,2026-08-11,terrain-polish-002-triplanar-precondition' perf_log.csv; then
+            printf '%s\n' 'run273,2026-08-11,terrain-polish-002-triplanar-precondition,,,,,,,"runtime delta 0; cliff triplanar safety guard; full mandatory chain PASS"' >> perf_log.csv
+          fi
+          TAG="stable-$(date +%Y-%m-%d-%H%M)"
+          if ! grep -Fq 'Run273 Terrain Polish Iteration 002 triplanar precondition' STABLE_TAGS.md; then
+            printf '\n- `%s` — Run273 Terrain Polish Iteration 002 triplanar precondition; Godot/two-angle evidence/PWA/perf/determinism/world-safety/full smoke and console-zero PASS.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          if git diff --cached --quiet; then
+            echo 'Run273 checkpoint records already present.'
+            exit 0
+          fi
+          git commit -m 'docs(run273): record triplanar precondition checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git push origin HEAD:agent/run273-terrain-polish-002-triplanar-precondition
+          git tag "$TAG" || true
+          git push origin "$TAG" || echo 'Known stable-tag push restriction retained per governance.'
