@@ -188,3 +188,4 @@ run241,2026-08-11,editor-valid-empty-scene-load,,,,,,,"test-only valid empty sce
 run242,2026-08-11,editor-missing-metadata-defaults,,,,,,,"test-only valid scene missing editor metadata/composed owner-grid defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run245,2026-08-11,editor-null-metadata-defaults,,,,,,,"test-only valid scene editor:null composed defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run246,2026-08-11,editor-empty-metadata-defaults,,,,,,,"test-only valid scene editor:{} composed defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run247,2026-08-11,editor-partial-metadata-defaults,,,,,,,"test-only valid scene partial editor metadata composed defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
