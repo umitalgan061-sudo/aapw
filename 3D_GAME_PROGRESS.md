@@ -14693,3 +14693,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates, visual artifact upload and World Event Determinism Guard PASS.
 - Runtime/product source delta: 0 lines changed. Test/docs/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: Run247 workflow `31455193757` PASS and World Event Determinism Guard `31455193727` PASS. Next safe step: re-read current main and active branches; continue only a distinct, unclaimed World Editor compatibility edge case.
+
+## Run 248 — World Editor scene-load snap isolation
+- Fixed an additive World Editor import regression where a valid scene could have serialized object coordinates quantized by the live pre-load snap setting before the scene editor metadata was applied.
+- Added a capture-phase validated scene-load guard in `EditorLocalSession.js`: valid imports bypass live snap only during object rehydration, while the canonical loader still restores the serialized/default editor metadata and invalid-scene atomic failure behavior remains unchanged.
+- Permanent Chromium regression verifies partial `editor: { snapEnabled: false }` metadata preserves exact object identity/name/asset/position/rotation/scale, defaults missing snapSize to 1, keeps owner live-grid policy, clears selection, preserves history stability, and reports zero browser errors.
+- PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates, visual artifact upload and World Event Determinism Guard PASS.
+- Source delta is additive-only: `EditorLocalSession.js` +25/-0; regression/workflow files are new. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: Run248 workflow `31460680447` PASS and World Event Determinism Guard `31460680409` PASS. Next safe step: re-read current main and active branches; continue only a distinct, unclaimed World Editor compatibility edge case.
