@@ -1,3 +1,4 @@
+// Run216 complete World Editor offline shell extension.
 // Run221 realistic gameplay aurora offline shell extension.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/auroraRealism.js');

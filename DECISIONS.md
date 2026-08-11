@@ -15431,3 +15431,9 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 **Validation:** strict Chromium/WebGL workflow `31417595129` passed with luminance 26.3870→28.9997, phosphorescent fraction 0.02217→0.03455 and animation delta 3.88347. Canonical lighting, PWA/cache, mobile budgets, deterministic world safety, technical debt, full browser smoke and final concurrency/additive-only gates passed. Final exact-head artifact was manually reviewed.
 
 **Rollback/Future:** Under additive-only policy later art direction should add a new final shader layer/feature gate rather than delete historical layers. Canonical lighting/game-event semantics remain the rollback baseline.
+
+## ADR-0262 — Terrain elevation brush extends the already-cached terrain semantics module
+- **Decision:** implement persistent terrain elevation as an additive extension at the end of the already-offline-cached `EditorTerrainSemantics.js`, using existing `editor-land-cell` / `editor-water-cell` objects as deterministic elevation stamps.
+- **Reason:** a standalone new `src/3d` module passed the real browser behavior test but correctly failed the standing PWA cache guard. Additive-only policy forbids replacing existing service-worker lines merely to rewrite the cache list. Extending an already-cached module preserves the offline import graph and additive-only contract simultaneously.
+- **Runtime contract:** land stamps contribute positive elevation, water stamps negative elevation; the same accumulated field drives both rendered terrain vertices and `groundCollider.getGroundHeight`, preventing visual/physics divergence. Base vertex buffers are retained for deterministic reapplication and teardown restoration.
+- **Consequence:** editor terrain sculpting remains object-backed and serializable through the existing scene model. Future baked terrain/chunk persistence may supersede this adapter only through a separately validated additive migration.

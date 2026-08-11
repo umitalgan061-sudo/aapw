@@ -14778,3 +14778,12 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Event Determinism Guard `31467491121` PASS on the same Run258 head.
 - Runtime/product source delta: 0 lines changed in Run258. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: refresh remote main and concurrent branches, then prioritize the owner-requested World Editor work: sea brush lowers terrain, land brush raises terrain; FBX pack/child selection and independent transforms; deterministic broad fallback material/color palette for otherwise colorless models.
+
+## Run 262 — World Editor terrain elevation brush
+- Added a real World Editor elevation brush without deleting or replacing any existing source line: `Deniz`/water stamps lower the live terrain and ground collider; `Kara`/land stamps raise both.
+- `Kot Δ` provides deterministic 0.1–20 m strength. Persistent terrain cells carry the elevation in `scale.y` plus signed `editorTerrainElevationMeters` metadata, so scene save/load continues to use the established editor object model.
+- Loaded terrain chunk vertices are derived from immutable captured base positions; normals/bounds are recomputed, the ground collider reads the same accumulated stamp field, and teardown restores original mesh/collider state.
+- Real Chromium mouse input verifies water lowers by exactly 2 m, land raises by exactly 2 m, rendered terrain and collider agree, owner grid-hidden/disabled policy remains intact, and browser console/page errors remain zero. Three screenshots are retained as visual evidence.
+- Validation workflow `31476541669` PASS: syntax, focused terrain elevation browser regression, PWA cache/installability, mobile performance, determinism/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gate, and artifact upload all PASS.
+- Runtime/product delta is additive-only; no existing line deleted. Technical debt risk: LOW-MODERATE because elevation currently re-applies loaded chunk vertex fields from persistent stamps rather than baking a separate terrain asset. Confidence: 5/5.
+- Next safe step: refresh remote main/concurrent branches and continue owner-priority World Editor work without overlapping any active FBX/material branch; candidate work includes FBX pack/child independent selection/transform and later lake/sea surface differentiation when asset licensing/cache inputs are stable.
