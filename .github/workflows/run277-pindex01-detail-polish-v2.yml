@@ -1,0 +1,126 @@
+name: Run 277 Pindex01 Detail Polish V2
+
+on:
+  push:
+    branches: [agent/run277-pindex01-detail-polish-v2]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run277-pindex01-detail-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 91246f186fd2cc84a85932d41b4d62d197a5df77
+  OWNER_MAP_SHA: 20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    if: github.event.head_commit.message != 'run277 validated pindex01 detail v2 checkpoint'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Exact-main additive-only and ownership gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          grep -F "$OWNER_MAP_SHA" scripts/run277Pindex01Detail.mjs
+          node scripts/materializeRun216ServiceWorkerCache.js --self-test
+          node scripts/checkRun216ServiceWorkerMaterializer.js
+
+      - name: Syntax semantic PWA and detail regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/run277Pindex01Detail.mjs
+          node --check scripts/checkRun277Pindex01Detail.js
+          node --check scripts/run201CanonicalDevBoot.mjs
+          node scripts/checkRun277Pindex01Detail.js
+          node scripts/checkRun276MapSurfacePindexes.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Visual PWA perf determinism world-safety and full smoke DoD
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun276CanonicalMapSurfaceBrowser.js
+          test -s artifacts/run273-canonical-map-surface/proof.json
+          test -s artifacts/run273-canonical-map-surface/canonical-map-surface-online.png
+          test -s artifacts/run273-canonical-map-surface/canonical-map-surface-offline.png
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run277-mobile.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run277-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run277-smoke.log")" -ge 34
+
+      - name: Upload visual proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: run277-pindex01-detail-v2-proof
+          path: artifacts/run273-canonical-map-surface/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Final exact-main concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Record checkpoint and publish exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '\n%s\n' '## Run 277 — Pindex 01 deterministic dry-surface micro-detail (V2 clean additive)' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Scope is exactly owner-map pindex 01 on the opt-in canonical developer surface; Run276 semantic classification and geometry are unchanged.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Soil/rock/snow colors receive bounded coordinate-hashed variation; sea/lake are untouched. Developer cache ownership is extended via DEV_FILES only; Run216 service-worker prefix is untouched.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Exact-main/additive-only, Run216 ownership, pindex/map/hydrology, PWA, online/offline visual proof, mobile perf, determinism, terrain/road safety, technical debt and full Chromium smoke/console gates passed.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Next safe step: refresh main and consider pindex 02 only after open ownership is rechecked.' >> 3D_GAME_PROGRESS.md
+          printf '\n%s\n' '## ADR-RUN277-V2 — Pindex 01 detail uses developer-cache ownership' >> DECISIONS.md
+          printf '%s\n' '- Decision: keep the micro-detail helper in scripts/ and extend canonical-dev DEV_FILES additively, avoiding any mutation of the Run216-owned service-worker prefix.' >> DECISIONS.md
+          printf '%s\n' '- Risk: LOW. No geometry/material/texture/listener/timer ownership is added; rollback is removal of the additive developer-only activation.' >> DECISIONS.md
+          printf '%s\n' 'run277-v2,2026-08-11,pindex01-detail-polish,,,,,,,"clean additive developer-cache detail; geometry delta 0; mandatory DoD PASS"' >> perf_log.csv
+          printf '\n%s\n' '- `stable-run277-v2` — pindex01 deterministic detail; mandatory validation PASS.' >> STABLE_TAGS.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git commit -m 'run277 validated pindex01 detail v2 checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
