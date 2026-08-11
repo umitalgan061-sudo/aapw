@@ -85,7 +85,12 @@ function run259ScaleText(value) {
 
 export function installEditorMicroScaleOverride(api) {
   if (!api) throw new Error('World Editor API bulunamadı.');
-  if (window.__WESTEROS_EDITOR_MICRO_SCALE__) return window.__WESTEROS_EDITOR_MICRO_SCALE__;
+  if (window.__WESTEROS_EDITOR_MICRO_SCALE__) {
+    const existing = window.__WESTEROS_EDITOR_MICRO_SCALE__;
+    existing.syncBounds?.();
+    existing.syncPrecision?.();
+    return existing;
+  }
 
   const removers = [];
   let disposed = false;
@@ -190,6 +195,7 @@ export function installEditorMicroScaleOverride(api) {
     dispose,
     minimumScale: RUN259_MIN_EDITOR_SCALE,
     decimals: RUN259_SCALE_DECIMALS,
+    syncBounds,
     syncPrecision
   });
   window.__WESTEROS_EDITOR_MICRO_SCALE__ = surface;
