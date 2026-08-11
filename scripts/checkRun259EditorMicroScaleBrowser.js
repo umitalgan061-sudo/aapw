@@ -65,6 +65,7 @@ function startServer() {
 async function main() {
   const playwright = playwrightModule();
   assert(playwright, 'Playwright unavailable');
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   const server = await startServer();
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await playwright.chromium.launch({ headless: true });
@@ -73,6 +74,24 @@ async function main() {
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('pageerror', (error) => errors.push(String(error)));
+
+  async function liveState(label) {
+    const state = await page.evaluate((stateLabel) => {
+      const api = window.__WESTEROS_WORLD_EDITOR__;
+      const selected = api?.getSelectedObject?.() || null;
+      const first = api?.editableObjects?.[0] || null;
+      return {
+        label: stateLabel,
+        selected: selected ? { editorId: selected.userData?.editorId || null, scale: selected.scale?.toArray?.() || null } : null,
+        first: first ? { editorId: first.userData?.editorId || null, scale: first.scale?.toArray?.() || null } : null,
+        inputText: ['we-scale-x', 'we-scale-y', 'we-scale-z'].map((id) => document.getElementById(id)?.value ?? null),
+        inputMin: ['we-scale-x', 'we-scale-y', 'we-scale-z'].map((id) => document.getElementById(id)?.min ?? null),
+        selectionStatus: document.getElementById('we-selection-status')?.textContent || ''
+      };
+    }, label);
+    console.log(`[checkRun259EditorMicroScaleBrowser] STATE ${JSON.stringify(state)}`);
+    return state;
+  }
 
   try {
     await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
@@ -88,35 +107,43 @@ async function main() {
     const treeButton = page.locator('#we-assets .we-asset', { hasText: 'Ağaç İşaretçisi' }).first();
     await treeButton.dblclick();
     await page.waitForFunction(() => window.__WESTEROS_WORLD_EDITOR__.editableObjects.length === 1, null, { timeout: 30000 });
+    const hierarchyItem = page.locator('#we-hierarchy .we-hierarchy-item').first();
+    await hierarchyItem.click();
+    await page.waitForFunction(() => Boolean(window.__WESTEROS_WORLD_EDITOR__.getSelectedObject?.()), null, { timeout: 30000 });
+    await liveState('after-explicit-selection');
 
     const scaleMeta = await page.evaluate(() => ({
       minimumScale: window.__WESTEROS_EDITOR_MICRO_SCALE__.minimumScale,
       decimals: window.__WESTEROS_EDITOR_MICRO_SCALE__.decimals,
-      min: [
-        document.getElementById('we-scale-x').min,
-        document.getElementById('we-scale-y').min,
-        document.getElementById('we-scale-z').min
-      ],
-      step: [
-        document.getElementById('we-scale-x').step,
-        document.getElementById('we-scale-y').step,
-        document.getElementById('we-scale-z').step
-      ]
+      min: ['we-scale-x', 'we-scale-y', 'we-scale-z'].map((id) => document.getElementById(id).min),
+      step: ['we-scale-x', 'we-scale-y', 'we-scale-z'].map((id) => document.getElementById(id).step)
     }));
     assert(Math.abs(scaleMeta.minimumScale - MICRO_SCALE) < 1e-12, `Micro policy minimum mismatch: ${JSON.stringify(scaleMeta)}`);
     assert(scaleMeta.decimals === 6, `Micro policy decimals mismatch: ${JSON.stringify(scaleMeta)}`);
     assert(scaleMeta.min.every((value) => value === '0.000001'), `Inspector min metadata mismatch: ${JSON.stringify(scaleMeta)}`);
     assert(scaleMeta.step.every((value) => value === '0.000001'), `Inspector step metadata mismatch: ${JSON.stringify(scaleMeta)}`);
 
-    for (const id of ['we-scale-x', 'we-scale-y', 'we-scale-z']) {
+    const axes = [
+      ['we-scale-x', 0],
+      ['we-scale-y', 1],
+      ['we-scale-z', 2]
+    ];
+    for (const [id, index] of axes) {
       const input = page.locator(`#${id}`);
       await input.fill('0.000001');
       await input.dispatchEvent('change');
+      await page.waitForTimeout(80);
+      const state = await liveState(`after-${id}`);
+      const actual = state.selected?.scale?.[index];
+      assert(Number.isFinite(actual) && Math.abs(actual - MICRO_SCALE) < 1e-12,
+        `${id} did not apply 0.000001 to selected object: ${JSON.stringify(state)}`);
     }
-    await page.waitForFunction((expected) => {
-      const object = window.__WESTEROS_WORLD_EDITOR__.editableObjects[0];
-      return Boolean(object) && object.scale.toArray().every((value) => Math.abs(value - expected) < 1e-12);
-    }, MICRO_SCALE, { timeout: 30000 });
+
+    const directState = await liveState('after-all-direct-axes');
+    assert(directState.selected?.scale?.every((value) => Math.abs(value - MICRO_SCALE) < 1e-12),
+      `Selected object did not retain 1e-6 on all axes: ${JSON.stringify(directState)}`);
+    assert(directState.first?.scale?.every((value) => Math.abs(value - MICRO_SCALE) < 1e-12),
+      `Editable object did not retain 1e-6 on all axes: ${JSON.stringify(directState)}`);
 
     const directScale = await page.evaluate(async () => {
       const object = window.__WESTEROS_WORLD_EDITOR__.editableObjects[0];
@@ -129,29 +156,27 @@ async function main() {
       );
       return { scale: object.scale.toArray(), inputText, persisted: serialized.objects[0].transform.scale, json: JSON.stringify(serialized) };
     });
-    assert(directScale.scale.every((value) => Math.abs(value - MICRO_SCALE) < 1e-12), `Runtime scale lost 1e-6: ${JSON.stringify(directScale)}`);
     assert(directScale.inputText.every((value) => value === '0.000001'), `Inspector rounded 1e-6: ${JSON.stringify(directScale.inputText)}`);
     assert(directScale.persisted.every((value) => Math.abs(value - MICRO_SCALE) < 1e-12), `Scene JSON lost 1e-6: ${JSON.stringify(directScale.persisted)}`);
     assert(directScale.json.includes('0.000001'), 'Serialized scene JSON does not contain 0.000001');
-
-    fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
     await page.screenshot({ path: path.join(ARTIFACT_DIR, '01-direct-000001.png'), fullPage: true });
 
-    for (const id of ['we-scale-x', 'we-scale-y', 'we-scale-z']) {
+    for (const [id, index] of axes) {
       const input = page.locator(`#${id}`);
       await input.fill('0.000010');
       await input.dispatchEvent('change');
+      await page.waitForTimeout(60);
+      const state = await liveState(`pre-shrink-${id}`);
+      assert(Math.abs(state.selected.scale[index] - 0.00001) < 1e-12,
+        `${id} did not prepare quick-shrink input: ${JSON.stringify(state)}`);
     }
     await page.click('#we-quick-shrink');
     await page.waitForFunction((expected) => {
-      const object = window.__WESTEROS_WORLD_EDITOR__.editableObjects[0];
-      return object.scale.toArray().every((value) => Math.abs(value - expected) < 1e-12);
+      const object = window.__WESTEROS_WORLD_EDITOR__.getSelectedObject?.();
+      return Boolean(object) && object.scale.toArray().every((value) => Math.abs(value - expected) < 1e-12);
     }, MICRO_SCALE, { timeout: 30000 });
-    const afterQuickShrink = await page.evaluate(() => ({
-      scale: window.__WESTEROS_WORLD_EDITOR__.editableObjects[0].scale.toArray(),
-      text: ['we-scale-x', 'we-scale-y', 'we-scale-z'].map((id) => document.getElementById(id).value)
-    }));
-    assert(afterQuickShrink.text.every((value) => value === '0.000001'), `Quick shrink display lost precision: ${JSON.stringify(afterQuickShrink)}`);
+    const afterQuickShrink = await liveState('after-quick-shrink');
+    assert(afterQuickShrink.inputText.every((value) => value === '0.000001'), `Quick shrink display lost precision: ${JSON.stringify(afterQuickShrink)}`);
     await page.screenshot({ path: path.join(ARTIFACT_DIR, '02-quick-shrink-floor.png'), fullPage: true });
 
     await page.waitForTimeout(220);
@@ -172,6 +197,12 @@ async function main() {
 
     assert(errors.length === 0, `Browser errors: ${errors.join(' | ')}`);
     console.log(`[checkRun259EditorMicroScaleBrowser] PASS ${JSON.stringify({ scaleMeta, directScale: { scale: directScale.scale, inputText: directScale.inputText, persisted: directScale.persisted }, afterQuickShrink, screenshots: 3 })}`);
+  } catch (error) {
+    try {
+      await page.screenshot({ path: path.join(ARTIFACT_DIR, 'failure-diagnostic.png'), fullPage: true });
+      await liveState('failure');
+    } catch {}
+    throw error;
   } finally {
     await context.close();
     await browser.close();
