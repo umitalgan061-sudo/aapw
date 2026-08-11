@@ -1,0 +1,50 @@
+name: Run 254 Editor Mobile Offgrid Load Exact Head
+
+on:
+  push:
+    branches:
+      - agent/run254-editor-mobile-offgrid-load
+    paths:
+      - '.github/workflows/run254-editor-mobile-offgrid-load-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run254-editor-mobile-offgrid-load-exact-head-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact head against current main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          node --check scripts/checkRun254EditorMobileOffgridLoad.js
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/editor/EditorLocalSession.js
+          git diff --check
+      - name: Verify Run254 checkpoint records
+        run: |
+          set -euo pipefail
+          grep -Fq '## Run 254 — World Editor mobile off-grid scene import regression' 3D_GAME_PROGRESS.md
+          grep -Fq 'run254,2026-08-11,editor-mobile-offgrid-load' perf_log.csv
+          grep -Fq 'Run254 editor mobile off-grid scene import regression' STABLE_TAGS.md
+          grep -Fq '31464901204' 3D_GAME_PROGRESS.md
+          grep -Fq '31464901187' 3D_GAME_PROGRESS.md
