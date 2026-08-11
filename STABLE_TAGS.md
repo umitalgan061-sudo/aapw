@@ -973,3 +973,5 @@ stable-2026-08-11-1218 — Run262 editor terrain elevation brush; water lowers a
 - `stable-2026-08-11-1329` — Run259 deterministic FBX fallback palette (288 colors / 24 families); full DoD + two-angle visual evidence PASS.
 
 - `stable-2026-08-11-1511` — Run264 Run263 governance checkpoint; deterministic 4046 sea + 6 lake proof, two-view semantic evidence and full DoD PASS.
+
+- `stable-2026-08-11-1536` — Run267 Run266 governance checkpoint; desktop/mobile entry-gate visual proof, PWA/perf/determinism/world-safety/full smoke and console-zero PASS.
