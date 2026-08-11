@@ -14719,3 +14719,13 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Event Determinism Guard `31462280861` PASS on the same Run250 head.
 - Runtime/product source delta: 0 lines changed in Run250. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: refresh remote main and concurrent branches, then continue a distinct additive-only World Editor compatibility regression without crossing unresolved owner gates.
+
+## Run 251 — World Editor unknown-asset off-grid scene import regression
+- Permanent additive-only Chromium regression integrates Run236 unknown-asset skipping with the Run248-250 snap-isolated fractional/off-grid import contract.
+- A scene with two valid `marker-tree` objects surrounding one deliberately missing asset record loads only the two valid objects; the unknown identity never appears in editable objects or hierarchy.
+- Both valid neighbors preserve exact mixed-sign off-grid positions, signed rotations and non-uniform scales including `0.007` while pre-load live snap is `true` / `4.25`; serialized metadata restores to `true` / `2.5` without quantizing either valid transform.
+- Selection clears, history remains stable/not restoring, owner grid-hidden/disabled policy remains intact, canonical success toast is shown, and browser console/page errors remain zero.
+- Validation workflow `31463060947` PASS: syntax, Chromium regression, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and two-screenshot artifact all PASS.
+- World Event Determinism Guard `31463060924` PASS on the same Run251 head.
+- Runtime/product source delta: 0 lines changed in Run251. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: refresh remote main and concurrent branches, then continue only a distinct additive-only World Editor compatibility regression without crossing unresolved owner gates.
