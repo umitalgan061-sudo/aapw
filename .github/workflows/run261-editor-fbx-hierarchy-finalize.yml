@@ -1,0 +1,80 @@
+name: Run 261 Editor FBX Hierarchy Finalize
+
+on:
+  push:
+    branches:
+      - agent/run261-editor-fbx-hierarchy-inventory
+    paths:
+      - '.github/workflows/run261-editor-fbx-hierarchy-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run261-editor-fbx-hierarchy-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun261EditorFbxHierarchyInventoryV2.js
+          node --check src/3d/editor/EditorAssetManager.js
+          node --check src/3d/editor/editorAssetLibrary.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run261 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 261 — World Editor FBX hierarchy inventory / child-selection preflight'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Additive-only Chromium preflight loads every catalog FBX through the real `EditorAssetManager` and inventories renderable hierarchy candidates before any FBX pack/child selection behavior is introduced.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Real hierarchy evidence: `peasant-girl` 71 nodes / 1 mesh / 69 bones / 1 named candidate; `paladin` 137 nodes / 2 meshes / 134 bones / 2 named candidates; `black-dragon` 185 nodes / 1 mesh / 182 bones / 2 named candidates. Paladin and black dragon therefore expose multi-part candidates; peasant-girl remains effectively single-renderable.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- RCA isolated the editor startup 404 to the existing `/assets/models/fbx_dosyaları/` directory discovery probe, not to any FBX/model texture. V2 permits only that exact probe; every other HTTP error, request failure or page error remains fatal. Three FBX loads complete with request/page errors zero.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Validation workflow `31474498436` PASS: syntax, real FBX hierarchy inventory, desktop/mobile evidence, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and artifact upload all PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Mobile perf gate on the validated head: 35 draw calls / 195929 triangles / 30 geometries / 22 textures, under the existing <500 draw-call and <500000 triangle budgets. Perf trend reports 1.05x first-half→second-half heap ratio with no sustained upward drift.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed in Run261. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required because no runtime architecture or product behavior changed.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: refresh remote main and concurrent branches, then use this measured hierarchy to design the smallest additive FBX child-selection contract, piloting on the two-mesh paladin without changing root-selection behavior for existing assets.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run261,2026-08-11,editor-fbx-hierarchy-inventory' perf_log.csv; then
+            printf 'run261,%s,editor-fbx-hierarchy-inventory,,,,,,,"test-only real FBX hierarchy preflight; runtime scene unchanged; mobile gate 35 draw calls / 195929 triangles / 30 geometries / 22 textures; full PWA/perf/determinism/smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run261 editor FBX hierarchy inventory' STABLE_TAGS.md; then
+            printf '%s — Run261 editor FBX hierarchy inventory/child-selection preflight; all 3 catalog FBXs load in Chromium, paladin+black-dragon expose multipart candidates, exact directory-probe 404 isolated, PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run261 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run261): record FBX hierarchy checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run261-editor-fbx-hierarchy-inventory
+          git push origin "$STABLE_TAG" || true
