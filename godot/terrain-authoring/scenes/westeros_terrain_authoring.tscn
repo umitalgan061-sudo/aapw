@@ -12,6 +12,7 @@ script = ExtResource("1_bootstrap")
 script = ExtResource("2_hterrain")
 collision_enabled = false
 ambient_wind = 0.2
+shader_params/u_tile_reduction = Vector4(1, 0, 0, 0)
 
 [node name="NormalBakeTileSchedulerBridge" type="Node" parent="HTerrain"]
 script = ExtResource("4_normal_bridge")
