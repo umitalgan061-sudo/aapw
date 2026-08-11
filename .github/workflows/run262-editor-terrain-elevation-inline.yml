@@ -1,28 +1,16 @@
-name: Run 259 Expanded Palette Exact Head
+name: Run 262 Editor Terrain Elevation Inline
 
 on:
   push:
     branches:
-      - agent/run259-editor-fbx-fallback-palette
-    paths:
-      - '.github/workflows/run259-expanded-palette-exact-head.yml'
-      - 'src/3d/editor/EditorFallbackMaterialPalette.js'
-      - 'src/3d/editor/EditorAssetManager.js'
-      - 'scripts/checkRun259EditorFallbackMaterialPalette.mjs'
-      - 'scripts/checkRun259EditorFallbackMaterialPaletteBreadth.mjs'
-      - 'scripts/checkRun259EditorFallbackMaterialIntegration.mjs'
-      - 'scripts/checkRun259EditorFallbackMaterialVisual.js'
-      - 'service-worker.js'
-      - '3D_GAME_PROGRESS.md'
-      - 'perf_log.csv'
-      - 'STABLE_TAGS.md'
+      - agent/run262-editor-terrain-elevation-inline
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: run259-expanded-palette-exact-head-${{ github.ref }}
+  group: run262-editor-terrain-elevation-inline-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -39,7 +27,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Exact-main concurrency and additive gate
+      - name: Starting remote-main concurrency and additive gates
         run: |
           set -euo pipefail
           git fetch origin main
@@ -47,33 +35,28 @@ jobs:
           test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
           node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
           git diff --check
-      - name: Install Chromium validation dependency
+      - name: Install Chromium proof dependency
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/pw"
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Syntax and 288-color fallback palette regression
+      - name: Syntax and real terrain elevation regression
         run: |
           set -euo pipefail
-          node --check src/3d/editor/EditorFallbackMaterialPalette.js
-          node --check src/3d/editor/EditorAssetManager.js
-          node --check scripts/checkRun259EditorFallbackMaterialPalette.mjs
-          node --check scripts/checkRun259EditorFallbackMaterialPaletteBreadth.mjs
-          node --check scripts/checkRun259EditorFallbackMaterialIntegration.mjs
-          node --check scripts/checkRun259EditorFallbackMaterialVisual.js
-          node scripts/checkRun259EditorFallbackMaterialPalette.mjs
-          node scripts/checkRun259EditorFallbackMaterialPaletteBreadth.mjs
-          node scripts/checkRun259EditorFallbackMaterialIntegration.mjs
-      - name: Two-angle visual evidence and console cleanliness
-        run: node scripts/checkRun259EditorFallbackMaterialVisual.js
+          node --check scripts/checkRun262EditorTerrainElevationInline.js
+          node --check src/3d/editor/EditorTerrainSemantics.js
+          node --check src/3d/editor/EditorTerrainPaintController.js
+          node --check src/3d/editor/EditorLiveWorldAuthoring.js
+          node --check src/3d/editor/worldEditor.js
+          node scripts/checkRun262EditorTerrainElevationInline.js
       - name: PWA cache and installability
         run: |
           set -euo pipefail
           node scripts/checkServiceWorkerCache.js
           node scripts/checkPwaInstallability.js
-      - name: Performance determinism and world safety
+      - name: Performance, determinism and world safety
         run: |
           set -euo pipefail
           node scripts/checkMobilePerfBudget.js
@@ -88,7 +71,7 @@ jobs:
           node scripts/checkTechnicalDebt.js
       - name: Full browser smoke
         run: node scripts/smokeTestGame3D.js
-      - name: Final exact-main concurrency and additive gate
+      - name: Final remote-main concurrency and additive gates
         run: |
           set -euo pipefail
           git fetch origin main
@@ -96,10 +79,9 @@ jobs:
           test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
           node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
           git diff --check
-      - name: Upload expanded palette visual evidence
+      - name: Upload terrain brush visual evidence
         uses: actions/upload-artifact@v4
         with:
-          name: run259-expanded-fallback-palette-visual-evidence
-          path: artifacts/run259-editor-fallback-palette/*.png
+          name: run262-editor-terrain-elevation-inline
+          path: artifacts/run262-editor-terrain-elevation-inline
           if-no-files-found: error
-          retention-days: 14

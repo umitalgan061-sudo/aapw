@@ -198,3 +198,4 @@ run254,2026-08-11,editor-mobile-offgrid-load,,,,,,,"test-only real mobile/touch 
 run255,2026-08-11,editor-mobile-scene-save,,,,,,,"test-only real mobile/touch scene JSON browser-download fidelity regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run256,2026-08-11,editor-mobile-save-load-roundtrip,,,,,,,"test-only real mobile/touch actual-download save-to-load persistence roundtrip; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run258,2026-08-11,editor-mobile-multiobject-save-load,,,,,,,"test-only real mobile/touch multi-object actual-download save-to-load persistence roundtrip; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run262,2026-08-11,editor-terrain-elevation-inline,,,,,,,"additive editor-only terrain stamp deformation; mobile perf budget/perf trend/full smoke PASS; no gameplay baseline budget regression observed"

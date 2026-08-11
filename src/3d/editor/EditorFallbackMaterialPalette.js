@@ -1,125 +1,33 @@
-const FALLBACK_COLORS = Object.freeze([
-  0x744639,
-  0x8c4836,
-  0xa54a31,
-  0xb5604a,
-  0xc7664d,
-  0xb68072,
-  0xcb8472,
-  0x745c39,
-  0x8c6836,
-  0xa57531,
-  0xb5894a,
-  0xc7944d,
-  0xb69a72,
-  0xcba672,
-  0x747239,
-  0x8c8836,
-  0xa5a031,
-  0xb5b14a,
-  0xc7c24d,
-  0xb6b372,
-  0xcbc772,
-  0x607439,
-  0x6f8c36,
-  0x7ea531,
-  0x91b54a,
-  0x9ec74d,
-  0x9fb672,
-  0xadcb72,
-  0x4a7439,
-  0x4f8c36,
-  0x53a531,
-  0x69b54a,
-  0x70c74d,
-  0x86b672,
-  0x8bcb72,
-  0x39743e,
-  0x368c3e,
-  0x31a53b,
-  0x4ab553,
-  0x4dc757,
-  0x72b677,
-  0x72cb79,
-  0x397454,
-  0x368c5d,
-  0x31a566,
-  0x4ab57b,
-  0x4dc785,
-  0x72b691,
-  0x72cb9b,
-  0x39746a,
-  0x368c7d,
-  0x31a592,
-  0x4ab5a3,
-  0x4dc7b3,
-  0x72b6ab,
-  0x72cbbc,
-  0x396874,
-  0x367a8c,
-  0x318da5,
-  0x4a9fb5,
-  0x4dadc7,
-  0x72a8b6,
-  0x72b8cb,
-  0x395274,
-  0x365a8c,
-  0x3161a5,
-  0x4a76b5,
-  0x4d7fc7,
-  0x728eb6,
-  0x7297cb,
-  0x393c74,
-  0x363a8c,
-  0x3136a5,
-  0x4a4eb5,
-  0x4d52c7,
-  0x7274b6,
-  0x7275cb,
-  0x4d3974,
-  0x53368c,
-  0x5831a5,
-  0x6e4ab5,
-  0x764dc7,
-  0x8972b6,
-  0x8f72cb,
-  0x633974,
-  0x73368c,
-  0x8331a5,
-  0x964ab5,
-  0xa34dc7,
-  0xa272b6,
-  0xb172cb,
-  0x74396f,
-  0x8c3684,
-  0xa5319b,
-  0xb54aac,
-  0xc74dbc,
-  0xb672b0,
-  0xcb72c3,
-  0x743959,
-  0x8c3664,
-  0xa53170,
-  0xb54a84,
-  0xc74d8f,
-  0xb67297,
-  0xcb72a2,
-  0x743943,
-  0x8c3644,
-  0xa53144,
-  0xb54a5c,
-  0xc74d61,
-  0xb6727d,
-  0xcb7280,
-  0x6f7f5f,
-  0x8b6f47,
-  0x5f7088,
-  0x7f5f5f,
-  0x6f5f82,
-  0x7c7658,
-  0x596f6b,
-  0x74655a
-]);
+const HUE_FAMILY_COUNT = 24;
+const SATURATION_BANDS = Object.freeze([0.30, 0.38, 0.46]);
+const LIGHTNESS_BANDS = Object.freeze([0.34, 0.44, 0.54, 0.64]);
+
+function hslToHex(hueDegrees, saturation, lightness) {
+  const hue = ((((hueDegrees % 360) + 360) % 360) / 60);
+  const chroma = (1 - Math.abs((2 * lightness) - 1)) * saturation;
+  const x = chroma * (1 - Math.abs((hue % 2) - 1));
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  if (hue < 1) [red, green, blue] = [chroma, x, 0];
+  else if (hue < 2) [red, green, blue] = [x, chroma, 0];
+  else if (hue < 3) [red, green, blue] = [0, chroma, x];
+  else if (hue < 4) [red, green, blue] = [0, x, chroma];
+  else if (hue < 5) [red, green, blue] = [x, 0, chroma];
+  else [red, green, blue] = [chroma, 0, x];
+  const match = lightness - (chroma / 2);
+  const channel = (value) => Math.max(0, Math.min(255, Math.round((value + match) * 255)));
+  return (channel(red) << 16) | (channel(green) << 8) | channel(blue);
+}
+
+const FALLBACK_COLOR_FAMILIES = Object.freeze(
+  Array.from({ length: HUE_FAMILY_COUNT }, (_, familyIndex) => Object.freeze(
+    SATURATION_BANDS.flatMap((saturation) => LIGHTNESS_BANDS.map((lightness) =>
+      hslToHex(familyIndex * (360 / HUE_FAMILY_COUNT), saturation, lightness)
+    ))
+  ))
+);
+const FALLBACK_COLORS = Object.freeze(FALLBACK_COLOR_FAMILIES.flat());
 
 function hashString(value) {
   let hash = 2166136261;
@@ -140,6 +48,14 @@ function shouldTintMaterial(material) {
   return saturation < 0.12 && max > 0.18;
 }
 
+function selectFallbackColor(asset, child, materialIndex) {
+  const assetKey = String(asset.id || asset.name || 'fbx');
+  const familyIndex = hashString(assetKey) % FALLBACK_COLOR_FAMILIES.length;
+  const family = FALLBACK_COLOR_FAMILIES[familyIndex];
+  const toneKey = `${child.name || child.uuid || 'mesh'}:${materialIndex}`;
+  return family[hashString(toneKey) % family.length];
+}
+
 function tintedMaterial(material, colorHex) {
   const clone = material.clone();
   clone.color.setHex(colorHex);
@@ -156,10 +72,8 @@ export function applyEditorFallbackMaterialPalette(root, asset) {
     let changed = false;
     const nextMaterials = materials.map((material, materialIndex) => {
       if (!shouldTintMaterial(material)) return material;
-      const key = `${asset.id || asset.name || 'fbx'}:${child.name || child.uuid || 'mesh'}:${materialIndex}`;
-      const colorHex = FALLBACK_COLORS[hashString(key) % FALLBACK_COLORS.length];
       changed = true;
-      return tintedMaterial(material, colorHex);
+      return tintedMaterial(material, selectFallbackColor(asset, child, materialIndex));
     });
     if (!changed) return;
     child.material = Array.isArray(child.material) ? nextMaterials : nextMaterials[0];
@@ -170,7 +84,10 @@ export function applyEditorFallbackMaterialPalette(root, asset) {
 }
 
 export const EDITOR_FALLBACK_MATERIAL_PALETTE = Object.freeze({
+  families: FALLBACK_COLOR_FAMILIES,
   colors: FALLBACK_COLORS,
+  familyCount: HUE_FAMILY_COUNT,
+  tonesPerFamily: SATURATION_BANDS.length * LIGHTNESS_BANDS.length,
   grayscaleSaturationThreshold: 0.12,
   minimumBrightness: 0.18
 });

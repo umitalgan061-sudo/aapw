@@ -1,3 +1,4 @@
+// Run216 complete World Editor offline shell extension.
 // Run221 realistic gameplay aurora offline shell extension.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/auroraRealism.js');
@@ -170,7 +171,6 @@ const SHELL_FILES = [
 // imported directly by `sceneManager.js`/`game3d.js`. Same failure mode as every entry above
 // without it. `SHELL_CACHE` bumped v10->v11.
 const GAME3D_SHELL_FILES = [
-    './src/3d/editor/EditorFallbackMaterialPalette.js',
     './game3d.html',
     './game3d.css',
     './src/3d/game3d.js',
