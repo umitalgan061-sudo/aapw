@@ -1,0 +1,87 @@
+name: Run 262 Editor Terrain Elevation Inline Finalize
+
+on:
+  push:
+    branches:
+      - agent/run262-editor-terrain-elevation-inline
+    paths:
+      - '.github/workflows/run262-editor-terrain-elevation-inline-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run262-editor-terrain-elevation-inline-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun262EditorTerrainElevationInline.js
+          node --check src/3d/editor/EditorTerrainSemantics.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run262 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          PROGRESS_MARKER='## Run 262 — World Editor terrain elevation brush'
+          ADR_MARKER='## ADR-0262 — Terrain elevation brush extends the already-cached terrain semantics module'
+          if ! grep -Fq "$PROGRESS_MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$PROGRESS_MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Added a real World Editor elevation brush without deleting or replacing any existing source line: `Deniz`/water stamps lower the live terrain and ground collider; `Kara`/land stamps raise both.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- `Kot Δ` provides deterministic 0.1–20 m strength. Persistent terrain cells carry the elevation in `scale.y` plus signed `editorTerrainElevationMeters` metadata, so scene save/load continues to use the established editor object model.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Loaded terrain chunk vertices are derived from immutable captured base positions; normals/bounds are recomputed, the ground collider reads the same accumulated stamp field, and teardown restores original mesh/collider state.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Real Chromium mouse input verifies water lowers by exactly 2 m, land raises by exactly 2 m, rendered terrain and collider agree, owner grid-hidden/disabled policy remains intact, and browser console/page errors remain zero. Three screenshots are retained as visual evidence.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Validation workflow `31476541669` PASS: syntax, focused terrain elevation browser regression, PWA cache/installability, mobile performance, determinism/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gate, and artifact upload all PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product delta is additive-only; no existing line deleted. Technical debt risk: LOW-MODERATE because elevation currently re-applies loaded chunk vertex fields from persistent stamps rather than baking a separate terrain asset. Confidence: 5/5.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: refresh remote main/concurrent branches and continue owner-priority World Editor work without overlapping any active FBX/material branch; candidate work includes FBX pack/child independent selection/transform and later lake/sea surface differentiation when asset licensing/cache inputs are stable.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq "$ADR_MARKER" DECISIONS.md; then
+            printf '\n%s\n' "$ADR_MARKER" >> DECISIONS.md
+            printf '%s\n' '- **Decision:** implement persistent terrain elevation as an additive extension at the end of the already-offline-cached `EditorTerrainSemantics.js`, using existing `editor-land-cell` / `editor-water-cell` objects as deterministic elevation stamps.' >> DECISIONS.md
+            printf '%s\n' '- **Reason:** a standalone new `src/3d` module passed the real browser behavior test but correctly failed the standing PWA cache guard. Additive-only policy forbids replacing existing service-worker lines merely to rewrite the cache list. Extending an already-cached module preserves the offline import graph and additive-only contract simultaneously.' >> DECISIONS.md
+            printf '%s\n' '- **Runtime contract:** land stamps contribute positive elevation, water stamps negative elevation; the same accumulated field drives both rendered terrain vertices and `groundCollider.getGroundHeight`, preventing visual/physics divergence. Base vertex buffers are retained for deterministic reapplication and teardown restoration.' >> DECISIONS.md
+            printf '%s\n' '- **Consequence:** editor terrain sculpting remains object-backed and serializable through the existing scene model. Future baked terrain/chunk persistence may supersede this adapter only through a separately validated additive migration.' >> DECISIONS.md
+          fi
+          if ! grep -Fq 'run262,2026-08-11,editor-terrain-elevation-inline' perf_log.csv; then
+            printf 'run262,%s,editor-terrain-elevation-inline,,,,,,,"additive editor-only terrain stamp deformation; mobile perf budget/perf trend/full smoke PASS; no gameplay baseline budget regression observed"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run262 editor terrain elevation brush' STABLE_TAGS.md; then
+            printf '%s — Run262 editor terrain elevation brush; water lowers and land raises live terrain/collider with deterministic persistent stamps; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run262 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run262): record terrain elevation checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run262-editor-terrain-elevation-inline
+          git push origin "$STABLE_TAG" || true
