@@ -289,3 +289,167 @@ queueMicrotask(() => {
   try { installRun259MicroScaleBoundsGuard(); }
   catch (error) { console.error('[EditorScaleInputController] micro-scale bounds guard boot failed', error); }
 });
+
+// Run259 V2 input/commit split. The first micro-scale layer proved the 1e-6 floor but rewrote the
+// entire Inspector on every `input` event. That could reset the actively edited Y/Z field before a
+// user (or Playwright) finished typing. V2 disposes that listener set and keeps live input local to
+// the active axis; formatting, hierarchy refresh and undo/history capture happen only on commit.
+export function installEditorMicroScaleInputCommitV2(api) {
+  if (!api) throw new Error('World Editor API bulunamadı.');
+  const current = window.__WESTEROS_EDITOR_MICRO_SCALE__;
+  if (current?.version === 2) {
+    current.syncBounds?.();
+    current.syncPrecision?.();
+    return current;
+  }
+  current?.dispose?.();
+
+  const removers = [];
+  let disposed = false;
+  let transformObjectChange = null;
+  let transformAttachTimer = 0;
+
+  function syncBounds() {
+    for (const id of Object.keys(SCALE_AXIS_BY_INPUT_ID)) {
+      const input = document.getElementById(id);
+      if (!input) continue;
+      input.min = String(RUN259_MIN_EDITOR_SCALE);
+      input.step = String(RUN259_MIN_EDITOR_SCALE);
+      input.setAttribute('inputmode', 'decimal');
+    }
+  }
+
+  function syncPrecision(object = api.getSelectedObject?.()) {
+    if (!object || object.isInstancedMesh) return;
+    for (const [id, axis] of Object.entries(SCALE_AXIS_BY_INPUT_ID)) {
+      const input = document.getElementById(id);
+      if (input) input.value = run259ScaleText(object.scale?.[axis]);
+    }
+  }
+
+  function eventAxis(event) {
+    return SCALE_AXIS_BY_INPUT_ID[event.target?.id || event.currentTarget?.id] || null;
+  }
+
+  function selectedOrdinaryObject() {
+    const object = api.getSelectedObject?.();
+    return object && !object.isInstancedMesh ? object : null;
+  }
+
+  function numericScaleFromEvent(event) {
+    const raw = String(event.target?.value ?? '').trim();
+    if (!raw) return null;
+    const numeric = Number(raw);
+    return Number.isFinite(numeric) ? Math.max(RUN259_MIN_EDITOR_SCALE, numeric) : null;
+  }
+
+  function onScaleInputCapture(event) {
+    const axis = eventAxis(event);
+    if (!axis) return;
+    const object = selectedOrdinaryObject();
+    if (!object) return;
+    event.stopImmediatePropagation?.();
+    const next = numericScaleFromEvent(event);
+    if (next === null) return;
+    object.scale[axis] = next;
+  }
+
+  function onScaleChangeCapture(event) {
+    const axis = eventAxis(event);
+    if (!axis) return;
+    const object = selectedOrdinaryObject();
+    if (!object) return;
+    event.preventDefault?.();
+    event.stopImmediatePropagation?.();
+    const next = numericScaleFromEvent(event);
+    if (next === null) {
+      api.writeInspector?.(object);
+      syncBounds();
+      syncPrecision(object);
+      return;
+    }
+    object.scale[axis] = next;
+    api.writeInspector?.(object);
+    syncBounds();
+    syncPrecision(object);
+    api.refreshHierarchy?.();
+    window.__WESTEROS_EDITOR_HISTORY__?.scheduleCapture?.();
+  }
+
+  function onQuickShrinkCapture(event) {
+    if (!event.target?.closest?.('#we-quick-shrink')) return;
+    const object = selectedOrdinaryObject();
+    if (!object) return;
+    event.preventDefault?.();
+    event.stopImmediatePropagation?.();
+    object.scale.set(
+      Math.max(RUN259_MIN_EDITOR_SCALE, object.scale.x * RUN259_QUICK_SHRINK_FACTOR),
+      Math.max(RUN259_MIN_EDITOR_SCALE, object.scale.y * RUN259_QUICK_SHRINK_FACTOR),
+      Math.max(RUN259_MIN_EDITOR_SCALE, object.scale.z * RUN259_QUICK_SHRINK_FACTOR)
+    );
+    api.writeInspector?.(object);
+    syncBounds();
+    syncPrecision(object);
+    api.refreshHierarchy?.();
+    window.__WESTEROS_EDITOR_HISTORY__?.scheduleCapture?.();
+    window.__WESTEROS_EDITOR_TRANSFORM__?.syncSelection?.();
+  }
+
+  const selectionStatus = document.getElementById('we-selection-status');
+  const selectionObserver = typeof MutationObserver === 'function'
+    ? new MutationObserver(() => queueMicrotask(() => syncPrecision()))
+    : null;
+  if (selectionStatus && selectionObserver) {
+    selectionObserver.observe(selectionStatus, { childList: true, characterData: true, subtree: true });
+  }
+
+  window.addEventListener('input', onScaleInputCapture, true);
+  removers.push(() => window.removeEventListener('input', onScaleInputCapture, true));
+  window.addEventListener('change', onScaleChangeCapture, true);
+  removers.push(() => window.removeEventListener('change', onScaleChangeCapture, true));
+  window.addEventListener('click', onQuickShrinkCapture, true);
+  removers.push(() => window.removeEventListener('click', onQuickShrinkCapture, true));
+
+  syncBounds();
+  syncPrecision();
+  transformAttachTimer = window.setTimeout(() => {
+    transformAttachTimer = 0;
+    const transform = window.__WESTEROS_EDITOR_TRANSFORM__?.transform;
+    if (!transform?.addEventListener) return;
+    transformObjectChange = () => syncPrecision(transform.object || api.getSelectedObject?.());
+    transform.addEventListener('objectChange', transformObjectChange);
+  }, 0);
+
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    selectionObserver?.disconnect();
+    if (transformAttachTimer) window.clearTimeout(transformAttachTimer);
+    const transform = window.__WESTEROS_EDITOR_TRANSFORM__?.transform;
+    if (transformObjectChange && transform?.removeEventListener) {
+      transform.removeEventListener('objectChange', transformObjectChange);
+    }
+    removers.splice(0).reverse().forEach((remove) => remove());
+    if (window.__WESTEROS_EDITOR_MICRO_SCALE__ === surface) delete window.__WESTEROS_EDITOR_MICRO_SCALE__;
+  }
+
+  const surface = Object.freeze({
+    version: 2,
+    dispose,
+    minimumScale: RUN259_MIN_EDITOR_SCALE,
+    decimals: RUN259_SCALE_DECIMALS,
+    syncBounds,
+    syncPrecision
+  });
+  window.__WESTEROS_EDITOR_MICRO_SCALE__ = surface;
+  window.addEventListener('pagehide', dispose, { once: true });
+  removers.push(() => window.removeEventListener('pagehide', dispose));
+  return surface;
+}
+
+queueMicrotask(() => {
+  const api = window.__WESTEROS_WORLD_EDITOR__;
+  if (!api) return;
+  try { installEditorMicroScaleInputCommitV2(api); }
+  catch (error) { console.error('[EditorScaleInputController] micro-scale V2 boot failed', error); }
+});
