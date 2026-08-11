@@ -76,3 +76,80 @@ export function sampleReferenceCoastBlend(normalizedX, normalizedY) {
 	}
 	return waterNeighbors / totalNeighbors;
 }
+
+/**
+ * Run263 additive semantic extension for the owner-requested distinct lake/sea surfaces.
+ * Border-connected water is sea; enclosed water is lake. Four-neighbour flood fill is deliberate:
+ * diagonal corner contact alone does not create a navigable opening between two water bodies.
+ * Rendering remains unchanged until a later, separately validated consumer opts into this contract.
+ */
+function buildReferenceSeaCellSet() {
+	const { width, height, rowsHex } = WORLD_REFERENCE_WATER_MASK;
+	const sea = new Uint8Array(width * height);
+	const queueX = new Int16Array(width * height);
+	const queueY = new Int16Array(width * height);
+	let head = 0;
+	let tail = 0;
+
+	function enqueue(x, y) {
+		if (x < 0 || x >= width || y < 0 || y >= height) return;
+		if (rowBit(rowsHex[y], x) !== 1) return;
+		const index = y * width + x;
+		if (sea[index] === 1) return;
+		sea[index] = 1;
+		queueX[tail] = x;
+		queueY[tail] = y;
+		tail += 1;
+	}
+
+	for (let x = 0; x < width; x += 1) {
+		enqueue(x, 0);
+		enqueue(x, height - 1);
+	}
+	for (let y = 0; y < height; y += 1) {
+		enqueue(0, y);
+		enqueue(width - 1, y);
+	}
+
+	while (head < tail) {
+		const x = queueX[head];
+		const y = queueY[head];
+		head += 1;
+		enqueue(x + 1, y);
+		enqueue(x - 1, y);
+		enqueue(x, y + 1);
+		enqueue(x, y - 1);
+	}
+	return sea;
+}
+
+const REFERENCE_SEA_CELLS = buildReferenceSeaCellSet();
+
+/** @returns {'land'|'sea'|'lake'} */
+export function classifyReferenceWaterCell(x, y) {
+	const { width, height, rowsHex } = WORLD_REFERENCE_WATER_MASK;
+	if (!Number.isInteger(x) || !Number.isInteger(y)) throw new TypeError('water-mask cell coordinates must be integers');
+	if (x < 0 || x >= width || y < 0 || y >= height) throw new RangeError('water-mask cell outside mask bounds');
+	if (rowBit(rowsHex[y], x) !== 1) return 'land';
+	return REFERENCE_SEA_CELLS[y * width + x] === 1 ? 'sea' : 'lake';
+}
+
+/** @returns {'land'|'sea'|'lake'} */
+export function classifyReferenceWaterBody(normalizedX, normalizedY) {
+	const { x, y } = maskIndexFromNormalized(normalizedX, normalizedY);
+	return classifyReferenceWaterCell(x, y);
+}
+
+export const WORLD_REFERENCE_WATER_BODY_STATS = Object.freeze((() => {
+	const { width, height, rowsHex, id } = WORLD_REFERENCE_WATER_MASK;
+	let seaCellCount = 0;
+	let lakeCellCount = 0;
+	for (let y = 0; y < height; y += 1) {
+		for (let x = 0; x < width; x += 1) {
+			if (rowBit(rowsHex[y], x) !== 1) continue;
+			if (REFERENCE_SEA_CELLS[y * width + x] === 1) seaCellCount += 1;
+			else lakeCellCount += 1;
+		}
+	}
+	return Object.freeze({ maskId: id, seaCellCount, lakeCellCount, waterCellCount: seaCellCount + lakeCellCount });
+})());

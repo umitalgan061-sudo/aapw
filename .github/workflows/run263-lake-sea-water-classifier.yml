@@ -38,7 +38,7 @@ jobs:
       - name: Lake sea classifier syntax and deterministic regression
         run: |
           set -euo pipefail
-          node --check src/3d/world/worldReferenceWaterBodies.js
+          node --check src/3d/world/worldReferenceWaterMask.js
           node --check scripts/checkRun263LakeSeaWaterClassifier.js
           node scripts/checkRun263LakeSeaWaterClassifier.js
           node scripts/checkWorldReferenceWaterMask.js

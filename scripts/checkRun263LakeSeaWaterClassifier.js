@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { WORLD_REFERENCE_WATER_MASK } from '../src/3d/world/worldReferenceWaterMask.js';
 import {
+	WORLD_REFERENCE_WATER_MASK,
 	classifyReferenceWaterBody,
 	classifyReferenceWaterCell,
 	WORLD_REFERENCE_WATER_BODY_STATS,
-} from '../src/3d/world/worldReferenceWaterBodies.js';
+} from '../src/3d/world/worldReferenceWaterMask.js';
 
 assert.equal(WORLD_REFERENCE_WATER_BODY_STATS.maskId, WORLD_REFERENCE_WATER_MASK.id);
 assert.equal(WORLD_REFERENCE_WATER_BODY_STATS.waterCellCount, WORLD_REFERENCE_WATER_MASK.waterCellCount);
@@ -41,14 +41,12 @@ for (const key of expectedLakeCells) {
 
 for (let x = 0; x < WORLD_REFERENCE_WATER_MASK.width; x += 1) {
 	for (const y of [0, WORLD_REFERENCE_WATER_MASK.height - 1]) {
-		const kind = classifyReferenceWaterCell(x, y);
-		assert.notEqual(kind, 'lake', `border cell ${x},${y} must never classify as lake`);
+		assert.notEqual(classifyReferenceWaterCell(x, y), 'lake', `border cell ${x},${y} must never classify as lake`);
 	}
 }
 for (let y = 0; y < WORLD_REFERENCE_WATER_MASK.height; y += 1) {
 	for (const x of [0, WORLD_REFERENCE_WATER_MASK.width - 1]) {
-		const kind = classifyReferenceWaterCell(x, y);
-		assert.notEqual(kind, 'lake', `border cell ${x},${y} must never classify as lake`);
+		assert.notEqual(classifyReferenceWaterCell(x, y), 'lake', `border cell ${x},${y} must never classify as lake`);
 	}
 }
 
