@@ -14840,3 +14840,9 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Geometry, height sampler, settlement positions, roads, bridges, hydrology, 2D runtime and Pindexes 02-10 remain unchanged. The layer creates no geometry/material ownership and reuses the semantic terrain color buffer.
 - Online/offline Chromium visual proof, PWA/cache/installability, mobile render budget, seeded-random policy, terrain/road safety, technical debt and full browser smoke/console DoD passed.
 - Next safe step: refresh main and polish Pindex-02 as a separate atomic layer; do not generalize amplitudes across pindexes without independent proof.
+
+## Run 278 — Pindex-02 deterministic micro-surface detail
+- Canonical Pindex-02 received its own deterministic color micro-detail pass after Run277; Pindex-01 is preserved and Pindexes 03-10 are untouched.
+- Pindex-02 uses slightly stronger rock breakup than soil/snow because its canonical mask contains materially more rock/snow than Pindex-01; geometry, heights, roads, bridges, hydrology and 2D runtime remain unchanged.
+- Online/offline Chromium proof verified Pindex-02 changed while every non-Pindex-02 vertex remained byte-identical to the Run277 baseline; full PWA/perf/determinism/world-safety/debt/browser DoD passed.
+- Next safe step: refresh main and polish Pindex-03 separately; retain independent pindex proofs.
