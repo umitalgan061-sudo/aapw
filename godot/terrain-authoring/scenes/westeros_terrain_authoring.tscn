@@ -1,0 +1,35 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/terrain_authoring_bootstrap.gd" id="1_bootstrap"]
+[ext_resource type="Script" path="res://addons/zylann.hterrain/hterrain.gd" id="2_hterrain"]
+[ext_resource type="Script" path="res://addons/zylann.hterrain/hterrain_detail_layer.gd" id="3_detail"]
+[ext_resource type="Script" path="res://scripts/hterrain_normal_tile_bridge.gd" id="4_normal_bridge"]
+
+[node name="WesterosTerrainAuthoring" type="Node3D"]
+script = ExtResource("1_bootstrap")
+
+[node name="HTerrain" type="Node3D" parent="."]
+script = ExtResource("2_hterrain")
+collision_enabled = false
+ambient_wind = 0.2
+
+[node name="NormalBakeTileSchedulerBridge" type="Node" parent="HTerrain"]
+script = ExtResource("4_normal_bridge")
+
+[node name="GrassDetailLayer" type="Node3D" parent="HTerrain"]
+script = ExtResource("3_detail")
+view_distance = 120.0
+density = 4.0
+fixed_seed = 20260811
+fixed_seed_enabled = true
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-55, -35, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(256, 320, 700)
+rotation_degrees = Vector3(-35, 0, 0)
+current = true
+far = 4000.0

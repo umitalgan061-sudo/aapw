@@ -1,1 +1,18 @@
 
+; Westeros HTerrain authoring project.
+; The initial blank line is intentionally preserved from the owner-created placeholder.
+config_version=5
+
+[application]
+
+config/name="Westeros Terrain Authoring"
+run/main_scene="res://scenes/westeros_terrain_authoring.tscn"
+config/features=PackedStringArray("4.6")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")
+
+[rendering]
+
+viewport/default_clear_color=Color(0.407806, 0.628906, 0.618542, 1)
