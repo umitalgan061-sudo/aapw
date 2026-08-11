@@ -38,6 +38,11 @@ func _run_validation() -> void:
 		_fail("HTerrain node is missing during normal-baker proof")
 		return
 
+	var bridge = terrain.get_node_or_null("NormalBakeTileSchedulerBridge")
+	if bridge == null:
+		_fail("HTerrain normal tile scheduler compatibility bridge is missing")
+		return
+
 	var data = terrain.get_data()
 	if data == null:
 		_fail("HTerrain data is missing during normal-baker proof")
@@ -66,20 +71,18 @@ func _run_validation() -> void:
 		HTerrainData.CHANNEL_HEIGHT)
 
 	var pending_queue: Array = baker.get("_pending_tiles_queue")
+	var expected_tile := Vector2i(
+		floori(float(SAMPLE.x) / float(NORMAL_TILE_SIZE)),
+		floori(float(SAMPLE.y) / float(NORMAL_TILE_SIZE)))
 	var scheduler_pending := pending_queue.size()
-	var direct_tile := Vector2i(
-		SAMPLE.x / NORMAL_TILE_SIZE,
-		SAMPLE.y / NORMAL_TILE_SIZE)
 
-	if scheduler_pending == 0:
-		baker.call("_request_tile", direct_tile)
+	if scheduler_pending == 0 or not pending_queue.has(expected_tile):
+		_fail("HTerrain compatibility bridge did not queue the small-brush normal tile")
+		return
 
-	var direct_queue: Array = baker.get("_pending_tiles_queue")
-	var pending_after_direct := direct_queue.size()
-	print("HTERRAIN_NORMAL_BAKER_SCHEDULER scheduler_pending=%s pending_after_direct=%s direct_tile=%s" % [
+	print("HTERRAIN_NORMAL_BAKER_SCHEDULER bridge_pending=%s expected_tile=%s" % [
 		scheduler_pending,
-		pending_after_direct,
-		direct_tile
+		expected_tile
 	])
 
 	for _frame in range(24):
@@ -96,14 +99,14 @@ func _run_validation() -> void:
 		and after.b < 0.86
 
 	if not changed:
-		_fail("HTerrain normal baker did not update the normal map even after an explicit tile request")
+		_fail("HTerrain normal baker did not update the normal map through the compatibility bridge")
 		return
 
 	if not expected_slope_normal:
 		_fail("HTerrain normal baker output is not a plausible deterministic slope normal: %s" % after)
 		return
 
-	print("HTERRAIN_NORMAL_BAKER_OK scheduler_pending=%s before=%s after=%s sample=%s delta=%s" % [
+	print("HTERRAIN_NORMAL_BAKER_OK bridge_pending=%s before=%s after=%s sample=%s delta=%s" % [
 		scheduler_pending,
 		before,
 		after,
