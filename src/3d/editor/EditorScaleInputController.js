@@ -216,3 +216,69 @@ queueMicrotask(() => {
   try { installEditorMicroScaleOverride(api); }
   catch (error) { console.error('[EditorScaleInputController] micro-scale override boot failed', error); }
 });
+
+// Run259 browser-integration guard. Dynamic module evaluation can install the additive micro layer
+// before the legacy controller finishes assigning its historical 0.001 HTML metadata. Observe only
+// the three scale input bounds and restore 1e-6 whenever a later initializer tries to raise them.
+function installRun259MicroScaleBoundsGuard() {
+  if (window.__WESTEROS_EDITOR_MICRO_SCALE_BOUNDS_GUARD__) {
+    window.__WESTEROS_EDITOR_MICRO_SCALE_BOUNDS_GUARD__.sync?.();
+    return window.__WESTEROS_EDITOR_MICRO_SCALE_BOUNDS_GUARD__;
+  }
+
+  const inputs = Object.keys(SCALE_AXIS_BY_INPUT_ID)
+    .map((id) => document.getElementById(id))
+    .filter(Boolean);
+  if (inputs.length !== Object.keys(SCALE_AXIS_BY_INPUT_ID).length) return null;
+
+  let disposed = false;
+  let queued = false;
+  const expected = String(RUN259_MIN_EDITOR_SCALE);
+
+  function sync() {
+    queued = false;
+    if (disposed) return;
+    for (const input of inputs) {
+      if (input.min !== expected) input.min = expected;
+      if (input.step !== expected) input.step = expected;
+      if (input.getAttribute?.('inputmode') !== 'decimal') input.setAttribute('inputmode', 'decimal');
+    }
+  }
+
+  function scheduleSync() {
+    if (queued || disposed) return;
+    queued = true;
+    queueMicrotask(sync);
+  }
+
+  const observer = new MutationObserver((mutations) => {
+    if (mutations.some((mutation) => mutation.type === 'attributes')) scheduleSync();
+  });
+  for (const input of inputs) {
+    observer.observe(input, { attributes: true, attributeFilter: ['min', 'step', 'inputmode'] });
+  }
+
+  const timer = window.setTimeout(sync, 0);
+  sync();
+
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    observer.disconnect();
+    window.clearTimeout(timer);
+    window.removeEventListener('pagehide', dispose);
+    if (window.__WESTEROS_EDITOR_MICRO_SCALE_BOUNDS_GUARD__ === surface) {
+      delete window.__WESTEROS_EDITOR_MICRO_SCALE_BOUNDS_GUARD__;
+    }
+  }
+
+  const surface = Object.freeze({ sync, dispose, minimumScale: RUN259_MIN_EDITOR_SCALE });
+  window.__WESTEROS_EDITOR_MICRO_SCALE_BOUNDS_GUARD__ = surface;
+  window.addEventListener('pagehide', dispose, { once: true });
+  return surface;
+}
+
+queueMicrotask(() => {
+  try { installRun259MicroScaleBoundsGuard(); }
+  catch (error) { console.error('[EditorScaleInputController] micro-scale bounds guard boot failed', error); }
+});
