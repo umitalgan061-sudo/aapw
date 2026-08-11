@@ -14759,3 +14759,13 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Event Determinism Guard `31465809687` PASS on the same Run255 head.
 - Runtime/product source delta: 0 lines changed in Run255. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: refresh remote main/concurrent branches and continue only a distinct additive-only World Editor mobile persistence regression, such as an actual downloaded-file save→load roundtrip, without overlapping stale Run252-local or Run253 unknown-only scopes.
+
+## Run 256 — World Editor mobile actual-download save→load roundtrip regression
+- Permanent additive-only Chromium regression closes the real mobile persistence loop: import an exact off-grid scene, save through the actual browser download path, replace the live scene, then reload that exact downloaded file through `Load JSON` in the same `390x844` touch context.
+- Source identity `run256-source-tree-0001` uses position `[-18.375, 0.125, 27.625]`, signed rotation `[0.625, -1.375, 2.125]`, non-uniform scale `[0.007, 1.875, 0.625]`, and serialized snap `true` / `2.5`; actual download filename is `westeros-world.scene.json` and downloaded bytes exactly match canonical serializer output.
+- A distinct replacement scene is loaded between save and reload to prove full persistence rather than no-op state retention. Before reloading the downloaded file, live snap is deliberately changed to `true` / `4.25`; the downloaded scene then fully replaces the temporary object and restores the original exact off-grid transform and snap metadata without quantization.
+- Roundtrip also verifies stale replacement hierarchy removal, reusable/reset file input, selection clear, stable history/not restoring, owner grid-hidden/disabled policy and zero browser console/page errors. Three mobile screenshots plus the actual downloaded JSON are retained as evidence.
+- Validation workflow `31466599819` PASS: syntax, focused mobile actual-download roundtrip, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and artifact upload all PASS.
+- World Event Determinism Guard `31466599802` PASS on the same Run256 head.
+- Runtime/product source delta: 0 lines changed in Run256. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: refresh remote main and concurrent branches; Run257 is already claimed by parallel campaign/combat sessions, so continue only with a distinct unclaimed run number and scope.
