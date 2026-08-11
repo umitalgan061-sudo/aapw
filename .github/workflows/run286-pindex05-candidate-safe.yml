@@ -1,0 +1,107 @@
+name: Run 286 Safe Pindex05 Candidate
+
+on:
+  push:
+    branches: [run286-pindex05-candidate-safe]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run286-pindex05-candidate-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 8416d9540f5a5f2bc1e8bfe59811c1459330938b
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Exact-main additive entry gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"
+
+      - name: Candidate and existing governance contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check experiments/run286/worldReferencePindex05Detail.js
+          node --check scripts/checkRun286Pindex05Detail.js
+          node --check scripts/checkRun286Pindex05DetailBrowser.js
+          node scripts/checkRun286Pindex05Detail.js
+          node scripts/checkRun284PindexDetailChain.js
+          node scripts/checkRun283FinalHeadGovernance.js
+          node scripts/checkRun280OwnerMapSemanticFingerprint.js
+          node scripts/checkRun276MapSurfacePindexes.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkCheckpointConsistency.js
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Candidate isolation performance and full browser DoD
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun286Pindex05DetailBrowser.js
+          test -s artifacts/run286-pindex05-detail/proof.json
+          test -s artifacts/run286-pindex05-detail/pindex05-candidate.png
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run286-mobile.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run286-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run286-smoke.log")" -ge 34
+
+      - name: Upload candidate proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: run286-pindex05-candidate-proof
+          path: artifacts/run286-pindex05-detail/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Final exact-main concurrency and additive-only gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"
