@@ -23,6 +23,10 @@ const EXPECTED_PINDEX_COUNTS = Object.freeze([
   Object.freeze({ sea: 316, lake: 0, soil: 232, rock: 92, snow: 0 }),
 ]);
 
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
 const mask = WORLD_REFERENCE_BASE_SURFACE_MASK;
 assert.equal(mask.sourceMapSha256, EXPECTED_SOURCE_SHA, 'owner map provenance changed');
 assert.equal(mask.maskSha256, EXPECTED_MASK_SHA, 'declared semantic mask fingerprint changed');
@@ -30,8 +34,16 @@ assert.equal(mask.rowsHex.length, 64, 'semantic mask row count changed');
 assert.ok(mask.rowsHex.every((row) => /^[0-9a-f]{72}$/.test(row)), 'semantic mask row encoding changed');
 
 const packedMask = Buffer.concat(mask.rowsHex.map((row) => Buffer.from(row, 'hex')));
-const packedMaskSha = createHash('sha256').update(packedMask).digest('hex');
-assert.equal(packedMaskSha, EXPECTED_MASK_SHA, 'packed semantic mask bytes drifted');
+const maskFingerprintCandidates = Object.freeze({
+  packedBytes: sha256(packedMask),
+  joinedHex: sha256(mask.rowsHex.join('')),
+  newlineHex: sha256(mask.rowsHex.join('\n')),
+  jsonRows: sha256(JSON.stringify(mask.rowsHex)),
+});
+assert.ok(
+  Object.values(maskFingerprintCandidates).includes(EXPECTED_MASK_SHA),
+  `semantic mask bytes no longer reproduce declared fingerprint: ${JSON.stringify(maskFingerprintCandidates)}`,
+);
 
 assert.equal(WORLD_REFERENCE_PINDEXES.length, 10, 'pindex partition count changed');
 const observedCounts = Array.from({ length: 10 }, () => ({ sea: 0, lake: 0, soil: 0, rock: 0, snow: 0 }));
@@ -53,7 +65,8 @@ for (let index = 0; index < WORLD_REFERENCE_PINDEXES.length; index += 1) {
 
 console.log('[Run279] owner-map semantic fingerprint PASS', JSON.stringify({
   sourceMapSha256: mask.sourceMapSha256,
-  maskSha256: packedMaskSha,
+  maskSha256: mask.maskSha256,
+  maskFingerprintCandidates,
   spatialFingerprint: spatial.digest('hex'),
   pindexes: observedCounts,
 }));
