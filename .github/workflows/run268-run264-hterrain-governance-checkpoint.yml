@@ -1,0 +1,172 @@
+name: Run 268 Run264 HTerrain Governance Checkpoint
+
+on:
+  push:
+    branches:
+      - agent/run268-run264-hterrain-governance-checkpoint
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run268-run264-hterrain-governance-checkpoint-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: e6cdb65b8f09cd59d24f79fff6f771b41b66c11e
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-and-checkpoint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting exact-main concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+      - name: HTerrain import contract
+        run: |
+          set -euo pipefail
+          test -f godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
+          test -f godot/terrain-authoring/addons/zylann.hterrain/tools/plugin.gd
+          test -f godot/terrain-authoring/addons/zylann.hterrain/hterrain_data.gd
+          test -f godot/terrain-authoring/addons/zylann.hterrain/hterrain_detail_layer.gd
+          grep -F 'version="1.8"' godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
+          grep -F 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")' godot/terrain-authoring/project.godot
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Godot resource import without plugin first-scan race
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/run268-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+      - name: HTerrain authoring validation
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 \
+            2>&1 | tee "$RUNNER_TEMP/run268-editor.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_authoring.gd \
+            2>&1 | tee "$RUNNER_TEMP/run268-hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/run268-hterrain.log"
+          test -f godot/terrain-authoring/terrain_data/data.hterrain
+      - name: Functional normal-baker proof with real software OpenGL
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          command -v xvfb-run
+          timeout 180s xvfb-run -a -s '-screen 0 1280x720x24' \
+            "$GODOT_BIN" --editor --path godot/terrain-authoring \
+            --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 \
+            --script res://scripts/validate_hterrain_normal_baker.gd \
+            2>&1 | tee "$RUNNER_TEMP/run268-normal-baker.log"
+          grep -F 'HTERRAIN_NORMAL_BAKER_OK' "$RUNNER_TEMP/run268-normal-baker.log"
+          ! grep -F 'RendererDummy' "$RUNNER_TEMP/run268-normal-baker.log"
+      - name: PWA cache installability regression
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+      - name: Install Chromium smoke and performance dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Performance determinism world safety technical debt
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Full Chromium smoke and console gate
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run268-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run268-smoke.log")" -ge 34
+      - name: Final exact-main concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+      - name: Append verified governance checkpoint records
+        run: |
+          set -euo pipefail
+          MARKER='## Run 268 — close Run264 HTerrain governance checkpoint gap'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Revalidated the merged Run264 isolated Godot 4.6 HTerrain authoring workspace without changing runtime/PWA behavior: HTerrain 1.8 plugin contract, Terrain Data bootstrap, texture/detail layers, deterministic grass and authoring scene remain intact.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Godot headless import/editor validation and the real software-OpenGL small-brush normal-baker proof passed; PWA/cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, perf-trend, technical-debt and full Chromium smoke/console gates also passed before checkpoint write.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Memory-leak review: Run268 adds no runtime listeners, timers, DOM, geometry, materials or gameplay lifecycle ownership; product/runtime delta is zero.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Risk LOW. Next safe step must be selected only after refreshing remote main, governance/progress/next-step and open PR ownership again.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run268,2026-08-11,run264-hterrain-governance-checkpoint' perf_log.csv; then
+            printf '%s\n' 'run268,2026-08-11,run264-hterrain-governance-checkpoint,,,,,,,"Run264 HTerrain checkpoint; runtime delta 0; Godot authoring + real-render normal-baker + full mandatory chain PASS"' >> perf_log.csv
+          fi
+          TAG="stable-$(date +%Y-%m-%d-%H%M)"
+          if ! grep -Fq 'Run268 Run264 HTerrain governance checkpoint' STABLE_TAGS.md; then
+            printf '\n- `%s` — Run268 Run264 HTerrain governance checkpoint; Godot authoring, real-render normal-baker, PWA/perf/determinism/world-safety/full smoke and console-zero PASS.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          if git diff --cached --quiet; then
+            echo 'Checkpoint records already present on final head.'
+            exit 0
+          fi
+          git commit -m 'docs(run268): record Run264 HTerrain governance checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git push origin HEAD:agent/run268-run264-hterrain-governance-checkpoint
+          git tag "$TAG" || true
+          git push origin "$TAG" || echo 'Known stable-tag push restriction retained per governance.'
