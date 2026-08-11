@@ -14796,3 +14796,10 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Memory-leak review: fallback palette clones only materials it replaces; no new listeners, timers or persistent DOM are added by runtime code.
 - Technical debt counter: checkTechnicalDebt PASS; no new TEMP/HACK/FIXME/WORKAROUND debt introduced.
 - Next safe step: continue World Editor visual/readability improvements only after re-reading current main, open PRs and active agent branches.
+
+## Run 264 — close Run263 governance checkpoint gap
+- Closed issue #155 additively without changing renderer/gameplay behavior: Run263 deterministic lake/sea semantics remain 4046 sea cells + 6 enclosed lake cells on the canonical 96x64 mask.
+- Added permanent two-view semantic evidence generation (full-mask overview + enclosed-lake detail), uploaded by CI as an artifact.
+- Full required chain passed before checkpoint write: syntax, classifier/hydrology, PWA/installability, mobile performance, seeded determinism, terrain/road safety, technical-debt audit, full Chromium smoke, console/page cleanliness, concurrency and additive-only gates.
+- Memory-leak review: evidence generator is process-local file output only; no listeners, timers, DOM, geometry, materials or runtime lifecycle ownership added.
+- Risk LOW; runtime/product behavior delta 0. Next safe step must be chosen only after refreshing main/open PRs again.

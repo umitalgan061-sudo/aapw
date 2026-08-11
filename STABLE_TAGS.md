@@ -971,3 +971,5 @@ stable-2026-08-11-1026 — Run258 editor mobile multi-object actual-download sav
 stable-2026-08-11-1218 — Run262 editor terrain elevation brush; water lowers and land raises live terrain/collider with deterministic persistent stamps; PWA/perf/determinism/smoke gates verified.
 
 - `stable-2026-08-11-1329` — Run259 deterministic FBX fallback palette (288 colors / 24 families); full DoD + two-angle visual evidence PASS.
+
+- `stable-2026-08-11-1511` — Run264 Run263 governance checkpoint; deterministic 4046 sea + 6 lake proof, two-view semantic evidence and full DoD PASS.
