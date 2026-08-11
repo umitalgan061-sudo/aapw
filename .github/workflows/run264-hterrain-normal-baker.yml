@@ -1,0 +1,87 @@
+name: Run 264 HTerrain Normal Baker
+
+on:
+  push:
+    branches:
+      - owner/hterrain-import
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run264-hterrain-normal-baker-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-normal-baker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Import resources before enabling HTerrain editor plugin
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/run264-normal-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+      - name: Functional HTerrain normal-baker proof
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_normal_baker.gd \
+            2>&1 | tee "$RUNNER_TEMP/run264-normal-baker.log"
+          grep -F 'HTERRAIN_NORMAL_BAKER_OK' "$RUNNER_TEMP/run264-normal-baker.log"
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
