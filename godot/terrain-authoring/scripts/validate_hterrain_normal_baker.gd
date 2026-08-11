@@ -68,8 +68,11 @@ func _run_validation() -> void:
 		await process_frame
 
 	var after := normal_image.get_pixel(SAMPLE.x, SAMPLE.y)
-	var changed := before.distance_to(after) > 0.1
-	var expected_slope_normal := after.r < 0.25 \
+	var color_delta: float = absf(before.r - after.r) \
+		+ absf(before.g - after.g) \
+		+ absf(before.b - after.b)
+	var changed: bool = color_delta > 0.1
+	var expected_slope_normal: bool = after.r < 0.25 \
 		and absf(after.g - 0.5) < 0.12 \
 		and after.b > 0.62 \
 		and after.b < 0.86
@@ -82,7 +85,12 @@ func _run_validation() -> void:
 		_fail("HTerrain normal baker output is not a plausible deterministic slope normal: %s" % after)
 		return
 
-	print("HTERRAIN_NORMAL_BAKER_OK before=%s after=%s sample=%s" % [before, after, SAMPLE])
+	print("HTERRAIN_NORMAL_BAKER_OK before=%s after=%s sample=%s delta=%s" % [
+		before,
+		after,
+		SAMPLE,
+		color_delta
+	])
 	root.queue_free()
 	await process_frame
 	quit(0)
