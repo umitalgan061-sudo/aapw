@@ -14739,3 +14739,13 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Event Determinism Guard `31463882028` PASS on the same Run252 head.
 - Runtime/product source delta: 0 lines changed in Run252. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: refresh remote main and concurrent branches, then continue only a distinct additive-only World Editor compatibility regression without crossing unresolved owner gates.
+
+## Run 254 — World Editor mobile off-grid scene import regression
+- Permanent additive-only Chromium regression proves the snap-isolated scene-import contract under a real mobile/touch browser context (`390x844`, `isMobile`, `hasTouch`, DPR 2), complementing the desktop import coverage from Runs248-252.
+- Fixture loads one `marker-tree` at exact off-grid position `[-13.375, 0.125, 19.625]`, signed rotation `[0.625, -1.375, 2.125]`, and non-uniform scale `[0.007, 1.875, 0.625]`; pre-load live snap is deliberately `true` / `4.25` while serialized metadata restores to `true` / `2.5` without transform quantization.
+- Mobile proof verifies touch context, viewport dimensions, exact object identity/transform, selection clear, history stable/not restoring, owner grid-hidden/disabled policy, canonical success toast and zero browser console/page errors.
+- Three mobile screenshots cover pre-load editor, loaded hierarchy and lower-panel reachability/scroll state.
+- Validation workflow `31464901204` PASS: syntax, focused mobile Chromium regression, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and mobile visual artifact all PASS.
+- World Event Determinism Guard `31464901187` PASS on the same Run254 head.
+- Runtime/product source delta: 0 lines changed in Run254. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: refresh remote main/concurrent branches and continue only a distinct additive-only World Editor mobile/scene-persistence compatibility regression without overlapping active Run253 unknown-only or stale Run252-local scopes.
