@@ -106,6 +106,28 @@ async function main() {
     await canvas.dispatchEvent('pointerup', { ...common, buttons: 0 });
   }
 
+  async function findVisibleSurfacePoint(canvas) {
+    return page.evaluate(({ left, top, width, height }) => {
+      const live = window.__WESTEROS_EDITOR_LIVE_AUTHORING__;
+      const candidates = [
+        [0.50, 0.68], [0.40, 0.68], [0.60, 0.68],
+        [0.50, 0.58], [0.35, 0.58], [0.65, 0.58],
+        [0.50, 0.78], [0.30, 0.72], [0.70, 0.72],
+        [0.25, 0.82], [0.75, 0.82], [0.20, 0.62], [0.80, 0.62],
+        [0.35, 0.82], [0.65, 0.82], [0.50, 0.88]
+      ];
+      for (const [nx, ny] of candidates) {
+        const clientX = left + width * nx;
+        const clientY = top + height * ny;
+        const point = live.surfacePointFromClient(clientX, clientY);
+        if (point && [point.x, point.y, point.z].every(Number.isFinite)) {
+          return { clientX, clientY, surfacePoint: point.toArray(), normalized: [nx, ny] };
+        }
+      }
+      return null;
+    }, { left: canvas.x, top: canvas.y, width: canvas.width, height: canvas.height });
+  }
+
   try {
     await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await page.waitForFunction(() => (
@@ -118,14 +140,20 @@ async function main() {
       document.getElementById('we-grid-toggle')?.disabled === true
     ), null, { timeout: 120000 });
     await page.waitForFunction(() => window.__WESTEROS_WORLD_EDITOR__?.editableObjects?.length === 0, null, { timeout: 30000 });
+    await page.waitForFunction(() => {
+      const liveState = window.__WESTEROS_EDITOR_LIVE_WORLD__?.liveState;
+      const scene = window.__WESTEROS_WORLD_EDITOR__?.scene;
+      return [...(liveState?.chunkManager?.loaded?.values?.() || [])].some((mesh) => mesh?.isMesh && mesh.parent === scene);
+    }, null, { timeout: 30000 });
     assert(errors.length === 0, `Boot browser errors: ${errors.join(' | ')}`);
 
     const canvas = await page.locator('#we-canvas').boundingBox();
     assert(canvas && canvas.width > 100 && canvas.height > 100, `Editor canvas unavailable: ${JSON.stringify(canvas)}`);
-    const clickX = canvas.x + canvas.width * 0.5;
-    const clickY = canvas.y + canvas.height * 0.5;
-    const surfacePoint = await page.evaluate(({ x, y }) => window.__WESTEROS_EDITOR_LIVE_AUTHORING__.surfacePointFromClient(x, y)?.toArray?.() || null, { x: clickX, y: clickY });
-    assert(surfacePoint && surfacePoint.every(Number.isFinite), `Canvas center does not resolve to live terrain/water surface: ${JSON.stringify({ canvas, clickX, clickY, surfacePoint })}`);
+    const stroke = await findVisibleSurfacePoint(canvas);
+    assert(stroke, `No visible live terrain/water stroke point found: ${JSON.stringify({ canvas })}`);
+    const clickX = stroke.clientX;
+    const clickY = stroke.clientY;
+    const surfacePoint = stroke.surfacePoint;
 
     await page.locator('#we-terrain-elevation-strength').fill('2');
     await page.locator('#we-terrain-elevation-strength').dispatchEvent('change');
@@ -173,7 +201,7 @@ async function main() {
     assert(errors.length === 0, `Browser errors: ${errors.join(' | ')}`);
     await page.screenshot({ path: path.join(ARTIFACT_DIR, '03-land-raises-terrain.png'), fullPage: true });
 
-    console.log(`[checkRun259EditorTerrainElevationBrush] PASS ${JSON.stringify({ surfacePoint, waterOffset: water.offset, waterGround: water.colliderY, landOffset: land.offset, landGround: land.colliderY, baseGround: land.baseY, strengthMeters: land.strengthValue, screenshots: 3, unexpectedErrors: errors.length })}`);
+    console.log(`[checkRun259EditorTerrainElevationBrush] PASS ${JSON.stringify({ strokeNormalized: stroke.normalized, surfacePoint, waterOffset: water.offset, waterGround: water.colliderY, landOffset: land.offset, landGround: land.colliderY, baseGround: land.baseY, strengthMeters: land.strengthValue, screenshots: 3, unexpectedErrors: errors.length })}`);
   } finally {
     await context.close();
     await browser.close();
