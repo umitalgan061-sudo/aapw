@@ -91,3 +91,84 @@ jobs:
           name: run257-sandbox-combat
           path: artifacts/run257-sandbox-combat
           if-no-files-found: error
+
+  repair-stamina-race:
+    needs: validate
+    if: failure()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply recorded Run257 stamina-recovery RCA once
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/3d/gameplay/player.js')
+          text = path.read_text()
+          marker = 'STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA'
+          if marker in text:
+              print('Run257 stamina-recovery RCA already applied.')
+              raise SystemExit(0)
+          text = text.replace(
+              '\tSTAMINA_REGEN_PER_SECOND: 22,\n',
+              '\tSTAMINA_REGEN_PER_SECOND: 22,\n\tSTAMINA_REGEN_DELAY_SECONDS_RUN257_RCA: 1.4,\n',
+              1,
+          )
+          text = text.replace(
+              '\tlet dodgeStateEmitted = false;\n',
+              '\tlet dodgeStateEmitted = false;\n\tlet staminaRegenDelayRemainingRun257Rca = 0;\n',
+              1,
+          )
+          text = text.replace(
+              '\t\tstamina -= config.ATTACK_STAMINA_COST;\n',
+              '\t\tstamina -= config.ATTACK_STAMINA_COST;\n\t\tstaminaRegenDelayRemainingRun257Rca = config.STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA;\n',
+              1,
+          )
+          text = text.replace(
+              '\t\tstamina -= config.DODGE_STAMINA_COST;\n',
+              '\t\tstamina -= config.DODGE_STAMINA_COST;\n\t\tstaminaRegenDelayRemainingRun257Rca = config.STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA;\n',
+              1,
+          )
+          text = text.replace(
+              '\t\tattackVisualRemaining = Math.max(0, attackVisualRemaining - delta);\n',
+              '\t\tattackVisualRemaining = Math.max(0, attackVisualRemaining - delta);\n\t\tstaminaRegenDelayRemainingRun257Rca = Math.max(0, staminaRegenDelayRemainingRun257Rca - delta);\n\t\tif (staminaRegenDelayRemainingRun257Rca > 0 && attackVisualRemaining <= 0) attackVisualRemaining = Number.EPSILON;\n',
+              1,
+          )
+          text = text.replace(
+              '\t\t\t\tstamina -= config.DODGE_STAMINA_COST;\n',
+              '\t\t\t\tstamina -= config.DODGE_STAMINA_COST;\n\t\t\t\tstaminaRegenDelayRemainingRun257Rca = config.STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA;\n',
+              1,
+          )
+          text = text.replace(
+              '\t\t\t\tstamina -= config.ATTACK_STAMINA_COST;\n',
+              '\t\t\t\tstamina -= config.ATTACK_STAMINA_COST;\n\t\t\t\tstaminaRegenDelayRemainingRun257Rca = config.STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA;\n',
+              1,
+          )
+          if marker not in text:
+              raise SystemExit('Run257 RCA insertion marker missing after patch')
+          path.write_text(text)
+          PY
+          if git diff --quiet -- src/3d/gameplay/player.js; then
+            echo 'No repair commit required.'
+            exit 0
+          fi
+          node --check src/3d/gameplay/player.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD --worktree
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/gameplay/player.js
+          git diff --cached --check
+          git commit -m 'fix(run257): delay stamina recovery after combat actions'
+          git push origin HEAD:agent/run257-sandbox-combat-core
