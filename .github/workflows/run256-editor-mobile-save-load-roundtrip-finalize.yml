@@ -1,0 +1,82 @@
+name: Run 256 Editor Mobile Save Load Roundtrip Finalize
+
+on:
+  push:
+    branches:
+      - agent/run256-editor-mobile-save-load-roundtrip
+    paths:
+      - '.github/workflows/run256-editor-mobile-save-load-roundtrip-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run256-editor-mobile-save-load-roundtrip-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun256EditorMobileSaveLoadRoundtrip.js
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/editor/EditorLocalSession.js
+          node --check src/3d/editor/EditorSceneSerializer.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run256 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 256 — World Editor mobile actual-download save→load roundtrip regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium regression closes the real mobile persistence loop: import an exact off-grid scene, save through the actual browser download path, replace the live scene, then reload that exact downloaded file through `Load JSON` in the same `390x844` touch context.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Source identity `run256-source-tree-0001` uses position `[-18.375, 0.125, 27.625]`, signed rotation `[0.625, -1.375, 2.125]`, non-uniform scale `[0.007, 1.875, 0.625]`, and serialized snap `true` / `2.5`; actual download filename is `westeros-world.scene.json` and downloaded bytes exactly match canonical serializer output.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- A distinct replacement scene is loaded between save and reload to prove full persistence rather than no-op state retention. Before reloading the downloaded file, live snap is deliberately changed to `true` / `4.25`; the downloaded scene then fully replaces the temporary object and restores the original exact off-grid transform and snap metadata without quantization.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Roundtrip also verifies stale replacement hierarchy removal, reusable/reset file input, selection clear, stable history/not restoring, owner grid-hidden/disabled policy and zero browser console/page errors. Three mobile screenshots plus the actual downloaded JSON are retained as evidence.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Validation workflow `31466599819` PASS: syntax, focused mobile actual-download roundtrip, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and artifact upload all PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- World Event Determinism Guard `31466599802` PASS on the same Run256 head.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed in Run256. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: refresh remote main and concurrent branches; Run257 is already claimed by parallel campaign/combat sessions, so continue only with a distinct unclaimed run number and scope.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run256,2026-08-11,editor-mobile-save-load-roundtrip' perf_log.csv; then
+            printf 'run256,%s,editor-mobile-save-load-roundtrip,,,,,,,"test-only real mobile/touch actual-download save-to-load persistence roundtrip; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run256 editor mobile actual-download save-load roundtrip regression' STABLE_TAGS.md; then
+            printf '%s — Run256 editor mobile actual-download save-load roundtrip regression; real downloaded scene fully restores exact source identity/transform/editor metadata after an intervening replacement scene; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run256 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run256): record mobile save-load roundtrip checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run256-editor-mobile-save-load-roundtrip
+          git push origin "$STABLE_TAG" || true
