@@ -52,3 +52,5 @@ jobs:
           CURRENT_MAIN="$(git rev-parse origin/main)"
           test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
           git push origin HEAD:agent/run259-editor-fbx-fallback-palette
+
+# Re-triggered after synchronizing Run259 with the latest main checkpoint.
