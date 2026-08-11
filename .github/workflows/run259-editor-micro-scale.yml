@@ -37,6 +37,7 @@ jobs:
           set -euo pipefail
           node --check src/3d/editor/EditorScaleInputController.js
           node --check scripts/checkRun259EditorMicroScale.mjs
+          node --check scripts/checkRun259EditorMicroScaleBrowser.js
           node scripts/checkRun216ScaleInputController.mjs
           node scripts/checkRun259EditorMicroScale.mjs
       - name: PWA and deterministic safety
@@ -53,6 +54,8 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Real World Editor micro-scale browser proof
+        run: node scripts/checkRun259EditorMicroScaleBrowser.js
       - name: Mobile performance and full browser smoke
         run: |
           set -euo pipefail
@@ -66,3 +69,10 @@ jobs:
           test "$CURRENT_MAIN" = "$(git merge-base HEAD origin/main)"
           node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
           git diff --check
+      - name: Upload micro-scale browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run259-editor-micro-scale
+          path: artifacts/run259-editor-micro-scale
+          if-no-files-found: ignore
