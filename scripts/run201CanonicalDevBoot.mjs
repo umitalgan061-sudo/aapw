@@ -63,3 +63,13 @@ if (selector.getActiveSource() === 'canonical' && selector.activation?.windowSta
   status.textContent += ' | map-surface=' + run276Surface.vertexCount + 'v';
   state.renderer.render(state.scene, state.camera);
 }
+
+// Run277 deterministic Pindex-01 micro-surface detail activation.
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex01DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex01Detail.js');
+  const run277Detail = applyPindex01DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run277Pindex01Ready = 'true';
+  document.body.dataset.run277Pindex01TouchedVertices = String(run277Detail.touchedVertices);
+  status.textContent += ' | pindex01-detail=' + run277Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
