@@ -1,0 +1,142 @@
+name: Run 266 Entry Gate Governance Finalizer
+
+on:
+  push:
+    branches:
+      - agent/run266-entry-gate-governance-finalizer
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run266-entry-gate-governance-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-and-checkpoint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Install Chromium proof dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Run266 focused desktop mobile proof
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun266EntryGate.js
+          node scripts/checkRun266EntryGate.js
+      - name: PWA performance determinism world safety and technical debt
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Full Chromium smoke and console gate
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run266-final-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run266-final-smoke.log")" -ge 34
+      - name: Upload final visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run266-entry-gate-final-evidence
+          path: artifacts/run266-entry-gate
+          if-no-files-found: error
+          retention-days: 14
+      - name: Final concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run266 governance records
+        run: |
+          set -euo pipefail
+          PROGRESS_MARKER='## Run 266 — 2D→3D evasive entry gate'
+          if ! grep -Fq "$PROGRESS_MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$PROGRESS_MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Owner-requested 2D→3D transition now lands on the repository-owned `giriş.png` full-screen gate before exposing the already-running 3D world; the existing 2D 🎮 href and gameplay/world runtime remain unchanged.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Left red `Geri dön` is intentionally non-navigating: desktop pointer proximity moves it deterministically away; mobile/touch pointer-down moves it to another bounded candidate. Right green `Giriş yap` stays fixed and disposes/removes the gate to reveal 3D.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Final product diff is additive-only: `game3d.html` +206/-0; focused Chromium proof +216/-0; validation workflow +113/-0. No `game3d.js`, world geometry, gameplay state, 2D map behavior or canonical coordinates changed.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Evidence: Run266 workflow 31490461076 PASS plus exact-main finalizer; desktop 1440x900 and mobile 390x844 touch proofs render `giriş.png` at 2544x3814 source resolution, prove red-button movement, fixed green entry and zero 3D gate console/page errors; four screenshots retained as artifacts.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- PWA/installability + service-worker integrity PASS. Existing image policy is cache-first, so the rendered entry image is retained for later offline use after first successful fetch; no service-worker ownership/version behavior was changed in this run.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Mobile render sample remains inside budget at 35 draw calls / 195929 triangles / 30 geometries / 22 textures. Texture-memory bytes are not exposed by renderer.info and were not fabricated; headless FPS is trend-only.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Determinism/world safety unchanged and PASS: no Math.random under src/3d; 14/14 terrain seats safe; 14/14 seats connected by 13-edge 20.24 km road tree; normalized reference-map bounds coverage remains 67.3%; mobile resident footprint policy remains radius-4 ~14.7%.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Memory-leak review PASS: gate listeners are centrally tracked; green entry and pagehide dispose them; Run266 global is deleted; no timers, renderer objects, geometry, materials or gameplay lifecycle ownership persist.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- RCA: first focused proof misclassified the 2D shell’s already-known soft-reported missing-media 404 console entries as 3D gate failures. Prevention/regression: 2D route proof is isolated on its own page while strict console-zero is asserted on a clean `game3d.html` gate page. Corrected workflow PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- World Evolution delta: road +0.00 km; forest +0.00 km²; castles +0; NPC +0; events +0; animals +0; terrain/water/settlements +0. Player-visible delta is the new humorous forced-choice 3D entry gate only.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Technical debt introduced: 0. Existing debt ledger count at validation: 35 recorded progress entries / 23 owner-tracking entries. Risk LOW-MEDIUM; Confidence 5/5. Next safe step: refresh main/open PRs and continue the highest-priority unclaimed owner task.' >> 3D_GAME_PROGRESS.md
+          fi
+
+          ADR_MARKER='## ADR-0263 — Keep the forced-choice 3D entry gate UI-only and deterministic'
+          if ! grep -Fq "$ADR_MARKER" DECISIONS.md; then
+            printf '\n%s\n' "$ADR_MARKER" >> DECISIONS.md
+            printf '%s\n' '**Risk:** LOW-MEDIUM' >> DECISIONS.md
+            printf '%s\n' '' >> DECISIONS.md
+            printf '%s\n' '**Decision:** Preserve the established 2D `game3d.html` route and existing 3D runtime. Place the owner-requested `giriş.png` gate inside `game3d.html`; make only the red `Geri dön` affordance evasive/non-navigating using a fixed deterministic candidate set, while the green `Giriş yap` remains stationary and removes the overlay.' >> DECISIONS.md
+            printf '%s\n' '' >> DECISIONS.md
+            printf '%s\n' '**Why:** This satisfies the requested joke/forced-choice interaction without creating a second navigation owner, changing 2D map code, altering seeded game state, adding Math.random, or coupling the gate to world/gameplay simulation.' >> DECISIONS.md
+            printf '%s\n' '' >> DECISIONS.md
+            printf '%s\n' '**Alternatives:** Replace the 2D link with a new page (rejected: unnecessary route duplication); move the red button randomly (rejected: violates deterministic policy); block 3D initialization until entry (rejected: changes boot ownership and increases regression surface).' >> DECISIONS.md
+            printf '%s\n' '' >> DECISIONS.md
+            printf '%s\n' '**Lifecycle/PWA:** Event listeners are disposed on entry/pagehide; the global test surface is deleted. Existing PWA installability and cache policies remain authoritative; image fetches are cache-first. No service-worker version or ownership change is introduced.' >> DECISIONS.md
+            printf '%s\n' '' >> DECISIONS.md
+            printf '%s\n' '**Rollback/Future:** The gate is isolated in additive `game3d.html` markup/style/script. Any future owner-approved non-additive cleanup can remove that isolated layer without touching the 2D map, 3D simulation or world state.' >> DECISIONS.md
+          fi
+
+          if ! grep -Fq '2026-08-11,run266,' perf_log.csv; then
+            printf '%s\n' '2026-08-11,run266,1,35,195929,30,22,' >> perf_log.csv
+          fi
+
+          TAG="stable-$(date +%Y-%m-%d-%H%M)"
+          if ! grep -Fq 'Run266 2D→3D evasive entry gate' STABLE_TAGS.md; then
+            printf '\n- `%s` — Run266 2D→3D evasive entry gate: `giriş.png`, deterministic desktop/mobile evasive red control, fixed green entry, PWA/perf/world-safety/full-browser DoD and four-view visual evidence PASS.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          if git diff --cached --quiet; then
+            echo 'Run266 governance records already present on final head.'
+            exit 0
+          fi
+          git commit -m 'docs(run266): record 3D entry gate checkpoint'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          git push origin HEAD:agent/run266-entry-gate-governance-finalizer
+          git tag "$TAG" || true
+          git push origin "$TAG" || echo 'Stable-tag push unavailable; STABLE_TAGS record retained.'
