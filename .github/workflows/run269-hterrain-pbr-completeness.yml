@@ -1,0 +1,188 @@
+name: Run 269 HTerrain PBR Completeness
+
+on:
+  push:
+    branches:
+      - agent/run269-hterrain-pbr-completeness
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run269-hterrain-pbr-completeness-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 09c2703e0e5b90646fd74fbcf0a831b41031859d
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-and-checkpoint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Starting exact-main concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+
+      - name: Run269 additive terrain scope contract
+        run: |
+          set -euo pipefail
+          test -f godot/terrain-authoring/TERRAIN_POLISH_LOG.md
+          test -f godot/terrain-authoring/scripts/validate_hterrain_pbr_completeness.gd
+          for name in grass earth rock snow; do
+            test -f "godot/terrain-authoring/starter_textures/ground_${name}_normal_roughness.png"
+          done
+          grep -F 'func ensure_starter_pbr_ready() -> bool:' godot/terrain-authoring/scripts/terrain_authoring_bootstrap.gd
+          grep -F 'TYPE_NORMAL_ROUGHNESS' godot/terrain-authoring/scripts/terrain_authoring_bootstrap.gd
+          grep -F 'overwrite_policy=missing_only' godot/terrain-authoring/scripts/validate_hterrain_pbr_completeness.gd
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot resource import without plugin first-scan race
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/run269-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+
+      - name: HTerrain authoring and PBR completeness validation
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 \
+            2>&1 | tee "$RUNNER_TEMP/run269-editor.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_authoring.gd \
+            2>&1 | tee "$RUNNER_TEMP/run269-hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/run269-hterrain.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_pbr_completeness.gd \
+            2>&1 | tee "$RUNNER_TEMP/run269-pbr.log"
+          grep -F 'HTERRAIN_PBR_COMPLETENESS_OK slots=4 overwrite_policy=missing_only' "$RUNNER_TEMP/run269-pbr.log"
+
+      - name: Functional normal-baker regression with software OpenGL
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          timeout 180s xvfb-run -a -s '-screen 0 1280x720x24' \
+            "$GODOT_BIN" --editor --path godot/terrain-authoring \
+            --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 \
+            --script res://scripts/validate_hterrain_normal_baker.gd \
+            2>&1 | tee "$RUNNER_TEMP/run269-normal-baker.log"
+          grep -F 'HTERRAIN_NORMAL_BAKER_OK' "$RUNNER_TEMP/run269-normal-baker.log"
+          ! grep -F 'RendererDummy' "$RUNNER_TEMP/run269-normal-baker.log"
+
+      - name: PWA cache installability regression
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+
+      - name: Install Chromium smoke dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Performance determinism world safety technical debt
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full Chromium smoke and console gate
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run269-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run269-smoke.log")" -ge 34
+
+      - name: Final exact-main concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+
+      - name: Append verified Run269 checkpoint records
+        run: |
+          set -euo pipefail
+          MARKER='## Run 269 — starter HTerrain PBR completeness'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Added missing-only starter normal+roughness coverage for all four isolated Godot HTerrain material slots; existing owner-authored PBR textures are never replaced.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Godot 4.6.3 authoring/PBR validation and software-OpenGL normal-baker regression passed together with PWA/cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, technical-debt and full Chromium smoke/console gates.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/web delta is zero; HTerrain core plugin files are untouched. Risk LOW and rollback is removal of the appended bootstrap block plus Run269 starter assets.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe terrain-polish candidate: evaluate cliff-only triplanar mapping only after refreshing main/open PR ownership and measuring shader cost.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run269,2026-08-11,hterrain-pbr-completeness' perf_log.csv; then
+            printf '%s\n' 'run269,2026-08-11,hterrain-pbr-completeness,,,,,,,"Godot-only PBR starter polish; web runtime delta 0; full mandatory chain PASS"' >> perf_log.csv
+          fi
+          TAG="stable-$(date +%Y-%m-%d-%H%M)"
+          if ! grep -Fq 'Run269 HTerrain PBR completeness' STABLE_TAGS.md; then
+            printf '\n- `%s` — Run269 HTerrain PBR completeness; Godot authoring/PBR/normal-baker plus PWA/perf/determinism/world-safety/full smoke and console-zero PASS.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          if git diff --cached --quiet; then
+            echo 'Run269 checkpoint records already present.'
+            exit 0
+          fi
+          git commit -m 'docs(run269): record HTerrain PBR completeness checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git push origin HEAD:agent/run269-hterrain-pbr-completeness
+          git tag "$TAG" || true
+          git push origin "$TAG" || echo 'Known stable-tag push restriction retained per governance.'

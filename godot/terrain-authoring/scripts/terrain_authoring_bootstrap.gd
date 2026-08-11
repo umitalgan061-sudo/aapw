@@ -88,3 +88,47 @@ func ensure_authoring_ready() -> bool:
 
 	_authoring_ready = true
 	return true
+
+# Run269 terrain polish: fill only missing starter normal+roughness channels.
+# Existing owner-authored PBR textures are never replaced.
+const STARTER_NORMAL_ROUGHNESS_TEXTURES := [
+	"res://starter_textures/ground_grass_normal_roughness.png",
+	"res://starter_textures/ground_earth_normal_roughness.png",
+	"res://starter_textures/ground_rock_normal_roughness.png",
+	"res://starter_textures/ground_snow_normal_roughness.png"
+]
+
+var _starter_pbr_polish_checked := false
+
+
+func _process(_delta: float) -> void:
+	if not Engine.is_editor_hint() or _starter_pbr_polish_checked or not _authoring_ready:
+		return
+	_starter_pbr_polish_checked = ensure_starter_pbr_ready()
+
+
+func ensure_starter_pbr_ready() -> bool:
+	var terrain = get_node_or_null("HTerrain")
+	if terrain == null:
+		push_error("Starter PBR polish could not find HTerrain")
+		return false
+
+	var texture_set = terrain.get_texture_set()
+	if texture_set.get_mode() != HTerrainTextureSet.MODE_TEXTURES:
+		return true
+
+	var slot_count: int = min(texture_set.get_slots_count(), STARTER_NORMAL_ROUGHNESS_TEXTURES.size())
+	for slot_index in range(slot_count):
+		if texture_set.get_texture(slot_index, HTerrainTextureSet.TYPE_NORMAL_ROUGHNESS) != null:
+			continue
+		var texture_path: String = STARTER_NORMAL_ROUGHNESS_TEXTURES[slot_index]
+		var texture := load(texture_path) as Texture2D
+		if texture == null:
+			push_error("Starter normal/roughness texture could not be loaded: %s" % texture_path)
+			return false
+		texture_set.set_texture(
+			slot_index,
+			HTerrainTextureSet.TYPE_NORMAL_ROUGHNESS,
+			texture)
+
+	return true
