@@ -22,8 +22,6 @@ func _run_validation() -> void:
 		return
 
 	var root := packed.instantiate()
-	get_root().add_child(root)
-
 	if not root.has_method("ensure_authoring_ready"):
 		_fail("HTerrain authoring bootstrap contract is missing")
 		return
@@ -31,6 +29,8 @@ func _run_validation() -> void:
 	if not root.call("ensure_authoring_ready"):
 		_fail("HTerrain authoring bootstrap failed")
 		return
+
+	get_root().add_child(root)
 
 	var terrain = root.get_node_or_null("HTerrain")
 	if terrain == null:
@@ -77,15 +77,20 @@ func _run_validation() -> void:
 		_fail("Grass detail layer starter texture is missing")
 		return
 
+	if not bool(terrain.get("collision_enabled")):
+		_fail("HTerrain collision was not restored after Terrain Data initialization")
+		return
+
 	if not FileAccess.file_exists(DATA_DIRECTORY.path_join(HTerrainData.META_FILENAME)):
 		_fail("HTerrain data metadata was not persisted")
 		return
 
-	print("HTERRAIN_AUTHORING_VALIDATION_OK resolution=%s texture_slots=%s detail_maps=%s seed=%s" % [
+	print("HTERRAIN_AUTHORING_VALIDATION_OK resolution=%s texture_slots=%s detail_maps=%s seed=%s collision=%s" % [
 		data.get_resolution(),
 		texture_set.get_slots_count(),
 		data.get_map_count(HTerrainData.CHANNEL_DETAIL),
-		detail_layer.fixed_seed
+		detail_layer.fixed_seed,
+		terrain.get("collision_enabled")
 	])
 	root.queue_free()
 	quit(0)

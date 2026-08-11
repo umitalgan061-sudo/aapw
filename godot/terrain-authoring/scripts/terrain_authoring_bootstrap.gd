@@ -16,9 +16,9 @@ const STARTER_GRASS_TEXTURE := "res://starter_textures/detail_grass.svg"
 var _authoring_ready := false
 
 
-func _ready() -> void:
+func _enter_tree() -> void:
 	if Engine.is_editor_hint():
-		call_deferred("ensure_authoring_ready")
+		ensure_authoring_ready()
 
 
 func ensure_authoring_ready() -> bool:
@@ -30,7 +30,9 @@ func ensure_authoring_ready() -> bool:
 		push_error("HTerrain authoring scene is missing the HTerrain node")
 		return false
 
-	if terrain.get_data() == null:
+	var initial_data_creation := terrain.get_data() == null
+	if initial_data_creation:
+		terrain.set("collision_enabled", false)
 		terrain.set("data_directory", DATA_DIRECTORY)
 
 	var data = terrain.get_data()
@@ -55,7 +57,7 @@ func ensure_authoring_ready() -> bool:
 			if texture == null:
 				push_error("Starter terrain texture could not be loaded: %s" % texture_path)
 				return false
-			var slot_index := texture_set.insert_slot(-1)
+			var slot_index: int = texture_set.insert_slot(-1)
 			texture_set.set_texture(
 				slot_index,
 				HTerrainTextureSet.TYPE_ALBEDO_BUMP,
@@ -71,10 +73,15 @@ func ensure_authoring_ready() -> bool:
 
 	if data_changed:
 		data.notify_full_change()
-		terrain.update_collider()
 		if not data.save_data(DATA_DIRECTORY):
 			push_error("HTerrain data could not be saved at %s" % DATA_DIRECTORY)
 			return false
+
+	if initial_data_creation:
+		terrain.set("collision_enabled", true)
+		terrain.update_collider()
+	elif bool(terrain.get("collision_enabled")) and data_changed:
+		terrain.update_collider()
 
 	if detail_layer != null:
 		detail_layer.update_material()

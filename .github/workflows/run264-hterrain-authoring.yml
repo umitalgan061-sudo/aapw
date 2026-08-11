@@ -61,12 +61,33 @@ jobs:
           chmod +x "$GODOT_BIN"
           "$GODOT_BIN" --version
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
-      - name: Godot editor import and HTerrain authoring validation
+      - name: Godot resource import without first-scan plugin races
         run: |
           set -euo pipefail
-          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 8
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/run264-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+      - name: Godot plugin load and HTerrain authoring validation
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
-            --script res://scripts/validate_hterrain_authoring.gd
+            --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/run264-hterrain-validation.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/run264-hterrain-validation.log"
           test -f godot/terrain-authoring/terrain_data/data.hterrain
       - name: PWA cache and installability regression
         run: |

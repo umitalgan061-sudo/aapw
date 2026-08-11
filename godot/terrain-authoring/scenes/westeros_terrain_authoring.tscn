@@ -9,7 +9,7 @@ script = ExtResource("1_bootstrap")
 
 [node name="HTerrain" type="Node3D" parent="."]
 script = ExtResource("2_hterrain")
-data_directory = "res://terrain_data"
+collision_enabled = false
 ambient_wind = 0.2
 
 [node name="GrassDetailLayer" type="Node3D" parent="HTerrain"]
