@@ -113,3 +113,15 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 		},
 	};
 }
+
+// Run257 additive wrapper: guards who are hostile or temporarily defeated are combatants, not dialogue targets.
+const createInteractionControllerBeforeSandboxCombatRun257 = createInteractionController;
+createInteractionController = function createInteractionControllerWithSandboxCombatRun257(options) {
+	const controller = createInteractionControllerBeforeSandboxCombatRun257(options);
+	const baseUpdate = controller.update.bind(controller);
+	controller.update = (npcs, playerPos) => baseUpdate(
+		npcs.filter((npc) => !npc.object3D.userData.sandboxCombatHostile && !npc.object3D.userData.sandboxCombatDefeated),
+		playerPos,
+	);
+	return controller;
+};
