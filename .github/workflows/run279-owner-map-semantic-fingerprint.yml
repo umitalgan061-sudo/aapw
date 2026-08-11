@@ -1,0 +1,109 @@
+name: Run 279 Owner Map Semantic Fingerprint
+
+on:
+  push:
+    branches: [run279-owner-map-semantic-fingerprint]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run279-owner-map-semantic-fingerprint-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 974345ebee61e36af771654609b2919cc0864a01
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    if: github.event.head_commit.message != 'run279 validated owner-map semantic fingerprint checkpoint'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Exact-main additive entry gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Semantic fingerprint and world-reference regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun279OwnerMapSemanticFingerprint.js
+          node scripts/checkRun279OwnerMapSemanticFingerprint.js
+          node scripts/checkRun276MapSurfacePindexes.js
+          node scripts/checkRun277Pindex01Detail.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Performance determinism world safety and full browser DoD
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run279-mobile.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run279-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run279-smoke.log")" -ge 34
+
+      - name: Pre-publication exact-main concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Record checkpoint and publish branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '\n%s\n' '## Run 279 — Owner-map semantic byte fingerprint guard' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Added a test-only guard that independently hashes the packed 96x64 semantic mask bytes and locks all ten pindex composition totals against Run276 canonical owner-map provenance.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Runtime delta is zero: no geometry, material, PWA shell, gameplay, editor, road, hydrology, settlement or pindex-detail ownership changed.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Full world-reference/PWA/mobile/determinism/terrain-road safety/technical-debt/browser smoke chain passed before checkpoint publication.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Next safe step: refresh main; allow the independently-owned Pindex-02 and Terrain Polish #03 work to finish before choosing another pindex or terrain visual change.' >> 3D_GAME_PROGRESS.md
+          printf '\n%s\n' '## ADR-RUN279 — Canonical semantic mask bytes are immutable beneath pindex polish' >> DECISIONS.md
+          printf '%s\n' '- Risk: LOW. Decision: validate the packed mask SHA plus hard-coded per-pindex semantic totals without changing runtime. Reason: later PBR/detail layers may alter appearance but must never silently rewrite canonical sea/lake/soil/rock/snow geography.' >> DECISIONS.md
+          printf '%s\n' 'run279,2026-08-11,owner-map-semantic-fingerprint,,,,,,,"test-only immutable mask guard; runtime delta 0; mandatory DoD PASS"' >> perf_log.csv
+          printf '\n%s\n' '- `stable-2026-08-11-run279` — owner-map semantic byte fingerprint guard; runtime delta 0; mandatory DoD PASS.' >> STABLE_TAGS.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git commit -m 'run279 validated owner-map semantic fingerprint checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
