@@ -14729,3 +14729,13 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Event Determinism Guard `31463060924` PASS on the same Run251 head.
 - Runtime/product source delta: 0 lines changed in Run251. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: refresh remote main and concurrent branches, then continue only a distinct additive-only World Editor compatibility regression without crossing unresolved owner gates.
+
+## Run 252 — World Editor consecutive scene replacement regression
+- Permanent additive-only Chromium regression verifies two different valid scene JSON files can be loaded consecutively through the same hidden file input and that each successful load remains a full scene replacement.
+- First load installs two distinct off-grid `marker-tree` objects with signed rotations/non-uniform scales including `0.007` and snap `true` / `2.5`; the file input resets after completion so a second file can be loaded without page reload.
+- Before the second load an object is explicitly selected and live snap is changed to `true` / `4.25`; second load replaces the first scene with exactly one new off-grid identity, removes all stale first-scene IDs/hierarchy entries, clears prior selection, and restores serialized snap to `true` / `3.75` without quantization.
+- History remains stable/not restoring, owner grid-hidden/disabled policy stays intact, canonical success toast is shown, browser console/page errors remain zero, and three screenshots include a second camera angle after replacement.
+- Validation workflow `31463882079` PASS: syntax, Chromium regression, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and visual artifact all PASS.
+- World Event Determinism Guard `31463882028` PASS on the same Run252 head.
+- Runtime/product source delta: 0 lines changed in Run252. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: refresh remote main and concurrent branches, then continue only a distinct additive-only World Editor compatibility regression without crossing unresolved owner gates.
