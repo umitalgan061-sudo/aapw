@@ -15458,3 +15458,10 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 
 ## ADR-RUN280 — Canonical semantic mask bytes are immutable beneath pindex polish
 - Risk: LOW. Decision: validate the packed mask SHA plus hard-coded per-pindex semantic totals without changing runtime. Reason: later PBR/detail layers may alter appearance but must never silently rewrite canonical sea/lake/soil/rock/snow geography.
+
+## ADR-RUN281 — Pindex-03 receives conservative deterministic micro-detail
+- Risk: LOW.
+- Decision: apply bounded deterministic post-semantic tonal variation only to canonical Pindex-03, with rock amplitude 0.06, soil 0.05, snow 0.025 and water 0.01.
+- Reason: Run280 locks canonical semantic geography; Pindex-03 can therefore gain visual breakup without changing owner-map semantics, geometry or deterministic topology.
+- Regression boundary: browser proof applies Pindex-01 and Pindex-02 first, snapshots colors, then requires every Run281-changed vertex to classify as Pindex-03.
+- Rollback: remove the Run281 activation/new module; Run280 remains the complete prior checkpoint.
