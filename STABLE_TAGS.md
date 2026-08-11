@@ -956,3 +956,4 @@ stable-2026-08-11-0258 — Run239 editor schema-version atomicity regression; un
 stable-2026-08-11-0311 — Run240 governance consolidation audit; owner-directive/owner-gate/platform-maintenance state re-verified; PWA/perf/determinism/smoke gates PASS.
 stable-2026-08-11-0328 — Run241 editor valid empty-scene load regression; empty scene clears authoring content, restores supported snap state and preserves owner live-grid policy; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-11-0341 — Run242 editor missing-metadata composed defaults regression; valid scene preserves exact object data and snap defaults while owner live-grid policy remains hidden/disabled; PWA/perf/determinism/smoke gates verified.
+stable-2026-08-11-0510 — Run245 editor null-metadata composed defaults regression; valid scene preserves exact object data and default snap state while owner live-grid policy remains hidden/disabled; PWA/perf/determinism/smoke gates verified.

@@ -186,3 +186,4 @@ run239,2026-08-11,editor-schema-version-atomicity,,,,,,,"test-only unsupported s
 run240,2026-08-11,governance-consolidation-audit,,,,,,,"governance/workflow-only consolidation; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run241,2026-08-11,editor-valid-empty-scene-load,,,,,,,"test-only valid empty scene load/owner-grid/snap-state regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run242,2026-08-11,editor-missing-metadata-defaults,,,,,,,"test-only valid scene missing editor metadata/composed owner-grid defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run245,2026-08-11,editor-null-metadata-defaults,,,,,,,"test-only valid scene editor:null composed defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
