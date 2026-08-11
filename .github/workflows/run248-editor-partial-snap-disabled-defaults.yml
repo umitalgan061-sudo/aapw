@@ -46,6 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/checkRun248EditorPartialSnapDisabledDefaults.js
+          node --check src/3d/editor/EditorLocalSession.js
           node scripts/checkRun248EditorPartialSnapDisabledDefaults.js
       - name: PWA cache and installability
         run: |
