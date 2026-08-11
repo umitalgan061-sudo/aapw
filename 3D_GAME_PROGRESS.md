@@ -14815,3 +14815,9 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Godot headless import/editor validation and the real software-OpenGL small-brush normal-baker proof passed; PWA/cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, perf-trend, technical-debt and full Chromium smoke/console gates also passed before checkpoint write.
 - Memory-leak review: Run268 adds no runtime listeners, timers, DOM, geometry, materials or gameplay lifecycle ownership; product/runtime delta is zero.
 - Risk LOW. Next safe step must be selected only after refreshing remote main, governance/progress/next-step and open PR ownership again.
+
+## Run 272 — Terrain Polish Iteration 001 governance checkpoint
+- Revalidated merged Terrain Polish Iteration #01: only HTerrain grass slot 0 uses tile reduction Vector4(1,0,0,0); plugin core remains untouched and web/runtime behavior is unchanged.
+- Godot 4.6.3 authoring + Iteration #01 validation, PWA/cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, technical debt and full Chromium smoke/console gates passed before checkpoint write.
+- Memory/perf review: no runtime listeners/timers/DOM/geometry ownership added; the merged terrain polish measured 35 draw calls and 195929 triangles, below existing mobile budgets.
+- Risk LOW. Next terrain polish must refresh main/log first and must not repeat grass anti-tiling Iteration #01.
