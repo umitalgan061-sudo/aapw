@@ -196,3 +196,4 @@ run251,2026-08-11,editor-unknown-asset-offgrid-load,,,,,,,"test-only unknown-ass
 run252,2026-08-11,editor-consecutive-scene-load,,,,,,,"test-only consecutive scene replacement/reusable file-input regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run254,2026-08-11,editor-mobile-offgrid-load,,,,,,,"test-only real mobile/touch off-grid scene import regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run255,2026-08-11,editor-mobile-scene-save,,,,,,,"test-only real mobile/touch scene JSON browser-download fidelity regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run256,2026-08-11,editor-mobile-save-load-roundtrip,,,,,,,"test-only real mobile/touch actual-download save-to-load persistence roundtrip; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
