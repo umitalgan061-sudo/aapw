@@ -1,0 +1,77 @@
+name: Run 240 Governance Consolidation Audit
+
+on:
+  push:
+    branches:
+      - agent/run240-governance-consolidation-audit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run240-governance-consolidation-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Verify owner directives and unresolved owner gates remain explicit
+        run: |
+          set -euo pipefail
+          grep -Fq 'GOVERNANCE_CONTINUATION_OVERRIDE.md' GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md
+          grep -Fq '§8.7' GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md
+          grep -Fq '§19' GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md
+          grep -Fq 'NVIDIA API' QUESTIONS_FOR_OWNER.md
+          grep -Fq 'ADR-0166' QUESTIONS_FOR_OWNER.md
+          grep -Fq 'game3d.js' QUESTIONS_FOR_OWNER.md
+          grep -Fq 'ADR-0172' QUESTIONS_FOR_OWNER.md
+          grep -Fq 'Run 235' RULES_CHANGELOG.md
+          grep -Fq 'next platform-control window ~run255-265' RULES_CHANGELOG.md
+      - name: PWA cache and installability
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+      - name: Performance, determinism and world safety
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Full browser smoke
+        run: node scripts/smokeTestGame3D.js
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
