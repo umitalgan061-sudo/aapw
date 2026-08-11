@@ -70,13 +70,26 @@ jobs:
           restore_project
           trap - EXIT
           git diff --exit-code -- "$PROJECT_FILE"
-      - name: Functional HTerrain normal-baker proof
+      - name: Verify real-render test prerequisites
         run: |
           set -euo pipefail
-          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring \
+          command -v xvfb-run
+          test -r /usr/lib/x86_64-linux-gnu/dri/swrast_dri.so || test -r /usr/lib/x86_64-linux-gnu/dri/llvmpipe_dri.so
+      - name: Functional HTerrain normal-baker proof with real software OpenGL
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          timeout 180s xvfb-run -a -s '-screen 0 1280x720x24' \
+            "$GODOT_BIN" --editor --path godot/terrain-authoring \
+            --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 \
             --script res://scripts/validate_hterrain_normal_baker.gd \
             2>&1 | tee "$RUNNER_TEMP/run264-normal-baker.log"
           grep -F 'HTERRAIN_NORMAL_BAKER_OK' "$RUNNER_TEMP/run264-normal-baker.log"
+          if grep -F 'RendererDummy' "$RUNNER_TEMP/run264-normal-baker.log"; then
+            echo 'Normal-baker proof unexpectedly used the dummy renderer.' >&2
+            exit 1
+          fi
       - name: Final remote-main concurrency and additive gates
         run: |
           set -euo pipefail
