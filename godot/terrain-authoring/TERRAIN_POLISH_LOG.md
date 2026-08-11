@@ -54,3 +54,9 @@
 **Gözlem:** Beklenen görsel etki, çim bıçaklarının zeminle birleştiği bölgede hafif koyulaşma ile daha iyi temas/derinlik hissi; çim yoğunluğu veya silueti değişmeden daha az karton-quad görünümü.
 **Risk / Geri alma notu:** Risk düşüktür. 0.35 değeri bazı çok koyu global-map bölgelerinde tabanı gereğinden koyu gösterebilir; tek sahne satırı kaldırılarak tamamen geri alınabilir. Ek texture fetch veya geometri maliyeti eklenmez.
 **Bir sonraki çalıştırma için öneri:** Iteration #03 DoD temiz kalırsa starter grass'ın global-map tint değerlerini ölçülü biçimde değerlendirmek; kaya triplanar konusu ise slot-4 sınırlaması çözülmeden ertelenmeli.
+
+### Iteration #03 DoD sonucu — 2026-08-11 19:29 Europe/Istanbul
+- GitHub Actions `Terrain Polish Iteration 003 Rerun` run #4 PASS oldu: exact-main/additive giriş kapıları, Godot 4.6.3 import/editor, `HTERRAIN_AUTHORING_VALIDATION_OK`, `TERRAIN_POLISH_ITERATION_03_OK bottom_ao=0.35 specular=0.25 tile_reduction=(1.0, 0.0, 0.0, 0.0)`, PWA/cache/installability, determinism/world-reference, teknik borç, tam Chromium smoke ve final exact-main/additive kapıları geçti.
+- Mobil örnek 35 draw call ve 195929 triangle ile 500 draw call / 500000 triangle bütçesinin altında kaldı; 14/14 terrain seat ve 14/14 yol bağlantısı güvenlik kontrolleri PASS oldu.
+- HTerrain çekirdek eklenti dosyaları değiştirilmedi. Godot headless logunda mevcut normalmap-baker shader compiler mesajı ve UID fallback uyarıları tekrar görüldü; doğrulama sonucu başarılı olduğu için çekirdeğe müdahale edilmedi.
+- Iteration #03 başarılı kabul edildi. Sonraki terrain polish çalıştırması aynı bottom-AO fikrini tekrar etmemeli; bir sonraki güvenli aday starter grass/global-map tint uyumudur, kaya triplanar ise slot-4 semantiği çözülmeden ertelenmelidir.
