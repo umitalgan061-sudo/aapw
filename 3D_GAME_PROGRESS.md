@@ -14809,3 +14809,9 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Focused real Chromium proof regenerated desktop/mobile visual evidence with zero gate-page console/page errors; full browser smoke, PWA/cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, perf-trend and technical-debt gates all passed before checkpoint write.
 - Memory-leak review: checkpoint adds no runtime listeners/timers/DOM/geometry/material ownership; Run266 gate disposal behavior is regression-tested by the focused browser proof.
 - Risk LOW; runtime/product delta for Run267 is 0. Next safe step must be selected only after refreshing remote main/open PRs and owner gates.
+
+## Run 268 — close Run264 HTerrain governance checkpoint gap
+- Revalidated the merged Run264 isolated Godot 4.6 HTerrain authoring workspace without changing runtime/PWA behavior: HTerrain 1.8 plugin contract, Terrain Data bootstrap, texture/detail layers, deterministic grass and authoring scene remain intact.
+- Godot headless import/editor validation and the real software-OpenGL small-brush normal-baker proof passed; PWA/cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, perf-trend, technical-debt and full Chromium smoke/console gates also passed before checkpoint write.
+- Memory-leak review: Run268 adds no runtime listeners, timers, DOM, geometry, materials or gameplay lifecycle ownership; product/runtime delta is zero.
+- Risk LOW. Next safe step must be selected only after refreshing remote main, governance/progress/next-step and open PR ownership again.
