@@ -14701,3 +14701,12 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates, visual artifact upload and World Event Determinism Guard PASS.
 - Source delta is additive-only: `EditorLocalSession.js` +25/-0; regression/workflow files are new. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: Run248 workflow `31460680447` PASS and World Event Determinism Guard `31460680409` PASS. Next safe step: re-read current main and active branches; continue only a distinct, unclaimed World Editor compatibility edge case.
+
+## Run 249 — World Editor snap-enabled off-grid scene import regression
+- Permanent additive-only Chromium regression verifies that a valid scene JSON with `snapEnabled: true`, `snapSize: 2.5`, and deliberately off-grid serialized coordinates loads those coordinates exactly instead of quantizing them.
+- The pre-load live editor state is independently prepared with snap enabled at size `4.25`; loading then restores the serialized snap metadata (`true` / `2.5`) while preserving object ID/name/asset, signed rotation, non-uniform scale including `0.007`, and the exact off-grid position `[-17.375, 0.125, 24.625]`.
+- Scene load clears selection, leaves history observers stable/not restoring, preserves the owner grid-hidden/disabled policy, reports the canonical success toast, and records zero browser console/page errors.
+- Validation workflow `31461470921` PASS: syntax, Chromium regression, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates, and two-screenshot artifact all PASS.
+- World Event Determinism Guard `31461470884` PASS on the same Run249 head.
+- Runtime/product source delta: 0 lines changed in Run249. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required; this run locks the Run248 scene-load snap-isolation behavior with the complementary snap-enabled off-grid case.
+- Next safe step: continue additive-only World Editor scene-load compatibility/regression coverage without crossing unresolved owner gates, after refreshing remote main and checking concurrent branches.
