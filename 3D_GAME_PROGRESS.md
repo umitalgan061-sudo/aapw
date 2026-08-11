@@ -14710,3 +14710,12 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Event Determinism Guard `31461470884` PASS on the same Run249 head.
 - Runtime/product source delta: 0 lines changed in Run249. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required; this run locks the Run248 scene-load snap-isolation behavior with the complementary snap-enabled off-grid case.
 - Next safe step: continue additive-only World Editor scene-load compatibility/regression coverage without crossing unresolved owner gates, after refreshing remote main and checking concurrent branches.
+
+## Run 250 — World Editor multi-object off-grid scene import regression
+- Permanent additive-only Chromium regression extends Run249 from one object to a three-object scene and verifies every serialized transform survives snap-enabled import independently and exactly.
+- The fixture loads three distinct `marker-tree` identities with mixed positive/negative off-grid positions, signed rotations, and non-uniform scales including `0.007`; object IDs remain unique and every object matches its serialized transform after load.
+- Pre-load live snap is deliberately enabled at `4.25`; serialized editor metadata restores snap to `true` / `2.5` without cross-object quantization or identity collision. Selection clears, history remains stable, owner grid-hidden/disabled policy remains intact, canonical success toast is shown, and browser console/page errors remain zero.
+- Validation workflow `31462280852` PASS: syntax, Chromium regression, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates, and two-screenshot artifact all PASS.
+- World Event Determinism Guard `31462280861` PASS on the same Run250 head.
+- Runtime/product source delta: 0 lines changed in Run250. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: refresh remote main and concurrent branches, then continue a distinct additive-only World Editor compatibility regression without crossing unresolved owner gates.
