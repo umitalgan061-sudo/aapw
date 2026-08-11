@@ -40,7 +40,7 @@ jobs:
           git diff --check "$BASE_SHA" HEAD
           test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"
 
-      - name: Candidate and existing governance contracts
+      - name: Run286 candidate source contract
         shell: bash
         run: |
           set -euo pipefail
@@ -48,10 +48,20 @@ jobs:
           node --check scripts/checkRun286Pindex05Detail.js
           node --check scripts/checkRun286Pindex05DetailBrowser.js
           node scripts/checkRun286Pindex05Detail.js
+
+      - name: Existing Pindex and governance contracts
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/checkRun284PindexDetailChain.js
           node scripts/checkRun283FinalHeadGovernance.js
           node scripts/checkRun280OwnerMapSemanticFingerprint.js
           node scripts/checkRun276MapSurfacePindexes.js
+
+      - name: World PWA determinism and checkpoint contracts
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/checkWorldReferenceMap.js
           node scripts/checkWorldReferenceWaterMask.js
           node scripts/checkWorldReferenceAlignment.js
