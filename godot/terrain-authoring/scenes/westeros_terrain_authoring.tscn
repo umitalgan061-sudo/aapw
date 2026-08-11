@@ -24,6 +24,7 @@ view_distance = 120.0
 density = 4.0
 fixed_seed = 20260811
 fixed_seed_enabled = true
+shader_params/u_bottom_ao = 0.35
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-55, -35, 0)
