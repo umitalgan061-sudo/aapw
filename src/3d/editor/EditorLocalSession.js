@@ -148,3 +148,28 @@ if (api) {
     console.error('[EditorLocalSession] boot failed', error);
   }
 }
+
+// Run248 additive scene-load transform guard: serialized coordinates must not be
+// quantized by whichever live snap setting happened to be active before import.
+const run248LoadInput = document.getElementById('we-load-file');
+let run248RedispatchingSceneLoad = false;
+run248LoadInput?.addEventListener('change', async (event) => {
+  if (run248RedispatchingSceneLoad) return;
+  const file = event.target.files?.[0];
+  if (!file) return;
+  event.stopImmediatePropagation();
+  try {
+    validateEditorScene(JSON.parse(await file.text()));
+    const snapToggle = document.getElementById('we-snap-toggle');
+    if (snapToggle) snapToggle.checked = false;
+  } catch {
+    // Invalid files are deliberately handed back to the canonical loader unchanged
+    // so its existing atomic failure path, logging and user feedback remain intact.
+  }
+  run248RedispatchingSceneLoad = true;
+  try {
+    run248LoadInput.dispatchEvent(new Event('change', { bubbles: true }));
+  } finally {
+    run248RedispatchingSceneLoad = false;
+  }
+}, true);
