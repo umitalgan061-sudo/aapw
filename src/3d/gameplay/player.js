@@ -164,6 +164,7 @@ export const SANDBOX_PLAYER_COMBAT_CONFIG_RUN257 = Object.freeze({
 	DODGE_SPEED_MPS: 9.5,
 	BLOCK_STAMINA_PER_SECOND: 13,
 	STAMINA_REGEN_PER_SECOND: 22,
+	STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA: 1.4,
 	TARGET_HUD_SECONDS: 3,
 });
 
@@ -249,6 +250,7 @@ createPlayer = async function createPlayerWithSandboxCombatRun257(options) {
 	let targetHudRemaining = 0;
 	let swordRig = null;
 	let dodgeStateEmitted = false;
+	let staminaRegenDelayRemainingRun257Rca = 0;
 
 	const showStatus = (text) => { if (hud?.status) hud.status.textContent = text; };
 	const publishBlockState = () => gameEvents.emit(SANDBOX_COMBAT_EVENTS_RUN257.PLAYER_BLOCK_STATE, { active: blocking });
@@ -265,6 +267,7 @@ createPlayer = async function createPlayerWithSandboxCombatRun257(options) {
 		if (blocking || dodgeRemaining > 0 || attackCooldown > 0 || stamina < config.ATTACK_STAMINA_COST) return false;
 		attackQueued = false;
 		stamina -= config.ATTACK_STAMINA_COST;
+		staminaRegenDelayRemainingRun257Rca = config.STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA;
 		attackCooldown = config.ATTACK_COOLDOWN_SECONDS;
 		attackVisualRemaining = config.ATTACK_VISUAL_SECONDS;
 		const forward = { x: Math.sin(model.rotation.y), z: Math.cos(model.rotation.y) };
@@ -283,6 +286,7 @@ createPlayer = async function createPlayerWithSandboxCombatRun257(options) {
 		if (blocking || dodgeRemaining > 0 || stamina < config.DODGE_STAMINA_COST) return false;
 		dodgeQueued = false;
 		stamina -= config.DODGE_STAMINA_COST;
+		staminaRegenDelayRemainingRun257Rca = config.STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA;
 		dodgeRemaining = config.DODGE_DURATION_SECONDS;
 		publishDodgeState(true);
 		dodgeStateEmitted = true;
@@ -345,6 +349,8 @@ createPlayer = async function createPlayerWithSandboxCombatRun257(options) {
 		baseUpdate(delta, moveDirectionXZ, isRunning && !blocking, jumpRequested);
 		attackCooldown = Math.max(0, attackCooldown - delta);
 		attackVisualRemaining = Math.max(0, attackVisualRemaining - delta);
+		staminaRegenDelayRemainingRun257Rca = Math.max(0, staminaRegenDelayRemainingRun257Rca - delta);
+		if (staminaRegenDelayRemainingRun257Rca > 0 && attackVisualRemaining <= 0) attackVisualRemaining = Number.EPSILON;
 		if (targetHudRemaining > 0) {
 			targetHudRemaining = Math.max(0, targetHudRemaining - delta);
 			if (targetHudRemaining === 0 && hud) hud.target.hidden = true;
@@ -363,6 +369,7 @@ createPlayer = async function createPlayerWithSandboxCombatRun257(options) {
 			dodgeQueued = false;
 			if (!blocking && dodgeRemaining <= 0 && stamina >= config.DODGE_STAMINA_COST) {
 				stamina -= config.DODGE_STAMINA_COST;
+				staminaRegenDelayRemainingRun257Rca = config.STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA;
 				dodgeRemaining = config.DODGE_DURATION_SECONDS;
 				publishDodgeState(true);
 				dodgeStateEmitted = true;
@@ -390,6 +397,7 @@ createPlayer = async function createPlayerWithSandboxCombatRun257(options) {
 			attackQueued = false;
 			if (!blocking && dodgeRemaining <= 0 && attackCooldown <= 0 && stamina >= config.ATTACK_STAMINA_COST) {
 				stamina -= config.ATTACK_STAMINA_COST;
+				staminaRegenDelayRemainingRun257Rca = config.STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA;
 				attackCooldown = config.ATTACK_COOLDOWN_SECONDS;
 				attackVisualRemaining = config.ATTACK_VISUAL_SECONDS;
 				const forward = { x: Math.sin(model.rotation.y), z: Math.cos(model.rotation.y) };
