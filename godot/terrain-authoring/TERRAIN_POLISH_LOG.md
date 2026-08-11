@@ -36,3 +36,11 @@
 - Ölçülen mobil örnek 35 draw call ve 195929 triangle ile tanımlı 500 draw call / 500000 triangle bütçesinin altında kaldı.
 - Headless Godot tarafında HTerrain eklentisinden gelen mevcut normalmap-baker shader compiler mesajı ile bazı UID fallback uyarıları görüldü; doğrulamalar başarıyla tamamlandığı ve bu iterasyonda `addons/zylann.hterrain/` değişmediği için çekirdek eklentiye müdahale edilmedi.
 - Iteration #01 başarılı kabul edildi; sonraki çalışma aynı fikri tekrar etmemeli.
+
+### Iteration #02 — 2026-08-11 17:01 Europe/Istanbul
+**Seçilen iyileştirme:** Kaya/cliff triplanar adayını etkinleştirmeden önce slot-precondition güvenlik kapısı eklendi.
+**Doğrulanan gerçek durum:** Bootstrap sırası slot 0 çim, 1 toprak, 2 kaya, 3 kar. Classic4Lite triplanar yolu yalnız slot 3 (`u_ground_albedo_bump_3`) üzerinde çalışıyor. Bu nedenle bugün `u_triplanar=true` yapmak kaya yerine kar katmanını triplanar örnekleyecekti.
+**Yapılan değişiklik:** Runtime/shader/plugin davranışı değiştirilmedi. Yeni `validate_terrain_polish_iteration_02.gd`, gerçek oluşturulan texture setinin slot yollarını, slot 2'nin kaya ve slot 3'ün kar olduğunu, triplanar'ın kapalı kaldığını ve shader'ın slot-3 kontratını deterministik olarak doğrular.
+**Neden yüksek değerli:** Yanlış katmanda pahalı triplanar örnekleme açılmasını engeller ve sonraki terrain-polish iterasyonuna ölçülebilir bir önkoşul bırakır; açık World Editor PR alanlarına dokunmaz.
+**Risk / geri alma:** LOW; oyun/runtime farkı sıfırdır. Yeni guard dosyası kaldırılarak geri alınabilir.
+**Sonraki güvenli aday:** Kaya/cliff gerçekten triplanar hedeflenecekse önce additive-only biçimde slot düzeni veya shader seçimi için ayrı tasarım/ADR değerlendir; mevcut slot 3 kar iken triplanar'ı etkinleştirme.
