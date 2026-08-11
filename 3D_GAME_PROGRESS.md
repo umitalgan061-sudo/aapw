@@ -14803,3 +14803,9 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Full required chain passed before checkpoint write: syntax, classifier/hydrology, PWA/installability, mobile performance, seeded determinism, terrain/road safety, technical-debt audit, full Chromium smoke, console/page cleanliness, concurrency and additive-only gates.
 - Memory-leak review: evidence generator is process-local file output only; no listeners, timers, DOM, geometry, materials or runtime lifecycle ownership added.
 - Risk LOW; runtime/product behavior delta 0. Next safe step must be chosen only after refreshing main/open PRs again.
+
+## Run 267 — close Run266 governance checkpoint gap
+- Revalidated the merged Run266 2D→3D entry gate without changing runtime behavior: owner giriş.png full-screen gate, deterministic evasive red back control on desktop/mobile, and fixed green enter action remain intact.
+- Focused real Chromium proof regenerated desktop/mobile visual evidence with zero gate-page console/page errors; full browser smoke, PWA/cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, perf-trend and technical-debt gates all passed before checkpoint write.
+- Memory-leak review: checkpoint adds no runtime listeners/timers/DOM/geometry/material ownership; Run266 gate disposal behavior is regression-tested by the focused browser proof.
+- Risk LOW; runtime/product delta for Run267 is 0. Next safe step must be selected only after refreshing remote main/open PRs and owner gates.
