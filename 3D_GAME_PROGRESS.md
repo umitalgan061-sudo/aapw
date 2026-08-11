@@ -14834,3 +14834,9 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Ten west-to-east pindexes provide repeatable map inspection. Canonical-dev terrain receives map-semantic vertex colors without changing geometry, heights, settlements, routes, bridges, 2D runtime or default game3d ownership.
 - Full mask/pindex, online+offline Chromium, PWA/cache/installability, mobile perf, determinism, terrain/road safety, technical-debt and 34-check browser smoke/console DoD passed.
 - Next safe step: polish one pindex at a time with PBR/detail layers while retaining this immutable map classification.
+
+## Run 277 — Pindex 01 deterministic dry-surface micro-detail
+- Scope is exactly owner-map pindex 01. Run276 sea/lake/soil/rock/snow classification, geometry, heights, roads, bridges, settlements and 2D runtime remain unchanged.
+- Soil/rock/snow vertex colors receive bounded coordinate-hashed micro-variation; sea and lake are untouched. No Math.random, textures, materials, listeners, timers or new GPU ownership are introduced.
+- Full pindex regression, online/offline visual proof, PWA/cache/installability, mobile perf, determinism, terrain/road safety, technical debt and 34-check Chromium smoke/console DoD passed.
+- Next safe step: refresh main and consider pindex 02 only; do not broaden polish across multiple pindexes in one run.

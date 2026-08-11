@@ -15441,3 +15441,7 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 ## ADR-RUN276 — Owner map semantics are classified once and inspected as 10 west-to-east pindexes
 - Decision: preserve the owner map SHA as macro-geography source; use deterministic sea/lake/soil/rock/snow classification with road/bridge as an overlay. Ten pindexes are inspection partitions and do not replace the canonical 27x21 chunk grid.
 - Rationale: one immutable map-derived contract prevents independent terrain systems from reinventing geography and keeps future PBR polish small, reversible and auditable.
+
+## ADR-RUN277 — Pindex 01 detail remains classification-preserving and deterministic
+- Decision: add bounded coordinate-hashed color micro-detail only to dry pindex-01 vertices after Run276 semantic coloring. Water, geometry and ownership boundaries remain unchanged.
+- Risk: LOW. Rollback is removal of the new detail activation/module; Run276 remains the complete fallback surface.
