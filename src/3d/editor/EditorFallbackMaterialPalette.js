@@ -91,3 +91,5 @@ export const EDITOR_FALLBACK_MATERIAL_PALETTE = Object.freeze({
   grayscaleSaturationThreshold: 0.12,
   minimumBrightness: 0.18
 });
+
+// Run259 exact-head checkpoint: 288 coordinated fallback colors, deterministically assigned.
