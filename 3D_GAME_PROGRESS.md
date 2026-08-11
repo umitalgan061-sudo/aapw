@@ -14669,3 +14669,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates, visual artifact upload and World Event Determinism Guard PASS.
 - Runtime/product source delta: 0 lines changed. Test/docs/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: Run242 clean workflow `31446510611` PASS and World Event Determinism Guard `31446510555` PASS. Next safe step: re-read current main and continue owner-gate-free scene-load compatibility coverage while avoiding concurrent Run243 explicit-snap-disabled scope.
+
+## Run 245 — World Editor null editor-metadata composed defaults regression
+- Permanent additive-only Chromium regression verifies a valid schema-v1 scene with explicit `editor: null` loads exact object identity/name/asset, signed rotation and non-uniform scale without changing runtime/product source.
+- Null optional editor metadata composes to snap defaults (`enabled=true`, size `1`), selection clears, history remains stable, success toast completes, and browser console/page errors remain zero.
+- Owner live-grid policy remains authoritative after load: Grid stays unchecked, disabled and hidden in the composed editor surface.
+- PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates, visual artifact upload and World Event Determinism Guard PASS.
+- Runtime/product source delta: 0 lines changed. Test/docs/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: Run245 workflow `31451213771` PASS and World Event Determinism Guard `31451213756` PASS. Next safe step: re-read current main and active branches; avoid Run243/Run244 explicit snap ownership and continue a distinct scene-load compatibility edge case only if it remains unclaimed.
