@@ -1,0 +1,77 @@
+name: Run 241 Editor Valid Empty Scene Load V2 Finalize
+
+on:
+  push:
+    branches:
+      - agent/run241-editor-valid-empty-scene-load-v2
+    paths:
+      - '.github/workflows/run241-editor-valid-empty-scene-load-v2-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run241-editor-valid-empty-scene-load-v2-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main, syntax and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun241EditorValidEmptySceneLoadV2.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run241 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 241 — World Editor valid empty-scene load regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium regression verifies a valid schema-v1 empty scene deterministically clears editable objects, instance groups, hierarchy and selection while applying supported snap state.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- RCA: V1 incorrectly expected JSON `gridVisible:true` to remain visible. Diagnostic run proved the newer owner-usability layer intentionally reasserts live-editor moving-grid ownership (`checked=false`, `disabled=true`, grid object hidden) after hierarchy mutations; V2 locks that stable owner contract instead of weakening it.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- V2 confirms snap transitions from prepared `false/1.5` to scene `true/3`, history observers remain active/not restoring, console/page errors remain zero, and two screenshots provide before/after visual evidence.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates, artifact upload and World Event Determinism Guard PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Evidence: Run241 V2 workflow `31445829977` PASS and World Event Determinism Guard `31445829950` PASS. Diagnostic branch was evidence-only and is not part of publication. Next safe step: re-read current main and continue owner-gate-free scene-load/editor-state coverage while avoiding concurrent Run238 structural-validation scope.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run241,' perf_log.csv; then
+            printf 'run241,%s,editor-valid-empty-scene-load,,,,,,,"test-only valid empty scene load/owner-grid/snap-state regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run241 editor valid empty-scene load regression' STABLE_TAGS.md; then
+            printf '%s — Run241 editor valid empty-scene load regression; empty scene clears authoring content, restores supported snap state and preserves owner live-grid policy; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run241 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run241): record valid empty-scene checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run241-editor-valid-empty-scene-load-v2
+          git push origin "$STABLE_TAG" || true

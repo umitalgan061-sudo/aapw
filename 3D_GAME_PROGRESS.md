@@ -14652,3 +14652,11 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates and World Event Determinism Guard PASS.
 - Runtime/product source delta: 0 lines changed. Governance/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: Run240 clean-v3 workflow `31444922515` PASS and World Event Determinism Guard `31444922426` PASS. Next safe step: re-read current main and continue with the next owner-gate-free additive-only task while avoiding concurrent Run238 scope.
+
+## Run 241 — World Editor valid empty-scene load regression
+- Permanent additive-only Chromium regression verifies a valid schema-v1 empty scene deterministically clears editable objects, instance groups, hierarchy and selection while applying supported snap state.
+- RCA: V1 incorrectly expected JSON `gridVisible:true` to remain visible. Diagnostic run proved the newer owner-usability layer intentionally reasserts live-editor moving-grid ownership (`checked=false`, `disabled=true`, grid object hidden) after hierarchy mutations; V2 locks that stable owner contract instead of weakening it.
+- V2 confirms snap transitions from prepared `false/1.5` to scene `true/3`, history observers remain active/not restoring, console/page errors remain zero, and two screenshots provide before/after visual evidence.
+- PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates, artifact upload and World Event Determinism Guard PASS.
+- Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: Run241 V2 workflow `31445829977` PASS and World Event Determinism Guard `31445829950` PASS. Diagnostic branch was evidence-only and is not part of publication. Next safe step: re-read current main and continue owner-gate-free scene-load/editor-state coverage while avoiding concurrent Run238 structural-validation scope.

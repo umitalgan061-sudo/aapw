@@ -954,3 +954,4 @@ stable-2026-08-11-0208 — Run236 editor unknown asset scene-load regression V2;
 stable-2026-08-11-0235 — Run237 editor malformed scene-load atomicity regression V2 clean; malformed JSON and JSON null preserve prepared editor state; full safety gates verified.
 stable-2026-08-11-0258 — Run239 editor schema-version atomicity regression; unsupported scene schema rejected atomically with live editor state preserved; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-11-0311 — Run240 governance consolidation audit; owner-directive/owner-gate/platform-maintenance state re-verified; PWA/perf/determinism/smoke gates PASS.
+stable-2026-08-11-0328 — Run241 editor valid empty-scene load regression; empty scene clears authoring content, restores supported snap state and preserves owner live-grid policy; PWA/perf/determinism/smoke gates verified.
