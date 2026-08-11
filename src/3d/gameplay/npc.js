@@ -28,6 +28,9 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+import { gameEvents } from '../eventBus.js';
+import { EVENTS } from '../config.js';
+import { SANDBOX_COMBAT_EVENTS_RUN257, isSandboxCombatTargetInArcRun257 } from './player.js';
 
 /**
  * Eases a 0..1 blend linearly toward `targetBlend`, one frame's worth. Deliberately a local copy of
@@ -343,6 +346,7 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 				nameTagHeightMeters: npcConfig.NAME_TAG_HEIGHT_METERS,
 				nameTagVerticalOffsetMeters: npcConfig.NAME_TAG_VERTICAL_OFFSET_METERS,
 				groundCollider: patrolWaypoints ? groundCollider : undefined,
+				sandboxGroundCollider: groundCollider,
 				walkAnimationUrl: patrolWaypoints ? npcConfig.WALK_ANIMATION_URL : undefined,
 				patrolWaypoints,
 				speedMps: npcConfig.PATROL_SPEED_MPS,
@@ -356,3 +360,133 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 	);
 	return npcs.filter(Boolean);
 }
+
+/** Run257 guard combat tuning. The loop is self-resetting sandbox combat: no loot/XP/quest state. */
+export const SANDBOX_GUARD_COMBAT_CONFIG_RUN257 = Object.freeze({
+	MAX_HEALTH: 100,
+	CHASE_SPEED_MPS: 3,
+	TURN_RATE_RADIANS_PER_SECOND: 7,
+	ATTACK_RANGE_METERS: 2.15,
+	ATTACK_DAMAGE: 16,
+	BLOCKED_ATTACK_DAMAGE: 5,
+	ATTACK_COOLDOWN_SECONDS: 1.15,
+	LEASH_DISTANCE_METERS: 40,
+	RESPAWN_SECONDS: 12,
+});
+
+// Run257 additive wrapper: ordinary idle/patrol/combat-stance behavior above remains intact until attacked.
+const createNPCBeforeSandboxCombatRun257 = createNPC;
+createNPC = async function createNPCWithSandboxCombatRun257(options) {
+	const npc = await createNPCBeforeSandboxCombatRun257(options);
+	const model = npc.object3D;
+	const baseUpdate = npc.update.bind(npc);
+	const baseDispose = npc.dispose.bind(npc);
+	const config = SANDBOX_GUARD_COMBAT_CONFIG_RUN257;
+	const groundCollider = options.sandboxGroundCollider ?? options.groundCollider ?? null;
+	const spawn = { x: model.position.x, y: model.position.y, z: model.position.z, rotationY: model.rotation.y };
+	let health = config.MAX_HEALTH;
+	let hostile = false;
+	let defeated = false;
+	let respawnRemaining = 0;
+	let attackCooldown = 0;
+	let playerBlocking = false;
+	let playerDodging = false;
+
+	const publishTargetState = () => gameEvents.emit(SANDBOX_COMBAT_EVENTS_RUN257.TARGET_STATE, {
+		id: model.name,
+		name: npc.displayName ?? model.name ?? 'Muhafız',
+		current: health,
+		max: config.MAX_HEALTH,
+		hostile,
+		defeated,
+	});
+	const setHostile = (next) => {
+		hostile = Boolean(next && !defeated);
+		model.userData.sandboxCombatHostile = hostile;
+	};
+	const unsubscribeAttack = gameEvents.on(SANDBOX_COMBAT_EVENTS_RUN257.PLAYER_ATTACK, (payload) => {
+		if (defeated || !payload?.origin || !payload?.forward) return;
+		if (!isSandboxCombatTargetInArcRun257(
+			payload.origin,
+			payload.forward,
+			{ x: model.position.x, z: model.position.z },
+			payload.rangeMeters,
+			payload.halfAngleRadians,
+		)) return;
+		const damage = typeof payload.damage === 'number' && payload.damage > 0 ? payload.damage : 0;
+		if (damage === 0) return;
+		health = Math.max(0, health - damage);
+		setHostile(true);
+		if (health === 0) {
+			defeated = true;
+			setHostile(false);
+			respawnRemaining = config.RESPAWN_SECONDS;
+			model.visible = false;
+			model.userData.sandboxCombatDefeated = true;
+		}
+		publishTargetState();
+	});
+	const unsubscribeBlock = gameEvents.on(SANDBOX_COMBAT_EVENTS_RUN257.PLAYER_BLOCK_STATE, ({ active } = {}) => {
+		playerBlocking = Boolean(active);
+	});
+	const unsubscribeDodge = gameEvents.on(SANDBOX_COMBAT_EVENTS_RUN257.PLAYER_DODGE_STATE, ({ active } = {}) => {
+		playerDodging = Boolean(active);
+	});
+
+	npc.update = (delta, playerPosition) => {
+		if (defeated) {
+			respawnRemaining = Math.max(0, respawnRemaining - delta);
+			if (respawnRemaining === 0) {
+				defeated = false;
+				health = config.MAX_HEALTH;
+				model.visible = true;
+				model.userData.sandboxCombatDefeated = false;
+				model.position.set(spawn.x, spawn.y, spawn.z);
+				model.rotation.y = spawn.rotationY;
+			}
+			return;
+		}
+
+		baseUpdate(delta, hostile && playerPosition ? { x: model.position.x, z: model.position.z } : playerPosition);
+		if (!hostile || !playerPosition) return;
+		attackCooldown = Math.max(0, attackCooldown - delta);
+		const dx = playerPosition.x - model.position.x;
+		const dz = playerPosition.z - model.position.z;
+		const distance = Math.hypot(dx, dz);
+		const fromSpawn = Math.hypot(model.position.x - spawn.x, model.position.z - spawn.z);
+		if (distance > config.LEASH_DISTANCE_METERS || fromSpawn > config.LEASH_DISTANCE_METERS) {
+			setHostile(false);
+			model.position.set(spawn.x, spawn.y, spawn.z);
+			model.rotation.y = spawn.rotationY;
+			return;
+		}
+		if (distance > 0) turnTowardYaw(model, Math.atan2(dx, dz), config.TURN_RATE_RADIANS_PER_SECOND, delta);
+		if (distance > config.ATTACK_RANGE_METERS && distance > 0) {
+			const step = Math.min(config.CHASE_SPEED_MPS * delta, Math.max(0, distance - config.ATTACK_RANGE_METERS * 0.78));
+			model.position.x += (dx / distance) * step;
+			model.position.z += (dz / distance) * step;
+			if (groundCollider) model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
+			return;
+		}
+		if (attackCooldown <= 0) {
+			attackCooldown = config.ATTACK_COOLDOWN_SECONDS;
+			const dodged = playerDodging;
+			const blocked = !dodged && playerBlocking;
+			const damage = dodged ? 0 : blocked ? config.BLOCKED_ATTACK_DAMAGE : config.ATTACK_DAMAGE;
+			if (damage > 0) gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: damage, sourceId: model.name || 'guard' });
+			gameEvents.emit(SANDBOX_COMBAT_EVENTS_RUN257.GUARD_IMPACT, { sourceId: model.name, blocked, dodged, damage });
+			publishTargetState();
+		}
+	};
+
+	npc.dispose = () => {
+		unsubscribeAttack();
+		unsubscribeBlock();
+		unsubscribeDodge();
+		baseDispose();
+	};
+	model.userData.sandboxCombatHealth = health;
+	model.userData.sandboxCombatHostile = false;
+	model.userData.sandboxCombatDefeated = false;
+	return npc;
+};
