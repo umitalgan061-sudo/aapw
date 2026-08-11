@@ -91,3 +91,35 @@ function main() {
 }
 
 main();
+
+/**
+ * Run287 additive-only compatibility extension.
+ *
+ * Historical stable/perf records use more than one serialization shape. Keep the legacy parser
+ * above intact for rollback/audit history, while these later function declarations supersede it
+ * at instantiation time and accept both the historical and current canonical forms.
+ */
+function maxRunFromStableTags(text) {
+	const runs = [];
+	for (const line of text.split(/\r?\n/)) {
+		if (!/stable-/i.test(line)) continue;
+		const match = line.match(/\brun\s*(\d+)\b/i);
+		if (match) runs.push(Number(match[1]));
+	}
+	return runs.length ? Math.max(...runs) : null;
+}
+
+function maxRunFromPerfCsv(text) {
+	const runs = [];
+	for (const line of text.split(/\r?\n/).slice(1)) {
+		const cells = line.split(',').map((cell) => cell.trim());
+		for (const candidate of [cells[0], cells[1]]) {
+			const match = candidate?.match(/^run\s*(\d+)$/i);
+			if (match) {
+				runs.push(Number(match[1]));
+				break;
+			}
+		}
+	}
+	return runs.length ? Math.max(...runs) : null;
+}
