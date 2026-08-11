@@ -255,6 +255,42 @@ createPlayer = async function createPlayerWithSandboxCombatRun257(options) {
 	const publishDodgeState = (active) => gameEvents.emit(SANDBOX_COMBAT_EVENTS_RUN257.PLAYER_DODGE_STATE, { active });
 	const requestAttack = () => { attackQueued = true; };
 	const requestDodge = () => { dodgeQueued = true; };
+	const paintStaminaImmediatelyRun257 = () => {
+		if (!hud) return;
+		hud.root.dataset.stamina = stamina.toFixed(1);
+		hud.value.textContent = Math.round(stamina).toString();
+		hud.fill.style.width = `${stamina}%`;
+	};
+	const performAttackImmediatelyRun257 = () => {
+		if (blocking || dodgeRemaining > 0 || attackCooldown > 0 || stamina < config.ATTACK_STAMINA_COST) return false;
+		attackQueued = false;
+		stamina -= config.ATTACK_STAMINA_COST;
+		attackCooldown = config.ATTACK_COOLDOWN_SECONDS;
+		attackVisualRemaining = config.ATTACK_VISUAL_SECONDS;
+		const forward = { x: Math.sin(model.rotation.y), z: Math.cos(model.rotation.y) };
+		gameEvents.emit(SANDBOX_COMBAT_EVENTS_RUN257.PLAYER_ATTACK, {
+			origin: { x: model.position.x, z: model.position.z },
+			forward,
+			rangeMeters: config.ATTACK_RANGE_METERS,
+			halfAngleRadians: config.ATTACK_HALF_ANGLE_RADIANS,
+			damage: config.ATTACK_DAMAGE,
+		});
+		paintStaminaImmediatelyRun257();
+		showStatus('Kılıç savruldu.');
+		return true;
+	};
+	const performDodgeImmediatelyRun257 = () => {
+		if (blocking || dodgeRemaining > 0 || stamina < config.DODGE_STAMINA_COST) return false;
+		dodgeQueued = false;
+		stamina -= config.DODGE_STAMINA_COST;
+		dodgeRemaining = config.DODGE_DURATION_SECONDS;
+		publishDodgeState(true);
+		dodgeStateEmitted = true;
+		if (hud) hud.root.dataset.dodging = 'true';
+		paintStaminaImmediatelyRun257();
+		showStatus('Kaçınma adımı');
+		return true;
+	};
 	const setBlocking = (next) => {
 		const resolved = Boolean(next && stamina > 0 && dodgeRemaining <= 0);
 		if (resolved === blocking) return;
@@ -268,19 +304,29 @@ createPlayer = async function createPlayerWithSandboxCombatRun257(options) {
 		if (event.code === 'KeyC') setBlocking(true);
 	};
 	const onKeyUp = (event) => { if (event.code === 'KeyC') setBlocking(false); };
+	const onImmediateCombatKeyDownRun257 = (event) => {
+		if (event.repeat) return;
+		if (event.code === 'KeyF') performAttackImmediatelyRun257();
+		if (event.code === 'KeyQ') performDodgeImmediatelyRun257();
+	};
 	if (typeof window !== 'undefined') {
 		window.addEventListener('keydown', onKeyDown);
 		window.addEventListener('keyup', onKeyUp);
+		window.addEventListener('keydown', onImmediateCombatKeyDownRun257, true);
 	}
 	const onAttackPointer = (event) => { event.preventDefault(); requestAttack(); };
 	const onDodgePointer = (event) => { event.preventDefault(); requestDodge(); };
 	const onBlockDown = (event) => { event.preventDefault(); setBlocking(true); };
 	const onBlockUp = (event) => { event.preventDefault(); setBlocking(false); };
+	const onImmediateAttackPointerRun257 = (event) => { event.preventDefault(); performAttackImmediatelyRun257(); };
+	const onImmediateDodgePointerRun257 = (event) => { event.preventDefault(); performDodgeImmediatelyRun257(); };
 	hud?.attackButton?.addEventListener('pointerdown', onAttackPointer);
 	hud?.dodgeButton?.addEventListener('pointerdown', onDodgePointer);
 	hud?.blockButton?.addEventListener('pointerdown', onBlockDown);
 	hud?.blockButton?.addEventListener('pointerup', onBlockUp);
 	hud?.blockButton?.addEventListener('pointercancel', onBlockUp);
+	hud?.attackButton?.addEventListener('pointerdown', onImmediateAttackPointerRun257);
+	hud?.dodgeButton?.addEventListener('pointerdown', onImmediateDodgePointerRun257);
 
 	const unsubscribeTarget = gameEvents.on(SANDBOX_COMBAT_EVENTS_RUN257.TARGET_STATE, (payload) => {
 		if (!hud || !payload) return;
@@ -385,12 +431,15 @@ createPlayer = async function createPlayerWithSandboxCombatRun257(options) {
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('keydown', onKeyDown);
 			window.removeEventListener('keyup', onKeyUp);
+			window.removeEventListener('keydown', onImmediateCombatKeyDownRun257, true);
 		}
 		hud?.attackButton?.removeEventListener('pointerdown', onAttackPointer);
 		hud?.dodgeButton?.removeEventListener('pointerdown', onDodgePointer);
 		hud?.blockButton?.removeEventListener('pointerdown', onBlockDown);
 		hud?.blockButton?.removeEventListener('pointerup', onBlockUp);
 		hud?.blockButton?.removeEventListener('pointercancel', onBlockUp);
+		hud?.attackButton?.removeEventListener('pointerdown', onImmediateAttackPointerRun257);
+		hud?.dodgeButton?.removeEventListener('pointerdown', onImmediateDodgePointerRun257);
 		unsubscribeTarget();
 		unsubscribeImpact();
 		if (dodgeStateEmitted) publishDodgeState(false);
