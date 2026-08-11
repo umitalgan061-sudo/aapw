@@ -1,0 +1,51 @@
+name: Run 255 Editor Mobile Scene Save Exact Head
+
+on:
+  push:
+    branches:
+      - agent/run255-editor-mobile-scene-save
+    paths:
+      - '.github/workflows/run255-editor-mobile-scene-save-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run255-editor-mobile-scene-save-exact-head-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact head against current main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          node --check scripts/checkRun255EditorMobileSceneSave.js
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/editor/EditorLocalSession.js
+          node --check src/3d/editor/EditorSceneSerializer.js
+          git diff --check
+      - name: Verify Run255 checkpoint records
+        run: |
+          set -euo pipefail
+          grep -Fq '## Run 255 — World Editor mobile scene JSON save/download regression' 3D_GAME_PROGRESS.md
+          grep -Fq 'run255,2026-08-11,editor-mobile-scene-save' perf_log.csv
+          grep -Fq 'Run255 editor mobile scene JSON save/download regression' STABLE_TAGS.md
+          grep -Fq '31465809740' 3D_GAME_PROGRESS.md
+          grep -Fq '31465809687' 3D_GAME_PROGRESS.md
