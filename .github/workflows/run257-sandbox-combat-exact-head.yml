@@ -1,0 +1,53 @@
+name: Run 257 Sandbox Combat Exact Head
+
+on:
+  push:
+    branches:
+      - agent/run257-sandbox-combat-core
+    paths:
+      - '.github/workflows/run257-sandbox-combat-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run257-sandbox-combat-exact-head-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify current-main ancestry and additive-only source
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Verify Run257 combat source contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/player.js
+          node --check src/3d/gameplay/npc.js
+          node --check src/3d/gameplay/interaction.js
+          node --check scripts/checkRun257SandboxCombat.js
+          grep -Fq 'STAMINA_REGEN_DELAY_SECONDS_RUN257_RCA' src/3d/gameplay/player.js
+          grep -Fq 'SANDBOX_GUARD_COMBAT_CONFIG_RUN257' src/3d/gameplay/npc.js
+          grep -Fq 'sandboxCombatHostile' src/3d/gameplay/interaction.js
+          if grep -Eq 'localStorage|sessionStorage|experience|\bXP\b|quest|reward|completion' src/3d/gameplay/player.js src/3d/gameplay/npc.js; then
+            echo 'Forbidden progression/save marker detected in Run257 combat source.' >&2
+            exit 1
+          fi
