@@ -117,7 +117,7 @@ async function installRun262TerrainElevationBrush() {
   if (!terrainController?.getMode || !terrainController?.getCellSize || !liveAuthoring?.surfacePointFromClient) throw new Error('Run262 terrain elevation için terrain controller/live authoring gerekli.');
   if (window.__WESTEROS_EDITOR_TERRAIN_ELEVATION__) return window.__WESTEROS_EDITOR_TERRAIN_ELEVATION__;
 
-  const [{ default: THREE }, { snapEditorTerrainCell }] = await Promise.all([
+  const [THREE, { snapEditorTerrainCell }] = await Promise.all([
     import('three'),
     import('./EditorTerrainCellModel.js')
   ]);
