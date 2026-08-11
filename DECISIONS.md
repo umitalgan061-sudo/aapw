@@ -15465,3 +15465,10 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Reason: Run280 locks canonical semantic geography; Pindex-03 can therefore gain visual breakup without changing owner-map semantics, geometry or deterministic topology.
 - Regression boundary: browser proof applies Pindex-01 and Pindex-02 first, snapshots colors, then requires every Run281-changed vertex to classify as Pindex-03.
 - Rollback: remove the Run281 activation/new module; Run280 remains the complete prior checkpoint.
+
+## ADR-RUN282 — Pindex-04 gets soil-led deterministic micro-detail
+- Risk: LOW.
+- Decision: apply bounded deterministic post-semantic tonal variation only to canonical Pindex-04, with soil amplitude 0.045 and water 0.009.
+- Reason: Run280 locks canonical semantics and Pindex-04 has no canonical rock/snow cells, so a soil-led profile improves breakup without inventing new semantic material.
+- Regression boundary: browser proof applies Pindex-01 through Pindex-03 first, snapshots colors, then requires every Run282-changed vertex to classify as Pindex-04.
+- Rollback: remove the Run282 activation/new module; Run281 remains the complete prior checkpoint.

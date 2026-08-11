@@ -1,0 +1,133 @@
+name: Run 282 Pindex04 Detail
+
+on:
+  push:
+    branches: [run282-pindex04-detail]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run282-pindex04-detail-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: f3c5af35cbc1c48c0527fc0283512c35e02b2fd7
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    if: github.event.head_commit.message != 'run282 validated pindex04 detail checkpoint'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main additive entry gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+      - name: Wire Pindex04 detail into canonical-dev and offline shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          TMP_SW="$(mktemp)"
+          printf '%s\n' '// Run282 Pindex-04 detail offline shell extension.' "self.addEventListener('install', () => {" "    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex04Detail.js');" '});' '' > "$TMP_SW"
+          cat service-worker.js >> "$TMP_SW"
+          mv "$TMP_SW" service-worker.js
+          printf '%s\n' '' '// Run282 deterministic Pindex-04 micro-surface detail activation.' "if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {" "  const { applyPindex04DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex04Detail.js');" '  const run282Detail = applyPindex04DetailToTerrainGroup(selector.activation.windowState.terrainGroup);' "  document.body.dataset.run282Pindex04Ready = 'true';" '  document.body.dataset.run282Pindex04TouchedVertices = String(run282Detail.touchedVertices);' "  status.textContent += ' | pindex04-detail=' + run282Detail.touchedVertices + 'v';" '  state.renderer.render(state.scene, state.camera);' '}' >> scripts/run201CanonicalDevBoot.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js scripts/run201CanonicalDevBoot.mjs
+          git commit -m 'feat(run282): activate pindex04 detail in canonical dev'
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test "$(git diff --numstat "$BASE_SHA" HEAD -- service-worker.js | awk '{print $2}')" = '0'
+      - name: Syntax and contract regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferencePindex04Detail.js
+          node --check scripts/checkRun282Pindex04Detail.js
+          node --check scripts/checkRun282Pindex04DetailBrowser.js
+          node --check scripts/run201CanonicalDevBoot.mjs
+          node scripts/checkRun282Pindex04Detail.js
+          node scripts/checkRun281Pindex03Detail.js
+          node scripts/checkRun280OwnerMapSemanticFingerprint.js
+          node scripts/checkRun278Pindex02Detail.js
+          node scripts/checkRun277Pindex01Detail.js
+          node scripts/checkRun276MapSurfacePindexes.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Visual performance and full browser DoD
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun282Pindex04DetailBrowser.js
+          test -s artifacts/run282-pindex04-detail/proof.json
+          test -s artifacts/run282-pindex04-detail/pindex04-detail-online.png
+          test -s artifacts/run282-pindex04-detail/pindex04-detail-offline.png
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run282-mobile.log"
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run282-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run282-smoke.log")" -ge 34
+      - name: Upload visual proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: run282-pindex04-detail-proof
+          path: artifacts/run282-pindex04-detail/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Pre-publication exact-main concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+      - name: Record checkpoint and publish branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '\n%s\n' '## Run 282 — Pindex-04 deterministic micro-surface detail' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Canonical Pindex-04 received its own deterministic color micro-detail pass after Run281; Pindexes 01-03 are preserved and 05-10 remain untouched.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Pindex-04 contains sea plus soil and no canonical rock/snow cells, so the visual breakup is intentionally soil-led and conservative; geometry/topology remain unchanged.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Online/offline Chromium proof requires visible Pindex-04-only change with zero cross-pindex drift; full PWA/perf/determinism/world-safety/debt/browser DoD must pass before publication.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Next safe step: refresh main and consider Pindex-05 only after concurrency/owner gates are rechecked.' >> 3D_GAME_PROGRESS.md
+          printf '\n%s\n' '## ADR-RUN282 — Pindex-04 gets soil-led deterministic micro-detail' >> DECISIONS.md
+          printf '%s\n' '- Risk: LOW.' '- Decision: apply bounded deterministic post-semantic tonal variation only to canonical Pindex-04, with soil amplitude 0.045 and water 0.009.' '- Reason: Run280 locks canonical semantics and Pindex-04 has no canonical rock/snow cells, so a soil-led profile improves breakup without inventing new semantic material.' '- Regression boundary: browser proof applies Pindex-01 through Pindex-03 first, snapshots colors, then requires every Run282-changed vertex to classify as Pindex-04.' '- Rollback: remove the Run282 activation/new module; Run281 remains the complete prior checkpoint.' >> DECISIONS.md
+          printf '%s\n' 'run282,2026-08-11,pindex04-deterministic-detail,,,,,,,"Pindex-04 color micro-detail only; geometry delta 0; mandatory DoD PASS"' >> perf_log.csv
+          printf '\n%s\n' '- `stable-2026-08-11-run282` — Pindex-04 deterministic micro-detail; geometry delta 0; mandatory DoD PASS.' >> STABLE_TAGS.md
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git commit -m 'run282 validated pindex04 detail checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"

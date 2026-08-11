@@ -93,3 +93,13 @@ if (selector.getActiveSource() === 'canonical' && selector.activation?.windowSta
   status.textContent += ' | pindex03-detail=' + run281Detail.touchedVertices + 'v';
   state.renderer.render(state.scene, state.camera);
 }
+
+// Run282 deterministic Pindex-04 micro-surface detail activation.
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex04DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex04Detail.js');
+  const run282Detail = applyPindex04DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run282Pindex04Ready = 'true';
+  document.body.dataset.run282Pindex04TouchedVertices = String(run282Detail.touchedVertices);
+  status.textContent += ' | pindex04-detail=' + run282Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
