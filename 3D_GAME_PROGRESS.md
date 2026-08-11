@@ -14846,3 +14846,9 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Pindex-02 uses slightly stronger rock breakup than soil/snow because its canonical mask contains materially more rock/snow than Pindex-01; geometry, heights, roads, bridges, hydrology and 2D runtime remain unchanged.
 - Online/offline Chromium proof verified Pindex-02 changed while every non-Pindex-02 vertex remained byte-identical to the Run277 baseline; full PWA/perf/determinism/world-safety/debt/browser DoD passed.
 - Next safe step: refresh main and polish Pindex-03 separately; retain independent pindex proofs.
+
+## Run 280 — Owner-map semantic byte fingerprint guard
+- Added a test-only guard that independently hashes the packed 96x64 semantic mask bytes and locks all ten pindex composition totals against Run276 canonical owner-map provenance.
+- Runtime delta is zero: no geometry, material, PWA shell, gameplay, editor, road, hydrology, settlement or pindex-detail ownership changed.
+- Full world-reference/PWA/mobile/determinism/terrain-road safety/technical-debt/browser smoke chain passed before checkpoint publication.
+- Next safe step: refresh main; do not touch Terrain Polish #03 while PR #169 owns that area; only consider Pindex-03 after active terrain ownership is rechecked.

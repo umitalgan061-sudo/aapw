@@ -15455,3 +15455,6 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Reason: Pindex-02 has a different canonical surface mix than Pindex-01, so copying one amplitude profile globally would violate the one-pindex-at-a-time polish contract.
 - Regression boundary: browser proof applies Run277 first, snapshots the color buffer, then applies Run278 and requires every changed vertex to classify as Pindex-02.
 - Rollback: remove the Run278 activation/new module; Run277 remains the complete prior checkpoint.
+
+## ADR-RUN280 — Canonical semantic mask bytes are immutable beneath pindex polish
+- Risk: LOW. Decision: validate the packed mask SHA plus hard-coded per-pindex semantic totals without changing runtime. Reason: later PBR/detail layers may alter appearance but must never silently rewrite canonical sea/lake/soil/rock/snow geography.
