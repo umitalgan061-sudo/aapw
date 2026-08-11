@@ -1,0 +1,56 @@
+name: Run 261 Editor FBX Hierarchy Diagnostic
+
+on:
+  push:
+    branches:
+      - agent/run261-editor-fbx-hierarchy-inventory
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run261-editor-fbx-hierarchy-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify current main ancestry and additive-only state
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Install Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Capture exact FBX hierarchy request diagnostics
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun261EditorFbxHierarchyInventoryDiagnostic.js
+          node scripts/checkRun261EditorFbxHierarchyInventoryDiagnostic.js
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run261-editor-fbx-hierarchy-diagnostic
+          path: artifacts/run261-editor-fbx-hierarchy-diagnostic
+          if-no-files-found: warn
