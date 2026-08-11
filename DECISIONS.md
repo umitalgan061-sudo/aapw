@@ -15448,3 +15448,10 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Reason: Run276 established immutable map classification plus one-pindex-at-a-time polish; this improves breakup without changing macro geography, geometry, physics or road/water ownership.
 - Alternatives: shader/PBR texture injection was deferred because it expands material ownership and mobile risk; global noise was rejected because it alters all ten pindexes at once.
 - Rollback: remove the Run277 activation and new module; Run276 semantic colors remain the fallback.
+
+## ADR-RUN278 — Pindex-02 gets an independently tuned deterministic detail layer
+- Risk: LOW.
+- Decision: apply bounded deterministic post-semantic tonal variation only to canonical Pindex-02, with rock amplitude 0.065, soil 0.055, snow 0.03 and water 0.012.
+- Reason: Pindex-02 has a different canonical surface mix than Pindex-01, so copying one amplitude profile globally would violate the one-pindex-at-a-time polish contract.
+- Regression boundary: browser proof applies Run277 first, snapshots the color buffer, then applies Run278 and requires every changed vertex to classify as Pindex-02.
+- Rollback: remove the Run278 activation/new module; Run277 remains the complete prior checkpoint.

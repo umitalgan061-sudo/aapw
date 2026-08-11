@@ -207,3 +207,4 @@ run272,2026-08-11,terrain-polish-001-governance-checkpoint,,,,,,,"runtime delta 
 run274,2026-08-11,terrain-polish-002-governance-checkpoint,,,,,,,"material-only specular delta; full mandatory chain PASS"
 run276,2026-08-11,owner-map-surface-pindexes,,,,,,,"owner-map semantic vertex colors; geometry delta 0; mandatory DoD PASS"
 run277,2026-08-11,pindex01-deterministic-detail,,,,,,,"Pindex-01 color micro-detail only; geometry delta 0; mandatory DoD PASS"
+run278,2026-08-11,pindex02-deterministic-detail,,,,,,,"Pindex-02 color micro-detail only; geometry delta 0; mandatory DoD PASS"
