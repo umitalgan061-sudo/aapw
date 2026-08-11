@@ -35,6 +35,11 @@ jobs:
           test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
           node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
           git diff --check
+      - name: Install browser validation dependency
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
       - name: Syntax and focused fallback palette regression
         run: |
           set -euo pipefail
