@@ -217,20 +217,28 @@ export function installEditorMicroScaleController(api) {
 
   syncBounds();
   syncPrecision();
-  transformAttachTimer = window.setTimeout(() => {
-    transformAttachTimer = 0;
-    const transform = window.__WESTEROS_EDITOR_TRANSFORM__?.transform;
-    if (!transform?.addEventListener) return;
-    transformObjectChange = () => syncPrecision(transform.object || selectedOrdinaryObject());
-    transform.addEventListener('objectChange', transformObjectChange);
-  }, 0);
+  const scheduleTransformAttach = typeof window.setTimeout === 'function'
+    ? window.setTimeout.bind(window)
+    : globalThis.setTimeout;
+  if (typeof scheduleTransformAttach === 'function') {
+    transformAttachTimer = scheduleTransformAttach(() => {
+      transformAttachTimer = 0;
+      const transform = window.__WESTEROS_EDITOR_TRANSFORM__?.transform;
+      if (!transform?.addEventListener) return;
+      transformObjectChange = () => syncPrecision(transform.object || selectedOrdinaryObject());
+      transform.addEventListener('objectChange', transformObjectChange);
+    }, 0);
+  }
 
   function dispose() {
     if (disposed) return;
     disposed = true;
     boundsObserver?.disconnect();
     selectionObserver?.disconnect();
-    if (transformAttachTimer) window.clearTimeout(transformAttachTimer);
+    const clearScheduledTransformAttach = typeof window.clearTimeout === 'function'
+      ? window.clearTimeout.bind(window)
+      : globalThis.clearTimeout;
+    if (transformAttachTimer && typeof clearScheduledTransformAttach === 'function') clearScheduledTransformAttach(transformAttachTimer);
     const transform = window.__WESTEROS_EDITOR_TRANSFORM__?.transform;
     if (transformObjectChange && transform?.removeEventListener) transform.removeEventListener('objectChange', transformObjectChange);
     removers.splice(0).reverse().forEach((remove) => remove());
@@ -259,10 +267,15 @@ export const EDITOR_MICRO_SCALE_POLICY = Object.freeze({
 });
 
 // Install after the dynamic-import continuation has installed the historical Run216 controller.
-// Capture-phase ownership and the narrow bounds observer then keep the final 1e-6 contract stable.
-window.setTimeout(() => {
-  const api = window.__WESTEROS_WORLD_EDITOR__;
-  if (!api) return;
-  try { installEditorMicroScaleController(api); }
-  catch (error) { console.error('[EditorScaleInputController] micro-scale boot failed', error); }
-}, 0);
+// Browser code uses the window timer; Node contract harnesses can fall back to the global timer.
+const scheduleMicroScaleInstall = typeof window.setTimeout === 'function'
+  ? window.setTimeout.bind(window)
+  : globalThis.setTimeout;
+if (typeof scheduleMicroScaleInstall === 'function') {
+  scheduleMicroScaleInstall(() => {
+    const api = window.__WESTEROS_WORLD_EDITOR__;
+    if (!api) return;
+    try { installEditorMicroScaleController(api); }
+    catch (error) { console.error('[EditorScaleInputController] micro-scale boot failed', error); }
+  }, 0);
+}
