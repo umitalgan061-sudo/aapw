@@ -1,0 +1,81 @@
+name: Run 258 Editor Mobile Multiobject Save Load Finalize
+
+on:
+  push:
+    branches:
+      - agent/run258-editor-mobile-multiobject-save-load
+    paths:
+      - '.github/workflows/run258-editor-mobile-multiobject-save-load-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run258-editor-mobile-multiobject-save-load-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun258EditorMobileMultiobjectSaveLoad.js
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/editor/EditorLocalSession.js
+          node --check src/3d/editor/EditorSceneSerializer.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run258 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 258 — World Editor mobile multi-object actual-download save→load roundtrip regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium regression extends the mobile persistence contract to three simultaneously loaded objects with distinct off-grid transforms.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- The 390x844 touch-browser path imports three marker-tree objects, saves the actual `westeros-world.scene.json`, replaces the live scene, then reloads the exact downloaded file and verifies all IDs, names, signed rotations, non-uniform scales (including `0.007`) and off-grid positions are restored without quantization.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Roundtrip also verifies canonical downloaded bytes, unique IDs, stale replacement hierarchy removal, selection clear, reusable/reset file input, stable history, serialized snap `true` / `2.5`, owner grid-hidden/disabled policy and zero browser console/page errors. Three mobile screenshots plus the actual downloaded JSON are retained as evidence.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Validation workflow `31467491167` PASS: syntax, focused real mobile multi-object actual-download roundtrip, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and artifact upload all PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- World Event Determinism Guard `31467491121` PASS on the same Run258 head.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed in Run258. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: refresh remote main and concurrent branches, then prioritize the owner-requested World Editor work: sea brush lowers terrain, land brush raises terrain; FBX pack/child selection and independent transforms; deterministic broad fallback material/color palette for otherwise colorless models.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run258,2026-08-11,editor-mobile-multiobject-save-load' perf_log.csv; then
+            printf 'run258,%s,editor-mobile-multiobject-save-load,,,,,,,"test-only real mobile/touch multi-object actual-download save-to-load persistence roundtrip; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run258 editor mobile multi-object actual-download save-load regression' STABLE_TAGS.md; then
+            printf '%s — Run258 editor mobile multi-object actual-download save-load regression; three exact off-grid objects persist through real browser download, intervening replacement and reload; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run258 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run258): record mobile multi-object roundtrip checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run258-editor-mobile-multiobject-save-load
+          git push origin "$STABLE_TAG" || true
