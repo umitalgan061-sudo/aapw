@@ -58,7 +58,7 @@ jobs:
           node scripts/checkRun280OwnerMapSemanticFingerprint.js
           node scripts/checkRun276MapSurfacePindexes.js
 
-      - name: World PWA determinism and checkpoint contracts
+      - name: World-reference contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -66,11 +66,21 @@ jobs:
           node scripts/checkWorldReferenceWaterMask.js
           node scripts/checkWorldReferenceAlignment.js
           node scripts/checkWorldReferenceHydrologyExtent.js
+
+      - name: PWA and determinism contracts
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkAssetsManifest.js
           node scripts/checkServiceWorkerCache.js
           node scripts/checkPwaInstallability.js
           node scripts/checkSmokeCheckRegistry.js
+
+      - name: Checkpoint consistency contract
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/checkCheckpointConsistency.js
 
       - name: Install Chromium
