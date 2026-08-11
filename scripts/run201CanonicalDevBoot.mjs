@@ -5,6 +5,7 @@ import { createRun200StartupSelector } from './run200CanonicalStartupSelectorSha
 
 const CACHE_NAME = 'westeros-shell-v11';
 const DEV_FILES = ['./canonical-dev.html?worldSource=canonical-dev','./scripts/run201CanonicalDevBoot.mjs','./scripts/run200CanonicalStartupSelectorShadow.mjs'];
+DEV_FILES.push('./scripts/run277Pindex01Detail.mjs');
 const status = document.getElementById('run201-status');
 const canvas = document.getElementById('run201-canvas');
 const state = createScene(canvas);
@@ -61,5 +62,16 @@ if (selector.getActiveSource() === 'canonical' && selector.activation?.windowSta
   document.body.dataset.run273SurfaceMeshCount = String(run276Surface.meshCount);
   document.body.dataset.run273SurfaceVertexCount = String(run276Surface.vertexCount);
   status.textContent += ' | map-surface=' + run276Surface.vertexCount + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run277 pindex 01 deterministic dry-surface micro-detail activation.
+import { applyRun277Pindex01DetailToTerrainGroup } from './run277Pindex01Detail.mjs';
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const run277Detail = applyRun277Pindex01DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run277DetailReady = 'true';
+  document.body.dataset.run277DetailCount = String(run277Detail.detailedVertexCount);
+  document.body.dataset.run277DetailBySurface = JSON.stringify(run277Detail.detailedBySurface);
+  status.textContent += ' | p01-detail=' + run277Detail.detailedVertexCount + 'v';
   state.renderer.render(state.scene, state.camera);
 }
