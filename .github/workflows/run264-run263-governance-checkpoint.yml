@@ -1,0 +1,119 @@
+name: Run 264 Run263 Governance Checkpoint
+
+on:
+  push:
+    branches:
+      - agent/run264-run263-governance-checkpoint-v3
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run264-run263-governance-checkpoint-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-and-checkpoint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Syntax and Run263 deterministic regression
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferenceWaterMask.js
+          node --check scripts/checkRun263LakeSeaWaterClassifier.js
+          node --check scripts/createRun263WaterClassifierEvidence.mjs
+          node scripts/checkRun263LakeSeaWaterClassifier.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/createRun263WaterClassifierEvidence.mjs
+      - name: Upload two-view semantic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run263-water-classifier-semantic-evidence
+          path: artifacts/run263-water-classifier/*.svg
+          if-no-files-found: error
+          retention-days: 14
+      - name: PWA and browser dependency
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Performance determinism world safety and technical debt
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Full Chromium smoke and console gate
+        run: node scripts/smokeTestGame3D.js
+      - name: Final concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified governance checkpoint records
+        run: |
+          set -euo pipefail
+          MARKER='## Run 264 — close Run263 governance checkpoint gap'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Closed issue #155 additively without changing renderer/gameplay behavior: Run263 deterministic lake/sea semantics remain 4046 sea cells + 6 enclosed lake cells on the canonical 96x64 mask.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Added permanent two-view semantic evidence generation (full-mask overview + enclosed-lake detail), uploaded by CI as an artifact.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Full required chain passed before checkpoint write: syntax, classifier/hydrology, PWA/installability, mobile performance, seeded determinism, terrain/road safety, technical-debt audit, full Chromium smoke, console/page cleanliness, concurrency and additive-only gates.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Memory-leak review: evidence generator is process-local file output only; no listeners, timers, DOM, geometry, materials or runtime lifecycle ownership added.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Risk LOW; runtime/product behavior delta 0. Next safe step must be chosen only after refreshing main/open PRs again.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run264,2026-08-11,run263-governance-checkpoint' perf_log.csv; then
+            printf '%s\n' 'run264,2026-08-11,run263-governance-checkpoint,,,,,,,"Run263 semantic checkpoint; runtime delta 0; full mandatory chain PASS"' >> perf_log.csv
+          fi
+          TAG="stable-$(date +%Y-%m-%d-%H%M)"
+          if ! grep -Fq 'Run264 Run263 governance checkpoint' STABLE_TAGS.md; then
+            printf '\n- `%s` — Run264 Run263 governance checkpoint; deterministic 4046 sea + 6 lake proof, two-view semantic evidence and full DoD PASS.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          if git diff --cached --quiet; then
+            echo 'Checkpoint records already present on final head.'
+            exit 0
+          fi
+          git commit -m 'docs(run264): record Run263 governance checkpoint'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          git push origin HEAD:agent/run264-run263-governance-checkpoint-v3
+          git tag "$TAG" || true
+          git push origin "$TAG" || echo 'Known stable-tag push restriction retained per governance.'
+
+# Exact-head retrigger after checkpoint materialization.
