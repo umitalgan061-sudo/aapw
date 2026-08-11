@@ -95,6 +95,7 @@ jobs:
           node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
           git diff --check
       - name: Upload sandbox combat visual evidence
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: run257-sandbox-combat
