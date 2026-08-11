@@ -135,8 +135,10 @@ export function installEditorMicroScaleOverride(api) {
     const raw = String(event.target?.value ?? '').trim();
     const numeric = Number(raw);
     if (!raw || !Number.isFinite(numeric)) {
-      api.writeInspector?.(object);
-      syncPrecision(object);
+      if (event.type === 'change') {
+        api.writeInspector?.(object);
+        syncPrecision(object);
+      }
       return;
     }
 
@@ -162,9 +164,13 @@ export function installEditorMicroScaleOverride(api) {
   }
 
   const selectionStatus = document.getElementById('we-selection-status');
-  const selectionObserver = new MutationObserver(() => queueMicrotask(() => syncPrecision()));
-  if (selectionStatus) selectionObserver.observe(selectionStatus, { childList: true, characterData: true, subtree: true });
+  const selectionObserver = typeof MutationObserver === 'function'
+    ? new MutationObserver(() => queueMicrotask(() => syncPrecision()))
+    : null;
+  if (selectionStatus && selectionObserver) selectionObserver.observe(selectionStatus, { childList: true, characterData: true, subtree: true });
 
+  window.addEventListener('input', onScaleChangeCapture, true);
+  removers.push(() => window.removeEventListener('input', onScaleChangeCapture, true));
   window.addEventListener('change', onScaleChangeCapture, true);
   removers.push(() => window.removeEventListener('change', onScaleChangeCapture, true));
   window.addEventListener('click', onQuickShrinkCapture, true);
@@ -183,7 +189,7 @@ export function installEditorMicroScaleOverride(api) {
   function dispose() {
     if (disposed) return;
     disposed = true;
-    selectionObserver.disconnect();
+    selectionObserver?.disconnect();
     if (transformAttachTimer) window.clearTimeout(transformAttachTimer);
     const transform = window.__WESTEROS_EDITOR_TRANSFORM__?.transform;
     if (transformObjectChange && transform?.removeEventListener) transform.removeEventListener('objectChange', transformObjectChange);
@@ -225,6 +231,7 @@ function installRun259MicroScaleBoundsGuard() {
     window.__WESTEROS_EDITOR_MICRO_SCALE_BOUNDS_GUARD__.sync?.();
     return window.__WESTEROS_EDITOR_MICRO_SCALE_BOUNDS_GUARD__;
   }
+  if (typeof MutationObserver !== 'function') return null;
 
   const inputs = Object.keys(SCALE_AXIS_BY_INPUT_ID)
     .map((id) => document.getElementById(id))
