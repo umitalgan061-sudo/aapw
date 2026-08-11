@@ -14729,3 +14729,12 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Event Determinism Guard `31463060924` PASS on the same Run251 head.
 - Runtime/product source delta: 0 lines changed in Run251. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: refresh remote main and concurrent branches, then continue only a distinct additive-only World Editor compatibility regression without crossing unresolved owner gates.
+
+## Run 253 — World Editor unknown-only scene load regression
+- Permanent additive-only Chromium regression verifies a valid schema-v1 scene containing only an unknown asset remains a successful empty-scene load rather than leaking a placeholder/editor object.
+- The unknown identity is absent from editable objects and hierarchy; selection remains empty and history observers stay stable/not restoring.
+- Serialized editor metadata restores to snap enabled / 3.75 while the owner grid-hidden/disabled policy remains intact; browser console/page errors remain zero.
+- Full validation workflow `31463937137` PASS and World Event Determinism Guard `31463937094` PASS on the validated Run253 head.
+- Checkpoint publication RCA: first finalizer `31464226565` passed all gates and generated the records, but its push was correctly rejected non-fast-forward because the branch advanced concurrently with the exact-head workflow commit. No product/runtime code was affected; V2 serializes publication after the refreshed branch head.
+- Runtime/product source delta: 0 lines changed in Run253. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: refresh remote main and concurrent branches, then continue only a distinct additive-only World Editor compatibility regression without crossing Run252 consecutive-load ownership.
