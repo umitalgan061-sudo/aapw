@@ -14827,3 +14827,10 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Exact-main Godot 4.6.3 authoring/Iteration #02 validation, PWA/cache/installability, mobile performance, deterministic/world-reference safety, terrain/road safety, technical debt and full Chromium smoke/console gates passed before checkpoint write.
 - Memory review: no runtime listeners, timers, DOM, geometry/material ownership or disposal obligations were added. Risk LOW; expected effect is a less plastic/more matte starter terrain response.
 - Next safe terrain polish must refresh main and avoid enabling Classic4Lite triplanar while the fourth texture slot remains snow.
+
+## Run 276 — Owner-map semantic surface + 10 pindexes
+- Owner map SHA-256 20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1 remains the exact canonical source provenance; the supplied 1536x1024 map was independently verified against this SHA before implementation.
+- A deterministic 96x64 base mask distinguishes sea/lake/soil/rock/snow. Road remains the existing bridge-aware overlay, so it cannot erase water semantics except on validated bridge decks.
+- Ten west-to-east pindexes provide repeatable map inspection. Canonical-dev terrain receives map-semantic vertex colors without changing geometry, heights, settlements, routes, bridges, 2D runtime or default game3d ownership.
+- Full mask/pindex, online+offline Chromium, PWA/cache/installability, mobile perf, determinism, terrain/road safety, technical-debt and 34-check browser smoke/console DoD passed.
+- Next safe step: polish one pindex at a time with PBR/detail layers while retaining this immutable map classification.
