@@ -103,3 +103,5 @@ jobs:
           path: artifacts/run259-editor-fallback-palette/*.png
           if-no-files-found: error
           retention-days: 14
+
+# Run259 final governance-head revalidation trigger.
