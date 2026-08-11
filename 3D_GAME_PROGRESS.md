@@ -14858,3 +14858,9 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Pindex-03 is sea-heavy with a modest soil/rock/snow mix, so its bounded amplitudes are intentionally conservative; geometry, heights, roads, hydrology, gameplay, editor and 2D runtime remain unchanged.
 - Online/offline Chromium proof requires visible Pindex-03-only color change with zero non-Pindex-03 vertex drift; full PWA/perf/determinism/world-safety/debt/browser DoD must pass before publication.
 - Next safe step: refresh main and select Pindex-04 only after concurrency/owner gates are rechecked.
+
+## Run 282 — Pindex-04 deterministic micro-surface detail
+- Canonical Pindex-04 received its own deterministic color micro-detail pass after Run281; Pindexes 01-03 are preserved and 05-10 remain untouched.
+- Pindex-04 contains sea plus soil and no canonical rock/snow cells, so the visual breakup is intentionally soil-led and conservative; geometry/topology remain unchanged.
+- Online/offline Chromium proof requires visible Pindex-04-only change with zero cross-pindex drift; full PWA/perf/determinism/world-safety/debt/browser DoD must pass before publication.
+- Next safe step: refresh main and consider Pindex-05 only after concurrency/owner gates are rechecked.

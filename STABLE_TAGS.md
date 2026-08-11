@@ -987,3 +987,5 @@ stable-2026-08-11-1218 — Run262 editor terrain elevation brush; water lowers a
 - `stable-2026-08-11-run280` — owner-map semantic byte fingerprint guard; runtime delta 0; mandatory DoD PASS.
 
 - `stable-2026-08-11-run281` — Pindex-03 deterministic micro-detail; geometry delta 0; mandatory DoD PASS.
+
+- `stable-2026-08-11-run282` — Pindex-04 deterministic micro-detail; geometry delta 0; mandatory DoD PASS.
