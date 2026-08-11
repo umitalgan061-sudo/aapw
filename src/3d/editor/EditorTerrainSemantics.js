@@ -104,3 +104,7 @@ if (terrain) {
     console.error('[EditorTerrainSemantics] boot failed', error);
   }
 }
+
+void import('./EditorTerrainElevationBrush.js').catch((error) => {
+  console.error('[EditorTerrainSemantics] elevation brush load failed', error);
+});
