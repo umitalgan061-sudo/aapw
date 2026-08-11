@@ -1,0 +1,79 @@
+name: Run 259 Editor FBX Fallback Palette
+
+on:
+  push:
+    branches:
+      - agent/run259-editor-fbx-fallback-palette
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run259-editor-fbx-fallback-palette-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Install browser validation dependency
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Syntax and focused fallback palette regression
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorFallbackMaterialPalette.js
+          node --check src/3d/editor/EditorAssetManager.js
+          node --check scripts/checkRun259EditorFallbackMaterialPalette.mjs
+          node --check scripts/checkRun259EditorFallbackMaterialIntegration.mjs
+          node scripts/checkRun259EditorFallbackMaterialPalette.mjs
+          node scripts/checkRun259EditorFallbackMaterialIntegration.mjs
+      - name: PWA cache and installability
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+      - name: Performance, determinism and world safety
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Full browser smoke
+        run: node scripts/smokeTestGame3D.js
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check

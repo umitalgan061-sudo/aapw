@@ -4,6 +4,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { computeEditorAssetImportScale } from './EditorAssetScalePolicy.js';
 import { EDITOR_ROAD_POLICY } from './EditorRoadModel.js';
 import { EDITOR_TERRAIN_CELL_POLICY } from './EditorTerrainCellModel.js';
+import { applyEditorFallbackMaterialPalette } from './EditorFallbackMaterialPalette.js';
 
 function createPrimitive(asset) {
   if (asset.primitive === 'tree') {
@@ -110,6 +111,7 @@ export class EditorAssetManager {
     object.userData.editorAssetId = asset.id;
     object.userData.editorFormat = asset.format;
     object.name = asset.name;
+    applyEditorFallbackMaterialPalette(object, asset);
     object.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;

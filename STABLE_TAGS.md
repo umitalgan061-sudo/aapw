@@ -969,3 +969,5 @@ stable-2026-08-11-0942 — Run255 editor mobile scene JSON save/download regress
 stable-2026-08-11-0956 — Run256 editor mobile actual-download save-load roundtrip regression; real downloaded scene fully restores exact source identity/transform/editor metadata after an intervening replacement scene; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-11-1026 — Run258 editor mobile multi-object actual-download save-load regression; three exact off-grid objects persist through real browser download, intervening replacement and reload; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-11-1218 — Run262 editor terrain elevation brush; water lowers and land raises live terrain/collider with deterministic persistent stamps; PWA/perf/determinism/smoke gates verified.
+
+- `stable-2026-08-11-1329` — Run259 deterministic FBX fallback palette (288 colors / 24 families); full DoD + two-angle visual evidence PASS.
