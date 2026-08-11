@@ -117,3 +117,4 @@ jobs:
           git push origin "$TAG" || echo 'Known stable-tag push restriction retained per governance.'
 
 # Exact-head retrigger after checkpoint materialization.
+# v3 retrigger commit intentionally adds no runtime behavior.
