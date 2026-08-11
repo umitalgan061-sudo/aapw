@@ -99,6 +99,13 @@ async function main() {
     }, assetId);
   }
 
+  async function dispatchTerrainStroke(clientX, clientY) {
+    const canvas = page.locator('#we-canvas');
+    const common = { button: 0, pointerId: 17, pointerType: 'mouse', isPrimary: true, clientX, clientY };
+    await canvas.dispatchEvent('pointerdown', { ...common, buttons: 1 });
+    await canvas.dispatchEvent('pointerup', { ...common, buttons: 0 });
+  }
+
   try {
     await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await page.waitForFunction(() => (
@@ -110,20 +117,23 @@ async function main() {
       document.getElementById('we-terrain-elevation-strength') &&
       document.getElementById('we-grid-toggle')?.disabled === true
     ), null, { timeout: 120000 });
-    await page.waitForTimeout(250);
+    await page.waitForFunction(() => window.__WESTEROS_WORLD_EDITOR__?.editableObjects?.length === 0, null, { timeout: 30000 });
     assert(errors.length === 0, `Boot browser errors: ${errors.join(' | ')}`);
 
     const canvas = await page.locator('#we-canvas').boundingBox();
     assert(canvas && canvas.width > 100 && canvas.height > 100, `Editor canvas unavailable: ${JSON.stringify(canvas)}`);
     const clickX = canvas.x + canvas.width * 0.5;
     const clickY = canvas.y + canvas.height * 0.5;
+    const surfacePoint = await page.evaluate(({ x, y }) => window.__WESTEROS_EDITOR_LIVE_AUTHORING__.surfacePointFromClient(x, y)?.toArray?.() || null, { x: clickX, y: clickY });
+    assert(surfacePoint && surfacePoint.every(Number.isFinite), `Canvas center does not resolve to live terrain/water surface: ${JSON.stringify({ canvas, clickX, clickY, surfacePoint })}`);
 
     await page.locator('#we-terrain-elevation-strength').fill('2');
     await page.locator('#we-terrain-elevation-strength').dispatchEvent('change');
     await page.screenshot({ path: path.join(ARTIFACT_DIR, '01-before-sculpt.png'), fullPage: true });
 
     await page.locator('[data-terrain-mode="water-add"]').click();
-    await page.mouse.click(clickX, clickY);
+    await page.waitForFunction(() => window.__WESTEROS_EDITOR_TERRAIN__?.getMode?.() === 'water-add', null, { timeout: 5000 });
+    await dispatchTerrainStroke(clickX, clickY);
     await page.waitForFunction(() => {
       const elevation = window.__WESTEROS_EDITOR_TERRAIN_ELEVATION__;
       return elevation?.getSnapshot?.().waterStampCount === 1 && elevation.getSnapshot().landStampCount === 0;
@@ -141,7 +151,8 @@ async function main() {
     await page.screenshot({ path: path.join(ARTIFACT_DIR, '02-water-lowers-terrain.png'), fullPage: true });
 
     await page.locator('[data-terrain-mode="land-add"]').click();
-    await page.mouse.click(clickX, clickY);
+    await page.waitForFunction(() => window.__WESTEROS_EDITOR_TERRAIN__?.getMode?.() === 'land-add', null, { timeout: 5000 });
+    await dispatchTerrainStroke(clickX, clickY);
     await page.waitForFunction(() => {
       const elevation = window.__WESTEROS_EDITOR_TERRAIN_ELEVATION__;
       return elevation?.getSnapshot?.().landStampCount === 1 && elevation.getSnapshot().waterStampCount === 0;
@@ -162,7 +173,7 @@ async function main() {
     assert(errors.length === 0, `Browser errors: ${errors.join(' | ')}`);
     await page.screenshot({ path: path.join(ARTIFACT_DIR, '03-land-raises-terrain.png'), fullPage: true });
 
-    console.log(`[checkRun259EditorTerrainElevationBrush] PASS ${JSON.stringify({ waterOffset: water.offset, waterGround: water.colliderY, landOffset: land.offset, landGround: land.colliderY, baseGround: land.baseY, strengthMeters: land.strengthValue, screenshots: 3, unexpectedErrors: errors.length })}`);
+    console.log(`[checkRun259EditorTerrainElevationBrush] PASS ${JSON.stringify({ surfacePoint, waterOffset: water.offset, waterGround: water.colliderY, landOffset: land.offset, landGround: land.colliderY, baseGround: land.baseY, strengthMeters: land.strengthValue, screenshots: 3, unexpectedErrors: errors.length })}`);
   } finally {
     await context.close();
     await browser.close();
