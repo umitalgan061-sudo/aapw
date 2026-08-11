@@ -1,0 +1,130 @@
+name: Run 264 Editor Micro Scale V2
+
+on:
+  push:
+    branches: [agent/run264-editor-micro-scale-v2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run264-editor-micro-scale-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: fd71f5bbe7e574c059a6a3636a23402d97734aad
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Install Playwright outside repo
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Snapshot and start concurrency
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md && test -f 3D_GAME_PROGRESS.md && test -f DECISIONS.md && test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 220 GOVERNANCE.md
+          tail -n 180 3D_GAME_PROGRESS.md
+          tail -n 160 DECISIONS.md
+          tail -n 100 QUESTIONS_FOR_OWNER.md
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+      - name: Baseline 34 plus browser smoke
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run264-v2-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run264-v2-before.log")
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run264-v2-before.log")" -ge 34
+          git worktree remove "$BASELINE"
+      - name: Scale contracts and real editor proof
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorScaleInputController.js
+          node --check scripts/checkRun264EditorMicroScale.mjs
+          node --check scripts/checkRun264EditorMicroScaleBrowserV2.js
+          node scripts/checkRun216ScaleInputController.mjs
+          node scripts/checkRun216ScaleInputWiring.js
+          node scripts/checkRun216ScaleInputBehavior.js
+          node scripts/checkRun225EditorSub001ScaleHistoryV2.js
+          node scripts/checkRun264EditorMicroScale.mjs
+          node scripts/checkRun264EditorMicroScaleBrowserV2.js
+          node scripts/checkRun216EditorUsabilityBrowser.js
+          node scripts/checkRun219EditorHistoryBrowser.js
+          node scripts/checkRun223EditorDeleteHistory.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+      - name: Determinism world PWA debt gates
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkRun263LakeSeaWaterClassifier.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/analyzePerfTrend.js
+      - name: Mobile streaming LOD and budget
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run264-v2-mobile.log"
+          grep '^\[checkMobilePerfBudget\] PASS:' "$RUNNER_TEMP/run264-v2-mobile.log"
+      - name: After smoke and console gate
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run264-v2-after.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run264-v2-after.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run264-v2-after.log" | grep -F 'zero console/page errors'
+          ! grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run264-v2-after.log"
+      - name: Standard mobile near F4 evidence
+        run: node scripts/captureRun130MobileEvidence.js
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run264-editor-micro-scale-v2-evidence
+          path: |
+            artifacts/run264-editor-micro-scale-v2/*.png
+            artifacts/run130-mobile/*.png
+          if-no-files-found: error
+          retention-days: 14
+      - name: Senior review and final concurrency
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorScaleInputController.js
+          node scripts/checkRun264EditorMicroScale.mjs
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+          test "$(git diff --numstat "$BASE_SHA" HEAD -- src/3d/editor/EditorScaleInputController.js | awk '{s += $2} END {print s + 0}')" -eq 0
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/editor/EditorScaleInputController.js scripts/checkRun264EditorMicroScale.mjs scripts/checkRun264EditorMicroScaleBrowserV2.js; then exit 1; fi
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
