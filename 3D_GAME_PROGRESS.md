@@ -14645,3 +14645,10 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, perf-trend, technical-debt, full browser smoke, final remote-main concurrency/additive gates and artifact upload PASS.
 - Runtime/product source delta: 0 lines changed. Test/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Evidence: Run239 workflow `31443939454` PASS and World Event Determinism Guard `31443939431` PASS. Next safe step: continue additive-only World Editor scene-load validation coverage after re-reading current main and avoiding concurrent Run238 scope.
+
+## Run 240 — Governance consolidation audit
+- Periodic governance consolidation re-verified the active owner continuation directives, unresolved owner gates, and current Run235 platform-control maintenance state without changing rule semantics.
+- RCA: earlier unpublished Run240 audit attempts used brittle text assumptions and one omitted the Playwright dependency; each was rejected without runtime changes. Clean-v3 uses confirmed governance phrases, case-insensitive platform-window matching, and the established Chromium dependency setup.
+- PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates and World Event Determinism Guard PASS.
+- Runtime/product source delta: 0 lines changed. Governance/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Evidence: Run240 clean-v3 workflow `31444922515` PASS and World Event Determinism Guard `31444922426` PASS. Next safe step: re-read current main and continue with the next owner-gate-free additive-only task while avoiding concurrent Run238 scope.
