@@ -14749,3 +14749,13 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Event Determinism Guard `31464901187` PASS on the same Run254 head.
 - Runtime/product source delta: 0 lines changed in Run254. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
 - Next safe step: refresh remote main/concurrent branches and continue only a distinct additive-only World Editor mobile/scene-persistence compatibility regression without overlapping active Run253 unknown-only or stale Run252-local scopes.
+
+## Run 255 — World Editor mobile scene JSON save/download regression
+- Permanent additive-only Chromium regression extends Run254 mobile import coverage through the real `Kaydet JSON` browser-download path in a `390x844`, touch-enabled, DPR 2 mobile context.
+- An off-grid `marker-tree` scene is first imported with exact identity, position `[-15.375, 0.125, 22.625]`, signed rotation `[0.625, -1.375, 2.125]`, non-uniform scale `[0.007, 1.875, 0.625]`, and serialized snap `true` / `2.5` while pre-load live snap is `true` / `4.25`.
+- The test then clicks the real mobile toolbar `Kaydet JSON` control, captures the actual browser download, verifies filename `westeros-world.scene.json`, parses the downloaded bytes, and confirms schema/world/editor/object/instanceGroups content matches canonical serializer output exactly.
+- Save completion toast is `Scene JSON hazırlandı.`; saving does not mutate the live scene, owner grid-hidden/disabled policy and stable history remain intact, and browser console/page errors remain zero. Three mobile screenshots plus the actual downloaded JSON are retained as evidence.
+- Validation workflow `31465809740` PASS: syntax, focused mobile import+download regression, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and artifact upload all PASS.
+- World Event Determinism Guard `31465809687` PASS on the same Run255 head.
+- Runtime/product source delta: 0 lines changed in Run255. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.
+- Next safe step: refresh remote main/concurrent branches and continue only a distinct additive-only World Editor mobile persistence regression, such as an actual downloaded-file save→load roundtrip, without overlapping stale Run252-local or Run253 unknown-only scopes.
