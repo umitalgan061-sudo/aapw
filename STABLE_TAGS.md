@@ -964,3 +964,4 @@ stable-2026-08-11-0829 — Run249 editor snap-enabled off-grid scene import regr
 stable-2026-08-11-0843 — Run250 editor multi-object off-grid scene import regression; three independent serialized transforms survive snap-enabled import exactly; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-11-0856 — Run251 editor unknown-asset off-grid scene import regression; missing asset is skipped while both neighboring off-grid valid transforms survive exactly; PWA/perf/determinism/smoke gates verified.
 stable-2026-08-11-0912 — Run252 editor consecutive scene replacement regression; second valid import fully replaces the first without stale objects/selection or transform quantization; PWA/perf/determinism/smoke gates verified.
+stable-2026-08-11-0928 — Run254 editor mobile off-grid scene import regression; 390x844 touch Chromium preserves exact off-grid transform while serialized snap restores to true/2.5; PWA/perf/determinism/smoke gates verified.

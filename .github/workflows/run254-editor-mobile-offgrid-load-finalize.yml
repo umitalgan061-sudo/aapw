@@ -1,0 +1,81 @@
+name: Run 254 Editor Mobile Offgrid Load Finalize
+
+on:
+  push:
+    branches:
+      - agent/run254-editor-mobile-offgrid-load
+    paths:
+      - '.github/workflows/run254-editor-mobile-offgrid-load-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run254-editor-mobile-offgrid-load-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun254EditorMobileOffgridLoad.js
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/editor/EditorLocalSession.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run254 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 254 — World Editor mobile off-grid scene import regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium regression proves the snap-isolated scene-import contract under a real mobile/touch browser context (`390x844`, `isMobile`, `hasTouch`, DPR 2), complementing the desktop import coverage from Runs248-252.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Fixture loads one `marker-tree` at exact off-grid position `[-13.375, 0.125, 19.625]`, signed rotation `[0.625, -1.375, 2.125]`, and non-uniform scale `[0.007, 1.875, 0.625]`; pre-load live snap is deliberately `true` / `4.25` while serialized metadata restores to `true` / `2.5` without transform quantization.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Mobile proof verifies touch context, viewport dimensions, exact object identity/transform, selection clear, history stable/not restoring, owner grid-hidden/disabled policy, canonical success toast and zero browser console/page errors.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Three mobile screenshots cover pre-load editor, loaded hierarchy and lower-panel reachability/scroll state.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Validation workflow `31464901204` PASS: syntax, focused mobile Chromium regression, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and mobile visual artifact all PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- World Event Determinism Guard `31464901187` PASS on the same Run254 head.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed in Run254. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: refresh remote main/concurrent branches and continue only a distinct additive-only World Editor mobile/scene-persistence compatibility regression without overlapping active Run253 unknown-only or stale Run252-local scopes.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run254,2026-08-11,editor-mobile-offgrid-load' perf_log.csv; then
+            printf 'run254,%s,editor-mobile-offgrid-load,,,,,,,"test-only real mobile/touch off-grid scene import regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run254 editor mobile off-grid scene import regression' STABLE_TAGS.md; then
+            printf '%s — Run254 editor mobile off-grid scene import regression; 390x844 touch Chromium preserves exact off-grid transform while serialized snap restores to true/2.5; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run254 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run254): record mobile off-grid load checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run254-editor-mobile-offgrid-load
+          git push origin "$STABLE_TAG" || true
