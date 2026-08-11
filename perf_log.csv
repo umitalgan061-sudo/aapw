@@ -191,3 +191,4 @@ run246,2026-08-11,editor-empty-metadata-defaults,,,,,,,"test-only valid scene ed
 run247,2026-08-11,editor-partial-metadata-defaults,,,,,,,"test-only valid scene partial editor metadata composed defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
 run248,2026-08-11,editor-scene-load-snap-isolation,,,,,,,"additive scene import snap isolation; exact transforms preserved; mobile perf budget, deterministic safety and full browser smoke PASS"
 run249,2026-08-11,editor-snap-enabled-offgrid-load,,,,,,,"test-only snap-enabled off-grid scene import regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run250,2026-08-11,editor-multiobject-offgrid-load,,,,,,,"test-only three-object off-grid scene import regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
