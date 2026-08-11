@@ -1,0 +1,172 @@
+name: Run 264 Editor Micro Scale V6
+
+on:
+  push:
+    branches: [agent/run264-editor-micro-scale-v6]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run264-editor-micro-scale-v6-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: f21683eccf2ee76afece3d40fece6b99ded8ddb7
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Install Playwright outside repo
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Session snapshot and path-safe concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          START_MAIN="$(git rev-parse origin/main)"
+          echo "START_MAIN=$START_MAIN" >> "$GITHUB_ENV"
+          git merge-base --is-ancestor "$BASE_SHA" "$START_MAIN"
+          SAFE_PATHS=(
+            GOVERNANCE.md GOVERNANCE_CONTINUATION_OVERRIDE.md GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md
+            editor.html editor.css service-worker.js src/3d
+            scripts/smokeTestGame3D.js scripts/checkAdditiveOnlyDiff.js scripts/checkTechnicalDebt.js
+            scripts/checkRun216ScaleInputController.mjs scripts/checkRun216ScaleInputWiring.js scripts/checkRun216ScaleInputBehavior.js
+            scripts/checkRun225EditorSub001ScaleHistoryV2.js scripts/checkRun216EditorUsabilityBrowser.js
+            scripts/checkRun219EditorHistoryBrowser.js scripts/checkRun223EditorDeleteHistory.js scripts/checkMobilePerfBudget.js
+          )
+          if ! git diff --quiet "$BASE_SHA" "$START_MAIN" -- "${SAFE_PATHS[@]}"; then
+            echo 'Run264 related Web/editor paths changed on main after branch base:'
+            git diff --name-only "$BASE_SHA" "$START_MAIN" -- "${SAFE_PATHS[@]}"
+            exit 1
+          fi
+          test -f GOVERNANCE.md && test -f GOVERNANCE_CONTINUATION_OVERRIDE.md && test -f GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md
+          test -f 3D_GAME_PROGRESS.md && test -f DECISIONS.md && test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 220 GOVERNANCE.md
+          cat GOVERNANCE_CONTINUATION_OVERRIDE.md
+          cat GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md
+          tail -n 180 3D_GAME_PROGRESS.md
+          tail -n 160 DECISIONS.md
+          tail -n 100 QUESTIONS_FOR_OWNER.md
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+      - name: Latest main baseline 34 plus browser smoke
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run264-v6-baseline"
+          git worktree add --detach "$BASELINE" "$START_MAIN"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run264-v6-before.log")
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run264-v6-before.log")" -ge 34
+          git worktree remove "$BASELINE"
+      - name: RCA regression scale contracts and real editor proof
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorScaleInputController.js
+          node --check scripts/checkRun264EditorMicroScaleV6.mjs
+          node --check scripts/checkRun264EditorMicroScaleBrowserV6.js
+          node scripts/checkRun216ScaleInputController.mjs
+          node scripts/checkRun216ScaleInputWiring.js
+          node scripts/checkRun216ScaleInputBehavior.js
+          node scripts/checkRun225EditorSub001ScaleHistoryV2.js
+          node scripts/checkRun264EditorMicroScaleV6.mjs
+          node scripts/checkRun264EditorMicroScaleBrowserV6.js
+          node scripts/checkRun216EditorUsabilityBrowser.js
+          node scripts/checkRun219EditorHistoryBrowser.js
+          node scripts/checkRun223EditorDeleteHistory.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+      - name: Determinism world PWA and debt gates
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkRun263LakeSeaWaterClassifier.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkTechnicalDebt.js | tee "$RUNNER_TEMP/run264-v6-debt.log"
+          node scripts/checkSmokeCheckRegistry.js
+      - name: Mobile streaming LOD and live render budget
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run264-v6-mobile.log"
+          grep '^\[checkMobilePerfBudget\] PASS:' "$RUNNER_TEMP/run264-v6-mobile.log"
+      - name: Full browser smoke after Run264 and console gate
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run264-v6-after.log"
+          AFTER_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run264-v6-after.log")"
+          test "$AFTER_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run264-v6-after.log" | grep -F 'zero console/page errors'
+          ! grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run264-v6-after.log"
+      - name: Performance snapshot and trend
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run264 | tee "$RUNNER_TEMP/run264-v6-perf.log"
+          PERF_ROW="$(grep '^\[collectPerfSnapshot\] sampled:' "$RUNNER_TEMP/run264-v6-perf.log" | tail -n1 | sed 's/^\[collectPerfSnapshot\] sampled: //')"
+          test -n "$PERF_ROW"
+          echo "RUN264_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+          node scripts/analyzePerfTrend.js
+          git checkout -- perf_log.csv
+      - name: Standard mobile near and F4 far evidence
+        run: node scripts/captureRun130MobileEvidence.js
+      - name: Upload Run264 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run264-editor-micro-scale-v6-evidence
+          path: |
+            artifacts/run264-editor-micro-scale-v6/*.png
+            artifacts/run130-mobile/*.png
+          if-no-files-found: error
+          retention-days: 14
+      - name: Senior self-review and final path-safe concurrency gate
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorScaleInputController.js
+          node scripts/checkRun264EditorMicroScaleV6.mjs
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+          test "$(git diff --numstat "$BASE_SHA" HEAD -- src/3d/editor/EditorScaleInputController.js | awk '{s += $2} END {print s + 0}')" -eq 0
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/editor/EditorScaleInputController.js scripts/checkRun264EditorMicroScaleV6.mjs scripts/checkRun264EditorMicroScaleBrowserV6.js; then exit 1; fi
+          git fetch origin main
+          END_MAIN="$(git rev-parse origin/main)"
+          SAFE_PATHS=(
+            GOVERNANCE.md GOVERNANCE_CONTINUATION_OVERRIDE.md GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md
+            editor.html editor.css service-worker.js src/3d
+            scripts/smokeTestGame3D.js scripts/checkAdditiveOnlyDiff.js scripts/checkTechnicalDebt.js
+            scripts/checkRun216ScaleInputController.mjs scripts/checkRun216ScaleInputWiring.js scripts/checkRun216ScaleInputBehavior.js
+            scripts/checkRun225EditorSub001ScaleHistoryV2.js scripts/checkRun216EditorUsabilityBrowser.js
+            scripts/checkRun219EditorHistoryBrowser.js scripts/checkRun223EditorDeleteHistory.js scripts/checkMobilePerfBudget.js
+          )
+          if ! git diff --quiet "$START_MAIN" "$END_MAIN" -- "${SAFE_PATHS[@]}"; then
+            echo 'Run264 related Web/editor paths changed while validation was running:'
+            git diff --name-only "$START_MAIN" "$END_MAIN" -- "${SAFE_PATHS[@]}"
+            exit 1
+          fi
+          echo "Path-safe concurrency PASS: $START_MAIN -> $END_MAIN contains no Run264-related Web/editor changes."
