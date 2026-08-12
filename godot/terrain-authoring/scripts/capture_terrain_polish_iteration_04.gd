@@ -136,18 +136,16 @@ func _prepare_proof_maps(data) -> bool:
 func _bake_global_map() -> bool:
 	var baker := HTGlobalMapBaker.new()
 	_scene_root.add_child(baker)
-	var finished := false
-	baker.progress_notified.connect(func(info):
-		if bool(info.get("finished", false)):
-			finished = true
-	)
 	baker.bake(_terrain)
 
+	# HTerrain's baker owns its process lifecycle and disables processing when the
+	# final sector has been copied into CHANNEL_GLOBAL_ALBEDO. Observe that state
+	# directly instead of relying on a closure-captured local signal flag.
 	for _frame in 360:
 		await process_frame
-		if finished:
+		if not baker.is_processing():
 			break
-	if not finished:
+	if baker.is_processing():
 		baker.queue_free()
 		_fail("HTerrain global-map bake timed out")
 		return false
