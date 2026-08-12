@@ -5,7 +5,7 @@
   "current_cell": "G27",
   "status": "validating",
   "branch": "terrain/sw-g27-hterrain-coast-current-main-20260812b",
-  "pr": null,
+  "pr": 259,
   "last_commit": "ea7b7cc2f149820e7c413d29b6cb3f2bbaa69b39",
   "quality_before": {
     "source_pixels": 24576,
@@ -27,5 +27,5 @@
     "hterrain_persistence_tolerance": 0.00001
   },
   "engine": "HTerrain authoring + source-derived QA; Terrain3D pinned but not invoked for this bounded coastline persistence proof",
-  "updated_at": "2026-08-12T17:31:00+03:00"
+  "updated_at": "2026-08-12T17:36:10+03:00"
 }
