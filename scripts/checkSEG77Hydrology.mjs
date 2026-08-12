@@ -5,7 +5,7 @@ import {
   isInsideG77,
   measureG77Hydrology,
   sampleG77WaterConfidence,
-} from '../src/3d/world/worldReferenceGeoCellG77Hydrology.js';
+} from './terrain/worldReferenceGeoCellG77Hydrology.mjs';
 
 assert.equal(G77_HYDROLOGY_POLICY.geoCell, 'G77');
 assert.deepEqual(G77_HYDROLOGY_POLICY.pixelBounds, { xMin: 1344, xMax: 1536, yMin: 896, yMax: 1024 });
