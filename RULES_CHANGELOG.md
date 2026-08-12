@@ -5,6 +5,22 @@
 
 ---
 
+- **Run 291 (2026-08-12, periodic platform control + rule consolidation):** §8.12 review was overdue
+  (last full consolidation Run240 targeted ~run260; last platform control Run235 targeted ~run255-265;
+  this run is 291). Re-read `GOVERNANCE.md` §1-32 end to end: no stale or internally-conflicting rule
+  found. §16 Ertelenmiş Kurallar: `SaveSystem` confirmed still absent (`grep -rn SaveSystem src/` finds
+  only a comment referencing its future non-existence), public API/mod support still absent, smoke
+  suite still sufficient (34/34 PASS), F2 `renderer.info` still sufficient — none of the four
+  activation conditions are met, no change. Platform control re-run fresh (not just re-stated): PWA
+  installability, service-worker cache completeness, 34/34 browser smoke, mobile perf budget (35 draw
+  calls / 195929 triangles), world-reference/hydrology/terrain-seat/road-network/world-event-determinism/
+  technical-debt/additive-only guards and perf-trend drift check all PASS; `npm audit` still N/A (no
+  `package.json`). Full evidence recorded in `GOVERNANCE.md` §15's Run291 superseding note and
+  `3D_GAME_PROGRESS.md`'s Run 291 entry. Separately (not a rule-content issue, but relevant to §8.14):
+  this session's local checkout had a stale `main` ref 52 commits behind `origin/main`'s actual tip;
+  resynchronized before any work started, no pushed work lost. Next consolidation + platform-control
+  target ~run311-321.
+
 - **Run 156 (2026-08-07, beşinci konsolidasyon geçişi):** `GOVERNANCE.md` (136'dan beri ~20
   çalıştırma sonra beşinci kez) §1-29 baştan sona gözden geçirildi. §16 Ertelenmiş Kurallar
   tablosu: `SaveSystem` hâlâ yok (sahte pozitif — `dragonController.js`'deki tek eşleşme kuralın
