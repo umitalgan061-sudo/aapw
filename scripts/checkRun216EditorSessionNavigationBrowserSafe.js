@@ -42,7 +42,7 @@ async function openEditor(playwright, base, viewport) {
   const page = await context.newPage();
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  page.on('pageerror', (error) => errors.push(String(error));
+  page.on('pageerror', (error) => errors.push(String(error)));
   await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
   await page.waitForFunction(() => Boolean(
     window.__WESTEROS_EDITOR_LIVE_WORLD__?.ready && window.__WESTEROS_EDITOR_LIVE_AUTHORING__ &&
