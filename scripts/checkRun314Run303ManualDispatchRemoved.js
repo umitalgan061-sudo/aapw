@@ -40,13 +40,17 @@ const workflowFiles = fs.readdirSync(WORKFLOWS).filter((name) => /\.ya?ml$/i.tes
 const targetOwners = [];
 for (const name of workflowFiles) {
   const body = fs.readFileSync(path.join(WORKFLOWS, name), 'utf8');
-  if (body.includes(target)) targetOwners.push(name);
-  if (body.includes('agent/run303-run216-complete-marker-prefix') && body.includes('workflow_dispatch')) {
-    fail(`dispatch-capable workflow still references historical Run303 branch: ${name}`);
+  const referencesHistoricalBranch = body.includes('agent/run303-run216-complete-marker-prefix');
+  const exposesDispatch = body.includes('workflow_dispatch') || body.includes('repository_dispatch');
+  const hasWritePermission = /permissions:\s*[\r\n]+\s*contents:\s*write\b/.test(body) || /contents:\s*write\b/.test(body);
+  const hasHistoricalPushTarget = body.includes(target);
+  if (hasHistoricalPushTarget) targetOwners.push(name);
+  if (referencesHistoricalBranch && exposesDispatch && (hasWritePermission || hasHistoricalPushTarget)) {
+    fail(`dispatch-capable write workflow still references historical Run303 branch: ${name}`);
   }
 }
 if (targetOwners.length !== 1 || targetOwners[0] !== 'run314-run216-complete-marker-prefix-push-only.yml') {
   fail(`historical branch write target must belong only to the new push-only workflow, found: ${targetOwners.join(', ') || 'none'}`);
 }
 
-console.log('[checkRun314Run303ManualDispatchRemoved] PASS: old workflow identity retired; sole historical-branch writer is the new guarded push-only workflow with no manual/repository dispatch');
+console.log('[checkRun314Run303ManualDispatchRemoved] PASS: old write-workflow identity retired; sole historical-branch writer is the new guarded push-only workflow; read-only historical validation may remain dispatchable');
