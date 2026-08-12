@@ -529,3 +529,8 @@ async function bootRun305FbxPackController(attempt = 0) {
 }
 
 if (typeof window !== 'undefined') queueMicrotask(() => bootRun305FbxPackController());
+
+// RUN306_NODE_BOOT_GUARD_V1 — prevent browser-only queued boot from running inside Node DOM stubs.
+if (typeof document === 'undefined' || typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+  bootRun305FbxPackController = async () => {};
+}
