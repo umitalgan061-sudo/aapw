@@ -2,12 +2,25 @@
   "corner": "SW",
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
-  "pr": null,
+  "current_cell": "G15",
+  "status": "validating",
+  "branch": "terrain/sw-g15-hydrology-20260812",
+  "pr": 274,
   "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "quality_before": {
+    "base_cells": 96,
+    "water_cells": 65,
+    "land_cells": 31,
+    "boundary_edges": 18,
+    "hard_cell_max_step": 1.0
+  },
+  "quality_after": {
+    "centre_mismatches": 0,
+    "refined_samples": 1617,
+    "fractional_samples": 256,
+    "max_adjacent_step": 0.25,
+    "confidence_checksum": 2027248322
+  },
+  "engine": "canonical owner-map surface mask + authoring-only bilinear hydrology confidence; HTerrain preserved/validated, Terrain3D not required for this data-only refinement",
+  "updated_at": "2026-08-12T19:06:00+03:00"
 }
