@@ -15,9 +15,14 @@
  * deliberately separate concerns (see ADR-0076's Alternatives considered for why a slope-aware
  * topology cost was not worth the extra complexity here).
  *
- * First-pass visual scope: one road tier ("ana yol" / at arabası yolu — main cart road), not a
- * separate thinner "patika" tier — see ADR-0076's Decision for why, and 3D_GAME_PROGRESS.md's "Next
- * step" for the deferred second tier.
+ * Two road tiers (run 314, ADR-0264, owner-approved 2026-08-12 — see QUESTIONS_FOR_OWNER.md's run 56
+ * entry): the original "ana yol" / at arabası yolu (main cart road) MST backbone above, plus a second,
+ * thinner "patika" (footpath) tier — short, purely local connections between kingdom seats close
+ * enough to be neighboring villages/holdings but not directly linked by the MST backbone (which
+ * already routes their traffic through a shared close neighbor). See `computeLocalFootpathEdges` and
+ * `FOOTPATH_MAX_LENGTH_METERS` below for the exact selection rule. Rendered as a second, separate
+ * merged mesh (own width/color) alongside the unchanged cart-road mesh — the cart-road mesh's own
+ * vertex/color/width contract (`scripts/checkRoadVisualContract.js`) is untouched by this addition.
  * @module world/roads
  */
 
@@ -37,6 +42,27 @@ const VERTICAL_OFFSET_METERS = 0.4;
 /** Dirt/path color — a warm tan-brown, deliberately distinct from `world/terrain.js`'s grass
  * (`0x3d6b28`) and bare-rock (`0x6b6152`) height colors so the road reads clearly against either. */
 const ROAD_COLOR = new THREE.Color(0x9c7b4a);
+
+/** Ribbon width, in meters, for the second "patika" (footpath) tier (run 314, ADR-0264) — narrow
+ * enough to read as a walked dirt track rather than a cart road, wider than a single-file trail so it
+ * stays visible at typical play-camera distance. Roughly a third of `ROAD_WIDTH_METERS`. */
+const FOOTPATH_WIDTH_METERS = 2.5;
+
+/** Footpath color — a paler, more worn tan than `ROAD_COLOR` (less compacted dirt, no cart-wheel
+ * churn) so the two tiers read as visually distinct at a glance, while staying in the same warm
+ * dirt-path family (not a jarring color swap). */
+const FOOTPATH_COLOR = new THREE.Color(0xbfae82);
+
+/** Maximum seat-to-seat Euclidean distance, in meters, for a non-MST pair to qualify as a "patika"
+ * footpath (run 314, ADR-0264 — answers ADR-0076's deferred "every edge, or only short/local ones"
+ * question: only short/local ones). Deliberately conservative — well under every real MST edge's own
+ * length except the tight `olena`<->`berk`/`ziya`<->`olena` pair (~110-125m) — so this only picks up
+ * genuine "same small cluster, one direct hop apart" gaps (today: `ziya`<->`berk`, ~150-160m) rather
+ * than fanning out a dense web of long, mutually near-parallel shortcuts across the whole map (the
+ * next-closest non-MST pairs are all 1.1km+, roughly 7x farther — see DECISIONS.md ADR-0264's Context
+ * for the full measured distance table). Revisit this threshold if a future seat layout change makes
+ * more genuinely-local gaps worth connecting. */
+const FOOTPATH_MAX_LENGTH_METERS = 700;
 
 /**
  * Builds a minimum spanning tree (Prim's algorithm) over `seats` by raw Euclidean `(x, z)` distance
@@ -94,14 +120,17 @@ export function computeSeatMST(seats) {
  * Appends one road-edge polyline's ribbon geometry (positions/colors/indices) into shared arrays —
  * same left/right-perpendicular ribbon technique `world/rivers.js`'s `createRiverMesh` uses, but
  * generalized to append into a combined multi-edge buffer (network roads are disjoint segments, not
- * one continuous path) so the whole 13-edge network renders as a single mesh / one draw call rather
- * than 13 separate ones.
+ * one continuous path) so a whole multi-edge tier renders as a single mesh / one draw call rather
+ * than one draw call per edge.
  * @param {{positions: number[], colors: number[], indices: number[]}} buffers
  * @param {{x: number, y: number, z: number}[]} points
+ * @param {number} [widthMeters] Ribbon width — defaults to the original cart-road width
+ *   (`ROAD_WIDTH_METERS`) so existing callers are unaffected.
+ * @param {THREE.Color} [color] Ribbon color — defaults to `ROAD_COLOR`.
  */
-function appendRoadRibbon(buffers, points) {
+function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METERS, color = ROAD_COLOR) {
 	if (points.length < 2) return;
-	const halfWidth = ROAD_WIDTH_METERS / 2;
+	const halfWidth = widthMeters / 2;
 	const baseVertex = buffers.positions.length / 3;
 
 	for (let i = 0; i < points.length; i++) {
@@ -118,7 +147,7 @@ function appendRoadRibbon(buffers, points) {
 			point.x + perpX * halfWidth, point.y + VERTICAL_OFFSET_METERS, point.z + perpZ * halfWidth,
 			point.x - perpX * halfWidth, point.y + VERTICAL_OFFSET_METERS, point.z - perpZ * halfWidth,
 		);
-		buffers.colors.push(ROAD_COLOR.r, ROAD_COLOR.g, ROAD_COLOR.b, ROAD_COLOR.r, ROAD_COLOR.g, ROAD_COLOR.b);
+		buffers.colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
 
 		if (i > 0) {
 			const leftIndex = baseVertex + i * 2;
@@ -131,61 +160,117 @@ function appendRoadRibbon(buffers, points) {
 }
 
 /**
+ * Selects which non-MST seat pairs qualify as "patika" footpaths (run 314, ADR-0264): any pair whose
+ * raw Euclidean distance is at most `maxLengthMeters` and which the MST (`computeSeatMST`) does not
+ * already connect directly. Deliberately Euclidean/topology-only here (not slope-aware) — this only
+ * decides *which* pairs get a footpath at all; the actual routed geometry for each selected pair still
+ * goes through the same slope-aware `findSlopeAwarePath` every cart-road edge uses (see
+ * `buildRoadNetwork`).
+ * @param {{id: string, x: number, z: number}[]} seats
+ * @param {{fromId: string, toId: string}[]} mstEdges `computeSeatMST`'s output for the same `seats`.
+ * @param {number} [maxLengthMeters] See `FOOTPATH_MAX_LENGTH_METERS`.
+ * @returns {{fromId: string, toId: string, distanceMeters: number}[]}
+ */
+export function computeLocalFootpathEdges(seats, mstEdges, maxLengthMeters = FOOTPATH_MAX_LENGTH_METERS) {
+	const mstPairKeys = new Set(mstEdges.map((edge) => [edge.fromId, edge.toId].sort().join('|')));
+	const footpaths = [];
+	for (let i = 0; i < seats.length; i++) {
+		for (let j = i + 1; j < seats.length; j++) {
+			const a = seats[i];
+			const b = seats[j];
+			const pairKey = [a.id, b.id].sort().join('|');
+			if (mstPairKeys.has(pairKey)) continue;
+			const distanceMeters = Math.hypot(a.x - b.x, a.z - b.z);
+			if (distanceMeters <= maxLengthMeters) {
+				footpaths.push({ fromId: a.id, toId: b.id, distanceMeters });
+			}
+		}
+	}
+	return footpaths;
+}
+
+/**
  * Builds the full road network: MST topology (`computeSeatMST`) over `seats`, each edge routed by
  * `findSlopeAwarePath` (GOVERNANCE.md §8.10 slope-aware routing), rendered as one merged ribbon mesh.
  * @param {object} options
  * @param {{id: string, x: number, z: number, groundY: number}[]} options.seats `world/settlements.js`'s `createSettlements` returned `seats` (real, terrain-sampled positions).
  * @param {(worldX: number, worldZ: number) => number} options.sampleHeightMeters `world/terrain.js`'s `createHeightSampler` output — the same combined fine-FBM + macro-relief field every other world system reads through.
- * @returns {{group: THREE.Group, edges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], totalLengthMeters: number, maxGradeDegrees: number}}
- *   `edges` and the two summary numbers are exposed for logging/reporting/regression checks (see
+ * @returns {{group: THREE.Group, edges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], totalLengthMeters: number, maxGradeDegrees: number, footpathEdges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], footpathTotalLengthMeters: number}}
+ *   `edges`/`totalLengthMeters`/`maxGradeDegrees` describe the original cart-road tier (unchanged
+ *   shape/values from before run 314). `footpathEdges`/`footpathTotalLengthMeters` are the new run
+ *   314/ADR-0264 "patika" tier (see `computeLocalFootpathEdges`) — empty/0 if no pair qualifies for a
+ *   given seat layout. Exposed for logging/reporting/regression checks (see
  *   `scripts/roadNetworkSafetyCheck.js`) without needing to re-walk `group`'s raw geometry.
  */
 export function buildRoadNetwork({ seats, sampleHeightMeters }) {
 	const seatsById = new Map(seats.map((seat) => [seat.id, seat]));
 	const mstEdges = computeSeatMST(seats);
 
-	const buffers = { positions: [], colors: [], indices: [] };
-	const edges = [];
-	let totalLengthMeters = 0;
-	let maxGradeDegrees = 0;
+	function routeEdges(edgeSpecs, widthMeters, color) {
+		const buffers = { positions: [], colors: [], indices: [] };
+		const routed = [];
+		let totalLengthMeters = 0;
+		let maxGradeDegrees = 0;
 
-	for (const mstEdge of mstEdges) {
-		const from = seatsById.get(mstEdge.fromId);
-		const to = seatsById.get(mstEdge.toId);
-		if (!from || !to) continue; // Defensive — every MST edge id comes from `seats` itself.
+		for (const edgeSpec of edgeSpecs) {
+			const from = seatsById.get(edgeSpec.fromId);
+			const to = seatsById.get(edgeSpec.toId);
+			if (!from || !to) continue; // Defensive — every edge id comes from `seats` itself.
 
-		const { points, maxGradeDegrees: edgeMaxGrade } = findSlopeAwarePath({
-			sampleHeightMeters,
-			start: { x: from.x, z: from.z },
-			end: { x: to.x, z: to.z },
-		});
-		appendRoadRibbon(buffers, points);
+			const { points, maxGradeDegrees: edgeMaxGrade } = findSlopeAwarePath({
+				sampleHeightMeters,
+				start: { x: from.x, z: from.z },
+				end: { x: to.x, z: to.z },
+			});
+			appendRoadRibbon(buffers, points, widthMeters, color);
 
-		let lengthMeters = 0;
-		for (let i = 1; i < points.length; i++) {
-			lengthMeters += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
+			let lengthMeters = 0;
+			for (let i = 1; i < points.length; i++) {
+				lengthMeters += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
+			}
+			totalLengthMeters += lengthMeters;
+			if (edgeMaxGrade > maxGradeDegrees) maxGradeDegrees = edgeMaxGrade;
+
+			routed.push({ fromId: edgeSpec.fromId, toId: edgeSpec.toId, points, lengthMeters, maxGradeDegrees: edgeMaxGrade });
 		}
-		totalLengthMeters += lengthMeters;
-		if (edgeMaxGrade > maxGradeDegrees) maxGradeDegrees = edgeMaxGrade;
 
-		edges.push({ fromId: mstEdge.fromId, toId: mstEdge.toId, points, lengthMeters, maxGradeDegrees: edgeMaxGrade });
+		return { buffers, routed, totalLengthMeters, maxGradeDegrees };
 	}
 
-	const geometry = new THREE.BufferGeometry();
-	geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buffers.positions), 3));
-	geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(buffers.colors), 3));
-	geometry.setIndex(buffers.indices);
-	geometry.computeVertexNormals();
+	function buildMesh(buffers, name) {
+		const geometry = new THREE.BufferGeometry();
+		geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buffers.positions), 3));
+		geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(buffers.colors), 3));
+		geometry.setIndex(buffers.indices);
+		geometry.computeVertexNormals();
 
-	const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
-	const mesh = new THREE.Mesh(geometry, material);
-	mesh.name = 'roads';
+		const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+		const mesh = new THREE.Mesh(geometry, material);
+		mesh.name = name;
+		return mesh;
+	}
+
+	const cart = routeEdges(mstEdges, ROAD_WIDTH_METERS, ROAD_COLOR);
+
+	const footpathSpecs = computeLocalFootpathEdges(seats, mstEdges);
+	const footpath = routeEdges(footpathSpecs, FOOTPATH_WIDTH_METERS, FOOTPATH_COLOR);
 
 	const group = new THREE.Group();
 	group.name = 'road-network';
-	group.add(mesh);
+	// Cart-road mesh stays `group.children[0]` — RUN177's medieval-surface shader wrapper (below)
+	// reads `group.children[0]` specifically, and `scripts/checkRoadVisualContract.js` asserts this
+	// mesh's own vertex/width/color contract, so ordering here is load-bearing, not incidental.
+	group.add(buildMesh(cart.buffers, 'roads'));
+	if (footpath.routed.length > 0) group.add(buildMesh(footpath.buffers, 'patika'));
 
-	return { group, edges, totalLengthMeters, maxGradeDegrees };
+	return {
+		group,
+		edges: cart.routed,
+		totalLengthMeters: cart.totalLengthMeters,
+		maxGradeDegrees: cart.maxGradeDegrees,
+		footpathEdges: footpath.routed,
+		footpathTotalLengthMeters: footpath.totalLengthMeters,
+	};
 }
 
 /**

@@ -49,9 +49,19 @@ async function main() {
 			const network = buildRoadNetwork({ seats, sampleHeightMeters });
 			fail(seats.length === 14, `expected 14 seats, got ${seats.length}`);
 			fail(network.edges.length === 13, `expected 13 connected MST edges, got ${network.edges.length}`);
-			fail(network.group.children.length === 1, `medieval surface added draw meshes: ${network.group.children.length}`);
+			// Run 314/ADR-0264: the road-network group may now also hold a second "patika" footpath
+			// mesh (own plain vertex-colored material, no medieval surface applied) alongside the
+			// cart-road mesh this check cares about — expect 1 (no qualifying footpath pair) or 2, and
+			// keep validating the medieval surface strictly against `children[0]`, the cart-road mesh,
+			// same as before this run.
+			const expectedChildCount = network.footpathEdges.length > 0 ? 2 : 1;
+			fail(
+				network.group.children.length === expectedChildCount,
+				`medieval surface added draw meshes: ${network.group.children.length}, expected ${expectedChildCount}`,
+			);
 
 			const mesh = network.group.children[0];
+			fail(mesh?.name === 'roads', `expected children[0] to stay the cart-road mesh, got ${mesh?.name}`);
 			const positions = mesh.geometry.getAttribute('position');
 			const roadSide = mesh.geometry.getAttribute('roadSide');
 			fail(Boolean(positions && roadSide), 'roadSide attribute missing');

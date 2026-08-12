@@ -292,3 +292,31 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   2. **run 145:** `game3d.js`'i 600 satır tavanının altına indirmek için parça taşımak (kaynak dosyadan satır silme dahil) artık serbest.
   3. **run 149 (ADR-0172):** FAZ 8 dünya-olayı kataloğuna yeni içerik eklemek artık serbest — `scripts/fixtures/world-events-seed-148.json` determinism fixture'ı gerektiğinde yeniden üretilip üzerine yazılabilir.
   Ayrıntı: `DECISIONS.md` ADR-0263. Bu üç madde artık owner kararı beklemiyor; sıradaki ilgili run normal iş olarak ele alabilir.
+
+- **✅ ÇÖZÜLDÜ (run 314, 2026-08-12) Owner canlı konuşmada, dosyanın 13 açık his/kalibrasyon
+  sorusuna toplu yanıt verdi: "Hepsine uygun de" (hepsine onay/geçici varsayılan kalıcı olsun) +
+  run 56/ADR-0076'nın ikinci "patika" tier sorusuna özel olarak "İkinci, daha ince bir 'patika'
+  (yaya yolu) katmanı da istiyorum."** Aşağıdaki maddeler artık owner tarafından KALICI olarak
+  onaylandı, bir daha owner yanıtı beklemiyor:
+  - run 55 (ADR-0075): yürünemez eğim 35° — kalıcı.
+  - run 56 (ADR-0076): araba yolu eğim limitleri (rahat 10°/sert tavan 20°) — kalıcı.
+  - run 56 (ADR-0076) ikinci patika tier: **EVET istendi** — run 314/ADR-0264'te uygulandı (bkz.
+    `DECISIONS.md` ADR-0264): `ziya`<->`berk` (~158m) kısa/yerel bağlantısı, ayrı ince (2.5m)
+    mesh, `FOOTPATH_MAX_LENGTH_METERS=700` eşiğiyle "her bağlantı değil, sadece kısa/yerel"
+    seçeneği uygulandı.
+  - run 66 (ADR-0085): ejderha kovalama hissi (18sn/10m/s/55m) — kalıcı.
+  - run 73 (ADR-0096): muhafız tehdit-fark-etme (10m/1.5x tempo/0.3sn) — kalıcı.
+  - run 83 (ADR-0058 revisited): `jon-guard-1` diyalogsuz kalmaya devam ediyor (mevcut varsayılan
+    korunuyor, seçenek EKLENMEDİ) — kalıcı.
+  - run 83 (ADR-0109): telefon offline-PWA 1 dakikalık kontrolü — owner "hepsine uygun" dedi,
+    ayrıca bir "hayır/evet çalıştı" bildirmedi; bu madde owner'ın kendi isteğiyle ileride
+    tekrar gündeme getirebileceği bir açık kalem olarak kayıtta bırakılıyor (bloklayıcı değil).
+  - run 86 (ADR-0111): gece/gündüz eşiği (0.6/0.15) — kalıcı.
+  - run 87 (ADR-0112): yıldız titreşimi (0.65/0.35/0.4-1.3) — kalıcı.
+  - run 90 (ADR-0116): ejderha saldırı sabitleri (20 hasar/2.5sn/15m/4sn) — kalıcı, ölümde ek
+    bedel EKLENMEDİ (sadece can dolup spawn, mevcut hâliyle kalıcı).
+  - run 111 (ADR-0138): ağaç yoğunluğu 30/km² — kalıcı.
+  - run 112 (ADR-0139): tür karışımı 60/40 — kalıcı.
+  - run 113 (ADR-0140): kale-çevresi ağaç kümesi 220/km² + 260m — kalıcı.
+  Bu maddelerin hiçbiri artık "geçici varsayılan" değil — gelecekteki runlar bunları sabit kabul
+  edip QUESTIONS_FOR_OWNER.md'de tekrar sormayacak.
