@@ -10,6 +10,9 @@ on:
     paths:
       - 'godot/terrain-authoring/geocells/sw/g27_hydrology.mjs'
       - 'godot/terrain-authoring/geocells/sw/g27_source_mask.mjs'
+      - 'godot/terrain-authoring/scripts/build_sw_g27_coast_probe.gd'
+      - 'godot/terrain-authoring/scripts/validate_sw_g27_coast_probe.gd'
+      - 'scripts/buildSwG27HTerrainInput.mjs'
       - 'scripts/checkSwG27Hydrology.mjs'
       - 'scripts/checkSwG27SourceFidelity.mjs'
       - 'scripts/captureSwG27SourceFidelity.mjs'
@@ -44,13 +47,14 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g27_hydrology.mjs|godot/terrain-authoring/geocells/sw/g27_source_mask.mjs|scripts/checkSwG27Hydrology.mjs|scripts/checkSwG27SourceFidelity.mjs|scripts/captureSwG27SourceFidelity.mjs|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g27-source-coast.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g27_hydrology.mjs|godot/terrain-authoring/geocells/sw/g27_source_mask.mjs|godot/terrain-authoring/scripts/build_sw_g27_coast_probe.gd|godot/terrain-authoring/scripts/validate_sw_g27_coast_probe.gd|scripts/buildSwG27HTerrainInput.mjs|scripts/checkSwG27Hydrology.mjs|scripts/checkSwG27SourceFidelity.mjs|scripts/captureSwG27SourceFidelity.mjs|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g27-source-coast.yml)$' | wc -l)" -eq 0
 
       - name: Deterministic G27 hydrology and source fidelity
         run: |
           set -euo pipefail
           node --check godot/terrain-authoring/geocells/sw/g27_hydrology.mjs
           node --check godot/terrain-authoring/geocells/sw/g27_source_mask.mjs
+          node --check scripts/buildSwG27HTerrainInput.mjs
           node --check scripts/checkSwG27Hydrology.mjs
           node --check scripts/checkSwG27SourceFidelity.mjs
           node --check scripts/captureSwG27SourceFidelity.mjs
@@ -90,6 +94,25 @@ jobs:
           timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 2>&1 | tee /tmp/g27-godot-editor.log
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd 2>&1 | tee /tmp/g27-hterrain.log
           grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' /tmp/g27-hterrain.log
+
+      - name: G27 HTerrain coast authoring proof
+        run: |
+          set -euo pipefail
+          node scripts/buildSwG27HTerrainInput.mjs | tee /tmp/g27-hterrain-input.log
+          grep -F 'SW_G27_HTERRAIN_INPUT_OK' /tmp/g27-hterrain-input.log
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/build_sw_g27_coast_probe.gd 2>&1 | tee /tmp/g27-hterrain-build-1.log
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_sw_g27_coast_probe.gd 2>&1 | tee /tmp/g27-hterrain-validate-1.log
+          grep -F 'SW_G27_HTERRAIN_PROBE_OK' /tmp/g27-hterrain-build-1.log
+          grep -F 'SW_G27_HTERRAIN_VALIDATION_OK' /tmp/g27-hterrain-validate-1.log
+          sha256sum godot/terrain-authoring/terrain_sw_g27_probe/height.res > /tmp/g27-height-1.sha
+          rm -rf godot/terrain-authoring/terrain_sw_g27_probe
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/build_sw_g27_coast_probe.gd 2>&1 | tee /tmp/g27-hterrain-build-2.log
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_sw_g27_coast_probe.gd 2>&1 | tee /tmp/g27-hterrain-validate-2.log
+          diff -u /tmp/g27-hterrain-build-1.log /tmp/g27-hterrain-build-2.log
+          diff -u /tmp/g27-hterrain-validate-1.log /tmp/g27-hterrain-validate-2.log
+          sha256sum godot/terrain-authoring/terrain_sw_g27_probe/height.res > /tmp/g27-height-2.sha
+          diff -u /tmp/g27-height-1.sha /tmp/g27-height-2.sha
+          rm -rf godot/terrain-authoring/terrain_sw_g27_probe godot/terrain-authoring/.g27_source_landmask.raw
 
       - name: Install Chromium
         run: |
