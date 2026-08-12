@@ -1,0 +1,66 @@
+name: SW G07 Hydrology
+
+on:
+  push:
+    branches:
+      - terrain/sw-g07-hydrology-20260812
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/3d/world/worldReferenceSwG07Hydrology.js'
+      - 'scripts/checkSwG07Hydrology.mjs'
+      - 'godot/terrain-authoring/corner_claims/SW.json'
+      - '.github/workflows/sw-g07-hydrology.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sw-g07-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and syntax gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA='0bd96b66c92db2e1543694b1e40520ed7795e9d2'
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          node --check src/3d/world/worldReferenceSwG07Hydrology.js
+          node --check scripts/checkSwG07Hydrology.mjs
+      - name: Deterministic G07 hydrology proof
+        run: |
+          set -euo pipefail
+          node scripts/checkSwG07Hydrology.mjs | tee /tmp/sw-g07-a.log
+          node scripts/checkSwG07Hydrology.mjs | tee /tmp/sw-g07-b.log
+          diff -u /tmp/sw-g07-a.log /tmp/sw-g07-b.log
+          grep -F 'SW_G07_HYDROLOGY_VALIDATION_OK' /tmp/sw-g07-a.log
+      - name: Core world safety regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js || test $? -eq 2
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkTechnicalDebt.js
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = '0bd96b66c92db2e1543694b1e40520ed7795e9d2'
+          git diff --check
