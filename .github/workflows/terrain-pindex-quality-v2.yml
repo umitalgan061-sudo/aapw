@@ -24,7 +24,7 @@ concurrency:
 
 env:
   TZ: Europe/Istanbul
-  BASE_SHA: 3d404c14b55e3e6121b70430fd0359e532b6f285
+  BASE_SHA: b5f81b1a80278d66a5fa258ef10309d6a26ef84c
 
 jobs:
   validate:
@@ -39,7 +39,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Exact-main concurrency and additive entry gates
+      - name: Exact-main concurrency and compatibility entry gates
         run: |
           set -euo pipefail
           git fetch origin main
@@ -130,7 +130,7 @@ jobs:
           retention-days: 90
           compression-level: 6
 
-      - name: Final exact-main and additive gates
+      - name: Final exact-main and source-preservation gates
         run: |
           set -euo pipefail
           git fetch origin main
