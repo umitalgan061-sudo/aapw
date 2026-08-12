@@ -44,6 +44,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --check scripts/checkRun293DispatchBaseOverride.js
+          node scripts/checkRun293DispatchBaseOverride.js
           node --check scripts/checkRun292Run290BaseOverride.js
           node scripts/checkRun292Run290BaseOverride.js
           node scripts/checkRun290Pindex05Detail.js
