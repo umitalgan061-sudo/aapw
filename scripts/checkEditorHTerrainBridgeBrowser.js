@@ -7,6 +7,14 @@ const { startStaticServer, loadPlaywright } = require('./devServerHelper');
 const EXPECTED_SHA = '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1';
 const fail = (message) => { throw new Error(`[checkEditorHTerrainBridgeBrowser] ${message}`); };
 
+async function readDownload(download, stem) {
+  const target = path.join(os.tmpdir(), `${stem}-${process.pid}.json`);
+  await download.saveAs(target);
+  const parsed = JSON.parse(fs.readFileSync(target, 'utf8'));
+  fs.rmSync(target, { force: true });
+  return parsed;
+}
+
 async function main() {
   const playwright = loadPlaywright();
   if (!playwright?.chromium) fail('Playwright Chromium is unavailable');
@@ -39,45 +47,74 @@ async function main() {
     if (initial.snapshot.resolution !== 513) fail('snapshot HTerrain resolution drift');
     if (initial.snapshot.biomeZoneCount !== 17 || initial.snapshot.reliefChainCount !== 4) fail('canonical biome/relief counts drift');
 
-    const synthetic = await page.evaluate(() => {
-      const api = window.__WESTEROS_WORLD_EDITOR__;
-      const object = {
-        uuid: 'hterrain-browser-proof',
-        position: { x: -3386.25, y: 0, z: 2747.5 },
-        scale: { x: 40, y: 3.5, z: 40 },
-        userData: {
-          editorId: 'hterrain-browser-proof',
-          editorAssetId: 'editor-land-cell',
-          editorTerrainElevationMeters: 3.5
-        }
+    const sceneFixture = {
+      schemaVersion: 1,
+      world: { name: 'Westeros', coordinateSystem: 'threejs-y-up', units: 'meters' },
+      editor: { gridVisible: true, snapEnabled: true, snapSize: 1 },
+      objects: [{
+        id: 'hterrain-browser-proof',
+        name: 'HTerrain Dorne Cell',
+        asset: 'editor-land-cell',
+        transform: {
+          position: [-3386.25, 0, 2747.5],
+          rotation: [0, 0, 0],
+          scale: [40, 3.5, 40]
+        },
+        terrain: { hterrainSurface: 'rock', elevationMeters: 3.5 }
+      }],
+      instanceGroups: []
+    };
+    await page.setInputFiles('#we-load-file', {
+      name: 'hterrain-scene-proof.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(sceneFixture))
+    });
+    await page.waitForFunction(() => window.__WESTEROS_WORLD_EDITOR__?.editableObjects?.some(
+      (object) => object?.userData?.editorId === 'hterrain-browser-proof'
+    ), null, { timeout: 30000 });
+    const restored = await page.evaluate(() => {
+      const object = window.__WESTEROS_WORLD_EDITOR__.editableObjects.find(
+        (candidate) => candidate?.userData?.editorId === 'hterrain-browser-proof'
+      );
+      return {
+        surface: object?.userData?.editorHTerrainSurface,
+        elevationMeters: object?.userData?.editorTerrainElevationMeters,
+        assetId: object?.userData?.editorAssetId
       };
-      api.editableObjects.push(object);
+    });
+    if (restored.assetId !== 'editor-land-cell') fail(`terrain scene asset did not restore: ${restored.assetId}`);
+    if (restored.surface !== 'rock') fail(`HTerrain scene surface did not restore: ${restored.surface}`);
+    if (restored.elevationMeters !== 3.5) fail(`HTerrain scene elevation did not restore: ${restored.elevationMeters}`);
+
+    const sceneDownloadPromise = page.waitForEvent('download', { timeout: 10000 });
+    await page.click('#we-save');
+    const savedScene = await readDownload(await sceneDownloadPromise, 'westeros-scene-hterrain');
+    const savedRecord = savedScene.objects.find((record) => record.id === 'hterrain-browser-proof');
+    if (savedRecord?.terrain?.hterrainSurface !== 'rock') fail('scene save lost HTerrain surface metadata');
+    if (savedRecord?.terrain?.elevationMeters !== 3.5) fail('scene save lost HTerrain elevation metadata');
+
+    const authored = await page.evaluate(() => {
+      const api = window.__WESTEROS_WORLD_EDITOR__;
+      const object = api.editableObjects.find((candidate) => candidate?.userData?.editorId === 'hterrain-browser-proof');
+      object.userData.editorHTerrainSurface = 'auto';
       const manifest = window.__WESTEROS_EDITOR_HTERRAIN__.buildManifest();
       const stroke = manifest.strokes.find((candidate) => candidate.id === object.userData.editorId);
       return { manifest, stroke };
     });
-    if (!synthetic.stroke) fail('synthetic authored terrain cell did not reach HTerrain manifest');
-    if (synthetic.stroke.surface !== 'earth') fail(`Dorne map-biome auto surface should be earth, got ${synthetic.stroke.surface}`);
-    if (synthetic.stroke.referenceBiome !== 'dorne') fail(`Dorne reference biome mismatch: ${synthetic.stroke.referenceBiome}`);
-    if (synthetic.stroke.heightDeltaMeters !== 3.5) fail('authored height delta was not preserved');
-    if (!(synthetic.stroke.radiusUv[0] > 0 && synthetic.stroke.radiusUv[1] > 0)) fail('stroke radiusUv must be positive');
+    if (!authored.stroke) fail('loaded authored terrain cell did not reach HTerrain manifest');
+    if (authored.stroke.surface !== 'earth') fail(`Dorne map-biome auto surface should be earth, got ${authored.stroke.surface}`);
+    if (authored.stroke.referenceBiome !== 'dorne') fail(`Dorne reference biome mismatch: ${authored.stroke.referenceBiome}`);
+    if (authored.stroke.heightDeltaMeters !== 3.5) fail('authored height delta was not preserved');
+    if (!(authored.stroke.radiusUv[0] > 0 && authored.stroke.radiusUv[1] > 0)) fail('stroke radiusUv must be positive');
 
     const downloadPromise = page.waitForEvent('download', { timeout: 10000 });
     await page.click('#we-hterrain-export');
-    const download = await downloadPromise;
-    const target = path.join(os.tmpdir(), `westeros-hterrain-${process.pid}.json`);
-    await download.saveAs(target);
-    const exported = JSON.parse(fs.readFileSync(target, 'utf8'));
-    fs.rmSync(target, { force: true });
+    const exported = await readDownload(await downloadPromise, 'westeros-hterrain');
     if (exported.schema !== 'westeros-hterrain-editor-v1') fail('downloaded schema drift');
     if (exported.mapLocked !== true || exported.mapReferenceSha256 !== EXPECTED_SHA) fail('downloaded map lock drift');
-    if (!exported.strokes.some((stroke) => stroke.id === 'hterrain-browser-proof' && stroke.surface === 'earth')) fail('downloaded manifest lost authored Dorne stroke');
-
-    await page.evaluate(() => {
-      const api = window.__WESTEROS_WORLD_EDITOR__;
-      const index = api.editableObjects.findIndex((object) => object?.userData?.editorId === 'hterrain-browser-proof');
-      if (index >= 0) api.editableObjects.splice(index, 1);
-    });
+    if (!exported.strokes.some((stroke) => stroke.id === 'hterrain-browser-proof' && stroke.surface === 'earth')) {
+      fail('downloaded manifest lost authored Dorne stroke');
+    }
 
     if (consoleErrors.length || pageErrors.length) {
       fail(`browser errors: console=${consoleErrors.length} page=${pageErrors.length} ${consoleErrors.join(' | ')} ${pageErrors.join(' | ')}`);
@@ -87,8 +124,9 @@ async function main() {
       resolution: initial.snapshot.resolution,
       biomeZoneCount: initial.snapshot.biomeZoneCount,
       reliefChainCount: initial.snapshot.reliefChainCount,
-      dorneStrokeSurface: synthetic.stroke.surface,
-      heightDeltaMeters: synthetic.stroke.heightDeltaMeters,
+      sceneSurfaceRoundtrip: savedRecord.terrain.hterrainSurface,
+      dorneStrokeSurface: authored.stroke.surface,
+      heightDeltaMeters: authored.stroke.heightDeltaMeters,
       consoleErrors: consoleErrors.length,
       pageErrors: pageErrors.length
     }));
