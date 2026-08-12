@@ -1,0 +1,193 @@
+name: Terrain Polish Iteration 004
+
+on:
+  push:
+    branches:
+      - 'terrain/polish-iteration-004-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terrain-polish-iteration-004-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main concurrency and additive entry gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git merge-base HEAD origin/main)"
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          export BASE_SHA
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          python3 - <<'PY'
+          import os
+          import subprocess
+          base = os.environ['BASE_SHA']
+          paths = [
+              'godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn',
+              'godot/terrain-authoring/TERRAIN_POLISH_LOG.md',
+          ]
+          out = subprocess.check_output(['git', 'diff', '--numstat', f'{base}...HEAD', '--', *paths], text=True)
+          for line in out.splitlines():
+              added, deleted, path = line.split('\t', 2)
+              if deleted != '0':
+                  raise SystemExit(f'non-additive terrain diff: {path} deleted={deleted} added={added}')
+          PY
+
+      - name: Iteration 004 source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
+          test -f godot/terrain-authoring/addons/zylann.hterrain/shaders/detail.gdshader
+          test -f godot/terrain-authoring/TERRAIN_POLISH_LOG.md
+          test -f godot/terrain-authoring/scripts/validate_terrain_polish_iteration_04.gd
+          grep -F 'uniform float u_globalmap_tint_bottom' godot/terrain-authoring/addons/zylann.hterrain/shaders/detail.gdshader
+          grep -F 'uniform float u_globalmap_tint_top' godot/terrain-authoring/addons/zylann.hterrain/shaders/detail.gdshader
+          grep -F 'shader_params/u_tile_reduction = Vector4(1, 0, 0, 0)' godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn
+          grep -F 'shader_params/u_specular = 0.25' godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn
+          grep -F 'shader_params/u_bottom_ao = 0.35' godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn
+          grep -F 'shader_params/u_globalmap_tint_bottom = 0.55' godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn
+          grep -F 'shader_params/u_globalmap_tint_top = 0.10' godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn
+          grep -F 'Iteration #04' godot/terrain-authoring/TERRAIN_POLISH_LOG.md
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+
+      - name: Download official Godot 4.6.3 editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot resource import without first-scan plugin races
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/terrain-polish-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import 2>&1 | tee "$RUNNER_TEMP/terrain-polish-import.log"
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+
+      - name: Godot editor and terrain validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 \
+            2>&1 | tee "$RUNNER_TEMP/terrain-polish-editor.log"
+          if grep -F 'Terrain data is null, can'"'"'t update detail layer completely' "$RUNNER_TEMP/terrain-polish-editor.log"; then
+            echo 'Unexpected HTerrain detail-layer initialization error in editor log.' >&2
+            exit 1
+          fi
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_authoring.gd \
+            2>&1 | tee "$RUNNER_TEMP/terrain-polish-base-validation.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/terrain-polish-base-validation.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_terrain_polish_iteration_04.gd \
+            2>&1 | tee "$RUNNER_TEMP/terrain-polish-iteration-validation.log"
+          grep -F 'TERRAIN_POLISH_ITERATION_04_OK' "$RUNNER_TEMP/terrain-polish-iteration-validation.log"
+
+      - name: PWA cache and installability regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+
+      - name: Install Chromium smoke and performance dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Performance determinism world safety governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/terrain-polish-mobile.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkRun280OwnerMapSemanticFingerprint.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full browser smoke and console regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/terrain-polish-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/terrain-polish-smoke.log")" -ge 34
+
+      - name: Final exact-main concurrency and additive gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          python3 - <<'PY'
+          import os
+          import subprocess
+          base = os.environ['BASE_SHA']
+          paths = [
+              'godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn',
+              'godot/terrain-authoring/TERRAIN_POLISH_LOG.md',
+          ]
+          out = subprocess.check_output(['git', 'diff', '--numstat', f'{base}...HEAD', '--', *paths], text=True)
+          for line in out.splitlines():
+              added, deleted, path = line.split('\t', 2)
+              if deleted != '0':
+                  raise SystemExit(f'non-additive terrain diff: {path} deleted={deleted} added={added}')
+          PY
