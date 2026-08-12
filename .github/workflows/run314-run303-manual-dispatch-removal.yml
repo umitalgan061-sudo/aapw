@@ -48,6 +48,8 @@ jobs:
           node scripts/checkRun314Run303ManualDispatchRemoved.js
           node --check scripts/checkRun314ProgressMaterializer.js
           node scripts/checkRun314ProgressMaterializer.js
+          node --check scripts/checkRun314ReviewerCorrectionMaterializer.js
+          node scripts/checkRun314ReviewerCorrectionMaterializer.js
           node scripts/checkRun216ServiceWorkerMaterializer.js
           node scripts/checkRun300LegacyPrScopeGate.js
           node scripts/checkRun283FinalHeadGovernance.js
