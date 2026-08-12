@@ -3,6 +3,7 @@ extends SceneTree
 const AUTHORING_SCENE := "res://scenes/westeros_terrain_authoring.tscn"
 const DEFAULT_OUTPUT := "res://editor_bridge/generated_terrain_data"
 const HTerrainData = preload("res://addons/zylann.hterrain/hterrain_data.gd")
+const HTerrainNormalMapBaker = preload("res://addons/zylann.hterrain/tools/normalmap_baker.gd")
 const HTerrainGlobalMapBaker = preload("res://addons/zylann.hterrain/tools/globalmap_baker.gd")
 
 
@@ -59,9 +60,14 @@ func _run() -> void:
 	terrain.set_data(generated)
 	await _wait_frames(2)
 
-	var normal_baker = terrain.get("_normals_baker")
-	if normal_baker == null or not normal_baker.is_inside_tree():
-		_fail("HTerrain normal baker was not created")
+	# HTerrain.set_data() intentionally releases the terrain-owned editor baker.
+	# Keep plugin core untouched and bind the plugin's baker directly to this generated dataset.
+	var normal_baker = HTerrainNormalMapBaker.new()
+	root.add_child(normal_baker)
+	normal_baker.set_terrain_data(generated)
+	await process_frame
+	if not normal_baker.is_inside_tree():
+		_fail("HTerrain dedicated normal baker was not created")
 		return
 	normal_baker.request_tiles_in_region(Rect2i(0, 0, resolution, resolution))
 	var normal_frames := 0
@@ -100,6 +106,7 @@ func _run() -> void:
 		global_frames,
 		output,
 	])
+	normal_baker.queue_free()
 	root.queue_free()
 	await process_frame
 	quit(0)
