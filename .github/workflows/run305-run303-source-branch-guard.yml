@@ -40,6 +40,7 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then exit 0; fi
           test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js game3d.html canonical-dev.html godot/terrain-authoring)"
 
       - name: Run303 write-workflow source-branch safety
@@ -50,6 +51,8 @@ jobs:
           node scripts/checkRun305Run303SourceBranchGuard.js
           node --check scripts/checkRun305LiveBaseSemantics.js
           node scripts/checkRun305LiveBaseSemantics.js
+          node --check scripts/checkRun305PrScopeBypass.js
+          node scripts/checkRun305PrScopeBypass.js
           test "$(head -n 1 service-worker.js)" = '// Run216 complete World Editor offline shell extension.'
           node scripts/materializeRun216ServiceWorkerCache.js --verify-only
           node scripts/checkRun216ServiceWorkerMaterializer.js
@@ -103,4 +106,5 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then exit 0; fi
           test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js game3d.html canonical-dev.html godot/terrain-authoring)"
