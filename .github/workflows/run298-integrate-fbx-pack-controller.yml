@@ -1,0 +1,63 @@
+name: Run 298 Integrate FBX Pack Controller
+
+on:
+  push:
+    branches:
+      - agent/run298-editor-fbx-pack-controller
+    paths:
+      - '.github/workflows/run298-integrate-fbx-pack-controller.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run298-integrate-fbx-pack-controller-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append runtime integration and PWA precache
+        run: |
+          set -euo pipefail
+          TRANSFORM='src/3d/editor/EditorTransformControls.js'
+          SW='service-worker.js'
+          if ! grep -Fq 'RUN298_FBX_PACK_CONTROLLER_IMPORT' "$TRANSFORM"; then
+            printf '%s\n' '' '// RUN298_FBX_PACK_CONTROLLER_IMPORT — additive independent FBX child/pack transform layer.' "import('./EditorFbxPackController.js').catch((error) => console.error('[EditorFbxPackController] import failed', error));" >> "$TRANSFORM"
+          fi
+          if ! grep -Fq 'RUN298_FBX_PACK_CONTROLLER_CACHE' "$SW"; then
+            printf '%s\n' '' '// RUN298_FBX_PACK_CONTROLLER_CACHE — additive offline cache registration.' "GAME3D_SHELL_FILES.push('./src/3d/editor/EditorFbxPackController.js');" >> "$SW"
+          fi
+          node --check src/3d/editor/EditorFbxPackController.js
+          node --check "$TRANSFORM"
+          node --check scripts/checkRun298EditorFbxPackTransform.js
+          node scripts/checkServiceWorkerCache.js
+          git diff --check
+          git add "$TRANSFORM" "$SW"
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(run298): integrate cached FBX pack controller'
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git push origin HEAD:agent/run298-editor-fbx-pack-controller
