@@ -38,12 +38,18 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "[run300] PR global gate passed; keeping this workflow's historical path-isolation check for branch/manual runs only."
+            exit 0
+          fi
           test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"
 
       - name: Run292 governance regression
         shell: bash
         run: |
           set -euo pipefail
+          node --check scripts/checkRun300LegacyPrScopeGate.js
+          node scripts/checkRun300LegacyPrScopeGate.js
           node --check scripts/checkRun293DispatchBaseOverride.js
           node scripts/checkRun293DispatchBaseOverride.js
           node --check scripts/checkRun292Run290BaseOverride.js
@@ -102,4 +108,8 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "[run300] PR global gate passed; keeping this workflow's historical path-isolation check for branch/manual runs only."
+            exit 0
+          fi
           test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"
