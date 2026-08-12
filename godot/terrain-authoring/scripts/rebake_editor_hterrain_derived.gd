@@ -51,7 +51,9 @@ func _run() -> void:
 		return
 
 	var generated = HTerrainData.new()
-	if not generated.load_data(output):
+	generated.load_data(output)
+	var resolution: int = generated.get_resolution()
+	if resolution <= 0:
 		_fail("HTerrain generated data could not be reloaded: %s" % output)
 		return
 	terrain.set_data(generated)
@@ -61,7 +63,6 @@ func _run() -> void:
 	if normal_baker == null or not normal_baker.is_inside_tree():
 		_fail("HTerrain normal baker was not created")
 		return
-	var resolution: int = generated.get_resolution()
 	normal_baker.request_tiles_in_region(Rect2i(0, 0, resolution, resolution))
 	var normal_frames := 0
 	while normal_baker.is_processing() and normal_frames < 256:
