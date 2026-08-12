@@ -1,6 +1,9 @@
 name: Editor Live Workspace Current Main
 
 on:
+  push:
+    branches:
+      - 'chatgpt/editor-live-workspace-current-main-v2'
   pull_request:
     branches:
       - main
@@ -28,20 +31,22 @@ jobs:
           node-version: 22
 
       - name: Exact-current-main and additive-only entry gate
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           git fetch origin main
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA='${{ github.event.pull_request.base.sha }}'
+          else
+            BASE_SHA="$(git rev-parse HEAD^)"
+          fi
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           git merge-base --is-ancestor "$BASE_SHA" HEAD
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
           git diff --numstat "$BASE_SHA"...HEAD | awk '$2 != 0 { print "non-additive editor live workspace diff: " $0; exit 1 }'
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
 
       - name: Live workspace source contract
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           node --check src/3d/editor/EditorLiveWorkspaceEntry.js
@@ -88,8 +93,6 @@ jobs:
 
       - name: Final exact-current-main and additive-only gate
         if: always()
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           git fetch origin main
