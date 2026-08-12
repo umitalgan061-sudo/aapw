@@ -5,7 +5,7 @@
   "current_cell": "G52",
   "status": "validating",
   "branch": "terrain/ne-g52-terrain3d-biome-20260812",
-  "pr": null,
+  "pr": 289,
   "last_commit": null,
   "layer": "Macro Albedo/Biome",
   "previous_layer_evidence": {
@@ -30,5 +30,5 @@
     "guard_band_seam_measurement": true,
     "map_png_source_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1"
   },
-  "updated_at": "2026-08-12T22:00:00+03:00"
+  "updated_at": "2026-08-12T22:04:00+03:00"
 }
