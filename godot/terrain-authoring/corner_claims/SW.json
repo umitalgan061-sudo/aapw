@@ -5,8 +5,8 @@
   "current_cell": "G27",
   "status": "validating-current-main-hterrain",
   "branch": "terrain/sw-g27-hterrain-e755-20260812",
-  "pr": null,
-  "last_commit": null,
+  "pr": 255,
+  "last_commit": "b7e4d898198e4eaee7593236991c0509e000a5cf",
   "base_sha": "e755b5b5787a417f711331b7ecae981e89b39cb4",
   "quality_before": {
     "source_pixels": 24576,
@@ -26,5 +26,5 @@
   },
   "engine": "HTerrain authoring + source-derived QA; Terrain3D pinned but not invoked for this data-only coast layer",
   "supersedes_pr": 251,
-  "updated_at": "2026-08-12T17:45:00+03:00"
+  "updated_at": "2026-08-12T17:31:00+03:00"
 }
