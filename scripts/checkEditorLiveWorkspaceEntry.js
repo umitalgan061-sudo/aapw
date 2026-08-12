@@ -43,8 +43,17 @@ async function browserContract() {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
   const page = await context.newPage();
   const errors = [];
-  page.on('pageerror', (error) => errors.push(String(error)));
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', (error) => errors.push(`pageerror: ${String(error)}`));
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    const location = message.location();
+    const suffix = location?.url ? ` @ ${location.url}${Number.isFinite(location.lineNumber) ? `:${location.lineNumber}` : ''}` : '';
+    errors.push(`console: ${message.text()}${suffix}`);
+  });
+  page.on('response', (response) => {
+    if (response.status() >= 400) errors.push(`http: ${response.status()} ${response.url()}`);
+  });
+  page.on('requestfailed', (request) => errors.push(`requestfailed: ${request.url()} :: ${request.failure()?.errorText || 'unknown'}`));
   try {
     await page.goto(`http://127.0.0.1:${port}/edit.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await page.waitForFunction(() => document.body.dataset.ready === 'true' || Boolean(document.body.dataset.bootError), null, { timeout: 180000 });
@@ -80,7 +89,7 @@ async function browserContract() {
       }, mode);
       assert(result?.currentMode === mode, `mode switch failed: ${mode}`);
     }
-    assert(errors.length === 0, `console/page errors: ${errors.join(' | ')}`);
+    assert(errors.length === 0, `console/network/page errors: ${errors.join(' | ')}`);
     console.log(`[checkEditorLiveWorkspaceEntry] PROOF ${JSON.stringify(proof)}`);
   } finally {
     await context.close();
