@@ -6,8 +6,8 @@
   "status": "active",
   "layer": "Rock/Snow",
   "branch": "agent/kizil-ufuk-g75-rock-snow-20260813",
-  "pr": null,
-  "last_commit": "bdc78e0b8288865c01aad0cc7d2dbe60279ed3a2",
+  "pr": 302,
+  "last_commit": "f29182446dd27caf879a9b9c5a76593bb144a2f6",
   "quality_before": {
     "coast_hydrology": "96/96 dry canonical centres; Terrain3D proof PR #285",
     "macro_biome": "continuous owner-map color field; Terrain3D proof PR #288",
@@ -17,5 +17,5 @@
     "target": "continuous relief/slope/biome-derived ground-to-rock weights; snow requires both cold-climate and elevation support; four-edge guard-band measured",
     "state": "pending exact-head CI evidence"
   },
-  "updated_at": "2026-08-13T02:02:00+03:00"
+  "updated_at": "2026-08-13T02:06:00+03:00"
 }
