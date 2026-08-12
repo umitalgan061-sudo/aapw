@@ -52,9 +52,20 @@ func _run_validation() -> void:
 		_fail("Starter global albedo map must exist exactly once")
 		return
 
+	# HTerrain keeps authored PNGs as editable Images in editor context, but in runtime/headless
+	# context the same map can validly reside only as a Texture2D. Validate either supported
+	# residency mode, then independently validate the persisted source PNG below.
 	var global_image: Image = data.get_image(HTerrainData.CHANNEL_GLOBAL_ALBEDO)
+	var residency := "image"
 	if global_image == null:
-		_fail("Starter global albedo image is missing in memory")
+		var global_texture: Texture2D = data.get_texture(HTerrainData.CHANNEL_GLOBAL_ALBEDO)
+		if global_texture == null:
+			_fail("Starter global albedo has neither RAM image nor runtime texture")
+			return
+		global_image = global_texture.get_image()
+		residency = "texture"
+	if global_image == null or global_image.is_empty():
+		_fail("Starter global albedo could not be read from active HTerrain data")
 		return
 	if global_image.get_format() != Image.FORMAT_RGB8:
 		_fail("Starter global albedo image must remain RGB8: %s" % global_image.get_format())
@@ -114,6 +125,12 @@ func _run_validation() -> void:
 	if persisted_image == null or persisted_image.is_empty():
 		_fail("Persisted starter global albedo PNG could not be loaded")
 		return
+	if persisted_image.get_format() != Image.FORMAT_RGB8:
+		_fail("Persisted starter global albedo PNG must remain RGB8: %s" % persisted_image.get_format())
+		return
+	if persisted_image.get_width() != data.get_resolution() or persisted_image.get_height() != data.get_resolution():
+		_fail("Persisted starter global albedo PNG resolution drifted")
+		return
 	var persisted_sample: Color = persisted_image.get_pixel(
 		persisted_image.get_width() / 2,
 		persisted_image.get_height() / 2)
@@ -138,9 +155,10 @@ func _run_validation() -> void:
 		_fail("Grass determinism contract changed unexpectedly")
 		return
 
-	print("TERRAIN_POLISH_ITERATION_05_OK global_maps=%s resolution=%s persisted=%s tint_bottom=%.2f tint_top=%.2f" % [
+	print("TERRAIN_POLISH_ITERATION_05_OK global_maps=%s resolution=%s residency=%s persisted=%s tint_bottom=%.2f tint_top=%.2f" % [
 		data.get_map_count(HTerrainData.CHANNEL_GLOBAL_ALBEDO),
 		data.get_resolution(),
+		residency,
 		persisted_global_path,
 		float(detail_layer.get("shader_params/u_globalmap_tint_bottom")),
 		float(detail_layer.get("shader_params/u_globalmap_tint_top")),
