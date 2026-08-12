@@ -123,3 +123,25 @@ function maxRunFromPerfCsv(text) {
 	}
 	return runs.length ? Math.max(...runs) : null;
 }
+
+/**
+ * Run292 additive-only perf-label compatibility extension.
+ *
+ * Maintenance/perf records may suffix a run identity with a descriptive slug, for example
+ * `run291-platform-control`. The checkpoint invariant is the numeric run identity; preserve the
+ * full CSV label for human provenance while accepting a bounded `run<digits>-<slug>` form here.
+ */
+function maxRunFromPerfCsv(text) {
+	const runs = [];
+	for (const line of text.split(/\r?\n/).slice(1)) {
+		const cells = line.split(',').map((cell) => cell.trim());
+		for (const candidate of [cells[0], cells[1]]) {
+			const match = candidate?.match(/^run\s*(\d+)(?:[-_][a-z0-9][a-z0-9_-]*)?$/i);
+			if (match) {
+				runs.push(Number(match[1]));
+				break;
+			}
+		}
+	}
+	return runs.length ? Math.max(...runs) : null;
+}
