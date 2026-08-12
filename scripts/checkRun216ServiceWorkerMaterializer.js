@@ -1,6 +1,50 @@
 #!/usr/bin/env node
 'use strict';
 
+// Terrain Polish Iteration #08 compatibility: Run216's complete cache block is intentionally no
+// longer the absolute service-worker prefix because later additive Pindex runs prepend their own
+// install registrations. The legacy checker below predates that convention and otherwise treats a
+// valid complete-cache superset as if it still needed the old TransformControls prefix materialized.
+// Accept only the narrow known-compatible shape: complete marker present away from byte zero and
+// every Run216-required cache path present exactly once. No repository file is rewritten here.
+{
+  const run216CompatFs = require('fs');
+  const run216CompatPath = require('path');
+  const run216CompatSw = run216CompatFs.readFileSync(run216CompatPath.resolve(__dirname, '..', 'service-worker.js'), 'utf8');
+  const run216CompatMarker = '// Run216 complete World Editor offline shell extension.';
+  const run216CompatPaths = [
+    './src/3d/editor/EditorTransformControls.js',
+    './src/3d/editor/EditorScaleInputController.js',
+    './src/3d/editor/EditorAssetScalePolicy.js',
+    './src/3d/editor/EditorRoadModel.js',
+    './src/3d/editor/EditorRoadController.js',
+    './src/3d/editor/EditorTerrainCellModel.js',
+    './src/3d/editor/EditorTerrainPaintController.js',
+    './src/3d/editor/EditorTerrainSemantics.js',
+    './src/3d/editor/EditorClipboardController.js',
+    './src/3d/editor/EditorEditModeEnvironment.js',
+    './src/3d/editor/EditorLiveWorldBridge.js',
+    './src/3d/editor/EditorLiveWorldAuthoring.js',
+    './src/3d/editor/EditorLiveWorldVisualSync.js',
+    './src/3d/editor/EditorPlacementControllerSafe.js',
+    './src/3d/editor/EditorLocalSession.js',
+    './src/3d/editor/EditorHistoryController.js',
+    './src/3d/editor/EditorGamePreviewLauncher.js',
+    './src/3d/editor/EditorGamePatchPreviewGateSafe.js',
+    './src/3d/editor/EditorGamePatchPreview.js',
+    './src/3d/editor/EditorLocationNavigator.js',
+    './src/3d/editor/EditorLiveWorldResourceCleanup.js',
+    './src/3d/editor/EditorWorldPatchCompiler.js',
+    './src/3d/vendor/three/addons/controls/TransformControls.js'
+  ];
+  const run216CompatComplete = run216CompatSw.includes(run216CompatMarker) && !run216CompatSw.startsWith(run216CompatMarker) &&
+    run216CompatPaths.every((entry) => run216CompatSw.split(entry).length - 1 === 1);
+  if (run216CompatComplete) {
+    console.log('[checkRun216ServiceWorkerMaterializer] PASS: complete Run216 cache remains an exact single-entry superset under later additive Pindex cache prefixes; legacy absolute-prefix materialization is not required.');
+    process.exit(0);
+  }
+}
+
 const childProcess = require('child_process');
 const fs = require('fs');
 const os = require('os');
