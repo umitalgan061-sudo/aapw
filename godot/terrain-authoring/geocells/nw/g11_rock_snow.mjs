@@ -119,10 +119,25 @@ export function sampleG11RockSnow(normalizedX, normalizedY) {
   const elevation = sampleElevationSignal(normalizedX, normalizedY);
   const exposure = sampleExposure(normalizedX, normalizedY);
 
-  const snowWeight = landFactor * clamp(0.92 * snowClimate + 0.28 * coldClimate + 0.18 * elevation - 0.16 * exposure);
-  const rockWeight = landFactor * clamp(0.08 + 0.58 * exposure + 0.30 * rockClimate + 0.18 * elevation - 0.20 * snowClimate);
-  const materialTotal = rockWeight + snowWeight;
-  const snowBlend = materialTotal > 1e-6 ? clamp(snowWeight / materialTotal) : 0;
+  // Keep the rock/snow material ratio independent from land coverage. Previously
+  // both weighted signals collapsed to zero at the shoreline and snowBlend
+  // snapped to a zero fallback, creating an artificial ~0.95 one-sample seam.
+  // These climate/relief signals remain strictly positive and continuous, while
+  // landFactor only controls whether the material has physical coverage.
+  const snowSignal = clamp(
+    0.03 + 0.82 * snowClimate + 0.24 * coldClimate + 0.16 * elevation - 0.10 * exposure,
+    0.02,
+    1,
+  );
+  const rockSignal = clamp(
+    0.10 + 0.45 * exposure + 0.25 * rockClimate + 0.18 * elevation + 0.08 * (1 - snowClimate),
+    0.05,
+    1,
+  );
+  const mixTotal = rockSignal + snowSignal;
+  const snowBlend = clamp(snowSignal / mixTotal);
+  const snowWeight = landFactor * snowSignal;
+  const rockWeight = landFactor * rockSignal;
 
   return Object.freeze({
     waterConfidence: water,
@@ -130,6 +145,8 @@ export function sampleG11RockSnow(normalizedX, normalizedY) {
     rockWeight,
     snowWeight,
     snowBlend,
+    snowSignal,
+    rockSignal,
     elevation,
     exposure,
   });
@@ -160,8 +177,8 @@ export function measureG11RockSnow() {
       const nx = xMin + (xMax - xMin) * (x / (size - 1));
       const sample = sampleG11RockSnow(nx, ny);
       if (sample.snowBlend > 0 && sample.snowBlend < 1) fractionalBlendSamples += 1;
-      if (sample.snowWeight > sample.rockWeight) snowDominantSamples += 1;
-      else if (sample.rockWeight > sample.snowWeight) rockDominantSamples += 1;
+      if (sample.snowSignal > sample.rockSignal) snowDominantSamples += 1;
+      else if (sample.rockSignal > sample.snowSignal) rockDominantSamples += 1;
       checksum = fnv1a(checksum, Math.round(sample.rockWeight * 255));
       checksum = fnv1a(checksum, Math.round(sample.snowWeight * 255));
       checksum = fnv1a(checksum, Math.round(sample.snowBlend * 255));
