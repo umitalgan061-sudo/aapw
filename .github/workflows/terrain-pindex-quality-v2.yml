@@ -1,0 +1,46 @@
+name: Terrain Pindex Quality V2
+
+on:
+  push:
+    branches:
+      - terrain/pindex-quality-v2-20260812
+
+permissions:
+  contents: write
+
+jobs:
+  additive-bootstrap:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Append quality layers without rewriting canonical source
+        shell: bash
+        run: |
+          set -euo pipefail
+          PINDEX=src/3d/world/worldReferenceSurfacePindexes.js
+          VISUAL=src/3d/world/worldReferenceSurfaceTerrainVisual.js
+          if ! grep -q "owner-map-pindex-quality-v2-2026-08-12-v1" "$PINDEX"; then
+            cat .github/pindex-quality-v2/pindex.append >> "$PINDEX"
+          fi
+          if ! grep -q "terrain-pindex-quality-v2-runtime-2026-08-12-v1" "$VISUAL"; then
+            cat .github/pindex-quality-v2/visual-a.append .github/pindex-quality-v2/visual-b.append >> "$VISUAL"
+          fi
+          node --check "$PINDEX"
+          node --check "$VISUAL"
+          git diff --check
+          test "$(git diff --numstat d90939ac8d1eae7f327201576ba8f79507e96cce -- "$PINDEX" "$VISUAL" | awk '{s+=$2} END{print s+0}')" = "0"
+      - name: Commit exact additive source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/3d/world/worldReferenceSurfacePindexes.js src/3d/world/worldReferenceSurfaceTerrainVisual.js; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/3d/world/worldReferenceSurfacePindexes.js src/3d/world/worldReferenceSurfaceTerrainVisual.js
+          git commit -m "terrain: apply high fidelity pindex quality v2"
+          git push origin HEAD:terrain/pindex-quality-v2-20260812
