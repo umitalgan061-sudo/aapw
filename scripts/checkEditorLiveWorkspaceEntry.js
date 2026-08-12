@@ -26,10 +26,10 @@ function isCanonicalDirectoryProbe(url) {
 
 function staticContract() {
   const html = fs.readFileSync(path.join(ROOT, 'edit.html'), 'utf8');
-  const entry = fs.readFileSync(path.join(ROOT, 'src', '3d', 'editor', 'EditorLiveWorkspaceEntry.js'), 'utf8');
+  const entry = fs.readFileSync(path.join(ROOT, 'src', '3d', 'editor', 'EditorLiveWorkspaceEntry.mjs'), 'utf8');
   const server = fs.readFileSync(path.join(ROOT, 'scripts', 'editorLiveServer.js'), 'utf8');
   const canonicalEditor = fs.readFileSync(path.join(ROOT, 'editor.html'), 'utf8');
-  for (const token of ['"three": "./src/3d/vendor/three/three.module.js"', './editor.html?liveWorkspace=1', './src/3d/editor/EditorLiveWorkspaceEntry.js']) {
+  for (const token of ['"three": "./src/3d/vendor/three/three.module.js"', './editor.html?liveWorkspace=1', './src/3d/editor/EditorLiveWorkspaceEntry.mjs']) {
     assert(html.includes(token), `edit.html contract missing: ${token}`);
   }
   for (const token of ['CANLI OYUN', 'DÜZENLEME', 'YAN YANA', './game3d.html?editorPreview=1', '/__editor/models', '/__editor/save', 'Koda Kaydet', 'FBX / GLB / GLTF ara', '__WESTEROS_EDITOR_LIVE_WORKSPACE_V2__', 'waitForAuthoring', 'installFormationBridge']) {
