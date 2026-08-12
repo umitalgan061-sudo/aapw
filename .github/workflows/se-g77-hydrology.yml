@@ -8,7 +8,7 @@ on:
     branches:
       - main
     paths:
-      - 'src/3d/world/worldReferenceGeoCellG77Hydrology.js'
+      - 'scripts/terrain/worldReferenceGeoCellG77Hydrology.mjs'
       - 'scripts/checkSEG77Hydrology.mjs'
       - 'godot/terrain-authoring/corner_claims/SE.json'
       - '.github/workflows/se-g77-hydrology.yml'
@@ -45,7 +45,7 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           git merge-base --is-ancestor "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
-          node --check src/3d/world/worldReferenceGeoCellG77Hydrology.js
+          node --check scripts/terrain/worldReferenceGeoCellG77Hydrology.mjs
           node --check scripts/checkSEG77Hydrology.mjs
 
       - name: G77 map-fidelity and deterministic hydrology proof
