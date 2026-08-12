@@ -1,0 +1,46 @@
+name: PR Main Freshness Guard
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-main-freshness-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  exact-current-main:
+    name: exact-current-main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify PR contains current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          current_main="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base HEAD origin/main)"
+          head_sha="$(git rev-parse HEAD)"
+
+          {
+            echo "### PR main freshness"
+            echo "- current main: \`$current_main\`"
+            echo "- PR head: \`$head_sha\`"
+            echo "- merge-base: \`$merge_base\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$merge_base" != "$current_main" ]]; then
+            echo "::error::PR is stale: head does not contain the current main commit ($current_main). Create a successor from current main; do not force-update someone else's stale branch."
+            exit 1
+          fi
+
+          echo "PR head contains current main; freshness gate passed."
