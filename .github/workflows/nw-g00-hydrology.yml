@@ -1,0 +1,78 @@
+name: NW G00 Hydrology
+
+on:
+  push:
+    branches:
+      - terrain/nw-g00-hydrology-current-main-20260812
+  pull_request:
+    paths:
+      - 'src/3d/world/worldReferenceGeoCellG00Hydrology.js'
+      - 'scripts/checkNWG00Hydrology.mjs'
+      - '.github/workflows/nw-g00-hydrology.yml'
+      - 'godot/terrain-authoring/corner_claims/NW.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nw-g00-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and scope gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE="$(git merge-base HEAD origin/main)"
+          test "$BASE" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
+          CHANGED="$(git diff --name-only origin/main...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceGeoCellG00Hydrology.js|scripts/checkNWG00Hydrology.mjs|.github/workflows/nw-g00-hydrology.yml|godot/terrain-authoring/corner_claims/NW.json)$' | wc -l)" -eq 0
+      - name: Syntax and deterministic G00 hydrology
+        run: |
+          node --check src/3d/world/worldReferenceGeoCellG00Hydrology.js
+          node --check scripts/checkNWG00Hydrology.mjs
+          node scripts/checkNWG00Hydrology.mjs | tee /tmp/g00-first.log
+          node scripts/checkNWG00Hydrology.mjs | tee /tmp/g00-second.log
+          diff -u /tmp/g00-first.log /tmp/g00-second.log
+      - name: Install Chromium safety dependency
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Settlement and road safety
+        run: |
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+      - name: Determinism and world reference guards
+        run: |
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+      - name: PWA and performance regression
+        run: |
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+      - name: Full browser smoke and console regression
+        run: node scripts/smokeTestGame3D.js
+      - name: Technical debt
+        run: node scripts/checkTechnicalDebt.js
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
