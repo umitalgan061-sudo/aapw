@@ -1,0 +1,13 @@
+{
+  "corner": "NW",
+  "task_name": "Buzul Muhafızı",
+  "origin": [0, 0],
+  "current_cell": null,
+  "status": "idle",
+  "branch": null,
+  "pr": null,
+  "last_commit": null,
+  "quality_before": null,
+  "quality_after": null,
+  "updated_at": null
+}

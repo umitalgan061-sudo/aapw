@@ -1,0 +1,13 @@
+{
+  "corner": "SE",
+  "task_name": "Kızıl Ufuk",
+  "origin": [7, 7],
+  "current_cell": null,
+  "status": "idle",
+  "branch": null,
+  "pr": null,
+  "last_commit": null,
+  "quality_before": null,
+  "quality_after": null,
+  "updated_at": null
+}
