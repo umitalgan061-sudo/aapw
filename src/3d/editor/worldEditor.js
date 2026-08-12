@@ -261,6 +261,12 @@ async function loadSceneFile(file) {
     object.name = record.name;
     object.rotation.set(...record.transform.rotation);
     object.scale.set(...record.transform.scale);
+    if (record.terrain && (record.asset === 'editor-land-cell' || record.asset === 'editor-water-cell')) {
+      const surface = String(record.terrain.hterrainSurface || 'auto');
+      if (['auto', 'grass', 'earth', 'rock', 'snow'].includes(surface)) object.userData.editorHTerrainSurface = surface;
+      const elevation = Number(record.terrain.elevationMeters);
+      if (Number.isFinite(elevation)) object.userData.editorTerrainElevationMeters = elevation;
+    }
   }
   await rehydrateInstanceGroups(data.instanceGroups, instanceManager, findEditorAsset);
   $('we-grid-toggle').checked = data.editor?.gridVisible !== false;
