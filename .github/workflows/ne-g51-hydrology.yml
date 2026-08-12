@@ -1,0 +1,96 @@
+name: NE G51 Hydrology
+
+on:
+  push:
+    branches:
+      - terrain/ne-g51-hydrology-20260812
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/ne/g51_hydrology.mjs'
+      - 'scripts/checkNEG51Hydrology.mjs'
+      - '.github/workflows/ne-g51-hydrology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ne-g51-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and scope gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
+          CHANGED="$(git diff --name-only origin/main...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g51_hydrology.mjs|scripts/checkNEG51Hydrology.mjs|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g51-hydrology.yml)$' | wc -l)" -eq 0
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/addons/zylann.hterrain godot/terrain-authoring/terrain3d.lock.json
+      - name: Syntax and deterministic G51 hydrology
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/ne/g51_hydrology.mjs
+          node --check scripts/checkNEG51Hydrology.mjs
+          node scripts/checkNEG51Hydrology.mjs | tee /tmp/g51-first.log
+          node scripts/checkNEG51Hydrology.mjs | tee /tmp/g51-second.log
+          diff -u /tmp/g51-first.log /tmp/g51-second.log
+          grep -F 'NE_G51_HYDROLOGY_VALIDATION_OK' /tmp/g51-first.log
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Godot headless and HTerrain validation
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' /tmp/hterrain.log
+      - name: Install Chromium safety dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: World safety, PWA, performance and browser gates
+        run: |
+          set -euo pipefail
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
+          node scripts/checkTechnicalDebt.js
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
