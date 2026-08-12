@@ -1,3 +1,9 @@
+// Run297 unified HD pindex detail + HD base-field sampler offline shell extension.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceBaseFieldHD.js');
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindexDetailHD.js');
+});
+
 // Run296 Pindex-09 detail offline shell extension.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex09Detail.js');

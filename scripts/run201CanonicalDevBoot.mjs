@@ -153,3 +153,19 @@ if (selector.getActiveSource() === 'canonical' && selector.activation?.windowSta
   status.textContent += ' | pindex09-detail=' + run296Detail.touchedVertices + 'v';
   state.renderer.render(state.scene, state.camera);
 }
+
+// Run297 unified seam-free HD micro-surface detail across all ten pindexes.
+// Supersedes the nine per-pindex layers above rather than compounding with them: the layer derives
+// colour from the canonical semantic palette, so it is idempotent and its output is identical
+// whether or not those layers ran first (proven in checkRun297PindexDetailHDBrowser.js).
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindexDetailHDToTerrainGroup } = await import('../src/3d/world/worldReferencePindexDetailHD.js');
+  const run297Detail = applyPindexDetailHDToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run297PindexDetailHDReady = 'true';
+  document.body.dataset.run297PindexDetailHDTouchedVertices = String(run297Detail.touchedVertices);
+  document.body.dataset.run297PindexDetailHDCoastVertices = String(run297Detail.coastVertices);
+  document.body.dataset.run297PindexDetailHDPindexCounts = JSON.stringify(run297Detail.pindexCounts);
+  status.textContent += ' | pindex-hd=' + run297Detail.touchedVertices + 'v/'
+    + run297Detail.pindexCounts.filter((count) => count > 0).length + 'p';
+  state.renderer.render(state.scene, state.camera);
+}

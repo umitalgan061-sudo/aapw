@@ -6,6 +6,34 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 297 itibarıyla (2026-08-12)
+
+Dünyanın "altlık haritası" — yani araziye hangi noktanın deniz, toprak, kaya, kar veya göl olduğunu
+söyleyen temel katman — bu çalıştırmada ciddi bir kalite sıçraması yaptı. Önceki yaklaşık yirmi
+çalıştırma, haritayı batıdan doğuya on dilime bölüp her dilime tek tek ince yüzey dokusu ekliyordu;
+bu yöntem işe yarıyordu ama beş ayrı sorun biriktirmişti ve bu çalıştırma önce onları ölçtü, sonra
+tek seferde düzeltti. En görünür olanı: kıyı çizgileri. Harita verisi kaba olduğu için sahiller
+16 piksellik merdiven basamakları gibi çıkıyordu; artık kara ile su arasında yumuşak bir geçiş var
+ve bu yapılırken haritanın kendi verisine hiç dokunulmadı — her hücrenin tam merkezi hâlâ birebir
+eskisi gibi sınıflanıyor, sadece hücreler *arasındaki* boşluk yumuşadı. İkincisi: yüzeye eklenen
+ince doku aslında tam anlamıyla rastgele "televizyon karıncası"ydı; ölçüldüğünde komşu noktalar
+arasında hiçbir ilişki olmadığı çıktı. Artık gerçek arazi tanesi gibi birbirine bağlı, doğal bir
+desen kullanılıyor. Üçüncüsü: on dilimin her biri kendi ayarıyla çalıştığı için haritada
+kuzey-güney yönünde dokuz görünmez dikiş vardı; bunlar artık yumuşak geçişle kayboldu. Dördüncüsü,
+harita okuma işlemi her tek nokta için gereksiz yere ağır bir hesap yapıyordu — yaklaşık on kat
+hızlandı. Beşincisi, dokuz neredeyse birebir aynı dosya tek bir dosyaya indi ve onuncu dilim de
+böylece tamamlandı. Bütün bunlar şimdilik yalnızca geliştirici önizlemesinde; oyunun kendisi
+(`game3d.html` ve 2D harita) hiç değişmedi, çünkü bu haritanın gerçek oyuna geçirilmesi hâlâ senin
+onayını bekleyen ayrı bir karar. Sana yeni tek bir soru soruldu: haritanın batısı doğusundan
+yaklaşık %76 daha "pürüzlü" görünüyor, ama bu arazinin özelliği değil, dilimlerin yazılma sırasından
+kalma bir kaza — düzleştirilsin mi? Şimdilik hiçbir onaylı değer değiştirilmedi.
+
+**Not:** Bu dosya Run 158'den beri güncellenmemişti (kural ~10 çalıştırmada bir diyor). Aradaki
+Run 159-296 dönemi burada özetlenmiş değil; o dönemin ayrıntısı `3D_GAME_PROGRESS.md` ve
+`STABLE_TAGS.md` içinde duruyor.
+
+---
+
 ## Run 158 itibarıyla (2026-08-07)
 
 Bu 10 çalıştırmalık dönemde görünür yeni dünya içeriği yok — bunun yerine oyunun ekran okuyucu

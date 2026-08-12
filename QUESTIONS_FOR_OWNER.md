@@ -284,3 +284,34 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
 - **✅ ÇÖZÜLDÜ (run 188, ADR-0208 → run 191, ADR-0211) Canonical full-reference yol/su politikası:** Owner 2026-08-08 tarihinde doğrudan karar verdi: "Eğer derelerden ve göllerden yol geçiyorsa oraya taş kemer köprü yap. Ortaçağa uygun dokusu olsun." Buna göre temporary default NONE sona erdi ve policy **STONE ARCH BRIDGE** oldu. Ferry, dry-reroute veya edge-bazlı mixed policy varsayılmayacak; canonical yol suyu kestiğinde bağlantı deterministic ortaçağ taş kemer köprüyle korunacak. Eski run188 soru satırı kayıt amacıyla silinmedi; bu çözüm girdisi onu supersede eder.
 
 - **✅ ÇÖZÜLDÜ (run 210, ADR-0228) Uploaded `yüzey` package should be the current ground texture?** Owner answered directly on 2026-08-09: merge it and use this look for the current ground. Run210 activates the proven `overlay.png` detail layer for RTS. Upstream provenance is still factually unknown, so no license was guessed and public/commercial redistribution remains gated until source/license evidence exists.
+
+- **(run 297, ADR-RUN297) Should the west→east micro-detail amplitude ramp be levelled out?** While
+  unifying the ten pindex detail layers, run297 found that the nine tuned amplitude tables decline
+  monotonically from west to east — soil grain runs 0.060 at Pindex-01 down to 0.034 at Pindex-09,
+  so the western third of the map carries roughly 76% more surface grain than the east. This is an
+  artefact of the order the strips happened to be authored in (one per run, each nudged slightly
+  below its predecessor), not a property of the terrain: nothing in the canonical mask says the west
+  is rougher. It reads as a subtle brightness/texture gradient across the whole world. Levelling it
+  — e.g. to the median of the nine tables, driven purely by surface type — is a one-line change to
+  `PINDEX_HD_AMPLITUDES`, but it is a visual/product decision, not an API one, so it was not guessed.
+  **Temporary default:** every approved per-strip value is preserved bit-for-bit; run297 only removed
+  the *discontinuities between* strips (quintic crossfade), not the ramp itself. Strip centres still
+  resolve to exactly the amplitudes their ADRs approved.
+
+- **(run 297, ADR-RUN297) 🔵 Biggest remaining base-map quality ceiling: the 96×64 mask resolution —
+  can you supply the source `map.png`?** Run297 removed the *shading* artefacts of the coarse mask
+  (staircase edges at every surface boundary, incoherent grain, per-strip seams), but it could not
+  touch the underlying resolution. The canonical base mask is 96×64 = 6144 cells, i.e. one cell per
+  16×16 source pixels, and 927 of those cells sit on a land/water interface. Bilinear per-class
+  weighting softens the transition to roughly one cell wide, which is the most that can be
+  reconstructed from the data present — but genuine coastline *detail* (inlets, headlands, small
+  islands narrower than 16 source px) simply is not in the mask and cannot be invented without
+  guessing at the owner's map. A finer mask (192×128, or 384×256) is straightforward to derive
+  offline by the same deterministic method already used, **but it requires the source image**, and
+  the source `map.png` whose SHA-256 is `20702972e8f45f0f…` is not tracked anywhere in this
+  repository — only its derived mask is. **Two owner actions would unlock this:** (1) add the source
+  `map.png` to the repo (or confirm where it lives) so a higher-resolution mask can be derived and
+  its SHA re-pinned; (2) confirm that re-deriving the mask at a finer resolution is acceptable at
+  all, given `WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256` is currently treated as an immutable
+  contract with several checks pinned to it. **Temporary default:** mask left exactly as-is at 96×64
+  with its current SHA; run297 improved only what could be improved without touching it.
