@@ -1,0 +1,96 @@
+name: Run 306 Editor FBX Pack Exact Head
+
+on:
+  push:
+    branches:
+      - agent/run306-editor-fbx-pack-node-guard
+    paths:
+      - '.github/workflows/run306-editor-fbx-pack-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run306-editor-fbx-pack-exact-head-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-final-head:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main additive and checkpoint preflight
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+          grep -Fq 'RUN306_FBX_PACK_CHECKPOINT_V1' 3D_GAME_PROGRESS.md
+          grep -Fq 'run306-editor-fbx-pack' perf_log.csv
+          grep -Fq 'stable-2026-08-12-run306-fbx-pack' STABLE_TAGS.md
+      - name: Legacy Node and Run216 materializer compatibility
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorScaleInputController.js
+          node scripts/checkRun216ScaleInputController.mjs
+          node scripts/materializeRun216ServiceWorkerCache.js --verify-only
+          node scripts/checkRun216ServiceWorkerMaterializer.js
+      - name: Install Chromium proof dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Focused FBX pack Chromium regression
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun301EditorFbxPackCurrentMain.js
+          node scripts/checkRun301EditorFbxPackCurrentMain.js
+      - name: PWA cache and installability
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+      - name: Performance determinism and world safety
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+      - name: Full browser smoke
+        run: node scripts/smokeTestGame3D.js
+      - name: Final exact-main additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Upload final-head FBX pack evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run306-editor-fbx-pack-exact-head
+          path: artifacts/run301-editor-fbx-pack-current-main
+          if-no-files-found: error
+          retention-days: 14
