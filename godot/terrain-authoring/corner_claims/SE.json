@@ -6,8 +6,8 @@
   "status": "active",
   "layer": "Relief/Height Character",
   "branch": "agent/kizil-ufuk-g75-relief-c1-20260813",
-  "pr": null,
-  "last_commit": "f85795822fc9115a9aaafad94842d9c14e411bfe",
+  "pr": 301,
+  "last_commit": "3a7fd091ebcdd29689b19b6b58137b046218cee1",
   "quality_before": {
     "coast_hydrology": "96/96 dry canonical centres; Terrain3D proof PR #285",
     "macro_biome": "continuous owner-map color field; Terrain3D proof PR #288",
