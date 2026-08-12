@@ -98,6 +98,17 @@ jobs:
           trap - EXIT
           git diff --exit-code -- "$PROJECT_FILE"
 
+      - name: Bootstrap and import generated starter HTerrain data
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 \
+            2>&1 | tee "$RUNNER_TEMP/hterrain-bootstrap.log"
+          for file in data.hterrain height.res splat.png normal.png color.png detail.png global_albedo.png; do
+            test -f "godot/terrain-authoring/terrain_data/$file"
+          done
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import \
+            2>&1 | tee "$RUNNER_TEMP/hterrain-generated-import.log"
+
       - name: Build deterministic editor manifest fixture
         run: |
           set -euo pipefail
