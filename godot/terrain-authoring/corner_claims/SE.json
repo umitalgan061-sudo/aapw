@@ -5,8 +5,8 @@
   "current_cell": "G55",
   "status": "active",
   "branch": "terrain/se-g55-terrain3d-hydrology-current-main-20260812",
-  "pr": null,
-  "last_commit": null,
+  "pr": 280,
+  "last_commit": "75c25b92f93d3073a62c59f0167492c61338032e",
   "quality_before": {
     "base_cells": 96,
     "water_cells": 5,
@@ -22,5 +22,5 @@
     "confidence_checksum": 3136049608,
     "terrain3d_backend": "required_real_region_import_save_and_lod0_bake"
   },
-  "updated_at": "2026-08-12T20:01:54+03:00"
+  "updated_at": "2026-08-12T20:05:04+03:00"
 }
