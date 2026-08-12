@@ -2,12 +2,22 @@
   "corner": "SW",
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G07",
+  "status": "draft-pr-road-path",
+  "branch": "terrain/sw-g07-road-path-20260813",
   "pr": null,
-  "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "last_commit": "pending-pr-head",
+  "quality_before": {
+    "layer": "Rock/Snow",
+    "source": "draft PR #297 on stale exact-main base 405b8faa5bbfbdcfd9c73ddafa8a05b855cd32ec"
+  },
+  "quality_after": {
+    "layer": "Road/Path",
+    "canonical_open_sea": true,
+    "required_runtime_crossings": 0,
+    "required_surface_coverage": 0,
+    "terrain3d_region_size": 256,
+    "guard_band_expected_delta": 0
+  },
+  "updated_at": "2026-08-13"
 }
