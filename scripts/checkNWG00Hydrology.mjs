@@ -5,7 +5,7 @@ import {
   isInsideG00,
   measureG00Hydrology,
   sampleG00WaterConfidence,
-} from '../src/3d/world/worldReferenceGeoCellG00Hydrology.js';
+} from '../godot/terrain-authoring/geocells/nw/g00_hydrology.mjs';
 
 assert.equal(G00_HYDROLOGY_POLICY.geoCell, 'G00');
 assert.deepEqual(G00_HYDROLOGY_POLICY.pixelBounds, { xMin: 0, xMax: 192, yMin: 0, yMax: 128 });
