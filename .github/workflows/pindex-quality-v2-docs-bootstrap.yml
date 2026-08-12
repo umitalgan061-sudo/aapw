@@ -1,0 +1,72 @@
+name: Pindex Quality V2 Docs Bootstrap
+
+on:
+  push:
+    branches:
+      - terrain/pindex-quality-v2-20260812
+
+permissions:
+  contents: write
+
+jobs:
+  append-records:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Append durable Pindex Quality V2 records
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q 'ADR-PINDEX-QUALITY-V2-2026-08-12' DECISIONS.md; then
+            cat >> DECISIONS.md <<'EOF'
+
+## ADR-PINDEX-QUALITY-V2-2026-08-12 — Canonical Pindex semantic quality atlas on the shipped terrain
+
+**Risk Seviyesi:** MEDIUM
+
+**Karar:** Owner-map kaynaklı değişmez 96×64 semantic maskeyi yeniden çizmek veya tahmini yeni kaynak pikselleri üretmek yerine, mevcut maskeden sürekli sub-cell yüzey ağırlıkları hesaplanacak; P01..P10 profil değerleri strip sınırlarında interpolasyonla birleştirilecek. `worldReferenceMap.js` içindeki denetlenmiş 17 biome bölgesi ve 4 relief chain bu sürekli örnekleme alanına katılacak. Runtime'da bu zengin yorum 192×128 color/data atlasına yalnız bir kez bake edilecek ve terrain fragment shader tarafından lineer örneklenecek. Yakın yüzey mikro-detayı için ayrıca 64×64 deterministik repeat-noise atlası kullanılacak. Terrain position/height/physics verisi değiştirilmeyecek.
+
+**Neden:** Iteration #08 Pindex semantiğini ilk kez shipped terrain'e bağladı fakat 96×64 nearest-cell sınıflandırması büyük/köşeli geçişler üretiyor ve P10'un ayrı mikro katmanı bulunmuyordu. Repo zaten North/Neck/Vale/Reach/Dorne/Dothraki Sea/Bone Mountains/Red Waste/Yi Ti/Sothoryos gibi alanlara ait denetlenmiş biome ve relief verisi taşıyor; kalite artışı için yeni, doğrulanmamış coğrafya uydurmak yerine bu mevcut veriyi kullanmak daha güvenli ve kaynakla tutarlı.
+
+**Reddedilen ilk yaklaşım / RCA:** İlk V2 prototipi biome + relief + trigonometrik detail sampling'i her terrain vertex'i için ikinci bir CPU pass olarak çalıştırdı. İzole WebGL kanıtı doğru görünse de yüzlerce preview chunk'ı ve tekrarlı browser smoke boot'larında `page.goto` 10 saniyelik mevcut sınırı aştı. Timeout artırılmadı; performans sorunu gizlenmek yerine mimari değiştirildi. Zengin örnekleme küçük atlaslara taşındı ve V2'nin ek CPU vertex pass sayısı sıfıra indirildi.
+
+**Görsel karar:** İlk shader-atlas kanıtındaki yönlü sinüs mikro-grain diyagonal bant ürettiği için testler yeşil olsa bile kabul edilmedi. Sinüs grain kaldırıldı; farklı ölçek/yönlerde örneklenen deterministik repeat-noise atlası color ve roughness mikro varyasyonu için kullanıldı.
+
+**Alternatifler:** (1) 96×64 nearest-cell renkleri aynen bırakmak — düşük kalite nedeniyle reddedildi. (2) Gerçek kaynakta olmayan yüksek çözünürlüklü biome pikselleri tahmin etmek — source-of-truth ihlali nedeniyle reddedildi. (3) Her vertex'te CPU kalite sampling'i — smoke/performance RCA nedeniyle reddedildi. (4) Ağır dış PBR texture paketleri eklemek — bu iterasyonda asset/lisans/cache bütçesini gereksiz büyüttüğü için sonraya bırakıldı.
+
+**Sonuç:** P01..P10 tek sürekli yüzey alanı olarak davranıyor; semantic sınırlar yumuşuyor, repo içindeki biome ve dağ zinciri etkileri renk/PBR roughness'a katılıyor, P10 kalite profilinde kapsanıyor ve yakın yüzeyde yönsüz mikro varyasyon elde ediliyor. Existing Iteration #08 CPU vertex renkleri ve terrain height array'i birebir korunuyor; V2 farkı GPU shading'de oluşuyor.
+
+**Etkilenen sistemler:** `worldReferenceSurfacePindexes.js` continuous sampler; `worldReferenceSurfaceTerrainVisual.js` atlas bake + shader; ChunkManager runtime installer; terrain visual regression workflow. Terrain geometry, ground collider, roads, seats, water, 2D mode ve authored HTerrain veri zinciri değişmiyor.
+
+**Geri alma planı:** `REFERENCE_PINDEX_QUALITY_V2_POLICY` / `sampleReferencePindexQualityV2` katmanını ve `terrain-pindex-quality-v2-runtime-2026-08-12-v2` shader/installer katmanını kaldır; Iteration #08 installer davranışı otomatik olarak önceki görünümüne döner. Height/physics migration gerektirmez.
+EOF
+          fi
+          if ! grep -q 'PINDEX-QUALITY-V2-2026-08-12' 3D_GAME_PROGRESS.md; then
+            cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+### PINDEX-QUALITY-V2-2026-08-12 — Canonical base-map quality pass
+
+- Owner-map semantic mask (`96×64`, SHA `afe62a77fcc9b15887540b49b3b60b199e416f5e033aefb987a192411c25ae44`) değiştirilmedi; mevcut cell counts sea=4046, lake=6, soil=1638, rock=323, snow=131 korunuyor.
+- P01..P10 için sürekli sub-cell sampling ve strip-seam-free profile interpolation eklendi; P10 artık kalite profilinde açıkça kapsanıyor.
+- `worldReferenceMap.js` içindeki 17 denetlenmiş biome zone + 4 relief chain yeniden kullanılıyor; yeni coğrafi source-of-truth uydurulmuyor.
+- Runtime kalite yorumu 192×128 color/data GPU atlasına bake ediliyor; V2 ikinci CPU vertex pass eklemiyor (`cpuVertexPassesAdded=0`). Terrain position/height ve Iteration #08 CPU color array'leri birebir aynı kalıyor.
+- İlk CPU-heavy V2 smoke timeout ürettiği için reddedildi; timeout artırılmadı. Shader-atlas mimarisine geçildi.
+- İlk sinüs mikro-detail kanıtındaki diyagonal bant görsel incelemede reddedildi; 64×64 deterministik repeat-noise atlası ile organic color + roughness grain'e çevrildi.
+- Zorunlu kanıtlar: P01..P10 coverage, surface-weight normalization, Pindex seam continuity, desert/steppe/mountain/jungle/cold-grassland/arid biome anchors, Bone Mountains relief, exact height preservation, deterministic/idempotent GPU output, real WebGL pixel delta, Iteration #08 browser regression, full 3D smoke, mobile perf, seat/road safety, PWA ve console-clean gates.
+- Rollback: yalnız V2 sampler/shader katmanını kaldır; Iteration #08 shipped terrain polish'e geri dönülür.
+EOF
+          fi
+          git diff --check
+      - name: Commit records
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add DECISIONS.md 3D_GAME_PROGRESS.md
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "docs: record pindex quality v2 architecture and RCA"
+          git push origin HEAD:terrain/pindex-quality-v2-20260812
