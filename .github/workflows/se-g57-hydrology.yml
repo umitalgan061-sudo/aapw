@@ -1,0 +1,112 @@
+name: SE G57 Hydrology
+
+on:
+  push:
+    branches:
+      - terrain/se-g57-hydrology-20260812
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/se/g57_hydrology.mjs'
+      - 'scripts/checkSEG57Hydrology.mjs'
+      - 'godot/terrain-authoring/corner_claims/SE.json'
+      - '.github/workflows/se-g57-hydrology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: se-g57-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main and bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA='42837d7c4fabbe6211a256a348b6b718772c3b02'
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g57_hydrology.mjs|scripts/checkSEG57Hydrology.mjs|godot/terrain-authoring/corner_claims/SE.json|\.github/workflows/se-g57-hydrology.yml)$' | wc -l)" -eq 0
+
+      - name: Syntax and deterministic G57 hydrology
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/se/g57_hydrology.mjs
+          node --check scripts/checkSEG57Hydrology.mjs
+          node scripts/checkSEG57Hydrology.mjs | tee "$RUNNER_TEMP/g57-first.log"
+          node scripts/checkSEG57Hydrology.mjs | tee "$RUNNER_TEMP/g57-second.log"
+          cmp "$RUNNER_TEMP/g57-first.log" "$RUNNER_TEMP/g57-second.log"
+          grep -F 'SE_G57_HYDROLOGY_VALIDATION_OK' "$RUNNER_TEMP/g57-first.log"
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot and HTerrain regression
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/g57-hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/g57-hterrain.log"
+
+      - name: Install Chromium safety dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Safety PWA performance determinism
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full browser smoke and console regression
+        run: node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA='42837d7c4fabbe6211a256a348b6b718772c3b02'
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
