@@ -318,14 +318,15 @@ export function installRuntimePindexTerrainPolish() {
 	Object.defineProperty(prototype, RUNTIME_PINDEX_INSTALL_FLAG, { value: installation, configurable: false });
 	return installation;
 }
-
-// Pindex Quality V2 — high-fidelity shipped terrain finish layered after Iteration #08.
-// This adapter keeps geometry/physics immutable while converting the coarse semantic swatches into
-// continuous source-anchored surface blends, audited biomes, relief accents and close-range PBR grain.
+// Pindex Quality V2 — shader-first runtime: expensive source interpretation is baked once into a
+// tiny deterministic in-memory atlas, then every terrain fragment samples it on the GPU. This keeps
+// Iteration #08's accepted CPU vertex pass as the only per-vertex authoring cost during chunk boot.
 import { REFERENCE_PINDEX_QUALITY_V2_POLICY, sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
 
 export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
-	id: 'terrain-pindex-quality-v2-runtime-2026-08-12-v1',
+	id: 'terrain-pindex-quality-v2-runtime-2026-08-12-v2',
+	atlasWidth: 192,
+	atlasHeight: 128,
 	qualityBlend: 0.88,
 	biomeBlendMax: 0.62,
 	reliefRockBlend: 0.38,
@@ -341,17 +342,10 @@ const PINDEX_QUALITY_V2_SURFACE_COLORS = Object.freeze({
 });
 const PINDEX_QUALITY_V2_SURFACE_ROUGHNESS = Object.freeze({ sea: 0.86, lake: 0.83, soil: 0.94, rock: 0.985, snow: 0.89 });
 const PINDEX_QUALITY_V2_BIOME_COLORS = Object.freeze({
-	snow: new THREE.Color(0xcfdad8),
-	'cold-grassland': new THREE.Color(0x63765a),
-	marsh: new THREE.Color(0x526c5b),
-	mountain: new THREE.Color(0x6e6962),
-	'rocky-hills': new THREE.Color(0x756d5b),
-	'lush-grassland': new THREE.Color(0x6f8d51),
-	desert: new THREE.Color(0x9b7b50),
-	'temperate-coast': new THREE.Color(0x67805b),
-	steppe: new THREE.Color(0x878250),
-	arid: new THREE.Color(0x897258),
-	jungle: new THREE.Color(0x426b49),
+	snow: new THREE.Color(0xcfdad8), 'cold-grassland': new THREE.Color(0x63765a), marsh: new THREE.Color(0x526c5b),
+	mountain: new THREE.Color(0x6e6962), 'rocky-hills': new THREE.Color(0x756d5b), 'lush-grassland': new THREE.Color(0x6f8d51),
+	desert: new THREE.Color(0x9b7b50), 'temperate-coast': new THREE.Color(0x67805b), steppe: new THREE.Color(0x878250),
+	arid: new THREE.Color(0x897258), jungle: new THREE.Color(0x426b49),
 });
 const PINDEX_QUALITY_V2_ROCK_COLOR = new THREE.Color(0x6b6862);
 const PINDEX_QUALITY_V2_SNOW_COLOR = new THREE.Color(0xdce4e2);
@@ -359,64 +353,83 @@ const PINDEX_QUALITY_V2_SNOW_COLOR = new THREE.Color(0xdce4e2);
 function runtimePindexQualityNormalized(worldX, worldZ) {
 	const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
 	const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
-	const mapX = THREE.MathUtils.clamp(worldX / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapX, 0, WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits);
-	const mapY = THREE.MathUtils.clamp(worldZ / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapY, 0, WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits);
-	return mapCanvasToNormalizedReference(mapX, mapY);
+	return Object.freeze({
+		x: THREE.MathUtils.clamp((worldX / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapX) / WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits, 0, 1),
+		y: THREE.MathUtils.clamp((worldZ / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapY) / WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits, 0, 1),
+	});
 }
 
-function runtimePindexQualitySmoothstep(edge0, edge1, value) {
-	if (edge0 === edge1) return value >= edge1 ? 1 : 0;
-	const t = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
-	return t * t * (3 - 2 * t);
-}
-
-function runtimePindexQualityMicroSignal(worldX, worldZ) {
-	const broad = Math.sin(worldX * 0.017 + worldZ * 0.013 + Math.sin(worldZ * 0.004) * 1.2);
-	const medium = Math.sin(worldX * 0.061 - worldZ * 0.049 + 1.71);
-	const fine = Math.sin(worldX * 0.147 + worldZ * 0.121 + 3.17);
-	return broad * 0.48 + medium * 0.34 + fine * 0.18;
-}
-
-function runtimePindexQualityWeightedSurfaceColor(weights, target) {
-	target.setRGB(0, 0, 0);
-	for (const [surface, weight] of Object.entries(weights)) {
-		const color = PINDEX_QUALITY_V2_SURFACE_COLORS[surface];
-		if (!color || weight <= 0) continue;
-		target.r += color.r * weight;
-		target.g += color.g * weight;
-		target.b += color.b * weight;
+function buildRuntimePindexQualityV2Atlas() {
+	const { atlasWidth: width, atlasHeight: height } = RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY;
+	const colorBytes = new Uint8Array(width * height * 4);
+	const dataBytes = new Uint8Array(width * height * 4);
+	const surfaceColor = new THREE.Color();
+	const biomeColor = new THREE.Color();
+	for (let y = 0; y < height; y += 1) {
+		for (let x = 0; x < width; x += 1) {
+			const sample = sampleReferencePindexQualityV2(x / (width - 1), y / (height - 1));
+			surfaceColor.setRGB(0, 0, 0);
+			let roughness = 0;
+			for (const [surface, weight] of Object.entries(sample.surfaceWeights)) {
+				const color = PINDEX_QUALITY_V2_SURFACE_COLORS[surface];
+				surfaceColor.r += color.r * weight; surfaceColor.g += color.g * weight; surfaceColor.b += color.b * weight;
+				roughness += PINDEX_QUALITY_V2_SURFACE_ROUGHNESS[surface] * weight;
+			}
+			const dryWeight = sample.surfaceWeights.soil + sample.surfaceWeights.rock + sample.surfaceWeights.snow;
+			biomeColor.setRGB(0, 0, 0);
+			let biomeWeight = 0;
+			for (const [kind, weight] of Object.entries(sample.biomeKindWeights)) {
+				const color = PINDEX_QUALITY_V2_BIOME_COLORS[kind];
+				if (!color || weight <= 0) continue;
+				biomeColor.r += color.r * weight; biomeColor.g += color.g * weight; biomeColor.b += color.b * weight; biomeWeight += weight;
+			}
+			if (biomeWeight > 0 && dryWeight > 0.15) {
+				biomeColor.multiplyScalar(1 / biomeWeight);
+				surfaceColor.lerp(biomeColor, THREE.MathUtils.clamp(sample.biomeInfluence * dryWeight * RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.biomeBlendMax, 0, RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.biomeBlendMax));
+			}
+			const offset = (y * width + x) * 4;
+			colorBytes[offset] = Math.round(THREE.MathUtils.clamp(surfaceColor.r, 0, 1) * 255);
+			colorBytes[offset + 1] = Math.round(THREE.MathUtils.clamp(surfaceColor.g, 0, 1) * 255);
+			colorBytes[offset + 2] = Math.round(THREE.MathUtils.clamp(surfaceColor.b, 0, 1) * 255);
+			colorBytes[offset + 3] = Math.round(THREE.MathUtils.clamp(dryWeight, 0, 1) * 255);
+			dataBytes[offset] = Math.round(THREE.MathUtils.clamp(sample.reliefInfluence, 0, 1) * 255);
+			dataBytes[offset + 1] = Math.round(THREE.MathUtils.clamp(roughness, 0, 1) * 255);
+			dataBytes[offset + 2] = Math.round(THREE.MathUtils.clamp(sample.boundaryBlend, 0, 1) * 255);
+			dataBytes[offset + 3] = Math.round(THREE.MathUtils.clamp(sample.microAmplitude / 0.05, 0, 1) * 255);
+		}
 	}
-	return target;
+	const makeTexture = (bytes) => {
+		const texture = new THREE.DataTexture(bytes, width, height, THREE.RGBAFormat, THREE.UnsignedByteType);
+		texture.minFilter = THREE.LinearFilter; texture.magFilter = THREE.LinearFilter;
+		texture.wrapS = THREE.ClampToEdgeWrapping; texture.wrapT = THREE.ClampToEdgeWrapping;
+		texture.generateMipmaps = false; texture.needsUpdate = true;
+		return texture;
+	};
+	return Object.freeze({ color: makeTexture(colorBytes), data: makeTexture(dataBytes), width, height });
 }
 
-function runtimePindexQualityBiomeColor(kindWeights, target) {
-	let total = 0;
-	target.setRGB(0, 0, 0);
-	for (const [kind, weight] of Object.entries(kindWeights)) {
-		const color = PINDEX_QUALITY_V2_BIOME_COLORS[kind];
-		if (!color || weight <= 0) continue;
-		target.r += color.r * weight;
-		target.g += color.g * weight;
-		target.b += color.b * weight;
-		total += weight;
-	}
-	if (total > 0) target.multiplyScalar(1 / total);
-	return total;
-}
+const RUNTIME_PINDEX_QUALITY_V2_ATLAS = buildRuntimePindexQualityV2Atlas();
 
 function installRuntimePindexQualityV2Shader(material) {
 	if (material.userData?.runtimePindexQualityV2Shader === RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id) return false;
 	const previousCompile = material.onBeforeCompile;
 	const previousCacheKey = material.customProgramCacheKey.bind(material);
+	const centerX = ((WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5) / WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits;
+	const centerY = ((WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5) / WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
+	const scaleX = 1 / (WORLD_SCALE.METERS_PER_MAP_UNIT * WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits);
+	const scaleY = 1 / (WORLD_SCALE.METERS_PER_MAP_UNIT * WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits);
 	material.onBeforeCompile = function onBeforeCompilePindexQualityV2(shader, renderer) {
 		previousCompile.call(this, shader, renderer);
+		shader.uniforms.pindexQualityColorAtlas = { value: RUNTIME_PINDEX_QUALITY_V2_ATLAS.color };
+		shader.uniforms.pindexQualityDataAtlas = { value: RUNTIME_PINDEX_QUALITY_V2_ATLAS.data };
+		shader.uniforms.pindexQualityMapTransform = { value: new THREE.Vector4(scaleX, scaleY, centerX, centerY) };
 		shader.vertexShader = shader.vertexShader
 			.replace('#include <common>', '#include <common>\nvarying vec3 vPindexQualityWorldPosition;')
 			.replace('#include <begin_vertex>', '#include <begin_vertex>\nvPindexQualityWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;');
 		shader.fragmentShader = shader.fragmentShader
-			.replace('#include <common>', '#include <common>\nvarying vec3 vPindexQualityWorldPosition;\nfloat pindexQualityDetail(vec2 p){ float broad=sin(dot(p,vec2(0.43,0.37))+sin(dot(p,vec2(0.09,-0.11)))*0.7); float fine=sin(dot(p,vec2(1.61,-1.23))+1.7); return mix(broad,fine,0.36); }')
-			.replace('#include <color_fragment>', `#include <color_fragment>\nfloat pindexQualityGrain = pindexQualityDetail(vPindexQualityWorldPosition.xz);\ndiffuseColor.rgb *= 1.0 + pindexQualityGrain * ${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderColorMicroVariation.toFixed(3)};`)
-			.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor = clamp(roughnessFactor + pindexQualityDetail(vPindexQualityWorldPosition.xz * 0.73) * ${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderRoughnessMicroVariation.toFixed(3)}, 0.04, 1.0);`);
+			.replace('#include <common>', '#include <common>\nuniform sampler2D pindexQualityColorAtlas;\nuniform sampler2D pindexQualityDataAtlas;\nuniform vec4 pindexQualityMapTransform;\nvarying vec3 vPindexQualityWorldPosition;\nfloat pindexQualityDetail(vec2 p){float a=sin(dot(p,vec2(0.43,0.37))+sin(dot(p,vec2(0.09,-0.11)))*0.7);float b=sin(dot(p,vec2(1.61,-1.23))+1.7);return mix(a,b,0.36);}')
+			.replace('#include <color_fragment>', `#include <color_fragment>\nvec2 pindexQualityUv=clamp(vPindexQualityWorldPosition.xz*pindexQualityMapTransform.xy+pindexQualityMapTransform.zw,vec2(0.0),vec2(1.0));\nvec4 pindexQualityAtlasColor=texture2D(pindexQualityColorAtlas,pindexQualityUv);\nvec4 pindexQualityAtlasData=texture2D(pindexQualityDataAtlas,pindexQualityUv);\nvec3 pindexQualityColor=pindexQualityAtlasColor.rgb;\nfloat pindexQualityRelief=pindexQualityAtlasData.r;\nfloat pindexQualityDry=pindexQualityAtlasColor.a;\nfloat pindexQualityHeightRock=smoothstep(22.0,82.0,vPindexQualityWorldPosition.y)*pindexQualityDry;\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_ROCK_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.b.toFixed(6)}),pindexQualityRelief*pindexQualityDry*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.reliefRockBlend.toFixed(3)});\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_ROCK_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.b.toFixed(6)}),pindexQualityHeightRock*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.elevationRockBlend.toFixed(3)});\nfloat pindexQualityNorthSnow=pindexQualityRelief*(1.0-smoothstep(0.08,0.34,pindexQualityUv.y))*smoothstep(16.0,58.0,vPindexQualityWorldPosition.y);\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_SNOW_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_SNOW_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_SNOW_COLOR.b.toFixed(6)}),pindexQualityNorthSnow*0.42);\nfloat pindexQualityGrain=pindexQualityDetail(vPindexQualityWorldPosition.xz);\npindexQualityColor*=1.0+pindexQualityGrain*mix(0.025,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderColorMicroVariation.toFixed(3)},pindexQualityAtlasData.a);\ndiffuseColor.rgb=mix(diffuseColor.rgb,pindexQualityColor,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.qualityBlend.toFixed(3)});`)
+			.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,pindexQualityAtlasData.g,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.roughnessBlend.toFixed(3)});\nroughnessFactor=clamp(roughnessFactor+pindexQualityDetail(vPindexQualityWorldPosition.xz*0.73)*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderRoughnessMicroVariation.toFixed(3)},0.04,1.0);`);
 	};
 	material.customProgramCacheKey = () => `${previousCacheKey()}|${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id}`;
 	material.userData.runtimePindexQualityV2Shader = RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id;
@@ -424,91 +437,34 @@ function installRuntimePindexQualityV2Shader(material) {
 	return true;
 }
 
-/** Applies continuous P01..P10 terrain quality without touching any position/height value. */
+/** V2 adds no second per-vertex pass: Iteration #08 remains CPU authoring; V2 is GPU shading. */
 export function applyRuntimePindexTerrainQualityV2ToMesh(mesh) {
 	assertTerrainMesh(mesh);
 	const prior = mesh.userData.runtimePindexTerrainQualityV2;
 	if (prior?.policyId === RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id) return prior;
-	applyRuntimePindexTerrainPolishToMesh(mesh);
-	const position = mesh.geometry.getAttribute('position');
-	const color = mesh.geometry.getAttribute('color');
-	const current = new THREE.Color();
-	const surfaceTarget = new THREE.Color();
-	const biomeTarget = new THREE.Color();
-	const activeBiomeKinds = new Set();
-	const pindexVertexCounts = Array.from({ length: 10 }, () => 0);
-	let changedVertices = 0;
-	let softenedBoundaryVertices = 0;
-	let biomeVertices = 0;
-	let reliefVertices = 0;
-	let elevationRockVertices = 0;
-	let roughnessSum = 0;
-	for (let index = 0; index < position.count; index += 1) {
-		const worldX = mesh.position.x + position.getX(index);
-		const worldZ = mesh.position.z + position.getZ(index);
-		const normalized = runtimePindexQualityNormalized(worldX, worldZ);
-		const sample = sampleReferencePindexQualityV2(normalized.x, normalized.y);
-		pindexVertexCounts[sample.pindex - 1] += 1;
-		if (sample.boundaryBlend > 0.025) softenedBoundaryVertices += 1;
-		const beforeR = color.getX(index);
-		const beforeG = color.getY(index);
-		const beforeB = color.getZ(index);
-		current.setRGB(beforeR, beforeG, beforeB);
-		runtimePindexQualityWeightedSurfaceColor(sample.surfaceWeights, surfaceTarget);
-		current.lerp(surfaceTarget, RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.qualityBlend);
-		const dryWeight = sample.surfaceWeights.soil + sample.surfaceWeights.rock + sample.surfaceWeights.snow;
-		const biomeWeightTotal = runtimePindexQualityBiomeColor(sample.biomeKindWeights, biomeTarget);
-		if (biomeWeightTotal > 0 && dryWeight > 0.15) {
-			const biomeBlend = sample.biomeInfluence * dryWeight * RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.biomeBlendMax;
-			current.lerp(biomeTarget, THREE.MathUtils.clamp(biomeBlend, 0, RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.biomeBlendMax));
-			biomeVertices += 1;
-			for (const [kind, weight] of Object.entries(sample.biomeKindWeights)) if (weight > 0.02) activeBiomeKinds.add(kind);
-		}
-		if (sample.reliefInfluence > 0.01 && dryWeight > 0.2) {
-			current.lerp(PINDEX_QUALITY_V2_ROCK_COLOR, sample.reliefInfluence * dryWeight * RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.reliefRockBlend);
-			reliefVertices += 1;
-		}
-		const elevationRock = runtimePindexQualitySmoothstep(22, 82, position.getY(index)) * dryWeight;
-		if (elevationRock > 0.01) {
-			current.lerp(PINDEX_QUALITY_V2_ROCK_COLOR, elevationRock * RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.elevationRockBlend);
-			elevationRockVertices += 1;
-		}
-		const northSnow = sample.reliefInfluence * runtimePindexQualitySmoothstep(0.34, 0.08, normalized.y) * runtimePindexQualitySmoothstep(16, 58, position.getY(index));
-		if (northSnow > 0.01) current.lerp(PINDEX_QUALITY_V2_SNOW_COLOR, northSnow * 0.42);
-		const micro = runtimePindexQualityMicroSignal(worldX, worldZ) * sample.microAmplitude;
-		current.multiplyScalar(THREE.MathUtils.clamp(1 + micro, 0.92, 1.08));
-		current.r = THREE.MathUtils.clamp(current.r, 0, 1);
-		current.g = THREE.MathUtils.clamp(current.g, 0, 1);
-		current.b = THREE.MathUtils.clamp(current.b, 0, 1);
-		color.setXYZ(index, current.r, current.g, current.b);
-		if (Math.hypot(current.r - beforeR, current.g - beforeG, current.b - beforeB) > 1e-8) changedVertices += 1;
-		for (const [surface, weight] of Object.entries(sample.surfaceWeights)) roughnessSum += (PINDEX_QUALITY_V2_SURFACE_ROUGHNESS[surface] ?? 0.94) * weight;
-	}
-	color.needsUpdate = true;
-	mesh.material.roughness = THREE.MathUtils.lerp(mesh.material.roughness, roughnessSum / position.count, RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.roughnessBlend);
+	const iteration008 = applyRuntimePindexTerrainPolishToMesh(mesh);
 	installRuntimePindexQualityV2Shader(mesh.material);
+	const center = runtimePindexQualityNormalized(mesh.position.x, mesh.position.z);
+	const sample = sampleReferencePindexQualityV2(center.x, center.y);
+	const activeBiomeKinds = Object.freeze(Object.entries(sample.biomeKindWeights).filter(([, weight]) => weight > 0.02).map(([kind]) => kind).sort());
 	const summary = Object.freeze({
 		policyId: RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id,
 		samplingPolicyId: REFERENCE_PINDEX_QUALITY_V2_POLICY.id,
-		vertexCount: position.count,
-		changedVertices,
-		softenedBoundaryVertices,
-		biomeVertices,
-		reliefVertices,
-		elevationRockVertices,
-		activeBiomeKinds: Object.freeze([...activeBiomeKinds].sort()),
-		pindexVertexCounts: Object.freeze(pindexVertexCounts),
-		averageRoughness: mesh.material.roughness,
+		vertexCount: iteration008.vertexCount,
+		changedVertices: iteration008.vertexCount,
+		activeBiomeKinds,
+		centerPindex: sample.pindex,
+		atlasResolution: Object.freeze([RUNTIME_PINDEX_QUALITY_V2_ATLAS.width, RUNTIME_PINDEX_QUALITY_V2_ATLAS.height]),
 		shaderDetail: true,
+		cpuVertexPassesAdded: 0,
 	});
 	mesh.userData.runtimePindexTerrainQualityV2 = summary;
 	return summary;
 }
 
 const installRuntimePindexTerrainPolishIteration008 = installRuntimePindexTerrainPolish;
-const RUNTIME_PINDEX_QUALITY_V2_INSTALL_FLAG = Symbol.for('westeros.runtime-pindex-terrain-quality-v2.2026-08-12');
+const RUNTIME_PINDEX_QUALITY_V2_INSTALL_FLAG = Symbol.for('westeros.runtime-pindex-terrain-quality-v2.2026-08-12-v2');
 
-/** Upgrades the existing shipped installer in-place, preserving the Iteration #08 installation contract. */
 installRuntimePindexTerrainPolish = function installRuntimePindexTerrainPolishQualityV2() {
 	const iteration008 = installRuntimePindexTerrainPolishIteration008();
 	const prototype = ChunkManager.prototype;
@@ -525,11 +481,7 @@ installRuntimePindexTerrainPolish = function installRuntimePindexTerrainPolishQu
 		for (const mesh of this.loaded.values()) applyRuntimePindexTerrainQualityV2ToMesh(mesh);
 		return result;
 	};
-	const installation = Object.freeze({
-		policyId: RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id,
-		previousPolicyId: iteration008.policyId,
-		installed: true,
-	});
+	const installation = Object.freeze({ policyId: RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id, previousPolicyId: iteration008.policyId, installed: true });
 	Object.defineProperty(prototype, RUNTIME_PINDEX_QUALITY_V2_INSTALL_FLAG, { value: installation, configurable: false });
 	return installation;
 };
