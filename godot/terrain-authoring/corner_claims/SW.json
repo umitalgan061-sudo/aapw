@@ -5,7 +5,7 @@
   "current_cell": "G15",
   "status": "validating",
   "branch": "terrain/sw-g15-hydrology-20260812",
-  "pr": null,
+  "pr": 274,
   "last_commit": null,
   "quality_before": {
     "base_cells": 96,
@@ -22,5 +22,5 @@
     "confidence_checksum": 2027248322
   },
   "engine": "canonical owner-map surface mask + authoring-only bilinear hydrology confidence; HTerrain preserved/validated, Terrain3D not required for this data-only refinement",
-  "updated_at": "2026-08-12T19:05:00+03:00"
+  "updated_at": "2026-08-12T19:06:00+03:00"
 }
