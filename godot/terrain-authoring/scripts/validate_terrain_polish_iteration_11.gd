@@ -16,6 +16,13 @@ func _fail(message: String) -> void:
 	quit(1)
 
 
+func _color_delta(left: Color, right: Color) -> float:
+	return maxf(
+		maxf(absf(left.r - right.r), absf(left.g - right.g)),
+		maxf(absf(left.b - right.b), absf(left.a - right.a))
+	)
+
+
 func _run_validation() -> void:
 	var color_path := PROBE_DIRECTORY.path_join("color.png")
 	var splat_path := PROBE_DIRECTORY.path_join("splat.png")
@@ -38,7 +45,7 @@ func _run_validation() -> void:
 		return
 
 	var edge_color := color_image.get_pixelv(EDGE)
-	if edge_color.distance_to(WHITE) > 0.01:
+	if _color_delta(edge_color, WHITE) > 0.01:
 		_fail("Authored colormap leaked outside bounded authored terrain: %s" % edge_color)
 		return
 
@@ -47,7 +54,7 @@ func _run_validation() -> void:
 	if center_splat.b < 0.50:
 		_fail("Center no longer carries the expected rock-dominant splat: %s" % center_splat)
 		return
-	if center_color.distance_to(WHITE) < 0.08:
+	if _color_delta(center_color, WHITE) < 0.08:
 		_fail("Center colormap remains too close to starter white: %s" % center_color)
 		return
 	if center_color.r > 0.90 or center_color.g > 0.91 or center_color.b > 0.93:
@@ -67,7 +74,7 @@ func _run_validation() -> void:
 			var color := color_image.get_pixel(x, y)
 			if color.a < 0.99:
 				alpha_failures += 1
-			if color.distance_to(WHITE) > 0.01:
+			if _color_delta(color, WHITE) > 0.01:
 				changed_cells += 1
 				authored_red_sum += color.r
 				authored_green_sum += color.g
