@@ -49,6 +49,8 @@ jobs:
           set -euo pipefail
           node --check scripts/checkRun313Run303DispatchSafety.js
           node scripts/checkRun313Run303DispatchSafety.js
+          node --check scripts/checkRun313FuturePrSafety.js
+          node scripts/checkRun313FuturePrSafety.js
           node scripts/checkRun216ServiceWorkerMaterializer.js
           node scripts/checkRun300LegacyPrScopeGate.js
           node scripts/checkRun283FinalHeadGovernance.js
