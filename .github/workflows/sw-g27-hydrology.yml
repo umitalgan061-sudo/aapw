@@ -9,7 +9,10 @@ on:
       - main
     paths:
       - 'godot/terrain-authoring/geocells/sw/g27_hydrology.mjs'
+      - 'godot/terrain-authoring/geocells/sw/g27_source_mask.mjs'
       - 'scripts/checkSwG27Hydrology.mjs'
+      - 'scripts/checkSwG27SourceFidelity.mjs'
+      - 'scripts/captureSwG27SourceFidelity.mjs'
       - 'godot/terrain-authoring/corner_claims/SW.json'
       - '.github/workflows/sw-g27-hydrology.yml'
   workflow_dispatch:
@@ -41,17 +44,28 @@ jobs:
           git diff --check origin/main...HEAD
           CHANGED="$(git diff --name-only origin/main...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g27_hydrology.mjs|scripts/checkSwG27Hydrology.mjs|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g27-hydrology.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g27_hydrology.mjs|godot/terrain-authoring/geocells/sw/g27_source_mask.mjs|scripts/checkSwG27Hydrology.mjs|scripts/checkSwG27SourceFidelity.mjs|scripts/captureSwG27SourceFidelity.mjs|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g27-hydrology.yml)$' | wc -l)" -eq 0
 
       - name: Syntax and deterministic G27 hydrology
         run: |
           set -euo pipefail
           node --check godot/terrain-authoring/geocells/sw/g27_hydrology.mjs
+          node --check godot/terrain-authoring/geocells/sw/g27_source_mask.mjs
           node --check scripts/checkSwG27Hydrology.mjs
+          node --check scripts/checkSwG27SourceFidelity.mjs
+          node --check scripts/captureSwG27SourceFidelity.mjs
           node scripts/checkSwG27Hydrology.mjs | tee /tmp/g27-first.log
           node scripts/checkSwG27Hydrology.mjs | tee /tmp/g27-second.log
           diff -u /tmp/g27-first.log /tmp/g27-second.log
           grep -F 'SW_G27_HYDROLOGY_VALIDATION_OK' /tmp/g27-first.log
+
+      - name: Source-resolution G27 fidelity
+        run: |
+          set -euo pipefail
+          node scripts/checkSwG27SourceFidelity.mjs | tee /tmp/g27-source-first.log
+          node scripts/checkSwG27SourceFidelity.mjs | tee /tmp/g27-source-second.log
+          diff -u /tmp/g27-source-first.log /tmp/g27-source-second.log
+          grep -F 'SW_G27_SOURCE_FIDELITY_OK' /tmp/g27-source-first.log
 
       - name: Install Chromium safety dependency
         run: |
@@ -60,6 +74,21 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Near/far G27 semantic visual proof
+        run: |
+          set -euo pipefail
+          node scripts/captureSwG27SourceFidelity.mjs | tee /tmp/g27-source-visual.log
+          grep -F 'SW_G27_SOURCE_VISUAL_OK' /tmp/g27-source-visual.log
+
+      - name: Upload G27 visual proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: sw-g27-source-fidelity-${{ github.sha }}
+          path: |
+            /tmp/g27-source-fidelity-near.png
+            /tmp/g27-source-fidelity-far.png
+          if-no-files-found: error
 
       - name: Settlement and road safety
         run: |
