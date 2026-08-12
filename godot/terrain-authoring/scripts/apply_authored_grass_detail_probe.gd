@@ -66,7 +66,8 @@ func _apply_mask() -> void:
 			var slope := sqrt(dx * dx + dz * dz)
 			var slope_factor := clampf(1.0 - slope / SLOPE_FADE_LIMIT, 0.0, 1.0)
 			var authored_factor := _smoothstep(AUTHORED_DELTA_START, AUTHORED_DELTA_FULL, authored_delta)
-			var density := clampf(splat.r * slope_factor * authored_factor, 0.0, 1.0)
+			var rock_exclusion := clampf(1.0 - splat.b, 0.0, 1.0)
+			var density := clampf(splat.r * rock_exclusion * slope_factor * authored_factor, 0.0, 1.0)
 			if splat.b >= 0.50 and density <= 0.30:
 				suppressed_rock_cells += 1
 			if density > 0.0:
