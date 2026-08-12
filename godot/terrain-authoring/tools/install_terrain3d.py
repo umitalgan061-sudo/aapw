@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Install the pinned official Terrain3D binary release into this Godot authoring project.
 
-This script intentionally downloads the published release asset rather than cloning/building
-Terrain3D source. The lock file pins version + SHA256 so scheduled jobs are reproducible.
-Use --check-upstream to inspect TokisanGames/Terrain3D's latest release without upgrading.
+The script downloads TokisanGames' published binary release, verifies the pinned SHA256,
+extracts only addons/terrain_3d, then enables Terrain3D beside HTerrain in project.godot.
+Use --check-upstream to inspect the latest upstream release without silently upgrading.
 """
 
 from __future__ import annotations
@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -20,21 +19,21 @@ import zipfile
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LOCK_PATH = PROJECT_ROOT / "terrain3d.lock.json"
+PROJECT_FILE = PROJECT_ROOT / "project.godot"
 TARGET_DIR = PROJECT_ROOT / "addons" / "terrain_3d"
 USER_AGENT = "aapw-terrain-authoring/1.0"
+HTERRAIN_PLUGIN = "res://addons/zylann.hterrain/plugin.cfg"
+TERRAIN3D_PLUGIN = "res://addons/terrain_3d/plugin.cfg"
 
 
 def load_lock() -> dict:
     return json.loads(LOCK_PATH.read_text(encoding="utf-8"))
 
 
-def request_bytes(url: str) -> bytes:
+def request_bytes(url: str, accept: str = "application/octet-stream") -> bytes:
     request = urllib.request.Request(
         url,
-        headers={
-            "User-Agent": USER_AGENT,
-            "Accept": "application/octet-stream",
-        },
+        headers={"User-Agent": USER_AGENT, "Accept": accept},
     )
     with urllib.request.urlopen(request, timeout=120) as response:
         return response.read()
@@ -54,7 +53,32 @@ def installed_version() -> str | None:
     return None
 
 
-def verify_install(lock: dict) -> None:
+def project_plugins_enabled() -> bool:
+    text = PROJECT_FILE.read_text(encoding="utf-8")
+    return HTERRAIN_PLUGIN in text and TERRAIN3D_PLUGIN in text
+
+
+def enable_project_plugins() -> None:
+    text = PROJECT_FILE.read_text(encoding="utf-8")
+    dual = f'enabled=PackedStringArray("{HTERRAIN_PLUGIN}", "{TERRAIN3D_PLUGIN}")'
+    if dual in text:
+        return
+    hterrain_only = f'enabled=PackedStringArray("{HTERRAIN_PLUGIN}")'
+    terrain3d_only = f'enabled=PackedStringArray("{TERRAIN3D_PLUGIN}")'
+    if hterrain_only in text:
+        text = text.replace(hterrain_only, dual, 1)
+    elif terrain3d_only in text:
+        text = text.replace(terrain3d_only, dual, 1)
+    else:
+        marker = "[editor_plugins]\n"
+        if marker not in text:
+            raise RuntimeError("project.godot has no [editor_plugins] section")
+        section_start = text.index(marker) + len(marker)
+        text = text[:section_start] + "\n" + dual + "\n" + text[section_start:]
+    PROJECT_FILE.write_text(text, encoding="utf-8")
+
+
+def verify_install(lock: dict, require_enabled: bool = True) -> None:
     required = [
         TARGET_DIR / "plugin.cfg",
         TARGET_DIR / "terrain.gdextension",
@@ -70,13 +94,16 @@ def verify_install(lock: dict) -> None:
     binaries = list((TARGET_DIR / "bin").glob("*"))
     if not binaries:
         raise RuntimeError("Terrain3D binary release did not provide addons/terrain_3d/bin")
+    if require_enabled and not project_plugins_enabled():
+        raise RuntimeError("Terrain3D is installed but not enabled beside HTerrain in project.godot")
 
 
 def install(lock: dict, refresh: bool) -> None:
     if not refresh and installed_version() == lock["version"]:
         try:
+            enable_project_plugins()
             verify_install(lock)
-            print(f"TERRAIN3D_INSTALL_OK already-installed version={lock['version']}")
+            print(f"TERRAIN3D_INSTALL_OK already-installed version={lock['version']} enabled=true")
             return
         except RuntimeError:
             pass
@@ -101,10 +128,8 @@ def install(lock: dict, refresh: bool) -> None:
                 raise RuntimeError(
                     f"Expected exactly one addons/terrain_3d/plugin.cfg in release archive; got {len(plugin_candidates)}"
                 )
-            plugin_name = plugin_candidates[0]
-            prefix = plugin_name[: -len("addons/terrain_3d/plugin.cfg")]
+            prefix = plugin_candidates[0][: -len("addons/terrain_3d/plugin.cfg")]
             subtree = prefix + "addons/terrain_3d/"
-
             for member in names:
                 if not member.startswith(subtree) or member.endswith("/"):
                     continue
@@ -123,6 +148,7 @@ def install(lock: dict, refresh: bool) -> None:
             TARGET_DIR.rename(backup)
         try:
             shutil.copytree(extracted, TARGET_DIR)
+            enable_project_plugins()
             verify_install(lock)
         except Exception:
             if TARGET_DIR.exists():
@@ -136,12 +162,14 @@ def install(lock: dict, refresh: bool) -> None:
 
     print(
         "TERRAIN3D_INSTALL_OK "
-        f"version={lock['version']} tag={lock['tag']} sha256={lock['sha256']} target={TARGET_DIR}"
+        f"version={lock['version']} tag={lock['tag']} sha256={lock['sha256']} enabled=true target={TARGET_DIR}"
     )
 
 
 def check_upstream(lock: dict) -> None:
-    payload = json.loads(request_bytes(lock["latest_release_api"]).decode("utf-8"))
+    payload = json.loads(
+        request_bytes(lock["latest_release_api"], "application/vnd.github+json").decode("utf-8")
+    )
     upstream_tag = payload.get("tag_name")
     state = "CURRENT" if upstream_tag == lock["tag"] else "UPDATE_AVAILABLE"
     print(f"TERRAIN3D_UPSTREAM_{state} pinned={lock['tag']} latest={upstream_tag}")
@@ -163,7 +191,7 @@ def main() -> None:
         check_upstream(lock)
     if args.verify_only:
         verify_install(lock)
-        print(f"TERRAIN3D_VERIFY_OK version={lock['version']}")
+        print(f"TERRAIN3D_VERIFY_OK version={lock['version']} enabled=true")
         return
     install(lock, args.refresh)
 
