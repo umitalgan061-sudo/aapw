@@ -52,7 +52,8 @@ jobs:
       - name: Install Playwright Chromium
         run: |
           set -euo pipefail
-          npx --yes playwright@1.56.1 install --with-deps chromium
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
 
       - name: Export the live Westeros height field
         run: |
@@ -109,6 +110,7 @@ jobs:
             --script res://scripts/render_terrain3d_preview.gd
           test -f artifacts/run317-terrain3d/terrain3d-ground-view.png
           test -f artifacts/run317-terrain3d/terrain3d-mountain-view.png
+          test -f artifacts/run317-terrain3d/terrain3d-full-topdown.png
 
       - name: HTerrain regression — the sibling backend must stay untouched
         run: |
