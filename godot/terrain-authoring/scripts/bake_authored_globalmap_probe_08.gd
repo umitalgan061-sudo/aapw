@@ -1,6 +1,7 @@
 extends SceneTree
 
 const HTerrain = preload("res://addons/zylann.hterrain/hterrain.gd")
+const HTerrainData = preload("res://addons/zylann.hterrain/hterrain_data.gd")
 const HTerrainTextureSet = preload("res://addons/zylann.hterrain/hterrain_texture_set.gd")
 const GlobalMapBaker = preload("res://addons/zylann.hterrain/tools/globalmap_baker.gd")
 
@@ -32,19 +33,19 @@ func _on_permanent_change(message: String) -> void:
 		_permanent_change = true
 
 func _run() -> void:
-	var data_path := PROBE_DIRECTORY.path_join("data.hterrain")
+	var data_path: String = PROBE_DIRECTORY.path_join("data.hterrain")
 	if not FileAccess.file_exists(data_path):
 		_fail("Iteration 008 requires the authored probe from iteration 007")
 		return
-	var data = load(data_path)
+	var data: HTerrainData = load(data_path) as HTerrainData
 	if data == null:
 		_fail("Authored HTerrain probe data could not be loaded")
 		return
-	var before := data.get_image(data.CHANNEL_GLOBAL_ALBEDO)
+	var before: Image = data.get_image(HTerrainData.CHANNEL_GLOBAL_ALBEDO)
 	if before == null:
 		_fail("Authored probe global albedo map is missing")
 		return
-	var before_center := before.get_pixel(before.get_width() / 2, before.get_height() / 2)
+	var before_center: Color = before.get_pixel(before.get_width() / 2, before.get_height() / 2)
 	if before_center.distance_to(STARTER_GLOBAL_ALBEDO) > 0.02:
 		_fail("Expected uniform starter global albedo before baking")
 		return
@@ -75,12 +76,12 @@ func _run() -> void:
 	if not _finished or not _permanent_change:
 		_fail("HTerrain global-map baker did not finish within the bounded frame budget")
 		return
-	var baked := data.get_image(data.CHANNEL_GLOBAL_ALBEDO)
+	var baked: Image = data.get_image(HTerrainData.CHANNEL_GLOBAL_ALBEDO)
 	if baked == null or baked.get_format() != Image.FORMAT_RGB8:
 		_fail("Baked global albedo image is unavailable or has the wrong format")
 		return
-	var center := baked.get_pixel(baked.get_width() / 2, baked.get_height() / 2)
-	var edge := baked.get_pixel(16, 16)
+	var center: Color = baked.get_pixel(baked.get_width() / 2, baked.get_height() / 2)
+	var edge: Color = baked.get_pixel(16, 16)
 	if center.distance_to(before_center) < 0.03:
 		_fail("Authored splat did not produce a meaningful baked global-map delta")
 		return
