@@ -75,7 +75,18 @@ jobs:
       - name: Install exact pinned Terrain3D backend
         run: |
           set -euo pipefail
-          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee "$RUNNER_TEMP/terrain3d-install.log"
+          : > "$RUNNER_TEMP/terrain3d-install.log"
+          installed=0
+          for attempt in 1 2 3; do
+            echo "Terrain3D pinned release install attempt $attempt/3"
+            if python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh 2>&1 | tee "$RUNNER_TEMP/terrain3d-install-attempt-$attempt.log"; then
+              cat "$RUNNER_TEMP/terrain3d-install-attempt-$attempt.log" > "$RUNNER_TEMP/terrain3d-install.log"
+              installed=1
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 5)); fi
+          done
+          test "$installed" -eq 1
           grep -F 'TERRAIN3D_INSTALL_OK' "$RUNNER_TEMP/terrain3d-install.log"
           python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/terrain3d-verify.log"
           grep -F 'TERRAIN3D_VERIFY_OK' "$RUNNER_TEMP/terrain3d-verify.log"
