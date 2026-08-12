@@ -1,0 +1,138 @@
+name: Run 295 Pull Request Base Policy Guard V2
+
+on:
+  push:
+    branches: [run295-pr-base-policy-guard-v2]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run295-pr-base-policy-v2-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '4da9253fda1adbf6d3fbd0aedea28ac67b13956e' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Exact-main additive entry gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"
+
+      - name: Pull-request base-policy V2 regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkPullRequestBasePolicyV2.js
+          node scripts/checkPullRequestBasePolicyV2.js --self-test
+          node scripts/checkPullRequestBasePolicyV2.js
+          node scripts/checkRun292Run290BaseOverride.js
+          node scripts/checkRun289Run287BaseOverride.js
+          node scripts/checkRun287CheckpointParserCompat.js
+          node scripts/checkRun283FinalHeadGovernance.js
+          node scripts/checkCheckpointConsistency.js
+
+      - name: World PWA and determinism contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Performance safety technical debt and full browser DoD
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run295-mobile.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run295-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run295-smoke.log")" -ge 34
+
+      - name: Final exact-main concurrency and additive-only gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"
+
+  record:
+    needs: validate
+    if: github.event_name == 'push' && github.event.head_commit.message != 'run295 validated pull-request base-policy checkpoint'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Record validated checkpoint and publish branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='4da9253fda1adbf6d3fbd0aedea28ac67b13956e'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE" HEAD
+          printf '\n%s\n' '## Run 295 — Pull-request exact-main base-policy guard V2' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Added a test-only repository-wide guard for mandatory read-only pull_request workflows that compare origin/main against BASE_SHA: they must derive github.event.pull_request.base.sha and explicitly checkout github.event.pull_request.head.sha.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Runtime delta is zero: no src/3d, PWA shell, gameplay, editor, terrain, road, hydrology, settlement or pindex-detail ownership changed.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Self-test fixtures prove stale PR base and synthetic merge-ref checkout are rejected while archival self-publishing write workflows and dynamic in-step BASE_SHA workflows stay outside this narrow mandatory-gate scope.' >> 3D_GAME_PROGRESS.md
+          printf '%s\n' '- Next safe step: refresh main/open PR ownership; Pindex-05 activation may be reconsidered only after final-head governance remains green and Terrain Polish ownership is still isolated.' >> 3D_GAME_PROGRESS.md
+          printf '\n%s\n' '## ADR-RUN295 — Mandatory read-only exact-main PR gates require live base and exact head' >> DECISIONS.md
+          printf '%s\n' '- Risk: LOW. Decision: guard only read-only pull_request workflows that declare YAML BASE_SHA and enforce origin/main equality. They must derive the live PR base SHA and explicitly checkout the PR head SHA. Historical self-publishing write workflows are excluded from this mandatory-gate contract; dynamic in-step BASE_SHA workflows are already live-main-safe. Runtime behavior is unchanged; rollback is removal of this guard/workflow.' >> DECISIONS.md
+          printf '%s\n' 'run295,2026-08-12,pr-exact-main-base-policy-v2,,,,,,,"test-only workflow policy guard; runtime delta 0; mandatory DoD PASS"' >> perf_log.csv
+          printf '\n%s\n' '- `stable-2026-08-12-run295` — pull-request exact-main base-policy guard V2; runtime delta 0; mandatory DoD PASS.' >> STABLE_TAGS.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git commit -m 'run295 validated pull-request base-policy checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE" HEAD
+          git diff --check "$BASE" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
