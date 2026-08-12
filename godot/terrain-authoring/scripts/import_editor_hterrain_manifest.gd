@@ -212,10 +212,11 @@ func _run() -> void:
 	var manifest_path := _arg_value("--manifest=", DEFAULT_MANIFEST)
 	var output := _arg_value("--output=", DEFAULT_OUTPUT)
 	var data = HTerrainData.new()
-	if not data.load_data(source):
+	data.load_data(source)
+	var resolution: int = data.get_resolution()
+	if resolution <= 0:
 		_fail("HTerrain source data could not be loaded: %s" % source)
 		return
-	var resolution: int = data.get_resolution()
 	var manifest := _read_manifest(manifest_path)
 	if not _validate_manifest(manifest, resolution):
 		return
