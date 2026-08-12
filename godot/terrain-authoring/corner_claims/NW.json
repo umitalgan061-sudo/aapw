@@ -2,12 +2,12 @@
   "corner": "NW",
   "task_name": "Buzul Muhafızı",
   "origin": [0, 0],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
-  "pr": null,
+  "current_cell": "G00",
+  "status": "validating",
+  "branch": "terrain/nw-g00-hydrology-current-main-20260812",
+  "pr": 241,
   "last_commit": null,
   "quality_before": null,
   "quality_after": null,
-  "updated_at": null
+  "updated_at": "2026-08-12T13:04:36Z"
 }
