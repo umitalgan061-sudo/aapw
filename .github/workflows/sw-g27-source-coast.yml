@@ -3,7 +3,7 @@ name: SW G27 Source Coast
 on:
   push:
     branches:
-      - terrain/sw-g27-hterrain-b7753-20260812
+      - terrain/sw-g27-hterrain-e755-20260812
   pull_request:
     branches:
       - main
