@@ -24,10 +24,15 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const consoleErrors = [];
   const pageErrors = [];
+  const response404s = [];
+  await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, contentType: 'image/x-icon', body: '' }));
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
   page.on('pageerror', (error) => pageErrors.push(String(error)));
+  page.on('response', (response) => {
+    if (response.status() === 404) response404s.push(response.url());
+  });
 
   try {
     await page.goto(`http://127.0.0.1:${port}/editor.html?liveWorkspace=1`, {
@@ -71,6 +76,8 @@ async function main() {
     });
     await page.waitForFunction(() => window.__WESTEROS_WORLD_EDITOR__?.editableObjects?.some(
       (object) => object?.userData?.editorId === 'hterrain-browser-proof'
+        && object?.userData?.editorHTerrainSurface === 'rock'
+        && object?.userData?.editorTerrainElevationMeters === 3.5
     ), null, { timeout: 30000 });
     const restored = await page.evaluate(() => {
       const object = window.__WESTEROS_WORLD_EDITOR__.editableObjects.find(
@@ -116,8 +123,8 @@ async function main() {
       fail('downloaded manifest lost authored Dorne stroke');
     }
 
-    if (consoleErrors.length || pageErrors.length) {
-      fail(`browser errors: console=${consoleErrors.length} page=${pageErrors.length} ${consoleErrors.join(' | ')} ${pageErrors.join(' | ')}`);
+    if (response404s.length || consoleErrors.length || pageErrors.length) {
+      fail(`browser errors: http404=${response404s.length} console=${consoleErrors.length} page=${pageErrors.length} urls=${response404s.join(' | ')} console=${consoleErrors.join(' | ')} page=${pageErrors.join(' | ')}`);
     }
     console.log('[checkEditorHTerrainBridgeBrowser] PASS:', JSON.stringify({
       mapLocked: initial.snapshot.mapLocked,
@@ -127,6 +134,7 @@ async function main() {
       sceneSurfaceRoundtrip: savedRecord.terrain.hterrainSurface,
       dorneStrokeSurface: authored.stroke.surface,
       heightDeltaMeters: authored.stroke.heightDeltaMeters,
+      response404s: response404s.length,
       consoleErrors: consoleErrors.length,
       pageErrors: pageErrors.length
     }));
