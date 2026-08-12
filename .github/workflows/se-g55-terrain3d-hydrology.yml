@@ -1,0 +1,147 @@
+name: SE G55 Terrain3D Hydrology
+
+on:
+  push:
+    branches:
+      - terrain/se-g55-terrain3d-hydrology-20260812
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/se/g55_hydrology.mjs'
+      - 'scripts/checkSEG55Hydrology.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g55_terrain3d.gd'
+      - 'godot/terrain-authoring/corner_claims/SE.json'
+      - '.github/workflows/se-g55-terrain3d-hydrology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: se-g55-terrain3d-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main and five-file bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA='e833db39a981e1e60e2136bc11219d321459ad1e'
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g55_hydrology.mjs|scripts/checkSEG55Hydrology.mjs|godot/terrain-authoring/scripts/validate_g55_terrain3d.gd|godot/terrain-authoring/corner_claims/SE.json|\.github/workflows/se-g55-terrain3d-hydrology.yml)$' | wc -l)" -eq 0
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
+          grep -F '"engine_role": "full_world_authoring_and_bake_backend"' godot/terrain-authoring/terrain3d.lock.json
+
+      - name: Canonical G55 determinism and probe emission
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/se/g55_hydrology.mjs
+          node --check scripts/checkSEG55Hydrology.mjs
+          node scripts/checkSEG55Hydrology.mjs | tee "$RUNNER_TEMP/g55-first.log"
+          node scripts/checkSEG55Hydrology.mjs | tee "$RUNNER_TEMP/g55-second.log"
+          cmp "$RUNNER_TEMP/g55-first.log" "$RUNNER_TEMP/g55-second.log"
+          grep -F 'SE_G55_HYDROLOGY_VALIDATION_OK' "$RUNNER_TEMP/g55-first.log"
+          node scripts/checkSEG55Hydrology.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g55-probe.json
+          test -s godot/terrain-authoring/.terrain3d-proof/g55-probe.json
+
+      - name: Install exact pinned Terrain3D backend
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee "$RUNNER_TEMP/terrain3d-install.log"
+          grep -F 'TERRAIN3D_INSTALL_OK' "$RUNNER_TEMP/terrain3d-install.log"
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/terrain3d-verify.log"
+          grep -F 'TERRAIN3D_VERIFY_OK' "$RUNNER_TEMP/terrain3d-verify.log"
+          test -f godot/terrain-authoring/addons/terrain_3d/plugin.cfg
+          test ! -d godot/terrain-authoring/addons/terrain_3d/addons
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | tee "$RUNNER_TEMP/godot-version.log"
+          grep -F '4.6.3' "$RUNNER_TEMP/godot-version.log"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Load Terrain3D and prove real G55 region save bake determinism
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+          G55_PROOF_SUFFIX=a timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_g55_terrain3d.gd | tee "$RUNNER_TEMP/g55-t3d-a.log"
+          G55_PROOF_SUFFIX=b timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_g55_terrain3d.gd | tee "$RUNNER_TEMP/g55-t3d-b.log"
+          grep -F 'SE_G55_TERRAIN3D_VALIDATION_OK' "$RUNNER_TEMP/g55-t3d-a.log"
+          grep -F 'SE_G55_TERRAIN3D_VALIDATION_OK' "$RUNNER_TEMP/g55-t3d-b.log"
+          grep '^G55_TERRAIN3D_METRICS=' "$RUNNER_TEMP/g55-t3d-a.log" > "$RUNNER_TEMP/g55-t3d-metrics-a.log"
+          grep '^G55_TERRAIN3D_METRICS=' "$RUNNER_TEMP/g55-t3d-b.log" > "$RUNNER_TEMP/g55-t3d-metrics-b.log"
+          test -s "$RUNNER_TEMP/g55-t3d-metrics-a.log"
+          cmp "$RUNNER_TEMP/g55-t3d-metrics-a.log" "$RUNNER_TEMP/g55-t3d-metrics-b.log"
+          cat "$RUNNER_TEMP/g55-t3d-metrics-a.log"
+
+      - name: Preserve HTerrain regression control
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/g55-hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/g55-hterrain.log"
+
+      - name: Install Chromium safety dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Safety PWA performance determinism
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full browser smoke and console regression
+        run: node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main and backend-integrity gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA='e833db39a981e1e60e2136bc11219d321459ad1e'
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
