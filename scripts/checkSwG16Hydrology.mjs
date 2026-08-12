@@ -21,12 +21,14 @@ const metrics = measureG16Hydrology();
 assert.equal(metrics.baseCells, 96);
 assert.equal(metrics.waterCells, 95, 'G16 must retain the canonical 95-water centre count');
 assert.equal(metrics.landCells, 1, 'G16 must retain the canonical 1-land centre count');
-assert.ok(metrics.boundaryEdges > 0, 'G16 must contain an actual land/water transition');
+assert.equal(metrics.boundaryEdges, 4, 'G16 canonical transition topology changed unexpectedly');
 assert.equal(metrics.centreMismatches, 0, 'canonical mask-cell centre semantics must remain exact');
-assert.ok(metrics.fractionalSamples > 0, 'real coastline refinement must produce fractional confidence samples');
-assert.ok(metrics.maxAdjacentStep > 0, 'G16 must contain a measurable transition');
+assert.equal(metrics.refinedSamples, 1617);
+assert.equal(metrics.fractionalSamples, 48, 'quarter-cell G16 refinement fingerprint changed');
+assert.equal(metrics.hardCellMaxStep, 1);
+assert.equal(metrics.maxAdjacentStep, 0.25, 'quarter-cell bilinear continuity fingerprint changed');
 assert.ok(metrics.maxAdjacentStep < metrics.hardCellMaxStep, 'bilinear refinement must reduce the hard-cell discontinuity');
-assert.ok(Number.isInteger(metrics.confidenceChecksum));
+assert.equal(metrics.confidenceChecksum, 1442760959, 'G16 confidence field fingerprint changed');
 
 const rerun = measureG16Hydrology();
 assert.deepEqual(rerun, metrics, 'G16 evidence must be deterministic across repeated evaluation');
