@@ -2,12 +2,19 @@
   "corner": "SE",
   "task_name": "Kızıl Ufuk",
   "origin": [7, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G75",
+  "status": "active",
+  "layer": "Relief/Height Character",
+  "branch": "agent/kizil-ufuk-g75-relief-20260813",
   "pr": null,
-  "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "last_commit": "51d519ca1196b0c106b2782e0cf2e31b366fc903",
+  "quality_before": {
+    "coast_hydrology": "96/96 dry canonical centres; Terrain3D proof PR #285",
+    "macro_biome": "continuous owner-map color field; Terrain3D proof PR #288"
+  },
+  "quality_after": {
+    "target": "continuous Terrain3D height field with canonical dry-land preservation and four-edge height/normal guard-band evidence",
+    "state": "pending CI evidence"
+  },
+  "updated_at": "2026-08-13T00:01:00+03:00"
 }
