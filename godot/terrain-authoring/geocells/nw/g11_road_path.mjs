@@ -25,8 +25,10 @@ export const G11_ROAD_PATH_POLICY = Object.freeze({
   pathTextureId: 3,
   roadWidthMeters: 8,
   footpathWidthMeters: 2.5,
-  roadFeatherMeters: 7,
-  footpathFeatherMeters: 4,
+  // The physical core stays 8m. This is only the surface-material shoulder used
+  // to anti-alias the corridor at Terrain3D's ~5-6m texel scale.
+  roadFeatherMeters: 14,
+  footpathFeatherMeters: 7,
   guardBandNormalized: 1 / 1536,
 });
 
