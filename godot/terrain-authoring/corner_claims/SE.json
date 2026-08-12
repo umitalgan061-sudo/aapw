@@ -4,18 +4,18 @@
   "origin": [7, 7],
   "current_cell": "G75",
   "status": "active",
-  "layer": "Relief/Height Character",
-  "branch": "agent/kizil-ufuk-g75-relief-c1-20260813",
-  "pr": 301,
-  "last_commit": "3a7fd091ebcdd29689b19b6b58137b046218cee1",
+  "layer": "Rock/Snow",
+  "branch": "agent/kizil-ufuk-g75-rock-snow-20260813",
+  "pr": null,
+  "last_commit": "bdc78e0b8288865c01aad0cc7d2dbe60279ed3a2",
   "quality_before": {
     "coast_hydrology": "96/96 dry canonical centres; Terrain3D proof PR #285",
     "macro_biome": "continuous owner-map color field; Terrain3D proof PR #288",
-    "relief_attempt": "PR #296 rejected at maxGuardNormalDelta 1.413918 > 0.8 and retired stale/unmerged"
+    "relief": "merged PR #301; physical-map-space normals with pinned Terrain3D height import/save/bake"
   },
   "quality_after": {
-    "target": "same G75 height field with normals derived in canonical full-reference metre space; fixed seam threshold retained at 0.8",
+    "target": "continuous relief/slope/biome-derived ground-to-rock weights; snow requires both cold-climate and elevation support; four-edge guard-band measured",
     "state": "pending exact-head CI evidence"
   },
-  "updated_at": "2026-08-13T01:12:00+03:00"
+  "updated_at": "2026-08-13T02:02:00+03:00"
 }
