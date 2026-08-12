@@ -9,7 +9,7 @@ on:
       - main
     paths:
       - 'edit.html'
-      - 'src/3d/editor/EditorLiveWorkspaceEntry.js'
+      - 'src/3d/editor/EditorLiveWorkspaceEntry.mjs'
       - 'scripts/editorLiveServer.js'
       - 'scripts/checkEditorLiveWorkspaceEntry.js'
       - '.vscode/tasks.json'
@@ -37,7 +37,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             BASE_SHA='${{ github.event.pull_request.base.sha }}'
           else
-            BASE_SHA="$(git rev-parse HEAD^)"
+            BASE_SHA="$(git merge-base HEAD origin/main)"
           fi
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           git merge-base --is-ancestor "$BASE_SHA" HEAD
@@ -49,16 +49,16 @@ jobs:
       - name: Live workspace source contract
         run: |
           set -euo pipefail
-          node --check src/3d/editor/EditorLiveWorkspaceEntry.js
+          node --check src/3d/editor/EditorLiveWorkspaceEntry.mjs
           node --check scripts/editorLiveServer.js
           node --check scripts/checkEditorLiveWorkspaceEntry.js
           node scripts/checkEditorLiveWorkspaceEntry.js
           grep -F '"three": "./src/3d/vendor/three/three.module.js"' edit.html
           grep -F './editor.html?liveWorkspace=1' edit.html
-          grep -F 'CANLI OYUN' src/3d/editor/EditorLiveWorkspaceEntry.js
-          grep -F 'DÜZENLEME' src/3d/editor/EditorLiveWorkspaceEntry.js
-          grep -F 'YAN YANA' src/3d/editor/EditorLiveWorkspaceEntry.js
-          grep -F 'Koda Kaydet' src/3d/editor/EditorLiveWorkspaceEntry.js
+          grep -F 'CANLI OYUN' src/3d/editor/EditorLiveWorkspaceEntry.mjs
+          grep -F 'DÜZENLEME' src/3d/editor/EditorLiveWorkspaceEntry.mjs
+          grep -F 'YAN YANA' src/3d/editor/EditorLiveWorkspaceEntry.mjs
+          grep -F 'Koda Kaydet' src/3d/editor/EditorLiveWorkspaceEntry.mjs
           grep -F '/__editor/models' scripts/editorLiveServer.js
           grep -F '/__editor/save' scripts/editorLiveServer.js
           grep -F 'Westeros: World Editor Live' .vscode/tasks.json
