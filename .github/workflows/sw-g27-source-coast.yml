@@ -1,0 +1,138 @@
+name: SW G27 Source Coast
+
+on:
+  push:
+    branches:
+      - terrain/sw-g27-source-coast-current-main-20260812
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/sw/g27_hydrology.mjs'
+      - 'godot/terrain-authoring/geocells/sw/g27_source_mask.mjs'
+      - 'scripts/checkSwG27Hydrology.mjs'
+      - 'scripts/checkSwG27SourceFidelity.mjs'
+      - 'scripts/captureSwG27SourceFidelity.mjs'
+      - 'godot/terrain-authoring/corner_claims/SW.json'
+      - '.github/workflows/sw-g27-source-coast.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sw-g27-source-coast-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main and bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$BASE")" = "$BASE"
+          git diff --check "$BASE"...HEAD
+          CHANGED="$(git diff --name-only "$BASE"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g27_hydrology.mjs|godot/terrain-authoring/geocells/sw/g27_source_mask.mjs|scripts/checkSwG27Hydrology.mjs|scripts/checkSwG27SourceFidelity.mjs|scripts/captureSwG27SourceFidelity.mjs|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g27-source-coast.yml)$' | wc -l)" -eq 0
+
+      - name: Deterministic G27 hydrology and source fidelity
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/sw/g27_hydrology.mjs
+          node --check godot/terrain-authoring/geocells/sw/g27_source_mask.mjs
+          node --check scripts/checkSwG27Hydrology.mjs
+          node --check scripts/checkSwG27SourceFidelity.mjs
+          node --check scripts/captureSwG27SourceFidelity.mjs
+          node scripts/checkSwG27Hydrology.mjs | tee /tmp/g27-hydro-1.log
+          node scripts/checkSwG27Hydrology.mjs | tee /tmp/g27-hydro-2.log
+          diff -u /tmp/g27-hydro-1.log /tmp/g27-hydro-2.log
+          node scripts/checkSwG27SourceFidelity.mjs | tee /tmp/g27-source-1.log
+          node scripts/checkSwG27SourceFidelity.mjs | tee /tmp/g27-source-2.log
+          diff -u /tmp/g27-source-1.log /tmp/g27-source-2.log
+          grep -F 'SW_G27_SOURCE_FIDELITY_OK' /tmp/g27-source-1.log
+
+      - name: HTerrain contract
+        run: |
+          set -euo pipefail
+          test -f godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
+          test -f godot/terrain-authoring/addons/zylann.hterrain/hterrain_data.gd
+          grep -F 'version="1.8"' godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
+          grep -F 'res://addons/zylann.hterrain/plugin.cfg' godot/terrain-authoring/project.godot
+
+      - name: Download Godot 4.6.3
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/godot.zip"
+          DIR="$RUNNER_TEMP/godot"
+          mkdir -p "$DIR"
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' --output "$ZIP"
+          unzip -q "$ZIP" -d "$DIR"
+          GODOT_BIN="$(find "$DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot headless HTerrain validation
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 2>&1 | tee /tmp/g27-godot-editor.log
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd 2>&1 | tee /tmp/g27-hterrain.log
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' /tmp/g27-hterrain.log
+
+      - name: Install Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Near and far visual proof
+        run: |
+          set -euo pipefail
+          node scripts/captureSwG27SourceFidelity.mjs | tee /tmp/g27-visual.log
+          grep -F 'SW_G27_SOURCE_VISUAL_OK' /tmp/g27-visual.log
+
+      - name: Upload visual proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: sw-g27-source-fidelity-${{ github.sha }}
+          path: |
+            /tmp/g27-source-fidelity-near.png
+            /tmp/g27-source-fidelity-far.png
+          if-no-files-found: error
+
+      - name: World safety, determinism, PWA and performance
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full browser smoke
+        run: node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$BASE")" = "$BASE"
+          git diff --check "$BASE"...HEAD
