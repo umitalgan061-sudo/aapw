@@ -5,9 +5,9 @@
   "current_cell": "G56",
   "status": "active",
   "branch": "terrain/se-g56-hydrology-20260812",
-  "pr": null,
-  "last_commit": "71957807e4506f307258635bfac68c744e417971",
+  "pr": 276,
+  "last_commit": "a93fe55279954b419e30b0d756b2cea4262cbc9d",
   "quality_before": {"base_cells":96,"water_cells":69,"land_cells":27,"boundary_edges":23,"hard_cell_max_step":1},
   "quality_after": {"centre_mismatches":0,"refined_samples":1617,"fractional_samples":355,"max_adjacent_step":0.25,"confidence_checksum":1442047954},
-  "updated_at": "2026-08-12T19:02:00+03:00"
+  "updated_at": "2026-08-12T19:08:00+03:00"
 }
