@@ -193,3 +193,182 @@ export function getReferencePindexSummary(index) {
 	}
 	return WORLD_REFERENCE_PINDEXES[index - 1];
 }
+
+// Pindex Quality V2 — continuous sub-cell reconstruction over the immutable 96x64 source-derived mask.
+// The raw mask and historical classifiers above remain intact. This layer removes nearest-cell
+// stair-stepping without inventing source pixels and composes the repo's audited biome/relief data.
+import { REFERENCE_BIOME_ZONES, REFERENCE_RELIEF_CHAINS, sampleReferenceInfluence } from './worldReferenceMap.js';
+
+export const REFERENCE_PINDEX_QUALITY_V2_POLICY = Object.freeze({
+	id: 'owner-map-pindex-quality-v2-2026-08-12-v1',
+	sourceMapSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.sourceMapSha256,
+	maskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
+	pindexProfiles: Object.freeze([
+		Object.freeze({ pindex: 1, microAmplitude: 0.034, biomeGain: 1.02, warpCells: 0.16 }),
+		Object.freeze({ pindex: 2, microAmplitude: 0.042, biomeGain: 1.08, warpCells: 0.19 }),
+		Object.freeze({ pindex: 3, microAmplitude: 0.038, biomeGain: 1.04, warpCells: 0.18 }),
+		Object.freeze({ pindex: 4, microAmplitude: 0.030, biomeGain: 0.98, warpCells: 0.15 }),
+		Object.freeze({ pindex: 5, microAmplitude: 0.030, biomeGain: 1.00, warpCells: 0.15 }),
+		Object.freeze({ pindex: 6, microAmplitude: 0.032, biomeGain: 1.05, warpCells: 0.16 }),
+		Object.freeze({ pindex: 7, microAmplitude: 0.040, biomeGain: 1.08, warpCells: 0.18 }),
+		Object.freeze({ pindex: 8, microAmplitude: 0.044, biomeGain: 1.10, warpCells: 0.19 }),
+		Object.freeze({ pindex: 9, microAmplitude: 0.036, biomeGain: 1.02, warpCells: 0.17 }),
+		Object.freeze({ pindex: 10, microAmplitude: 0.040, biomeGain: 1.06, warpCells: 0.18 }),
+	]),
+});
+
+const PINDEX_QUALITY_SURFACES = Object.freeze(['soil', 'rock', 'snow', 'sea', 'lake']);
+const PINDEX_QUALITY_MASK_CODES = (() => {
+	const { width, height, bitsPerCell, rowsHex } = WORLD_REFERENCE_BASE_SURFACE_MASK;
+	const result = new Uint8Array(width * height);
+	const totalBits = BigInt(width * bitsPerCell);
+	const codeMask = (1n << BigInt(bitsPerCell)) - 1n;
+	for (let y = 0; y < height; y += 1) {
+		const bits = BigInt(`0x${rowsHex[y]}`);
+		for (let x = 0; x < width; x += 1) {
+			const shift = totalBits - BigInt((x + 1) * bitsPerCell);
+			result[y * width + x] = Number((bits >> shift) & codeMask);
+		}
+	}
+	return result;
+})();
+
+const PINDEX_QUALITY_BIOMES_BY_STRIP = Object.freeze(Array.from({ length: 10 }, (_, stripIndex) => {
+	const minX = stripIndex / 10;
+	const maxX = (stripIndex + 1) / 10;
+	return Object.freeze(REFERENCE_BIOME_ZONES.filter((zone) => {
+		const radiusX = zone.radius?.[0] ?? 0;
+		return zone.center[0] + radiusX >= minX && zone.center[0] - radiusX <= maxX;
+	}));
+}));
+
+function pindexQualitySmoothstep(edge0, edge1, value) {
+	if (edge0 === edge1) return value >= edge1 ? 1 : 0;
+	const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
+	return t * t * (3 - 2 * t);
+}
+
+function pindexQualityProfile(normalizedX) {
+	const stripPosition = Math.min(0.999999999, Math.max(0, normalizedX)) * 10;
+	const index0 = Math.min(9, Math.floor(stripPosition));
+	const index1 = Math.min(9, index0 + 1);
+	const t = pindexQualitySmoothstep(0, 1, stripPosition - index0);
+	const a = REFERENCE_PINDEX_QUALITY_V2_POLICY.pindexProfiles[index0];
+	const b = REFERENCE_PINDEX_QUALITY_V2_POLICY.pindexProfiles[index1];
+	return Object.freeze({
+		microAmplitude: a.microAmplitude + (b.microAmplitude - a.microAmplitude) * t,
+		biomeGain: a.biomeGain + (b.biomeGain - a.biomeGain) * t,
+		warpCells: a.warpCells + (b.warpCells - a.warpCells) * t,
+	});
+}
+
+function pindexQualityMaskCode(x, y) {
+	const width = WORLD_REFERENCE_BASE_SURFACE_MASK.width;
+	const height = WORLD_REFERENCE_BASE_SURFACE_MASK.height;
+	const clampedX = Math.min(width - 1, Math.max(0, x));
+	const clampedY = Math.min(height - 1, Math.max(0, y));
+	return PINDEX_QUALITY_MASK_CODES[clampedY * width + clampedX];
+}
+
+function pindexQualitySurfaceWeights(normalizedX, normalizedY, warpCells) {
+	const width = WORLD_REFERENCE_BASE_SURFACE_MASK.width;
+	const height = WORLD_REFERENCE_BASE_SURFACE_MASK.height;
+	const warpX = (
+		Math.sin(normalizedY * 51.17 + Math.sin(normalizedX * 29.31) * 0.9) * 0.62 +
+		Math.sin(normalizedX * 19.43 - normalizedY * 37.73) * 0.38
+	) * warpCells;
+	const warpY = (
+		Math.sin(normalizedX * 47.11 + Math.sin(normalizedY * 31.07) * 0.8) * 0.58 +
+		Math.sin(normalizedY * 23.87 - normalizedX * 41.29) * 0.42
+	) * warpCells;
+	const fx = Math.min(1, Math.max(0, normalizedX)) * width - 0.5 + warpX;
+	const fy = Math.min(1, Math.max(0, normalizedY)) * height - 0.5 + warpY;
+	const x0 = Math.floor(fx);
+	const y0 = Math.floor(fy);
+	const tx = pindexQualitySmoothstep(0, 1, fx - x0);
+	const ty = pindexQualitySmoothstep(0, 1, fy - y0);
+	const weights = new Float32Array(PINDEX_QUALITY_SURFACES.length);
+	const add = (x, y, weight) => { weights[pindexQualityMaskCode(x, y)] += weight; };
+	add(x0, y0, (1 - tx) * (1 - ty));
+	add(x0 + 1, y0, tx * (1 - ty));
+	add(x0, y0 + 1, (1 - tx) * ty);
+	add(x0 + 1, y0 + 1, tx * ty);
+	return weights;
+}
+
+function pindexQualityBiomeSample(normalizedX, normalizedY, pindex, gain) {
+	const zones = PINDEX_QUALITY_BIOMES_BY_STRIP[Math.max(0, Math.min(9, pindex - 1))];
+	let totalWeight = 0;
+	let strongestKind = null;
+	let strongestWeight = 0;
+	const kindWeights = {};
+	for (const zone of zones) {
+		const baseInfluence = sampleReferenceInfluence(normalizedX, normalizedY, zone);
+		if (baseInfluence <= 0) continue;
+		const influence = baseInfluence * gain;
+		totalWeight += influence;
+		kindWeights[zone.kind] = (kindWeights[zone.kind] ?? 0) + influence;
+		if (influence > strongestWeight) {
+			strongestWeight = influence;
+			strongestKind = zone.kind;
+		}
+	}
+	return Object.freeze({
+		influence: Math.min(1, Math.max(0, totalWeight)),
+		strongestKind,
+		kindWeights: Object.freeze({ ...kindWeights }),
+	});
+}
+
+function pindexQualityPointSegmentDistance(px, py, ax, ay, bx, by) {
+	const abx = bx - ax;
+	const aby = by - ay;
+	const lengthSquared = abx * abx + aby * aby;
+	if (lengthSquared <= 1e-12) return Math.hypot(px - ax, py - ay);
+	const t = Math.min(1, Math.max(0, ((px - ax) * abx + (py - ay) * aby) / lengthSquared));
+	return Math.hypot(px - (ax + abx * t), py - (ay + aby * t));
+}
+
+function pindexQualityReliefInfluence(normalizedX, normalizedY) {
+	const aspect = WORLD_REFERENCE_BASE_SURFACE_MASK.sourcePixelWidth / WORLD_REFERENCE_BASE_SURFACE_MASK.sourcePixelHeight;
+	const px = normalizedX * aspect;
+	const py = normalizedY;
+	let strongest = 0;
+	for (const chain of REFERENCE_RELIEF_CHAINS) {
+		for (let index = 0; index < chain.points.length - 1; index += 1) {
+			const a = chain.points[index];
+			const b = chain.points[index + 1];
+			const distance = pindexQualityPointSegmentDistance(px, py, a[0] * aspect, a[1], b[0] * aspect, b[1]);
+			strongest = Math.max(strongest, 1 - pindexQualitySmoothstep(0.012, 0.048, distance));
+		}
+	}
+	return strongest;
+}
+
+/** High-fidelity continuous canonical sample; all weights are deterministic and source anchored. */
+export function sampleReferencePindexQualityV2(normalizedX, normalizedY) {
+	if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) throw new TypeError('normalized coordinates must be finite');
+	if (normalizedX < 0 || normalizedX > 1 || normalizedY < 0 || normalizedY > 1) throw new RangeError('normalized coordinates must be in [0,1]');
+	const pindex = referencePindexFromNormalizedX(normalizedX);
+	const profile = pindexQualityProfile(normalizedX);
+	const weightsArray = pindexQualitySurfaceWeights(normalizedX, normalizedY, profile.warpCells);
+	const surfaceWeights = Object.freeze(Object.fromEntries(PINDEX_QUALITY_SURFACES.map((surface, code) => [surface, weightsArray[code]])));
+	const dominantSurface = PINDEX_QUALITY_SURFACES.reduce(
+		(best, surface) => surfaceWeights[surface] > surfaceWeights[best] ? surface : best,
+		'soil',
+	);
+	const biome = pindexQualityBiomeSample(normalizedX, normalizedY, pindex, profile.biomeGain);
+	const maxSurfaceWeight = Math.max(...Object.values(surfaceWeights));
+	return Object.freeze({
+		policyId: REFERENCE_PINDEX_QUALITY_V2_POLICY.id,
+		pindex,
+		dominantSurface,
+		surfaceWeights,
+		boundaryBlend: 1 - maxSurfaceWeight,
+		biomeInfluence: biome.influence,
+		strongestBiomeKind: biome.strongestKind,
+		biomeKindWeights: biome.kindWeights,
+		reliefInfluence: pindexQualityReliefInfluence(normalizedX, normalizedY),
+		microAmplitude: profile.microAmplitude,
+	});
+}
