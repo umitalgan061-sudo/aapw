@@ -14912,3 +14912,13 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - `perf_log.csv` gained one sample (`run295-pindex08-detail`): drawCalls=51, triangles=688296 (unchanged), geometries=49, textures=17, jsHeapUsedMB=326.
 - Runtime/product source delta: 0 (canonical-dev preview only). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
 - Next safe step: refresh remote main/concurrency state; Pindex-09 is next (survey first, same method).
+
+## Run 296 — Pindex-09 deterministic micro-surface detail (ADR-RUN296)
+- Continuation of Run292-295 in the same session. Refreshed `origin/main`/concurrency before starting (clean, no drift this time).
+- Survey: Pindex-09 = 370 sea / 206 soil cells, 0 rock/snow/lake — same soil-only-plus-sea shape as Pindex-04/05/06.
+- Work: new `src/3d/world/worldReferencePindex09Detail.js` (sea/lake 0.006, soil 0.034, rock 0.038, snow 0.017, unique hash constants); wired into `scripts/run201CanonicalDevBoot.mjs` (after Pindex-08) and `service-worker.js` (offline shell, prepended above Pindex-08). Added `scripts/checkRun296Pindex09Detail.js` (contract), `scripts/checkRun296Pindex09DetailBrowser.js` (9-layer color-isolation proof: 576 vertices touched, all Pindex-09, 0 outside it), and `scripts/checkRun296Pindex09DetailChain.js` (extends the ordering contract to Pindex-01..09 as a new file; earlier chain-check files untouched, additive-only).
+- Scope: `canonical-dev.html` preview path only; `game3d.html`/`index.html`/live terrain pipeline/physics/gameplay/2D runtime unchanged.
+- Full DoD sweep (fresh): `node --check` all changed files, `smokeTestGame3D.js` 34/34 PASS, `checkAdditiveOnlyDiff` PASS (0 deletions), `checkSmokeCheckRegistry`/`checkPwaInstallability`/`checkServiceWorkerCache`/`checkTechnicalDebt` (0 new debt) all PASS, `checkWorldReferenceMap`/`checkWorldReferenceAlignment`/`checkWorldEventDeterminism`/`checkMobilePerfBudget` PASS, `terrainSeatSafetyCheck` 14/14 PASS, `roadNetworkSafetyCheck` PASS.
+- `perf_log.csv` gained one sample (`run296-pindex09-detail`): drawCalls=51, triangles=688296 (unchanged), geometries=49, textures=17, jsHeapUsedMB=347.
+- Runtime/product source delta: 0 (canonical-dev preview only). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+- Next safe step: refresh remote main/concurrency state; Pindex-10 is next — the last pindex in the 10-pindex detail pass. Once it's promoted, the whole canonical full-reference map's per-pindex micro-detail layer will be complete (still gated behind the open runtime-adoption owner question).

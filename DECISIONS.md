@@ -15505,3 +15505,11 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Reason: same conservative one-pindex-at-a-time cadence, same open canonical-full-reference-runtime-adoption gate.
 - Regression boundary: `scripts/checkRun295Pindex08DetailBrowser.js` applies Pindex-01 through Pindex-07 first, then requires every Run295-changed vertex to classify as Pindex-08 and zero vertices outside it to change. `scripts/checkRun295Pindex08DetailChain.js` extends the ordering contract to Pindex-01..08 as a new file (all earlier chain-check files untouched, additive-only).
 - Rollback: remove the new import blocks in `run201CanonicalDevBoot.mjs`/`service-worker.js` and the new `src/3d/world/worldReferencePindex08Detail.js` file; Run294/Pindex-07 remains the complete prior checkpoint.
+
+## ADR-RUN296 — Pindex-09 gets its own soil-led deterministic detail layer
+- Risk: LOW.
+- Impact analysis: same `canonical-dev`-only scope as every prior Pindex run. Survey found Pindex-09 = 370 sea / 206 soil cells, 0 rock/snow/lake — same soil-only-plus-sea shape as Pindex-04/05/06.
+- Decision: sea/lake 0.006, soil 0.034, rock 0.038, snow 0.017 — continues the Run277→295 gently-decreasing amplitude trend, unique hash constants.
+- Reason: same conservative one-pindex-at-a-time cadence, same open canonical-full-reference-runtime-adoption gate.
+- Regression boundary: `scripts/checkRun296Pindex09DetailBrowser.js` applies Pindex-01 through Pindex-08 first, then requires every Run296-changed vertex to classify as Pindex-09 and zero vertices outside it to change. `scripts/checkRun296Pindex09DetailChain.js` extends the ordering contract to Pindex-01..09 as a new file (all earlier chain-check files untouched, additive-only).
+- Rollback: remove the new import blocks in `run201CanonicalDevBoot.mjs`/`service-worker.js` and the new `src/3d/world/worldReferencePindex09Detail.js` file; Run295/Pindex-08 remains the complete prior checkpoint.

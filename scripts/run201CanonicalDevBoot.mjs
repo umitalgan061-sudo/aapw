@@ -143,3 +143,13 @@ if (selector.getActiveSource() === 'canonical' && selector.activation?.windowSta
   status.textContent += ' | pindex08-detail=' + run295Detail.touchedVertices + 'v';
   state.renderer.render(state.scene, state.camera);
 }
+
+// Run296 deterministic Pindex-09 micro-surface detail activation (soil-led, no canonical rock/snow/lake cells).
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex09DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex09Detail.js');
+  const run296Detail = applyPindex09DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run296Pindex09Ready = 'true';
+  document.body.dataset.run296Pindex09TouchedVertices = String(run296Detail.touchedVertices);
+  status.textContent += ' | pindex09-detail=' + run296Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
