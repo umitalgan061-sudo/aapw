@@ -14922,3 +14922,14 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - `perf_log.csv` gained one sample (`run296-pindex09-detail`): drawCalls=51, triangles=688296 (unchanged), geometries=49, textures=17, jsHeapUsedMB=347.
 - Runtime/product source delta: 0 (canonical-dev preview only). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
 - Next safe step: refresh remote main/concurrency state; Pindex-10 is next — the last pindex in the 10-pindex detail pass. Once it's promoted, the whole canonical full-reference map's per-pindex micro-detail layer will be complete (still gated behind the open runtime-adoption owner question).
+
+### PINDEX-QUALITY-V2-2026-08-12 — Canonical base-map quality pass
+
+- Canonical 96×64 mask SHA afe62a77fcc9b15887540b49b3b60b199e416f5e033aefb987a192411c25ae44 ve cell counts (sea=4046, lake=6, soil=1638, rock=323, snow=131) değişmedi.
+- P01..P10 continuous sub-cell sampling + seam-free profile interpolation eklendi; P10 kalite profilinde açıkça kapsanıyor.
+- Repodaki 17 audited biome zone + 4 relief chain kullanılıyor; yeni coğrafi source-of-truth uydurulmuyor.
+- Runtime 192×128 color/data GPU atlas + 64×64 deterministik repeat-noise atlas kullanıyor; V2 cpuVertexPassesAdded=0, terrain height ve Iteration #08 CPU color arrays birebir korunuyor.
+- İlk CPU-heavy V2 smoke timeout nedeniyle reddedildi; timeout artırılmadan shader-atlas mimarisine geçildi.
+- İlk sinüs mikro-grain görsel incelemede diyagonal bant nedeniyle reddedildi ve organic repeat-noise color+roughness grain ile değiştirildi.
+- Kanıt: P01..P10 coverage, normalized weights, seam continuity, biome anchors, Bone Mountains relief, exact height preservation, deterministic/idempotent WebGL, real pixel delta, Iteration #08 regression, full 3D smoke, mobile perf, seat/road safety, PWA ve clean console.
+- Rollback yalnız V2 sampler/shader katmanını kaldırarak Iteration #08 shipped terrain polish durumuna döner.

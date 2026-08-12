@@ -15522,3 +15522,23 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Consequence: Future commits may delete or modify existing source lines when doing so serves a real bug/perf/readability/architecture purpose (Golden Rule 6 still applies — this is not blanket permission for unexplained deletion). The three structurally-blocked `QUESTIONS_FOR_OWNER.md` items (mobile radius scaling, `game3d.js` split, world-event catalog growth) are no longer guard-blocked; future runs may resume that work using normal editing rather than additive-only workarounds.
 - Affected systems: process/governance only (`GOVERNANCE.md` §2 item 9, §8.1 DoD checklist, `scripts/checkAdditiveOnlyDiff.js`, `.github/workflows/run210-sw-additive-fix.yml` and any other CI step invoking the guard). No gameplay, rendering, or world-generation code changed by this ADR itself.
 - Rollback plan: re-enable enforcement by reverting `scripts/checkAdditiveOnlyDiff.js`'s early `process.exit(0)` no-op (the original enforcement logic below it is untouched and still functional) and restoring the DoD checklist line in GOVERNANCE.md §8.1; would need explicit owner direction to re-adopt, same as removal.
+
+## ADR-PINDEX-QUALITY-V2-2026-08-12 — Canonical Pindex semantic quality atlas on shipped terrain
+
+**Risk Seviyesi:** MEDIUM
+
+**Karar:** Değişmez 96×64 owner-map semantic mask yeniden çizilmiyor. P01..P10 sürekli sub-cell surface weights ve strip-seam-free profile interpolation ile örnekleniyor; worldReferenceMap.js içindeki denetlenmiş 17 biome zone ve 4 relief chain bu alana katılıyor. Runtime yorum 192×128 color/data atlasına bir kez bake edilip fragment shader tarafından lineer örnekleniyor. Yakın yüzey için ayrıca 64×64 deterministik repeat-noise atlası kullanılıyor. Terrain position/height/physics değişmiyor.
+
+**Neden:** Iteration #08 semantic veriyi shipped terrain üzerine taşıdı fakat 96×64 nearest-cell görünümü köşeli geçişler üretiyordu ve P10 ayrı mikro katmana sahip değildi. Yeni coğrafya uydurmak yerine repodaki denetlenmiş biome/relief verisi source-of-truth olarak yeniden kullanıldı.
+
+**Reddedilen ilk yaklaşım / RCA:** İlk V2 prototipi biome+relief+detail sampling işlemini her terrain vertex için ikinci CPU pass olarak yaptı. İzole WebGL kanıtı doğruydu fakat yüzlerce preview chunk ve tekrarlı smoke boot mevcut 10s page.goto sınırını aştı. Timeout artırılmadı; zengin örnekleme atlaslara taşındı ve V2 ek CPU vertex pass sayısı 0 yapıldı.
+
+**Görsel karar:** İlk shader-atlas kanıtındaki yönlü sinüs grain diyagonal bant ürettiği için testler yeşil olmasına rağmen kabul edilmedi. Sinüs grain kaldırıldı; farklı yön ve ölçeklerde örneklenen deterministik repeat-noise atlası color ve roughness mikro varyasyonu için kullanıldı.
+
+**Alternatifler:** nearest-cell görünümü bırakmak kalite nedeniyle; kaynakta olmayan yüksek çözünürlük pikselleri tahmin etmek source-of-truth nedeniyle; ikinci CPU vertex pass performans nedeniyle reddedildi. Ağır dış PBR asset paketi bu iterasyonda lisans/cache bütçesi nedeniyle ertelendi.
+
+**Sonuç:** P01..P10 tek sürekli yüzey alanı gibi davranıyor; semantic sınırlar yumuşuyor, biome/relief/PBR roughness katılıyor, P10 kalite profilinde kapsanıyor. Iteration #08 CPU color array ve terrain height array birebir korunuyor; V2 farkı GPU shading katmanında.
+
+**Etkilenen sistemler:** worldReferenceSurfacePindexes.js, worldReferenceSurfaceTerrainVisual.js, ChunkManager runtime installer ve terrain visual regression workflow. Geometry, collider, road, seat, water, 2D mode ve authored HTerrain zinciri değişmiyor.
+
+**Geri alma planı:** V2 sampler ve terrain-pindex-quality-v2-runtime-2026-08-12-v2 shader/installer katmanını kaldır; Iteration #08 görünümüne dön. Height/physics migration gerekmez.
