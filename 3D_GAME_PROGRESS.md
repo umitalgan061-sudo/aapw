@@ -14892,3 +14892,13 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - `perf_log.csv` gained one sample (`run293-pindex06-detail`): drawCalls=51, triangles=688296 (unchanged from Run291/292 — same scene, confirming no geometry regression), geometries=49, textures=17, jsHeapUsedMB=347.
 - Runtime/product source delta: 0 (canonical-dev preview only). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
 - Next safe step: refresh remote main/concurrency state; Pindex-07 is next (survey its surface composition first, same as this run, since no pre-built candidate exists for it either).
+
+## Run 294 — Pindex-07 deterministic micro-surface detail (ADR-RUN294)
+- Continuation of Run292/293 in the same session. Refreshed `origin/main`/concurrency before starting (clean fast-forward, no drift).
+- Survey (same throwaway method as Run293): Pindex-07 = 321 sea / 194 soil / 31 rock / 30 snow cells — the first pindex in this run's batch with real rock+snow content, so unlike Pindex-04..06 all four non-water amplitudes actually matter here.
+- Work: new `src/3d/world/worldReferencePindex07Detail.js` (sea/lake 0.007, soil 0.038, rock 0.048, snow 0.022, unique hash constants); wired into `scripts/run201CanonicalDevBoot.mjs` (after Pindex-06) and `service-worker.js` (offline shell, prepended above Pindex-06). Added `scripts/checkRun294Pindex07Detail.js` (contract), `scripts/checkRun294Pindex07DetailBrowser.js` (7-layer color-isolation proof: 576 vertices touched, all Pindex-07, 0 outside it), and `scripts/checkRun294Pindex07DetailChain.js` (extends the ordering contract to Pindex-01..07 as a new file; all earlier chain-check files untouched, additive-only).
+- Scope: `canonical-dev.html` preview path only; `game3d.html`/`index.html`/live terrain pipeline/physics/gameplay/2D runtime unchanged.
+- Full DoD sweep (fresh): `node --check` all changed files, `smokeTestGame3D.js` 34/34 PASS, `checkAdditiveOnlyDiff` PASS (0 deletions), `checkSmokeCheckRegistry`/`checkPwaInstallability`/`checkServiceWorkerCache`/`checkTechnicalDebt` (0 new debt) all PASS, `checkWorldReferenceMap`/`checkWorldReferenceAlignment`/`checkWorldEventDeterminism`/`checkMobilePerfBudget` PASS, `terrainSeatSafetyCheck` 14/14 PASS, `roadNetworkSafetyCheck` PASS.
+- `perf_log.csv` gained one sample (`run294-pindex07-detail`): drawCalls=51, triangles=688296 (unchanged), geometries=49, textures=17, jsHeapUsedMB=347.
+- Runtime/product source delta: 0 (canonical-dev preview only). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+- Next safe step: refresh remote main/concurrency state; Pindex-08 is next (survey first, same method).
