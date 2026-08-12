@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main
-          BASE_SHA='1e0c1dc35bc3726551d753d1fc1922bf01226fa9'
+          BASE_SHA='ac732ed473d632d8002a5c28291284175ba7dd36'
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           git merge-base --is-ancestor "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
@@ -51,5 +51,5 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main
-          test "$(git rev-parse origin/main)" = '1e0c1dc35bc3726551d753d1fc1922bf01226fa9'
-          git diff --check '1e0c1dc35bc3726551d753d1fc1922bf01226fa9' HEAD
+          test "$(git rev-parse origin/main)" = 'ac732ed473d632d8002a5c28291284175ba7dd36'
+          git diff --check 'ac732ed473d632d8002a5c28291284175ba7dd36' HEAD
