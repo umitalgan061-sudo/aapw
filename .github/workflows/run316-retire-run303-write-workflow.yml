@@ -46,10 +46,16 @@ jobs:
           set -euo pipefail
           node --check scripts/checkRun316Run303WriteWorkflowRetired.js
           node scripts/checkRun316Run303WriteWorkflowRetired.js
+          node --check scripts/checkRun316ProgressMaterializer.js
+          node scripts/checkRun316ProgressMaterializer.js
           node scripts/checkRun216ServiceWorkerMaterializer.js
           node scripts/checkRun300LegacyPrScopeGate.js
           node scripts/checkRun283FinalHeadGovernance.js
-          node scripts/checkCheckpointConsistency.js
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            node scripts/checkCheckpointConsistency.js
+          else
+            echo "Run316 branch pre-materialization: checkpoint consistency is intentionally deferred to the guarded progress materializer and final PR head."
+          fi
           node scripts/checkServiceWorkerCache.js
           node scripts/checkPwaInstallability.js
 
