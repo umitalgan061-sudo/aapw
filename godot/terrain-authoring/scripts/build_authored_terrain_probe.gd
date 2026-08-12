@@ -28,6 +28,12 @@ func _radial_falloff(point: Vector2, center: Vector2, radius: float) -> float:
 
 
 func _build_probe() -> void:
+	var probe_absolute_path := ProjectSettings.globalize_path(PROBE_DIRECTORY)
+	var directory_error := DirAccess.make_dir_recursive_absolute(probe_absolute_path)
+	if directory_error != OK:
+		_fail("Authored probe directory could not be created: %s" % directory_error)
+		return
+
 	var data = HTerrainData.new()
 	data._edit_load_default()
 	if data.get_resolution() != RESOLUTION:
