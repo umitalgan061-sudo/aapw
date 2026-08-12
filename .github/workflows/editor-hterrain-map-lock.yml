@@ -5,8 +5,7 @@ on:
     branches:
       - 'terrain/hterrain-editor-map-lock-*'
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'src/3d/editor/EditorLiveWorldResourceCleanup.js'
       - 'godot/terrain-authoring/editor_bridge/**'
@@ -118,23 +117,18 @@ jobs:
           source = Path('godot/terrain-authoring/editor_bridge/map_reference_seed.json')
           target = Path('godot/terrain-authoring/editor_bridge/ci_manifest.json')
           data = json.loads(source.read_text(encoding='utf-8'))
-          data['strokes'] = [{
-              'id': 'ci-dorne-relief',
-              'uv': [0.180, 0.665],
-              'radiusUv': [0.028, 0.024],
-              'heightDeltaMeters': 4.5,
-              'surface': 'earth',
-              'surfaceBlend': 0.8,
+          data['strokes'] = [
+            {
+              'id': 'ci-dorne-relief', 'uv': [0.180, 0.665], 'radiusUv': [0.028, 0.024],
+              'heightDeltaMeters': 4.5, 'surface': 'earth', 'surfaceBlend': 0.8,
               'referenceBiome': 'dorne'
-          }, {
-              'id': 'ci-bone-relief',
-              'uv': [0.700, 0.530],
-              'radiusUv': [0.018, 0.032],
-              'heightDeltaMeters': 7.0,
-              'surface': 'rock',
-              'surfaceBlend': 0.9,
+            },
+            {
+              'id': 'ci-bone-relief', 'uv': [0.700, 0.530], 'radiusUv': [0.018, 0.032],
+              'heightDeltaMeters': 7.0, 'surface': 'rock', 'surfaceBlend': 0.9,
               'referenceBiome': 'bone-mountains'
-          }]
+            }
+          ]
           target.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
           PY
 
@@ -146,21 +140,20 @@ jobs:
           B=godot/terrain-authoring/editor_bridge/ci_generated_b
           rm -rf "$A" "$B"
           find "$SOURCE" -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/source-before.sha"
-          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring \
             --script res://scripts/import_editor_hterrain_manifest.gd -- \
             --manifest=res://editor_bridge/ci_manifest.json --output=res://editor_bridge/ci_generated_a \
             | tee "$RUNNER_TEMP/import-a.log"
-          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring \
             --script res://scripts/import_editor_hterrain_manifest.gd -- \
             --manifest=res://editor_bridge/ci_manifest.json --output=res://editor_bridge/ci_generated_b \
             | tee "$RUNNER_TEMP/import-b.log"
           grep -F 'HTERRAIN_EDITOR_IMPORT_OK' "$RUNNER_TEMP/import-a.log"
           grep -F 'HTERRAIN_EDITOR_IMPORT_OK' "$RUNNER_TEMP/import-b.log"
-          test -f "$A/height.res" && test -f "$A/splat.png" && test -f "$A/data.hterrain"
-          test -f "$B/height.res" && test -f "$B/splat.png" && test -f "$B/data.hterrain"
-          cmp "$A/height.res" "$B/height.res"
-          cmp "$A/splat.png" "$B/splat.png"
-          cmp "$A/data.hterrain" "$B/data.hterrain"
+          for file in data.hterrain height.res splat.png; do
+            test -f "$A/$file" && test -f "$B/$file"
+            cmp "$A/$file" "$B/$file"
+          done
           ! cmp -s "$SOURCE/height.res" "$A/height.res"
           ! cmp -s "$SOURCE/splat.png" "$A/splat.png"
           find "$SOURCE" -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/source-after-import.sha"
