@@ -2,12 +2,25 @@
   "corner": "SE",
   "task_name": "Kızıl Ufuk",
   "origin": [7, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
-  "pr": null,
-  "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "current_cell": "G55",
+  "status": "active",
+  "branch": "terrain/se-g55-terrain3d-hydrology-current-main-20260812",
+  "pr": 280,
+  "last_commit": "75c25b92f93d3073a62c59f0167492c61338032e",
+  "quality_before": {
+    "base_cells": 96,
+    "water_cells": 5,
+    "land_cells": 91,
+    "boundary_edges": 8,
+    "hard_cell_max_step": 1
+  },
+  "quality_after": {
+    "centre_mismatches": 0,
+    "refined_samples": 1617,
+    "fractional_samples": 146,
+    "max_adjacent_step": 0.25,
+    "confidence_checksum": 3136049608,
+    "terrain3d_backend": "required_real_region_import_save_and_lod0_bake"
+  },
+  "updated_at": "2026-08-12T20:05:04+03:00"
 }
