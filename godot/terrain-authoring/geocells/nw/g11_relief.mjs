@@ -25,10 +25,10 @@ export const G11_RELIEF_POLICY = Object.freeze({
   terrain3dRegionSize: 256,
   sourceGridSize: 65,
   coastlineIso: 0.5,
-  coastHalfSpanMeters: 3.0,
-  openWaterDepthMeters: 7.0,
-  defaultDryReliefMeters: 2.0,
-  biomeReliefMeters: 28.0,
+  coastHalfSpanMeters: 2.5,
+  openWaterDepthMeters: 5.0,
+  defaultDryReliefMeters: 1.5,
+  biomeReliefMeters: 16.0,
   chainReliefMeters: 72.0,
   reliefChainRadiusNormalized: 0.055,
   guardBandNormalized: 1 / 1536,
@@ -123,12 +123,14 @@ function sampleBiomeElevationSignal(normalizedX, normalizedY) {
 /**
  * Continuous Terrain3D target height in metres. The zero-height contour is tied
  * exactly to hydrology confidence 0.5, so Relief does not move the accepted coast.
+ * Macro relief fades through the complete fractional coast band rather than
+ * switching near the shoreline; this prevents cliff-like source-grid steps.
  */
 export function sampleG11ReliefHeight(normalizedX, normalizedY) {
   const water = sampleCanonicalWaterConfidence(normalizedX, normalizedY);
   const signedCoast = (G11_RELIEF_POLICY.coastlineIso - water) * G11_RELIEF_POLICY.coastHalfSpanMeters * 2;
-  const landFactor = 1 - smoothstep(0.36, 0.5, water);
-  const seaFactor = smoothstep(0.5, 0.72, water);
+  const landFactor = 1 - smoothstep(0.0, 0.5, water);
+  const seaFactor = smoothstep(0.5, 1.0, water);
   const biomeSignal = sampleBiomeElevationSignal(normalizedX, normalizedY);
   const chainSignal = sampleReliefChainInfluence(normalizedX, normalizedY);
   const dryRelief = G11_RELIEF_POLICY.defaultDryReliefMeters
