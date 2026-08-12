@@ -6,8 +6,24 @@
   "status": "validating",
   "branch": "terrain/nw-g00-hydrology-current-main-20260812",
   "pr": 241,
-  "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": "2026-08-12T13:04:36Z"
+  "last_commit": "27b8c78706c66a5dce23bd6c40f4790103f76f71",
+  "quality_before": {
+    "layer": "coast_hydrology",
+    "base_mask_cells": 96,
+    "water_cells": 60,
+    "land_cells": 36,
+    "boundary_edges": 12,
+    "representation": "hard_16px_mask_cells"
+  },
+  "quality_after": {
+    "candidate_only": true,
+    "runtime_graph_changed": false,
+    "refined_samples": 1536,
+    "centre_semantic_mismatches": 0,
+    "confidence_checksum": 2017237639,
+    "fractional_dense_samples": 85,
+    "dense_max_step": 0.01171875
+  },
+  "validation_note": "G00 deterministic semantics, 14/14 terrain-seat safety, roads, seeded determinism and world-reference passed on prior head. Exact-head full PWA/performance/browser chain rerunning after moving the non-shipped proof out of src/3d into authoring-only scope.",
+  "updated_at": "2026-08-12T16:21:00+03:00"
 }
