@@ -55,6 +55,14 @@ jobs:
           grep -F "PR is stale: head does not contain the current main commit" .github/workflows/pr-main-freshness-guard.yml
           grep -F "Create a successor from current main; do not force-update someone else's stale branch." .github/workflows/pr-main-freshness-guard.yml
 
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
       - name: Run207 RTS surface regression
         run: node scripts/checkRun207RtsSurface.js
       - name: Run210 RTS texture regression
@@ -81,14 +89,6 @@ jobs:
           node scripts/roadNetworkSafetyCheck.js
           node scripts/analyzePerfTrend.js
           node scripts/checkTechnicalDebt.js
-
-      - name: Install Playwright outside project manifest
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/pw"
-          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
-          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
       - name: Full Chromium smoke and console regression
         run: |
