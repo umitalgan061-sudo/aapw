@@ -94,9 +94,6 @@ jobs:
             --script res://scripts/validate_hterrain_authoring.gd \
             2>&1 | tee "$RUNNER_TEMP/terrain-polish-base-validation.log"
           grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/terrain-polish-base-validation.log"
-          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
-            --script res://scripts/validate_terrain_polish_iteration_07.gd \
-            2>&1 | tee "$RUNNER_TEMP/terrain-polish-iteration-07-contract.log" || true
 
       - name: Build deterministic authored grass detail mask twice
         run: |
