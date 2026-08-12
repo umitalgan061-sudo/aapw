@@ -1,0 +1,47 @@
+name: Terrain Polish Iteration 007 Failure Log
+
+on:
+  push:
+    branches:
+      - 'terrain/polish-iteration-007-failure-log-*'
+
+permissions:
+  contents: write
+
+jobs:
+  append-failure-record:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Append failed terrain polish record once
+        run: |
+          set -euo pipefail
+          LOG='godot/terrain-authoring/TERRAIN_POLISH_LOG.md'
+          MARKER='### Iteration #07 — 2026-08-12 10:00 Europe/Istanbul — GERİ ALINDI'
+          if grep -Fq "$MARKER" "$LOG"; then
+            echo 'Failure record already present; no change.'
+            exit 0
+          fi
+          cat >> "$LOG" <<'EOF'
+
+### Iteration #07 — 2026-08-12 10:00 Europe/Istanbul — GERİ ALINDI
+**Seçilen iyileştirme:** Clean starter Terrain Data oluşturulurken HTerrain `CHANNEL_COLOR` ve `CHANNEL_GLOBAL_ALBEDO` üzerinde aynı deterministik, düşük frekanslı makro-ton varyasyonunu üretmek.
+**Neden bu seçildi:** Iteration #01-#06 sonrasında starter texture seti hâlâ geniş ölçekte uniformdu; height/splat/topolojiye dokunmadan color/global-albedo üzerinden en fazla yaklaşık %6 ton farkı üretmek küçük ve geri alınabilir bir görsel cilalama adayıydı.
+**Yapılan değişiklikler:** Aday branch/PR üzerinde bootstrap'a yalnız initial-data yolunda çalışan makro tint üretimi, özel #07 validator ve CI eklendi. Terrain scene, `addons/zylann.hterrain/`, tracked `terrain_data`, height/splat/geometri ve grass density/seed değiştirilmedi. Aday hiçbir zaman `main`e merge edilmedi.
+**Test sonucu:** FAIL. Exact-main/additive-only giriş kapısı, scope kontrolü, resmi Godot 4.6.3 indirme/import ve editor başlangıcı geçti. Ardından temel HTerrain doğrulaması `Starter macro tint requires color and global albedo maps in RAM` hatasıyla durdu. Editor tarafından diske yazılmış Terrain Data ikinci headless süreçte yeniden yüklendiğinde color/global-albedo kanallarının ikisinin de doğrudan yazılabilir `Image` residency'de olduğu varsayımı geçerli değildi; snapshot/performance/browser adımları bu nedenle çalıştırılmadı.
+**Gözlem:** HTerrain map residency'si süreçler arasında değişebilir; bootstrap yazma yolu `get_image()` sonucunun her zaman yazılabilir RAM image olduğunu varsaymamalıdır. Iteration #05'in runtime gözlemi de global map'in yeniden yüklemede `Texture2D` residency gösterebildiğini kaydetmişti.
+**Risk / Geri alma notu:** PR #217 kapatıldı ve merge edilmedi; dolayısıyla başarısız bootstrap kodu, validator/workflow adayı ve görsel değişiklik `main`e ulaşmadı. Production terrain davranışı değişmedi ve HTerrain çekirdeğine müdahale edilmedi.
+**Bir sonraki çalıştırma için öneri:** Aynı makro-tint yaklaşımını tekrar etme. Önce HTerrain'ın editor/runtime arasında güvenli yazılabilir map erişim sözleşmesini resmi API ve mevcut addon koduyla doğrula; tercihen gerçek authored height+splat denemesini production `terrain_data`dan izole bir fixture üzerinde üretip Iteration #06 snapshot manifestiyle farkını ölç.
+EOF
+          git diff --check
+          git diff --exit-code --quiet HEAD -- . ':!godot/terrain-authoring/TERRAIN_POLISH_LOG.md' || {
+            echo 'Unexpected file change outside TERRAIN_POLISH_LOG.md' >&2
+            exit 1
+          }
+          git config user.name 'Terrain Polish Engine'
+          git config user.email 'actions@users.noreply.github.com'
+          git add "$LOG"
+          git commit -m 'terrain: record failed macro tint attempt'
+          git push origin HEAD
