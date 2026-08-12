@@ -118,3 +118,34 @@ function main() {
 }
 
 main();
+
+// Run294 refinement: scope this standing rule to read-only PR gates with an explicit YAML BASE_SHA.
+// Dynamic in-step BASE_SHA discovery (Run283/Run284) is already live-main-safe, while historical
+// self-publishing workflows with top-level write permission are archival feature runners rather than
+// repository-wide mandatory PR gates. Duplicate function declarations intentionally supersede the
+// broader first-pass predicates without deleting their audit history.
+function hasExactMainBaseGate(source) {
+  return /^\s*BASE_SHA\s*:/m.test(source)
+    && /git\s+rev-parse\s+origin\/main/.test(source)
+    && /\$BASE_SHA/.test(source);
+}
+
+function hasTopLevelWritePermission(source) {
+  const block = source.match(/^permissions\s*:\s*\n((?:[ \t].*(?:\n|$))*)/m)?.[1] ?? '';
+  return /\bwrite-all\b/i.test(block) || /^\s{2}[A-Za-z0-9_-]+\s*:\s*write\s*$/mi.test(block);
+}
+
+function scanWorkflow(filePath) {
+  const source = fs.readFileSync(filePath, 'utf8');
+  const issues = [];
+  if (!hasPullRequestTrigger(source) || hasTopLevelWritePermission(source) || !hasExactMainBaseGate(source)) {
+    return { filePath, checked: false, issues };
+  }
+  if (!hasLivePullRequestBase(source)) {
+    issues.push('pull_request exact-main workflow does not derive BASE_SHA from github.event.pull_request.base.sha');
+  }
+  if (!hasExactPullRequestHeadCheckout(source)) {
+    issues.push('pull_request exact-main workflow does not checkout github.event.pull_request.head.sha explicitly');
+  }
+  return { filePath, checked: true, issues };
+}
