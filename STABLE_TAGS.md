@@ -1001,3 +1001,5 @@ stable-2026-08-11-1218 — Run262 editor terrain elevation brush; water lowers a
 - `stable-2026-08-12-run295` — Pindex-08 deterministic micro-surface detail, first pindex in this batch with a real lake cell (ADR-RUN295); resynced past the owner's PR #219 World Editor merge with a clean fast-forward first; shipped `game3d.html`/`index.html` runtime source delta 0; 34-smoke/PWA/service-worker/world-reference/terrain-seat/road/technical-debt/additive-only/mobile-perf/world-event-determinism all PASS; mandatory DoD PASS.
 
 - `stable-2026-08-12-run296` — Pindex-09 deterministic micro-surface detail, soil-led (ADR-RUN296); shipped `game3d.html`/`index.html` runtime source delta 0; 34-smoke/PWA/service-worker/world-reference/terrain-seat/road/technical-debt/additive-only/mobile-perf/world-event-determinism all PASS; mandatory DoD PASS.
+
+- `stable-2026-08-12-run316` — dispatch-capable Run303 write-workflow identity retired + checkpoint continuity repaired; runtime/product delta 0; final materialized PR head remains exact-current-main and full-DoD gated.
