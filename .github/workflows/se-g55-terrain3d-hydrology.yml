@@ -48,7 +48,17 @@ jobs:
           test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g55_hydrology.mjs|scripts/checkSEG55Hydrology.mjs|godot/terrain-authoring/scripts/validate_g55_terrain3d.gd|godot/terrain-authoring/corner_claims/SE.json|\.github/workflows/se-g55-terrain3d-hydrology.yml)$' | wc -l)" -eq 0
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
-          grep -F '"engine_role": "full_world_authoring_and_bake_backend"' godot/terrain-authoring/terrain3d.lock.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          lock = json.loads(Path('godot/terrain-authoring/terrain3d.lock.json').read_text())
+          assert lock['tag'] == 'v1.0.2-stable'
+          assert lock['version'] == '1.0.2'
+          assert lock['sha256'] == 'a071850250ec5e596aa54da61c01d75768774eb379ee997584d426a45f4884a2'
+          print('TERRAIN3D_LOCK_SCHEMA_OK')
+          PY
+          grep -F 'zorunlu authoring/bake backend' godot/terrain-authoring/TERRAIN_AUTOMATION_RULES.md
+          grep -F 'plugin load + gerçek Terrain3D data/region/import/bake kanıtı' godot/terrain-authoring/TERRAIN_AUTOMATION_RULES.md
 
       - name: Canonical G55 determinism and probe emission
         run: |
