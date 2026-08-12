@@ -6,7 +6,6 @@ on:
       - agent/run303-run216-complete-marker-prefix
     paths:
       - '.github/workflows/run303-run216-complete-marker-prefix.yml'
-  workflow_dispatch:
 
 permissions:
   contents: write
