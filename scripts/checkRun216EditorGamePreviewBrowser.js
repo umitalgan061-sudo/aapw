@@ -56,7 +56,7 @@ function previewFixture() {
 async function collectErrors(page) {
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  page.on('pageerror', (error) => errors.push(String(error));
+  page.on('pageerror', (error) => errors.push(String(error)));
   return errors;
 }
 async function normalGameProof(playwright, base) {
