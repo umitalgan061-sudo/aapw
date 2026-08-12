@@ -103,3 +103,25 @@ if (selector.getActiveSource() === 'canonical' && selector.activation?.windowSta
   status.textContent += ' | pindex04-detail=' + run282Detail.touchedVertices + 'v';
   state.renderer.render(state.scene, state.camera);
 }
+
+// Run302 activates the already-proven Run290 Pindex-05 candidate only on the opt-in canonical dev surface.
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex05DetailToTerrainGroup } = await import('../experiments/run290/worldReferencePindex05Detail.js');
+  const run302Detail = applyPindex05DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run302Pindex05Ready = 'true';
+  document.body.dataset.run302Pindex05TouchedVertices = String(run302Detail.touchedVertices);
+  status.textContent += ' | pindex05-detail=' + run302Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// The experimental module is outside src/3d by design, so warm it into the canonical-dev cache explicitly.
+async function warmRun302Pindex05OfflineSurface() {
+  if (!('caches' in window)) return;
+  const cache = await caches.open(CACHE_NAME);
+  await cache.add('./experiments/run290/worldReferencePindex05Detail.js');
+  document.body.dataset.run302Pindex05CacheReady = 'true';
+}
+warmRun302Pindex05OfflineSurface().catch((error) => {
+  document.body.dataset.run302Pindex05CacheReady = 'false';
+  console.error('[run302Pindex05] cache warm failed', error);
+});
