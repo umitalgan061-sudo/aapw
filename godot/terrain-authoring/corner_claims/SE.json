@@ -5,8 +5,8 @@
   "current_cell": "G66",
   "status": "active",
   "branch": "terrain/se-g66-hydrology-20260812",
-  "pr": null,
-  "last_commit": "b59cbb10087776aaf927a17a7e4b5944aa3445b0",
+  "pr": 265,
+  "last_commit": "f398d0aa572cae8dba93d22f3a1c49e8501bace2",
   "quality_before": {
     "base_cells": 96,
     "water_cells": 59,
@@ -21,5 +21,5 @@
     "max_adjacent_step": 0.25,
     "confidence_checksum": 478457797
   },
-  "updated_at": "2026-08-12T18:00:00+03:00"
+  "updated_at": "2026-08-12T18:08:18+03:00"
 }
