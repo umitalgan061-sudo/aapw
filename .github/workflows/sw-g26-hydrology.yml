@@ -1,0 +1,55 @@
+name: SW G26 Hydrology
+
+on:
+  push:
+    branches:
+      - terrain/sw-g26-hydrology-20260812
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sw-g26-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main diagnostic scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA='1e0c1dc35bc3726551d753d1fc1922bf01226fa9'
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g26_hydrology.mjs|scripts/checkSwG26Hydrology.mjs|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g26-hydrology.yml)$' | wc -l)" -eq 0
+
+      - name: Measure deterministic G26 hydrology twice
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/sw/g26_hydrology.mjs
+          node --check scripts/checkSwG26Hydrology.mjs
+          node scripts/checkSwG26Hydrology.mjs | tee "$RUNNER_TEMP/g26-first.log"
+          node scripts/checkSwG26Hydrology.mjs | tee "$RUNNER_TEMP/g26-second.log"
+          cmp "$RUNNER_TEMP/g26-first.log" "$RUNNER_TEMP/g26-second.log"
+          grep -F 'SW_G26_HYDROLOGY_DIAGNOSTIC_OK' "$RUNNER_TEMP/g26-first.log"
+
+      - name: Final exact-main diagnostic gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = '1e0c1dc35bc3726551d753d1fc1922bf01226fa9'
+          git diff --check '1e0c1dc35bc3726551d753d1fc1922bf01226fa9' HEAD
