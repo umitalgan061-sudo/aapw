@@ -24,7 +24,7 @@ concurrency:
 
 env:
   TZ: Europe/Istanbul
-  BASE_SHA: 213face9edb0369867e30c9dc1c20fd5d4abe13b
+  BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '213face9edb0369867e30c9dc1c20fd5d4abe13b' }}
 
 jobs:
   validate:
@@ -126,5 +126,5 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
-          test "$(git diff --numstat "$BASE_SHA"...HEAD -- game3d.html | awk '{print $2}')" = '0'
-          test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfaceTerrainVisual.js | awk '{print $2}')" = '0'
+          test "$(git diff --numstat "$BASE_SHA"...HEAD -- game3d.html | awk '{sum += $2} END {print sum+0}')" = '0'
+          test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfaceTerrainVisual.js | awk '{sum += $2} END {print sum+0}')" = '0'

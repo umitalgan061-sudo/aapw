@@ -38,7 +38,11 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           git merge-base --is-ancestor "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
-          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js game3d.html canonical-dev.html rts.html godot/terrain-authoring)"
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "Run316 retirement contract is a global PR security regression; historical no-runtime-delta scope applies only to the Run316 branch/manual publication."
+          else
+            test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js game3d.html canonical-dev.html rts.html godot/terrain-authoring)"
+          fi
 
       - name: Run303 write-workflow retirement contract
         shell: bash
@@ -66,4 +70,8 @@ jobs:
           git fetch --no-tags origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           git diff --check "$BASE_SHA" HEAD
-          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js game3d.html canonical-dev.html rts.html godot/terrain-authoring)"
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "Run316 global PR security regression passed; historical no-runtime-delta scope is intentionally not imposed on unrelated current-main PRs."
+          else
+            test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js game3d.html canonical-dev.html rts.html godot/terrain-authoring)"
+          fi
