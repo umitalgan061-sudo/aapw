@@ -18,18 +18,23 @@ assert.equal(sampleG26WaterConfidence(0, 0), null);
 assert.throws(() => sampleG26WaterConfidence(Number.NaN, 0.8), TypeError);
 
 const metrics = measureG26Hydrology();
-assert.equal(metrics.baseCells, 96);
-assert.equal(metrics.waterCells, 95, 'G26 canonical water-centre inventory changed');
-assert.equal(metrics.landCells, 1, 'G26 canonical land-centre inventory changed');
-assert.equal(metrics.boundaryEdges, 4, 'G26 canonical coastline topology changed');
-assert.equal(metrics.centreMismatches, 0, 'canonical mask-cell centre semantics must remain exact');
-assert.equal(metrics.refinedSamples, 1617);
-assert.equal(metrics.hardCellMaxStep, 1);
-assert.ok(metrics.fractionalSamples > 0, 'mixed G26 must produce fractional coastline samples');
-assert.ok(metrics.maxAdjacentStep > 0 && metrics.maxAdjacentStep < 1, 'refined coastline step must be continuous');
+assert.deepEqual(metrics, {
+  policyId: 'gunbatimi-ustasi-g26-hydrology-2026-08-12-v1',
+  geoCell: 'G26',
+  baseCells: 96,
+  waterCells: 95,
+  landCells: 1,
+  boundaryEdges: 4,
+  centreMismatches: 0,
+  refinedSamples: 1617,
+  fractionalSamples: 48,
+  hardCellMaxStep: 1,
+  maxAdjacentStep: 0.25,
+  confidenceChecksum: 2944676031,
+});
 
 const rerun = measureG26Hydrology();
 assert.deepEqual(rerun, metrics, 'G26 evidence must be deterministic across repeated evaluation');
 
 console.log(JSON.stringify(metrics, null, 2));
-console.log('SW_G26_HYDROLOGY_DIAGNOSTIC_OK');
+console.log('SW_G26_HYDROLOGY_VALIDATION_OK');
