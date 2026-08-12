@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - 'godot/terrain-authoring/geocells/nw/g00_hydrology.mjs'
+      - 'godot/terrain-authoring/geocells/nw/g00_source_hydrology.json'
       - 'scripts/checkNWG00Hydrology.mjs'
       - '.github/workflows/nw-g00-hydrology.yml'
       - 'godot/terrain-authoring/corner_claims/NW.json'
@@ -39,8 +40,8 @@ jobs:
           git diff --check origin/main...HEAD
           CHANGED="$(git diff --name-only origin/main...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g00_hydrology.mjs|scripts/checkNWG00Hydrology.mjs|.github/workflows/nw-g00-hydrology.yml|godot/terrain-authoring/corner_claims/NW.json)$' | wc -l)" -eq 0
-      - name: Syntax and deterministic G00 hydrology
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g00_hydrology.mjs|godot/terrain-authoring/geocells/nw/g00_source_hydrology.json|scripts/checkNWG00Hydrology.mjs|.github/workflows/nw-g00-hydrology.yml|godot/terrain-authoring/corner_claims/NW.json)$' | wc -l)" -eq 0
+      - name: Syntax and deterministic source-resolution G00 hydrology
         run: |
           node --check godot/terrain-authoring/geocells/nw/g00_hydrology.mjs
           node --check scripts/checkNWG00Hydrology.mjs
