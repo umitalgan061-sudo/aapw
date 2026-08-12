@@ -2,25 +2,25 @@
   "corner": "NW",
   "task_name": "Buzul Muhafızı",
   "origin": [0, 0],
-  "current_cell": "G11",
+  "current_cell": "G02",
   "status": "validating",
-  "branch": "terrain/nw-g11-hydrology-20260812",
-  "pr": 266,
-  "last_commit": "ac732ed473d632d8002a5c28291284175ba7dd36",
+  "branch": "terrain/nw-g02-hydrology-20260812",
+  "pr": 270,
+  "last_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014",
   "quality_before": {
     "base_cells": 96,
-    "water_centres": 38,
-    "land_centres": 58,
-    "boundary_edges": 39,
+    "water_centres": 73,
+    "land_centres": 23,
+    "boundary_edges": 16,
     "hard_cell_max_step": 1
   },
   "quality_after": {
     "centre_mismatches": 0,
     "refined_samples": 1617,
-    "fractional_samples": 524,
+    "fractional_samples": 222,
     "max_adjacent_step": 0.25,
-    "confidence_checksum": 1445798648
+    "confidence_checksum": 1014520037
   },
   "engine": "authoring/QA canonical mask interpolation; HTerrain preserved; Terrain3D not required for this data-only layer",
-  "updated_at": "2026-08-12T18:26:00+03:00"
+  "updated_at": "2026-08-12T18:56:00+03:00"
 }
