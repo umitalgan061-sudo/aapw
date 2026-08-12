@@ -23,6 +23,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
+      - name: Require Run303 source branch before any checkout or write-capable work
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/agent/run303-run216-complete-marker-prefix'
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
