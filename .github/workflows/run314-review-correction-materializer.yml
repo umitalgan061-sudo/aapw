@@ -1,0 +1,73 @@
+name: Run 314 Reviewer Correction Materializer
+
+on:
+  push:
+    branches:
+      - run314-remove-run303-manual-dispatch
+    paths:
+      - '.run314-review-correction-materialize'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run314-review-correction-materializer-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BASE_SHA: 3d404c14b55e3e6121b70430fd0359e532b6f285
+  RUN_BRANCH: run314-remove-run303-manual-dispatch
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Fail closed outside Run314 source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/$RUN_BRANCH"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          node --check scripts/materializeRun314ReviewerCorrection.js
+
+      - name: Append reviewer correction records only
+        shell: bash
+        run: |
+          set -euo pipefail
+          BEFORE_PERF="$(git hash-object perf_log.csv)"
+          node scripts/materializeRun314ReviewerCorrection.js
+          test "$(git hash-object perf_log.csv)" = "$BEFORE_PERF"
+          git diff --check
+          git add 3D_GAME_PROGRESS.md STABLE_TAGS.md
+          git diff --cached --check
+          test "$(git diff --cached --name-only | sort)" = $'3D_GAME_PROGRESS.md\nSTABLE_TAGS.md'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Run314: materialize reviewer correction records'
+
+      - name: Final exact-main gate and publish corrected head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:$RUN_BRANCH"
