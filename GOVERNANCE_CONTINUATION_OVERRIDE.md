@@ -2,7 +2,7 @@
 
 **Tarih:** 2026-08-09
 **Yetki:** Proje sahibi doğrudan kararı
-**Öncelik:** Bu dosya, `GOVERNANCE.md` içindeki çalışma süresi ve çalıştırma-içi zincirleme ile ilgili daha eski ve çelişen ifadeleri supersede eder. Diğer tüm güvenlik, kalite, additive-only, determinism, PWA, performans, owner-gate ve eşzamanlılık kuralları yürürlükte kalır.
+**Öncelik:** Bu dosya, `GOVERNANCE.md` içindeki çalışma süresi ve çalıştırma-içi zincirleme ile ilgili daha eski ve çelişen ifadeleri supersede eder. Diğer tüm güvenlik, kalite, determinism, PWA, performans, owner-gate ve eşzamanlılık kuralları yürürlükte kalır. Proje sahibinin 2026-08-12 tarihli doğrudan kararıyla additive-only zorunluluğu ayrıca kaldırılmıştır.
 
 ## 1. Çalışma süresi tavanı kaldırıldı
 
