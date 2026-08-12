@@ -56,8 +56,15 @@ function previewFixture() {
 async function collectErrors(page) {
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  page.on('pageerror', (error) => errors.push(String(error));
+  page.on('pageerror', (error) => errors.push(String(error)));
   return errors;
+}
+async function enterGameIfPresent(page) {
+  const enterButton = page.locator('#run266-entry-enter');
+  if (await enterButton.count() === 0) return false;
+  await enterButton.click();
+  await page.waitForFunction(() => !document.getElementById('run266-entry-gate'), null, { timeout: 10000 });
+  return true;
 }
 async function normalGameProof(playwright, base) {
   const browser = await playwright.chromium.launch({ headless: true });
@@ -66,6 +73,7 @@ async function normalGameProof(playwright, base) {
   const errors = await collectErrors(page);
   try {
     await page.goto(`${base}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await enterGameIfPresent(page);
     await page.waitForFunction(() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 120000 });
     const normal = await page.evaluate(() => ({
       previewGlobal: Boolean(window.__WESTEROS_GAME_EDITOR_PREVIEW__),
@@ -91,6 +99,7 @@ async function previewGameProof(playwright, base) {
   const errors = await collectErrors(page);
   try {
     await page.goto(`${base}/game3d.html?editorPatch=1`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await enterGameIfPresent(page);
     await page.waitForFunction(() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 120000 });
     await page.waitForFunction(() => window.__WESTEROS_GAME_EDITOR_PREVIEW__?.getSnapshot?.().active === true, null, { timeout: 120000 });
     const proof = await page.evaluate(() => ({
