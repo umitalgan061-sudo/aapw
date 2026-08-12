@@ -4,43 +4,129 @@ on:
   push:
     branches:
       - terrain/pindex-quality-v2-20260812
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/3d/world/worldReferenceSurfacePindexes.js'
+      - 'src/3d/world/worldReferenceSurfaceTerrainVisual.js'
+      - 'scripts/checkTerrainPindexQualityV2.js'
+      - 'scripts/checkTerrainPindexQualityV2Browser.js'
+      - '.github/workflows/terrain-pindex-quality-v2.yml'
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: terrain-pindex-quality-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+  BASE_SHA: fd11b1024570cc3b725a4ad9d4ec8bf98f95f855
 
 jobs:
-  additive-bootstrap:
-    if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Append quality layers without rewriting canonical source
-        shell: bash
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main concurrency and additive entry gates
         run: |
           set -euo pipefail
-          PINDEX=src/3d/world/worldReferenceSurfacePindexes.js
-          VISUAL=src/3d/world/worldReferenceSurfaceTerrainVisual.js
-          if ! grep -q "owner-map-pindex-quality-v2-2026-08-12-v1" "$PINDEX"; then
-            cat .github/pindex-quality-v2/pindex.append >> "$PINDEX"
-          fi
-          if ! grep -q "terrain-pindex-quality-v2-runtime-2026-08-12-v1" "$VISUAL"; then
-            cat .github/pindex-quality-v2/visual-a.append .github/pindex-quality-v2/visual-b.append >> "$VISUAL"
-          fi
-          node --check "$PINDEX"
-          node --check "$VISUAL"
-          git diff --check
-          test "$(git diff --numstat d90939ac8d1eae7f327201576ba8f79507e96cce -- "$PINDEX" "$VISUAL" | awk '{s+=$2} END{print s+0}')" = "0"
-      - name: Commit exact additive source patch
-        shell: bash
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Syntax and Pindex Quality V2 contracts
         run: |
           set -euo pipefail
-          if git diff --quiet -- src/3d/world/worldReferenceSurfacePindexes.js src/3d/world/worldReferenceSurfaceTerrainVisual.js; then
-            exit 0
-          fi
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/3d/world/worldReferenceSurfacePindexes.js src/3d/world/worldReferenceSurfaceTerrainVisual.js
-          git commit -m "terrain: apply high fidelity pindex quality v2"
-          git push origin HEAD:terrain/pindex-quality-v2-20260812
+          node --check src/3d/world/worldReferenceSurfacePindexes.js
+          node --check src/3d/world/worldReferenceSurfaceTerrainVisual.js
+          node --check scripts/checkTerrainPindexQualityV2.js
+          node --check scripts/checkTerrainPindexQualityV2Browser.js
+          node scripts/checkTerrainPindexQualityV2.js
+          node scripts/checkTerrainPolishIteration08.js
+
+      - name: Canonical source PWA and semantic regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkRun280OwnerMapSemanticFingerprint.js
+
+      - name: Install Chromium dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: High-fidelity Pindex visual and continuity proof
+        run: |
+          set -euo pipefail
+          node scripts/checkTerrainPindexQualityV2Browser.js | tee "$RUNNER_TEMP/pindex-quality-v2-browser.log"
+          grep -F '[checkTerrainPindexQualityV2Browser] PASS' "$RUNNER_TEMP/pindex-quality-v2-browser.log"
+          test -f artifacts/terrain-pindex-quality-v2/iteration08-vs-quality-v2.png
+          test -f artifacts/terrain-pindex-quality-v2/proof.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const proof = JSON.parse(fs.readFileSync('artifacts/terrain-pindex-quality-v2/proof.json', 'utf8'));
+          if (proof.allPindexes.join(',') !== '1,2,3,4,5,6,7,8,9,10') throw new Error('P01..P10 coverage drift');
+          if (!proof.heightUnchanged || !proof.deterministic || !proof.idempotent) throw new Error('geometry/determinism/idempotency regression');
+          if (!(proof.blendedSamples > 300)) throw new Error('semantic edge smoothing missing');
+          if (!(proof.maxChunkSeamColorDelta < 1e-6)) throw new Error('chunk color seam');
+          if (!(proof.shaderPrograms > 0) || !proof.shaderInstalled) throw new Error('PBR detail shader missing');
+          if (proof.consoleErrors !== 0) throw new Error('browser console errors');
+          console.log('PINDEX_QUALITY_V2_PROOF_OK', proof.meanColorDelta, proof.activeBiomeKinds, proof.p10);
+          NODE
+
+      - name: Iteration 008 and full browser regression
+        run: |
+          set -euo pipefail
+          node scripts/checkTerrainPolishIteration08Browser.js | tee "$RUNNER_TEMP/iteration008-regression.log"
+          grep -F '[checkTerrainPolishIteration08Browser] PASS' "$RUNNER_TEMP/iteration008-regression.log"
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/pindex-quality-v2-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/pindex-quality-v2-smoke.log")" -ge 34
+
+      - name: Performance determinism world safety governance
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Upload Pindex Quality V2 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-pindex-quality-v2-${{ github.sha }}
+          path: artifacts/terrain-pindex-quality-v2
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Final exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfacePindexes.js | awk '{print $2+0}')" = '0'
+          test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfaceTerrainVisual.js | awk '{print $2+0}')" = '0'
