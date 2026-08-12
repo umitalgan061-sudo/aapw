@@ -7,10 +7,10 @@ extends SceneTree
 ## `xvfb-run ... --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3`
 ## invocation, the same software-OpenGL technique the existing HTerrain normal-baker proof uses.
 ##
-## Two angles are captured (§8.5 requires at least two): a low "in-world" view near a kingdom seat,
-## and a high overview of the whole authored region grid.
+## Three angles are captured: a low "in-world" view near a kingdom seat, a wide mountain view,
+## and a true vertical overview that frames the entire authored Terrain3D world in one image.
 ##
-## Usage: xvfb-run -a -s '-screen 0 1280x720x24' godot --path godot/terrain3d-authoring \
+## Usage: xvfb-run -a -s '-screen 0 1280x720x24' godot --path godot/terrain-authoring \
 ##            --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 \
 ##            --script res://scripts/render_terrain3d_preview.gd
 
@@ -77,8 +77,8 @@ func _initialize() -> void:
 	# node to already be inside the tree, and `_initialize()` runs before the tree starts processing.
 
 
-## Camera setups are derived from the manifest so they stay pointed at the real authored world even
-## if its extent or region layout changes later.
+## Camera setups are derived from the manifest where practical so they stay pointed at the real
+## authored world. The full-world shot uses the validated 12.288 km Terrain3D region grid extent.
 func _build_shot_list() -> Array[Dictionary]:
 	var target := Vector3.ZERO
 	var seats: Array = _manifest.get("seats", [])
@@ -99,13 +99,24 @@ func _build_shot_list() -> Array[Dictionary]:
 			"name": "terrain3d-ground-view.png",
 			"position": target + Vector3(-320.0, 150.0, 320.0),
 			"look_at": target,
+			"up": Vector3.UP,
 			"label": "ground view near the Lannister seat",
 		},
 		{
 			"name": "terrain3d-mountain-view.png",
 			"position": mountain_peak + Vector3(-2100.0, 620.0, 2100.0),
 			"look_at": mountain_peak,
+			"up": Vector3.UP,
 			"label": "wide view of the macro-relief mountain",
+		},
+		{
+			"name": "terrain3d-full-topdown.png",
+			"position": Vector3(0.0, 12000.0, 0.0),
+			"look_at": Vector3.ZERO,
+			# A vertical camera cannot use Vector3.UP as its look-at up vector because it is parallel
+			# to the viewing direction. North is kept toward the top of the image with -Z as camera up.
+			"up": Vector3(0.0, 0.0, -1.0),
+			"label": "full authored Terrain3D world from directly overhead",
 		},
 	]
 
@@ -113,7 +124,8 @@ func _build_shot_list() -> Array[Dictionary]:
 func _apply_shot(index: int) -> void:
 	var shot: Dictionary = _shots[index]
 	_camera.position = shot.position
-	_camera.look_at(shot.look_at, Vector3.UP)
+	var up: Vector3 = shot.get("up", Vector3.UP)
+	_camera.look_at(shot.look_at, up)
 
 
 func _process(_delta: float) -> bool:
