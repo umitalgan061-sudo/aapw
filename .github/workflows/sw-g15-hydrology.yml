@@ -1,0 +1,94 @@
+name: SW G15 Hydrology
+
+on:
+  push:
+    branches:
+      - 'terrain/sw-g15-hydrology-*'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/sw/g15_hydrology.mjs'
+      - 'scripts/checkSwG15Hydrology.mjs'
+      - 'godot/terrain-authoring/corner_claims/SW.json'
+      - '.github/workflows/sw-g15-hydrology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sw-g15-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          ENTRY_MAIN_SHA="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$ENTRY_MAIN_SHA" HEAD
+          git diff --check "$ENTRY_MAIN_SHA" HEAD
+          CHANGED="$(git diff --name-only "$ENTRY_MAIN_SHA"...HEAD)"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g15_hydrology.mjs|scripts/checkSwG15Hydrology.mjs|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g15-hydrology.yml)$' | wc -l)" -eq 0
+          git diff --quiet "$ENTRY_MAIN_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain godot/terrain-authoring/terrain3d.lock.json
+          echo "ENTRY_MAIN_SHA=$ENTRY_MAIN_SHA" >> "$GITHUB_ENV"
+      - name: Syntax and deterministic G15 evidence
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/sw/g15_hydrology.mjs
+          node --check scripts/checkSwG15Hydrology.mjs
+          node scripts/checkSwG15Hydrology.mjs | tee /tmp/g15-first.log
+          node scripts/checkSwG15Hydrology.mjs | tee /tmp/g15-second.log
+          cmp /tmp/g15-first.log /tmp/g15-second.log
+          grep -F 'SW_G15_HYDROLOGY_VALIDATION_OK' /tmp/g15-first.log
+      - name: Download official Godot 4.6.3
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/godot"
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' --output "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Godot and HTerrain authoring regression
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/g15-hterrain.log
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' /tmp/g15-hterrain.log
+      - name: Install Chromium dependency
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Settlement road determinism PWA performance
+        run: |
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+      - name: Browser smoke and console regression
+        run: node scripts/smokeTestGame3D.js
+      - name: Technical debt
+        run: node scripts/checkTechnicalDebt.js
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$ENTRY_MAIN_SHA"
+          git diff --check "$ENTRY_MAIN_SHA" HEAD
