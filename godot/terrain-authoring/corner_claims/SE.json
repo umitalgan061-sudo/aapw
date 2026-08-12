@@ -6,7 +6,7 @@
   "status": "validating",
   "branch": "terrain/se-g77-hydrology-20260812",
   "pr": 240,
-  "last_commit": "9b67b7e280e3b51890196c10a5287051197c0e15",
+  "last_commit": "635af086587dd75ee96e1d87c901f42fa7967728",
   "quality_before": {
     "layer": "coast_hydrology",
     "base_mask_cells": 96,
@@ -17,10 +17,15 @@
   },
   "quality_after": {
     "candidate_only": true,
+    "runtime_graph_changed": false,
     "refined_samples": 1536,
-    "centre_semantic_mismatches_target": 0,
-    "confidence_checksum_target": 1717343132,
-    "dense_max_step_target_lt": 0.1
+    "centre_semantic_mismatches": 0,
+    "sea_cells": 44,
+    "lake_cells": 0,
+    "confidence_checksum": 1717343132,
+    "fractional_dense_samples": 170,
+    "dense_max_step": 0.01546874999999992
   },
-  "updated_at": "2026-08-12T16:04:00+03:00"
+  "validation_note": "G77 deterministic and Godot gates passed on prior head; exact-head full PWA/world/browser chain rerunning after authoring-only isolation.",
+  "updated_at": "2026-08-12T16:07:00+03:00"
 }
