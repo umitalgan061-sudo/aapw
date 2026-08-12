@@ -12,14 +12,20 @@ assert.equal(sampleG05WaterConfidence(0.5, 0.7), null);
 assert.throws(() => sampleG05WaterConfidence(Number.NaN, 0.7), TypeError);
 
 const metrics = measureG05Hydrology();
-assert.equal(metrics.baseCells, 96);
-assert.equal(metrics.waterCells, 90, 'G05 canonical water inventory changed');
-assert.equal(metrics.landCells, 6, 'G05 canonical land inventory changed');
-assert.equal(metrics.boundaryEdges, 5, 'G05 canonical coastline topology changed');
-assert.equal(metrics.centreMismatches, 0);
-assert.equal(metrics.refinedSamples, 1617);
-assert.ok(metrics.fractionalSamples > 0);
-assert.ok(metrics.maxAdjacentStep > 0 && metrics.maxAdjacentStep < 1);
-assert.deepEqual(measureG05Hydrology(), metrics, 'G05 evidence must be deterministic');
+assert.deepEqual(metrics, {
+  policyId: 'gunbatimi-ustasi-g05-hydrology-2026-08-12-v1',
+  geoCell: 'G05',
+  baseCells: 96,
+  waterCells: 90,
+  landCells: 6,
+  boundaryEdges: 5,
+  centreMismatches: 0,
+  refinedSamples: 1617,
+  fractionalSamples: 79,
+  hardCellMaxStep: 1,
+  maxAdjacentStep: 0.25,
+  confidenceChecksum: 873751090,
+});
+assert.deepEqual(measureG05Hydrology(), metrics, 'G05 evidence must be deterministic across repeated evaluation');
 console.log(JSON.stringify(metrics, null, 2));
-console.log('SW_G05_HYDROLOGY_DIAGNOSTIC_OK');
+console.log('SW_G05_HYDROLOGY_VALIDATION_OK');
