@@ -7,6 +7,7 @@ const { createEditorLiveServer } = require('./editorLiveServer.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const assert = (value, message) => { if (!value) throw new Error(message); };
+const CANONICAL_FBX_DIRECTORY = '/assets/models/fbx_dosyaları/';
 
 function playwrightModule() {
   for (const id of ['playwright', '/opt/node22/lib/node_modules/playwright']) {
@@ -15,10 +16,19 @@ function playwrightModule() {
   return null;
 }
 
+function isCanonicalDirectoryProbe(url) {
+  try {
+    return decodeURIComponent(new URL(url).pathname) === CANONICAL_FBX_DIRECTORY;
+  } catch {
+    return false;
+  }
+}
+
 function staticContract() {
   const html = fs.readFileSync(path.join(ROOT, 'edit.html'), 'utf8');
   const entry = fs.readFileSync(path.join(ROOT, 'src', '3d', 'editor', 'EditorLiveWorkspaceEntry.js'), 'utf8');
   const server = fs.readFileSync(path.join(ROOT, 'scripts', 'editorLiveServer.js'), 'utf8');
+  const canonicalEditor = fs.readFileSync(path.join(ROOT, 'editor.html'), 'utf8');
   for (const token of ['"three": "./src/3d/vendor/three/three.module.js"', './editor.html?liveWorkspace=1', './src/3d/editor/EditorLiveWorkspaceEntry.js']) {
     assert(html.includes(token), `edit.html contract missing: ${token}`);
   }
@@ -28,6 +38,8 @@ function staticContract() {
   for (const token of ['/__editor/health', '/__editor/models', '/__editor/save', "MODEL_EXTENSIONS = new Set(['.fbx', '.glb', '.gltf'])"]) {
     assert(server.includes(token), `editorLiveServer contract missing: ${token}`);
   }
+  assert(canonicalEditor.includes("new URL('./assets/models/fbx_dosyaları/', location.href)"), 'canonical FBX directory probe contract changed');
+  assert(canonicalEditor.includes("status.textContent = 'Sunucu klasör listelemesini açmıyor."), 'canonical FBX directory fallback contract changed');
 }
 
 async function browserContract() {
@@ -43,15 +55,25 @@ async function browserContract() {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
   const page = await context.newPage();
   const errors = [];
+  const canonicalDirectoryProbes = [];
   page.on('pageerror', (error) => errors.push(`pageerror: ${String(error)}`));
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     const location = message.location();
+    if (location?.url && isCanonicalDirectoryProbe(location.url) && message.text().includes('404')) {
+      canonicalDirectoryProbes.push(`console:${location.url}`);
+      return;
+    }
     const suffix = location?.url ? ` @ ${location.url}${Number.isFinite(location.lineNumber) ? `:${location.lineNumber}` : ''}` : '';
     errors.push(`console: ${message.text()}${suffix}`);
   });
   page.on('response', (response) => {
-    if (response.status() >= 400) errors.push(`http: ${response.status()} ${response.url()}`);
+    if (response.status() < 400) return;
+    if (response.status() === 404 && isCanonicalDirectoryProbe(response.url())) {
+      canonicalDirectoryProbes.push(`http:${response.url()}`);
+      return;
+    }
+    errors.push(`http: ${response.status()} ${response.url()}`);
   });
   page.on('requestfailed', (request) => errors.push(`requestfailed: ${request.url()} :: ${request.failure()?.errorText || 'unknown'}`));
   try {
@@ -89,8 +111,8 @@ async function browserContract() {
       }, mode);
       assert(result?.currentMode === mode, `mode switch failed: ${mode}`);
     }
-    assert(errors.length === 0, `console/network/page errors: ${errors.join(' | ')}`);
-    console.log(`[checkEditorLiveWorkspaceEntry] PROOF ${JSON.stringify(proof)}`);
+    assert(errors.length === 0, `unexpected console/network/page errors: ${errors.join(' | ')}`);
+    console.log(`[checkEditorLiveWorkspaceEntry] PROOF ${JSON.stringify({ ...proof, canonicalDirectoryProbeEvents: canonicalDirectoryProbes.length })}`);
   } finally {
     await context.close();
     await browser.close();
