@@ -1,3 +1,8 @@
+// Run292 Pindex-05 detail offline shell extension.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex05Detail.js');
+});
+
 // Run216 complete World Editor offline shell extension.
 // Run282 Pindex-04 detail offline shell extension.
 self.addEventListener('install', () => {
