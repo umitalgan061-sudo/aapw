@@ -1,23 +1,23 @@
-name: NW G10 Hydrology
+name: NW G01 Hydrology
 
 on:
   push:
     branches:
-      - terrain/nw-g10-hydrology-20260812
+      - terrain/nw-g01-hydrology-20260812
   pull_request:
     branches:
       - main
     paths:
-      - 'godot/terrain-authoring/geocells/nw/g10_hydrology.mjs'
-      - 'scripts/checkNWG10Hydrology.mjs'
-      - '.github/workflows/nw-g10-hydrology.yml'
+      - 'godot/terrain-authoring/geocells/nw/g01_hydrology.mjs'
+      - 'scripts/checkNWG01Hydrology.mjs'
+      - '.github/workflows/nw-g01-hydrology.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: nw-g10-hydrology-${{ github.ref }}
+  group: nw-g01-hydrology-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -43,15 +43,15 @@ jobs:
           test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g01_hydrology.mjs|scripts/checkNWG01Hydrology.mjs|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g01-hydrology.yml|\.github/workflows/nw-g10-hydrology.yml)$' | wc -l)" -eq 0
           git diff --quiet origin/main...HEAD -- godot/terrain-authoring/addons/zylann.hterrain godot/terrain-authoring/terrain3d.lock.json
 
-      - name: Syntax and deterministic G10 hydrology
+      - name: Syntax and deterministic G01 hydrology
         run: |
           set -euo pipefail
-          node --check godot/terrain-authoring/geocells/nw/g10_hydrology.mjs
-          node --check scripts/checkNWG10Hydrology.mjs
-          node scripts/checkNWG10Hydrology.mjs | tee /tmp/g10-first.log
-          node scripts/checkNWG10Hydrology.mjs | tee /tmp/g10-second.log
-          diff -u /tmp/g10-first.log /tmp/g10-second.log
-          grep -F 'NW_G10_HYDROLOGY_VALIDATION_OK' /tmp/g10-first.log
+          node --check godot/terrain-authoring/geocells/nw/g01_hydrology.mjs
+          node --check scripts/checkNWG01Hydrology.mjs
+          node scripts/checkNWG01Hydrology.mjs | tee /tmp/g01-first.log
+          node scripts/checkNWG01Hydrology.mjs | tee /tmp/g01-second.log
+          diff -u /tmp/g01-first.log /tmp/g01-second.log
+          grep -F 'NW_G01_HYDROLOGY_VALIDATION_OK' /tmp/g01-first.log
 
       - name: Download official Godot 4.6.3 editor
         run: |
@@ -73,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           PROJECT_FILE='godot/terrain-authoring/project.godot'
-          BACKUP_FILE="$RUNNER_TEMP/nw-g10-project.godot"
+          BACKUP_FILE="$RUNNER_TEMP/nw-g01-project.godot"
           cp "$PROJECT_FILE" "$BACKUP_FILE"
           restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
           trap restore_project EXIT
