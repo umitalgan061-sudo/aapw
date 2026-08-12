@@ -14938,3 +14938,14 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Visual evidence (§8.5): `scripts/captureRun314FootpathEvidence.js` (new), 2 real camera angles (near + far) over real terrain chunks + real `buildRoadNetwork` output around the `ziya`<->`berk` footpath, zero console/page errors — screenshots in `artifacts/run314-footpath/`. Far view clearly shows the pale, thinner patika spur distinct from the wider tan cart roads at the same junction.
 - Runtime/product source delta: `world/roads.js` (additive: new constants/function, existing function signatures extended with defaulted optional params, existing behavior for existing callers unchanged) + 2 test files updated for the real behavior change (not gameplay/render logic). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
 - Next safe step: refresh remote main/concurrency state; resume the standing priority order (arazi/yol/zemin renk/kale dokulama already closed or asset-blocked per prior runs) — no owner-gated items remain open in `QUESTIONS_FOR_OWNER.md` except the still-silenced-but-technically-open NVIDIA key rotation (run 63) and the offline-PWA 1-minute owner check (run 83/ADR-0109), neither of which blocks further autonomous work.
+
+### PINDEX-QUALITY-V2-2026-08-12 — Canonical base-map quality pass
+
+- Canonical 96×64 mask SHA afe62a77fcc9b15887540b49b3b60b199e416f5e033aefb987a192411c25ae44 ve cell counts (sea=4046, lake=6, soil=1638, rock=323, snow=131) değişmedi.
+- P01..P10 continuous sub-cell sampling + seam-free profile interpolation eklendi; P10 kalite profilinde açıkça kapsanıyor.
+- Repodaki 17 audited biome zone + 4 relief chain kullanılıyor; yeni coğrafi source-of-truth uydurulmuyor.
+- Runtime 192×128 color/data GPU atlas + 64×64 deterministik repeat-noise atlas kullanıyor; V2 cpuVertexPassesAdded=0, terrain height ve Iteration #08 CPU color arrays birebir korunuyor.
+- İlk CPU-heavy V2 smoke timeout nedeniyle reddedildi; timeout artırılmadan shader-atlas mimarisine geçildi.
+- İlk sinüs mikro-grain görsel incelemede diyagonal bant nedeniyle reddedildi ve organic repeat-noise color+roughness grain ile değiştirildi.
+- Kanıt: P01..P10 coverage, normalized weights, seam continuity, biome anchors, Bone Mountains relief, exact height preservation, deterministic/idempotent WebGL, real pixel delta, Iteration #08 regression, full 3D smoke, mobile perf, seat/road safety, PWA ve clean console.
+- Rollback yalnız V2 sampler/shader katmanını kaldırarak Iteration #08 shipped terrain polish durumuna döner.

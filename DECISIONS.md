@@ -15532,3 +15532,23 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Regression boundary: `scripts/roadNetworkSafetyCheck.js` re-run clean (13/13 cart-road edges, connectivity, grades, mountain-avoidance, river non-collision all unchanged). `scripts/checkRoadVisualContract.js` re-run clean and now also asserts the `patika` mesh's own width/color/topology/disposal contract when present. `scripts/checkMedievalRoadSurface.js` re-run clean, confirms the medieval wheel-rut/mud/stone shader still applies only to `group.children[0]` (the cart-road mesh) exactly as before this run — the patika mesh deliberately does not get the medieval cart-surface treatment (it is a footpath, not a cart road). `scripts/checkCanonicalRoadBridgeSceneShadow.js` (an unrelated bridge-scene draw-call diagnostic that only imports `computeSeatMST`, not `buildRoadNetwork`) re-run clean, confirming no accidental coupling. Full `scripts/smokeTestGame3D.js` suite re-run after this change.
 - Gelecek Faz Etkisi: no interaction with any not-yet-started phase (FAZ 7 dragons, FAZ 9-10) — this is a self-contained decorative/connectivity addition to an already-shipped world system, same category as ADR-0076 itself.
 - Rollback plan: remove the `computeLocalFootpathEdges` call and the conditional second `buildMesh(...)` push in `buildRoadNetwork` (reverts to exactly the pre-run-314 single-mesh network); `checkRoadVisualContract.js`/`checkMedievalRoadSurface.js`'s `expectedChildCount` branches degrade safely to the `=== 1` case with no further edit needed since `footpathEdges` would be empty.
+
+## ADR-PINDEX-QUALITY-V2-2026-08-12 — Canonical Pindex semantic quality atlas on shipped terrain
+
+**Risk Seviyesi:** MEDIUM
+
+**Karar:** Değişmez 96×64 owner-map semantic mask yeniden çizilmiyor. P01..P10 sürekli sub-cell surface weights ve strip-seam-free profile interpolation ile örnekleniyor; worldReferenceMap.js içindeki denetlenmiş 17 biome zone ve 4 relief chain bu alana katılıyor. Runtime yorum 192×128 color/data atlasına bir kez bake edilip fragment shader tarafından lineer örnekleniyor. Yakın yüzey için ayrıca 64×64 deterministik repeat-noise atlası kullanılıyor. Terrain position/height/physics değişmiyor.
+
+**Neden:** Iteration #08 semantic veriyi shipped terrain üzerine taşıdı fakat 96×64 nearest-cell görünümü köşeli geçişler üretiyordu ve P10 ayrı mikro katmana sahip değildi. Yeni coğrafya uydurmak yerine repodaki denetlenmiş biome/relief verisi source-of-truth olarak yeniden kullanıldı.
+
+**Reddedilen ilk yaklaşım / RCA:** İlk V2 prototipi biome+relief+detail sampling işlemini her terrain vertex için ikinci CPU pass olarak yaptı. İzole WebGL kanıtı doğruydu fakat yüzlerce preview chunk ve tekrarlı smoke boot mevcut 10s page.goto sınırını aştı. Timeout artırılmadı; zengin örnekleme atlaslara taşındı ve V2 ek CPU vertex pass sayısı 0 yapıldı.
+
+**Görsel karar:** İlk shader-atlas kanıtındaki yönlü sinüs grain diyagonal bant ürettiği için testler yeşil olmasına rağmen kabul edilmedi. Sinüs grain kaldırıldı; farklı yön ve ölçeklerde örneklenen deterministik repeat-noise atlası color ve roughness mikro varyasyonu için kullanıldı.
+
+**Alternatifler:** nearest-cell görünümü bırakmak kalite nedeniyle; kaynakta olmayan yüksek çözünürlük pikselleri tahmin etmek source-of-truth nedeniyle; ikinci CPU vertex pass performans nedeniyle reddedildi. Ağır dış PBR asset paketi bu iterasyonda lisans/cache bütçesi nedeniyle ertelendi.
+
+**Sonuç:** P01..P10 tek sürekli yüzey alanı gibi davranıyor; semantic sınırlar yumuşuyor, biome/relief/PBR roughness katılıyor, P10 kalite profilinde kapsanıyor. Iteration #08 CPU color array ve terrain height array birebir korunuyor; V2 farkı GPU shading katmanında.
+
+**Etkilenen sistemler:** worldReferenceSurfacePindexes.js, worldReferenceSurfaceTerrainVisual.js, ChunkManager runtime installer ve terrain visual regression workflow. Geometry, collider, road, seat, water, 2D mode ve authored HTerrain zinciri değişmiyor.
+
+**Geri alma planı:** V2 sampler ve terrain-pindex-quality-v2-runtime-2026-08-12-v2 shader/installer katmanını kaldır; Iteration #08 görünümüne dön. Height/physics migration gerekmez.
