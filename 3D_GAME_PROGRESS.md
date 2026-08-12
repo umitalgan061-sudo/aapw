@@ -14902,3 +14902,13 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - `perf_log.csv` gained one sample (`run294-pindex07-detail`): drawCalls=51, triangles=688296 (unchanged), geometries=49, textures=17, jsHeapUsedMB=347.
 - Runtime/product source delta: 0 (canonical-dev preview only). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
 - Next safe step: refresh remote main/concurrency state; Pindex-08 is next (survey first, same method).
+
+## Run 295 — Pindex-08 deterministic micro-surface detail (ADR-RUN295)
+- Continuation of Run292-294 in the same session. Session start found `origin/main` had advanced past Run294 with a genuine owner-authored merge (PR #219, live World Editor `edit.html` workspace) — no overlap with Pindex files, so resynchronized with a clean fast-forward, no work lost either side.
+- Survey: Pindex-08 = 404 sea / 157 soil / 61 rock / 13 snow / 5 lake cells — first pindex in this batch (besides Pindex-02) with a real lake cell.
+- Work: new `src/3d/world/worldReferencePindex08Detail.js` (sea/lake 0.0065, soil 0.036, rock 0.046, snow 0.02, unique hash constants); wired into `scripts/run201CanonicalDevBoot.mjs` (after Pindex-07) and `service-worker.js` (offline shell, prepended above Pindex-07). Added `scripts/checkRun295Pindex08Detail.js` (contract), `scripts/checkRun295Pindex08DetailBrowser.js` (8-layer color-isolation proof: 640 vertices touched, all Pindex-08, 0 outside it), and `scripts/checkRun295Pindex08DetailChain.js` (extends the ordering contract to Pindex-01..08 as a new file; earlier chain-check files untouched, additive-only).
+- Scope: `canonical-dev.html` preview path only. Also re-ran `checkEditorLiveWorkspaceEntry.js` (the new PR #219 check) as part of this run's baseline sweep — PASS, confirming the fast-forward resync didn't disturb it.
+- Full DoD sweep (fresh): `node --check` all changed files, `smokeTestGame3D.js` 34/34 PASS, `checkAdditiveOnlyDiff` PASS (0 deletions), `checkSmokeCheckRegistry`/`checkPwaInstallability`/`checkServiceWorkerCache`/`checkTechnicalDebt` (0 new debt) all PASS, `checkWorldReferenceMap`/`checkWorldReferenceAlignment`/`checkWorldEventDeterminism`/`checkMobilePerfBudget` PASS, `terrainSeatSafetyCheck` 14/14 PASS, `roadNetworkSafetyCheck` PASS.
+- `perf_log.csv` gained one sample (`run295-pindex08-detail`): drawCalls=51, triangles=688296 (unchanged), geometries=49, textures=17, jsHeapUsedMB=326.
+- Runtime/product source delta: 0 (canonical-dev preview only). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+- Next safe step: refresh remote main/concurrency state; Pindex-09 is next (survey first, same method).

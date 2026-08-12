@@ -133,3 +133,13 @@ if (selector.getActiveSource() === 'canonical' && selector.activation?.windowSta
   status.textContent += ' | pindex07-detail=' + run294Detail.touchedVertices + 'v';
   state.renderer.render(state.scene, state.camera);
 }
+
+// Run295 deterministic Pindex-08 micro-surface detail activation (first pindex in this batch with a real lake cell).
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex08DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex08Detail.js');
+  const run295Detail = applyPindex08DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run295Pindex08Ready = 'true';
+  document.body.dataset.run295Pindex08TouchedVertices = String(run295Detail.touchedVertices);
+  status.textContent += ' | pindex08-detail=' + run295Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
