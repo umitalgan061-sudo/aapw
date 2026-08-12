@@ -84,6 +84,52 @@ async function main() {
 
 		write(await buildSheet(null, 96, 10, 'Westeros — Prosedürel Doku ve Renk Paleti Kataloğu'), 'palette-sheet.png');
 		write(await buildSheet('Ejderha', 256, 4, 'Ejderha Dokuları — pul / sırt plakası / yıpranma detayı'), 'dragon-sheet.png');
+		write(await buildSheet('Parça', 128, 7, 'Parça Slotları — göz, diş, pençe, boynuz, giysi katmanları'), 'part-sheet.png');
+
+		// Layered figures rendered for real: proof a single unnamed mesh comes out dressed by height
+		// (boots -> trousers -> belt -> tunic -> skin -> hair) rather than painted one flat colour.
+		const layeredShot = await page.evaluate(async () => {
+			const THREE = await import('three');
+			const { FIGURE_KITS, resolveKit } = await import('/src/3d/materials/figureKits.js');
+			const { createLayeredMaterial } = await import('/src/3d/materials/layeredMaterial.js');
+
+			const width = 1180;
+			const height = 460;
+			const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
+			renderer.setPixelRatio(1);
+			renderer.setSize(width, height, false);
+			const scene = new THREE.Scene();
+			scene.background = new THREE.Color(0x14161a);
+			scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x33302c, 2.0));
+			const key = new THREE.DirectionalLight(0xfff0d8, 2.2);
+			key.position.set(3, 6, 5);
+			scene.add(key);
+
+			const camera = new THREE.PerspectiveCamera(32, width / height, 0.1, 100);
+			camera.position.set(0, 1.05, 7.4);
+			camera.lookAt(0, 1.0, 0);
+
+			// A crude standing figure: a capsule body is enough to show vertical banding honestly,
+			// without pretending this is a real character model.
+			const kits = ['human', 'soldier', 'castle', 'house', 'tree'];
+			kits.forEach((kitId, index) => {
+				const kit = FIGURE_KITS[kitId];
+				const resolved = resolveKit(kit, index * 977);
+				const geometry = new THREE.CapsuleGeometry(0.34, 1.35, 6, 18);
+				geometry.computeBoundingBox();
+				const range = { min: geometry.boundingBox.min.y, max: geometry.boundingBox.max.y };
+				const material = createLayeredMaterial({ bands: resolved.bands, heightRange: range, variant: `sheet-${kitId}` });
+				const mesh = new THREE.Mesh(geometry, material || new THREE.MeshStandardMaterial({ color: 0x888888 }));
+				mesh.position.set((index - (kits.length - 1) / 2) * 1.45, 1.02, 0);
+				scene.add(mesh);
+			});
+
+			renderer.render(scene, camera);
+			const url = renderer.domElement.toDataURL('image/png');
+			renderer.dispose();
+			return { url, kits };
+		});
+		write(layeredShot.url, 'layered-figures.png');
 
 		// Proof the editor button works end to end, not just the library. Assets are added by
 		// double-clicking a library entry, and the editor reports each one through its toast — that

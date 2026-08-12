@@ -311,7 +311,7 @@ $('we-auto-texture-all').addEventListener('click', () => {
   if (targets.length === 0) { toast('Sahnede giydirilecek obje yok.'); return; }
   const summary = autoTextureMany(targets, { lookupAsset: findEditorAsset });
   const families = Object.keys(summary.byPalette).length;
-  toast(`${summary.dressed} obje giydirildi (${summary.meshes} mesh, ${families} farklı doku).`);
+  toast(`${summary.dressed} obje giydirildi · ${families} doku ailesi · ${summary.named} adlandırılmış parça, ${summary.banded} katmanlı gövde, ${summary.main + summary.plain} ana yüzey.`);
 });
 $('we-restore-texture').addEventListener('click', () => {
   if (!selectedObject) { toast('Önce bir obje seç.'); return; }

@@ -166,6 +166,82 @@ async function main() {
 			fail(restored === 1, `geri yükleme mesh sayısı ${restored}`);
 			fail(mesh.material === originalMaterial, 'özgün materyal geri gelmedi');
 
+			// 7b. Part-based kit dressing — the reason this system exists: a figure is many materials.
+			const { surveyParts, classifyPart } = await import('/src/3d/materials/meshPartClassifier.js');
+			const { FIGURE_KITS, resolveKit } = await import('/src/3d/materials/figureKits.js');
+			const { createLayeredMaterial } = await import('/src/3d/materials/layeredMaterial.js');
+
+			// Classification must survive the real naming conventions in this project's assets, which
+			// were read off the actual models rather than assumed.
+			const slotCases = [
+				[{ materialName: 'Wolf Eyes' }, 'eye'],
+				[{ materialName: 'Wolf Teeth' }, 'tooth'],
+				[{ materialName: 'Wolf_claws' }, 'claw'],
+				[{ materialName: 'Wolf_Fur' }, 'fur'],
+				[{ meshName: 'Paladin_J_Nordstrom_Helmet' }, 'helmet'],
+				[{ materialName: 'EYES.001' }, 'eye'],
+				[{ meshName: 'Wolf3_eyes_0' }, 'eye'],
+				[{ materialName: 'Sag_Boynuz' }, 'horn'],
+				[{ materialName: 'cizme_deri' }, 'boot'],
+				[{ materialName: 'govde_gomlek' }, 'tunic'],
+			];
+			for (const [input, expected] of slotCases) {
+				const got = classifyPart(input)?.slot || null;
+				fail(got === expected, `slot sınıflandırma: ${JSON.stringify(input)} -> ${got} (beklenen ${expected})`);
+			}
+			// A genuinely uninformative name must return null, not a confident wrong guess.
+			fail(classifyPart({ materialName: 'Material.002', meshName: 'mesh_node' }) === null,
+				'anlamsız isim için null dönmeliydi');
+
+			// A multi-material mesh must be surveyed per material slot — the dragon is one mesh with
+			// five materials, so per-mesh surveying would flatten its eyes into its body scales.
+			const multiMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), [
+				new THREE.MeshStandardMaterial({ name: 'Game_dragon.002' }),
+				new THREE.MeshStandardMaterial({ name: 'EYES.001' }),
+			]);
+			const multiRoot = new THREE.Group();
+			multiRoot.name = 'Siyah Ejderha';
+			multiRoot.add(multiMesh);
+			fail(surveyParts(multiRoot).length === 2, 'çok materyalli mesh materyal başına taranmalı');
+
+			const dragonApplied = autoTexture.autoTextureObject(multiRoot);
+			fail(dragonApplied.ok && dragonApplied.kit === 'dragon', `ejderha kiti seçilmedi: ${dragonApplied.kit}`);
+			fail(dragonApplied.named >= 1, 'ejderha gözü adlandırılmış parça olarak giydirilmeliydi');
+			fail(Array.isArray(multiMesh.material) && multiMesh.material.length === 2, 'materyal dizisi korunmalı');
+			fail(multiMesh.material[0] !== multiMesh.material[1],
+				'göz ve gövde aynı materyali paylaşmamalı — parçalara ayırmanın tüm amacı bu');
+
+			// An unnamed single-material figure must come out dressed by height, not one flat colour.
+			const plainMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.4, 4, 8), new THREE.MeshStandardMaterial());
+            plainMesh.name = '';
+			const plainRoot = new THREE.Group();
+			plainRoot.name = 'Köylü';
+			plainRoot.add(plainMesh);
+			const banded = autoTexture.autoTextureObject(plainRoot);
+			fail(banded.ok && banded.kit === 'human', `insan kiti seçilmedi: ${banded.kit}`);
+			fail(banded.banded === 1, `katmanlı gövde beklendi, alınan: ${JSON.stringify(banded)}`);
+			fail(Array.isArray(plainMesh.material?.userData?.layeredBands) && plainMesh.material.userData.layeredBands.length >= 4,
+				'katmanlı materyal en az 4 bant taşımalı (çizme/pantolon/tunik/ten)');
+
+			// Individuals must differ deterministically: two peasants, different tunic/skin choices.
+			const kitA = resolveKit(FIGURE_KITS.human, 11);
+			const kitB = resolveKit(FIGURE_KITS.human, 12);
+			const kitA2 = resolveKit(FIGURE_KITS.human, 11);
+			fail(JSON.stringify(kitA) === JSON.stringify(kitA2), 'aynı seed farklı sonuç verdi');
+			fail(JSON.stringify(kitA) !== JSON.stringify(kitB), 'farklı seed aynı sonucu verdi');
+			// The band fallback must follow the variant choice, or a named part and an unnamed one on
+			// the same figure would wear different tunics.
+			fail(kitA.bands.some((band) => band.palette === kitA.slots.tunic),
+				'bantlar varyant seçimini takip etmiyor');
+
+			// A palette with no part structure (stone) must keep the plain whole-object path.
+			const stoneMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial());
+			const stoneRoot = new THREE.Group();
+			stoneRoot.name = 'Kaya';
+			stoneRoot.add(stoneMesh);
+			const stoneApplied = autoTexture.autoTextureObject(stoneRoot);
+			fail(stoneApplied.ok && !stoneApplied.kit, `kaya için kit olmamalıydı: ${stoneApplied.kit}`);
+
 			// 8. Dispose empties both caches.
 			factory.getPaletteTexture('grass', { size: 64 });
 			const before = factory.getPaletteCacheStats();
@@ -181,6 +257,9 @@ async function main() {
 				dragonCount: PALETTE_IDS.filter((id) => PALETTES[id].family === 'Ejderha').length,
 				matchCases: matchCases.length,
 				variantDifferingBytes: differing,
+				slotCases: slotCases.length,
+				kitCount: Object.keys(FIGURE_KITS).length,
+				partPalettes: PALETTE_IDS.filter((id) => PALETTES[id].family === 'Parça').length,
 			};
 		}, MATCH_CASES);
 
@@ -195,8 +274,9 @@ async function main() {
 		console.log(
 			`[checkTexturePaletteLibrary] PASS: ${result.paletteCount} palet / ${result.familyCount} aile ` +
 			`(${result.families.join(', ')}), ${result.dragonCount} ejderha varyantı, ` +
-			`${result.matchCases}/${result.matchCases} TR-EN eşleşme, determinizm + varyant + önbellek + ` +
-			'giydir/geri-al + dispose doğrulandı, 3/3 editör butonu mevcut.',
+			`${result.matchCases}/${result.matchCases} TR-EN eşleşme, ${result.slotCases}/${result.slotCases} parça-slot sınıflandırma, ` +
+			`${result.kitCount} figür kiti, ${result.partPalettes} parça paleti; determinizm + varyant + önbellek + ` +
+			'çok-materyal + katmanlı gövde + giydir/geri-al + dispose doğrulandı, 3/3 editör butonu mevcut.',
 		);
 	} finally {
 		await browser.close();

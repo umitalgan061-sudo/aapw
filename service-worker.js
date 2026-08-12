@@ -381,6 +381,9 @@ GAME3D_SHELL_FILES.push('./src/3d/materials/structurePatterns.js');
 GAME3D_SHELL_FILES.push('./src/3d/materials/dragonTextures.js');
 GAME3D_SHELL_FILES.push('./src/3d/materials/textureMatcher.js');
 GAME3D_SHELL_FILES.push('./src/3d/materials/textureFactory.js');
+GAME3D_SHELL_FILES.push('./src/3d/materials/meshPartClassifier.js');
+GAME3D_SHELL_FILES.push('./src/3d/materials/figureKits.js');
+GAME3D_SHELL_FILES.push('./src/3d/materials/layeredMaterial.js');
 GAME3D_SHELL_FILES.push('./src/3d/editor/EditorAutoTexture.js');
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];

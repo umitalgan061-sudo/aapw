@@ -305,6 +305,96 @@ function paintMembrane(context, size, palette, seed) {
 
 /** Stone/rock: ridged fracture lines plus grain speckle. */
 
+
+/**
+ * Eye: sclera, a fibrous iris ring and a hard pupil, with a specular catchlight.
+ *
+ * Drawn as one centred eye filling the tile rather than a tiling pattern, because eye meshes are
+ * small and almost always UV-mapped to a single quad — a repeating pattern here would read as noise.
+ * `dark` is the pupil, `base`/`light` the iris fibres, `accent` the sclera.
+ */
+function paintEye(context, size, palette, seed) {
+	const random = createRandom(seed ^ 0x4e21);
+	const sclera = hexToRgb(palette.accent);
+	const iris = hexToRgb(palette.base);
+	const irisLight = hexToRgb(palette.light);
+	const pupil = hexToRgb(palette.dark);
+
+	context.fillStyle = rgbToCss(sclera);
+	context.fillRect(0, 0, size, size);
+
+	const cx = size * 0.5;
+	const cy = size * 0.5;
+	const irisRadius = size * 0.34;
+
+	context.fillStyle = rgbToCss(iris);
+	context.beginPath();
+	context.arc(cx, cy, irisRadius, 0, Math.PI * 2);
+	context.fill();
+
+	// Radial fibres — what separates a real iris from a flat disc.
+	context.lineWidth = Math.max(0.6, size / 220);
+	for (let fibre = 0; fibre < 90; fibre += 1) {
+		const angle = (fibre / 90) * Math.PI * 2 + random() * 0.05;
+		const inner = irisRadius * (0.3 + random() * 0.18);
+		const outer = irisRadius * (0.82 + random() * 0.18);
+		context.strokeStyle = rgbToCss(mixRgb(iris, random() < 0.5 ? irisLight : pupil, 0.35 + random() * 0.5));
+		context.globalAlpha = 0.4 + random() * 0.4;
+		context.beginPath();
+		context.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+		context.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
+		context.stroke();
+	}
+	context.globalAlpha = 1;
+
+	// Limbal ring darkens the iris edge; without it the iris floats on the sclera.
+	context.strokeStyle = rgbToCss(pupil);
+	context.globalAlpha = 0.55;
+	context.lineWidth = Math.max(1, size / 60);
+	context.beginPath();
+	context.arc(cx, cy, irisRadius * 0.96, 0, Math.PI * 2);
+	context.stroke();
+	context.globalAlpha = 1;
+
+	context.fillStyle = rgbToCss(pupil);
+	context.beginPath();
+	context.arc(cx, cy, irisRadius * 0.4, 0, Math.PI * 2);
+	context.fill();
+
+	context.fillStyle = 'rgba(255,255,255,0.75)';
+	context.beginPath();
+	context.arc(cx - irisRadius * 0.32, cy - irisRadius * 0.34, irisRadius * 0.16, 0, Math.PI * 2);
+	context.fill();
+}
+
+/**
+ * Bone/keratin: teeth, claws, horns and hooves. Fine lengthwise striations plus a slightly darker
+ * root, which is what reads as keratin rather than plastic.
+ */
+function paintBone(context, size, palette, seed) {
+	paintMottledBase(context, size, palette, seed, { octaves: 3, baseResolution: 3, contrast: 0.3 });
+	const random = createRandom(seed ^ 0x6d13);
+	const dark = hexToRgb(palette.dark);
+	const light = hexToRgb(palette.light);
+	context.lineWidth = Math.max(0.5, size / 340);
+	for (let stria = 0; stria < size * 1.4; stria += 1) {
+		context.strokeStyle = rgbToCss(random() < 0.5 ? dark : light);
+		context.globalAlpha = 0.1 + random() * 0.16;
+		const x = random() * size;
+		context.beginPath();
+		context.moveTo(x, 0);
+		context.lineTo(x + (random() - 0.5) * size * 0.05, size);
+		context.stroke();
+	}
+	// Darker root band at one end, lighter tip at the other.
+	const gradient = context.createLinearGradient(0, 0, 0, size);
+	gradient.addColorStop(0, `rgba(${Math.round(light.r)},${Math.round(light.g)},${Math.round(light.b)},0.28)`);
+	gradient.addColorStop(1, `rgba(${Math.round(dark.r)},${Math.round(dark.g)},${Math.round(dark.b)},0.42)`);
+	context.globalAlpha = 1;
+	context.fillStyle = gradient;
+	context.fillRect(0, 0, size, size);
+}
+
 /** Living-surface painters, keyed by `palettes.js`'s `pattern` field. */
 export const CREATURE_PATTERNS = Object.freeze({
 	skin: paintSkin,
@@ -317,6 +407,8 @@ export const CREATURE_PATTERNS = Object.freeze({
 	feather: paintFeather,
 	'fish-scales': paintFishScales,
 	membrane: paintMembrane,
+	eye: paintEye,
+	bone: paintBone,
 });
 
 /** Re-exported because the terrain/structure painters build on the same mottled base pass. */

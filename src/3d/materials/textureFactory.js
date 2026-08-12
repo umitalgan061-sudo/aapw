@@ -12,6 +12,10 @@
 import * as THREE from 'three';
 import { DEFAULT_TEXTURE_SIZE, createCanvas, hashString } from './textureCore.js';
 import { PALETTES, findPalette } from './palettes.js';
+import { surveyParts } from './meshPartClassifier.js';
+import { kitForPalette, resolveKit } from './figureKits.js';
+import { createLayeredMaterial, meshHeightRange } from './layeredMaterial.js';
+import { hashString as hashSeed } from './textureCore.js';
 import { CREATURE_PATTERNS } from './creaturePatterns.js';
 import { TERRAIN_PATTERNS } from './terrainPatterns.js';
 import { STRUCTURE_PATTERNS } from './structurePatterns.js';
@@ -151,6 +155,127 @@ export function applyPaletteToObject(root, paletteId, options = {}) {
 		disposeIfFactoryOwned(previous, material);
 	});
 	return dressed;
+}
+
+
+
+/**
+ * Dresses a figure part by part, which is what a real figure needs: a person is skin *and* hair
+ * *and* eyes *and* tunic *and* boots, not one surface.
+ *
+ * Three mechanisms, applied in descending order of confidence — this ordering is the whole design:
+ *   1. **Named parts.** Every mesh and every material slot is classified by name
+ *      (`meshPartClassifier.js`) and dressed from the kit's slot table. This is what actually
+ *      handles the wolf (fur/claws/teeth/eyes) and the dragon (whose five materials live on one
+ *      mesh, so classification runs per material index, not per mesh).
+ *   2. **Vertical bands.** A mesh whose parts cannot be named — the common case for character models
+ *      here — gets `layeredMaterial.js`'s banded shader, dressing it by height: boots, trousers,
+ *      belt, tunic, skin, hair. Still one material and one draw call.
+ *   3. **Single palette.** Anything with no kit at all (plain stone, water, a road) keeps the
+ *      original whole-object behaviour.
+ *
+ * @param {import('three').Object3D} root
+ * @param {string} paletteId Palette chosen by the matcher; selects the kit.
+ * @param {object} [options]
+ * @param {string} [options.variant] Seed material so individuals differ deterministically.
+ * @param {number} [options.size]
+ * @returns {{ok: boolean, kit: string|null, named: number, banded: number, plain: number, slots: Record<string, number>}}
+ */
+export function applyKitToObject(root, paletteId, { variant = '', size = DEFAULT_TEXTURE_SIZE } = {}) {
+	const summary = { ok: false, kit: null, named: 0, banded: 0, main: 0, plain: 0, slots: {} };
+	if (!root) return summary;
+
+	const palette = findPalette(paletteId);
+	const kit = kitForPalette(palette);
+	if (!kit) {
+		// No part structure worth modelling (stone, water, road) — the whole-object path is correct.
+		summary.plain = applyPaletteToObject(root, paletteId, { variant, size });
+		summary.ok = summary.plain > 0;
+		return summary;
+	}
+
+	summary.kit = kit.id;
+	const seed = hashSeed(`${paletteId}|${variant}`);
+	const resolved = resolveKit(kit, seed);
+	// The matched palette wins over the kit's own default for the figure's main surface — matching
+	// "Kızıl Ejderha" must still produce a red dragon, not the kit's black default.
+	const mainPalette = palette ? palette.id : resolved.base;
+
+	const surfaces = surveyParts(root);
+	/** @type {Map<object, (import('three').Material|null)[]>} */
+	const pendingByMesh = new Map();
+
+	for (const surface of surfaces) {
+		const { mesh, materialIndex, slot } = surface;
+		if (!pendingByMesh.has(mesh)) {
+			const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+			pendingByMesh.set(mesh, new Array(materials.length).fill(null));
+		}
+		if (!slot) continue;
+
+		// A slot the kit does not list (e.g. `wing` on a horse) falls back to the figure's main
+		// surface rather than being left undressed.
+		const slotPalette = resolved.slots[slot] || (isMainSurfaceSlot(slot) ? mainPalette : null);
+		if (!slotPalette) continue;
+		const material = getPaletteMaterial(slotPalette, { variant: `${variant}:${slot}`, size });
+		if (!material) continue;
+		pendingByMesh.get(mesh)[materialIndex] = material;
+		summary.named += 1;
+		summary.slots[slot] = (summary.slots[slot] || 0) + 1;
+	}
+
+	for (const [mesh, pending] of pendingByMesh) {
+		const anyNamed = pending.some(Boolean);
+		if (!anyNamed) {
+			// Nothing on this mesh was identifiable — dress it by height instead of by name.
+			const range = meshHeightRange(mesh);
+			const layered = range
+				? createLayeredMaterial({ bands: resolved.bands, heightRange: range, variant, size: Math.min(size, 128) })
+				: null;
+			if (layered) {
+				rememberAndAssign(mesh, layered);
+				summary.banded += 1;
+				continue;
+			}
+			const plain = getPaletteMaterial(mainPalette, { variant, size });
+			if (plain) {
+				rememberAndAssign(mesh, plain);
+				summary.plain += 1;
+			}
+			continue;
+		}
+
+		// Partially named mesh: fill the unnamed material slots with the figure's main surface so no
+		// slot is left wearing the imported asset's original material next to a dressed one. This is
+		// the dragon's case — one mesh, five materials, only `EYES.001` self-describing, so the other
+		// four correctly become dragon scales.
+		const mainMaterial = getPaletteMaterial(mainPalette, { variant, size });
+		const filled = pending.map((material) => {
+			if (material) return material;
+			summary.main += 1;
+			return mainMaterial;
+		});
+		rememberAndAssign(mesh, filled.length === 1 ? filled[0] : filled);
+	}
+
+	root.userData.appliedKitId = kit.id;
+	summary.ok = summary.named + summary.banded + summary.main + summary.plain > 0;
+	return summary;
+}
+
+/** Slots that represent the figure's main body surface rather than a distinct accessory. */
+function isMainSurfaceSlot(slot) {
+	return ['skin', 'fur', 'scale', 'feather', 'mane'].includes(slot);
+}
+
+/**
+ * Assigns a material, stashing the original once so auto-dressing stays reversible.
+ * @param {import('three').Mesh} mesh
+ * @param {import('three').Material|import('three').Material[]} material
+ */
+function rememberAndAssign(mesh, material) {
+	if (mesh.userData.originalMaterial === undefined) mesh.userData.originalMaterial = mesh.material;
+	mesh.material = material;
 }
 
 /**

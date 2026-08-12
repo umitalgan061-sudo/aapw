@@ -17,7 +17,7 @@
  */
 
 import { matchPalette } from '../materials/textureMatcher.js';
-import { applyPaletteToObject, getPaletteMaterial } from '../materials/textureFactory.js';
+import { applyKitToObject, getPaletteMaterial } from '../materials/textureFactory.js';
 import { findPalette } from '../materials/palettes.js';
 
 /**
@@ -62,14 +62,26 @@ export function autoTextureObject(object, { lookupAsset, paletteId } = {}) {
 
 	rememberOriginalMaterials(object);
 
-	// Variant seeds from the object's own identity, so two castles in one scene weather differently
-	// while both still read as the same material family.
+	// Variant seeds from the object's own identity, so two castles in one scene weather differently —
+	// and two peasants get different skin tones and tunic colours — while staying deterministic.
 	const variant = object.userData?.editorId || object.name || '';
-	const meshes = applyPaletteToObject(object, chosenId, { variant });
-	if (meshes === 0) return { ok: false, error: 'Bu objede giydirilecek mesh yok.' };
+	const applied = applyKitToObject(object, chosenId, { variant });
+	if (!applied.ok) return { ok: false, error: 'Bu objede giydirilecek mesh yok.' };
 
 	object.userData.autoTexturePaletteId = chosenId;
-	return { ok: true, paletteId: chosenId, label: palette.label, reason, meshes };
+	return {
+		ok: true,
+		paletteId: chosenId,
+		label: palette.label,
+		reason,
+		meshes: applied.named + applied.banded + applied.main + applied.plain,
+		kit: applied.kit,
+		named: applied.named,
+		banded: applied.banded,
+		main: applied.main,
+		plain: applied.plain,
+		slots: applied.slots,
+	};
 }
 
 /**
@@ -80,7 +92,7 @@ export function autoTextureObject(object, { lookupAsset, paletteId } = {}) {
  * @returns {{dressed: number, meshes: number, failures: number, byPalette: Record<string, number>}}
  */
 export function autoTextureMany(objects, options = {}) {
-	const summary = { dressed: 0, meshes: 0, failures: 0, byPalette: {} };
+	const summary = { dressed: 0, meshes: 0, failures: 0, byPalette: {}, named: 0, banded: 0, main: 0, plain: 0 };
 	for (const object of objects || []) {
 		const result = autoTextureObject(object, options);
 		if (!result.ok) {
@@ -89,6 +101,10 @@ export function autoTextureMany(objects, options = {}) {
 		}
 		summary.dressed += 1;
 		summary.meshes += result.meshes;
+		summary.named += result.named || 0;
+		summary.banded += result.banded || 0;
+		summary.main += result.main || 0;
+		summary.plain += result.plain || 0;
 		summary.byPalette[result.paletteId] = (summary.byPalette[result.paletteId] || 0) + 1;
 	}
 	return summary;
@@ -145,5 +161,16 @@ export function paletteSwatch(paletteId, size = 64) {
  */
 export function describeResult(result) {
 	if (!result?.ok) return result?.error || 'Doku giydirilemedi.';
-	return `${result.label} dokusu giydirildi (${result.reason}, ${result.meshes} mesh).`;
+	const detail = [];
+	// Report the three mechanisms separately — "3 mesh" hides whether parts were actually identified
+	// or the figure just got a single colour, which is exactly the difference that matters here.
+	if (result.named) {
+		const slots = Object.keys(result.slots || {});
+		detail.push(`${result.named} adlandırılmış parça${slots.length ? ` (${slots.join(', ')})` : ''}`);
+	}
+	if (result.banded) detail.push(`${result.banded} katmanlı gövde`);
+	if (result.main) detail.push(`${result.main} ana yüzey`);
+	if (result.plain) detail.push(`${result.plain} tek doku`);
+	const kit = result.kit ? `${result.kit} kiti · ` : '';
+	return `${result.label} giydirildi (${kit}${result.reason}${detail.length ? ' · ' + detail.join(', ') : ''}).`;
 }

@@ -62,6 +62,34 @@ const HUMAN = [
 ];
 
 /* ---------------------------------------------------------------------------------------------
+ * PARÇA SLOTLARI — the small, specific materials a single figure needs alongside its main surface.
+ * A person is not one texture: eyes, hair, tunic, trousers and boots are all different materials on
+ * the same body, and a wolf has claws, teeth and eyes distinct from its fur. These exist so
+ * `figureKits.js` can dress each part separately instead of painting a whole character one colour.
+ * ------------------------------------------------------------------------------------------- */
+const PARTS = [
+	{ id: 'eye-brown', label: 'Göz — Kahve', family: 'Parça', base: 0x5a3a1e, dark: 0x140c06, light: 0xa8783f, accent: 0xf4f0e8, pattern: 'eye', roughness: 0.16, metalness: 0 },
+	{ id: 'eye-blue', label: 'Göz — Mavi', family: 'Parça', base: 0x3a6b96, dark: 0x0d1520, light: 0x82b4d8, accent: 0xf4f0e8, pattern: 'eye', roughness: 0.16, metalness: 0 },
+	{ id: 'eye-green', label: 'Göz — Yeşil', family: 'Parça', base: 0x4a7a45, dark: 0x0f1a0d, light: 0x90c47f, accent: 0xf4f0e8, pattern: 'eye', roughness: 0.16, metalness: 0 },
+	{ id: 'eye-amber', label: 'Göz — Kehribar', family: 'Parça', base: 0xc4922a, dark: 0x2a1c06, light: 0xf0cf6b, accent: 0xfaf6ec, pattern: 'eye', roughness: 0.14, metalness: 0 },
+	{ id: 'eye-dragon', label: 'Göz — Ejderha', family: 'Parça', base: 0xd4a017, dark: 0x160d02, light: 0xffe07a, accent: 0x8c2f1f, pattern: 'eye', roughness: 0.1, metalness: 0.1 },
+	{ id: 'tooth', label: 'Diş', family: 'Parça', base: 0xe4dccb, dark: 0xa89c85, light: 0xf8f4ea, accent: 0xc4b49a, pattern: 'bone', roughness: 0.35, metalness: 0 },
+	{ id: 'claw', label: 'Pençe', family: 'Parça', base: 0x3a332c, dark: 0x15110d, light: 0x6d6055, accent: 0x8a7a68, pattern: 'bone', roughness: 0.4, metalness: 0.05 },
+	{ id: 'horn', label: 'Boynuz', family: 'Parça', base: 0x8a7a5e, dark: 0x4a3f2d, light: 0xc0ad8a, accent: 0x2f2820, pattern: 'bone', roughness: 0.55, metalness: 0 },
+	{ id: 'hoof', label: 'Toynak', family: 'Parça', base: 0x40382f, dark: 0x1c1712, light: 0x6d5f4e, accent: 0x8a7a63, pattern: 'bone', roughness: 0.45, metalness: 0 },
+	{ id: 'tongue', label: 'Dil', family: 'Parça', base: 0xa85f63, dark: 0x6b3538, light: 0xd08d90, accent: 0x7d4245, pattern: 'skin', roughness: 0.4, metalness: 0 },
+	{ id: 'tunic-green', label: 'Üst Giysi — Yeşil', family: 'Parça', base: 0x4a6b42, dark: 0x2a4024, light: 0x77966b, accent: 0x8a7a52, pattern: 'fabric', roughness: 0.9, metalness: 0 },
+	{ id: 'tunic-blue', label: 'Üst Giysi — Mavi', family: 'Parça', base: 0x3a5670, dark: 0x1e3242, light: 0x6d8fa8, accent: 0xc4b48a, pattern: 'fabric', roughness: 0.9, metalness: 0 },
+	{ id: 'tunic-red', label: 'Üst Giysi — Kırmızı', family: 'Parça', base: 0x8a3a30, dark: 0x54201a, light: 0xb06a5e, accent: 0xd4c08a, pattern: 'fabric', roughness: 0.9, metalness: 0 },
+	{ id: 'tunic-cream', label: 'Üst Giysi — Krem', family: 'Parça', base: 0xc9b894, dark: 0x94836a, light: 0xe6dcc4, accent: 0x8a6a4a, pattern: 'fabric', roughness: 0.92, metalness: 0 },
+	{ id: 'trousers-brown', label: 'Alt Giysi — Kahve', family: 'Parça', base: 0x5e4a35, dark: 0x36291c, light: 0x877055, accent: 0x2f2419, pattern: 'fabric', roughness: 0.93, metalness: 0 },
+	{ id: 'trousers-grey', label: 'Alt Giysi — Gri', family: 'Parça', base: 0x55565a, dark: 0x303134, light: 0x7d7e84, accent: 0x2a2b2e, pattern: 'fabric', roughness: 0.93, metalness: 0 },
+	{ id: 'boot', label: 'Çizme', family: 'Parça', base: 0x4a3628, dark: 0x261a12, light: 0x6d5340, accent: 0x2a1d14, pattern: 'leather', roughness: 0.72, metalness: 0 },
+	{ id: 'belt', label: 'Kemer', family: 'Parça', base: 0x3f2d20, dark: 0x1f150e, light: 0x634834, accent: 0xa8912f, pattern: 'leather', roughness: 0.68, metalness: 0.05 },
+	{ id: 'cloak', label: 'Pelerin', family: 'Parça', base: 0x4a3a52, dark: 0x2a2030, light: 0x74617d, accent: 0x8a7a4a, pattern: 'fabric', roughness: 0.94, metalness: 0 },
+];
+
+/* ---------------------------------------------------------------------------------------------
  * EJDERHALAR — the family the owner asked to be treated with the most care, so each morph gets its
  * own scale colour, belly accent and shading range rather than a recoloured copy of one template.
  * Painted by `dragonTextures.js` (overlapping scale rows + ridge + belly plates), not the generic
@@ -185,7 +213,7 @@ const ROAD = [
 
 /** Every palette, keyed by id. */
 export const PALETTES = indexById([
-	...HUMAN, ...DRAGON, ...ANIMAL, ...NATURE, ...WATER, ...SKY, ...BUILDING, ...ROAD,
+	...HUMAN, ...PARTS, ...DRAGON, ...ANIMAL, ...NATURE, ...WATER, ...SKY, ...BUILDING, ...ROAD,
 ]);
 
 /** Ordered id list — stable iteration for UI listings and regression checks. */
