@@ -29,9 +29,17 @@ try {
   for (const needle of [
     "const STORAGE_KEY = 'westeros-world-editor.scene.v1'",
     'validateEditorScene(JSON.parse(text))',
-    'const originalRender = prototype.render',
-    "this.domElement?.id !== 'game3d-canvas'",
-    'if (prototype.render === captureRender) prototype.render = originalRender',
+    "import { EVENTS } from '../config.js'",
+    "import { gameEvents } from '../eventBus.js'",
+    'const scenePrototype = THREE.Scene.prototype',
+    "Object.prototype.hasOwnProperty.call(scenePrototype, 'add')",
+    'const originalAdd = scenePrototype.add',
+    'scenePrototype.add = captureAdd',
+    'if (hadOwnAdd) scenePrototype.add = originalAdd',
+    'else delete scenePrototype.add',
+    'gameEvents.on(EVENTS.GAME_READY',
+    "payload?.phase !== 'phase1-scene'",
+    'unsubscribeReady()',
     'new EditorAssetManager()',
     'new EditorInstanceManager(scene, assetManager)',
     'rehydrateInstanceGroups(data.instanceGroups, instanceManager, findEditorAsset)',
@@ -39,6 +47,10 @@ try {
     'instanceManager.clear()',
     'AssetLoader.disposeObject3D(child)'
   ]) need(preview, needle, 'isolated visual preview');
+
+  if (preview.includes('WebGLRenderer.prototype') || preview.includes('prototype.render')) {
+    fail('Editor game preview must not hook WebGLRenderer.prototype.render; Three r160 owns render per renderer instance.');
+  }
   if (preview.includes('groundCollider') || preview.includes('settlementCollider') || preview.includes('playerHealth')) {
     fail('Editor game preview must not mutate gameplay collision/health ownership.');
   }
@@ -60,7 +72,7 @@ try {
     './src/3d/editor/EditorGamePatchPreview.js'
   ]) need(materializer, cached, 'PWA preview cache path');
 
-  console.log('[checkRun216EditorGamePreviewContract] PASS: preview is query-gated, lazy, ordered before init, visual-only, canonical-scene validated, resource-clean and invisible to core game3d.js/normal game path.');
+  console.log('[checkRun216EditorGamePreviewContract] PASS: preview is query-gated, lazy, ordered before init, captures the game Scene without renderer-prototype mutation, waits for canonical phase1 readiness, remains visual-only/resource-clean, and is invisible to core game3d.js/normal game path.');
 } catch (error) {
   console.error(`[checkRun216EditorGamePreviewContract] FAIL: ${error.stack || error}`);
   process.exitCode = 1;
