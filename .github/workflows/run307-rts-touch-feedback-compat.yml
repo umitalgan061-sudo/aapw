@@ -1,0 +1,123 @@
+name: Run 307 RTS Touch Feedback Compatibility
+
+on:
+  push:
+    branches:
+      - run307-rts-touch-feedback-compat
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run307-rts-touch-feedback-compat-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+  BASE_SHA: a5b9dcfc6da0b199db6faa040c87c735bdd2dc58
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main concurrency and additive entry gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git diff --numstat "$BASE_SHA"...HEAD -- \
+            rts.html \
+            scripts/checkRun307RtsTouchFeedbackBridge.js \
+            .github/workflows/run307-rts-touch-feedback-compat.yml \
+            | awk '$2 != 0 { print "non-additive Run307 diff: " $0; exit 1 }'
+
+      - name: Run307 source and syntax contract
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun307RtsTouchFeedbackBridge.js
+          grep -F "event.pointerType !== 'touch'" rts.html
+          grep -F "marker.dataset.visible === 'true'" rts.html
+          grep -F "new MouseEvent('contextmenu'" rts.html
+          grep -F 'removeEventListener' rts.html
+          grep -F 'window.__WESTEROS_RTS_TOUCH_FEEDBACK_BRIDGE__' rts.html
+          grep -F 'bridgedCount' scripts/checkRun307RtsTouchFeedbackBridge.js
+          grep -F 'disposalVerified' scripts/checkRun307RtsTouchFeedbackBridge.js
+
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Restore legacy Run208 destination-feedback contract
+        run: node scripts/checkRun208RtsCommandFeedback.js
+
+      - name: Focused real-mobile touch bridge proof
+        run: node scripts/checkRun307RtsTouchFeedbackBridge.js
+
+      - name: Existing RTS regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkRun207RtsSurface.js
+          node scripts/checkRun210RtsSurfaceTexture.js
+          node scripts/checkRun211RtsKeyboardShortcuts.js
+          node scripts/checkRun212RtsCommandStatus.js
+          node scripts/checkRun213RtsSelectionReadability.js
+
+      - name: PWA performance determinism world-safety and debt gates
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full Chromium smoke and console regression
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run307-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run307-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run307-smoke.log"
+
+      - name: Upload Run307 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run307-rts-touch-feedback-${{ github.sha }}
+          path: artifacts/run307-rts-touch-feedback
+          if-no-files-found: error
+
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git diff --numstat "$BASE_SHA"...HEAD -- \
+            rts.html \
+            scripts/checkRun307RtsTouchFeedbackBridge.js \
+            .github/workflows/run307-rts-touch-feedback-compat.yml \
+            | awk '$2 != 0 { print "non-additive Run307 final diff: " $0; exit 1 }'
