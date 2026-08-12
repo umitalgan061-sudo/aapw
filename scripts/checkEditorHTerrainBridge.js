@@ -52,9 +52,25 @@ for (const marker of [
   if (!importer.includes(marker)) fail(`Godot importer contract missing: ${marker}`);
 }
 
+const rebaker = read('godot/terrain-authoring/scripts/rebake_editor_hterrain_derived.gd');
+for (const marker of [
+  'HTerrainGlobalMapBaker',
+  'terrain.set_data(generated)',
+  'request_tiles_in_region',
+  'CHANNEL_NORMAL',
+  'CHANNEL_GLOBAL_ALBEDO',
+  'global_baker.bake(terrain)',
+  'generated.save_data(output)',
+  'HTERRAIN_EDITOR_DERIVED_REBAKE_OK'
+]) {
+  if (!rebaker.includes(marker)) fail(`Godot derived rebake contract missing: ${marker}`);
+}
+
 const cleanupLines = editor.split(/\r?\n/).length;
 if (cleanupLines > 600) fail(`EditorLiveWorldResourceCleanup.js exceeded 600-line cap: ${cleanupLines}`);
 const importerLines = importer.split(/\r?\n/).length;
 if (importerLines > 600) fail(`HTerrain importer exceeded 600-line cap: ${importerLines}`);
+const rebakerLines = rebaker.split(/\r?\n/).length;
+if (rebakerLines > 600) fail(`HTerrain derived rebaker exceeded 600-line cap: ${rebakerLines}`);
 
-console.log(`[checkEditorHTerrainBridge] PASS: map.png lock + 17 biome zones + 4 relief chains + 513² editor/Godot bridge; editorLines=${cleanupLines}, importerLines=${importerLines}`);
+console.log(`[checkEditorHTerrainBridge] PASS: map.png lock + 17 biome zones + 4 relief chains + 513² editor/Godot authored+derived chain; editorLines=${cleanupLines}, importerLines=${importerLines}, rebakerLines=${rebakerLines}`);
