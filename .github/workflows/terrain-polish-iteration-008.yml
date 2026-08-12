@@ -24,7 +24,7 @@ concurrency:
 
 env:
   TZ: Europe/Istanbul
-  BASE_SHA: 213face9edb0369867e30c9dc1c20fd5d4abe13b
+  BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '213face9edb0369867e30c9dc1c20fd5d4abe13b' }}
 
 jobs:
   validate:
