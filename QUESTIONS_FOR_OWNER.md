@@ -320,3 +320,19 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   - run 113 (ADR-0140): kale-çevresi ağaç kümesi 220/km² + 260m — kalıcı.
   Bu maddelerin hiçbiri artık "geçici varsayılan" değil — gelecekteki runlar bunları sabit kabul
   edip QUESTIONS_FOR_OWNER.md'de tekrar sormayacak.
+
+- **🔴 (bu run, 2026-08-12) Repo/CI altyapı büyümesi owner kararı bekliyor — run 151 emsaline göre
+  push bildirimiyle sahibe iletildi.** Bu çalıştırma normal alt görev zincirine geçmeden önce repo
+  durumunu kontrol etti ve şunu buldu: `.git` 709MB, 406 uzak branch, `.github/workflows/` altında
+  268 workflow dosyası (176'sı `workflow_dispatch`, 134'ü `contents: write`/`write-all` izinli),
+  hepsi proje 2026-08-11'de başladıktan sonra ~30 saatte oluşmuş (196 commit, 118'i bugün). Ayrıca
+  bu çalıştırma başladığında local `HEAD` origin/main'in 38 commit gerisinde/detached durumdaydı —
+  veri kaybı YOK (fetch sonrası origin/main zaten aynı noktadaydı, başka eşzamanlı bir run push
+  etmişti), sadece bu clone'un bayat olduğunu doğruladı. run313-316 boyunca tekrar tekrar denenen
+  "Run303 dispatch-capable write workflow identity" emeklilik girişimi bu sprawl'ın sadece dar bir
+  dilimi — kalan 134 write-yetkili workflow'un çoğu tek-kullanımlık run branch'leri için ve hiç
+  temizlenmemiş. Bu run kod/asset değişikliği yapmadı (branch/workflow toplu temizliği geri
+  alınamaz + owner kararı gerektirir, tek bir alt görev bunu güvenle çözemez). **Geçici varsayılan:**
+  yeni alt görevler mevcut branch/workflow sayısını büyütmeye devam edecek (durdurma yetkisi yok),
+  ama toplu temizlik/konsolidasyon owner onayı olmadan başlatılmayacak. Owner yanıt verene kadar
+  gelecekteki runlar bunu tekrar bildirmeyecek (spam önleme, run 151 kuralı).
