@@ -1,0 +1,18 @@
+# Godot's own import/cache directory — regenerated on open.
+.godot/
+
+# Godot-generated per-file metadata. Regenerated on import; kept out of git so terrain work does not
+# carry dozens of unrelated churn files alongside it.
+*.uid
+
+# Terrain3D is installed from its pinned official release by tools/install_terrain3d.py
+# (see terrain3d.lock.json), not vendored — tens of MB of third-party binaries do not belong in git.
+addons/terrain_3d/
+
+# Everything the Terrain3D height-field pipeline generates. All of it is reproducible from committed
+# sources with the two commands in README.md, and the region data alone is ~33MB:
+#   node scripts/exportWesterosHeightField.js
+#   godot --headless --path godot/terrain-authoring --script res://scripts/import_westeros_heightfield.gd
+source_data/
+terrain3d_data/
+scenes/westeros_terrain3d_authoring.tscn

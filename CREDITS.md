@@ -86,6 +86,48 @@ yok.
 | `dragon_reference_v3` | Ejderha referans modeli | 2026-07-30 |
 | `castle_reference_gatehouse_decimated` | `dragon_reference_v1`'den türetilmiş, `twin` kale koltuğuna atandı (gltf-transform 4.4.2, ADR-0086) | 2026-08-05 |
 
+## Terrain3D (Godot eklentisi — kod/araç, asset değil)
+
+Godot 4 için yüksek performanslı arazi sistemi. Bu repoda `godot/terrain3d-authoring/addons/terrain_3d/`
+altında vendor edilmiştir ve **yalnızca Godot authoring çalışma alanında** kullanılır — shipped
+Three.js/PWA oyununa dahil edilmez (bir C++ GDExtension'dır, tarayıcıda çalışmaz).
+
+| | |
+|---|---|
+| Proje | Terrain3D |
+| Yazarlar | Cory Petkovsek & Roope Palmroos ve katkıda bulunanlar |
+| Kaynak | https://github.com/TokisanGames/Terrain3D |
+| Sürüm | v1.0.2-stable (`Terrain3D_v1.0.2-stable.zip` resmi release paketi) |
+| Lisans | MIT (tam metin: `godot/terrain3d-authoring/addons/terrain_3d/LICENSE.txt`) |
+| Eklendi | 2026-08-12 (ADR-0265) |
+| Godot gereksinimi | 4.4+ (bu proje 4.6.3 kullanıyor) |
+
+MIT lisansı telif/lisans bildiriminin korunmasını şart koşar; eklentinin kendi `LICENSE.txt` dosyası
+vendor edilen ağaç içinde olduğu gibi bırakılmıştır. Vendor edilen ikili dosyalar yalnızca
+linux/windows x86_64 (debug+release) ile sınırlandırılmıştır; android/ios/macos/web ikilileri
+kullanılmadığı için alınmamıştır.
+
+## Terrain3D (Godot eklentisi — kod/araç, asset değil)
+
+Godot 4 için yüksek performanslı arazi sistemi. **Repoya vendor edilmez**: `terrain3d.lock.json`
+içinde SHA256 ile pinlenmiş resmi release, `godot/terrain-authoring/tools/install_terrain3d.py`
+tarafından indirilip `addons/terrain_3d/` altına kurulur (o dizin `.gitignore`'dadır). Yalnızca Godot
+authoring çalışma alanında kullanılır — shipped Three.js/PWA oyununa dahil edilmez (bir C++
+GDExtension'dır, tarayıcıda çalışmaz).
+
+| | |
+|---|---|
+| Proje | Terrain3D |
+| Yazarlar | Cory Petkovsek & Roope Palmroos ve katkıda bulunanlar |
+| Kaynak | https://github.com/TokisanGames/Terrain3D |
+| Sürüm | v1.0.2-stable (`Terrain3D_v1.0.2-stable.zip`, SHA256 `a071850250ec5e596aa54da61c01d75768774eb379ee997584d426a45f4884a2`) |
+| Lisans | MIT (kurulan ağaçtaki `addons/terrain_3d/LICENSE.txt`) |
+| Eklendi | 2026-08-12 (ADR-0266) |
+| Godot gereksinimi | 4.4+ (bu proje 4.6.3 kullanıyor) |
+
+MIT lisansı telif/lisans bildiriminin korunmasını şart koşar; installer eklentinin kendi
+`LICENSE.txt` dosyasını olduğu gibi kurar ve CI bunun varlığını doğrular.
+
 ---
 
 ## Özet
@@ -97,6 +139,10 @@ yok.
 | Meshy AI (orijinal + decimated türevler dahil) | 24 |
 | Hitem3d (orijinal + 2 decimated türev dahil) | 5 |
 | **Toplam** | **41** |
+
+Ayrıca kod/araç bağımlılığı olarak Terrain3D v1.0.2-stable (MIT) kullanılır — yukarıdaki bölüme bakın (asset sayısına dahil değildir).
+
+Ayrıca kod/araç bağımlılığı olarak Terrain3D v1.0.2-stable (MIT) vendor edilmiştir — yukarıdaki bölüme bakın (asset sayısına dahil değildir).
 
 Gerçek HBO Game of Thrones görsel/ses materyali bu projede kullanılmamıştır ve
 kullanılmayacaktır (bkz. `GOVERNANCE.md` — TEK KISIT).
