@@ -13,6 +13,7 @@ const STARTER_GROUND_TEXTURES := [
 ]
 const STARTER_GRASS_TEXTURE := "res://starter_textures/detail_grass.svg"
 const STARTER_GLOBAL_ALBEDO := Color(0.33333334, 0.4509804, 0.2509804, 1.0)
+const STARTER_MACRO_TINT_MIN := 0.94
 
 var _authoring_ready := false
 
@@ -59,6 +60,11 @@ func ensure_authoring_ready() -> bool:
 		starter_global_albedo.fill(STARTER_GLOBAL_ALBEDO)
 		data_changed = true
 
+	if initial_data_creation:
+		if not _seed_starter_macro_tint(data):
+			return false
+		data_changed = true
+
 	var texture_set = terrain.get_texture_set()
 	if texture_set.get_mode() == HTerrainTextureSet.MODE_TEXTURES \
 	and texture_set.get_slots_count() == 0:
@@ -98,3 +104,44 @@ func ensure_authoring_ready() -> bool:
 
 	_authoring_ready = true
 	return true
+
+
+func _seed_starter_macro_tint(data) -> bool:
+	var color_map: Image = data.get_image(HTerrainData.CHANNEL_COLOR)
+	var global_albedo: Image = data.get_image(HTerrainData.CHANNEL_GLOBAL_ALBEDO)
+	if color_map == null or global_albedo == null:
+		push_error("Starter macro tint requires color and global albedo maps in RAM")
+		return false
+
+	var resolution: int = data.get_resolution()
+	if resolution <= 1:
+		push_error("Starter macro tint requires initialized HTerrain resolution")
+		return false
+
+	var denominator := float(resolution - 1)
+	for y in range(resolution):
+		for x in range(resolution):
+			var uv := Vector2(float(x) / denominator, float(y) / denominator)
+			var tint := _starter_macro_tint_at(uv)
+			color_map.set_pixel(x, y, tint)
+			global_albedo.set_pixel(x, y, Color(
+				STARTER_GLOBAL_ALBEDO.r * tint.r,
+				STARTER_GLOBAL_ALBEDO.g * tint.g,
+				STARTER_GLOBAL_ALBEDO.b * tint.b,
+				1.0))
+	return true
+
+
+func _starter_macro_tint_at(uv: Vector2) -> Color:
+	var cool_patch := exp(-uv.distance_squared_to(Vector2(0.28, 0.34)) / 0.055)
+	var warm_patch := exp(-uv.distance_squared_to(Vector2(0.70, 0.62)) / 0.075)
+	var soft_patch := exp(-uv.distance_squared_to(Vector2(0.48, 0.82)) / 0.045)
+	var macro_amount := clampf(0.55 * cool_patch + 0.35 * warm_patch + 0.25 * soft_patch, 0.0, 1.0)
+	var shade := lerpf(1.0, STARTER_MACRO_TINT_MIN, macro_amount)
+	var warmth := 0.012 * warm_patch
+	var coolness := 0.010 * cool_patch
+	return Color(
+		clampf(shade - coolness, STARTER_MACRO_TINT_MIN, 1.0),
+		clampf(shade - warmth * 0.35, STARTER_MACRO_TINT_MIN, 1.0),
+		clampf(shade - warmth, STARTER_MACRO_TINT_MIN, 1.0),
+		1.0)
