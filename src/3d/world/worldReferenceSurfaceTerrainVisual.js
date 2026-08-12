@@ -137,3 +137,184 @@ export function applyReferenceSurfaceToTerrainGroup(terrainGroup) {
 	terrainGroup.userData.run273CanonicalMapSurface = summary;
 	return summary;
 }
+
+// Terrain Polish Iteration #08 — deliberate shipped-game visual change.
+// The historical canonical-dev surface above remains intact. This additive adapter projects the
+// current cropped runtime world back onto the same owner-map mask, blends those semantics into the
+// existing procedural terrain colors, then reuses the already-prepared Pindex-01..09 detail layers.
+// Geometry/height stays untouched in this iteration, so settlement, road, river and physics safety
+// contracts remain on their proven sampler while the player-visible ground finally changes.
+import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
+import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
+import { mapCanvasToPlannedWorldXZ } from './worldReferenceMigrationPlan.js';
+import { ChunkManager } from './chunkManager.js';
+import { applyPindex01DetailToTerrainMesh } from './worldReferencePindex01Detail.js';
+import { applyPindex02DetailToTerrainMesh } from './worldReferencePindex02Detail.js';
+import { applyPindex03DetailToTerrainMesh } from './worldReferencePindex03Detail.js';
+import { applyPindex04DetailToTerrainMesh } from './worldReferencePindex04Detail.js';
+import { applyPindex05DetailToTerrainMesh } from './worldReferencePindex05Detail.js';
+import { applyPindex06DetailToTerrainMesh } from './worldReferencePindex06Detail.js';
+import { applyPindex07DetailToTerrainMesh } from './worldReferencePindex07Detail.js';
+import { applyPindex08DetailToTerrainMesh } from './worldReferencePindex08Detail.js';
+import { applyPindex09DetailToTerrainMesh } from './worldReferencePindex09Detail.js';
+
+export const RUNTIME_PINDEX_TERRAIN_POLISH_POLICY = Object.freeze({
+	id: 'terrain-polish-iteration-008-visible-pindex-runtime-2026-08-12-v1',
+	semanticBlendBySurface: Object.freeze({ sea: 0.12, lake: 0.18, soil: 0.38, rock: 0.5, snow: 0.58 }),
+	wetLowHeightBoost: 0.18,
+	wetHeightFadeMeters: 18,
+	roughnessBlend: 0.65,
+});
+
+const RUNTIME_PINDEX_DETAIL_APPLIERS = Object.freeze({
+	1: applyPindex01DetailToTerrainMesh,
+	2: applyPindex02DetailToTerrainMesh,
+	3: applyPindex03DetailToTerrainMesh,
+	4: applyPindex04DetailToTerrainMesh,
+	5: applyPindex05DetailToTerrainMesh,
+	6: applyPindex06DetailToTerrainMesh,
+	7: applyPindex07DetailToTerrainMesh,
+	8: applyPindex08DetailToTerrainMesh,
+	9: applyPindex09DetailToTerrainMesh,
+});
+
+function currentWorldReferenceSample(worldX, worldZ) {
+	const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
+	const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
+	const rawMapX = worldX / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapX;
+	const rawMapY = worldZ / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapY;
+	const mapX = THREE.MathUtils.clamp(rawMapX, 0, WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits);
+	const mapY = THREE.MathUtils.clamp(rawMapY, 0, WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits);
+	const normalized = mapCanvasToNormalizedReference(mapX, mapY);
+	const planned = mapCanvasToPlannedWorldXZ(mapX, mapY);
+	return Object.freeze({
+		surface: classifyReferenceBaseSurface(normalized.x, normalized.y),
+		pindex: referencePindexFromNormalizedX(normalized.x),
+		plannedX: planned.x,
+		plannedZ: planned.z,
+	});
+}
+
+function runtimeSemanticBlend(surface, vertexHeightMeters) {
+	const base = RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.semanticBlendBySurface[surface] ?? 0;
+	if (surface !== 'sea' && surface !== 'lake') return base;
+	const heightAboveWater = Math.max(0, vertexHeightMeters - WORLD_DEFAULTS.WATER_LEVEL_METERS);
+	const lowHeightWeight = 1 - THREE.MathUtils.clamp(
+		heightAboveWater / RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.wetHeightFadeMeters,
+		0,
+		1,
+	);
+	return THREE.MathUtils.clamp(
+		base + lowHeightWeight * RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.wetLowHeightBoost,
+		0,
+		0.7,
+	);
+}
+
+/**
+ * Blends owner-map semantics and prepared pindex detail into one live procedural terrain chunk.
+ * Height/position attributes are read-only here; only vertex color + material roughness change.
+ */
+export function applyRuntimePindexTerrainPolishToMesh(mesh) {
+	assertTerrainMesh(mesh);
+	const prior = mesh.userData.runtimePindexTerrainPolish;
+	if (prior?.policyId === RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.id) return prior;
+	const position = mesh.geometry.getAttribute('position');
+	const color = mesh.geometry.getAttribute('color');
+	if (!position || !color) throw new TypeError('runtime terrain position+color attributes are required');
+	const plannedX = new Float64Array(position.count);
+	const plannedZ = new Float64Array(position.count);
+	const activePindexes = new Set();
+	const counts = { sea: 0, lake: 0, soil: 0, rock: 0, snow: 0 };
+	const sourceColor = new THREE.Color();
+	let roughnessSum = 0;
+	let changedVertices = 0;
+
+	for (let index = 0; index < position.count; index += 1) {
+		const worldX = mesh.position.x + position.getX(index);
+		const worldZ = mesh.position.z + position.getZ(index);
+		const sample = currentWorldReferenceSample(worldX, worldZ);
+		plannedX[index] = sample.plannedX;
+		plannedZ[index] = sample.plannedZ;
+		activePindexes.add(sample.pindex);
+		counts[sample.surface] += 1;
+		roughnessSum += WORLD_REFERENCE_SURFACE_VISUAL_POLICY.roughness[sample.surface];
+		const beforeR = color.getX(index);
+		const beforeG = color.getY(index);
+		const beforeB = color.getZ(index);
+		sourceColor.setRGB(beforeR, beforeG, beforeB);
+		sourceColor.lerp(COLOR_BY_SURFACE[sample.surface], runtimeSemanticBlend(sample.surface, position.getY(index)));
+		color.setXYZ(index, sourceColor.r, sourceColor.g, sourceColor.b);
+		if (sourceColor.r !== beforeR || sourceColor.g !== beforeG || sourceColor.b !== beforeB) changedVertices += 1;
+	}
+	color.needsUpdate = true;
+
+	const plannedPosition = Object.freeze({
+		count: position.count,
+		getX: (index) => plannedX[index],
+		getZ: (index) => plannedZ[index],
+	});
+	const proxyGeometry = Object.freeze({
+		getAttribute: (name) => name === 'position' ? plannedPosition : mesh.geometry.getAttribute(name),
+	});
+	const proxyMesh = {
+		geometry: proxyGeometry,
+		position: Object.freeze({ x: 0, z: 0 }),
+		userData: {},
+	};
+	const detailSummaries = [];
+	let detailTouchedVertices = 0;
+	for (const pindex of [...activePindexes].sort((a, b) => a - b)) {
+		const applyDetail = RUNTIME_PINDEX_DETAIL_APPLIERS[pindex];
+		if (!applyDetail) continue;
+		const detail = applyDetail(proxyMesh);
+		detailSummaries.push(detail);
+		detailTouchedVertices += detail.touchedVertices;
+	}
+
+	mesh.material.vertexColors = true;
+	mesh.material.color.setHex(0xffffff);
+	mesh.material.roughness = THREE.MathUtils.lerp(
+		mesh.material.roughness,
+		roughnessSum / position.count,
+		RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.roughnessBlend,
+	);
+	mesh.material.metalness = 0;
+	mesh.material.needsUpdate = true;
+	const summary = Object.freeze({
+		policyId: RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.id,
+		vertexCount: position.count,
+		changedVertices,
+		detailTouchedVertices,
+		activePindexes: Object.freeze([...activePindexes].sort((a, b) => a - b)),
+		counts: Object.freeze({ ...counts }),
+		averageRoughness: mesh.material.roughness,
+		detailPolicyIds: Object.freeze(detailSummaries.map((detail) => detail.policyId)),
+	});
+	mesh.userData.runtimePindexTerrainPolish = summary;
+	return summary;
+}
+
+const RUNTIME_PINDEX_INSTALL_FLAG = Symbol.for('westeros.runtime-pindex-terrain-polish.iteration-008');
+
+/** Installs the visible pindex polish onto shipped ChunkManager loads without replacing terrain generation. */
+export function installRuntimePindexTerrainPolish() {
+	const prototype = ChunkManager.prototype;
+	if (prototype[RUNTIME_PINDEX_INSTALL_FLAG]) return prototype[RUNTIME_PINDEX_INSTALL_FLAG];
+	const loadChunkBeforePindexPolish = prototype.loadChunk;
+	const streamTowardsBeforePindexPolish = prototype.streamTowards;
+
+	prototype.loadChunk = function loadChunkWithRuntimePindexPolish(chunkX, chunkZ) {
+		const mesh = loadChunkBeforePindexPolish.call(this, chunkX, chunkZ);
+		applyRuntimePindexTerrainPolishToMesh(mesh);
+		return mesh;
+	};
+	prototype.streamTowards = function streamTowardsWithRuntimePindexPolish(centerChunkX, centerChunkZ, radius) {
+		const result = streamTowardsBeforePindexPolish.call(this, centerChunkX, centerChunkZ, radius);
+		for (const mesh of this.loaded.values()) applyRuntimePindexTerrainPolishToMesh(mesh);
+		return result;
+	};
+	const installation = Object.freeze({ policyId: RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.id, installed: true });
+	Object.defineProperty(prototype, RUNTIME_PINDEX_INSTALL_FLAG, { value: installation, configurable: false });
+	return installation;
+}
