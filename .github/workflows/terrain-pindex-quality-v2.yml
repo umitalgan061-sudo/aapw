@@ -1,0 +1,141 @@
+name: Terrain Pindex Quality V2
+
+on:
+  push:
+    branches:
+      - terrain/pindex-quality-v2-current-main-20260812
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/3d/world/worldReferenceSurfacePindexes.js'
+      - 'src/3d/world/worldReferenceSurfaceTerrainVisual.js'
+      - 'scripts/checkTerrainPindexQualityV2.js'
+      - 'scripts/checkTerrainPindexQualityV2Browser.js'
+      - '.github/workflows/terrain-pindex-quality-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terrain-pindex-quality-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+  BASE_SHA: d89f1a01c76d48eb60f9f1cad0a6bfac026aa37c
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main concurrency and compatibility entry gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Syntax and Pindex Quality V2 contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferenceSurfacePindexes.js
+          node --check src/3d/world/worldReferenceSurfaceTerrainVisual.js
+          node --check scripts/checkTerrainPindexQualityV2.js
+          node --check scripts/checkTerrainPindexQualityV2Browser.js
+          node scripts/checkTerrainPindexQualityV2.js
+          node scripts/checkTerrainPolishIteration08.js
+
+      - name: Canonical source PWA and semantic regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkRun280OwnerMapSemanticFingerprint.js
+
+      - name: Install Chromium dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: High-fidelity Pindex GPU visual proof
+        run: |
+          set -euo pipefail
+          node scripts/checkTerrainPindexQualityV2Browser.js | tee "$RUNNER_TEMP/pindex-quality-v2-browser.log"
+          grep -F '[checkTerrainPindexQualityV2Browser] PASS' "$RUNNER_TEMP/pindex-quality-v2-browser.log"
+          test -f artifacts/terrain-pindex-quality-v2/iteration08-vs-quality-v2.png
+          test -f artifacts/terrain-pindex-quality-v2/proof.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const proof = JSON.parse(fs.readFileSync('artifacts/terrain-pindex-quality-v2/proof.json', 'utf8'));
+          if (proof.allPindexes.join(',') !== '1,2,3,4,5,6,7,8,9,10') throw new Error('P01..P10 coverage drift');
+          if (!proof.heightUnchanged || !proof.cpuColorArraysEqual || proof.cpuVertexPassesAdded !== 0) throw new Error('geometry/CPU-pass regression');
+          if (!proof.samplerDeterministic || !proof.gpuDeterministic || !proof.idempotent) throw new Error('determinism/idempotency regression');
+          if (!(proof.blendedSamples > 300) || !(proof.maxPindexSeamSurfaceDelta < 0.001)) throw new Error('semantic edge smoothing regression');
+          if (!(proof.visualMeanPixelDelta > 1) || !(proof.visualChangedRatio > 0.08)) throw new Error('rendered quality delta missing');
+          if (!(proof.shaderPrograms > 0) || !proof.shaderInstalled) throw new Error('PBR detail shader missing');
+          if (!(proof.visualImportMs < 2000) || !(proof.qualityApplyMs < 1000)) throw new Error('quality runtime cost regression');
+          if (proof.consoleErrors !== 0) throw new Error('browser console errors');
+          console.log('PINDEX_QUALITY_V2_PROOF_OK', JSON.stringify({
+            atlas: proof.atlasResolution,
+            visualMeanPixelDelta: proof.visualMeanPixelDelta,
+            visualChangedRatio: proof.visualChangedRatio,
+            visualImportMs: proof.visualImportMs,
+            qualityApplyMs: proof.qualityApplyMs,
+            p10: proof.p10,
+          }));
+          NODE
+
+      - name: Iteration 008 and full game smoke regression
+        run: |
+          set -euo pipefail
+          node scripts/checkTerrainPolishIteration08Browser.js | tee "$RUNNER_TEMP/iteration008-regression.log"
+          grep -F '[checkTerrainPolishIteration08Browser] PASS' "$RUNNER_TEMP/iteration008-regression.log"
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/pindex-quality-v2-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/pindex-quality-v2-smoke.log")" -ge 34
+
+      - name: Performance determinism world safety governance
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Upload Pindex Quality V2 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-pindex-quality-v2-${{ github.sha }}
+          path: artifacts/terrain-pindex-quality-v2
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Final exact-main and source-preservation gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfacePindexes.js | awk '{print $2+0}')" = '0'
+          test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfaceTerrainVisual.js | awk '{print $2+0}')" = '0'
