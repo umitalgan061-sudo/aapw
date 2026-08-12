@@ -37,6 +37,26 @@ for (const marker of [
   if (!editor.includes(marker)) fail(`editor contract missing: ${marker}`);
 }
 
+const serializer = read('src/3d/editor/EditorSceneSerializer.js');
+for (const marker of [
+  "const HTERRAIN_SURFACES = new Set(['auto', 'grass', 'earth', 'rock', 'snow'])",
+  'hterrainSurface:',
+  'elevationMeters:',
+  'Scene terrain metadata obje olmalı.',
+  'Desteklenmeyen HTerrain surface:'
+]) {
+  if (!serializer.includes(marker)) fail(`scene serializer HTerrain persistence missing: ${marker}`);
+}
+
+const worldEditor = read('src/3d/editor/worldEditor.js');
+for (const marker of [
+  'record.terrain.hterrainSurface',
+  'object.userData.editorHTerrainSurface = surface',
+  'object.userData.editorTerrainElevationMeters = elevation'
+]) {
+  if (!worldEditor.includes(marker)) fail(`scene load HTerrain persistence missing: ${marker}`);
+}
+
 const importer = read('godot/terrain-authoring/scripts/import_editor_hterrain_manifest.gd');
 for (const marker of [
   'EXPECTED_SCHEMA := "westeros-hterrain-editor-v1"',
@@ -46,6 +66,7 @@ for (const marker of [
   'mapLocked',
   '_apply_map_reference',
   '_apply_strokes',
+  '_copy_passthrough_maps',
   'data.save_data(output)',
   'HTERRAIN_EDITOR_IMPORT_OK'
 ]) {
@@ -54,8 +75,10 @@ for (const marker of [
 
 const rebaker = read('godot/terrain-authoring/scripts/rebake_editor_hterrain_derived.gd');
 for (const marker of [
+  'HTerrainNormalMapBaker',
   'HTerrainGlobalMapBaker',
   'terrain.set_data(generated)',
+  'normal_baker.set_terrain_data(generated)',
   'request_tiles_in_region',
   'CHANNEL_NORMAL',
   'CHANNEL_GLOBAL_ALBEDO',
@@ -66,11 +89,16 @@ for (const marker of [
   if (!rebaker.includes(marker)) fail(`Godot derived rebake contract missing: ${marker}`);
 }
 
-const cleanupLines = editor.split(/\r?\n/).length;
-if (cleanupLines > 600) fail(`EditorLiveWorldResourceCleanup.js exceeded 600-line cap: ${cleanupLines}`);
-const importerLines = importer.split(/\r?\n/).length;
-if (importerLines > 600) fail(`HTerrain importer exceeded 600-line cap: ${importerLines}`);
-const rebakerLines = rebaker.split(/\r?\n/).length;
-if (rebakerLines > 600) fail(`HTerrain derived rebaker exceeded 600-line cap: ${rebakerLines}`);
+const lineCaps = [
+  ['EditorLiveWorldResourceCleanup.js', editor],
+  ['EditorSceneSerializer.js', serializer],
+  ['worldEditor.js', worldEditor],
+  ['import_editor_hterrain_manifest.gd', importer],
+  ['rebake_editor_hterrain_derived.gd', rebaker]
+];
+for (const [name, source] of lineCaps) {
+  const lines = source.split(/\r?\n/).length;
+  if (lines > 600) fail(`${name} exceeded 600-line cap: ${lines}`);
+}
 
-console.log(`[checkEditorHTerrainBridge] PASS: map.png lock + 17 biome zones + 4 relief chains + 513² editor/Godot authored+derived chain; editorLines=${cleanupLines}, importerLines=${importerLines}, rebakerLines=${rebakerLines}`);
+console.log('[checkEditorHTerrainBridge] PASS: map.png lock + 17 biome zones + 4 relief chains + 513² editor/Godot authored+derived chain + scene persistence');
