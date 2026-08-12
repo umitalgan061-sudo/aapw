@@ -18,12 +18,15 @@ Bu dosya, zamanlanmış/otonom zemin görevleri için zorunlu çalışma sözle�
 
 ### Terrain3D
 
-- Yetkili upstream: `TokisanGames/Terrain3D`.
+- Yetkili upstream: `https://github.com/TokisanGames/Terrain3D`.
+- `TokisanGames/Terrain3DD` diye ayrı bir resmi repo yoktur; görevlerdeki olası `Terrain3DD` yazımı typo kabul edilip **Terrain3D** olarak düzeltilir.
 - Godot Asset Library kimliği: `3892`.
 - Kilitli sürüm ve SHA256 yalnız `terrain3d.lock.json` üzerinden okunur.
 - Kurulum: `python3 godot/terrain-authoring/tools/install_terrain3d.py`.
 - `project.godot` içinde `res://addons/terrain_3d/plugin.cfg` etkin olmalıdır; bu, Godot arayüzündeki `Project -> Project Settings -> Plugins -> Terrain3D = Enabled` durumunun proje dosyasındaki karşılığıdır.
 - Zamanlanmış görevler gerektiğinde `python3 godot/terrain-authoring/tools/install_terrain3d.py --check-upstream` ile upstream son release bilgisini okuyabilir.
+- Zamanlanmış terrain görevleri GitHub bağlantısı veya HTTPS üzerinden resmi `TokisanGames/Terrain3D` deposundaki kaynak kodu, `doc/`, örnekler, shader/brush/tool implementasyonları ve release notlarını **okuyup araştırma girdisi olarak kullanabilir**. Uygulama davranışı için önce kilitli `v1.0.2-stable` etiketi esas alınır; upstream `main` yalnız araştırma/karşılaştırma amacıyla okunabilir.
+- Upstream kodundan yararlanırken API veya davranış tahmin edilmez; ilgili dosya/etiket okunur. Başka sürümden kod kopyalamak, binary değiştirmek veya lock dosyasını güncellemek ayrı upgrade PR'ı gerektirir.
 - Upstream değişti diye otomatik sürüm yükseltme YASAKTIR. Yeni sürüm ayrı PR'da Godot headless, determinism, performans, map-fidelity, yol ve 14 yerleşim güvenliği testlerinden sonra kilide alınır.
 - Terrain3D; GPU clipmap/LOD, çoklu texture painting, heightmap import, foliage/instance LOD, holes ve daha yüksek çözünürlüklü kaynak eşleme gibi alanlarda tercih edilen ikinci authoring motorudur. Kullanım kararı her alt görevde fayda/risk ile gerekçelendirilir.
 
