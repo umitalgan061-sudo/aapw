@@ -1,0 +1,125 @@
+name: Terrain Polish Iteration 009
+
+on:
+  push:
+    branches:
+      - 'terrain/polish-iteration-009-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terrain-polish-iteration-009-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+  BASE_SHA: d90939ac8d1eae7f327201576ba8f79507e96cce
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main concurrency and additive entry gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Iteration 009 scope contract
+        run: |
+          set -euo pipefail
+          test -f godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
+          test -f godot/terrain-authoring/scripts/validate_terrain_polish_iteration_09.gd
+          test -f godot/terrain-authoring/TERRAIN_POLISH_LOG.md
+          grep -F 'shader_params/u_globalmap_blend_start = 420.0' godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn
+          grep -F 'shader_params/u_globalmap_blend_distance = 0.0025' godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn
+          grep -F 'TERRAIN_POLISH_ITERATION_09_OK' godot/terrain-authoring/scripts/validate_terrain_polish_iteration_09.gd
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain_data
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scripts/terrain_authoring_bootstrap.gd
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot import editor and validation
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/base.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/base.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_terrain_polish_iteration_09.gd | tee "$RUNNER_TEMP/iteration09.log"
+          grep -F 'TERRAIN_POLISH_ITERATION_09_OK' "$RUNNER_TEMP/iteration09.log"
+
+      - name: PWA determinism performance and world safety
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full browser smoke regression
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log")" -ge 34
+
+      - name: Final exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain_data
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scripts/terrain_authoring_bootstrap.gd
