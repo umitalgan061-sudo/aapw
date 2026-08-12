@@ -55,14 +55,16 @@ jobs:
           grep -F "PR is stale: head does not contain the current main commit" .github/workflows/pr-main-freshness-guard.yml
           grep -F "Create a successor from current main; do not force-update someone else's stale branch." .github/workflows/pr-main-freshness-guard.yml
 
-      - name: Existing non-stale RTS regressions
-        run: |
-          set -euo pipefail
-          node scripts/checkRun207RtsSurface.js
-          node scripts/checkRun210RtsSurfaceTexture.js
-          node scripts/checkRun211RtsKeyboardShortcuts.js
-          node scripts/checkRun212RtsCommandStatus.js
-          node scripts/checkRun213RtsSelectionReadability.js
+      - name: Run207 RTS surface regression
+        run: node scripts/checkRun207RtsSurface.js
+      - name: Run210 RTS texture regression
+        run: node scripts/checkRun210RtsSurfaceTexture.js
+      - name: Run211 RTS shortcut regression
+        run: node scripts/checkRun211RtsKeyboardShortcuts.js
+      - name: Run212 RTS status regression
+        run: node scripts/checkRun212RtsCommandStatus.js
+      - name: Run213 RTS readability regression
+        run: node scripts/checkRun213RtsSelectionReadability.js
 
       - name: PWA performance determinism world-safety and debt gates
         run: |
