@@ -3,10 +3,10 @@
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
   "current_cell": "G27",
-  "status": "validating",
+  "status": "validating-final-fingerprint",
   "branch": "terrain/sw-g27-hydrology-20260812",
   "pr": 245,
-  "last_commit": null,
+  "last_commit": "540245a144d45a11848366b53e2a62695371cf52",
   "quality_before": {
     "base_cells": 96,
     "water_centres": 83,
@@ -14,6 +14,14 @@
     "boundary_edges": 24,
     "hard_cell_max_step": 1
   },
-  "quality_after": null,
-  "updated_at": "2026-08-12T16:33:00+03:00"
+  "quality_after": {
+    "centre_mismatches": 0,
+    "refined_samples": 1617,
+    "fractional_samples": 279,
+    "max_adjacent_step": 0.25,
+    "confidence_checksum": 2239866362,
+    "evidence_workflow_run": 31602045368,
+    "evidence_head": "829c8c0b698c9254a69ee93c27ef0f6f034b0759"
+  },
+  "updated_at": "2026-08-12T16:45:00+03:00"
 }
