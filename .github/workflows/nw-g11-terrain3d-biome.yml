@@ -1,0 +1,137 @@
+name: NW G11 Terrain3D Biome
+
+on:
+  push:
+    branches:
+      - terrain/nw-g11-terrain3d-biome-20260812
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/nw/g11_biome.mjs'
+      - 'scripts/checkNWG11Biome.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g11_terrain3d_biome.gd'
+      - 'godot/terrain-authoring/corner_claims/NW.json'
+      - '.github/workflows/nw-g11-terrain3d-biome.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nw-g11-terrain3d-biome-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main and bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA='96d7ee27c0f03fa57a6ca76e2ab091cdfc6c2a2a'
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g11_biome.mjs|scripts/checkNWG11Biome.mjs|godot/terrain-authoring/scripts/validate_g11_terrain3d_biome.gd|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g11-terrain3d-biome.yml)$' | wc -l)" -eq 0
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
+
+      - name: G11 biome determinism and probe
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/nw/g11_biome.mjs
+          node --check scripts/checkNWG11Biome.mjs
+          node scripts/checkNWG11Biome.mjs | tee "$RUNNER_TEMP/g11-biome-a.log"
+          node scripts/checkNWG11Biome.mjs | tee "$RUNNER_TEMP/g11-biome-b.log"
+          cmp "$RUNNER_TEMP/g11-biome-a.log" "$RUNNER_TEMP/g11-biome-b.log"
+          grep -F 'NW_G11_BIOME_VALIDATION_OK' "$RUNNER_TEMP/g11-biome-a.log"
+          node scripts/checkNWG11Biome.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g11-biome-probe.json
+          test -s godot/terrain-authoring/.terrain3d-proof/g11-biome-probe.json
+
+      - name: Install pinned Terrain3D
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee "$RUNNER_TEMP/t3d-install.log"
+          grep -F 'TERRAIN3D_INSTALL_OK' "$RUNNER_TEMP/t3d-install.log"
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'TERRAIN3D_VERIFY_OK' "$RUNNER_TEMP/t3d-verify.log"
+
+      - name: Download Godot 4.6.3
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/godot.zip"
+          DIR="$RUNNER_TEMP/godot"
+          mkdir -p "$DIR"
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' --output "$ZIP"
+          unzip -q "$ZIP" -d "$DIR"
+          GODOT_BIN="$(find "$DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Real Terrain3D color-map import save and bake twice
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+          G11_BIOME_PROOF_SUFFIX=a timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g11_terrain3d_biome.gd | tee "$RUNNER_TEMP/g11-t3d-a.log"
+          G11_BIOME_PROOF_SUFFIX=b timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g11_terrain3d_biome.gd | tee "$RUNNER_TEMP/g11-t3d-b.log"
+          grep -F 'NW_G11_TERRAIN3D_BIOME_VALIDATION_OK' "$RUNNER_TEMP/g11-t3d-a.log"
+          grep -F 'NW_G11_TERRAIN3D_BIOME_VALIDATION_OK' "$RUNNER_TEMP/g11-t3d-b.log"
+          python3 - "$RUNNER_TEMP/g11-t3d-a.log" "$RUNNER_TEMP/g11-t3d-b.log" <<'PY'
+          import json, sys
+          from pathlib import Path
+          def metrics(path):
+              for line in Path(path).read_text().splitlines():
+                  if line.startswith('G11_TERRAIN3D_BIOME_METRICS='):
+                      return json.loads(line.split('=',1)[1])
+              raise SystemExit('metrics missing')
+          a, b = metrics(sys.argv[1]), metrics(sys.argv[2])
+          stable = ('terrain3dVersion','regionSize','regionCount','sampleCount','maxColorError','outputChecksum','bakedSurfaces','bakedVertices','savedRegionFiles')
+          assert {k:a[k] for k in stable} == {k:b[k] for k in stable}
+          assert a['savedRegionFiles'] >= 1 and b['savedRegionFiles'] >= 1
+          assert a['savedRegionBytes'] > 0 and b['savedRegionBytes'] > 0
+          print('NW_G11_TERRAIN3D_BIOME_STABLE_OK')
+          PY
+
+      - name: HTerrain and world safety regression
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Browser smoke
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = '96d7ee27c0f03fa57a6ca76e2ab091cdfc6c2a2a'
+          git diff --check '96d7ee27c0f03fa57a6ca76e2ab091cdfc6c2a2a' HEAD
