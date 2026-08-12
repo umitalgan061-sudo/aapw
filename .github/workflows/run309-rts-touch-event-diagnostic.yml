@@ -1,0 +1,63 @@
+name: Run309 RTS Touch Event Diagnostic
+
+on:
+  push:
+    branches:
+      - run309-rts-touch-event-diagnostic
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run309-rts-touch-event-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+  BASE_SHA: 09448963fdac06db9f2a35d9fc2e72d1882badfb
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-current-main test-only additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test "$(git diff --name-only "$BASE_SHA"...HEAD | sort)" = $'.github/workflows/run309-rts-touch-event-diagnostic.yml\nscripts/checkRun309RtsTouchEventDiagnostic.js'
+          git diff --numstat "$BASE_SHA"...HEAD | awk '$2 != 0 { print "non-additive diagnostic diff: " $0; exit 1 }'
+          node --check scripts/checkRun309RtsTouchEventDiagnostic.js
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Capture real mobile tap event and marker timing trace
+        run: node scripts/checkRun309RtsTouchEventDiagnostic.js
+      - name: Upload diagnostic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run309-rts-touch-event-diagnostic-${{ github.sha }}
+          path: artifacts/run309-rts-touch-event-diagnostic
+          if-no-files-found: error
+      - name: Final exact-main test-only gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
