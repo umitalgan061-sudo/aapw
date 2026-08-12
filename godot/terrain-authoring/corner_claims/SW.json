@@ -2,12 +2,26 @@
   "corner": "SW",
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G27",
+  "status": "validating",
+  "branch": "terrain/sw-g27-source-coast-current-main-20260812",
   "pr": null,
   "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "quality_before": {
+    "source_pixels": 24576,
+    "coarse_hard_mismatch_pixels": 2742,
+    "coarse_bilinear_mismatch_pixels": 2572,
+    "coarse_bilinear_pixel_accuracy": 0.8953450520833334,
+    "coarse_boundary_edges": 24
+  },
+  "quality_after": {
+    "source_pixels": 24576,
+    "source_sampler_mismatch_pixels": 0,
+    "source_sampler_pixel_accuracy": 1.0,
+    "source_boundary_edges": 947,
+    "semantic_resolution_uplift": 256,
+    "source_mask_sha256": "091b3bc1537781637bc61d2ff243f97bcdab42bc85bb768d18ee017fce8500cd"
+  },
+  "engine": "authoring/QA data + HTerrain regression; Terrain3D not invoked for this data-only coast layer",
+  "updated_at": "2026-08-12T16:59:55+03:00"
 }
