@@ -1,0 +1,132 @@
+name: NW G10 Hydrology
+
+on:
+  push:
+    branches:
+      - terrain/nw-g10-hydrology-20260812
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/nw/g10_hydrology.mjs'
+      - 'scripts/checkNWG10Hydrology.mjs'
+      - 'godot/terrain-authoring/corner_claims/NW.json'
+      - '.github/workflows/nw-g10-hydrology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nw-g10-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main and scope gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
+          CHANGED="$(git diff --name-only origin/main...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g10_hydrology.mjs|scripts/checkNWG10Hydrology.mjs|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g10-hydrology.yml)$' | wc -l)" -eq 0
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/addons/zylann.hterrain godot/terrain-authoring/terrain3d.lock.json
+
+      - name: Syntax and deterministic G10 hydrology
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/nw/g10_hydrology.mjs
+          node --check scripts/checkNWG10Hydrology.mjs
+          node scripts/checkNWG10Hydrology.mjs | tee /tmp/g10-first.log
+          node scripts/checkNWG10Hydrology.mjs | tee /tmp/g10-second.log
+          diff -u /tmp/g10-first.log /tmp/g10-second.log
+          grep -F 'NW_G10_HYDROLOGY_VALIDATION_OK' /tmp/g10-first.log
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot headless import and HTerrain validation
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/nw-g10-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' /tmp/hterrain.log
+
+      - name: Install Chromium safety dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Settlement and road safety
+        run: |
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Determinism and world reference guards
+        run: |
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+
+      - name: PWA and performance regression
+        run: |
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+
+      - name: Full browser smoke and console regression
+        run: node scripts/smokeTestGame3D.js
+
+      - name: Technical debt
+        run: node scripts/checkTechnicalDebt.js
+
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
