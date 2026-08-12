@@ -2,12 +2,24 @@
   "corner": "SE",
   "task_name": "Kızıl Ufuk",
   "origin": [7, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G57",
+  "status": "active",
+  "branch": "terrain/se-g57-hydrology-20260812",
   "pr": null,
-  "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "last_commit": "bae081ff04eac3295e2d06ccf5f344d268aed46b",
+  "quality_before": {
+    "base_cells": 96,
+    "water_cells": 84,
+    "land_cells": 12,
+    "boundary_edges": 20,
+    "hard_cell_max_step": 1
+  },
+  "quality_after": {
+    "centre_mismatches": 0,
+    "refined_samples": 1617,
+    "fractional_samples": 278,
+    "max_adjacent_step": 0.25,
+    "confidence_checksum": 2586534839
+  },
+  "updated_at": "2026-08-12T18:46:00+03:00"
 }
