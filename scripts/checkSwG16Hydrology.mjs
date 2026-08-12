@@ -1,37 +1,61 @@
 import assert from 'node:assert/strict';
-import {
-  G16_HYDROLOGY_POLICY,
-  isInsideG16,
-  measureG16Hydrology,
-  sampleG16WaterConfidence,
-} from '../godot/terrain-authoring/geocells/sw/g16_hydrology.mjs';
+import { classifyReferenceBaseSurface } from '../src/3d/world/worldReferenceSurfacePindexes.js';
+import { measureG16Hydrology } from '../godot/terrain-authoring/geocells/sw/g16_hydrology.mjs';
 
-assert.equal(G16_HYDROLOGY_POLICY.geoCell, 'G16');
-assert.deepEqual(G16_HYDROLOGY_POLICY.pixelBounds, { xMin: 192, xMax: 384, yMin: 768, yMax: 896 });
-assert.deepEqual(G16_HYDROLOGY_POLICY.maskBounds, { xMin: 12, xMax: 23, yMin: 48, yMax: 55 });
-assert.equal(G16_HYDROLOGY_POLICY.sourceMapSha256, '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1');
-assert.equal(isInsideG16(0.125, 0.75), true);
-assert.equal(isInsideG16(0.25, 0.875), true);
-assert.equal(isInsideG16(0.1249, 0.8), false);
-assert.equal(isInsideG16(0.2, 0.8751), false);
-assert.equal(sampleG16WaterConfidence(0, 0), null);
-assert.throws(() => sampleG16WaterConfidence(Number.NaN, 0.8), TypeError);
+function isWater(surface) {
+  return surface === 'sea' || surface === 'lake';
+}
 
-const metrics = measureG16Hydrology();
-assert.equal(metrics.baseCells, 96);
-assert.equal(metrics.waterCells, 95, 'G16 must retain the canonical 95-water centre count');
-assert.equal(metrics.landCells, 1, 'G16 must retain the canonical 1-land centre count');
-assert.equal(metrics.boundaryEdges, 4, 'G16 canonical transition topology changed unexpectedly');
-assert.equal(metrics.centreMismatches, 0, 'canonical mask-cell centre semantics must remain exact');
-assert.equal(metrics.refinedSamples, 1617);
-assert.equal(metrics.fractionalSamples, 48, 'quarter-cell G16 refinement fingerprint changed');
-assert.equal(metrics.hardCellMaxStep, 1);
-assert.equal(metrics.maxAdjacentStep, 0.25, 'quarter-cell bilinear continuity fingerprint changed');
-assert.ok(metrics.maxAdjacentStep < metrics.hardCellMaxStep, 'bilinear refinement must reduce the hard-cell discontinuity');
-assert.equal(metrics.confidenceChecksum, 1442760959, 'G16 confidence field fingerprint changed');
+function inspectGeoCell(gx, gy) {
+  const maskXMin = gx * 12;
+  const maskYMin = gy * 8;
+  let water = 0;
+  let land = 0;
+  let boundaries = 0;
+  const cells = [];
 
-const rerun = measureG16Hydrology();
-assert.deepEqual(rerun, metrics, 'G16 evidence must be deterministic across repeated evaluation');
+  for (let ly = 0; ly < 8; ly += 1) {
+    const row = [];
+    for (let lx = 0; lx < 12; lx += 1) {
+      const mx = maskXMin + lx;
+      const my = maskYMin + ly;
+      const surface = classifyReferenceBaseSurface((mx + 0.5) / 96, (my + 0.5) / 64);
+      const waterFlag = isWater(surface);
+      if (waterFlag) water += 1;
+      else land += 1;
+      row.push(waterFlag);
+    }
+    cells.push(row);
+  }
 
-console.log(JSON.stringify(metrics, null, 2));
-console.log('SW_G16_HYDROLOGY_VALIDATION_OK');
+  for (let y = 0; y < 8; y += 1) {
+    for (let x = 0; x < 12; x += 1) {
+      if (x + 1 < 12 && cells[y][x] !== cells[y][x + 1]) boundaries += 1;
+      if (y + 1 < 8 && cells[y][x] !== cells[y + 1][x]) boundaries += 1;
+    }
+  }
+
+  return { geoCell: `G${gx}${gy}`, gx, gy, water, land, boundaries, distance: Math.max(gx, 7 - gy) };
+}
+
+const g16 = measureG16Hydrology();
+assert.equal(g16.baseCells, 96);
+assert.equal(g16.waterCells, 96, 'Actions classifier establishes G16 as uniform water');
+assert.equal(g16.landCells, 0);
+assert.equal(g16.boundaryEdges, 0);
+
+const inventory = [];
+for (let gy = 0; gy < 8; gy += 1) {
+  for (let gx = 0; gx < 8; gx += 1) inventory.push(inspectGeoCell(gx, gy));
+}
+
+inventory.sort((a, b) => a.distance - b.distance || b.gy - a.gy || a.gx - b.gx);
+const transitions = inventory.filter((cell) => cell.water > 0 && cell.land > 0 && cell.boundaries > 0);
+assert.ok(transitions.length > 0, 'canonical map must contain at least one mixed land/water GeoCell');
+
+console.log(JSON.stringify({
+  g16: { water: g16.waterCells, land: g16.landCells, boundaries: g16.boundaryEdges },
+  nearestTransitions: transitions.slice(0, 12),
+}, null, 2));
+
+assert.fail(`G16 has no coastline; nearest canonical transition is ${transitions[0].geoCell}`);
