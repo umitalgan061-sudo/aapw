@@ -114,6 +114,25 @@ function samplePolylineCoverage(worldPoint, edges, widthMeters, featherMeters) {
   return 1 - smoothstep(halfWidth, halfWidth + featherMeters, closest);
 }
 
+/**
+ * Mirrors the existing settlement flatten-pad safety contract rather than
+ * inventing a road-only land island. Pads are supplied by the real runtime's
+ * `computeSettlementFlattenPads`; only pads whose anchor is above sea level
+ * may override the coarse canonical water-confidence field.
+ */
+export function sampleSettlementLandSupport(worldPoint, runtimeNetwork) {
+  let support = 0;
+  for (const pad of runtimeNetwork.settlementPads ?? []) {
+    if (!(pad.anchorHeightMeters > runtimeNetwork.waterLevelMeters)) continue;
+    const distance = Math.hypot(worldPoint.x - pad.x, worldPoint.z - pad.z);
+    support = Math.max(
+      support,
+      1 - smoothstep(pad.innerRadiusMeters, pad.outerRadiusMeters, distance),
+    );
+  }
+  return clamp(support);
+}
+
 export function sampleG11RoadPath(normalizedX, normalizedY, runtimeNetwork) {
   const worldPoint = normalizedToWorld(
     normalizedX,
@@ -134,7 +153,9 @@ export function sampleG11RoadPath(normalizedX, normalizedY, runtimeNetwork) {
     G11_ROAD_PATH_POLICY.footpathFeatherMeters,
   );
   const water = sampleGlobalWaterConfidence(normalizedX, normalizedY);
-  const landFactor = 1 - smoothstep(0.42, 0.60, water);
+  const canonicalLandFactor = 1 - smoothstep(0.42, 0.60, water);
+  const settlementLandSupport = sampleSettlementLandSupport(worldPoint, runtimeNetwork);
+  const landFactor = Math.max(canonicalLandFactor, settlementLandSupport);
   const roadCoverage = roadRaw * landFactor;
   const pathCoverage = pathRaw * landFactor * (1 - roadCoverage);
   const kind = roadCoverage >= pathCoverage && roadCoverage > 0 ? 1 : pathCoverage > 0 ? 2 : 0;
@@ -145,6 +166,8 @@ export function sampleG11RoadPath(normalizedX, normalizedY, runtimeNetwork) {
     coverage,
     kind,
     waterConfidence: water,
+    canonicalLandFactor,
+    settlementLandSupport,
     landFactor,
   });
 }
@@ -202,7 +225,9 @@ export function measureG11RoadPath(runtimeNetwork) {
   let activePathSamples = 0;
   let maxAdjacentCoverageStep = 0;
   let maxGuardBandCoverageDelta = 0;
-  let maxCanonicalWaterCoverage = 0;
+  let maxCanonicalWaterCoverageOutsideSettlement = 0;
+  let maxCanonicalWaterCoverageInsideSettlement = 0;
+  let protectedCanonicalWaterSamples = 0;
   let checksum = 2166136261;
   let previousRow = null;
 
@@ -242,7 +267,13 @@ export function measureG11RoadPath(runtimeNetwork) {
       if (!sampleWaterAtMaskCell(maskX, maskY)) continue;
       const nx = (maskX + 0.5) / 96;
       const ny = (maskY + 0.5) / 64;
-      maxCanonicalWaterCoverage = Math.max(maxCanonicalWaterCoverage, sampleG11RoadPath(nx, ny, runtimeNetwork).coverage);
+      const sample = sampleG11RoadPath(nx, ny, runtimeNetwork);
+      if (sample.settlementLandSupport > 0.001) {
+        protectedCanonicalWaterSamples += 1;
+        maxCanonicalWaterCoverageInsideSettlement = Math.max(maxCanonicalWaterCoverageInsideSettlement, sample.coverage);
+      } else {
+        maxCanonicalWaterCoverageOutsideSettlement = Math.max(maxCanonicalWaterCoverageOutsideSettlement, sample.coverage);
+      }
     }
   }
 
@@ -265,7 +296,9 @@ export function measureG11RoadPath(runtimeNetwork) {
     activePathSamples,
     maxAdjacentCoverageStep: Number(maxAdjacentCoverageStep.toFixed(8)),
     maxGuardBandCoverageDelta: Number(maxGuardBandCoverageDelta.toFixed(8)),
-    maxCanonicalWaterCoverage: Number(maxCanonicalWaterCoverage.toFixed(8)),
+    protectedCanonicalWaterSamples,
+    maxCanonicalWaterCoverageOutsideSettlement: Number(maxCanonicalWaterCoverageOutsideSettlement.toFixed(8)),
+    maxCanonicalWaterCoverageInsideSettlement: Number(maxCanonicalWaterCoverageInsideSettlement.toFixed(8)),
     coverageChecksum: checksum,
   });
 }
