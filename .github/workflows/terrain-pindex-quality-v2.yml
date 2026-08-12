@@ -3,7 +3,7 @@ name: Terrain Pindex Quality V2
 on:
   push:
     branches:
-      - terrain/pindex-quality-v2-current-main-20260812
+      - terrain/pindex-quality-v2-run316-20260812
   pull_request:
     branches:
       - main
@@ -24,7 +24,7 @@ concurrency:
 
 env:
   TZ: Europe/Istanbul
-  BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'd89f1a01c76d48eb60f9f1cad0a6bfac026aa37c' }}
+  BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '1a15173c3cb33e0461de1fc0e2e434812bcc2a31' }}
 
 jobs:
   validate:
