@@ -6,8 +6,8 @@
   "status": "validating",
   "layer": "Near Detail",
   "branch": "terrain/nw-g11-near-detail-20260813",
-  "pr": null,
-  "last_commit": null,
+  "pr": 300,
+  "last_commit": "cd0950f6f374bc077b2dfe9aa5d29086fe5d3838",
   "exact_main_base": "f85795822fc9115a9aaafad94842d9c14e411bfe",
   "previous_layers": {
     "Coast/Hydrology": { "merged_pr": 266, "water_centres": 38, "land_centres": 58, "boundary_edges": 39 },
@@ -37,5 +37,5 @@
     "stored_instance_topdown_proof": true
   },
   "engine": "real Three.js deterministic vegetation transforms transferred into pinned Terrain3D v1.0.2 instancer; HTerrain regression preserved; no full-world runtime parity claim yet",
-  "updated_at": "2026-08-13T01:02:00+03:00"
+  "updated_at": "2026-08-13T01:06:00+03:00"
 }
