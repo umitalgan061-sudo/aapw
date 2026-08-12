@@ -14,8 +14,8 @@ export const G07_ROCK_SNOW_POLICY = Object.freeze({
   normalizedBounds: Object.freeze({ xMin: 0, xMax: 0.125, yMin: 0.875, yMax: 1 }),
   sourceGridSize: 65,
   terrain3dRegionSize: 256,
-  rockTextureId: 0,
-  snowTextureId: 1,
+  substrateTextureId: 0,
+  rockTextureId: 1,
   guardBandNormalized: 1 / 1536,
 });
 
@@ -69,5 +69,5 @@ export function buildG07RockSnowProbe() {
   const { xMin, xMax, yMin, yMax } = G07_ROCK_SNOW_POLICY.normalizedBounds; const size = G07_ROCK_SNOW_POLICY.sourceGridSize; const rows = [];
   for (let y = 0; y < size; y += 1) { const ny = yMin + (yMax - yMin) * y / (size - 1); const row = [];
     for (let x = 0; x < size; x += 1) { const nx = xMin + (xMax - xMin) * x / (size - 1); const s = sampleG07RockSnow(nx, ny); row.push([+s.rockBlend.toFixed(8), 0]); } rows.push(row); }
-  return Object.freeze({ policyId: G07_ROCK_SNOW_POLICY.id, sourceMapSha256: G07_ROCK_SNOW_POLICY.sourceMapSha256, geoCell: 'G07', layer: 'Rock/Snow', sourceGridSize: size, terrain3dRegionSize: 256, rockTextureId: 0, snowTextureId: 1, rows });
+  return Object.freeze({ policyId: G07_ROCK_SNOW_POLICY.id, sourceMapSha256: G07_ROCK_SNOW_POLICY.sourceMapSha256, geoCell: 'G07', layer: 'Rock/Snow', sourceGridSize: size, terrain3dRegionSize: 256, substrateTextureId: 0, rockTextureId: 1, rows });
 }
