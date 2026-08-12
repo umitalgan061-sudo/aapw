@@ -153,3 +153,13 @@ if (selector.getActiveSource() === 'canonical' && selector.activation?.windowSta
   status.textContent += ' | pindex09-detail=' + run296Detail.touchedVertices + 'v';
   state.renderer.render(state.scene, state.camera);
 }
+
+// Run317 deterministic Pindex-10 micro-surface detail activation (sea/soil/rock mix, last pindex in the 10-pindex pass).
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex10DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex10Detail.js');
+  const run317Detail = applyPindex10DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run317Pindex10Ready = 'true';
+  document.body.dataset.run317Pindex10TouchedVertices = String(run317Detail.touchedVertices);
+  status.textContent += ' | pindex10-detail=' + run317Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}

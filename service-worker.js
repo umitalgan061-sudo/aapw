@@ -1,3 +1,8 @@
+// Run317 Pindex-10 detail offline shell extension.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex10Detail.js');
+});
+
 // Run296 Pindex-09 detail offline shell extension.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex09Detail.js');
