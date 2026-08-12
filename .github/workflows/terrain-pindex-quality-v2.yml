@@ -24,7 +24,7 @@ concurrency:
 
 env:
   TZ: Europe/Istanbul
-  BASE_SHA: fd11b1024570cc3b725a4ad9d4ec8bf98f95f855
+  BASE_SHA: 3d404c14b55e3e6121b70430fd0359e532b6f285
 
 jobs:
   validate:
