@@ -2,21 +2,33 @@
   "corner": "NE",
   "task_name": "Şafak Kartalı",
   "origin": [7, 0],
-  "current_cell": "G61",
+  "current_cell": "G52",
   "status": "validating",
-  "branch": "terrain/ne-g61-hydrology-20260812",
-  "pr": 264,
+  "branch": "terrain/ne-g52-terrain3d-biome-20260812",
+  "pr": null,
   "last_commit": null,
+  "layer": "Macro Albedo/Biome",
+  "previous_layer_evidence": {
+    "pr": 284,
+    "dedicated_workflow": "NE G52 Terrain3D Hydrology",
+    "dedicated_conclusion": "success",
+    "canonical_water_cells": 84,
+    "canonical_land_cells": 12,
+    "boundary_edges": 14
+  },
   "quality_before": {
-    "base_cells": 96,
-    "water_cells": 96,
-    "land_cells": 0,
-    "boundary_edges": 0
+    "runtime_biome_color_map": false,
+    "terrain3d_color_region_proof": false,
+    "geo_cell_visual_resolution_allowed": false
   },
-  "quality_after": {
-    "canonical_semantics_recorded": true,
-    "invented_coastline": false,
-    "semantic_checksum": 848461253
+  "quality_target": {
+    "continuous_macro_biome": true,
+    "terrain3d_region_size": 256,
+    "real_color_map_import": true,
+    "real_region_persistence": true,
+    "lod0_bake": true,
+    "guard_band_seam_measurement": true,
+    "map_png_source_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1"
   },
-  "updated_at": "2026-08-12T18:36:00+03:00"
+  "updated_at": "2026-08-12T22:00:00+03:00"
 }
