@@ -212,3 +212,4 @@ run280,2026-08-11,owner-map-semantic-fingerprint,,,,,,,"test-only immutable mask
 run281,2026-08-11,pindex03-deterministic-detail,,,,,,,"Pindex-03 color micro-detail only; geometry delta 0; mandatory DoD PASS"
 run282,2026-08-11,pindex04-deterministic-detail,,,,,,,"Pindex-04 color micro-detail only; geometry delta 0; mandatory DoD PASS"
 2026-08-12,run291-platform-control,1,51,688296,49,17,307
+run302-editor-fbx-pack,2026-08-12,editor-fbx-pack,,,,,,,"editor-only transform/persistence layer; gameplay renderer metrics unchanged; mobile perf budget + full browser smoke PASS"
