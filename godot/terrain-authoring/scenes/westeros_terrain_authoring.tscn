@@ -25,6 +25,8 @@ density = 4.0
 fixed_seed = 20260811
 fixed_seed_enabled = true
 shader_params/u_bottom_ao = 0.35
+shader_params/u_globalmap_tint_bottom = 0.22
+shader_params/u_globalmap_tint_top = 0.08
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-55, -35, 0)
