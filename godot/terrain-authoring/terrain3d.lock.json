@@ -1,0 +1,15 @@
+{
+  "name": "Terrain3D",
+  "author": "TokisanGames",
+  "repository": "https://github.com/TokisanGames/Terrain3D",
+  "asset_library_id": 3892,
+  "tag": "v1.0.2-stable",
+  "version": "1.0.2",
+  "release_asset": "Terrain3D_v1.0.2-stable.zip",
+  "release_url": "https://github.com/TokisanGames/Terrain3D/releases/download/v1.0.2-stable/Terrain3D_v1.0.2-stable.zip",
+  "sha256": "a071850250ec5e596aa54da61c01d75768774eb379ee997584d426a45f4884a2",
+  "latest_release_api": "https://api.github.com/repos/TokisanGames/Terrain3D/releases/latest",
+  "plugin_cfg": "addons/terrain_3d/plugin.cfg",
+  "godot_supported": "4.4-4.6+",
+  "policy": "Pinned stable binary release. Scheduled terrain tasks may read upstream releases/docs, but must not silently upgrade this lock. Upgrade only in an isolated PR after Godot/headless, determinism, performance, map-fidelity, road and settlement safety gates pass."
+}
