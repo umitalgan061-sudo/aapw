@@ -2,12 +2,21 @@
   "corner": "NE",
   "task_name": "Şafak Kartalı",
   "origin": [7, 0],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G60",
+  "status": "qualifying",
+  "branch": "terrain/ne-g60-hydrology-20260812",
   "pr": null,
   "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "quality_before": {
+    "base_cells": 96,
+    "water_cells": 96,
+    "land_cells": 0,
+    "boundary_edges": 0
+  },
+  "quality_after": {
+    "canonical_semantics_recorded": true,
+    "invented_coastline": false,
+    "semantic_checksum": 848461253
+  },
+  "updated_at": "2026-08-12T16:59:14+03:00"
 }
