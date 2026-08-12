@@ -15472,3 +15472,12 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Reason: Run280 locks canonical semantics and Pindex-04 has no canonical rock/snow cells, so a soil-led profile improves breakup without inventing new semantic material.
 - Regression boundary: browser proof applies Pindex-01 through Pindex-03 first, snapshots colors, then requires every Run282-changed vertex to classify as Pindex-04.
 - Rollback: remove the Run282 activation/new module; Run281 remains the complete prior checkpoint.
+
+## ADR-RUN306 — Pindex-05 activates the dormant Run290 candidate with soil-led deterministic micro-detail
+- Risk: LOW.
+- Decision: promote the dormant `experiments/run290/worldReferencePindex05Detail.js` candidate into the live `src/3d/world` path and activate it for canonical Pindex-05 only, with soil amplitude 0.043 and water 0.008.
+- Reason: Run291 recorded this candidate as the most advanced in-flight terrain-detail work. Pindex-05 is sea+soil only (453/187 canonical cells, zero rock/snow) but carries a proportionally larger soil body than Pindex-04 (29.2% vs 25.9% of its strip), so its per-vertex soil/sea amplitudes are held marginally below Run282 to keep the wider soil area from reading noisier than its neighbour.
+- Alternatives: reusing the Run282 profile verbatim was rejected because it ignores the different soil share and breaks the one-pindex-at-a-time tuning contract; leaving the candidate dormant was rejected because Run290 already proved its determinism contract and the owner priority order puts terrain first.
+- Affected systems: canonical-dev boot activation, offline shell registration and the pindex detail chain guard. Geometry, height sampler, settlements, roads, bridges, hydrology, editor, 2D runtime and Pindexes 01-04/06-10 are untouched.
+- Regression boundary: the browser proof applies Pindex-01 through Pindex-04 first, snapshots the color buffer, then requires every Run306-changed vertex to classify as Pindex-05, requires both canonical surfaces to be visibly touched, forbids any rock/snow change, and re-applies the whole chain a second time to prove byte-identical determinism.
+- Rollback: remove the Run306 activation block, the offline-shell push and the new module; Run282 remains the complete prior checkpoint and the Run290 dormant candidate is unaffected.
