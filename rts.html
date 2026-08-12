@@ -147,5 +147,41 @@
     dispose: disposeCommandStatus,
   };
 </script>
+<script type="module">
+  const canvas = document.getElementById('rts-canvas');
+  const moveButton = document.getElementById('rts-move-command');
+  const marker = document.getElementById('rts-command-feedback');
+  let disposed = false;
+  let bridgedCount = 0;
+
+  const onTouchPointerUpCapture = (event) => {
+    if (disposed || event.pointerType !== 'touch' || !moveButton?.classList.contains('is-active') || !canvas || !marker) return;
+    if (marker.dataset.visible === 'true') return;
+    bridgedCount += 1;
+    canvas.dispatchEvent(new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      button: 2,
+      buttons: 0,
+    }));
+  };
+
+  const disposeTouchFeedbackBridge = () => {
+    if (disposed) return;
+    disposed = true;
+    canvas?.removeEventListener('pointerup', onTouchPointerUpCapture, true);
+    window.removeEventListener('pagehide', disposeTouchFeedbackBridge);
+  };
+
+  canvas?.addEventListener('pointerup', onTouchPointerUpCapture, true);
+  window.addEventListener('pagehide', disposeTouchFeedbackBridge, { once: true });
+  window.__WESTEROS_RTS_TOUCH_FEEDBACK_BRIDGE__ = {
+    getSnapshot: () => ({ disposed, bridgedCount }),
+    dispose: disposeTouchFeedbackBridge,
+  };
+</script>
 </body>
 </html>
