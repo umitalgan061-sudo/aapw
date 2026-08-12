@@ -1,0 +1,89 @@
+name: Run 308 Progress Checkpoint Materializer
+
+on:
+  push:
+    branches: [run308-run303-dispatch-safety]
+    paths:
+      - '.github/workflows/run308-progress-materializer.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run308-progress-checkpoint-materializer
+  cancel-in-progress: false
+
+env:
+  BASE_SHA: 09448963fdac06db9f2a35d9fc2e72d1882badfb
+  BRANCH: run308-run303-dispatch-safety
+  TAG: stable-2026-08-12-run308
+  TZ: Europe/Istanbul
+
+jobs:
+  append-only-checkpoint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Require exact Run308 source branch before checkout or write-capable work
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/run308-run303-dispatch-safety'
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Append Run308 progress and stable checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+          if ! grep -q '^## Run 308 — Run303 dispatch source-branch safety$' 3D_GAME_PROGRESS.md; then
+            cat >> 3D_GAME_PROGRESS.md <<'EOF'
+
+## Run 308 — Run303 dispatch source-branch safety
+
+### This Run
+- Exact base: `09448963fdac06db9f2a35d9fc2e72d1882badfb` after Terrain Polish Iteration #05 merged.
+- Root cause: merged Run303 has `workflow_dispatch` + `contents: write`, checks out the selected ref, then pushes `HEAD` to the historical `agent/run303-run216-complete-marker-prefix` branch; a manual dispatch from `main`/another ref could therefore advance or recreate that historical branch from the wrong source revision.
+- Fix: fail closed on every ref except `refs/heads/agent/run303-run216-complete-marker-prefix` before checkout/write-capable work. Run308's validator is read-only, uses live PR base / dispatched SHA / immutable historical push base, and scopes Run308-only path isolation to non-PR runs while retaining exact-main, additive-only and diff gates for all PRs.
+- Regression: real shell execution proves the historical owner ref passes while `main`, the Run308 branch and a tag ref fail; source ordering proves the guard precedes checkout and hard-coded push.
+- Runtime/product delta: 0. `src/3d`, `service-worker.js`, game pages and Godot terrain-authoring are untouched. World-evolution delta: roads 0, forests 0, castles/NPC/events/animals 0; player-visible change: no. Technical-debt delta: 0.
+- Validation before checkpoint materialization: Run308 full exact-main/additive/PWA/determinism/Chromium/mobile-perf/terrain-road/debt/full-smoke/final-concurrency chain PASS; Run283 Final Head Governance PASS on the same pre-checkpoint head.
+
+### Next Step
+- Refresh live `main`, open PRs and branch ownership first. If no newer governance blocker owns the area, return to Issue #206's prerequisite: prove a real opt-in canonical Pindex-05 inspector/window with positive P5 coverage before any Pindex-05 activation. Do not reuse/rebase stale Run302/Run303-Pindex/Run305 branches.
+EOF
+          fi
+
+          if ! grep -q '^\- `stable-2026-08-12-run308`' STABLE_TAGS.md; then
+            cat >> STABLE_TAGS.md <<'EOF'
+- `stable-2026-08-12-run308` — Run303 dispatch source-branch fail-closed safety; runtime/product delta 0; exact-main/additive/PWA/determinism/mobile-perf/terrain-road/technical-debt/full-browser-smoke and Run283 governance gates PASS before checkpoint materialization; final publication still requires the same gates on the materialized exact head.
+EOF
+          fi
+
+          git diff --check
+          git add 3D_GAME_PROGRESS.md STABLE_TAGS.md
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs(run308): record validated dispatch safety checkpoint'
+          fi
+
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin HEAD:"$BRANCH"
+
+          if ! git show-ref --tags --verify --quiet "refs/tags/$TAG"; then
+            git tag "$TAG" HEAD
+          fi
+          git push origin "refs/tags/$TAG" || true
