@@ -2,12 +2,28 @@
   "corner": "SW",
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G07",
+  "status": "validating",
+  "layer": "Rock/Snow",
+  "engine": "Terrain3D pinned v1.0.2-stable + HTerrain regression",
+  "branch": "terrain/sw-g07-terrain3d-rock-snow-20260813",
   "pr": null,
   "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "quality_before": {
+    "canonicalCell": "open sea",
+    "canonicalWater": 96,
+    "canonicalLand": 0,
+    "previousLayer": "Relief/Height Character",
+    "previousLayerPr": 290
+  },
+  "quality_target": {
+    "snowLeak": 0,
+    "continuousSubmergedRockField": true,
+    "guardBandSurfaceContinuity": true,
+    "realTerrain3DControlImport": true,
+    "realRegionPersistence": true,
+    "lod0Bake": true,
+    "noGeoCellEdgeVisualTerm": true
+  },
+  "updated_at": "2026-08-12T21:10:00Z"
 }
