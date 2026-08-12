@@ -1,23 +1,23 @@
-name: NE G71 Hydrology
+name: NE G61 Hydrology
 
 on:
   push:
     branches:
-      - 'terrain/ne-g71-hydrology-*'
+      - 'terrain/ne-g61-hydrology-*'
   pull_request:
     branches:
       - main
     paths:
-      - 'godot/terrain-authoring/geocells/ne/g71_hydrology.mjs'
-      - 'scripts/checkNEG71Hydrology.mjs'
-      - '.github/workflows/ne-g71-hydrology.yml'
+      - 'godot/terrain-authoring/geocells/ne/g61_hydrology.mjs'
+      - 'scripts/checkNEG61Hydrology.mjs'
+      - '.github/workflows/ne-g61-hydrology.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ne-g71-hydrology-${{ github.ref }}
+  group: ne-g61-hydrology-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Current-main G71 integrity gate
+      - name: Exact-main entry and bounded scope
         run: |
           set -euo pipefail
           git fetch origin main
@@ -44,17 +44,19 @@ jobs:
           test -n "$ENTRY_MAIN_SHA"
           git merge-base --is-ancestor "$ENTRY_MAIN_SHA" HEAD
           git diff --check "$ENTRY_MAIN_SHA" HEAD
+          CHANGED="$(git diff --name-only "$ENTRY_MAIN_SHA"...HEAD)"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g61_hydrology.mjs|scripts/checkNEG61Hydrology.mjs|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g61-hydrology.yml|\.github/workflows/ne-g71-hydrology.yml)$' | wc -l)" -eq 0
           echo "ENTRY_MAIN_SHA=$ENTRY_MAIN_SHA" >> "$GITHUB_ENV"
-          node --check godot/terrain-authoring/geocells/ne/g71_hydrology.mjs
-          node --check scripts/checkNEG71Hydrology.mjs
+          node --check godot/terrain-authoring/geocells/ne/g61_hydrology.mjs
+          node --check scripts/checkNEG61Hydrology.mjs
 
-      - name: G71 deterministic hydrology qualification
+      - name: G61 deterministic hydrology qualification
         run: |
           set -euo pipefail
-          node scripts/checkNEG71Hydrology.mjs | tee "$RUNNER_TEMP/g71-first.log"
-          node scripts/checkNEG71Hydrology.mjs | tee "$RUNNER_TEMP/g71-second.log"
-          cmp "$RUNNER_TEMP/g71-first.log" "$RUNNER_TEMP/g71-second.log"
-          grep -F 'NE_G71_HYDROLOGY_QUALIFIED' "$RUNNER_TEMP/g71-first.log"
+          node scripts/checkNEG61Hydrology.mjs | tee "$RUNNER_TEMP/g61-first.log"
+          node scripts/checkNEG61Hydrology.mjs | tee "$RUNNER_TEMP/g61-second.log"
+          cmp "$RUNNER_TEMP/g61-first.log" "$RUNNER_TEMP/g61-second.log"
+          grep -F 'NE_G61_HYDROLOGY_QUALIFIED' "$RUNNER_TEMP/g61-first.log"
 
       - name: Download official Godot 4.6.3 editor
         run: |
@@ -76,7 +78,7 @@ jobs:
         run: |
           set -euo pipefail
           PROJECT_FILE='godot/terrain-authoring/project.godot'
-          BACKUP_FILE="$RUNNER_TEMP/g71-project.godot"
+          BACKUP_FILE="$RUNNER_TEMP/g61-project.godot"
           cp "$PROJECT_FILE" "$BACKUP_FILE"
           restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
           trap restore_project EXIT
@@ -93,11 +95,11 @@ jobs:
           trap - EXIT
           git diff --exit-code -- "$PROJECT_FILE"
           timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 \
-            2>&1 | tee "$RUNNER_TEMP/g71-editor.log"
+            2>&1 | tee "$RUNNER_TEMP/g61-editor.log"
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
             --script res://scripts/validate_hterrain_authoring.gd \
-            2>&1 | tee "$RUNNER_TEMP/g71-hterrain.log"
-          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/g71-hterrain.log"
+            2>&1 | tee "$RUNNER_TEMP/g61-hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/g61-hterrain.log"
 
       - name: Install Chromium test dependency
         run: |
@@ -122,7 +124,7 @@ jobs:
       - name: Full browser smoke and console regression
         run: node scripts/smokeTestGame3D.js
 
-      - name: Final remote-main freshness gate
+      - name: Final remote-main and scope gate
         run: |
           set -euo pipefail
           git fetch origin main
