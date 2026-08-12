@@ -29,6 +29,8 @@ jobs:
         with: { node-version: 22 }
 
       - name: Exact-main additive entry gate
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && github.sha || '9e94d5ef76ad75a1e4e84b514cf44af79c728e33' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -42,6 +44,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --check scripts/checkRun293DispatchBaseOverride.js
+          node scripts/checkRun293DispatchBaseOverride.js
           node --check scripts/checkRun292Run290BaseOverride.js
           node scripts/checkRun292Run290BaseOverride.js
           node scripts/checkRun290Pindex05Detail.js
@@ -89,6 +93,8 @@ jobs:
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run292-smoke.log")" -ge 34
 
       - name: Final exact-main concurrency and additive-only gate
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && github.sha || '9e94d5ef76ad75a1e4e84b514cf44af79c728e33' }}
         shell: bash
         run: |
           set -euo pipefail
