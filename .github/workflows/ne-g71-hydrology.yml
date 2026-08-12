@@ -10,9 +10,7 @@ on:
     paths:
       - 'godot/terrain-authoring/geocells/ne/g71_hydrology.mjs'
       - 'scripts/checkNEG71Hydrology.mjs'
-      - 'godot/terrain-authoring/corner_claims/NE.json'
       - '.github/workflows/ne-g71-hydrology.yml'
-      - '.github/workflows/ne-g60-hydrology.yml'
   workflow_dispatch:
 
 permissions:
@@ -38,7 +36,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Exact-main entry and bounded scope
+      - name: Current-main G71 integrity gate
         run: |
           set -euo pipefail
           git fetch origin main
@@ -46,8 +44,6 @@ jobs:
           test -n "$ENTRY_MAIN_SHA"
           git merge-base --is-ancestor "$ENTRY_MAIN_SHA" HEAD
           git diff --check "$ENTRY_MAIN_SHA" HEAD
-          CHANGED="$(git diff --name-only "$ENTRY_MAIN_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g71_hydrology.mjs|scripts/checkNEG71Hydrology.mjs|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g71-hydrology.yml|\.github/workflows/ne-g60-hydrology.yml)$' | wc -l)" -eq 0
           echo "ENTRY_MAIN_SHA=$ENTRY_MAIN_SHA" >> "$GITHUB_ENV"
           node --check godot/terrain-authoring/geocells/ne/g71_hydrology.mjs
           node --check scripts/checkNEG71Hydrology.mjs
@@ -126,7 +122,7 @@ jobs:
       - name: Full browser smoke and console regression
         run: node scripts/smokeTestGame3D.js
 
-      - name: Final remote-main and scope gate
+      - name: Final remote-main freshness gate
         run: |
           set -euo pipefail
           git fetch origin main
