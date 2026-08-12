@@ -6,24 +6,36 @@
   "status": "validating",
   "branch": "terrain/nw-g00-hydrology-current-main-20260812",
   "pr": 241,
-  "last_commit": "27b8c78706c66a5dce23bd6c40f4790103f76f71",
+  "last_commit": "3248cbd5403a3f2c86d01369c4c9951e8d12b36e",
   "quality_before": {
     "layer": "coast_hydrology",
+    "representation": "hard_16px_mask_cells",
     "base_mask_cells": 96,
     "water_cells": 60,
     "land_cells": 36,
-    "boundary_edges": 12,
-    "representation": "hard_16px_mask_cells"
+    "boundary_edges_at_source_pixel_scale": 192,
+    "source_target_pixel_mismatches": 1311,
+    "source_target_pixel_mismatch_ratio": 0.053344726562,
+    "source_target_water_iou": 0.91564792176,
+    "canonical_cell_centres_mismatching_direct_source": 4
   },
   "quality_after": {
     "candidate_only": true,
     "runtime_graph_changed": false,
-    "refined_samples": 1536,
-    "centre_semantic_mismatches": 0,
-    "confidence_checksum": 2017237639,
-    "fractional_dense_samples": 85,
-    "dense_max_step": 0.01171875
+    "coarse_confidence_refined_samples": 1536,
+    "coarse_centre_semantic_mismatches": 0,
+    "coarse_confidence_checksum": 2017237639,
+    "coarse_fractional_dense_samples": 85,
+    "coarse_dense_max_step": 0.01171875,
+    "source_resolution_target": true,
+    "source_target_width": 192,
+    "source_target_height": 128,
+    "source_water_pixels": 14413,
+    "source_land_pixels": 10163,
+    "source_boundary_edges": 479,
+    "source_water_mask_sha256": "26e724825eb103b65f432593d218b018f9171026134db789993168fe0c6dd61a",
+    "label_rejection_rule": "only boundary-connected dark component is sea"
   },
-  "validation_note": "G00 deterministic semantics, 14/14 terrain-seat safety, roads, seeded determinism and world-reference passed on prior head. Exact-head full PWA/performance/browser chain rerunning after moving the non-shipped proof out of src/3d into authoring-only scope.",
-  "updated_at": "2026-08-12T16:21:00+03:00"
+  "validation_note": "The actual canonical map.png G00 crop is now pinned as a 192x128 source-resolution coastline target. Otsu integer luminance threshold=148 plus 4-neighbour boundary connectivity rejects disconnected printed map labels. Existing 16px hydrology differs from the direct source target at 1311/24576 pixels (5.3344726562%), water IoU 0.91564792176, and has 192 source-scale boundary edges versus 479 in the target. Exact-head deterministic/PWA/performance/browser/safety CI is rerunning; no runtime adoption or PASS/DONE claim yet.",
+  "updated_at": "2026-08-12T16:27:00+03:00"
 }
