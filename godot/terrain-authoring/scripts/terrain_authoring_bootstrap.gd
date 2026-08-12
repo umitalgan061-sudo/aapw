@@ -12,6 +12,7 @@ const STARTER_GROUND_TEXTURES := [
 	"res://starter_textures/ground_snow.svg"
 ]
 const STARTER_GRASS_TEXTURE := "res://starter_textures/detail_grass.svg"
+const STARTER_GLOBAL_ALBEDO := Color(0.33333334, 0.4509804, 0.2509804, 1.0)
 
 var _authoring_ready := false
 
@@ -47,6 +48,15 @@ func ensure_authoring_ready() -> bool:
 
 	if data.get_map_count(HTerrainData.CHANNEL_DETAIL) == 0:
 		data._edit_add_map(HTerrainData.CHANNEL_DETAIL)
+		data_changed = true
+
+	if initial_data_creation and data.get_map_count(HTerrainData.CHANNEL_GLOBAL_ALBEDO) == 0:
+		data._edit_add_map(HTerrainData.CHANNEL_GLOBAL_ALBEDO)
+		var starter_global_albedo = data.get_image(HTerrainData.CHANNEL_GLOBAL_ALBEDO)
+		if starter_global_albedo == null:
+			push_error("Starter HTerrain global albedo map could not be created")
+			return false
+		starter_global_albedo.fill(STARTER_GLOBAL_ALBEDO)
 		data_changed = true
 
 	var texture_set = terrain.get_texture_set()
