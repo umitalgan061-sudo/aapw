@@ -1,0 +1,132 @@
+name: SE G77 Hydrology
+
+on:
+  push:
+    branches:
+      - 'terrain/se-g77-hydrology-*'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/terrain/worldReferenceGeoCellG77Hydrology.mjs'
+      - 'scripts/checkSEG77Hydrology.mjs'
+      - 'godot/terrain-authoring/corner_claims/SE.json'
+      - '.github/workflows/se-g77-hydrology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: se-g77-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main entry and bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="0bd96b66c92db2e1543694b1e40520ed7795e9d2"
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          node --check scripts/terrain/worldReferenceGeoCellG77Hydrology.mjs
+          node --check scripts/checkSEG77Hydrology.mjs
+
+      - name: G77 map-fidelity and deterministic hydrology proof
+        run: |
+          set -euo pipefail
+          node scripts/checkSEG77Hydrology.mjs | tee "$RUNNER_TEMP/g77-first.log"
+          node scripts/checkSEG77Hydrology.mjs | tee "$RUNNER_TEMP/g77-second.log"
+          cmp "$RUNNER_TEMP/g77-first.log" "$RUNNER_TEMP/g77-second.log"
+          grep -F 'SE_G77_HYDROLOGY_OK' "$RUNNER_TEMP/g77-first.log"
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot terrain authoring regression
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/g77-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          enabled = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          if enabled in text:
+              path.write_text(text.replace(enabled, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 \
+            2>&1 | tee "$RUNNER_TEMP/g77-editor.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_authoring.gd \
+            2>&1 | tee "$RUNNER_TEMP/g77-hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/g77-hterrain.log"
+
+      - name: Install Chromium test dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: World safety PWA performance and determinism
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full browser smoke and console regression
+        run: node scripts/smokeTestGame3D.js
+
+      - name: Final remote-main and scope gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="0bd96b66c92db2e1543694b1e40520ed7795e9d2"
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
