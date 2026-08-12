@@ -1,0 +1,106 @@
+name: Run314 PR Main Freshness Guard
+
+on:
+  push:
+    branches:
+      - run314-pr-main-freshness-guard
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pr-main-freshness-guard.yml'
+      - '.github/workflows/run314-pr-main-freshness-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run314-pr-main-freshness-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+  BASE_SHA: 3d404c14b55e3e6121b70430fd0359e532b6f285
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-current-main additive entry gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test "$(git diff --name-only "$BASE_SHA"...HEAD | sort)" = $'.github/workflows/pr-main-freshness-guard.yml\n.github/workflows/run314-pr-main-freshness-guard.yml'
+          git diff --numstat "$BASE_SHA"...HEAD | awk '$2 != 0 { print "non-additive Run314 diff: " $0; exit 1 }'
+
+      - name: Freshness workflow source contract
+        run: |
+          set -euo pipefail
+          test -s .github/workflows/pr-main-freshness-guard.yml
+          grep -F 'git fetch --no-tags origin main' .github/workflows/pr-main-freshness-guard.yml
+          grep -F 'merge_base="$(git merge-base HEAD origin/main)"' .github/workflows/pr-main-freshness-guard.yml
+          grep -F 'if [[ "$merge_base" != "$current_main" ]]' .github/workflows/pr-main-freshness-guard.yml
+          grep -F "PR is stale: head does not contain the current main commit" .github/workflows/pr-main-freshness-guard.yml
+          grep -F "Create a successor from current main; do not force-update someone else's stale branch." .github/workflows/pr-main-freshness-guard.yml
+
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Run207 RTS surface regression
+        run: node scripts/checkRun207RtsSurface.js
+      - name: Run210 RTS texture regression
+        run: node scripts/checkRun210RtsSurfaceTexture.js
+      - name: Run211 RTS shortcut regression
+        run: node scripts/checkRun211RtsKeyboardShortcuts.js
+      - name: Run212 RTS status regression
+        run: node scripts/checkRun212RtsCommandStatus.js
+      - name: Run213 RTS readability regression
+        run: node scripts/checkRun213RtsSelectionReadability.js
+
+      - name: PWA performance determinism world-safety and debt gates
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full Chromium smoke and console regression
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run314-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run314-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run314-smoke.log"
+
+      - name: Final exact-main additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA" HEAD
+          git diff --numstat "$BASE_SHA"...HEAD | awk '$2 != 0 { print "non-additive Run314 final diff: " $0; exit 1 }'
