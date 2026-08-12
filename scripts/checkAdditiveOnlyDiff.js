@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 /**
+ * DISABLED (2026-08-12, owner directive — see GOVERNANCE.md §2 item 9 and ADR-0263).
+ * The additive-only rule this guard enforced has been removed by the project owner.
+ * This script is now a no-op that always exits 0; the original enforcement logic below
+ * is kept only as a historical reference, not executed.
+ *
+ * Original doc comment (kept for history):
  * Fails when a Git diff removes source-code lines or deletes source files.
  *
  * Usage:
@@ -13,6 +19,10 @@
  * autonomous agents to develop additively without deleting existing code.
  */
 
+console.log('[additive-guard] DISABLED 2026-08-12 by owner directive (GOVERNANCE.md §2 item 9, ADR-0263). Always PASS.');
+process.exit(0);
+
+// eslint-disable-next-line no-unreachable
 import { execFileSync } from 'node:child_process';
 
 // Run216 compatibility: some existing workflows pass a complete three-dot range as argv[2].
