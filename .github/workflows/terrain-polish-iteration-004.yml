@@ -152,7 +152,14 @@ jobs:
         run: |
           set -euo pipefail
           PROOF_DIR="$RUNNER_TEMP/terrain-polish-004-proof"
+          TERRAIN_DATA_DIR='godot/terrain-authoring/terrain_data'
           mkdir -p "$PROOF_DIR"
+          cleanup_proof_data() {
+            find "$TERRAIN_DATA_DIR" -mindepth 1 -depth ! -name '.gitkeep' -delete
+          }
+          cleanup_proof_data
+          trap cleanup_proof_data EXIT
+          git diff --exit-code -- "$TERRAIN_DATA_DIR"
           TERRAIN_PROOF_DIR="$PROOF_DIR" timeout 240s xvfb-run -a "$GODOT_BIN" \
             --path godot/terrain-authoring \
             --rendering-method gl_compatibility \
@@ -163,6 +170,9 @@ jobs:
           test -s "$PROOF_DIR/close-after.png"
           test -s "$PROOF_DIR/far-before.png"
           test -s "$PROOF_DIR/far-after.png"
+          cleanup_proof_data
+          trap - EXIT
+          git diff --exit-code -- "$TERRAIN_DATA_DIR"
 
       - name: Upload Iteration 004 visual proof
         uses: actions/upload-artifact@v4

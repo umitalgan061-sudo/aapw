@@ -32,14 +32,6 @@ func _run() -> void:
 	if _scene_root == null:
 		_fail("Could not instantiate terrain authoring scene")
 		return
-	root.add_child(_scene_root)
-	await process_frame
-
-	if not _scene_root.has_method("ensure_authoring_ready"):
-		_fail("Terrain authoring bootstrap API is missing")
-		return
-	_scene_root.call("ensure_authoring_ready")
-	await process_frame
 
 	_terrain = _scene_root.get_node_or_null("HTerrain") as Node3D
 	_detail_layer = _scene_root.get_node_or_null("HTerrain/GrassDetailLayer") as Node3D
@@ -48,16 +40,32 @@ func _run() -> void:
 		_fail("Required HTerrain, GrassDetailLayer or Camera3D node is missing")
 		return
 
+	# Authoring data must exist before GrassDetailLayer enters SceneTree. This mirrors
+	# the editor bootstrap order and avoids a transient data-null material update.
+	if not _scene_root.has_method("ensure_authoring_ready"):
+		_fail("Terrain authoring bootstrap API is missing")
+		return
+	if not bool(_scene_root.call("ensure_authoring_ready")):
+		_fail("Terrain authoring bootstrap failed before tree entry")
+		return
+
 	var data = _terrain.call("get_data")
 	if data == null:
-		_fail("HTerrain data is null after bootstrap")
+		_fail("HTerrain data is null after pre-tree bootstrap")
 		return
 	if int(data.call("get_map_count", HTerrainData.CHANNEL_DETAIL)) < 1:
 		_fail("No detail map exists for visual proof")
 		return
+	if not _prepare_proof_maps(data):
+		return
 
-	_prepare_proof_maps(data)
-	await _bake_global_map()
+	root.add_child(_scene_root)
+	await process_frame
+	await process_frame
+	_detail_layer.call("update_material")
+
+	if not await _bake_global_map():
+		return
 	_detail_layer.call("update_material")
 
 	root.size = CAPTURE_SIZE
@@ -104,12 +112,12 @@ func _run() -> void:
 	quit(0)
 
 
-func _prepare_proof_maps(data) -> void:
+func _prepare_proof_maps(data) -> bool:
 	var splat: Image = data.call("get_image", HTerrainData.CHANNEL_SPLAT, 0)
 	var detail: Image = data.call("get_image", HTerrainData.CHANNEL_DETAIL, 0)
 	if splat == null or detail == null:
-		_fail("Splat or detail image is unavailable")
-		return
+		_fail("Fresh bootstrap did not expose CPU splat/detail images")
+		return false
 
 	var width := splat.get_width()
 	var height := splat.get_height()
@@ -122,9 +130,10 @@ func _prepare_proof_maps(data) -> void:
 
 	data.call("notify_region_change", Rect2(0, 0, width, height), HTerrainData.CHANNEL_SPLAT)
 	data.call("notify_region_change", Rect2(0, 0, detail.get_width(), detail.get_height()), HTerrainData.CHANNEL_DETAIL)
+	return true
 
 
-func _bake_global_map() -> void:
+func _bake_global_map() -> bool:
 	var baker := HTGlobalMapBaker.new()
 	_scene_root.add_child(baker)
 	var finished := false
@@ -141,16 +150,17 @@ func _bake_global_map() -> void:
 	if not finished:
 		baker.queue_free()
 		_fail("HTerrain global-map bake timed out")
-		return
+		return false
 
 	var data = _terrain.call("get_data")
 	if int(data.call("get_map_count", HTerrainData.CHANNEL_GLOBAL_ALBEDO)) < 1:
 		_fail("HTerrain global-map bake produced no global albedo map")
-		return
+		return false
 	var global_map: Image = data.call("get_image", HTerrainData.CHANNEL_GLOBAL_ALBEDO, 0)
 	if global_map == null or global_map.is_empty():
 		_fail("HTerrain global albedo image is empty")
-		return
+		return false
+	return true
 
 
 func _set_tint(bottom: float, top: float) -> void:
