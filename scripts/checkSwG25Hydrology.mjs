@@ -12,14 +12,20 @@ assert.equal(sampleG25WaterConfidence(0, 0), null);
 assert.throws(() => sampleG25WaterConfidence(Number.NaN, 0.7), TypeError);
 
 const metrics = measureG25Hydrology();
-assert.equal(metrics.baseCells, 96);
-assert.equal(metrics.waterCells, 77, 'G25 canonical water inventory changed');
-assert.equal(metrics.landCells, 19, 'G25 canonical land inventory changed');
-assert.equal(metrics.boundaryEdges, 12, 'G25 canonical coastline topology changed');
-assert.equal(metrics.centreMismatches, 0);
-assert.equal(metrics.refinedSamples, 1617);
-assert.ok(metrics.fractionalSamples > 0);
-assert.ok(metrics.maxAdjacentStep > 0 && metrics.maxAdjacentStep < 1);
+assert.deepEqual(metrics, {
+  policyId: 'gunbatimi-ustasi-g25-hydrology-2026-08-12-v1',
+  geoCell: 'G25',
+  baseCells: 96,
+  waterCells: 77,
+  landCells: 19,
+  boundaryEdges: 12,
+  centreMismatches: 0,
+  refinedSamples: 1617,
+  fractionalSamples: 185,
+  hardCellMaxStep: 1,
+  maxAdjacentStep: 0.25,
+  confidenceChecksum: 2090753397,
+});
 assert.deepEqual(measureG25Hydrology(), metrics, 'G25 evidence must be deterministic');
 console.log(JSON.stringify(metrics, null, 2));
-console.log('SW_G25_HYDROLOGY_DIAGNOSTIC_OK');
+console.log('SW_G25_HYDROLOGY_VALIDATION_OK');
