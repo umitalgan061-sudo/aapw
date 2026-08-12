@@ -6,7 +6,7 @@
   "current_layer": "Macro Albedo/Biome",
   "status": "validating",
   "branch": "terrain/nw-g11-terrain3d-biome-current-main-20260812",
-  "pr": null,
+  "pr": 286,
   "last_commit": null,
   "previous_layer": {
     "name": "Coast/Hydrology",
@@ -18,5 +18,5 @@
     "confidence_checksum": 1445798648
   },
   "engine": "pinned Terrain3D v1.0.2 real Color-map import/save/LOD0-bake proof; HTerrain preserved as regression control; Three.js runtime unchanged in this bounded authoring unit",
-  "updated_at": "2026-08-12T21:05:00+03:00"
+  "updated_at": "2026-08-12T21:06:00+03:00"
 }
