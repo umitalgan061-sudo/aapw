@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: terrain-authoring-globalmap-bake-008-${{ github.ref }}
@@ -167,39 +167,3 @@ jobs:
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scenes
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scripts/terrain_authoring_bootstrap.gd
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain_data
-
-      - name: Append successful terrain ledger
-        run: |
-          set -euo pipefail
-          LOG='godot/terrain-authoring/TERRAIN_POLISH_LOG.md'
-          PROGRESS='3D_GAME_PROGRESS.md'
-          if ! grep -Fq '### Iteration #08 —' "$LOG"; then
-            cat >> "$LOG" <<'EOF'
-
-### Iteration #08 — 2026-08-12 Europe/Istanbul
-**Seçilen iyileştirme:** Production terrain verisini değiştirmeden, Iteration #07 authored height+splat probe'u üzerinde HTerrain'in kendi `GlobalMapBaker` aracını çalıştırıp global albedo haritasının deterministik ve materyal dağılımına duyarlı üretildiğini doğrulamak.
-**Neden bu seçildi:** Son iterasyonlarda shader cilaları, starter terrain kalıcılığı, snapshot manifesti ve authored height/splat determinismi doğrulandı. En zayıf noktalar uniform starter global albedo, authored splat'ten global-map bake zincirinin doğrulanmamış olması ve gerçek production authoring öncesi görsel asset determinisminin kanıtsız kalmasıydı. Iteration #07 bu bake geçişini sıradaki güvenli aday olarak önerdi.
-**Yapılan değişiklikler:** Yeni `bake_authored_globalmap_probe.gd`, mevcut geçici authored probe'u production scene texture-set/material sözleşmesiyle HTerrain `GlobalMapBaker` üzerinden bake eder. `validate_terrain_polish_iteration_08.gd` persisted RGB8 global albedo'nun uniform starter renkten ayrıldığını ve center/edge materyal farkını koruduğunu doğrular. Workflow bake'i iki kez sıfırdan üretip PNG ve validator çıktısını byte-for-byte karşılaştırır ve görsel artifact yayınlar. HTerrain çekirdeği, production scene, bootstrap ve tracked `terrain_data` değiştirilmedi.
-**Test sonucu:** GitHub Actions zinciri Godot 4.6.3 headless import/editor, temel HTerrain doğrulaması, iki bağımsız global-map bake, semantic validator, byte determinism, PWA/cache/installability, mobil performans, seeded determinism, world-reference, terrain-seat, yol ağı, teknik borç ve tam Chromium smoke kontrollerini PASS ederek bu kaydı ekledi.
-**Gözlem:** Görsel etki yalnız geçici probe artifact'indedir: uniform `#557340` starter global albedo yerine grass/earth/rock splat dağılımını uzaktan temsil eden materyal-duyarlı global color map oluşur. Production runtime bu turda kasıtlı olarak değişmez.
-**Risk / Geri alma notu:** Risk düşüktür; probe CI sonunda silinir ve core addon/production terrain diff'i sıfırdır. GlobalMapBaker viewport tabanlı olduğu için farklı render backend'lerinde byte-level determinism ayrıca izlenmelidir. Değişiklik yeni iteration destek dosyaları ve bu kayıt kaldırılarak geri alınabilir.
-**Bir sonraki çalıştırma için öneri:** map.png semantik maskesiyle eşleşen küçük bounded bir production authoring bölgesinde height+splat+global-albedo üçlüsünü üretip iki kamera açısında before/after kanıtı al; Git/LFS kararını bu gerçek bounded örneğin byte büyümesine göre ver.
-EOF
-          fi
-          if ! grep -Fq 'Terrain Authoring Iteration #08' "$PROGRESS"; then
-            cat >> "$PROGRESS" <<'EOF'
-
-### Terrain Authoring Iteration #08 — deterministic GlobalMap bake
-- HTerrain core/production scene/terrain_data değiştirilmeden geçici authored height+splat probe üzerinde `GlobalMapBaker` doğrulandı.
-- Global albedo iki bağımsız üretimde byte-for-byte determinism, persisted RGB8 semantik kontrolü ve runtime governance kapılarından geçti.
-- Sonraki adım küçük bounded production authoring örneğinde before/after görsel doğrulamadır.
-EOF
-          fi
-          if git diff --quiet -- "$LOG" "$PROGRESS"; then
-            exit 0
-          fi
-          git config user.name 'terrain-authoring-bot'
-          git config user.email 'actions@users.noreply.github.com'
-          git add "$LOG" "$PROGRESS"
-          git commit -m 'terrain: record authoring global-map bake iteration 008'
-          git push origin HEAD:${GITHUB_REF_NAME}
