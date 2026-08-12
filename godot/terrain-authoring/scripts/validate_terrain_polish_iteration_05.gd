@@ -52,7 +52,7 @@ func _run_validation() -> void:
 		_fail("Starter global albedo map must exist exactly once")
 		return
 
-	var global_image := data.get_image(HTerrainData.CHANNEL_GLOBAL_ALBEDO)
+	var global_image: Image = data.get_image(HTerrainData.CHANNEL_GLOBAL_ALBEDO)
 	if global_image == null:
 		_fail("Starter global albedo image is missing in memory")
 		return
@@ -69,7 +69,7 @@ func _run_validation() -> void:
 		Vector2i(data.get_resolution() - 1, data.get_resolution() - 1),
 	]
 	for point in sample_points:
-		var sample := global_image.get_pixelv(point)
+		var sample: Color = global_image.get_pixelv(point)
 		if not _color_matches(sample, STARTER_GLOBAL_ALBEDO):
 			_fail("Starter global albedo sample drifted at %s: %s" % [point, sample])
 			return
@@ -110,11 +110,11 @@ func _run_validation() -> void:
 		_fail("Persisted starter global albedo PNG was not found")
 		return
 
-	var persisted_image := Image.load_from_file(ProjectSettings.globalize_path(persisted_global_path))
+	var persisted_image: Image = Image.load_from_file(ProjectSettings.globalize_path(persisted_global_path))
 	if persisted_image == null or persisted_image.is_empty():
 		_fail("Persisted starter global albedo PNG could not be loaded")
 		return
-	var persisted_sample := persisted_image.get_pixel(
+	var persisted_sample: Color = persisted_image.get_pixel(
 		persisted_image.get_width() / 2,
 		persisted_image.get_height() / 2)
 	if not _color_matches(persisted_sample, STARTER_GLOBAL_ALBEDO):
