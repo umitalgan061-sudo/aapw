@@ -1,0 +1,268 @@
+name: Terrain Polish Iteration 007
+
+on:
+  push:
+    branches:
+      - 'terrain/polish-iteration-007-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terrain-polish-iteration-007-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+  BASE_SHA: 3cf12a8796fb9d469cd083273db035b376aaf83a
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main concurrency and additive entry gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Iteration 007 source and scope contract
+        run: |
+          set -euo pipefail
+          test -f godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
+          test -f godot/terrain-authoring/scripts/build_authored_terrain_probe.gd
+          test -f godot/terrain-authoring/scripts/validate_terrain_polish_iteration_07.gd
+          test -f godot/terrain-authoring/scripts/build_terrain_data_snapshot.py
+          test -f godot/terrain-authoring/TERRAIN_POLISH_LOG.md
+          grep -F 'TERRAIN_AUTHORED_PROBE_OK' godot/terrain-authoring/scripts/build_authored_terrain_probe.gd
+          grep -F 'TERRAIN_POLISH_ITERATION_07_OK' godot/terrain-authoring/scripts/validate_terrain_polish_iteration_07.gd
+          test "$(git ls-files godot/terrain-authoring/terrain_data)" = 'godot/terrain-authoring/terrain_data/.gitkeep'
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scenes
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scripts/terrain_authoring_bootstrap.gd
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain_data
+          git diff --quiet "$BASE_SHA"...HEAD -- .gitignore .gitattributes
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot resource import without first-scan plugin races
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/terrain-polish-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import \
+            2>&1 | tee "$RUNNER_TEMP/terrain-polish-import.log"
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+
+      - name: Bootstrap and validate unchanged production terrain
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 \
+            2>&1 | tee "$RUNNER_TEMP/terrain-polish-editor.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_authoring.gd \
+            2>&1 | tee "$RUNNER_TEMP/terrain-polish-base-validation.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/terrain-polish-base-validation.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_terrain_polish_iteration_05.gd \
+            2>&1 | tee "$RUNNER_TEMP/terrain-polish-iteration-05-validation.log"
+          grep -F 'TERRAIN_POLISH_ITERATION_05_OK' "$RUNNER_TEMP/terrain-polish-iteration-05-validation.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_terrain_polish_iteration_06.gd \
+            2>&1 | tee "$RUNNER_TEMP/terrain-polish-iteration-06-validation.log"
+          grep -F 'TERRAIN_POLISH_ITERATION_06_OK' "$RUNNER_TEMP/terrain-polish-iteration-06-validation.log"
+
+      - name: Build starter terrain snapshot
+        run: |
+          set -euo pipefail
+          STARTER_DIR="$RUNNER_TEMP/hterrain-starter-snapshot"
+          python3 godot/terrain-authoring/scripts/build_terrain_data_snapshot.py \
+            --source godot/terrain-authoring/terrain_data \
+            --output "$STARTER_DIR" | tee "$RUNNER_TEMP/terrain-starter-snapshot.log"
+          grep -F 'TERRAIN_DATA_SNAPSHOT_OK' "$RUNNER_TEMP/terrain-starter-snapshot.log"
+          echo "STARTER_DIR=$STARTER_DIR" >> "$GITHUB_ENV"
+
+      - name: Build and validate deterministic authored height and splat probe
+        run: |
+          set -euo pipefail
+          PROBE_PATH='godot/terrain-authoring/terrain_polish_probe_007'
+          AUTHORED_A="$RUNNER_TEMP/hterrain-authored-snapshot-a"
+          AUTHORED_B="$RUNNER_TEMP/hterrain-authored-snapshot-b"
+          cleanup_probe() { rm -rf "$PROBE_PATH"; }
+          trap cleanup_probe EXIT
+
+          cleanup_probe
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/build_authored_terrain_probe.gd \
+            2>&1 | tee "$RUNNER_TEMP/terrain-authored-probe-a.log"
+          grep -F 'TERRAIN_AUTHORED_PROBE_OK' "$RUNNER_TEMP/terrain-authored-probe-a.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import \
+            2>&1 | tee "$RUNNER_TEMP/terrain-authored-import-a.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_terrain_polish_iteration_07.gd \
+            2>&1 | tee "$RUNNER_TEMP/terrain-authored-validation-a.log"
+          grep -F 'TERRAIN_POLISH_ITERATION_07_OK' "$RUNNER_TEMP/terrain-authored-validation-a.log"
+          python3 godot/terrain-authoring/scripts/build_terrain_data_snapshot.py \
+            --source "$PROBE_PATH" --output "$AUTHORED_A" \
+            | tee "$RUNNER_TEMP/terrain-authored-snapshot-a.log"
+          grep -F 'TERRAIN_DATA_SNAPSHOT_OK' "$RUNNER_TEMP/terrain-authored-snapshot-a.log"
+
+          cleanup_probe
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/build_authored_terrain_probe.gd \
+            2>&1 | tee "$RUNNER_TEMP/terrain-authored-probe-b.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import \
+            2>&1 | tee "$RUNNER_TEMP/terrain-authored-import-b.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_terrain_polish_iteration_07.gd \
+            2>&1 | tee "$RUNNER_TEMP/terrain-authored-validation-b.log"
+          grep -F 'TERRAIN_POLISH_ITERATION_07_OK' "$RUNNER_TEMP/terrain-authored-validation-b.log"
+          python3 godot/terrain-authoring/scripts/build_terrain_data_snapshot.py \
+            --source "$PROBE_PATH" --output "$AUTHORED_B" \
+            > "$RUNNER_TEMP/terrain-authored-snapshot-b.log"
+
+          for file_name in data.hterrain height.res normal.png splat.png color.png detail.png global_albedo.png; do
+            cmp "$AUTHORED_A/$file_name" "$AUTHORED_B/$file_name"
+          done
+          cmp "$RUNNER_TEMP/terrain-authored-validation-a.log" "$RUNNER_TEMP/terrain-authored-validation-b.log"
+
+          ARTIFACT_DIR="$RUNNER_TEMP/terrain-polish-007-artifact"
+          mkdir -p "$ARTIFACT_DIR/starter" "$ARTIFACT_DIR/authored"
+          cp -a "$STARTER_DIR/." "$ARTIFACT_DIR/starter/"
+          cp -a "$AUTHORED_A/." "$ARTIFACT_DIR/authored/"
+          python3 - "$STARTER_DIR" "$AUTHORED_A" "$ARTIFACT_DIR/comparison.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          starter = Path(sys.argv[1])
+          authored = Path(sys.argv[2])
+          output = Path(sys.argv[3])
+          sm = json.loads((starter / 'manifest.json').read_text(encoding='utf-8'))
+          am = json.loads((authored / 'manifest.json').read_text(encoding='utf-8'))
+          sfiles = {item['path']: item for item in sm['files']}
+          afiles = {item['path']: item for item in am['files']}
+          for required in ('height.res', 'splat.png'):
+              assert sfiles[required]['sha256'] != afiles[required]['sha256'], required
+          for unchanged in ('data.hterrain', 'normal.png', 'color.png', 'detail.png', 'global_albedo.png'):
+              assert sfiles[unchanged]['sha256'] == afiles[unchanged]['sha256'], unchanged
+          assert am['total_bytes'] > sm['total_bytes'], (sm['total_bytes'], am['total_bytes'])
+          changed_sources = [
+              name for name in ('height.res', 'splat.png', 'normal.png', 'color.png', 'detail.png', 'global_albedo.png')
+              if sfiles[name]['sha256'] != afiles[name]['sha256']
+          ]
+          result = {
+              'schema': 'terrain-polish-iteration-007-comparison-v1',
+              'starter_total_bytes': sm['total_bytes'],
+              'authored_total_bytes': am['total_bytes'],
+              'delta_bytes': am['total_bytes'] - sm['total_bytes'],
+              'changed_authored_sources': changed_sources,
+              'height': {'starter': sfiles['height.res'], 'authored': afiles['height.res']},
+              'splat': {'starter': sfiles['splat.png'], 'authored': afiles['splat.png']},
+          }
+          output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print('TERRAIN_AUTHORED_SNAPSHOT_COMPARISON_OK', json.dumps(result, sort_keys=True))
+          PY
+          test "$(git ls-files "$PROBE_PATH")" = ''
+          cleanup_probe
+          trap - EXIT
+          test ! -e "$PROBE_PATH"
+          git status --short
+          echo "ARTIFACT_DIR=$ARTIFACT_DIR" >> "$GITHUB_ENV"
+
+      - name: Upload authored terrain probe comparison artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hterrain-authored-probe-iteration-007-${{ github.sha }}
+          path: ${{ env.ARTIFACT_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: PWA cache and installability regression
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+
+      - name: Install Chromium smoke and performance dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Performance determinism world safety governance
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/terrain-polish-mobile.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkRun280OwnerMapSemanticFingerprint.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full browser smoke and console regression
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/terrain-polish-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/terrain-polish-smoke.log")" -ge 34
+
+      - name: Final exact-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test "$(git ls-files godot/terrain-authoring/terrain_data)" = 'godot/terrain-authoring/terrain_data/.gitkeep'
+          test ! -e godot/terrain-authoring/terrain_polish_probe_007
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scenes
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scripts/terrain_authoring_bootstrap.gd
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain_data
