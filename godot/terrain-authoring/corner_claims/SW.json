@@ -2,12 +2,26 @@
   "corner": "SW",
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G07",
+  "status": "active",
+  "layer": "Coast/Hydrology",
+  "engine": "Terrain3D + HTerrain regression",
+  "branch": "terrain/sw-g07-terrain3d-hydrology-20260812",
   "pr": null,
   "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "quality_before": {
+    "canonical_water_cells": 96,
+    "canonical_land_cells": 0,
+    "internal_boundary_edges": 0,
+    "terrain3d_region_proof": false
+  },
+  "quality_after": {
+    "canonical_centre_mismatches": 0,
+    "fractional_coastline_samples": 0,
+    "max_adjacent_step": 0,
+    "confidence_checksum": 3188080766,
+    "terrain3d_region_size": 256,
+    "terrain3d_region_proof": "pending-ci"
+  },
+  "updated_at": "2026-08-12T19:59:46+03:00"
 }
