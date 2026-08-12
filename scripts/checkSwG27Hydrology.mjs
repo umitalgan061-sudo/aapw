@@ -24,10 +24,10 @@ assert.equal(metrics.landCells, 13, 'G27 canonical land-centre inventory changed
 assert.equal(metrics.boundaryEdges, 24, 'G27 canonical coastline topology changed');
 assert.equal(metrics.centreMismatches, 0, 'canonical mask-cell centre semantics must remain exact');
 assert.equal(metrics.refinedSamples, 1617);
-assert.ok(metrics.fractionalSamples > 0, 'G27 coastline refinement must produce fractional confidence samples');
-assert.ok(metrics.maxAdjacentStep > 0, 'G27 must contain a measurable coastline transition');
-assert.ok(metrics.maxAdjacentStep < metrics.hardCellMaxStep, 'bilinear refinement must reduce the hard-cell discontinuity');
-assert.ok(Number.isInteger(metrics.confidenceChecksum));
+assert.equal(metrics.fractionalSamples, 279, 'G27 fractional coastline fingerprint changed');
+assert.equal(metrics.hardCellMaxStep, 1);
+assert.equal(metrics.maxAdjacentStep, 0.25, 'G27 bilinear continuity fingerprint changed');
+assert.equal(metrics.confidenceChecksum, 2239866362, 'G27 confidence-field fingerprint changed');
 
 const rerun = measureG27Hydrology();
 assert.deepEqual(rerun, metrics, 'G27 evidence must be deterministic across repeated evaluation');
