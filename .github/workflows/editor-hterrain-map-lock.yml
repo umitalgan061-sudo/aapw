@@ -8,6 +8,8 @@ on:
     branches: [main]
     paths:
       - 'src/3d/editor/EditorLiveWorldResourceCleanup.js'
+      - 'src/3d/editor/EditorSceneSerializer.js'
+      - 'src/3d/editor/worldEditor.js'
       - 'godot/terrain-authoring/editor_bridge/**'
       - 'godot/terrain-authoring/scripts/import_editor_hterrain_manifest.gd'
       - 'godot/terrain-authoring/scripts/rebake_editor_hterrain_derived.gd'
@@ -48,13 +50,16 @@ jobs:
           git merge-base --is-ancestor "$CURRENT_MAIN" HEAD
           git diff --check "$CURRENT_MAIN" HEAD
 
-      - name: Map lock and editor bridge contracts
+      - name: Map lock editor and scene persistence contracts
         run: |
           set -euo pipefail
           node --check src/3d/editor/EditorLiveWorldResourceCleanup.js
+          node --check src/3d/editor/EditorSceneSerializer.js
+          node --check src/3d/editor/worldEditor.js
           node --check scripts/checkEditorHTerrainBridge.js
           node --check scripts/checkEditorHTerrainBridgeBrowser.js
           node scripts/checkEditorHTerrainBridge.js
+          node scripts/checkRun216PreciseScalePersistence.mjs
           node scripts/checkWorldReferenceMap.js
           node scripts/checkWorldReferenceAlignment.js
           node scripts/checkRun280OwnerMapSemanticFingerprint.js
@@ -163,16 +168,27 @@ jobs:
           find "$SOURCE" -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/source-after-import.sha"
           cmp "$RUNNER_TEMP/source-before.sha" "$RUNNER_TEMP/source-after-import.sha"
 
+      - name: Ensure virtual display for HTerrain GPU bakers
+        run: |
+          set -euo pipefail
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb xauth
+          fi
+          xvfb-run --help >/dev/null
+
       - name: HTerrain derived normal global albedo rebake determinism
         run: |
           set -euo pipefail
           A=godot/terrain-authoring/editor_bridge/ci_generated_a
           B=godot/terrain-authoring/editor_bridge/ci_generated_b
-          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring \
+          timeout 180s xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 "$GODOT_BIN" \
+            --editor --rendering-method gl_compatibility --path godot/terrain-authoring \
             --script res://scripts/rebake_editor_hterrain_derived.gd -- \
             --output=res://editor_bridge/ci_generated_a \
             | tee "$RUNNER_TEMP/rebake-a.log"
-          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring \
+          timeout 180s xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 "$GODOT_BIN" \
+            --editor --rendering-method gl_compatibility --path godot/terrain-authoring \
             --script res://scripts/rebake_editor_hterrain_derived.gd -- \
             --output=res://editor_bridge/ci_generated_b \
             | tee "$RUNNER_TEMP/rebake-b.log"
@@ -201,7 +217,8 @@ jobs:
             --script res://scripts/validate_hterrain_authoring.gd \
             | tee "$RUNNER_TEMP/hterrain-authoring.log"
           grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain-authoring.log"
-          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring \
+          timeout 180s xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 "$GODOT_BIN" \
+            --editor --rendering-method gl_compatibility --path godot/terrain-authoring \
             --script res://scripts/validate_hterrain_normal_baker.gd \
             | tee "$RUNNER_TEMP/hterrain-normal.log"
           grep -F 'HTERRAIN_NORMAL_BAKER_OK' "$RUNNER_TEMP/hterrain-normal.log"
