@@ -1,0 +1,121 @@
+name: Run 304 RTS Command History
+
+on:
+  push:
+    branches:
+      - run304-rts-command-history-current-main-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run304-rts-command-history-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+  BASE_SHA: a5b9dcfc6da0b199db6faa040c87c735bdd2dc58
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main concurrency and additive entry gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git diff --numstat "$BASE_SHA"...HEAD -- \
+            rts.html \
+            scripts/checkRun304RtsCommandHistory.js \
+            .github/workflows/run304-rts-command-history.yml \
+            | awk '$2 != 0 { print "non-additive Run304 diff: " $0; exit 1 }'
+
+      - name: Run304 source and syntax contract
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun304RtsCommandHistory.js
+          grep -F "panel.id = 'rts-command-log'" rts.html
+          grep -F 'const MAX_ENTRIES = 5;' rts.html
+          grep -F 'new MutationObserver(captureStatus)' rts.html
+          grep -F 'observer.disconnect();' rts.html
+          grep -F 'window.__WESTEROS_RTS_COMMAND_LOG__' rts.html
+          grep -F 'proveBoundedHistory' scripts/checkRun304RtsCommandHistory.js
+          grep -F 'proveDisposal' scripts/checkRun304RtsCommandHistory.js
+
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Focused desktop and mobile command-history proof
+        run: node scripts/checkRun304RtsCommandHistory.js
+
+      - name: Existing RTS regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkRun207RtsSurface.js
+          node scripts/checkRun208RtsCommandFeedback.js
+          node scripts/checkRun210RtsSurfaceTexture.js
+          node scripts/checkRun211RtsKeyboardShortcuts.js
+          node scripts/checkRun212RtsCommandStatus.js
+          node scripts/checkRun213RtsSelectionReadability.js
+
+      - name: PWA performance determinism world-safety and debt gates
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full Chromium smoke and console regression
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run304-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run304-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run304-smoke.log"
+
+      - name: Upload Run304 visual and JSON evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run304-rts-command-history-${{ github.sha }}
+          path: artifacts/run304-rts-command-history
+          if-no-files-found: error
+
+      - name: Final remote-main concurrency and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git diff --numstat "$BASE_SHA"...HEAD -- \
+            rts.html \
+            scripts/checkRun304RtsCommandHistory.js \
+            .github/workflows/run304-rts-command-history.yml \
+            | awk '$2 != 0 { print "non-additive Run304 final diff: " $0; exit 1 }'
