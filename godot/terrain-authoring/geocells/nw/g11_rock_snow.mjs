@@ -88,8 +88,11 @@ function sampleElevationSignal(normalizedX, normalizedY) {
 }
 
 function sampleExposure(normalizedX, normalizedY) {
-  const dx = 1 / 1536;
-  const dy = 1 / 1024;
+  // Macro exposure is intentionally measured across four owner-map source pixels.
+  // A one-pixel derivative reacted too sharply to biome-support boundaries and
+  // produced a material seam that did not represent a real terrain feature.
+  const dx = 4 / 1536;
+  const dy = 4 / 1024;
   const left = sampleElevationSignal(clamp(normalizedX - dx), normalizedY);
   const right = sampleElevationSignal(clamp(normalizedX + dx), normalizedY);
   const up = sampleElevationSignal(normalizedX, clamp(normalizedY - dy));
@@ -119,23 +122,20 @@ export function sampleG11RockSnow(normalizedX, normalizedY) {
   const elevation = sampleElevationSignal(normalizedX, normalizedY);
   const exposure = sampleExposure(normalizedX, normalizedY);
 
-  // Keep the rock/snow material ratio independent from land coverage. Previously
-  // both weighted signals collapsed to zero at the shoreline and snowBlend
-  // snapped to a zero fallback, creating an artificial ~0.95 one-sample seam.
-  // These climate/relief signals remain strictly positive and continuous, while
-  // landFactor only controls whether the material has physical coverage.
-  const snowSignal = clamp(
-    0.03 + 0.82 * snowClimate + 0.24 * coldClimate + 0.16 * elevation - 0.10 * exposure,
-    0.02,
-    1,
+  // Material choice is a broad owner-map climate preference, not a ratio of two
+  // coverage values. Coverage fades independently through hydrology, preventing
+  // a shoreline from turning into a rock/snow control-map discontinuity.
+  const snowPreference = clamp(
+    0.06
+      + 0.74 * snowClimate
+      + 0.20 * coldClimate
+      + 0.10 * elevation
+      - 0.08 * rockClimate
+      - 0.06 * exposure,
   );
-  const rockSignal = clamp(
-    0.10 + 0.45 * exposure + 0.25 * rockClimate + 0.18 * elevation + 0.08 * (1 - snowClimate),
-    0.05,
-    1,
-  );
-  const mixTotal = rockSignal + snowSignal;
-  const snowBlend = clamp(snowSignal / mixTotal);
+  const snowBlend = 0.08 + 0.84 * smoothstep(0.08, 0.86, snowPreference);
+  const snowSignal = snowBlend;
+  const rockSignal = 1 - snowBlend;
   const snowWeight = landFactor * snowSignal;
   const rockWeight = landFactor * rockSignal;
 
