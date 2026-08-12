@@ -2,12 +2,13 @@
   "corner": "SW",
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G26",
+  "status": "measuring",
+  "branch": "terrain/sw-g26-hydrology-20260812",
   "pr": null,
   "last_commit": null,
   "quality_before": null,
   "quality_after": null,
-  "updated_at": null
+  "engine": "canonical owner-map mask + authoring-only hydrology measurement; HTerrain/Terrain3D unchanged during fingerprint discovery",
+  "updated_at": "2026-08-12T18:25:58+03:00"
 }
