@@ -31,6 +31,8 @@ jobs:
         with: { node-version: 22 }
 
       - name: Exact-main additive entry gate
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && github.sha || 'a5b9dcfc6da0b199db6faa040c87c735bdd2dc58' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -46,6 +48,8 @@ jobs:
           set -euo pipefail
           node --check scripts/checkRun305Run303SourceBranchGuard.js
           node scripts/checkRun305Run303SourceBranchGuard.js
+          node --check scripts/checkRun305LiveBaseSemantics.js
+          node scripts/checkRun305LiveBaseSemantics.js
           test "$(head -n 1 service-worker.js)" = '// Run216 complete World Editor offline shell extension.'
           node scripts/materializeRun216ServiceWorkerCache.js --verify-only
           node scripts/checkRun216ServiceWorkerMaterializer.js
@@ -90,6 +94,8 @@ jobs:
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run305-smoke.log")" -ge 34
 
       - name: Final exact-main concurrency and additive-only gate
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && github.sha || 'a5b9dcfc6da0b199db6faa040c87c735bdd2dc58' }}
         shell: bash
         run: |
           set -euo pipefail
