@@ -18,6 +18,13 @@ func _fail(message: String) -> void:
 	quit(1)
 
 
+func _color_delta(left: Color, right: Color) -> float:
+	return maxf(
+		maxf(absf(left.r - right.r), absf(left.g - right.g)),
+		maxf(absf(left.b - right.b), absf(left.a - right.a))
+	)
+
+
 func _is_authored_splat(splat: Color) -> bool:
 	return absf(splat.r - DEFAULT_GRASS.r) > 0.004 \
 		or splat.g > 0.004 \
@@ -79,7 +86,7 @@ func _apply_colormap() -> void:
 	if changed_cells < 30000:
 		_fail("Authored colormap changed too few cells: %s" % changed_cells)
 		return
-	if color_image.get_pixel(32, 32).distance_to(WHITE) > 0.01:
+	if _color_delta(color_image.get_pixel(32, 32), WHITE) > 0.01:
 		_fail("Authored colormap leaked outside the bounded splat region: %s" % color_image.get_pixel(32, 32))
 		return
 
