@@ -15513,3 +15513,47 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Reason: same conservative one-pindex-at-a-time cadence, same open canonical-full-reference-runtime-adoption gate.
 - Regression boundary: `scripts/checkRun296Pindex09DetailBrowser.js` applies Pindex-01 through Pindex-08 first, then requires every Run296-changed vertex to classify as Pindex-09 and zero vertices outside it to change. `scripts/checkRun296Pindex09DetailChain.js` extends the ordering contract to Pindex-01..09 as a new file (all earlier chain-check files untouched, additive-only).
 - Rollback: remove the new import blocks in `run201CanonicalDevBoot.mjs`/`service-worker.js` and the new `src/3d/world/worldReferencePindex09Detail.js` file; Run295/Pindex-08 remains the complete prior checkpoint.
+
+## ADR-RUN297 — Unified seam-free HD base-map sampling replaces the nine per-pindex detail copies
+- Risk: LOW (canonical-dev preview only; `game3d.html`/`index.html`/live terrain/physics/gameplay/2D runtime source delta 0).
+- Trigger: owner asked directly for better quality on the base map ("bu pindeks'leri geliştir … altlık haritayı kaliteli hale getir"), rather than a tenth copy of the Pindex-09 template.
+- Impact analysis: colour-attribute only. No terrain height, collider, road, hydrology or seat geometry is read or written, so the terrain-change safety gate (14 seat checks, road grade check) is structurally unaffected — and both were re-run green anyway.
+
+### Five defects measured before any code was written
+| # | Defect | Measurement |
+|---|---|---|
+| 1 | Nine north-south amplitude seams | per-strip tables cut hard at each boundary; soil runs 0.060 (P01) → 0.034 (P09) |
+| 2 | 8 mask columns straddle a pindex boundary | columns 9, 19, 28, 38, 57, 67, 76, 86 — two amplitudes inside one cell |
+| 3 | Micro-detail was white noise | `sin(dot)*43758` lag-1 autocorrelation **0.0405** at one sample per mask cell |
+| 4 | Staircase edges on every surface boundary | 1 cell = 16×16 source px; 927 of 6144 cells sit on a land/water interface alone |
+| 5 | Per-call BigInt decode | `classifyReferenceBaseSurface` = **~470 ns/call** (288-bit hex parse per vertex) |
+
+### Decision
+Two new modules, both additive; the nine legacy per-pindex modules are left in place and untouched.
+- `src/3d/world/worldReferenceBaseFieldHD.js` — decodes the mask once into a flat `Uint8Array` (**~470 → ~50 ns/call, ~9x**), adds bilinear per-class surface weights (which subsume the land/water occupancy field), and provides coherent fBm value noise on an integer-only lattice hash.
+- `src/3d/world/worldReferencePindexDetailHD.js` — one parameterized layer over **all ten** pindexes, completing the pass. Amplitude is quintic-blended across a ±0.008 normalized-X band at each boundary; strip centres keep their approved values bit-for-bit.
+- Noise lattice set to **24×16 lattice cells** (one lattice cell per 4×4 mask cells, isotropic), 4 octaves. This was measured, not assumed: an initial 96×64 lattice scored **-0.066** autocorrelation at mask-cell sampling — no better than the white noise it replaced, because every sample lands on an independent lattice point. 24×16 scores **0.767**.
+- Supersede, not compound: colour is derived from the canonical semantic palette rather than from the current colour attribute, so the layer is idempotent and produces identical output whether or not the nine legacy layers ran first.
+
+### Canonical fidelity — what is explicitly NOT changed
+Classification is untouched. The fast sampler is bit-identical to `classifyReferenceBaseSurface` on all 6144 cell centres and 20 007 off-centre/edge/clamped probes. Per-class weights are **one-hot** at every cell centre (0 violations across all 6144), so cell centres still resolve to their exact canonical palette colour; only the space *between* centres becomes gradient. Cell-centre shade stays inside the legacy [0.85, 1.15] clamp (measured range 0.9569..1.0295), so no centre is blown out or crushed. The 96×64 mask, its SHA, and all per-pindex `baseCellCounts` are re-verified against the decoded data (10/10 strips, 0 mismatches).
+
+### Two defects found by this run's own self-review, both fixed before commit
+- **Interface blending was half-finished.** The first implementation crossfaded only the land/water interface, which left soil/rock and rock/snow boundaries rendering as exactly the same 16-pixel staircase — visible immediately in the zoom evidence. Generalized to bilinear per-class weights over all five surfaces, so *every* interface softens.
+- **Weights could exceed 1 by one ulp.** When two or more bilinear taps land on the same class, their floating-point sum can reach 1+2e-16 (measured: 9 samples in 40 000). Now clamped; the correction cannot move a cell centre off its one-hot value.
+
+### A measurement error in the evidence tooling, also caught and fixed
+The first comparison render made the HD side look drastically darker. That was a colour-space bug in `captureRun297BaseMapEvidence.js`, not in the modules: three r160 runs with `ColorManagement` enabled, so `new THREE.Color(0x7d8758)` yields **linear** [0.205, 0.242, 0.098] while the raw hex bytes are sRGB [125, 135, 88]. The legacy path was reading raw hex bytes and the HD path was reading `THREE.Color`, so the two sides were being compared across different colour spaces. Both paths now compute in linear — the space the real vertex-colour attribute stores — and convert to sRGB only when writing PNG pixels. Changed-pixel count fell from a nonsensical 100% to 38.4% once corrected.
+
+### Alternatives considered
+- **A tenth per-pindex copy (the established cadence).** Rejected: it would have added a tenth near-identical file and a tenth seam without touching any of the five measured defects.
+- **Re-levelling the west→east amplitude ramp.** Rejected as an unasked design change — see the new `QUESTIONS_FOR_OWNER.md` entry. Tuned values are preserved as-is.
+- **Raising base mask resolution above 96×64.** Rejected: that would change the canonical contract and its SHA, which is owner-gated.
+
+### Regression boundary
+- `scripts/checkRun297BaseFieldHD.mjs` — 22 executable numeric checks in bare Node (canonical equivalence, occupancy contract, coherence, range, continuity, determinism, no `Math.random`/`Date`, pinned checksum `4016472793`, perf floor ≥5x). Note this is a behavioural test, unlike the earlier `checkRun2xx` scripts which only grep source text.
+- `scripts/checkRun297PindexDetailHDBrowser.js` — real-browser proof: 10/10 pindex coverage, 6144/6144 vertices, idempotency drift 0, supersede drift 0, worst seam step **1.17e-4 vs legacy 5.00e-3 (43x smoother)**, 329 off-centre shoreline blends, cell-centre shade inside clamp, 0 console/page errors.
+- `scripts/captureRun297BaseMapEvidence.js` — visual before/after at full 1536×1024 source resolution plus a 6x coastline zoom crop, written to `artifacts/run297-pindex-detail-hd/`.
+
+### Rollback
+Remove the Run297 block appended to `scripts/run201CanonicalDevBoot.mjs` and the Run297 install listener at the top of `service-worker.js`, then delete the two new `src/3d/world/worldReference*HD.js` modules. Run296/Pindex-09 remains the complete prior checkpoint; nothing it owns was modified.
