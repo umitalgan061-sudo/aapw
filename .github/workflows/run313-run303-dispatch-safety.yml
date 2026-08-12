@@ -51,6 +51,8 @@ jobs:
           node scripts/checkRun313Run303DispatchSafety.js
           node --check scripts/checkRun313FuturePrSafety.js
           node scripts/checkRun313FuturePrSafety.js
+          node --check scripts/checkRun313ProgressMaterializer.js
+          node scripts/checkRun313ProgressMaterializer.js
           node scripts/checkRun216ServiceWorkerMaterializer.js
           node scripts/checkRun300LegacyPrScopeGate.js
           node scripts/checkRun283FinalHeadGovernance.js
