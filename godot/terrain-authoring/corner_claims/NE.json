@@ -5,8 +5,8 @@
   "current_cell": "G52",
   "status": "validating",
   "branch": "terrain/ne-g52-terrain3d-hydrology-current-main-20260812",
-  "pr": null,
-  "last_commit": null,
+  "pr": 284,
+  "last_commit": "c78082c302570ef1a08cc16faa4e40aead1b0b3e",
   "layer": "Coast/Hydrology",
   "engine": "Terrain3D + HTerrain regression + canonical owner-map semantics",
   "quality_before": {
@@ -26,5 +26,5 @@
     "terrain3d_real_import_save_bake_required": true,
     "visible_grid_allowed": false
   },
-  "updated_at": "2026-08-12T20:59:54+03:00"
+  "updated_at": "2026-08-12T21:03:40+03:00"
 }
