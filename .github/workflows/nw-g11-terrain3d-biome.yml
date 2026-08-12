@@ -106,6 +106,14 @@ jobs:
           print('NW_G11_TERRAIN3D_BIOME_STABLE_OK')
           PY
 
+      - name: Install Playwright Chromium for world and browser safety
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
       - name: HTerrain and world safety regression
         run: |
           set -euo pipefail
@@ -122,12 +130,8 @@ jobs:
       - name: Browser smoke
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/pw"
-          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
-          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
 
       - name: Final exact-main gate
         run: |
