@@ -15481,3 +15481,12 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Affected systems: canonical-dev boot activation, offline shell registration and the pindex detail chain guard. Geometry, height sampler, settlements, roads, bridges, hydrology, editor, 2D runtime and Pindexes 01-04/06-10 are untouched.
 - Regression boundary: the browser proof applies Pindex-01 through Pindex-04 first, snapshots the color buffer, then requires every Run306-changed vertex to classify as Pindex-05, requires both canonical surfaces to be visibly touched, forbids any rock/snow change, and re-applies the whole chain a second time to prove byte-identical determinism.
 - Rollback: remove the Run306 activation block, the offline-shell push and the new module; Run282 remains the complete prior checkpoint and the Run290 dormant candidate is unaffected.
+
+## ADR-RUN307 — Pindex-06 continues the inverse soil-share amplitude rule
+- Risk: LOW.
+- Decision: apply bounded deterministic post-semantic tonal variation only to canonical Pindex-06, with soil amplitude 0.04 and water 0.007, and give the strip its own noise constants.
+- Reason: Pindex-06 is sea+soil only (380/260 canonical cells) and carries the largest soil share polished so far — 40.6% of its strip, versus 29.2% for Pindex-05 and 25.9% for Pindex-04. The established inverse relationship therefore lowers per-vertex amplitude again so the broadest inland body does not read noisier than its already-tuned neighbours.
+- Alternatives: reusing the Run306 profile was rejected because it ignores the materially larger soil share; sharing Run306's hash constants was rejected because neighbouring strips would then repeat one visible noise pattern.
+- Affected systems: canonical-dev boot activation, offline shell registration and the pindex detail chain guard. Geometry, height sampler, settlements, roads, bridges, hydrology, editor, 2D runtime and Pindexes 01-05/07-10 are untouched.
+- Regression boundary: the Run307 chain guard now encodes the monotonic rule directly — soil and sea amplitudes must be non-increasing across the sea+soil-only strips 04→05→06 — and asserts that no two pindexes share noise constants. The browser proof applies Pindex-01 through Pindex-05 first, then requires every Run307-changed vertex to classify as Pindex-06.
+- Rollback: remove the Run307 activation block, the offline-shell push and the new module; Run306 remains the complete prior checkpoint.

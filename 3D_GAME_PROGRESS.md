@@ -14883,3 +14883,12 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - Memory-leak review: the layer creates no listeners, timers, DOM, geometry or material ownership; it writes into the existing semantic terrain color buffer and disposes nothing it does not own.
 - Risk LOW. Confidence 5/5. Technical debt introduced: 0.
 - Next safe step: refresh remote main/concurrency state, then polish Pindex-06 as a separate atomic layer (canonically sea 380 / soil 260 — the largest soil share yet, so its amplitude needs independent tuning, not a copy of Run306).
+
+## Run 307 — Pindex-06 deterministic micro-surface detail
+- Canonical Pindex-06 received its own deterministic colour micro-detail pass after Run306; Pindexes 01-05 are preserved and 07-10 remain untouched.
+- Pindex-06 is sea+soil only (380/260 cells) with the largest soil share polished so far (40.6%), so soil/sea amplitudes drop again to 0.04/0.007 and the strip uses its own noise constants rather than Run306's.
+- Live-path browser proof: 640 touched vertices, exactly matching the canonical composition (sea 380 + soil 260); cross-pindex drift 0; zero rock/snow cells changed; a full second application of the 01→06 chain reproduced byte-identical colours; zero console/page errors online and after an offline service-worker reload; wide + tall + offline screenshots captured.
+- DoD gates PASS: `node --check` on all touched files, new Run307 chain guard (01→06 order, monotonic soil/sea amplitude rule across strips 04→05→06, unique per-pindex noise constants, Run216 complete-marker prefix intact), existing Run284/Run306 guards still PASS, service-worker cache, PWA installability, owner-map semantic fingerprint, terrain seat safety 14/14, road network safety, world-event determinism, technical debt 0 new markers, additive-only guard, mobile perf budget (35 draw calls / 195929 triangles, unchanged), full Chromium smoke 34/34.
+- Memory-leak review: no listeners, timers, DOM, geometry or material ownership added; the layer writes into the existing semantic terrain colour buffer.
+- Risk LOW. Confidence 5/5. Technical debt introduced: 0.
+- Next safe step: refresh remote main/concurrency state, then polish Pindex-07 — it reintroduces rock (31) and snow (30) alongside sea 321 / soil 194, so it is the first mixed-surface strip since Pindex-03 and needs a four-surface amplitude profile rather than the soil-led pair.

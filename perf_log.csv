@@ -213,3 +213,4 @@ run281,2026-08-11,pindex03-deterministic-detail,,,,,,,"Pindex-03 color micro-det
 run282,2026-08-11,pindex04-deterministic-detail,,,,,,,"Pindex-04 color micro-detail only; geometry delta 0; mandatory DoD PASS"
 2026-08-12,run291-platform-control,1,51,688296,49,17,307
 2026-08-12,run306-pindex05-detail,1,35,195929,30,22,
+2026-08-12,run307-pindex06-detail,1,35,195929,30,22,
