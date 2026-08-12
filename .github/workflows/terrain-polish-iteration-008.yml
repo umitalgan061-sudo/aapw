@@ -126,5 +126,5 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
-          test "$(git diff --numstat "$BASE_SHA"...HEAD -- game3d.html | awk '{print $2}')" = '0'
-          test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfaceTerrainVisual.js | awk '{print $2}')" = '0'
+          test "$(git diff --numstat "$BASE_SHA"...HEAD -- game3d.html | awk '{sum += $2} END {print sum+0}')" = '0'
+          test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfaceTerrainVisual.js | awk '{sum += $2} END {print sum+0}')" = '0'
