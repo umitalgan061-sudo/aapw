@@ -1,0 +1,101 @@
+name: Editor Live Workspace Current Main
+
+on:
+  push:
+    branches:
+      - 'chatgpt/editor-live-workspace-current-main-v2'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'edit.html'
+      - 'src/3d/editor/EditorLiveWorkspaceEntry.mjs'
+      - 'scripts/editorLiveServer.js'
+      - 'scripts/checkEditorLiveWorkspaceEntry.js'
+      - '.vscode/tasks.json'
+      - '.github/workflows/editor-live-workspace-current-main.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-current-main and additive-only entry gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA='${{ github.event.pull_request.base.sha }}'
+          else
+            BASE_SHA="$(git merge-base HEAD origin/main)"
+          fi
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git diff --numstat "$BASE_SHA"...HEAD | awk '$2 != 0 { print "non-additive editor live workspace diff: " $0; exit 1 }'
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+
+      - name: Live workspace source contract
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorLiveWorkspaceEntry.mjs
+          node --check scripts/editorLiveServer.js
+          node --check scripts/checkEditorLiveWorkspaceEntry.js
+          node scripts/checkEditorLiveWorkspaceEntry.js
+          grep -F '"three": "./src/3d/vendor/three/three.module.js"' edit.html
+          grep -F './editor.html?liveWorkspace=1' edit.html
+          grep -F 'CANLI OYUN' src/3d/editor/EditorLiveWorkspaceEntry.mjs
+          grep -F 'DÜZENLEME' src/3d/editor/EditorLiveWorkspaceEntry.mjs
+          grep -F 'YAN YANA' src/3d/editor/EditorLiveWorkspaceEntry.mjs
+          grep -F 'Koda Kaydet' src/3d/editor/EditorLiveWorkspaceEntry.mjs
+          grep -F '/__editor/models' scripts/editorLiveServer.js
+          grep -F '/__editor/save' scripts/editorLiveServer.js
+          grep -F 'Westeros: World Editor Live' .vscode/tasks.json
+          git diff --quiet "$BASE_SHA"...HEAD -- editor.html editor.css src/3d/editor/worldEditor.js game3d.html
+
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Real Chromium live workspace proof
+        run: node scripts/checkEditorLiveWorkspaceEntry.js --browser
+
+      - name: Existing PWA and safety gates
+        run: |
+          set -euo pipefail
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Full browser smoke
+        run: node scripts/smokeTestGame3D.js
+
+      - name: Final exact-current-main and additive-only gate
+        if: always()
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD

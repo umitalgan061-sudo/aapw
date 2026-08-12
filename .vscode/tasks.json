@@ -73,6 +73,21 @@
         "Westeros: Check Run216 TransformControls core contract"
       ],
       "problemMatcher": []
+    },
+    {
+      "label": "Westeros: World Editor Live",
+      "type": "process",
+      "command": "node",
+      "args": ["scripts/editorLiveServer.js"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
     }
   ]
 }
