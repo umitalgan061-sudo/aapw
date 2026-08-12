@@ -120,11 +120,35 @@ jobs:
             --script res://scripts/validate_g55_terrain3d.gd | tee "$RUNNER_TEMP/g55-t3d-b.log"
           grep -F 'SE_G55_TERRAIN3D_VALIDATION_OK' "$RUNNER_TEMP/g55-t3d-a.log"
           grep -F 'SE_G55_TERRAIN3D_VALIDATION_OK' "$RUNNER_TEMP/g55-t3d-b.log"
-          grep '^G55_TERRAIN3D_METRICS=' "$RUNNER_TEMP/g55-t3d-a.log" > "$RUNNER_TEMP/g55-t3d-metrics-a.log"
-          grep '^G55_TERRAIN3D_METRICS=' "$RUNNER_TEMP/g55-t3d-b.log" > "$RUNNER_TEMP/g55-t3d-metrics-b.log"
-          test -s "$RUNNER_TEMP/g55-t3d-metrics-a.log"
-          cmp "$RUNNER_TEMP/g55-t3d-metrics-a.log" "$RUNNER_TEMP/g55-t3d-metrics-b.log"
-          cat "$RUNNER_TEMP/g55-t3d-metrics-a.log"
+          python3 - "$RUNNER_TEMP/g55-t3d-a.log" "$RUNNER_TEMP/g55-t3d-b.log" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          def read_metrics(path):
+              for line in Path(path).read_text().splitlines():
+                  if line.startswith('G55_TERRAIN3D_METRICS='):
+                      return json.loads(line.split('=', 1)[1])
+              raise SystemExit(f'missing Terrain3D metrics in {path}')
+
+          a = read_metrics(sys.argv[1])
+          b = read_metrics(sys.argv[2])
+          for label, metrics in (('a', a), ('b', b)):
+              assert metrics['savedRegionFiles'] >= 1, (label, metrics)
+              assert metrics['savedRegionBytes'] > 0, (label, metrics)
+
+          stable_keys = (
+              'terrain3dVersion', 'regionSize', 'regionCount', 'sampleCount',
+              'maxHeightError', 'outputChecksum', 'bakedSurfaces',
+              'bakedVertices', 'savedRegionFiles',
+          )
+          stable_a = {key: a[key] for key in stable_keys}
+          stable_b = {key: b[key] for key in stable_keys}
+          assert stable_a == stable_b, (stable_a, stable_b)
+          print('G55_TERRAIN3D_STABLE_METRICS=' + json.dumps(stable_a, sort_keys=True, separators=(',', ':')))
+          print(f"G55_TERRAIN3D_SAVE_BYTES=a:{a['savedRegionBytes']} b:{b['savedRegionBytes']}")
+          print('G55_TERRAIN3D_STABLE_METRICS_OK')
+          PY
 
       - name: Preserve HTerrain regression control
         run: |
