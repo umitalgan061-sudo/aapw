@@ -14873,3 +14873,9 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - `perf_log.csv` gained one real-frame sample (`run291-platform-control`, `collectPerfSnapshot.js`): fps=1 (headless/software-render baseline, not a real-device number per that script's own caveat), drawCalls=51, triangles=688296, geometries=49, textures=17, jsHeapUsedMB=307.
 - Runtime/product source delta: 0 lines changed (governance/docs/perf-log only). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required (pure process/maintenance run, no product decision).
 - Next safe step: refresh remote main/concurrency state and resume the owner priority order at the top — arazi makro relief — reading `experiments/run290/worldReferencePindex05Detail.js` and the live Pindex-01..04 adoption path first, since that dormant candidate is the most advanced in-flight terrain-detail work. Next consolidation + platform-control window ~run311-321.
+
+## Run 295 — Pull-request exact-main base-policy guard V2
+- Added a test-only repository-wide guard for mandatory read-only pull_request workflows that compare origin/main against BASE_SHA: they must derive github.event.pull_request.base.sha and explicitly checkout github.event.pull_request.head.sha.
+- Runtime delta is zero: no src/3d, PWA shell, gameplay, editor, terrain, road, hydrology, settlement or pindex-detail ownership changed.
+- Self-test fixtures prove stale PR base and synthetic merge-ref checkout are rejected while archival self-publishing write workflows and dynamic in-step BASE_SHA workflows stay outside this narrow mandatory-gate scope.
+- Next safe step: refresh main/open PR ownership; Pindex-05 activation may be reconsidered only after final-head governance remains green and Terrain Polish ownership is still isolated.

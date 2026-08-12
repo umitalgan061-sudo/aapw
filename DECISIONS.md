@@ -15472,3 +15472,6 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Reason: Run280 locks canonical semantics and Pindex-04 has no canonical rock/snow cells, so a soil-led profile improves breakup without inventing new semantic material.
 - Regression boundary: browser proof applies Pindex-01 through Pindex-03 first, snapshots colors, then requires every Run282-changed vertex to classify as Pindex-04.
 - Rollback: remove the Run282 activation/new module; Run281 remains the complete prior checkpoint.
+
+## ADR-RUN295 — Mandatory read-only exact-main PR gates require live base and exact head
+- Risk: LOW. Decision: guard only read-only pull_request workflows that declare YAML BASE_SHA and enforce origin/main equality. They must derive the live PR base SHA and explicitly checkout the PR head SHA. Historical self-publishing write workflows are excluded from this mandatory-gate contract; dynamic in-step BASE_SHA workflows are already live-main-safe. Runtime behavior is unchanged; rollback is removal of this guard/workflow.
