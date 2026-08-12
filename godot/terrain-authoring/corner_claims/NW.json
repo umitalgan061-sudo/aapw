@@ -6,7 +6,7 @@
   "current_layer": "Relief/Height Character",
   "status": "validating",
   "branch": "terrain/nw-g11-relief-20260812",
-  "pr": null,
+  "pr": 291,
   "last_commit": null,
   "previous_layers": {
     "coast_hydrology": {
@@ -35,5 +35,5 @@
     "imported_topdown_evidence": true
   },
   "engine": "pinned Terrain3D v1.0.2 real height import/save/LOD0 bake; canonical map hydrology + biome elevation bias + relief-chain controls; HTerrain preserved as regression control",
-  "updated_at": "2026-08-12T23:01:00+03:00"
+  "updated_at": "2026-08-12T23:05:00+03:00"
 }
