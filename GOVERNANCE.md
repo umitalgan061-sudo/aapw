@@ -25,9 +25,20 @@ bırakma yasak — belirsizlik varsa ADR yaz ya da `QUESTIONS_FOR_OWNER.md`'ye s
 6. Refactor sadece bug/perf/okunabilirlik/mimari nedenlerle yapılır.
 7. Dosya 600 satırı geçmezse iyi, geçerse böl.
 8. Her alt görev sonu memory-leak checklist (listener/timer/DOM/geometry-material dispose).
-9. **Additive-only diff guard (run 126, proje sahibi tarafından doğrudan `main`'e eklendi —
-   commit `3c7e4fb`, `scripts/checkAdditiveOnlyDiff.js`):** her commit'ten önce
-   `node scripts/checkAdditiveOnlyDiff.js` (varsayılan `origin/main...HEAD`) çalıştırılır.
+9. **🔴 KALDIRILDI (2026-08-12, sahip doğrudan talimatı — canlı konuşma, "sadece ekle, asla
+   satır silme kuralını kaldırıyorum"):** Aşağıdaki additive-only guard artık YÜRÜRLÜKTE DEĞİL.
+   Gerekçe: kural, run 133/137/142/145/149'da (bkz. `QUESTIONS_FOR_OWNER.md`) birden fazla gerçek
+   iş kalemini (mobil görüş yarıçapı artışı, `game3d.js` bölünmesi, dünya-olayı kataloğu büyümesi)
+   yapısal olarak kilitlemişti — sahip bunu kaldırarak o kilitleri açtı. `scripts/checkAdditiveOnlyDiff.js`
+   artık no-op (her zaman PASS döner, bkz. dosyanın kendi başlığı); DoD checklist'teki madde (§8.1)
+   buna göre güncellendi. Bundan sonra normal düzenleme/refactor/silme kuralları geçerli (Altın Kural 6:
+   refactor yalnız bug/perf/okunabilirlik/mimari nedenlerle) — sınırsız/gerekçesiz satır silme serbest
+   bırakılmadı, sadece additive-only ZORUNLULUĞU kalktı. Aşağıdaki metin, kuralın ne talep ettiğinin
+   tarihsel kaydı olarak korunuyor:
+
+   Eski kural metni (run 126, proje sahibi tarafından doğrudan `main`'e eklendi —
+   commit `3c7e4fb`, `scripts/checkAdditiveOnlyDiff.js`): her commit'ten önce
+   `node scripts/checkAdditiveOnlyDiff.js` (varsayılan `origin/main...HEAD`) çalıştırılırdı.
    Kaynak dosyalarda (`.js/.mjs/.cjs/.html/.css/.json/.xml/.glsl/.vert/.frag`) satır SİLİNEMEZ
    veya DEĞİŞTİRİLEMEZ (bir satırı değiştirmek git diff'te 1 silme + 1 ekleme sayılır ve guard'ı
    FAIL ettirir) — yalnız yeni satır EKLENEBİLİR. Mevcut bir davranışı düzeltmek gerekiyorsa: eski
@@ -85,7 +96,9 @@ her çalıştırma sonunda ölçülüp raporlanır.
 - [ ] Commit atıldı
 - [ ] **Konsol Temizliği:** tarayıcı konsolunda yakalanmamış hata/uyarı yok (headless
       Chromium boot sırasında `console.error`/sayfa hatası sıfır olmalı)
-- [ ] **Additive-only guard:** `node scripts/checkAdditiveOnlyDiff.js` PASS (bkz. §2 madde 9)
+- [ ] ~~**Additive-only guard:** `node scripts/checkAdditiveOnlyDiff.js` PASS~~ — **KALDIRILDI
+      (2026-08-12, sahip talimatı, bkz. §2 madde 9).** Script artık no-op; bu checklist maddesi
+      artık zorunlu değil, geriye dönük kayıt olarak bırakıldı.
 
 ### 8.2 Root Cause Analysis
 Aynı hata 2. kez görülürse: önce **Root Cause / Prevention / Regression Test** yazılır,
