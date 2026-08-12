@@ -2,12 +2,20 @@
   "corner": "SE",
   "task_name": "Kızıl Ufuk",
   "origin": [7, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G75",
+  "status": "active",
+  "layer": "Relief/Height Character",
+  "branch": "agent/kizil-ufuk-g75-relief-c1-20260813",
   "pr": null,
-  "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "last_commit": "f85795822fc9115a9aaafad94842d9c14e411bfe",
+  "quality_before": {
+    "coast_hydrology": "96/96 dry canonical centres; Terrain3D proof PR #285",
+    "macro_biome": "continuous owner-map color field; Terrain3D proof PR #288",
+    "relief_attempt": "PR #296 rejected at maxGuardNormalDelta 1.413918 > 0.8 and retired stale/unmerged"
+  },
+  "quality_after": {
+    "target": "same G75 height field with normals derived in canonical full-reference metre space; fixed seam threshold retained at 0.8",
+    "state": "pending exact-head CI evidence"
+  },
+  "updated_at": "2026-08-13T01:12:00+03:00"
 }
