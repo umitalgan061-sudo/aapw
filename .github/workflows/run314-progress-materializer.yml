@@ -1,0 +1,85 @@
+name: Run 314 Progress Materializer
+
+on:
+  push:
+    branches:
+      - run314-remove-run303-manual-dispatch
+    paths:
+      - '.run314-progress-materialize'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run314-progress-materializer-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BASE_SHA: 3d404c14b55e3e6121b70430fd0359e532b6f285
+  RUN_BRANCH: run314-remove-run303-manual-dispatch
+  TZ: Europe/Istanbul
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Fail closed outside Run314 source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/$RUN_BRANCH"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          node --check scripts/materializeRun314Progress.js
+
+      - name: Install Chromium for real perf sample
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Append Run314 progress checkpoint and performance row
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run314-run303-dispatch-removal
+          node scripts/materializeRun314Progress.js
+          git diff --check
+          git add 3D_GAME_PROGRESS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          git diff --cached --numstat | awk '$2 != 0 { print "unexpected deletion in checkpoint records: " $0; exit 1 }'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Run314: materialize governance progress checkpoint'
+
+      - name: Final exact-main gate and publish materialized head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:$RUN_BRANCH"
+          TAG='stable-2026-08-12-run314'
+          git tag "$TAG" HEAD
+          git push origin "refs/tags/$TAG" || echo "::notice::Stable tag push remains blocked by the known GOVERNANCE 8.11 environment constraint"
