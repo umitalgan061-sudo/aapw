@@ -2,12 +2,27 @@
   "corner": "SW",
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G07",
+  "status": "validating",
+  "layer": "Relief/Height Character",
+  "engine": "Terrain3D pinned v1.0.2-stable + HTerrain regression",
+  "branch": "terrain/sw-g07-terrain3d-relief-20260812",
   "pr": null,
   "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "quality_before": {
+    "canonicalWater": 96,
+    "canonicalLand": 0,
+    "previousLayer": "Macro Albedo/Biome",
+    "previousLayerPr": 287,
+    "previousDedicatedTerrain3DProof": "green"
+  },
+  "quality_target": {
+    "realTerrain3DHeightImport": true,
+    "realRegionPersistence": true,
+    "lod0Bake": true,
+    "allHeightsBelowWaterCeiling": true,
+    "guardBandHeightAndNormalContinuity": true,
+    "noGeoCellEdgeVisualTerm": true
+  },
+  "updated_at": "2026-08-12T20:00:00Z"
 }
