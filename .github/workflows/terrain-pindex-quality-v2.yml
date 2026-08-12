@@ -75,7 +75,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: High-fidelity Pindex visual and continuity proof
+      - name: High-fidelity Pindex GPU visual proof
         run: |
           set -euo pipefail
           node scripts/checkTerrainPindexQualityV2Browser.js | tee "$RUNNER_TEMP/pindex-quality-v2-browser.log"
@@ -86,15 +86,24 @@ jobs:
           const fs = require('fs');
           const proof = JSON.parse(fs.readFileSync('artifacts/terrain-pindex-quality-v2/proof.json', 'utf8'));
           if (proof.allPindexes.join(',') !== '1,2,3,4,5,6,7,8,9,10') throw new Error('P01..P10 coverage drift');
-          if (!proof.heightUnchanged || !proof.deterministic || !proof.idempotent) throw new Error('geometry/determinism/idempotency regression');
-          if (!(proof.blendedSamples > 300)) throw new Error('semantic edge smoothing missing');
-          if (!(proof.maxChunkSeamColorDelta < 1e-6)) throw new Error('chunk color seam');
+          if (!proof.heightUnchanged || !proof.cpuColorArraysEqual || proof.cpuVertexPassesAdded !== 0) throw new Error('geometry/CPU-pass regression');
+          if (!proof.samplerDeterministic || !proof.gpuDeterministic || !proof.idempotent) throw new Error('determinism/idempotency regression');
+          if (!(proof.blendedSamples > 300) || !(proof.maxPindexSeamSurfaceDelta < 0.001)) throw new Error('semantic edge smoothing regression');
+          if (!(proof.visualMeanPixelDelta > 1) || !(proof.visualChangedRatio > 0.08)) throw new Error('rendered quality delta missing');
           if (!(proof.shaderPrograms > 0) || !proof.shaderInstalled) throw new Error('PBR detail shader missing');
+          if (!(proof.visualImportMs < 2000) || !(proof.qualityApplyMs < 1000)) throw new Error('quality runtime cost regression');
           if (proof.consoleErrors !== 0) throw new Error('browser console errors');
-          console.log('PINDEX_QUALITY_V2_PROOF_OK', proof.meanColorDelta, proof.activeBiomeKinds, proof.p10);
+          console.log('PINDEX_QUALITY_V2_PROOF_OK', JSON.stringify({
+            atlas: proof.atlasResolution,
+            visualMeanPixelDelta: proof.visualMeanPixelDelta,
+            visualChangedRatio: proof.visualChangedRatio,
+            visualImportMs: proof.visualImportMs,
+            qualityApplyMs: proof.qualityApplyMs,
+            p10: proof.p10,
+          }));
           NODE
 
-      - name: Iteration 008 and full browser regression
+      - name: Iteration 008 and full game smoke regression
         run: |
           set -euo pipefail
           node scripts/checkTerrainPolishIteration08Browser.js | tee "$RUNNER_TEMP/iteration008-regression.log"
