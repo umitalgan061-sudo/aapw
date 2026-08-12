@@ -10,6 +10,12 @@ const EXPECTED_MAP_SHA := "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8
 const MAP_RELIEF_METERS := 18.0
 const CHAIN_RELIEF_METERS := 26.0
 const CHAIN_RADIUS := Vector2(0.020, 0.030)
+const PASSTHROUGH_MAP_FILES := [
+	"normal.png",
+	"color.png",
+	"detail.png",
+	"global_albedo.png",
+]
 
 
 func _init() -> void:
@@ -207,7 +213,28 @@ func _apply_strokes(height_image: Image, splat_image: Image, manifest: Dictionar
 	return changed
 
 
+func _copy_passthrough_maps(source: String, output: String) -> bool:
+	for filename in PASSTHROUGH_MAP_FILES:
+		var source_path := source.path_join(filename)
+		var output_path := output.path_join(filename)
+		if not FileAccess.file_exists(source_path):
+			_fail("HTerrain source passthrough map is missing: %s" % source_path)
+			return false
+		if FileAccess.file_exists(output_path):
+			continue
+		var source_absolute := ProjectSettings.globalize_path(source_path)
+		var output_absolute := ProjectSettings.globalize_path(output_path)
+		var copy_error := DirAccess.copy_absolute(source_absolute, output_absolute)
+		if copy_error != OK:
+			_fail("HTerrain passthrough map copy failed for %s: %s" % [filename, copy_error])
+			return false
+	return true
+
+
 func _run() -> void:
+	if not Engine.is_editor_hint():
+		_fail("HTerrain editor manifest import must run with --editor")
+		return
 	var source := _arg_value("--source=", DEFAULT_SOURCE)
 	var manifest_path := _arg_value("--manifest=", DEFAULT_MANIFEST)
 	var output := _arg_value("--output=", DEFAULT_OUTPUT)
@@ -238,6 +265,8 @@ func _run() -> void:
 		return
 	if not data.save_data(output):
 		_fail("HTerrain editor output could not be saved: %s" % output)
+		return
+	if not _copy_passthrough_maps(source, output):
 		return
 	print("HTERRAIN_EDITOR_IMPORT_OK resolution=%s map_cells=%s stroke_cells=%s source=%s output=%s" % [resolution, map_cells, stroke_cells, source, output])
 	quit(0)
