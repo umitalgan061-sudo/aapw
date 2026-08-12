@@ -14873,3 +14873,16 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - `perf_log.csv` gained one real-frame sample (`run291-platform-control`, `collectPerfSnapshot.js`): fps=1 (headless/software-render baseline, not a real-device number per that script's own caveat), drawCalls=51, triangles=688296, geometries=49, textures=17, jsHeapUsedMB=307.
 - Runtime/product source delta: 0 lines changed (governance/docs/perf-log only). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required (pure process/maintenance run, no product decision).
 - Next safe step: refresh remote main/concurrency state and resume the owner priority order at the top — arazi makro relief — reading `experiments/run290/worldReferencePindex05Detail.js` and the live Pindex-01..04 adoption path first, since that dormant candidate is the most advanced in-flight terrain-detail work. Next consolidation + platform-control window ~run311-321.
+
+<!-- RUN301_FBX_PACK_CHECKPOINT_V1 -->
+## Run 301 — World Editor independent FBX pack transforms — 2026-08-12
+- Owner request: FBX/model packs that previously moved only as one root can now expose independent static child packs in the World Editor hierarchy-side pack panel.
+- A selected pack uses the existing Inspector and TransformControls for independent position / signed rotation / non-uniform scale while preserving the FBX root and sibling-pack transforms; scale precision down to `0.007` is covered.
+- Rig/bone/skinned descendants remain root-owned and are intentionally excluded from independent pack movement to avoid breaking animation skeletons.
+- While a child pack is active, destructive root Delete/Duplicate actions are guarded. `Tüm FBX` restores normal root selection/transform ownership.
+- Scene JSON remains schema-v1 compatible and gains only optional per-root `fbxPacks` transform overrides; load restoration is path-based and missing paths fail closed instead of moving unrelated nodes.
+- Evidence: Run301 main DoD workflow `31565877501` PASS; World Event Determinism Guard `31565877492` PASS; focused Chromium visual evidence produced two screenshots; PWA/cache, mobile perf, world safety and full browser smoke PASS.
+- Source delta: `src/3d/editor/EditorScaleInputController.js` +414 / -0. Run-level diff remains additive-only.
+- Risk: LOW-MEDIUM. Runtime gameplay/2D behavior is untouched. Remaining editor tech debt: pack-level transforms are persisted, but dedicated pack Undo/Redo history coverage should be added separately before claiming full history parity.
+- ADR: not required for this atom; it extends the established World Editor transform/persistence surface without crossing an owner-gated architecture decision.
+- Next safe owner backlog item: distinct lake-versus-sea water appearance using the existing deterministic Run263 water-body classifier, without redistributing third-party raw texture assets.

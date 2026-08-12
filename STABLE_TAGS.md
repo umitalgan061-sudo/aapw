@@ -991,3 +991,4 @@ stable-2026-08-11-1218 — Run262 editor terrain elevation brush; water lowers a
 - `stable-2026-08-11-run282` — Pindex-04 deterministic micro-detail; geometry delta 0; mandatory DoD PASS.
 
 - `stable-2026-08-12-run291` — periodic platform control + rule consolidation refresh (§8.12/§15); runtime source delta 0; PWA/service-worker/34-smoke/mobile-perf/world-reference/terrain-seat/road/technical-debt/additive-only/perf-trend all PASS; mandatory DoD PASS.
+- `stable-2026-08-12-run301-fbx-pack` — Run301 independent FBX child/pack transforms: focused Chromium proof, PWA/cache, mobile perf/world-safety, deterministic guard and full browser smoke PASS; additive-only source delta +414/-0.
