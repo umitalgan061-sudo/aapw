@@ -65,12 +65,12 @@ jobs:
           "$RUNNER_TEMP/run318-editor-preview-tools/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/run318-editor-preview-tools/node_modules" >> "$GITHUB_ENV"
 
-      - name: Exact changed browser proofs
+      - name: Exact editor browser proofs
         run: |
           set -euo pipefail
           node scripts/checkRun216EditorGamePreviewBrowser.js
           node scripts/checkRun216EditorSessionNavigationBrowserSafe.js
-          node scripts/checkRun216EditorBrightAuthoringBrowser.js
+          node scripts/checkRun216EditorBrightAuthoringBrowserV3.js
 
       - name: PWA performance determinism world safety debt and smoke
         run: |
@@ -106,7 +106,7 @@ jobs:
           path: |
             artifacts/run216-editor-game-preview/*.png
             artifacts/run216-editor-session-navigation-safe/*.png
-            artifacts/run216-editor-bright-authoring/*.png
+            artifacts/run216-editor-bright-authoring-v3/*.png
           if-no-files-found: error
 
 concurrency:
