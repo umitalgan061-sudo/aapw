@@ -1,0 +1,114 @@
+name: Run318 Editor Preview Scene Capture
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/EditorGamePatchPreview.js'
+      - 'scripts/checkRun216EditorGamePreviewContract.js'
+      - 'scripts/checkRun216EditorGamePreviewBrowser.js'
+      - 'scripts/checkRun216EditorSessionNavigationBrowserSafe.js'
+      - 'scripts/checkRun216EditorBrightAuthoringBrowser.js'
+      - '.github/workflows/run318-editor-preview-scene-capture.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  editor-preview-scene-capture:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-current-main entry gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          git diff --check "$CURRENT_MAIN"...HEAD
+
+      - name: Changed files and repository JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorGamePatchPreview.js
+          node --check scripts/checkRun216EditorGamePreviewContract.js
+          node --check scripts/checkRun216EditorGamePreviewBrowser.js
+          node --check scripts/checkRun216EditorSessionNavigationBrowserSafe.js
+          node --check scripts/checkRun216EditorBrightAuthoringBrowser.js
+          find . -type f -name '*.js' \
+            -not -path './node_modules/*' \
+            -not -path './.git/*' \
+            -print0 \
+            | sort -z \
+            | while IFS= read -r -d '' file; do node --check "$file"; done
+
+      - name: Run216 editor source contracts
+        run: |
+          set -euo pipefail
+          node scripts/checkRun216EditorGamePreviewContract.js
+          node scripts/checkRun216EditorSessionNavigationContract.js
+          node scripts/checkRun216EditorHistoryContract.js
+          node scripts/checkRun216EditorBrightAuthoring.js
+          node scripts/materializeRun216ServiceWorkerCache.js --self-test
+          node scripts/checkRun216ServiceWorkerMaterializer.js
+
+      - name: Install isolated Chromium proof tooling
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/run318-editor-preview-tools"
+          npm install --prefix "$RUNNER_TEMP/run318-editor-preview-tools" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/run318-editor-preview-tools/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/run318-editor-preview-tools/node_modules" >> "$GITHUB_ENV"
+
+      - name: Exact changed browser proofs
+        run: |
+          set -euo pipefail
+          node scripts/checkRun216EditorGamePreviewBrowser.js
+          node scripts/checkRun216EditorSessionNavigationBrowserSafe.js
+          node scripts/checkRun216EditorBrightAuthoringBrowser.js
+
+      - name: PWA performance determinism world safety debt and smoke
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run318-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run318-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run318-smoke.log"
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Final exact-current-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          git diff --check "$CURRENT_MAIN"...HEAD
+
+      - name: Upload Run318 browser evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run318-editor-preview-scene-capture
+          path: |
+            artifacts/run216-editor-game-preview/*.png
+            artifacts/run216-editor-session-navigation-safe/*.png
+            artifacts/run216-editor-bright-authoring/*.png
+          if-no-files-found: error
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
