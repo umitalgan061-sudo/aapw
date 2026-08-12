@@ -371,6 +371,18 @@ GAME3D_SHELL_FILES.push('./src/3d/rts/rtsCommandShortcuts.js');
 // Run215 World Editor formation JSON rehydration module.
 GAME3D_SHELL_FILES.push('./src/3d/editor/EditorFormationRehydrator.js');
 
+// Run319 procedural texture/palette library — generated at runtime from these modules, so the offline
+// shell needs the code but never any image files.
+GAME3D_SHELL_FILES.push('./src/3d/materials/textureCore.js');
+GAME3D_SHELL_FILES.push('./src/3d/materials/palettes.js');
+GAME3D_SHELL_FILES.push('./src/3d/materials/creaturePatterns.js');
+GAME3D_SHELL_FILES.push('./src/3d/materials/terrainPatterns.js');
+GAME3D_SHELL_FILES.push('./src/3d/materials/structurePatterns.js');
+GAME3D_SHELL_FILES.push('./src/3d/materials/dragonTextures.js');
+GAME3D_SHELL_FILES.push('./src/3d/materials/textureMatcher.js');
+GAME3D_SHELL_FILES.push('./src/3d/materials/textureFactory.js');
+GAME3D_SHELL_FILES.push('./src/3d/editor/EditorAutoTexture.js');
+
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];
 

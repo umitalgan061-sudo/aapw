@@ -5,6 +5,8 @@ import { EditorAssetManager } from './EditorAssetManager.js';
 import { EditorInstanceManager } from './EditorInstanceManager.js';
 import { serializeEditorScene, validateEditorScene } from './EditorSceneSerializer.js';
 import { rehydrateInstanceGroups } from './EditorFormationRehydrator.js';
+import { autoTextureObject, autoTextureMany, restoreOriginalMaterials, describeResult } from './EditorAutoTexture.js';
+import { disposePaletteCaches } from '../materials/textureFactory.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('we-canvas');
@@ -298,6 +300,24 @@ $('we-load-file').addEventListener('change', (event) => {
 $('we-duplicate').addEventListener('click', duplicateSelected);
 $('we-delete').addEventListener('click', deleteSelected);
 $('we-focus').addEventListener('click', focusSelected);
+$('we-auto-texture').addEventListener('click', () => {
+  if (!selectedObject) { toast('Önce bir obje seç.'); return; }
+  const result = autoTextureObject(selectedObject, { lookupAsset: findEditorAsset });
+  toast(describeResult(result));
+});
+$('we-auto-texture-all').addEventListener('click', () => {
+  // Instanced groups live in the instance manager, not `editableObjects`, so dress both sets.
+  const targets = [...editableObjects, ...instanceManager.groups.map((record) => record.object)];
+  if (targets.length === 0) { toast('Sahnede giydirilecek obje yok.'); return; }
+  const summary = autoTextureMany(targets, { lookupAsset: findEditorAsset });
+  const families = Object.keys(summary.byPalette).length;
+  toast(`${summary.dressed} obje giydirildi (${summary.meshes} mesh, ${families} farklı doku).`);
+});
+$('we-restore-texture').addEventListener('click', () => {
+  if (!selectedObject) { toast('Önce bir obje seç.'); return; }
+  const restored = restoreOriginalMaterials(selectedObject);
+  toast(restored > 0 ? `${restored} mesh özgün materyaline döndü.` : 'Bu objede geri alınacak doku yok.');
+});
 $('we-grid-toggle').addEventListener('change', () => { grid.visible = $('we-grid-toggle').checked; });
 $('we-asset-search').addEventListener('input', renderAssets);
 $('we-hierarchy-search').addEventListener('input', refreshHierarchy);
@@ -332,6 +352,9 @@ window.addEventListener('pagehide', () => {
   window.clearTimeout(toastTimer);
   controls.dispose();
   renderer.dispose();
+  // Generated palette textures/materials are cached and shared across figures, so they outlive any
+  // single object's disposal — this is their only owner (memory-leak checklist, GOVERNANCE.md §2.8).
+  disposePaletteCaches();
 });
 
 renderCategories();

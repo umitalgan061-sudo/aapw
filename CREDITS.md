@@ -128,6 +128,23 @@ GDExtension'dır, tarayıcıda çalışmaz).
 MIT lisansı telif/lisans bildiriminin korunmasını şart koşar; installer eklentinin kendi
 `LICENSE.txt` dosyasını olduğu gibi kurar ve CI bunun varlığını doğrular.
 
+## Prosedürel Dokular (özgün üretim — indirilen asset değil)
+
+`src/3d/materials/` altındaki 91 renk paleti ve tüm dokular bu projede kod ile sıfırdan üretilir
+(seeded noise + canvas çizimi). Hiçbir görsel dosya indirilmez, hiçbir üçüncü taraf asset kullanılmaz,
+dolayısıyla dış lisans yükümlülüğü doğurmaz.
+
+| | |
+|---|---|
+| Kapsam | 91 palet / 8 aile (İnsan, Ejderha, Hayvan, Doğa, Su, Gök, Yapı, Yol) |
+| Üretim | Çalışma zamanında prosedürel (`textureCore.js` seeded FBM + canvas) |
+| Determinizm | `paletteId\|variant` seed'i; `Math.random()` yok |
+| Lisans | Bu projeye ait özgün üretim |
+| Eklendi | 2026-08-12 (ADR-0267) |
+
+Gerçek HBO Game of Thrones görsel materyali kullanılmamıştır; tüm desenler ilk ilkelerden
+üretilmiştir.
+
 ---
 
 ## Özet
