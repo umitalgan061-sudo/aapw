@@ -1,0 +1,235 @@
+name: Editor HTerrain Map Lock
+
+on:
+  push:
+    branches:
+      - 'terrain/hterrain-editor-map-lock-*'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/3d/editor/EditorLiveWorldResourceCleanup.js'
+      - 'godot/terrain-authoring/editor_bridge/**'
+      - 'godot/terrain-authoring/scripts/import_editor_hterrain_manifest.gd'
+      - 'godot/terrain-authoring/scripts/rebake_editor_hterrain_derived.gd'
+      - 'scripts/checkEditorHTerrainBridge.js'
+      - 'scripts/checkEditorHTerrainBridgeBrowser.js'
+      - '.github/workflows/editor-hterrain-map-lock.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: editor-hterrain-map-lock-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main entry gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$CURRENT_MAIN" HEAD
+          git diff --check "$CURRENT_MAIN" HEAD
+
+      - name: Map lock and editor bridge contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorLiveWorldResourceCleanup.js
+          node --check scripts/checkEditorHTerrainBridge.js
+          node --check scripts/checkEditorHTerrainBridgeBrowser.js
+          node scripts/checkEditorHTerrainBridge.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkRun280OwnerMapSemanticFingerprint.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot first import without plugin scan race
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/editor-hterrain-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+
+      - name: Build deterministic editor manifest fixture
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          source = Path('godot/terrain-authoring/editor_bridge/map_reference_seed.json')
+          target = Path('godot/terrain-authoring/editor_bridge/ci_manifest.json')
+          data = json.loads(source.read_text(encoding='utf-8'))
+          data['strokes'] = [{
+              'id': 'ci-dorne-relief',
+              'uv': [0.180, 0.665],
+              'radiusUv': [0.028, 0.024],
+              'heightDeltaMeters': 4.5,
+              'surface': 'earth',
+              'surfaceBlend': 0.8,
+              'referenceBiome': 'dorne'
+          }, {
+              'id': 'ci-bone-relief',
+              'uv': [0.700, 0.530],
+              'radiusUv': [0.018, 0.032],
+              'heightDeltaMeters': 7.0,
+              'surface': 'rock',
+              'surfaceBlend': 0.9,
+              'referenceBiome': 'bone-mountains'
+          }]
+          target.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+          PY
+
+      - name: HTerrain authored height splat determinism
+        run: |
+          set -euo pipefail
+          SOURCE=godot/terrain-authoring/terrain_data
+          A=godot/terrain-authoring/editor_bridge/ci_generated_a
+          B=godot/terrain-authoring/editor_bridge/ci_generated_b
+          rm -rf "$A" "$B"
+          find "$SOURCE" -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/source-before.sha"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/import_editor_hterrain_manifest.gd -- \
+            --manifest=res://editor_bridge/ci_manifest.json --output=res://editor_bridge/ci_generated_a \
+            | tee "$RUNNER_TEMP/import-a.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/import_editor_hterrain_manifest.gd -- \
+            --manifest=res://editor_bridge/ci_manifest.json --output=res://editor_bridge/ci_generated_b \
+            | tee "$RUNNER_TEMP/import-b.log"
+          grep -F 'HTERRAIN_EDITOR_IMPORT_OK' "$RUNNER_TEMP/import-a.log"
+          grep -F 'HTERRAIN_EDITOR_IMPORT_OK' "$RUNNER_TEMP/import-b.log"
+          test -f "$A/height.res" && test -f "$A/splat.png" && test -f "$A/data.hterrain"
+          test -f "$B/height.res" && test -f "$B/splat.png" && test -f "$B/data.hterrain"
+          cmp "$A/height.res" "$B/height.res"
+          cmp "$A/splat.png" "$B/splat.png"
+          cmp "$A/data.hterrain" "$B/data.hterrain"
+          ! cmp -s "$SOURCE/height.res" "$A/height.res"
+          ! cmp -s "$SOURCE/splat.png" "$A/splat.png"
+          find "$SOURCE" -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/source-after-import.sha"
+          cmp "$RUNNER_TEMP/source-before.sha" "$RUNNER_TEMP/source-after-import.sha"
+
+      - name: HTerrain derived normal global albedo rebake determinism
+        run: |
+          set -euo pipefail
+          A=godot/terrain-authoring/editor_bridge/ci_generated_a
+          B=godot/terrain-authoring/editor_bridge/ci_generated_b
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring \
+            --script res://scripts/rebake_editor_hterrain_derived.gd -- \
+            --output=res://editor_bridge/ci_generated_a \
+            | tee "$RUNNER_TEMP/rebake-a.log"
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring \
+            --script res://scripts/rebake_editor_hterrain_derived.gd -- \
+            --output=res://editor_bridge/ci_generated_b \
+            | tee "$RUNNER_TEMP/rebake-b.log"
+          grep -F 'HTERRAIN_EDITOR_DERIVED_REBAKE_OK' "$RUNNER_TEMP/rebake-a.log"
+          grep -F 'HTERRAIN_EDITOR_DERIVED_REBAKE_OK' "$RUNNER_TEMP/rebake-b.log"
+          for file in data.hterrain height.res splat.png normal.png color.png detail.png global_albedo.png; do
+            test -f "$A/$file" && test -f "$B/$file"
+            cmp "$A/$file" "$B/$file"
+          done
+          ! cmp -s godot/terrain-authoring/terrain_data/normal.png "$A/normal.png"
+          ! cmp -s godot/terrain-authoring/terrain_data/global_albedo.png "$A/global_albedo.png"
+          find godot/terrain-authoring/terrain_data -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/source-after-rebake.sha"
+          cmp "$RUNNER_TEMP/source-before.sha" "$RUNNER_TEMP/source-after-rebake.sha"
+
+      - name: Existing HTerrain plugin regressions
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 \
+            | tee "$RUNNER_TEMP/hterrain-editor.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_authoring.gd \
+            | tee "$RUNNER_TEMP/hterrain-authoring.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain-authoring.log"
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_normal_baker.gd \
+            | tee "$RUNNER_TEMP/hterrain-normal.log"
+          grep -F 'HTERRAIN_NORMAL_BAKER_OK' "$RUNNER_TEMP/hterrain-normal.log"
+
+      - name: Install Chromium dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Real editor HTerrain browser proof
+        run: |
+          set -euo pipefail
+          node scripts/checkEditorHTerrainBridgeBrowser.js
+          node scripts/checkRun216EditorLiveWorldBrowser.js
+
+      - name: Game performance determinism world safety
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js
+
+      - name: Cleanup generated proof data
+        if: always()
+        run: |
+          rm -rf godot/terrain-authoring/editor_bridge/ci_generated_a
+          rm -rf godot/terrain-authoring/editor_bridge/ci_generated_b
+          rm -f godot/terrain-authoring/editor_bridge/ci_manifest.json
+
+      - name: Final exact-main and source-preservation gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$CURRENT_MAIN" HEAD
+          git diff --check "$CURRENT_MAIN" HEAD
+          git diff --exit-code -- godot/terrain-authoring/terrain_data
