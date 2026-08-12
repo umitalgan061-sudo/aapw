@@ -68,7 +68,13 @@ async function readLiveRoadNetwork() {
       const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
       const seats = KINGDOM_SEATS.map((seat) => {
         const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
-        return { id: seat.id, x, z, groundY: sampleHeightMeters(x, z) };
+        return {
+          id: seat.id,
+          x,
+          z,
+          rawHeight: baseSampleHeightMeters(x, z),
+          groundY: sampleHeightMeters(x, z),
+        };
       });
       const network = buildRoadNetwork({ seats, sampleHeightMeters });
       const pack = (edge) => ({
@@ -81,9 +87,17 @@ async function readLiveRoadNetwork() {
       return {
         mapBounds: { ...WORLD_SCALE.MAP_BOUNDS },
         metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
+        waterLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+        settlementPads: flattenPads.map((pad) => ({
+          x: pad.x,
+          z: pad.z,
+          innerRadiusMeters: pad.innerRadiusMeters,
+          outerRadiusMeters: pad.outerRadiusMeters,
+          anchorHeightMeters: pad.anchorHeightMeters,
+        })),
         mainEdges: network.edges.map(pack),
         footpathEdges: network.footpathEdges.map(pack),
-        seats: seats.map((seat) => ({ id: seat.id, x: seat.x, z: seat.z })),
+        seats,
       };
     });
   } finally {
@@ -108,21 +122,38 @@ if (metrics.sourceSamples !== 66049) throw new Error(`expected 257x257 road auth
 if (metrics.activeRoadSamples < 20) throw new Error(`real G11 road corridor is undersampled: ${metrics.activeRoadSamples}`);
 if (metrics.maxAdjacentCoverageStep > 0.82) throw new Error(`road corridor has an abrupt adjacent coverage jump: ${metrics.maxAdjacentCoverageStep}`);
 if (metrics.maxGuardBandCoverageDelta > 0.82) throw new Error(`road corridor has an abrupt guard-band jump: ${metrics.maxGuardBandCoverageDelta}`);
-if (metrics.maxCanonicalWaterCoverage > 0.000001) throw new Error(`road surface leaked onto canonical water centres: ${metrics.maxCanonicalWaterCoverage}`);
+if (metrics.maxCanonicalWaterCoverageOutsideSettlement > 0.000001) {
+  throw new Error(`road surface leaked onto canonical water outside settlement-safe pads: ${metrics.maxCanonicalWaterCoverageOutsideSettlement}`);
+}
 
 const jon = runtimeNetwork.seats.find((seat) => seat.id === 'jon');
 if (!jon) throw new Error('Jon Snow seat missing from runtime network');
+if (!(jon.rawHeight > runtimeNetwork.waterLevelMeters)) {
+  throw new Error(`Jon raw runtime terrain is not above sea level: ${jon.rawHeight} <= ${runtimeNetwork.waterLevelMeters}`);
+}
 const jonNormalized = worldToNormalized(jon.x, jon.z, runtimeNetwork.mapBounds, runtimeNetwork.metersPerMapUnit);
-const jonCoverage = sampleG11RoadPath(jonNormalized.x, jonNormalized.y, runtimeNetwork).roadCoverage;
-if (jonCoverage < 0.9) throw new Error(`runtime Jon road hub lost surface coverage: ${jonCoverage}`);
+const jonSample = sampleG11RoadPath(jonNormalized.x, jonNormalized.y, runtimeNetwork);
+if (jonSample.settlementLandSupport < 0.99) {
+  throw new Error(`existing settlement flatten-pad contract does not fully protect Jon: ${jonSample.settlementLandSupport}`);
+}
+if (jonSample.roadCoverage < 0.9) throw new Error(`runtime Jon road hub lost surface coverage: ${jonSample.roadCoverage}`);
+
+const jonEvidence = Object.freeze({
+  rawHeight: Number(jon.rawHeight.toFixed(8)),
+  flattenedGroundY: Number(jon.groundY.toFixed(8)),
+  waterLevelMeters: runtimeNetwork.waterLevelMeters,
+  canonicalWaterConfidence: Number(jonSample.waterConfidence.toFixed(8)),
+  settlementLandSupport: Number(jonSample.settlementLandSupport.toFixed(8)),
+  roadCoverage: Number(jonSample.roadCoverage.toFixed(8)),
+});
 
 const emitArg = process.argv.find((arg) => arg.startsWith('--emit-probe='));
 if (emitArg) {
   const output = emitArg.slice('--emit-probe='.length);
   fs.mkdirSync(path.dirname(output), { recursive: true });
   const probe = buildG11RoadPathProbe(runtimeNetwork);
-  fs.writeFileSync(output, `${JSON.stringify({ ...probe, jonCoverage: Number(jonCoverage.toFixed(8)), metrics })}\n`);
+  fs.writeFileSync(output, `${JSON.stringify({ ...probe, jonEvidence, metrics })}\n`);
 }
 
-console.log(`NW_G11_ROAD_PATH_METRICS=${JSON.stringify({ ...metrics, jonCoverage: Number(jonCoverage.toFixed(8)) })}`);
+console.log(`NW_G11_ROAD_PATH_METRICS=${JSON.stringify({ ...metrics, jonEvidence })}`);
 console.log('NW_G11_ROAD_PATH_VALIDATION_OK');
