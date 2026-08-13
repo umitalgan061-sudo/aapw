@@ -201,11 +201,40 @@ jobs:
           chmod +x "$GODOT_BIN"
           "$GODOT_BIN" --version | grep -F '4.6.3'
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Import HTerrain starter resources without first-scan plugin races
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/g10-hterrain-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import 2>&1 | tee "$RUNNER_TEMP/g10-hterrain-import.log"
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
       - name: HTerrain and owner-map regressions
         run: |
           set -euo pipefail
-          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 2>&1 | tee "$RUNNER_TEMP/hterrain-editor.log"
+          if grep -F 'Terrain data is null, can'"'"'t update detail layer completely' "$RUNNER_TEMP/hterrain-editor.log"; then
+            echo 'Unexpected HTerrain detail-layer initialization error in editor log.' >&2
+            exit 1
+          fi
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd 2>&1 | tee "$RUNNER_TEMP/hterrain.log"
           grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
+          if grep -F 'Terrain data is null, can'"'"'t update detail layer completely' "$RUNNER_TEMP/hterrain.log"; then
+            echo 'Unexpected HTerrain detail-layer initialization error in validation log.' >&2
+            exit 1
+          fi
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkWorldReferenceMap.js
 
