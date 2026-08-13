@@ -5,7 +5,7 @@
   "current_cell": "G17",
   "status": "in_progress_macro_albedo_biome",
   "branch": "terrain/sw-g17-macro-biome-20260813",
-  "pr": null,
+  "pr": 377,
   "last_implementation_commit": "990caedac072f0e5e97add5ac18808a1e23f6d85",
   "quality_before": {
     "cell": "G17",
@@ -45,5 +45,5 @@
     "full_world_completion_claim": false
   },
   "next_layer_if_qualified": "Relief/Height Character",
-  "updated_at": "2026-08-13T10:55:00+03:00"
+  "updated_at": "2026-08-13T10:49:00+03:00"
 }
