@@ -2,6 +2,7 @@ import { createScene } from '../sceneManager.js';
 import { AssetLoader } from '../assetLoader.js';
 import { WORLD_DEFAULTS } from '../config.js';
 import { spawnRealCastleModels, disposeRealCastleModels } from '../world/settlements.js';
+import { installRuntimePindexTerrainPolish } from '../world/worldReferenceSurfaceTerrainVisual.js';
 
 function findEditorGround(scene) {
   return scene.children.find((child) => child?.name === 'Editor Ground') || null;
@@ -30,6 +31,10 @@ export function installEditorLiveWorldBridge(api) {
     near: api.camera.near,
     far: api.camera.far
   };
+
+  // Keep editor terrain on the exact same shipped browser-runtime surface path as game3d/live3d.
+  // The installer is idempotent and patches ChunkManager before createScene constructs/loads chunks.
+  installRuntimePindexTerrainPolish();
 
   const offscreenCanvas = document.createElement('canvas');
   offscreenCanvas.width = Math.max(1, api.canvas.clientWidth || 1);
@@ -90,6 +95,7 @@ export function installEditorLiveWorldBridge(api) {
       liveWorldVisible: liveChildren.some((child) => child.parent === editorScene && child.visible !== false),
       transferredObjectCount: liveChildren.filter((child) => child.parent === editorScene).length,
       syntheticGroundHidden: Boolean(editorGround && editorGround.visible === false),
+      runtimeTerrainPolishInstalled: true,
       fogDisabled: editorScene.fog === null,
       terrainChunkCount: Number(liveState.chunkManager?.loadedCount || 0),
       roadSegmentCount: Number(liveState.roadEdges?.length || 0),
