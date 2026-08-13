@@ -12,7 +12,7 @@ let childWindow = null;
 let childDocument = null;
 let api = null;
 let bridgeBase = null;
-let currentMode = 'live';
+let currentMode = 'edit';
 let selectedAsset = null;
 let assetCatalog = [];
 let gamePreview = null;
@@ -37,8 +37,8 @@ function wait(ms) {
 async function waitForEditorApi(timeoutMs = 120000) {
   const startedAt = performance.now();
   while (performance.now() - startedAt < timeoutMs) {
-    childWindow = host?.contentWindow || null;
-    childDocument = host?.contentDocument || null;
+    childWindow = host?.contentWindow || window;
+    childDocument = host?.contentDocument || document;
     api = childWindow?.__WESTEROS_WORLD_EDITOR__ || null;
     if (childDocument?.body && api?.scene && api?.editableObjects && api?.instanceManager && api?.getEditorState) return api;
     await wait(100);
@@ -207,7 +207,7 @@ function installGamePreview() {
     modeControls.append(button);
   }
   viewport.append(modeControls);
-  setMode('live');
+  setMode(host ? 'live' : 'edit');
 }
 
 function bytesLabel(value) {
@@ -497,5 +497,11 @@ function startInstall() {
   });
 }
 
-host?.addEventListener('load', startInstall, { once: true });
-if (host?.contentDocument?.readyState === 'complete') queueMicrotask(startInstall);
+if (host) {
+  host.addEventListener('load', startInstall, { once: true });
+  if (host.contentDocument?.readyState === 'complete') queueMicrotask(startInstall);
+} else if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startInstall, { once: true });
+} else {
+  queueMicrotask(startInstall);
+}

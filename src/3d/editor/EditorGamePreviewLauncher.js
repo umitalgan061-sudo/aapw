@@ -46,3 +46,7 @@ if (localSession) {
     console.error('[EditorGamePreviewLauncher] boot failed', error);
   }
 }
+
+void import('./EditorLiveWorkspaceEntry.mjs').catch((error) => {
+  console.error('[EditorGamePreviewLauncher] integrated live workspace boot failed', error);
+});
