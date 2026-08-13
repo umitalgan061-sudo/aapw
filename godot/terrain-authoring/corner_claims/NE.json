@@ -5,8 +5,8 @@
   "current_cell": "G70",
   "status": "validating",
   "layer": "Macro Albedo/Biome",
-  "branch": "terrain/ne-g70-terrain3d-biome-r9-20260813",
-  "pr": 410,
+  "branch": "terrain/ne-g70-terrain3d-biome-r10-20260813",
+  "pr": null,
   "last_commit": null,
   "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Coast/Hydrology merged in PR #361; strict same-cell layer order therefore requires Macro Albedo/Biome next. Historical G70 biome PRs are stale/unmerged, so this successor republishes the previously physically validated Terrain3D biome proof from exact current main without rewriting canonical geography.",
   "quality_before": {
@@ -52,6 +52,6 @@
     "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
   },
   "engine": "canonical owner-map sea semantics -> continuous guard-backed macro color/roughness over merged submerged height -> pinned Terrain3D v1.0.2-stable 257x257 filtered Height+Color import/regions/save/round-trip/LOD0 bake; near+far+full-world proof; HTerrain retained as regression/control",
-  "exact_base": "09fef22a8f53cdd861d7de6139da1f64a51e39c9",
-  "updated_at": "2026-08-13T14:34:00+03:00"
+  "exact_base": "bea79c20e6b9426e80f640655657d78e3eb2629a",
+  "updated_at": "2026-08-13T14:49:00+03:00"
 }
