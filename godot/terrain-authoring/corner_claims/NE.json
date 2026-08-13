@@ -5,10 +5,10 @@
   "current_cell": "G70",
   "status": "validating",
   "layer": "Macro Albedo/Biome",
-  "branch": "terrain/ne-g70-terrain3d-biome-r14-exact-20260813",
-  "pr": 442,
+  "branch": "terrain/ne-g70-terrain3d-biome-r15-exact-20260813",
+  "pr": 455,
   "last_commit": null,
-  "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Coast/Hydrology merged in PR #361; strict same-cell layer order therefore requires Macro Albedo/Biome next. R14 republishes the exact R12 physically validated Terrain3D biome and compact near/far/full-world evidence from current main after unrelated Run331/NW G10 advancement; the workflow now uses live origin/main ancestry at entry and final freshness instead of a historical hard-coded base SHA.",
+  "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Coast/Hydrology merged in PR #361; strict same-cell layer order therefore requires Macro Albedo/Biome next. R15 republishes the physically validated Terrain3D biome and compact near/far/full-world evidence from exact current main after unrelated concurrent terrain merges; the workflow uses live origin/main ancestry at entry and final freshness so stale successors are rejected automatically.",
   "quality_before": {
     "base_cells": 96,
     "water_cells": 96,
@@ -52,6 +52,6 @@
     "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
   },
   "engine": "canonical owner-map sea semantics -> continuous guard-backed macro color/roughness over merged submerged height -> pinned Terrain3D v1.0.2-stable 257x257 filtered Height+Color import/regions/save/round-trip/LOD0 bake; compact near+far+full-world proof; HTerrain retained as regression/control",
-  "exact_base": "3a0452ade43a354613c51f7c257515f34b35ed0b",
-  "updated_at": "2026-08-13T17:17:00+03:00"
+  "exact_base": "907dee1991e16fc89fd71121d4623aa3f86f2c4b",
+  "updated_at": "2026-08-13T19:12:00+03:00"
 }
