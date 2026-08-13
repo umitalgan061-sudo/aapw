@@ -69,11 +69,11 @@ func _run()->void:
 	var max_h:=0.0; var max_blend:=0.0; var max_color:=0.0; var max_roughness:=0.0; var min_h:=INF; var max_imported:=-INF; var aligned:=0; var checksum:int=2166136261
 	for y in SOURCE_SIZE:
 		for x in SOURCE_SIZE:
-			var u:=x/64.0; var v:=y/64.0; var point:=Vector3(x*4,0,y*4); var height:=terrain.data.get_height(point); var color:=terrain.data.get_color(point)
-			if not _need(not is_nan(height) and not is_nan(color.r),"aligned NaN"): return
+			var u:=x/64.0; var v:=y/64.0; var point:=Vector3(x*4,0,y*4); var height:=terrain.data.get_height(point); var color:=terrain.data.get_color(point); var roughness:=terrain.data.get_roughness(point)
+			if not _need(not is_nan(height) and not is_nan(color.r) and not is_nan(roughness),"aligned NaN"): return
 			max_h=maxf(max_h,absf(height-_scalar(relief,u,v))); max_blend=maxf(max_blend,absf(terrain.data.get_control_blend(point)-_channel(biome,0,u,v)))
 			max_color=maxf(max_color,maxf(absf(color.r-_channel(biome,2,u,v)),maxf(absf(color.g-_channel(biome,3,u,v)),absf(color.b-_channel(biome,4,u,v)))))
-			max_roughness=maxf(max_roughness,absf(color.a-_channel(biome,5,u,v))); min_h=minf(min_h,height); max_imported=maxf(max_imported,height); aligned+=1
+			max_roughness=maxf(max_roughness,absf(roughness-_channel(biome,5,u,v))); min_h=minf(min_h,height); max_imported=maxf(max_imported,height); aligned+=1
 			checksum=int((checksum^int(round((height+128.0)*1000.0)))*16777619)&0xffffffff
 	if not _need(max_h<=0.012 and max_blend<=0.006 and max_color<=0.012 and max_roughness<=0.012,"roundtrip tolerance exceeded"): return
 	var seams:=0; var max_seam_h:=0.0
