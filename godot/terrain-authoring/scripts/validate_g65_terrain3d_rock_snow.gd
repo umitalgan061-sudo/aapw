@@ -148,7 +148,9 @@ func _run() -> void:
 	if not _require(max_height_error <= MAX_HEIGHT_ERROR, "Terrain3D height roundtrip exceeded tolerance"): return
 	if not _require(max_blend_error <= MAX_BLEND_ERROR, "Terrain3D control-map roundtrip exceeded tolerance"): return
 
-	var seam_positions := [254.75, 255.0, 255.25, 255.75, 256.0, 256.25]
+	# The 257x257 import has valid coordinates 0..256. Fractional samples below
+	# 256 already interpolate across the 255/256 Terrain3D region boundary.
+	var seam_positions := [254.75, 255.0, 255.25, 255.5, 255.75, 256.0]
 	var max_seam_height_error := 0.0
 	var seam_samples := 0
 	for z in [64.5, 128.5, 192.5, 255.5]:
