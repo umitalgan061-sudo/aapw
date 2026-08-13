@@ -47,13 +47,24 @@ function smoothstep(edge0, edge1, value) {
   return t * t * (3 - 2 * t);
 }
 
-function sampleSlopeExposure(normalizedX, normalizedY) {
+function physicalSlopeAt(normalizedX, normalizedY) {
   const normal = sampleG00ReliefNormal(normalizedX, normalizedY);
-  const horizontal = Math.hypot(normal.x, normal.z);
-  // Full-reference physical normals from the qualified relief make this a
-  // geometry signal rather than a painted noise term. Broad steep faces expose
-  // rock while flatter shelves retain snow.
-  return clamp(horizontal / 0.22);
+  return clamp(Math.hypot(normal.x, normal.z) / 0.22);
+}
+
+function sampleSlopeExposure(normalizedX, normalizedY) {
+  // Material response represents a finite surface footprint rather than a
+  // point sample. Average the qualified physical normal over a compact cross
+  // footprint (well below one source-grid step) so narrow derivative spikes do
+  // not turn into painted rock/snow stripes while broad steep faces remain rock.
+  const footprint = G00_RELIEF_POLICY.normalProbeNormalized * 2;
+  return (
+    physicalSlopeAt(normalizedX, normalizedY)
+    + physicalSlopeAt(normalizedX - footprint, normalizedY)
+    + physicalSlopeAt(normalizedX + footprint, normalizedY)
+    + physicalSlopeAt(normalizedX, normalizedY - footprint)
+    + physicalSlopeAt(normalizedX, normalizedY + footprint)
+  ) / 5;
 }
 
 export function sampleG00RockSnow(normalizedX, normalizedY) {
@@ -82,7 +93,11 @@ export function sampleG00RockSnow(normalizedX, normalizedY) {
       + 0.24 * elevationSnow
       - 0.42 * exposedRock,
   );
-  const snowBlend = 0.035 + 0.93 * smoothstep(0.08, 0.88, snowPreference);
+  // Keep the preference ordering and cold/elevation semantics, but do not feed
+  // it through a second high-gain S-curve. A linear retention response is more
+  // stable under neighbouring physical-normal changes and still preserves both
+  // snow-dominant shelves and rock-dominant exposed faces.
+  const snowBlend = 0.05 + 0.90 * snowPreference;
   const snowWeight = landFactor * snowBlend;
   const rockWeight = landFactor * (1 - snowBlend);
   return Object.freeze({
