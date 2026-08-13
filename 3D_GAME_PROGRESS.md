@@ -15191,3 +15191,69 @@ One session, two chained atomic subtasks, answering both halves of a single live
 - `perf_log.csv` gained one sample (`run325-water-swell-river-flow`): drawCalls=51 (unchanged), triangles=860,328 (up from 688,296 — exactly the +172,032 predicted from the desktop water grid, 320²·2 − 128²·2, with zero contribution from the river work), geometries=49, textures=21, jsHeapUsedMB=391. Desktop budget is 5M triangles / 2500 draw calls, so both stay comfortably inside. The first snapshot attempt read 56 draw calls / 898,314 triangles; it was discarded rather than logged after a re-sample reproduced the historical shape exactly, i.e. that first read caught transient streaming state, not a real regression.
 - Runtime/product source delta: `world/rivers.js`, `game3d.js`, `rts/rtsGame.js`, `editor/EditorLiveWorldVisualSync.js`. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
 - Next safe step: the other half of the same owner request is still open and is the larger piece — procedural rigging plus self-directed movement/characteristic behaviour for creatures (cat, dog, horse, soldier, elephant, …). `gameplay/creatureSpeciesConfig.js` already specifies 16 species' characteristic movement as a design contract but explicitly has no runtime engine, and the blocker it names is real: of the models actually on disk only the wolf, the dragon and the Mixamo humans are rigged — `ivory_stallion` (horse), `verdant_knight`, `wooden_legion` and every Meshy dragon are `rigged: false`, and cat/dog/elephant/sheep/deer/bird have no model at all. A procedural skeleton + skinning + gait layer (which needs no new asset download, and so respects the one hard constraint on this project) is the way in.
+
+## Run 326 — Procedurally rigged creature bodies for 19 species (ADR-0272)
+
+Second half of the same live owner request Run 325 started, and the larger half: rigs, self-directed
+movement and species-characteristic behaviour for "İnsan, kedi, köpek, at, asker, fil vs." This run
+delivers the **rig** — the foundation the other two need. Gait and behaviour are the next two
+subtasks and are explicitly not in this one.
+
+- The blocker had to be established before it could be removed. `gameplay/creatureSpeciesConfig.js`
+  has held every species' characteristic-movement design since run 72 but deliberately shipped no
+  runtime engine while each entry sat at `awaiting-model`. Checked against `assets_manifest.json`,
+  that wait could never resolve: `rigged: false` on `ivory_stallion` (the horse), `verdant_knight`,
+  `wooden_legion` and every Meshy dragon, and **no model at all** for cat, dog, elephant, sheep,
+  deer, goat, cow, pig, rabbit or any bird. Only the wolf, the FBX dragon and the Mixamo humans have
+  a skeleton. Downloading real HBO assets is this project's one hard prohibition, so the way through
+  was to generate the body rather than acquire it.
+- New `gameplay/creatureBodyPlans.js`: 19 species' proportions in real meters — nose-to-rump and
+  ground-to-withers as the two absolutes, everything else a fraction of one of them, so a cat and an
+  elephant are structurally identical in code and differ only in data (a wrong-looking species is
+  then a data fix, not a code fix). Covers every animal the owner named plus the registry's existing
+  list: kedi, köpek, at, fil, kurt, geyik, koyun, inek, keçi, yaban domuzu, tavşan, ayı, aslan,
+  zürafa, insan, asker, kuzgun, kartal, tavuk.
+- New `gameplay/creatureRig.js`: turns a plan into a real `THREE.Skeleton` plus a bound
+  `THREE.SkinnedMesh`. Bones are authored by bind-pose world position and a parent name (so a plan
+  reads as anatomy — hip, shoulder, hock, hoof — not as opaque local offsets); the surface is one
+  tapered tube per bone pair plus a joint sphere; weights follow the standard convention with a
+  50/50 ease into the child bone over the last 40% of each segment so joints crease instead of
+  shearing. Hides come free from the run 319-322 palette library, which happens to already carry
+  exactly the 21 animal palettes needed.
+- The bind pose is planted on the ground by *measurement*: generate the surface, find its lowest
+  vertex, shift landmarks and vertices together by that amount. Two earlier attempts at fudging it
+  per species both failed (buried paw, then an 11mm sunken toe on the bipeds) because the lowest
+  point of a foot is a tube surface, not a landmark. The measured shift makes
+  `object3D.position.y = groundHeight` correct for every archetype, including plans added later.
+- Cost: 22 bones / 2,352 triangles per quadruped, 17 bones / 1,792 per biped and bird.
+- Three real defects caught by this run's own checks rather than shipped: an edit that dropped the
+  feet's `parent` link and left them as orphan root bones with no geometry (caught by the
+  single-root assertion), the ground-plant problem above, and every species growing the same pair of
+  vertical ear spikes that read as horns (caught by the line-up render; fixed with a per-species
+  `earPitchRadians` separating a cat's pricked ear from an elephant's lateral fan).
+- Full DoD sweep (fresh): `node --check` on every changed file; `smokeTestGame3D.js` **34/34 PASS**,
+  exit 0, zero console/page errors; `checkServiceWorkerCache.js` PASS with the two new offline-shell
+  entries (168 JS files); `checkPwaInstallability.js` PASS; `checkTechnicalDebt.js` PASS, **0 new
+  debt**; `checkSmokeCheckRegistry.js` OK, 506 files inside the 600-line cap (both new modules well
+  under).
+- Visual evidence (§8.5): `scripts/checkRun326CreatureRig.js` (new) — 3 screenshots of all 19
+  species in one line-up at true relative scale in `artifacts/run326-creature-rig/`, plus per-species
+  assertions: one root bone and no orphans, skin weights summing to 1 within 1e-5 everywhere, every
+  skin index in range, every bind pose on the ground, bounding boxes inside per-archetype proportion
+  bands, same-species rigs bit-identical, and — the assertion that separates a real rig from a static
+  mesh carrying unused skin attributes — **rotating a single bone deforms only its own weighted
+  vertices**, proven on all 19.
+- `perf_log.csv` gained one sample (`run326-creature-rig`): drawCalls=51, triangles=860,328,
+  geometries=49, textures=21, jsHeapUsedMB=326 — **identical to run 325's** on every render figure,
+  which is the direct evidence that these modules cost the shipped game nothing yet: no scene-graph
+  module imports them.
+- Runtime/product source delta: 0 in any shipped render/gameplay path (two new unimported modules +
+  two service-worker entries). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+- Next safe step: `gameplay/creatureGait.js` — drive these bones with per-species gaits (the
+  `strideHz`/`restGait`/`alertGait` fields already in each plan are inert placeholders waiting for
+  exactly that), then `gameplay/creatureBrain.js` for the behaviour primitives
+  `creatureSpeciesConfig.js` names (`patrol`, `flee-on-approach`, `approach-friendly`, `pounce`,
+  `herd-bound`, `flock`, `combat-stance`, `charge`, `regal-idle`). Two open questions those runs must
+  answer deliberately rather than drift into: whether the existing asset-driven wolf
+  (`gameplay/animals.js`) moves onto the procedural path or stays as it is, and what LOD large herds
+  need — 2,352 triangles each means ~20 visible animals is ~47K against the 500K mobile ceiling.
