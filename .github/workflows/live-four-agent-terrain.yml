@@ -1,0 +1,106 @@
+name: Live Four Agent Terrain
+
+on:
+  push:
+    branches:
+      - agent/live-four-agent-terrain-r4-20260813
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/liveFourAgentTerrain.mjs'
+      - 'scripts/checkLiveFourAgentTerrain.mjs'
+      - 'scripts/devServerHelper.js'
+      - 'src/3d/editor/EditorGamePatchPreviewGateSafe.js'
+      - 'src/3d/editor/EditorEditModeEnvironment.js'
+      - '.github/workflows/live-four-agent-terrain.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-four-agent-terrain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact current main and bounded scope
+        id: base
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(scripts/liveFourAgentTerrain\.mjs|scripts/checkLiveFourAgentTerrain\.mjs|scripts/devServerHelper\.js|src/3d/editor/EditorGamePatchPreviewGateSafe\.js|src/3d/editor/EditorEditModeEnvironment\.js|\.github/workflows/live-four-agent-terrain\.yml)$' | wc -l)" -eq 0
+          test "$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0}')" -le 500
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Syntax and source provenance
+        run: |
+          set -euo pipefail
+          node --check scripts/liveFourAgentTerrain.mjs
+          node --check scripts/checkLiveFourAgentTerrain.mjs
+          node --check scripts/devServerHelper.js
+          node --check scripts/runtime/g65Terrain3dRuntimeGrid.mjs
+          node --check src/3d/editor/EditorGamePatchPreviewGateSafe.js
+          node --check src/3d/editor/EditorEditModeEnvironment.js
+          ! grep -F 'Math.random' scripts/liveFourAgentTerrain.mjs
+          grep -F "'.mjs': 'text/javascript; charset=utf-8'" scripts/devServerHelper.js
+          grep -F 'sampleG65Terrain3dRuntimeGridNormalized' scripts/liveFourAgentTerrain.mjs
+          grep -F 'Terrain3D runtime grid' scripts/liveFourAgentTerrain.mjs
+          grep -F '9180429652' scripts/checkLiveFourAgentTerrain.mjs
+          for agent in 'Buzul Muhafızı' 'Şafak Kartalı' 'Günbatımı Ustası' 'Kızıl Ufuk'; do grep -F "$agent" scripts/liveFourAgentTerrain.mjs; done
+          for cell in G00 G07 G17 G52 G65 G70 G75; do grep -F "$cell" scripts/liveFourAgentTerrain.mjs; done
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Real Live Server browser proof
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 >"$RUNNER_TEMP/live-server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do curl --fail --silent http://127.0.0.1:4173/editor.html >/dev/null && break; sleep 1; done
+          BASE_URL=http://127.0.0.1:4173 NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkLiveFourAgentTerrain.mjs | tee "$RUNNER_TEMP/live-four-agent-proof.log"
+          grep -F 'LIVE_FOUR_AGENT_TERRAIN_OK' "$RUNNER_TEMP/live-four-agent-proof.log"
+
+      - name: Existing world PWA mobile and browser regressions
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${{ steps.base.outputs.base_sha }}"
+          test "$(git merge-base HEAD origin/main)" = "${{ steps.base.outputs.base_sha }}"
