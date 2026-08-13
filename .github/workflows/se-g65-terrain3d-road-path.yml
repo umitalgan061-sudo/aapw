@@ -1,4 +1,4 @@
-name: SE G65 Road Path Post-Merge Qualification
+name: SE G65 Road Path Live-Main Qualification
 
 on:
   push:
@@ -13,36 +13,35 @@ permissions:
   contents: read
 
 concurrency:
-  group: se-g65-road-path-postmerge-${{ github.ref }}
+  group: se-g65-road-path-live-main-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  BASE_SHA: 68df35877860f56e0007bc281417e8205de6e84d
 
 jobs:
   base:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      main_sha: ${{ steps.capture.outputs.main_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Exact current main and workflow-only scope
+      - name: Prove qualification harness scope and capture live main
+        id: capture
         run: |
           set -euo pipefail
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          git merge-base --is-ancestor "$BASE_SHA" HEAD
-          git diff --check "$BASE_SHA"...HEAD
-          test "$(git diff --name-only "$BASE_SHA"...HEAD | sort | tr '\n' ' ')" = ".github/workflows/se-g65-terrain3d-road-path.yml "
-          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/se/g65_road_path.mjs
-          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scripts/validate_g65_terrain3d_road_path.gd
-          git diff --quiet "$BASE_SHA"...HEAD -- scripts/checkSEG65RoadPath.mjs
-          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
-          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
-          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/project.godot
-          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+          git diff --check HEAD^ HEAD
+          test "$(git diff --name-only HEAD^ HEAD | sort | tr '\n' ' ')" = ".github/workflows/se-g65-terrain3d-road-path.yml "
+          CURRENT_SHA="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
+          test -n "$CURRENT_SHA"
+          git fetch origin "$CURRENT_SHA"
+          git cat-file -e "$CURRENT_SHA:godot/terrain-authoring/geocells/se/g65_road_path.mjs"
+          git cat-file -e "$CURRENT_SHA:godot/terrain-authoring/scripts/validate_g65_terrain3d_road_path.gd"
+          git cat-file -e "$CURRENT_SHA:scripts/checkSEG65RoadPath.mjs"
+          git cat-file -e "$CURRENT_SHA:godot/terrain-authoring/terrain3d.lock.json"
+          echo "main_sha=$CURRENT_SHA" >> "$GITHUB_OUTPUT"
+          echo "G65_ROAD_PATH_LIVE_MAIN_CAPTURED=$CURRENT_SHA"
 
   authoring:
     needs: base
@@ -52,15 +51,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ needs.base.outputs.main_sha }}
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Preserve exact main
+      - name: Preserve captured live main
         run: |
           set -euo pipefail
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          CURRENT_SHA="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
+          test "$CURRENT_SHA" = "${{ needs.base.outputs.main_sha }}"
+          test "$(git rev-parse HEAD)" = "${{ needs.base.outputs.main_sha }}"
       - name: Regress merged G65 stack through Road Path
         run: |
           set -euo pipefail
@@ -105,6 +104,7 @@ jobs:
           test "$ok" -eq 1
           python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/t3d-verify.log"
           grep -F 'TERRAIN3D_VERIFY_OK' "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'version="1.0.2"' godot/terrain-authoring/addons/terrain_3d/plugin.cfg
       - name: Download Godot 4.6.3
         run: |
           set -euo pipefail
@@ -114,7 +114,7 @@ jobs:
           GODOT_BIN="$(find "$DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
           test -n "$GODOT_BIN"; chmod +x "$GODOT_BIN"; "$GODOT_BIN" --version | grep -F '4.6.3'
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
-      - name: Real merged Road Path Terrain3D proof twice
+      - name: Real live-main Road Path Terrain3D proof twice
         run: |
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
@@ -136,6 +136,7 @@ jobs:
           a, b = metrics(sys.argv[1]), metrics(sys.argv[2])
           stable = ('terrain3dVersion','regionSize','regionCount','alignedSamples','seamSamples','controlSeamSamples','maxHeightError','maxBlendError','maxSeamHeightError','maxSeamBlendError','outputChecksum','canonicalRoadExclusionMarginMeters','phantomRoadSamples','phantomPathSamples','bakedSurfaces','bakedVertices','savedRegionFiles')
           assert {k:a[k] for k in stable} == {k:b[k] for k in stable}
+          assert a['terrain3dVersion'] == '1.0.2'
           assert a['regionCount'] >= 4 and a['savedRegionFiles'] >= 4
           assert a['alignedSamples'] == 4225 and a['seamSamples'] == 48 and a['controlSeamSamples'] == 20
           assert a['maxHeightError'] <= 0.012 and a['maxBlendError'] <= 0.006
@@ -143,7 +144,7 @@ jobs:
           assert a['canonicalRoadExclusionMarginMeters'] > 100
           assert a['phantomRoadSamples'] == 0 and a['phantomPathSamples'] == 0
           assert a['bakedSurfaces'] >= 1 and a['bakedVertices'] > 0
-          print('SE_G65_POSTMERGE_TERRAIN3D_ROAD_PATH_STABLE_OK')
+          print('SE_G65_LIVE_MAIN_TERRAIN3D_ROAD_PATH_STABLE_OK')
           PY
       - name: HTerrain regression
         run: |
@@ -159,14 +160,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ needs.base.outputs.main_sha }}
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Preserve exact main
+      - name: Preserve captured live main
         run: |
           set -euo pipefail
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          CURRENT_SHA="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
+          test "$CURRENT_SHA" = "${{ needs.base.outputs.main_sha }}"
+          test "$(git rev-parse HEAD)" = "${{ needs.base.outputs.main_sha }}"
       - name: Install Playwright Chromium
         run: |
           set -euo pipefail
@@ -191,14 +193,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ needs.base.outputs.main_sha }}
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Preserve exact main
+      - name: Preserve captured live main
         run: |
           set -euo pipefail
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          CURRENT_SHA="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
+          test "$CURRENT_SHA" = "${{ needs.base.outputs.main_sha }}"
+          test "$(git rev-parse HEAD)" = "${{ needs.base.outputs.main_sha }}"
       - name: Install Playwright Chromium
         run: |
           set -euo pipefail
@@ -223,9 +226,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Final exact-current-main qualification
+      - name: Final live-main freshness after all evidence
         run: |
           set -euo pipefail
           CURRENT_SHA="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
           test -n "$CURRENT_SHA"
-          test "$CURRENT_SHA" = "$BASE_SHA"
+          test "$CURRENT_SHA" = "${{ needs.base.outputs.main_sha }}"
+          echo "SE_G65_ROAD_PATH_LIVE_MAIN_QUALIFIED=$CURRENT_SHA"
