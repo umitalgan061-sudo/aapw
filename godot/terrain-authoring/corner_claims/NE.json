@@ -6,7 +6,7 @@
   "status": "validating",
   "layer": "Rock/Snow",
   "branch": "terrain/ne-g52-rock-snow-terrain3d-20260813-v2",
-  "pr": null,
+  "pr": 304,
   "last_commit": null,
   "previous_layers": {
     "Coast/Hydrology": {
@@ -33,5 +33,5 @@
     "imported_control_topdown_proof": true
   },
   "engine": "pinned Terrain3D v1.0.2 control-map import/save/LOD0-bake proof; HTerrain preserved as regression control; Three.js runtime unchanged in this bounded authoring unit",
-  "updated_at": "2026-08-13T03:00:00+03:00"
+  "updated_at": "2026-08-13T03:02:00+03:00"
 }
