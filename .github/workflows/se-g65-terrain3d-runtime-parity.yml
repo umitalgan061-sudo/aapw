@@ -140,11 +140,15 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" timeout 180s node scripts/checkSEG65NearDetailVisual.mjs --out-dir=artifacts/se-g65-runtime-parity-visual | tee "$RUNNER_TEMP/visual.log"
           grep -F 'SE_G65_NEAR_DETAIL_VISUAL_OK' "$RUNNER_TEMP/visual.log"
 
-      - name: HTerrain world platform mobile PWA and browser regressions
+      - name: HTerrain regression
         run: |
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
           grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
+
+      - name: World road and deterministic regressions
+        run: |
+          set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkWorldReferenceMap.js
@@ -152,9 +156,18 @@ jobs:
           node scripts/roadNetworkSafetyCheck.js
           node scripts/checkRoadVisualContract.js
           node scripts/checkMedievalRoadSurface.js
+
+      - name: PWA service-worker and technical-debt regressions
+        run: |
+          set -euo pipefail
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
           node scripts/checkTechnicalDebt.js
+
+      - name: Mobile and browser regressions
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkMobilePerfBudget.js
           node scripts/smokeTestGame3D.js
 
@@ -192,3 +205,4 @@ jobs:
             ${{ runner.temp }}/runtime.log
             ${{ runner.temp }}/bake-a.log
             ${{ runner.temp }}/bake-b.log
+            ${{ runner.temp }}/hterrain.log
