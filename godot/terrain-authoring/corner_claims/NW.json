@@ -2,24 +2,53 @@
   "corner": "NW",
   "task_name": "Buzul Muhafızı",
   "origin": [0, 0],
-  "current_cell": "G00",
-  "status": "locally_validated_direct_to_main",
-  "branch": "main",
+  "current_cell": "G11",
+  "layer": "Terrain3D Bake/Three.js runtime parity",
+  "status": "validating",
+  "branch": "terrain/nw-g11-runtime-parity-20260813-r6",
   "pr": null,
-  "last_commit": null,
-  "quality_before": {
-    "note": "G01/G10/G11 (the three cells adjacent to this corner's own origin cell) already merged to main; G00 itself — the literal corner cell — was the one remaining gap in that first 2x2 block."
+  "base_sha": "67e7e6d565af35029d147214c29b050694f9b0c0",
+  "terrain3d": {
+    "version": "1.0.2",
+    "tag": "v1.0.2-stable",
+    "sha256": "a071850250ec5e596aa54da61c01d75768774eb379ee997584d426a45f4884a2",
+    "provenance": "Three.js live createHeightSampler + settlement pads -> 65x65 G11 source -> 257x257 RF guard-backed Terrain3DData.import_images (65 nodes aligned every 4 vertices across 256m) -> fractional cross-region get_height proof -> persisted four-region data -> LOD0 bake_mesh(0) -> deterministic bilinear Three.js adapter in the existing PWA-cached worldReferenceTerrainAdapter.js"
   },
-  "quality_after": {
+  "map_reference": {
+    "source": "map.png",
+    "sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+    "geocell_is_addressing_only": true,
+    "nearest_neighbour_runtime": false
+  },
+  "acceptance": {
+    "max_height_error_m": 0.01,
+    "mean_height_error_m": 0.0025,
+    "finite_source_and_bake_required": true,
+    "terrain3d_region_persistence_required": true,
+    "terrain3d_lod0_bake_required": true,
+    "terrain3d_fractional_boundary_probe_required": true,
+    "hterrain_regression_required": true,
+    "pwa_cache_regression_required": true
+  },
+  "previous_failure": {
+    "pr": 311,
+    "head": "9a8c29cfcc377e7d7792be9cc53b80581c865d81",
+    "failure_stage": "Terrain3D roundtrip",
+    "failure": "single-region fractional get_height at terrain x=255 required missing x=256 neighbour and returned NaN",
+    "source_checksum": "f4d02e84fc3972bf142a7d3b91421705c6dbdc0c3c33625af1f24e2f55043d4f"
+  },
+  "superseded_publication": {
+    "pr": 314,
+    "reason": "main advanced from bf0d791eaa3618044779aa520df17787e8ba801d to 67e7e6d565af35029d147214c29b050694f9b0c0 during exact-head CI"
+  },
+  "concurrent_main_observation": {
+    "cell": "G00",
     "layer": "Coast Hydrology",
-    "base_cells": 96,
-    "water_centres": 60,
-    "land_centres": 36,
-    "boundary_edges": 12,
-    "hard_cell_max_step": 1,
-    "max_adjacent_step": 0.25,
-    "confidence_checksum": 2770394150
+    "main_commit": "bf0d791eaa3618044779aa520df17787e8ba801d",
+    "state": "locally_validated_direct_to_main",
+    "note": "Preserve the concurrent G00 hydrology implementation and metrics; its own main claim states Godot/Playwright CI was not run, and one hydrology layer does not supersede G11's already-active seventh-layer parity proof."
   },
-  "engine": "authoring/QA canonical mask interpolation; HTerrain preserved; Terrain3D not required for this data-only layer. Godot headless import/HTerrain validation and the Playwright browser-smoke step from this cell's dedicated workflow (nw-g00-hydrology.yml) were NOT run in this authoring sandbox (no Godot binary, no Chromium/Playwright, restricted outbound network) — only Node-only steps (node --check, deterministic double-run of the check script, checkTechnicalDebt.js) were locally verified. The workflow file is committed so GitHub Actions runs the full contract (including those two steps) on push/PR against this repo's real CI runners.",
-  "updated_at": "2026-08-13T02:56:16Z"
+  "r6_change": "Republish the boundary-safe G11 parity proof directly on current main after the unrelated NE G52 Rock/Snow merge. Keep strict 0.01m/0.0025m limits, 257x257 Terrain3D guard regions, cross-region fractional probes, and the PWA-cached canonical terrain adapter integration.",
+  "next": "Keep G11 active until exact-head CI proves Terrain3D import/roundtrip/fractional continuity/persist/LOD0 bake, Three.js adapter parity, HTerrain/world/PWA safety and freshness. Near + far + full-world top-down map.png visual parity is still required before this seventh layer is complete.",
+  "updated_at": "2026-08-13T06:12:00+03:00"
 }
