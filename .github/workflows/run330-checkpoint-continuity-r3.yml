@@ -1,0 +1,93 @@
+name: Run330 Checkpoint Continuity R3
+
+on:
+  push:
+    branches:
+      - governance/run330-checkpoint-continuity-r3-20260813
+    paths:
+      - '.github/workflows/run330-checkpoint-continuity-r3.yml'
+
+permissions:
+  contents: write
+
+env:
+  BASE_SHA: ae642a109db0efe1869bb94e4a930afe9bf1d6ef
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: governance/run330-checkpoint-continuity-r3-20260813
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact current-main and one-file entry
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          test "$(git diff --name-only "$BASE_SHA"...HEAD)" = '.github/workflows/run330-checkpoint-continuity-r3.yml'
+          git diff --check "$BASE_SHA"...HEAD
+
+      - name: Install Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Re-prove Run330 and current runtime safety
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkRun330CastleTexturing.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
+
+      - name: Measure current ae642 runtime and materialize records
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/collectPerfSnapshot.js run330-checkpoint-reverify-r3 | tee "$RUNNER_TEMP/perf.log"
+          PERF_ROW="$(grep -E '(^|,)run330-checkpoint-reverify-r3(,|$)' perf_log.csv | tail -n 1)"
+          test -n "$PERF_ROW"
+          printf '%s\n' "$PERF_ROW" | grep -E '^2026-08-13,run330-checkpoint-reverify-r3,[0-9]+,[0-9]+,[0-9]+,[0-9]+,[0-9]+,[0-9]*$'
+          printf '\n- `stable-2026-08-13-run330-reverify-r3` — Run330 checkpoint continuity repair on exact current main `ae642a109db0efe1869bb94e4a930afe9bf1d6ef` after G65 Terrain3D runtime parity #414; record-only publication, product/runtime delta 0. Same exact-head workflow re-proved Run330 castle texturing, world/settlement/road/PWA/mobile/browser safety and measured the real renderer row: `%s`.\n' "$PERF_ROW" >> STABLE_TAGS.md
+          node scripts/checkCheckpointConsistency.js
+          node scripts/analyzePerfTrend.js
+          git diff --check
+
+      - name: Remove one-shot workflow and publish only records
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/run330-checkpoint-continuity-r3.yml
+          node scripts/checkCheckpointConsistency.js
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          CHANGED="$(git diff --name-only "$BASE_SHA" | sort)"
+          EXPECTED="$(printf 'STABLE_TAGS.md\nperf_log.csv\n' | sort)"
+          test "$CHANGED" = "$EXPECTED"
+          git diff --check "$BASE_SHA"
+          git config user.name 'Run330 Checkpoint Recorder'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'governance: record fresh Run330 checkpoint on ae642 main'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git push origin HEAD:governance/run330-checkpoint-continuity-r3-20260813
