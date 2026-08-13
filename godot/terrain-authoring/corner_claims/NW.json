@@ -48,7 +48,20 @@
     "layer": "Coast Hydrology",
     "main_commit": "bf0d791eaa3618044779aa520df17787e8ba801d",
     "state": "locally_validated_direct_to_main",
-    "note": "Preserve the concurrent G00 hydrology implementation and metrics; its own main claim states Godot/Playwright CI was not run, and one hydrology layer does not supersede G11's already-active seventh-layer parity proof."
+    "quality_before": {
+      "note": "G01/G10/G11 (the three cells adjacent to this corner's own origin cell) already merged to main; G00 itself — the literal corner cell — was the one remaining gap in that first 2x2 block."
+    },
+    "quality_after": {
+      "base_cells": 96,
+      "water_centres": 60,
+      "land_centres": 36,
+      "boundary_edges": 12,
+      "hard_cell_max_step": 1,
+      "max_adjacent_step": 0.25,
+      "confidence_checksum": 2770394150
+    },
+    "engine": "authoring/QA canonical mask interpolation; HTerrain preserved; Terrain3D not required for this data-only layer. Godot headless import/HTerrain validation and the Playwright browser-smoke step from this cell's dedicated workflow (nw-g00-hydrology.yml) were NOT run in this authoring sandbox (no Godot binary, no Chromium/Playwright, restricted outbound network) — only Node-only steps (node --check, deterministic double-run of the check script, checkTechnicalDebt.js) were locally verified. The workflow file is committed so GitHub Actions runs the full contract (including those two steps) on push/PR against this repo's real CI runners.",
+    "note": "Preserved verbatim from the concurrent G00 main claim. One locally validated hydrology layer does not supersede G11's already-active seventh-layer parity proof."
   },
   "r6_first_ci_observation": {
     "head": "c503a480d1c2762571dc5deb28608b4b83babf3a",
@@ -67,5 +80,5 @@
   },
   "r6_change": "Keep strict 0.01m/0.0025m height limits, 257x257 Terrain3D guard regions and two real persistence/bake passes. Separate incidental Terrain3D .res serialized byte count from the canonical deterministic bake JSON: persistence still requires at least four non-empty real region resources, while the byte-identical runtime payload contains only deterministic geometry/height/provenance fields.",
   "next": "Keep G11 active until exact-head CI proves canonical bake determinism, Terrain3D import/roundtrip/fractional continuity/persist/LOD0 bake, Three.js adapter parity, HTerrain/world/PWA safety and freshness. Near + far + full-world top-down map.png visual parity is still required before this seventh layer is complete.",
-  "updated_at": "2026-08-13T06:18:00+03:00"
+  "updated_at": "2026-08-13T06:20:00+03:00"
 }
