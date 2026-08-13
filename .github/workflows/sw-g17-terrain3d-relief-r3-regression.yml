@@ -22,10 +22,11 @@ jobs:
         run: |
           set -euo pipefail; for f in scripts/checkSWG17ReliefTerrain3D{Probe,Evidence,GridEvidence,PersistenceEvidence,GuardBand,LodEvidence,PersistGridEvidence}.mjs; do node --check "$f"; done
           node scripts/checkSWG17Hydrology.mjs; node scripts/checkSWG17Biome.mjs; node scripts/checkSWG17Relief.mjs; node scripts/checkSWG17ReliefTerrain3DGuardBand.mjs; mkdir -p godot/terrain-authoring/.terrain3d-proof; node scripts/checkSWG17ReliefTerrain3DProbe.mjs --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json
-      - name: Install pinned Terrain3D and Godot
+      - name: Install pinned Terrain3D, Godot and browser runtime
         run: |
           set -euo pipefail; python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/install.log; grep -F TERRAIN3D_INSTALL_OK /tmp/install.log; python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee /tmp/verify.log; grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true' /tmp/verify.log
           curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/g.zip; mkdir -p /tmp/g; unzip -q /tmp/g.zip -d /tmp/g; G="$(find /tmp/g -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; chmod +x "$G"; "$G" --version | grep -F 4.6.3; echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
+          mkdir -p /tmp/pw; npm install --prefix /tmp/pw --no-save --no-package-lock playwright@1.55.0; /tmp/pw/node_modules/.bin/playwright install --with-deps chromium; echo "NODE_PATH=/tmp/pw/node_modules" >> "$GITHUB_ENV"
       - name: Full-grid and multi-LOD Terrain3D determinism
         run: |
           set -euo pipefail; timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_grid.gd | tee /tmp/grid-a.log; timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_grid.gd | tee /tmp/grid-b.log; node scripts/checkSWG17ReliefTerrain3DGridEvidence.mjs --probe=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json --log-a=/tmp/grid-a.log --log-b=/tmp/grid-b.log --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-grid-evidence-manifest.json
@@ -39,7 +40,7 @@ jobs:
           node scripts/terrainSeatSafetyCheck.js; node scripts/roadNetworkSafetyCheck.js; node scripts/checkSeededRandomPolicy.js; node scripts/checkWorldReferenceMap.js; node scripts/checkPwaInstallability.js; node scripts/checkServiceWorkerCache.js; node scripts/checkMobilePerfBudget.js; node scripts/checkTechnicalDebt.js; node scripts/checkSmokeCheckRegistry.js
       - name: Browser and visual evidence
         run: |
-          set -euo pipefail; mkdir -p /tmp/pw; npm install --prefix /tmp/pw --no-save --no-package-lock playwright@1.55.0; /tmp/pw/node_modules/.bin/playwright install --with-deps chromium; export NODE_PATH=/tmp/pw/node_modules; node scripts/smokeTestGame3D.js; node scripts/checkSWG17HydrologyVisualEvidence.mjs
+          set -euo pipefail; node scripts/smokeTestGame3D.js; node scripts/checkSWG17HydrologyVisualEvidence.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: sw-g17-relief-exact-regression-proof, include-hidden-files: true, path: godot/terrain-authoring/.terrain3d-proof/ }
