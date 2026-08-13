@@ -109,6 +109,37 @@ requireCondition(fractionalSamples === 0, `pure-sea G17 created ${fractionalSamp
 requireCondition(maxAdjacentConfidenceStep <= EPSILON, `pure-sea G17 confidence has step ${maxAdjacentConfidenceStep}`);
 requireCondition(Math.abs(minHeight + 4) <= EPSILON && Math.abs(maxHeight + 4) <= EPSILON, `hydrology proof height is not constant -4m: ${minHeight}..${maxHeight}`);
 
+const seamOffsetX = 1 / WORLD_REFERENCE_WATER_MASK.width;
+const seamOffsetY = 1 / WORLD_REFERENCE_WATER_MASK.height;
+let maxWestConfidenceDelta = 0;
+let maxNorthConfidenceDelta = 0;
+let maxEastConfidenceDelta = 0;
+let maxWestHeightDelta = 0;
+let maxNorthHeightDelta = 0;
+let maxEastHeightDelta = 0;
+for (let i = 0; i <= 128; i += 1) {
+  const t = i / 128;
+  const ny = G17.normalizedBounds.minY + (G17.normalizedBounds.maxY - G17.normalizedBounds.minY) * t;
+  const nx = G17.normalizedBounds.minX + (G17.normalizedBounds.maxX - G17.normalizedBounds.minX) * t;
+  const westIn = sampleG17WaterConfidence(G17.normalizedBounds.minX, ny);
+  const westOut = sampleG17WaterConfidence(G17.normalizedBounds.minX - seamOffsetX, ny);
+  const eastIn = sampleG17WaterConfidence(G17.normalizedBounds.maxX, ny);
+  const eastOut = sampleG17WaterConfidence(G17.normalizedBounds.maxX + seamOffsetX, ny);
+  const northIn = sampleG17WaterConfidence(nx, G17.normalizedBounds.minY);
+  const northOut = sampleG17WaterConfidence(nx, G17.normalizedBounds.minY - seamOffsetY);
+  maxWestConfidenceDelta = Math.max(maxWestConfidenceDelta, Math.abs(westIn - westOut));
+  maxEastConfidenceDelta = Math.max(maxEastConfidenceDelta, Math.abs(eastIn - eastOut));
+  maxNorthConfidenceDelta = Math.max(maxNorthConfidenceDelta, Math.abs(northIn - northOut));
+  const toHeight = (confidence) => 0.75 - 4.75 * Math.max(0, Math.min(1, (confidence - 0.35) / 0.65)) ** 2 * (3 - 2 * Math.max(0, Math.min(1, (confidence - 0.35) / 0.65)));
+  maxWestHeightDelta = Math.max(maxWestHeightDelta, Math.abs(toHeight(westIn) - toHeight(westOut)));
+  maxEastHeightDelta = Math.max(maxEastHeightDelta, Math.abs(toHeight(eastIn) - toHeight(eastOut)));
+  maxNorthHeightDelta = Math.max(maxNorthHeightDelta, Math.abs(toHeight(northIn) - toHeight(northOut)));
+}
+const maxGuardConfidenceDelta = Math.max(maxWestConfidenceDelta, maxNorthConfidenceDelta, maxEastConfidenceDelta);
+const maxGuardHeightDelta = Math.max(maxWestHeightDelta, maxNorthHeightDelta, maxEastHeightDelta);
+requireCondition(maxGuardConfidenceDelta <= EPSILON, `G17 guard confidence seam ${maxGuardConfidenceDelta}`);
+requireCondition(maxGuardHeightDelta <= EPSILON, `G17 guard height seam ${maxGuardHeightDelta}`);
+
 const proof = {
   schema: probe.schema,
   geoCell: G17.id,
@@ -140,10 +171,13 @@ const proof = {
     maxConfidence,
     minHeight,
     maxHeight,
+    maxGuardConfidenceDelta,
+    maxGuardHeightDelta,
+    coastlineContourSegments: 0,
   },
   heights: probe.heights,
 };
 fs.mkdirSync(path.dirname(PROOF_PATH), { recursive: true });
 fs.writeFileSync(PROOF_PATH, `${JSON.stringify(proof)}\n`);
-console.log(`SW_G17_HYDROLOGY_SOURCE_METRICS=${JSON.stringify({ water, land, sea, lake, boundaries, centreMismatches, guardSamples, guardWater, guardSea, maxAdjacentConfidenceStep, fractionalSamples, minHeight, maxHeight })}`);
+console.log(`SW_G17_HYDROLOGY_SOURCE_METRICS=${JSON.stringify({ water, land, sea, lake, boundaries, centreMismatches, guardSamples, guardWater, guardSea, maxAdjacentConfidenceStep, fractionalSamples, minHeight, maxHeight, maxGuardConfidenceDelta, maxGuardHeightDelta, coastlineContourSegments: 0 })}`);
 console.log('SW_G17_HYDROLOGY_SOURCE_OK');
