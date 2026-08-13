@@ -3,12 +3,13 @@
   "task_name": "Şafak Kartalı",
   "origin": [7, 0],
   "current_cell": "G70",
-  "status": "validating",
-  "layer": "Coast/Hydrology",
-  "branch": "terrain/ne-g70-terrain3d-hydrology-r6-20260813",
-  "pr": 361,
+  "status": "claimed",
+  "layer": "Macro Albedo/Biome",
+  "branch": "terrain/ne-g70-terrain3d-biome-r6-20260813",
+  "pr": null,
   "last_commit": null,
-  "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Historical PR #243 was closed as stale because it never merged and had semantic/HTerrain evidence only; current rules require completing G70 before moving farther inward.",
+  "base_sha": "b88767931917d9d631bb9e19d80d2126c867eded",
+  "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Coast/Hydrology is merged; strict same-cell layer order requires Macro Albedo/Biome next. Canonical map semantics classify G70 as 96/96 open sea, so this layer strengthens only the continuous marine macro substrate and must not invent land, islands, coastline geometry, grid cells or seams.",
   "quality_before": {
     "base_cells": 96,
     "water_cells": 96,
@@ -16,21 +17,27 @@
     "sea_cells": 96,
     "lake_cells": 0,
     "boundary_edges": 0,
-    "historical_pr": 243,
-    "historical_engine": "semantic QA + HTerrain regression only; no Terrain3D data/import/bake proof"
+    "merged_hydrology_pr": 361,
+    "macro_biome_merged": false
   },
   "quality_target": {
     "canonical_uniform_sea_preserved": true,
     "invented_coastline_or_land": false,
     "owner_map_continuous_field": true,
+    "filtered_final_import": true,
+    "nearest_neighbor_final_rendering": false,
     "west_guard_neighbor": "G60",
     "south_guard_neighbor": "G71",
-    "terrain3d_height_import": true,
+    "terrain3d_height_color_roughness_import": true,
     "terrain3d_guard_regions": 4,
     "terrain3d_region_persistence": true,
-    "terrain3d_lod0_bake": true,
+    "terrain3d_lod0_bake_twice": true,
     "terrain3d_topdown_import_proof": true,
+    "near_far_full_world_visual_evidence": true,
     "hterrain_regression_preserved": true,
+    "settlement_14_of_14_preserved": true,
+    "road_safety_preserved": true,
+    "pwa_mobile_browser_preserved": true,
     "threejs_runtime_unchanged": true
   },
   "completed_cells": {
@@ -46,6 +53,7 @@
     "G71": {"pr": 252, "merge_commit": "1e0c1dc35bc3726551d753d1fc1922bf01226fa9", "canonical": "96/96 sea"},
     "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
   },
-  "engine": "canonical owner-map sea semantics -> continuous guard-backed submerged height field -> pinned Terrain3D v1.0.2-stable 257x257 RF import/regions/save/LOD0 bake; HTerrain retained as regression/control",
-  "updated_at": "2026-08-13T10:15:00+03:00"
+  "engine": "canonical owner-map sea semantics -> continuous guard-backed submerged Height+RGB+Roughness field -> filtered pinned Terrain3D v1.0.2-stable 257x257 import/regions/save/LOD0 bake -> proof-only Three.js near/far/full-world visuals; HTerrain retained as regression/control",
+  "next_layer_if_merged": "Relief/Height Character",
+  "updated_at": "2026-08-13T12:02:00+03:00"
 }
