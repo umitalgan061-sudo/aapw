@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no">
+<meta name="theme-color" content="#c8960a">
+<meta name="description" content="Westeros güncel 3D dünyası — VS Code Live Server geliştirme girişi">
+<title>Westeros — Canlı 3D Dünya</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="stylesheet" href="game3d.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./src/3d/vendor/three/three.module.js",
+    "three/addons/": "./src/3d/vendor/three/addons/"
+  }
+}
+</script>
+<style>
+  .live3d-dev-badge {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1200;
+    pointer-events: none;
+    padding: 6px 10px;
+    border: 1px solid rgba(200,150,10,.6);
+    border-radius: 999px;
+    color: #f2d98f;
+    background: rgba(5,8,12,.72);
+    backdrop-filter: blur(8px);
+    font: 700 11px/1.2 system-ui, sans-serif;
+    letter-spacing: .08em;
+  }
+</style>
+</head>
+<body>
+<canvas id="game3d-canvas" aria-label="Westeros güncel 3D dünyası"></canvas>
+<div id="game3d-loading" class="g3d-loading"><div>Güncel Westeros 3D dünyası yükleniyor&hellip;</div></div>
+<div class="live3d-dev-badge">LIVE SERVER · CURRENT 3D WORLD</div>
+<a class="g3d-back-link" href="editor.html">✎ World Editor</a>
+<a class="g3d-back-link" href="index.html" style="left:auto;right:max(12px, env(safe-area-inset-right));">2D Arayüz</a>
+<script type="module" src="./src/3d/editor/EditorGamePatchPreviewGateSafe.js"></script>
+<script type="module">
+  import { installRuntimePindexTerrainPolish } from './src/3d/world/worldReferenceSurfaceTerrainVisual.js';
+  import { initGame3D } from './src/3d/game3d.js';
+  import { gameEvents } from './src/3d/eventBus.js';
+  import { EVENTS } from './src/3d/config.js';
+
+  const loadingEl = document.getElementById('game3d-loading');
+  let readyPhase = 'booting';
+
+  gameEvents.on(EVENTS.GAME_READY, ({ phase }) => {
+    readyPhase = phase;
+    document.documentElement.dataset.live3dPhase = phase;
+    if (phase === 'phase1-scene' && loadingEl) loadingEl.classList.add('g3d-loading-hidden');
+  });
+
+  gameEvents.on(EVENTS.GAME_ERROR, ({ error }) => {
+    document.documentElement.dataset.live3dPhase = 'error';
+    if (loadingEl) {
+      loadingEl.textContent = '3D dünya başlatılamadı. Konsolu kontrol edip sayfayı yenileyin.';
+      loadingEl.classList.remove('g3d-loading-hidden');
+      loadingEl.classList.add('g3d-loading-error');
+    }
+    console.error('[live3d.html] game error', error);
+  });
+
+  installRuntimePindexTerrainPolish();
+  const bootPromise = initGame3D();
+  window.__WESTEROS_LIVE_SERVER_3D__ = Object.freeze({
+    bootPromise,
+    getPhase: () => readyPhase,
+    canvas: document.getElementById('game3d-canvas')
+  });
+</script>
+</body>
+</html>
