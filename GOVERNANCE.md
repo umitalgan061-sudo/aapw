@@ -287,12 +287,15 @@ bırakıldı — Gece Nöbeti nöbetçisinin kapalı/uğursuz tek satırlık sel
 zayıflıyor. "13/14" ifadesi bir eksik iş gibi okunduğu için birçok çalıştırma aynı sahte boşluğu
 tekrar tekrar keşfetti. Bu bir ürün/tasarım kararı olduğundan geri çevrilmesi §14 gereği sahibe
 soruldu — bkz. `QUESTIONS_FOR_OWNER.md`. Sahip aksini söylemedikçe FAZ 5 kapalı sayılır.)
-FAZ 6: kurt (asset-driven) tamam; at/köpek/kedi (run 326-329, prosedürel `creatureBrain.js` rig+
-gait+wander/reactive) ve kuş (kuzgun/kartal/tavuk — run 334, ADR-0280, gerçek climb/cruise/land uçuş
-davranışı) da artık tamam — bu üçü `assets_manifest.json`'da hiç model olmadığı için (run 326'nın kendi
-bulgusu) gerçek asset yerine prosedürel gövde/rig kullanıyor, kurt gibi ayrı bir asset-driven model
-değil. Tek kalan FAZ 6 maddesi **araba** (at arabası/kağnı — bir taşıt, bir canlı değil; ayrı bir
-tasarım/mekanik kapsamı gerektirir, henüz başlamadı). **FAZ 7: TAMAMLANDI** (fark etme + reaktif
+FAZ 6: **TAMAMLANDI.** kurt (asset-driven) tamam; at/köpek/kedi (run 326-329, prosedürel
+`creatureBrain.js` rig+gait+wander/reactive) ve kuş (kuzgun/kartal/tavuk — run 334, ADR-0280, gerçek
+climb/cruise/land uçuş davranışı) da tamam — bu üçü `assets_manifest.json`'da hiç model olmadığı için
+(run 326'nın kendi bulgusu) gerçek asset yerine prosedürel gövde/rig kullanıyor, kurt gibi ayrı bir
+asset-driven model değil. **araba** (at arabası/kağnı — run 336, ADR-0282, `gameplay/cartBrain.js`)
+FAZ 6'nın son maddesiydi: prosedürel at+kağnı gövdesi gerçek `world/roads.js` at-arabası-yolu
+kenarları boyunca gidip geliyor (ping-pong), tekerlekler dönüyor — bir canlı değil, bir taşıt
+olduğu için `creatureBrain.js`'in wander/flee mantığını paylaşmıyor, kendi path-following state
+machine'i var. **FAZ 7: TAMAMLANDI** (fark etme + reaktif
 uçuş + dalış/swoop + gerçek sürekli kovalama — run 66/ADR-0085: ejderha kalesini terk edip
 oyuncuyu 18 saniye boyunca kovalıyor, sonra vazgeçip dönüyor — **+ gerçek saldırı/hasar — run
 90/ADR-0116:** sürekli kışkırtma bir ısırık lunge'ına eskale oluyor, `gameplay/health.js` +

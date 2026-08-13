@@ -384,6 +384,15 @@ export async function initGame3D() {
 						.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z })),
 				),
 			});
+			// FAZ 6's last named gap: horse-drawn carts (run 336, `gameplay/cartBrain.js`) — path-
+			// following road traffic, no player-awareness, so `update()` only ever takes `delta`
+			// (unlike every entity block above/below it, none of which read `playerPos`).
+			state.carts = updateEntitiesSafely({
+				entities: state.carts,
+				scene: state.scene,
+				label: 'Cart',
+				update: (cart) => cart.update(delta),
+			});
 			// FAZ 7 dragons (run 53 flight path, run 54 player-awareness, run 64 dive) — see
 			// `gameplay/dragons.js`'s own doc comment. `playerPos` already reflects this frame's
 			// post-movement position (set above).
@@ -479,6 +488,7 @@ export async function initGame3D() {
 			state.npcs.forEach((npc) => npc.dispose());
 			state.animals.forEach((animal) => animal.dispose());
 			state.creatures.forEach((creature) => creature.dispose());
+			state.carts.forEach((cart) => cart.dispose());
 			state.dragons.forEach((dragon) => dragon.dispose());
 			state.controls.dispose();
 			state.freeCamera.dispose();

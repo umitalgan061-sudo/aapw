@@ -1,3 +1,10 @@
+// Run336 cart-brain offline shell extension — `gameplay/cartBrain.js` (ADR-0282), now imported by
+// `gameplay/livingWorldSpawner.js`, so an offline PWA load needs it cached or the scene cannot spawn
+// FAZ 6's horse-drawn carts at all.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/gameplay/cartBrain.js');
+});
+
 // Run332 living-world-spawner offline shell extension — `gameplay/livingWorldSpawner.js` is now
 // imported by `game3d.js` (the NPC/animal/procedural-creature/dragon spawn wiring extracted out of
 // it purely to stay under the 600-line file cap, no behavior change), so an offline PWA load needs

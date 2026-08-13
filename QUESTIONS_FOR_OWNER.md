@@ -348,3 +348,19 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
 - **(run 330) `assets/` içinde ev/taş/merdiven modeli YOK — bu run kendi geometrisini üretti, doğrulaman gerekebilir.** Sahip "assets klasöründe bir sürü ev, taş, merdiven vs. şeyler var" dedi; run 330 her GLB'nin node/mesh tablosunu tek tek okudu ve envanterin gerçeği şu: 15 FBX + 32 GLB'nin tamamı ya karakter, ya yaratık, ya da **tek parça kaynaşmış** bir kale (ayrılabilir ev/duvar/basamak parçası içermiyor); `.blend` dosyası hiç yok; `textures/yüzey/model.obj` ise bir "Terrain" yüzeyi. **Geçici varsayılan:** köy yapıları prosedürel olarak üretildi (`world/villages.js`, ADR-0276) — ADR-0272'nin yaratıklar için verdiği kararla aynı. Eğer kastettiğin başka bir şeyse (ör. mevcut kale/karakter modellerinin dekoratif olarak tekrar tekrar serpiştirilmesi, ya da bilgisayarında olup repoya yüklenmemiş bir paket) söyle — ayrı ele alınır.
 - **(run 330) Köylerde çarpışma yok.** Oyuncu evin içinden yürüyebiliyor: `physics.js` yalnız yükseklik alanına oturuyor, yerleştirilmiş geometriye değil (kaleler için de aynı — orada `settlementCollider` ayrı bir yaklaşım kullanıyor). **Geçici varsayılan:** çarpışmasız; sıradaki alt görev olarak not edildi.
 - **(run 330) 6 kalede ev rengi (çatı rengi) kayboldu.** Prosedürel kalelerin hanedan renkli çatısı vardı; gerçek kale modellerinde renkli çatı yok, o yüzden bu 6 koltukta hanedan kimliği artık yalnız pusula/keşif arayüzünden okunuyor. **Geçici varsayılan:** kabul edildi; 3D hanedan sancağı eklemek sıradaki iş olarak not edildi.
+- **(run 336, ADR-0282) `gameplay/cartBrain.js`'s cart speed/dimensions/count/collision are this
+  run's own engineering judgment, and its slope handling is purely visual (not physics).** FAZ 6's
+  last item — the horse-drawn cart ("araba") — now exists and travels the real cart-road network,
+  answering run 56/ADR-0076's "revisit once a real cart/wagon vehicle exists" note in one narrow
+  sense (a vehicle now exists to look at), but **not** in the sense that note actually asked for: the
+  cart moves at one constant `speedMps` regardless of a given road segment's real grade (the same
+  `ROAD_COMFORT_GRADE_DEGREES`/`ROAD_HARD_MAX_GRADE_DEGREES` a real horse would slow down for is not
+  read by `cartBrain.js` at all) — the road network's own slope-aware *routing* already keeps every
+  edge under the hard grade ceiling, but nothing yet makes a cart visibly labor uphill. **Temporary
+  defaults used:** `CART_CONFIG.speedMps = 2.0` (a slow walking pace, no grade-based slowdown),
+  3 carts spawned (longest-eligible cart-road edges first, `minEdgeLengthMeters = 60`), desktop-only
+  (mobile's small streamed radius makes a full-map-scale edge unreliable to keep in view — see
+  `spawnConfiguredCarts`'s own doc comment), and **no player-cart collision** (same "no house
+  collision yet" gap `world/villages.js` already has open here from run 330 — a real collision box is
+  its own follow-up, not rushed into this pass). Revisit any of these once a real playtest exists, or
+  if grade-aware cart speed is specifically wanted.

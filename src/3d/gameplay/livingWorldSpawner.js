@@ -20,15 +20,17 @@ import { spawnConfiguredNPCs } from './npc.js';
 import { spawnConfiguredAnimals } from './animals.js';
 import { spawnConfiguredCreatures } from './creatureBrain.js';
 import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS } from './creatureSpawner.js';
+import { spawnConfiguredCarts } from './cartBrain.js';
 import { mulberry32 } from '../world/terrain.js';
 import { spawnConfiguredDragons } from './dragons.js';
 import { isCoarsePointerDevice } from '../sceneManager.js';
 
 /**
- * Spawns NPCs, animals, procedural creatures and dragons into `state.scene`, storing the results
- * back onto `state.npcs`/`state.animals`/`state.creatures`/`state.dragons` (same field names and
- * shapes `game3d.js`'s tick loop and `pagehide` dispose handler already expect — this function
- * exists purely to build those arrays, not to change how callers consume them).
+ * Spawns NPCs, animals, procedural creatures, carts, and dragons into `state.scene`, storing the
+ * results back onto `state.npcs`/`state.animals`/`state.creatures`/`state.carts`/`state.dragons`
+ * (same field names and shapes `game3d.js`'s tick loop and `pagehide` dispose handler already
+ * expect — this function exists purely to build those arrays, not to change how callers consume
+ * them).
  * @param {object} options
  * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
  * @param {object} options.state Scene-manager state (`sceneManager.js`'s `createScene` return
@@ -102,6 +104,14 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 	state.creatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, playerCollider: state.playerCollider, mulberry32 });
 	for (const creature of state.creatures) state.scene.add(creature.object3D);
 	console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s).`);
+
+	// FAZ 6's last named gap (`gameplay/cartBrain.js`, run 336) — horse-drawn carts travelling the
+	// real cart-road network back and forth, longest edges first. Desktop-only for now (see that
+	// module's own `spawnConfiguredCarts` doc comment for why mobile's small streamed radius makes a
+	// full-map-scale road edge a poor fit today).
+	state.carts = isMobileClassCreatures ? [] : spawnConfiguredCarts({ roadEdges: state.roadEdges, mulberry32 });
+	for (const cart of state.carts) state.scene.add(cart.object3D);
+	console.info(`[game3d] Spawned ${state.carts.length} FAZ 6 cart(s).`);
 
 	// FAZ 7 (run 53): first dragon, circling a kingdom seat at a fixed altitude — see
 	// `gameplay/dragons.js` and DECISIONS.md ADR-0071. Same spawn-wiring shape as NPCs/animals

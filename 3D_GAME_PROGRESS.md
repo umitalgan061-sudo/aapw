@@ -15848,3 +15848,95 @@ corner_claims/` not read or touched).
   check next run; `araba` (cart/wagon) remains FAZ 6's only open item and still needs its own
   dedicated, bounded subtask; terrain/road/Terrain3D geocell work remains claimed by the four
   concurrent corner-agent sessions and was not touched here.
+
+## Run 336 (2026-08-13, scheduled run) — FAZ 6 complete: horse-drawn cart, the last named gap (ADR-0282)
+
+Synced with `origin/main` first: local checkout was detached at `9d90b7b` (Run 335's own checkpoint
+commit); `git fetch origin main` confirmed `origin/main` was at the exact same commit (a force-updated
+ref pointing at the same SHA this session's detached HEAD already had — no drift, no data loss, just a
+stale local `main` branch ref 168/127 commits behind from an earlier point in this long-running
+session's history). `git checkout main && git reset --hard origin/main` brought the local branch ref
+in line with the real, current, already-synced tip before starting any work. Read `GOVERNANCE.md`
+(through §33/Run321's platform-control note, including the just-updated FAZ 6 line), both
+continuation/owner-directive files, `GOVERNANCE_FULL_GAME_DIRECTIVE.md`, this file's tail through Run
+335, `DECISIONS.md`'s last ADRs (0279-0281), and `QUESTIONS_FOR_OWNER.md` in full. Checked
+`godot/terrain-authoring/corner_claims/`: all 4 corners (NE/NW/SE/SW) claimed by concurrent
+terrain/road agent sessions — confirmed avoiding that category was still the right call.
+
+Picked `araba` (horse-drawn cart/wagon) — GOVERNANCE.md §18/§17's own repeatedly-flagged "next safe
+step" across Runs 334/335, explicitly named as FAZ 6's one remaining item and explicitly scoped as its
+own dedicated subtask (a vehicle, not a creature — different mechanic shape than every prior FAZ 6
+pick). Genuinely uncontended: no other session's claim touches `gameplay/`, and the cart only *reads*
+`state.roadEdges`, never reshapes road topology/geometry, so it carries none of the terrain/road
+merge-conflict risk the priority list's items 1/1.2 do.
+
+- **`gameplay/cartBrain.js`** (new, 379/600 lines): a fully procedural wagon-plus-draught-horse mesh
+  (no asset exists for this — checked the same way Run 326 checked for animal models) bound to one real
+  `world/roads.js` cart-road edge. Ping-pongs along the edge's own terrain-sampled polyline — travel to
+  one end, pause 2.5s, reverse, repeat — wheels visibly spinning (`angular speed = linear speed /
+  wheelRadius`) and smoothly turning at each reversal. `spawnConfiguredCarts` picks the 3 longest
+  eligible cart-road edges (>= 60m, so a cart never stop-turn-stops on a tiny stub) deterministically;
+  each cart's own start position/direction along its edge comes from a seeded `mulberry32` stream.
+  Wired into `gameplay/livingWorldSpawner.js` (new `state.carts`, desktop-only for now — mobile's small
+  streamed radius makes a full-map-scale road edge unreliable to keep in view) and `game3d.js`'s
+  per-frame tick + pagehide dispose, the same three-touch-point pattern NPCs/animals/creatures/dragons
+  already use. `service-worker.js` gained a new `install` listener precaching the module.
+- A cart is deliberately *not* a creature: no wander/flee, no `playerCollider` consultation, no
+  reaction to the player at all — background road traffic on a committed path, not a reactive being.
+  Player-cart collision is a named, open follow-up (same category as `world/villages.js`'s already-
+  recorded house-collision gap from Run 330), logged in a new `QUESTIONS_FOR_OWNER.md` entry alongside
+  the cart's other first-pass engineering defaults (speed, dimensions, count, mobile exclusion).
+- **Oyuncu ne fark eder:** doğrudan, görsel olarak evet — 3 at arabası artık gerçek yol ağının en uzun
+  kenarları boyunca gidip geliyor, tekerlekleri gerçekten dönüyor, her ucunda kısa bir süre duruyor
+  sonra geri dönüyor. FAZ 6'nın adı konmuş son boşluğu (`araba`) kapandı — FAZ 6 artık tam anlamıyla
+  TAMAMLANDI (kurt/at/köpek/kedi/kuş/araba hepsi canlı sahnede).
+- Full DoD sweep (fresh): `node --check` clean on all 5 touched/new files. New dedicated
+  `scripts/checkRun336CartVehicle.js`: initial pose lands exactly on the bound edge's own polyline
+  (interpolated, not stale/default); same `cartId`+seed gives identical start pose across two calls
+  (determinism); over a long simulated run the travelled distance never leaves `[0,total]`, the cart
+  genuinely reaches and reverses at both ends, and pauses at each end for the configured duration; a
+  wheel pivot's rotation visibly changes while moving; `spawnConfiguredCarts` filters by
+  `minEdgeLengthMeters`, picks the longest eligible edges first, and respects the requested count.
+  Live `game3d.html` boot with carts wired in: **0 page errors**. Rendered before/after pixel proof
+  (static camera on the test edge — a cart's own visible signal is horizontal position, not altitude):
+  cart moved from x=35.3 to x=55.3 over 10 simulated seconds, screenshots in
+  `artifacts/run336-cart-vehicle/` clearly show the wagon+horse silhouette displaced along the road.
+  Full sweep: `checkSmokeCheckRegistry.js` OK (522 files within the cap, same 2 pre-existing WARNs —
+  `game3dSmokeChecksMovement.js` 583/600, `worldReferenceSceneShadowAdapter.js` 562/600, neither
+  touched), `checkTechnicalDebt.js` PASS (0 new debt, 0 forbidden markers), `checkSeededRandomPolicy.js`
+  PASS (no `Math.random()`), `checkAssetsManifest.js` OK, `checkServiceWorkerCache.js` OK (178 JS files,
+  `cartBrain.js` now precached), `checkPwaInstallability.js` OK, `terrainSeatSafetyCheck.js` PASS 14/14
+  (unaffected), `roadNetworkSafetyCheck.js` PASS 20.24km (unaffected — read-only consumer). Full
+  `smokeTestGame3D.js` **35/35 PASS**, zero console/page errors, exit code 0.
+- Real perf sample (`collectPerfSnapshot.js run336-cart-vehicle`): 57 draw calls / 904,446 triangles /
+  51 geometries / 29 textures / 347MB heap — well inside the 2500/5M desktop budget. Matches Run
+  332/333's earlier figures rather than Run 334/335's because the default snapshot camera's frustum at
+  spawn doesn't happen to include any of the 3 carts (placed on the network's longest edges, not
+  necessarily near spawn) — same "not every new entity is in the default boot camera's frustum at
+  sample time" pattern Run 334's own perf note already documents for birds; the dedicated check's
+  logic/rendered-proof assertions above verify the cart's real geometry and movement directly.
+- Memory leak checklist: no new global listeners/timers. Each cart's `dispose()` disposes every
+  geometry/material it created (tracked in a local array, same pattern `creatureRig.js` uses);
+  `state.carts.forEach((cart) => cart.dispose())` added to `game3d.js`'s existing `pagehide` teardown
+  block alongside npcs/animals/creatures/dragons.
+- Technical debt: 0 new. `gameplay/cartBrain.js` 379/600 lines (real headroom).
+  `gameplay/livingWorldSpawner.js` 126 -> 135 lines. `game3d.js` 523 -> 533/600 lines (real headroom
+  still left).
+- World Coverage: no terrain/geometry delta (carts are a read-only consumer of the existing road
+  network). World Evolution Report delta: cart count 0 -> 3 (desktop only); ADR count +1 (ADR-0282);
+  yol/orman/kale/NPC/hayvan/creature km/count 0 değişim.
+- ADR-0282 (`DECISIONS.md`). `GOVERNANCE.md`'s FAZ 6 status line updated to TAMAMLANDI in the same
+  commit — every named item (kurt/at/köpek/kedi/kuş/araba) has now shipped.
+- New `QUESTIONS_FOR_OWNER.md` entry: cart speed (2.0 m/s constant, no grade-based slowdown despite
+  Run 56/ADR-0076's own "revisit once a real cart exists" note), dimensions, count (3), and the
+  no-player-collision/desktop-only scope boundaries are this run's own engineering judgment — same
+  "temporary default, no real playtest yet" category every prior feel-constant entry already covers.
+- Risk LOW. Confidence 5/5.
+- Concurrency re-check immediately before commit: `git fetch origin main` re-run — see commit log for
+  result at push time.
+- Next safe step: FAZ 6 is now fully complete. Continue down GOVERNANCE.md §18/§33 from a fresh
+  remote-main/concurrency check next run — reasonable candidates: player-cart collision (the gap this
+  run's own `QUESTIONS_FOR_OWNER.md` entry names), grade-aware cart speed calibration, extending carts
+  to mobile once its own world-coverage radius grows, or the still-open house-collision gap
+  `world/villages.js` (Run 330) already recorded. Terrain/road/Terrain3D geocell work remains claimed
+  by concurrent corner-agent sessions and was not touched here.
