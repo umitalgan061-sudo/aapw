@@ -6,6 +6,37 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 330 itibarıyla (2026-08-13) — Kaleler gerçekten taş göründü, köyler kuruldu
+
+Bu çalıştırmanın en büyük bulgusu bir hataydı: **oyundaki hiçbir kale aslında hiç dokulu görünmemiş.**
+Kod tarafında "kalelere taş dokusu giydirildi" yazıyordu ve 275 çalıştırma boyunca kimse buna itiraz
+etmedi, ama kaleyi ekrana basıp bakınca hepsi koyu, dümdüz siyah siluetlerdi. İki ayrı sebep vardı:
+indirilen kale modellerinin doku koordinatları (UV) hiç yok, bazılarının yüzey normalleri de yok —
+yani dokunun yapışacağı ve ışığın çarpacağı bilgi eksikti. Üstüne bir de renk hatası çıktı: taş rengi
+iki kez karartılıyordu, bu yüzden en açık gri bile çamur rengine dönüyordu. Üçü de düzeltildi; taşın
+parlaklığı 47'den 128'e çıktı (255 üzerinden). Artık duvar örgüsü, kemerler, mazgallar gerçekten
+görünüyor.
+
+Bunun yanında iki gerçek eklenti var. Birincisi: **14 krallık koltuğunun hepsinde artık gerçek bir
+kale var.** Önceden 8'inde vardı, kalan 6'sında kutu+4 silindirden ibaret bir yer tutucu duruyordu —
+ve bu iş uzun süredir "yeni kale modeli lazım" diye bekletiliyordu. Aslında gerekmiyormuş: mevcut
+kaleler farklı açı, farklı boyut ve farklı taş rengiyle o 6 koltuğa da yerleştirildi (Night King'e
+buzul kalesi, Robin Arryn'e kayalık kale, Qarth'a surlu şehir gibi temaya uygun eşleştirmelerle).
+İkincisi: **her kalenin yanında artık bir köy var** — evler, taş basamaklar ve tarla duvarları,
+kalenin bir yanında kümelenmiş halde. Öncesinde kalelerin çevresi bomboş çimendi.
+
+Bir de kalıcı bir kural eklendi: bundan sonra her çalıştırma "bu, projeyi oynanabilir bir oyuna
+yaklaştırıyor mu?" sorusuyla iş seçecek, ve `assets/` klasöründeki hiçbir dosya artık lisans
+belirsizliği yüzünden kullanım dışı bırakılmayacak (senin talimatın). Eksik olan yedi şey açıkça
+listelendi: görev sistemi, kayıt/yükleme, envanter, oyuncunun kendi saldırısı, dolu yerleşimler, ses
+ve menü akışı.
+
+Bilmen gereken iki açık konu: köylerin **çarpışması yok** (şu an evin içinden yürüyebiliyorsun), ve
+6 kalede önceden ev rengini gösteren çatı rengi kayboldu (gerçek kale modellerinde renkli çatı yok) —
+ikisi de sıradaki işler olarak not edildi.
+
+---
+
 ## Run 322 itibarıyla (2026-08-13)
 
 Bu giriş normalde her ~10 çalıştırmada bir gelmesi gerekirken 164 çalıştırma (Run158→322, ~6 gün)
