@@ -11,8 +11,6 @@ on:
       - 'godot/terrain-authoring/geocells/ne/g52_near_detail.mjs'
       - 'scripts/checkNEG52NearDetail.mjs'
       - 'godot/terrain-authoring/scripts/validate_g52_terrain3d_near_detail.gd'
-      - 'godot/terrain-authoring/corner_claims/NE.json'
-      - '.github/workflows/ne-g52-terrain3d-near-detail.yml'
   workflow_dispatch:
 
 permissions:
