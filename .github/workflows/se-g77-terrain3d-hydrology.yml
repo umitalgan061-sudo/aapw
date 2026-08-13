@@ -1,0 +1,116 @@
+name: SE G77 Terrain3D Hydrology
+
+on:
+  push:
+    branches: [agent/kizil-ufuk-g77-terrain3d-hydrology-20260813]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'godot/terrain-authoring/geocells/se/g77_hydrology.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g77_terrain3d_hydrology.gd'
+      - 'scripts/checkSEG77Terrain3DHydrology.mjs'
+      - '.github/workflows/se-g77-terrain3d-hydrology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: se-g77-terrain3d-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+
+      - name: Exact main bounded scope and deterministic source
+        id: base
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD | sort)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(\.github/workflows/se-g77-terrain3d-hydrology\.yml|godot/terrain-authoring/geocells/se/g77_hydrology\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_hydrology\.gd|scripts/checkSEG77Terrain3DHydrology\.mjs)$' | wc -l)" -eq 0
+          TOTAL="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          echo "G77 base-to-head diff lines: $TOTAL"
+          test "$TOTAL" -le 1000
+          node --check godot/terrain-authoring/geocells/se/g77_hydrology.mjs
+          node --check scripts/checkSEG77Terrain3DHydrology.mjs
+          ! grep -F 'Math.random' godot/terrain-authoring/geocells/se/g77_hydrology.mjs
+          node scripts/checkSEG77Terrain3DHydrology.mjs > "$RUNNER_TEMP/g77-source-a.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g77-hydrology-source.json "$RUNNER_TEMP/g77-source-a.json"
+          node scripts/checkSEG77Terrain3DHydrology.mjs > "$RUNNER_TEMP/g77-source-b.log"
+          cmp "$RUNNER_TEMP/g77-source-a.log" "$RUNNER_TEMP/g77-source-b.log"
+          cmp "$RUNNER_TEMP/g77-source-a.json" godot/terrain-authoring/.terrain3d-proof/g77-hydrology-source.json
+          grep -F 'SE_G77_TERRAIN3D_HYDROLOGY_SOURCE_OK' "$RUNNER_TEMP/g77-source-b.log"
+
+      - name: Install pinned Terrain3D
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only
+
+      - name: Godot 4.6.3 real Height Control Color region bake
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o "$RUNNER_TEMP/godot.zip"
+          mkdir -p "$RUNNER_TEMP/godot" && unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+          G77_HYDROLOGY_PROOF_SUFFIX=a "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g77_terrain3d_hydrology.gd | tee "$RUNNER_TEMP/g77-terrain3d-a.log"
+          G77_HYDROLOGY_PROOF_SUFFIX=b "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g77_terrain3d_hydrology.gd | tee "$RUNNER_TEMP/g77-terrain3d-b.log"
+          grep -F 'SE_G77_TERRAIN3D_HYDROLOGY_OK' "$RUNNER_TEMP/g77-terrain3d-a.log"
+          grep -F 'SE_G77_TERRAIN3D_HYDROLOGY_OK' "$RUNNER_TEMP/g77-terrain3d-b.log"
+          cmp godot/terrain-authoring/.terrain3d-proof/g77-hydrology-imported-topdown-a.png godot/terrain-authoring/.terrain3d-proof/g77-hydrology-imported-topdown-b.png
+          "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd
+
+      - name: Install browser regression runtime
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+
+      - name: World settlement road PWA mobile browser regressions
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: se-g77-terrain3d-hydrology-proof
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g77-hydrology-source.json
+            godot/terrain-authoring/.terrain3d-proof/g77-hydrology-imported-topdown-a.png
+            godot/terrain-authoring/.terrain3d-proof/g77-hydrology-imported-topdown-b.png
+
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${{ steps.base.outputs.base_sha }}"
+          test "$(git merge-base HEAD origin/main)" = "${{ steps.base.outputs.base_sha }}"
+          git diff --check "${{ steps.base.outputs.base_sha }}"...HEAD
