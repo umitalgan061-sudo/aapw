@@ -2,20 +2,20 @@
   "corner": "SE",
   "task_name": "Kızıl Ufuk",
   "origin": [7, 7],
-  "current_cell": "G77",
+  "current_cell": "G75",
   "status": "active",
   "layer": "Relief/Height Character",
-  "branch": "agent/kizil-ufuk-g77-terrain3d-relief-r2-20260813",
-  "pr": 460,
-  "last_commit": "640989da69024739848574c78166935370bc6bad",
+  "branch": "agent/kizil-ufuk-g75-relief-c1-20260813",
+  "pr": 301,
+  "last_commit": "3a7fd091ebcdd29689b19b6b58137b046218cee1",
   "quality_before": {
-    "coast_hydrology": "accepted on G77 before this relief unit",
-    "macro_biome": "accepted on G77 before this relief unit",
-    "ownership": "stale G75/PR301 claim did not describe the active G77 relief branch"
+    "coast_hydrology": "96/96 dry canonical centres; Terrain3D proof PR #285",
+    "macro_biome": "continuous owner-map color field; Terrain3D proof PR #288",
+    "relief_attempt": "PR #296 rejected at maxGuardNormalDelta 1.413918 > 0.8 and retired stale/unmerged"
   },
   "quality_after": {
-    "target": "G77 Terrain3D relief with continuous height, normal and LOD seams while preserving map.png geography",
-    "state": "active; do not advance to Rock/Snow until required CI is green"
+    "target": "same G75 height field with normals derived in canonical full-reference metre space; fixed seam threshold retained at 0.8",
+    "state": "pending exact-head CI evidence"
   },
-  "updated_at": "2026-08-13T22:01:00+03:00"
+  "updated_at": "2026-08-13T01:12:00+03:00"
 }
