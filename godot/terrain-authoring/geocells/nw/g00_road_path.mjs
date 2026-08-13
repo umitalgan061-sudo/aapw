@@ -7,6 +7,10 @@
  * substrate is preserved rather than inventing a road.
  */
 import {
+  normalizedReferenceToWorldXZ,
+  worldXZToNormalizedReference,
+} from '../../../../src/3d/world/worldReferenceAlignment.js';
+import {
   G00_ROCK_SNOW_POLICY,
   measureG00RockSnow,
   sampleG00RockSnow,
@@ -43,23 +47,11 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export function normalizedToWorld(normalizedX, normalizedY, mapBounds, metersPerMapUnit) {
-  const mapX = mapBounds.minX + normalizedX * (mapBounds.maxX - mapBounds.minX);
-  const mapY = mapBounds.minY + normalizedY * (mapBounds.maxY - mapBounds.minY);
-  return Object.freeze({
-    x: (mapX - (mapBounds.minX + mapBounds.maxX) * 0.5) * metersPerMapUnit,
-    z: (mapY - (mapBounds.minY + mapBounds.maxY) * 0.5) * metersPerMapUnit,
-  });
+  return normalizedReferenceToWorldXZ(normalizedX, normalizedY, mapBounds, metersPerMapUnit);
 }
 
 export function worldToNormalized(worldX, worldZ, mapBounds, metersPerMapUnit) {
-  const centerX = (mapBounds.minX + mapBounds.maxX) * 0.5;
-  const centerY = (mapBounds.minY + mapBounds.maxY) * 0.5;
-  const mapX = worldX / metersPerMapUnit + centerX;
-  const mapY = worldZ / metersPerMapUnit + centerY;
-  return Object.freeze({
-    x: (mapX - mapBounds.minX) / (mapBounds.maxX - mapBounds.minX),
-    y: (mapY - mapBounds.minY) / (mapBounds.maxY - mapBounds.minY),
-  });
+  return worldXZToNormalizedReference(worldX, worldZ, mapBounds, metersPerMapUnit);
 }
 
 function pointSegmentDistanceMeters(point, a, b) {
