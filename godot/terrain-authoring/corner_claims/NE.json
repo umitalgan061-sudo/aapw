@@ -36,6 +36,12 @@
     "terrain3d_region_persistence": true,
     "terrain3d_lod0_bake": true,
     "terrain3d_topdown_color_roughness_proof": true,
+    "near_visual_proof": true,
+    "far_visual_proof": true,
+    "full_world_topdown_visual_proof": true,
+    "full_world_grid_overlay": false,
+    "full_world_nearest_neighbour": false,
+    "full_world_patch_edge_alpha_zero": true,
     "hterrain_regression_preserved": true,
     "settlement_and_road_safety": true,
     "pwa_mobile_browser_regression": true,
@@ -63,6 +69,6 @@
     "G71": {"pr": 252, "merge_commit": "1e0c1dc35bc3726551d753d1fc1922bf01226fa9", "canonical": "96/96 sea"},
     "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
   },
-  "engine": "merged G70 canonical owner-map sea hydrology -> continuous open-sea substrate macro albedo/roughness -> pinned Terrain3D v1.0.2-stable 257x257 Height+Color import/four-region save/LOD0 bake; HTerrain retained as regression/control",
-  "updated_at": "2026-08-13T11:15:50+03:00"
+  "engine": "merged G70 canonical owner-map sea hydrology -> continuous open-sea substrate macro albedo/roughness -> pinned Terrain3D v1.0.2-stable 257x257 Height+Color import/four-region save/LOD0 bake -> filtered near/far/full-world visual evidence; HTerrain retained as regression/control",
+  "updated_at": "2026-08-13T11:24:00+03:00"
 }
