@@ -16,13 +16,16 @@ jobs:
         with:
           fetch-depth: 0
           ref: ci/sw-g17-hydrology-layer-regression-20260813
-      - name: Remove generic SW claim from Hydrology path trigger and retire workflow
+      - name: Remove generic SW claim trigger and retire workflow
         run: |
           set -euo pipefail
-          python3 -c "from pathlib import Path; p=Path('.github/workflows/sw-g17-terrain3d-hydrology.yml'); t=p.read_text(); old=\"      - 'godot/terrain-authoring/corner_claims/SW.json'\\n\"; assert t.count(old) == 1, t.count(old); p.write_text(t.replace(old, ''))"
+          BEFORE="$(grep -cF \"godot/terrain-authoring/corner_claims/SW.json\" .github/workflows/sw-g17-terrain3d-hydrology.yml)"
+          test "$BEFORE" -eq 2
+          sed -i "/^      - 'godot\/terrain-authoring\/corner_claims\/SW.json'$/d" .github/workflows/sw-g17-terrain3d-hydrology.yml
+          AFTER="$(grep -cF \"godot/terrain-authoring/corner_claims/SW.json\" .github/workflows/sw-g17-terrain3d-hydrology.yml)"
+          test "$AFTER" -eq 1
           git rm .github/workflows/temporary-g17-hydrology-layer-regression-repair.yml
           git diff --check
-          test "$(grep -cF \"godot/terrain-authoring/corner_claims/SW.json\" .github/workflows/sw-g17-terrain3d-hydrology.yml)" -eq 1
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .github/workflows/sw-g17-terrain3d-hydrology.yml
