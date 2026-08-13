@@ -14,7 +14,7 @@
   },
   "quality_after": {
     "layer": "Terrain3D Bake / Three.js Runtime Parity",
-    "state": "phase2_packed_runtime_adapter_pending_exact_head_ci",
+    "state": "phase2_runtime_adapter_plus_visual_proof_pending_exact_head_ci",
     "phase1_run": 31665397412,
     "phase1_state": "success",
     "terrain3d_import": "257x257 height+control+color",
@@ -22,7 +22,9 @@
     "terrain3d_baked_vertices": 263169,
     "runtime_payload": "artifact-derived-33x33-packed",
     "runtime_adoption": "canonical_adapter_shadow_qualified",
+    "visual_proof": "chromium-threejs-near+far+full-world-reference-context",
+    "full_world_completion_claim": false,
     "live_mesh_adoption": "deferred_until_adjacent_cells_prevent_visible_geocell_edge"
   },
-  "updated_at": "2026-08-13T07:39:00+03:00"
+  "updated_at": "2026-08-13T08:05:00+03:00"
 }
