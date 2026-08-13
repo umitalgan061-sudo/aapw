@@ -2,54 +2,50 @@
   "corner": "NE",
   "task_name": "Şafak Kartalı",
   "origin": [7, 0],
-  "current_cell": "G52",
+  "current_cell": "G70",
   "status": "validating",
-  "layer": "Near Detail",
-  "branch": "terrain/ne-g52-near-detail-terrain3d-20260813",
-  "pr": 323,
+  "layer": "Coast/Hydrology",
+  "branch": "terrain/ne-g70-terrain3d-hydrology-r6-20260813",
+  "pr": null,
   "last_commit": null,
-  "previous_layers": {
-    "Coast/Hydrology": {
-      "draft_pr": 284,
-      "canonical_fingerprint": {"water_centres": 84, "land_centres": 12, "boundary_edges": 14}
-    },
-    "Macro Albedo/Biome": {
-      "draft_pr": 289,
-      "integration": "not merged; later merged layers derive canonical owner-map signals independently"
-    },
-    "Relief/Height Character": {
-      "draft_pr": 299,
-      "dedicated_ci": "green on its exact head before concurrent main advanced",
-      "integration": "not merged; later merged layers derive canonical Bone Mountains signals independently"
-    },
-    "Rock/Snow": {
-      "pr": 313,
-      "merged": true,
-      "merge_commit": "67e7e6d565af35029d147214c29b050694f9b0c0",
-      "terrain3d_control_uses_physical_snow_weight": true
-    },
-    "Road/Path": {
-      "pr": 318,
-      "merged": true,
-      "merge_commit": "bfa6dbaf87b7212d59d8db5d87d3439916162c27",
-      "canonical_runtime_result": "no G52 main-road or footpath crossings; zero authored road/path coverage"
-    }
+  "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Historical PR #243 was closed as stale because it never merged and had semantic/HTerrain evidence only; current rules require completing G70 before moving farther inward.",
+  "quality_before": {
+    "base_cells": 96,
+    "water_cells": 96,
+    "land_cells": 0,
+    "sea_cells": 96,
+    "lake_cells": 0,
+    "boundary_edges": 0,
+    "historical_pr": 243,
+    "historical_engine": "semantic QA + HTerrain regression only; no Terrain3D data/import/bake proof"
   },
   "quality_target": {
-    "continuous_owner_map_micro_detail": true,
-    "no_geocell_grid_detail_term": true,
-    "terrain3d_color_roughness_import": true,
-    "preserve_physical_snow_weight_control": true,
-    "preserve_height_semantics": true,
-    "canonical_water_neutral_detail": true,
-    "live_runtime_vegetation_only": true,
-    "canonical_land_filtered_instancing": true,
-    "zero_runtime_trees_is_valid": true,
-    "terrain3d_instancer_roundtrip": true,
+    "canonical_uniform_sea_preserved": true,
+    "invented_coastline_or_land": false,
+    "owner_map_continuous_field": true,
+    "west_guard_neighbor": "G60",
+    "south_guard_neighbor": "G71",
+    "terrain3d_height_import": true,
+    "terrain3d_guard_regions": 4,
     "terrain3d_region_persistence": true,
     "terrain3d_lod0_bake": true,
-    "imported_color_instance_topdown_proof": true
+    "terrain3d_topdown_import_proof": true,
+    "hterrain_regression_preserved": true,
+    "threejs_runtime_unchanged": true
   },
-  "engine": "continuous physical-metre Terrain3D color/roughness micro-detail plus canonical-land-filtered live vegetation.js transforms in Terrain3D instancer; physical Rock/Snow control and height are round-trip preserved; HTerrain/runtime regressions retained",
-  "updated_at": "2026-08-13T06:34:00+03:00"
+  "completed_cells": {
+    "G52": {
+      "seven_layers_qualified": true,
+      "runtime_parity_pr": 335,
+      "merge_commit": "24fa8656f7b585b0cedfe2f471fce705775ab13e",
+      "note": "G52 Terrain3D Bake/Three.js runtime parity merged after exact-head dedicated CI, final exact-main freshness, HTerrain, safety, PWA/mobile/browser gates. This does not imply full-world completion."
+    }
+  },
+  "merged_ne_hydrology_neighbors": {
+    "G60": {"pr": 249, "merge_commit": "b7753f96419aec2bd5f95d194022d097610850a6", "canonical": "96/96 sea"},
+    "G71": {"pr": 252, "merge_commit": "1e0c1dc35bc3726551d753d1fc1922bf01226fa9", "canonical": "96/96 sea"},
+    "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
+  },
+  "engine": "canonical owner-map sea semantics -> continuous guard-backed submerged height field -> pinned Terrain3D v1.0.2-stable 257x257 RF import/regions/save/LOD0 bake; HTerrain retained as regression/control",
+  "updated_at": "2026-08-13T10:15:00+03:00"
 }
