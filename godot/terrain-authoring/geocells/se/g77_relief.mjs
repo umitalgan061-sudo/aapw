@@ -15,6 +15,7 @@ export const G77_RELIEF_POLICY = Object.freeze({
   worldWidthMeters: FULL_REFERENCE_EXTENT_PLAN.widthMeters,
   worldDepthMeters: FULL_REFERENCE_EXTENT_PLAN.depthMeters,
   biomeReliefMeters: 18, chainReliefMeters: 52, chainRadiusNormalized: 0.06,
+  coastalClearanceMaskRadius: 4, coastalClearanceTaps: 5,
   marineCharacterMeters: 1.25,
 });
 
@@ -55,11 +56,26 @@ function sampleBiomeElevationSignal(nx, ny) {
   return clamp(Math.max(strongest, total > 0 ? weighted / total : 0), 0, 1);
 }
 
+function sampleCoastalLandFactor(nx, ny, water) {
+  const rawDepth = clamp01((0.5 - water) / 0.5);
+  if (rawDepth <= 0) return 0;
+  const radius = G77_RELIEF_POLICY.coastalClearanceMaskRadius;
+  const taps = G77_RELIEF_POLICY.coastalClearanceTaps;
+  let clearance = 0;
+  for (let iy = 0; iy < taps; iy += 1) for (let ix = 0; ix < taps; ix += 1) {
+    const ox = ((ix / (taps - 1)) * 2 - 1) * radius / 96;
+    const oy = ((iy / (taps - 1)) * 2 - 1) * radius / 64;
+    clearance += clamp01((0.5 - sampleG77WaterConfidence(clamp01(nx + ox), clamp01(ny + oy))) / 0.5);
+  }
+  const meanClearance = clearance / (taps * taps);
+  return rawDepth * meanClearance * meanClearance;
+}
+
 export function sampleG77ReliefHeight(nx, ny) {
   const x = clamp01(nx), y = clamp01(ny);
   const water = sampleG77WaterConfidence(x, y);
   const hydrology = sampleG77HydrologyHeight(x, y);
-  const landFactor = 1 - smoothstep(0.18, 0.5, water);
+  const landFactor = sampleCoastalLandFactor(x, y, water);
   const waterFactor = smoothstep(0.5, 0.9, water);
   const biome = sampleBiomeElevationSignal(x, y);
   const chain = sampleReliefChainInfluence(x, y);
