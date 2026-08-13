@@ -1,0 +1,76 @@
+name: SE G77 Terrain3D Relief Exact Main Core
+on:
+  push:
+    branches: [agent/kizil-ufuk-g77-terrain3d-relief-r1-20260813]
+  pull_request:
+    branches: [main]
+permissions: { contents: read }
+concurrency:
+  group: se-g77-relief-core-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main bounded scope and quota
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_relief\.mjs|scripts/checkSEG77Relief(Continuity|Terrain3DEvidence|VisualEvidence)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_relief(_reload|_grid|_seam|_lod)?\.gd|\.github/workflows/se-g77-terrain3d-relief-(core|regression)\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 12
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1} END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2} END{print s+0}')"; echo "G77 relief diff lines: $((A+D))"; test $((A+D)) -le 1000
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py godot/terrain-authoring/addons/zylann.hterrain
+      - name: Prior G77 layers and deterministic relief source
+        run: |
+          set -euo pipefail
+          node scripts/checkSEG77Terrain3DHydrology.mjs | tee /tmp/hydro.log; grep -F SE_G77_TERRAIN3D_HYDROLOGY_SOURCE_OK /tmp/hydro.log
+          node scripts/checkSEG77Biome.mjs --write-probe | tee /tmp/biome.log; grep -F SE_G77_BIOME_OK /tmp/biome.log
+          for f in scripts/checkSEG77Relief.mjs scripts/checkSEG77ReliefContinuity.mjs scripts/checkSEG77ReliefTerrain3DEvidence.mjs scripts/checkSEG77ReliefVisualEvidence.mjs; do node --check "$f"; done
+          mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node scripts/checkSEG77Relief.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g77-relief-probe.json | tee /tmp/source-a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g77-relief-probe.json /tmp/source-a.json
+          node scripts/checkSEG77Relief.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g77-relief-probe.json | tee /tmp/source-b.log
+          cmp /tmp/source-a.log /tmp/source-b.log; cmp /tmp/source-a.json godot/terrain-authoring/.terrain3d-proof/g77-relief-probe.json
+          node scripts/checkSEG77ReliefContinuity.mjs | tee /tmp/continuity-a.log
+          node scripts/checkSEG77ReliefContinuity.mjs | tee /tmp/continuity-b.log
+          cmp /tmp/continuity-a.log /tmp/continuity-b.log; grep -F SE_G77_RELIEF_CONTINUITY_OK /tmp/continuity-a.log
+      - name: Install pinned Terrain3D and Godot 4.6.3
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/install.log
+          grep -F TERRAIN3D_INSTALL_OK /tmp/install.log
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee /tmp/verify.log
+          grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true' /tmp/verify.log
+          curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/godot.zip
+          mkdir -p /tmp/godot; unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT_BIN="$(find /tmp/godot -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; test -n "$GODOT_BIN"; chmod +x "$GODOT_BIN"; "$GODOT_BIN" --version | grep -F 4.6.3; echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+      - name: Double Terrain3D import persistence grid seam and LOD proof
+        run: |
+          set -euo pipefail
+          for suffix in a b; do
+            G77_RELIEF_PROOF_SUFFIX="$suffix" timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g77_terrain3d_relief.gd | tee "/tmp/import-$suffix.log"
+            cp "godot/terrain-authoring/.terrain3d-proof/g77-relief-imported-topdown-$suffix.png" "/tmp/preview-$suffix.png"
+            G77_RELIEF_PROOF_SUFFIX="$suffix" timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g77_terrain3d_relief_reload.gd | tee "/tmp/reload-$suffix.log"
+            timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g77_terrain3d_relief_grid.gd | tee "/tmp/grid-$suffix.log"
+            timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g77_terrain3d_relief_seam.gd | tee "/tmp/seam-$suffix.log"
+            timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g77_terrain3d_relief_lod.gd | tee "/tmp/lod-$suffix.log"
+          done
+          node scripts/checkSEG77ReliefTerrain3DEvidence.mjs --probe=godot/terrain-authoring/.terrain3d-proof/g77-relief-probe.json --import-a=/tmp/import-a.log --import-b=/tmp/import-b.log --reload-a=/tmp/reload-a.log --reload-b=/tmp/reload-b.log --grid-a=/tmp/grid-a.log --grid-b=/tmp/grid-b.log --seam-a=/tmp/seam-a.log --seam-b=/tmp/seam-b.log --lod-a=/tmp/lod-a.log --lod-b=/tmp/lod-b.log --preview-a=/tmp/preview-a.png --preview-b=/tmp/preview-b.png --out=godot/terrain-authoring/.terrain3d-proof/g77-relief-evidence-manifest.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: se-g77-relief-core-proof
+          include-hidden-files: true
+          path: godot/terrain-authoring/.terrain3d-proof/
+      - name: Final exact-main freshness
+        run: git fetch origin main && test "$(git rev-parse origin/main)" = "$BASE_SHA"
