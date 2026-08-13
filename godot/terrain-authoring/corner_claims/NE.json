@@ -6,7 +6,7 @@
   "status": "validating",
   "layer": "Coast/Hydrology",
   "branch": "terrain/ne-g70-terrain3d-hydrology-r6-20260813",
-  "pr": null,
+  "pr": 361,
   "last_commit": null,
   "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Historical PR #243 was closed as stale because it never merged and had semantic/HTerrain evidence only; current rules require completing G70 before moving farther inward.",
   "quality_before": {
