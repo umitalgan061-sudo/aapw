@@ -1,0 +1,162 @@
+name: SW G17 Terrain3D Hydrology
+
+on:
+  push:
+    branches:
+      - terrain/sw-g17-terrain3d-hydrology-20260813
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/sw/g17_hydrology.mjs'
+      - 'scripts/checkSWG17Hydrology.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd'
+      - 'godot/terrain-authoring/corner_claims/SW.json'
+      - '.github/workflows/sw-g17-terrain3d-hydrology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sw-g17-terrain3d-hydrology-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main and bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test -n "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g17_hydrology.mjs|scripts/checkSWG17Hydrology.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g17-terrain3d-hydrology.yml)$' | wc -l)" -eq 0
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/project.godot
+
+      - name: Deterministic G17 canonical open-sea source twice
+        run: |
+          set -euo pipefail
+          mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node --check godot/terrain-authoring/geocells/sw/g17_hydrology.mjs
+          node --check scripts/checkSWG17Hydrology.mjs
+          PROOF='godot/terrain-authoring/.terrain3d-proof/g17-hydrology-source.json'
+          node scripts/checkSWG17Hydrology.mjs --out="$PROOF" | tee "$RUNNER_TEMP/g17-source-a.log"
+          cp "$PROOF" "$RUNNER_TEMP/g17-source-a.json"
+          node scripts/checkSWG17Hydrology.mjs --out="$PROOF" | tee "$RUNNER_TEMP/g17-source-b.log"
+          cp "$PROOF" "$RUNNER_TEMP/g17-source-b.json"
+          cmp "$RUNNER_TEMP/g17-source-a.log" "$RUNNER_TEMP/g17-source-b.log"
+          cmp "$RUNNER_TEMP/g17-source-a.json" "$RUNNER_TEMP/g17-source-b.json"
+          grep -F 'SW_G17_HYDROLOGY_SOURCE_OK' "$RUNNER_TEMP/g17-source-a.log"
+
+      - name: Install pinned official Terrain3D
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee "$RUNNER_TEMP/terrain3d-install.log"
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/terrain3d-verify.log"
+          grep -F 'TERRAIN3D_INSTALL_OK' "$RUNNER_TEMP/terrain3d-install.log"
+          grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true' "$RUNNER_TEMP/terrain3d-verify.log"
+          grep -F 'version="1.0.2"' godot/terrain-authoring/addons/terrain_3d/plugin.cfg
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | grep -F '4.6.3'
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Real Terrain3D G17 open-sea proof twice
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 2>&1 | tee "$RUNNER_TEMP/g17-editor.log"
+          if grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' "$RUNNER_TEMP/g17-editor.log"; then
+            echo 'Terrain3D emitted a load error.' >&2
+            exit 1
+          fi
+          G17_HYDROLOGY_PROOF_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_hydrology.gd 2>&1 | tee "$RUNNER_TEMP/g17-bake-a.log"
+          G17_HYDROLOGY_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_hydrology.gd 2>&1 | tee "$RUNNER_TEMP/g17-bake-b.log"
+          grep -F 'SW_G17_TERRAIN3D_HYDROLOGY_OK' "$RUNNER_TEMP/g17-bake-a.log"
+          grep -F 'SW_G17_TERRAIN3D_HYDROLOGY_OK' "$RUNNER_TEMP/g17-bake-b.log"
+          grep -F 'G17_TERRAIN3D_HYDROLOGY_METRICS=' "$RUNNER_TEMP/g17-bake-a.log" | tail -1 > "$RUNNER_TEMP/g17-metrics-a.txt"
+          grep -F 'G17_TERRAIN3D_HYDROLOGY_METRICS=' "$RUNNER_TEMP/g17-bake-b.log" | tail -1 > "$RUNNER_TEMP/g17-metrics-b.txt"
+          cmp "$RUNNER_TEMP/g17-metrics-a.txt" "$RUNNER_TEMP/g17-metrics-b.txt"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd 2>&1 | tee "$RUNNER_TEMP/hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: World settlement road PWA mobile browser regressions
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sw-g17-terrain3d-hydrology-proof
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g17-hydrology-source.json
+            ${{ runner.temp }}/g17-source-a.log
+            ${{ runner.temp }}/g17-source-b.log
+            ${{ runner.temp }}/terrain3d-install.log
+            ${{ runner.temp }}/terrain3d-verify.log
+            ${{ runner.temp }}/g17-editor.log
+            ${{ runner.temp }}/g17-bake-a.log
+            ${{ runner.temp }}/g17-bake-b.log
+            ${{ runner.temp }}/g17-metrics-a.txt
+            ${{ runner.temp }}/g17-metrics-b.txt
+            ${{ runner.temp }}/hterrain.log
