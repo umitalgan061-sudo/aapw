@@ -1,0 +1,53 @@
+name: SE G65 Terrain3D Hydrology R3
+on:
+  push:
+    branches: [agent/kizil-ufuk-g65-hydrology-r3-20260813]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+env:
+  BASE_SHA: f6c7d47cba333b66b96ed6d0078a1c0f51c1c4a0
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - name: Exact main and source fidelity
+        run: |
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git diff --name-only "$BASE_SHA"...HEAD | sort | tr '\n' ' ')" = ".github/workflows/se-g65-terrain3d-hydrology-r3.yml godot/terrain-authoring/geocells/se/g65_hydrology.mjs godot/terrain-authoring/scripts/validate_g65_terrain3d_hydrology.gd scripts/checkSEG65Hydrology.mjs "
+          node --check godot/terrain-authoring/geocells/se/g65_hydrology.mjs
+          node --check scripts/checkSEG65Hydrology.mjs
+          node scripts/checkSEG65Hydrology.mjs
+      - name: Install pinned Terrain3D
+        run: |
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only
+      - name: Godot 4.6.3 and real Terrain3D proof
+        run: |
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o "$RUNNER_TEMP/godot.zip"
+          mkdir -p "$RUNNER_TEMP/godot" && unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+          G65_HYDROLOGY_PROOF_SUFFIX=a "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g65_terrain3d_hydrology.gd
+          G65_HYDROLOGY_PROOF_SUFFIX=b "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g65_terrain3d_hydrology.gd
+          "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd
+      - name: World PWA regression and final freshness
+        run: |
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSettlementTerrainSafety.js
+          node scripts/checkRoadNetworkSafety.js
+          node scripts/checkMobilePerformance.js
+          node scripts/checkTechnicalDebt.js
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
