@@ -1,6 +1,7 @@
 extends SceneTree
 
 const PROBE_PATH := "res://.terrain3d-proof/g00-biome-probe.json"
+const PREVIEW_PATH := "res://.terrain3d-proof/g00-biome-color.png"
 const EXPECTED_POLICY := "buzul-muhafizi-g00-terrain3d-biome-2026-08-13-v1"
 const EXPECTED_SOURCE_SHA := "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1"
 const MAX_COLOR_ERROR := 0.012
@@ -68,7 +69,7 @@ func _run() -> void:
 	var height_image := _build_height_image(256)
 	var color_image := _build_color_image(probe)
 	terrain.data.import_images([height_image, null, color_image], Vector3.ZERO, 0.0, 1.0)
-	if not _require(terrain.data.get_region_count() >= 1, "Terrain3D biome import produced no real region"): return
+	if not _require(terrain.data.get_region_count() == 1, "Terrain3D biome import must produce exactly one 256 region"): return
 
 	var max_error := 0.0
 	var sample_count := 0
@@ -79,6 +80,13 @@ func _run() -> void:
 			max_error = maxf(max_error, maxf(absf(actual.r - expected.r), maxf(absf(actual.g - expected.g), absf(actual.b - expected.b))))
 			sample_count += 1
 	if not _require(max_error <= MAX_COLOR_ERROR, "Terrain3D color-map roundtrip exceeded tolerance"): return
+
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.terrain3d-proof"))
+	var export_error := terrain.data.export_image(PREVIEW_PATH, Terrain3DRegion.TYPE_COLOR)
+	if not _require(export_error == OK, "Terrain3D color-map export failed"): return
+	if not _require(FileAccess.file_exists(PREVIEW_PATH), "Terrain3D color-map visual proof missing"): return
+	var preview_bytes := FileAccess.get_file_as_bytes(PREVIEW_PATH).size()
+	if not _require(preview_bytes > 0, "Terrain3D color-map visual proof is empty"): return
 
 	var baked_mesh: Mesh = terrain.bake_mesh(0)
 	if not _require(baked_mesh != null and baked_mesh.get_surface_count() > 0, "Terrain3D LOD0 biome bake returned no mesh"): return
@@ -114,6 +122,7 @@ func _run() -> void:
 		"bakedVertices": vertices.size(),
 		"savedRegionFiles": saved_files,
 		"savedRegionBytes": saved_bytes,
+		"visualProofBytes": preview_bytes,
 	}))
 	print("NW_G00_TERRAIN3D_BIOME_VALIDATION_OK")
 	quit(0)
