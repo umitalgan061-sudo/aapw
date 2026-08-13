@@ -13,6 +13,7 @@ on:
       - 'scripts/devServerHelper.js'
       - 'src/3d/editor/EditorGamePatchPreviewGateSafe.js'
       - 'src/3d/editor/EditorEditModeEnvironment.js'
+      - 'service-worker.js'
       - '.github/workflows/live-four-agent-terrain.yml'
   workflow_dispatch:
 
@@ -47,11 +48,11 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(scripts/liveFourAgentTerrain\.mjs|scripts/checkLiveFourAgentTerrain\.mjs|scripts/devServerHelper\.js|src/3d/editor/EditorGamePatchPreviewGateSafe\.js|src/3d/editor/EditorEditModeEnvironment\.js|\.github/workflows/live-four-agent-terrain\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(scripts/liveFourAgentTerrain\.mjs|scripts/checkLiveFourAgentTerrain\.mjs|scripts/devServerHelper\.js|src/3d/editor/EditorGamePatchPreviewGateSafe\.js|src/3d/editor/EditorEditModeEnvironment\.js|service-worker\.js|\.github/workflows/live-four-agent-terrain\.yml)$' | wc -l)" -eq 0
           test "$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0}')" -le 500
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Syntax and source provenance
+      - name: Syntax source provenance and offline shell
         run: |
           set -euo pipefail
           node --check scripts/liveFourAgentTerrain.mjs
@@ -60,11 +61,15 @@ jobs:
           node --check scripts/runtime/g65Terrain3dRuntimeGrid.mjs
           node --check src/3d/editor/EditorGamePatchPreviewGateSafe.js
           node --check src/3d/editor/EditorEditModeEnvironment.js
+          node --check service-worker.js
           ! grep -F 'Math.random' scripts/liveFourAgentTerrain.mjs
           grep -F "'.mjs': 'text/javascript; charset=utf-8'" scripts/devServerHelper.js
           grep -F 'sampleG65Terrain3dRuntimeGridNormalized' scripts/liveFourAgentTerrain.mjs
           grep -F 'Terrain3D runtime grid' scripts/liveFourAgentTerrain.mjs
           grep -F '9180429652' scripts/checkLiveFourAgentTerrain.mjs
+          grep -F "GAME3D_SHELL_FILES.push('./scripts/liveFourAgentTerrain.mjs')" service-worker.js
+          grep -F "GAME3D_SHELL_FILES.push('./scripts/runtime/g65Terrain3dRuntimeGrid.mjs')" service-worker.js
+          grep -F "GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/se/g65_hydrology.mjs')" service-worker.js
           for agent in 'Buzul Muhafızı' 'Şafak Kartalı' 'Günbatımı Ustası' 'Kızıl Ufuk'; do grep -F "$agent" scripts/liveFourAgentTerrain.mjs; done
           for cell in G00 G07 G17 G52 G65 G70 G75; do grep -F "$cell" scripts/liveFourAgentTerrain.mjs; done
 
