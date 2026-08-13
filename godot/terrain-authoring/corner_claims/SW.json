@@ -5,8 +5,8 @@
   "current_cell": "G17",
   "status": "in_progress_exact_main",
   "branch": "terrain/sw-g17-terrain3d-hydrology-20260813",
-  "pr": null,
-  "last_commit": "953799bebe63fcbde4a8e1c3bce13a5e5ba2a4c5",
+  "pr": 352,
+  "last_commit": "1e8b854720a3aae8427b2b35be9212c908b9697e",
   "quality_before": {
     "cell": "G07",
     "layer": "Terrain3D Bake / Three.js Runtime Parity",
@@ -35,5 +35,5 @@
     "relief_claim": false,
     "full_world_completion_claim": false
   },
-  "updated_at": "2026-08-13T09:26:51+03:00"
+  "updated_at": "2026-08-13T09:30:00+03:00"
 }
