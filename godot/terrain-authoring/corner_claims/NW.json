@@ -6,7 +6,7 @@
   "layer": "Terrain3D Bake/Three.js runtime parity",
   "status": "validating",
   "branch": "terrain/nw-g11-runtime-parity-20260813-r6",
-  "pr": null,
+  "pr": 319,
   "base_sha": "67e7e6d565af35029d147214c29b050694f9b0c0",
   "terrain3d": {
     "version": "1.0.2",
@@ -27,6 +27,8 @@
     "terrain3d_region_persistence_required": true,
     "terrain3d_lod0_bake_required": true,
     "terrain3d_fractional_boundary_probe_required": true,
+    "canonical_bake_byte_determinism_required": true,
+    "resource_serialized_byte_count_is_diagnostic_only": true,
     "hterrain_regression_required": true,
     "pwa_cache_regression_required": true
   },
@@ -48,7 +50,22 @@
     "state": "locally_validated_direct_to_main",
     "note": "Preserve the concurrent G00 hydrology implementation and metrics; its own main claim states Godot/Playwright CI was not run, and one hydrology layer does not supersede G11's already-active seventh-layer parity proof."
   },
-  "r6_change": "Republish the boundary-safe G11 parity proof directly on current main after the unrelated NE G52 Rock/Snow merge. Keep strict 0.01m/0.0025m limits, 257x257 Terrain3D guard regions, cross-region fractional probes, and the PWA-cached canonical terrain adapter integration.",
-  "next": "Keep G11 active until exact-head CI proves Terrain3D import/roundtrip/fractional continuity/persist/LOD0 bake, Three.js adapter parity, HTerrain/world/PWA safety and freshness. Near + far + full-world top-down map.png visual parity is still required before this seventh layer is complete.",
-  "updated_at": "2026-08-13T06:12:00+03:00"
+  "r6_first_ci_observation": {
+    "head": "c503a480d1c2762571dc5deb28608b4b83babf3a",
+    "terrain3d_real_pipeline": "passed twice before the determinism cmp",
+    "region_count": 4,
+    "boundary_guard_regions": 3,
+    "baked_surfaces": 1,
+    "baked_vertices": 263169,
+    "max_roundtrip_error_m": 0.000000950157264867357,
+    "mean_roundtrip_error_m": 0.000000246357987133821,
+    "max_continuous_probe_error_m": 0.00000240219790015317,
+    "persisted_region_files_each_pass": 4,
+    "serialized_bytes_pass_a": 254160,
+    "serialized_bytes_pass_b": 254159,
+    "failure": "canonical bake JSON incorrectly included incidental persisted .res total byte count, causing whole-file cmp to fail by one serialized byte despite identical Terrain3D height/bake metrics"
+  },
+  "r6_change": "Keep strict 0.01m/0.0025m height limits, 257x257 Terrain3D guard regions and two real persistence/bake passes. Separate incidental Terrain3D .res serialized byte count from the canonical deterministic bake JSON: persistence still requires at least four non-empty real region resources, while the byte-identical runtime payload contains only deterministic geometry/height/provenance fields.",
+  "next": "Keep G11 active until exact-head CI proves canonical bake determinism, Terrain3D import/roundtrip/fractional continuity/persist/LOD0 bake, Three.js adapter parity, HTerrain/world/PWA safety and freshness. Near + far + full-world top-down map.png visual parity is still required before this seventh layer is complete.",
+  "updated_at": "2026-08-13T06:18:00+03:00"
 }

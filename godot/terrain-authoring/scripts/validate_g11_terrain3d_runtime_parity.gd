@@ -173,15 +173,20 @@ func _run() -> void:
 	var suffix := OS.get_environment("G11_PARITY_PROOF_SUFFIX")
 	if suffix.is_empty():
 		suffix = "default"
-	var save_dir := "user://g11-runtime-parity-regions-r4-" + suffix
+	var save_dir := "user://g11-runtime-parity-regions-r6-" + suffix
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(save_dir))
 	terrain.data.save_directory(save_dir)
 	var saved := _saved_region_evidence(save_dir)
-	if not _require(int(saved["files"]) >= 4 and int(saved["bytes"]) > 0, "guard region persistence produced fewer than four non-empty resources"):
+	var persistence_non_empty := int(saved["files"]) >= 4 and int(saved["bytes"]) > 0
+	if not _require(persistence_non_empty, "guard region persistence produced fewer than four non-empty resources"):
 		return
 	if not _require(_write_preview(terrain, min_source, max_source), "imported top-down preview contains non-finite Terrain3D height"):
 		return
 
+	# The bake JSON is the canonical deterministic runtime payload. Terrain3D .res
+	# serialization remains mandatory and non-empty above, but its total byte count
+	# is diagnostic only: resource internals may differ by incidental bytes between
+	# equivalent saves and must not poison height/bake determinism.
 	var bake := {
 		"schema": "westeros-g11-terrain3d-bake-v1",
 		"width": SOURCE_SIZE,
@@ -200,7 +205,7 @@ func _run() -> void:
 		"bakedSurfaces": mesh.get_surface_count(),
 		"bakedVertices": vertices.size(),
 		"savedRegionFiles": int(saved["files"]),
-		"savedRegionBytes": int(saved["bytes"]),
+		"regionPersistenceNonEmpty": persistence_non_empty,
 		"maxRoundtripError": max_roundtrip,
 		"meanRoundtripError": mean_roundtrip,
 		"maxContinuousProbeError": max_continuous_probe,
@@ -211,7 +216,9 @@ func _run() -> void:
 	if not _require(file != null, "could not open bake output"):
 		return
 	file.store_string(JSON.stringify(bake)); file.close()
-	var metrics := bake.duplicate(); metrics["heights"] = []
+	var metrics := bake.duplicate()
+	metrics["heights"] = []
+	metrics["savedRegionBytesObserved"] = int(saved["bytes"])
 	print("G11_TERRAIN3D_RUNTIME_BAKE_METRICS=" + JSON.stringify(metrics))
 	print("NW_G11_TERRAIN3D_RUNTIME_BAKE_OK")
 	quit(0)

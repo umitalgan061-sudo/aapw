@@ -47,7 +47,7 @@ async function verify() {
   if (!Number.isFinite(bake.meanRoundtripError) || bake.meanRoundtripError > 0.0025) throw new Error(`Terrain3D roundtrip mean error ${bake.meanRoundtripError}`);
   if (!Number.isFinite(bake.maxContinuousProbeError) || bake.maxContinuousProbeError > 0.01) throw new Error(`Terrain3D continuous probe error ${bake.maxContinuousProbeError}`);
   if (bake.importWidth !== 257 || bake.importHeight !== 257 || bake.sourceVertexStride !== 4) throw new Error('Terrain3D guard-backed import geometry mismatch');
-  if (!(bake.regionCount >= 4 && bake.boundaryGuardRegions >= 3 && bake.bakedSurfaces >= 1 && bake.bakedVertices > 0 && bake.savedRegionBytes > 0)) throw new Error('Terrain3D provenance incomplete');
+  if (!(bake.regionCount >= 4 && bake.boundaryGuardRegions >= 3 && bake.bakedSurfaces >= 1 && bake.bakedVertices > 0 && bake.savedRegionFiles >= 4 && bake.regionPersistenceNonEmpty === true)) throw new Error('Terrain3D provenance incomplete');
   const { createG11Terrain3DBakeSampler } = await import('../src/3d/world/worldReferenceTerrainAdapter.js');
   const sampleBake = createG11Terrain3DBakeSampler(bake);
   let runtimeMax = 0, runtimeSum = 0;
