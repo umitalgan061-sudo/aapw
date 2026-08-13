@@ -59,7 +59,8 @@ jobs:
             .github/workflows/ne-g52-terrain3d-rock-snow.yml \
             .github/workflows/ne-g52-terrain3d-road-path.yml \
             .github/workflows/ne-g52-terrain3d-near-detail.yml; do
-            ! grep -F "godot/terrain-authoring/corner_claims/NE.json" "$f"
+            PR_BLOCK="$(awk '/^  pull_request:/{inside=1} /^  workflow_dispatch:/{inside=0} inside{print}' "$f")"
+            ! grep -F "godot/terrain-authoring/corner_claims/NE.json" <<< "$PR_BLOCK"
           done
 
       - name: Syntax and deterministic canonical G70 source twice
