@@ -63,7 +63,10 @@ export function sampleG00RockSnow(normalizedX, normalizedY) {
   const nx = clamp(normalizedX);
   const ny = clamp(normalizedY);
   const water = sampleG00CanonicalWaterConfidence(nx, ny);
-  const landFactor = 1 - smoothstep(0.38, 0.62, water);
+  // Canonical water confidence is already bilinearly filtered in continuous
+  // owner-map space. Using it directly avoids re-steepening the coastline with
+  // a second smoothstep while preserving exact 0/1 canonical cell centres.
+  const landFactor = 1 - water;
   const heightMeters = sampleG00ReliefHeight(nx, ny);
   const slope = sampleSlopeExposure(nx, ny);
   const cold = sampleReferenceInfluence(nx, ny, COLD_ZONE);
