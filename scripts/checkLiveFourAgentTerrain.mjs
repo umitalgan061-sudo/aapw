@@ -59,13 +59,10 @@ try {
 
   const game = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   await game.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  const gameLink = game.locator('a.tb-btn[href="game3d.html"]');
-  await gameLink.waitFor({ state: 'attached', timeout: 30000 });
-  assert.equal(await gameLink.getAttribute('href'), 'game3d.html');
-  await Promise.all([
-    game.waitForURL(/\/game3d\.html(?:[?#].*)?$/, { timeout: 30000 }),
-    gameLink.click({ force: true }),
-  ]);
+  const href = await game.evaluate(() => document.querySelector('a.tb-btn[href="game3d.html"]')?.getAttribute('href'));
+  assert.equal(href, 'game3d.html');
+  await game.evaluate(() => document.querySelector('a.tb-btn[href="game3d.html"]')?.click());
+  await game.waitForURL(/\/game3d\.html$/, { timeout: 30000 });
   await game.waitForFunction((id) => document.body.dataset.liveFourAgentTerrain === id, policyId, { timeout: 30000 });
   const gameProof = await game.evaluate(async ({ id, cellCenters }) => {
     const THREE = await import('three');
@@ -94,7 +91,7 @@ try {
     assert.ok(mesh.maxDelta > 0.01, `${mesh.cell} mesh did not measurably change`);
   }
 
-  console.log('LIVE_FOUR_AGENT_TERRAIN_PROOF=' + JSON.stringify({ editor: editorProof, game: gameProof }));
+  console.log('LIVE_FOUR_AGENT_TERRAIN_PROOF=' + JSON.stringify({ editor: editorProof, game: { ...gameProof, routeHref: href } }));
   console.log('LIVE_FOUR_AGENT_TERRAIN_OK');
 } finally {
   await browser.close();
