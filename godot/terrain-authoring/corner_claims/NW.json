@@ -6,7 +6,7 @@
   "status": "validating",
   "layer": "Terrain3D Bake/Three.js runtime parity",
   "branch": "terrain/nw-g11-runtime-parity-20260813-r2",
-  "pr": null,
+  "pr": 306,
   "exact_main_base": "3262053ed1881c95a03d3436a024de1eaedb4271",
   "previous_layers": {
     "Coast/Hydrology": { "merged_pr": 266, "water_centres": 38, "land_centres": 58, "boundary_edges": 39 },
@@ -27,5 +27,5 @@
     "grid_visual_policy": "GeoCell is address only; runtime sampling is bilinear and continuous"
   },
   "engine": "pinned Terrain3D v1.0.2-stable import/region/save/LOD0 bake -> deterministic Three.js bake adapter; HTerrain preserved",
-  "updated_at": "2026-08-13T04:00:00+03:00"
+  "updated_at": "2026-08-13T04:02:00+03:00"
 }
