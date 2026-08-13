@@ -6,7 +6,7 @@
   "status": "validating",
   "layer": "Relief/Height Character",
   "branch": "terrain/ne-g70-terrain3d-relief-r2-exact-20260813",
-  "pr": null,
+  "pr": 457,
   "last_commit": null,
   "selection_reason": "G70 Coast/Hydrology merged in PR #361 and Macro Albedo/Biome merged in PR #455. Strict same-cell order therefore advances to Relief/Height Character. Canonical G70 is 96/96 open sea and its merged core plus G60/G71 guards resolve to the same submerged height, so R2 physically qualifies that seafloor through Terrain3D without inventing submarine ridges, coastline, islands or GeoCell-shaped relief absent from map.png.",
   "quality_before": {
@@ -57,5 +57,5 @@
   },
   "engine": "merged G70 Hydrology + merged Macro Biome height provenance -> zero synthetic bathymetric delta for canonical open sea -> pinned Terrain3D v1.0.2-stable 257x257 Height import/regions/save/round-trip/255-256 seams/LOD0 bake twice; near+far+full-world no-invented-relief proof; HTerrain retained as regression/control",
   "exact_base": "a8bf02108a04012aaa2e7dd0c636f5f95980dfc9",
-  "updated_at": "2026-08-13T19:41:00+03:00"
+  "updated_at": "2026-08-13T19:43:00+03:00"
 }
