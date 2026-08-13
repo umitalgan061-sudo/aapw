@@ -7,6 +7,7 @@ import devServerHelper from './devServerHelper.js';
 const { loadPlaywright, startStaticServer } = devServerHelper;
 const OUT_ARG = process.argv.find((arg) => arg.startsWith('--out-dir='));
 const OUT_DIR = path.resolve(OUT_ARG ? OUT_ARG.slice('--out-dir='.length) : 'artifacts/sw-g07-runtime-visual');
+const MAP_PATH = path.resolve('resimler/map.png');
 
 function fail(message) {
   console.error(`[checkSWG07RuntimeVisualParity] FAIL: ${message}`);
@@ -21,6 +22,8 @@ function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+requireCondition(fs.existsSync(MAP_PATH), 'resimler/map.png is required');
+const mapSha256 = sha256(fs.readFileSync(MAP_PATH));
 const playwright = loadPlaywright();
 requireCondition(Boolean(playwright), 'Playwright is required');
 fs.mkdirSync(OUT_DIR, { recursive: true });
@@ -43,6 +46,9 @@ try {
       G07_TERRAIN3D_RUNTIME_BAKE,
       sampleG07Terrain3dBakeNormalized,
     } = await import('/src/3d/world/g07Terrain3dBake.js');
+    const { sampleCanonicalHydrologyTerrainTarget } = await import('/src/3d/world/worldReferenceTerrainAdapter.js');
+    const { normalizedReferenceToMapCanvas } = await import('/src/3d/world/worldReferenceAlignment.js');
+    const { mapCanvasToPlannedWorldXZ } = await import('/src/3d/world/worldReferenceMigrationPlan.js');
 
     const canvas = document.getElementById('terrain-proof');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -52,17 +58,26 @@ try {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x071722);
-    scene.fog = new THREE.Fog(0x071722, 1200, 2500);
     const grid = G07_TERRAIN3D_RUNTIME_BAKE.gridSize;
     const bounds = G07_TERRAIN3D_RUNTIME_BAKE.normalizedBounds;
-    const width = 1662;
-    const depth = 1293;
     const verticalExaggeration = 40;
+    const centerNormalized = {
+      x: (bounds.xMin + bounds.xMax) * 0.5,
+      y: (bounds.yMin + bounds.yMax) * 0.5,
+    };
+    const centerMap = normalizedReferenceToMapCanvas(centerNormalized.x, centerNormalized.y);
+    const centerWorld = mapCanvasToPlannedWorldXZ(centerMap.x, centerMap.y);
     const positions = [];
     const colors = [];
     const indices = [];
     let minHeight = Infinity;
     let maxHeight = -Infinity;
+    let minWorldX = Infinity;
+    let maxWorldX = -Infinity;
+    let minWorldZ = Infinity;
+    let maxWorldZ = -Infinity;
+    let adapterRuleCount = 0;
+    let maxNormalizedRoundTripError = 0;
 
     for (let row = 0; row < grid; row += 1) {
       const v = row / (grid - 1);
@@ -70,14 +85,38 @@ try {
       for (let col = 0; col < grid; col += 1) {
         const u = col / (grid - 1);
         const nx = bounds.xMin + (bounds.xMax - bounds.xMin) * u;
-        const sample = sampleG07Terrain3dBakeNormalized(nx, ny);
-        if (!sample) throw new Error(`missing G07 sample ${col},${row}`);
+        const packed = sampleG07Terrain3dBakeNormalized(nx, ny);
+        if (!packed) throw new Error(`missing G07 packed sample ${col},${row}`);
+        const map = normalizedReferenceToMapCanvas(nx, ny);
+        const world = mapCanvasToPlannedWorldXZ(map.x, map.y);
+        const target = sampleCanonicalHydrologyTerrainTarget({
+          worldX: world.x,
+          worldZ: world.z,
+          baseHeightSampler: () => 50,
+          seaLevelMeters: 0,
+          protectedSites: [],
+          protectionRadii: { x: 0.001, y: 0.001 },
+        });
+        if (target.rule !== 'terrain3d-bake-g07' || !target.terrain3dSurface) {
+          throw new Error(`canonical adapter did not select G07 Terrain3D at ${col},${row}`);
+        }
+        adapterRuleCount += 1;
+        maxNormalizedRoundTripError = Math.max(
+          maxNormalizedRoundTripError,
+          Math.abs(target.normalizedX - nx),
+          Math.abs(target.normalizedY - ny),
+        );
+        const sample = target.terrain3dSurface;
         minHeight = Math.min(minHeight, sample.height);
         maxHeight = Math.max(maxHeight, sample.height);
+        minWorldX = Math.min(minWorldX, world.x);
+        maxWorldX = Math.max(maxWorldX, world.x);
+        minWorldZ = Math.min(minWorldZ, world.z);
+        maxWorldZ = Math.max(maxWorldZ, world.z);
         positions.push(
-          (u - 0.5) * width,
+          world.x - centerWorld.x,
           (sample.height - G07_TERRAIN3D_RUNTIME_BAKE.heightOffsetMeters) * verticalExaggeration,
-          (v - 0.5) * depth,
+          world.z - centerWorld.z,
         );
         const rockShade = 0.82 + sample.rockBlend * 0.18;
         colors.push(
@@ -97,6 +136,11 @@ try {
       }
     }
 
+    const worldSpanX = maxWorldX - minWorldX;
+    const worldSpanZ = maxWorldZ - minWorldZ;
+    const worldSpanMax = Math.max(worldSpanX, worldSpanZ);
+    scene.fog = new THREE.Fog(0x071722, worldSpanMax * 0.9, worldSpanMax * 2.2);
+
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
@@ -113,22 +157,20 @@ try {
 
     scene.add(new THREE.HemisphereLight(0xc6e7ff, 0x17242d, 1.55));
     const sun = new THREE.DirectionalLight(0xfff0d4, 2.2);
-    sun.position.set(-550, 900, -350);
+    sun.position.set(-worldSpanX * 0.33, worldSpanMax * 0.55, -worldSpanZ * 0.25);
     scene.add(sun);
 
-    const camera = new THREE.PerspectiveCamera(48, 960 / 640, 1, 6000);
+    const camera = new THREE.PerspectiveCamera(48, 960 / 640, 1, worldSpanMax * 5);
     window.__g07Proof = {
-      THREE,
       renderer,
       scene,
       camera,
-      mesh,
       render(kind) {
         if (kind === 'near') {
-          camera.position.set(-380, 285, 430);
-          camera.lookAt(-90, 20, 10);
+          camera.position.set(-worldSpanX * 0.23, worldSpanMax * 0.22, worldSpanZ * 0.34);
+          camera.lookAt(-worldSpanX * 0.05, 20, 0);
         } else {
-          camera.position.set(0, 1120, 1550);
+          camera.position.set(0, worldSpanMax * 0.72, worldSpanMax * 0.98);
           camera.lookAt(0, 10, 0);
         }
         renderer.render(scene, camera);
@@ -142,10 +184,17 @@ try {
       minHeight,
       maxHeight,
       verticalExaggeration,
+      adapterRuleCount,
+      maxNormalizedRoundTripError,
+      canonicalWorldBounds: { minX: minWorldX, maxX: maxWorldX, minZ: minWorldZ, maxZ: maxWorldZ },
+      canonicalWorldSpanMeters: { x: worldSpanX, z: worldSpanZ },
       canonicalBakeSha256: G07_TERRAIN3D_RUNTIME_BAKE.canonicalBakeSha256,
       importedTopdownSha256: G07_TERRAIN3D_RUNTIME_BAKE.importedTopdownSha256,
+      sourceMapSha256: G07_TERRAIN3D_RUNTIME_BAKE.sourceMapSha256,
     };
   });
+
+  requireCondition(mapSha256 === proofMetrics.sourceMapSha256, `map.png SHA256 mismatch: ${mapSha256}`);
 
   async function deterministicTerrainCapture(kind, filename) {
     await page.evaluate((value) => window.__g07Proof.render(value), kind);
@@ -160,22 +209,27 @@ try {
   const nearSha256 = await deterministicTerrainCapture('near', 'g07-runtime-near.png');
   const farSha256 = await deterministicTerrainCapture('far', 'g07-runtime-far.png');
 
-  await page.setViewportSize({ width: 1200, height: 800 });
+  await page.setViewportSize({ width: 1200, height: 900 });
   const topdownMetrics = await page.evaluate(async () => {
     const {
       G07_TERRAIN3D_RUNTIME_BAKE,
       sampleG07Terrain3dBakeNormalized,
     } = await import('/src/3d/world/g07Terrain3dBake.js');
-    document.body.innerHTML = '<canvas id="topdown-proof" width="1200" height="800"></canvas>';
-    const canvas = document.getElementById('topdown-proof');
-    const ctx = canvas.getContext('2d', { alpha: false });
     const image = new Image();
     image.src = '/resimler/map.png';
     await image.decode();
+    const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+    const divisor = gcd(image.naturalWidth, image.naturalHeight);
+    const reducedWidth = image.naturalWidth / divisor;
+    const reducedHeight = image.naturalHeight / divisor;
+    const scale = Math.max(1, Math.floor(Math.min(1200 / reducedWidth, 900 / reducedHeight)));
+    const canvasWidth = reducedWidth * scale;
+    const canvasHeight = reducedHeight * scale;
+    document.body.innerHTML = `<canvas id="topdown-proof" width="${canvasWidth}" height="${canvasHeight}"></canvas>`;
+    const canvas = document.getElementById('topdown-proof');
+    const ctx = canvas.getContext('2d', { alpha: false });
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-    const sourceWidth = 1536;
-    const sourceHeight = 1024;
     const b = G07_TERRAIN3D_RUNTIME_BAKE.normalizedBounds;
     const x0 = b.xMin * canvas.width;
     const y0 = b.yMin * canvas.height;
@@ -204,9 +258,11 @@ try {
     pctx.putImageData(data, 0, 0);
     ctx.drawImage(patch, x0, y0, patchWidth, patchHeight);
     return {
-      sourceWidth,
-      sourceHeight,
-      mapAspect: sourceWidth / sourceHeight,
+      sourceWidth: image.naturalWidth,
+      sourceHeight: image.naturalHeight,
+      canvasWidth,
+      canvasHeight,
+      mapAspect: image.naturalWidth / image.naturalHeight,
       canvasAspect: canvas.width / canvas.height,
       g07CanvasBounds: { x0, y0, width: patchWidth, height: patchHeight },
       referenceSha256: G07_TERRAIN3D_RUNTIME_BAKE.sourceMapSha256,
@@ -222,17 +278,22 @@ try {
   requireCondition(pageErrors.length === 0, `page errors: ${pageErrors.join(' | ')}`);
   requireCondition(proofMetrics.vertices === 1089, `unexpected runtime vertices ${proofMetrics.vertices}`);
   requireCondition(proofMetrics.triangles === 2048, `unexpected runtime triangles ${proofMetrics.triangles}`);
+  requireCondition(proofMetrics.adapterRuleCount === 1089, `canonical adapter selected G07 ${proofMetrics.adapterRuleCount}/1089 times`);
+  requireCondition(proofMetrics.maxNormalizedRoundTripError <= 1e-12, `canonical world round-trip error ${proofMetrics.maxNormalizedRoundTripError}`);
   requireCondition(proofMetrics.maxHeight < 0, `G07 visual surface crossed sea level: ${proofMetrics.maxHeight}`);
   requireCondition(proofMetrics.maxHeight > proofMetrics.minHeight, 'G07 visual surface lost relief variation');
+  requireCondition(topdownMetrics.sourceWidth > 0 && topdownMetrics.sourceHeight > 0, 'map.png natural dimensions are invalid');
   requireCondition(Math.abs(topdownMetrics.mapAspect - topdownMetrics.canvasAspect) < 1e-12, 'full-world evidence distorted map.png aspect ratio');
+  requireCondition(topdownMetrics.referenceSha256 === mapSha256, 'full-world reference SHA drifted during browser proof');
 
   const metrics = {
     ...proofMetrics,
     ...topdownMetrics,
+    mapSha256,
     nearSha256,
     farSha256,
     topdownSha256,
-    note: 'near/far are diagnostic Three.js renders with declared vertical exaggeration; full-world PNG is reference context plus a feathered G07 runtime patch, not a claim that all 64 cells are runtime-qualified',
+    note: 'near/far are canonical world-coordinate adapter renders with declared vertical exaggeration; full-world PNG preserves map.png natural aspect and overlays only a feathered G07 runtime patch, not a claim that all 64 cells are runtime-qualified',
   };
   fs.writeFileSync(path.join(OUT_DIR, 'metrics.json'), `${JSON.stringify(metrics, null, 2)}\n`);
   console.log(`SW_G07_RUNTIME_VISUAL_PARITY_METRICS=${JSON.stringify(metrics)}`);
