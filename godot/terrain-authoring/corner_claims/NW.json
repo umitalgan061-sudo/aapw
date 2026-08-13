@@ -5,27 +5,27 @@
   "current_cell": "G01",
   "status": "in_progress_exact_main",
   "branch": "agent/buzul-muhafizi-g01-terrain3d-biome-20260813",
-  "pr": null,
+  "pr": 380,
   "last_commit": "b88767931917d9d631bb9e19d80d2126c867eded",
   "quality_before": {
     "layer": "Coast/Hydrology",
     "source_map_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
     "hydrology_fingerprint": "88 water / 8 land / 9 internal boundary edges / 0 centre mismatches",
     "source_bounds": "x=0..192, y=128..256",
-    "note": "G01 Coast/Hydrology is already present on main. G00 Road/Path is concurrently owned by open PR #379, so Buzul Muhafızı does not duplicate that work."
+    "note": "G01 Coast/Hydrology is on main; G00 Road/Path is already owned by open PR #379."
   },
   "quality_after": {
     "layer": "Macro Albedo/Biome",
     "state": "awaiting_exact_head_ci",
     "source_grid": "65x65 continuous owner-map biome/color probe",
-    "terrain3d_color_map": "256x256 RGBA8 imported through Terrain3DData.import_images",
+    "terrain3d_color_map": "256x256 RGBA8 via Terrain3DData.import_images",
     "terrain3d_region_size": 256,
-    "guard_band": "one canonical mask-cell context with sub-edge seam probes",
-    "grid_policy": "GeoCell/mask/source pixels are addressing only; no GeoCell edge term or nearest-neighbour rendering is authored",
-    "map_fidelity": "map.png remains the canonical macro-geography source; continuous biome and filtered hydrology influence preserve G01 coastline semantics without square-cell painting",
-    "visual_proof": "g01-biome-color.png emitted from imported Terrain3D color data when validation runs",
+    "guard_band": "canonical context plus sub-edge seam probes",
+    "grid_policy": "addressing only; no visible GeoCell edge term",
+    "map_fidelity": "map.png canonical geography with continuous filtered hydrology and biome influence",
+    "visual_proof": "g01-biome-color.png after real Terrain3D validation",
     "next_layer_if_green": "Relief/Height Character"
   },
-  "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable: real color region import, round-trip, persistence and LOD0 bake are required. HTerrain remains preserved as regression/control.",
-  "updated_at": "2026-08-13T12:00:00+03:00"
+  "engine": "Pinned Terrain3D v1.0.2-stable import/round-trip/persist/LOD0 bake required; HTerrain preserved.",
+  "updated_at": "2026-08-13T12:07:00+03:00"
 }
