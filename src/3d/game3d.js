@@ -68,6 +68,7 @@ import { disposeRiverMesh, disposeWaterfallMesh, updateFlowAnimation } from './w
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.js';
 import { disposeRoadNetwork } from './world/roads.js';
 import { disposeVegetation } from './world/vegetation.js';
+import { disposeVillages } from './world/villages.js';
 // Run 135 / ADR-0159 — new import, additive: `createVegetation` itself is unchanged, this file just
 // also calls it a second time (see the mobile spawn-anchored vegetation block below).
 import { createVegetation } from './world/vegetation.js';
@@ -575,6 +576,7 @@ export async function initGame3D() {
 			disposeRealCastleModels(state.realCastles);
 			disposeRoadNetwork(state.roads);
 			disposeVegetation(state.vegetation);
+			disposeVillages(state.villages);
 			if (state.mobileSpawnVegetation) disposeVegetation(state.mobileSpawnVegetation);
 			disposeDayNightLighting(state.scene, state.lights);
 			state.renderer.dispose();

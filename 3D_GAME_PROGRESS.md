@@ -15448,3 +15448,22 @@ step, is not this run).
   `world/villages.js` clustered around seats; then 3D house banners to restore the per-house colour identity
   the 6 formerly-procedural seats lost; then the unused character/dragon `.glb`s, which are geometry-only in
   exactly the same way and now have `prepareImportedGeometryForTexturing` waiting for them.
+
+## Run 330b (2026-08-13) — Villages: hamlets around every kingdom seat
+
+- `world/villages.js` (new): three house archetypes at real medieval scale, a stone stoop per house and
+  low field walls between neighbours, clustered into a hamlet on one seeded side of each castle.
+  4 draw calls for every village in the world (all `InstancedMesh`).
+- No house/wall/stair asset exists in this repo — verified by reading every GLB's node table — so the
+  geometry is generated, the same answer ADR-0272 reached for creatures. Logged for the owner in case
+  they meant something else by "assets klasöründeki her şeyi kullan".
+- The first pass scattered houses across the full ring around each seat: one house per ~9,000 m², which
+  reads as isolated farmsteads, and its field-wall pairing produced **1 wall for 120 houses** because it
+  joined houses in placement order rather than by position. Both fixed; walls now 79.
+- Three more defects found by looking at renders rather than at code: wall texture at bathroom-tile
+  density, a square roof on a rectangular house, and houses floating on the downhill side of slopes.
+- **Oyuncu ne fark eder:** her kalenin yanında artık gerçek bir köy var — evler, taş basamaklar ve
+  tarla duvarları. Daha önce kalelerin çevresi bomboş çimendi.
+- Technical debt: villages have **no collision** — the player walks through a cottage, because
+  `physics.js` snaps to the height field, not to placed geometry. Named as the immediate next subtask.
+- Perf after castles + villages: 57 draw calls / 904,446 triangles (budget 2500 / 5M).

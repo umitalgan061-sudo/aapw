@@ -22,10 +22,11 @@ import {
 } from './world/water.js';
 import { createWaterDepthField } from './world/waterDepthField.js';
 import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMesh } from './world/rivers.js';
-import { createHeightSampler } from './world/terrain.js';
+import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createVegetation } from './world/vegetation.js';
+import { createVillages } from './world/villages.js';
 import { createOrbitCamera } from './camera.js';
 import { createFreeCameraController } from './debug/freeCamera.js';
 import { createAuroraSky } from './sky.js';
@@ -72,7 +73,7 @@ export function worldToChunkCoord(worldCoord, chunkSizeMeters) {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, freeCamera: {camera: THREE.PerspectiveCamera, active: boolean, update: (delta: number) => void, dispose: () => void}, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, settlementCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, roads: THREE.Group, roadEdges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], vegetation: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, freeCamera: {camera: THREE.PerspectiveCamera, active: boolean, update: (delta: number) => void, dispose: () => void}, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, settlementCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, roads: THREE.Group, roadEdges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], vegetation: THREE.Group, villages: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
  */
 export function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -261,12 +262,32 @@ export function createScene(canvas) {
 			`(${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,
 	);
 
+	// Villages (run 330, ADR-0276) — houses, stone stoops and field walls in a ring around each seat,
+	// so a castle stands over a settlement instead of over empty grass. Same `isPlaceablePosition`
+	// exclusion rules and same radius guard as the vegetation scatter directly above; five instanced
+	// meshes for the whole world, not one per building.
+	const villagesResult = createVillages({
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		seats: settlementsResult.seats,
+		roadEdges: roadsResult.edges,
+		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
+		mulberry32,
+	});
+	scene.add(villagesResult.group);
+	console.info(
+		`[sceneManager] Built villages: ${villagesResult.houseCount} house(s) and ${villagesResult.wallCount} field wall(s) ` +
+			`across ${villagesResult.villageCount} village(s).`,
+	);
+
 	return {
 		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, settlementCollider, sky, stars, water, river, waterfalls,
 		settlements: settlementsResult.group,
 		roads: roadsResult.group,
 		roadEdges: roadsResult.edges,
 		vegetation: vegetationResult.group,
+		villages: villagesResult.group,
 		// Exposed (not just the settlements.group mesh) so initGame3D can place FAZ 5 NPCs relative to
 		// a named kingdom seat's real world position/ground height without re-deriving mapToWorldXZ.
 		settlementSeats: settlementsResult.seats,

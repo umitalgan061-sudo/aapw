@@ -1,3 +1,9 @@
+// Run330 villages offline shell extension — `world/villages.js` is imported by `sceneManager.js`, so
+// an offline PWA load needs it cached or the scene cannot build at all.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/world/villages.js');
+});
+
 // Run329 creature-brain offline shell extension — `gameplay/creatureBrain.js`/`creatureSpawner.js`
 // (ADR-0274), now actually imported by `game3d.js` (unlike the run 326/327 rig/gait modules they
 // finally drive, which shipped inert), so an offline PWA load needs these cached to boot the scene.
