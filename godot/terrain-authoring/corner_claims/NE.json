@@ -5,10 +5,10 @@
   "current_cell": "G70",
   "status": "claimed",
   "layer": "Macro Albedo/Biome",
-  "branch": "terrain/ne-g70-terrain3d-biome-r6-20260813",
+  "branch": "terrain/ne-g70-terrain3d-biome-r7-20260813",
   "pr": null,
   "last_commit": null,
-  "base_sha": "b88767931917d9d631bb9e19d80d2126c867eded",
+  "base_sha": "7944352bcb7fa89b5db21b5aa7954efc2d5ca886",
   "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Coast/Hydrology is merged; strict same-cell layer order requires Macro Albedo/Biome next. Canonical map semantics classify G70 as 96/96 open sea, so this layer strengthens only the continuous marine macro substrate and must not invent land, islands, coastline geometry, grid cells or seams.",
   "quality_before": {
     "base_cells": 96,
@@ -55,5 +55,5 @@
   },
   "engine": "canonical owner-map sea semantics -> continuous guard-backed submerged Height+RGB+Roughness field -> filtered pinned Terrain3D v1.0.2-stable 257x257 import/regions/save/LOD0 bake -> proof-only Three.js near/far/full-world visuals; HTerrain retained as regression/control",
   "next_layer_if_merged": "Relief/Height Character",
-  "updated_at": "2026-08-13T12:02:00+03:00"
+  "updated_at": "2026-08-13T13:00:00+03:00"
 }
