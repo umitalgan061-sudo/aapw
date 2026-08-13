@@ -1,0 +1,167 @@
+name: NE G70 Terrain3D Biome
+
+on:
+  push:
+    branches:
+      - terrain/ne-g70-terrain3d-biome-r3-20260813
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/ne/g70_biome.mjs'
+      - 'scripts/checkNEG70Terrain3DBiome.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g70_terrain3d_biome.gd'
+      - 'godot/terrain-authoring/corner_claims/NE.json'
+      - '.github/workflows/ne-g70-terrain3d-biome.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ne-g70-terrain3d-biome-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: b619f3bdf28a98c7a9ef6dafb2ca1e03357a20a9
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main and five-file scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g70_biome.mjs|scripts/checkNEG70Terrain3DBiome.mjs|godot/terrain-authoring/scripts/validate_g70_terrain3d_biome.gd|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g70-terrain3d-biome.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 5
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
+          git diff --quiet "$BASE_SHA"...HEAD -- addons/zylann.hterrain
+          git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/terrain.js
+          git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceTerrainAdapter.js
+
+      - name: Merged G70 hydrology and neighbour regressions
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/ne/g70_hydrology.mjs
+          node --check scripts/checkNEG70Terrain3DHydrology.mjs
+          node scripts/checkNEG70Terrain3DHydrology.mjs | tee "$RUNNER_TEMP/g70-hydrology.log"
+          grep -F 'NE_G70_TERRAIN3D_HYDROLOGY_SOURCE_OK' "$RUNNER_TEMP/g70-hydrology.log"
+          node scripts/checkNEG60Hydrology.mjs
+          node scripts/checkNEG71Hydrology.mjs
+
+      - name: Syntax and deterministic canonical G70 biome source twice
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/ne/g70_biome.mjs
+          node --check scripts/checkNEG70Terrain3DBiome.mjs
+          node scripts/checkNEG70Terrain3DBiome.mjs | tee "$RUNNER_TEMP/g70-biome-source-a.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g70-biome-source.json "$RUNNER_TEMP/g70-biome-source-a.json"
+          node scripts/checkNEG70Terrain3DBiome.mjs | tee "$RUNNER_TEMP/g70-biome-source-b.log"
+          cmp "$RUNNER_TEMP/g70-biome-source-a.log" "$RUNNER_TEMP/g70-biome-source-b.log"
+          cmp "$RUNNER_TEMP/g70-biome-source-a.json" godot/terrain-authoring/.terrain3d-proof/g70-biome-source.json
+          grep -F 'NE_G70_TERRAIN3D_BIOME_SOURCE_OK' "$RUNNER_TEMP/g70-biome-source-a.log"
+
+      - name: Install and verify pinned Terrain3D
+        run: |
+          set -euo pipefail
+          ok=0
+          for attempt in 1 2 3; do
+            if python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee "$RUNNER_TEMP/t3d-install-$attempt.log"; then
+              grep -F 'TERRAIN3D_INSTALL_OK' "$RUNNER_TEMP/t3d-install-$attempt.log"
+              ok=1
+              break
+            fi
+            sleep $((attempt * 3))
+          done
+          test "$ok" -eq 1
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'TERRAIN3D_VERIFY_OK' "$RUNNER_TEMP/t3d-verify.log"
+
+      - name: Download official Godot 4.6.3
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/godot.zip"
+          DIR="$RUNNER_TEMP/godot"
+          mkdir -p "$DIR"
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' --output "$ZIP"
+          unzip -q "$ZIP" -d "$DIR"
+          GODOT_BIN="$(find "$DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | grep -F '4.6.3'
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Load project and real Terrain3D 257 color roughness bake twice
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+          G70_BIOME_PROOF_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g70_terrain3d_biome.gd | tee "$RUNNER_TEMP/g70-biome-bake-a.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g70-biome-bake.json "$RUNNER_TEMP/g70-biome-bake-a.json"
+          cp godot/terrain-authoring/.terrain3d-proof/g70-biome-topdown.png "$RUNNER_TEMP/g70-biome-topdown-a.png"
+          G70_BIOME_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g70_terrain3d_biome.gd | tee "$RUNNER_TEMP/g70-biome-bake-b.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g70-biome-bake.json "$RUNNER_TEMP/g70-biome-bake-b.json"
+          cp godot/terrain-authoring/.terrain3d-proof/g70-biome-topdown.png "$RUNNER_TEMP/g70-biome-topdown-b.png"
+          grep -F 'NE_G70_TERRAIN3D_BIOME_VALIDATION_OK' "$RUNNER_TEMP/g70-biome-bake-a.log"
+          grep -F 'NE_G70_TERRAIN3D_BIOME_VALIDATION_OK' "$RUNNER_TEMP/g70-biome-bake-b.log"
+          jq -S 'del(.savedRegionBytes)' "$RUNNER_TEMP/g70-biome-bake-a.json" > "$RUNNER_TEMP/g70-biome-a.json"
+          jq -S 'del(.savedRegionBytes)' "$RUNNER_TEMP/g70-biome-bake-b.json" > "$RUNNER_TEMP/g70-biome-b.json"
+          cmp "$RUNNER_TEMP/g70-biome-a.json" "$RUNNER_TEMP/g70-biome-b.json"
+          cmp "$RUNNER_TEMP/g70-biome-topdown-a.png" "$RUNNER_TEMP/g70-biome-topdown-b.png"
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: HTerrain world settlement road PWA mobile and browser regressions
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/terrainSeatSafetyCheck.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/roadNetworkSafetyCheck.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkRoadVisualContract.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA" HEAD
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ne-g70-terrain3d-biome-proof
+          include-hidden-files: true
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g70-biome-source.json
+            godot/terrain-authoring/.terrain3d-proof/g70-biome-bake.json
+            godot/terrain-authoring/.terrain3d-proof/g70-biome-topdown.png
+          if-no-files-found: warn
