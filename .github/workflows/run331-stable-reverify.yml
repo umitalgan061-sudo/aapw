@@ -1,0 +1,88 @@
+name: Run331 Stable Reverify
+
+on:
+  push:
+    branches:
+      - ci/run331-stable-reverify-20260813
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'STABLE_TAGS.md'
+      - '.github/workflows/run331-stable-reverify.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run331-stable-reverify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reverify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact current main and existing Run331 evidence
+        id: base
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          grep -F '2026-08-13,run331-village-collision,1,52,866460,50,24,347' perf_log.csv
+          node scripts/checkRun287CheckpointParserCompat.js
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Fresh Run331 product reverify
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
+
+      - name: Materialize stable record after green reverify
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          if ! grep -Fq 'stable-2026-08-13-run331' STABLE_TAGS.md; then
+            printf '\n- `stable-2026-08-13-run331` — Run331 village-collision current-main reverify; existing real renderer sample `2026-08-13,run331-village-collision,1,52,866460,50,24,347`; seeded/world-reference, 14/14 settlement safety, road safety, PWA/cache, technical-debt, mobile budget and full real-browser smoke all PASS on exact current main.\n' >> STABLE_TAGS.md
+          fi
+          node scripts/checkCheckpointConsistency.js
+          rm .github/workflows/run331-stable-reverify.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add STABLE_TAGS.md .github/workflows/run331-stable-reverify.yml
+          git commit -m 'governance: close Run331 stable continuity'
+          git push origin HEAD:ci/run331-stable-reverify-20260813
+
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${{ steps.base.outputs.base_sha }}"
