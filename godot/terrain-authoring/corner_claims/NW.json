@@ -4,23 +4,28 @@
   "origin": [0, 0],
   "current_cell": "G11",
   "status": "validating",
-  "branch": "terrain/nw-g11-hydrology-20260812",
-  "pr": 266,
-  "last_commit": "ac732ed473d632d8002a5c28291284175ba7dd36",
-  "quality_before": {
-    "base_cells": 96,
-    "water_centres": 38,
-    "land_centres": 58,
-    "boundary_edges": 39,
-    "hard_cell_max_step": 1
+  "layer": "Terrain3D Bake/Three.js runtime parity",
+  "branch": "terrain/nw-g11-terrain3d-runtime-parity-20260813",
+  "pr": 303,
+  "exact_main_base": "86b829e03a8bdb708970ae2028f78f605cff513e",
+  "previous_layers": {
+    "Coast/Hydrology": { "merged_pr": 266, "water_centres": 38, "land_centres": 58, "boundary_edges": 39 },
+    "Macro Albedo/Biome": { "draft_pr": 286, "dedicated_ci": "green", "integration": "not merged" },
+    "Relief/Height Character": { "draft_pr": 291, "dedicated_ci": "green", "integration": "not merged" },
+    "Rock/Snow": { "draft_pr": 293, "dedicated_ci": "green", "integration": "not merged" },
+    "Road/Path": { "draft_pr": 294, "dedicated_ci": "green", "integration": "not merged" },
+    "Near Detail": { "draft_pr": 300, "exact_head_ci": "green", "integration": "not merged" }
   },
-  "quality_after": {
-    "centre_mismatches": 0,
-    "refined_samples": 1617,
-    "fractional_samples": 524,
-    "max_adjacent_step": 0.25,
-    "confidence_checksum": 1445798648
+  "parity_contract": {
+    "source": "live Three.js createHeightSampler with settlement flatten pads",
+    "source_grid": [65, 65],
+    "terrain3d_import_grid": [256, 256],
+    "normalized_bounds": [0.125, 0.125, 0.25, 0.25],
+    "runtime_adapter": "src/3d/world/terrain3dG11RuntimeParity.js",
+    "max_height_error_m": 0.01,
+    "mean_height_error_m": 0.0025,
+    "grid_visual_policy": "GeoCell is address only; runtime sampling is bilinear and continuous"
   },
-  "engine": "authoring/QA canonical mask interpolation; HTerrain preserved; Terrain3D not required for this data-only layer",
-  "updated_at": "2026-08-12T18:26:00+03:00"
+  "engine": "pinned Terrain3D v1.0.2-stable import/region/save/LOD0 bake -> deterministic Three.js bake adapter; HTerrain preserved",
+  "updated_at": "2026-08-13T02:06:00+03:00"
 }
