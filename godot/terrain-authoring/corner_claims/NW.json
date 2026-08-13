@@ -5,7 +5,7 @@
   "current_cell": "G00",
   "status": "in_progress_exact_main",
   "branch": "terrain/nw-g00-terrain3d-relief-20260813",
-  "pr": null,
+  "pr": 332,
   "last_commit": "f6c7d47cba333b66b96ed6d0078a1c0f51c1c4a0",
   "quality_before": {
     "layer": "Macro Albedo/Biome",
@@ -34,5 +34,5 @@
     "next_layer_if_green": "Rock/Snow Material Logic"
   },
   "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable is mandatory: real RF height import, Terrain3DData region creation, persisted region resources and LOD0 bake are required. HTerrain and shipped Three.js runtime remain regression/control surfaces.",
-  "updated_at": "2026-08-13T05:24:00Z"
+  "updated_at": "2026-08-13T05:25:00Z"
 }
