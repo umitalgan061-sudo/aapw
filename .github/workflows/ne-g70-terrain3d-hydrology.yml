@@ -3,7 +3,7 @@ name: NE G70 Terrain3D Hydrology
 on:
   push:
     branches:
-      - terrain/ne-g70-terrain3d-hydrology-r2-20260813
+      - terrain/ne-g70-terrain3d-hydrology-r3-20260813
   pull_request:
     branches:
       - main
@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BASE_SHA: 24fa8656f7b585b0cedfe2f471fce705775ab13e
+  BASE_SHA: f0ea87e2115afac9284d9c5bb807fbff37da9d1c
 
 jobs:
   validate:
