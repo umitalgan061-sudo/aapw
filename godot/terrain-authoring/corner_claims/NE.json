@@ -4,9 +4,9 @@
   "origin": [7, 0],
   "current_cell": "G52",
   "status": "validating",
-  "layer": "Road/Path",
-  "branch": "terrain/ne-g52-road-path-terrain3d-20260813",
-  "pr": 318,
+  "layer": "Near Detail",
+  "branch": "terrain/ne-g52-near-detail-terrain3d-20260813",
+  "pr": 323,
   "last_commit": null,
   "previous_layers": {
     "Coast/Hydrology": {
@@ -27,21 +27,29 @@
       "merged": true,
       "merge_commit": "67e7e6d565af35029d147214c29b050694f9b0c0",
       "terrain3d_control_uses_physical_snow_weight": true
+    },
+    "Road/Path": {
+      "pr": 318,
+      "merged": true,
+      "merge_commit": "bfa6dbaf87b7212d59d8db5d87d3439916162c27",
+      "canonical_runtime_result": "no G52 main-road or footpath crossings; zero authored road/path coverage"
     }
   },
   "quality_target": {
-    "live_runtime_road_polylines_only": true,
-    "continuous_owner_map_corridor": true,
-    "no_geocell_grid_road_term": true,
-    "canonical_water_road_leak_outside_safe_settlement": 0,
-    "adjacent_coverage_continuity": true,
-    "guard_band_coverage_continuity": true,
-    "terrain3d_control_map_import": true,
-    "road_path_overlay_ids_roundtrip": true,
+    "continuous_owner_map_micro_detail": true,
+    "no_geocell_grid_detail_term": true,
+    "terrain3d_color_roughness_import": true,
+    "preserve_physical_snow_weight_control": true,
+    "preserve_height_semantics": true,
+    "canonical_water_neutral_detail": true,
+    "live_runtime_vegetation_only": true,
+    "canonical_land_filtered_instancing": true,
+    "zero_runtime_trees_is_valid": true,
+    "terrain3d_instancer_roundtrip": true,
     "terrain3d_region_persistence": true,
     "terrain3d_lod0_bake": true,
-    "imported_control_topdown_proof": true
+    "imported_color_instance_topdown_proof": true
   },
-  "engine": "live world/roads.js slope-aware roads rasterized into a continuous Terrain3D control field; pinned Terrain3D v1.0.2 import/save/LOD0-bake proof; HTerrain and runtime road safety preserved",
-  "updated_at": "2026-08-13T06:12:00+03:00"
+  "engine": "continuous physical-metre Terrain3D color/roughness micro-detail plus canonical-land-filtered live vegetation.js transforms in Terrain3D instancer; physical Rock/Snow control and height are round-trip preserved; HTerrain/runtime regressions retained",
+  "updated_at": "2026-08-13T06:34:00+03:00"
 }
