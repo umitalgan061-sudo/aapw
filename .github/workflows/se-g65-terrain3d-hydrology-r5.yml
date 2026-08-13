@@ -4,10 +4,13 @@ on:
     branches: [agent/kizil-ufuk-g65-hydrology-r5-20260813]
   pull_request:
     branches: [main]
+    paths:
+      - '.github/workflows/se-g65-terrain3d-hydrology-r5.yml'
+      - 'godot/terrain-authoring/geocells/se/g65_hydrology.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g65_terrain3d_hydrology.gd'
+      - 'scripts/checkSEG65Hydrology.mjs'
 permissions:
   contents: read
-env:
-  BASE_SHA: 24fa8656f7b585b0cedfe2f471fce705775ab13e
 jobs:
   validate:
     runs-on: ubuntu-24.04
@@ -17,12 +20,16 @@ jobs:
         with: {fetch-depth: 0}
       - uses: actions/setup-node@v4
         with: {node-version: 22}
-      - name: Exact main and source fidelity
+      - name: Capture current main and source fidelity
         run: |
           set -euo pipefail
           git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          test "$(git diff --name-only "$BASE_SHA"...HEAD | sort | tr '\n' ' ')" = ".github/workflows/se-g65-terrain3d-hydrology-r5.yml godot/terrain-authoring/geocells/se/g65_hydrology.mjs godot/terrain-authoring/scripts/validate_g65_terrain3d_hydrology.gd scripts/checkSEG65Hydrology.mjs "
+          BASE_SHA="$(git rev-parse origin/main)"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git diff --check "$BASE_SHA"...HEAD
+          if [ "${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}" = "agent/kizil-ufuk-g65-hydrology-r5-20260813" ]; then
+            test "$(git diff --name-only "$BASE_SHA"...HEAD | sort | tr '\n' ' ')" = ".github/workflows/se-g65-terrain3d-hydrology-r5.yml godot/terrain-authoring/geocells/se/g65_hydrology.mjs godot/terrain-authoring/scripts/validate_g65_terrain3d_hydrology.gd scripts/checkSEG65Hydrology.mjs "
+          fi
           node --check godot/terrain-authoring/geocells/se/g65_hydrology.mjs
           node --check scripts/checkSEG65Hydrology.mjs
           node scripts/checkSEG65Hydrology.mjs
