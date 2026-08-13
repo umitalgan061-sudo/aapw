@@ -4,6 +4,15 @@ on:
   push:
     branches:
       - agent/kizil-ufuk-g75-relief-c1-20260813
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/se/g75_relief.mjs'
+      - 'scripts/checkSEG75Relief.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g75_terrain3d_relief.gd'
+      - 'godot/terrain-authoring/corner_claims/SE.json'
+      - '.github/workflows/se-g75-terrain3d-relief.yml'
   workflow_dispatch:
 
 permissions:
