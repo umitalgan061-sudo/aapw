@@ -2,12 +2,19 @@
   "corner": "SW",
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
+  "current_cell": "G07",
+  "status": "in_progress",
+  "branch": "terrain/sw-g07-near-detail-main326-20260813",
   "pr": null,
-  "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "last_commit": "3262053ed1881c95a03d3436a024de1eaedb4271",
+  "quality_before": {
+    "layer": "Road/Path",
+    "evidence_pr": 305,
+    "dedicated_ci": "success"
+  },
+  "quality_after": {
+    "layer": "Near Detail",
+    "goal": "continuous marine micro-surface variation, zero terrestrial foliage, pinned Terrain3D control import/save/LOD0 bake"
+  },
+  "updated_at": "2026-08-13T01:02:29Z"
 }
