@@ -12,7 +12,6 @@ on:
       - 'scripts/checkSWG17Hydrology.mjs'
       - 'scripts/checkSWG17HydrologyVisualEvidence.mjs'
       - 'godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd'
-      - 'godot/terrain-authoring/corner_claims/SW.json'
       - '.github/workflows/sw-g17-terrain3d-hydrology.yml'
   workflow_dispatch:
 
