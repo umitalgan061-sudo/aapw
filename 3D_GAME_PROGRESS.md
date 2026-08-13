@@ -15697,3 +15697,71 @@ identifier the merge tooling understands).
 - Next safe step: continue down the standing priority list (GOVERNANCE.md §18) from wherever the
   next scheduled run's own fresh snapshot finds it — this run made no priority-list progress itself,
   it only safely landed two other runs' already-completed work.
+
+## Run 334 (2026-08-13, scheduled run) — Birds fly: FAZ 6's last animal gap closed (ADR-0280)
+
+FAZ 6 had a stale status line and one real gap. `gameplay/creatureBrain.js` (Run 329) already gave
+horse/dog/cat real procedural movement, but `GOVERNANCE.md` still read "at/araba/köpek-kedi/kuş kaldı"
+— only "kuş" (birds) was actually missing; the rest was documentation lag, corrected in this commit.
+Birds had been explicitly excluded since Run 329 because flight/perch locomotion "deserves its own
+pass" (that module's own header). This run is that pass.
+
+- `kuzgun`/`kartal`/`tavuk` (raven, eagle, chicken) now have real `CREATURE_BEHAVIOR_PROFILES` entries
+  with a new `locomotion: 'flight'` field. Undisturbed, a bird ground-hops exactly like every quadruped
+  already does (`stepGroundWander`, extracted from the existing wander branch verbatim — same code,
+  now shared instead of duplicated). Startled (a player inside its `reactiveTriggerRadiusMeters`), it
+  turns away, climbs to its own `flightAltitudeMeters` using the wing-flap gait Run 327 built but never
+  drove, cruises outward for a fixed `flightDurationSeconds`, then lands and resumes hopping at its new
+  spot — a timed flight, not an indefinitely circling one.
+- `gameplay/creatureSpawner.js`'s desktop population grew from 66 to 80 creatures (kuzgun 6, kartal 2,
+  tavuk 6 added at the end of the count table, so every existing species' deterministic spawn position
+  is unchanged); mobile grew from 10 to 12.
+- **Oyuncu ne fark eder:** doğrudan, görsel olarak evet — üç yeni canlı türü artık dünyada dolaşıyor
+  (kuzgun/kartal yerde zıplıyor, tavuk çiftlik-tipi köylerde dolaşıyor) ve oyuncu yaklaştığında gerçekten
+  havalanıp uçarak uzaklaşıyorlar, sonra tekrar iniyorlar — bu projenin ilk uçan canlı davranışı (ejderha
+  dışında). FAZ 6'nın son gerçek hayvan boşluğu kapandı; kalan tek FAZ 6 maddesi `araba` (bir taşıt,
+  ayrı bir mekanik kapsam).
+- Verified fresh, not assumed: `node --check` clean on `gameplay/creatureBrain.js`,
+  `gameplay/creatureSpawner.js`, new `scripts/checkRun334BirdFlight.js`. New dedicated check asserts
+  all 3 species carry `locomotion: 'flight'` with valid numeric properties; altitude stays 0 while
+  undisturbed; a startled bird climbs to within 10% of its own ceiling and never exceeds it; it moves
+  away horizontally while airborne; it lands again within a generous computed frame budget even with
+  the player still nearby (proving the landing is timed, not distance-gated); ground wander resumes
+  cleanly after landing. 3-shot rendered proof (fixed-height chase-cam over a visible ground plane, so
+  the climb reads visually and not just numerically): grounded/airborne/landed screenshots in
+  `artifacts/run334-bird-flight/` — `kartal` climbed 0.0m -> 22.0m -> 0.0m, frame 2 clearly shows the
+  ground pushed to the bottom edge against open sky where frames 1/3 show a full ground plane. The
+  pre-existing `checkRun329CreatureBrain.js` (unmodified) automatically picked up all 3 new species via
+  its own species loop — **16/16 species PASS** (was 13/13), confirming the `stepGroundWander`
+  extraction changed no existing species' determinism. Full sweep: `checkSmokeCheckRegistry.js` OK (520
+  files within the cap, same 2 pre-existing WARNs — `game3dSmokeChecksMovement.js` 583/600,
+  `worldReferenceSceneShadowAdapter.js` 562/600 — neither touched), `checkTechnicalDebt.js` PASS (0
+  new), `checkSeededRandomPolicy.js` PASS, `checkAssetsManifest.js` OK, `checkServiceWorkerCache.js`/
+  `checkPwaInstallability.js` PASS (no new `src/` file — the check script is dev-only tooling, same
+  category as every other `checkRunNNN*.js`), `terrainSeatSafetyCheck.js` PASS 14/14,
+  `roadNetworkSafetyCheck.js` PASS (20.24km, untouched by this run), full `smokeTestGame3D.js`
+  **35/35 PASS** with zero console/page errors.
+- Real perf sample (`collectPerfSnapshot.js run334-bird-flight`): 52 draw calls / 866,460 triangles /
+  50 geometries / 24 textures / 273MB heap — inside the 2500/5M desktop budget, in line with recent
+  runs (the new birds are the smallest body plans in the registry and, like most of the existing
+  creature population, are not all within the default boot camera's view frustum at sample time).
+- Memory leak checklist: no new listeners/timers/DOM nodes. Bird rigs reuse `creatureRig.js`'s existing
+  `dispose()` path unchanged; flight-only state is plain per-being closure variables (altitude/phase),
+  no new object retained beyond the being's own lifetime.
+- Technical debt: 0 new (`checkTechnicalDebt.js` PASS). `gameplay/creatureBrain.js` 363 -> 483/600
+  lines (real headroom left). `gameplay/creatureSpawner.js` 122 -> 129/600 lines.
+- World Coverage: unchanged (no terrain/geometry change). World Evolution Report delta: desktop
+  creature population 66 -> 80 (+14, all 3 new bird species), mobile 10 -> 12; ADR count +1
+  (ADR-0280); yol/orman/kale/NPC/event km/count 0 değişim.
+- ADR-0280 (`DECISIONS.md`). `GOVERNANCE.md`'s FAZ 6 status line corrected in the same commit (was
+  stale since Run 329 — horse/dog/cat had already shipped but the line was never updated).
+- No new `QUESTIONS_FOR_OWNER.md` entry — flight altitude/speed/duration constants are the same
+  "temporary default, no real playtest yet" category as every other feel constant this project has
+  already logged as an accepted pattern (owner's Run 314 batch answer covers this category generally);
+  not re-litigated per-constant unless a specific one reads wrong in play.
+- Risk LOW. Confidence 5/5.
+- Next safe step: `araba` (cart/wagon) is FAZ 6's only remaining item, but it is a vehicle/mechanic
+  scope (rideable or towed object), not a small follow-on to this run — its own dedicated subtask.
+  Otherwise continue down GOVERNANCE.md §18/§33 from a fresh remote-main/concurrency check; terrain/
+  road/Terrain3D geocell work remains claimed by the four concurrent corner-agent sessions and was not
+  touched here.

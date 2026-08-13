@@ -17,19 +17,34 @@
  * doesn't have yet (`QUESTIONS_FOR_OWNER.md`'s still-open health/damage question is exactly why `charge`
  * stays a flee-shaped gesture for now), so `kedi`/`domuz` use the same reactive-flee branch as every
  * other skittish species — a smaller, honest first step, same "ship the smallest thing that earns the
- * behaviour name" discipline `animals.js`'s own header documents for its own flee/pack-alert. `flock`
- * (birds) and `regal-idle`/`combat-stance` (already covered — `kral` has no model yet, `asker` already
- * has real combat-stance NPCs per `creatureSpeciesConfig.js`'s own `asker` entry) are out of scope here
- * for the same "every species gets its own future sub-task" reason `creatureSpeciesConfig.js`'s header
- * states — flight/perch locomotion is a different enough movement model (see `gameplay/dragonController.js`)
- * to deserve its own pass rather than a bolted-on branch here.
+ * behaviour name" discipline `animals.js`'s own header documents for its own flee/pack-alert.
+ * `regal-idle`/`combat-stance` (already covered — `kral` has no model yet, `asker` already has real
+ * combat-stance NPCs per `creatureSpeciesConfig.js`'s own `asker` entry) stay out of scope here for the
+ * same "every species gets its own future sub-task" reason `creatureSpeciesConfig.js`'s header states.
+ *
+ * **Birds fly now (this pass's own addition).** `kuzgun`/`kartal`/`tavuk` previously had no
+ * `CREATURE_BEHAVIOR_PROFILES` entry at all — this file's own header used to say flight/perch
+ * locomotion "deserves its own pass rather than a bolted-on branch here". This pass is that pass, kept
+ * deliberately small: every bird still uses the exact same ground-hop `stepGroundWander` wander a
+ * quadruped's own wander branch uses (`restGait: 'hop'`, from `creatureBodyPlans.js`'s `BIRD_DEFAULTS`
+ * — unchanged) while undisturbed, and a new **climb -> cruise -> land** state machine (`flightPhase`)
+ * replaces the ground-flee branch once a player enters `reactiveTriggerRadiusMeters`: the being turns
+ * to face directly away from the player, climbs at `takeoffClimbMps` to `flightAltitudeMeters` above
+ * whatever ground is directly beneath it (`plan.alertGait: 'flap'` drives the wing animation the whole
+ * time it is airborne), cruises outward for `flightDurationSeconds`, then descends and resumes ground
+ * hopping at its new landing spot — a self-terminating flight, not an indefinitely circling one, so a
+ * player standing still near a startled bird doesn't watch it loop overhead forever. This is the
+ * `flee-on-approach` primitive with a vertical dimension, not `flock` — true multi-bird schooling
+ * remains its own future primitive, same "smallest thing that earns the behaviour name" discipline the
+ * paragraph above already applies to `kedi`/`domuz`. `playerCollider` is intentionally not consulted
+ * while airborne (climbing/cruising/landing) — a bird flying over a castle wall or a cottage roof is
+ * correct, not a bug, unlike a ground quadruped walking through one.
  *
  * **Which species.** Every `CREATURE_BEHAVIOR_PROFILES` key below is a `gameplay/creatureBodyPlans.js`
- * quadruped id, *except* `kurt` (already a real, shipped, asset-driven wolf — `gameplay/animals.js` —
+ * body-plan id, *except* `kurt` (already a real, shipped, asset-driven wolf — `gameplay/animals.js` —
  * spawning a second, procedural wolf population alongside it would just look like a visual downgrade
  * duplicate, not new content) and `insan`/`asker` (humans stay `gameplay/npc.js`'s domain; a generic
- * unnamed, dialogue-less human wandering the map would read as a bug, not a villager). Birds
- * (`kuzgun`/`kartal`/`tavuk`) are excluded for the flight-locomotion reason above.
+ * unnamed, dialogue-less human wandering the map would read as a bug, not a villager).
  *
  * **Animation.** Each being keeps its own `gaitClockSeconds`, advanced by `delta` only while actually
  * moving (wandering or reacting) and held while paused/idle — `applyCreatureGait` ties leg/tail/wing
@@ -73,6 +88,18 @@ import { CREATURE_BODY_PLANS } from './creatureBodyPlans.js';
  * @property {number|null} packAlertRadiusMeters Same primitive as `animals.js`'s wolf pack-alert: a
  *   being not yet within its own `reactiveTriggerRadiusMeters` of the player still reacts if a
  *   same-species herdmate within this radius is already reacting. `null` = solitary, no herd check.
+ * @property {'flight'} [locomotion] Omit (the default) for every quadruped — identical shape/behavior
+ *   as before flight species existed. `'flight'` opts a being into the climb/cruise/land state machine
+ *   in place of the ground reactive-flee branch (see this file's own "Birds fly now" header section);
+ *   only `kuzgun`/`kartal`/`tavuk` set this today. The three properties below are meaningless/unused
+ *   unless this is `'flight'`.
+ * @property {number} [flightAltitudeMeters] Cruise height in meters above the ground directly under
+ *   the being once a climb completes.
+ * @property {number} [takeoffClimbMps] Vertical speed used both climbing away and descending back to
+ *   land — symmetric, a bird lands about as fast as it takes off.
+ * @property {number} [flightDurationSeconds] How long a being stays airborne once startled, measured
+ *   from the moment it leaves the ground, before it lands regardless of the player's position — keeps
+ *   a bird from circling forever if the player just stands nearby.
  */
 
 /** Shared by every profile unless overridden. */
@@ -145,6 +172,28 @@ export const CREATURE_BEHAVIOR_PROFILES = Object.freeze({
 		reactiveDirection: 'away', reactiveTriggerRadiusMeters: 14, reactiveSpeedMps: 1.6,
 		packAlertRadiusMeters: 20,
 	}),
+	// Birds — ground-hop wander (see BIRD_DEFAULTS' restGait: 'hop'), climb-away-and-land in place of
+	// ground flee once startled. Every numeric value below is this pass's own first-pass engineering
+	// judgment, same "temporary default, no real playtest yet" category the rest of this table already
+	// is (see this file's own header + QUESTIONS_FOR_OWNER.md's running list).
+	kuzgun: Object.freeze({
+		wanderRadiusMeters: 4, wanderSpeedMps: 0.6, wanderPauseSeconds: 2.5,
+		reactiveDirection: 'away', reactiveTriggerRadiusMeters: 9, reactiveSpeedMps: 7,
+		packAlertRadiusMeters: null,
+		locomotion: 'flight', flightAltitudeMeters: 12, takeoffClimbMps: 6, flightDurationSeconds: 6,
+	}),
+	kartal: Object.freeze({
+		wanderRadiusMeters: 5, wanderSpeedMps: 0.5, wanderPauseSeconds: 4,
+		reactiveDirection: 'away', reactiveTriggerRadiusMeters: 16, reactiveSpeedMps: 8,
+		packAlertRadiusMeters: null,
+		locomotion: 'flight', flightAltitudeMeters: 22, takeoffClimbMps: 5, flightDurationSeconds: 9,
+	}),
+	tavuk: Object.freeze({
+		wanderRadiusMeters: 3, wanderSpeedMps: 0.5, wanderPauseSeconds: 2,
+		reactiveDirection: 'away', reactiveTriggerRadiusMeters: 5, reactiveSpeedMps: 4,
+		packAlertRadiusMeters: null,
+		locomotion: 'flight', flightAltitudeMeters: 4, takeoffClimbMps: 4, flightDurationSeconds: 2.5,
+	}),
 });
 
 /** FNV-1a 32-bit string hash — the string->numeric-seed step feeding `mulberry32` (imported by the
@@ -211,6 +260,14 @@ export function createCreatureBeing({
 	let gaitClockSeconds = 0;
 	let wasMoving = false;
 	let currentlyReacting = false;
+	const isFlightSpecies = profile.locomotion === 'flight';
+	// Flight-only state — declared unconditionally (cheap, and keeps this function's shape uniform) but
+	// only ever read/written when `isFlightSpecies` is true.
+	let flightPhase = 'grounded'; // 'grounded' | 'climbing' | 'cruising' | 'landing'
+	let flightAltitudeMeters = 0;
+	let flightHeadingX = 0;
+	let flightHeadingZ = 1;
+	let flightElapsedSeconds = 0;
 
 	/** Shortest-path yaw turn — copied from `gameplay/animals.js`'s `createWolf` (small, per-species
 	 * controller; this project's own established precedent — see that module's own header — prefers
@@ -226,6 +283,45 @@ export function createCreatureBeing({
 		const angle = rng() * Math.PI * 2;
 		const radius = profile.wanderRadiusMeters * Math.sqrt(rng());
 		wanderTarget = { x: wanderCenter.x + Math.cos(angle) * radius, z: wanderCenter.z + Math.sin(angle) * radius };
+	}
+
+	/**
+	 * Ground-hop wander step — the exact wander behavior every species used before flight species
+	 * existed, extracted unchanged so a flight species can reuse it verbatim while grounded (see this
+	 * file's own "Birds fly now" header section). Returns whether movement happened this frame.
+	 */
+	function stepGroundWander(delta) {
+		if (pauseTimer > 0) {
+			pauseTimer -= delta;
+			return false;
+		}
+		const dx = wanderTarget.x - object3D.position.x;
+		const dz = wanderTarget.z - object3D.position.z;
+		const distance = Math.hypot(dx, dz);
+		const step = profile.wanderSpeedMps * delta;
+		if (distance <= step) {
+			let targetX = wanderTarget.x;
+			let targetZ = wanderTarget.z;
+			if (playerCollider) {
+				({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
+			}
+			object3D.position.x = targetX;
+			object3D.position.z = targetZ;
+			object3D.position.y = groundCollider.getGroundHeight(targetX, targetZ);
+			pickNewWanderTarget();
+			pauseTimer = profile.wanderPauseSeconds;
+			return false;
+		}
+		let nextX = object3D.position.x + (dx / distance) * step;
+		let nextZ = object3D.position.z + (dz / distance) * step;
+		if (playerCollider) {
+			({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+		}
+		object3D.position.x = nextX;
+		object3D.position.z = nextZ;
+		object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z);
+		turnToward(Math.atan2(dx, dz), delta);
+		return true;
 	}
 
 	return {
@@ -260,6 +356,58 @@ export function createCreatureBeing({
 			currentlyReacting = reactingDirectly || reactingFromHerd;
 			let isMoving = false;
 
+			if (isFlightSpecies) {
+				// Climb -> cruise -> land. See this file's own "Birds fly now" header section for the
+				// full design rationale; kept as its own branch rather than interleaved with the ground
+				// species' branch below so neither reads as a special case of the other.
+				if (currentlyReacting && flightPhase === 'grounded') {
+					flightPhase = 'climbing';
+					flightElapsedSeconds = 0;
+					const safeDistance = Math.max(distanceFromPlayer, 1e-6);
+					flightHeadingX = dxFromPlayer / safeDistance;
+					flightHeadingZ = dzFromPlayer / safeDistance;
+				}
+
+				if (flightPhase === 'grounded') {
+					isMoving = stepGroundWander(delta);
+				} else if (flightPhase === 'landing') {
+					flightAltitudeMeters = Math.max(0, flightAltitudeMeters - profile.takeoffClimbMps * delta);
+					object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z) + flightAltitudeMeters;
+					isMoving = true;
+					if (flightAltitudeMeters <= 0) {
+						flightPhase = 'grounded';
+						wanderCenter.x = object3D.position.x;
+						wanderCenter.z = object3D.position.z;
+						pickNewWanderTarget();
+						pauseTimer = profile.wanderPauseSeconds;
+					}
+				} else {
+					// 'climbing' or 'cruising' — both fly the same fixed heading at reactiveSpeedMps,
+					// differing only in whether altitude is still increasing.
+					flightElapsedSeconds += delta;
+					object3D.position.x += flightHeadingX * profile.reactiveSpeedMps * delta;
+					object3D.position.z += flightHeadingZ * profile.reactiveSpeedMps * delta;
+					if (flightPhase === 'climbing') {
+						flightAltitudeMeters = Math.min(profile.flightAltitudeMeters, flightAltitudeMeters + profile.takeoffClimbMps * delta);
+						if (flightAltitudeMeters >= profile.flightAltitudeMeters) flightPhase = 'cruising';
+					} else if (flightElapsedSeconds >= profile.flightDurationSeconds) {
+						flightPhase = 'landing';
+					}
+					object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z) + flightAltitudeMeters;
+					turnToward(Math.atan2(flightHeadingX, flightHeadingZ), delta);
+					isMoving = true;
+				}
+
+				if (isMoving) {
+					gaitClockSeconds += delta;
+					applyCreatureGait(rig, { gaitName: flightPhase === 'grounded' ? plan.restGait : plan.alertGait, elapsedSeconds: gaitClockSeconds });
+				} else if (wasMoving) {
+					resetCreatureGaitPose(rig);
+				}
+				wasMoving = isMoving;
+				return;
+			}
+
 			if (currentlyReacting) {
 				const safeDistance = Math.max(distanceFromPlayer, 1e-6);
 				const sign = profile.reactiveDirection === 'toward' ? -1 : 1;
@@ -276,36 +424,8 @@ export function createCreatureBeing({
 				object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z);
 				turnToward(Math.atan2(dirX, dirZ), delta);
 				isMoving = true;
-			} else if (pauseTimer > 0) {
-				pauseTimer -= delta;
 			} else {
-				const dx = wanderTarget.x - object3D.position.x;
-				const dz = wanderTarget.z - object3D.position.z;
-				const distance = Math.hypot(dx, dz);
-				const step = profile.wanderSpeedMps * delta;
-				if (distance <= step) {
-					let targetX = wanderTarget.x;
-					let targetZ = wanderTarget.z;
-					if (playerCollider) {
-						({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
-					}
-					object3D.position.x = targetX;
-					object3D.position.z = targetZ;
-					object3D.position.y = groundCollider.getGroundHeight(targetX, targetZ);
-					pickNewWanderTarget();
-					pauseTimer = profile.wanderPauseSeconds;
-				} else {
-					let nextX = object3D.position.x + (dx / distance) * step;
-					let nextZ = object3D.position.z + (dz / distance) * step;
-					if (playerCollider) {
-						({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
-					}
-					object3D.position.x = nextX;
-					object3D.position.z = nextZ;
-					object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z);
-					turnToward(Math.atan2(dx, dz), delta);
-					isMoving = true;
-				}
+				isMoving = stepGroundWander(delta);
 			}
 
 			if (isMoving) {

@@ -9,15 +9,17 @@
  * **Population size — a real performance budget, not "as many as fit".** Unlike `world/vegetation.js`'s
  * instanced trees (one draw call *per species*, regardless of tree count), every creature here is its
  * own unique `THREE.SkinnedMesh` with its own skeleton — one draw call *per creature*, plus a real
- * per-frame bone-rotation cost while it moves. `DESKTOP_SPECIES_COUNTS` below sums to 66 creatures
- * (≈1-2k triangles each per `creatureRig.js`'s own accounting, so ≈70-130k triangles total) — trivial
+ * per-frame bone-rotation cost while it moves. `DESKTOP_SPECIES_COUNTS` below sums to 80 creatures
+ * (≈1-2k triangles each per `creatureRig.js`'s own accounting, so ≈80-150k triangles total) — trivial
  * against this project's existing desktop budget (`GOVERNANCE.md` §7: DrawCalls<2500, Triangles<5M) but
  * a deliberate, explicit ceiling rather than an unbounded scatter, chosen so "populate the world
- * generously" doesn't quietly become a frame-budget regression. `MOBILE_SPECIES_COUNTS` sums to 10,
+ * generously" doesn't quietly become a frame-budget regression. `MOBILE_SPECIES_COUNTS` sums to 12,
  * anchored to the player's own spawn point (mirrors `game3d.js`'s existing `mobileSpawnVegetation`
  * pattern) rather than the full-world desktop disc, consistent with mobile's own already-much-smaller
  * `STREAM_RADIUS_CHUNKS` world-coverage footprint (`GOVERNANCE.md`'s World Coverage line: 96.2% desktop
- * vs 4.5% mobile) and its own DrawCalls<500/Triangles<500K ceiling.
+ * vs 4.5% mobile) and its own DrawCalls<500/Triangles<500K ceiling. `kuzgun`/`kartal`/`tavuk` (birds,
+ * `gameplay/creatureBrain.js`'s new flight species) get modest counts of their own — small bodies, so
+ * cheap even at a slightly higher count than the four-legged species above.
  *
  * Placement reuses `world/vegetation.js`'s exported `isPlaceablePosition` (water/slope/seat/road
  * exclusion — unchanged, not reimplemented) over a uniform-disc rejection sample, same `r=R*sqrt(u)`
@@ -42,16 +44,21 @@ import { isPlaceablePosition } from '../world/vegetation.js';
 const MAX_ATTEMPTS_PER_CREATURE = 10;
 
 /** Desktop population — see this module's own doc comment for the draw-call/triangle budget math this
- * total (66) was chosen against. Herd-tagged species (per `creatureSpeciesConfig.js`) get a slightly
+ * total (80) was chosen against. Herd-tagged species (per `creatureSpeciesConfig.js`) get a slightly
  * higher count than solitary ones; this run's own judgment, not a calibrated density. */
 export const DESKTOP_SPECIES_COUNTS = Object.freeze({
 	kedi: 4, kopek: 4, at: 6, fil: 2, geyik: 8, koyun: 10, inek: 5,
 	keci: 6, domuz: 5, tavsan: 8, ayi: 3, aslan: 3, zurafa: 2,
+	kuzgun: 6, kartal: 2, tavuk: 6,
 });
 
-/** Mobile population — small and spawn-anchored, see this module's own doc comment. */
+/** Mobile population — small and spawn-anchored, see this module's own doc comment. Only the two
+ * lightest/most-recognizable birds are included (a raven and a chicken); `kartal` (eagle) is skipped
+ * on mobile to keep the already-small budget from growing further for a species that reads similarly
+ * to `kuzgun` at mobile's short view distance. */
 export const MOBILE_SPECIES_COUNTS = Object.freeze({
 	kedi: 1, kopek: 1, at: 1, geyik: 1, koyun: 2, inek: 1, keci: 1, domuz: 1, tavsan: 1,
+	kuzgun: 1, tavuk: 1,
 });
 
 /**
