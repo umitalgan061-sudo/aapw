@@ -15386,3 +15386,31 @@ step, is not this run).
 - Next safe step: either `gameplay/creatureBrain.js` (run 327's declared next step — re-check
   `origin/main` first, given today's demonstrated collision rate) or scope the procedural-castle-geometry
   idea above; re-check concurrency state fresh before starting either.
+
+## Run 329 (2026-08-13) — `gameplay/creatureBrain.js`/`creatureSpawner.js`: procedural creatures move and populate the world
+
+- Owner asked live to continue creature rig/AI work and to populate the world generously with the
+  project's available FBX assets. Investigated the actual FBX/asset inventory first (`assets_manifest.json`):
+  every FBX on disk is either already wired in (character/creature/settlement rigs) or license-quarantined
+  (`runtimeUseAllowed: false`, not used) — no unused generic decoration-prop set exists, no `.blend` files
+  exist in the repo at all. Read this run's own contribution as "populate with procedurally-generated living
+  creatures" instead (see ADR-0274's interpretation note; also logged to `QUESTIONS_FOR_OWNER.md`).
+- Shipped `gameplay/creatureBrain.js` — the behaviour-primitive state machine run 326/327 (ADR-0272/0273)
+  named as their declared next step. 13 land-quadruped species (`kedi`, `kopek`, `at`, `fil`, `geyik`,
+  `koyun`, `inek`, `keci`, `domuz`, `tavsan`, `ayi`, `aslan`, `zurafa`) now wander near their spawn point
+  and react to the player — flee-away for 12 of them, approach-toward for `kopek` (`approach-friendly`) —
+  driving `creatureGait.js`'s walk/run cycle only while actually moving. `gameplay/creatureSpawner.js`
+  deterministically scatters them across the map (66 on desktop, 10 spawn-anchored on mobile), reusing
+  `world/vegetation.js`'s own water/slope/seat/road placement exclusion, not a second copy of it.
+- Before this run: 3 wolves + 1 static-idle horse were the entire living, moving population of a
+  137.5km² world. After: 66 more creatures across 13 species on desktop, all wandering/reactive, at a
+  measured +5 draw calls / +38K triangles against the boot camera's own view (real perf snapshot,
+  `perf_log.csv`) — the rest of the 66 sit off-screen from spawn until a player actually walks toward them,
+  same frustum-culling behavior every other object in the scene already gets for free.
+- Perde arkasında: `game3d.js` is now 595/600 lines (5 lines of headroom) — flagged, not yet split; the
+  next addition to that file needs to shrink something first or split it, same as `checkSmokeCheckRegistry`
+  already warns.
+- Next safe step: `pounce`(`kedi`)/`charge`(`domuz`) as real distinct motions once/if a health-damage
+  decision unblocks them; the three bird species (`kuzgun`/`kartal`/`tavuk`, flight/perch locomotion) as
+  their own sub-task; a distance-based LOD/culling pass for large future herds, the unique-skeleton
+  equivalent of `vegetation.js`'s existing mobile LOD for instanced trees.

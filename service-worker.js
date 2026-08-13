@@ -1,3 +1,11 @@
+// Run329 creature-brain offline shell extension — `gameplay/creatureBrain.js`/`creatureSpawner.js`
+// (ADR-0274), now actually imported by `game3d.js` (unlike the run 326/327 rig/gait modules they
+// finally drive, which shipped inert), so an offline PWA load needs these cached to boot the scene.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/gameplay/creatureBrain.js');
+    GAME3D_SHELL_FILES.push('./src/3d/gameplay/creatureSpawner.js');
+});
+
 // G07 Terrain3D runtime parity offline shell extension.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/world/g07Terrain3dBake.js');

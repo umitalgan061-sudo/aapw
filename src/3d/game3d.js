@@ -57,6 +57,9 @@ import { createPlayer } from './gameplay/player.js';
 import { createHealthState } from './gameplay/health.js';
 import { spawnConfiguredNPCs } from './gameplay/npc.js';
 import { spawnConfiguredAnimals } from './gameplay/animals.js';
+import { spawnConfiguredCreatures } from './gameplay/creatureBrain.js';
+import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS } from './gameplay/creatureSpawner.js';
+import { mulberry32 } from './world/terrain.js';
 import { spawnConfiguredDragons } from './gameplay/dragons.js';
 import { createInteractionController } from './gameplay/interaction.js';
 import { createWorldEventSystem } from './gameplay/worldEvents.js';
@@ -296,6 +299,31 @@ export async function initGame3D() {
 		for (const animal of state.animals) state.scene.add(animal.object3D);
 		console.info(`[game3d] Spawned ${state.animals.length} FAZ 6 animal(s).`);
 
+		// Procedural creature population (`gameplay/creatureBrain.js`/`creatureSpawner.js`, run 329) —
+		// wires run 326/327's dormant procedural rigs (`creatureRig.js`/`creatureGait.js`) into a live
+		// wander/flee tick for the first time (ADR-0273's declared next step). Desktop scatters
+		// `DESKTOP_SPECIES_COUNTS` across the same origin-centered disc `state.vegetation` already
+		// scatters trees over; mobile gets the much smaller `MOBILE_SPECIES_COUNTS`, anchored at
+		// `spawnWorld` like `mobileSpawnVegetation` above, for the same world-coverage-footprint reason.
+		const isMobileClassCreatures = isCoarsePointerDevice();
+		const creatureScatterRadiusMeters = (isMobileClassCreatures ? CHUNK_CONFIG.STREAM_RADIUS_CHUNKS : CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS) * CHUNK_CONFIG.CHUNK_SIZE_METERS;
+		const creatureSpawns = scatterCreatures({
+			sampleHeightMeters: (x, z) => state.groundCollider.getGroundHeight(x, z),
+			seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+			seats: state.settlementSeats,
+			roadEdges: state.roadEdges,
+			seed: WORLD_DEFAULTS.WORLD_SEED,
+			seedTag: isMobileClassCreatures ? 0x4352544d : 0x43524554, // "CRTM"/"CRET"-ish tags
+			mulberry32,
+			centerX: isMobileClassCreatures ? spawnWorld.x : 0,
+			centerZ: isMobileClassCreatures ? spawnWorld.z : 0,
+			radiusMeters: creatureScatterRadiusMeters,
+			speciesCounts: isMobileClassCreatures ? MOBILE_SPECIES_COUNTS : DESKTOP_SPECIES_COUNTS,
+		});
+		state.creatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, mulberry32 });
+		for (const creature of state.creatures) state.scene.add(creature.object3D);
+		console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s).`);
+
 		// FAZ 7 (run 53): first dragon, circling a kingdom seat at a fixed altitude — see
 		// `gameplay/dragons.js` and DECISIONS.md ADR-0071. Same spawn-wiring shape as NPCs/animals
 		// above; altitude is ground-height-relative, not absolute, so `sampleClampedGroundY` is reused
@@ -414,6 +442,21 @@ export async function initGame3D() {
 						.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z })),
 				),
 			});
+			// Procedural creature population (run 329) — same per-frame shape as the animal block
+			// above (herdmate-reactive-position awareness via `isFleeing`), through the same shared
+			// `updateEntitiesSafely` safe-mode loop per `gameplay/creatureBrain.js`'s `createCreatureBeing`.
+			state.creatures = updateEntitiesSafely({
+				entities: state.creatures,
+				scene: state.scene,
+				label: 'Creature',
+				update: (creature) => creature.update(
+					delta,
+					playerPos,
+					state.creatures
+						.filter((other) => other !== creature && other.isFleeing)
+						.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z })),
+				),
+			});
 			// FAZ 7 dragons (run 53 flight path, run 54 player-awareness, run 64 dive) — see
 			// `gameplay/dragons.js`'s own doc comment. `playerPos` already reflects this frame's
 			// post-movement position (set above).
@@ -508,6 +551,7 @@ export async function initGame3D() {
 			state.player.dispose();
 			state.npcs.forEach((npc) => npc.dispose());
 			state.animals.forEach((animal) => animal.dispose());
+			state.creatures.forEach((creature) => creature.dispose());
 			state.dragons.forEach((dragon) => dragon.dispose());
 			state.controls.dispose();
 			state.freeCamera.dispose();
