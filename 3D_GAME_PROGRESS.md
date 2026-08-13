@@ -15414,3 +15414,37 @@ step, is not this run).
   decision unblocks them; the three bird species (`kuzgun`/`kartal`/`tavuk`, flight/perch locomotion) as
   their own sub-task; a distance-based LOD/culling pass for large future herds, the unique-skeleton
   equivalent of `vegetation.js`'s existing mobile LOD for instanced trees.
+
+## Run 330 (2026-08-13) — Owner directive: "tam anlamıyla bir oyun"; all 14 seats get a real castle; the stone texture becomes visible for the first time
+
+- **Owner directive recorded as standing policy.** New `GOVERNANCE_FULL_GAME_DIRECTIVE.md` + `GOVERNANCE.md` §33
+  + a `CLAUDE.md` entry: every run now picks its subtask by "does this move the project toward a *playable
+  game*?", with the seven concrete gaps named (quests, save/load, inventory, player-side combat, populated
+  settlements, audio, menu/pause flow). Verification-only runs and shadow/preview-only layers are explicitly
+  no longer the default priority.
+- **Asset quarantine dissolved** per the same directive. All 4 withheld assets moved into
+  `assets_manifest.json` as owner-approved (`license: "UNKNOWN — owner-approved for runtime use"`), recorded
+  honestly in `CREDITS.md` (including the public-repo risk note), and `checkAssetsManifest.js` was **inverted**
+  so it now fails if anything is ever quarantined again.
+- **All 14 kingdom seats now have a real castle model.** Priority item 1.7 had been re-scanned as
+  "asset-blocked" for dozens of runs; the blocker was a false premise, since nothing stops a castle model from
+  being used at more than one seat. The 6 placeholder seats got thematic pairings (Night King → icebound
+  citadel, Robin Arryn → castle on a rock, Xaro/Qarth → walled city fortress, …), each with its own yaw,
+  footprint and stone tint so shared meshes don't read as copy-paste.
+- **The castle stone texture has never actually been visible — until this run.** Rendering the result (rather
+  than trusting the code) showed flat black silhouettes. Two independent root causes, both live since run 54:
+  the `.glb` exports have **no UV attribute** (so the stone map only ever sampled texel 0,0) and several have
+  **no normals** (so nothing could light them). Fixed with a new `prepareImportedGeometryForTexturing`
+  (computes normals, generates box-projected UVs in real-world tile units).
+- **A second bug behind it: castles were double-darkened.** `paintStoneColor` wrote `THREE.Color`'s *linear*
+  components into a canvas tagged *sRGB*. Every castle in the game — procedural, model-based, 3D and RTS — has
+  been rendering at roughly rgb(47,45,40) mud. Stone colour map mean luminance is now **47 → 128** of 255.
+- Two further bugs were caught by the probe render before shipping: a shared castle came out ~2m and sunk
+  (a clone re-measured the first seat's already-applied transform), and yaw orbited a castle around its seat
+  instead of spinning it (fixed with a pivot group).
+- **Oyuncu ne fark eder:** 6 koltukta kutu+silindir yerine gerçek kale duruyor, ve 14 kalenin hepsi ilk kez
+  gerçekten taş dokulu görünüyor — daha önce hepsi koyu, dokusuz siluetlerdi.
+- Next safe step: villages ("ev, taş, merdiven" — the other half of this run's owner request) as a
+  `world/villages.js` clustered around seats; then 3D house banners to restore the per-house colour identity
+  the 6 formerly-procedural seats lost; then the unused character/dragon `.glb`s, which are geometry-only in
+  exactly the same way and now have `prepareImportedGeometryForTexturing` waiting for them.

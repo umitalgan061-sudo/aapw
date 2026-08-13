@@ -1,6 +1,12 @@
 # CREDITS.md — Üçüncü Taraf Asset Atıfları
 
-Bu proje ÖZEL (private) bir repo olsa da, kullanılan üçüncü taraf asset'lerin lisans
+> **Güncelleme 2026-08-13:** repository artık **public** (`umitalgan061-sudo/aapw`) ve proje sahibi
+> asset karantinasını feshetti (bkz. `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4). Kaynağı/lisansı
+> kayıtlı olmayan asset'ler de runtime'da kullanılıyor; bu dosya artık "yalnız lisanslı olanların
+> atfı" değil, **kullanılan her asset'in bilinen kaynağının kaydı** olarak tutuluyor. Bilinmeyen
+> kaynak, kullanımı engellemiyor ama burada açıkça "bilinmiyor" olarak işaretleniyor.
+
+Bu proje public bir repo olduğu için, kullanılan üçüncü taraf asset'lerin lisans
 şartları (özellikle CC-BY ailesi) atıf yükümlülüğünü private/public repo ayrımından
 bağımsız olarak taşır. Bu dosya `assets_manifest.json`'daki her asset'in kaynağını,
 lisansını ve (biliniyorsa) yazarını tek yerde toplar. Kaynak: `GOVERNANCE.md` §10.
@@ -147,6 +153,27 @@ Gerçek HBO Game of Thrones görsel materyali kullanılmamıştır; tüm desenle
 
 ---
 
+## Kaynağı/Lisansı Bilinmeyen — sahip onayıyla kullanımda (2026-08-13)
+
+Bu dört asset 2026-08-13'e kadar `assets_manifest.quarantine.json` içinde tutuluyordu ("provenance
+belirsiz, runtime'da kullanılmaz"). Proje sahibi karantinayı doğrudan talimatla feshetti; dördü de
+`assets_manifest.json`'a `license: "UNKNOWN — owner-approved for runtime use"` ile taşındı.
+
+Atıf yapılacak bilinen bir yazar/kaynak **yok** — bu tabloda dürüstçe "bilinmiyor" olarak
+kayıtlıdır. Kaynağı sonradan ortaya çıkarsa bu satırlar güncellenmelidir.
+
+| Asset ID | Dosya | Bilinen kaynak ipucu | Lisans |
+|---|---|---|---|
+| `moon_2k` | `assets/models/Ay/Moon 2K.fbx` | FBX metadata: Blender 2.79 export, iç dosya adı `/foobar.fbx` — kaynak değil | BİLİNMİYOR |
+| `character_golden_vanguard_knight` | `assets/models/characters/Meshy_AI_Golden_Vanguard_Knigh_*.fbx` | Dosya adı Meshy AI diyor (repo'da başka Meshy asset'leri var) ama tek başına kanıt sayılmadı | BİLİNMİYOR (muhtemelen Meshy AI) |
+| `character_iron_sentinel` | `assets/models/characters/Meshy_AI_Iron_Sentinel_*.fbx` | Aynı — dosya adı Meshy AI | BİLİNMİYOR (muhtemelen Meshy AI) |
+| `surface_terrain_reference` | `assets/textures/yüzey/model.fbx` | Çok formatlı bir yüzey/terrain paketiyle yüklendi (.max/.mview/.ksp dahil); sağlayıcı kayıtlı değil | BİLİNMİYOR |
+
+**Public repo notu:** kaynağı belirsiz materyali public bir repoda dağıtmak private repoda
+kullanmaktan farklı bir hukuki maruziyettir. Sahip bunu bilerek karar verdi; kayıt burada duruyor.
+
+---
+
 ## Özet
 
 | Kaynak | Asset sayısı |
@@ -155,7 +182,8 @@ Gerçek HBO Game of Thrones görsel materyali kullanılmamıştır; tüm desenle
 | Free3D (Dennis Haupt / 3dhaupt) | 2 |
 | Meshy AI (orijinal + decimated türevler dahil) | 24 |
 | Hitem3d (orijinal + 2 decimated türev dahil) | 5 |
-| **Toplam** | **41** |
+| Kaynağı bilinmeyen (sahip onaylı, eski karantina) | 4 |
+| **Toplam** | **45** |
 
 Ayrıca kod/araç bağımlılığı olarak Terrain3D v1.0.2-stable (MIT) kullanılır — yukarıdaki bölüme bakın (asset sayısına dahil değildir).
 

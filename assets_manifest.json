@@ -707,6 +707,66 @@
       "replacedBy": null,
       "notes": "AI-generated character, geometry only, no rig. Name suggests a modern/casual pose that may not fit the medieval fantasy theme — verify visually before using as a Westeros NPC; may need a reskin or restyled generation to fit.",
       "dateAdded": "2026-07-30"
+    },
+    {
+      "id": "moon_2k",
+      "file": "assets/models/Ay/Moon 2K.fbx",
+      "type": "prop_model",
+      "source": "Owner upload; original source not recorded",
+      "sourceUrl": null,
+      "license": "UNKNOWN — owner-approved for runtime use (GOVERNANCE.md §33.3, 2026-08-13)",
+      "version": 1,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Formerly quarantined (assets_manifest.quarantine.json) pending provenance confirmation. Owner directive 2026-08-13 dissolved the quarantine outright: every file under assets/ is approved for runtime use regardless of recorded provenance. Original provenance hint kept below verbatim so the record is not lost. See GOVERNANCE_FULL_GAME_DIRECTIVE.md §4. Original sourceHint: FBX metadata shows Blender 2.79 export and an internal /foobar.fbx filename; this is not sufficient provenance.",
+      "dateAdded": "2026-08-13",
+      "formerlyQuarantined": true
+    },
+    {
+      "id": "character_golden_vanguard_knight",
+      "file": "assets/models/characters/Meshy_AI_Golden_Vanguard_Knigh_0809074809_texture.fbx",
+      "type": "character_model",
+      "source": "Owner upload; original source not independently verified",
+      "sourceUrl": null,
+      "license": "UNKNOWN — owner-approved for runtime use (GOVERNANCE.md §33.3, 2026-08-13)",
+      "version": 1,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Formerly quarantined (assets_manifest.quarantine.json) pending provenance confirmation. Owner directive 2026-08-13 dissolved the quarantine outright: every file under assets/ is approved for runtime use regardless of recorded provenance. Original provenance hint kept below verbatim so the record is not lost. See GOVERNANCE_FULL_GAME_DIRECTIVE.md §4. Original sourceHint: Filename contains Meshy_AI and the repository has other Meshy AI assets, but filename alone is not treated as license proof.",
+      "dateAdded": "2026-08-13",
+      "formerlyQuarantined": true
+    },
+    {
+      "id": "character_iron_sentinel",
+      "file": "assets/models/characters/Meshy_AI_Iron_Sentinel_0809085351_texture.fbx",
+      "type": "character_model",
+      "source": "Owner upload; original source not independently verified",
+      "sourceUrl": null,
+      "license": "UNKNOWN — owner-approved for runtime use (GOVERNANCE.md §33.3, 2026-08-13)",
+      "version": 1,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Formerly quarantined (assets_manifest.quarantine.json) pending provenance confirmation. Owner directive 2026-08-13 dissolved the quarantine outright: every file under assets/ is approved for runtime use regardless of recorded provenance. Original provenance hint kept below verbatim so the record is not lost. See GOVERNANCE_FULL_GAME_DIRECTIVE.md §4. Original sourceHint: Filename contains Meshy_AI and the repository has other Meshy AI assets, but filename alone is not treated as license proof.",
+      "dateAdded": "2026-08-13",
+      "formerlyQuarantined": true
+    },
+    {
+      "id": "surface_terrain_reference",
+      "file": "assets/textures/yüzey/model.fbx",
+      "type": "prop_model",
+      "source": "Owner upload; original source not recorded",
+      "sourceUrl": null,
+      "license": "UNKNOWN — owner-approved for runtime use (GOVERNANCE.md §33.3, 2026-08-13)",
+      "version": 1,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Formerly quarantined (assets_manifest.quarantine.json) pending provenance confirmation. Owner directive 2026-08-13 dissolved the quarantine outright: every file under assets/ is approved for runtime use regardless of recorded provenance. Original provenance hint kept below verbatim so the record is not lost. See GOVERNANCE_FULL_GAME_DIRECTIVE.md §4. Original sourceHint: Uploaded with a multi-format surface/model bundle; repository history does not record the original provider or license.",
+      "dateAdded": "2026-08-13",
+      "formerlyQuarantined": true
     }
   ]
 }

@@ -540,6 +540,65 @@ Proje sahibi Run188/ADR-0208 yol-su kararını doğrudan çözdü: **bir yol der
 5. **Kademeli yayın:** Run191 gerçek THREE geometry/materialı shadow-only kanıtlar. Live terrain/road scene adoption ayrı bir alt görevdir; önce bridge fixture, iki görsel açı, renderer budget, dispose ve pre/post smoke PASS olmalıdır.
 
 
+## 33. "Tam Anlamıyla Bir Oyun" — Owner Direktifi (2026-08-13)
+
+**Durum: AKTİF, KALICI, HER ÇALIŞTIRMADA GEÇERLİ.** Proje sahibinin 2026-08-13 tarihli doğrudan
+talimatı: *"Senden tam anlamıyla bir oyun yapmanı istiyorum. Bunu kurallara ekle ve her rutininde
+senden tam anlamıyla bir oyun istediğimi düşünerek aksiyonlar al."*
+
+### 33.1 Her çalıştırmanın ölçütü
+
+Bir alt görev seçilirken tek soru şudur: **"Bu, projeyi oynanabilir bir oyuna yaklaştırıyor mu?"**
+Teknik olarak doğru ama oyuncunun asla fark etmeyeceği işler (shadow/adapter katmanları, yalnızca
+önizleme yolunda kalan görsel katmanlar, yalnızca doğrulama üreten çalıştırmalar) artık **varsayılan
+öncelik değildir**. Bunlar ancak gerçek bir oyun özelliğini bloke ediyorlarsa öne alınır.
+
+Bir çalıştırma sonunda "oyuncu ne fark etti?" sorusuna somut bir cevap yazılamıyorsa, o çalıştırma
+öncelik seçimini yanlış yapmış sayılır — `3D_GAME_PROGRESS.md`'deki World Evolution Report'un
+"oyuncu fark eder mi" satırı bu direktifin denetim noktasıdır.
+
+### 33.2 Oyun neyi gerektirir (eksik olanlar açık iş listesidir)
+
+"Tam anlamıyla oyun" bu projede en az şunları gerektirir; her biri kendi alt görev zincirini hak
+eden gerçek boşluklardır ve hiçbiri "gelecekte bir gün" kategorisinde değildir:
+
+1. **Amaç/ilerleme:** görev (quest) sistemi, hedefler, tamamlama koşulu. Bugün yok.
+2. **Kayıt/yükleme:** `SaveSystem` — bugün yok (§16'daki Save Game Uyumluluk Kapısı bu yüzden hâlâ pasif).
+3. **Etkileşim derinliği:** envanter, eşya, ekonomi/takas. Bugün yok.
+4. **Çatışma:** oyuncunun kendi saldırısı — bugün yalnız ejderha oyuncuya hasar veriyor, tersi yok.
+5. **Dolu dünya:** yerleşim = yalnız kale değil; ev, ahır, çit, yol kenarı yapıları, kalabalık.
+6. **Ses:** müzik ve efekt. `assets/audio/` bugün fiilen boş.
+7. **Menü/akış:** başlangıç, duraklat, ayarlar, ölüm/yeniden başlama akışı.
+
+Bu liste `3D_GAME_PROGRESS.md`'nin FAZ tablosunun yerine geçmez, onun üstünde bir **ürün** ölçütüdür:
+FAZ'lar teknik olarak tamamlansa bile yukarıdakiler yoksa proje "oyun" sayılmaz.
+
+### 33.3 Asset kullanımı — karantina kaldırıldı
+
+Aynı talimatla proje sahibi şunu da açıkça söyledi: *"Assets klasöründeki her şeyi kullanmanı
+istiyorum. Hiçbir şeyi karantinaya alma."* ve *"Lisansı olmasa bile 3d haritaya yerleştir."*
+
+Buna göre:
+
+- `assets/` altındaki **her dosya runtime kullanımı için sahip tarafından onaylanmıştır**. Bir
+  asset'i "provenance belirsiz" gerekçesiyle kullanım dışı bırakmak (karantina) artık yapılmaz;
+  `assets_manifest.quarantine.json` bu direktifle feshedilmiştir.
+- Lisans/atıf **kayıt tutma** yükümlülüğü kalkmadı: `CREDITS.md` ve `assets_manifest.json` bilinen
+  kaynak/lisans bilgisini kaydetmeye devam eder, bilinmeyen için `license: "UNKNOWN — owner-approved
+  for runtime use (§33.3)"` yazılır. Kayıt tutmak kullanımı engellemez.
+- **Tek kalıcı kısıt değişmedi:** gerçek HBO görsel/ses materyali indirilmez. Bu, sahibin kendi
+  koyduğu tek sınırdır ve bu direktif onu kaldırmaz.
+- Dürüst risk notu (kural değil, bilgi): repository 2026-08-10'da public yapıldı. Kaynağı belirsiz
+  bir asset'i public bir repoda dağıtmak, private bir repoda kullanmaktan farklı bir hukuki
+  maruziyettir. Sahip bunu bilerek karar verdi; ajan bu kararı tekrar tekrar sorgulamaz, yalnız bu
+  satırı kayıt olarak korur.
+
+### 33.4 Öncelik sırasına etkisi
+
+§18'deki öncelik sırası korunur, ancak eşit güvenlikteki iki alt görev arasında seçim yapılırken
+**oyuncuya görünen/oynanabilirliği artıran olan kazanır**. §33.2'deki yedi maddeden herhangi biri,
+"yeni özellik" (§18 madde 10) kategorisinde değil, kendi başına birinci sınıf iş olarak ele alınır.
+
 ### Run199 platform-control superseding note (2026-08-08 23:29 UTC)
 GOVERNANCE §15'teki eski “Son kontrol: run 156” metni tarihsel kayıt olarak korunur; en yeni periyodik platform kontrolü **run 199 (2026-08-09)**'dur. package.json/npm bağımlılığı hâlâ yok (npm audit N/A); PWA installability, service-worker cache completeness, Chromium/WebGL 3D boot, console cleanliness, mobile streaming/LOD/perf ve perf trend kontrolleri yeniden PASS oldu. Bir sonraki periyodik platform kontrolü yaklaşık run 219-229 civarında yapılmalıdır. Bu not additive-only kuralı nedeniyle eski satırı silmeden/değiştirmeden onu supersede eder.
 

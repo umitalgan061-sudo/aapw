@@ -5,6 +5,9 @@ Before starting or publishing any work in this repository, read and obey:
 1. `GOVERNANCE.md`
 2. `GOVERNANCE_CONTINUATION_OVERRIDE.md`
 3. `GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`
+3b. `GOVERNANCE_FULL_GAME_DIRECTIVE.md` — **what is being built**: the owner wants a real, playable
+   game, not a world demo. Every run picks its subtask by "does this move the project toward a
+   playable game?" and every asset under `assets/` is owner-approved for runtime use (no quarantine).
 4. the latest `3D_GAME_PROGRESS.md`, recent commits/ADRs, and `QUESTIONS_FOR_OWNER.md`
 
 The two continuation/owner-directive files are active owner decisions. Where they conflict with old duration/run-stop clauses in `GOVERNANCE.md` §8.7 or §19, the newer owner directive wins.

@@ -75,11 +75,22 @@ function paintStoneColor(ctx, heights, baseColor, random) {
 	// for shape, but a smoother per-pixel jitter for color richness.
 	for (let i = 0; i < tintNoise.length; i++) tintNoise[i] = (random() - 0.5) * 0.06;
 
+	// `THREE.Color` keeps its components in **linear** space (`ColorManagement` is on by default since
+	// three r152), but the bytes written into this canvas are read back as **sRGB** — `finalizeTexture`
+	// tags the colour map `SRGBColorSpace`. Writing the linear components straight into the canvas
+	// therefore darkened the stone twice: the 0x8a8578 warm grey this module is called with landed on
+	// screen as roughly rgb(47,45,40), a muddy near-black, which is what every castle in the game has
+	// actually been rendering since ADR-0013 (run 330 found it once the real castle models finally had
+	// UVs to show a texture through at all). Convert back to sRGB for the byte write. The `shade` ramp
+	// below then operates in the same space as `paintRoofColor`'s own grey ramp, which was always
+	// written as plain sRGB bytes and so never had this problem.
+	const srgbBase = baseColor.clone().convertLinearToSRGB();
+
 	for (let i = 0; i < heights.length; i++) {
 		const shade = 0.72 + heights[i] * 0.28 + tintNoise[i];
-		const r = clamp(baseColor.r * shade, 0, 1);
-		const g = clamp(baseColor.g * shade, 0, 1);
-		const b = clamp(baseColor.b * shade, 0, 1);
+		const r = clamp(srgbBase.r * shade, 0, 1);
+		const g = clamp(srgbBase.g * shade, 0, 1);
+		const b = clamp(srgbBase.b * shade, 0, 1);
 		image.data[i * 4] = r * 255;
 		image.data[i * 4 + 1] = g * 255;
 		image.data[i * 4 + 2] = b * 255;
@@ -243,4 +254,95 @@ export function disposeCastleMaterial(material) {
 	if (material.roughnessMap) material.roughnessMap.dispose();
 	if (material.normalMap) material.normalMap.dispose();
 	material.dispose();
+}
+
+/**
+ * Makes an imported mesh actually *renderable* with the maps `createStoneMaterial` produces.
+ *
+ * **Why this exists (GOVERNANCE.md §8.2 Root Cause Analysis).** The real castle models have carried a
+ * `createStoneMaterial` since ADR-0074, but run 330 rendered them and found flat black silhouettes:
+ * every one of these AI-generated `.glb` exports ships **geometry only** — `attributes` is
+ * `['normal','position']` at best and `['position']` alone for several. Two independent consequences,
+ * both invisible from code review and both fixed here:
+ *
+ * 1. **No `uv`** — a `map`/`normalMap`/`roughnessMap` has nothing to sample against, so every
+ *    fragment reads texel (0,0). The stone texture was technically "applied" for ~275 runs and never
+ *    once visible; the castle rendered as the single dark colour of its texture's first pixel.
+ * 2. **No `normal`** — `MeshStandardMaterial` has no surface direction to light. glTF says a client
+ *    must treat a normal-less primitive as flat-shaded, and `GLTFLoader` honours that by setting
+ *    `flatShading` on *the material it creates*; replacing that material (which is the whole point of
+ *    the procedural-stone pass) silently threw the accommodation away and left the mesh unlit.
+ *
+ * The UV projection is a **box/triplanar-lite** unwrap: each vertex is projected onto whichever world
+ * plane its own normal faces most strongly, so walls take their tiling from X/Z and roofs and floors
+ * from the horizontal plane, with no stretching where a real unwrap would have a seam. This is not a
+ * substitute for an authored UV map — it cannot respect a texture's intended layout — but these
+ * textures are seamless procedural noise with no layout to respect, which is exactly the case box
+ * projection handles well.
+ *
+ * Scaling: UVs are emitted in **tiles of `metersPerTile` at final world size**, so the caller passes
+ * the scale it is about to apply and stone blocks come out the same real-world size on a 40m keep and
+ * a 52m fortress, instead of stretching with the model.
+ *
+ * Mutates the geometry in place and is idempotent (an existing `uv`/`normal` is never overwritten) —
+ * which also makes it safe to call once on a model whose geometry is shared by several clones.
+ *
+ * @param {import('three').Object3D} model Root of a loaded model; every descendant mesh is processed.
+ * @param {object} options
+ * @param {number} options.modelScale Uniform scale the caller will apply to `model` after this call.
+ * @param {number} [options.metersPerTile] Real-world size of one texture tile. ~4m reads as courses of
+ *   masonry on a castle wall at gameplay distance rather than as visible wallpaper.
+ * @returns {{meshes: number, uvsGenerated: number, normalsComputed: number}} What actually needed fixing.
+ */
+export function prepareImportedGeometryForTexturing(model, { modelScale, metersPerTile = 4 }) {
+	let meshes = 0;
+	let uvsGenerated = 0;
+	let normalsComputed = 0;
+
+	model.traverse((node) => {
+		if (!node.isMesh || !node.geometry) return;
+		const geometry = node.geometry;
+		meshes++;
+
+		if (!geometry.attributes.normal) {
+			// glTF's own rule for a normal-less primitive. Must run before the UV pass below, which
+			// reads normals to choose each vertex's projection plane.
+			geometry.computeVertexNormals();
+			normalsComputed++;
+		}
+
+		if (geometry.attributes.uv) return;
+
+		const position = geometry.attributes.position;
+		const normal = geometry.attributes.normal;
+		const uv = new Float32Array(position.count * 2);
+		const tile = metersPerTile / modelScale; // tile size expressed in the model's own local units
+
+		for (let i = 0; i < position.count; i++) {
+			const x = position.getX(i);
+			const y = position.getY(i);
+			const z = position.getZ(i);
+			const nx = Math.abs(normal.getX(i));
+			const ny = Math.abs(normal.getY(i));
+			const nz = Math.abs(normal.getZ(i));
+
+			// Dominant-axis box projection: drop the axis the surface faces, keep the other two.
+			let u;
+			let v;
+			if (ny >= nx && ny >= nz) {
+				u = x; v = z; // roof / floor / battlement top
+			} else if (nx >= nz) {
+				u = z; v = y; // wall facing ±X
+			} else {
+				u = x; v = y; // wall facing ±Z
+			}
+			uv[i * 2] = u / tile;
+			uv[i * 2 + 1] = v / tile;
+		}
+
+		geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+		uvsGenerated++;
+	});
+
+	return { meshes, uvsGenerated, normalsComputed };
 }

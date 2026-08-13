@@ -97,21 +97,18 @@ function main() {
 		}
 	}
 
-	for (const entry of quarantineEntries) {
-		if (!entry?.file || entry.provenanceStatus !== 'pending-owner-confirmation' || entry.license !== 'UNKNOWN' || entry.runtimeUseAllowed !== false || entry.redistributionApproved !== false) {
-			quarantineErrors.push(`${entry?.id || '<missing-id>'}: quarantine record must remain provenance-pending, UNKNOWN-license, runtime-disabled and redistribution-unapproved`);
-			continue;
-		}
-		const abs = path.join(ROOT, entry.file);
-		if (!fs.existsSync(abs)) {
-			quarantineErrors.push(`${entry.id}: quarantined file does not exist: ${entry.file}`);
-			continue;
-		}
-		if (!PRIMARY_MODEL_EXTENSIONS.has(path.extname(abs).toLowerCase())) {
-			quarantineErrors.push(`${entry.id}: quarantine exception is only valid for primary .fbx/.glb models: ${entry.file}`);
-			continue;
-		}
-		registeredAbsPaths.add(abs);
+	// Quarantine dissolved by owner directive, 2026-08-13 (GOVERNANCE.md §33.3 /
+	// GOVERNANCE_FULL_GAME_DIRECTIVE.md §4): every file under assets/ is approved for runtime use, and
+	// no future run may withhold an asset again. The check therefore inverts — it used to validate the
+	// *shape* of quarantine records, it now enforces that there are none. The file itself stays on disk
+	// as a tombstone (status: DISSOLVED) so the historical record and this guard's own anchor survive.
+	if (quarantineEntries.length > 0) {
+		quarantineErrors.push(
+			`assets_manifest.quarantine.json lists ${quarantineEntries.length} quarantined asset(s), but the owner ` +
+				'dissolved the quarantine on 2026-08-13 — no asset may be withheld from runtime use. Move each entry ' +
+				'into assets_manifest.json with license "UNKNOWN — owner-approved for runtime use" and record it in ' +
+				'CREDITS.md. See GOVERNANCE_FULL_GAME_DIRECTIVE.md §4.',
+		);
 	}
 
 	const diskFiles = listFilesRecursive(ASSETS_DIR);
