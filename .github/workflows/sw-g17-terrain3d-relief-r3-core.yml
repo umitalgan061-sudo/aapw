@@ -1,0 +1,82 @@
+name: SW G17 Terrain3D Relief R3 Core
+on:
+  push:
+    branches: [agent/gunbatimi-ustasi-g17-relief-r3-20260813]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/checkSWG17ReliefTerrain3DProbe.mjs'
+      - 'scripts/checkSWG17ReliefTerrain3DEvidence.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g17_terrain3d_relief.gd'
+      - 'godot/terrain-authoring/scripts/validate_g17_terrain3d_relief_seam.gd'
+      - '.github/workflows/sw-g17-terrain3d-relief-r3-core.yml'
+permissions: { contents: read }
+concurrency:
+  group: sw-g17-relief-r3-core-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main and 1000-line gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git diff --check "$BASE_SHA"...HEAD
+          ADDS="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1} END{print s+0}')"
+          DELS="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2} END{print s+0}')"
+          test $((ADDS + DELS)) -le 1000
+      - name: Build deterministic source probe
+        run: |
+          set -euo pipefail
+          node scripts/checkSWG17Hydrology.mjs
+          node scripts/checkSWG17Biome.mjs
+          node scripts/checkSWG17Relief.mjs
+          node --check scripts/checkSWG17ReliefTerrain3DProbe.mjs
+          node --check scripts/checkSWG17ReliefTerrain3DEvidence.mjs
+          mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node scripts/checkSWG17ReliefTerrain3DProbe.mjs --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json | tee /tmp/probe-a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json /tmp/probe-a.json
+          node scripts/checkSWG17ReliefTerrain3DProbe.mjs --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json | tee /tmp/probe-b.log
+          cmp /tmp/probe-a.log /tmp/probe-b.log
+          cmp /tmp/probe-a.json godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json
+      - name: Install Terrain3D and Godot
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/t3d-install.log
+          grep -F 'TERRAIN3D_INSTALL_OK' /tmp/t3d-install.log
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/godot.zip
+          mkdir -p /tmp/godot && unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT_BIN="$(find /tmp/godot -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT_BIN" && echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Terrain3D run A
+        run: |
+          set -euo pipefail
+          G17_RELIEF_PROOF_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief.gd | tee /tmp/t3d-a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g17-relief-imported-topdown.png /tmp/g17-a.png
+          timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_seam.gd | tee /tmp/seam-a.log
+      - name: Terrain3D run B and compare
+        run: |
+          set -euo pipefail
+          G17_RELIEF_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief.gd | tee /tmp/t3d-b.log
+          cp godot/terrain-authoring/.terrain3d-proof/g17-relief-imported-topdown.png /tmp/g17-b.png
+          timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_seam.gd | tee /tmp/seam-b.log
+          node scripts/checkSWG17ReliefTerrain3DEvidence.mjs --probe=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json --log-a=/tmp/t3d-a.log --log-b=/tmp/t3d-b.log --seam-a=/tmp/seam-a.log --seam-b=/tmp/seam-b.log --preview-a=/tmp/g17-a.png --preview-b=/tmp/g17-b.png --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-evidence-manifest.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sw-g17-relief-r3-core-proof
+          include-hidden-files: true
+          path: godot/terrain-authoring/.terrain3d-proof/
+      - name: Final exact-main freshness
+        run: |
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
