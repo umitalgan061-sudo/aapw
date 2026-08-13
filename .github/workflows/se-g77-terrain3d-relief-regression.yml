@@ -24,8 +24,8 @@ jobs:
           BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"; git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/corner_claims/SE\.json|godot/terrain-authoring/geocells/se/g77_relief\.mjs|scripts/checkSEG77Relief(Continuity|Terrain3DEvidence|VisualEvidence)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_relief(_reload|_grid|_seam|_lod)?\.gd|\.github/workflows/se-g77-terrain3d-relief-(core|regression)\.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 13
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_relief\.mjs|scripts/checkSEG77Relief(Continuity|Terrain3DEvidence|VisualEvidence)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_relief(_reload|_grid|_seam|_lod)?\.gd|\.github/workflows/se-g77-terrain3d-relief-(core|regression)\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 12
           TOTAL="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1;d+=$2} END{print a+d+0}')"; test "$TOTAL" -le 1000
       - name: Source regressions
         run: |
