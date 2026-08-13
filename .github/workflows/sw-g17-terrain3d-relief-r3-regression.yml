@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail; git fetch origin main; BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"; git diff --check "$BASE_SHA"...HEAD
-          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"; test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkSWG17ReliefTerrain3D(Probe|Evidence|GridEvidence)\.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_relief(_seam|_grid)?\.gd|\.github/workflows/sw-g17-terrain3d-relief-r3-(core|regression)\.yml)$' | wc -l)" -eq 0
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"; test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkSWG17ReliefTerrain3D(Probe|Evidence|GridEvidence|PersistenceEvidence)\.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_relief(_seam|_grid|_reload)?\.gd|\.github/workflows/sw-g17-terrain3d-relief-r3-(core|regression)\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$2}END{print s+0}')"; test $((A+D)) -le 1000
       - name: Build source probe
         run: |
