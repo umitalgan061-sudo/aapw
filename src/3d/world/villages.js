@@ -136,7 +136,10 @@ function buildVillageGeometries() {
  *   doesn't fit inside it is skipped, so no house renders over ungenerated ground.
  * @param {(seed: number) => () => number} options.mulberry32
  * @param {number} [options.housesPerVillage]
- * @returns {{group: THREE.Group, villageCount: number, houseCount: number, wallCount: number}}
+ * @returns {{group: THREE.Group, villageCount: number, houseCount: number, wallCount: number, houses: {x: number, z: number, radius: number}[]}}
+ *   `houses` — one circle per placed house (footprint half-diagonal, see `physics.js`'s
+ *   `createCircleCollider`) — is the run-330-technical-debt fix: before this, `physics.js` had no
+ *   idea a village existed and the player walked straight through every cottage.
  */
 export function createVillages({
 	sampleHeightMeters,
@@ -154,7 +157,7 @@ export function createVillages({
 	const eligibleSeats = seats.filter((seat) => Math.hypot(seat.x, seat.z) + VILLAGE_OUTER_RADIUS_METERS <= radiusMeters);
 	const maxHouses = eligibleSeats.length * housesPerVillage;
 	const maxWalls = eligibleSeats.length * 14;
-	if (maxHouses === 0) return { group, villageCount: 0, houseCount: 0, wallCount: 0 };
+	if (maxHouses === 0) return { group, villageCount: 0, houseCount: 0, wallCount: 0, houses: [] };
 
 	const rng = mulberry32(seed ^ 0x56494c4c); // "VILL" tag — its own stream, perturbs nothing else
 	const geometries = buildVillageGeometries();
@@ -186,6 +189,8 @@ export function createVillages({
 	let stepCount = 0;
 	let wallCount = 0;
 	let villageCount = 0;
+	/** One collision circle per placed house — see this function's own JSDoc `houses` return note. */
+	const houses = [];
 
 	for (const seat of eligibleSeats) {
 		const placedHere = [];
@@ -262,6 +267,9 @@ export function createVillages({
 				}
 
 				placedHere.push({ x, z });
+				// Bounding circle over the house's own footprint diagonal (yaw-independent, so no
+				// rotated-box math is needed — see physics.js's createCircleCollider doc comment).
+				houses.push({ x, z, radius: Math.hypot(type.width, type.depth) / 2 });
 				houseCount++;
 				break;
 			}
@@ -304,7 +312,7 @@ export function createVillages({
 	if (roofMesh.instanceColor) roofMesh.instanceColor.needsUpdate = true;
 	group.add(bodyMesh, roofMesh, stepMesh, wallMesh);
 
-	return { group, villageCount, houseCount, wallCount };
+	return { group, villageCount, houseCount, wallCount, houses };
 }
 
 /**

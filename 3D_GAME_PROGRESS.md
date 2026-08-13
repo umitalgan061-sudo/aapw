@@ -15467,3 +15467,47 @@ step, is not this run).
 - Technical debt: villages have **no collision** — the player walks through a cottage, because
   `physics.js` snaps to the height field, not to placed geometry. Named as the immediate next subtask.
 - Perf after castles + villages: 57 draw calls / 904,446 triangles (budget 2500 / 5M).
+
+## Run 331 (2026-08-13, scheduled run) — Village house collision (ADR-0277); Run 330b's own gap closed
+
+- Priority scan first: GOVERNANCE.md §18 items 1/1.2/1.5/1.7 (terrain macro relief, road network,
+  ground color, castle texture) all already DONE per the snapshot — terrain/road/color have been
+  stable for dozens of runs and castle texturing shipped in Run 330. Item 2 (syntax) and item 3
+  (blocking bugs): Run 330b's own progress note named exactly one live bug — no village collision —
+  which both fits "blocking bug" and directly serves `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §33.1's
+  "did the player notice?" test (walking through a cottage right after seeing it rendered is
+  immediately obvious). Picked this as this run's one subtask.
+- `physics.js` gained `createCircleCollider(circles, playerRadiusMeters)` — the same radial-push math
+  `createSettlementCollider`'s tower loop already used, generalized off castles. `world/villages.js`
+  now returns one collision circle per placed house (bounding-diagonal radius — yaw-independent, no
+  rotated-box math needed, same "cheap analytic shape" precedent as the castle towers).
+  `sceneManager.js` composes the castle collider and the new village collider into one
+  `playerCollider`; `game3d.js`/`gameplay/player.js` were renamed end-to-end from `settlementCollider`
+  to `playerCollider` since the old name stopped describing what the object actually resolves against.
+- **Oyuncu ne fark eder:** her köydeki evlerin artık gerçek bir fiziksel varlığı var — oyuncu bir
+  kulübenin içinden yürüyemiyor, tıpkı bir kaleden geçemediği gibi.
+- DoD: `node --check` clean on all 5 changed files. `scripts/checkRun330Villages.js` PASS (placement/
+  determinism untouched). Full `smokeTestGame3D.js` re-run clean **34/34 PASS**, including the
+  existing `settlement collider (physics.js)` assertion (now exercising the combined collider) — two
+  earlier same-session attempts hit Playwright-level `page.goto` timeouts/"browser closed" from
+  sandbox resource contention (concurrent heavy checks running at once), honestly not code faults; a
+  clean, uncontended re-run passed everything. `checkRun216EditorGamePreviewContract.js`,
+  `checkTechnicalDebt.js` (0 new), `checkSmokeCheckRegistry.js` (34/14, same 2 pre-existing near-cap
+  WARNs — `game3d.js` 597/600 unchanged this run, `worldReferenceSceneShadowAdapter.js` 562/600),
+  `terrainSeatSafetyCheck.js` (14/14), `roadNetworkSafetyCheck.js` (20.24km) all fresh PASS.
+- Real perf sample (`collectPerfSnapshot.js run331-village-collision`, not estimated): 52 draw calls /
+  866,460 triangles / 50 geometries / 24 textures — inside the 2500/5M desktop budget. The small delta
+  from Run 330b's 57/904,446 sample is boot-camera visible-chunk noise (documented in the script's own
+  doc comment), not a regression — this change adds zero new geometry, only movement logic.
+- No visual screenshot captured this run (a collision fix has no new pixels to show — the houses
+  already rendered correctly in Run 330b's own screenshot); verification is the passing
+  `settlement collider (physics.js)` movement-simulation smoke check plus the reasoning above, stated
+  honestly rather than fabricating a "before/after" render for a change with no visual delta.
+- Technical debt: 0 new. `game3d.js` still 597/600 (unchanged) — still flagged, not solved this run.
+- World Coverage: unchanged (no new terrain/geometry). World Evolution Report delta: house/wall/road/
+  event/animal counts unchanged from Run 330b; the only real-world change is that all previously-placed
+  houses are now solid.
+- Next safe step: NPC/animal collision against the same village houses (currently only the player
+  resolves against `playerCollider` — NPCs/wolves/dragons still pass through walls, same as they
+  always have against castles too, a pre-existing scope boundary this run did not expand); or
+  `game3d.js`'s 600-line ceiling, now with zero headroom to spare.

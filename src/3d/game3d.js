@@ -208,7 +208,7 @@ export async function initGame3D() {
 		const player = await createPlayer({
 			assetLoader,
 			groundCollider: state.groundCollider,
-			settlementCollider: state.settlementCollider,
+			playerCollider: state.playerCollider,
 			spawn: { x: spawnWorld.x, z: spawnWorld.z },
 		});
 		state.scene.add(player.object3D);

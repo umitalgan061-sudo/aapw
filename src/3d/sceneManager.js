@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG } from './config.js';
 import { PLAYER_CONFIG } from './gameplay/gameplayConfig.js';
 import { ChunkManager } from './world/chunkManager.js';
-import { createGroundCollider, createSettlementCollider } from './physics.js';
+import { createGroundCollider, createSettlementCollider, createCircleCollider } from './physics.js';
 import {
 	createWater,
 	setWaterDepthField,
@@ -73,7 +73,7 @@ export function worldToChunkCoord(worldCoord, chunkSizeMeters) {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, freeCamera: {camera: THREE.PerspectiveCamera, active: boolean, update: (delta: number) => void, dispose: () => void}, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, settlementCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, roads: THREE.Group, roadEdges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], vegetation: THREE.Group, villages: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, freeCamera: {camera: THREE.PerspectiveCamera, active: boolean, update: (delta: number) => void, dispose: () => void}, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, playerCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, roads: THREE.Group, roadEdges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], vegetation: THREE.Group, villages: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
  */
 export function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -281,8 +281,20 @@ export function createScene(canvas) {
 			`across ${villagesResult.villageCount} village(s).`,
 	);
 
+	// Run 330's own "no collision" technical debt, fixed: one circle per house (physics.js's
+	// createCircleCollider), same default player half-width as the castle collider above. Combined
+	// with the castle collider into one `playerCollider` so gameplay/player.js only ever needs to
+	// call a single resolveXZ — it doesn't need to know how many separate obstacle systems exist.
+	const villageCollider = createCircleCollider(villagesResult.houses);
+	const playerCollider = {
+		resolveXZ(worldX, worldZ) {
+			const afterSettlements = settlementCollider.resolveXZ(worldX, worldZ);
+			return villageCollider.resolveXZ(afterSettlements.x, afterSettlements.z);
+		},
+	};
+
 	return {
-		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, settlementCollider, sky, stars, water, river, waterfalls,
+		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, playerCollider, sky, stars, water, river, waterfalls,
 		settlements: settlementsResult.group,
 		roads: roadsResult.group,
 		roadEdges: roadsResult.edges,

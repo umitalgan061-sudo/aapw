@@ -124,6 +124,51 @@ export function createSettlementCollider(seats, settlementConfig, playerRadiusMe
 }
 
 /**
+ * Horizontal circle collider for a flat list of point obstacles — the same "Basit" (simple) analytic
+ * shape `createSettlementCollider` already uses for castle towers, generalized so it isn't tied to
+ * castles specifically. Added for `world/villages.js`'s houses (run 330's "no player collision"
+ * technical debt, GOVERNANCE.md §33.2 item 5 "dolu dünya"): a house has a yaw (it faces its hamlet's
+ * centre, see `villages.js`), so an axis-aligned box test would be wrong at most rotations, and
+ * `physics.js` deliberately has no rotated-box math (see this module's doc comment on why castles use
+ * cheap analytic shapes instead of a general physics engine). A circle sized to each house's own
+ * footprint diagonal is a little generous at the corners but never lets the player clip through a
+ * wall, and stays exactly as cheap as the tower loop this mirrors.
+ * @param {{x: number, z: number, radius: number}[]} circles Obstacle centers and their own solid
+ *   radius (before adding the player's own half-width) — e.g. `createVillages`'s returned `houses`.
+ * @param {number} [playerRadiusMeters=0.4] Same default/meaning as `createSettlementCollider`'s.
+ * @returns {{resolveXZ: (worldX: number, worldZ: number) => {x: number, z: number}}}
+ */
+export function createCircleCollider(circles, playerRadiusMeters = 0.4) {
+	return {
+		/** Pushes `(worldX, worldZ)` radially out of any circle it's currently inside — a no-op for
+		 * every circle the point isn't penetrating, which is true almost every frame. */
+		resolveXZ(worldX, worldZ) {
+			let x = worldX;
+			let z = worldZ;
+			for (const circle of circles) {
+				const totalRadius = circle.radius + playerRadiusMeters;
+				const diffX = x - circle.x;
+				const diffZ = z - circle.z;
+				const distance = Math.hypot(diffX, diffZ);
+				if (distance < totalRadius) {
+					// Same degenerate-center handling as createSettlementCollider's tower loop: always
+					// escape somewhere rather than leave the point stuck exactly on a circle's center.
+					if (distance < 1e-6) {
+						x = circle.x + totalRadius;
+						z = circle.z;
+					} else {
+						const scale = totalRadius / distance;
+						x = circle.x + diffX * scale;
+						z = circle.z + diffZ * scale;
+					}
+				}
+			}
+			return { x, z };
+		},
+	};
+}
+
+/**
  * One frame of a simple ballistic jump arc, expressed as height *above the ground* rather than an
  * absolute world Y — this way a caller (`gameplay/player.js`) can add the result on top of
  * whatever `getGroundHeight` reports at the character's *current* XZ every frame, so normal
