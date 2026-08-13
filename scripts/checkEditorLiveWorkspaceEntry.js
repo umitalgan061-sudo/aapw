@@ -25,21 +25,22 @@ function isCanonicalDirectoryProbe(url) {
 }
 
 function staticContract() {
-  const html = fs.readFileSync(path.join(ROOT, 'edit.html'), 'utf8');
+  const obsoleteEdit = path.join(ROOT, 'edit.html');
   const entry = fs.readFileSync(path.join(ROOT, 'src', '3d', 'editor', 'EditorLiveWorkspaceEntry.mjs'), 'utf8');
+  const launcher = fs.readFileSync(path.join(ROOT, 'src', '3d', 'editor', 'EditorGamePreviewLauncher.js'), 'utf8');
   const server = fs.readFileSync(path.join(ROOT, 'scripts', 'editorLiveServer.js'), 'utf8');
   const canonicalEditor = fs.readFileSync(path.join(ROOT, 'editor.html'), 'utf8');
-  for (const token of ['"three": "./src/3d/vendor/three/three.module.js"', './editor.html?liveWorkspace=1', './src/3d/editor/EditorLiveWorkspaceEntry.mjs']) {
-    assert(html.includes(token), `edit.html contract missing: ${token}`);
-  }
-  for (const token of ['CANLI OYUN', 'DÜZENLEME', 'YAN YANA', './game3d.html?editorPreview=1', '/__editor/models', '/__editor/save', 'Koda Kaydet', 'FBX / GLB / GLTF ara', '__WESTEROS_EDITOR_LIVE_WORKSPACE_V2__', 'waitForAuthoring', 'installFormationBridge']) {
+
+  assert(!fs.existsSync(obsoleteEdit), 'obsolete edit.html still exists');
+  assert(launcher.includes("import('./EditorLiveWorkspaceEntry.mjs')"), 'canonical editor launcher does not activate integrated live workspace');
+  for (const token of ['CANLI OYUN', 'DÜZENLEME', 'YAN YANA', './game3d.html?editorPreview=1', '/__editor/models', '/__editor/save', 'Koda Kaydet', 'FBX / GLB / GLTF ara', '__WESTEROS_EDITOR_LIVE_WORKSPACE_V2__', 'waitForAuthoring', 'installFormationBridge', "host?.contentWindow || window", "host?.contentDocument || document"]) {
     assert(entry.includes(token), `workspace entry contract missing: ${token}`);
   }
   for (const token of ['/__editor/health', '/__editor/models', '/__editor/save', "MODEL_EXTENSIONS = new Set(['.fbx', '.glb', '.gltf'])"]) {
     assert(server.includes(token), `editorLiveServer contract missing: ${token}`);
   }
+  assert(canonicalEditor.includes('./src/3d/editor/EditorGamePreviewLauncher.js'), 'canonical editor no longer loads preview/workspace launcher');
   assert(canonicalEditor.includes("new URL('./assets/models/fbx_dosyaları/', location.href)"), 'canonical FBX directory probe contract changed');
-  assert(canonicalEditor.includes("status.textContent = 'Sunucu klasör listelemesini açmıyor."), 'canonical FBX directory fallback contract changed');
 }
 
 async function browserContract() {
@@ -51,11 +52,13 @@ async function browserContract() {
     server.listen(0, '127.0.0.1', resolve);
   });
   const port = server.address().port;
+  const baseUrl = `http://127.0.0.1:${port}`;
   const browser = await playwright.chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
   const page = await context.newPage();
   const errors = [];
   const canonicalDirectoryProbes = [];
+
   page.on('pageerror', (error) => errors.push(`pageerror: ${String(error)}`));
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
@@ -76,43 +79,58 @@ async function browserContract() {
     errors.push(`http: ${response.status()} ${response.url()}`);
   });
   page.on('requestfailed', (request) => errors.push(`requestfailed: ${request.url()} :: ${request.failure()?.errorText || 'unknown'}`));
+
   try {
-    await page.goto(`http://127.0.0.1:${port}/edit.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-    await page.waitForFunction(() => document.body.dataset.ready === 'true' || Boolean(document.body.dataset.bootError), null, { timeout: 180000 });
-    const outer = await page.evaluate(() => ({ ready: document.body.dataset.ready, bootError: document.body.dataset.bootError || '' }));
-    assert(outer.ready === 'true', `workspace boot failed: ${outer.bootError}`);
+    const removedResponse = await context.request.get(`${baseUrl}/edit.html`);
+    assert(removedResponse.status() === 404, `edit.html should be removed, got HTTP ${removedResponse.status()}`);
+
+    await page.goto(`${baseUrl}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await page.waitForFunction(() => document.body.dataset.editorLiveWorkspace === 'ready' || Boolean(document.body.dataset.bootError), null, { timeout: 180000 });
+    const outer = await page.evaluate(() => ({ ready: document.body.dataset.editorLiveWorkspace, bootError: document.body.dataset.bootError || '' }));
+    assert(outer.ready === 'ready', `integrated editor workspace boot failed: ${outer.bootError}`);
+
     const proof = await page.evaluate(() => {
-      const frame = document.getElementById('we-live-host');
-      const win = frame?.contentWindow;
-      const doc = frame?.contentDocument;
-      const surface = win?.__WESTEROS_EDITOR_LIVE_WORKSPACE_V2__;
+      const surface = window.__WESTEROS_EDITOR_LIVE_WORKSPACE_V2__;
       return {
         snapshot: surface?.getSnapshot?.(),
-        buttons: [...(doc?.querySelectorAll('#we-live-workspace-modes [data-mode]') || [])].map((button) => button.textContent),
-        catalogStatus: doc?.querySelector('#we-live-workspace-catalog-status')?.textContent || '',
-        saveButton: doc?.getElementById('we-save-to-code')?.textContent || '',
-        liveIframeSrc: doc?.getElementById('we-live-game-preview-v2')?.getAttribute('src') || '',
-        canonicalEditorReady: Boolean(win?.__WESTEROS_WORLD_EDITOR__?.scene),
+        buttons: [...document.querySelectorAll('#we-live-workspace-modes [data-mode]')].map((button) => button.textContent),
+        catalogStatus: document.querySelector('#we-live-workspace-catalog-status')?.textContent || '',
+        saveButton: document.getElementById('we-save-to-code')?.textContent || '',
+        liveIframeSrc: document.getElementById('we-live-game-preview-v2')?.getAttribute('src') || '',
+        canonicalEditorReady: Boolean(window.__WESTEROS_WORLD_EDITOR__?.scene),
+        wrapperIframePresent: Boolean(document.getElementById('we-live-host')),
       };
     });
+
     assert(proof.canonicalEditorReady, 'canonical editor did not load');
     assert(proof.snapshot?.canonicalEditorLoaded === true, 'workspace does not reuse canonical editor');
-    assert(proof.snapshot?.currentMode === 'live', `default mode is not live: ${proof.snapshot?.currentMode}`);
+    assert(proof.snapshot?.currentMode === 'edit', `canonical editor should default to edit mode: ${proof.snapshot?.currentMode}`);
     assert(proof.snapshot?.gamePreviewLoaded === true, 'game3d live preview iframe missing');
     assert(proof.snapshot?.catalogCount > 0, `model catalog empty: ${JSON.stringify(proof.snapshot)}`);
     assert(proof.buttons.join('|') === 'DÜZENLEME|CANLI OYUN|YAN YANA', `mode buttons drifted: ${proof.buttons.join('|')}`);
     assert(proof.saveButton === 'Koda Kaydet', `save bridge button missing: ${proof.saveButton}`);
     assert(proof.liveIframeSrc.includes('game3d.html?editorPreview=1'), `live iframe source drifted: ${proof.liveIframeSrc}`);
-    for (const mode of ['edit', 'split', 'live']) {
+    assert(proof.wrapperIframePresent === false, 'editor.html unexpectedly reintroduced the obsolete wrapper iframe');
+
+    for (const mode of ['live', 'split', 'edit']) {
       const result = await page.evaluate((nextMode) => {
-        const surface = document.getElementById('we-live-host')?.contentWindow?.__WESTEROS_EDITOR_LIVE_WORKSPACE_V2__;
+        const surface = window.__WESTEROS_EDITOR_LIVE_WORKSPACE_V2__;
         surface?.setMode?.(nextMode);
-        return surface?.getSnapshot?.();
+        const canvas = document.getElementById('we-canvas');
+        const preview = document.getElementById('we-live-game-preview-v2');
+        return {
+          snapshot: surface?.getSnapshot?.(),
+          canvasWidth: getComputedStyle(canvas).width,
+          previewDisplay: getComputedStyle(preview).display,
+        };
       }, mode);
-      assert(result?.currentMode === mode, `mode switch failed: ${mode}`);
+      assert(result.snapshot?.currentMode === mode, `mode switch failed: ${mode}`);
+      if (mode === 'live') assert(result.previewDisplay !== 'none', 'live mode did not reveal game preview');
+      if (mode === 'edit') assert(result.previewDisplay === 'none', 'edit mode did not hide game preview');
     }
+
     assert(errors.length === 0, `unexpected console/network/page errors: ${errors.join(' | ')}`);
-    console.log(`[checkEditorLiveWorkspaceEntry] PROOF ${JSON.stringify({ ...proof, canonicalDirectoryProbeEvents: canonicalDirectoryProbes.length })}`);
+    console.log(`[checkEditorLiveWorkspaceEntry] PROOF ${JSON.stringify({ ...proof, editHtmlStatus: 404, canonicalDirectoryProbeEvents: canonicalDirectoryProbes.length })}`);
   } finally {
     await context.close();
     await browser.close();
