@@ -7,6 +7,7 @@ const EXPECTED_SOURCE_SHA := "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f36
 const MAX_HEIGHT_ERROR := 0.012
 const MAX_BLEND_ERROR := 0.006
 const MAX_SEAM_HEIGHT_ERROR := 0.02
+const MAX_SEAM_BLEND_ERROR := 0.006
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -87,7 +88,7 @@ func _write_preview(terrain: Terrain3D, size: int) -> bool:
 			var blend := terrain.data.get_control_blend(Vector3(float(x), 0.0, float(z)))
 			if is_nan(blend):
 				return false
-			var ground := Color(0.36, 0.30, 0.22, 1.0)
+			var ground := Color(0.31, 0.43, 0.24, 1.0)
 			var rock := Color(0.31, 0.30, 0.28, 1.0)
 			preview.set_pixel(x, z, ground.lerp(rock, clampf(blend, 0.0, 1.0)))
 	var absolute := ProjectSettings.globalize_path(PREVIEW_PATH)
@@ -103,6 +104,12 @@ func _run() -> void:
 	if not _require(String(probe["sourceMapSha256"]) == EXPECTED_SOURCE_SHA, "owner-map SHA changed"): return
 	if not _require(int(probe["sourceGridSize"]) == 65, "source grid must remain 65x65"): return
 	if not _require(int(probe["terrain3dRegionSize"]) == 256 and int(probe["terrain3dImportSize"]) == 257, "proof must preserve 257 import over region size 256"): return
+
+	var max_source_snow := 0.0
+	for row in probe["rows"]:
+		for sample in row:
+			max_source_snow = maxf(max_source_snow, float(sample[2]))
+	if not _require(max_source_snow <= 0.00000001, "warm canonical G65 source invented snow"): return
 
 	var terrain := Terrain3D.new()
 	terrain.name = "G65Terrain3DRockSnowProof"
@@ -159,9 +166,19 @@ func _run() -> void:
 			max_seam_height_error = maxf(max_seam_height_error, absf(actual - expected))
 			seam_samples += 1
 	if not _require(max_seam_height_error <= MAX_SEAM_HEIGHT_ERROR, "Terrain3D region-seam height parity exceeded tolerance"): return
-	for p in [Vector3(255.0,0.0,255.0), Vector3(256.0,0.0,255.0), Vector3(255.0,0.0,256.0), Vector3(256.0,0.0,256.0)]:
-		if not _require(terrain.data.get_control_base_id(p) == ground_id and terrain.data.get_control_overlay_id(p) == rock_id, "Terrain3D control IDs changed at region seam"): return
-		if not _require(not is_nan(terrain.data.get_control_blend(p)), "Terrain3D control blend returned NaN at region seam"): return
+
+	var max_seam_blend_error := 0.0
+	var control_seam_samples := 0
+	for seam in [255.0, 256.0]:
+		for cross in [64.0, 128.0, 192.0, 255.0, 256.0]:
+			for p in [Vector3(seam, 0.0, cross), Vector3(cross, 0.0, seam)]:
+				if not _require(terrain.data.get_control_base_id(p) == ground_id and terrain.data.get_control_overlay_id(p) == rock_id, "Terrain3D control IDs changed at region seam"): return
+				var actual_blend := terrain.data.get_control_blend(p)
+				if not _require(not is_nan(actual_blend), "Terrain3D control blend returned NaN at region seam"): return
+				var expected_blend := _source_value(probe, 3, p.x / 256.0, p.z / 256.0)
+				max_seam_blend_error = maxf(max_seam_blend_error, absf(actual_blend - expected_blend))
+				control_seam_samples += 1
+	if not _require(max_seam_blend_error <= MAX_SEAM_BLEND_ERROR, "Terrain3D region-seam control parity exceeded tolerance"): return
 
 	var baked_mesh: Mesh = terrain.bake_mesh(0)
 	if not _require(baked_mesh != null and baked_mesh.get_surface_count() > 0, "Terrain3D LOD0 Rock/Snow bake returned no mesh"): return
@@ -183,9 +200,12 @@ func _run() -> void:
 		"regionCount": terrain.data.get_region_count(),
 		"alignedSamples": aligned_samples,
 		"seamSamples": seam_samples,
+		"controlSeamSamples": control_seam_samples,
 		"maxHeightError": snappedf(max_height_error, 0.00000001),
 		"maxBlendError": snappedf(max_blend_error, 0.00000001),
 		"maxSeamHeightError": snappedf(max_seam_height_error, 0.00000001),
+		"maxSeamBlendError": snappedf(max_seam_blend_error, 0.00000001),
+		"maxSourceSnowWeight": snappedf(max_source_snow, 0.00000001),
 		"outputChecksum": output_checksum,
 		"bakedSurfaces": baked_mesh.get_surface_count(),
 		"bakedVertices": vertices.size(),
