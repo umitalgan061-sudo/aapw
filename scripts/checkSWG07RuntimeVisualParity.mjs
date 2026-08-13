@@ -7,7 +7,6 @@ import devServerHelper from './devServerHelper.js';
 const { loadPlaywright, startStaticServer } = devServerHelper;
 const OUT_ARG = process.argv.find((arg) => arg.startsWith('--out-dir='));
 const OUT_DIR = path.resolve(OUT_ARG ? OUT_ARG.slice('--out-dir='.length) : 'artifacts/sw-g07-runtime-visual');
-const MAP_PATH = path.resolve('resimler/map.png');
 
 function fail(message) {
   console.error(`[checkSWG07RuntimeVisualParity] FAIL: ${message}`);
@@ -22,8 +21,6 @@ function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
-requireCondition(fs.existsSync(MAP_PATH), 'resimler/map.png is required');
-const mapSha256 = sha256(fs.readFileSync(MAP_PATH));
 const playwright = loadPlaywright();
 requireCondition(Boolean(playwright), 'Playwright is required');
 fs.mkdirSync(OUT_DIR, { recursive: true });
@@ -166,7 +163,8 @@ try {
       metalness: 0,
       side: THREE.DoubleSide,
     });
-    scene.add(new THREE.Mesh(geometry, material));
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
 
     scene.add(new THREE.HemisphereLight(0xc6e7ff, 0x17242d, 1.55));
     const sun = new THREE.DirectionalLight(0xfff0d4, 2.2);
@@ -209,8 +207,6 @@ try {
     };
   });
 
-  requireCondition(mapSha256 === proofMetrics.sourceMapSha256, `map.png SHA256 mismatch: ${mapSha256}`);
-
   async function captureTerrainEvidence(kind, filename) {
     await page.evaluate((value) => window.__g07Proof.render(value), kind);
     const png = await page.locator('#terrain-proof').screenshot();
@@ -222,68 +218,118 @@ try {
   const nearSha256 = await captureTerrainEvidence('near', 'g07-runtime-near.png');
   const farSha256 = await captureTerrainEvidence('far', 'g07-runtime-far.png');
 
-  await page.setViewportSize({ width: 1200, height: 900 });
+  await page.setViewportSize({ width: 1200, height: 800 });
   const topdownMetrics = await page.evaluate(async () => {
     const {
       G07_TERRAIN3D_RUNTIME_BAKE,
       sampleG07Terrain3dBakeNormalized,
     } = await import('/src/3d/world/g07Terrain3dBake.js');
-    const image = new Image();
-    image.src = '/resimler/map.png';
-    await image.decode();
-    const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
-    const divisor = gcd(image.naturalWidth, image.naturalHeight);
-    const reducedWidth = image.naturalWidth / divisor;
-    const reducedHeight = image.naturalHeight / divisor;
-    const scale = Math.max(1, Math.floor(Math.min(1200 / reducedWidth, 900 / reducedHeight)));
-    const canvasWidth = reducedWidth * scale;
-    const canvasHeight = reducedHeight * scale;
+    const {
+      WORLD_REFERENCE_BASE_SURFACE_MASK,
+      sampleReferencePindexQualityV2,
+    } = await import('/src/3d/world/worldReferenceSurfacePindexes.js');
+
+    const canvasWidth = 1200;
+    const canvasHeight = 800;
+    const contextWidth = 384;
+    const contextHeight = 256;
     document.body.innerHTML = `<canvas id="topdown-proof" width="${canvasWidth}" height="${canvasHeight}"></canvas>`;
     const canvas = document.getElementById('topdown-proof');
     const ctx = canvas.getContext('2d', { alpha: false });
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const context = document.createElement('canvas');
+    context.width = contextWidth;
+    context.height = contextHeight;
+    const cctx = context.getContext('2d', { alpha: false });
+    const contextData = cctx.createImageData(contextWidth, contextHeight);
+    const surfacePalette = Object.freeze({
+      sea: Object.freeze([41, 77, 93]),
+      lake: Object.freeze([79, 127, 134]),
+      soil: Object.freeze([125, 135, 88]),
+      rock: Object.freeze([117, 108, 96]),
+      snow: Object.freeze([216, 223, 220]),
+    });
+    const surfaces = Object.freeze(['soil', 'rock', 'snow', 'sea', 'lake']);
+    const dominantSurfaceCounts = { sea: 0, lake: 0, soil: 0, rock: 0, snow: 0 };
 
-    const b = G07_TERRAIN3D_RUNTIME_BAKE.normalizedBounds;
-    const x0 = b.xMin * canvas.width;
-    const y0 = b.yMin * canvas.height;
-    const patchWidth = (b.xMax - b.xMin) * canvas.width;
-    const patchHeight = (b.yMax - b.yMin) * canvas.height;
+    for (let y = 0; y < contextHeight; y += 1) {
+      const ny = (y + 0.5) / contextHeight;
+      for (let x = 0; x < contextWidth; x += 1) {
+        const nx = (x + 0.5) / contextWidth;
+        const sample = sampleReferencePindexQualityV2(nx, ny);
+        dominantSurfaceCounts[sample.dominantSurface] += 1;
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        for (const surface of surfaces) {
+          const weight = sample.surfaceWeights[surface];
+          const color = surfacePalette[surface];
+          r += color[0] * weight;
+          g += color[1] * weight;
+          b += color[2] * weight;
+        }
+        const reliefShade = 0.94 + 0.06 * sample.reliefInfluence;
+        const offset = (y * contextWidth + x) * 4;
+        contextData.data[offset] = Math.round(Math.min(255, r * reliefShade));
+        contextData.data[offset + 1] = Math.round(Math.min(255, g * reliefShade));
+        contextData.data[offset + 2] = Math.round(Math.min(255, b * reliefShade));
+        contextData.data[offset + 3] = 255;
+      }
+    }
+    cctx.putImageData(contextData, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(context, 0, 0, canvasWidth, canvasHeight);
+
+    const bounds = G07_TERRAIN3D_RUNTIME_BAKE.normalizedBounds;
+    const x0 = bounds.xMin * canvasWidth;
+    const y0 = bounds.yMin * canvasHeight;
+    const patchWidth = (bounds.xMax - bounds.xMin) * canvasWidth;
+    const patchHeight = (bounds.yMax - bounds.yMin) * canvasHeight;
     const patch = document.createElement('canvas');
     patch.width = 384;
     patch.height = 256;
     const pctx = patch.getContext('2d');
-    const data = pctx.createImageData(patch.width, patch.height);
+    const patchData = pctx.createImageData(patch.width, patch.height);
     for (let y = 0; y < patch.height; y += 1) {
       const v = y / (patch.height - 1);
-      const ny = b.yMin + (b.yMax - b.yMin) * v;
+      const ny = bounds.yMin + (bounds.yMax - bounds.yMin) * v;
       for (let x = 0; x < patch.width; x += 1) {
         const u = x / (patch.width - 1);
-        const nx = b.xMin + (b.xMax - b.xMin) * u;
+        const nx = bounds.xMin + (bounds.xMax - bounds.xMin) * u;
         const sample = sampleG07Terrain3dBakeNormalized(nx, ny);
+        if (!sample) throw new Error(`missing full-world G07 sample ${x},${y}`);
         const edgeFade = Math.min(1, Math.min(x, y, patch.width - 1 - x, patch.height - 1 - y) / 18);
         const offset = (y * patch.width + x) * 4;
-        data.data[offset] = Math.round(sample.color[0] * 255);
-        data.data[offset + 1] = Math.round(sample.color[1] * 255);
-        data.data[offset + 2] = Math.round(sample.color[2] * 255);
-        data.data[offset + 3] = Math.round(150 * edgeFade);
+        patchData.data[offset] = Math.round(sample.color[0] * 255);
+        patchData.data[offset + 1] = Math.round(sample.color[1] * 255);
+        patchData.data[offset + 2] = Math.round(sample.color[2] * 255);
+        patchData.data[offset + 3] = Math.round(170 * edgeFade);
       }
     }
-    pctx.putImageData(data, 0, 0);
+    pctx.putImageData(patchData, 0, 0);
     ctx.drawImage(patch, x0, y0, patchWidth, patchHeight);
+
     return {
-      sourceWidth: image.naturalWidth,
-      sourceHeight: image.naturalHeight,
+      referenceContext: 'committed-owner-map-pindex-quality-v2',
+      sourceWidth: WORLD_REFERENCE_BASE_SURFACE_MASK.sourcePixelWidth,
+      sourceHeight: WORLD_REFERENCE_BASE_SURFACE_MASK.sourcePixelHeight,
+      sourceMapSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.sourceMapSha256,
+      surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
+      surfaceMaskWidth: WORLD_REFERENCE_BASE_SURFACE_MASK.width,
+      surfaceMaskHeight: WORLD_REFERENCE_BASE_SURFACE_MASK.height,
+      contextSampleWidth: contextWidth,
+      contextSampleHeight: contextHeight,
       canvasWidth,
       canvasHeight,
-      mapAspect: image.naturalWidth / image.naturalHeight,
-      canvasAspect: canvas.width / canvas.height,
+      sourceAspect: WORLD_REFERENCE_BASE_SURFACE_MASK.sourcePixelWidth / WORLD_REFERENCE_BASE_SURFACE_MASK.sourcePixelHeight,
+      canvasAspect: canvasWidth / canvasHeight,
+      dominantSurfaceCounts,
       g07CanvasBounds: { x0, y0, width: patchWidth, height: patchHeight },
-      referenceSha256: G07_TERRAIN3D_RUNTIME_BAKE.sourceMapSha256,
     };
   });
 
   const topdownPng = await page.locator('#topdown-proof').screenshot();
-  requireCondition(topdownPng.length > 1024, 'full-world reference-context PNG is unexpectedly small');
+  requireCondition(topdownPng.length > 1024, 'full-world committed-owner-map context PNG is unexpectedly small');
   fs.writeFileSync(path.join(OUT_DIR, 'g07-full-world-reference-topdown.png'), topdownPng);
   const topdownSha256 = sha256(topdownPng);
 
@@ -293,22 +339,23 @@ try {
   requireCondition(proofMetrics.adapterRuleCount === 1089, `canonical adapter selected G07 ${proofMetrics.adapterRuleCount}/1089 times`);
   requireCondition(proofMetrics.waterCount === 1089, `canonical hydrology classified water ${proofMetrics.waterCount}/1089 times`);
   requireCondition(Number.isInteger(proofMetrics.sampleFingerprint), 'numeric terrain fingerprint is invalid');
-  requireCondition(proofMetrics.maxNormalizedRoundTripError <= 1e-9, `canonical world round-trip error ${proofMetrics.maxNormalizedRoundTripError}`);
+  requireCondition(proofMetrics.maxNormalizedRoundTripError <= 1e-12, `canonical world round-trip error ${proofMetrics.maxNormalizedRoundTripError}`);
   requireCondition(proofMetrics.maxHeight < 0, `G07 visual surface crossed sea level: ${proofMetrics.maxHeight}`);
   requireCondition(proofMetrics.maxHeight > proofMetrics.minHeight, 'G07 visual surface lost relief variation');
-  requireCondition(topdownMetrics.sourceWidth > 0 && topdownMetrics.sourceHeight > 0, 'map.png natural dimensions are invalid');
-  requireCondition(Math.abs(topdownMetrics.mapAspect - topdownMetrics.canvasAspect) < 1e-12, 'full-world evidence distorted map.png aspect ratio');
-  requireCondition(topdownMetrics.referenceSha256 === mapSha256, 'full-world reference SHA drifted during browser proof');
+  requireCondition(topdownMetrics.sourceWidth === 1536 && topdownMetrics.sourceHeight === 1024, 'committed owner-map source dimensions drifted');
+  requireCondition(Math.abs(topdownMetrics.sourceAspect - topdownMetrics.canvasAspect) < 1e-12, 'full-world evidence distorted canonical source aspect ratio');
+  requireCondition(topdownMetrics.sourceMapSha256 === proofMetrics.sourceMapSha256, 'committed owner-map source SHA disagrees with G07 bake provenance');
+  requireCondition(topdownMetrics.surfaceMaskWidth === 96 && topdownMetrics.surfaceMaskHeight === 64, 'committed owner-map surface mask dimensions drifted');
+  requireCondition(Object.values(topdownMetrics.dominantSurfaceCounts).reduce((sum, count) => sum + count, 0) === 384 * 256, 'full-world context sample coverage is incomplete');
 
   const metrics = {
     ...proofMetrics,
     ...topdownMetrics,
-    mapSha256,
     nearSha256,
     farSha256,
     topdownSha256,
     rasterDeterminismPolicy: 'GPU raster bytes are visual evidence only; deterministic gating is provided by the repeated canonical Terrain3D bake/source checks plus this numeric terrain fingerprint',
-    note: 'near/far are canonical world-coordinate adapter renders with declared vertical exaggeration; full-world PNG preserves map.png natural aspect and overlays only a feathered G07 runtime patch, not a claim that all 64 cells are runtime-qualified',
+    note: 'near/far are canonical world-coordinate adapter renders with declared vertical exaggeration; full-world PNG is reconstructed only from the committed source-derived owner-map semantic contract and overlays a feathered G07 runtime patch. It is not the unavailable source map.png raster and is not a claim that all 64 cells are runtime-qualified',
   };
   fs.writeFileSync(path.join(OUT_DIR, 'metrics.json'), `${JSON.stringify(metrics, null, 2)}\n`);
   console.log(`SW_G07_RUNTIME_VISUAL_PARITY_METRICS=${JSON.stringify(metrics)}`);
