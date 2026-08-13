@@ -15765,3 +15765,86 @@ pass" (that module's own header). This run is that pass.
   Otherwise continue down GOVERNANCE.md §18/§33 from a fresh remote-main/concurrency check; terrain/
   road/Terrain3D geocell work remains claimed by the four concurrent corner-agent sessions and was not
   touched here.
+
+## Run 335 (2026-08-13, scheduled run) — FAZ 8 world-event catalog growth: 5 new curated events (ADR-0281)
+
+Second subtask of this scheduled firing, immediately following Run 334's bird-flight work (`e68fc55`/
+`38c55fa`, already on `main` when this run started — `git fetch origin main` confirmed no drift, no
+resync needed). Read `GOVERNANCE.md` (through §33/Run321's platform-control note), both continuation/
+owner-directive files, `GOVERNANCE_FULL_GAME_DIRECTIVE.md`, this file's tail through Run 334,
+`DECISIONS.md`'s last ADRs (0278-0280), and `QUESTIONS_FOR_OWNER.md` in full (the two silenced items —
+leaked NVIDIA key, repo/CI sprawl — noted and not re-raised, per instruction).
+
+Picked FAZ 8 world-event catalog growth (GOVERNANCE.md §18 item 14 / §33.4's first-class product
+category): `QUESTIONS_FOR_OWNER.md`'s run 149/ADR-0172 entry once found this catalog structurally
+blocked by the additive-only guard (any new entry reshapes the weighted pool, which changes the
+fixed-seed determinism fixture, which required editing existing fixture content — forbidden under
+additive-only). Run 313/ADR-0263 recorded the owner's direct removal of that guard and explicitly
+named this exact blocker as resolved, but no run had picked the catalog back up since. World events
+are one of the few systems every player already experiences every session (a toast fires every 45-90
+real seconds) independent of the larger unbuilt systems (quest/inventory/combat/save) §33.2 still
+lists as open — a small, safe, genuinely player-visible increment, distinct from bird flight (Run 334)
+and untouched by the four concurrent terrain/road corner-agent sessions (`godot/terrain-authoring/
+corner_claims/` not read or touched).
+
+- **5 new curated flavor events** appended to `gameplay/worldEvents.js`'s `WORLD_EVENTS` pool (every
+  existing entry's position/weight/text unchanged — pure append): `godswood_pilgrimage` (old-gods
+  pilgrimage to a weirwood tree, day-gated, UNCOMMON), `archery_contest` (a friendly yard archery
+  contest, day-gated, COMMON), `iron_fleet_sighted` (a kraken-sailed Iron Islands raiding fleet
+  sighted on the horizon, ungated, RARE), `giant_bones_rumor` (a beyond-the-Wall lore rumor of giant
+  remains, ungated, RARE), `name_day_song` (a child's name-day celebration with song, ungated,
+  UNCOMMON). Each was chosen and worded to be textually distinct from its nearest existing neighbor
+  (documented per-entry in the code comment, e.g. `godswood_pilgrimage` vs. `sept_prayer`'s Seven/
+  candlelight framing, `iron_fleet_sighted` vs. `ship_sighted`'s single ambiguous sail). Catalog:
+  **52 -> 57 entries, 17 -> 19 time-gated.**
+- The fixed-seed determinism fixture (`scripts/fixtures/world-events-seed-148.json`) was regenerated
+  through its own supported `--write-fixture` path (not hand-edited) since a larger weighted pool
+  necessarily redistributes which ids land at the same seed/step — this is the exact, intentional
+  content-growth path the run 149/ADR-0172 question and its run 313/ADR-0263 resolution both
+  anticipated.
+- **Oyuncu ne fark eder:** doğrudan, görsel olarak evet — periyodik dünya-olayı toast'ları artık 5
+  yeni Westeros-esintili sahne arasından da gelebiliyor (tanrı ormanı hac yürüyüşü, okçuluk yarışması,
+  demir filo görüldü, dev kemikleri söylentisi, ad günü şarkısı), aynı zaten var olan toast UI'ı
+  üzerinden. Oyuncunun her oturumda gerçekten karşılaştığı birkaç sistemden biri (45-90 saniyede bir
+  tetikleniyor) bu yüzden bu artış görev/envanter/dövüş gibi henüz var olmayan sistemlere bağlı değil.
+- Full DoD sweep (fresh): `node --check` clean on `gameplay/worldEvents.js`. Live-count verified by
+  direct grep (57 ids, 19 `timeOfDay:` occurrences) matching the new trailing comment.
+  `checkWorldEventDeterminism.js --write-fixture` then plain re-run — **PASS**, same-seed/different-
+  seed invariants hold, every `timeOfDay` gate respected across the 24-step fixed sequence, checksum
+  `ea2bd3bfff60…`. `checkTechnicalDebt.js` PASS (0 new debt, 56 recorded progress-debt entries, 35
+  owner-tracking entries — both unchanged, this run added neither). `checkSmokeCheckRegistry.js` OK
+  — 520 files within the 600-line cap, same 2 pre-existing WARNs (`game3dSmokeChecksMovement.js`
+  583/600, `worldReferenceSceneShadowAdapter.js` 562/600), neither touched;
+  `gameplay/worldEvents.js` itself 275 -> 305/600 lines. `checkSeededRandomPolicy.js` PASS (no
+  `Math.random()` anywhere under `src/3d`). `checkServiceWorkerCache.js` PASS (177 JS files — no new
+  `src/` file, existing `worldEvents.js` shell entry unaffected). `checkPwaInstallability.js` PASS.
+  Full `smokeTestGame3D.js` **35/35 PASS**, zero console/page errors — the suite's existing
+  "world-event system" and "world-event day/night gating" checks both re-verify against the live,
+  now-57-entry pool (not a hardcoded snapshot), so they exercise the real new content, not a stale
+  count.
+- Real perf sample (`collectPerfSnapshot.js run335-worldevents-catalog-growth`): 52 draw calls /
+  866,460 triangles / 50 geometries / 24 textures / 391MB heap — identical draw-call/geometry/
+  triangle figures to Run 334 (world events are UI toasts, not scene geometry, so zero render-object
+  delta is the correct, expected result), heap within normal run-to-run noise.
+- Memory leak checklist: no new listeners/timers/DOM nodes — `worldEvents.js`'s `createWorldEventSystem`
+  API shape (`update`/`dispose`) is unchanged; new entries are plain frozen data objects in the
+  existing `Object.freeze([...])` array, no new allocation pattern.
+- Technical debt: 0 new. `gameplay/worldEvents.js` now 305/600 lines (real headroom for future catalog
+  growth remains).
+- World Coverage: unchanged (no terrain/geometry delta). World Evolution Report delta: world-event
+  catalog 52 -> 57 (+5); ADR count +1 (ADR-0281); yol/orman/kale/NPC/hayvan/creature km/count 0
+  değişim (bu run sadece dünya-olayı içerik kataloğunu büyüttü).
+- ADR-0281 (`DECISIONS.md`).
+- No new `QUESTIONS_FOR_OWNER.md` entry — the 5 new events follow the exact same "curated lore flavor,
+  no stat effect" pattern every existing entry already uses; no new calibration constant or design
+  ambiguity was introduced (weight tiers reuse the existing COMMON/UNCOMMON/RARE scale, already a
+  closed question per the owner's run 314 batch answer).
+- Risk LOW. Confidence 5/5.
+- Concurrency re-check immediately before commit: `git fetch origin main` re-run — see commit log for
+  result at push time.
+- Next safe step: a 6th world-event entry themed around the Night's Watch/Citadel institutions (for
+  even faction coverage, see ADR-0281's Alternatives #1) is a reasonable, small future increment but
+  not required. Otherwise continue down GOVERNANCE.md §18/§33 from a fresh remote-main/concurrency
+  check next run; `araba` (cart/wagon) remains FAZ 6's only open item and still needs its own
+  dedicated, bounded subtask; terrain/road/Terrain3D geocell work remains claimed by the four
+  concurrent corner-agent sessions and was not touched here.

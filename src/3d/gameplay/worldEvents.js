@@ -172,6 +172,35 @@ const WORLD_EVENTS = Object.freeze([
 	/** Run 147 addition: a quiet graveyard vigil, distinct from `mourning_bells` (audible loss
 	 * announcement) and `sept_prayer` (generic worship); true-night only. */
 	{ id: 'graveyard_vigil', icon: '🕯️', title: 'Mezarlık Nöbeti', desc: 'Gece karanlığında kale dışındaki mezarlıkta tek bir mum yanıyor; pelerinli bir siluet eski bir mezarın başında sessizce bekliyor.', color: '#57506f', weight: WEIGHT.RARE, timeOfDay: 'night' },
+	/** Run 335 addition (ADR-0281): pilgrims walking to a godswood to pray before a weirwood tree —
+	 * Eski Tanrılar (old-gods) worship, distinct from `sept_prayer` (the Seven, candlelight inside a
+	 * sept building, no procession). Gated `day`: the text describes a visible walking procession,
+	 * which reads as a daylight activity, same "only gate unambiguous text" rule as every other gated
+	 * entry here. */
+	{ id: 'godswood_pilgrimage', icon: '🌳', title: 'Tanrı Ormanı Hac Yürüyüşü', desc: 'Gün ışığında bir grup hacı, kızıl yapraklı bir yüce ağacın önünde dua etmek için tanrı ormanına doğru sessizce yürüyor.', color: '#6a8a4a', weight: WEIGHT.UNCOMMON, timeOfDay: 'day' },
+	/** Run 335 addition (ADR-0281): a friendly archery contest among soldiers, distinct from
+	 * `training_yard_drill` (formal sword/shield drill, command-driven) and `tourney_announce` (a
+	 * herald's announcement of a future event, not an activity happening now). Gated `day`: an
+	 * archery contest needs visible targets, same unambiguous-text rule as every other gated entry
+	 * here. */
+	{ id: 'archery_contest', icon: '🏹', title: 'Okçuluk Yarışması', desc: 'Gün ışığında kale avlusunda askerler nişan tahtalarına ok atarak birbirleriyle şakalaşıyor; her isabetli atışta kısa bir alkış yükseliyor.', color: '#a08040', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	/** Run 335 addition (ADR-0281): a kraken-sailed Iron Islands raiding fleet sighted along the
+	 * coast — a specific, ominous political/military signal, distinct from `ship_sighted` (a single
+	 * sail of ambiguous origin, not a fleet, no faction implied). No `timeOfDay` gate: a fleet on the
+	 * horizon can plausibly be sighted at any hour, same "only gate unambiguous text" rule as every
+	 * other ungated entry here. */
+	{ id: 'iron_fleet_sighted', icon: '🚢', title: 'Demir Filo Göründü', desc: 'Ufukta ahtapot armalı kara yelkenli bir filo süzülüyor — Demir Adalar\'ın gemileri bu kadar güneye neden geldi?', color: '#2a3a4a', weight: WEIGHT.RARE },
+	/** Run 335 addition (ADR-0281): a rumor of giant bones found beyond the Wall — a lore/omen entry
+	 * distinct from `wildling_rumor` (living people, not remains) and `broken_banner_found` (a human
+	 * battle's aftermath, not a legendary creature). No `timeOfDay` gate: a rumor being repeated
+	 * carries no specific hour, same unambiguous-text rule as every other ungated entry here. */
+	{ id: 'giant_bones_rumor', icon: '🦴', title: 'Dev Kemikleri Söylentisi', desc: 'Duvar\'ın ötesinden dönen bir devriye, kar altında bir adamdan üç kat büyük kemikler bulduklarını fısıldıyor — kimse tam olarak inanmak istemiyor.', color: '#8a8a7a', weight: WEIGHT.RARE },
+	/** Run 335 addition (ADR-0281): a child's name-day celebration with song in the yard — a family/
+	 * community joy occasion distinct from `wedding_procession` (a political two-house union, not a
+	 * child's birth-anniversary) and `traveling_singer` (a lone itinerant musician performing for
+	 * coin, not a family celebrating together). No `timeOfDay` gate: the text names no specific hour,
+	 * same unambiguous-text rule as every other ungated entry here. */
+	{ id: 'name_day_song', icon: '🎂', title: 'Ad Günü Şarkısı', desc: 'Kale avlusundan bir çocuğun ad gününü kutlayan neşeli bir şarkı ve kahkaha sesleri geliyor; aile ve hizmetliler bir araya toplanmış.', color: '#d49aa0', weight: WEIGHT.UNCOMMON },
 ]);
 // Run 126 live count: 9 of 35 entries are time-gated; the JSDoc/comment above retain earlier runs'
 // snapshots rather than being edited in place (GOVERNANCE.md §2 madde 9, additive-only diff guard).
@@ -184,6 +213,7 @@ const WORLD_EVENTS = Object.freeze([
 // Run 144 live count: 13 of 46 entries are time-gated.
 // Run 145 live count: 15 of 49 entries are time-gated.
 // Run 147 live count: 17 of 52 entries are time-gated.
+// Run 335 live count: 19 of 57 entries are time-gated.
 
 /** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
  * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test
