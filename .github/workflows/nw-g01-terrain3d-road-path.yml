@@ -3,7 +3,7 @@ name: NW G01 Terrain3D Road Path
 on:
   push:
     branches:
-      - agent/buzul-muhafizi-g01-terrain3d-road-path-20260813
+      - agent/buzul-muhafizi-g01-road-path-exact-7987-20260813
   pull_request:
     branches:
       - main
