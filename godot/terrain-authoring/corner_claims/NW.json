@@ -3,14 +3,11 @@
   "task_name": "Buzul Muhafızı",
   "origin": [0, 0],
   "current_cell": "G00",
-  "status": "locally_validated_direct_to_main",
-  "branch": "main",
+  "status": "in_progress_exact_main",
+  "branch": "terrain/nw-g00-terrain3d-biome-20260813",
   "pr": null,
-  "last_commit": null,
+  "last_commit": "a16ceb76a97d8e2547d1c5a262d8a274ad663583",
   "quality_before": {
-    "note": "G01/G10/G11 (the three cells adjacent to this corner's own origin cell) already merged to main; G00 itself — the literal corner cell — was the one remaining gap in that first 2x2 block."
-  },
-  "quality_after": {
     "layer": "Coast Hydrology",
     "base_cells": 96,
     "water_centres": 60,
@@ -18,8 +15,19 @@
     "boundary_edges": 12,
     "hard_cell_max_step": 1,
     "max_adjacent_step": 0.25,
-    "confidence_checksum": 2770394150
+    "confidence_checksum": 2770394150,
+    "note": "G00 Coast/Hydrology exists on main, but its claim records limited local validation without the full Godot/Terrain3D/browser evidence required by the newer owner rules. This unit does not rewrite that coastline; it advances the same nearest cell to Macro Albedo/Biome while preserving the canonical hydrology semantics."
   },
-  "engine": "authoring/QA canonical mask interpolation; HTerrain preserved; Terrain3D not required for this data-only layer. Godot headless import/HTerrain validation and the Playwright browser-smoke step from this cell's dedicated workflow (nw-g00-hydrology.yml) were NOT run in this authoring sandbox (no Godot binary, no Chromium/Playwright, restricted outbound network) — only Node-only steps (node --check, deterministic double-run of the check script, checkTechnicalDebt.js) were locally verified. The workflow file is committed so GitHub Actions runs the full contract (including those two steps) on push/PR against this repo's real CI runners.",
-  "updated_at": "2026-08-13T02:56:16Z"
+  "quality_after": {
+    "layer": "Macro Albedo/Biome",
+    "state": "awaiting_exact_head_ci",
+    "source_map_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+    "authoring_probe": "65x65 continuous global owner-map field",
+    "terrain3d_color_map": "256x256 RGBA8",
+    "guard_band": "1/96 normalized owner-map unit on all four edges",
+    "grid_policy": "GeoCell/mask/source pixels are addressing only; no visible square-cell term",
+    "next_layer_if_green": "Relief/Height Character"
+  },
+  "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable is mandatory for this layer: real Color map import, Terrain3DData region creation, persisted region resources and LOD0 bake are required. HTerrain remains preserved as regression/control. Three.js runtime is not modified by this bounded authoring unit; runtime parity remains layer 7.",
+  "updated_at": "2026-08-13T04:15:00Z"
 }
