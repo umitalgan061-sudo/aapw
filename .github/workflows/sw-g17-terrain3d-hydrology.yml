@@ -12,6 +12,7 @@ on:
       - 'scripts/checkSWG17Hydrology.mjs'
       - 'scripts/checkSWG17HydrologyVisualEvidence.mjs'
       - 'godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd'
+      - 'godot/terrain-authoring/corner_claims/SW.json'
       - '.github/workflows/sw-g17-terrain3d-hydrology.yml'
   workflow_dispatch:
 
@@ -26,9 +27,38 @@ env:
   TZ: Europe/Istanbul
 
 jobs:
-  validate:
+  base:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 10
+    outputs:
+      base_sha: ${{ steps.exact.outputs.base_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Exact-main and bounded scope
+        id: exact
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test -n "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g17_hydrology.mjs|scripts/checkSWG17Hydrology.mjs|scripts/checkSWG17HydrologyVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g17-terrain3d-hydrology.yml)$' | wc -l)" -eq 0
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/project.godot
+
+  authoring:
+    needs: base
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,21 +69,12 @@ jobs:
         with:
           node-version: 22
 
-      - name: Exact-main and bounded scope
+      - name: Preserve captured exact-main base
         run: |
           set -euo pipefail
           git fetch origin main
-          BASE_SHA="$(git rev-parse origin/main)"
-          test -n "$BASE_SHA"
-          git merge-base --is-ancestor "$BASE_SHA" HEAD
-          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
-          git diff --check "$BASE_SHA"...HEAD
-          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g17_hydrology.mjs|scripts/checkSWG17Hydrology.mjs|scripts/checkSWG17HydrologyVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g17-terrain3d-hydrology.yml)$' | wc -l)" -eq 0
-          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
-          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
-          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/project.godot
+          test "$(git rev-parse origin/main)" = "${{ needs.base.outputs.base_sha }}"
+          git merge-base --is-ancestor "${{ needs.base.outputs.base_sha }}" HEAD
 
       - name: Deterministic G17 canonical open-sea source twice
         run: |
@@ -132,29 +153,6 @@ jobs:
           test -s artifacts/sw-g17-hydrology-visual/g17-hydrology-full-world-topdown.png
           test -s artifacts/sw-g17-hydrology-visual/g17-hydrology-visual-metrics.json
 
-      - name: World settlement road PWA mobile browser regressions
-        run: |
-          set -euo pipefail
-          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkWorldReferenceMap.js
-          node scripts/terrainSeatSafetyCheck.js
-          node scripts/roadNetworkSafetyCheck.js
-          node scripts/checkRoadVisualContract.js
-          node scripts/checkMedievalRoadSurface.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkTechnicalDebt.js
-          node scripts/checkMobilePerfBudget.js
-          node scripts/smokeTestGame3D.js
-
-      - name: Final exact-main gate
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          git diff --check "$BASE_SHA"...HEAD
-
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -175,3 +173,100 @@ jobs:
             ${{ runner.temp }}/g17-metrics-b.txt
             ${{ runner.temp }}/g17-visual.log
             ${{ runner.temp }}/hterrain.log
+
+  world-safety:
+    needs: base
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Preserve captured exact-main base
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${{ needs.base.outputs.base_sha }}"
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Settlement and road safety regressions
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+
+  platform-safety:
+    needs: base
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Preserve captured exact-main base
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${{ needs.base.outputs.base_sha }}"
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Determinism PWA mobile and browser regressions
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
+
+  final-exact-main:
+    needs: [base, authoring, world-safety, platform-safety]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Final exact-main gate after all parallel evidence
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="${{ needs.base.outputs.base_sha }}"
+          test -n "$BASE_SHA"
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"...HEAD
