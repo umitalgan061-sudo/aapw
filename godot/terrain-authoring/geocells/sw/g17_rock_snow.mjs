@@ -5,3 +5,4 @@ export {
 } from './g17_rock_snow_field.mjs';
 export { measureG17RockSnow } from './g17_rock_snow_metrics.mjs';
 export { buildG17RockSnowProbe } from './g17_rock_snow_probe.mjs';
+export { buildG17RockSnowControlProbe } from './g17_rock_snow_control_probe.mjs';
