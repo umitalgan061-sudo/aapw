@@ -93,11 +93,11 @@ export function sampleG00RockSnow(normalizedX, normalizedY) {
       + 0.24 * elevationSnow
       - 0.42 * exposedRock,
   );
-  // Keep the preference ordering and cold/elevation semantics, but do not feed
-  // it through a second high-gain S-curve. A linear retention response is more
-  // stable under neighbouring physical-normal changes and still preserves both
-  // snow-dominant shelves and rock-dominant exposed faces.
-  const snowBlend = 0.05 + 0.90 * snowPreference;
+  // Keep 0.5 as the exact rock/snow dominance centre, while constraining the
+  // physical retention range to 10-90%. This preserves the same semantic
+  // classification but prevents neighbouring normal changes from becoming a
+  // near-binary material wall.
+  const snowBlend = 0.10 + 0.80 * snowPreference;
   const snowWeight = landFactor * snowBlend;
   const rockWeight = landFactor * (1 - snowBlend);
   return Object.freeze({
