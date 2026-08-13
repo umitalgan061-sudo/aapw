@@ -12,6 +12,13 @@ on:
       - 'godot/terrain-authoring/scripts/validate_g07_terrain3d_runtime_parity.gd'
       - 'scripts/checkSWG07Terrain3dRuntimeBake.mjs'
       - 'scripts/checkSWG07LiveRoadExclusion.mjs'
+      - 'scripts/checkSWG07BrowserRuntimeParity.mjs'
+      - 'src/3d/world/g07Terrain3dBake.js'
+      - 'src/3d/world/g07Terrain3dBakeHeights.js'
+      - 'src/3d/world/g07Terrain3dBakeRock.js'
+      - 'src/3d/world/g07Terrain3dBakeColor.js'
+      - 'src/3d/world/worldReferenceTerrainAdapter.js'
+      - 'service-worker.js'
       - 'godot/terrain-authoring/corner_claims/SW.json'
       - '.github/workflows/sw-g07-terrain3d-runtime-bake.yml'
   workflow_dispatch:
@@ -46,7 +53,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs|godot/terrain-authoring/scripts/validate_g07_terrain3d_runtime_parity.gd|scripts/checkSWG07Terrain3dRuntimeBake.mjs|scripts/checkSWG07LiveRoadExclusion.mjs|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g07-terrain3d-runtime-bake.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs|godot/terrain-authoring/scripts/validate_g07_terrain3d_runtime_parity.gd|scripts/checkSWG07Terrain3dRuntimeBake.mjs|scripts/checkSWG07LiveRoadExclusion.mjs|scripts/checkSWG07BrowserRuntimeParity.mjs|src/3d/world/g07Terrain3dBake.js|src/3d/world/g07Terrain3dBakeHeights.js|src/3d/world/g07Terrain3dBakeRock.js|src/3d/world/g07Terrain3dBakeColor.js|src/3d/world/worldReferenceTerrainAdapter.js|service-worker.js|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g07-terrain3d-runtime-bake.yml)$' | wc -l)" -eq 0
           git diff --quiet "$BASE"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/project.godot
 
       - name: Syntax
@@ -55,6 +62,13 @@ jobs:
           node --check godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs
           node --check scripts/checkSWG07Terrain3dRuntimeBake.mjs
           node --check scripts/checkSWG07LiveRoadExclusion.mjs
+          node --check scripts/checkSWG07BrowserRuntimeParity.mjs
+          node --check src/3d/world/g07Terrain3dBake.js
+          node --check src/3d/world/g07Terrain3dBakeHeights.js
+          node --check src/3d/world/g07Terrain3dBakeRock.js
+          node --check src/3d/world/g07Terrain3dBakeColor.js
+          node --check src/3d/world/worldReferenceTerrainAdapter.js
+          node --check service-worker.js
 
       - name: Install Chromium proof dependency
         run: |
@@ -103,7 +117,7 @@ jobs:
           git diff --exit-code -- godot/terrain-authoring/project.godot godot/terrain-authoring/terrain3d.lock.json
           timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60
 
-      - name: Real Terrain3D height control color import save and LOD0 bake twice
+      - name: Real Terrain3D bake packed payload and browser adapter parity
         run: |
           set -euo pipefail
           G07_PARITY_PROOF_SUFFIX=a timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g07_terrain3d_runtime_parity.gd | tee /tmp/g07-t3d-a.log
@@ -117,6 +131,8 @@ jobs:
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkSWG07Terrain3dRuntimeBake.mjs --verify-bake=godot/terrain-authoring/.terrain3d-proof/g07-runtime-bake.json | tee /tmp/g07-bake-parity.log
           grep -F 'SW_G07_RUNTIME_BAKE_SOURCE_OK' /tmp/g07-bake-parity.log
+          node scripts/checkSWG07BrowserRuntimeParity.mjs | tee /tmp/g07-browser-runtime.log
+          grep -F 'SW_G07_BROWSER_RUNTIME_PARITY_OK' /tmp/g07-browser-runtime.log
 
       - name: Upload Terrain3D provenance evidence
         uses: actions/upload-artifact@v4
@@ -130,6 +146,7 @@ jobs:
             /tmp/g07-t3d-a.log
             /tmp/g07-t3d-b.log
             /tmp/g07-bake-parity.log
+            /tmp/g07-browser-runtime.log
 
       - name: HTerrain and world safety regressions
         run: |
