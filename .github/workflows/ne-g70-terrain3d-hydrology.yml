@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ne-g70-terrain3d-hydrology-${{ github.ref }}
+  group: ne-g70-terrain3d-hydrology-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 env:
