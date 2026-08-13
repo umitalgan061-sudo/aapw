@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -5,6 +6,10 @@ import {
   buildG07RuntimeBakeSource,
   measureG07RuntimeBakeSource,
 } from '../godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs';
+import {
+  G07_TERRAIN3D_RUNTIME_BAKE,
+  sampleG07Terrain3dBakeNormalized,
+} from '../src/3d/world/g07Terrain3dBake.js';
 
 function parseArg(prefix) {
   const arg = process.argv.find((value) => value.startsWith(prefix));
@@ -13,6 +18,10 @@ function parseArg(prefix) {
 
 function fail(message) {
   throw new Error(message);
+}
+
+function sha256File(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
 function verifyMetrics(metrics) {
@@ -38,6 +47,83 @@ function verifyMetrics(metrics) {
   if (metrics.maxGuardRockDelta > 0.03) fail(`guard rock seam too large: ${metrics.maxGuardRockDelta}`);
   if (metrics.maxGuardColorDelta > 0.01) fail(`guard color seam too large: ${metrics.maxGuardColorDelta}`);
   if (metrics.maxGuardRoughnessDelta > 0.01) fail(`guard roughness seam too large: ${metrics.maxGuardRoughnessDelta}`);
+}
+
+function verifyRuntimePayload(bakePath, bake) {
+  const runtime = G07_TERRAIN3D_RUNTIME_BAKE;
+  if (runtime.sourceMapSha256 !== bake.sourceMapSha256) fail('packed runtime map.png provenance drifted');
+  if (runtime.terrain3dVersion !== bake.terrain3dVersion) fail('packed runtime Terrain3D version drifted');
+  if (runtime.terrain3dImportSize !== bake.importWidth || runtime.terrain3dImportSize !== bake.importHeight) {
+    fail('packed runtime lost 257x257 Terrain3D import provenance');
+  }
+  if (runtime.terrain3dRegionSize !== bake.regionSize || runtime.terrain3dRegionCount !== bake.regionCount) {
+    fail('packed runtime Terrain3D region provenance drifted');
+  }
+  if (runtime.terrain3dBakedVertices !== bake.bakedVertices || runtime.terrain3dSavedRegionFiles !== bake.savedRegionFiles) {
+    fail('packed runtime bake/persistence provenance drifted');
+  }
+  const canonicalSha = sha256File(bakePath);
+  if (canonicalSha !== runtime.canonicalBakeSha256) {
+    fail(`canonical Terrain3D bake SHA drifted: ${canonicalSha}`);
+  }
+  const topdownPath = path.join(path.dirname(bakePath), 'g07-runtime-imported-topdown.png');
+  if (!fs.existsSync(topdownPath)) fail('Terrain3D imported top-down evidence is missing');
+  const topdownSha = sha256File(topdownPath);
+  if (topdownSha !== runtime.importedTopdownSha256) {
+    fail(`Terrain3D top-down SHA drifted: ${topdownSha}`);
+  }
+
+  const bounds = runtime.normalizedBounds;
+  let maxHeightError = 0;
+  let maxRockError = 0;
+  let maxColorError = 0;
+  let maxRoughnessError = 0;
+  const width = bake.width;
+  const height = bake.height;
+  for (let y = 0; y < height; y += 1) {
+    const ny = bounds.yMin + (bounds.yMax - bounds.yMin) * (y / (height - 1));
+    for (let x = 0; x < width; x += 1) {
+      const nx = bounds.xMin + (bounds.xMax - bounds.xMin) * (x / (width - 1));
+      const sample = sampleG07Terrain3dBakeNormalized(nx, ny);
+      if (!sample) fail(`packed runtime returned null inside G07 at ${x},${y}`);
+      if (sample.snowBlend !== 0 || sample.roadBlend !== 0 || sample.pathBlend !== 0) {
+        fail(`forbidden packed surface leaked at ${x},${y}`);
+      }
+      const index = y * width + x;
+      const color = bake.colorRoughness[index];
+      maxHeightError = Math.max(maxHeightError, Math.abs(sample.height - Number(bake.heights[index])));
+      maxRockError = Math.max(maxRockError, Math.abs(sample.rockBlend - Number(bake.rockBlend[index])));
+      maxColorError = Math.max(
+        maxColorError,
+        Math.abs(sample.color[0] - Number(color[0])),
+        Math.abs(sample.color[1] - Number(color[1])),
+        Math.abs(sample.color[2] - Number(color[2])),
+      );
+      maxRoughnessError = Math.max(maxRoughnessError, Math.abs(sample.roughness - Number(color[3])));
+    }
+  }
+  if (maxHeightError > runtime.maxDownsampleHeightErrorMeters + 0.000001) {
+    fail(`packed runtime height error exceeded qualified bound: ${maxHeightError}`);
+  }
+  if (maxRockError > runtime.maxDownsampleRockError + 0.000001) {
+    fail(`packed runtime rock error exceeded qualified bound: ${maxRockError}`);
+  }
+  if (maxColorError > runtime.maxDownsampleColorError + 0.000001) {
+    fail(`packed runtime color error exceeded qualified bound: ${maxColorError}`);
+  }
+  if (maxRoughnessError > runtime.maxDownsampleRoughnessError + 0.000001) {
+    fail(`packed runtime roughness error exceeded qualified bound: ${maxRoughnessError}`);
+  }
+  const outside = sampleG07Terrain3dBakeNormalized(bounds.xMax + 0.0001, bounds.yMax);
+  if (outside !== null) fail('packed G07 runtime escaped its owner-map domain');
+  return {
+    canonicalBakeSha256: canonicalSha,
+    importedTopdownSha256: topdownSha,
+    maxHeightError,
+    maxRockError,
+    maxColorError,
+    maxRoughnessError,
+  };
 }
 
 function verifyBake(bakePath, source) {
@@ -89,7 +175,13 @@ function verifyBake(bakePath, source) {
   if (maxHeightError > 0.01 || maxRockError > 0.006 || maxColorError > 0.006 || maxRoughnessError > 0.006) {
     fail(`bake/source payload mismatch: height=${maxHeightError} rock=${maxRockError} color=${maxColorError} rough=${maxRoughnessError}`);
   }
-  return { maxHeightError, maxRockError, maxColorError, maxRoughnessError };
+  return {
+    maxHeightError,
+    maxRockError,
+    maxColorError,
+    maxRoughnessError,
+    runtime: verifyRuntimePayload(bakePath, bake),
+  };
 }
 
 const metrics = measureG07RuntimeBakeSource();
