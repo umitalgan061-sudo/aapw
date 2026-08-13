@@ -44,3 +44,24 @@ if (sandbox.maxRunFromProgress(progressWithLaterCompletedRun) !== 325) {
 }
 
 console.log('[checkRun287CheckpointParserCompat] PASS: legacy/current stable+perf formats and explicit non-checkpoint progress sections are parsed safely');
+
+const progressWithNoCodeCollision = [
+  '## Run 327 — completed checkpoint',
+  '- Full DoD PASS; stable and performance records emitted.',
+  '',
+  '## Run 328 — concurrency collision; no code shipped',
+  '- No code shipped; duplicate local work discarded after another session published first.',
+].join('\n');
+if (sandbox.maxRunFromProgress(progressWithNoCodeCollision) !== 327) {
+  throw new Error('no-code collision progress section advanced the completed-run watermark');
+}
+
+const stableWithNoCodeCollision = [
+  '- `stable-2026-08-13-run327` — completed checkpoint',
+  '- `stable-2026-08-13-run328` — no code shipped; verification + concurrency-collision handling run.',
+].join('\n');
+if (sandbox.maxRunFromStableTags(stableWithNoCodeCollision) !== 327) {
+  throw new Error('no-code collision stable note advanced the completed-run watermark');
+}
+
+console.log('[checkRun287CheckpointParserCompat] PASS: explicit no-code collision records remain off the completed-run watermark');

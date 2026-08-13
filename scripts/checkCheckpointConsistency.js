@@ -162,3 +162,29 @@ function maxRunFromPerfCsv(text) {
 	}
 	return runs.length ? Math.max(...runs) : null;
 }
+
+/**
+ * Run328 additive-only no-code collision compatibility extension.
+ *
+ * A concurrency/audit record that explicitly states `no code shipped` has no new runtime artifact
+ * and therefore must not manufacture a completed checkpoint when no matching perf row exists.
+ * Keep the historical record visible, but leave the completed-run watermark on the last real run.
+ */
+function progressSectionIsExplicitlyNonCheckpoint(sectionBody) {
+	const normalized = sectionBody.replace(/[`*_]/g, ' ').replace(/\s+/g, ' ');
+	return /\bnot run,\s*explicitly\b/i.test(normalized)
+		|| /\bno\b.{0,100}\bperf-log entry needed\b/i.test(normalized)
+		|| /\bno code shipped\b/i.test(normalized);
+}
+
+function maxRunFromStableTags(text) {
+	const runs = [];
+	for (const line of text.split(/\r?\n/)) {
+		if (!/stable-/i.test(line)) continue;
+		const normalized = line.replace(/[`*_]/g, ' ').replace(/\s+/g, ' ');
+		if (/\bno code shipped\b/i.test(normalized)) continue;
+		const match = line.match(/\brun\s*(\d+)\b/i);
+		if (match) runs.push(Number(match[1]));
+	}
+	return runs.length ? Math.max(...runs) : null;
+}
