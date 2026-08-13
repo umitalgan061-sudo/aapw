@@ -188,3 +188,24 @@ function maxRunFromStableTags(text) {
 	}
 	return runs.length ? Math.max(...runs) : null;
 }
+
+/**
+ * Run328 heading-aware additive compatibility extension.
+ *
+ * Some collision/audit sections state the non-checkpoint reason only in the Markdown heading.
+ * Evaluate the heading together with its body so those truthful audit entries cannot advance the
+ * completed-run watermark merely because the explanatory phrase is absent from the bullets.
+ */
+function maxRunFromProgress(text) {
+	const headings = [...text.matchAll(/^##\s+(?:This Run\b.*?\brun\s+(\d+)\b|Run\s+(\d+)\b).*$/gim)];
+	const runs = [];
+	for (let index = 0; index < headings.length; index++) {
+		const match = headings[index];
+		const run = Number(match[1] || match[2]);
+		const sectionStart = match.index + match[0].length;
+		const sectionEnd = index + 1 < headings.length ? headings[index + 1].index : text.length;
+		const section = `${match[0]}\n${text.slice(sectionStart, sectionEnd)}`;
+		if (!progressSectionIsExplicitlyNonCheckpoint(section)) runs.push(run);
+	}
+	return runs.length ? Math.max(...runs) : null;
+}
