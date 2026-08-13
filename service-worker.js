@@ -284,6 +284,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/gameplay/dragonSpawns.js',
     './src/3d/gameplay/creatureBodyPlans.js',
     './src/3d/gameplay/creatureRig.js',
+    './src/3d/gameplay/creatureGait.js',
     './src/3d/gameplay/interaction.js',
     './src/3d/gameplay/worldEvents.js',
     './src/3d/world/terrain.js',

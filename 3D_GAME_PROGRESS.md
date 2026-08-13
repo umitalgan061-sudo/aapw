@@ -15257,3 +15257,79 @@ subtasks and are explicitly not in this one.
   answer deliberately rather than drift into: whether the existing asset-driven wolf
   (`gameplay/animals.js`) moves onto the procedural path or stays as it is, and what LOD large herds
   need — 2,352 triangles each means ~20 visible animals is ~47K against the 500K mobile ceiling.
+
+## Run 327 (scheduled run, 2026-08-13) — Procedural gait driver for the run-326 creature rigs (ADR-0273)
+
+The first of the two next steps run 326 declared: a gait animation driver for the 19 procedurally
+rigged species, still deliberately unwired from the live scene (behaviour AI, the second declared
+step, is not this run).
+
+- Session Snapshot done first: `GOVERNANCE.md` (through §23 "Run321 platform-control" note),
+  `GOVERNANCE_CONTINUATION_OVERRIDE.md`, `GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`,
+  `QUESTIONS_FOR_OWNER.md`, `CATCH_UP.md`, `git log`. Local checkout started 30 commits behind
+  `origin/main` (detached HEAD) — resynced via `git checkout -B main origin/main` before any work,
+  per §8.14, no local work lost (nothing had been committed yet). `origin/main`'s newest commits are
+  all the Godot/Terrain3D grid-authoring track (G00/G52/G65/G70 relief and hydrology, multiple
+  concurrent agent sessions) — this run's own scope (a pure-JS gait module under
+  `src/3d/gameplay/`) shares no file with that track, so no collision risk was taken on trust; it was
+  checked (`git log --oneline -- src/3d/gameplay/creatureGait.js` clean before this run's own
+  commit). Godot is not installed in this session's environment, which also ruled out picking up any
+  Terrain3D-track item directly.
+- New `gameplay/creatureGait.js`: `applyCreatureGait(rig, {gaitName, elapsedSeconds})` sets bone
+  rotations only (no geometry/skeleton mutation) for whichever of the ten named gaits
+  `creatureBodyPlans.js`'s `restGait`/`alertGait` fields use (`walk`, `trot`, `pace`, `prowl`,
+  `stride`, `hop`, `gallop`, `bound`, `sprint`, `flap`) — every one of the ten gets a real phase
+  pattern, none left undriven. Frequency comes from the plan's own `strideHz.walk`/`strideHz.run`
+  (the `run` tier when the requested gait equals the plan's `alertGait`, `walk` otherwise — the same
+  rest/alert split `creatureBodyPlans.js` already encoded). A companion `resetCreatureGaitPose`
+  zeroes every bone the driver can touch.
+- Four bone groups, each pure functions of `elapsedSeconds`: leg swing (knee bone drives the main
+  swing, ankle counter-bends twice per stride so the foot clears the ground on both halves of the
+  cycle), a small always-on tail wag independent of gait (idle liveliness, not locomotion), and — for
+  a bird mid-`flap` only — wing beat with the wingtip lagging the main wing by 0.15 cycles for a
+  whip rather than a rigid plane. Legs stay tucked at bind pose during `flap`; wings stay still
+  outside it.
+- Gait phase patterns are ordinary named real-world gait diagrams (four-beat walk, diagonal-pair
+  trot, lateral-pair pace, hind-then-fore bound, staggered rotary gallop) — the same "zoological
+  common knowledge, applied by eye" standard `creatureBodyPlans.js`'s own header already used for
+  proportions, now applied to timing. Swing amplitude and the ankle-bend fraction were not calibrated
+  against a real playtest (this project's first gait driver — no prior reference value existed);
+  logged as this run's own `QUESTIONS_FOR_OWNER.md` entry, same "temporary default, single-constant
+  fix" pattern as every other feel constant already in that file.
+- Determinism: no `Math.random()` anywhere in the module — every rotation is a pure function of
+  `elapsedSeconds` and the plan's own constants, so replaying the same time on the same species always
+  reproduces the same pose (§8.9).
+- Full DoD sweep (fresh): `node --check` on all three changed/new files;
+  `checkServiceWorkerCache.js` PASS with the one new offline-shell entry (173 JS files);
+  `checkPwaInstallability.js` PASS; `checkTechnicalDebt.js` PASS, **0 new debt**;
+  `checkSmokeCheckRegistry.js` OK, 512 files inside the 600-line cap (only the same two pre-existing
+  WARNs as run 326, neither touched this run); `smokeTestGame3D.js` **34/34 PASS**, exit 0, zero
+  console/page errors.
+- Visual evidence (§8.5): `scripts/checkRun327CreatureGait.js` (new) — 38 species x gait combinations
+  (19 species x `{restGait, alertGait}`, the two deduplicated where they're the same name) each
+  posed at 4 phase samples and asserted: every rotation finite and inside a sane bound; the driven leg
+  bones actually move across the cycle (flap is the deliberate exception — legs stay tucked); wings
+  move only during flap; two independent rigs posed at the same species+gait+time produce
+  byte-identical rotations; `resetCreatureGaitPose` zeroes every bone it touches. Plus a **real GPU
+  pixel read-back** (same technique run 325's water evidence used) proving one representative species
+  per archetype (kurt/trot, asker/stride, kartal/flap) visibly differs between two half-cycle-apart
+  poses — 0.59%/1.64%/0.42% of rendered pixels changed — with 6 before/after screenshots (broadside
+  profile view, the plane the leg/wing swing actually happens in) in
+  `artifacts/run327-creature-gait/`. The rendered stills read as subtle at normal viewing distance
+  (legs are a thin fraction of the frame even at a close per-creature camera) — the measured pixel
+  delta and the 38 per-bone-rotation assertions are the real evidence, the screenshots the
+  supplementary "judged by eye" record §8.5 asks for.
+- `perf_log.csv` gained one sample (`run327-creature-gait`): drawCalls=51, triangles=860,328,
+  geometries=49, textures=21, jsHeapUsedMB=257 — **draw calls/triangles/geometries/textures
+  identical to run 326/325's**, direct confirmation no scene-graph module imports `creatureGait.js`
+  yet (same "nothing changed because nothing is wired in" evidence run 326 used; the heap figure
+  moves run-to-run on its own, same noise band as every prior sample).
+- Runtime/product source delta: 0 in any shipped render/gameplay path (one new unimported module +
+  one service-worker entry + its check script). Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+- Next safe step: `gameplay/creatureBrain.js` — the behaviour-primitive state machine
+  `creatureSpeciesConfig.js` names (`patrol`, `flee-on-approach`, `approach-friendly`, `pounce`,
+  `herd-bound`, `flock`, `combat-stance`, `charge`, `regal-idle`), which is what would finally call
+  `applyCreatureGait` from a live tick and choose `restGait` vs `alertGait` by distance-to-player —
+  at that point these rigs stop being inert and the two open questions run 326 named (does the
+  asset-driven wolf move onto this path; what LOD large herds need) become live decisions rather than
+  deferred ones.
