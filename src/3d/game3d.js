@@ -286,6 +286,7 @@ export async function initGame3D() {
 			seatsById,
 			sampleGroundY: sampleClampedGroundY,
 			groundCollider: state.groundCollider,
+			playerCollider: state.playerCollider,
 		});
 		for (const npc of state.npcs) state.scene.add(npc.object3D);
 		console.info(`[game3d] Spawned ${state.npcs.length} FAZ 5 NPC(s).`);
@@ -296,6 +297,7 @@ export async function initGame3D() {
 			seatsById,
 			sampleGroundY: sampleClampedGroundY,
 			groundCollider: state.groundCollider,
+			playerCollider: state.playerCollider,
 		});
 		for (const animal of state.animals) state.scene.add(animal.object3D);
 		console.info(`[game3d] Spawned ${state.animals.length} FAZ 6 animal(s).`);
@@ -321,7 +323,7 @@ export async function initGame3D() {
 			radiusMeters: creatureScatterRadiusMeters,
 			speciesCounts: isMobileClassCreatures ? MOBILE_SPECIES_COUNTS : DESKTOP_SPECIES_COUNTS,
 		});
-		state.creatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, mulberry32 });
+		state.creatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, playerCollider: state.playerCollider, mulberry32 });
 		for (const creature of state.creatures) state.scene.add(creature.object3D);
 		console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s).`);
 

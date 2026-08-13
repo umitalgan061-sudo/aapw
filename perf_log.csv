@@ -229,3 +229,4 @@ run282,2026-08-11,pindex04-deterministic-detail,,,,,,,"Pindex-04 color micro-det
 2026-08-13,run330-checkpoint-reverify,1,48,858912,46,16,391
 2026-08-13,run330-castles-villages,1,57,904446,51,29,326
 2026-08-13,run331-village-collision,1,52,866460,50,24,347
+2026-08-13,run332-npc-animal-collision,0,57,904446,51,29,257

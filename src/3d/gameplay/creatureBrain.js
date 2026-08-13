@@ -170,6 +170,12 @@ function hashSeedString(text) {
  * @param {number} options.groundY
  * @param {number} [options.rotationYRadians]
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
+ * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
+ *   Run 332's own follow-up to Run 331's own named gap: the same castle+village obstacle collider
+ *   `sceneManager.js` builds for `gameplay/player.js` (see its own JSDoc), applied to both the
+ *   wander and reactive movement branches here so a being pushes back out of a house/keep instead of
+ *   wandering/fleeing straight through it. Optional — omit (the default) for any caller with no
+ *   obstacle collider available (e.g. a unit test).
  * @param {(seed: number) => () => number} options.mulberry32 Passed in rather than imported directly
  *   from `world/terrain.js` — keeps this gameplay module's only coupling to `world/` explicit and
  *   caller-controlled, same "generator takes plain data, not a live import graph" rule `world/README.md`
@@ -184,6 +190,7 @@ export function createCreatureBeing({
 	groundY,
 	rotationYRadians = 0,
 	groundCollider,
+	playerCollider = null,
 	mulberry32,
 }) {
 	const profile = CREATURE_BEHAVIOR_PROFILES[speciesId];
@@ -259,8 +266,13 @@ export function createCreatureBeing({
 				const dirX = (dxFromPlayer / safeDistance) * sign;
 				const dirZ = (dzFromPlayer / safeDistance) * sign;
 				const step = profile.reactiveSpeedMps * delta;
-				object3D.position.x += dirX * step;
-				object3D.position.z += dirZ * step;
+				let nextX = object3D.position.x + dirX * step;
+				let nextZ = object3D.position.z + dirZ * step;
+				if (playerCollider) {
+					({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+				}
+				object3D.position.x = nextX;
+				object3D.position.z = nextZ;
 				object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z);
 				turnToward(Math.atan2(dirX, dirZ), delta);
 				isMoving = true;
@@ -272,14 +284,24 @@ export function createCreatureBeing({
 				const distance = Math.hypot(dx, dz);
 				const step = profile.wanderSpeedMps * delta;
 				if (distance <= step) {
-					object3D.position.x = wanderTarget.x;
-					object3D.position.z = wanderTarget.z;
-					object3D.position.y = groundCollider.getGroundHeight(wanderTarget.x, wanderTarget.z);
+					let targetX = wanderTarget.x;
+					let targetZ = wanderTarget.z;
+					if (playerCollider) {
+						({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
+					}
+					object3D.position.x = targetX;
+					object3D.position.z = targetZ;
+					object3D.position.y = groundCollider.getGroundHeight(targetX, targetZ);
 					pickNewWanderTarget();
 					pauseTimer = profile.wanderPauseSeconds;
 				} else {
-					object3D.position.x += (dx / distance) * step;
-					object3D.position.z += (dz / distance) * step;
+					let nextX = object3D.position.x + (dx / distance) * step;
+					let nextZ = object3D.position.z + (dz / distance) * step;
+					if (playerCollider) {
+						({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+					}
+					object3D.position.x = nextX;
+					object3D.position.z = nextZ;
 					object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z);
 					turnToward(Math.atan2(dx, dz), delta);
 					isMoving = true;
@@ -309,12 +331,14 @@ export function createCreatureBeing({
  * @param {object} options
  * @param {{id: string, speciesId: string, x: number, z: number, rotationYRadians?: number}[]} options.spawns
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
+ * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
+ *   Forwarded to every `createCreatureBeing` call — see that function's own JSDoc.
  * @param {(seed: number) => () => number} options.mulberry32
  * @returns {ReturnType<typeof createCreatureBeing>[]} Already filtered — a spawn naming a species with
  *   no `CREATURE_BEHAVIOR_PROFILES` entry is skipped with a console warning, not thrown, matching
  *   `spawnConfiguredAnimals`'s own "skip, don't crash the whole spawn batch" behavior for a bad seat id.
  */
-export function spawnConfiguredCreatures({ spawns, groundCollider, mulberry32 }) {
+export function spawnConfiguredCreatures({ spawns, groundCollider, playerCollider, mulberry32 }) {
 	const beings = [];
 	for (const spawn of spawns) {
 		if (!CREATURE_BEHAVIOR_PROFILES[spawn.speciesId]) {
@@ -330,6 +354,7 @@ export function spawnConfiguredCreatures({ spawns, groundCollider, mulberry32 })
 				groundY: groundCollider.getGroundHeight(spawn.x, spawn.z),
 				rotationYRadians: spawn.rotationYRadians ?? 0,
 				groundCollider,
+				playerCollider,
 				mulberry32,
 			}),
 		);

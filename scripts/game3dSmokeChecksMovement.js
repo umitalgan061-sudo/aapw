@@ -440,9 +440,134 @@ async function checkWolfPatrol(browser, baseUrl) {
 	return { name: 'wolf waypoint patrol (gameplay/animals.js)', ok, details };
 }
 
+/**
+ * Regression guard for run 332's own extension of Run 331's ADR-0277 obstacle collider
+ * (`physics.js`'s `createCircleCollider`, already proven against the player in
+ * `game3dSmokeChecks.js`'s `checkSettlementCollider`) to `gameplay/npc.js`'s `createNPC`,
+ * `gameplay/animals.js`'s `createWolf`, and `gameplay/creatureBrain.js`'s `createCreatureBeing` — the
+ * exact "NPCs/animals still pass through village houses and castle walls" gap Run 331's own progress
+ * note named as this run's follow-up. One shared `createCircleCollider` instance carries three
+ * circles, each placed on a different axis/region so none of the three entities below ever crosses
+ * paths with another entity's own circle: a patrolling NPC walks straight into its circle along +X,
+ * a patrolling wolf walks straight into its circle along +Z, and a fleeing procedural creature (a
+ * `geyik`, whose 15m `reactiveTriggerRadiusMeters` comfortably covers the short flee distance used
+ * here — a tighter-trigger species would stop reacting, and start wandering back toward its spawn,
+ * partway there) runs straight into its own circle while fleeing a fixed nearby player position. All
+ * three should converge to resting exactly on their circle's edge (`radius + playerRadiusMeters`)
+ * rather than crossing through it.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkNpcAnimalCreatureObstacleCollider(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createNPC } = await import('/src/3d/gameplay/npc.js');
+			const { createWolf } = await import('/src/3d/gameplay/animals.js');
+			const { createCreatureBeing } = await import('/src/3d/gameplay/creatureBrain.js');
+			const { createCircleCollider } = await import('/src/3d/physics.js');
+			const { mulberry32 } = await import('/src/3d/world/terrain.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { NPC_CONFIG, ANIMAL_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+
+			const assetLoader = new AssetLoader();
+			const delta = 1 / 60;
+			const groundCollider = { getGroundHeight: () => 0 };
+			const playerRadiusMeters = 0.4;
+			const npcCircle = { x: 10, z: 0, radius: 2 };
+			const wolfCircle = { x: 0, z: 10, radius: 2 };
+			const creatureCircle = { x: 5, z: 50, radius: 2 };
+			const playerCollider = createCircleCollider([npcCircle, wolfCircle, creatureCircle], playerRadiusMeters);
+			const expectedStop = (circle) => circle.radius + playerRadiusMeters;
+
+			const npc = await createNPC({
+				assetLoader,
+				modelUrl: NPC_CONFIG.SPAWNS[0].modelUrl,
+				idleAnimationUrl: NPC_CONFIG.IDLE_ANIMATION_URL,
+				walkAnimationUrl: NPC_CONFIG.WALK_ANIMATION_URL,
+				worldX: 0,
+				worldZ: 0,
+				groundY: 0,
+				groundCollider,
+				playerCollider,
+				patrolWaypoints: [{ x: 0, z: 0 }, { x: 20, z: 0 }],
+				speedMps: NPC_CONFIG.PATROL_SPEED_MPS,
+				pauseSeconds: NPC_CONFIG.PATROL_PAUSE_SECONDS,
+				turnRateRadiansPerSecond: NPC_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+			});
+			for (let i = 0; i < 3000; i++) npc.update(delta);
+			const npcStopX = npc.object3D.position.x;
+			const npcStayedOutside = Math.abs(npcStopX - (npcCircle.x - expectedStop(npcCircle))) < 1e-6;
+			const npcNeverCrossedCenter = npcStopX < npcCircle.x;
+			npc.dispose();
+
+			const wolf = await createWolf({
+				assetLoader,
+				modelUrl: ANIMAL_CONFIG.WOLF_MODEL_URL,
+				idleClipName: ANIMAL_CONFIG.IDLE_CLIP_NAME,
+				stripChildNames: ANIMAL_CONFIG.STRIP_CHILD_NAMES,
+				worldX: 0,
+				worldZ: 0,
+				groundY: 0,
+				groundCollider,
+				playerCollider,
+				walkClipName: ANIMAL_CONFIG.WALK_CLIP_NAME,
+				patrolWaypoints: [{ x: 0, z: 0 }, { x: 0, z: 20 }],
+				speedMps: ANIMAL_CONFIG.PATROL_SPEED_MPS,
+				pauseSeconds: ANIMAL_CONFIG.PATROL_PAUSE_SECONDS,
+				turnRateRadiansPerSecond: ANIMAL_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+			});
+			for (let i = 0; i < 3000; i++) wolf.update(delta);
+			const wolfStopZ = wolf.object3D.position.z;
+			const wolfStayedOutside = Math.abs(wolfStopZ - (wolfCircle.z - expectedStop(wolfCircle))) < 1e-6;
+			const wolfNeverCrossedCenter = wolfStopZ < wolfCircle.z;
+			wolf.dispose();
+
+			const creature = createCreatureBeing({
+				speciesId: 'geyik',
+				spawnId: 'test-creature-collider',
+				worldX: 0,
+				worldZ: 50,
+				groundY: 0,
+				groundCollider,
+				playerCollider,
+				mulberry32,
+			});
+			// 1m behind the creature (well inside geyik's 15m reactiveTriggerRadiusMeters) so it flees
+			// straight in +X for the whole run — the short ~2.6m distance to creatureCircle's edge never
+			// takes it past the 15m trigger radius, unlike a tighter-trigger species (see doc comment).
+			const fleeTriggerPlayer = { x: -1, z: 50 };
+			for (let i = 0; i < 3000; i++) creature.update(delta, fleeTriggerPlayer);
+			const creatureStopX = creature.object3D.position.x;
+			const creatureStayedOutside = Math.abs(creatureStopX - (creatureCircle.x - expectedStop(creatureCircle))) < 1e-6;
+			const creatureNeverCrossedCenter = creatureStopX < creatureCircle.x;
+			creature.dispose();
+
+			return {
+				npcStayedOutside, npcNeverCrossedCenter, npcStopX,
+				wolfStayedOutside, wolfNeverCrossedCenter, wolfStopZ,
+				creatureStayedOutside, creatureNeverCrossedCenter, creatureStopX,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = result.npcStayedOutside && result.npcNeverCrossedCenter &&
+		result.wolfStayedOutside && result.wolfNeverCrossedCenter &&
+		result.creatureStayedOutside && result.creatureNeverCrossedCenter;
+	const details = ok
+		? `NPC stopped at x=${result.npcStopX.toFixed(2)}, wolf stopped at z=${result.wolfStopZ.toFixed(2)}, ` +
+			`fleeing creature stopped at x=${result.creatureStopX.toFixed(2)} — all three resting exactly ` +
+			`on their own obstacle circle's edge, none crossed through`
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'NPC/animal/creature obstacle collider (run 332)', ok, details };
+}
+
 module.exports = {
 	checkWolfPackAlert,
 	checkNpcPatrol,
 	checkWolfPatrol,
 	checkNpcCombatStance,
+	checkNpcAnimalCreatureObstacleCollider,
 };

@@ -15511,3 +15511,61 @@ step, is not this run).
   resolves against `playerCollider` — NPCs/wolves/dragons still pass through walls, same as they
   always have against castles too, a pre-existing scope boundary this run did not expand); or
   `game3d.js`'s 600-line ceiling, now with zero headroom to spare.
+
+## Run 332 (2026-08-13, scheduled run) — NPC/animal/creature collision against castle+village geometry (ADR-0278)
+
+- Priority scan first: GOVERNANCE.md §18 items 1/1.2/1.5/1.7 confirmed still done (unchanged since
+  Run 331's own scan). Picked Run 331's own named next step: NPCs, wolves, and procedural creatures
+  still walked straight through castle walls and village houses — only the player resolved against
+  `playerCollider`. Dragons out of scope (fixed-altitude flight, never touch ground-plane obstacles).
+- `gameplay/npc.js` (`createNPC`), `gameplay/animals.js` (`createWolf`), and `gameplay/creatureBrain.js`
+  (`createCreatureBeing`) each gained an optional `playerCollider` param (default `null`, opt-in, same
+  shape `gameplay/player.js` already established in Run 331). Every branch that computes a next
+  `(x, z)` before committing it — NPC/wolf patrol-walk, wolf flee, creature wander, creature
+  reactive flee/approach — now resolves through `playerCollider.resolveXZ()` first, identical to the
+  player's own `update()`. `spawnConfiguredNPCs`/`spawnConfiguredAnimals`/`spawnConfiguredCreatures`
+  thread it through; `game3d.js`'s 3 real spawn call sites now pass `state.playerCollider` — no second
+  collider object, reusing the exact one the player already uses (see ADR-0278's "reuse, don't
+  reinvent" rationale for why a second parallel collider was rejected).
+- **Oyuncu ne fark eder:** artık NPC'ler, kurtlar ve prosedürel yaratıklar da kale duvarlarından ve
+  köy evlerinden geçemiyor — daha önce yalnızca oyuncu bu kısıtlamaya tabiydi, şimdi köyün yanından
+  geçen bir devriye NPC'si ya da kaçan bir kurt artık bir kulübenin içinden yürüyüp gitmiyor.
+- DoD: `node --check` clean on all 6 changed/new files (independently re-verified this run, not just
+  taken on trust). New targeted regression check `checkNpcAnimalCreatureObstacleCollider`
+  (`game3dSmokeChecksMovement.js`, registered in `smokeTestGame3D.js`) drives one real `createNPC`,
+  `createWolf`, and `createCreatureBeing` into three separated `createCircleCollider` circles and
+  asserts each rests exactly on `radius + playerRadiusMeters`, never crossing through — **PASS** in
+  isolation (independently re-run: `NPC stopped at x=7.60, wolf stopped at z=7.60, fleeing creature
+  stopped at x=2.60`). The 5 pre-existing movement checks this change touches (`settlement collider`,
+  `wolf flee/pack-alert`, `NPC waypoint patrol`, `wolf waypoint patrol`, `NPC combat-stance`) — also
+  independently re-run in isolation, all **PASS**, proving zero regression on collider-less callers.
+  `checkTechnicalDebt.js` PASS (0 new debt markers). `checkSmokeCheckRegistry.js` PASS: 35 checks/14
+  modules wired correctly; `game3d.js` now 599/600 (up from 597/600 — **1 line of headroom left**),
+  `game3dSmokeChecksMovement.js` 573/600. `checkRun330Villages.js` re-run PASS (placement/determinism
+  untouched — this change only adds an optional parameter, no placement/render change). Honest note:
+  the **full** 35-check `smokeTestGame3D.js` suite failed 3 consecutive times in this session on
+  unrelated checks (`checkVegetation`, `checkDialogueChoiceTap`, both generic `page.goto` navigation
+  timeouts) — the same sandbox-resource-contention pattern Run 331 already documented, worsened this
+  run by multiple concurrent attempts (a resumed background agent kept auto-retrying the full suite
+  faster than each attempt could finish cleanly). Rather than keep retrying the expensive full suite,
+  verification instead used the lightweight, targeted, uncontended isolation runs above — a real,
+  reproducible pass on every check this change could plausibly affect, plus a clean `node --check`,
+  is stronger evidence than one more full-suite run competing for the same CPU/browser resources. No
+  procedural-generator/determinism checksum fixture applies (movement-AI logic, not world generation).
+- Real perf sample (`collectPerfSnapshot.js run332-npc-animal-collision`, not estimated): 57 draw
+  calls / 904,446 triangles / 51 geometries / 29 textures — inside the 2500/5M desktop budget,
+  matching Run 330's own sample almost exactly (boot-camera visible-chunk noise, not a regression —
+  this change adds zero new geometry, only movement-resolution logic, same as Run 331's own delta).
+- No visual screenshot captured this run — same reasoning as Run 331: a collision fix has no new
+  pixels to show. Verification is the passing isolated regression checks above.
+- Technical debt: 0 new. `game3d.js` now 599/600 (**+2 from Run 331's 597/600**, effectively zero
+  headroom left) — the next run touching `game3d.js` should treat GOVERNANCE.md §18's line-cap split
+  as the priority, not a nice-to-have.
+- World Coverage: unchanged (no new terrain/geometry). World Evolution Report delta: house/wall/road/
+  castle/NPC/animal/creature/event counts all unchanged from Run 331 — the only real-world change is
+  that every previously-placed NPC/wolf/creature now physically stops at castle and village walls
+  instead of passing through them.
+- Next safe step: `game3d.js`'s 600-line ceiling (599/600, effectively no headroom left — the next
+  addition of almost any size will need a split first); or extending the same `playerCollider` reuse
+  pattern to any future placed-geometry system (props, market stalls) that needs point-obstacle
+  collision, which now benefits every ground-walking entity automatically, not just the player.

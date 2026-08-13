@@ -49,6 +49,12 @@ function stripNamedChildren(object3D, names) {
  * @param {{getGroundHeight: (x: number, z: number) => number}} [options.groundCollider] Required for
  *   patrol and/or flee — resamples ground height every frame while moving, same as
  *   `gameplay/npc.js`'s own movement.
+ * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
+ *   Run 332's own follow-up to Run 331's own named gap: the same castle+village obstacle collider
+ *   `sceneManager.js` builds for `gameplay/player.js` (see its own JSDoc), applied to both the
+ *   patrol-walk and flee movement branches here so a wolf pushes back out of a house/keep instead of
+ *   running through it. Optional — omit (the default) for any caller with no obstacle collider
+ *   available (e.g. a unit test).
  * @param {string} [options.walkClipName] Exact `THREE.AnimationClip` name for the walk cycle;
  *   required only for patrolling animals.
  * @param {{x: number, z: number}[]} [options.patrolWaypoints] World-space points to walk between, in
@@ -80,6 +86,7 @@ export async function createWolf({
 	rotationYRadians = 0,
 	name,
 	groundCollider,
+	playerCollider = null,
 	walkClipName,
 	patrolWaypoints,
 	speedMps = 2.2,
@@ -201,8 +208,13 @@ export async function createWolf({
 				const dirX = dxFromPlayer / safeDistance;
 				const dirZ = dzFromPlayer / safeDistance;
 				const step = fleeSpeedMps * delta;
-				model.position.x += dirX * step;
-				model.position.z += dirZ * step;
+				let nextX = model.position.x + dirX * step;
+				let nextZ = model.position.z + dirZ * step;
+				if (playerCollider) {
+					({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+				}
+				model.position.x = nextX;
+				model.position.z = nextZ;
 				model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
 				turnToward(Math.atan2(dirX, dirZ), delta);
 				playAction(fleeAction ?? walkAction ?? idleAction);
@@ -218,15 +230,25 @@ export async function createWolf({
 					const step = speedMps * delta;
 
 					if (distance <= step) {
-						model.position.x = target.x;
-						model.position.z = target.z;
-						model.position.y = groundCollider.getGroundHeight(target.x, target.z);
+						let targetX = target.x;
+						let targetZ = target.z;
+						if (playerCollider) {
+							({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
+						}
+						model.position.x = targetX;
+						model.position.z = targetZ;
+						model.position.y = groundCollider.getGroundHeight(targetX, targetZ);
 						waypointIndex += 1;
 						pauseTimer = pauseSeconds;
 						playAction(idleAction);
 					} else {
-						model.position.x += (dx / distance) * step;
-						model.position.z += (dz / distance) * step;
+						let nextPatrolX = model.position.x + (dx / distance) * step;
+						let nextPatrolZ = model.position.z + (dz / distance) * step;
+						if (playerCollider) {
+							({ x: nextPatrolX, z: nextPatrolZ } = playerCollider.resolveXZ(nextPatrolX, nextPatrolZ));
+						}
+						model.position.x = nextPatrolX;
+						model.position.z = nextPatrolZ;
 						model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
 						turnToward(Math.atan2(dx, dz), delta);
 						playAction(walkAction);
@@ -265,9 +287,11 @@ export async function createWolf({
  * @param {Map<string, {id: string, x: number, z: number}>} options.seatsById
  * @param {(worldX: number, worldZ: number) => number} options.sampleGroundY
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
+ * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
+ *   Forwarded to every `createWolf` call — see that function's own JSDoc.
  * @returns {Promise<Awaited<ReturnType<typeof createWolf>>[]>} Already filtered — no `null` entries.
  */
-export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsById, sampleGroundY, groundCollider }) {
+export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsById, sampleGroundY, groundCollider, playerCollider }) {
 	const animals = await Promise.all(
 		animalConfig.SPAWNS.map(async (spawn) => {
 			const seat = seatsById.get(spawn.seatId);
@@ -295,6 +319,7 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 				rotationYRadians: spawn.rotationYRadians,
 				name: spawn.id,
 				groundCollider,
+				playerCollider,
 				walkClipName: patrolWaypoints ? animalConfig.WALK_CLIP_NAME : undefined,
 				patrolWaypoints,
 				speedMps: animalConfig.PATROL_SPEED_MPS,

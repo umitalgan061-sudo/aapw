@@ -123,6 +123,12 @@ function createNameTagSprite(text, widthMeters, heightMeters) {
  * @param {{getGroundHeight: (x: number, z: number) => number}} [options.groundCollider] Required
  *   only when `patrolWaypoints` is passed — resamples ground height every frame while walking, same
  *   as `player.js`'s own movement.
+ * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
+ *   Run 332's own follow-up to Run 331's own named gap: the same castle+village obstacle collider
+ *   `sceneManager.js` builds for `gameplay/player.js` (see its own JSDoc), applied here too so a
+ *   patrolling NPC's waypoint walk pushes back out of a house/keep instead of passing through it.
+ *   Optional — omit (the default) for a patrolling NPC whose waypoints never cross placed geometry,
+ *   or for any caller with no obstacle collider available (e.g. a unit test).
  * @param {string} [options.walkAnimationUrl] Skin-less walk clip; required only for patrolling NPCs.
  * @param {{x: number, z: number}[]} [options.patrolWaypoints] World-space points to walk between, in
  *   order (index wraps via modulo — 2 points ping-pong, 3+ loop). Omit for a static, idle-only NPC.
@@ -153,6 +159,7 @@ export async function createNPC({
 	nameTagHeightMeters = 0.6,
 	nameTagVerticalOffsetMeters = 2.1,
 	groundCollider,
+	playerCollider = null,
 	walkAnimationUrl,
 	patrolWaypoints,
 	speedMps = 1.4,
@@ -270,15 +277,25 @@ export async function createNPC({
 					const step = speedMps * delta;
 
 					if (distance <= step) {
-						model.position.x = target.x;
-						model.position.z = target.z;
-						model.position.y = groundCollider.getGroundHeight(target.x, target.z);
+						let targetX = target.x;
+						let targetZ = target.z;
+						if (playerCollider) {
+							({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
+						}
+						model.position.x = targetX;
+						model.position.z = targetZ;
+						model.position.y = groundCollider.getGroundHeight(targetX, targetZ);
 						waypointIndex += 1;
 						pauseTimer = pauseSeconds;
 						playAction(idleAction);
 					} else {
-						model.position.x += (dx / distance) * step;
-						model.position.z += (dz / distance) * step;
+						let nextX = model.position.x + (dx / distance) * step;
+						let nextZ = model.position.z + (dz / distance) * step;
+						if (playerCollider) {
+							({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+						}
+						model.position.x = nextX;
+						model.position.z = nextZ;
 						model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
 
 						turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, delta);
@@ -310,9 +327,11 @@ export async function createNPC({
  * @param {Map<string, {id: string, x: number, z: number}>} options.seatsById
  * @param {(worldX: number, worldZ: number) => number} options.sampleGroundY
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
+ * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
+ *   Forwarded to every `createNPC` call — see that function's own JSDoc.
  * @returns {Promise<Awaited<ReturnType<typeof createNPC>>[]>} Already filtered — no `null` entries.
  */
-export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, sampleGroundY, groundCollider }) {
+export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, sampleGroundY, groundCollider, playerCollider }) {
 	const npcs = await Promise.all(
 		npcConfig.SPAWNS.map(async (spawn) => {
 			const seat = seatsById.get(spawn.seatId);
@@ -343,6 +362,7 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 				nameTagHeightMeters: npcConfig.NAME_TAG_HEIGHT_METERS,
 				nameTagVerticalOffsetMeters: npcConfig.NAME_TAG_VERTICAL_OFFSET_METERS,
 				groundCollider: patrolWaypoints ? groundCollider : undefined,
+				playerCollider: patrolWaypoints ? playerCollider : undefined,
 				walkAnimationUrl: patrolWaypoints ? npcConfig.WALK_ANIMATION_URL : undefined,
 				patrolWaypoints,
 				speedMps: npcConfig.PATROL_SPEED_MPS,

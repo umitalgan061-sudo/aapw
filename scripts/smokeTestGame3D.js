@@ -20,7 +20,7 @@
  *   interaction controller, interaction-prompt tap; plus (run 87, budget-placed — see that file's own
  *   header) the starfield twinkle check.
  * - `game3dSmokeChecksMovement.js` — ground-movement AI: wolf flee/pack-alert, NPC waypoint patrol,
- *   wolf waypoint patrol, NPC combat-stance.
+ *   wolf waypoint patrol, NPC combat-stance, NPC/animal/creature obstacle collider (run 332, ADR-0278).
  * - `game3dSmokeChecksDragonFlight.js` — dragon baseline flight/awareness: circling flight, notice
  *   trigger, reactive flight, wing-flap agitation telegraph.
  * - `game3dSmokeChecksDragonDive.js` — dragon dive/swoop path deviations: dive/swoop, dive telegraph,
@@ -110,6 +110,7 @@ async function main() {
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));
 		results.push(await movementChecks.checkNpcCombatStance(browser, baseUrl));
+		results.push(await movementChecks.checkNpcAnimalCreatureObstacleCollider(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonFlight(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonNotice(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonReactiveFlight(browser, baseUrl));
