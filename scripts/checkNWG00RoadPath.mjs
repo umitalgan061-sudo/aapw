@@ -5,10 +5,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import {
+  WORLD_REFERENCE_ALIGNMENT,
+  normalizedReferenceToWorldXZ,
+  worldXZToNormalizedReference,
+} from '../src/3d/world/worldReferenceAlignment.js';
+import {
   G00_ROAD_PATH_POLICY,
   buildG00RoadPathProbe,
   findG00CrossingEdges,
   measureG00RoadPath,
+  normalizedToWorld,
   worldToNormalized,
 } from '../godot/terrain-authoring/geocells/nw/g00_road_path.mjs';
 
@@ -99,6 +105,33 @@ async function readLiveRoadNetwork() {
 }
 
 const runtimeNetwork = await readLiveRoadNetwork();
+const bounds = G00_ROAD_PATH_POLICY.normalizedBounds;
+const centerMapX = (runtimeNetwork.mapBounds.minX + runtimeNetwork.mapBounds.maxX) * 0.5;
+const centerMapY = (runtimeNetwork.mapBounds.minY + runtimeNetwork.mapBounds.maxY) * 0.5;
+for (const [nx, ny] of [
+  [bounds.xMin, bounds.yMin],
+  [bounds.xMax, bounds.yMax],
+  [(bounds.xMin + bounds.xMax) * 0.5, (bounds.yMin + bounds.yMax) * 0.5],
+]) {
+  const actual = normalizedToWorld(nx, ny, runtimeNetwork.mapBounds, runtimeNetwork.metersPerMapUnit);
+  const canonical = normalizedReferenceToWorldXZ(nx, ny, runtimeNetwork.mapBounds, runtimeNetwork.metersPerMapUnit);
+  if (Math.abs(actual.x - canonical.x) > 1e-9 || Math.abs(actual.z - canonical.z) > 1e-9) {
+    throw new Error(`G00 normalized→world escaped canonical owner-map transform at ${nx}/${ny}`);
+  }
+  const ownerMapX = actual.x / runtimeNetwork.metersPerMapUnit + centerMapX;
+  const ownerMapY = actual.z / runtimeNetwork.metersPerMapUnit + centerMapY;
+  const expectedMapX = nx * WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits;
+  const expectedMapY = ny * WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
+  if (Math.abs(ownerMapX - expectedMapX) > 1e-9 || Math.abs(ownerMapY - expectedMapY) > 1e-9) {
+    throw new Error(`G00 owner-map canvas alignment drifted: ${ownerMapX}/${ownerMapY} != ${expectedMapX}/${expectedMapY}`);
+  }
+  const inverse = worldToNormalized(actual.x, actual.z, runtimeNetwork.mapBounds, runtimeNetwork.metersPerMapUnit);
+  const canonicalInverse = worldXZToNormalizedReference(actual.x, actual.z, runtimeNetwork.mapBounds, runtimeNetwork.metersPerMapUnit);
+  if (Math.abs(inverse.x - nx) > 1e-12 || Math.abs(inverse.y - ny) > 1e-12 || Math.abs(inverse.x - canonicalInverse.x) > 1e-12 || Math.abs(inverse.y - canonicalInverse.y) > 1e-12) {
+    throw new Error(`G00 world→normalized owner-map roundtrip drifted at ${nx}/${ny}`);
+  }
+}
+
 const metrics = measureG00RoadPath(runtimeNetwork);
 const crossings = findG00CrossingEdges(runtimeNetwork);
 const fingerprint = metrics.hydrologyFingerprint;
@@ -125,7 +158,6 @@ if (crossings.some((edge) => edge.tier === 'path') && metrics.activePathSamples 
   throw new Error('live runtime footpath crosses G00 but no path material was authored');
 }
 
-const bounds = G00_ROAD_PATH_POLICY.normalizedBounds;
 const seatsInCell = runtimeNetwork.seats.flatMap((seat) => {
   const normalized = worldToNormalized(seat.x, seat.z, runtimeNetwork.mapBounds, runtimeNetwork.metersPerMapUnit);
   return normalized.x >= bounds.xMin && normalized.x <= bounds.xMax && normalized.y >= bounds.yMin && normalized.y <= bounds.yMax
