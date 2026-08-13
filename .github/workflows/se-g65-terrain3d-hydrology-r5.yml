@@ -4,6 +4,10 @@ on:
     branches: [agent/kizil-ufuk-g65-hydrology-r5-20260813]
   pull_request:
     branches: [main]
+    paths:
+      - 'godot/terrain-authoring/geocells/se/g65_hydrology.mjs'
+      - 'scripts/checkSEG65Hydrology.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g65_terrain3d_hydrology.gd'
 permissions:
   contents: read
 env:
