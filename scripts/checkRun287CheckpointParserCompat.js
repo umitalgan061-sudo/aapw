@@ -4,6 +4,7 @@ const vm = require('vm');
 const source = fs.readFileSync('scripts/checkCheckpointConsistency.js', 'utf8').replace(/\nmain\(\);\n/, '\n');
 const sandbox = { console, process: { exit() { throw new Error('unexpected exit'); } }, require, __dirname: require('path').resolve('scripts') };
 vm.runInNewContext(source, sandbox, { filename: 'checkCheckpointConsistency.js' });
+
 const stable = [
   'stable-2026-08-01-1000 — Run200 legacy checkpoint',
   '- `stable-2026-08-11-run281` — Pindex-03',
@@ -17,4 +18,29 @@ const perf = [
 ].join('\n');
 if (sandbox.maxRunFromStableTags(stable) !== 282) throw new Error('current Markdown stable tag format not parsed');
 if (sandbox.maxRunFromPerfCsv(perf) !== 282) throw new Error('current first-column perf run format not parsed');
-console.log('[checkRun287CheckpointParserCompat] PASS: legacy + current stable/perf run formats resolve to run282');
+
+const progressWithExplicitNonCheckpoints = [
+  '## Run 322 — completed checkpoint',
+  '- Full DoD and checkpoint records completed.',
+  '',
+  '## Run 323 — documentation-only audit entry',
+  '- Runtime/product source delta: 0; no smoke-test/perf-log entry needed.',
+  '',
+  '## Run 324 — partial validation entry',
+  '- **Not run, explicitly:** Godot headless import and browser smoke.',
+].join('\n');
+if (sandbox.maxRunFromProgress(progressWithExplicitNonCheckpoints) !== 322) {
+  throw new Error('explicitly non-checkpoint progress sections advanced the completed-run watermark');
+}
+
+const progressWithLaterCompletedRun = [
+  progressWithExplicitNonCheckpoints,
+  '',
+  '## Run 325 — completed checkpoint',
+  '- Full DoD PASS; stable and performance records emitted.',
+].join('\n');
+if (sandbox.maxRunFromProgress(progressWithLaterCompletedRun) !== 325) {
+  throw new Error('a later completed progress section did not advance the completed-run watermark');
+}
+
+console.log('[checkRun287CheckpointParserCompat] PASS: legacy/current stable+perf formats and explicit non-checkpoint progress sections are parsed safely');
