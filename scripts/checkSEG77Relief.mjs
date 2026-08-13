@@ -3,6 +3,7 @@ import path from 'node:path';
 import { buildG77ReliefProbe, G77_RELIEF_POLICY } from '../godot/terrain-authoring/geocells/se/g77_relief.mjs';
 
 const probe = buildG77ReliefProbe();
+const replay = buildG77ReliefProbe();
 if (probe.sourceMapSha256 !== '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1') throw new Error('owner map SHA changed');
 if (probe.geoCell !== 'G77' || probe.layer !== 'Relief/Height Character') throw new Error('unexpected G77 relief contract');
 if (probe.canonicalWater !== 44 || probe.canonicalLand !== 52) throw new Error(`G77 hydrology regression: ${probe.canonicalWater}/${probe.canonicalLand}`);
@@ -14,15 +15,19 @@ if (probe.maxGuardHeightDelta > 2) throw new Error(`G77 guard-band height discon
 if (probe.maxGuardNormalDelta > 0.25) throw new Error(`G77 guard-band normal discontinuity too high: ${probe.maxGuardNormalDelta}`);
 if (probe.maxBiomeHeightDrift > 1e-8) throw new Error(`G77 relief input mutated merged biome/hydrology height: ${probe.maxBiomeHeightDrift}`);
 if (probe.rows.length !== G77_RELIEF_POLICY.sourceGridSize || probe.rows.some((row) => row.length !== G77_RELIEF_POLICY.sourceGridSize)) throw new Error('unexpected G77 relief probe dimensions');
+if (probe.rows.some((row) => row.some((height) => !Number.isFinite(height)))) throw new Error('G77 relief probe contains non-finite height');
+if (JSON.stringify(probe) !== JSON.stringify(replay)) throw new Error('G77 relief probe is not deterministic within one process');
+if (probe.reliefChecksum !== replay.reliefChecksum) throw new Error('G77 relief checksum changed across deterministic replay');
 
 const metrics = Object.freeze({
   policyId: probe.policyId, sourceMapSha256: probe.sourceMapSha256, geoCell: probe.geoCell, layer: probe.layer,
+  sourceGridSize: probe.sourceGridSize, terrain3dRegionSize: probe.terrain3dRegionSize, terrain3dImportSize: probe.terrain3dImportSize,
   canonicalWater: probe.canonicalWater, canonicalLand: probe.canonicalLand, canonicalSignMismatches: probe.canonicalSignMismatches,
   worldWidthMeters: probe.worldWidthMeters, worldDepthMeters: probe.worldDepthMeters,
   minHeight: probe.minHeight, maxHeight: probe.maxHeight, heightSpan: probe.heightSpan,
   maxAdjacentHeightStep: probe.maxAdjacentHeightStep, maxGuardHeightDelta: probe.maxGuardHeightDelta,
   maxGuardNormalDelta: probe.maxGuardNormalDelta, maxBiomeHeightDrift: probe.maxBiomeHeightDrift,
-  reliefChecksum: probe.reliefChecksum,
+  reliefChecksum: probe.reliefChecksum, deterministicReplayChecksum: replay.reliefChecksum,
 });
 const emitArg = process.argv.find((arg) => arg.startsWith('--emit-probe='));
 if (emitArg) {
