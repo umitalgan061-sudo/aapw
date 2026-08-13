@@ -10,7 +10,7 @@ import { spawnRealCastleModels, disposeSettlements, disposeRealCastleModels } fr
 import { disposeRoadNetwork } from '../world/roads.js';
 import { disposeVegetation } from '../world/vegetation.js';
 import { updateWater, disposeWater } from '../world/water.js';
-import { disposeRiverMesh, disposeWaterfallMesh } from '../world/rivers.js';
+import { disposeRiverMesh, disposeWaterfallMesh, updateFlowAnimation } from '../world/rivers.js';
 import { updateAuroraSky, disposeAuroraSky } from '../sky.js';
 import { updateStarfield, disposeStarfield } from '../stars.js';
 import { updateDayNightLighting, disposeDayNightLighting } from '../lighting.js';
@@ -296,6 +296,10 @@ export async function initRtsGame() {
 		updateStarfield(state.stars, state.camera.position, elapsedSeconds, dayNight.nightFactor);
 		updateFog(state.scene.fog, dayNight);
 		updateWater(state.water, state.camera.position, elapsedSeconds);
+		// Same downstream flow the third-person mode animates (ADR-0271) — the RTS camera looks
+		// straight down at the river, so a frozen ribbon would read as painted-on here first.
+		updateFlowAnimation(state.river, elapsedSeconds);
+		for (const waterfall of state.waterfalls) updateFlowAnimation(waterfall, elapsedSeconds);
 		state.controls.update();
 		state.renderer.render(state.scene, state.camera);
 		frameId = requestAnimationFrame(tick);
