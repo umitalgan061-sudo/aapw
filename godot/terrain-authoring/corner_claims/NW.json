@@ -6,7 +6,7 @@
   "layer": "Terrain3D Bake/Three.js runtime parity",
   "status": "validating",
   "branch": "terrain/nw-g11-runtime-parity-20260813-r8",
-  "pr": null,
+  "pr": 324,
   "base_sha": "c59aff01681ab45c9d1466fc82f5fd66aeb038cb",
   "terrain3d": {
     "version": "1.0.2",
