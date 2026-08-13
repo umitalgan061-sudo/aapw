@@ -358,7 +358,7 @@ async function checkInteractionPromptTap(browser, baseUrl) {
  * values the vertex shader multiplies the twinkle by, so a wiring regression here would silently
  * freeze the animation or break night-gating); the vertex shader source structurally references both
  * new attributes and multiplies by `uNightFactor` (so `nightFactor=0` — full daylight — still forces
- * every star fully transparent regardless of twinkle phase, mirroring `checkWaterVertexShaderStatic`'s
+ * every star fully transparent regardless of twinkle phase, mirroring `checkWaterDepthTaperedSwell`'s
  * source-inspection style just above); and `disposeStarfield` doesn't throw.
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */

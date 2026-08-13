@@ -54,11 +54,19 @@ async function main() {
 
 			const vertexShader = first.material.vertexShader;
 			const fragmentShader = first.material.fragmentShader;
-			fail(!vertexShader.includes('uTime') && !/\b(sin|cos)\s*\(/.test(vertexShader), 'water vertex shader regained animated displacement');
+			// ADR-0270 replaced ADR-0048's "no vertex animation at all" rule with a depth-tapered
+			// displacement. The invariant worth guarding is no longer the *absence* of wave maths but
+			// the presence of the taper that makes it safe over shallow lakes, plus the fresh-mesh
+			// default of zero swell (nothing is displaced until real bathymetry is attached). The
+			// numeric side of that contract — total amplitude vs. full-wave depth — is asserted by the
+			// smoke suite's `checkWaterDepthTaperedSwell`, not duplicated here.
+			fail(vertexShader.includes('uSwellStrength') && vertexShader.includes('sampleDepthFactor'), 'water vertex depth-taper contract drifted');
+			fail(/worldPos\.y\s*\+=\s*swellHeight\s*\*\s*amplitudeScale/.test(vertexShader), 'water vertex displacement is no longer depth-tapered');
+			fail(uniforms.uSwellStrength.value === 0, 'fresh water mesh must start with swell disabled until a depth field is attached');
 			fail(vertexShader.includes('#include <fog_pars_vertex>') && vertexShader.includes('#include <fog_vertex>'), 'water vertex fog chunks drifted');
-			fail(fragmentShader.includes('uniform float uTime') && fragmentShader.includes('rippleNormal'), 'water fragment ripple contract drifted');
+			fail(fragmentShader.includes('uniform float uTime') && fragmentShader.includes('rippleSlope'), 'water fragment ripple contract drifted');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fragment fog chunks drifted');
-			fail(fragmentShader.includes('gl_FragColor = vec4(baseColor + specular * 0.6, 0.9)'), 'water alpha/specular output signature drifted');
+			fail(fragmentShader.includes('gl_FragColor = vec4(color, max(alpha, foam * 0.85))'), 'water alpha/specular output signature drifted');
 
 			const positions = first.geometry.getAttribute('position');
 			const normals = first.geometry.getAttribute('normal');

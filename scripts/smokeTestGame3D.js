@@ -89,7 +89,7 @@ async function main() {
 	try {
 		results.push(await sceneChecks.check2DShell(browser, baseUrl));
 		results.push(await sceneChecks.check3DMode(browser, baseUrl));
-		results.push(await sceneChecks.checkWaterVertexShaderStatic(browser, baseUrl));
+		results.push(await sceneChecks.checkWaterDepthTaperedSwell(browser, baseUrl));
 		results.push(await sceneChecks.checkSettlementGroundFlatten(browser, baseUrl));
 		results.push(await debugToolChecks.checkFreeCamera(browser, baseUrl));
 		results.push(await debugToolChecks.checkPerfPanel(browser, baseUrl));
