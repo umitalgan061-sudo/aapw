@@ -1,3 +1,11 @@
+// G07 Terrain3D runtime parity offline shell extension.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/world/g07Terrain3dBake.js');
+    GAME3D_SHELL_FILES.push('./src/3d/world/g07Terrain3dBakeHeights.js');
+    GAME3D_SHELL_FILES.push('./src/3d/world/g07Terrain3dBakeRock.js');
+    GAME3D_SHELL_FILES.push('./src/3d/world/g07Terrain3dBakeColor.js');
+});
+
 // Run317 Pindex-10 detail offline shell extension.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex10Detail.js');
