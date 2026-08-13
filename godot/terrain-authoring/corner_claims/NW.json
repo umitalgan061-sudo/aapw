@@ -4,9 +4,9 @@
   "origin": [0, 0],
   "current_cell": "G00",
   "status": "in_progress_exact_main",
-  "branch": "agent/buzul-muhafizi-g00-road-path-r3-20260813",
+  "branch": "agent/buzul-muhafizi-g00-road-path-r4-20260813",
   "pr": null,
-  "last_commit": "1f069fb626a3864565774bad2628eaafbf6da1be",
+  "last_commit": "59ba045460d96a623f1f611ff105c58a058efe6e",
   "quality_before": {
     "layer": "Rock/Snow",
     "merged_pr": 336,
@@ -35,5 +35,5 @@
     "next_layer_if_green": "Near Detail"
   },
   "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable is mandatory: live-road source determinism, real qualified relief+substrate+road/path control import, base/overlay/blend+height round-trip, persisted region and LOD0 bake are required. HTerrain and shipped Three.js runtime remain regression/control surfaces.",
-  "updated_at": "2026-08-13T13:02:00+03:00"
+  "updated_at": "2026-08-13T13:14:00+03:00"
 }
