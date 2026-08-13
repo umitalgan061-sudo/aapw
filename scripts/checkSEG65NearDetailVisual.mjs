@@ -21,7 +21,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 960, height: 640 }, deviceScaleFactor: 1 });
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
-  await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.goto(`http://127.0.0.1:${port}/scripts/fixtures/sw-g07-runtime-visual-harness.html`, { waitUntil: 'load', timeout: 20000 });
 
   const metrics = await page.evaluate(async () => {
     const THREE = await import('/src/3d/vendor/three/three.module.js');
@@ -122,6 +122,9 @@ try {
   requireCondition(topdown.g65Samples > 1000, 'G65 full-world overlay was not sampled densely enough');
   console.log(`SE_G65_NEAR_DETAIL_VISUAL_METRICS=${JSON.stringify({ ...metrics, ...topdown, nearSha256, farSha256, fullWorldSha256: sha256(full) })}`);
   console.log('SE_G65_NEAR_DETAIL_VISUAL_OK');
+} catch (error) {
+  console.log(`SE_G65_NEAR_DETAIL_VISUAL_ERROR=${error?.stack || error}`);
+  process.exitCode = 1;
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));
