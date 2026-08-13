@@ -1,0 +1,60 @@
+name: SE G65 Terrain3D Hydrology
+
+on:
+  push:
+    branches: [agent/kizil-ufuk-g65-hydrology-20260813]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: 4e1305223c0613178ba71958ccbc0748ee9737e2
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact main and source fidelity
+        run: |
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node --check godot/terrain-authoring/geocells/se/g65_hydrology.mjs
+          node --check scripts/checkSEG65Hydrology.mjs
+          node scripts/checkSEG65Hydrology.mjs
+      - name: Install pinned Terrain3D
+        run: |
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only
+      - name: Download Godot 4.6.3
+        run: |
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' --output "$RUNNER_TEMP/godot.zip"
+          mkdir -p "$RUNNER_TEMP/godot"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Terrain3D real import and bake
+        run: |
+          "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+          G65_HYDROLOGY_PROOF_SUFFIX=a "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g65_terrain3d_hydrology.gd
+          G65_HYDROLOGY_PROOF_SUFFIX=b "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g65_terrain3d_hydrology.gd
+      - name: HTerrain and world safety
+        run: |
+          "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+      - name: Final main freshness
+        run: |
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
