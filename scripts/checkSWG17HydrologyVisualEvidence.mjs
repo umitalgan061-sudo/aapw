@@ -170,11 +170,10 @@ try {
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
-    const seabed = new THREE.Mesh(
+    scene.add(new THREE.Mesh(
       geometry,
       new THREE.MeshStandardMaterial({ color: 0x39596a, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }),
-    );
-    scene.add(seabed);
+    ));
 
     const water = new THREE.Mesh(
       new THREE.PlaneGeometry(worldSpanX * 2.4, worldSpanZ * 2.4, 1, 1),
@@ -238,24 +237,23 @@ try {
   const farSha256 = await capture('far', 'g17-hydrology-far.png');
 
   await page.setViewportSize({ width: 1200, height: 800 });
-  const topdownMetrics = await page.evaluate(async ({ normalizedBounds }) => {
+  const topdownMetrics = await page.evaluate(async () => {
     const {
       WORLD_REFERENCE_BASE_SURFACE_MASK,
+      classifyReferenceBaseSurface,
       sampleReferencePindexQualityV2,
     } = await import('/src/3d/world/worldReferenceSurfacePindexes.js');
 
     const canvasWidth = 1200;
     const canvasHeight = 800;
-    const contextWidth = 768;
-    const contextHeight = 512;
+    const qualityWidth = 768;
+    const qualityHeight = 512;
+    const maskWidth = WORLD_REFERENCE_BASE_SURFACE_MASK.width;
+    const maskHeight = WORLD_REFERENCE_BASE_SURFACE_MASK.height;
     document.body.innerHTML = `<canvas id="topdown-proof" width="${canvasWidth}" height="${canvasHeight}"></canvas>`;
     const canvas = document.getElementById('topdown-proof');
     const ctx = canvas.getContext('2d', { alpha: false });
-    const context = document.createElement('canvas');
-    context.width = contextWidth;
-    context.height = contextHeight;
-    const cctx = context.getContext('2d', { alpha: false });
-    const image = cctx.createImageData(contextWidth, contextHeight);
+
     const palette = Object.freeze({
       sea: [35, 74, 92],
       lake: [69, 116, 128],
@@ -263,81 +261,195 @@ try {
       rock: [116, 106, 95],
       snow: [219, 226, 224],
     });
-    const surfaces = ['soil', 'rock', 'snow', 'sea', 'lake'];
+    const landSurfaces = ['soil', 'rock', 'snow'];
+    const waterSurfaces = ['sea', 'lake'];
+    const qualityLand = document.createElement('canvas');
+    const qualityWater = document.createElement('canvas');
+    qualityLand.width = qualityWater.width = qualityWidth;
+    qualityLand.height = qualityWater.height = qualityHeight;
+    const landCtx = qualityLand.getContext('2d', { alpha: false });
+    const waterCtx = qualityWater.getContext('2d', { alpha: false });
+    const landImage = landCtx.createImageData(qualityWidth, qualityHeight);
+    const waterImage = waterCtx.createImageData(qualityWidth, qualityHeight);
     let landLikePixels = 0;
     let waterLikePixels = 0;
 
-    for (let y = 0; y < contextHeight; y += 1) {
-      const ny = (y + 0.5) / contextHeight;
-      for (let x = 0; x < contextWidth; x += 1) {
-        const nx = (x + 0.5) / contextWidth;
+    const writeNormalizedColor = (target, offset, sample, surfaces, fallback) => {
+      let total = 0;
+      for (const surface of surfaces) total += sample.surfaceWeights[surface];
+      let r = fallback[0];
+      let g = fallback[1];
+      let b = fallback[2];
+      if (total > 1e-8) {
+        r = 0; g = 0; b = 0;
+        for (const surface of surfaces) {
+          const weight = sample.surfaceWeights[surface] / total;
+          r += palette[surface][0] * weight;
+          g += palette[surface][1] * weight;
+          b += palette[surface][2] * weight;
+        }
+      }
+      const reliefShade = 0.93 + 0.07 * sample.reliefInfluence;
+      target.data[offset] = Math.round(Math.min(255, r * reliefShade));
+      target.data[offset + 1] = Math.round(Math.min(255, g * reliefShade));
+      target.data[offset + 2] = Math.round(Math.min(255, b * reliefShade));
+      target.data[offset + 3] = 255;
+    };
+
+    for (let y = 0; y < qualityHeight; y += 1) {
+      const ny = (y + 0.5) / qualityHeight;
+      for (let x = 0; x < qualityWidth; x += 1) {
+        const nx = (x + 0.5) / qualityWidth;
         const sample = sampleReferencePindexQualityV2(nx, ny);
         if (sample.dominantSurface === 'sea' || sample.dominantSurface === 'lake') waterLikePixels += 1;
         else landLikePixels += 1;
-        let r = 0;
-        let g = 0;
-        let b = 0;
-        for (const surface of surfaces) {
-          const weight = sample.surfaceWeights[surface];
-          const color = palette[surface];
-          r += color[0] * weight;
-          g += color[1] * weight;
-          b += color[2] * weight;
-        }
-        const reliefShade = 0.93 + 0.07 * sample.reliefInfluence;
-        const offset = (y * contextWidth + x) * 4;
-        image.data[offset] = Math.round(Math.min(255, r * reliefShade));
-        image.data[offset + 1] = Math.round(Math.min(255, g * reliefShade));
-        image.data[offset + 2] = Math.round(Math.min(255, b * reliefShade));
-        image.data[offset + 3] = 255;
+        const offset = (y * qualityWidth + x) * 4;
+        writeNormalizedColor(landImage, offset, sample, landSurfaces, palette.soil);
+        writeNormalizedColor(waterImage, offset, sample, waterSurfaces, palette.sea);
       }
     }
-    cctx.putImageData(image, 0, 0);
+    landCtx.putImageData(landImage, 0, 0);
+    waterCtx.putImageData(waterImage, 0, 0);
+
+    const isWater = new Uint8Array(maskWidth * maskHeight);
+    const landBoundary = [];
+    const waterBoundary = [];
+    for (let y = 0; y < maskHeight; y += 1) {
+      for (let x = 0; x < maskWidth; x += 1) {
+        const surface = classifyReferenceBaseSurface((x + 0.5) / maskWidth, (y + 0.5) / maskHeight);
+        isWater[y * maskWidth + x] = surface === 'sea' || surface === 'lake' ? 1 : 0;
+      }
+    }
+    for (let y = 0; y < maskHeight; y += 1) {
+      for (let x = 0; x < maskWidth; x += 1) {
+        const value = isWater[y * maskWidth + x];
+        let boundary = false;
+        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+          const qx = x + dx;
+          const qy = y + dy;
+          if (qx < 0 || qx >= maskWidth || qy < 0 || qy >= maskHeight) continue;
+          if (isWater[qy * maskWidth + qx] !== value) { boundary = true; break; }
+        }
+        if (boundary) (value ? waterBoundary : landBoundary).push([x, y]);
+      }
+    }
+    if (!landBoundary.length || !waterBoundary.length) throw new Error('owner-map SDF requires both land and water boundaries');
+
+    const signedDistance = new Float32Array(maskWidth * maskHeight);
+    for (let y = 0; y < maskHeight; y += 1) {
+      for (let x = 0; x < maskWidth; x += 1) {
+        const water = isWater[y * maskWidth + x] === 1;
+        const targets = water ? landBoundary : waterBoundary;
+        let minDistanceSquared = Infinity;
+        for (const [tx, ty] of targets) {
+          const dx = x - tx;
+          const dy = y - ty;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < minDistanceSquared) minDistanceSquared = d2;
+        }
+        const distanceToOppositeBoundary = Math.max(0, Math.sqrt(minDistanceSquared) - 0.5);
+        signedDistance[y * maskWidth + x] = water ? -distanceToOppositeBoundary : distanceToOppositeBoundary;
+      }
+    }
+
+    const smoothDistance = new Float32Array(signedDistance.length);
+    for (let y = 0; y < maskHeight; y += 1) {
+      for (let x = 0; x < maskWidth; x += 1) {
+        let sum = 0;
+        let totalWeight = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const qx = Math.min(maskWidth - 1, Math.max(0, x + dx));
+            const qy = Math.min(maskHeight - 1, Math.max(0, y + dy));
+            const weight = (dx === 0 ? 2 : 1) * (dy === 0 ? 2 : 1);
+            sum += signedDistance[qy * maskWidth + qx] * weight;
+            totalWeight += weight;
+          }
+        }
+        smoothDistance[y * maskWidth + x] = sum / totalWeight;
+      }
+    }
+
+    const sdfCanvas = document.createElement('canvas');
+    sdfCanvas.width = maskWidth;
+    sdfCanvas.height = maskHeight;
+    const sdfCtx = sdfCanvas.getContext('2d', { alpha: false });
+    const sdfImage = sdfCtx.createImageData(maskWidth, maskHeight);
+    const sdfRangeCells = 4;
+    for (let i = 0; i < smoothDistance.length; i += 1) {
+      const normalized = Math.min(1, Math.max(0, 0.5 + smoothDistance[i] / (2 * sdfRangeCells)));
+      const value = Math.round(normalized * 255);
+      const offset = i * 4;
+      sdfImage.data[offset] = value;
+      sdfImage.data[offset + 1] = value;
+      sdfImage.data[offset + 2] = value;
+      sdfImage.data[offset + 3] = 255;
+    }
+    sdfCtx.putImageData(sdfImage, 0, 0);
+
+    const landFull = document.createElement('canvas');
+    const waterFull = document.createElement('canvas');
+    const sdfFull = document.createElement('canvas');
+    for (const target of [landFull, waterFull, sdfFull]) {
+      target.width = canvasWidth;
+      target.height = canvasHeight;
+    }
+    for (const [target, source] of [[landFull, qualityLand], [waterFull, qualityWater], [sdfFull, sdfCanvas]]) {
+      const targetCtx = target.getContext('2d', { alpha: false });
+      targetCtx.imageSmoothingEnabled = true;
+      targetCtx.imageSmoothingQuality = 'high';
+      targetCtx.drawImage(source, 0, 0, canvasWidth, canvasHeight);
+    }
+    const landFullData = landFull.getContext('2d').getImageData(0, 0, canvasWidth, canvasHeight);
+    const waterFullData = waterFull.getContext('2d').getImageData(0, 0, canvasWidth, canvasHeight);
+    const sdfFullData = sdfFull.getContext('2d').getImageData(0, 0, canvasWidth, canvasHeight);
+    const composed = ctx.createImageData(canvasWidth, canvasHeight);
+    const smoothstep = (a, b, v) => {
+      const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
+      return t * t * (3 - 2 * t);
+    };
+    for (let i = 0; i < canvasWidth * canvasHeight; i += 1) {
+      const offset = i * 4;
+      const sdfValue = sdfFullData.data[offset] / 255;
+      const landMix = smoothstep(0.40, 0.60, sdfValue);
+      composed.data[offset] = Math.round(waterFullData.data[offset] * (1 - landMix) + landFullData.data[offset] * landMix);
+      composed.data[offset + 1] = Math.round(waterFullData.data[offset + 1] * (1 - landMix) + landFullData.data[offset + 1] * landMix);
+      composed.data[offset + 2] = Math.round(waterFullData.data[offset + 2] * (1 - landMix) + landFullData.data[offset + 2] * landMix);
+      composed.data[offset + 3] = 255;
+    }
+
+    const composedCanvas = document.createElement('canvas');
+    composedCanvas.width = canvasWidth;
+    composedCanvas.height = canvasHeight;
+    composedCanvas.getContext('2d', { alpha: false }).putImageData(composed, 0, 0);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(context, 0, 0, canvasWidth, canvasHeight);
-
-    const patch = document.createElement('canvas');
-    patch.width = 512;
-    patch.height = 384;
-    const pctx = patch.getContext('2d');
-    const patchData = pctx.createImageData(patch.width, patch.height);
-    for (let y = 0; y < patch.height; y += 1) {
-      for (let x = 0; x < patch.width; x += 1) {
-        const edge = Math.min(x, y, patch.width - 1 - x, patch.height - 1 - y);
-        const feather = Math.min(1, edge / 24);
-        const offset = (y * patch.width + x) * 4;
-        patchData.data[offset] = 47;
-        patchData.data[offset + 1] = 103;
-        patchData.data[offset + 2] = 129;
-        patchData.data[offset + 3] = Math.round(92 * feather);
-      }
-    }
-    pctx.putImageData(patchData, 0, 0);
-    ctx.drawImage(
-      patch,
-      normalizedBounds.minX * canvasWidth,
-      normalizedBounds.minY * canvasHeight,
-      (normalizedBounds.maxX - normalizedBounds.minX) * canvasWidth,
-      (normalizedBounds.maxY - normalizedBounds.minY) * canvasHeight,
-    );
+    ctx.filter = 'blur(1.15px)';
+    ctx.drawImage(composedCanvas, 0, 0);
+    ctx.filter = 'none';
 
     return {
-      referenceContext: 'committed-owner-map-pindex-quality-v2',
+      referenceContext: 'committed-owner-map-pindex-quality-v2+sdf-contour-v1',
       sourceWidth: WORLD_REFERENCE_BASE_SURFACE_MASK.sourcePixelWidth,
       sourceHeight: WORLD_REFERENCE_BASE_SURFACE_MASK.sourcePixelHeight,
       landLikePixels,
       waterLikePixels,
-      patchResolution: [patch.width, patch.height],
+      sourceMaskResolution: [maskWidth, maskHeight],
+      qualitySampleResolution: [qualityWidth, qualityHeight],
+      sdfRangeCells,
+      sdfSmoothingPasses: 1,
+      visibleGeoCellOverlay: false,
       imageSmoothing: ctx.imageSmoothingEnabled,
     };
-  }, { normalizedBounds: numericContract.normalizedBounds });
+  });
 
   requireCondition(topdownMetrics.sourceWidth === 1536 && topdownMetrics.sourceHeight === 1024,
     `unexpected owner-map source dimensions ${topdownMetrics.sourceWidth}x${topdownMetrics.sourceHeight}`);
   requireCondition(topdownMetrics.landLikePixels > 0 && topdownMetrics.waterLikePixels > 0,
     'full-world context must visibly contain both land and water silhouette');
   requireCondition(topdownMetrics.imageSmoothing === true, 'full-world evidence must use filtered rendering');
+  requireCondition(topdownMetrics.visibleGeoCellOverlay === false, 'full-world evidence must not draw a GeoCell overlay');
+  requireCondition(topdownMetrics.sdfSmoothingPasses >= 1, 'full-world coastline must use SDF contour smoothing');
   const topdownPng = await page.locator('#topdown-proof').screenshot();
   requireCondition(topdownPng.length > 4096, 'full-world top-down evidence PNG is unexpectedly small');
   fs.writeFileSync(path.join(OUT_DIR, 'g17-hydrology-full-world-topdown.png'), topdownPng);
@@ -345,12 +457,13 @@ try {
 
   requireCondition(pageErrors.length === 0, `browser page errors: ${pageErrors.join(' | ')}`);
   const metrics = {
-    schema: 'westeros-g17-hydrology-visual-evidence-v2',
+    schema: 'westeros-g17-hydrology-visual-evidence-v3',
     terrain: { ...terrainMetrics, ...numericContract.metrics },
     topdown: topdownMetrics,
     evidenceSha256: { near: nearSha256, far: farSha256, fullWorldTopdown: topdownSha256 },
     determinismPolicy: 'numeric hydrology/seam metrics are gating; GPU PNG hashes are evidence-only',
     browserModulePolicy: 'G17 .mjs source is evaluated in Node and serialized to Chromium; static server serves browser .js modules only',
+    geoCellVisibilityPolicy: 'no visible G17 rectangle or grid marker; G17 ownership is proven numerically and in near/far evidence',
   };
   fs.writeFileSync(path.join(OUT_DIR, 'g17-hydrology-visual-metrics.json'), `${JSON.stringify(metrics, null, 2)}\n`);
   console.log(`SW_G17_HYDROLOGY_VISUAL_METRICS=${JSON.stringify(metrics)}`);
