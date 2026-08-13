@@ -32,6 +32,8 @@ const api = window.__WESTEROS_WORLD_EDITOR__;
 if (api) {
   try {
     installEditorEditModeEnvironment(api);
+    const { installLiveFourAgentEditorTerrain } = await import('../../../scripts/liveFourAgentTerrain.mjs');
+    installLiveFourAgentEditorTerrain(api);
   } catch (error) {
     console.error('[EditorEditModeEnvironment] boot failed', error);
   }
