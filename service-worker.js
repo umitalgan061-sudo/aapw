@@ -1,3 +1,20 @@
+// Live Four Agent Terrain offline shell extension — the editor/game gate imports this graph
+// dynamically, so a first offline launch must not depend on a prior online runtime-cache hit.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./scripts/liveFourAgentTerrain.mjs');
+    GAME3D_SHELL_FILES.push('./scripts/runtime/g65Terrain3dRuntimeGrid.mjs');
+    GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/nw/g00_relief.mjs');
+    GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/ne/g52_rock_snow.mjs');
+    GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/ne/g70_hydrology.mjs');
+    GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/sw/g17_relief.mjs');
+    GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/se/g75_relief.mjs');
+    GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/se/g65_near_detail.mjs');
+    GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/se/g65_road_path.mjs');
+    GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/se/g65_rock_snow.mjs');
+    GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/se/g65_relief.mjs');
+    GAME3D_SHELL_FILES.push('./godot/terrain-authoring/geocells/se/g65_hydrology.mjs');
+});
+
 // Run330 villages offline shell extension — `world/villages.js` is imported by `sceneManager.js`, so
 // an offline PWA load needs it cached or the scene cannot build at all.
 self.addEventListener('install', () => {
