@@ -3,13 +3,14 @@ name: SW G17 Terrain3D Hydrology
 on:
   push:
     branches:
-      - terrain/sw-g17-terrain3d-hydrology-20260813
+      - terrain/sw-g17-hydrology-visual-r2-20260813
   pull_request:
     branches:
       - main
     paths:
       - 'godot/terrain-authoring/geocells/sw/g17_hydrology.mjs'
       - 'scripts/checkSWG17Hydrology.mjs'
+      - 'scripts/checkSWG17HydrologyVisualEvidence.mjs'
       - 'godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd'
       - '.github/workflows/sw-g17-terrain3d-hydrology.yml'
   workflow_dispatch:
@@ -49,7 +50,7 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g17_hydrology.mjs|scripts/checkSWG17Hydrology.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g17-terrain3d-hydrology.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g17_hydrology.mjs|scripts/checkSWG17Hydrology.mjs|scripts/checkSWG17HydrologyVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g17-terrain3d-hydrology.yml)$' | wc -l)" -eq 0
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/project.godot
@@ -60,6 +61,7 @@ jobs:
           mkdir -p godot/terrain-authoring/.terrain3d-proof
           node --check godot/terrain-authoring/geocells/sw/g17_hydrology.mjs
           node --check scripts/checkSWG17Hydrology.mjs
+          node --check scripts/checkSWG17HydrologyVisualEvidence.mjs
           PROOF='godot/terrain-authoring/.terrain3d-proof/g17-hydrology-source.json'
           node scripts/checkSWG17Hydrology.mjs --out="$PROOF" | tee "$RUNNER_TEMP/g17-source-a.log"
           cp "$PROOF" "$RUNNER_TEMP/g17-source-a.json"
@@ -118,6 +120,18 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
+      - name: Near far and full-world top-down visual evidence
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          rm -rf artifacts/sw-g17-hydrology-visual
+          node scripts/checkSWG17HydrologyVisualEvidence.mjs --out-dir=artifacts/sw-g17-hydrology-visual | tee "$RUNNER_TEMP/g17-visual.log"
+          grep -F 'SW_G17_HYDROLOGY_VISUAL_OK' "$RUNNER_TEMP/g17-visual.log"
+          test -s artifacts/sw-g17-hydrology-visual/g17-hydrology-near.png
+          test -s artifacts/sw-g17-hydrology-visual/g17-hydrology-far.png
+          test -s artifacts/sw-g17-hydrology-visual/g17-hydrology-full-world-topdown.png
+          test -s artifacts/sw-g17-hydrology-visual/g17-hydrology-visual-metrics.json
+
       - name: World settlement road PWA mobile browser regressions
         run: |
           set -euo pipefail
@@ -149,6 +163,7 @@ jobs:
           if-no-files-found: warn
           path: |
             godot/terrain-authoring/.terrain3d-proof/g17-hydrology-source.json
+            artifacts/sw-g17-hydrology-visual/
             ${{ runner.temp }}/g17-source-a.log
             ${{ runner.temp }}/g17-source-b.log
             ${{ runner.temp }}/terrain3d-install.log
@@ -158,4 +173,5 @@ jobs:
             ${{ runner.temp }}/g17-bake-b.log
             ${{ runner.temp }}/g17-metrics-a.txt
             ${{ runner.temp }}/g17-metrics-b.txt
+            ${{ runner.temp }}/g17-visual.log
             ${{ runner.temp }}/hterrain.log
