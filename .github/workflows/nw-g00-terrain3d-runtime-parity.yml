@@ -1,0 +1,212 @@
+name: NW G00 Terrain3D Runtime Parity
+
+on:
+  push:
+    branches:
+      - terrain/nw-g00-terrain3d-runtime-parity-20260813
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/3d/world/worldReferenceTerrainAdapter.js'
+      - 'scripts/checkNWG00Terrain3DRuntimeParity.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g00_terrain3d_runtime_parity.gd'
+      - '.github/workflows/nw-g00-terrain3d-runtime-parity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nw-g00-terrain3d-runtime-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main and bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test -n "$BASE_SHA"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceTerrainAdapter.js|scripts/checkNWG00Terrain3DRuntimeParity.mjs|godot/terrain-authoring/scripts/validate_g00_terrain3d_runtime_parity.gd|\.github/workflows/nw-g00-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/nw/g00_near_detail.mjs
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/nw/g00_road_path.mjs
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/nw/g00_rock_snow.mjs
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/nw/g00_relief.mjs
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+          git diff --quiet "$BASE_SHA"...HEAD -- service-worker.js
+
+      - name: Syntax and existing runtime adapter regressions
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferenceTerrainAdapter.js
+          node --check scripts/checkNWG00Terrain3DRuntimeParity.mjs
+          node --input-type=module <<'NODE'
+          import {
+            G75_TERRAIN3D_RUNTIME_PARITY, createG75Terrain3DBakeSampler,
+            G52_TERRAIN3D_RUNTIME_PARITY, createG52Terrain3DBakeSampler,
+            G00_TERRAIN3D_RUNTIME_PARITY, createG00Terrain3DBakeSampler,
+          } from './src/3d/world/worldReferenceTerrainAdapter.js';
+          const fill=(n,v)=>Array(n).fill(v);
+          const n65=65*65;
+          const g75={schema:'westeros-g75-terrain3d-bake-v1',sourceMapSha256:G75_TERRAIN3D_RUNTIME_PARITY.sourceMapSha256,width:65,height:65,heights:fill(n65,7),rockBlend:fill(n65,.25),tintR:fill(n65,.91),tintG:fill(n65,.92),tintB:fill(n65,.93),roughness:fill(n65,.84)};
+          const q75=G75_TERRAIN3D_RUNTIME_PARITY.normalizedBounds; const s75=createG75Terrain3DBakeSampler(g75)((q75.xMin+q75.xMax)/2,(q75.yMin+q75.yMax)/2);
+          if(s75.heightMeters!==7||s75.rockBlend!==.25||s75.roughness!==.84) throw new Error('G75 adapter regression');
+          const g52={schema:'westeros-g52-terrain3d-bake-v1',sourceMapSha256:G52_TERRAIN3D_RUNTIME_PARITY.sourceMapSha256,width:65,height:65,heights:fill(n65,8),snowWeight:fill(n65,.4),tintR:fill(n65,.94),tintG:fill(n65,.95),tintB:fill(n65,.96),roughness:fill(n65,.81)};
+          const q52=G52_TERRAIN3D_RUNTIME_PARITY.normalizedBounds; const s52=createG52Terrain3DBakeSampler(g52)((q52.xMin+q52.xMax)/2,(q52.yMin+q52.yMax)/2);
+          if(s52.heightMeters!==8||s52.snowWeight!==.4||s52.roughness!==.81) throw new Error('G52 adapter regression');
+          const n257=257*257;
+          const g00={schema:'westeros-g00-terrain3d-bake-v1',sourceMapSha256:G00_TERRAIN3D_RUNTIME_PARITY.sourceMapSha256,width:257,height:257,heights:fill(n257,9),roadCoverage:fill(n257,.3),pathCoverage:fill(n257,0),snowSurface:fill(n257,1),tintR:fill(n257,.97),tintG:fill(n257,.98),tintB:fill(n257,.99),roughness:fill(n257,.86)};
+          const q00=G00_TERRAIN3D_RUNTIME_PARITY.normalizedBounds; const s00=createG00Terrain3DBakeSampler(g00)((q00.xMin+q00.xMax)/2,(q00.yMin+q00.yMax)/2);
+          if(s00.heightMeters!==9||s00.roadCoverage!==.3||s00.snowSurface!==1||s00.roughness!==.86) throw new Error('G00 adapter self-regression');
+          console.log('NW_G00_RUNTIME_ADAPTER_SYNTAX_OK');
+          NODE
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Capture deterministic merged G00 Near Detail runtime source twice
+        run: |
+          set -euo pipefail
+          PROBE='godot/terrain-authoring/.terrain3d-proof/g00-near-detail-probe.json'
+          SOURCE='godot/terrain-authoring/.terrain3d-proof/g00-runtime-source.json'
+          mkdir -p "$(dirname "$PROBE")"
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG00NearDetail.mjs --emit-probe="$PROBE" | tee "$RUNNER_TEMP/near-a.log"
+          node scripts/checkNWG00Terrain3DRuntimeParity.mjs | tee "$RUNNER_TEMP/source-a.log"
+          cp "$PROBE" "$RUNNER_TEMP/near-a.json"; cp "$SOURCE" "$RUNNER_TEMP/source-a.json"
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG00NearDetail.mjs --emit-probe="$PROBE" | tee "$RUNNER_TEMP/near-b.log"
+          node scripts/checkNWG00Terrain3DRuntimeParity.mjs | tee "$RUNNER_TEMP/source-b.log"
+          cmp "$RUNNER_TEMP/near-a.log" "$RUNNER_TEMP/near-b.log"
+          cmp "$RUNNER_TEMP/near-a.json" "$PROBE"
+          cmp "$RUNNER_TEMP/source-a.log" "$RUNNER_TEMP/source-b.log"
+          cmp "$RUNNER_TEMP/source-a.json" "$SOURCE"
+          grep -F 'NW_G00_NEAR_DETAIL_VALIDATION_OK' "$RUNNER_TEMP/near-a.log"
+          grep -F 'NW_G00_RUNTIME_PARITY_SOURCE_OK' "$RUNNER_TEMP/source-a.log"
+
+      - name: Install pinned Terrain3D and preserve HTerrain
+        run: |
+          set -euo pipefail
+          cp godot/terrain-authoring/project.godot "$RUNNER_TEMP/project.godot.before-terrain3d"
+          ok=0
+          for attempt in 1 2 3; do
+            if python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee "$RUNNER_TEMP/t3d-install-$attempt.log"; then
+              grep -F 'TERRAIN3D_INSTALL_OK' "$RUNNER_TEMP/t3d-install-$attempt.log"; ok=1; break
+            fi
+            sleep $((attempt * 3))
+          done
+          test "$ok" -eq 1
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'TERRAIN3D_VERIFY_OK' "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'version="1.0.2"' godot/terrain-authoring/addons/terrain_3d/plugin.cfg
+          grep -F 'res://addons/zylann.hterrain/plugin.cfg' godot/terrain-authoring/project.godot
+          grep -F 'res://addons/terrain_3d/plugin.cfg' godot/terrain-authoring/project.godot
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/godot-4.6.3.zip"; DIR="$RUNNER_TEMP/godot-4.6.3"; mkdir -p "$DIR"
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' --output "$ZIP"
+          unzip -q "$ZIP" -d "$DIR"
+          GODOT_BIN="$(find "$DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"; chmod +x "$GODOT_BIN"; "$GODOT_BIN" --version | grep -F '4.6.3'
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Real 257x257 G00 Terrain3D bake twice
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 2>&1 | tee "$RUNNER_TEMP/t3d-editor.log"
+          if grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' "$RUNNER_TEMP/t3d-editor.log"; then exit 1; fi
+          G00_RUNTIME_PARITY_PROOF_SUFFIX=a timeout 300s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g00_terrain3d_runtime_parity.gd 2>&1 | tee "$RUNNER_TEMP/bake-a.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g00-runtime-bake.json "$RUNNER_TEMP/bake-a.json"
+          cp godot/terrain-authoring/.terrain3d-proof/g00-runtime-bake-topdown.png "$RUNNER_TEMP/bake-a.png"
+          G00_RUNTIME_PARITY_PROOF_SUFFIX=b timeout 300s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g00_terrain3d_runtime_parity.gd 2>&1 | tee "$RUNNER_TEMP/bake-b.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g00-runtime-bake.json "$RUNNER_TEMP/bake-b.json"
+          cp godot/terrain-authoring/.terrain3d-proof/g00-runtime-bake-topdown.png "$RUNNER_TEMP/bake-b.png"
+          grep -F 'NW_G00_TERRAIN3D_RUNTIME_BAKE_OK' "$RUNNER_TEMP/bake-a.log"
+          grep -F 'NW_G00_TERRAIN3D_RUNTIME_BAKE_OK' "$RUNNER_TEMP/bake-b.log"
+          jq -S 'del(.savedRegionBytes)' "$RUNNER_TEMP/bake-a.json" > "$RUNNER_TEMP/a.json"
+          jq -S 'del(.savedRegionBytes)' "$RUNNER_TEMP/bake-b.json" > "$RUNNER_TEMP/b.json"
+          cmp "$RUNNER_TEMP/a.json" "$RUNNER_TEMP/b.json"
+          cmp "$RUNNER_TEMP/bake-a.png" "$RUNNER_TEMP/bake-b.png"
+
+      - name: Verify G00 Terrain3D bake in real Three.js world coordinates
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG00Terrain3DRuntimeParity.mjs --verify | tee "$RUNNER_TEMP/runtime.log"
+          grep -F 'NW_G00_TERRAIN3D_RUNTIME_PARITY_OK' "$RUNNER_TEMP/runtime.log"
+
+      - name: Prior G00 layers HTerrain world PWA mobile and browser regressions
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG00RoadPath.mjs
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/terrainSeatSafetyCheck.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/roadNetworkSafetyCheck.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkRoadVisualContract.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+
+      - name: Restore authoring bootstrap mutations
+        if: always()
+        run: |
+          set -euo pipefail
+          if test -f "$RUNNER_TEMP/project.godot.before-terrain3d"; then cp "$RUNNER_TEMP/project.godot.before-terrain3d" godot/terrain-authoring/project.godot; fi
+          rm -rf godot/terrain-authoring/addons/terrain_3d
+          git restore --worktree -- godot/terrain-authoring/addons/zylann.hterrain
+          git clean -fdx -- godot/terrain-authoring/terrain_data
+          git diff --exit-code -- godot/terrain-authoring/project.godot
+          git diff --exit-code -- godot/terrain-authoring/addons/zylann.hterrain
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nw-g00-terrain3d-runtime-parity-proof
+          include-hidden-files: true
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g00-near-detail-probe.json
+            godot/terrain-authoring/.terrain3d-proof/g00-runtime-source.json
+            godot/terrain-authoring/.terrain3d-proof/g00-runtime-bake.json
+            godot/terrain-authoring/.terrain3d-proof/g00-runtime-bake-topdown.png
+          if-no-files-found: warn

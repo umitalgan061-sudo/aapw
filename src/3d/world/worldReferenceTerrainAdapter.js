@@ -280,3 +280,64 @@ export function createG52Terrain3DWorldSampler(bake, { mapBounds, metersPerMapUn
 		return sampleNormalized(normalized.x, normalized.y);
 	};
 }
+
+/** Buzul Muhafızı / G00 — qualified 257x257 Terrain3D bake -> Three.js parity adapter. */
+export const G00_TERRAIN3D_RUNTIME_PARITY = Object.freeze({
+	id: 'buzul-muhafizi-g00-terrain3d-threejs-runtime-parity-2026-08-13-v1',
+	geoCell: 'G00',
+	layer: 'Terrain3D Bake/Runtime parity',
+	sourceMapSha256: '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1',
+	terrain3dVersion: '1.0.2-stable',
+	terrain3dLod: 0,
+	sourceSize: 257,
+	normalizedBounds: Object.freeze({ xMin: 0, xMax: 1 / 8, yMin: 0, yMax: 1 / 8 }),
+});
+
+const G00_TERRAIN3D_BAKE_CHANNELS = Object.freeze([
+	'heights', 'roadCoverage', 'pathCoverage', 'snowSurface', 'tintR', 'tintG', 'tintB', 'roughness',
+]);
+
+function assertG00BakePayload(bake) {
+	if (!bake || typeof bake !== 'object') throw new TypeError('Terrain3D bake payload must be an object');
+	if (bake.schema !== 'westeros-g00-terrain3d-bake-v1') throw new Error(`unexpected G00 bake schema: ${bake.schema}`);
+	if (bake.sourceMapSha256 !== G00_TERRAIN3D_RUNTIME_PARITY.sourceMapSha256) throw new Error('G00 bake map.png provenance mismatch');
+	if (bake.width !== G00_TERRAIN3D_RUNTIME_PARITY.sourceSize || bake.height !== G00_TERRAIN3D_RUNTIME_PARITY.sourceSize) {
+		throw new Error(`G00 bake must be ${G00_TERRAIN3D_RUNTIME_PARITY.sourceSize}x${G00_TERRAIN3D_RUNTIME_PARITY.sourceSize}`);
+	}
+	const expected = bake.width * bake.height;
+	for (const channel of G00_TERRAIN3D_BAKE_CHANNELS) {
+		if (!Array.isArray(bake[channel]) || bake[channel].length !== expected) throw new Error(`invalid G00 bake channel ${channel}`);
+		for (let i = 0; i < bake[channel].length; i += 1) assertFinite(bake[channel][i], `${channel}[${i}]`);
+	}
+}
+
+export function createG00Terrain3DBakeSampler(bake) {
+	assertG00BakePayload(bake);
+	const { width, height } = bake;
+	return function sampleG00Terrain3DBake(normalizedX, normalizedY) {
+		const { u, v } = localUv(normalizedX, normalizedY, G00_TERRAIN3D_RUNTIME_PARITY.normalizedBounds, 'G00');
+		return Object.freeze({
+			heightMeters: bilinearBakeChannel(bake.heights, width, height, u, v),
+			roadCoverage: bilinearBakeChannel(bake.roadCoverage, width, height, u, v),
+			pathCoverage: bilinearBakeChannel(bake.pathCoverage, width, height, u, v),
+			snowSurface: bilinearBakeChannel(bake.snowSurface, width, height, u, v),
+			tintR: bilinearBakeChannel(bake.tintR, width, height, u, v),
+			tintG: bilinearBakeChannel(bake.tintG, width, height, u, v),
+			tintB: bilinearBakeChannel(bake.tintB, width, height, u, v),
+			roughness: bilinearBakeChannel(bake.roughness, width, height, u, v),
+		});
+	};
+}
+
+export function createG00Terrain3DWorldSampler(bake, { mapBounds, metersPerMapUnit }) {
+	const sampleNormalized = createG00Terrain3DBakeSampler(bake);
+	if (!mapBounds || !Number.isFinite(mapBounds.minX) || !Number.isFinite(mapBounds.maxX) || !Number.isFinite(mapBounds.minY) || !Number.isFinite(mapBounds.maxY)) {
+		throw new TypeError('mapBounds must contain finite min/max X/Y');
+	}
+	assertFinite(metersPerMapUnit, 'metersPerMapUnit');
+	if (metersPerMapUnit <= 0) throw new RangeError('metersPerMapUnit must be > 0');
+	return function sampleG00Terrain3DWorld(worldX, worldZ) {
+		const normalized = worldXZToNormalizedReference(worldX, worldZ, mapBounds, metersPerMapUnit);
+		return sampleNormalized(normalized.x, normalized.y);
+	};
+}
