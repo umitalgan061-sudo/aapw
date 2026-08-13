@@ -21,6 +21,7 @@ export const G00_BIOME_POLICY = Object.freeze({
   normalizedBounds: Object.freeze({ xMin: 0, xMax: 0.125, yMin: 0, yMax: 0.125 }),
   terrain3dRegionSize: 256,
   guardBandNormalized: 1 / 96,
+  seamProbeNormalized: 1 / (96 * 4),
   baseMaskWidth: 96,
   baseMaskHeight: 64,
 });
@@ -170,7 +171,10 @@ export function measureG00Biome() {
       if (y + 1 < rows.length) maxAdjacentColorDelta = Math.max(maxAdjacentColorDelta, colorDistance(rows[y][x], rows[y + 1][x]));
     }
   }
-  const guard = G00_BIOME_POLICY.guardBandNormalized;
+  // The full guard band remains one owner-mask cell for neighboring authoring context.
+  // Seam continuity is measured much closer to the literal GeoCell edge so a legitimate
+  // natural gradient across that guard band is not misclassified as a square-cell seam.
+  const seamProbe = G00_BIOME_POLICY.seamProbeNormalized;
   let maxGuardBandDelta = 0;
   const guardSamples = 33;
   for (let i = 0; i < guardSamples; i += 1) {
@@ -179,10 +183,10 @@ export function measureG00Biome() {
     const y = lerp(bounds.yMin, bounds.yMax, t);
     maxGuardBandDelta = Math.max(
       maxGuardBandDelta,
-      colorDistance(sampleG00BiomeColor(bounds.xMin - guard, y).color, sampleG00BiomeColor(bounds.xMin, y).color),
-      colorDistance(sampleG00BiomeColor(bounds.xMax, y).color, sampleG00BiomeColor(bounds.xMax + guard, y).color),
-      colorDistance(sampleG00BiomeColor(x, bounds.yMin - guard).color, sampleG00BiomeColor(x, bounds.yMin).color),
-      colorDistance(sampleG00BiomeColor(x, bounds.yMax).color, sampleG00BiomeColor(x, bounds.yMax + guard).color),
+      colorDistance(sampleG00BiomeColor(bounds.xMin - seamProbe, y).color, sampleG00BiomeColor(bounds.xMin, y).color),
+      colorDistance(sampleG00BiomeColor(bounds.xMax, y).color, sampleG00BiomeColor(bounds.xMax + seamProbe, y).color),
+      colorDistance(sampleG00BiomeColor(x, bounds.yMin - seamProbe).color, sampleG00BiomeColor(x, bounds.yMin).color),
+      colorDistance(sampleG00BiomeColor(x, bounds.yMax).color, sampleG00BiomeColor(x, bounds.yMax + seamProbe).color),
     );
   }
   return Object.freeze({
