@@ -155,20 +155,32 @@ jobs:
           test -s artifacts/nw-g00-runtime-visual/g00-runtime-far.png
           test -s artifacts/nw-g00-runtime-visual/g00-runtime-full-world-topdown.png
 
-      - name: HTerrain world settlement road PWA mobile and browser regressions
+      - name: HTerrain and deterministic world-reference regressions
         run: |
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
           grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkWorldReferenceMap.js
+
+      - name: Settlement and road safety regressions
+        run: |
+          set -euo pipefail
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/terrainSeatSafetyCheck.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/roadNetworkSafetyCheck.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkRoadVisualContract.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMedievalRoadSurface.js
+
+      - name: PWA cache and technical-debt regressions
+        run: |
+          set -euo pipefail
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
           node scripts/checkTechnicalDebt.js
+
+      - name: Mobile performance and browser smoke regressions
+        run: |
+          set -euo pipefail
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
 
