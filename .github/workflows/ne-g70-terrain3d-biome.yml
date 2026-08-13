@@ -10,6 +10,7 @@ on:
     paths:
       - 'godot/terrain-authoring/geocells/ne/g70_biome.mjs'
       - 'scripts/checkNEG70Terrain3DBiome.mjs'
+      - 'scripts/checkNEG70BiomeVisualEvidence.mjs'
       - 'godot/terrain-authoring/scripts/validate_g70_terrain3d_biome.gd'
       - 'godot/terrain-authoring/corner_claims/NE.json'
       - '.github/workflows/ne-g70-terrain3d-biome.yml'
@@ -37,7 +38,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Exact-main and five-file scope
+      - name: Exact-main and six-file scope
         run: |
           set -euo pipefail
           git fetch origin main
@@ -46,8 +47,8 @@ jobs:
           git diff --check "$BASE_SHA" HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g70_biome.mjs|scripts/checkNEG70Terrain3DBiome.mjs|godot/terrain-authoring/scripts/validate_g70_terrain3d_biome.gd|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g70-terrain3d-biome.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 5
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g70_biome.mjs|scripts/checkNEG70Terrain3DBiome.mjs|scripts/checkNEG70BiomeVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g70_terrain3d_biome.gd|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g70-terrain3d-biome.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 6
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
           git diff --quiet "$BASE_SHA"...HEAD -- addons/zylann.hterrain
@@ -69,6 +70,7 @@ jobs:
           set -euo pipefail
           node --check godot/terrain-authoring/geocells/ne/g70_biome.mjs
           node --check scripts/checkNEG70Terrain3DBiome.mjs
+          node --check scripts/checkNEG70BiomeVisualEvidence.mjs
           node scripts/checkNEG70Terrain3DBiome.mjs | tee "$RUNNER_TEMP/g70-biome-source-a.log"
           cp godot/terrain-authoring/.terrain3d-proof/g70-biome-source.json "$RUNNER_TEMP/g70-biome-source-a.json"
           node scripts/checkNEG70Terrain3DBiome.mjs | tee "$RUNNER_TEMP/g70-biome-source-b.log"
@@ -131,6 +133,16 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
+      - name: Near far and full-world top-down visual evidence
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNEG70BiomeVisualEvidence.mjs --out-dir=artifacts/ne-g70-biome-visual | tee "$RUNNER_TEMP/g70-biome-visual.log"
+          grep -F 'NE_G70_BIOME_VISUAL_EVIDENCE_OK' "$RUNNER_TEMP/g70-biome-visual.log"
+          test -s artifacts/ne-g70-biome-visual/g70-biome-near.png
+          test -s artifacts/ne-g70-biome-visual/g70-biome-far.png
+          test -s artifacts/ne-g70-biome-visual/g70-biome-full-world.png
+          test -s artifacts/ne-g70-biome-visual/g70-biome-visual-metrics.json
+
       - name: HTerrain world settlement road PWA mobile and browser regressions
         run: |
           set -euo pipefail
@@ -164,4 +176,8 @@ jobs:
             godot/terrain-authoring/.terrain3d-proof/g70-biome-source.json
             godot/terrain-authoring/.terrain3d-proof/g70-biome-bake.json
             godot/terrain-authoring/.terrain3d-proof/g70-biome-topdown.png
+            artifacts/ne-g70-biome-visual/g70-biome-near.png
+            artifacts/ne-g70-biome-visual/g70-biome-far.png
+            artifacts/ne-g70-biome-visual/g70-biome-full-world.png
+            artifacts/ne-g70-biome-visual/g70-biome-visual-metrics.json
           if-no-files-found: warn
