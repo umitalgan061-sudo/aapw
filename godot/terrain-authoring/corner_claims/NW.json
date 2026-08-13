@@ -5,8 +5,8 @@
   "current_cell": "G00",
   "status": "in_progress_exact_main",
   "branch": "terrain/nw-g00-terrain3d-biome-20260813",
-  "pr": null,
-  "last_commit": "a16ceb76a97d8e2547d1c5a262d8a274ad663583",
+  "pr": 328,
+  "last_commit": "4e1305223c0613178ba71958ccbc0748ee9737e2",
   "quality_before": {
     "layer": "Coast Hydrology",
     "base_cells": 96,
@@ -26,8 +26,10 @@
     "terrain3d_color_map": "256x256 RGBA8",
     "guard_band": "1/96 normalized owner-map unit on all four edges",
     "grid_policy": "GeoCell/mask/source pixels are addressing only; no visible square-cell term",
+    "ci_workflow": ".github/workflows/nw-g00-terrain3d-biome.yml",
+    "visual_proof": "nw-g00-terrain3d-biome-proof/g00-biome-color.png",
     "next_layer_if_green": "Relief/Height Character"
   },
-  "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable is mandatory for this layer: real Color map import, Terrain3DData region creation, persisted region resources and LOD0 bake are required. HTerrain remains preserved as regression/control. Three.js runtime is not modified by this bounded authoring unit; runtime parity remains layer 7.",
-  "updated_at": "2026-08-13T04:15:00Z"
+  "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable is mandatory for this layer: real Color map import/export, Terrain3DData region creation, persisted region resources and LOD0 bake are required. HTerrain remains preserved as regression/control. Three.js runtime is not modified by this bounded authoring unit; runtime parity remains layer 7.",
+  "updated_at": "2026-08-13T04:44:00Z"
 }
