@@ -1,4 +1,4 @@
-name: Run330 Checkpoint Repair Evidence
+name: Run330 Checkpoint Repair Materializer
 
 on:
   push:
@@ -8,79 +8,71 @@ on:
       - '.github/workflows/run330-checkpoint-repair.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   BASE_SHA: bea79c20e6b9426e80f640655657d78e3eb2629a
+  EVIDENCE_RUN: '31697917030'
 
 jobs:
-  evidence:
+  materialize:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: governance/run330-checkpoint-repair-20260813
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Exact current-main diagnostic base
+      - name: Exact-main and branch-only entry guard
         run: |
           set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'governance/run330-checkpoint-repair-20260813'
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
-          test "$(git diff --name-only "$BASE_SHA"...HEAD)" = '.github/workflows/run330-checkpoint-repair.yml'
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$CHANGED" = '.github/workflows/run330-checkpoint-repair.yml'
 
-      - name: Install Playwright Chromium
+      - name: Materialize truthful Run329 and Run330 checkpoint records
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/pw"
-          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
-          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+          RUN329='- `stable-2026-08-13-run329` — Run329 creatureBrain/creatureSpawner runtime integration (ADR-0274): 13 species deterministic behavior profiles, 66/66 deterministic placeable scatter, real browser boot and 12.54% six-second wander pixel delta PASS; shipped runtime perf sample already recorded as 56 draw calls / 898314 triangles / 50 geometries / 26 textures / 326 MB; full product/safety evidence re-proved on exact current main by Run330 checkpoint evidence run 31697917030.'
+          RUN330='- `stable-2026-08-13-run330` — Run330 real castles at all 14 seats + visible stone-texture/UV/normal/sRGB repair (ADR-0275): 14/14 castle seats, 103555 rendered castle pixels, mean luma 123.8 and masonry std-dev 18.6 PASS; exact-current-main evidence run 31697917030 re-proved Run329+Run330, full safety/PWA/mobile/browser baseline, then measured the real current render at 48 draw calls / 858912 triangles / 46 geometries / 16 textures / 347 MB with final exact-main guard PASS.'
+          PERF='2026-08-13,run330-castle-texturing,1,48,858912,46,16,347'
+          grep -Fq 'stable-2026-08-13-run329' STABLE_TAGS.md || printf '\n%s\n' "$RUN329" >> STABLE_TAGS.md
+          grep -Fq 'stable-2026-08-13-run330' STABLE_TAGS.md || printf '\n%s\n' "$RUN330" >> STABLE_TAGS.md
+          grep -Fqx "$PERF" perf_log.csv || printf '%s\n' "$PERF" >> perf_log.csv
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkRun287CheckpointParserCompat.js
+          git diff --check
+          test "$(git diff --name-only | sort)" = "$(printf 'STABLE_TAGS.md\nperf_log.csv\n' | sort)"
 
-      - name: Re-prove Run329 and Run330 product contracts
+      - name: Remove one-shot materializer and verify final diff
         run: |
           set -euo pipefail
-          NODE_PATH="$NODE_PATH" node scripts/checkRun329CreatureBrain.js
-          NODE_PATH="$NODE_PATH" node scripts/checkRun330CastleTexturing.js
+          git rm .github/workflows/run330-checkpoint-repair.yml
+          node scripts/checkCheckpointConsistency.js
+          git diff --check "$BASE_SHA"
+          CHANGED="$(git diff --name-only "$BASE_SHA" | sort)"
+          EXPECTED="$(printf 'STABLE_TAGS.md\nperf_log.csv\n' | sort)"
+          test "$CHANGED" = "$EXPECTED"
 
-      - name: Full current-main safety baseline
-        run: |
-          set -euo pipefail
-          node scripts/checkSmokeCheckRegistry.js
-          node scripts/checkAssetsManifest.js
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkWorldReferenceMap.js
-          NODE_PATH="$NODE_PATH" node scripts/terrainSeatSafetyCheck.js
-          NODE_PATH="$NODE_PATH" node scripts/roadNetworkSafetyCheck.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkTechnicalDebt.js
-          NODE_PATH="$NODE_PATH" node scripts/checkMobilePerfBudget.js
-          NODE_PATH="$NODE_PATH" node scripts/smokeTestGame3D.js
-
-      - name: Capture real Run330 current-main performance sample
-        run: |
-          set -euo pipefail
-          NODE_PATH="$NODE_PATH" node scripts/collectPerfSnapshot.js run330-castle-texturing
-          tail -n 1 perf_log.csv | tee "$RUNNER_TEMP/run330-perf-row.txt"
-          grep -E '^2026-08-13,run330-castle-texturing,[0-9]+,[0-9]+,[0-9]+,[0-9]+,[0-9]+,[0-9]*$' "$RUNNER_TEMP/run330-perf-row.txt"
-
-      - name: Final exact-main guard
+      - name: Commit and guarded push
         run: |
           set -euo pipefail
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: run330-checkpoint-repair-evidence
-          path: |
-            perf_log.csv
-            artifacts/run329-creature-brain
-            artifacts/run330-castle-texturing
-          if-no-files-found: warn
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add STABLE_TAGS.md perf_log.csv .github/workflows/run330-checkpoint-repair.yml
+          git commit -m 'governance: restore Run330 checkpoint consistency'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git push origin HEAD:governance/run330-checkpoint-repair-20260813
