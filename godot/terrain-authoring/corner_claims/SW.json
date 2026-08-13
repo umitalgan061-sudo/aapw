@@ -3,10 +3,10 @@
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
   "current_cell": "G17",
-  "status": "in_progress_exact_main",
-  "branch": "terrain/sw-g17-terrain3d-hydrology-20260813",
-  "pr": 352,
-  "last_commit": "1e8b854720a3aae8427b2b35be9212c908b9697e",
+  "status": "in_progress_exact_main_visual_gate",
+  "branch": "terrain/sw-g17-hydrology-visual-r2-20260813",
+  "pr": 356,
+  "last_commit": "af95f850b5981fb1dfdec8904e92b110b37d3a27",
   "quality_before": {
     "cell": "G07",
     "layer": "Terrain3D Bake / Three.js Runtime Parity",
@@ -17,7 +17,7 @@
   "quality_after": {
     "cell": "G17",
     "layer": "Coast/Hydrology",
-    "state": "canonical_open_sea_terrain3d_proof_pending_exact_head_ci",
+    "state": "canonical_open_sea_terrain3d_visual_proof_pending_exact_head_ci",
     "selection": "sw_chebyshev_ring1_south_edge_first",
     "canonical_water_cells": 96,
     "canonical_land_cells": 0,
@@ -26,14 +26,20 @@
     "canonical_internal_boundaries": 0,
     "unique_in_map_guard_samples": 126,
     "unique_in_map_guard_sea": 126,
+    "max_guard_confidence_delta": 0,
+    "max_guard_height_delta_meters": 0,
+    "coastline_contour_segments": 0,
     "source_map_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
     "water_mask_sha256": "2ca2bed8d8a137ba532a56e10b079fa845b0f7214e24f955388c8dd0a4517f27",
     "coastline_invention": false,
     "hydrology_proof_height_meters": -4,
     "terrain3d_version": "1.0.2-stable",
-    "terrain3d_proof": "257x257 RF height import + guard regions + persistence + LOD0 bake pending CI",
+    "terrain3d_proof": "257x257 RF height import + guard regions + persistence + LOD0 bake twice",
+    "visual_proof": "threejs-near+far+full-world-topdown-pending-ci-artifact",
+    "visual_context": "committed-owner-map-pindex-quality-v2 with feathered G17 open-sea patch; no GeoCell border",
+    "visual_determinism": "numeric hydrology/seam metrics are gating; GPU PNG hashes are evidence-only",
     "relief_claim": false,
     "full_world_completion_claim": false
   },
-  "updated_at": "2026-08-13T09:30:00+03:00"
+  "updated_at": "2026-08-13T10:16:00+03:00"
 }
