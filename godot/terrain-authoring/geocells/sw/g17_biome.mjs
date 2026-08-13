@@ -8,6 +8,8 @@ import {
   sampleG17WaterConfidence,
 } from './g17_hydrology.mjs';
 
+export { G17 };
+
 export const G17_BIOME_POLICY = Object.freeze({
   id: 'gunbatimi-ustasi-g17-macro-biome-2026-08-13-v1',
   schema: 'westeros-g17-biome-v1',
