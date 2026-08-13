@@ -50,7 +50,7 @@ function startServer() {
 async function dragLook(page, x1, y1, x2, y2) {
   await page.mouse.move(x1, y1);
   await page.mouse.down();
-  await page.mouse.move(x2, y2, { steps: 36 });
+  await page.mouse.move(x2, y2, { steps: 30 });
   await page.mouse.up();
   await page.waitForTimeout(350);
 }
@@ -87,33 +87,25 @@ async function main() {
     }
     await page.waitForFunction(() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 180000 });
     await page.waitForTimeout(3500);
+
     const canvas = page.locator('#game3d-canvas');
     await canvas.waitFor({ state: 'visible', timeout: 30000 });
     const box = await canvas.boundingBox();
     assert(box && box.width > 1000 && box.height > 600, 'game3d canvas is not render-sized');
 
-    // Real in-game F4 inspection camera.
     await page.keyboard.press('F4');
     await page.waitForTimeout(500);
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
 
-    // Look almost straight up, then climb ~1 km over the same loaded terrain.
-    await dragLook(page, cx, cy, cx, box.y + 15);
+    await dragLook(page, cx, cy, cx, box.y + 20);
     await page.keyboard.down('ShiftLeft');
     await page.keyboard.down('KeyW');
-    await page.waitForTimeout(1700);
+    await page.waitForTimeout(1150);
     await page.keyboard.up('KeyW');
     await page.keyboard.up('ShiftLeft');
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(800);
 
-    // One ~900 px downward drag from near top to near bottom produces an oblique ~40° downward view.
-    await dragLook(page, cx, box.y + 45, cx, box.y + box.height - 55);
-    // Add a small yaw so roads/terrain read in perspective rather than perfect screen alignment.
-    await dragLook(page, cx, cy, cx + 120, cy);
-    await page.waitForTimeout(1800);
-
-    // Hide HTML HUD only; leave the live WebGL canvas untouched.
     await page.evaluate(() => {
       const canvas = document.getElementById('game3d-canvas');
       for (const child of Array.from(document.body.children)) {
@@ -123,19 +115,21 @@ async function main() {
       document.body.style.margin = '0';
       document.body.style.overflow = 'hidden';
     });
-    await page.waitForTimeout(600);
 
-    const wideBytes = await cdpShot(context, page, path.join(OUT, 'game3d-real-oblique-wide.png'));
+    await dragLook(page, cx, cy, cx, cy + 330);
+    await page.waitForTimeout(900);
+    const aBytes = await cdpShot(context, page, path.join(OUT, 'game3d-real-angle-a.png'));
 
-    // Move a little closer along the same oblique line of sight for a second genuine game frame.
-    await page.keyboard.down('KeyW');
-    await page.waitForTimeout(1200);
-    await page.keyboard.up('KeyW');
-    await page.waitForTimeout(1200);
-    const closeBytes = await cdpShot(context, page, path.join(OUT, 'game3d-real-oblique-close.png'));
+    await dragLook(page, cx, cy, cx, cy + 150);
+    await page.waitForTimeout(900);
+    const bBytes = await cdpShot(context, page, path.join(OUT, 'game3d-real-angle-b.png'));
 
-    fs.writeFileSync(path.join(OUT, 'game3d-real-oblique-metrics.json'), JSON.stringify({ wideBytes, closeBytes, viewport: [1600,1000], browserErrors: errors }, null, 2));
-    console.log(`[checkRun216EditorLiveWorldBrowser] REAL OBLIQUE GAME3D CAPTURE PASS ${JSON.stringify({ wideBytes, closeBytes })}`);
+    await dragLook(page, cx, cy, cx, cy + 150);
+    await page.waitForTimeout(900);
+    const cBytes = await cdpShot(context, page, path.join(OUT, 'game3d-real-angle-c.png'));
+
+    fs.writeFileSync(path.join(OUT, 'game3d-real-angle-metrics.json'), JSON.stringify({ aBytes, bBytes, cBytes, viewport: [1600,1000], browserErrors: errors }, null, 2));
+    console.log(`[checkRun216EditorLiveWorldBrowser] REAL MULTI-ANGLE GAME3D CAPTURE PASS ${JSON.stringify({ aBytes, bBytes, cBytes })}`);
   } finally {
     await context.close();
     await browser.close();
