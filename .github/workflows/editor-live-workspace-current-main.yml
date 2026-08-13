@@ -1,22 +1,25 @@
-name: Editor Live Workspace Current Main
+name: Editor Canonical Live Workspace
 
 on:
   push:
     branches:
-      - 'chatgpt/editor-live-workspace-current-main-v2'
+      - 'feature/editor-consolidation-current-terrain-20260813'
   pull_request:
     branches:
       - main
     paths:
       - 'edit.html'
       - 'src/3d/editor/EditorLiveWorkspaceEntry.mjs'
-      - 'scripts/editorLiveServer.js'
+      - 'src/3d/editor/EditorGamePreviewLauncher.js'
       - 'scripts/checkEditorLiveWorkspaceEntry.js'
-      - '.vscode/tasks.json'
       - '.github/workflows/editor-live-workspace-current-main.yml'
 
 permissions:
   contents: read
+
+concurrency:
+  group: editor-canonical-live-workspace-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -26,43 +29,40 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Exact-current-main and additive-only entry gate
+      - name: Exact current main and 1000-line bounded scope
+        id: base
         run: |
           set -euo pipefail
           git fetch origin main
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            BASE_SHA='${{ github.event.pull_request.base.sha }}'
-          else
-            BASE_SHA="$(git merge-base HEAD origin/main)"
-          fi
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          git merge-base --is-ancestor "$BASE_SHA" HEAD
-          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
-          git diff --check "$BASE_SHA" HEAD
-          git diff --numstat "$BASE_SHA"...HEAD | awk '$2 != 0 { print "non-additive editor live workspace diff: " $0; exit 1 }'
-          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(edit\.html|src/3d/editor/EditorLiveWorkspaceEntry\.mjs|src/3d/editor/EditorGamePreviewLauncher\.js|scripts/checkEditorLiveWorkspaceEntry\.js|\.github/workflows/editor-live-workspace-current-main\.yml)$' | wc -l)" -eq 0
+          test "$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 1000
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Live workspace source contract
+      - name: Canonical editor workspace source contract
         run: |
           set -euo pipefail
+          test ! -e edit.html
           node --check src/3d/editor/EditorLiveWorkspaceEntry.mjs
-          node --check scripts/editorLiveServer.js
+          node --check src/3d/editor/EditorGamePreviewLauncher.js
           node --check scripts/checkEditorLiveWorkspaceEntry.js
           node scripts/checkEditorLiveWorkspaceEntry.js
-          grep -F '"three": "./src/3d/vendor/three/three.module.js"' edit.html
-          grep -F './editor.html?liveWorkspace=1' edit.html
+          grep -F "import('./EditorLiveWorkspaceEntry.mjs')" src/3d/editor/EditorGamePreviewLauncher.js
           grep -F 'CANLI OYUN' src/3d/editor/EditorLiveWorkspaceEntry.mjs
           grep -F 'DÜZENLEME' src/3d/editor/EditorLiveWorkspaceEntry.mjs
           grep -F 'YAN YANA' src/3d/editor/EditorLiveWorkspaceEntry.mjs
           grep -F 'Koda Kaydet' src/3d/editor/EditorLiveWorkspaceEntry.mjs
-          grep -F '/__editor/models' scripts/editorLiveServer.js
-          grep -F '/__editor/save' scripts/editorLiveServer.js
-          grep -F 'Westeros: World Editor Live' .vscode/tasks.json
-          git diff --quiet "$BASE_SHA"...HEAD -- editor.html editor.css src/3d/editor/worldEditor.js game3d.html
+          grep -F 'host?.contentWindow || window' src/3d/editor/EditorLiveWorkspaceEntry.mjs
+          grep -F 'host?.contentDocument || document' src/3d/editor/EditorLiveWorkspaceEntry.mjs
 
       - name: Install Playwright outside project manifest
         run: |
@@ -72,12 +72,13 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Real Chromium live workspace proof
+      - name: Real Chromium canonical editor proof
         run: node scripts/checkEditorLiveWorkspaceEntry.js --browser
 
-      - name: Existing PWA and safety gates
+      - name: Existing editor and PWA safety gates
         run: |
           set -euo pipefail
+          node scripts/checkRun216EditorGamePreviewContract.js
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
           node scripts/checkTechnicalDebt.js
@@ -91,11 +92,9 @@ jobs:
       - name: Full browser smoke
         run: node scripts/smokeTestGame3D.js
 
-      - name: Final exact-current-main and additive-only gate
-        if: always()
+      - name: Final exact-main freshness
         run: |
           set -euo pipefail
           git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
-          git diff --check "$BASE_SHA" HEAD
+          test "$(git rev-parse origin/main)" = "${{ steps.base.outputs.base_sha }}"
+          test "$(git merge-base HEAD origin/main)" = "${{ steps.base.outputs.base_sha }}"
