@@ -15333,3 +15333,56 @@ step, is not this run).
   at that point these rigs stop being inert and the two open questions run 326 named (does the
   asset-driven wolf move onto this path; what LOD large herds need) become live decisions rather than
   deferred ones.
+
+## Run 328 (scheduled run, 2026-08-13) — Concurrency collision on the gait driver; priority re-scan; no code shipped
+
+- Started the declared "next safe step" from run 327 (`gameplay/creatureGait.js`, ADR-0273) independently
+  — same file names, same bone-driving approach identified as the fix needed (a per-limb pivot bone,
+  since `hindKnee${L|R}`/`foreKnee${L|R}` hang off the *shared* `root`/`chest` bones, so rotating a
+  segment's true parent bone would have swung the opposite leg and the spine with it). Built and fully
+  verified a working version (rig pivot-bone addition + gait driver + `checkRun327CreatureGait.js`,
+  19/19 species PASS, screenshots showing a real mid-trot pose) before re-fetching `origin/main` ahead
+  of publishing, per GOVERNANCE.md's "recheck remote main immediately before every publication" —
+  found `b619f3b` had already landed the identical task (`gameplay/creatureGait.js`, ADR-0273) from a
+  concurrent session minutes earlier, published first.
+- Their approach resolved the same shared-`root`/`chest` problem differently and more conservatively:
+  swing at the knee/ankle bones directly (accepting a pivot-from-the-knee approximation) rather than
+  restructuring `creatureRig.js` with new hip/shoulder pivot bones — zero risk to the already-shipped,
+  fully-tested run-326 rig. Verified their merged version is real (38 species×gait combinations PASS,
+  GPU pixel read-back, `smokeTestGame3D.js` 34/34, 0 new tech debt) — this is a genuine completion, not
+  a stub.
+- Per GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md §3's own listed real-stop condition ("another concurrent
+  session already published the same, more current/verified work"), discarded the local duplicate
+  (`git checkout` + `rm` on the would-be-conflicting files, including the local `creatureRig.js` pivot-
+  bone edit — not needed since the merged version didn't touch that file) and fast-forwarded cleanly to
+  `origin/main` (`b619f3b`) with zero data loss and zero conflicting history.
+- Re-verified the full baseline is still green post-fast-forward: `checkSmokeCheckRegistry.js` OK (34
+  checks/14 modules, only the same two pre-existing near-cap WARNs — `game3d.js` 551/600,
+  `worldReferenceSceneShadowAdapter.js` 562/600, neither touched), `checkWorldReferenceMap.js`,
+  `checkSeededRandomPolicy.js`, `terrainSeatSafetyCheck.js` (14/14), `roadNetworkSafetyCheck.js`
+  (20.24km), `checkCreatureSpeciesConfig.js`, `checkTechnicalDebt.js` (0 new), `checkPwaInstallability.js`,
+  `checkServiceWorkerCache.js` all fresh PASS.
+- Priority re-scan (this run's scheduled prompt added items 1.5/1.7 explicitly): item 1.5 (zemin/çim
+  rengi) — confirmed already resolved, ADR-0073's `LOW_COLOR = 0x3d6b28` clamped-height-fraction fix is
+  still live in `world/terrain.js` unchanged, re-confirmed DONE in every run's priority scan through 327,
+  no open owner complaint in `QUESTIONS_FOR_OWNER.md`. Item 1.7 (kale dokulandırma) — confirmed still
+  genuinely asset-blocked (ADR-0131/run 104 and dozens of subsequent re-scans): 8/14 seats have a real
+  castle-shaped model and are already textured via `createStoneMaterial`; the other 6 have no
+  castle-shaped geometry at all, only a generic placeholder, and texturing them needs new CC0/CC-BY
+  castle-model assets this environment doesn't have — not something a scheduled routine should source
+  new binary assets for without owner review, unchanged from every prior re-scan.
+- **New idea for a future run, not attempted here** (this run's own contribution, logged rather than
+  built given the scope/collision risk after the gait-driver duplication above): item 1.7's actual
+  blocker may be narrower than "need a real model" — `ADR-0015` already gives castle materials a fully
+  procedural canvas-generated PBR texture, so the missing piece for the 6 untextured seats may be
+  procedural *geometry* (walls/towers/gatehouse from primitives), not a downloaded model — the exact
+  pattern run 326 already proved out for creatures (`creatureRig.js`: generate the shape instead of
+  waiting for one to be sourced). Worth a dedicated future run to confirm the placeholder geometry
+  really has no castle silhouette today and, if so, scope a `world/proceduralCastleGeometry.js` the
+  same way `creatureBodyPlans.js`/`creatureRig.js` were scoped for animals.
+- Runtime/product source delta: 0 (fast-forward only, no local commit — nothing safe and non-duplicate
+  to ship this run). Technical debt introduced: 0. Confidence: 5/5 that `origin/main` is healthy and
+  this run added no regression.
+- Next safe step: either `gameplay/creatureBrain.js` (run 327's declared next step — re-check
+  `origin/main` first, given today's demonstrated collision rate) or scope the procedural-castle-geometry
+  idea above; re-check concurrency state fresh before starting either.
