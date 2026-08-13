@@ -1,0 +1,48 @@
+name: Live Server Current 3D
+
+on:
+  push:
+    branches: [feature/live-server-current-3d-map-20260813]
+  pull_request:
+    branches: [main]
+    paths:
+      - '.vscode/settings.json'
+      - 'live3d.html'
+      - 'src/3d/editor/EditorLiveWorldBridge.js'
+      - 'scripts/checkLiveServerCurrent3D.mjs'
+      - '.github/workflows/live-server-current-3d.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-server-current-3d-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Live Server current 3D contract
+        run: |
+          set -euo pipefail
+          node --check src/3d/editor/EditorLiveWorldBridge.js
+          node --check scripts/checkLiveServerCurrent3D.mjs
+          node scripts/checkLiveServerCurrent3D.mjs | tee "$RUNNER_TEMP/live-server-current-3d.log"
+          grep -F 'LIVE_SERVER_CURRENT_3D_OK' "$RUNNER_TEMP/live-server-current-3d.log"
+      - name: Preserve shared browser runtime
+        run: |
+          set -euo pipefail
+          node --check src/3d/game3d.js
+          node --check src/3d/world/worldReferenceSurfaceTerrainVisual.js
+          grep -F "installRuntimePindexTerrainPolish" game3d.html
+          grep -F "installRuntimePindexTerrainPolish" live3d.html
+          grep -F "EditorLiveWorldBridge.js" editor.html
