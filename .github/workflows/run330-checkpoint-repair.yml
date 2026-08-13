@@ -1,0 +1,86 @@
+name: Run330 Checkpoint Repair Evidence
+
+on:
+  push:
+    branches:
+      - governance/run330-checkpoint-repair-20260813
+    paths:
+      - '.github/workflows/run330-checkpoint-repair.yml'
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: bea79c20e6b9426e80f640655657d78e3eb2629a
+
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact current-main diagnostic base
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA" HEAD
+          test "$(git diff --name-only "$BASE_SHA"...HEAD)" = '.github/workflows/run330-checkpoint-repair.yml'
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Re-prove Run329 and Run330 product contracts
+        run: |
+          set -euo pipefail
+          NODE_PATH="$NODE_PATH" node scripts/checkRun329CreatureBrain.js
+          NODE_PATH="$NODE_PATH" node scripts/checkRun330CastleTexturing.js
+
+      - name: Full current-main safety baseline
+        run: |
+          set -euo pipefail
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          NODE_PATH="$NODE_PATH" node scripts/terrainSeatSafetyCheck.js
+          NODE_PATH="$NODE_PATH" node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          NODE_PATH="$NODE_PATH" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$NODE_PATH" node scripts/smokeTestGame3D.js
+
+      - name: Capture real Run330 current-main performance sample
+        run: |
+          set -euo pipefail
+          NODE_PATH="$NODE_PATH" node scripts/collectPerfSnapshot.js run330-castle-texturing
+          tail -n 1 perf_log.csv | tee "$RUNNER_TEMP/run330-perf-row.txt"
+          grep -E '^2026-08-13,run330-castle-texturing,[0-9]+,[0-9]+,[0-9]+,[0-9]+,[0-9]+,[0-9]*$' "$RUNNER_TEMP/run330-perf-row.txt"
+
+      - name: Final exact-main guard
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run330-checkpoint-repair-evidence
+          path: |
+            perf_log.csv
+            artifacts/run329-creature-brain
+            artifacts/run330-castle-texturing
+          if-no-files-found: warn
