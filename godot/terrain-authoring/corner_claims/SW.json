@@ -3,10 +3,10 @@
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
   "current_cell": "G17",
-  "status": "in_progress_exact_main_visual_r2",
+  "status": "in_progress_exact_main_visual_sdf",
   "branch": "terrain/sw-g17-hydrology-visual-r2-20260813",
   "pr": 356,
-  "last_commit": "660b1eca87292c6c0502a8c41410f934f42ad76d",
+  "last_commit": "29efab3a62d5603e6460fa480d0d82fac42d0037",
   "quality_before": {
     "cell": "G07",
     "layer": "Terrain3D Bake / Three.js Runtime Parity",
@@ -17,7 +17,7 @@
   "quality_after": {
     "cell": "G17",
     "layer": "Coast/Hydrology",
-    "state": "canonical_open_sea_terrain3d_visual_r2_pending_exact_head_ci",
+    "state": "canonical_open_sea_terrain3d_sdf_visual_pending_exact_head_ci",
     "selection": "sw_chebyshev_ring1_south_edge_first",
     "canonical_water_cells": 96,
     "canonical_land_cells": 0,
@@ -36,13 +36,15 @@
     "terrain3d_version": "1.0.2-stable",
     "terrain3d_proof": "257x257 RF height import + 4 guard-backed regions + persistence + 263169-vertex LOD0 bake twice",
     "terrain3d_last_observed_max_height_error": 0,
-    "visual_proof": "threejs-near+far+full-world-topdown-r2-pending-ci-artifact",
-    "visual_context": "committed-owner-map-pindex-quality-v2 with feathered G17 open-sea patch; no GeoCell border",
+    "visual_proof": "threejs-near+far+full-world-topdown-sdf-v3-pending-ci-artifact",
+    "visual_context": "committed-owner-map-pindex-quality-v2 plus continuous land/water signed-distance contour reconstruction; no visible GeoCell overlay",
     "visual_r1_rca": "browser-side .mjs import rejected because shared static proof server has no .mjs JavaScript MIME mapping",
     "visual_r2_fix": "sample G17 .mjs in Node and serialize numeric 97x97 probe/seam contract to Chromium; browser imports .js modules only",
+    "visual_r2_review": "near/far clean; first full-world top-down rejected manually because low-resolution stair-step silhouette and a visible rectangular G17 tone patch remained",
+    "visual_sdf_fix": "remove G17 rectangle entirely; reconstruct continuous land/water contour from 96x64 addressing mask with signed-distance smoothing, 768x512 quality sampling and filtered 1200x800 composition",
     "visual_determinism": "numeric hydrology/seam metrics are gating; GPU PNG hashes are evidence-only",
     "relief_claim": false,
     "full_world_completion_claim": false
   },
-  "updated_at": "2026-08-13T10:31:00+03:00"
+  "updated_at": "2026-08-13T10:43:00+03:00"
 }
