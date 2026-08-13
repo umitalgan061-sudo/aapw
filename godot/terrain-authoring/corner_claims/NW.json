@@ -3,24 +3,40 @@
   "task_name": "Buzul Muhafızı",
   "origin": [0, 0],
   "current_cell": "G11",
+  "layer": "Terrain3D Bake/Three.js runtime parity",
   "status": "validating",
-  "branch": "terrain/nw-g11-hydrology-20260812",
-  "pr": 266,
-  "last_commit": "ac732ed473d632d8002a5c28291284175ba7dd36",
-  "quality_before": {
-    "base_cells": 96,
-    "water_centres": 38,
-    "land_centres": 58,
-    "boundary_edges": 39,
-    "hard_cell_max_step": 1
+  "branch": "terrain/nw-g11-runtime-parity-20260813-r3",
+  "pr": null,
+  "base_sha": "868f7cbb3c0a0b11d8dac98a9c6e43f06e29213f",
+  "terrain3d": {
+    "version": "1.0.2",
+    "tag": "v1.0.2-stable",
+    "sha256": "a071850250ec5e596aa54da61c01d75768774eb379ee997584d426a45f4884a2",
+    "provenance": "Three.js live createHeightSampler + settlement pads -> 65x65 G11 continuous source -> 256x256 RF Terrain3DData.import_images -> Terrain3D height roundtrip -> persisted region -> LOD0 bake_mesh(0) -> deterministic bilinear Three.js adapter"
   },
-  "quality_after": {
-    "centre_mismatches": 0,
-    "refined_samples": 1617,
-    "fractional_samples": 524,
-    "max_adjacent_step": 0.25,
-    "confidence_checksum": 1445798648
+  "map_reference": {
+    "source": "map.png",
+    "sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+    "geocell_is_addressing_only": true,
+    "nearest_neighbour_runtime": false
   },
-  "engine": "authoring/QA canonical mask interpolation; HTerrain preserved; Terrain3D not required for this data-only layer",
-  "updated_at": "2026-08-12T18:26:00+03:00"
+  "acceptance": {
+    "max_height_error_m": 0.01,
+    "mean_height_error_m": 0.0025,
+    "finite_source_and_bake_required": true,
+    "terrain3d_region_persistence_required": true,
+    "terrain3d_lod0_bake_required": true,
+    "hterrain_regression_required": true
+  },
+  "previous_attempt": {
+    "pr": 306,
+    "head": "8c531338cbb6bdceeba041b142736723eb799982",
+    "result": "failed",
+    "failure_stage": "Terrain3D roundtrip after LOD0 bake",
+    "failure": "Terrain3D returned NaN",
+    "source_checksum": "f4d02e84fc3972bf142a7d3b91421705c6dbdc0c3c33625af1f24e2f55043d4f"
+  },
+  "r3_change": "Separate imported-data roundtrip from LOD0 mesh generation, reject non-finite source/bake values with exact coordinates, bind map.png SHA into source/bake provenance, run Terrain3D proof twice for determinism, and upload hidden proof artifacts explicitly.",
+  "next": "Keep G11 active until exact-head CI proves Terrain3D import/roundtrip/persist/LOD0 bake, Three.js parity, HTerrain/world safety and freshness; then add/verify required near/far/full-world visual parity evidence before considering this layer complete.",
+  "updated_at": "2026-08-13T05:00:00+03:00"
 }
