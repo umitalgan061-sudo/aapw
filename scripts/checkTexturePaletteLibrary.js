@@ -136,6 +136,24 @@ async function main() {
 			for (let i = 0; i < first.length; i += 1) if (first[i] !== other[i]) differing += 1;
 			fail(differing > first.length * 0.02, `varyantlar birbirinin aynısı (fark ${differing})`);
 
+			// 4b. Per-morph dragon scale shape (Run 322): each `dragon-scales` variant must resolve its
+			// own scale geometry, not share one lattice recoloured. `dragon-black` is the deliberate
+			// baseline (no profile entry) — everything else must differ from it and from each other.
+			const dragonTextures = await import('/src/3d/materials/dragonTextures.js');
+			const dragonPaletteIds = PALETTE_IDS.filter((id) => PALETTES[id].pattern === 'dragon-scales');
+			fail(dragonPaletteIds.length >= 7, `beklenenden az ejderha pul deseni: ${dragonPaletteIds.length}`);
+			const baseline = dragonTextures.resolveScaleDetail('dragon-black');
+			fail(baseline === dragonTextures.DRAGON_DETAIL, 'dragon-black varsayılan lekeyi kullanmalı (profil yok)');
+			const seenShapes = new Set();
+			for (const id of dragonPaletteIds) {
+				const detail = dragonTextures.resolveScaleDetail(id);
+				const shapeKey = JSON.stringify(detail);
+				fail(!seenShapes.has(shapeKey), `${id} başka bir ejderhayla aynı pul geometrisini paylaşıyor`);
+				seenShapes.add(shapeKey);
+				// resolveScaleDetail must be pure/deterministic — same id, same shape object contents twice.
+				fail(JSON.stringify(dragonTextures.resolveScaleDetail(id)) === shapeKey, `${id} için tutarsız pul geometrisi`);
+			}
+
 			// 5. Cache shares instances.
 			const t1 = factory.getPaletteTexture('castle', { size: 64, variant: 'x' });
 			const t2 = factory.getPaletteTexture('castle', { size: 64, variant: 'x' });

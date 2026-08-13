@@ -17,6 +17,16 @@
  *   5. Wear — battle scarring, dust in the crevices, and a faint sheen along the light direction.
  *
  * Nothing here derives from real HBO material; the shapes are generated from first principles.
+ *
+ * **Per-morph scale shape** (continuing the owner's "develop dragons continuously" direction — see
+ * this module's own header note above, and `3D_GAME_PROGRESS.md` Run 319/320's "next safe step"):
+ * through Run 321 every colour variant shared one fixed `DRAGON_DETAIL` lattice, so a Kızıl Ejderha
+ * and a Buz Ejderhası differed only in colour, never in the actual scale/plate geometry a big flier's
+ * hide would plausibly vary by. `DRAGON_SCALE_PROFILES` below gives each of the 7 `dragon-scales`
+ * palettes (`palettes.js`) its own overrides — resolved by `resolveScaleDetail` and threaded through
+ * every geometry-reading pass (`paintScaleRows`/`paintDorsalRidge`/`paintWear`) — while colour mixing
+ * stays exactly where it was. `dragon-black` keeps the original, already-screenshotted lattice as its
+ * baseline (no override), so existing visual evidence for it stays valid.
  * @module materials/dragonTextures
  */
 
@@ -27,7 +37,9 @@ import {
 
 /**
  * Tuning constants for the dragon surface. Grouped deliberately: these are the values a future pass
- * at "make the dragons look better" will want to reach for first.
+ * at "make the dragons look better" will want to reach for first. Also the *default* shape — used
+ * as-is by any `dragon-scales` palette with no entry in `DRAGON_SCALE_PROFILES` below (including
+ * `dragon-black`, deliberately, and any new dragon colour added later before it earns its own profile).
  */
 export const DRAGON_DETAIL = Object.freeze({
 	/** Scale rows across the tile. Higher = finer, more serpentine scales. */
@@ -45,6 +57,44 @@ export const DRAGON_DETAIL = Object.freeze({
 	/** Battle scars drawn across the hide. */
 	SCAR_COUNT: 7,
 });
+
+/**
+ * Per-palette overrides onto `DRAGON_DETAIL`, keyed by `palettes.js` id. Only the fields that differ
+ * from the default need listing — `resolveScaleDetail` merges the rest in unchanged. Each profile is a
+ * deliberate physical read, not a random nudge:
+ *  - `dragon-red`: a fiercer, battle-worn war-dragon — fewer, larger, bolder scales and heavy scarring.
+ *  - `dragon-green`: a serpentine forest-hunter — denser, narrower, more irregularly toned scales.
+ *  - `dragon-ice`: broad, flat, near-crystalline armour plates — sparse rows, a wide icy dorsal crest,
+ *    almost no scarring (reads young/pristine).
+ *  - `dragon-gold`: an ornate ceremonial flier — fine, dense scales under a wide, elaborate ridge.
+ *  - `dragon-bronze`: an old, weathered war-mount — mid-sized scales, a wide ridge, heavy scarring.
+ *  - `dragon-shadow`: a wraith-thin hide — very fine, tightly overlapping scales, a narrow ridge, and
+ *    almost no scarring (reads ephemeral rather than battle-worn).
+ */
+export const DRAGON_SCALE_PROFILES = Object.freeze({
+	'dragon-red': Object.freeze({ SCALE_ROWS: 22, SCALE_ASPECT: 1.35, RIDGE_PLATES: 17, SCAR_COUNT: 12 }),
+	'dragon-green': Object.freeze({ SCALE_ROWS: 32, SCALE_ASPECT: 1.05, SCALE_TONE_JITTER: 0.7, SCAR_COUNT: 5 }),
+	'dragon-ice': Object.freeze({
+		SCALE_ROWS: 18, SCALE_ASPECT: 1.6, SCALE_OVERLAP: 0.3, RIDGE_WIDTH: 0.22, RIDGE_PLATES: 19, SCAR_COUNT: 2,
+	}),
+	'dragon-gold': Object.freeze({ SCALE_ROWS: 30, SCALE_ASPECT: 1.15, RIDGE_WIDTH: 0.24, RIDGE_PLATES: 21, SCAR_COUNT: 4 }),
+	'dragon-bronze': Object.freeze({ SCALE_ROWS: 24, RIDGE_WIDTH: 0.2, RIDGE_PLATES: 16, SCAR_COUNT: 10 }),
+	'dragon-shadow': Object.freeze({
+		SCALE_ROWS: 34, SCALE_ASPECT: 1.0, SCALE_OVERLAP: 0.5, RIDGE_WIDTH: 0.1, RIDGE_PLATES: 12, SCAR_COUNT: 3,
+	}),
+});
+
+/**
+ * Resolves the scale-geometry constants for one dragon palette: `DRAGON_DETAIL` merged with that
+ * palette's `DRAGON_SCALE_PROFILES` entry, if any. A palette id with no entry (`dragon-black`, or any
+ * future dragon colour before it earns a profile) gets the plain default back unchanged.
+ * @param {string} paletteId
+ * @returns {typeof DRAGON_DETAIL}
+ */
+export function resolveScaleDetail(paletteId) {
+	const overrides = DRAGON_SCALE_PROFILES[paletteId];
+	return overrides ? Object.freeze({ ...DRAGON_DETAIL, ...overrides }) : DRAGON_DETAIL;
+}
 
 /**
  * Pass 1 — mottled hide underlayer.
@@ -104,18 +154,19 @@ function traceScale(context, cx, cy, halfWidth, halfHeight) {
  * @param {number} size
  * @param {import('./palettes.js').Palette} palette
  * @param {number} seed
+ * @param {typeof DRAGON_DETAIL} detail Resolved via `resolveScaleDetail` — per-variant scale shape.
  */
-function paintScaleRows(context, size, palette, seed) {
+function paintScaleRows(context, size, palette, seed, detail) {
 	const random = createRandom(seed ^ 0x2c8f);
 	const base = hexToRgb(palette.base);
 	const dark = hexToRgb(palette.dark);
 	const light = hexToRgb(palette.light);
 	const accent = hexToRgb(palette.accent);
 
-	const rows = DRAGON_DETAIL.SCALE_ROWS;
+	const rows = detail.SCALE_ROWS;
 	const rowHeight = size / rows;
-	const halfHeight = rowHeight * (1 + DRAGON_DETAIL.SCALE_OVERLAP) * 0.5;
-	const halfWidth = halfHeight * DRAGON_DETAIL.SCALE_ASPECT * 0.5;
+	const halfHeight = rowHeight * (1 + detail.SCALE_OVERLAP) * 0.5;
+	const halfWidth = halfHeight * detail.SCALE_ASPECT * 0.5;
 	const columnStep = halfWidth * 2;
 
 	for (let row = -1; row <= rows; row += 1) {
@@ -129,8 +180,8 @@ function paintScaleRows(context, size, palette, seed) {
 			const cx = column * columnStep + rowOffset;
 			const jitter = random();
 			let tone = jitter < 0.5
-				? mixRgb(base, dark, (0.5 - jitter) * 2 * DRAGON_DETAIL.SCALE_TONE_JITTER)
-				: mixRgb(base, light, (jitter - 0.5) * 2 * DRAGON_DETAIL.SCALE_TONE_JITTER);
+				? mixRgb(base, dark, (0.5 - jitter) * 2 * detail.SCALE_TONE_JITTER)
+				: mixRgb(base, light, (jitter - 0.5) * 2 * detail.SCALE_TONE_JITTER);
 			if (bellyBlend > 0) tone = mixRgb(tone, accent, bellyBlend * (0.4 + random() * 0.4));
 
 			traceScale(context, cx, cy, halfWidth, halfHeight);
@@ -165,15 +216,16 @@ function paintScaleRows(context, size, palette, seed) {
  * @param {number} size
  * @param {import('./palettes.js').Palette} palette
  * @param {number} seed
+ * @param {typeof DRAGON_DETAIL} detail Resolved via `resolveScaleDetail` — per-variant scale shape.
  */
-function paintDorsalRidge(context, size, palette, seed) {
+function paintDorsalRidge(context, size, palette, seed, detail) {
 	const random = createRandom(seed ^ 0x74be);
 	const dark = hexToRgb(palette.dark);
 	const light = hexToRgb(palette.light);
 	const accent = hexToRgb(palette.accent);
-	const ridgeWidth = size * DRAGON_DETAIL.RIDGE_WIDTH;
+	const ridgeWidth = size * detail.RIDGE_WIDTH;
 	const centerX = size * 0.5;
-	const plates = DRAGON_DETAIL.RIDGE_PLATES;
+	const plates = detail.RIDGE_PLATES;
 	const plateHeight = size / plates;
 
 	for (let plate = 0; plate < plates; plate += 1) {
@@ -215,14 +267,15 @@ function paintDorsalRidge(context, size, palette, seed) {
  * @param {number} size
  * @param {import('./palettes.js').Palette} palette
  * @param {number} seed
+ * @param {typeof DRAGON_DETAIL} detail Resolved via `resolveScaleDetail` — per-variant scale shape.
  */
-function paintWear(context, size, palette, seed) {
+function paintWear(context, size, palette, seed, detail) {
 	const random = createRandom(seed ^ 0x9f42);
 	const light = hexToRgb(palette.light);
 	const dark = hexToRgb(palette.dark);
 
 	// Battle scars — long, slightly curved, brighter than the hide (healed tissue).
-	for (let scar = 0; scar < DRAGON_DETAIL.SCAR_COUNT; scar += 1) {
+	for (let scar = 0; scar < detail.SCAR_COUNT; scar += 1) {
 		const x = random() * size;
 		const y = random() * size;
 		const length = size * (0.1 + random() * 0.3);
@@ -258,17 +311,21 @@ function paintWear(context, size, palette, seed) {
 }
 
 /**
- * Full dragon-scale surface — the `dragon-scales` pattern entry.
+ * Full dragon-scale surface — the `dragon-scales` pattern entry. Resolves this palette's own scale
+ * geometry (`resolveScaleDetail`) once and threads it through every geometry-reading pass, so
+ * `dragon-ice`'s broad sparse plates and `dragon-shadow`'s fine dense ones are genuinely different
+ * shapes, not the same lattice recoloured.
  * @param {CanvasRenderingContext2D} context
  * @param {number} size
  * @param {import('./palettes.js').Palette} palette
  * @param {number} seed
  */
 export function paintDragonScales(context, size, palette, seed) {
+	const detail = resolveScaleDetail(palette.id);
 	paintHideBase(context, size, palette, seed);
-	paintScaleRows(context, size, palette, seed);
-	paintDorsalRidge(context, size, palette, seed);
-	paintWear(context, size, palette, seed);
+	paintScaleRows(context, size, palette, seed, detail);
+	paintDorsalRidge(context, size, palette, seed, detail);
+	paintWear(context, size, palette, seed, detail);
 }
 
 /** Dragon painters, keyed by `palettes.js`'s `pattern` field. */
