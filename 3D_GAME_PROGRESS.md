@@ -15066,3 +15066,100 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
   if a future run wants to scope a dedicated pass; otherwise resume standing priority order. Next
   platform-control/consolidation window still ~run 341-351 per Run 321. Next `CATCH_UP.md` refresh
   due ~run 333 (10-run cadence from this one, not the stale 164-run gap it just closed).
+
+## Run 324 — NW GeoCell G00 coast-hydrology (corner-cell gap fill)
+
+- Session start: `GOVERNANCE.md`, `GOVERNANCE_CONTINUATION_OVERRIDE.md`,
+  `GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`, this file's tail (Run 322/323), `QUESTIONS_FOR_OWNER.md`
+  (full), `four_corner_ledger.json` and all four `corner_claims/*.json` read before picking a subtask.
+- **Environment constraints (unchanged from prior runs' notes, re-confirmed this run):** this sandbox
+  has Node 22 but no `godot`/`Godot` binary and no Playwright/Chromium install (`node_modules` absent,
+  no `package.json`, no network path to fetch either); anything requiring a real browser boot or the
+  Godot editor cannot be executed here with genuine evidence. Only pure-Node checks were run, and
+  only pure-Node/data-only work was attempted this run for that reason.
+- **Concurrency check (§8.14):** `git fetch origin main` at session start showed local `main` 5 commits
+  behind — a concurrent pipeline had just landed SW GeoCell G07 near-detail work (`225b4cc`..`53248b6`,
+  PR #312, merged minutes before this session started). Fast-forwarded cleanly, no local work lost.
+  Re-read all four corner claims fresh *after* that sync (not from the stale pre-run briefing):
+  - `SW.json`: `current_cell: "G07"`, `status: "in_progress"`, `quality_after.state:
+    "draft_successor_pending_current_head_ci"` — genuinely still open/blocked on CI, and the most
+    recently touched corner in the whole repo (commits timestamped minutes before this session). Not
+    safe to touch or to have this run overwrite its claim file.
+  - `SE.json`: `current_cell: "G75"`, `status: "active"`, Terrain3D/Godot-dependent (out of scope here
+    per this run's own environment constraints, also explicitly called out by the task briefing).
+  - `NW.json` / `NE.json`: `status: "validating"` on `G11`/`G61` respectively, but both cells' merge
+    commits (`42837d7`, `3f32d68`) are confirmed ancestors of `origin/main` — i.e. already merged;
+    the "validating" status field is stale bookkeeping left over from before the PR closed, not an
+    active concurrent claim. Both corners' most recent commits are ~14h old with no further activity.
+  - Conclusion: the briefing's "strongly preferred candidate" (claim SW's first cell) was **no longer
+    valid** — SW got claimed and is actively blocked by a different, very recent concurrent session,
+    exactly the "already claimed by a concurrent session" fallback condition the task briefing named.
+    Rather than parallel-claim a second cell under the same SW corner identity (risking corruption of
+    that session's still-live `corner_claims/SW.json` state) or guess at Godot-dependent work, this
+    run picked the safest available continuation of the *same, already-precedented, data-only pattern*
+    on a cooled-down corner: NW had already completed the three cells adjacent to its own origin corner
+    (`G01`, `G10`, `G11`, all three merged) but had never done `G00` — the literal NW corner cell
+    itself, the one remaining gap in that block. No design reason was found for it having been skipped
+    (checked: nothing in `GOVERNANCE.md`, the three existing NW files, or `four_corner_ledger.json`
+    reserves it for anything else); it reads as ordering happenstance from the three earlier sessions.
+- **Work:** `godot/terrain-authoring/geocells/nw/g00_hydrology.mjs` (new) — mirrors the existing
+  `g01_hydrology.mjs`/`g11_hydrology.mjs` bilinear water-confidence template exactly (same
+  `classifyReferenceBaseSurface` import, same policy/measure/sample function shapes), computed fresh
+  against the real canonical mask for G00's own bounds (pixels x=0..192,y=0..128): 60 water-centres /
+  36 land-centres / 12 boundary edges / 0 centre mismatches / 147 fractional coastline samples / max
+  adjacent bilinear step 0.25 / confidence checksum 2770394150. `scripts/checkNWG00Hydrology.mjs`
+  (new) hard-asserts every one of those values plus a determinism re-run (`assert.deepEqual` on two
+  independent calls). `.github/workflows/nw-g00-hydrology.yml` (new) — copied from
+  `nw-g11-hydrology.yml`'s structure verbatim (exact-main/scope gate, Node syntax+determinism step,
+  Godot 4.6.3 download + headless HTerrain import validation, Playwright/Chromium install, world
+  safety/PWA/perf/smoke/tech-debt steps, final exact-main gate), retargeted to G00's own files/branch
+  name. `corner_claims/NW.json` updated: `current_cell` → `"G00"`, `quality_after` records the same
+  metrics above, and `status`/`branch`/`pr`/`engine` fields were written to **honestly reflect this
+  run's actual verification** (direct-to-main, no PR opened, Godot/Playwright CI steps explicitly
+  *not* run locally) rather than copying the "validating"/PR-pending wording from the precedent files,
+  which would have implied CI evidence this run does not have.
+- **DoD — real, run in this sandbox, output captured:**
+  - `node --check godot/terrain-authoring/geocells/nw/g00_hydrology.mjs` → clean.
+  - `node --check scripts/checkNWG00Hydrology.mjs` → clean.
+  - `node scripts/checkNWG00Hydrology.mjs` run twice, `diff -u` between the two runs → empty (bit-for-
+    bit deterministic); printed `NW_G00_HYDROLOGY_VALIDATION_OK`.
+  - `node scripts/checkTechnicalDebt.js` → PASS, 0 newly-added debt markers.
+  - `node scripts/checkWorldReferenceMap.js`, `checkSeededRandomPolicy.js`, `checkSmokeCheckRegistry.js`
+    (34 checks/14 modules, same 2 pre-existing near-cap WARNs as Run 321/322, neither touched),
+    `terrainSeatSafetyCheck.js` (14/14 PASS), `roadNetworkSafetyCheck.js` (20.24km network, all PASS)
+    — all pure-Node, all re-run fresh, all PASS, confirming zero regression even though none of these
+    files were touched.
+  - `git diff --check` (whitespace) → clean. `JSON.parse` on the edited `NW.json` → valid.
+  - **Not run, explicitly (no fabricated evidence):** Godot headless import/HTerrain validation and
+    `smokeTestGame3D.js`'s real-browser Playwright suite — both live only inside
+    `nw-g00-hydrology.yml`, which is committed so GitHub Actions' real runners execute them on
+    push/PR; this sandbox has neither Godot nor Chromium/Playwright available to run them itself.
+  - Visual verification (§8.5): not applicable — this is non-visual authoring/QA data (a canonical-
+    mask confidence field consumed by future Godot-side sculpting tooling), same as every prior
+    hydrology-cell run; none of them produced visual evidence either.
+  - Perf budget / perf_log.csv: not applicable and not touched — this file is authoring-only and is
+    never imported by `game3d.html`/`index.html`/the service worker, so there is no render-stat delta
+    to sample (same precedent as G01/G10/G11/G60/G61/G71 — none of those runs appended a `perf_log.csv`
+    row either, confirmed by grep).
+  - ADR: not written, matching precedent — none of the six prior hydrology-cell additions (G01, G10,
+    G11, G60, G61, G71) produced an ADR either; this is a repeatable, already-decided template being
+    applied to one more cell, not a new design decision.
+- Runtime/product source delta: **0** — nothing under `src/`, `game3d.html`, `index.html`, or
+  `service-worker.js` changed; new files are confined to `godot/terrain-authoring/geocells/nw/`,
+  `scripts/checkNWG00Hydrology.mjs`, `.github/workflows/nw-g00-hydrology.yml`, and the one edited
+  `corner_claims/NW.json`. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+- Gelecek Faz Etkisi: none — authoring/QA data only, not imported by any runtime path; does not affect
+  any started or unstarted phase.
+- World Evolution Report: road km +0; forest km² +0; castles/NPC/events/animals +0; World Coverage
+  unchanged; ADR count unchanged (still 269); player-visible delta: none (invisible to a player, same
+  category as the other five merged hydrology cells).
+- Owner-gated items re-confirmed, none re-notified: leaked NVIDIA key (run 63, owner said stop
+  notifying), repo/CI infra sprawl (run 151/316, spam-prevention respected), GitHub repo-moved
+  redirect to `aapw` (Run 322 already flagged it), 10-pindex canonical-dev → live-runtime adoption
+  (open, owner has not replied, not re-flagged, not promoted). No new owner-facing item found this run.
+- Next safe step: NW now has all four of its corner-block cells (`G00`/`G01`/`G10`/`G11`) done; a
+  future run could either expand NW's frontier outward (e.g. `G02`/`G20`/`G21`) or pick up NE's
+  equivalent corner-cell gap (`G70`, NE's literal origin cell, left undone the same way NW's `G00`
+  was) using this exact same template. SW remains off-limits until its own `corner_claims/SW.json`
+  next shows a resolved/non-`in_progress` state; re-check fresh before touching it. Otherwise resume
+  standing priority order per Run 321/323's re-confirmation.

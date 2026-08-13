@@ -2,25 +2,24 @@
   "corner": "NW",
   "task_name": "Buzul Muhafızı",
   "origin": [0, 0],
-  "current_cell": "G11",
-  "status": "validating",
-  "branch": "terrain/nw-g11-hydrology-20260812",
-  "pr": 266,
-  "last_commit": "ac732ed473d632d8002a5c28291284175ba7dd36",
+  "current_cell": "G00",
+  "status": "locally_validated_direct_to_main",
+  "branch": "main",
+  "pr": null,
+  "last_commit": null,
   "quality_before": {
-    "base_cells": 96,
-    "water_centres": 38,
-    "land_centres": 58,
-    "boundary_edges": 39,
-    "hard_cell_max_step": 1
+    "note": "G01/G10/G11 (the three cells adjacent to this corner's own origin cell) already merged to main; G00 itself — the literal corner cell — was the one remaining gap in that first 2x2 block."
   },
   "quality_after": {
-    "centre_mismatches": 0,
-    "refined_samples": 1617,
-    "fractional_samples": 524,
+    "layer": "Coast Hydrology",
+    "base_cells": 96,
+    "water_centres": 60,
+    "land_centres": 36,
+    "boundary_edges": 12,
+    "hard_cell_max_step": 1,
     "max_adjacent_step": 0.25,
-    "confidence_checksum": 1445798648
+    "confidence_checksum": 2770394150
   },
-  "engine": "authoring/QA canonical mask interpolation; HTerrain preserved; Terrain3D not required for this data-only layer",
-  "updated_at": "2026-08-12T18:26:00+03:00"
+  "engine": "authoring/QA canonical mask interpolation; HTerrain preserved; Terrain3D not required for this data-only layer. Godot headless import/HTerrain validation and the Playwright browser-smoke step from this cell's dedicated workflow (nw-g00-hydrology.yml) were NOT run in this authoring sandbox (no Godot binary, no Chromium/Playwright, restricted outbound network) — only Node-only steps (node --check, deterministic double-run of the check script, checkTechnicalDebt.js) were locally verified. The workflow file is committed so GitHub Actions runs the full contract (including those two steps) on push/PR against this repo's real CI runners.",
+  "updated_at": "2026-08-13T02:56:16Z"
 }
