@@ -11,8 +11,6 @@ on:
       - 'godot/terrain-authoring/geocells/ne/g52_road_path.mjs'
       - 'scripts/checkNEG52RoadPath.mjs'
       - 'godot/terrain-authoring/scripts/validate_g52_terrain3d_road_path.gd'
-      - 'godot/terrain-authoring/corner_claims/NE.json'
-      - '.github/workflows/ne-g52-terrain3d-road-path.yml'
   workflow_dispatch:
 
 permissions:
