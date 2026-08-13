@@ -4,11 +4,11 @@
   "origin": [7, 0],
   "current_cell": "G70",
   "status": "validating",
-  "layer": "Macro Albedo/Biome",
-  "branch": "terrain/ne-g70-terrain3d-biome-r15-exact-20260813",
-  "pr": 455,
+  "layer": "Relief/Height Character",
+  "branch": "terrain/ne-g70-terrain3d-relief-r1-exact-20260813",
+  "pr": null,
   "last_commit": null,
-  "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Coast/Hydrology merged in PR #361; strict same-cell layer order therefore requires Macro Albedo/Biome next. R15 republishes the physically validated Terrain3D biome and compact near/far/full-world evidence from exact current main after unrelated concurrent terrain merges; the workflow uses live origin/main ancestry at entry and final freshness so stale successors are rejected automatically.",
+  "selection_reason": "G70 Coast/Hydrology merged in PR #361 and Macro Albedo/Biome merged in PR #455. Strict same-cell order therefore advances to Relief/Height Character. Canonical G70 is 96/96 open sea and its merged core plus G60/G71 guards resolve to the same submerged height, so R1 physically qualifies that seafloor through Terrain3D without inventing submarine ridges, coastline, islands or GeoCell-shaped relief absent from map.png.",
   "quality_before": {
     "base_cells": 96,
     "water_cells": 96,
@@ -17,12 +17,16 @@
     "lake_cells": 0,
     "boundary_edges": 0,
     "merged_hydrology_pr": 361,
-    "macro_biome_in_main": false
+    "merged_macro_biome_pr": 455,
+    "macro_biome_in_main": true
   },
   "quality_target": {
     "canonical_uniform_sea_preserved": true,
     "invented_coastline_or_land": false,
-    "owner_map_continuous_field": true,
+    "invented_submarine_relief": false,
+    "merged_hydrology_height_preserved": true,
+    "merged_biome_height_provenance_preserved": true,
+    "synthetic_relief_meters": 0,
     "west_guard_neighbor": "G60",
     "south_guard_neighbor": "G71",
     "source_grid_addressing_only": 65,
@@ -30,11 +34,11 @@
     "terrain3d_region_size": 256,
     "terrain3d_guard_regions_min": 4,
     "terrain3d_region_persistence": true,
-    "terrain3d_height_color_roughness_roundtrip": true,
+    "terrain3d_height_roundtrip": true,
     "terrain3d_lod0_bake_twice": true,
     "terrain3d_255_256_seam_probes": true,
     "near_far_full_world_visual_evidence": true,
-    "full_world_topdown": "1200x800 high-quality filtered; no grid/nearest-neighbour; G70 patch edge alpha=0",
+    "full_world_relief_patch_alpha": 0,
     "hterrain_regression_preserved": true,
     "threejs_runtime_unchanged": true
   },
@@ -51,7 +55,7 @@
     "G71": {"pr": 252, "merge_commit": "1e0c1dc35bc3726551d753d1fc1922bf01226fa9", "canonical": "96/96 sea"},
     "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
   },
-  "engine": "canonical owner-map sea semantics -> continuous guard-backed macro color/roughness over merged submerged height -> pinned Terrain3D v1.0.2-stable 257x257 filtered Height+Color import/regions/save/round-trip/LOD0 bake; compact near+far+full-world proof; HTerrain retained as regression/control",
-  "exact_base": "907dee1991e16fc89fd71121d4623aa3f86f2c4b",
-  "updated_at": "2026-08-13T19:12:00+03:00"
+  "engine": "merged G70 Hydrology + merged Macro Biome height provenance -> zero synthetic bathymetric delta for canonical open sea -> pinned Terrain3D v1.0.2-stable 257x257 Height import/regions/save/round-trip/255-256 seams/LOD0 bake twice; near+far+full-world no-invented-relief proof; HTerrain retained as regression/control",
+  "exact_base": "a8bf02108a04012aaa2e7dd0c636f5f95980dfc9",
+  "updated_at": "2026-08-13T19:27:00+03:00"
 }
