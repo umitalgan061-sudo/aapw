@@ -111,12 +111,14 @@ jobs:
                       return json.loads(line.split('=', 1)[1])
               raise SystemExit('G65 Rock/Snow metrics missing')
           a, b = metrics(sys.argv[1]), metrics(sys.argv[2])
-          stable = ('terrain3dVersion','regionSize','regionCount','alignedSamples','seamSamples','maxHeightError','maxBlendError','maxSeamHeightError','outputChecksum','bakedSurfaces','bakedVertices','savedRegionFiles')
+          stable = ('terrain3dVersion','regionSize','regionCount','alignedSamples','seamSamples','controlSeamSamples','maxHeightError','maxBlendError','maxSeamHeightError','maxSeamBlendError','maxSourceSnowWeight','outputChecksum','bakedSurfaces','bakedVertices','savedRegionFiles')
           assert {k:a[k] for k in stable} == {k:b[k] for k in stable}
           assert a['regionCount'] >= 4 and a['savedRegionFiles'] >= 4
-          assert a['alignedSamples'] == 4225 and a['seamSamples'] == 48
+          assert a['alignedSamples'] == 4225 and a['seamSamples'] == 48 and a['controlSeamSamples'] == 20
           assert a['bakedSurfaces'] >= 1 and a['bakedVertices'] > 0
-          assert a['maxHeightError'] <= 0.012 and a['maxBlendError'] <= 0.006 and a['maxSeamHeightError'] <= 0.02
+          assert a['maxHeightError'] <= 0.012 and a['maxBlendError'] <= 0.006
+          assert a['maxSeamHeightError'] <= 0.02 and a['maxSeamBlendError'] <= 0.006
+          assert a['maxSourceSnowWeight'] == 0
           print('SE_G65_TERRAIN3D_ROCK_SNOW_STABLE_OK')
           PY
 
