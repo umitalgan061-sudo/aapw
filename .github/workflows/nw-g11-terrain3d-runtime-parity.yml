@@ -88,11 +88,13 @@ jobs:
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
           mkdir -p godot/terrain-authoring/.terrain3d-proof
-          cp "$RUNNER_TEMP/source-a.json" godot/terrain-authoring/.terrain3d-proof/g11-runtime-source.json
-          test -s godot/terrain-authoring/.terrain3d-proof/g11-runtime-source.json
-          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g11_terrain3d_runtime_parity.gd | tee "$RUNNER_TEMP/t3d.log"
+          G11_RUNTIME_SOURCE_PATH="$RUNNER_TEMP/source-a.json" \
+          G11_RUNTIME_BAKE_PATH="$GITHUB_WORKSPACE/godot/terrain-authoring/.terrain3d-proof/g11-runtime-bake.json" \
+            timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g11_terrain3d_runtime_parity.gd | tee "$RUNNER_TEMP/t3d.log"
           grep -F 'NW_G11_TERRAIN3D_RUNTIME_BAKE_OK' "$RUNNER_TEMP/t3d.log"
           test -s godot/terrain-authoring/.terrain3d-proof/g11-runtime-bake.json
+          cp "$RUNNER_TEMP/source-a.json" godot/terrain-authoring/.terrain3d-proof/g11-runtime-source.json
+          test -s godot/terrain-authoring/.terrain3d-proof/g11-runtime-source.json
 
       - name: Verify Terrain3D bake in Three.js runtime adapter
         run: |
