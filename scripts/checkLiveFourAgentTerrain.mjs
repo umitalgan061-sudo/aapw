@@ -58,7 +58,14 @@ try {
   assert.equal(editorProof.samples.find((sample) => sample.cell === 'G65')?.layer, 'Near Detail');
 
   const game = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-  await game.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await game.goto(`${baseUrl}/index.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  const gameLink = game.locator('a.tb-btn[href="game3d.html"]');
+  await gameLink.waitFor({ state: 'attached', timeout: 30000 });
+  assert.equal(await gameLink.getAttribute('href'), 'game3d.html');
+  await Promise.all([
+    game.waitForURL(/\/game3d\.html(?:[?#].*)?$/, { timeout: 30000 }),
+    gameLink.click({ force: true }),
+  ]);
   await game.waitForFunction((id) => document.body.dataset.liveFourAgentTerrain === id, policyId, { timeout: 30000 });
   const gameProof = await game.evaluate(async ({ id, cellCenters }) => {
     const THREE = await import('three');
@@ -75,11 +82,12 @@ try {
       return { cell, chunk: [cx, cz], touchedCells: summary?.touchedCells ?? [], touchedVertices: summary?.touchedVertices ?? 0, maxDelta: summary?.maxHeightDeltaMeters ?? 0 };
     });
     manager.disposeAll();
-    return { bodyPolicy: document.body.dataset.liveFourAgentTerrain, canvasPresent: Boolean(document.getElementById('game3d-canvas')), gatePresent: Boolean(document.getElementById('run266-entry-gate')), meshes, expectedPolicy: id };
+    return { bodyPolicy: document.body.dataset.liveFourAgentTerrain, canvasPresent: Boolean(document.getElementById('game3d-canvas')), gatePresent: Boolean(document.getElementById('run266-entry-gate')), meshes, expectedPolicy: id, href: location.pathname };
   }, { id: policyId, cellCenters: centers });
   assert.equal(gameProof.bodyPolicy, policyId);
   assert.equal(gameProof.canvasPresent, true);
   assert.equal(gameProof.gatePresent, true);
+  assert.match(gameProof.href, /\/game3d\.html$/);
   for (const mesh of gameProof.meshes) {
     assert.ok(mesh.touchedCells.includes(mesh.cell), `${mesh.cell} was not adopted by the real ChunkManager mesh path`);
     assert.ok(mesh.touchedVertices > 100, `${mesh.cell} touched too few chunk vertices: ${mesh.touchedVertices}`);
