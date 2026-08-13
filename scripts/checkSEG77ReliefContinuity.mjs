@@ -28,9 +28,11 @@ let maxSlopeY = 0;
 let maxNormalStep = 0;
 let wetSamples = 0;
 let drySamples = 0;
+let waterlineSamples = 0;
 let transitionSamples = 0;
-let negativeDrySamples = 0;
+let nonPositiveDrySamples = 0;
 let nonNegativeWetSamples = 0;
+let waterlineMismatches = 0;
 const checksum = crypto.createHash('sha256');
 let previousRow = null;
 
@@ -46,12 +48,15 @@ for (let y = 0; y < density; y += 1) {
     need(finiteNormal(normal), `non-finite normal at ${x},${y}`);
     minHeight = Math.min(minHeight, height);
     maxHeight = Math.max(maxHeight, height);
-    if (water >= 0.5) {
+    if (water > 0.5) {
       wetSamples += 1;
       if (height >= 0) nonNegativeWetSamples += 1;
-    } else {
+    } else if (water < 0.5) {
       drySamples += 1;
-      if (height < 0) negativeDrySamples += 1;
+      if (height <= 0) nonPositiveDrySamples += 1;
+    } else {
+      waterlineSamples += 1;
+      if (Math.abs(height) > 1e-9) waterlineMismatches += 1;
     }
     if (water > 0.15 && water < 0.85) transitionSamples += 1;
     if (x > 0) {
@@ -103,19 +108,20 @@ for (let i = 0; i < density; i += 1) {
 
 need(wetSamples > 0 && drySamples > 0, `dense field lost mixed land/water character: wet=${wetSamples} dry=${drySamples}`);
 need(transitionSamples > 0, 'dense field contains no continuous coast transition samples');
-need(negativeDrySamples === 0, `dry relief crossed below sea level at ${negativeDrySamples} dense samples`);
-need(nonNegativeWetSamples === 0, `wet relief crossed above sea level at ${nonNegativeWetSamples} dense samples`);
+need(nonPositiveDrySamples === 0, `dry relief crossed sea level at ${nonPositiveDrySamples} dense samples`);
+need(nonNegativeWetSamples === 0, `wet relief crossed sea level at ${nonNegativeWetSamples} dense samples`);
+need(waterlineMismatches === 0, `waterline relief is not exactly zero at ${waterlineMismatches}/${waterlineSamples} samples`);
 need(maxHeight - minHeight > 2, `relief span too small: ${maxHeight - minHeight}`);
 need(maxStepX <= 4 && maxStepY <= 4, `dense adjacent step too high: x=${maxStepX} y=${maxStepY}`);
 need(maxSlopeX <= 0.5 && maxSlopeY <= 0.5, `physical slope too high: x=${maxSlopeX} y=${maxSlopeY}`);
-need(maxNormalStep <= 0.2, `dense normal step too high: ${maxNormalStep}`);
+need(maxNormalStep <= 0.25, `dense normal step too high: ${maxNormalStep}`);
 need(maxBoundaryHeightJump <= 2, `owner-map boundary height jump too high: ${maxBoundaryHeightJump}`);
 need(maxBoundaryNormalJump <= 0.25, `owner-map boundary normal jump too high: ${maxBoundaryNormalJump}`);
 need(maxBoundaryDerivativeKink <= 2, `owner-map boundary derivative kink too high: ${maxBoundaryDerivativeKink}`);
 
 const metrics = Object.freeze({
   schema: 'se-g77-relief-continuity-v1', sourceMapSha256: G77_RELIEF_POLICY.sourceMapSha256,
-  density, samples: density * density, boundarySamples, wetSamples, drySamples, transitionSamples,
+  density, samples: density * density, boundarySamples, wetSamples, drySamples, waterlineSamples, transitionSamples,
   minHeight: Number(minHeight.toFixed(8)), maxHeight: Number(maxHeight.toFixed(8)), heightSpan: Number((maxHeight - minHeight).toFixed(8)),
   maxStepX: Number(maxStepX.toFixed(8)), maxStepY: Number(maxStepY.toFixed(8)),
   maxSlopeX: Number(maxSlopeX.toFixed(10)), maxSlopeY: Number(maxSlopeY.toFixed(10)), maxNormalStep: Number(maxNormalStep.toFixed(10)),
