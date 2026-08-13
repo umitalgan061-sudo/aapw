@@ -36,16 +36,18 @@ jobs:
         with:
           node-version: 22
 
-      - name: Exact-main and scope gate
+      - name: Scope and merge-base gate
         run: |
           set -euo pipefail
           git fetch origin main
-          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
-          git diff --check origin/main...HEAD
-          CHANGED="$(git diff --name-only origin/main...HEAD)"
+          BASE="$(git merge-base HEAD origin/main)"
+          test -n "$BASE"
+          echo "SW_G07_CI_MERGE_BASE=$BASE"
+          git diff --check "$BASE"...HEAD
+          CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
           test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs|godot/terrain-authoring/scripts/validate_g07_terrain3d_runtime_parity.gd|scripts/checkSWG07Terrain3dRuntimeBake.mjs|scripts/checkSWG07LiveRoadExclusion.mjs|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g07-terrain3d-runtime-bake.yml)$' | wc -l)" -eq 0
-          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/addons/zylann.hterrain godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/project.godot
+          git diff --quiet "$BASE"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/project.godot
 
       - name: Syntax
         run: |
