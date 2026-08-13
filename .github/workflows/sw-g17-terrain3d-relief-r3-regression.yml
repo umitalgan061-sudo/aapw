@@ -1,6 +1,6 @@
 name: SW G17 Terrain3D Relief R3 Regression
 on:
-  push: { branches: [agent/gunbatimi-ustasi-g17-relief-r8-20260813] }
+  push: { branches: [agent/gunbatimi-ustasi-g17-relief-r9-20260813] }
   pull_request: { branches: [main] }
 permissions: { contents: read }
 concurrency: { group: 'sw-g17-r3-regression-${{ github.ref }}', cancel-in-progress: true }
@@ -10,55 +10,35 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: Exact-main scope and quota
         run: |
-          set -euo pipefail; git fetch origin main; BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
-          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"; git diff --check "$BASE_SHA"...HEAD
-          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"; test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkSWG17ReliefTerrain3D(Probe|Evidence|GridEvidence|PersistenceEvidence)\.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_relief(_seam|_grid|_reload|_lod)?\.gd|\.github/workflows/sw-g17-terrain3d-relief-r3-(core|regression)\.yml)$' | wc -l)" -eq 0
-          A="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$2}END{print s+0}')"; test $((A+D)) -le 1000
-      - name: Build source probe
+          set -euo pipefail; git fetch origin main; BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"; test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"; git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"; test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkSWG17ReliefTerrain3D(Probe|Evidence|GridEvidence|PersistenceEvidence|GuardBand)\.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_relief(_seam|_grid|_reload|_lod|_persist_grid)?\.gd|\.github/workflows/sw-g17-terrain3d-relief-r3-(core|regression)\.yml)$' | wc -l)" -eq 0; A="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$2}END{print s+0}')"; test $((A+D)) -le 1000
+      - name: Source and guard-band probe
         run: |
-          set -euo pipefail; node --check scripts/checkSWG17ReliefTerrain3DProbe.mjs; node --check scripts/checkSWG17ReliefTerrain3DEvidence.mjs; node --check scripts/checkSWG17ReliefTerrain3DGridEvidence.mjs; node --check scripts/checkSWG17ReliefTerrain3DPersistenceEvidence.mjs; mkdir -p godot/terrain-authoring/.terrain3d-proof
-          node scripts/checkSWG17Hydrology.mjs; node scripts/checkSWG17Biome.mjs; node scripts/checkSWG17Relief.mjs
-          node scripts/checkSWG17ReliefTerrain3DProbe.mjs --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json
+          set -euo pipefail; node --check scripts/checkSWG17ReliefTerrain3DProbe.mjs; node --check scripts/checkSWG17ReliefTerrain3DEvidence.mjs; node --check scripts/checkSWG17ReliefTerrain3DGridEvidence.mjs; node --check scripts/checkSWG17ReliefTerrain3DPersistenceEvidence.mjs; node --check scripts/checkSWG17ReliefTerrain3DGuardBand.mjs
+          node scripts/checkSWG17Hydrology.mjs; node scripts/checkSWG17Biome.mjs; node scripts/checkSWG17Relief.mjs; node scripts/checkSWG17ReliefTerrain3DGuardBand.mjs; mkdir -p godot/terrain-authoring/.terrain3d-proof; node scripts/checkSWG17ReliefTerrain3DProbe.mjs --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json
       - name: Install pinned Terrain3D and Godot
         run: |
-          set -euo pipefail; python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/install.log; grep -F TERRAIN3D_INSTALL_OK /tmp/install.log
-          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee /tmp/verify.log; grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true' /tmp/verify.log
-          curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/g.zip; mkdir -p /tmp/g; unzip -q /tmp/g.zip -d /tmp/g
-          G="$(find /tmp/g -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; chmod +x "$G"; "$G" --version | grep -F 4.6.3; echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
-      - name: Full-grid Terrain3D determinism
+          set -euo pipefail; python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/install.log; grep -F TERRAIN3D_INSTALL_OK /tmp/install.log; python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee /tmp/verify.log; grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true' /tmp/verify.log
+          curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/g.zip; mkdir -p /tmp/g; unzip -q /tmp/g.zip -d /tmp/g; G="$(find /tmp/g -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; chmod +x "$G"; "$G" --version | grep -F 4.6.3; echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
+      - name: Full-grid and multi-LOD Terrain3D determinism
         run: |
-          set -euo pipefail
-          timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_grid.gd | tee /tmp/grid-a.log
-          timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_grid.gd | tee /tmp/grid-b.log
-          node scripts/checkSWG17ReliefTerrain3DGridEvidence.mjs --probe=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json --log-a=/tmp/grid-a.log --log-b=/tmp/grid-b.log --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-grid-evidence-manifest.json
-      - name: Multi-LOD Terrain3D bake determinism
+          set -euo pipefail; timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_grid.gd | tee /tmp/grid-a.log; timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_grid.gd | tee /tmp/grid-b.log; node scripts/checkSWG17ReliefTerrain3DGridEvidence.mjs --probe=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json --log-a=/tmp/grid-a.log --log-b=/tmp/grid-b.log --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-grid-evidence-manifest.json
+          timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_lod.gd | tee /tmp/lod-a.log; timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_lod.gd | tee /tmp/lod-b.log; grep -F SW_G17_TERRAIN3D_RELIEF_LOD_OK /tmp/lod-a.log; grep -F SW_G17_TERRAIN3D_RELIEF_LOD_OK /tmp/lod-b.log; cmp /tmp/lod-a.log /tmp/lod-b.log
+      - name: Persisted full-grid roundtrip
         run: |
-          set -euo pipefail
-          timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_lod.gd | tee /tmp/lod-a.log
-          timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_lod.gd | tee /tmp/lod-b.log
-          grep -F SW_G17_TERRAIN3D_RELIEF_LOD_OK /tmp/lod-a.log; grep -F SW_G17_TERRAIN3D_RELIEF_LOD_OK /tmp/lod-b.log; cmp /tmp/lod-a.log /tmp/lod-b.log
-      - name: HTerrain regression
+          set -euo pipefail; G17_RELIEF_GRID_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_persist_grid.gd | tee /tmp/pg-a.log; G17_RELIEF_GRID_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_relief_persist_grid.gd | tee /tmp/pg-b.log; grep -F SW_G17_TERRAIN3D_RELIEF_PERSIST_GRID_OK /tmp/pg-a.log; grep -F SW_G17_TERRAIN3D_RELIEF_PERSIST_GRID_OK /tmp/pg-b.log; cmp /tmp/pg-a.log /tmp/pg-b.log
+      - name: HTerrain and runtime regression
         run: |
-          set -euo pipefail; timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 | tee /tmp/editor.log
-          ! grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' /tmp/editor.log
-          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log; grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/hterrain.log
-      - name: Terrain and runtime safety
-        run: |
-          set -euo pipefail
-          node scripts/terrainSeatSafetyCheck.js; node scripts/roadNetworkSafetyCheck.js; node scripts/checkSeededRandomPolicy.js; node scripts/checkWorldReferenceMap.js
-          node scripts/checkPwaInstallability.js; node scripts/checkServiceWorkerCache.js; node scripts/checkMobilePerfBudget.js; node scripts/checkTechnicalDebt.js; node scripts/checkSmokeCheckRegistry.js
+          set -euo pipefail; timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 | tee /tmp/editor.log; ! grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' /tmp/editor.log; timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log; grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/hterrain.log
+          node scripts/terrainSeatSafetyCheck.js; node scripts/roadNetworkSafetyCheck.js; node scripts/checkSeededRandomPolicy.js; node scripts/checkWorldReferenceMap.js; node scripts/checkPwaInstallability.js; node scripts/checkServiceWorkerCache.js; node scripts/checkMobilePerfBudget.js; node scripts/checkTechnicalDebt.js; node scripts/checkSmokeCheckRegistry.js
       - name: Browser and visual evidence
         run: |
-          set -euo pipefail; mkdir -p /tmp/pw; npm install --prefix /tmp/pw --no-save --no-package-lock playwright@1.55.0
-          /tmp/pw/node_modules/.bin/playwright install --with-deps chromium; export NODE_PATH=/tmp/pw/node_modules
-          node scripts/smokeTestGame3D.js; node scripts/checkSWG17HydrologyVisualEvidence.mjs
+          set -euo pipefail; mkdir -p /tmp/pw; npm install --prefix /tmp/pw --no-save --no-package-lock playwright@1.55.0; /tmp/pw/node_modules/.bin/playwright install --with-deps chromium; export NODE_PATH=/tmp/pw/node_modules; node scripts/smokeTestGame3D.js; node scripts/checkSWG17HydrologyVisualEvidence.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: sw-g17-relief-r3-regression-proof, include-hidden-files: true, path: godot/terrain-authoring/.terrain3d-proof/ }

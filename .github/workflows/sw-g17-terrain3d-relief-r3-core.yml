@@ -1,6 +1,6 @@
 name: SW G17 Terrain3D Relief R3 Core
 on:
-  push: { branches: [agent/gunbatimi-ustasi-g17-relief-r8-20260813] }
+  push: { branches: [agent/gunbatimi-ustasi-g17-relief-r9-20260813] }
   pull_request: { branches: [main] }
 permissions: { contents: read }
 concurrency: { group: 'sw-g17-r3-core-${{ github.ref }}', cancel-in-progress: true }
@@ -20,10 +20,11 @@ jobs:
           set -euo pipefail; git fetch origin main; BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"; git diff --check "$BASE_SHA"...HEAD
           A="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$2}END{print s+0}')"; test $((A+D)) -le 1000
-      - name: Source proof
+      - name: Source and guard-band proof
         run: |
           set -euo pipefail; node scripts/checkSWG17Hydrology.mjs; node scripts/checkSWG17Biome.mjs; node scripts/checkSWG17Relief.mjs
-          node --check scripts/checkSWG17ReliefTerrain3DProbe.mjs; node --check scripts/checkSWG17ReliefTerrain3DEvidence.mjs; node --check scripts/checkSWG17ReliefTerrain3DGridEvidence.mjs; node --check scripts/checkSWG17ReliefTerrain3DPersistenceEvidence.mjs; mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node --check scripts/checkSWG17ReliefTerrain3DProbe.mjs; node --check scripts/checkSWG17ReliefTerrain3DEvidence.mjs; node --check scripts/checkSWG17ReliefTerrain3DGridEvidence.mjs; node --check scripts/checkSWG17ReliefTerrain3DPersistenceEvidence.mjs; node --check scripts/checkSWG17ReliefTerrain3DGuardBand.mjs; mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node scripts/checkSWG17ReliefTerrain3DGuardBand.mjs | tee /tmp/guard-a.log; node scripts/checkSWG17ReliefTerrain3DGuardBand.mjs | tee /tmp/guard-b.log; cmp /tmp/guard-a.log /tmp/guard-b.log
           node scripts/checkSWG17ReliefTerrain3DProbe.mjs --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json | tee /tmp/probe-a.log; cp godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json /tmp/probe-a.json
           node scripts/checkSWG17ReliefTerrain3DProbe.mjs --out=godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json | tee /tmp/probe-b.log; cmp /tmp/probe-a.log /tmp/probe-b.log; cmp /tmp/probe-a.json godot/terrain-authoring/.terrain3d-proof/g17-relief-probe.json
       - name: Install Terrain3D and Godot 4.6.3
