@@ -2,12 +2,19 @@
   "corner": "SW",
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
-  "current_cell": null,
-  "status": "idle",
-  "branch": null,
-  "pr": null,
-  "last_commit": null,
-  "quality_before": null,
-  "quality_after": null,
-  "updated_at": null
+  "current_cell": "G07",
+  "status": "in_progress",
+  "branch": "terrain/sw-g07-near-detail-main868-20260813",
+  "pr": 312,
+  "last_commit": "868f7cbb3c0a0b11d8dac98a9c6e43f06e29213f",
+  "quality_before": {
+    "layer": "Near Detail",
+    "evidence_pr": 309,
+    "dedicated_ci": "failed_at_runtime_safety_playwright_resolution"
+  },
+  "quality_after": {
+    "layer": "Near Detail",
+    "state": "draft_successor_pending_current_head_ci"
+  },
+  "updated_at": "2026-08-13T02:07:00Z"
 }
