@@ -14,6 +14,8 @@ collision_enabled = false
 ambient_wind = 0.2
 shader_params/u_tile_reduction = Vector4(1, 0, 0, 0)
 shader_params/u_specular = 0.25
+shader_params/u_globalmap_blend_start = 420.0
+shader_params/u_globalmap_blend_distance = 0.0025
 
 [node name="NormalBakeTileSchedulerBridge" type="Node" parent="HTerrain"]
 script = ExtResource("4_normal_bridge")
