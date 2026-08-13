@@ -9,7 +9,7 @@ import {
 } from '../godot/terrain-authoring/geocells/se/g65_near_detail.mjs';
 import {
   G65_TERRAIN3D_RUNTIME_PARITY,
-} from '../src/3d/world/g65Terrain3dBake.js';
+} from '../src/3d/world/worldReferenceTerrainAdapter.js';
 
 const { loadPlaywright, startStaticServer } = devServerHelper;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -165,7 +165,7 @@ async function verifyBrowserAdapter(bake) {
     page.on('pageerror', (error) => errors.push(String(error)));
     await page.goto(`http://127.0.0.1:${port}/scripts/fixtures/sw-g07-runtime-visual-harness.html`, { waitUntil: 'load', timeout: 20000 });
     const result = await page.evaluate(async (payload) => {
-      const { G65_TERRAIN3D_RUNTIME_PARITY, createG65Terrain3DWorldSampler } = await import('/src/3d/world/g65Terrain3dBake.js');
+      const { G65_TERRAIN3D_RUNTIME_PARITY, createG65Terrain3DWorldSampler } = await import('/src/3d/world/worldReferenceTerrainAdapter.js');
       const { WORLD_SCALE } = await import('/src/3d/config.js');
       const { normalizedReferenceToWorldXZ } = await import('/src/3d/world/worldReferenceAlignment.js');
       const sampler = createG65Terrain3DWorldSampler(payload, {
