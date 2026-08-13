@@ -92,8 +92,6 @@ async function captureLiveGame(playwright, base) {
     const canvas = page.locator('#game3d-canvas');
     await canvas.waitFor({ state: 'visible', timeout: 30000 });
 
-    // Use the game's real F4 free-fly camera. First pitch almost straight upward,
-    // then fly roughly a kilometre vertically at Shift-run speed.
     await page.keyboard.press('F4');
     await page.waitForTimeout(300);
     const box = await canvas.boundingBox();
@@ -112,14 +110,12 @@ async function captureLiveGame(playwright, base) {
     await page.keyboard.up('ShiftLeft');
     await page.waitForTimeout(350);
 
-    // Pitch down toward the terrain and keep a slightly oblique view so relief reads as 3D.
     await page.mouse.move(cx, cy);
     await page.mouse.down();
     await page.mouse.move(cx, box.y + box.height - 5, { steps: 30 });
     await page.mouse.up();
     await page.waitForTimeout(1200);
 
-    // Hide DOM HUD only; the canvas remains the untouched game WebGL render.
     await page.evaluate(() => {
       for (const child of Array.from(document.body.children)) {
         if (child.id !== 'game3d-canvas') child.style.setProperty('display', 'none', 'important');
@@ -132,7 +128,6 @@ async function captureLiveGame(playwright, base) {
     fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
     await canvas.screenshot({ path: path.join(ARTIFACT_DIR, 'game3d-close-overhead.png') });
 
-    // Move forward while looking down: this descends toward the same real terrain for a tighter shot.
     await page.keyboard.down('KeyW');
     await page.waitForTimeout(1350);
     await page.keyboard.up('KeyW');
@@ -167,9 +162,6 @@ async function main() {
   const page = await context.newPage();
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  /* additive-only Run216 syntax quarantine for the malformed legacy listener below
-  page.on('pageerror', (error) => errors.push(String(error));
-  */
   page.on('pageerror', (error) => errors.push(String(error)));
 
   try {
@@ -185,13 +177,13 @@ async function main() {
     assert(snapshot.roadSegmentCount > 0, `No canonical gameplay road segments loaded: ${snapshot.roadSegmentCount}`);
     assert(snapshot.settlementCount === 14, `Expected 14 gameplay settlement seats, got ${snapshot.settlementCount}`);
     assert(snapshot.realCastlesReady === true, 'Real castle loading never completed');
-    assert(snapshot.realCastleCount === 8, `Expected 8 gameplay real castles, got ${snapshot.realCastleCount}`);
+    assert(snapshot.realCastleCount === 14, `Expected 14 gameplay real castles, got ${snapshot.realCastleCount}`);
     assert(errors.length === 0, `Browser errors: ${errors.join(' | ')}`);
 
     fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop-live-westeros-editor.png'), fullPage: true });
     console.log(`[checkRun216EditorLiveWorldBrowser] PROOF: ${JSON.stringify(snapshot)}`);
-    console.log('[checkRun216EditorLiveWorldBrowser] PASS: editor viewport shows canonical gameplay terrain/water/roads/settlements/vegetation/sky plus all 8 real castle models; synthetic ground hidden.');
+    console.log('[checkRun216EditorLiveWorldBrowser] PASS: editor viewport shows canonical gameplay terrain/water/roads/settlements/vegetation/sky plus all current real castle models; synthetic ground hidden.');
 
     await captureLiveGame(playwright, base);
   } finally {
