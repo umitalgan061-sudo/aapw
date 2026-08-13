@@ -45,12 +45,22 @@ jobs:
           git diff --check "$BASE_SHA" HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g70_hydrology.mjs|scripts/checkNEG70Terrain3DHydrology.mjs|godot/terrain-authoring/scripts/validate_g70_terrain3d_hydrology.gd|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g70-terrain3d-hydrology.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 5
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g70_hydrology.mjs|scripts/checkNEG70Terrain3DHydrology.mjs|godot/terrain-authoring/scripts/validate_g70_terrain3d_hydrology.gd|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g70-terrain3d-hydrology.yml|\.github/workflows/ne-g52-terrain3d-rock-snow.yml|\.github/workflows/ne-g52-terrain3d-road-path.yml|\.github/workflows/ne-g52-terrain3d-near-detail.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 8
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
           git diff --quiet "$BASE_SHA"...HEAD -- addons/zylann.hterrain
           git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/terrain.js
+
+      - name: G52 completed-workflow trigger lifecycle regression
+        run: |
+          set -euo pipefail
+          for f in \
+            .github/workflows/ne-g52-terrain3d-rock-snow.yml \
+            .github/workflows/ne-g52-terrain3d-road-path.yml \
+            .github/workflows/ne-g52-terrain3d-near-detail.yml; do
+            ! grep -F "godot/terrain-authoring/corner_claims/NE.json" "$f"
+          done
 
       - name: Syntax and deterministic canonical G70 source twice
         run: |

@@ -11,8 +11,6 @@ on:
       - 'godot/terrain-authoring/geocells/ne/g52_rock_snow.mjs'
       - 'scripts/checkNEG52RockSnow.mjs'
       - 'godot/terrain-authoring/scripts/validate_g52_terrain3d_rock_snow.gd'
-      - 'godot/terrain-authoring/corner_claims/NE.json'
-      - '.github/workflows/ne-g52-terrain3d-rock-snow.yml'
   workflow_dispatch:
 
 permissions:
