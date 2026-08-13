@@ -9,6 +9,11 @@
  * snapshot. GOVERNANCE.md requires all three records at a successful checkpoint; this guard makes
  * that invariant executable.
  *
+ * Progress entries may also truthfully record a non-checkpoint session (for example a documentation
+ * pass that explicitly says no perf-log entry is needed, or a partial run that explicitly lists
+ * required validation as not run). Those sections are audit history, not completed checkpoints, and
+ * must not advance the continuity watermark.
+ *
  * Usage: node scripts/checkCheckpointConsistency.js
  * Exit 0 = latest completed run is represented by progress + performance + stable tag.
  * Exit 1 = records are missing or disagree.
@@ -27,10 +32,22 @@ function read(relativePath) {
 	return fs.readFileSync(fullPath, 'utf8');
 }
 
+function progressSectionIsExplicitlyNonCheckpoint(sectionBody) {
+	const normalized = sectionBody.replace(/[`*_]/g, ' ').replace(/\s+/g, ' ');
+	return /\bnot run,\s*explicitly\b/i.test(normalized)
+		|| /\bno\b.{0,100}\bperf-log entry needed\b/i.test(normalized);
+}
+
 function maxRunFromProgress(text) {
+	const headings = [...text.matchAll(/^##\s+(?:This Run\b.*?\brun\s+(\d+)\b|Run\s+(\d+)\b).*$/gim)];
 	const runs = [];
-	for (const match of text.matchAll(/^##\s+(?:This Run\b.*?\brun\s+(\d+)\b|Run\s+(\d+)\b)/gim)) {
-		runs.push(Number(match[1] || match[2]));
+	for (let index = 0; index < headings.length; index++) {
+		const match = headings[index];
+		const run = Number(match[1] || match[2]);
+		const sectionStart = match.index + match[0].length;
+		const sectionEnd = index + 1 < headings.length ? headings[index + 1].index : text.length;
+		const body = text.slice(sectionStart, sectionEnd);
+		if (!progressSectionIsExplicitlyNonCheckpoint(body)) runs.push(run);
 	}
 	return runs.length ? Math.max(...runs) : null;
 }
