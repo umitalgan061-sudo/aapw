@@ -1,4 +1,4 @@
-name: Temporary G17 Hydrology Layer Regression Repair
+name: Temporary G17 Hydrology Layer Trigger Repair
 
 on:
   push:
@@ -10,45 +10,21 @@ permissions:
 
 jobs:
   repair:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ci/sw-g17-hydrology-layer-regression-20260813
-      - name: Make Hydrology a safe regression gate for later G17 layers
-        shell: bash
+      - name: Remove generic SW claim from Hydrology path trigger and retire workflow
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('.github/workflows/sw-g17-terrain3d-hydrology.yml')
-          text = path.read_text()
-          old = '''          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g17_hydrology.mjs|scripts/checkSWG17Hydrology.mjs|scripts/checkSWG17HydrologyVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd|godot/terrain-authoring/corner_claims/SW.json|\\.github/workflows/sw-g17-terrain3d-hydrology.yml)$' | wc -l)" -eq 0
-'''
-          new = '''          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          echo "$CHANGED"
-          HYDROLOGY_CORE='^(godot/terrain-authoring/geocells/sw/g17_hydrology.mjs|scripts/checkSWG17Hydrology.mjs|scripts/checkSWG17HydrologyVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd|\\.github/workflows/sw-g17-terrain3d-hydrology.yml)$'
-          HYDROLOGY_SCOPE='^(godot/terrain-authoring/geocells/sw/g17_hydrology.mjs|scripts/checkSWG17Hydrology.mjs|scripts/checkSWG17HydrologyVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_hydrology.gd|godot/terrain-authoring/corner_claims/SW.json|\\.github/workflows/sw-g17-terrain3d-hydrology.yml)$'
-          if [[ "$GITHUB_EVENT_NAME" == "push" || "${GITHUB_HEAD_REF:-}" == terrain/sw-g17-hydrology-* ]] || echo "$CHANGED" | grep -Eq "$HYDROLOGY_CORE"; then
-            test "$(echo "$CHANGED" | grep -Ev "$HYDROLOGY_SCOPE" | wc -l)" -eq 0
-            echo 'G17_HYDROLOGY_BOUNDED_SCOPE_MODE=1'
-          else
-            echo 'G17_HYDROLOGY_LATER_LAYER_REGRESSION_MODE=1'
-          fi
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'expected one exact scope snippet, found {text.count(old)}')
-          path.write_text(text.replace(old, new))
-          PY
+          python3 -c "from pathlib import Path; p=Path('.github/workflows/sw-g17-terrain3d-hydrology.yml'); t=p.read_text(); old=\"      - 'godot/terrain-authoring/corner_claims/SW.json'\\n\"; assert t.count(old) == 1, t.count(old); p.write_text(t.replace(old, ''))"
           git rm .github/workflows/temporary-g17-hydrology-layer-regression-repair.yml
           git diff --check
-          grep -F 'G17_HYDROLOGY_LATER_LAYER_REGRESSION_MODE=1' .github/workflows/sw-g17-terrain3d-hydrology.yml
+          test "$(grep -cF \"godot/terrain-authoring/corner_claims/SW.json\" .github/workflows/sw-g17-terrain3d-hydrology.yml)" -eq 1
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .github/workflows/sw-g17-terrain3d-hydrology.yml
-          git commit -m 'ci: allow G17 hydrology regression on later layers'
+          git commit -m 'ci: stop G17 hydrology from claiming later-layer PRs'
           git push origin HEAD:ci/sw-g17-hydrology-layer-regression-20260813
