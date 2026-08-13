@@ -1,4 +1,4 @@
-/** 
+/**
  * Runtime adapter for a deterministic G11 Terrain3D bake artifact.
  * GeoCell coordinates are artifact addressing only; bilinear interpolation is continuous.
  */
