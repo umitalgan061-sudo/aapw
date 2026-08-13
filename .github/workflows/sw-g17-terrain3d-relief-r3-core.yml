@@ -1,6 +1,6 @@
 name: SW G17 Terrain3D Relief R3 Core
 on:
-  push: { branches: [agent/gunbatimi-ustasi-g17-relief-r3-20260813] }
+  push: { branches: [agent/gunbatimi-ustasi-g17-relief-r7-20260813] }
   pull_request: { branches: [main] }
 permissions: { contents: read }
 concurrency: { group: 'sw-g17-r3-core-${{ github.ref }}', cancel-in-progress: true }
