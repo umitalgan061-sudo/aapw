@@ -1,11 +1,15 @@
 /**
- * Shadow-only canonical hydrology terrain adapter.
+ * Canonical reference-world terrain adapter.
  *
  * Run 186 is the first executable height-sampler layer that applies the owner-map coastline to the
  * planned full-reference world. It deliberately does NOT replace `world/terrain.js` or alter the
  * live scene: callers must opt in explicitly by wrapping an existing target-scale base sampler.
  * Raw Run179 coastline data and Run182 seat-protection data stay immutable; this module only
  * composes them into a deterministic terrain-height policy for migration qualification.
+ *
+ * NW G11 Terrain3D parity additionally exposes a deterministic bilinear sampler for a validated
+ * Terrain3D bake artifact. Keeping that sampler in this established, PWA-precached terrain adapter
+ * avoids creating a second offline runtime island while leaving the hydrology shadow policy intact.
  * @module world/worldReferenceTerrainAdapter
  */
 
@@ -139,4 +143,69 @@ export function createCanonicalHydrologyTerrainSampler({
 			policy,
 		}).targetHeightMeters;
 	};
+}
+
+export const G11_TERRAIN3D_PARITY_SCHEMA = 'westeros-g11-terrain3d-bake-v1';
+
+function assertG11Terrain3DBake(bake) {
+	if (!bake || bake.schema !== G11_TERRAIN3D_PARITY_SCHEMA) {
+		throw new TypeError('invalid G11 Terrain3D bake schema');
+	}
+	if (!Number.isInteger(bake.width) || !Number.isInteger(bake.height) || bake.width < 2 || bake.height < 2) {
+		throw new RangeError('G11 bake dimensions must be >= 2');
+	}
+	if (!Array.isArray(bake.heights) || bake.heights.length !== bake.width * bake.height) {
+		throw new RangeError('G11 bake height payload size mismatch');
+	}
+	for (let i = 0; i < bake.heights.length; i++) {
+		assertFinite(Number(bake.heights[i]), `G11 bake height[${i}]`);
+	}
+}
+
+/**
+ * Creates the continuous Three.js-side sampler for a validated G11 Terrain3D bake. The 65x65
+ * payload is an addressing/proof lattice only: runtime queries interpolate bilinearly in normalized
+ * reference space and never expose nearest-neighbour GeoCell steps.
+ */
+export function createG11Terrain3DBakeSampler(bake) {
+	assertG11Terrain3DBake(bake);
+	const { minX, maxX, minY, maxY } = bake.normalizedBounds;
+	assertFinite(minX, 'minX');
+	assertFinite(maxX, 'maxX');
+	assertFinite(minY, 'minY');
+	assertFinite(maxY, 'maxY');
+	if (!(maxX > minX) || !(maxY > minY)) throw new RangeError('G11 normalized bounds are invalid');
+
+	const scaleX = (bake.width - 1) / (maxX - minX);
+	const scaleY = (bake.height - 1) / (maxY - minY);
+	return function sampleNormalized(nx, ny) {
+		if (nx < minX || nx > maxX || ny < minY || ny > maxY) return null;
+		const x = Math.min(bake.width - 1, Math.max(0, (nx - minX) * scaleX));
+		const y = Math.min(bake.height - 1, Math.max(0, (ny - minY) * scaleY));
+		const x0 = Math.floor(x);
+		const y0 = Math.floor(y);
+		const x1 = Math.min(bake.width - 1, x0 + 1);
+		const y1 = Math.min(bake.height - 1, y0 + 1);
+		const tx = x - x0;
+		const ty = y - y0;
+		const at = (ix, iy) => Number(bake.heights[iy * bake.width + ix]);
+		const a = at(x0, y0) * (1 - tx) + at(x1, y0) * tx;
+		const b = at(x0, y1) * (1 - tx) + at(x1, y1) * tx;
+		return a * (1 - ty) + b * ty;
+	};
+}
+
+/** Applies the validated G11 bake to matching Three.js position vertices without discrete cell steps. */
+export function applyG11Terrain3DBakeToPositionAttribute(position, normalizedForVertex, bake) {
+	const sample = createG11Terrain3DBakeSampler(bake);
+	let touched = 0;
+	for (let i = 0; i < position.count; i++) {
+		const uv = normalizedForVertex(i);
+		const height = sample(uv.x, uv.y);
+		if (height === null) continue;
+		position.setY(i, height);
+		touched++;
+	}
+	position.needsUpdate = touched > 0;
+	return touched;
 }
