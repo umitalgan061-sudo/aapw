@@ -1,6 +1,16 @@
 /** FAZ 8 responsive controls-reference regression check (run 104, ADR-0131). */
 
-const NAV_TIMEOUT_MS = 10_000;
+// Run 332 RCA (game3d.js line-cap extraction, ADR-0279): this project's own boot cost has grown
+// past this constant's original assumption -- run-326/330/330b/331's procedural creatures, real
+// castle models, and villages pushed a real game3d.html boot to ~9-13s (observed via direct
+// domcontentloaded-timing instrumentation) in this project's software-WebGL sandboxed CI/dev
+// environment, which sat right at or over the old 10s/15s ceiling -- a pre-existing flake
+// (already recorded as an "environment quirk" by game3dSmokeChecksScene.js's own run-68 comment)
+// that reproduced on unmodified `main` in this run's own RCA, not something the run's actual code
+// change caused (confirmed: that change executes strictly after the domcontentloaded event this
+// timeout gates on). 30s gives real margin above the observed range, including one measured 20s+
+// outlier under sandbox contention.
+const NAV_TIMEOUT_MS = 30_000;
 
 async function checkControlsHelp(browser, baseUrl) {
 	const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

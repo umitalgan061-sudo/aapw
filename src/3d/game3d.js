@@ -33,7 +33,9 @@
  * owns the tick loop and lifecycle wiring that calls it, not scene construction. The tick loop's
  * pure per-frame helpers (camera-relative movement, axis merging, chase-camera occluder
  * collection, chunk streaming, resize wiring) live in `gameLoopHelpers.js` (run 105) — split out
- * purely to stay under the 600-line file cap, no behavior change.
+ * purely to stay under the 600-line file cap, no behavior change. The NPC/animal/procedural-
+ * creature/dragon spawn wiring likewise moved to `gameplay/livingWorldSpawner.js` (run 332),
+ * same reasoning, same no-behavior-change guarantee.
  * See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
@@ -41,8 +43,8 @@
 import { gameEvents } from './eventBus.js';
 import { gameState } from './state.js';
 import { AssetLoader } from './assetLoader.js';
-import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE, SETTLEMENT_CONFIG } from './config.js';
-import { PLAYER_CONFIG, NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG, INTERACTION_CONFIG } from './gameplay/gameplayConfig.js';
+import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE } from './config.js';
+import { PLAYER_CONFIG, INTERACTION_CONFIG } from './gameplay/gameplayConfig.js';
 import { KeyboardInput } from './input.js';
 import { TouchJoystick } from './ui/touchJoystick.js';
 import { InteractionPrompt } from './ui/interactionPrompt.js';
@@ -55,12 +57,7 @@ import { SettlementDiscovery } from './ui/settlementDiscovery.js';
 import { DayNightClock } from './ui/dayNightClock.js';
 import { createPlayer } from './gameplay/player.js';
 import { createHealthState } from './gameplay/health.js';
-import { spawnConfiguredNPCs } from './gameplay/npc.js';
-import { spawnConfiguredAnimals } from './gameplay/animals.js';
-import { spawnConfiguredCreatures } from './gameplay/creatureBrain.js';
-import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS } from './gameplay/creatureSpawner.js';
-import { mulberry32 } from './world/terrain.js';
-import { spawnConfiguredDragons } from './gameplay/dragons.js';
+import { spawnLivingWorld } from './gameplay/livingWorldSpawner.js';
 import { createInteractionController } from './gameplay/interaction.js';
 import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.js';
@@ -266,87 +263,14 @@ export async function initGame3D() {
 		);
 		state.controls.update();
 
-		// FAZ 5/6: NPCs and wild animals at kingdom-seat settlements. Loaded after the player (same
+		// FAZ 5/6/7 + procedural creatures: NPCs, wild animals, the run-329 procedural creature
+		// population and dragons at/around kingdom-seat settlements. Loaded after the player (same
 		// "keep the loading overlay up for every character download" reasoning as the player itself).
-		// Spawn resolution itself (seat lookup, patrol-waypoint construction, per-spawn model loading)
-		// lives in `gameplay/npc.js`'s `spawnConfiguredNPCs` / `gameplay/animals.js`'s
-		// `spawnConfiguredAnimals` (run 29, DECISIONS.md ADR-0028) — moved out of this file to keep it
-		// under the project's 600-line cap and let each gameplay system own its own spawn wiring.
-		const seatsById = new Map(state.settlementSeats.map((seat) => [seat.id, seat]));
-		// Same sea-level-clamp convention world/settlements.js's own placement uses (see
-		// world/README.md's "Sea level" convention), so a spawned character never ends up sitting
-		// below the water plane if an offset happens to land somewhere lower than the keep itself.
-		const sampleClampedGroundY = (worldX, worldZ) => Math.max(
-			state.groundCollider.getGroundHeight(worldX, worldZ),
-			WORLD_DEFAULTS.WATER_LEVEL_METERS + SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
-		);
-		state.npcs = await spawnConfiguredNPCs({
-			assetLoader,
-			npcConfig: NPC_CONFIG,
-			seatsById,
-			sampleGroundY: sampleClampedGroundY,
-			groundCollider: state.groundCollider,
-			playerCollider: state.playerCollider,
-		});
-		for (const npc of state.npcs) state.scene.add(npc.object3D);
-		console.info(`[game3d] Spawned ${state.npcs.length} FAZ 5 NPC(s).`);
-
-		state.animals = await spawnConfiguredAnimals({
-			assetLoader,
-			animalConfig: ANIMAL_CONFIG,
-			seatsById,
-			sampleGroundY: sampleClampedGroundY,
-			groundCollider: state.groundCollider,
-			playerCollider: state.playerCollider,
-		});
-		for (const animal of state.animals) state.scene.add(animal.object3D);
-		console.info(`[game3d] Spawned ${state.animals.length} FAZ 6 animal(s).`);
-
-		// Procedural creature population (`gameplay/creatureBrain.js`/`creatureSpawner.js`, run 329) —
-		// wires run 326/327's dormant procedural rigs (`creatureRig.js`/`creatureGait.js`) into a live
-		// wander/flee tick for the first time (ADR-0273's declared next step). Desktop scatters
-		// `DESKTOP_SPECIES_COUNTS` across the same origin-centered disc `state.vegetation` already
-		// scatters trees over; mobile gets the much smaller `MOBILE_SPECIES_COUNTS`, anchored at
-		// `spawnWorld` like `mobileSpawnVegetation` above, for the same world-coverage-footprint reason.
-		const isMobileClassCreatures = isCoarsePointerDevice();
-		const creatureScatterRadiusMeters = (isMobileClassCreatures ? CHUNK_CONFIG.STREAM_RADIUS_CHUNKS : CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS) * CHUNK_CONFIG.CHUNK_SIZE_METERS;
-		const creatureSpawns = scatterCreatures({
-			sampleHeightMeters: (x, z) => state.groundCollider.getGroundHeight(x, z),
-			seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-			seats: state.settlementSeats,
-			roadEdges: state.roadEdges,
-			seed: WORLD_DEFAULTS.WORLD_SEED,
-			seedTag: isMobileClassCreatures ? 0x4352544d : 0x43524554, // "CRTM"/"CRET"-ish tags
-			mulberry32,
-			centerX: isMobileClassCreatures ? spawnWorld.x : 0,
-			centerZ: isMobileClassCreatures ? spawnWorld.z : 0,
-			radiusMeters: creatureScatterRadiusMeters,
-			speciesCounts: isMobileClassCreatures ? MOBILE_SPECIES_COUNTS : DESKTOP_SPECIES_COUNTS,
-		});
-		state.creatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, playerCollider: state.playerCollider, mulberry32 });
-		for (const creature of state.creatures) state.scene.add(creature.object3D);
-		console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s).`);
-
-		// FAZ 7 (run 53): first dragon, circling a kingdom seat at a fixed altitude — see
-		// `gameplay/dragons.js` and DECISIONS.md ADR-0071. Same spawn-wiring shape as NPCs/animals
-		// above; altitude is ground-height-relative, not absolute, so `sampleClampedGroundY` is reused
-		// even though a flying creature never touches the ground itself.
-		state.dragons = await spawnConfiguredDragons({
-			assetLoader,
-			dragonConfig: DRAGON_CONFIG,
-			seatsById,
-			sampleGroundY: sampleClampedGroundY,
-			// Player-awareness (run 54, ADR-0072): reuses the same EventBus + toast UI
-			// `gameplay/worldEvents.js`'s ambient flavor events already fire through.
-			eventsBus: gameEvents,
-			eventName: EVENTS.WORLD_EVENT_TRIGGERED,
-			// FAZ 7 dragon combat (run 90, DECISIONS.md ADR-0116) — shared across every spawn the same
-			// way `eventName` is; only `DRAGON_CONFIG.SPAWNS[0]` actually configures `biteDamage`, so
-			// this alone doesn't activate biting for a future spawn that doesn't opt in.
-			biteEventName: EVENTS.PLAYER_DAMAGED,
-		});
-		for (const dragon of state.dragons) state.scene.add(dragon.object3D);
-		console.info(`[game3d] Spawned ${state.dragons.length} FAZ 7 dragon(s).`);
+		// Spawn resolution itself lives in `gameplay/livingWorldSpawner.js`'s `spawnLivingWorld` (run
+		// 332, moved out of this file to keep it under the project's 600-line cap — see that module's
+		// own doc comment for the full per-species reasoning this used to carry inline here, including
+		// ADR-0278's `state.playerCollider` threading into the NPC/animal/creature spawns).
+		await spawnLivingWorld({ assetLoader, state, spawnWorld, eventsBus: gameEvents });
 
 		state.dialogueBox = new DialogueBox();
 		// Owns the nearest-NPC tracking, keypress handling, and distance-based auto-close — see

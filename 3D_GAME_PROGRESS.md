@@ -15569,3 +15569,131 @@ step, is not this run).
   addition of almost any size will need a split first); or extending the same `playerCollider` reuse
   pattern to any future placed-geometry system (props, market stalls) that needs point-obstacle
   collision, which now benefits every ground-walking entity automatically, not just the player.
+
+## Run 332 (scheduled run, 2026-08-13) — `game3d.js` extract-refactor (ADR-0279); smoke-suite `NAV_TIMEOUT_MS` RCA/fix
+
+**Concurrency note (added during Run 333's reconciliation):** this run happened in parallel with the
+other Run 332 entry directly above (NPC/animal/creature collision). Both were authored independently
+against the same `4c30f9a` base, both originally claimed "ADR-0278," and both touched `game3d.js`'s
+spawn-wiring block. Reconciled by hand: the collision entry above kept its original ADR-0278 number
+(it landed on `main` first); this entry's decision was renumbered to ADR-0279 and its extraction was
+rebased on top of the collision change, so `spawnLivingWorld()` still threads `state.playerCollider`
+through to NPCs/animals/creatures — nothing from either run's work was lost. The "next safe step"
+line below (NPC/animal collision) was this run's own honest assessment *before* it knew the other
+run had already shipped it; left as-authored for the record rather than silently edited.
+
+Session Snapshot done first: `git fetch origin main` confirmed local `HEAD` already matched
+`origin/main` exactly at `4c30f9a` (Run 331), no concurrency drift. Read `GOVERNANCE.md` (through
+§33/Run321's platform-control note), both continuation/owner-directive files,
+`GOVERNANCE_FULL_GAME_DIRECTIVE.md`, the tail of this file, `git log -15`, `DECISIONS.md`'s last 3
+ADRs (0275-0277), and `QUESTIONS_FOR_OWNER.md`. Run 331 named two candidates for next work:
+NPC/animal house collision, or `game3d.js`'s 600-line ceiling (597/600, effectively no headroom).
+Picked the line-cap extraction per this run's own task priority (a pure, mechanical,
+behavior-preserving relocation to unblock the next person who needs to touch that file), since it
+was flagged as the more urgent of the two (a hard architectural ceiling already nearly hit, vs. a
+real but non-blocking gameplay gap).
+
+- **Extraction:** moved the entire FAZ 5/6/7 + procedural-creature spawn block (NPC/animal/
+  creature/dragon spawn resolution and wiring — previously ~80 lines inline in `initGame3D()`) into
+  a new `gameplay/livingWorldSpawner.js`'s `spawnLivingWorld({ assetLoader, state, spawnWorld,
+  eventsBus })`. Confirmed self-contained before moving (every local the block reads/computes is
+  used only within it — checked by grep, not assumed) and confirmed byte-for-byte equivalent by
+  diff (pure relocation, no logic changed, no reordering relative to the rest of `initGame3D()`).
+  `game3d.js`: **597 -> 522 lines** (75 freed). `checkSmokeCheckRegistry.js`'s WARN for this file is
+  gone; only the pre-existing, untouched `worldReferenceSceneShadowAdapter.js` 562/600 WARN remains.
+- **RCA: smoke-suite `page.goto` timeout flake, found and fixed, not just worked around.** Per
+  GOVERNANCE.md §8.2 ("same error twice -> RCA before more code"), this run's own DoD verification
+  hit repeated `page.goto: Timeout Nms exceeded` failures navigating to `game3d.html` — 10
+  consecutive full-suite attempts failed, at a *different* check module almost every time. Root
+  cause established by direct measurement, not assumption: (1) an isolated single-page load with
+  this run's code produces byte-identical console output to unmodified `HEAD` (chunk/water/river/
+  road/vegetation/village counts all match exactly) and zero console/page errors, across many
+  repeated loads; (2) raw `domcontentloaded`-event timing instrumentation proved that event fires
+  right after `createScene()`'s own synchronous terrain/water/river/road/vegetation/village
+  generation finishes (~9s) — strictly *before* this run's extracted code ever runs (it sits after
+  `initGame3D()`'s first `await`, past the point DOMContentLoaded gates on); (3) reverting to
+  unmodified `HEAD` and running the identical suite reproduced the identical failure class
+  (`page.goto` timeout, varying check) — conclusive proof this predates this run's change. The real
+  cause: 14 smoke-check files' `NAV_TIMEOUT_MS` constants (10s in 6 files, 15s in 8) were sized
+  against a much lighter world; runs 326-331's procedural creatures, 14 real castle models and 11
+  villages grew the real `createScene()` boot cost to ~9-13s in this sandbox's software-WebGL
+  fallback, sitting at or past that old ceiling — an already-known "environment quirk"
+  (`game3dSmokeChecksScene.js`'s own run-68 comment) that had quietly grown into an active flake as
+  the world got heavier over many runs. **Fix:** all 14 `NAV_TIMEOUT_MS` constants raised to a
+  uniform `30_000`, each with a comment recording this RCA. A follow-up run then passed clean.
+- **Oyuncu ne fark eder:** doğrudan hiçbir şey — bu run saf mimari/test-altyapısı bakımı (davranış
+  değişikliği sıfır). Dolaylı fayda: `game3d.js` artık gerçek headroom'a sahip (bir sonraki özellik
+  eklemesi dosyayı bölmeye zorlamayacak) ve smoke suite artık bu sandbox'ta güvenilir biçimde yeşil
+  dönüyor — gelecekteki her run'ın kendi DoD doğrulaması bundan yararlanacak.
+- Full DoD sweep (fresh): `node --check` clean on all 17 changed/new files. `checkSmokeCheckRegistry.js`
+  OK — 519 files within the cap. `checkTechnicalDebt.js` PASS, 0 new debt.
+  `checkServiceWorkerCache.js` PASS after adding `livingWorldSpawner.js`'s offline-shell entry (177
+  JS files). `checkPwaInstallability.js` PASS. `terrainSeatSafetyCheck.js` PASS 14/14.
+  `roadNetworkSafetyCheck.js` PASS (20.24km). `smokeTestGame3D.js` **34/34 PASS**, zero console/page
+  errors, on the first clean run after the `NAV_TIMEOUT_MS` fix.
+- Real perf sample (`collectPerfSnapshot.js run332-livingworldspawner-extract`, not estimated): 57
+  draw calls / 904,446 triangles / 51 geometries / 29 textures / 326MB heap — identical to Run 330's
+  own figures, exactly as expected since this change adds/removes zero geometry, only relocates
+  spawn-wiring code.
+- Technical debt: 0 new. `game3d.js` now has ~78 lines of real headroom (522/600) instead of
+  effectively none.
+- World Coverage: unchanged (no terrain/geometry delta). World Evolution Report delta: house/wall/
+  road/event/animal/creature/dragon counts all unchanged from Run 331 — this run relocated code and
+  fixed test-infrastructure timing, nothing that changes what's in the world.
+- Next safe step: NPC/animal house collision (Run 331's other named candidate, still open) is now
+  the clear next priority-list item, with `game3d.js`'s line cap no longer a blocking concern. A
+  second, deeper test-infrastructure finding from this run's own instrumentation, logged but not
+  attempted here: repeated sequential `page.goto` navigations within one long-lived Playwright
+  `browser` instance show real cumulative slowdown in this sandbox (isolated 10-15x navigation loops
+  drifted and occasionally timed out even at a raised 20-30s budget) — a separate, deeper effect
+  from the now-fixed stale-timeout issue. A future run should consider a fresh browser context per
+  check (or per small batch) rather than one shared browser across all 34 checks, if this resurfaces.
+
+## Run 333 (2026-08-13, scheduled run) — reconcile concurrent Run 332 collision agent
+
+A run-332 dev-session agent crashed mid-task (hit its own session's API usage limit) while merging
+its own WIP — `game3d.js`'s spawn-block extraction into a new `gameplay/livingWorldSpawner.js`,
+plus a real RCA-backed `NAV_TIMEOUT_MS` flake fix across 14 smoke-check files (see ADR-0279) — on
+top of `origin/main`, which had by then already gained the *other* concurrent Run 332 session's
+work (NPC/animal/creature collision, ADR-0278) plus 20+ unrelated commits from other autonomous
+sessions (G70/G77/G17/G10 terrain-biome geocell work, editor consolidation). The crash left the WIP
+uncommitted with a genuine, unresolved 4-file git conflict (`game3d.js`, `DECISIONS.md`,
+`3D_GAME_PROGRESS.md`, `perf_log.csv`) and a real semantic hazard: the extraction was written
+against the pre-ADR-0278 version of `game3d.js`'s spawn block, so applying it naively on top of the
+now-current `main` would have silently dropped ADR-0278's `state.playerCollider` threading into the
+NPC/animal/creature spawn calls — a real regression (collision fix undone) that `node --check` alone
+would never have caught.
+
+Per GOVERNANCE.md's own "safety/data-loss risk" and "unresolved concurrency gate" stop conditions,
+this was handled deliberately rather than blindly retried: WIP preserved via `git stash` first (no
+work lost even transiently), local `main` fast-forwarded to the true `origin/main` tip, then each
+conflict resolved by hand — `game3d.js`/`livingWorldSpawner.js` reconciled so the extraction keeps
+ADR-0278's collision-threading intact (verified by re-adding `playerCollider: state.playerCollider`
+to all 3 spawn calls inside the new module, not just trusting the diff to auto-merge correctly);
+both ADRs' duplicate "ADR-0278" numbering resolved by renumbering the later one to ADR-0279 with an
+editorial reconciliation note in both docs; `perf_log.csv` kept both runs' distinct rows; 14 smoke
+files' `ADR-0278` self-references in code comments corrected to `ADR-0279` (a mechanical cleanup the
+original diff auto-merge wouldn't have caught, since the comment text isn't semantically tied to any
+identifier the merge tooling understands).
+
+- **Oyuncu ne fark eder:** doğrudan hiçbir şey — bu run saf reconciliation/mimari bakım. Dolaylı
+  fayda: hem ADR-0278'in NPC/hayvan çarpışma düzeltmesi hem de ADR-0279'un `game3d.js` headroom
+  kurtarması ve smoke suite zaman aşımı düzeltmesi kayıpsız birlikte main'de.
+- Full DoD re-verified fresh after reconciliation, not assumed from either original run's notes:
+  `node --check` clean on all 20 changed/new files. `smokeTestGame3D.js` **35/35 PASS** (real,
+  synchronous, uncontended — includes the new `checkNpcAnimalCreatureObstacleCollider` check,
+  confirmed still passing after the merge). `checkTechnicalDebt.js` PASS (0 new). `checkSmokeCheckRegistry.js`
+  OK (`game3d.js` 523/600 — real headroom restored, `game3dSmokeChecksMovement.js` 583/600 WARN,
+  pre-existing `worldReferenceSceneShadowAdapter.js` 562/600 WARN). `terrainSeatSafetyCheck.js` PASS
+  14/14. `roadNetworkSafetyCheck.js` PASS (20.24km). `checkServiceWorkerCache.js` PASS.
+  `checkRun330Villages.js` PASS.
+- Real perf sample (`collectPerfSnapshot.js run333-merge-reconcile-livingworldspawner`): 57 draw
+  calls / 904,446 triangles / 51 geometries / 29 textures / 391MB heap — inside 2500/5M budget,
+  unchanged from both source runs (expected: zero geometry delta, reconciliation only).
+- Technical debt: 0 new.
+- World Coverage: unchanged. World Evolution Report delta: none (no world-content change).
+- No new QUESTIONS_FOR_OWNER.md entry — this was a mechanical git/engineering reconciliation, not a
+  product/design decision.
+- Next safe step: continue down the standing priority list (GOVERNANCE.md §18) from wherever the
+  next scheduled run's own fresh snapshot finds it — this run made no priority-list progress itself,
+  it only safely landed two other runs' already-completed work.
