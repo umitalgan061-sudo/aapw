@@ -8,7 +8,7 @@ on:
     branches:
       - main
     paths:
-      - 'src/3d/world/g65Terrain3dBake.js'
+      - 'src/3d/world/worldReferenceTerrainAdapter.js'
       - 'scripts/checkSEG65Terrain3DRuntimeParity.mjs'
       - 'godot/terrain-authoring/scripts/validate_g65_terrain3d_runtime_parity.gd'
       - '.github/workflows/se-g65-terrain3d-runtime-parity.yml'
@@ -49,7 +49,7 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/g65Terrain3dBake.js|scripts/checkSEG65Terrain3DRuntimeParity.mjs|godot/terrain-authoring/scripts/validate_g65_terrain3d_runtime_parity.gd|\.github/workflows/se-g65-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceTerrainAdapter.js|scripts/checkSEG65Terrain3DRuntimeParity.mjs|godot/terrain-authoring/scripts/validate_g65_terrain3d_runtime_parity.gd|\.github/workflows/se-g65-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/se/g65_near_detail.mjs
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/se/g65_road_path.mjs
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
@@ -61,7 +61,7 @@ jobs:
       - name: Capture deterministic G65 authored source twice
         run: |
           set -euo pipefail
-          node --check src/3d/world/g65Terrain3dBake.js
+          node --check src/3d/world/worldReferenceTerrainAdapter.js
           node --check scripts/checkSEG65Terrain3DRuntimeParity.mjs
           node scripts/checkSEG65NearDetail.mjs | tee "$RUNNER_TEMP/near-detail.log"
           grep -F 'SE_G65_NEAR_DETAIL_VALIDATION_OK' "$RUNNER_TEMP/near-detail.log"
