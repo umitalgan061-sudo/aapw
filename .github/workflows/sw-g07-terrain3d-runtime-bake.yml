@@ -21,7 +21,6 @@ on:
       - 'src/3d/world/g07Terrain3dBakeColor.js'
       - 'src/3d/world/worldReferenceTerrainAdapter.js'
       - 'service-worker.js'
-      - 'godot/terrain-authoring/corner_claims/SW.json'
       - '.github/workflows/sw-g07-terrain3d-runtime-bake.yml'
   workflow_dispatch:
 
@@ -50,13 +49,22 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main
-          BASE="$(git merge-base HEAD origin/main)"
+          BASE="$(git rev-parse origin/main)"
           test -n "$BASE"
-          echo "SW_G07_CI_MERGE_BASE=$BASE"
+          git merge-base --is-ancestor "$BASE" HEAD
+          echo "SW_G07_CI_BASE=$BASE"
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs|godot/terrain-authoring/scripts/validate_g07_terrain3d_runtime_parity.gd|scripts/checkSWG07Terrain3dRuntimeBake.mjs|scripts/checkSWG07LiveRoadExclusion.mjs|scripts/checkSWG07BrowserRuntimeParity.mjs|scripts/checkSWG07RuntimeVisualParity.mjs|scripts/fixtures/sw-g07-runtime-visual-harness.html|src/3d/world/g07Terrain3dBake.js|src/3d/world/g07Terrain3dBakeHeights.js|src/3d/world/g07Terrain3dBakeRock.js|src/3d/world/g07Terrain3dBakeColor.js|src/3d/world/worldReferenceTerrainAdapter.js|service-worker.js|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g07-terrain3d-runtime-bake.yml)$' | wc -l)" -eq 0
+          PRIVATE_CHANGED="$(echo "$CHANGED" | grep -Ec '^(godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs|godot/terrain-authoring/scripts/validate_g07_terrain3d_runtime_parity.gd|scripts/checkSWG07Terrain3dRuntimeBake.mjs|scripts/checkSWG07LiveRoadExclusion.mjs|scripts/checkSWG07BrowserRuntimeParity.mjs|scripts/checkSWG07RuntimeVisualParity.mjs|scripts/fixtures/sw-g07-runtime-visual-harness.html|src/3d/world/g07Terrain3dBake.js|src/3d/world/g07Terrain3dBakeHeights.js|src/3d/world/g07Terrain3dBakeRock.js|src/3d/world/g07Terrain3dBakeColor.js)$' || true)"
+          if test "$PRIVATE_CHANGED" -gt 0; then
+            echo 'SW_G07_SCOPE_MODE=authoring'
+            test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs|godot/terrain-authoring/scripts/validate_g07_terrain3d_runtime_parity.gd|scripts/checkSWG07Terrain3dRuntimeBake.mjs|scripts/checkSWG07LiveRoadExclusion.mjs|scripts/checkSWG07BrowserRuntimeParity.mjs|scripts/checkSWG07RuntimeVisualParity.mjs|scripts/fixtures/sw-g07-runtime-visual-harness.html|src/3d/world/g07Terrain3dBake.js|src/3d/world/g07Terrain3dBakeHeights.js|src/3d/world/g07Terrain3dBakeRock.js|src/3d/world/g07Terrain3dBakeColor.js|src/3d/world/worldReferenceTerrainAdapter.js|service-worker.js|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g07-terrain3d-runtime-bake.yml)$' | wc -l)" -eq 0
+          elif test "$(echo "$CHANGED" | wc -l)" -eq 1 && echo "$CHANGED" | grep -Fx '.github/workflows/sw-g07-terrain3d-runtime-bake.yml'; then
+            echo 'SW_G07_SCOPE_MODE=lifecycle-self-validation'
+          else
+            echo 'SW_G07_SCOPE_MODE=shared-runtime-regression'
+          fi
           git diff --quiet "$BASE"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/project.godot
 
       - name: Syntax
