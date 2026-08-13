@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+import { EVENTS } from '../config.js';
+import { gameEvents } from '../eventBus.js';
 import { EditorAssetManager } from './EditorAssetManager.js';
 import { EditorInstanceManager } from './EditorInstanceManager.js';
 import { validateEditorScene } from './EditorSceneSerializer.js';
@@ -99,31 +101,58 @@ async function installPreviewIntoScene(scene, data, badge) {
 }
 
 function captureFirstGameScene(data, badge) {
-  const prototype = THREE.WebGLRenderer.prototype;
-  const originalRender = prototype.render;
-  let restored = false;
+  const scenePrototype = THREE.Scene.prototype;
+  const hadOwnAdd = Object.prototype.hasOwnProperty.call(scenePrototype, 'add');
+  const originalAdd = scenePrototype.add;
+  let capturedScene = null;
+  let phase1Ready = false;
+  let installing = false;
+  let captureClosed = false;
 
-  function restore() {
-    if (restored) return;
-    restored = true;
-    if (prototype.render === captureRender) prototype.render = originalRender;
+  function restoreSceneAdd() {
+    if (scenePrototype.add !== captureAdd) return;
+    if (hadOwnAdd) scenePrototype.add = originalAdd;
+    else delete scenePrototype.add;
   }
 
-  function captureRender(scene, camera) {
-    const result = originalRender.call(this, scene, camera);
-    if (this.domElement?.id !== 'game3d-canvas') return result;
-    restore();
+  function closeCapture() {
+    if (captureClosed) return;
+    captureClosed = true;
+    restoreSceneAdd();
+    unsubscribeReady();
+    window.removeEventListener('pagehide', closeCapture);
+  }
+
+  function installWhenReady() {
+    if (installing || !capturedScene || !phase1Ready) return;
+    installing = true;
+    closeCapture();
     queueMicrotask(() => {
-      installPreviewIntoScene(scene, data, badge).catch((error) => {
+      installPreviewIntoScene(capturedScene, data, badge).catch((error) => {
         console.error('[EditorGamePatchPreview] preview install failed', error);
         badge.textContent = 'EDITÖR ÖNİZLEME yüklenemedi';
       });
     });
+  }
+
+  function captureAdd(...objects) {
+    const result = originalAdd.apply(this, objects);
+    if (!capturedScene && this?.isScene) {
+      capturedScene = this;
+      restoreSceneAdd();
+      installWhenReady();
+    }
     return result;
   }
 
-  prototype.render = captureRender;
-  window.addEventListener('pagehide', restore, { once: true });
+  const unsubscribeReady = gameEvents.on(EVENTS.GAME_READY, (payload) => {
+    if (payload?.phase !== 'phase1-scene') return;
+    phase1Ready = true;
+    installWhenReady();
+  });
+
+  scenePrototype.add = captureAdd;
+  window.addEventListener('pagehide', closeCapture, { once: true });
 }
 
 if (previewRequested()) {
