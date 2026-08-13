@@ -61,6 +61,102 @@ function startServer() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
+async function captureLiveGame(playwright, base) {
+  const browser = await playwright.chromium.launch({
+    headless: true,
+    args: ['--use-angle=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'],
+  });
+  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(`page:${String(error)}`));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
+
+  try {
+    await page.goto(`${base}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+
+    const enter = page.locator('#run266-entry-enter');
+    if (await enter.count()) {
+      await enter.waitFor({ state: 'visible', timeout: 30000 });
+      await enter.click();
+      await page.waitForFunction(() => !document.getElementById('run266-entry-gate'), null, { timeout: 10000 });
+    }
+
+    await page.waitForFunction(
+      () => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
+      null,
+      { timeout: 180000 },
+    );
+    await page.waitForTimeout(2500);
+
+    const canvas = page.locator('#game3d-canvas');
+    await canvas.waitFor({ state: 'visible', timeout: 30000 });
+
+    // Use the game's real F4 free-fly camera. First pitch almost straight upward,
+    // then fly roughly a kilometre vertically at Shift-run speed.
+    await page.keyboard.press('F4');
+    await page.waitForTimeout(300);
+    const box = await canvas.boundingBox();
+    assert(box, 'game3d canvas has no bounding box');
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx, box.y + 5, { steps: 24 });
+    await page.mouse.up();
+    await page.keyboard.down('ShiftLeft');
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1700);
+    await page.keyboard.up('KeyW');
+    await page.keyboard.up('ShiftLeft');
+    await page.waitForTimeout(350);
+
+    // Pitch down toward the terrain and keep a slightly oblique view so relief reads as 3D.
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx, box.y + box.height - 5, { steps: 30 });
+    await page.mouse.up();
+    await page.waitForTimeout(1200);
+
+    // Hide DOM HUD only; the canvas remains the untouched game WebGL render.
+    await page.evaluate(() => {
+      for (const child of Array.from(document.body.children)) {
+        if (child.id !== 'game3d-canvas') child.style.setProperty('display', 'none', 'important');
+      }
+      document.body.style.margin = '0';
+      document.body.style.overflow = 'hidden';
+    });
+    await page.waitForTimeout(500);
+
+    fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+    await canvas.screenshot({ path: path.join(ARTIFACT_DIR, 'game3d-close-overhead.png') });
+
+    // Move forward while looking down: this descends toward the same real terrain for a tighter shot.
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1350);
+    await page.keyboard.up('KeyW');
+    await page.waitForTimeout(800);
+    await canvas.screenshot({ path: path.join(ARTIFACT_DIR, 'game3d-closer-terrain.png') });
+
+    const metrics = await page.evaluate(() => ({
+      viewport: [innerWidth, innerHeight],
+      gatePresent: Boolean(document.getElementById('run266-entry-gate')),
+      loadingHidden: document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden') || false,
+      canvasWidth: document.getElementById('game3d-canvas')?.width || 0,
+      canvasHeight: document.getElementById('game3d-canvas')?.height || 0,
+    }));
+    fs.writeFileSync(
+      path.join(ARTIFACT_DIR, 'game3d-close-capture-metrics.json'),
+      JSON.stringify({ metrics, browserErrors: errors }, null, 2) + '\n',
+    );
+    console.log(`[checkRun216EditorLiveWorldBrowser] GAME3D CLOSE CAPTURE: ${JSON.stringify(metrics)}`);
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+}
+
 async function main() {
   const playwright = playwrightModule();
   if (!playwright) fail('Playwright unavailable');
@@ -96,6 +192,8 @@ async function main() {
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop-live-westeros-editor.png'), fullPage: true });
     console.log(`[checkRun216EditorLiveWorldBrowser] PROOF: ${JSON.stringify(snapshot)}`);
     console.log('[checkRun216EditorLiveWorldBrowser] PASS: editor viewport shows canonical gameplay terrain/water/roads/settlements/vegetation/sky plus all 8 real castle models; synthetic ground hidden.');
+
+    await captureLiveGame(playwright, base);
   } finally {
     await context.close();
     await browser.close();
