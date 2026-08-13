@@ -1,7 +1,7 @@
 extends SceneTree
 
-const SOURCE_PATH := "res://.terrain3d-proof/g11-runtime-source.json"
-const BAKE_PATH := "res://.terrain3d-proof/g11-runtime-bake.json"
+const DEFAULT_SOURCE_PATH := "res://.terrain3d-proof/g11-runtime-source.json"
+const DEFAULT_BAKE_PATH := "res://.terrain3d-proof/g11-runtime-bake.json"
 const REGION_SIZE := 256
 
 func _initialize() -> void:
@@ -10,6 +10,10 @@ func _initialize() -> void:
 func _fail(message: String) -> void:
 	push_error("G11 Terrain3D runtime parity failed: " + message)
 	quit(1)
+
+func _proof_path(env_name: String, fallback: String) -> String:
+	var configured := OS.get_environment(env_name)
+	return configured if not configured.is_empty() else fallback
 
 func _sample_source(source: Dictionary, u: float, v: float) -> float:
 	var w := int(source["width"])
@@ -25,9 +29,11 @@ func _sample_source(source: Dictionary, u: float, v: float) -> float:
 	return lerpf(a, b, ty)
 
 func _run() -> void:
-	if not FileAccess.file_exists(SOURCE_PATH):
-		_fail("source probe missing"); return
-	var parsed = JSON.parse_string(FileAccess.get_file_as_string(SOURCE_PATH))
+	var source_path := _proof_path("G11_RUNTIME_SOURCE_PATH", DEFAULT_SOURCE_PATH)
+	var bake_path := _proof_path("G11_RUNTIME_BAKE_PATH", DEFAULT_BAKE_PATH)
+	if not FileAccess.file_exists(source_path):
+		_fail("source probe missing at " + source_path); return
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(source_path))
 	if not (parsed is Dictionary):
 		_fail("source probe invalid"); return
 	var source: Dictionary = parsed
@@ -99,10 +105,16 @@ func _run() -> void:
 		"savedRegionFiles": saved_files,
 		"maxRoundtripError": max_roundtrip
 	}
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(BAKE_PATH.get_base_dir()))
-	var file := FileAccess.open(BAKE_PATH, FileAccess.WRITE)
+	DirAccess.make_dir_recursive_absolute(bake_path.get_base_dir())
+	var file := FileAccess.open(bake_path, FileAccess.WRITE)
+	if file == null:
+		_fail("could not open bake path " + bake_path); return
 	file.store_string(JSON.stringify(bake))
 	file.close()
-	print("G11_TERRAIN3D_RUNTIME_BAKE_METRICS=" + JSON.stringify(bake.duplicate().merged({"heights": []}, true)))
+	var metrics := bake.duplicate()
+	metrics["heights"] = []
+	metrics["sourcePath"] = source_path
+	metrics["bakePath"] = bake_path
+	print("G11_TERRAIN3D_RUNTIME_BAKE_METRICS=" + JSON.stringify(metrics))
 	print("NW_G11_TERRAIN3D_RUNTIME_BAKE_OK")
 	quit(0)
