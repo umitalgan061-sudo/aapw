@@ -126,13 +126,13 @@ async function captureLiveGame(playwright, base) {
     await page.waitForTimeout(500);
 
     fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
-    await canvas.screenshot({ path: path.join(ARTIFACT_DIR, 'game3d-close-overhead.png') });
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'game3d-close-overhead.png'), fullPage: false, animations: 'allow' });
 
     await page.keyboard.down('KeyW');
     await page.waitForTimeout(1350);
     await page.keyboard.up('KeyW');
     await page.waitForTimeout(800);
-    await canvas.screenshot({ path: path.join(ARTIFACT_DIR, 'game3d-closer-terrain.png') });
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'game3d-closer-terrain.png'), fullPage: false, animations: 'allow' });
 
     const metrics = await page.evaluate(() => ({
       viewport: [innerWidth, innerHeight],
