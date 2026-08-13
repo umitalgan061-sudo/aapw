@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main ]
     paths:
-      - 'src/3d/world/terrain3dG11RuntimeParity.js'
+      - 'src/3d/world/worldReferenceTerrainAdapter.js'
       - 'scripts/checkNWG11Terrain3DRuntimeParity.mjs'
       - 'godot/terrain-authoring/scripts/validate_g11_terrain3d_runtime_parity.gd'
       - 'godot/terrain-authoring/corner_claims/NW.json'
@@ -37,7 +37,7 @@ jobs:
           git diff --check "$BASE_SHA" HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/terrain3dG11RuntimeParity.js|scripts/checkNWG11Terrain3DRuntimeParity.mjs|godot/terrain-authoring/scripts/validate_g11_terrain3d_runtime_parity.gd|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g11-terrain3d-runtime-parity-r5.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceTerrainAdapter.js|scripts/checkNWG11Terrain3DRuntimeParity.mjs|godot/terrain-authoring/scripts/validate_g11_terrain3d_runtime_parity.gd|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g11-terrain3d-runtime-parity-r5.yml)$' | wc -l)" -eq 0
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
       - name: Install Playwright Chromium
         run: |
@@ -49,7 +49,7 @@ jobs:
       - name: Capture exact Three.js G11 source twice
         run: |
           set -euo pipefail
-          node --check src/3d/world/terrain3dG11RuntimeParity.js
+          node --check src/3d/world/worldReferenceTerrainAdapter.js
           node --check scripts/checkNWG11Terrain3DRuntimeParity.mjs
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG11Terrain3DRuntimeParity.mjs | tee "$RUNNER_TEMP/source-a.log"
           cp godot/terrain-authoring/.terrain3d-proof/g11-runtime-source.json "$RUNNER_TEMP/source-a.json"
