@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { buildG10ReliefProbe } from '../godot/terrain-authoring/geocells/nw/g10_relief.mjs';
 import { measureG10Hydrology } from '../godot/terrain-authoring/geocells/nw/g10_hydrology.mjs';
 import { measureG10Biome } from '../godot/terrain-authoring/geocells/nw/g10_biome.mjs';
@@ -14,6 +16,13 @@ if (!(first.minHeight < 0 && first.maxHeight > 3 && first.heightSpan > 5)) throw
 if (!(first.worldWidthMeters > 13000 && first.worldDepthMeters > 10000)) throw new Error('G10 normal scale is not full-reference extent');
 if (first.maxAdjacentHeightStep > 12 || first.maxGuardHeightDelta > 8 || first.maxGuardNormalDelta > 0.8) throw new Error('G10 relief seam or source-step regression');
 if (first.rows.length !== 65 || first.rows.some((row) => row.length !== 65)) throw new Error('unexpected G10 relief probe dimensions');
+const emitArg = process.argv.find((arg) => arg.startsWith('--emit-probe='));
+if (emitArg) {
+  const output = path.resolve(emitArg.slice('--emit-probe='.length));
+  fs.mkdirSync(path.dirname(output), { recursive: true });
+  fs.writeFileSync(output, `${JSON.stringify(first)}\n`, 'utf8');
+  console.log(`NW_G10_RELIEF_PROBE=${output}`);
+}
 const { rows, ...metrics } = first;
 console.log(`NW_G10_RELIEF_METRICS=${JSON.stringify(metrics)}`);
 console.log('NW_G10_RELIEF_VALIDATION_OK');
