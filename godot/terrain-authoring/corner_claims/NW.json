@@ -6,7 +6,7 @@
   "layer": "Terrain3D Bake/Three.js runtime parity",
   "status": "validating",
   "branch": "terrain/nw-g11-runtime-parity-20260813-r9",
-  "pr": null,
+  "pr": 327,
   "base_sha": "501f14e34ddfffd06e4170639d63af8cecd6853e",
   "terrain3d": {
     "version": "1.0.2",
@@ -77,5 +77,5 @@
   },
   "r9_change": "Republish the qualified G11 boundary-safe Terrain3D runtime parity implementation directly from current main after unrelated SE G75 Near Detail. Add bounded network retry around the pinned Terrain3D release download only; preserve version, SHA256, verify-only, strict height tolerances and all real import/persist/bake/parity gates.",
   "next": "Merge only if every exact-final-head PR workflow is green while main remains the recorded base. After merge, remain on G11 for the separate near + far + full-world top-down map.png visual/runtime parity completion gate.",
-  "updated_at": "2026-08-13T06:49:00+03:00"
+  "updated_at": "2026-08-13T06:50:00+03:00"
 }
