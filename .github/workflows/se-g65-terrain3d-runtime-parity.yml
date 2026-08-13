@@ -157,18 +157,31 @@ jobs:
           node scripts/checkRoadVisualContract.js
           node scripts/checkMedievalRoadSurface.js
 
-      - name: PWA service-worker and technical-debt regressions
+      - name: PWA installability regression
         run: |
           set -euo pipefail
           node scripts/checkPwaInstallability.js
+
+      - name: Service-worker cache regression
+        run: |
+          set -euo pipefail
           node scripts/checkServiceWorkerCache.js
+
+      - name: Technical-debt regression
+        run: |
+          set -euo pipefail
           node scripts/checkTechnicalDebt.js
 
-      - name: Mobile and browser regressions
+      - name: Mobile performance regression
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkMobilePerfBudget.js
+
+      - name: Browser smoke regression
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/smokeTestGame3D.js
 
       - name: Final exact-main gate
