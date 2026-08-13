@@ -3,18 +3,30 @@
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
   "current_cell": "G07",
-  "status": "in_progress",
-  "branch": "terrain/sw-g07-near-detail-main868-20260813",
-  "pr": 312,
-  "last_commit": "868f7cbb3c0a0b11d8dac98a9c6e43f06e29213f",
+  "status": "in_progress_exact_main",
+  "branch": "terrain/sw-g07-runtime-parity-main9a82-20260813",
+  "pr": null,
+  "last_commit": null,
   "quality_before": {
     "layer": "Near Detail",
-    "evidence_pr": 309,
-    "dedicated_ci": "failed_at_runtime_safety_playwright_resolution"
+    "evidence_pr": 312,
+    "state": "merged"
   },
   "quality_after": {
-    "layer": "Near Detail",
-    "state": "draft_successor_pending_current_head_ci"
+    "layer": "Terrain3D Bake / Three.js Runtime Parity",
+    "state": "phase2_visual_evidence_raster_determinism_fix_pending_ci",
+    "phase1_run": 31665397412,
+    "phase1_state": "success",
+    "terrain3d_import": "257x257 height+control+color",
+    "terrain3d_regions": 4,
+    "terrain3d_baked_vertices": 263169,
+    "runtime_payload": "artifact-derived-33x33-packed",
+    "runtime_adoption": "canonical_adapter_shadow_qualified",
+    "visual_proof": "chromium-threejs-near+far+full-world-reference-context",
+    "visual_determinism": "canonical bake/source numeric determinism is gating; GPU raster bytes are evidence-only",
+    "diagnostics": "visual stderr/stdout plus partial artifacts upload on failure",
+    "full_world_completion_claim": false,
+    "live_mesh_adoption": "deferred_until_adjacent_cells_prevent_visible_geocell_edge"
   },
-  "updated_at": "2026-08-13T02:07:00Z"
+  "updated_at": "2026-08-13T08:38:00+03:00"
 }

@@ -1,0 +1,199 @@
+name: SW G07 Terrain3D Runtime Bake
+
+on:
+  push:
+    branches:
+      - terrain/sw-g07-runtime-parity-main9a82-20260813
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g07_terrain3d_runtime_parity.gd'
+      - 'scripts/checkSWG07Terrain3dRuntimeBake.mjs'
+      - 'scripts/checkSWG07LiveRoadExclusion.mjs'
+      - 'scripts/checkSWG07BrowserRuntimeParity.mjs'
+      - 'scripts/checkSWG07RuntimeVisualParity.mjs'
+      - 'scripts/fixtures/sw-g07-runtime-visual-harness.html'
+      - 'src/3d/world/g07Terrain3dBake.js'
+      - 'src/3d/world/g07Terrain3dBakeHeights.js'
+      - 'src/3d/world/g07Terrain3dBakeRock.js'
+      - 'src/3d/world/g07Terrain3dBakeColor.js'
+      - 'src/3d/world/worldReferenceTerrainAdapter.js'
+      - 'service-worker.js'
+      - 'godot/terrain-authoring/corner_claims/SW.json'
+      - '.github/workflows/sw-g07-terrain3d-runtime-bake.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sw-g07-terrain3d-runtime-bake-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Scope and merge-base gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE="$(git merge-base HEAD origin/main)"
+          test -n "$BASE"
+          echo "SW_G07_CI_MERGE_BASE=$BASE"
+          git diff --check "$BASE"...HEAD
+          CHANGED="$(git diff --name-only "$BASE"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs|godot/terrain-authoring/scripts/validate_g07_terrain3d_runtime_parity.gd|scripts/checkSWG07Terrain3dRuntimeBake.mjs|scripts/checkSWG07LiveRoadExclusion.mjs|scripts/checkSWG07BrowserRuntimeParity.mjs|scripts/checkSWG07RuntimeVisualParity.mjs|scripts/fixtures/sw-g07-runtime-visual-harness.html|src/3d/world/g07Terrain3dBake.js|src/3d/world/g07Terrain3dBakeHeights.js|src/3d/world/g07Terrain3dBakeRock.js|src/3d/world/g07Terrain3dBakeColor.js|src/3d/world/worldReferenceTerrainAdapter.js|service-worker.js|godot/terrain-authoring/corner_claims/SW.json|\.github/workflows/sw-g07-terrain3d-runtime-bake.yml)$' | wc -l)" -eq 0
+          git diff --quiet "$BASE"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/project.godot
+
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/sw/g07_runtime_bake_source.mjs
+          node --check scripts/checkSWG07Terrain3dRuntimeBake.mjs
+          node --check scripts/checkSWG07LiveRoadExclusion.mjs
+          node --check scripts/checkSWG07BrowserRuntimeParity.mjs
+          node --check scripts/checkSWG07RuntimeVisualParity.mjs
+          node --check src/3d/world/g07Terrain3dBake.js
+          node --check src/3d/world/g07Terrain3dBakeHeights.js
+          node --check src/3d/world/g07Terrain3dBakeRock.js
+          node --check src/3d/world/g07Terrain3dBakeColor.js
+          node --check src/3d/world/worldReferenceTerrainAdapter.js
+          node --check service-worker.js
+
+      - name: Install Chromium proof dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Deterministic composite source and live road exclusion
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node scripts/checkSWG07Terrain3dRuntimeBake.mjs --emit-source=godot/terrain-authoring/.terrain3d-proof/g07-runtime-source.json | tee /tmp/g07-source-a.log
+          node scripts/checkSWG07Terrain3dRuntimeBake.mjs --emit-source="$RUNNER_TEMP/g07-runtime-source-b.json" | tee /tmp/g07-source-b.log
+          diff -u /tmp/g07-source-a.log /tmp/g07-source-b.log
+          cmp godot/terrain-authoring/.terrain3d-proof/g07-runtime-source.json "$RUNNER_TEMP/g07-runtime-source-b.json"
+          grep -F 'SW_G07_RUNTIME_BAKE_SOURCE_OK' /tmp/g07-source-a.log
+          node scripts/checkSWG07LiveRoadExclusion.mjs | tee /tmp/g07-road-a.log
+          node scripts/checkSWG07LiveRoadExclusion.mjs | tee /tmp/g07-road-b.log
+          diff -u /tmp/g07-road-a.log /tmp/g07-road-b.log
+          grep -F 'SW_G07_LIVE_ROAD_EXCLUSION_OK' /tmp/g07-road-a.log
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Install and verify pinned official Terrain3D
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/terrain3d-install.log
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee /tmp/terrain3d-verify.log
+          grep -F 'TERRAIN3D_INSTALL_OK' /tmp/terrain3d-install.log
+          grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true' /tmp/terrain3d-verify.log
+          git diff --exit-code -- godot/terrain-authoring/project.godot godot/terrain-authoring/terrain3d.lock.json
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60
+
+      - name: Real Terrain3D bake packed payload and browser adapter parity
+        run: |
+          set -euo pipefail
+          G07_PARITY_PROOF_SUFFIX=a timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g07_terrain3d_runtime_parity.gd | tee /tmp/g07-t3d-a.log
+          grep -F 'SW_G07_TERRAIN3D_RUNTIME_BAKE_OK' /tmp/g07-t3d-a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g07-runtime-bake.json "$RUNNER_TEMP/g07-runtime-bake-a.json"
+          cp godot/terrain-authoring/.terrain3d-proof/g07-runtime-imported-topdown.png "$RUNNER_TEMP/g07-runtime-topdown-a.png"
+          G07_PARITY_PROOF_SUFFIX=b timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g07_terrain3d_runtime_parity.gd | tee /tmp/g07-t3d-b.log
+          grep -F 'SW_G07_TERRAIN3D_RUNTIME_BAKE_OK' /tmp/g07-t3d-b.log
+          cmp "$RUNNER_TEMP/g07-runtime-bake-a.json" godot/terrain-authoring/.terrain3d-proof/g07-runtime-bake.json
+          cmp "$RUNNER_TEMP/g07-runtime-topdown-a.png" godot/terrain-authoring/.terrain3d-proof/g07-runtime-imported-topdown.png
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkSWG07Terrain3dRuntimeBake.mjs --verify-bake=godot/terrain-authoring/.terrain3d-proof/g07-runtime-bake.json | tee /tmp/g07-bake-parity.log
+          grep -F 'SW_G07_RUNTIME_BAKE_SOURCE_OK' /tmp/g07-bake-parity.log
+          node scripts/checkSWG07BrowserRuntimeParity.mjs | tee /tmp/g07-browser-runtime.log
+          grep -F 'SW_G07_BROWSER_RUNTIME_PARITY_OK' /tmp/g07-browser-runtime.log
+
+      - name: Three.js canonical visual evidence
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkSWG07RuntimeVisualParity.mjs --out-dir=godot/terrain-authoring/.terrain3d-proof/runtime-visual 2>&1 | tee /tmp/g07-browser-visual.log
+          grep -F 'SW_G07_RUNTIME_VISUAL_PARITY_OK' /tmp/g07-browser-visual.log
+
+      - name: Upload Terrain3D provenance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sw-g07-terrain3d-runtime-bake
+          if-no-files-found: warn
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g07-runtime-source.json
+            godot/terrain-authoring/.terrain3d-proof/g07-runtime-bake.json
+            godot/terrain-authoring/.terrain3d-proof/g07-runtime-imported-topdown.png
+            godot/terrain-authoring/.terrain3d-proof/runtime-visual/g07-runtime-near.png
+            godot/terrain-authoring/.terrain3d-proof/runtime-visual/g07-runtime-far.png
+            godot/terrain-authoring/.terrain3d-proof/runtime-visual/g07-full-world-reference-topdown.png
+            godot/terrain-authoring/.terrain3d-proof/runtime-visual/metrics.json
+            /tmp/g07-source-a.log
+            /tmp/g07-source-b.log
+            /tmp/g07-road-a.log
+            /tmp/g07-road-b.log
+            /tmp/terrain3d-install.log
+            /tmp/terrain3d-verify.log
+            /tmp/g07-t3d-a.log
+            /tmp/g07-t3d-b.log
+            /tmp/g07-bake-parity.log
+            /tmp/g07-browser-runtime.log
+            /tmp/g07-browser-visual.log
+
+      - name: HTerrain and world safety regressions
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' /tmp/hterrain.log
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+
+      - name: PWA mobile browser and technical-debt regressions
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD

@@ -9,6 +9,7 @@
  * @module world/worldReferenceTerrainAdapter
  */
 
+import { sampleG07Terrain3dBakeNormalized } from './g07Terrain3dBake.js';
 import { mapCanvasToNormalizedReference, worldXZToNormalizedReference } from './worldReferenceAlignment.js';
 import { sampleSeatSafeReferenceHydrology } from './worldReferenceHydrology.js';
 import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
@@ -68,10 +69,17 @@ export function sampleCanonicalHydrologyTerrainTarget({
 	);
 	const baseHeightMeters = baseHeightSampler(worldX, worldZ);
 	assertFinite(baseHeightMeters, 'baseHeightSampler result');
+	const terrain3dBake = sampleG07Terrain3dBakeNormalized(normalized.x, normalized.y);
 
 	let targetHeightMeters;
 	let rule;
-	if (hydrology.protectedLand) {
+	if (terrain3dBake && hydrology.water && !hydrology.protectedLand) {
+		// G07 carries real pinned Terrain3D height/control/color provenance into this canonical
+		// migration adapter. It intentionally remains opt-in until adjacent cells can transition
+		// without exposing an artificial GeoCell boundary in the live terrain mesh.
+		targetHeightMeters = terrain3dBake.height;
+		rule = 'terrain3d-bake-g07';
+	} else if (hydrology.protectedLand) {
 		// Protection weight naturally tends toward zero at its outer ellipse; keep a tiny dry margin
 		// at that boundary while giving canonical settlement centers the full inland clearance.
 		const protectedClearance = policy.minimumProtectedLandClearanceMeters
@@ -107,6 +115,7 @@ export function sampleCanonicalHydrologyTerrainTarget({
 		targetHeightMeters,
 		rule,
 		hydrology,
+		terrain3dSurface: terrain3dBake,
 	});
 }
 
