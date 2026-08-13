@@ -10,6 +10,7 @@ on:
     paths:
       - 'scripts/liveFourAgentTerrain.mjs'
       - 'scripts/checkLiveFourAgentTerrain.mjs'
+      - 'scripts/devServerHelper.js'
       - 'src/3d/editor/EditorGamePatchPreviewGateSafe.js'
       - 'src/3d/editor/EditorEditModeEnvironment.js'
       - '.github/workflows/live-four-agent-terrain.yml'
@@ -46,7 +47,7 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(scripts/liveFourAgentTerrain\.mjs|scripts/checkLiveFourAgentTerrain\.mjs|src/3d/editor/EditorGamePatchPreviewGateSafe\.js|src/3d/editor/EditorEditModeEnvironment\.js|\.github/workflows/live-four-agent-terrain\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(scripts/liveFourAgentTerrain\.mjs|scripts/checkLiveFourAgentTerrain\.mjs|scripts/devServerHelper\.js|src/3d/editor/EditorGamePatchPreviewGateSafe\.js|src/3d/editor/EditorEditModeEnvironment\.js|\.github/workflows/live-four-agent-terrain\.yml)$' | wc -l)" -eq 0
           test "$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0}')" -le 500
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
@@ -55,9 +56,11 @@ jobs:
           set -euo pipefail
           node --check scripts/liveFourAgentTerrain.mjs
           node --check scripts/checkLiveFourAgentTerrain.mjs
+          node --check scripts/devServerHelper.js
           node --check src/3d/editor/EditorGamePatchPreviewGateSafe.js
           node --check src/3d/editor/EditorEditModeEnvironment.js
           ! grep -F 'Math.random' scripts/liveFourAgentTerrain.mjs
+          grep -F "'.mjs': 'text/javascript; charset=utf-8'" scripts/devServerHelper.js
           for agent in 'Buzul Muhafızı' 'Şafak Kartalı' 'Günbatımı Ustası' 'Kızıl Ufuk'; do grep -F "$agent" scripts/liveFourAgentTerrain.mjs; done
           for cell in G00 G07 G17 G52 G65 G70 G75; do grep -F "$cell" scripts/liveFourAgentTerrain.mjs; done
 
