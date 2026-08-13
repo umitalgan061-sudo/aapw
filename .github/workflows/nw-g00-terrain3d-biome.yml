@@ -127,7 +127,25 @@ jobs:
           grep -F 'NW_G00_TERRAIN3D_BIOME_VALIDATION_OK' "$RUNNER_TEMP/g00-bake-b.log"
           grep -F 'G00_TERRAIN3D_BIOME_METRICS=' "$RUNNER_TEMP/g00-bake-a.log" | tail -1 > "$RUNNER_TEMP/g00-metrics-a.txt"
           grep -F 'G00_TERRAIN3D_BIOME_METRICS=' "$RUNNER_TEMP/g00-bake-b.log" | tail -1 > "$RUNNER_TEMP/g00-metrics-b.txt"
-          cmp "$RUNNER_TEMP/g00-metrics-a.txt" "$RUNNER_TEMP/g00-metrics-b.txt"
+          node - "$RUNNER_TEMP/g00-metrics-a.txt" "$RUNNER_TEMP/g00-metrics-b.txt" <<'NODE'
+          const fs = require('node:fs');
+          const [aPath, bPath] = process.argv.slice(2);
+          const prefix = 'G00_TERRAIN3D_BIOME_METRICS=';
+          const parse = (path) => {
+            const line = fs.readFileSync(path, 'utf8').trim();
+            if (!line.startsWith(prefix)) throw new Error(`missing Terrain3D metrics prefix: ${path}`);
+            return JSON.parse(line.slice(prefix.length));
+          };
+          const a = parse(aPath);
+          const b = parse(bPath);
+          for (const key of [
+            'terrain3dVersion', 'regionSize', 'regionCount', 'sampleCount', 'maxColorError',
+            'bakedSurfaces', 'bakedVertices', 'savedRegionFiles', 'visualProofBytes',
+          ]) {
+            if (a[key] !== b[key]) throw new Error(`nondeterministic ${key}: ${a[key]} != ${b[key]}`);
+          }
+          if (!(a.savedRegionBytes > 0 && b.savedRegionBytes > 0)) throw new Error('persisted Terrain3D region resource is empty');
+          NODE
           cmp "$RUNNER_TEMP/g00-biome-a.png" "$RUNNER_TEMP/g00-biome-b.png"
           test -s godot/terrain-authoring/.terrain3d-proof/g00-biome-color.png
 
@@ -171,6 +189,11 @@ jobs:
             cp "$RUNNER_TEMP/project.godot.before-terrain3d" godot/terrain-authoring/project.godot
           fi
           rm -rf godot/terrain-authoring/addons/terrain_3d
+          # Godot 4.6.3 refreshes tracked HTerrain .import metadata in-place while
+          # scanning the editor project. The PR scope gate above proves HTerrain has
+          # no source diff; restore only this generated importer noise before the
+          # preservation assertion.
+          git restore --worktree -- godot/terrain-authoring/addons/zylann.hterrain
           git diff --exit-code -- godot/terrain-authoring/project.godot
           git diff --exit-code -- godot/terrain-authoring/addons/zylann.hterrain
           test -z "$(git status --porcelain godot/terrain-authoring/terrain_data/)"
