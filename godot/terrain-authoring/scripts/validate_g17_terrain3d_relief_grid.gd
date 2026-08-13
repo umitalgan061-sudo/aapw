@@ -30,8 +30,12 @@ func _run()->void:
 			if actual>=float(p.waterCeilingMeters): fail("marine ceiling violation"); return
 			max_error=maxf(max_error,absf(actual-expected)); min_h=minf(min_h,actual); max_h=maxf(max_h,actual); sum+=actual; count+=1
 			checksum=int((checksum^int(round((actual+32.0)*1000.0)))*16777619)&0xffffffff
-	if not need(count==N*N,"sample count changed"): return
-	if not need(max_error<=0.012,"full-grid height error exceeded tolerance"): return
-	if not need(max_h>min_h,"full-grid relief collapsed"): return
-	var metrics={"samples":count,"maxHeightError":snappedf(max_error,0.00000001),"minHeight":snappedf(min_h,0.000001),"maxHeight":snappedf(max_h,0.000001),"meanHeight":snappedf(sum/float(count),0.000001),"checksum":checksum,"regionCount":t.data.get_region_count()}
+	if not need(count==N*N and max_error<=0.012 and max_h>min_h,"full-grid height contract failed"): return
+	var fractional_max:=0.0; var normal_length_error:=0.0; var fractional_checksum:int=2166136261; var fractional_samples:=0
+	for i in 8192:
+		var x:=1.0+fmod(float(i*73)+0.375,254.0); var z:=1.0+fmod(float(i*151)+0.625,254.0); var actual:=t.data.get_height(Vector3(x,0,z)); var expected:=source_h(p,x/256.0,z/256.0); var normal:=t.data.get_normal(Vector3(x,0,z))
+		if is_nan(actual) or is_inf(actual) or is_nan(normal.x) or is_nan(normal.y) or is_nan(normal.z): fail("non-finite fractional sample"); return
+		fractional_max=maxf(fractional_max,absf(actual-expected)); normal_length_error=maxf(normal_length_error,absf(normal.length()-1.0)); fractional_checksum=int((fractional_checksum^int(round((actual+32.0)*1000.0)))*16777619)&0xffffffff; fractional_samples+=1
+	if not need(fractional_samples==8192 and fractional_max<=0.02 and normal_length_error<=0.001,"fractional interpolation contract failed"): return
+	var metrics={"samples":count,"maxHeightError":snappedf(max_error,0.00000001),"minHeight":snappedf(min_h,0.000001),"maxHeight":snappedf(max_h,0.000001),"meanHeight":snappedf(sum/float(count),0.000001),"checksum":checksum,"regionCount":t.data.get_region_count(),"fractionalSamples":fractional_samples,"maxFractionalHeightError":snappedf(fractional_max,0.00000001),"maxNormalLengthError":snappedf(normal_length_error,0.00000001),"fractionalChecksum":fractional_checksum}
 	print("G17_TERRAIN3D_RELIEF_GRID_METRICS="+JSON.stringify(metrics)); print("SW_G17_TERRAIN3D_RELIEF_GRID_OK"); quit(0)
