@@ -5,7 +5,7 @@
   "current_cell": "G00",
   "status": "in_progress_exact_main",
   "branch": "terrain/nw-g00-terrain3d-road-path-20260813",
-  "pr": 379,
+  "pr": 381,
   "last_commit": "b88767931917d9d631bb9e19d80d2126c867eded",
   "quality_before": {
     "layer": "Rock/Snow",
