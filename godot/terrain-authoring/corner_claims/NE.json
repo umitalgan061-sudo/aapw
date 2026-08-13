@@ -2,21 +2,36 @@
   "corner": "NE",
   "task_name": "Şafak Kartalı",
   "origin": [7, 0],
-  "current_cell": "G61",
+  "current_cell": "G52",
   "status": "validating",
-  "branch": "terrain/ne-g61-hydrology-20260812",
-  "pr": 264,
+  "layer": "Rock/Snow",
+  "branch": "terrain/ne-g52-rock-snow-terrain3d-20260813-v2",
+  "pr": null,
   "last_commit": null,
-  "quality_before": {
-    "base_cells": 96,
-    "water_cells": 96,
-    "land_cells": 0,
-    "boundary_edges": 0
+  "previous_layers": {
+    "Coast/Hydrology": {
+      "draft_pr": 284,
+      "canonical_fingerprint": {"water_centres": 84, "land_centres": 12, "boundary_edges": 14}
+    },
+    "Macro Albedo/Biome": {
+      "draft_pr": 289,
+      "integration": "not merged; this branch is self-contained from exact main"
+    },
+    "Relief/Height Character": {
+      "draft_pr": 299,
+      "dedicated_ci": "green on exact head before concurrent main advanced",
+      "integration": "not merged; Rock/Snow independently derives the same canonical Bone Mountains relief signals from current main"
+    }
   },
-  "quality_after": {
-    "canonical_semantics_recorded": true,
-    "invented_coastline": false,
-    "semantic_checksum": 848461253
+  "quality_target": {
+    "continuous_rock_snow_weights": true,
+    "canonical_water_snow_leak": 0,
+    "guard_band_surface_continuity": true,
+    "terrain3d_control_map_import": true,
+    "terrain3d_region_persistence": true,
+    "terrain3d_lod0_bake": true,
+    "imported_control_topdown_proof": true
   },
-  "updated_at": "2026-08-12T18:36:00+03:00"
+  "engine": "pinned Terrain3D v1.0.2 control-map import/save/LOD0-bake proof; HTerrain preserved as regression control; Three.js runtime unchanged in this bounded authoring unit",
+  "updated_at": "2026-08-13T03:00:00+03:00"
 }
