@@ -3,14 +3,22 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import devServerHelper from './devServerHelper.js';
+import {
+  G17,
+  buildG17HydrologyProbe,
+  sampleG17HydrologyHeight,
+  sampleG17WaterConfidence,
+} from '../godot/terrain-authoring/geocells/sw/g17_hydrology.mjs';
+import { WORLD_REFERENCE_WATER_MASK } from '../src/3d/world/worldReferenceWaterMask.js';
 
 const { loadPlaywright, startStaticServer } = devServerHelper;
 const OUT_ARG = process.argv.find((arg) => arg.startsWith('--out-dir='));
 const OUT_DIR = path.resolve(OUT_ARG ? OUT_ARG.slice('--out-dir='.length) : 'artifacts/sw-g17-hydrology-visual');
+const EPSILON = 1e-12;
+const SOURCE_MAP_SHA256 = '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1';
 
 function fail(message) {
-  console.error(`[checkSWG17HydrologyVisualEvidence] FAIL: ${message}`);
-  process.exit(1);
+  throw new Error(`[checkSWG17HydrologyVisualEvidence] FAIL: ${message}`);
 }
 
 function requireCondition(condition, message) {
@@ -21,9 +29,73 @@ function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+function buildNumericVisualContract() {
+  const renderProbe = buildG17HydrologyProbe(97, 1);
+  let minHeight = Infinity;
+  let maxHeight = -Infinity;
+  let minConfidence = Infinity;
+  let maxConfidence = -Infinity;
+  for (let i = 0; i < renderProbe.heights.length; i += 1) {
+    minHeight = Math.min(minHeight, renderProbe.heights[i]);
+    maxHeight = Math.max(maxHeight, renderProbe.heights[i]);
+    minConfidence = Math.min(minConfidence, renderProbe.confidence[i]);
+    maxConfidence = Math.max(maxConfidence, renderProbe.confidence[i]);
+  }
+
+  const seamOffsetX = 1 / WORLD_REFERENCE_WATER_MASK.width;
+  const seamOffsetY = 1 / WORLD_REFERENCE_WATER_MASK.height;
+  let maxGuardConfidenceDelta = 0;
+  let maxGuardHeightDelta = 0;
+  for (let i = 0; i <= 128; i += 1) {
+    const t = i / 128;
+    const ny = G17.normalizedBounds.minY + (G17.normalizedBounds.maxY - G17.normalizedBounds.minY) * t;
+    const nx = G17.normalizedBounds.minX + (G17.normalizedBounds.maxX - G17.normalizedBounds.minX) * t;
+    for (const [ax, ay, bx, by] of [
+      [G17.normalizedBounds.minX, ny, G17.normalizedBounds.minX - seamOffsetX, ny],
+      [G17.normalizedBounds.maxX, ny, G17.normalizedBounds.maxX + seamOffsetX, ny],
+      [nx, G17.normalizedBounds.minY, nx, G17.normalizedBounds.minY - seamOffsetY],
+    ]) {
+      maxGuardConfidenceDelta = Math.max(
+        maxGuardConfidenceDelta,
+        Math.abs(sampleG17WaterConfidence(ax, ay) - sampleG17WaterConfidence(bx, by)),
+      );
+      maxGuardHeightDelta = Math.max(
+        maxGuardHeightDelta,
+        Math.abs(sampleG17HydrologyHeight(ax, ay) - sampleG17HydrologyHeight(bx, by)),
+      );
+    }
+  }
+
+  requireCondition(Math.abs(minHeight + 4) <= EPSILON && Math.abs(maxHeight + 4) <= EPSILON,
+    `visual source must remain the -4m Coast/Hydrology proof plane: ${minHeight}..${maxHeight}`);
+  requireCondition(Math.abs(minConfidence - 1) <= EPSILON && Math.abs(maxConfidence - 1) <= EPSILON,
+    `visual source must remain canonical open sea: ${minConfidence}..${maxConfidence}`);
+  requireCondition(maxGuardConfidenceDelta <= EPSILON, `visual guard confidence seam ${maxGuardConfidenceDelta}`);
+  requireCondition(maxGuardHeightDelta <= EPSILON, `visual guard height seam ${maxGuardHeightDelta}`);
+
+  return {
+    renderProbe: {
+      size: renderProbe.size,
+      bounds: renderProbe.bounds,
+      heights: [...renderProbe.heights],
+    },
+    normalizedBounds: G17.normalizedBounds,
+    metrics: {
+      minHeight,
+      maxHeight,
+      minConfidence,
+      maxConfidence,
+      maxGuardConfidenceDelta,
+      maxGuardHeightDelta,
+      sourceMapSha256: SOURCE_MAP_SHA256,
+    },
+  };
+}
+
 const playwright = loadPlaywright();
 requireCondition(Boolean(playwright), 'Playwright is required');
 fs.mkdirSync(OUT_DIR, { recursive: true });
+const numericContract = buildNumericVisualContract();
 const server = await startStaticServer();
 const { port } = server.address();
 const browser = await playwright.chromium.launch({ headless: true });
@@ -37,17 +109,11 @@ try {
     timeout: 20000,
   });
 
-  const terrainMetrics = await page.evaluate(async () => {
+  const terrainMetrics = await page.evaluate(async (payload) => {
     const THREE = await import('/src/3d/vendor/three/three.module.js');
-    const {
-      G17,
-      buildG17HydrologyProbe,
-      sampleG17HydrologyHeight,
-      sampleG17WaterConfidence,
-    } = await import('/godot/terrain-authoring/geocells/sw/g17_hydrology.mjs');
-    const { WORLD_REFERENCE_WATER_MASK } = await import('/src/3d/world/worldReferenceWaterMask.js');
     const { normalizedReferenceToMapCanvas } = await import('/src/3d/world/worldReferenceAlignment.js');
     const { mapCanvasToPlannedWorldXZ } = await import('/src/3d/world/worldReferenceMigrationPlan.js');
+    const { renderProbe, normalizedBounds } = payload;
 
     const canvas = document.getElementById('terrain-proof');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -57,12 +123,10 @@ try {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x071722);
-    const probe = buildG17HydrologyProbe(97, 1);
-    const { bounds } = probe;
     const verticalExaggeration = 32;
     const centerNormalized = {
-      x: (G17.normalizedBounds.minX + G17.normalizedBounds.maxX) * 0.5,
-      y: (G17.normalizedBounds.minY + G17.normalizedBounds.maxY) * 0.5,
+      x: (normalizedBounds.minX + normalizedBounds.maxX) * 0.5,
+      y: (normalizedBounds.minY + normalizedBounds.maxY) * 0.5,
     };
     const centerMap = normalizedReferenceToMapCanvas(centerNormalized.x, centerNormalized.y);
     const centerWorld = mapCanvasToPlannedWorldXZ(centerMap.x, centerMap.y);
@@ -72,37 +136,28 @@ try {
     let maxWorldX = -Infinity;
     let minWorldZ = Infinity;
     let maxWorldZ = -Infinity;
-    let minHeight = Infinity;
-    let maxHeight = -Infinity;
-    let minConfidence = Infinity;
-    let maxConfidence = -Infinity;
 
-    for (let row = 0; row < probe.size; row += 1) {
-      const v = row / (probe.size - 1);
-      const ny = bounds.minY + (bounds.maxY - bounds.minY) * v;
-      for (let col = 0; col < probe.size; col += 1) {
-        const u = col / (probe.size - 1);
-        const nx = bounds.minX + (bounds.maxX - bounds.minX) * u;
-        const height = sampleG17HydrologyHeight(nx, ny);
-        const confidence = sampleG17WaterConfidence(nx, ny);
+    for (let row = 0; row < renderProbe.size; row += 1) {
+      const v = row / (renderProbe.size - 1);
+      const ny = renderProbe.bounds.minY + (renderProbe.bounds.maxY - renderProbe.bounds.minY) * v;
+      for (let col = 0; col < renderProbe.size; col += 1) {
+        const u = col / (renderProbe.size - 1);
+        const nx = renderProbe.bounds.minX + (renderProbe.bounds.maxX - renderProbe.bounds.minX) * u;
+        const height = renderProbe.heights[row * renderProbe.size + col];
         const map = normalizedReferenceToMapCanvas(nx, ny);
         const world = mapCanvasToPlannedWorldXZ(map.x, map.y);
         minWorldX = Math.min(minWorldX, world.x);
         maxWorldX = Math.max(maxWorldX, world.x);
         minWorldZ = Math.min(minWorldZ, world.z);
         maxWorldZ = Math.max(maxWorldZ, world.z);
-        minHeight = Math.min(minHeight, height);
-        maxHeight = Math.max(maxHeight, height);
-        minConfidence = Math.min(minConfidence, confidence);
-        maxConfidence = Math.max(maxConfidence, confidence);
         positions.push(world.x - centerWorld.x, height * verticalExaggeration, world.z - centerWorld.z);
       }
     }
-    for (let row = 0; row < probe.size - 1; row += 1) {
-      for (let col = 0; col < probe.size - 1; col += 1) {
-        const a = row * probe.size + col;
+    for (let row = 0; row < renderProbe.size - 1; row += 1) {
+      for (let col = 0; col < renderProbe.size - 1; col += 1) {
+        const a = row * renderProbe.size + col;
         const b = a + 1;
-        const c = a + probe.size;
+        const c = a + renderProbe.size;
         const d = c + 1;
         indices.push(a, c, b, b, c, d);
       }
@@ -134,7 +189,6 @@ try {
       }),
     );
     water.rotation.x = -Math.PI / 2;
-    water.position.y = 0;
     scene.add(water);
 
     scene.add(new THREE.HemisphereLight(0xc9eaff, 0x10232c, 1.75));
@@ -159,51 +213,18 @@ try {
         renderer.render(scene, camera);
       },
     };
-
-    const seamOffsetX = 1 / WORLD_REFERENCE_WATER_MASK.width;
-    const seamOffsetY = 1 / WORLD_REFERENCE_WATER_MASK.height;
-    let maxGuardConfidenceDelta = 0;
-    let maxGuardHeightDelta = 0;
-    for (let i = 0; i <= 128; i += 1) {
-      const t = i / 128;
-      const ny = G17.normalizedBounds.minY + (G17.normalizedBounds.maxY - G17.normalizedBounds.minY) * t;
-      const nx = G17.normalizedBounds.minX + (G17.normalizedBounds.maxX - G17.normalizedBounds.minX) * t;
-      for (const [ax, ay, bx, by] of [
-        [G17.normalizedBounds.minX, ny, G17.normalizedBounds.minX - seamOffsetX, ny],
-        [G17.normalizedBounds.maxX, ny, G17.normalizedBounds.maxX + seamOffsetX, ny],
-        [nx, G17.normalizedBounds.minY, nx, G17.normalizedBounds.minY - seamOffsetY],
-      ]) {
-        maxGuardConfidenceDelta = Math.max(
-          maxGuardConfidenceDelta,
-          Math.abs(sampleG17WaterConfidence(ax, ay) - sampleG17WaterConfidence(bx, by)),
-        );
-        maxGuardHeightDelta = Math.max(
-          maxGuardHeightDelta,
-          Math.abs(sampleG17HydrologyHeight(ax, ay) - sampleG17HydrologyHeight(bx, by)),
-        );
-      }
-    }
     window.__g17Proof.render('near');
     return {
-      probeSize: probe.size,
+      probeSize: renderProbe.size,
       vertices: positions.length / 3,
       triangles: indices.length / 3,
       verticalExaggeration,
-      minHeight,
-      maxHeight,
-      minConfidence,
-      maxConfidence,
-      maxGuardConfidenceDelta,
-      maxGuardHeightDelta,
       canonicalWorldSpanMeters: { x: worldSpanX, z: worldSpanZ },
-      sourceMapSha256: '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1',
     };
+  }, {
+    renderProbe: numericContract.renderProbe,
+    normalizedBounds: numericContract.normalizedBounds,
   });
-
-  requireCondition(Math.abs(terrainMetrics.minHeight + 4) < 1e-12 && Math.abs(terrainMetrics.maxHeight + 4) < 1e-12, 'visual source must remain the -4m Coast/Hydrology proof plane');
-  requireCondition(Math.abs(terrainMetrics.minConfidence - 1) < 1e-12 && Math.abs(terrainMetrics.maxConfidence - 1) < 1e-12, 'visual source must remain canonical open sea');
-  requireCondition(terrainMetrics.maxGuardConfidenceDelta < 1e-12, `visual guard confidence seam ${terrainMetrics.maxGuardConfidenceDelta}`);
-  requireCondition(terrainMetrics.maxGuardHeightDelta < 1e-12, `visual guard height seam ${terrainMetrics.maxGuardHeightDelta}`);
 
   async function capture(kind, filename) {
     await page.evaluate((value) => window.__g17Proof.render(value), kind);
@@ -217,8 +238,7 @@ try {
   const farSha256 = await capture('far', 'g17-hydrology-far.png');
 
   await page.setViewportSize({ width: 1200, height: 800 });
-  const topdownMetrics = await page.evaluate(async () => {
-    const { G17, sampleG17WaterConfidence } = await import('/godot/terrain-authoring/geocells/sw/g17_hydrology.mjs');
+  const topdownMetrics = await page.evaluate(async ({ normalizedBounds }) => {
     const {
       WORLD_REFERENCE_BASE_SURFACE_MASK,
       sampleReferencePindexQualityV2,
@@ -283,28 +303,23 @@ try {
     const pctx = patch.getContext('2d');
     const patchData = pctx.createImageData(patch.width, patch.height);
     for (let y = 0; y < patch.height; y += 1) {
-      const v = y / (patch.height - 1);
-      const ny = G17.normalizedBounds.minY + (G17.normalizedBounds.maxY - G17.normalizedBounds.minY) * v;
       for (let x = 0; x < patch.width; x += 1) {
-        const u = x / (patch.width - 1);
-        const nx = G17.normalizedBounds.minX + (G17.normalizedBounds.maxX - G17.normalizedBounds.minX) * u;
-        const confidence = sampleG17WaterConfidence(nx, ny);
         const edge = Math.min(x, y, patch.width - 1 - x, patch.height - 1 - y);
         const feather = Math.min(1, edge / 24);
         const offset = (y * patch.width + x) * 4;
         patchData.data[offset] = 47;
         patchData.data[offset + 1] = 103;
         patchData.data[offset + 2] = 129;
-        patchData.data[offset + 3] = Math.round(92 * confidence * feather);
+        patchData.data[offset + 3] = Math.round(92 * feather);
       }
     }
     pctx.putImageData(patchData, 0, 0);
     ctx.drawImage(
       patch,
-      G17.normalizedBounds.minX * canvasWidth,
-      G17.normalizedBounds.minY * canvasHeight,
-      (G17.normalizedBounds.maxX - G17.normalizedBounds.minX) * canvasWidth,
-      (G17.normalizedBounds.maxY - G17.normalizedBounds.minY) * canvasHeight,
+      normalizedBounds.minX * canvasWidth,
+      normalizedBounds.minY * canvasHeight,
+      (normalizedBounds.maxX - normalizedBounds.minX) * canvasWidth,
+      (normalizedBounds.maxY - normalizedBounds.minY) * canvasHeight,
     );
 
     return {
@@ -316,10 +331,12 @@ try {
       patchResolution: [patch.width, patch.height],
       imageSmoothing: ctx.imageSmoothingEnabled,
     };
-  });
+  }, { normalizedBounds: numericContract.normalizedBounds });
 
-  requireCondition(topdownMetrics.sourceWidth === 1536 && topdownMetrics.sourceHeight === 1024, `unexpected owner-map source dimensions ${topdownMetrics.sourceWidth}x${topdownMetrics.sourceHeight}`);
-  requireCondition(topdownMetrics.landLikePixels > 0 && topdownMetrics.waterLikePixels > 0, 'full-world context must visibly contain both land and water silhouette');
+  requireCondition(topdownMetrics.sourceWidth === 1536 && topdownMetrics.sourceHeight === 1024,
+    `unexpected owner-map source dimensions ${topdownMetrics.sourceWidth}x${topdownMetrics.sourceHeight}`);
+  requireCondition(topdownMetrics.landLikePixels > 0 && topdownMetrics.waterLikePixels > 0,
+    'full-world context must visibly contain both land and water silhouette');
   requireCondition(topdownMetrics.imageSmoothing === true, 'full-world evidence must use filtered rendering');
   const topdownPng = await page.locator('#topdown-proof').screenshot();
   requireCondition(topdownPng.length > 4096, 'full-world top-down evidence PNG is unexpectedly small');
@@ -328,15 +345,19 @@ try {
 
   requireCondition(pageErrors.length === 0, `browser page errors: ${pageErrors.join(' | ')}`);
   const metrics = {
-    schema: 'westeros-g17-hydrology-visual-evidence-v1',
-    terrain: terrainMetrics,
+    schema: 'westeros-g17-hydrology-visual-evidence-v2',
+    terrain: { ...terrainMetrics, ...numericContract.metrics },
     topdown: topdownMetrics,
     evidenceSha256: { near: nearSha256, far: farSha256, fullWorldTopdown: topdownSha256 },
     determinismPolicy: 'numeric hydrology/seam metrics are gating; GPU PNG hashes are evidence-only',
+    browserModulePolicy: 'G17 .mjs source is evaluated in Node and serialized to Chromium; static server serves browser .js modules only',
   };
   fs.writeFileSync(path.join(OUT_DIR, 'g17-hydrology-visual-metrics.json'), `${JSON.stringify(metrics, null, 2)}\n`);
   console.log(`SW_G17_HYDROLOGY_VISUAL_METRICS=${JSON.stringify(metrics)}`);
   console.log('SW_G17_HYDROLOGY_VISUAL_OK');
+} catch (error) {
+  console.log(`SW_G17_HYDROLOGY_VISUAL_ERROR=${error?.stack || error}`);
+  process.exitCode = 1;
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));
