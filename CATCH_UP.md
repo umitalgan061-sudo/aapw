@@ -6,6 +6,34 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 322 itibarıyla (2026-08-13)
+
+Bu giriş normalde her ~10 çalıştırmada bir gelmesi gerekirken 164 çalıştırma (Run158→322, ~6 gün)
+atlandı — bu yüzden aşağıdaki özet olağandan uzun, o aradaki en görünür/önemli değişiklikleri
+topluyor. **Görsel olarak oyuncunun en çok fark edeceği şey:** ejderhaların 7 rengi (siyah/kırmızı/
+yeşil/buz/altın/bronz/gölge) artık sadece renk değil, gerçekten farklı pul desenine sahip; NPC/hayvan
+giydirme sistemi yeniden yazıldı (yeniden kullanılabilir kıyafet/zırh "kit"leri + üretimsel renk
+paleti kütüphanesi); kalelere giden ikinci, daha ince bir "patika" yol katmanı eklendi (kısa yerel
+bağlantılar için, ana at arabası yolundan ayrı). Perde arkasında en büyük iş: oyunun neredeyse her
+canlı sistemine (girdi, can durumu, zıplama, yol/bitki/arazi/su/gökyüzü/gece-gündüz/yıldız/kamera)
+"bu böyle görünmeli/davranmalı" regresyon kilidi eklendi — biri yanlışlıkla bir şeyi bozarsa artık
+sessizce fark edilmeden geçmiyor. Ayrıca aylardır süren temkinli bir arka plan projesi olgunlaştı:
+dünyanın gerçek ölçekli/hizalı "canonical" arazi-kıyı referansı ve harici Terrain3D (Godot) editör
+zinciri — ama hâlâ sadece geliştirici önizlemesinde (`canonical-dev.html`), canlı oyuna hiç
+alınmadı (bilinçli, geri dönüşü zor bir karar olduğu için owner onayı bekliyor). Ayrı bir üstten-
+görünüm RTS oyun modu ve bir Dünya Editörü (JSON tabanlı içerik yerleştirme aracı) da bu dönemde
+eklendi. Sen bu arada canlı bir oturumda "additive-only" (satır silme yasağı) kuralını tamamen
+kaldırdın — bu, aylardır owner kararı bekleyen birkaç maddeyi (mobil görüş alanı büyütme, en büyük
+kod dosyasının bölünmesi) serbest bıraktı. **Açık kalan/owner'ı ilgilendiren konular:** 6 kale hâlâ
+dokusuz (yeni kaynak asset bekleniyor), at/araba/köpek-kedi/kuş için gerçek 3D model hâlâ yok; repo
+kısa bir sürede çok sayıda CI workflow/branch biriktirdi (709MB/406 branch/268 workflow) — run 151'de
+sana bildirildi, yanıt bekleniyor, tekrar bildirilmeyecek; GitHub bu repoyu `aapw` adresine
+yönlendirmeye başladı (push/fetch hâlâ çalışıyor, ama neden/kalıcı mı bilinmiyor) — bu da run 322'de
+sana ayrıca bildirildi; sızmış NVIDIA anahtarı maddesi hâlâ teknik olarak açık ama kendi isteğinle
+artık hatırlatılmıyor.
+
+---
+
 ## Run 158 itibarıyla (2026-08-07)
 
 Bu 10 çalıştırmalık dönemde görünür yeni dünya içeriği yok — bunun yerine oyunun ekran okuyucu

@@ -15021,3 +15021,48 @@ Owner usability follow-up: edit mode stays bright/readable and northern lights r
 - World Evolution Report: road km +0; forest km² +0; castles/NPC/events/animals +0; World Coverage unchanged; dragon palette variants: 7/7 now geometrically distinct (was 1 shared lattice); ADR count +1 (now 269); player-visible: a dressed `dragon-ice`/`dragon-shadow`/etc. now shows a genuinely different scale pattern from `dragon-black`, not just a different colour — noticeable to a player who dresses more than one dragon.
 - Next safe step: the mesh/rig-level per-morph follow-up noted above, or wire the part/kit dressing system into the shipped 3D game's own NPC/animal figures (Run 320's other half of this suggestion) as its own risk-assessed subtask; item 1.7 (texture remaining kingdom seats) stays asset-blocked pending new source assets.
 - **Infra note, pure information (not a design decision, same treatment as §8.11's tag-push 403):** `git push origin main` this run returned GitHub's repository-moved notice — `This repository moved. Please use the new location: https://github.com/umitalgan061-sudo/aapw.git` — for the first time (grepped, no prior record). The push still succeeded (GitHub's redirect honored it), so nothing is broken and no action was forced this run, but this is new and worth the owner's attention: either `westeros-pwa` was intentionally renamed/transferred to `aapw` and the owner already knows, or it was not intentional. Redirects like this can eventually be deprecated, which would silently break every future autonomous run's `git push`/`git fetch` the day it happens. Flagged to the owner directly (push notification, this run) rather than only logged here, since it's exactly the kind of thing a long-unattended owner would want to know about before it becomes a hard failure.
+
+---
+
+## Run 323 (2026-08-13) — scheduled run: state verification + overdue CATCH_UP.md refresh
+
+- Session snapshot read in full: `GOVERNANCE.md`, `GOVERNANCE_CONTINUATION_OVERRIDE.md`,
+  `GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`, this file's tail (Run 322), `git log`, `DECISIONS.md`
+  latest ADRs (through ADR-0269), `QUESTIONS_FOR_OWNER.md` in full.
+- Concurrency check: `git fetch origin main` matched local `HEAD` exactly (`3262053`), no drift,
+  no other run's push to race against.
+- Priority-order re-check: items 1-8 confirmed still green per Run 321/322's own fresh re-verification
+  (this run did not re-run the full platform sweep again, since Run 322 already did so same-day and
+  no runtime/source file changed since); item 1.7 stays asset-blocked; item 9 (dragon) mid-stream,
+  Run 322's own note explicitly deferred its two named follow-ups (mesh/rig-level per-morph relief;
+  wiring the kit-dressing system into shipped NPC/animal figures) to their own dedicated,
+  risk-assessed passes rather than folding them into a quick pass — this run agreed with that
+  judgment and did not attempt either.
+- Owner-gated items re-confirmed, none guessed/re-notified: leaked NVIDIA key (run 63/ADR-0081,
+  owner said stop notifying — respected, not re-flagged); repo/CI infra sprawl (run 151, 709MB/406
+  branches/268 workflows — spam-prevention rule respected, not re-flagged); GitHub repo-moved
+  redirect to `aapw` (flagged via push notification by Run 322 itself — not re-flagged as duplicate).
+- **Found and fixed a real gap:** `CATCH_UP.md` (GOVERNANCE.md §13, "every ~10 runs") had not been
+  updated since Run 158 — 164 runs / ~6 days with no plain-language human catch-up entry, well past
+  the cadence rule. Added a Run 322-dated top entry summarizing the major player/owner-relevant
+  changes across that gap (dragon per-morph scales ADR-0269, part-based dressing ADR-0267/0268,
+  second footpath tier ADR-0264, the broad live-contract regression-guard rollout ADR-0183-234, the
+  long cautious "canonical" terrain/Terrain3D migration still preview-only ADR-0200-0266, new RTS
+  surface + World Editor, owner's removal of the additive-only rule ADR-0263, and the three
+  currently-open owner items). No pre-existing history in the file was altered or deleted — pure
+  addition. (One pre-existing structural glitch noticed but *not* touched: the old "Run 78" header
+  has no body and is immediately followed by an oddly-formatted, undated "Run 130" fragment —
+  left as-is rather than guess/rewrite historical record; not blocking, noted here for a future
+  run's optional cleanup.)
+- Runtime/product source delta: **0** — only `CATCH_UP.md` (append) and this progress entry changed.
+  No `node --check` applicable (no JS touched), no smoke-test/perf-log entry needed (matches the
+  precedent set by Run 322's own pure-docs "repo-moved notice" commit, which likewise skipped both).
+  Technical debt: 0 new markers. Risk: LOW (documentation only, no gameplay/runtime path touched).
+- Gelecek Faz Etkisi: none — no world/terrain/gameplay system touched.
+- World Evolution Report: road km +0; forest km² +0; castles/NPC/events/animals +0; World Coverage
+  unchanged; ADR count unchanged (still 269); player-visible delta: none (this run is pure
+  documentation catch-up, not a content/code change).
+- Next safe step: the two Run 322-deferred dragon follow-ups remain the natural next FAZ-7 candidates
+  if a future run wants to scope a dedicated pass; otherwise resume standing priority order. Next
+  platform-control/consolidation window still ~run 341-351 per Run 321. Next `CATCH_UP.md` refresh
+  due ~run 333 (10-run cadence from this one, not the stale 164-run gap it just closed).
