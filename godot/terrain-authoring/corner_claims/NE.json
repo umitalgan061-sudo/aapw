@@ -4,11 +4,11 @@
   "origin": [7, 0],
   "current_cell": "G70",
   "status": "validating",
-  "layer": "Coast/Hydrology",
-  "branch": "terrain/ne-g70-terrain3d-hydrology-r6-20260813",
-  "pr": 361,
+  "layer": "Macro Albedo/Biome",
+  "branch": "terrain/ne-g70-terrain3d-biome-r12-exact-20260813",
+  "pr": null,
   "last_commit": null,
-  "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Historical PR #243 was closed as stale because it never merged and had semantic/HTerrain evidence only; current rules require completing G70 before moving farther inward.",
+  "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Coast/Hydrology merged in PR #361; strict same-cell layer order therefore requires Macro Albedo/Biome next. Historical G70 biome PRs are stale/unmerged, so R12 republishes the previously physically validated Terrain3D biome contract from exact current main and restores bounded near/far/full-world evidence without rewriting canonical geography.",
   "quality_before": {
     "base_cells": 96,
     "water_cells": 96,
@@ -16,8 +16,8 @@
     "sea_cells": 96,
     "lake_cells": 0,
     "boundary_edges": 0,
-    "historical_pr": 243,
-    "historical_engine": "semantic QA + HTerrain regression only; no Terrain3D data/import/bake proof"
+    "merged_hydrology_pr": 361,
+    "macro_biome_in_main": false
   },
   "quality_target": {
     "canonical_uniform_sea_preserved": true,
@@ -25,11 +25,16 @@
     "owner_map_continuous_field": true,
     "west_guard_neighbor": "G60",
     "south_guard_neighbor": "G71",
-    "terrain3d_height_import": true,
-    "terrain3d_guard_regions": 4,
+    "source_grid_addressing_only": 65,
+    "terrain3d_filtered_import": 257,
+    "terrain3d_region_size": 256,
+    "terrain3d_guard_regions_min": 4,
     "terrain3d_region_persistence": true,
-    "terrain3d_lod0_bake": true,
-    "terrain3d_topdown_import_proof": true,
+    "terrain3d_height_color_roughness_roundtrip": true,
+    "terrain3d_lod0_bake_twice": true,
+    "terrain3d_255_256_seam_probes": true,
+    "near_far_full_world_visual_evidence": true,
+    "full_world_topdown": "1200x800 high-quality filtered; no grid/nearest-neighbour; G70 patch edge alpha=0",
     "hterrain_regression_preserved": true,
     "threejs_runtime_unchanged": true
   },
@@ -46,6 +51,7 @@
     "G71": {"pr": 252, "merge_commit": "1e0c1dc35bc3726551d753d1fc1922bf01226fa9", "canonical": "96/96 sea"},
     "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
   },
-  "engine": "canonical owner-map sea semantics -> continuous guard-backed submerged height field -> pinned Terrain3D v1.0.2-stable 257x257 RF import/regions/save/LOD0 bake; HTerrain retained as regression/control",
-  "updated_at": "2026-08-13T10:15:00+03:00"
+  "engine": "canonical owner-map sea semantics -> continuous guard-backed macro color/roughness over merged submerged height -> pinned Terrain3D v1.0.2-stable 257x257 filtered Height+Color import/regions/save/round-trip/LOD0 bake; compact near+far+full-world proof; HTerrain retained as regression/control",
+  "exact_base": "4c30f9ac5c6a2a90d587c020df4c7432977ef9f5",
+  "updated_at": "2026-08-13T16:26:00+03:00"
 }
