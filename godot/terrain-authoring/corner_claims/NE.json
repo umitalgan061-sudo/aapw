@@ -3,10 +3,10 @@
   "task_name": "Şafak Kartalı",
   "origin": [7, 0],
   "current_cell": "G70",
-  "status": "authoring",
+  "status": "validating",
   "layer": "Macro Albedo/Biome",
   "branch": "terrain/ne-g70-terrain3d-biome-r2-20260813",
-  "pr": null,
+  "pr": 365,
   "last_commit": null,
   "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Coast/Hydrology qualified and merged in PR #361. Macro Albedo/Biome PR #363 became stale only because concurrent SE PR #360 advanced main after its exact-head Terrain3D physical stages had passed; R2 republishes the same bounded G70 technical content on latest exact main without skipping layers.",
   "quality_before": {
@@ -64,5 +64,5 @@
     "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
   },
   "engine": "merged G70 canonical owner-map sea hydrology -> continuous open-sea substrate macro albedo/roughness -> pinned Terrain3D v1.0.2-stable 257x257 Height+Color import/four-region save/LOD0 bake; HTerrain retained as regression/control",
-  "updated_at": "2026-08-13T10:53:15+03:00"
+  "updated_at": "2026-08-13T10:55:20+03:00"
 }
