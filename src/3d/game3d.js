@@ -61,7 +61,7 @@ import { spawnConfiguredDragons } from './gameplay/dragons.js';
 import { createInteractionController } from './gameplay/interaction.js';
 import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.js';
-import { disposeRiverMesh, disposeWaterfallMesh } from './world/rivers.js';
+import { disposeRiverMesh, disposeWaterfallMesh, updateFlowAnimation } from './world/rivers.js';
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.js';
 import { disposeRoadNetwork } from './world/roads.js';
 import { disposeVegetation } from './world/vegetation.js';
@@ -466,6 +466,10 @@ export async function initGame3D() {
 			updateFog(state.scene.fog, dayNight);
 			if (state.freeCamera.active) state.scene.fog.density = 0; // see debug/README.md's Conventions.
 			updateWater(state.water, viewCamera.position, elapsedSeconds);
+			// Downstream foam on the river and its waterfall curtains (ADR-0271). Both are no-ops
+			// when the mesh is absent or its material never got the flow injection.
+			updateFlowAnimation(state.river, elapsedSeconds);
+			for (const waterfall of state.waterfalls) updateFlowAnimation(waterfall, elapsedSeconds);
 
 			// Wall-avoidance: pull the camera in front of any terrain/castle occluding the line from
 			// the player to it. Applied last (after sky/stars/water already used the true free-orbit

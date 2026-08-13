@@ -14,7 +14,13 @@ import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG } from './
 import { PLAYER_CONFIG } from './gameplay/gameplayConfig.js';
 import { ChunkManager } from './world/chunkManager.js';
 import { createGroundCollider, createSettlementCollider } from './physics.js';
-import { createWater } from './world/water.js';
+import {
+	createWater,
+	setWaterDepthField,
+	WATER_PLANE_SEGMENTS_DESKTOP,
+	WATER_PLANE_SEGMENTS_MOBILE,
+} from './world/water.js';
+import { createWaterDepthField } from './world/waterDepthField.js';
 import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMesh } from './world/rivers.js';
 import { createHeightSampler } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
@@ -98,7 +104,14 @@ export function createScene(canvas) {
 	scene.add(sky);
 	const stars = createStarfield(WORLD_DEFAULTS.WORLD_SEED);
 	scene.add(stars);
-	const water = createWater(WORLD_DEFAULTS.WATER_LEVEL_METERS);
+	// Desktop-class hardware gets a finer water grid so ADR-0270's swell reads as a smooth
+	// undulation rather than a faceted one; touch devices keep the historical segment count so
+	// the 500K mobile triangle budget is untouched. The depth field that actually enables the
+	// swell is baked and attached further down, once the ground collider exists.
+	const water = createWater(
+		WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		isCoarsePointerDevice() ? WATER_PLANE_SEGMENTS_MOBILE : WATER_PLANE_SEGMENTS_DESKTOP,
+	);
 	scene.add(water);
 	const clock = new THREE.Clock();
 
@@ -143,6 +156,22 @@ export function createScene(canvas) {
 	// doesn't stream/update per frame yet. Same `flattenPads` as `chunkManager` above (ADR-0118) so
 	// this never disagrees with the rendered ground mesh under a castle.
 	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+
+	// Bathymetry for the water surface (ADR-0270). Baked once, from the *same* flattened height
+	// field the rendered chunks and every gameplay query use, so the swell's amplitude taper can
+	// never disagree with the ground it is tapering against. Until this is attached the water plane
+	// stays exactly as flat as the ADR-0048 version.
+	const waterDepthField = createWaterDepthField({
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		waterLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+	});
+	setWaterDepthField(water, waterDepthField);
+	console.info(
+		`[sceneManager] Water depth field baked: ${waterDepthField.resolution}² texels over ` +
+			`${waterDepthField.extentMeters}m in ${waterDepthField.bakeMs.toFixed(0)}ms ` +
+			`(${(waterDepthField.deepTexelRatio * 100).toFixed(1)}% deep water, ` +
+			`${(waterDepthField.dryTexelRatio * 100).toFixed(1)}% dry land).`,
+	);
 	const { points: riverPoints, endReason: riverEndReason } = generateRiverPath({
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		sampleHeightMeters: groundCollider.getGroundHeight,

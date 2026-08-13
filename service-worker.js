@@ -279,6 +279,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/terrain.js',
     './src/3d/world/chunkManager.js',
     './src/3d/world/water.js',
+    './src/3d/world/waterDepthField.js',
     './src/3d/world/rivers.js',
     './src/3d/world/settlements.js',
     './src/3d/world/materials.js',

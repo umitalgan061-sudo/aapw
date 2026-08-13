@@ -9,7 +9,7 @@
  * Next step — `checkSmokeCheckRegistry.js`'s WARN, not yet an actual violation, but the next run
  * touching it was asked to plan a split rather than push it past 600, same precedent runs 40/64/68/82
  * already set for exactly this scenario). This file now keeps only "does the page/scene itself boot
- * and render correctly" (2D shell load, 3D mode boot, the water shader's vertex-displacement
+ * and render correctly" (2D shell load, 3D mode boot, the water shader's depth-tapered swell
  * invariant); the F4 debug camera, F2 profiling panel, and world-event system + its day/night gating
  * moved into the new `game3dSmokeChecksDebugTools.js` — all four are singleton systems exercised via
  * the same in-page dynamic-`import()` pattern, distinct from this file's page-navigation-level checks.
@@ -192,48 +192,110 @@ async function check3DMode(browser, baseUrl) {
 }
 
 /**
- * Regression guard for ADR-0048 (lake-water flicker fix): `world/water.js`'s vertex shader must
- * never compute a time-varying (or otherwise animated) vertical displacement — that displacement
- * (previously real Gerstner waves, up to ~1m) is exactly what geometrically popped the water plane
- * through shallow lake beds (some sit centimeters below `WORLD_DEFAULTS.WATER_LEVEL_METERS` — see
- * ADR-0048's `jon` example).
+ * Regression guard for ADR-0270's depth-tapered water swell — the **successor** to the ADR-0048
+ * guard this function used to be, kept at the same position in the smoke suite.
  *
- * **Deliberately a shader-source check, not a `geometry.attributes.position` comparison** — an
- * earlier draft of this check sampled the live mesh's CPU-side position buffer before/after
- * `updateWater()` and asserted it never changed. That was meaningless: a vertex shader's
- * displacement math runs entirely on the GPU inside `gl_Position`'s computation and is never read
- * back into the CPU-side `BufferAttribute` — the old, buggy Gerstner-wave shader would have passed
- * that exact same check too (confirmed by literally re-running it against the pre-ADR-0048 shader
- * before replacing it with this one). Instead, this asserts the real invariant that actually rules
- * the bug out: the compiled vertex shader source contains no `uTime` (the only per-frame-varying
- * uniform available to it) and no `sin(`/`cos(` calls (wave trigonometry) — if a future change
- * reintroduces either, this fails immediately, whereas the buffer-comparison approach never could.
+ * History, because deleting it would look like a lost guard: ADR-0048 fixed a real lake-water
+ * flicker (constant-amplitude Gerstner waves, ~1m, dipped the trough below shallow lake beds and
+ * popped the shoreline every frame) by removing vertex displacement entirely, and this check
+ * enforced that by asserting the vertex shader contained no `uTime` and no `sin(`/`cos(`. ADR-0270
+ * deliberately reinstates displacement, so that source-level assertion is now provably wrong to
+ * keep. What replaces it is stronger, not weaker: instead of banning the mechanism, this asserts
+ * the *inequality that makes the mechanism safe* —
+ *
+ *     maxDisplacement(depth) = WAVE_TOTAL_AMPLITUDE_METERS * min(1, depth / FULL_WAVE_DEPTH_METERS)
+ *                            < depth,   for every depth > 0
+ *
+ * — so the trough can never reach the bed at any depth, which is the actual property ADR-0048's
+ * flicker violated. A future amplitude/full-depth tweak that breaks the inequality fails here.
+ *
+ * Also asserted, since the inequality alone would not catch a shader that ignored the taper: the
+ * displacement is still gated on the baked depth field (`uSwellStrength` is exactly 0 on a fresh
+ * mesh, so water is never displaced against unknown bathymetry — the ADR-0048-equivalent safe
+ * state), attaching a field turns it on and wires the right texture/extent, and the vertex source
+ * really does multiply its displacement by the sampled depth factor.
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */
-async function checkWaterVertexShaderStatic(browser, baseUrl) {
+async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 	const page = await browser.newPage();
 	let result;
 	try {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
 		result = await page.evaluate(async () => {
-			const { createWater } = await import('/src/3d/world/water.js');
+			const { createWater, setWaterDepthField, disposeWater, WAVE_TOTAL_AMPLITUDE_METERS } = await import(
+				'/src/3d/world/water.js'
+			);
+			const { createWaterDepthField, FULL_WAVE_DEPTH_METERS } = await import('/src/3d/world/waterDepthField.js');
+			const failures = [];
+
+			// 1. The safety inequality itself, on the real exported constants.
+			if (!(WAVE_TOTAL_AMPLITUDE_METERS < FULL_WAVE_DEPTH_METERS)) {
+				failures.push(`amplitude ${WAVE_TOTAL_AMPLITUDE_METERS} >= full-wave depth ${FULL_WAVE_DEPTH_METERS}`);
+			}
+			// 2. Swept numerically over the depths that actually occur, including the shallow lake
+			//    edges ADR-0048 tripped on. 1cm steps out to twice the full-wave depth.
+			let worstClearanceMeters = Infinity;
+			for (let depthMeters = 0.01; depthMeters <= FULL_WAVE_DEPTH_METERS * 2; depthMeters += 0.01) {
+				const taper = Math.min(1, depthMeters / FULL_WAVE_DEPTH_METERS);
+				const clearance = depthMeters - WAVE_TOTAL_AMPLITUDE_METERS * taper;
+				if (clearance < worstClearanceMeters) worstClearanceMeters = clearance;
+				if (clearance <= 0) {
+					failures.push(`trough reaches the bed at depth ${depthMeters.toFixed(2)}m`);
+					break;
+				}
+			}
+
+			// 3. A fresh mesh must be provably undisplaced — no field, no waves.
 			const water = createWater(6);
-			const source = water.material.vertexShader;
+			if (water.material.uniforms.uSwellStrength.value !== 0) {
+				failures.push('fresh water mesh has non-zero uSwellStrength (would displace against unknown bathymetry)');
+			}
+			// 4. The vertex shader must actually apply the depth taper, not just declare it.
+			const vertexSource = water.material.vertexShader;
+			if (!/worldPos\.y\s*\+=\s*swellHeight\s*\*\s*amplitudeScale/.test(vertexSource)) {
+				failures.push('vertex shader no longer scales its displacement by the depth-tapered amplitude');
+			}
+			if (!/amplitudeScale\s*=\s*depthFactor\s*\*\s*uSwellStrength/.test(vertexSource)) {
+				failures.push('vertex shader no longer derives amplitudeScale from the sampled depth factor');
+			}
+
+			// 5. Attaching a real field turns swell on and wires the texture/extent through.
+			const depthField = createWaterDepthField({
+				sampleHeightMeters: (x) => (x < 0 ? 40 : -40), // dry cliff on one side, deep trench on the other
+				waterLevelMeters: 6,
+				extentMeters: 1000,
+				resolution: 16,
+			});
+			setWaterDepthField(water, depthField);
+			const uniforms = water.material.uniforms;
+			if (uniforms.uSwellStrength.value !== 1) failures.push('attaching a depth field did not enable swell');
+			if (uniforms.uDepthMap.value !== depthField.texture) failures.push('depth texture not bound to uDepthMap');
+			if (uniforms.uDepthFieldExtentMeters.value !== 1000) failures.push('depth field extent not forwarded');
+			// Dry land must bake to exactly 0 and deep water to exactly 255 — the taper's two endpoints.
+			const texels = depthField.texture.image.data;
+			if (texels[0] !== 0) failures.push(`dry-land texel baked ${texels[0]}, expected 0`);
+			const lastTexelOffset = (16 * 16 - 1) * 4;
+			if (texels[lastTexelOffset] !== 255) failures.push(`deep-water texel baked ${texels[lastTexelOffset]}, expected 255`);
+
+			disposeWater(water);
 			return {
-				hasUTime: source.includes('uTime'),
-				hasTrig: /\b(sin|cos)\s*\(/.test(source),
-				sourceLength: source.length,
+				failures,
+				amplitude: WAVE_TOTAL_AMPLITUDE_METERS,
+				fullWaveDepth: FULL_WAVE_DEPTH_METERS,
+				worstClearanceMeters,
+				dryRatio: depthField.dryTexelRatio,
+				deepRatio: depthField.deepTexelRatio,
 			};
 		});
 	} catch (error) {
 		result = { error: String(error) };
 	}
 	await page.close();
-	const ok = result && result.hasUTime === false && result.hasTrig === false;
+	const ok = Boolean(result && !result.error && result.failures.length === 0);
 	const details = ok
-		? `vertex shader (${result.sourceLength} chars) has no uTime/sin()/cos() — no vertex-stage animation possible`
-		: `FAILED: ${JSON.stringify(result)}`;
-	return { name: 'water vertex shader has no time-varying displacement (world/water.js, ADR-0048)', ok, details };
+		? `swell amplitude ${result.amplitude.toFixed(2)}m < full-wave depth ${result.fullWaveDepth}m; swept 0.01-${(result.fullWaveDepth * 2).toFixed(0)}m, worst bed clearance ${result.worstClearanceMeters.toFixed(4)}m (>0 everywhere); fresh mesh undisplaced (uSwellStrength=0), field attach enables swell, synthetic bake ${(result.dryRatio * 100).toFixed(0)}% dry / ${(result.deepRatio * 100).toFixed(0)}% deep`
+		: `FAILED: ${result?.error ?? JSON.stringify(result?.failures)}`;
+	return { name: 'depth-tapered water swell (world/water.js + world/waterDepthField.js, ADR-0270)', ok, details };
 }
 
 /**
@@ -322,6 +384,6 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 module.exports = {
 	check2DShell,
 	check3DMode,
-	checkWaterVertexShaderStatic,
+	checkWaterDepthTaperedSwell,
 	checkSettlementGroundFlatten,
 };

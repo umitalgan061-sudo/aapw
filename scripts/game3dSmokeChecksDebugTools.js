@@ -27,7 +27,7 @@ const NAV_TIMEOUT_MS = 15000;
  * camera's pose, WASD movement actually moves the free camera once active (and does nothing while
  * inactive), and a second F4 press deactivates it again — all in isolation (a real
  * `createFreeCameraController` instance against a synthetic source camera/canvas), same in-page
- * dynamic-`import()` pattern as `checkWaterVertexShaderStatic` above. Runs on the live `game3d.html`
+ * dynamic-`import()` pattern as `checkWaterDepthTaperedSwell` above. Runs on the live `game3d.html`
  * page (like every other isolated check here) — the real, already-running free camera also reacts
  * to the synthetic key events dispatched below, same as `checkWolfPackAlert`'s isolated wolves
  * coexist harmlessly with the live game's own wolves; this check only asserts against its own

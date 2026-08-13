@@ -5,14 +5,25 @@
  * See DECISIONS.md ADR-0005 for why this is one plane, not per-chunk water, and why `terrain.js`
  * needed no changes for lakes/coastline to appear.
  *
- * The surface never moves vertically — see DECISIONS.md ADR-0048. An earlier version displaced
- * vertices with real Gerstner waves (up to ~1m), which read fine over the deep sea but flickered
- * over shallow lakes (some only centimeters below `WORLD_DEFAULTS.WATER_LEVEL_METERS`): the wave
- * trough would dip below the lake bed and the crest would rise above it, so the shoreline's
- * terrain popped in and out of view every frame. Wave *motion* is now faked entirely in the
- * fragment shader (a shifting analytic bump normal drives the fresnel/specular look) — the plane's
- * geometry stays flat, so water can never geometrically part from the lake bed beneath it,
- * regardless of how shallow that lake is.
+ * **Wave history — read this before touching the displacement.** The first version displaced
+ * vertices with real Gerstner waves at a *constant* ~1m amplitude. That read fine over deep sea but
+ * flickered over shallow lakes (some only centimetres below `WORLD_DEFAULTS.WATER_LEVEL_METERS`):
+ * the trough dipped below the lake bed and the crest rose above it, so the shoreline's terrain
+ * popped in and out every frame. DECISIONS.md ADR-0048 responded by deleting the displacement
+ * outright and faking all wave motion in the fragment shader — no flicker, but also a dead-flat
+ * surface with no actual undulation.
+ *
+ * This module now displaces geometry again, but with the amplitude **scaled by local water depth**
+ * (`world/waterDepthField.js`). Because `WAVE_TOTAL_AMPLITUDE_METERS < FULL_WAVE_DEPTH_METERS` and
+ * the scale factor is `min(1, depth / FULL_WAVE_DEPTH_METERS)`, the trough is provably always
+ * shallower than the water column itself — the surface can never part from the bed at any depth,
+ * which is the property ADR-0048 could not get from a constant amplitude. See
+ * `world/waterDepthField.js`'s doc comment for the inequality and
+ * `scripts/checkRun325WaterSwell.js` for the assertion that guards it.
+ *
+ * Fine chop is still fragment-only (`rippleSlope`) — it is far below the geometry's resolution, so
+ * there is nothing to gain from vertices there. Geometry carries the long swell, the shader carries
+ * the detail.
  *
  * Participates in `scene.fog` (`fog.js`) via three.js's `fog_pars_vertex`/`fog_vertex`/
  * `fog_pars_fragment`/`fog_fragment` chunks (`material.fog: true` alone does nothing for a custom
@@ -23,14 +34,99 @@
 
 import * as THREE from 'three';
 
+/**
+ * The three swell components, longest first: `[wavelengthMeters, amplitudeMeters, dirX, dirZ]`.
+ * Directions need not be unit length — the shader normalizes them.
+ *
+ * Wavelengths are chosen against the plane's own quad size so the displaced surface stays smooth
+ * instead of aliasing into a sawtooth: the shortest component (75m) spans 6 quads at the desktop
+ * segment count and ~3.6 at the mobile one (see `createWater`'s `segments` parameter) — and it is
+ * also the smallest-amplitude of the three, so the mobile grid's coarser rendition of it is the
+ * least visible part of the sea. Combined crest-to-trough height is ~4.3m over a ~200m dominant
+ * wavelength, i.e. a steepness around 1/90 — a real, legible ocean swell rather than either a dead
+ * flat sheet or an implausibly choppy one.
+ *
+ * Phase speeds are deliberately **not** listed here — they are derived in-shader from the
+ * deep-water gravity-wave dispersion relation, so the three components drift apart at physically
+ * plausible rates instead of marching in lockstep at three hand-picked speeds.
+ *
+ * Exported so `scripts/checkRun325WaterSwell.js` can run its analytic bed-clearance proof against
+ * the real numbers instead of a hand-copied duplicate that could silently drift out of sync.
+ */
+export const SWELL_COMPONENTS = Object.freeze([
+	Object.freeze([200, 1.05, 1.0, 0.28]),
+	Object.freeze([115, 0.7, -0.42, 1.0]),
+	Object.freeze([75, 0.4, 0.8, -0.6]),
+]);
+
+/**
+ * Worst-case (all three crests aligned) vertical displacement, in meters. Must stay strictly below
+ * `waterDepthField.js`'s `FULL_WAVE_DEPTH_METERS` — that inequality is the whole reason geometric
+ * waves are safe here where ADR-0048's constant-amplitude ones were not. Exported so
+ * `scripts/checkRun325WaterSwell.js` can assert it rather than trusting a comment.
+ */
+export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, amplitude]) => sum + amplitude, 0);
+
 const WATER_VERTEX_SHADER = /* glsl */ `
+	uniform float uTime;
+	uniform sampler2D uDepthMap;
+	uniform float uDepthFieldExtentMeters;
+	uniform float uSwellStrength;
 	varying vec3 vWorldPosition;
+	varying float vDepthFactor;
+	varying vec2 vSwellSlope;
 	#include <fog_pars_vertex>
+
+	/**
+	 * Normalized water depth at a world-space XZ, from the baked field (see world/waterDepthField.js).
+	 * Outside the baked square there is no streamed terrain at all, so "fully deep open ocean" is the
+	 * correct answer rather than a clamped edge sample.
+	 */
+	float sampleDepthFactor(vec2 worldXZ) {
+		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
+		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+		return texture2D(uDepthMap, uv).r;
+	}
+
+	// Deep-water gravity wave: phase speed c = sqrt(g * lambda / 2pi), hence omega = sqrt(g * k).
+	const float GRAVITY = 9.81;
+	const float TAU = 6.28318530718;
+
+	/**
+	 * Accumulates one sinusoidal swell component's height and its analytic XZ slope (d height/d x,
+	 * d height/d z). Taking the slope analytically — rather than differencing neighbouring vertices —
+	 * keeps the shading exact even where the geometry is coarse.
+	 */
+	void addSwell(vec2 direction, float wavelength, float amplitude, vec2 worldXZ, float time, inout float height, inout vec2 slope) {
+		vec2 dir = normalize(direction);
+		float k = TAU / wavelength;
+		float omega = sqrt(GRAVITY * k);
+		float phase = k * dot(dir, worldXZ) - omega * time;
+		height += amplitude * sin(phase);
+		slope += dir * (amplitude * k * cos(phase));
+	}
 
 	void main() {
 		vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+		float depthFactor = sampleDepthFactor(worldPos.xz);
+
+		float swellHeight = 0.0;
+		vec2 swellSlope = vec2(0.0);
+		addSwell(vec2(${SWELL_COMPONENTS[0][2]}, ${SWELL_COMPONENTS[0][3]}), ${SWELL_COMPONENTS[0][0]}.0, ${SWELL_COMPONENTS[0][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
+		addSwell(vec2(${SWELL_COMPONENTS[1][2]}, ${SWELL_COMPONENTS[1][3]}), ${SWELL_COMPONENTS[1][0]}.0, ${SWELL_COMPONENTS[1][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
+		addSwell(vec2(${SWELL_COMPONENTS[2][2]}, ${SWELL_COMPONENTS[2][3]}), ${SWELL_COMPONENTS[2][0]}.0, ${SWELL_COMPONENTS[2][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
+
+		// The depth taper is what makes geometric waves safe over shallow lakes (module doc / ADR-0048).
+		// uSwellStrength stays 0 until a real depth field is attached, so water is never displaced
+		// against unknown bathymetry.
+		float amplitudeScale = depthFactor * uSwellStrength;
+		worldPos.y += swellHeight * amplitudeScale;
+
 		vWorldPosition = worldPos;
-		vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+		vDepthFactor = depthFactor;
+		vSwellSlope = swellSlope * amplitudeScale;
+
+		vec4 mvPosition = viewMatrix * vec4(worldPos, 1.0);
 		gl_Position = projectionMatrix * mvPosition;
 		#include <fog_vertex>
 	}
@@ -43,32 +139,58 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uSunDirection;
 	uniform vec3 uCameraPosition;
 	varying vec3 vWorldPosition;
+	varying float vDepthFactor;
+	varying vec2 vSwellSlope;
 	#include <fog_pars_fragment>
 
-	// Fakes moving-water shading without ever displacing the (flat) vertex grid: three sine ripples
-	// at different direction/frequency/speed perturb an otherwise-flat-up normal, the same "tuned by
-	// eye" spirit the old Gerstner waves used, just fragment-only so shallow water can never part
-	// from the ground under it (DECISIONS.md ADR-0048).
-	vec3 rippleNormal(vec2 worldXZ, float time) {
+	// Fine chop, far below the vertex grid's resolution: three sine ripples at different direction/
+	// frequency/speed, returned as a slope so it can be summed with the swell's own analytic slope
+	// before a single normal is built. Fragment-only by design — see the module doc comment.
+	vec2 rippleSlope(vec2 worldXZ, float time) {
 		float r1 = sin(dot(worldXZ, vec2(0.85, 0.51)) + time * 1.3);
 		float r2 = sin(dot(worldXZ, vec2(-0.6, 0.9)) * 1.6 - time * 0.9);
 		float r3 = sin(dot(worldXZ, vec2(0.25, -0.7)) * 2.4 + time * 1.8);
-		vec2 slope = vec2(r1 + r2 * 0.6, r3 + r2 * 0.4) * 0.05;
-		return normalize(vec3(slope.x, 1.0, slope.y));
+		return vec2(r1 + r2 * 0.6, r3 + r2 * 0.4) * 0.05;
 	}
 
 	void main() {
-		vec3 normal = rippleNormal(vWorldPosition.xz, uTime);
+		// The fine chop is well below a pixel once it is a few hundred metres out, where sampling it
+		// into a pow-80 specular term just produces crawling speckle. Fading it with distance keeps
+		// the near-field detail and leaves the far field to the swell alone.
+		float rippleFade = 1.0 - smoothstep(150.0, 900.0, distance(uCameraPosition, vWorldPosition));
+		// For a height field y = h(x, z) the surface normal is normalize(vec3(-dh/dx, 1, -dh/dz)).
+		vec2 slope = vSwellSlope + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
+		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
+
+		// Shallow water reads as the lighter inshore tone, deep water as the dark offshore one —
+		// the same two-colour palette as before, now actually driven by real bathymetry.
+		vec3 bodyColor = mix(uShallowColor, uDeepColor, smoothstep(0.02, 0.6, vDepthFactor));
 
 		// Fresnel-ish: nearer grazing angles read lighter/more reflective, straight-down reads deep.
 		float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.0);
-		vec3 baseColor = mix(uDeepColor, uShallowColor, fresnel);
+		vec3 baseColor = mix(bodyColor, uShallowColor, fresnel * 0.85);
 
 		vec3 halfVector = normalize(uSunDirection + viewDir);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), 80.0);
 
-		gl_FragColor = vec4(baseColor + specular * 0.6, 0.9);
+		// Surf where the bed comes close, broken up by a slow travelling sine so it reads as moving
+		// water rather than a painted outline.
+		//
+		// No open-water whitecaps: an earlier revision foamed the tallest swell crests, but three
+		// sinusoids travelling in different directions interfere into a quasi-periodic *lattice* of
+		// maxima, so that read as a regular grid of round white dots rather than as surf (visible in
+		// this run's own first evidence render). Whitecaps are wind-driven steepness anyway, which
+		// this calm swell does not model — they belong with a future wind system, not here.
+		float surge = 0.55 + 0.45 * sin(dot(vWorldPosition.xz, vec2(0.31, -0.22)) + uTime * 1.7);
+		float foam = clamp(smoothstep(0.22, 0.0, vDepthFactor) * surge, 0.0, 1.0);
+
+		vec3 color = mix(baseColor + specular * 0.6, vec3(0.92, 0.96, 0.98), foam);
+		// Shallow water is more see-through, so a lake bed or beach shelf shows through instead of
+		// every depth rendering as the same opaque sheet.
+		float alpha = mix(0.55, 0.92, smoothstep(0.0, 0.35, vDepthFactor));
+
+		gl_FragColor = vec4(color, max(alpha, foam * 0.85));
 		#include <fog_fragment>
 	}
 `;
@@ -78,9 +200,29 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
  * far smaller than the full world size — see DECISIONS.md ADR-0005 for why a world-sized plane
  * would be wasted triangle budget. */
 const WATER_PLANE_EXTENT_METERS = 4000;
-/** Geometry resolution. Coarser than terrain (64/chunk) since Gerstner displacement reads fine
- * even at lower density — kept mobile-budget-conscious (see module doc / ADR-0005). */
+/**
+ * Default geometry resolution — unchanged from the pre-swell version (32,768 triangles) so every
+ * existing caller and `scripts/checkWaterVisualContract.js` see exactly the mesh they did before.
+ * `sceneManager.js` passes a higher count on desktop-class devices; see `createWater`'s `segments`
+ * parameter and `WATER_PLANE_SEGMENTS_DESKTOP`.
+ */
 const WATER_PLANE_SEGMENTS = 128;
+
+/**
+ * Desktop-class segment count. 4000/320 = 12.5 m per quad, ~7.6 quads across the shortest swell
+ * component — enough for the displaced surface to read as a smooth swell rather than a faceted one.
+ * Costs 204,800 triangles against the desktop budget of 5M (`GOVERNANCE.md` §4); touch devices keep
+ * `WATER_PLANE_SEGMENTS` so the 500K mobile triangle budget is untouched.
+ */
+export const WATER_PLANE_SEGMENTS_DESKTOP = 320;
+
+/**
+ * Touch-device segment count. 4000/192 = 20.8 m per quad — coarser than desktop, but enough for the
+ * two dominant swell components to read as a smooth undulation. Costs 73,728 triangles where the
+ * pre-swell plane cost 32,768; `scripts/checkMobilePerfBudget.js` holds the whole scene to the 500K
+ * mobile triangle budget and is the check to re-run if this is ever raised.
+ */
+export const WATER_PLANE_SEGMENTS_MOBILE = 192;
 
 const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x6fd6c9);
 const DEFAULT_DEEP_COLOR = new THREE.Color(0x0a3a4a);
@@ -90,17 +232,35 @@ const DEFAULT_DEEP_COLOR = new THREE.Color(0x0a3a4a);
 const SUN_DIRECTION = new THREE.Vector3(300, 400, 200).normalize();
 
 /**
+ * Placeholder bound to `uDepthMap` before a real field is attached: one fully-deep texel. Nothing
+ * is displaced against it — `uSwellStrength` is 0 until `setWaterDepthField` runs — it exists only
+ * so the sampler is never left unbound. Module-level and intentionally never disposed (see
+ * `disposeWater`, which skips it).
+ */
+const PLACEHOLDER_DEPTH_TEXTURE = new THREE.DataTexture(
+	new Uint8Array([255, 255, 255, 255]),
+	1,
+	1,
+	THREE.RGBAFormat,
+	THREE.UnsignedByteType,
+);
+PLACEHOLDER_DEPTH_TEXTURE.needsUpdate = true;
+
+/**
  * Builds the sea-level water plane. Caller must reposition it onto the camera every frame (via
- * `updateWater`) so it always extends toward the horizon regardless of where the viewer orbits to.
+ * `updateWater`) so it always extends toward the horizon regardless of where the viewer orbits to,
+ * and should attach a baked depth field (via `setWaterDepthField`) to enable geometric swell.
  * @param {number} waterLevelMeters World-space Y the plane sits at (`WORLD_DEFAULTS.WATER_LEVEL_METERS`).
+ * @param {number} [segments] Geometry subdivisions per edge. Defaults to the historical mobile-safe
+ *   `WATER_PLANE_SEGMENTS`; pass `WATER_PLANE_SEGMENTS_DESKTOP` on desktop-class hardware.
  * @returns {THREE.Mesh}
  */
-export function createWater(waterLevelMeters) {
+export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	const geometry = new THREE.PlaneGeometry(
 		WATER_PLANE_EXTENT_METERS,
 		WATER_PLANE_EXTENT_METERS,
-		WATER_PLANE_SEGMENTS,
-		WATER_PLANE_SEGMENTS,
+		segments,
+		segments,
 	);
 	geometry.rotateX(-Math.PI / 2);
 
@@ -118,6 +278,9 @@ export function createWater(waterLevelMeters) {
 				uDeepColor: { value: DEFAULT_DEEP_COLOR },
 				uSunDirection: { value: SUN_DIRECTION },
 				uCameraPosition: { value: new THREE.Vector3() },
+				uDepthMap: { value: PLACEHOLDER_DEPTH_TEXTURE },
+				uDepthFieldExtentMeters: { value: 1 },
+				uSwellStrength: { value: 0 },
 			},
 		]),
 		transparent: true,
@@ -132,8 +295,27 @@ export function createWater(waterLevelMeters) {
 }
 
 /**
+ * Attaches a baked depth field (`world/waterDepthField.js`) and switches geometric swell on. Until
+ * this is called the surface stays exactly as flat as the ADR-0048 version — displacing water
+ * against unknown bathymetry is precisely the bug that ADR removed, so "no field" means "no waves"
+ * rather than "assume deep".
+ * @param {THREE.Mesh} waterMesh
+ * @param {{texture: THREE.DataTexture, extentMeters: number}} depthField
+ * @param {number} [swellStrength=1] 0..1 multiplier over the whole swell — a hook for a future
+ *   quality preset to soften or disable waves without rebaking the field.
+ */
+export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
+	const { uniforms } = waterMesh.material;
+	uniforms.uDepthMap.value = depthField.texture;
+	uniforms.uDepthFieldExtentMeters.value = depthField.extentMeters;
+	uniforms.uSwellStrength.value = swellStrength;
+	// Remembered so `disposeWater` can release the baked texture with the mesh that owns it.
+	waterMesh.userData.depthField = depthField;
+}
+
+/**
  * Re-centers the water plane's XZ on the camera (keeping its fixed sea-level Y), advances the
- * fragment-only ripple animation time, and updates the specular-highlight camera-position uniform.
+ * wave animation time, and updates the specular-highlight camera-position uniform.
  * Call once per frame.
  * @param {THREE.Mesh} waterMesh
  * @param {THREE.Vector3} cameraPosition
@@ -147,10 +329,17 @@ export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
 }
 
 /**
- * Disposes the water plane's geometry/material. Call on teardown — memory-leak checklist.
+ * Disposes the water plane's geometry/material, plus any depth field attached via
+ * `setWaterDepthField`. Call on teardown — memory-leak checklist.
  * @param {THREE.Mesh} waterMesh
  */
 export function disposeWater(waterMesh) {
 	waterMesh.geometry.dispose();
 	waterMesh.material.dispose();
+	const depthField = waterMesh.userData.depthField;
+	// The shared placeholder is never owned by a mesh and must outlive every one of them.
+	if (depthField && depthField.texture !== PLACEHOLDER_DEPTH_TEXTURE) {
+		depthField.texture.dispose();
+		waterMesh.userData.depthField = null;
+	}
 }
