@@ -194,9 +194,14 @@ jobs:
           # no source diff; restore only this generated importer noise before the
           # preservation assertion.
           git restore --worktree -- godot/terrain-authoring/addons/zylann.hterrain
+          # validate_hterrain_authoring.gd intentionally bootstraps res://terrain_data.
+          # The repository contract tracks only terrain_data/.gitkeep, so scrub only
+          # runner-generated files (including ignored ones) and keep tracked content.
+          test "$(git ls-files godot/terrain-authoring/terrain_data)" = 'godot/terrain-authoring/terrain_data/.gitkeep'
+          git clean -fdx -- godot/terrain-authoring/terrain_data
           git diff --exit-code -- godot/terrain-authoring/project.godot
           git diff --exit-code -- godot/terrain-authoring/addons/zylann.hterrain
-          test -z "$(git status --porcelain godot/terrain-authoring/terrain_data/)"
+          test -z "$(git status --porcelain --untracked-files=all godot/terrain-authoring/terrain_data/)"
 
       - uses: actions/upload-artifact@v4
         if: always()
