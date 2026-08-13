@@ -3,35 +3,50 @@
   "task_name": "Şafak Kartalı",
   "origin": [7, 0],
   "current_cell": "G70",
-  "status": "validating",
-  "layer": "Coast/Hydrology",
-  "branch": "terrain/ne-g70-terrain3d-hydrology-r6-20260813",
-  "pr": 361,
+  "status": "authoring",
+  "layer": "Macro Albedo/Biome",
+  "branch": "terrain/ne-g70-terrain3d-biome-20260813",
+  "pr": null,
   "last_commit": null,
-  "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Historical PR #243 was closed as stale because it never merged and had semantic/HTerrain evidence only; current rules require completing G70 before moving farther inward.",
+  "selection_reason": "G70 is the NE origin cell at Chebyshev distance 0. Coast/Hydrology qualified and merged in PR #361, so the rules require staying on G70 and advancing to Macro Albedo/Biome before any farther inward cell is selected.",
   "quality_before": {
+    "coast_hydrology_pr": 361,
+    "coast_hydrology_merge_commit": "0d8d58a8e725690e896db54f6945e48ed15ef70d",
     "base_cells": 96,
     "water_cells": 96,
     "land_cells": 0,
     "sea_cells": 96,
     "lake_cells": 0,
     "boundary_edges": 0,
-    "historical_pr": 243,
-    "historical_engine": "semantic QA + HTerrain regression only; no Terrain3D data/import/bake proof"
+    "terrain3d_guard_regions": 4,
+    "canonical": "unambiguous open sea with merged west/south guard-backed Terrain3D seafloor"
   },
   "quality_target": {
     "canonical_uniform_sea_preserved": true,
-    "invented_coastline_or_land": false,
-    "owner_map_continuous_field": true,
+    "invented_land_biome": false,
+    "owner_map_continuous_macro_albedo": true,
+    "owner_map_continuous_roughness": true,
     "west_guard_neighbor": "G60",
     "south_guard_neighbor": "G71",
-    "terrain3d_height_import": true,
+    "merged_hydrology_height_preserved": true,
+    "terrain3d_color_roughness_import": true,
     "terrain3d_guard_regions": 4,
     "terrain3d_region_persistence": true,
     "terrain3d_lod0_bake": true,
-    "terrain3d_topdown_import_proof": true,
+    "terrain3d_topdown_color_roughness_proof": true,
     "hterrain_regression_preserved": true,
+    "settlement_and_road_safety": true,
+    "pwa_mobile_browser_regression": true,
     "threejs_runtime_unchanged": true
+  },
+  "completed_layers": {
+    "G70": {
+      "Coast/Hydrology": {
+        "pr": 361,
+        "merge_commit": "0d8d58a8e725690e896db54f6945e48ed15ef70d",
+        "note": "Canonical 96/96 open sea, real pinned Terrain3D 257x257 guard-backed height import, four-region persistence, deterministic LOD0 bake, HTerrain and game regressions qualified on exact main."
+      }
+    }
   },
   "completed_cells": {
     "G52": {
@@ -46,6 +61,6 @@
     "G71": {"pr": 252, "merge_commit": "1e0c1dc35bc3726551d753d1fc1922bf01226fa9", "canonical": "96/96 sea"},
     "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
   },
-  "engine": "canonical owner-map sea semantics -> continuous guard-backed submerged height field -> pinned Terrain3D v1.0.2-stable 257x257 RF import/regions/save/LOD0 bake; HTerrain retained as regression/control",
-  "updated_at": "2026-08-13T10:15:00+03:00"
+  "engine": "merged G70 canonical owner-map sea hydrology -> continuous open-sea substrate macro albedo/roughness -> pinned Terrain3D v1.0.2-stable 257x257 Height+Color import/four-region save/LOD0 bake; HTerrain retained as regression/control",
+  "updated_at": "2026-08-13T10:45:22+03:00"
 }
