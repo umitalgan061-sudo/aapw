@@ -6,7 +6,7 @@
   "status": "in_progress",
   "branch": "terrain/sw-g07-runtime-parity-mainbfa6-20260813",
   "pr": 325,
-  "last_commit": "a16ceb76a97d8e2547d1c5a262d8a274ad663583",
+  "last_commit": "4e1305223c0613178ba71958ccbc0748ee9737e2",
   "quality_before": {
     "layer": "Near Detail",
     "evidence_pr": 312,
@@ -14,9 +14,15 @@
   },
   "quality_after": {
     "layer": "Terrain3D Bake / Three.js Runtime Parity",
-    "state": "phase1_guard_backed_bake_provenance_pending_ci",
+    "state": "phase2_packed_runtime_adapter_pending_exact_head_ci",
+    "phase1_run": 31665397412,
+    "phase1_state": "success",
     "terrain3d_import": "257x257 height+control+color",
-    "runtime_adoption": "pending_real_bake_artifact"
+    "terrain3d_regions": 4,
+    "terrain3d_baked_vertices": 263169,
+    "runtime_payload": "artifact-derived-33x33-packed",
+    "runtime_adoption": "canonical_adapter_shadow_qualified",
+    "live_mesh_adoption": "deferred_until_adjacent_cells_prevent_visible_geocell_edge"
   },
-  "updated_at": "2026-08-13T03:54:00Z"
+  "updated_at": "2026-08-13T07:39:00+03:00"
 }
