@@ -6,7 +6,7 @@
   "status": "in_progress",
   "branch": "terrain/sw-g07-runtime-parity-mainbfa6-20260813",
   "pr": 325,
-  "last_commit": "c59aff01681ab45c9d1466fc82f5fd66aeb038cb",
+  "last_commit": "501f14e34ddfffd06e4170639d63af8cecd6853e",
   "quality_before": {
     "layer": "Near Detail",
     "evidence_pr": 312,
@@ -18,5 +18,5 @@
     "terrain3d_import": "257x257 height+control+color",
     "runtime_adoption": "pending_real_bake_artifact"
   },
-  "updated_at": "2026-08-13T03:45:00Z"
+  "updated_at": "2026-08-13T03:50:00Z"
 }
