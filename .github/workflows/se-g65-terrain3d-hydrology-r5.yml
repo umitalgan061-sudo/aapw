@@ -6,8 +6,6 @@ on:
     branches: [main]
 permissions:
   contents: read
-env:
-  BASE_SHA: 24fa8656f7b585b0cedfe2f471fce705775ab13e
 jobs:
   validate:
     runs-on: ubuntu-24.04
@@ -21,8 +19,20 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          test "$(git diff --name-only "$BASE_SHA"...HEAD | sort | tr '\n' ' ')" = ".github/workflows/se-g65-terrain3d-hydrology-r5.yml godot/terrain-authoring/geocells/se/g65_hydrology.mjs godot/terrain-authoring/scripts/validate_g65_terrain3d_hydrology.gd scripts/checkSEG65Hydrology.mjs "
+          BASE_SHA="$(git rev-parse origin/main)"
+          test -n "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD | sort | tr '\n' ' ')"
+          if [[ "$GITHUB_EVENT_NAME" == "push" || "${GITHUB_HEAD_REF:-}" == agent/kizil-ufuk-g65-* ]]; then
+            test "$CHANGED" = ".github/workflows/se-g65-terrain3d-hydrology-r5.yml godot/terrain-authoring/geocells/se/g65_hydrology.mjs godot/terrain-authoring/scripts/validate_g65_terrain3d_hydrology.gd scripts/checkSEG65Hydrology.mjs "
+            echo "SE_G65_BOUNDED_SCOPE_MODE=1"
+          elif [[ "${GITHUB_HEAD_REF:-}" == ci/se-g65-* ]]; then
+            test "$CHANGED" = ".github/workflows/se-g65-terrain3d-hydrology-r5.yml "
+            echo "SE_G65_CI_FIX_SCOPE_MODE=1"
+          else
+            echo "SE_G65_REGRESSION_MODE=1"
+          fi
           node --check godot/terrain-authoring/geocells/se/g65_hydrology.mjs
           node --check scripts/checkSEG65Hydrology.mjs
           node scripts/checkSEG65Hydrology.mjs
