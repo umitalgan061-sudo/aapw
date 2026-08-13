@@ -5,7 +5,7 @@
   "current_cell": "G00",
   "status": "in_progress_exact_main",
   "branch": "terrain/nw-g00-terrain3d-rock-snow-20260813",
-  "pr": null,
+  "pr": 336,
   "last_commit": "9a82f3958bcde2d28df6a2bd347e20422eaf01e9",
   "quality_before": {
     "layer": "Relief/Height Character",
@@ -34,5 +34,5 @@
     "next_layer_if_green": "Road/Path"
   },
   "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable is mandatory: real height+control import, base/overlay/blend round-trip, persisted region resources and LOD0 bake are required. HTerrain and shipped Three.js runtime remain regression/control surfaces.",
-  "updated_at": "2026-08-13T08:11:00+03:00"
+  "updated_at": "2026-08-13T08:13:00+03:00"
 }
