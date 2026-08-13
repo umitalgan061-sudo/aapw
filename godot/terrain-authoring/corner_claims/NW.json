@@ -2,24 +2,80 @@
   "corner": "NW",
   "task_name": "Buzul Muhafızı",
   "origin": [0, 0],
-  "current_cell": "G00",
-  "status": "locally_validated_direct_to_main",
-  "branch": "main",
-  "pr": null,
-  "last_commit": null,
-  "quality_before": {
-    "note": "G01/G10/G11 (the three cells adjacent to this corner's own origin cell) already merged to main; G00 itself — the literal corner cell — was the one remaining gap in that first 2x2 block."
+  "current_cell": "G11",
+  "layer": "Terrain3D Bake/Three.js runtime parity",
+  "status": "validating",
+  "branch": "terrain/nw-g11-runtime-parity-20260813-r9",
+  "pr": 327,
+  "base_sha": "501f14e34ddfffd06e4170639d63af8cecd6853e",
+  "terrain3d": {
+    "version": "1.0.2",
+    "tag": "v1.0.2-stable",
+    "sha256": "a071850250ec5e596aa54da61c01d75768774eb379ee997584d426a45f4884a2",
+    "provenance": "Three.js live createHeightSampler + settlement pads -> 65x65 G11 source -> 257x257 RF guard-backed Terrain3DData.import_images -> fractional 255/256 cross-region get_height proof -> four-region persistence -> LOD0 bake_mesh(0) -> canonical deterministic bake -> bilinear Three.js adapter in the existing PWA-cached worldReferenceTerrainAdapter.js"
   },
-  "quality_after": {
+  "map_reference": {
+    "source": "map.png",
+    "sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+    "geocell_is_addressing_only": true,
+    "nearest_neighbour_runtime": false
+  },
+  "acceptance": {
+    "max_height_error_m": 0.01,
+    "mean_height_error_m": 0.0025,
+    "finite_source_and_bake_required": true,
+    "terrain3d_region_persistence_required": true,
+    "terrain3d_lod0_bake_required": true,
+    "terrain3d_fractional_boundary_probe_required": true,
+    "canonical_bake_byte_determinism_required": true,
+    "resource_serialized_byte_count_is_diagnostic_only": true,
+    "hterrain_regression_required": true,
+    "pwa_cache_regression_required": true
+  },
+  "validated_r7_evidence": {
+    "pr": 320,
+    "head": "a31ceed97a76b7369a20cf392371e055d04be706",
+    "dedicated_runtime_parity_workflow": "success",
+    "final_head_governance_gate": "success",
+    "pr_main_freshness_guard_at_validation": "success",
+    "region_count": 4,
+    "boundary_guard_regions": 3,
+    "baked_surfaces": 1,
+    "baked_vertices": 263169,
+    "max_roundtrip_error_m": 0.000000950157264867357,
+    "mean_roundtrip_error_m": 0.000000246357987133821,
+    "max_continuous_probe_error_m": 0.00000240219790015317,
+    "persisted_region_files_each_pass": 4
+  },
+  "r8_observation": {
+    "pr": 324,
+    "final_head": "a8526b2f0859db0b6cabe68043f0f2eabdea80b4",
+    "result": "superseded before merge",
+    "terrain3d_install_failure": "Transient GitHub/CDN RemoteDisconnected during pinned release download; exact-main/scope, Playwright and two live Three.js captures had already passed.",
+    "main_advance": "501f14e34ddfffd06e4170639d63af8cecd6853e via unrelated SE G75 Near Detail",
+    "prevention": "R9 wraps only install_terrain3d.py --refresh network acquisition in three bounded attempts. Every successful attempt still requires the locked SHA256 and a separate --verify-only; no fallback version/hash relaxation."
+  },
+  "concurrent_main_observation": {
+    "cell": "G00",
     "layer": "Coast Hydrology",
-    "base_cells": 96,
-    "water_centres": 60,
-    "land_centres": 36,
-    "boundary_edges": 12,
-    "hard_cell_max_step": 1,
-    "max_adjacent_step": 0.25,
-    "confidence_checksum": 2770394150
+    "main_commit": "bf0d791eaa3618044779aa520df17787e8ba801d",
+    "state": "locally_validated_direct_to_main",
+    "quality_before": {
+      "note": "G01/G10/G11 (the three cells adjacent to this corner's own origin cell) already merged to main; G00 itself — the literal corner cell — was the one remaining gap in that first 2x2 block."
+    },
+    "quality_after": {
+      "base_cells": 96,
+      "water_centres": 60,
+      "land_centres": 36,
+      "boundary_edges": 12,
+      "hard_cell_max_step": 1,
+      "max_adjacent_step": 0.25,
+      "confidence_checksum": 2770394150
+    },
+    "engine": "authoring/QA canonical mask interpolation; HTerrain preserved; Terrain3D not required for this data-only layer. Godot headless import/HTerrain validation and the Playwright browser-smoke step from this cell's dedicated workflow (nw-g00-hydrology.yml) were NOT run in this authoring sandbox (no Godot binary, no Chromium/Playwright, restricted outbound network) — only Node-only steps (node --check, deterministic double-run of the check script, checkTechnicalDebt.js) were locally verified. The workflow file is committed so GitHub Actions runs the full contract (including those two steps) on push/PR against this repo's real CI runners.",
+    "note": "Preserved from the concurrent G00 main claim; R9 does not rewrite its code or measurements."
   },
-  "engine": "authoring/QA canonical mask interpolation; HTerrain preserved; Terrain3D not required for this data-only layer. Godot headless import/HTerrain validation and the Playwright browser-smoke step from this cell's dedicated workflow (nw-g00-hydrology.yml) were NOT run in this authoring sandbox (no Godot binary, no Chromium/Playwright, restricted outbound network) — only Node-only steps (node --check, deterministic double-run of the check script, checkTechnicalDebt.js) were locally verified. The workflow file is committed so GitHub Actions runs the full contract (including those two steps) on push/PR against this repo's real CI runners.",
-  "updated_at": "2026-08-13T02:56:16Z"
+  "r9_change": "Republish the qualified G11 boundary-safe Terrain3D runtime parity implementation directly from current main after unrelated SE G75 Near Detail. Add bounded network retry around the pinned Terrain3D release download only; preserve version, SHA256, verify-only, strict height tolerances and all real import/persist/bake/parity gates.",
+  "next": "Merge only if every exact-final-head PR workflow is green while main remains the recorded base. After merge, remain on G11 for the separate near + far + full-world top-down map.png visual/runtime parity completion gate.",
+  "updated_at": "2026-08-13T06:50:00+03:00"
 }
