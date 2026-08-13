@@ -1,14 +1,11 @@
-name: SE G65 Terrain3D Road Path Parallel
+name: SE G65 Road Path Post-Merge Qualification
 
 on:
   push:
-    branches: [agent/kizil-ufuk-g65-road-path-r8-20260813]
+    branches: [agent/kizil-ufuk-g65-road-path-postmerge-q1-20260813]
   pull_request:
     branches: [main]
     paths:
-      - 'godot/terrain-authoring/geocells/se/g65_road_path.mjs'
-      - 'scripts/checkSEG65RoadPath.mjs'
-      - 'godot/terrain-authoring/scripts/validate_g65_terrain3d_road_path.gd'
       - '.github/workflows/se-g65-terrain3d-road-path.yml'
   workflow_dispatch:
 
@@ -16,11 +13,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: se-g65-terrain3d-road-path-${{ github.ref }}
+  group: se-g65-road-path-postmerge-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  BASE_SHA: 7944352bcb7fa89b5db21b5aa7954efc2d5ca886
+  BASE_SHA: 68df35877860f56e0007bc281417e8205de6e84d
 
 jobs:
   base:
@@ -31,14 +28,17 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Exact main and four-file scope
+      - name: Exact current main and workflow-only scope
         run: |
           set -euo pipefail
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           git merge-base --is-ancestor "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA"...HEAD
-          test "$(git diff --name-only "$BASE_SHA"...HEAD | sort | tr '\n' ' ')" = ".github/workflows/se-g65-terrain3d-road-path.yml godot/terrain-authoring/geocells/se/g65_road_path.mjs godot/terrain-authoring/scripts/validate_g65_terrain3d_road_path.gd scripts/checkSEG65RoadPath.mjs "
+          test "$(git diff --name-only "$BASE_SHA"...HEAD | sort | tr '\n' ' ')" = ".github/workflows/se-g65-terrain3d-road-path.yml "
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/se/g65_road_path.mjs
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scripts/validate_g65_terrain3d_road_path.gd
+          git diff --quiet "$BASE_SHA"...HEAD -- scripts/checkSEG65RoadPath.mjs
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/project.godot
@@ -54,15 +54,14 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+        with: { node-version: 22 }
       - name: Preserve exact main
         run: |
           set -euo pipefail
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           git merge-base --is-ancestor "$BASE_SHA" HEAD
-      - name: Merged G65 Hydrology Biome Relief and Rock Snow regressions
+      - name: Regress merged G65 stack through Road Path
         run: |
           set -euo pipefail
           node scripts/checkSEG65Hydrology.mjs | tee "$RUNNER_TEMP/g65-hydrology.log"
@@ -115,7 +114,7 @@ jobs:
           GODOT_BIN="$(find "$DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
           test -n "$GODOT_BIN"; chmod +x "$GODOT_BIN"; "$GODOT_BIN" --version | grep -F '4.6.3'
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
-      - name: Real 257x257 preserved Height Control import four regions seam save and LOD0 bake twice
+      - name: Real merged Road Path Terrain3D proof twice
         run: |
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
@@ -144,25 +143,13 @@ jobs:
           assert a['canonicalRoadExclusionMarginMeters'] > 100
           assert a['phantomRoadSamples'] == 0 and a['phantomPathSamples'] == 0
           assert a['bakedSurfaces'] >= 1 and a['bakedVertices'] > 0
-          print('SE_G65_TERRAIN3D_ROAD_PATH_STABLE_OK')
+          print('SE_G65_POSTMERGE_TERRAIN3D_ROAD_PATH_STABLE_OK')
           PY
       - name: HTerrain regression
         run: |
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
           grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: se-g65-terrain3d-road-path-proof
-          include-hidden-files: true
-          if-no-files-found: warn
-          path: |
-            godot/terrain-authoring/.terrain3d-proof/g65-road-path-probe.json
-            godot/terrain-authoring/.terrain3d-proof/g65-road-path-imported-topdown.png
-            ${{ runner.temp }}/g65-road-t3d-a.log
-            ${{ runner.temp }}/g65-road-t3d-b.log
-            ${{ runner.temp }}/hterrain.log
 
   world-safety:
     needs: base
@@ -174,8 +161,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+        with: { node-version: 22 }
       - name: Preserve exact main
         run: |
           set -euo pipefail
@@ -207,8 +193,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+        with: { node-version: 22 }
       - name: Preserve exact main
         run: |
           set -euo pipefail
@@ -238,7 +223,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Final exact-main freshness after all parallel evidence
+      - name: Final exact-current-main qualification
         run: |
           set -euo pipefail
           CURRENT_SHA="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
