@@ -111,7 +111,12 @@ function sampleBiomeElevationSignal(nx, ny) {
     total += influence;
     strongest = Math.max(strongest, Math.max(0, bias) * influence);
   }
-  return clamp(Math.max(strongest, total > 0 ? weighted / total : 0), -0.25, 1);
+  // Preserve the influence envelope. Dividing by tiny total influence would make
+  // a biome keep its full elevation bias right up to its ellipse boundary and
+  // then fall to zero in one sample, creating an artificial cliff. Normalize
+  // only when overlapping biome influence exceeds one.
+  const blended = weighted / Math.max(1, total);
+  return clamp(Math.max(strongest, blended), -0.25, 1);
 }
 
 export function sampleG00ReliefHeight(nx, ny) {
