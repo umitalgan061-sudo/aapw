@@ -3,7 +3,7 @@ name: NE G70 Terrain3D Biome
 on:
   push:
     branches:
-      - terrain/ne-g70-terrain3d-biome-r9-20260813
+      - terrain/ne-g70-terrain3d-biome-r10-20260813
   pull_request:
     branches:
       - main
@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BASE_SHA: 09fef22a8f53cdd861d7de6139da1f64a51e39c9
+  BASE_SHA: bea79c20e6b9426e80f640655657d78e3eb2629a
 
 jobs:
   validate:
