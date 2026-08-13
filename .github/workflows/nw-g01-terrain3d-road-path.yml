@@ -1,0 +1,216 @@
+name: NW G01 Terrain3D Road Path
+
+on:
+  push:
+    branches:
+      - agent/buzul-muhafizi-g01-terrain3d-road-path-20260813
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/nw/g01_road_path.mjs'
+      - 'scripts/checkNWG01RoadPath.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g01_terrain3d_road_path.gd'
+      - '.github/workflows/nw-g01-terrain3d-road-path.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nw-g01-terrain3d-road-path-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main and bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
+          CHANGED="$(git diff --name-only origin/main...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g01_road_path.mjs|scripts/checkNWG01RoadPath.mjs|godot/terrain-authoring/scripts/validate_g01_terrain3d_road_path.gd|\.github/workflows/nw-g01-terrain3d-road-path.yml)$' | wc -l)" -eq 0
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/geocells/nw/g01_hydrology.mjs
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/geocells/nw/g01_biome.mjs
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/geocells/nw/g01_relief.mjs
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/geocells/nw/g01_rock_snow.mjs
+          git diff --quiet origin/main...HEAD -- src/3d/world/roads.js
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/terrain3d.lock.json
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+
+      - name: Install Playwright Chromium for live world roads
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Deterministic G01 live-road source substrate seam and water safety
+        run: |
+          set -euo pipefail
+          PROOF='godot/terrain-authoring/.terrain3d-proof/g01-road-path-probe.json'
+          mkdir -p "$(dirname "$PROOF")"
+          node --check godot/terrain-authoring/geocells/nw/g01_road_path.mjs
+          node --check scripts/checkNWG01RoadPath.mjs
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG01RoadPath.mjs --emit-probe="$PROOF" | tee "$RUNNER_TEMP/g01-road-a.log"
+          cp "$PROOF" "$RUNNER_TEMP/g01-road-probe-a.json"
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG01RoadPath.mjs --emit-probe="$PROOF" | tee "$RUNNER_TEMP/g01-road-b.log"
+          cp "$PROOF" "$RUNNER_TEMP/g01-road-probe-b.json"
+          cmp "$RUNNER_TEMP/g01-road-a.log" "$RUNNER_TEMP/g01-road-b.log"
+          cmp "$RUNNER_TEMP/g01-road-probe-a.json" "$RUNNER_TEMP/g01-road-probe-b.json"
+          grep -F 'NW_G01_ROAD_PATH_VALIDATION_OK' "$RUNNER_TEMP/g01-road-a.log"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const p = JSON.parse(fs.readFileSync('godot/terrain-authoring/.terrain3d-proof/g01-road-path-probe.json', 'utf8'));
+          if (p.sourceMapSha256 !== '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1') throw new Error('map.png provenance drift');
+          if (p.sourceGridSize !== 257 || p.terrain3dRegionSize !== 256) throw new Error('G01 road/path dimensions drift');
+          if (p.hydrologyFingerprint.waterCells !== 88 || p.hydrologyFingerprint.landCells !== 8 || p.hydrologyFingerprint.centreMismatches !== 0) throw new Error('G01 hydrology fingerprint drift');
+          if (p.rockTextureId !== 0 || p.snowTextureId !== 1 || p.roadTextureId !== 2 || p.pathTextureId !== 3) throw new Error('G01 Terrain3D material IDs drift');
+          if (p.maxNoRoadHeightDelta > 0.0000001 || p.maxNoRoadSubstrateDelta > 0.0000001) throw new Error('road-free G01 substrate drift');
+          NODE
+
+      - name: Install pinned Terrain3D and preserve HTerrain
+        run: |
+          set -euo pipefail
+          cp godot/terrain-authoring/project.godot "$RUNNER_TEMP/project.godot.before-terrain3d"
+          ok=0
+          for attempt in 1 2 3; do
+            if python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee "$RUNNER_TEMP/t3d-install-$attempt.log"; then
+              grep -F 'TERRAIN3D_INSTALL_OK' "$RUNNER_TEMP/t3d-install-$attempt.log"
+              ok=1
+              break
+            fi
+            sleep $((attempt * 3))
+          done
+          test "$ok" -eq 1
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'TERRAIN3D_VERIFY_OK' "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'version="1.0.2"' godot/terrain-authoring/addons/terrain_3d/plugin.cfg
+          test -f godot/terrain-authoring/addons/terrain_3d/bin/libterrain.linux.debug.x86_64.so
+          grep -F 'res://addons/zylann.hterrain/plugin.cfg' godot/terrain-authoring/project.godot
+          grep -F 'res://addons/terrain_3d/plugin.cfg' godot/terrain-authoring/project.godot
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$ZIP"
+          unzip -q "$ZIP" -d "$DIR"
+          GODOT_BIN="$(find "$DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | grep -F '4.6.3'
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Terrain3D plugin load and real G01 relief substrate road control proof twice
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 2>&1 | tee "$RUNNER_TEMP/t3d-editor.log"
+          if grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' "$RUNNER_TEMP/t3d-editor.log"; then
+            echo 'Terrain3D emitted a load error.' >&2
+            exit 1
+          fi
+          G01_ROAD_PATH_PROOF_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g01_terrain3d_road_path.gd 2>&1 | tee "$RUNNER_TEMP/g01-road-t3d-a.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g01-road-path-imported-topdown.png "$RUNNER_TEMP/g01-road-a.png"
+          G01_ROAD_PATH_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g01_terrain3d_road_path.gd 2>&1 | tee "$RUNNER_TEMP/g01-road-t3d-b.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g01-road-path-imported-topdown.png "$RUNNER_TEMP/g01-road-b.png"
+          grep -F 'NW_G01_TERRAIN3D_ROAD_PATH_VALIDATION_OK' "$RUNNER_TEMP/g01-road-t3d-a.log"
+          grep -F 'NW_G01_TERRAIN3D_ROAD_PATH_VALIDATION_OK' "$RUNNER_TEMP/g01-road-t3d-b.log"
+          grep -F 'G01_TERRAIN3D_ROAD_PATH_METRICS=' "$RUNNER_TEMP/g01-road-t3d-a.log" | tail -1 > "$RUNNER_TEMP/g01-road-metrics-a.txt"
+          grep -F 'G01_TERRAIN3D_ROAD_PATH_METRICS=' "$RUNNER_TEMP/g01-road-t3d-b.log" | tail -1 > "$RUNNER_TEMP/g01-road-metrics-b.txt"
+          node - "$RUNNER_TEMP/g01-road-metrics-a.txt" "$RUNNER_TEMP/g01-road-metrics-b.txt" <<'NODE'
+          const fs = require('node:fs');
+          const [aPath, bPath] = process.argv.slice(2);
+          const prefix = 'G01_TERRAIN3D_ROAD_PATH_METRICS=';
+          const parse = (file) => {
+            const line = fs.readFileSync(file, 'utf8').trim();
+            if (!line.startsWith(prefix)) throw new Error(`missing Terrain3D metrics prefix: ${file}`);
+            return JSON.parse(line.slice(prefix.length));
+          };
+          const a = parse(aPath);
+          const b = parse(bPath);
+          for (const key of [
+            'terrain3dVersion', 'regionSize', 'regionCount', 'sampleCount',
+            'activeSourceSamples', 'activeRoundtripSamples', 'substrateSourceSamples',
+            'substrateRoundtripSamples', 'maxBlendError', 'maxHeightError', 'outputChecksum',
+            'bakedSurfaces', 'bakedVertices', 'savedRegionFiles', 'previewPath',
+          ]) {
+            if (a[key] !== b[key]) throw new Error(`nondeterministic ${key}: ${a[key]} != ${b[key]}`);
+          }
+          if (!(a.savedRegionBytes > 0 && b.savedRegionBytes > 0)) throw new Error('persisted Terrain3D G01 road/path resource is empty');
+          if (!(a.substrateSourceSamples > 0 && a.substrateRoundtripSamples === a.substrateSourceSamples)) throw new Error('G01 Rock/Snow substrate preservation proof missing');
+          NODE
+          cmp "$RUNNER_TEMP/g01-road-a.png" "$RUNNER_TEMP/g01-road-b.png"
+          test -s godot/terrain-authoring/.terrain3d-proof/g01-road-path-imported-topdown.png
+
+      - name: HTerrain world settlement road PWA mobile and browser regressions
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/terrainSeatSafetyCheck.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/roadNetworkSafetyCheck.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkRoadVisualContract.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
+
+      - name: Restore bootstrap-only Terrain3D mutation
+        if: always()
+        run: |
+          set -euo pipefail
+          if test -f "$RUNNER_TEMP/project.godot.before-terrain3d"; then
+            cp "$RUNNER_TEMP/project.godot.before-terrain3d" godot/terrain-authoring/project.godot
+          fi
+          rm -rf godot/terrain-authoring/addons/terrain_3d
+          git restore --worktree -- godot/terrain-authoring/addons/zylann.hterrain
+          test "$(git ls-files godot/terrain-authoring/terrain_data)" = 'godot/terrain-authoring/terrain_data/.gitkeep'
+          git clean -fdx -- godot/terrain-authoring/terrain_data
+          git diff --exit-code -- godot/terrain-authoring/project.godot
+          git diff --exit-code -- godot/terrain-authoring/addons/zylann.hterrain
+          test -z "$(git status --porcelain --untracked-files=all godot/terrain-authoring/terrain_data/)"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nw-g01-terrain3d-road-path-proof
+          include-hidden-files: true
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g01-road-path-probe.json
+            godot/terrain-authoring/.terrain3d-proof/g01-road-path-imported-topdown.png
+          if-no-files-found: warn
