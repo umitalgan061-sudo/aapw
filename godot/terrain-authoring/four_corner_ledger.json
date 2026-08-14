@@ -21,6 +21,14 @@
     ["G07", "G17", "G27", "G37", "G47", "G57", "G67", "G77"]
   ],
   "cell_state": {},
-  "active_leases": {},
+  "active_leases": {
+    "shared-map-geography-v1": {
+      "owner": "Kızıl Ufuk",
+      "scope": "label_symbol_mask + ocean/lake/river/ridge/valley/pass/forest/biome probability extractor and deterministic tests",
+      "affected_cells": "G00..G77",
+      "status": "blocked",
+      "blocker": "canonical map.png binary is not tracked in exact-main; do not create per-corner substitute extractors"
+    }
+  },
   "notes": "Missing cell_state means pending. Each task must refresh main before claiming a cell. Store status, quality metrics, engine, branch/pr and last_commit only after evidence exists. Shared/overlap cells are refinements, never blind rewrites."
 }
