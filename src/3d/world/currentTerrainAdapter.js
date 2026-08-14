@@ -30,23 +30,44 @@ export const CURRENT_TERRAIN_ADAPTER_POLICY = Object.freeze({
 // settlements.js currently publishes a 38m fully-flat castle pad with a 75m easing edge. That
 // radius was tuned for the historical procedural terrain. The current full-map source can carry a
 // much larger height delta at a seat (especially where seat-safe hydrology raises coastal castles),
-// so the same 37m transition ring can create a short >20-degree cart approach. Widen only pads that
-// exactly match the established settlement contract; custom gameplay/editor flatten pads retain
-// their caller-owned radii. The 225m outer edge keeps even high coastal seats on a gradual approach
-// while remaining local relative to the multi-kilometre road network. Both render chunks and every
-// height sampler pass through this helper, preserving the single-source render/physics invariant.
+// so the same 37m transition ring can create a short >20-degree cart approach. A 225m outer edge
+// keeps isolated high/coastal seats on a gradual approach while remaining local relative to the
+// multi-kilometre road network. Closely clustered castles must retain the established 75m radius:
+// allowing two 225m settlement aprons to overlap would make their competing anchor heights own the
+// same broad terrain area and can create an unnecessary saddle/seam between neighbouring castles.
+// Render chunks and every height sampler pass through the same helper, preserving the single-source
+// render/physics invariant. Custom gameplay/editor flatten pads retain their caller-owned radii.
 const SETTLEMENT_PAD_INNER_RADIUS_METERS = 38;
 const LEGACY_SETTLEMENT_PAD_OUTER_RADIUS_METERS = 75;
 const CURRENT_SETTLEMENT_PAD_OUTER_RADIUS_METERS = 225;
+const CURRENT_SETTLEMENT_PAD_ISOLATION_MARGIN_METERS = 10;
 const RADIUS_EPSILON = 1e-9;
 
+function isSettlementPad(pad) {
+  if (!pad) return false;
+  const innerMatches = Math.abs(pad.innerRadiusMeters - SETTLEMENT_PAD_INNER_RADIUS_METERS) <= RADIUS_EPSILON;
+  const legacyOuter = Math.abs(pad.outerRadiusMeters - LEGACY_SETTLEMENT_PAD_OUTER_RADIUS_METERS) <= RADIUS_EPSILON;
+  const currentOuter = Math.abs(pad.outerRadiusMeters - CURRENT_SETTLEMENT_PAD_OUTER_RADIUS_METERS) <= RADIUS_EPSILON;
+  return innerMatches && (legacyOuter || currentOuter);
+}
+
+function canUseWideSettlementApron(pad, index, flattenPads) {
+  const minimumCenterSeparation = CURRENT_SETTLEMENT_PAD_OUTER_RADIUS_METERS * 2
+    + CURRENT_SETTLEMENT_PAD_ISOLATION_MARGIN_METERS;
+  return flattenPads.every((other, otherIndex) => otherIndex === index
+    || !isSettlementPad(other)
+    || Math.hypot(pad.x - other.x, pad.z - other.z) >= minimumCenterSeparation);
+}
+
 function currentTerrainFlattenPads(flattenPads = []) {
-  return flattenPads.map((pad) => {
-    const isSettlementPad = Math.abs(pad.innerRadiusMeters - SETTLEMENT_PAD_INNER_RADIUS_METERS) <= RADIUS_EPSILON
-      && Math.abs(pad.outerRadiusMeters - LEGACY_SETTLEMENT_PAD_OUTER_RADIUS_METERS) <= RADIUS_EPSILON;
-    return isSettlementPad
-      ? { ...pad, outerRadiusMeters: CURRENT_SETTLEMENT_PAD_OUTER_RADIUS_METERS }
-      : pad;
+  return flattenPads.map((pad, index) => {
+    if (!isSettlementPad(pad)) return pad;
+    const outerRadiusMeters = canUseWideSettlementApron(pad, index, flattenPads)
+      ? CURRENT_SETTLEMENT_PAD_OUTER_RADIUS_METERS
+      : LEGACY_SETTLEMENT_PAD_OUTER_RADIUS_METERS;
+    return Math.abs(pad.outerRadiusMeters - outerRadiusMeters) <= RADIUS_EPSILON
+      ? pad
+      : { ...pad, outerRadiusMeters };
   });
 }
 
@@ -70,18 +91,18 @@ function publishRuntimeUse(kind) {
 /** Drop-in replacement for terrain.js createHeightSampler used by physics/rivers/scene systems. */
 export function createHeightSampler(_seed, _fbmOptions, flattenPads = []) {
   publishRuntimeUse('sampler');
+  const effectivePads = currentTerrainFlattenPads(flattenPads);
   // Keep canonical settlement-pad metadata truthful for callers that retain the same objects after
-  // constructing a sampler (including ADR-0118's boundary guard): if the adapter widens a known
-  // 38m/75m castle pad, its caller-visible outer radius must describe the same 225m influence the
-  // returned sampler actually applies. Custom/editor pads never clone here and therefore retain
-  // their caller-owned radii unchanged.
+  // constructing a sampler (including ADR-0118's boundary guard): the caller-visible outer radius
+  // must describe the exact influence radius the returned sampler applies. The transformation is
+  // idempotent and only recognizes the established 38m/75m-or-225m settlement contract.
   for (let index = 0; index < flattenPads.length; index += 1) {
-    const currentPad = currentTerrainFlattenPads([flattenPads[index]])[0];
-    if (currentPad !== flattenPads[index] && Object.isExtensible(flattenPads[index])) {
-      flattenPads[index].outerRadiusMeters = currentPad.outerRadiusMeters;
+    const effectivePad = effectivePads[index];
+    if (effectivePad !== flattenPads[index] && Object.isExtensible(flattenPads[index])) {
+      flattenPads[index].outerRadiusMeters = effectivePad.outerRadiusMeters;
     }
   }
-  return createCurrentTerrainHeightSampler({ flattenPads: currentTerrainFlattenPads(flattenPads) });
+  return createCurrentTerrainHeightSampler({ flattenPads: effectivePads });
 }
 
 /** Drop-in replacement for terrain.js createTerrainChunk used by every ChunkManager/LOD path. */
