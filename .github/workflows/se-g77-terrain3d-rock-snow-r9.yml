@@ -51,6 +51,7 @@ jobs:
           echo "G77 Rock/Snow R9 diff lines: $((A+D))"
           test $((A+D)) -le 1000
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py godot/terrain-authoring/addons/zylann.hterrain
+          git lfs fsck
 
       - name: Prior G77 layer regressions
         run: |
