@@ -7,6 +7,7 @@ on:
       - godot/terrain-authoring/geocells/ne/g70_rock_snow.mjs
       - scripts/checkNEG70RockSnow.mjs
       - scripts/checkNEG70RockSnowControlEnvelope.mjs
+      - scripts/checkNEG70RockSnowEvidenceBundle.mjs
       - scripts/checkNEG70RockSnowVisualEvidence.mjs
       - godot/terrain-authoring/scripts/validate_g70_terrain3d_rock_snow.gd
       - godot/terrain-authoring/corner_claims/NE.json
@@ -24,15 +25,15 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Exact-main seven-file scope and quota
+      - name: Exact-main eight-file scope and quota
         run: |
           set -euo pipefail
           git fetch origin main
           MAIN="$(git rev-parse origin/main)"; test "$(git merge-base HEAD origin/main)" = "$MAIN"
           git diff --check origin/main...HEAD
           CHANGED="$(git diff --name-only origin/main...HEAD)"; echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g70_rock_snow.mjs|scripts/checkNEG70RockSnow.mjs|scripts/checkNEG70RockSnowControlEnvelope.mjs|scripts/checkNEG70RockSnowVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g70_terrain3d_rock_snow.gd|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g70-terrain3d-rock-snow.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 7
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g70_rock_snow.mjs|scripts/checkNEG70RockSnow.mjs|scripts/checkNEG70RockSnowControlEnvelope.mjs|scripts/checkNEG70RockSnowEvidenceBundle.mjs|scripts/checkNEG70RockSnowVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g70_terrain3d_rock_snow.gd|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g70-terrain3d-rock-snow.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 8
           A="$(git diff --numstat origin/main...HEAD|awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat origin/main...HEAD|awk '{s+=$2}END{print s+0}')"
           echo "ROCK_SNOW_CHANGED_LINES=$((A+D))"; test $((A+D)) -le 1000
           git diff --quiet origin/main...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py addons/zylann.hterrain src/3d/world/terrain.js src/3d/world/worldReferenceTerrainAdapter.js
@@ -46,6 +47,7 @@ jobs:
           node --check godot/terrain-authoring/geocells/ne/g70_rock_snow.mjs
           node --check scripts/checkNEG70RockSnow.mjs
           node --check scripts/checkNEG70RockSnowControlEnvelope.mjs
+          node --check scripts/checkNEG70RockSnowEvidenceBundle.mjs
           node --check scripts/checkNEG70RockSnowVisualEvidence.mjs
           mkdir -p godot/terrain-authoring/.terrain3d-proof
           node scripts/checkNEG70RockSnow.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-probe.json | tee /tmp/r1.log
@@ -68,11 +70,12 @@ jobs:
           timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g70_terrain3d_rock_snow.gd | tee /tmp/g.log
           grep -F NE_G70_TERRAIN3D_ROCK_SNOW_VALIDATION_OK /tmp/g.log
           jq -e '.regionCount>=4 and .savedRegionFiles>=4 and .bakedVertices>0 and .maxHeightError<=0.001 and .maxBlendError<=0.000001 and .maxActualBlend<=0.000001' godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-bake.json
-      - name: Visual and repository regressions
+      - name: Visual evidence bundle and repository regressions
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/pw"; npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0; "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNEG70RockSnowVisualEvidence.mjs --out-dir=artifacts/ne-g70-rock-snow-visual | tee /tmp/v.log; grep -F NE_G70_ROCK_SNOW_VISUAL_EVIDENCE_OK /tmp/v.log
+          node scripts/checkNEG70RockSnowEvidenceBundle.mjs --visual-dir=artifacts/ne-g70-rock-snow-visual --proof-dir=godot/terrain-authoring/.terrain3d-proof
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/ht.log; grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/ht.log
           node scripts/checkSeededRandomPolicy.js; node scripts/checkWorldReferenceMap.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/terrainSeatSafetyCheck.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/roadNetworkSafetyCheck.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
