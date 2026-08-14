@@ -1,1 +1,169 @@
-name: NW G10 Terrain3D Runtime Parity
+name: NW G10 Terrain3D Relief
+
+on:
+  push:
+    branches:
+      - agent/buzul-muhafizi-g10-relief-exact-cdca07-20260814
+  pull_request:
+    branches: [main]
+    paths:
+      - 'godot/terrain-authoring/geocells/nw/g10_relief.mjs'
+      - 'scripts/checkNWG10Relief.mjs'
+      - 'scripts/checkNWG10ReliefVisualEvidence.mjs'
+      - 'scripts/checkNWG10ReliefEvidenceManifest.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g10_terrain3d_relief.gd'
+      - 'godot/terrain-authoring/corner_claims/NW.json'
+      - '.github/workflows/nw-g10-terrain3d-relief.yml'
+  workflow_dispatch:
+
+permissions: { contents: read }
+concurrency:
+  group: nw-g10-terrain3d-relief-${{ github.ref }}
+  cancel-in-progress: true
+
+env: { TZ: Europe/Istanbul }
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, lfs: true, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Exact-main seven-file scope and quota
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g10_relief.mjs|scripts/checkNWG10Relief.mjs|scripts/checkNWG10ReliefVisualEvidence.mjs|scripts/checkNWG10ReliefEvidenceManifest.mjs|godot/terrain-authoring/scripts/validate_g10_terrain3d_relief.gd|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g10-terrain3d-relief.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 7
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
+          D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "G10 Relief quota additions=$A deletions=$D total=$((A+D))"
+          test $((A+D)) -le 1000
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/nw/g10_hydrology.mjs
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/nw/g10_biome.mjs
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
+          git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/terrain.js src/3d/world/roads.js service-worker.js
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Reprove merged G10 predecessors and deterministic relief
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/nw/g10_relief.mjs
+          node --check scripts/checkNWG10Relief.mjs
+          node --check scripts/checkNWG10ReliefVisualEvidence.mjs
+          node --check scripts/checkNWG10ReliefEvidenceManifest.mjs
+          node scripts/checkNWG10Hydrology.mjs
+          node scripts/checkNWG10Biome.mjs
+          mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node scripts/checkNWG10Relief.mjs \
+            --emit-probe=godot/terrain-authoring/.terrain3d-proof/g10-relief-probe.json \
+            --emit-dense=godot/terrain-authoring/.terrain3d-proof/g10-relief-dense.json \
+            | tee "$RUNNER_TEMP/relief-a.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g10-relief-probe.json "$RUNNER_TEMP/probe-a.json"
+          cp godot/terrain-authoring/.terrain3d-proof/g10-relief-dense.json "$RUNNER_TEMP/dense-a.json"
+          node scripts/checkNWG10Relief.mjs \
+            --emit-probe=godot/terrain-authoring/.terrain3d-proof/g10-relief-probe.json \
+            --emit-dense=godot/terrain-authoring/.terrain3d-proof/g10-relief-dense.json \
+            | tee "$RUNNER_TEMP/relief-b.log"
+          cmp "$RUNNER_TEMP/relief-a.log" "$RUNNER_TEMP/relief-b.log"
+          cmp "$RUNNER_TEMP/probe-a.json" godot/terrain-authoring/.terrain3d-proof/g10-relief-probe.json
+          cmp "$RUNNER_TEMP/dense-a.json" godot/terrain-authoring/.terrain3d-proof/g10-relief-dense.json
+          grep -F 'NW_G10_RELIEF_OK' "$RUNNER_TEMP/relief-a.log"
+
+      - name: Install pinned Terrain3D and preserve HTerrain
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'TERRAIN3D_VERIFY_OK' "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'version="1.0.2"' godot/terrain-authoring/addons/terrain_3d/plugin.cfg
+          grep -F 'res://addons/zylann.hterrain/plugin.cfg' godot/terrain-authoring/project.godot
+
+      - name: Download official Godot 4.6.3
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/godot.zip"; DIR="$RUNNER_TEMP/godot"; mkdir -p "$DIR"
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' --output "$ZIP"
+          unzip -q "$ZIP" -d "$DIR"
+          GODOT_BIN="$(find "$DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"; chmod +x "$GODOT_BIN"; "$GODOT_BIN" --version | grep -F '4.6.3'
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Real Terrain3D multi-region import persistence and LOD0 twice
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 2>&1 | tee "$RUNNER_TEMP/editor.log"
+          ! grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' "$RUNNER_TEMP/editor.log"
+          G10_RELIEF_PROOF_SUFFIX=a timeout 300s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g10_terrain3d_relief.gd | tee "$RUNNER_TEMP/t3d-a.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g10-relief-imported-topdown.png "$RUNNER_TEMP/t3d-a.png"
+          G10_RELIEF_PROOF_SUFFIX=b timeout 300s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g10_terrain3d_relief.gd | tee "$RUNNER_TEMP/t3d-b.log"
+          grep -F 'NW_G10_TERRAIN3D_RELIEF_VALIDATION_OK' "$RUNNER_TEMP/t3d-a.log"
+          grep -F 'NW_G10_TERRAIN3D_RELIEF_VALIDATION_OK' "$RUNNER_TEMP/t3d-b.log"
+          cmp "$RUNNER_TEMP/t3d-a.png" godot/terrain-authoring/.terrain3d-proof/g10-relief-imported-topdown.png
+
+      - name: Near far and full-world visual evidence
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNWG10ReliefVisualEvidence.mjs --out-dir=artifacts/nw-g10-relief-visual | tee "$RUNNER_TEMP/visual.log"
+          grep -F 'NW_G10_RELIEF_VISUAL_EVIDENCE_OK' "$RUNNER_TEMP/visual.log"
+          test -s artifacts/nw-g10-relief-visual/g10-relief-near.png
+          test -s artifacts/nw-g10-relief-visual/g10-relief-far.png
+          test -s artifacts/nw-g10-relief-visual/g10-relief-full-world-topdown.png
+          node scripts/checkNWG10ReliefEvidenceManifest.mjs | tee "$RUNNER_TEMP/manifest.log"
+          grep -F 'NW_G10_RELIEF_EVIDENCE_MANIFEST_OK' "$RUNNER_TEMP/manifest.log"
+
+      - name: HTerrain world settlement road and platform regressions
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nw-g10-terrain3d-relief-proof
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g10-relief-probe.json
+            godot/terrain-authoring/.terrain3d-proof/g10-relief-dense.json
+            godot/terrain-authoring/.terrain3d-proof/g10-relief-imported-topdown.png
+            artifacts/nw-g10-relief-visual/
+            artifacts/nw-g10-relief-evidence-manifest.json
