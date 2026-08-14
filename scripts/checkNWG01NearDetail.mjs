@@ -26,6 +26,7 @@ requireCondition(G01_NEAR_DETAIL_POLICY.terrain3dRegionSize === 256, 'Terrain3D 
 requireCondition(G01_NEAR_DETAIL_POLICY.terrain3dImportSize === 257, 'Near Detail proof must use 257x257 import');
 requireCondition(G01_NEAR_DETAIL_POLICY.rockTextureId === 0 && G01_NEAR_DETAIL_POLICY.snowTextureId === 1, 'Rock/Snow texture IDs changed');
 requireCondition(G01_NEAR_DETAIL_POLICY.roadTextureId === 2 && G01_NEAR_DETAIL_POLICY.pathTextureId === 3, 'Road/Path texture IDs changed');
+requireCondition(JSON.stringify(G01_NEAR_DETAIL_POLICY.detailWavelengthMeters) === JSON.stringify([53, 79, 97, 61, 149]), 'qualified NW physical-metre phase changed');
 
 const first = measureG01NearDetail();
 const second = measureG01NearDetail();
@@ -37,6 +38,8 @@ requireCondition(first.maxHeightDeltaMeters === 0, 'Near Detail modified merged 
 requireCondition(first.maxControlDelta === 0, 'Near Detail modified merged Rock/Snow control');
 requireCondition(first.maxCanonicalWaterTintDelta === 0, 'canonical water tint must remain neutral');
 requireCondition(first.maxCanonicalWaterRoughnessDelta === 0, 'canonical water roughness must remain 0.90');
+requireCondition(first.maxG00SharedSeamTintDelta <= 0.00001, `G00/G01 shared tint seam opened: ${first.maxG00SharedSeamTintDelta}`);
+requireCondition(first.maxG00SharedSeamRoughnessDelta <= 0.00001, `G00/G01 shared roughness seam opened: ${first.maxG00SharedSeamRoughnessDelta}`);
 requireCondition(first.minTint >= G01_NEAR_DETAIL_POLICY.tintFloor, `tint fell below floor: ${first.minTint}`);
 requireCondition(first.maxTint <= G01_NEAR_DETAIL_POLICY.tintCeiling, `tint exceeded ceiling: ${first.maxTint}`);
 requireCondition(first.maxTint - first.minTint >= 0.005, `Near Detail tint variation too weak: ${first.maxTint - first.minTint}`);
@@ -50,9 +53,15 @@ requireCondition(first.maxGuardBandRoughnessDelta <= 0.14, `guard-band roughness
 
 const source = fs.readFileSync(path.join(ROOT, 'godot/terrain-authoring/geocells/nw/g01_near_detail.mjs'), 'utf8');
 const signalBody = source.match(/export function g01NearDetailSignal\([\s\S]*?\n}\n/);
-requireCondition(Boolean(signalBody), 'could not isolate Near Detail signal function');
-requireCondition(!/normalizedBounds|xMin|xMax|yMin|yMax|gx|gy|maskBounds|sourceGridSize|Math\.floor|Math\.round/.test(signalBody[0]), 'GeoCell/grid quantization leaked into Near Detail signal');
-requireCondition(/physicalCoordinates/.test(signalBody[0]), 'Near Detail signal is not anchored to physical owner-map coordinates');
+requireCondition(Boolean(signalBody), 'could not isolate G01 Near Detail signal wrapper');
+requireCondition(/g00NearDetailSignal/.test(signalBody[0]), 'G01 did not inherit the qualified G00 global detail phase');
+requireCondition(!/normalizedBounds|xMin|xMax|yMin|yMax|gx|gy|maskBounds|sourceGridSize|Math\.floor|Math\.round/.test(signalBody[0]), 'GeoCell/grid quantization leaked into G01 Near Detail signal');
+
+const g00Source = fs.readFileSync(path.join(ROOT, 'godot/terrain-authoring/geocells/nw/g00_near_detail.mjs'), 'utf8');
+const inheritedBody = g00Source.match(/export function g00NearDetailSignal\([\s\S]*?\n}\n/);
+requireCondition(Boolean(inheritedBody), 'could not isolate inherited G00 physical signal');
+requireCondition(/physicalCoordinates/.test(inheritedBody[0]), 'inherited detail phase is not anchored to full-reference physical metres');
+requireCondition(!/normalizedBounds|xMin|xMax|yMin|yMax|gx|gy|maskBounds|sourceGridSize|Math\.floor|Math\.round/.test(inheritedBody[0]), 'grid terms leaked into inherited NW detail phase');
 
 console.log(`G01_NEAR_DETAIL_METRICS=${JSON.stringify(first)}`);
 console.log('NW_G01_NEAR_DETAIL_VALIDATION_OK');
