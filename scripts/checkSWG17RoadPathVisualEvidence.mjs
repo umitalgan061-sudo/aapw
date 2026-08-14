@@ -44,6 +44,11 @@ if (source.coverage?.activeSamples !== 0 || source.routeEvidence?.roadGuardCross
   throw new Error('Road/Path negative visual proof source is not empty');
 }
 
+const images = { near: digest(near), far: digest(far), fullWorldTopDown: digest(full) };
+if (new Set(Object.values(images).map((image) => image.sha256)).size !== 3) {
+  throw new Error('near, far and full-world top-down evidence must be three distinct renders');
+}
+
 const manifest = {
   schema: 'westeros-g17-road-path-visual-evidence-v2',
   sourceMapSha256: source.sourceMapSha256,
@@ -56,7 +61,7 @@ const manifest = {
   pathGuardCrossings: source.routeEvidence.pathGuardCrossingSegments,
   minRoadGuardClearance: source.routeEvidence.minRoadGuardClearance,
   minPathGuardClearance: source.routeEvidence.minPathGuardClearance,
-  images: { near: digest(near), far: digest(far), fullWorldTopDown: digest(full) },
+  images,
   hydrologyVisualMetrics: metrics,
 };
 fs.mkdirSync(path.dirname(out), { recursive: true });
