@@ -9,7 +9,7 @@
   "status": "active",
   "layer": "Rock/Snow",
   "branch": "agent/kizil-ufuk-g77-rock-snow-exact-99a989-r10-20260814",
-  "pr": null,
+  "pr": 531,
   "base_commit": "99a98909339c8f59b855b03c848a0bc0cd2fc4fd",
   "last_commit": null,
   "quality_before": {
@@ -25,5 +25,5 @@
     "state": "pending exact-head CI after Godot 4.6.3 seam u/v type-inference repair"
   },
   "next_layer_after_merge": "Road/Path",
-  "updated_at": "2026-08-14T21:20:00+03:00"
+  "updated_at": "2026-08-14T21:08:00+03:00"
 }
