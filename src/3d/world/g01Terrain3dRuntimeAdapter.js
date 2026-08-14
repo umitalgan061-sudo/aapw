@@ -5,7 +5,10 @@
  * it converts a validated Terrain3D bake payload into continuous owner-map and
  * Three.js world-coordinate samples for parity qualification.
  */
-import { worldXZToNormalizedReference } from './worldReferenceAlignment.js';
+import {
+  WORLD_REFERENCE_ALIGNMENT,
+  worldXZToNormalizedReference,
+} from './worldReferenceAlignment.js';
 
 export const G01_TERRAIN3D_RUNTIME_PARITY = Object.freeze({
   id: 'buzul-muhafizi-g01-terrain3d-threejs-runtime-parity-2026-08-14-v1',
@@ -25,6 +28,17 @@ const clamp01 = (value) => Math.min(1, Math.max(0, value));
 
 function assertFinite(value, label) {
   if (!Number.isFinite(value)) throw new TypeError(`${label} must be finite`);
+}
+
+function assertMapScale(mapBounds, metersPerMapUnit) {
+  if (!mapBounds || !Number.isFinite(mapBounds.minX) || !Number.isFinite(mapBounds.maxX) || !Number.isFinite(mapBounds.minY) || !Number.isFinite(mapBounds.maxY)) {
+    throw new TypeError('mapBounds must contain finite min/max X/Y');
+  }
+  if (mapBounds.maxX <= mapBounds.minX || mapBounds.maxY <= mapBounds.minY) {
+    throw new RangeError('mapBounds max values must exceed min values');
+  }
+  assertFinite(metersPerMapUnit, 'metersPerMapUnit');
+  if (metersPerMapUnit <= 0) throw new RangeError('metersPerMapUnit must be > 0');
 }
 
 function assertBakePayload(bake) {
@@ -70,6 +84,22 @@ function localUv(normalizedX, normalizedY) {
   });
 }
 
+function normalizedAxisWindow(value, min, max, radius) {
+  const lo = Math.max(min, value - radius);
+  const hi = Math.min(max, value + radius);
+  if (hi <= lo) throw new RangeError('surface differential window collapsed');
+  return Object.freeze({ lo, hi });
+}
+
+function normalizeSurfaceNormal(dHeightDx, dHeightDz) {
+  const length = Math.hypot(dHeightDx, 1, dHeightDz);
+  return Object.freeze({
+    x: -dHeightDx / length,
+    y: 1 / length,
+    z: -dHeightDz / length,
+  });
+}
+
 export function createG01Terrain3DBakeSampler(bake) {
   assertBakePayload(bake);
   const { width, height } = bake;
@@ -88,13 +118,80 @@ export function createG01Terrain3DBakeSampler(bake) {
 
 export function createG01Terrain3DWorldSampler(bake, { mapBounds, metersPerMapUnit }) {
   const sampleNormalized = createG01Terrain3DBakeSampler(bake);
-  if (!mapBounds || !Number.isFinite(mapBounds.minX) || !Number.isFinite(mapBounds.maxX) || !Number.isFinite(mapBounds.minY) || !Number.isFinite(mapBounds.maxY)) {
-    throw new TypeError('mapBounds must contain finite min/max X/Y');
-  }
-  assertFinite(metersPerMapUnit, 'metersPerMapUnit');
-  if (metersPerMapUnit <= 0) throw new RangeError('metersPerMapUnit must be > 0');
+  assertMapScale(mapBounds, metersPerMapUnit);
   return function sampleG01Terrain3DWorld(worldX, worldZ) {
     const normalized = worldXZToNormalizedReference(worldX, worldZ, mapBounds, metersPerMapUnit);
     return sampleNormalized(normalized.x, normalized.y);
+  };
+}
+
+/**
+ * Derives physical-space slope, a smoothed normal and material gradients from the
+ * exact Terrain3D bake. The differential radius is a fraction of one 65x65 source
+ * interval; it never becomes visible GeoCell or pixel geometry.
+ */
+export function createG01Terrain3DSurfaceSampler(
+  bake,
+  {
+    mapBounds,
+    metersPerMapUnit,
+    derivativeRadiusCells = 0.5,
+  },
+) {
+  assertMapScale(mapBounds, metersPerMapUnit);
+  assertFinite(derivativeRadiusCells, 'derivativeRadiusCells');
+  if (derivativeRadiusCells <= 0 || derivativeRadiusCells > 2) {
+    throw new RangeError('derivativeRadiusCells must be in (0,2]');
+  }
+
+  const sample = createG01Terrain3DBakeSampler(bake);
+  const bounds = G01_TERRAIN3D_RUNTIME_PARITY.normalizedBounds;
+  const intervals = G01_TERRAIN3D_RUNTIME_PARITY.sourceSize - 1;
+  const radiusX = ((bounds.xMax - bounds.xMin) / intervals) * derivativeRadiusCells;
+  const radiusY = ((bounds.yMax - bounds.yMin) / intervals) * derivativeRadiusCells;
+  const metersPerNormalizedX = WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits * metersPerMapUnit;
+  const metersPerNormalizedY = WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits * metersPerMapUnit;
+
+  return function sampleG01Terrain3DSurface(normalizedX, normalizedY) {
+    localUv(normalizedX, normalizedY);
+    const center = sample(normalizedX, normalizedY);
+    const xWindow = normalizedAxisWindow(normalizedX, bounds.xMin, bounds.xMax, radiusX);
+    const yWindow = normalizedAxisWindow(normalizedY, bounds.yMin, bounds.yMax, radiusY);
+    const west = sample(xWindow.lo, normalizedY);
+    const east = sample(xWindow.hi, normalizedY);
+    const north = sample(normalizedX, yWindow.lo);
+    const south = sample(normalizedX, yWindow.hi);
+    const spanXMeters = (xWindow.hi - xWindow.lo) * metersPerNormalizedX;
+    const spanZMeters = (yWindow.hi - yWindow.lo) * metersPerNormalizedY;
+    const dHeightDx = (east.heightMeters - west.heightMeters) / spanXMeters;
+    const dHeightDz = (south.heightMeters - north.heightMeters) / spanZMeters;
+    const normal = normalizeSurfaceNormal(dHeightDx, dHeightDz);
+
+    return Object.freeze({
+      ...center,
+      dHeightDx,
+      dHeightDz,
+      normal,
+      slopeDegrees: Math.atan(Math.hypot(dHeightDx, dHeightDz)) * 180 / Math.PI,
+      surfaceGradient: Object.freeze({
+        snowPerMeterX: (east.snowWeight - west.snowWeight) / spanXMeters,
+        snowPerMeterZ: (south.snowWeight - north.snowWeight) / spanZMeters,
+        roughnessPerMeterX: (east.roughness - west.roughness) / spanXMeters,
+        roughnessPerMeterZ: (south.roughness - north.roughness) / spanZMeters,
+        tintPerMeterX: Math.hypot(east.tintR - west.tintR, east.tintG - west.tintG, east.tintB - west.tintB) / spanXMeters,
+        tintPerMeterZ: Math.hypot(south.tintR - north.tintR, south.tintG - north.tintG, south.tintB - north.tintB) / spanZMeters,
+      }),
+      derivativeSpanMeters: Object.freeze({ x: spanXMeters, z: spanZMeters }),
+    });
+  };
+}
+
+export function createG01Terrain3DWorldSurfaceSampler(bake, options) {
+  const { mapBounds, metersPerMapUnit } = options;
+  const sampleSurface = createG01Terrain3DSurfaceSampler(bake, options);
+  assertMapScale(mapBounds, metersPerMapUnit);
+  return function sampleG01Terrain3DWorldSurface(worldX, worldZ) {
+    const normalized = worldXZToNormalizedReference(worldX, worldZ, mapBounds, metersPerMapUnit);
+    return sampleSurface(normalized.x, normalized.y);
   };
 }
