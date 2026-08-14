@@ -5,8 +5,8 @@
   "current_cell": "G01",
   "status": "in_progress_exact_main",
   "branch": "agent/buzul-muhafizi-g01-runtime-parity-exact-84a0-20260814",
-  "pr": null,
-  "last_commit": "3afb6b37116126fb8705d139195b6f67be100534",
+  "pr": 491,
+  "last_commit": "0d600ce995a81b703625067971fe915ca4db01f4",
   "quality_before": {
     "layer": "Near Detail",
     "merged_pr": 476,
