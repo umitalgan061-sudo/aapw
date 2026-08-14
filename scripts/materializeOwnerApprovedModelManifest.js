@@ -86,6 +86,19 @@ function entryFor(file) {
   };
 }
 
+function renderManifest(manifest) {
+  const lines = ['{', '  "assets": ['];
+  manifest.assets.forEach((entry, index) => {
+    const compact = String(entry.id || '').startsWith('owner_model_');
+    const body = compact
+      ? `    ${JSON.stringify(entry)}`
+      : JSON.stringify(entry, null, 2).split('\n').map((line) => `    ${line}`).join('\n');
+    lines.push(`${body}${index === manifest.assets.length - 1 ? '' : ','}`);
+  });
+  lines.push('  ]', '}', '');
+  return lines.join('\n');
+}
+
 function creditRow(entry) {
   const source = entry.source.replaceAll('|', '\\|');
   const file = entry.file.replaceAll('|', '\\|');
@@ -107,11 +120,8 @@ for (const entry of additions) {
   if (registeredIds.has(entry.id)) throw new Error(`Generated duplicate asset id: ${entry.id}`);
   registeredIds.add(entry.id);
 }
-
-if (additions.length) {
-  manifest.assets.push(...additions);
-  fs.writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
-}
+manifest.assets.push(...additions);
+fs.writeFileSync(MANIFEST_PATH, renderManifest(manifest));
 
 let credits = fs.readFileSync(CREDITS_PATH, 'utf8');
 const creditMarkerIndex = credits.indexOf(CREDIT_MARKER);
