@@ -1,0 +1,27 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root=process.cwd(), outArg=process.argv.find((a)=>a.startsWith('--out-dir=')), out=path.resolve(root,outArg?outArg.slice(10):'artifacts/se-g77-rock-snow-r9');
+const files={sourceProbe:'godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-probe.json',importedTerrain3D:'godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-imported-topdown.png',near:path.join(out,'g77-rock-snow-near.png'),far:path.join(out,'g77-rock-snow-far.png'),localTopdown:path.join(out,'g77-rock-snow-topdown.png'),fullWorldTopdown:path.join(out,'g77-rock-snow-full-world-topdown.png'),fullWorldMeta:path.join(out,'g77-rock-snow-full-world-metrics.json')};
+const sha256=(b)=>crypto.createHash('sha256').update(b).digest('hex'), pngSignature=Buffer.from([137,80,78,71,13,10,26,10]), jsonNames=new Set(['sourceProbe','fullWorldMeta']);
+const pngDimensions={importedTerrain3D:[257,257],near:[960,640],far:[960,640],localTopdown:[960,640],fullWorldTopdown:[1536,1024]}, evidence={};
+for(const [name,file] of Object.entries(files)){
+  const resolved=path.resolve(root,file); if(!fs.existsSync(resolved))throw new Error(`missing G77 evidence: ${name}`); const bytes=fs.readFileSync(resolved);
+  if(bytes.length<(jsonNames.has(name)?512:4096))throw new Error(`undersized G77 evidence: ${name}=${bytes.length}`);
+  if(!jsonNames.has(name)&&!bytes.subarray(0,8).equals(pngSignature))throw new Error(`invalid PNG signature: ${name}`);
+  if(!jsonNames.has(name)&&bytes.subarray(12,16).toString('ascii')!=='IHDR')throw new Error(`missing PNG IHDR: ${name}`);
+  if(!jsonNames.has(name)&&(bytes.readUInt32BE(16)!==pngDimensions[name][0]||bytes.readUInt32BE(20)!==pngDimensions[name][1]))throw new Error(`unexpected PNG dimensions: ${name}`);
+  evidence[name]={bytes:bytes.length,sha256:sha256(bytes)};
+}
+if(new Set(['near','far','localTopdown','fullWorldTopdown'].map((k)=>evidence[k].sha256)).size!==4)throw new Error('real runtime visual evidence frames are not distinct');
+const probe=JSON.parse(fs.readFileSync(path.resolve(root,files.sourceProbe),'utf8')), runtime=JSON.parse(fs.readFileSync(path.resolve(root,files.fullWorldMeta),'utf8'));
+if(probe.sourceMapSha256!=='20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1'||JSON.stringify(probe.sourceMapSize)!=='[1536,1024]'||probe.sourceMapVersion!=='map.png-r1')throw new Error('manifest map.png provenance mismatch');
+if(probe.policyId!=='kizil-ufuk-g77-terrain3d-rock-snow-2026-08-14-r9'||probe.geoCell!=='G77'||probe.layer!=='Rock/Snow'||probe.terrain3dRegionSize!==256||probe.terrain3dImportSize!==257)throw new Error('manifest source contract mismatch');
+if(runtime.cameraType!=='OrthographicCamera'||runtime.topDownDegrees!==90||runtime.downDot<0.999999||runtime.visibleGeoCellOverlay!==false||runtime.g77RuntimeCovered!==true)throw new Error('full-world runtime camera/coverage contract mismatch');
+if(runtime.sourceMapSha256!==probe.sourceMapSha256||runtime.renderSha256!==evidence.fullWorldTopdown.sha256||!/^[a-f0-9]{64}$/.test(runtime.runtimeSourceSha256))throw new Error('full-world runtime provenance mismatch');
+if(runtime.consoleErrors.length||runtime.pageErrors.length||runtime.requestFailures.length)throw new Error('full-world runtime error arrays are not clean');
+const manifest={schema:'se-g77-rock-snow-evidence-r11',sourceMapSha256:probe.sourceMapSha256,sourceMapSize:probe.sourceMapSize,sourceMapVersion:probe.sourceMapVersion,runtimeSourceSha256:runtime.runtimeSourceSha256,geoCell:'G77',layer:'Rock/Snow',terrain3dImportSize:257,evidence};
+fs.writeFileSync(path.join(out,'g77-rock-snow-evidence-manifest.json'),`${JSON.stringify(manifest,null,2)}\n`);
+console.log(`SE_G77_ROCK_SNOW_EVIDENCE_MANIFEST=${JSON.stringify(manifest)}`);
+console.log('SE_G77_ROCK_SNOW_EVIDENCE_MANIFEST_OK');
