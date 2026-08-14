@@ -127,7 +127,9 @@ func _run() -> void:
 	if not _require(mesh != null and mesh.get_surface_count() > 0, "LOD0 bake empty"): return
 	var vertices: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	if not _require(vertices.size() > 0, "LOD0 vertices empty"): return
-	var suffix := OS.get_environment("G70_ROAD_PATH_PROOF_SUFFIX"); if suffix.is_empty(): suffix = "default"
+	var suffix := OS.get_environment("G70_ROAD_PATH_PROOF_SUFFIX")
+	if suffix.is_empty():
+		suffix = "default"
 	var out_dir := "user://g70-terrain3d-road-path-proof-" + suffix
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out_dir)); terrain.data.save_directory(out_dir)
 	var saved := _saved(out_dir)
