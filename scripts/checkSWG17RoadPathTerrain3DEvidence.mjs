@@ -35,7 +35,7 @@ const stableKeys = [
   'phantomRoadPathSamples', 'maxHeightError', 'maxBlendError', 'maxColorError',
   'maxRoughnessError', 'maxSeamHeightError', 'maxSeamBlendError',
   'maxSeamColorError', 'maxSeamRoughnessError', 'checksum', 'bakedSurfaces',
-  'bakedVertices', 'savedRegionFiles', 'savedRegionBytes',
+  'bakedVertices', 'savedRegionFiles',
   'roadGuardCrossings', 'pathGuardCrossings',
 ];
 for (const key of stableKeys) {
@@ -57,7 +57,7 @@ if (a.maxSeamHeightError > 0.012 || a.maxSeamBlendError > 0.006 || a.maxSeamColo
   throw new Error('Terrain3D Road/Path 255/256 seam roundtrip exceeded tolerance');
 }
 if (a.bakedSurfaces < 1 || a.bakedVertices <= 0) throw new Error('LOD0 bake evidence missing');
-if (a.savedRegionFiles < 4 || a.savedRegionBytes <= 0) throw new Error('save/reload region evidence missing');
+if (a.savedRegionFiles < 4 || b.savedRegionFiles < 4 || a.savedRegionBytes <= 0 || b.savedRegionBytes <= 0) throw new Error('save/reload region evidence missing');
 
 const pngA = fs.readFileSync(previewA);
 const pngB = fs.readFileSync(previewB);
@@ -75,7 +75,7 @@ if (sourceEvidence.coverage?.activeSamples !== 0 || sourceEvidence.coverage?.max
 const manifest = {
   schema: 'westeros-g17-road-path-terrain3d-evidence-v2',
   sourceMapSha256: '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1',
-  terrain3d: a,
+  terrain3d: a, persistenceBytes: [a.savedRegionBytes, b.savedRegionBytes],
   routeEvidence: route,
   previewBytes: pngA.length,
   previewSha256: sha256(pngA),
