@@ -104,23 +104,53 @@ jobs:
           NODE
           cmp /tmp/preview-a.png godot/terrain-authoring/.terrain3d-proof/g70-runtime-bake-topdown.png
 
-      - name: Three.js parity visuals and repository regressions
+      - name: Three.js runtime parity
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkNEG70Terrain3DRuntimeParity.mjs --verify | tee /tmp/parity.log
           grep -F NE_G70_TERRAIN3D_RUNTIME_PARITY_OK /tmp/parity.log
+
+      - name: Near far and full-world visual evidence
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkNEG70NearDetailVisualEvidence.mjs --out-dir=artifacts/ne-g70-runtime-parity-visual | tee /tmp/visual.log
           grep -F NE_G70_NEAR_DETAIL_VISUAL_EVIDENCE_OK /tmp/visual.log
+
+      - name: HTerrain regression
+        run: |
+          set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd
+
+      - name: World reference and settlement safety
+        run: |
+          set -euo pipefail
           node scripts/checkWorldReferenceMap.js
           node scripts/terrainSeatSafetyCheck.js
+
+      - name: Road safety regressions
+        run: |
+          set -euo pipefail
           node scripts/roadNetworkSafetyCheck.js
           node scripts/checkRoadVisualContract.js
           node scripts/checkMedievalRoadSurface.js
+
+      - name: PWA and cache regressions
+        run: |
+          set -euo pipefail
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
+
+      - name: Mobile performance budget
+        run: |
+          set -euo pipefail
           node scripts/checkMobilePerfBudget.js
+
+      - name: Full browser smoke and console
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/smokeTestGame3D.js
 
       - name: Final exact-main freshness
