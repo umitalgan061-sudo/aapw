@@ -7,6 +7,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'src/3d/world/g01Terrain3dRuntimeAdapter.js'
+      - 'scripts/checkNWG01RuntimeSurfaceContinuity.mjs'
       - 'scripts/checkNWG01RuntimeVisualParity.mjs'
       - 'godot/terrain-authoring/corner_claims/NW.json'
       - '.github/workflows/nw-g01-terrain3d-runtime-parity.yml'
@@ -38,8 +40,8 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkNWG01RuntimeVisualParity.mjs|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g01-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 3
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/g01Terrain3dRuntimeAdapter.js|scripts/checkNWG01RuntimeSurfaceContinuity.mjs|scripts/checkNWG01RuntimeVisualParity.mjs|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g01-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 5
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "Runtime parity qualification quota: additions=$A deletions=$D total=$((A+D))"
@@ -47,7 +49,7 @@ jobs:
           for protected in g01_hydrology.mjs g01_biome.mjs g01_relief.mjs g01_rock_snow.mjs g01_road_path.mjs g01_near_detail.mjs; do
             git diff --quiet "$BASE_SHA"...HEAD -- "godot/terrain-authoring/geocells/nw/$protected"
           done
-          git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/g01Terrain3dRuntimeAdapter.js scripts/checkNWG01Terrain3DRuntimeParity.mjs
+          git diff --quiet "$BASE_SHA"...HEAD -- scripts/checkNWG01Terrain3DRuntimeParity.mjs
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/scripts/validate_g01_terrain3d_runtime_parity.gd
           git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/terrain.js src/3d/world/roads.js src/3d/world/worldReferenceTerrainAdapter.js
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py service-worker.js
@@ -70,6 +72,7 @@ jobs:
           node scripts/checkNWG01NearDetail.mjs
           node --check src/3d/world/g01Terrain3dRuntimeAdapter.js
           node --check scripts/checkNWG01Terrain3DRuntimeParity.mjs
+          node --check scripts/checkNWG01RuntimeSurfaceContinuity.mjs
           node --check scripts/checkNWG01RuntimeVisualParity.mjs
           node scripts/checkNWG01Terrain3DRuntimeParity.mjs | tee "$RUNNER_TEMP/source-a.log"
           cp godot/terrain-authoring/.terrain3d-proof/g01-runtime-source.json "$RUNNER_TEMP/source-a.json"
@@ -115,6 +118,12 @@ jobs:
           set -euo pipefail
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG01Terrain3DRuntimeParity.mjs --verify | tee "$RUNNER_TEMP/runtime.log"
           grep -F 'NW_G01_TERRAIN3D_RUNTIME_PARITY_OK' "$RUNNER_TEMP/runtime.log"
+      - name: Dense runtime surface and normal continuity
+        run: |
+          set -euo pipefail
+          node scripts/checkNWG01RuntimeSurfaceContinuity.mjs --out=artifacts/nw-g01-runtime-visual/g01-runtime-surface-continuity.json | tee "$RUNNER_TEMP/surface.log"
+          grep -F 'NW_G01_RUNTIME_SURFACE_CONTINUITY_OK' "$RUNNER_TEMP/surface.log"
+          test -s artifacts/nw-g01-runtime-visual/g01-runtime-surface-continuity.json
       - name: Near far and full-world top-down visual parity
         run: |
           set -euo pipefail
@@ -168,6 +177,7 @@ jobs:
             godot/terrain-authoring/.terrain3d-proof/g01-runtime-source.json
             godot/terrain-authoring/.terrain3d-proof/g01-runtime-bake.json
             godot/terrain-authoring/.terrain3d-proof/g01-runtime-bake-topdown.png
+            artifacts/nw-g01-runtime-visual/g01-runtime-surface-continuity.json
             artifacts/nw-g01-runtime-visual/g01-runtime-near.png
             artifacts/nw-g01-runtime-visual/g01-runtime-far.png
             artifacts/nw-g01-runtime-visual/g01-full-world-reference-topdown.png
