@@ -24,7 +24,9 @@ try {
     const terrain = await import('/src/3d/world/terrain.js');
     const physics = await import('/src/3d/physics.js');
     const { ChunkManager } = await import('/src/3d/world/chunkManager.js');
-    const { WORLD_DEFAULTS } = await import('/src/3d/config.js');
+    const { WORLD_DEFAULTS, WORLD_SCALE, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
+    const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
+    const { buildRoadNetwork } = await import('/src/3d/world/roads.js');
     const THREE = await import('three');
     const current = await import('/src/3d/world/currentTerrainRuntime.js');
 
@@ -53,6 +55,30 @@ try {
       maxRenderError = Math.max(maxRenderError, Math.abs(position.getY(index) - collider.getGroundHeight(worldX, worldZ)));
     }
 
+    const stannisSeat = KINGDOM_SEATS.find((seat) => seat.id === 'stannis');
+    const stannis = mapToWorldXZ(stannisSeat.mapX, stannisSeat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
+    const stannisSamples = Object.fromEntries([
+      ['center', [stannis.x, stannis.z]], ['xp2', [stannis.x + 2, stannis.z]], ['xm2', [stannis.x - 2, stannis.z]],
+      ['zp2', [stannis.x, stannis.z + 2]], ['zm2', [stannis.x, stannis.z - 2]],
+    ].map(([key, [x, z]]) => [key, { x, z, h: sampler(x, z), map: current.currentWorldToOwnerMap(x, z) }]));
+
+    const pads = computeSettlementFlattenPads({
+      sampleHeightMeters: sampler,
+      seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+      minGroundClearanceMeters: SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
+      mapBounds: WORLD_SCALE.MAP_BOUNDS,
+      metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
+    });
+    const roadSampler = terrain.createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, pads);
+    const seats = KINGDOM_SEATS.map((seat) => {
+      const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
+      return { id: seat.id, x, z, groundY: roadSampler(x, z) };
+    });
+    const roadGrades = buildRoadNetwork({ seats, sampleHeightMeters: roadSampler }).edges
+      .map((edge) => ({ edge: `${edge.fromId}->${edge.toId}`, grade: edge.maxGradeDegrees }))
+      .filter((edge) => edge.grade > 15)
+      .sort((a, b) => b.grade - a.grade);
+
     const spawn = current.sampleCurrentTerrainNormalized(3885 / 9000, 5404 / 7000);
     const runtime = window.__WESTEROS_CURRENT_TERRAIN__;
     const output = {
@@ -67,6 +93,8 @@ try {
       meshSingleSource: mesh.userData.currentTerrainSingleSource === true,
       spawnSource: spawn.source,
       spawnHeight: spawn.heightMeters,
+      stannisSamples,
+      roadGrades,
       runtime,
     };
     manager.disposeAll();
