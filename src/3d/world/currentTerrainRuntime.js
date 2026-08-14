@@ -9,6 +9,7 @@
  */
 import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
+import { referenceProtectionRadiiFromMeters, sampleSeatSafeReferenceHydrology } from './worldReferenceHydrology.js';
 import { sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
 import { sampleG07Terrain3dBakeNormalized } from './g07Terrain3dBake.js';
 import { sampleG00RockSnow } from '../../../godot/terrain-authoring/geocells/nw/g00_rock_snow.mjs';
@@ -34,6 +35,22 @@ const smoothstep = (a, b, value) => {
   const t = clamp01((value - a) / (b - a));
   return t * t * (3 - 2 * t);
 };
+
+// Canonical settlement-coordinate snapshot mirrors settlements.js without importing its Three.js
+// rendering dependency into this lightweight terrain source. checkWorldReferenceHydrologyExtent.js
+// independently parses KINGDOM_SEATS and validates the same 14-site seat-safe hydrology contract.
+const PROTECTED_SEAT_MAP_POINTS = Object.freeze([
+  [3885, 5370], [1525, 1750], [1185, 4040], [1095, 4040], [1145, 3990], [1750, 3580], [2100, 3270],
+  [1610, 4560], [920, 2900], [1850, 2790], [1650, 1060], [1050, 3360], [6190, 5140], [1400, 300],
+]);
+const PROTECTED_SEATS = Object.freeze(PROTECTED_SEAT_MAP_POINTS.map(([mapX, mapY]) => Object.freeze({
+  x: clamp01(mapX / MAP_WIDTH),
+  y: clamp01(mapY / MAP_HEIGHT),
+})));
+const PROTECTION_RADII = referenceProtectionRadiiFromMeters(75, WORLD_SCALE.METERS_PER_MAP_UNIT);
+const MIN_LAND_CLEARANCE_METERS = 0.35;
+const MIN_PROTECTED_CLEARANCE_METERS = 0.08;
+const INLAND_PROTECTED_CLEARANCE_METERS = 1.25;
 
 export const CURRENT_TERRAIN_POLICY = Object.freeze({
   id: 'westeros-current-terrain-single-source-2026-08-14-v1',
@@ -155,6 +172,17 @@ function authoredCellAt(nx, ny) {
   return CELLS.find((cell) => nx >= cell.x0 && nx <= cell.x1 && ny >= cell.y0 && ny <= cell.y1) ?? null;
 }
 
+function applyCanonicalDryLandFloor(nx, ny, heightMeters) {
+  const hydrology = sampleSeatSafeReferenceHydrology(nx, ny, PROTECTED_SEATS, PROTECTION_RADII);
+  if (hydrology.water) return heightMeters;
+  const protectedClearance = MIN_PROTECTED_CLEARANCE_METERS
+    + (INLAND_PROTECTED_CLEARANCE_METERS - MIN_PROTECTED_CLEARANCE_METERS) * hydrology.protectedLandWeight;
+  const clearance = hydrology.protectedLand
+    ? Math.max(MIN_LAND_CLEARANCE_METERS, protectedClearance)
+    : MIN_LAND_CLEARANCE_METERS;
+  return Math.max(heightMeters, SEA_LEVEL + clearance);
+}
+
 export function sampleCurrentTerrainNormalized(normalizedX, normalizedY) {
   if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) throw new TypeError('normalized coordinates must be finite');
   const nx = clamp01(normalizedX);
@@ -162,27 +190,30 @@ export function sampleCurrentTerrainNormalized(normalizedX, normalizedY) {
   const canonicalRelativeHeight = sampleCanonicalCurrentRelativeHeight(nx, ny);
   const cell = authoredCellAt(nx, ny);
   if (!cell) {
+    const rawHeightMeters = SEA_LEVEL + canonicalRelativeHeight;
+    const heightMeters = applyCanonicalDryLandFloor(nx, ny, rawHeightMeters);
     return Object.freeze({
       policyId: CURRENT_TERRAIN_POLICY.id,
       source: 'canonical-full-map',
       authoredCell: null,
       authoredWeight: 0,
-      relativeHeightMeters: canonicalRelativeHeight,
-      heightMeters: SEA_LEVEL + canonicalRelativeHeight,
+      relativeHeightMeters: heightMeters - SEA_LEVEL,
+      heightMeters,
     });
   }
   const authoredRelativeHeight = cell.sample(nx, ny);
   if (!Number.isFinite(authoredRelativeHeight)) throw new Error(`${cell.id} current terrain source returned non-finite height`);
   const weight = cellWeight(cell, nx, ny);
-  const relativeHeightMeters = lerp(canonicalRelativeHeight, authoredRelativeHeight, weight);
+  const blendedRelativeHeight = lerp(canonicalRelativeHeight, authoredRelativeHeight, weight);
+  const heightMeters = applyCanonicalDryLandFloor(nx, ny, SEA_LEVEL + blendedRelativeHeight);
   return Object.freeze({
     policyId: CURRENT_TERRAIN_POLICY.id,
     source: 'terrain3d-authored',
     authoredCell: cell.id,
     agent: cell.agent,
     authoredWeight: weight,
-    relativeHeightMeters,
-    heightMeters: SEA_LEVEL + relativeHeightMeters,
+    relativeHeightMeters: heightMeters - SEA_LEVEL,
+    heightMeters,
   });
 }
 
