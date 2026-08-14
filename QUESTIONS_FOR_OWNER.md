@@ -390,20 +390,19 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   too tame/alarming.
 
 - **(run 339, ADR-0285) Menu/pause flow shipped (`GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 item 7,
-  the pause half) — two narrow, disclosed scope edges, not silently dropped.** (1) `ui/controlsHelp.js`'s
+  the pause half) — two narrow, disclosed scope edges, not silently dropped.** ~~(1) `ui/controlsHelp.js`'s
   own Escape-closes-when-open handler and the new `ui/pauseMenu.js`'s Escape-always-toggles handler
   are independent `window` keydown listeners; pressing Escape while the controls-help panel is open
   closes *that* panel and *also* opens the pause overlay in the same keystroke (both then close
   independently on a second press — a harmless visual double-open, not a functional conflict, but
-  not the single-purpose behavior a player might expect from one key). (2) ~~the global `E`-interact
+  not the single-purpose behavior a player might expect from one key).~~ — **✅ ÇÖZÜLDÜ (run 342,
+  ADR-0290).** (2) ~~the global `E`-interact
   keydown listener and `ui/dialogueBox.js`'s own keydown handlers are not gated by `state.paused`~~ —
-  **✅ ÇÖZÜLDÜ (run 340, ADR-0286).** **Temporary defaults used:** item (1) above is still this run's
-  own judgment about where to draw this bounded subtask's line, same "temporary default, no real
-  playtest yet" category as every other scope-edge entry above — left unchanged, out of this run's
-  scope. A settings screen (quality/volume) inside the same overlay, and an auto-pause on tab blur
-  (`visibilitychange`), are also both deliberately deferred, not forgotten — see ADR-0285's own
-  Alternatives #3/#4. Revisit any of these once a real playtest exists, or if they're specifically
-  wanted.
+  **✅ ÇÖZÜLDÜ (run 340, ADR-0286).** A settings screen (quality/volume) inside the same overlay
+  shipped run 341 (ADR-0289, quality only — no volume, `assets/audio/` is still empty), and an
+  auto-pause on tab blur (`visibilitychange`) remains deliberately deferred, not forgotten — see
+  ADR-0285's own Alternative #4. No open scope edge remains from this item; revisit tab-blur
+  auto-pause once a real playtest exists or if specifically wanted.
 
 - **✅ ÇÖZÜLDÜ (run 340, ADR-0286) Dialogue input paused-gate — the run-339 entry's item (2) above,
   "choices can still be selected by Enter while the pause overlay visually covers them," is now

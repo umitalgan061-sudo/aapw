@@ -16055,3 +16055,108 @@ Risk LOW. Confidence 5/5.
 Concurrency re-check immediately before commit: `git fetch origin main` re-run — see commit log for result at push time.
 
 Next safe step: `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 now has zero half-open rows and six entirely-uncoded rows (quest, save/load, inventory, player attack, dense settlements, audio) — all larger, multi-run scopes. Wiring `renderQuality.js`'s three still-unread `QUALITY_PRESETS` knobs (`drawDistance`/`pixelRatioCap`/`textureSize`) into the actual renderer is the most natural single next bounded slice if continuing this area. Terrain/road/Terrain3D geocell work remains claimed by the concurrent corner-agent sessions and was not touched here.
+
+## Run 342 (2026-08-14, scheduled run) — Controls-help/pause-menu Escape coexistence, closing run-339's last disclosed scope edge (ADR-0290)
+
+Synced with `origin/main` first: local checkout had `git fetch origin main` re-run mid-session and
+found a real concurrent push — `origin/main` had advanced 2 commits (`c27008a` pause-menu settings
+screen, ADR-0289; `fb120b4` its own `STABLE_TAGS.md` checkpoint) past this run's own starting point
+(`ce28439`), landing in the exact same window this run was already working in. This run's own local
+commit (already made against `ce28439`) was rebased onto the fresh `origin/main` tip: three files
+conflicted at the text level — `DECISIONS.md` (two independent ADRs appended at the same location,
+resolved by keeping both in sequence, ADR-0289 then this run's own renumbered ADR-0290), and
+`scripts/game3dSmokeChecksPauseMenu.js`/`scripts/smokeTestGame3D.js` (both runs added a check to the
+same file/registration list, resolved by keeping both check functions and both registrations side by
+side). `service-worker.js` needed no conflict resolution at all: this run had independently found and
+fixed the exact same pre-existing offline-precache gap (2 `src/3d` files + 10 animal models missing
+from `GAME3D_SHELL_FILES`) that `c27008a` had already closed — this run's own local copy of that fix
+was discarded in favor of the upstream one before rebasing (same "concurrent duplicate work, keep the
+one that landed first" precedent Run 328 already established), so this run's own final diff touches
+neither `service-worker.js` nor any of the settings-screen files. Read `GOVERNANCE.md`, both
+continuation/owner-directive files, `GOVERNANCE_FULL_GAME_DIRECTIVE.md`, this file's tail through Run
+341, `DECISIONS.md`'s last ADRs (0287-0289), and `QUESTIONS_FOR_OWNER.md` in full before picking a
+subtask. Checked `godot/terrain-authoring/corner_claims/`: all 4 corners (NE/NW/SE/SW) still actively
+claimed by concurrent Terrain3D corner-agent sessions (real branches/PRs, not stale) — confirmed
+avoiding that category was still the right call.
+
+Priority-order items 1-4 (macro relief, road network, ground color, castle texturing) remain
+closed-or-claimed per prior runs' own notes. `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 reached zero
+half-open rows as of Run 341's own settings-screen commit, leaving only its six entirely-uncoded,
+multi-run-scope rows (quest, save/load, inventory, player attack, dense settlements, audio) — none a
+single bounded subtask. Picked `QUESTIONS_FOR_OWNER.md`'s own run-339 item (1), the one remaining
+disclosed scope edge from the pause-menu work: pressing Escape while the controls-help panel was open
+closed that panel *and* opened the pause overlay in the same keystroke (two independent `window`
+keydown listeners both reacting to one event) — cosmetic, not a functional break, but already fully
+scoped and named, same precedent ADR-0283/0284/0286 established for closing a prior run's own
+disclosed edge before reaching for a new large feature. Genuinely uncontended: touches only
+`ui/controlsHelp.js`, none of which any corner-agent or the settings-screen work claims.
+
+Full details in `DECISIONS.md` ADR-0290. Summary: `ControlsHelp`'s Escape handler now calls
+`event.stopImmediatePropagation()` right after it closes the panel. `game3d.js` always constructs
+`ControlsHelp` before `PauseMenu`, so `window` keydown listeners fire in that order — the fix makes
+the first Escape press (while controls-help is open) close only that panel, consuming the keystroke
+before `PauseMenu`'s later-registered listener runs; the next Escape then opens pause normally, and
+Escape keeps toggling pause on every subsequent press exactly as before. `gameplay/interaction.js`'s
+own Escape handler for the dialogue-close path is registered earlier still and is completely
+unaffected either way — confirmed by inspection of `game3d.js`'s own listener-registration order, not
+assumed.
+
+**Oyuncu ne fark eder:** dar bir köşe durumu, ama gerçek — daha önce kontrol yardımı panelini açıp
+Escape'e basan bir oyuncu duraklatma menüsünün de aynı anda açıldığını görüyordu (her ikisi de ikinci
+bir Escape'te ayrı ayrı kapanıyordu, işlevsel bir çakışma değildi ama tek bir tuştan beklenen tek-amaçlı
+davranış değildi). Artık ilk Escape yalnız yardım panelini kapatıyor, ikinci Escape duraklatma menüsünü
+açıyor.
+
+Full DoD sweep (fresh, run in full after the rebase merge — not just before it, since the merge
+resolution itself needed proving, not just each side's pre-rebase state): `node --check` clean on all
+4 changed files. New registered `checkControlsHelpPauseMenuEscapeCoexistence`
+(`scripts/game3dSmokeChecksPauseMenu.js`, added to the persisted `smokeTestGame3D.js` suite):
+constructs both real widgets in `game3d.js`'s own construction order, proves the first Escape while
+controls-help is open closes only that panel (pause stays closed), the next Escape then opens pause
+normally, and Escape keeps toggling pause on every keystroke afterward. `checkSmokeCheckRegistry.js`
+OK — 529 JS files within the 600-line cap, 4 pre-existing near-cap WARNs unchanged, **40 smoke checks
+across 15 modules**, every export invoked exactly once, every invocation resolves (up from Run 341's
+39 — this run's own check plus the settings-screen check both present and correctly wired after the
+merge). `checkTechnicalDebt.js` PASS (0 new debt, 0 forbidden markers). `checkSeededRandomPolicy.js`
+PASS (no `Math.random()`). `checkAssetsManifest.js` OK (no new asset). `checkServiceWorkerCache.js`/
+`checkPwaInstallability.js` OK (unaffected by this run's own diff; already fixed by the upstream
+`c27008a` commit this run rebased onto). `terrainSeatSafetyCheck.js` PASS 14/14 (unaffected, read-only).
+`roadNetworkSafetyCheck.js` PASS 20.24km (unaffected, read-only). Full `smokeTestGame3D.js`
+**40/40 PASS**, zero console/page errors, exit code 0 — run fresh against the final post-rebase merged
+tree (proving the manual conflict resolution in `scripts/game3dSmokeChecksPauseMenu.js`/
+`scripts/smokeTestGame3D.js` didn't silently drop or corrupt either side's check).
+
+Real perf sample (`collectPerfSnapshot.js run342-escape-coexistence-fix`): 58 draw calls / 816,332
+triangles / 57 geometries / 27 textures / 368MB heap — byte-identical draw-call/triangle/geometry/
+texture figures to Run 341's own sample, exactly as expected (this change is pure input-event
+handling, zero render-object delta); heap sits inside this project's own documented run-to-run
+sampling noise.
+
+Memory leak checklist: no new listeners/timers/DOM nodes. The single added line calls a method already
+available on every DOM `Event` object; `ControlsHelp.dispose()`'s existing `removeEventListener` call
+still removes the exact same listener reference, no new cleanup surface introduced.
+
+Technical debt: 0 new. `src/3d/ui/controlsHelp.js` 71 -> 94/600 lines (real headroom).
+`scripts/game3dSmokeChecksPauseMenu.js` grew via the merge to include both this run's and Run 341's
+new checks — no line-cap concern, real headroom remains.
+
+World Coverage: unchanged (no terrain/geometry delta, desktop 96.2% / mobile 4.5% unaffected). World
+Evolution Report delta: no yol/orman/kale/NPC/hayvan/creature/event/cart count change; ADR count +1
+(ADR-0290); "oyuncu fark eder mi" — yukarıya bakınız (dar ama gerçek).
+
+ADR-0290 (`DECISIONS.md`). `QUESTIONS_FOR_OWNER.md` run-339 item (1) marked ✅ ÇÖZÜLDÜ — no open scope
+edge remains from that item; tab-blur auto-pause (ADR-0285's own Alternative #4) remains a separately
+deferred, not-yet-requested item, not a disclosed bug.
+
+Risk LOW. Confidence 5/5.
+
+Concurrency re-check immediately before commit: `git fetch origin main` re-run — no further drift
+found past the `c27008a`/`fb120b4` pair already rebased onto above; see commit log for the exact result
+at push time.
+
+Next safe step: `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 remains at zero half-open rows and six
+entirely-uncoded, multi-run-scope rows (quest, save/load, inventory, player attack, dense settlements,
+audio). Wiring `renderQuality.js`'s three still-unread `QUALITY_PRESETS` knobs (`drawDistance`/
+`pixelRatioCap`/`textureSize`), Run 341's own named next candidate, remains the most natural single
+next bounded slice if continuing that area. Terrain/road/Terrain3D geocell work remains claimed by the
+concurrent corner-agent sessions and was not touched here.
