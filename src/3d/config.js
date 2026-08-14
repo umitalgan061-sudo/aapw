@@ -84,20 +84,20 @@ export const WORLD_DEFAULTS = Object.freeze({
 export const WORLD_SCALE = Object.freeze({
 	/** Meters represented by one 2D-map pixel unit. Kept small (see ADR-0003) so the whole padded
 	 * kingdom bounding box fits inside a ~100-150 km² world instead of a continent-scale one. */
-	METERS_PER_MAP_UNIT: 1.75,
+	METERS_PER_MAP_UNIT: 1.477342100713197,
 	/** Kingdom-seat bounding box in map units, padded 800 units per side and clamped to the map canvas. */
-	MAP_BOUNDS: Object.freeze({ minX: 120, maxX: 6990, minY: 0, maxY: 6170 }),
+	MAP_BOUNDS: Object.freeze({ minX: 0, maxX: 9000, minY: 0, maxY: 7000 }),
 	/** World extent in meters (map bounds above * METERS_PER_MAP_UNIT). */
-	WORLD_WIDTH_METERS: 12022.5,
-	WORLD_DEPTH_METERS: 10797.5,
+	WORLD_WIDTH_METERS: 13296.078906418774,
+	WORLD_DEPTH_METERS: 10341.394704992379,
 });
 
 /** Chunk/streaming grid (World Partition). See DECISIONS.md ADR-0001, ADR-0002, and ADR-0003. */
 export const CHUNK_CONFIG = Object.freeze({
 	CHUNK_SIZE_METERS: 500,
 	/** ceil(WORLD_WIDTH_METERS / CHUNK_SIZE_METERS), ceil(WORLD_DEPTH_METERS / CHUNK_SIZE_METERS). */
-	GRID_COLUMNS: 25,
-	GRID_ROWS: 22,
+	GRID_COLUMNS: 27,
+	GRID_ROWS: 21,
 	/** Radius, in chunks, kept loaded around the *player* once one exists (FAZ 4+). Small on
 	 * purpose — must fit the mobile budget (drawCalls<500, triangles<500K) at all times, since
 	 * this is the radius a phone keeps resident during real gameplay. Tune per QUALITY_PRESETS in
