@@ -113,7 +113,7 @@ jobs:
           node scripts/checkNEG70NearDetailVisualEvidence.mjs --out-dir=artifacts/ne-g70-runtime-parity-visual | tee /tmp/visual.log
           grep -F NE_G70_NEAR_DETAIL_VISUAL_EVIDENCE_OK /tmp/visual.log
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd
-          node scripts/worldReferenceMapCheck.js
+          node scripts/checkWorldReferenceMap.js
           node scripts/terrainSeatSafetyCheck.js
           node scripts/roadNetworkCheck.js
           node scripts/roadVisualCheck.js
