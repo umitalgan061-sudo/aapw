@@ -32,11 +32,12 @@ export const CURRENT_TERRAIN_ADAPTER_POLICY = Object.freeze({
 // much larger height delta at a seat (especially where seat-safe hydrology raises coastal castles),
 // so the same 37m transition ring can create a short >20-degree cart approach. Widen only pads that
 // exactly match the established settlement contract; custom gameplay/editor flatten pads retain
-// their caller-owned radii. Both render chunks and every height sampler pass through this helper,
-// preserving the single-source render/physics invariant.
+// their caller-owned radii. The 225m outer edge keeps even high coastal seats on a gradual approach
+// while remaining local relative to the multi-kilometre road network. Both render chunks and every
+// height sampler pass through this helper, preserving the single-source render/physics invariant.
 const SETTLEMENT_PAD_INNER_RADIUS_METERS = 38;
 const LEGACY_SETTLEMENT_PAD_OUTER_RADIUS_METERS = 75;
-const CURRENT_SETTLEMENT_PAD_OUTER_RADIUS_METERS = 150;
+const CURRENT_SETTLEMENT_PAD_OUTER_RADIUS_METERS = 225;
 const RADIUS_EPSILON = 1e-9;
 
 function currentTerrainFlattenPads(flattenPads = []) {
