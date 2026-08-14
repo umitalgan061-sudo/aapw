@@ -43,13 +43,27 @@ const serviceWorkerBefore = fs.readFileSync(serviceWorkerFile, 'utf8');
 const offlineEntries = Object.freeze([
   './src/3d/world/currentTerrainAdapter.js',
   './src/3d/world/currentTerrainRuntime.js',
+  './src/3d/renderQuality.js',
+  './src/3d/world/g01Terrain3dRuntimeAdapter.js',
+  './assets/models/animals/white_horse_bEdE4rmZy9.glb',
+  './assets/models/animals/cow_26zM1outCr.glb',
+  './assets/models/animals/bull_a8PIIYwF7r.glb',
+  './assets/models/animals/deer_T6Cs7tmMHJ.glb',
+  './assets/models/animals/stag_tQdzbZ1Cmw.glb',
+  './assets/models/animals/fox_Bc97C66HKi.glb',
+  './assets/models/animals/husky_wcWiuEqwzq.glb',
+  './assets/models/animals/alpaca_bCVFD48i2l.glb',
+  './assets/models/animals/zebra_iclPBR6SBZ.glb',
+  './assets/models/animals/sheep_C39AUXUUes.glb',
 ]);
-if (!offlineEntries.every((entry) => serviceWorkerBefore.includes(entry))) {
+const missingOfflineEntries = offlineEntries.filter((entry) => !serviceWorkerBefore.includes(entry));
+if (missingOfflineEntries.length > 0) {
   const marker = '// Run339 pause-menu offline shell extension';
   if (!serviceWorkerBefore.includes(marker)) throw new Error('service-worker current-terrain insertion marker missing');
-  const block = `// Current full-map terrain single-source offline shell extension.\nself.addEventListener('install', () => {\n    GAME3D_SHELL_FILES.push('./src/3d/world/currentTerrainAdapter.js');\n    GAME3D_SHELL_FILES.push('./src/3d/world/currentTerrainRuntime.js');\n});\n\n`;
+  const pushes = missingOfflineEntries.map((entry) => `    GAME3D_SHELL_FILES.push('${entry}');`).join('\n');
+  const block = `// Current 3D runtime offline dependency completion.\nself.addEventListener('install', () => {\n${pushes}\n});\n\n`;
   fs.writeFileSync(serviceWorkerFile, serviceWorkerBefore.replace(marker, `${block}${marker}`));
-  console.log('CURRENT_TERRAIN_MATERIALIZED=service-worker.js');
+  console.log(`CURRENT_TERRAIN_MATERIALIZED=service-worker.js:${missingOfflineEntries.length}-offline-dependencies`);
 }
 
 const oldMime = "const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };";
