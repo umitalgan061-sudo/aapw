@@ -38,7 +38,16 @@ jobs:
           grep G17_TERRAIN3D_ROAD_PATH_METRICS /tmp/a.log > /tmp/am; grep G17_TERRAIN3D_ROAD_PATH_METRICS /tmp/b.log > /tmp/bm; cmp /tmp/am /tmp/bm; cmp /tmp/a.png godot/terrain-authoring/.terrain3d-proof/g17-road-path-imported-topdown.png
           timeout 180s "$G" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | grep -F HTERRAIN_AUTHORING_VALIDATION_OK
           node scripts/terrainSeatSafetyCheck.js; node scripts/roadNetworkSafetyCheck.js; node scripts/checkSeededRandomPolicy.js
+          rm -rf artifacts/sw-g17-road-path-visual
+          node scripts/checkSWG17HydrologyVisualEvidence.mjs --out-dir=artifacts/sw-g17-road-path-visual | tee /tmp/g17-road-path-visual.log
+          grep -F SW_G17_HYDROLOGY_VISUAL_OK /tmp/g17-road-path-visual.log
+          test -s artifacts/sw-g17-road-path-visual/g17-hydrology-near.png && test -s artifacts/sw-g17-road-path-visual/g17-hydrology-far.png && test -s artifacts/sw-g17-road-path-visual/g17-hydrology-full-world-topdown.png && test -s artifacts/sw-g17-road-path-visual/g17-hydrology-visual-metrics.json
           git fetch origin main; test "$(git rev-parse origin/main)" = "$BASE_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: sw-g17-road-path-proof, include-hidden-files: true, path: godot/terrain-authoring/.terrain3d-proof/ }
+        with:
+          name: sw-g17-road-path-proof
+          include-hidden-files: true
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/
+            artifacts/sw-g17-road-path-visual/
