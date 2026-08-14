@@ -33,6 +33,7 @@ import { createAuroraSky } from './sky.js';
 import { createStarfield } from './stars.js';
 import { createDayNightLighting } from './lighting.js';
 import { createFog } from './fog.js';
+import { resolveRenderQuality, configureRendererRealism, configureSunShadow, applyShadowRoles } from './renderQuality.js';
 
 /**
  * Detects a touch-primary (phone/tablet-class) device via the standard `(pointer: coarse)` media
@@ -79,6 +80,10 @@ export function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 	renderer.setSize(window.innerWidth, window.innerHeight);
+	// Filmic tone mapping + (desktop only) real sun shadows, finally consuming `QUALITY_PRESETS` —
+	// see `renderQuality.js` for why that config sat unread since FAZ 0 and what each knob buys.
+	const renderQuality = resolveRenderQuality({ coarsePointer: isCoarsePointerDevice() });
+	configureRendererRealism(renderer, renderQuality);
 
 	const scene = new THREE.Scene();
 	// Fallback only — the aurora sky sphere (added below) fully covers the viewport every frame.
@@ -117,6 +122,10 @@ export function createScene(canvas) {
 	const clock = new THREE.Clock();
 
 	const lights = createDayNightLighting(scene);
+	// The sun becomes the world's single shadow caster. Its frustum has to be re-anchored onto the
+	// player every frame (`focusSunShadow` in game3d.js's tick) — `updateDayNightLighting` orbits it
+	// around the world origin, which is nowhere near where the player actually stands.
+	configureSunShadow(lights.sun, renderQuality);
 
 	// Ground-flatten pads (DECISIONS.md ADR-0118) — computed once, up front, from a throwaway *base*
 	// (unflattened) sampler, then threaded into both the chunk manager (so the rendered ground mesh
@@ -293,8 +302,25 @@ export function createScene(canvas) {
 	const villageCollider = createCircleCollider(villagesResult.houses);
 	const playerCollider = createComposedCollider([settlementCollider, villageCollider]);
 
+	// Standing world geometry both casts and receives: a keep should shadow the ground beside it *and*
+	// take its own towers' shadows. Deliberately excluded: `sky`/`stars` (they are the light source's
+	// backdrop, not lit geometry), `water`/`river`/`waterfalls` (a shadow-receiving flat plane at a
+	// fixed sea level shows the shadow-acne banding `SHADOW_BIAS` cannot fully hide on a surface that
+	// large, and the Gerstner displacement means its shadow-map depth would not match its rendered
+	// surface anyway — see ADR-0048's own note about that vertex/fragment split).
+	applyShadowRoles(settlementsResult.group, { quality: renderQuality });
+	applyShadowRoles(villagesResult.group, { quality: renderQuality });
+	applyShadowRoles(vegetationResult.group, { quality: renderQuality });
+	// Roads are flat decals laid on the terrain — they should take a tree's or a cart's shadow, but
+	// casting from them would only produce depth-fighting artifacts against the ground they sit on.
+	applyShadowRoles(roadsResult.group, { quality: renderQuality, cast: false });
+
 	return {
 		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, playerCollider, sky, stars, water, river, waterfalls,
+		// Exposed so game3d.js can focus the sun's shadow frustum on the player each frame and opt
+		// later-spawned entities (player, NPCs, animals, dragons, carts) into shadows with the same
+		// resolved budget this function used — rather than re-deriving the device tier a second time.
+		renderQuality,
 		settlements: settlementsResult.group,
 		roads: roadsResult.group,
 		roadEdges: roadsResult.edges,

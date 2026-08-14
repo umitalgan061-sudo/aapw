@@ -60,6 +60,7 @@ import { createPlayer } from './gameplay/player.js';
 import { createHealthState } from './gameplay/health.js';
 import { spawnLivingWorld } from './gameplay/livingWorldSpawner.js';
 import { createInteractionController } from './gameplay/interaction.js';
+import { focusSunShadow, applyShadowRoles } from './renderQuality.js';
 import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.js';
 import { disposeRiverMesh, disposeWaterfallMesh, updateFlowAnimation } from './world/rivers.js';
@@ -273,6 +274,20 @@ export async function initGame3D() {
 		// ADR-0278's `state.playerCollider` threading into the NPC/animal/creature spawns).
 		await spawnLivingWorld({ assetLoader, state, spawnWorld, eventsBus: gameEvents });
 
+		// Opt every living entity into the sun's shadow (no-op on mobile, where shadows are off — see
+		// `renderQuality.js`). Done here, after `spawnLivingWorld` has resolved, rather than inside each
+		// spawner: the shadow decision is a render-budget concern owned by `renderQuality.js`, not
+		// something six unrelated gameplay modules should each re-derive. Enumerated per collection
+		// instead of traversing `state.scene` wholesale, so the surfaces deliberately left out of
+		// shadowing (sky, stars, water, river, waterfalls) stay out.
+		const shadowOpts = { quality: state.renderQuality };
+		applyShadowRoles(state.player?.object3D, shadowOpts);
+		for (const collection of [state.npcs, state.animals, state.creatures, state.carts, state.dragons]) {
+			for (const entity of collection ?? []) {
+				applyShadowRoles(entity?.object3D ?? entity?.model ?? entity?.group, shadowOpts);
+			}
+		}
+
 		state.dialogueBox = new DialogueBox();
 		// Owns the nearest-NPC tracking, keypress handling, and distance-based auto-close — see
 		// `gameplay/interaction.js` (extracted from here to stay under the 600-line cap, ADR-0033).
@@ -445,6 +460,14 @@ export async function initGame3D() {
 				WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO,
 			);
 			state.dayNightClock.update(dayNight.timeRatio, dayNight.nightFactor);
+			// Re-anchor the sun's shadow frustum onto the player. Must run *after*
+			// updateDayNightLighting, which overwrites sun.position outright every frame; see
+			// focusSunShadow's own doc for why translating position+target together leaves the light
+			// direction (and therefore the whole day/night look) untouched. No-op when shadows are off.
+			if (state.player?.object3D) {
+				const focus = state.player.object3D.position;
+				focusSunShadow(state.lights.sun, focus.x, focus.y, focus.z);
+			}
 			// Same §8.13 safe mode as the four subsystems above, singleton shape like `interaction` —
 			// but this one does own something to release on failure (its countdown), so it passes a
 			// `disposeOnError`. `worldEvents.dispose()` is idempotent, so the unconditional teardown

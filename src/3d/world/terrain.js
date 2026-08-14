@@ -300,6 +300,11 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 
 	const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
 	const mesh = new THREE.Mesh(geometry, material);
+	// Terrain receives the sun's shadow but never casts it (see `renderQuality.js`). Set here rather
+	// than by the caller so every chunk is covered — including the ones `ChunkManager` streams in long
+	// after `createScene` returned, which a one-time traverse of the scene graph would miss. Harmless
+	// when shadows are disabled (mobile): `receiveShadow` is only read while a shadow map exists.
+	mesh.receiveShadow = true;
 	mesh.position.set(chunkX * size, 0, chunkZ * size);
 	mesh.userData.chunkCoord = { x: chunkX, z: chunkZ };
 	mesh.userData.areaKm2 = (size * size) / 1_000_000;

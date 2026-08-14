@@ -15949,3 +15949,79 @@ than the animals; it was replaced with an all-bone signature before drawing any 
 **Geri alma planı.** `git revert` the single commit. `ANIMAL_SPECIES` and the `speciesId` field are
 purely additive: reverting restores the three wolf globals as the only clip source and the four
 original spawns, with no data migration, no asset deletion and no change to any other system.
+
+## ADR-0288 — Renderer realism baseline: filmic tone mapping + real sun shadows, finally consuming QUALITY_PRESETS (owner session)
+
+**Risk: MEDIUM.** Changes how every surface in the game is rendered, so it touches the whole visual
+surface at once — but it is additive at the code level (one new module plus four call sites), changes
+no geometry, no material, no light keyframe and no world data, and is fully reverted by one
+`git revert`.
+
+**Karar.** New `src/3d/renderQuality.js` owns the render-budget decision and applies three things:
+ACES filmic tone mapping (all devices), a `PCFSoftShadowMap` sun shadow sized from
+`QUALITY_PRESETS[level].shadowMapSize` (desktop only), and a per-frame `focusSunShadow` that
+re-anchors the sun's orthographic shadow frustum onto the player. Terrain chunks receive shadows;
+settlements, villages and vegetation cast and receive; roads receive only; the player, NPCs, animals,
+creatures, carts and dragons are opted in after `spawnLivingWorld` resolves.
+
+**Neden (problem).** The project owner asked for the in-game models and terrain to look far more
+realistic. Auditing the renderer found the cause was not the assets: the game renderer was
+constructed as `new THREE.WebGLRenderer({ canvas, antialias: true })` and *nothing else* — no
+`toneMapping` (r160 defaults to `NoToneMapping`, so bright areas clip flat), no `shadowMap.enabled`,
+and no `castShadow`/`receiveShadow` anywhere in the live scene; only `src/3d/editor/*` set them. Every
+object therefore floated on the terrain with nothing grounding it. Meanwhile `config.js` had shipped
+`QUALITY_PRESETS` since FAZ 0 — with a `shadowMapSize` per level and the explicit comment "Systems
+should read from here rather than hardcoding values" — and **nothing had ever read it**. This change
+is largely just cashing in config that was already written for exactly this purpose.
+
+**Alternatifler.**
+1. *Add an IBL environment map (PMREM) as well.* Deferred, not rejected: it is the next-largest
+   realism lever for PBR materials, but it interacts with the existing procedural aurora sky and the
+   day/night rig, so bundling it here would have made the visual result impossible to attribute to
+   either change. Worth its own pass.
+2. *Ship `ULTRA` (4096² shadow map) on desktop.* Rejected: a large step in fill cost for a difference
+   that is hard to see at this world scale. `QUALITY_PRESETS` means this can move later in one line.
+3. *Span the whole world with one shadow frustum instead of following the player.* Rejected on
+   arithmetic: a frustum wide enough for ~137.5 km² spreads 2048 texels across kilometers, so a
+   character's shadow degrades to a stair-stepped blob. Following the player keeps ~8.5cm/texel.
+4. *Enable shadows on mobile too.* Rejected: the mobile budget (DrawCalls<500, Triangles<500K) is
+   already the binding constraint that forced `STREAM_RADIUS_CHUNKS` down in ADR-0010, and a shadow
+   map re-renders casters from the light's view every frame.
+
+**Sonuç / trade-off.** Measured cost, clean A/B in the same browser session with the same procedure
+and the same warm-up samples discarded — shadows off: **60.7 FPS avg**; shadows on: **58.1 FPS avg**
+(~4%). Draw calls and triangles are byte-identical in both runs (59/2500 and 821,550/5,000,000),
+because `renderer.info` does not count the shadow pass — so the honest statement is that the *reported*
+budget counters are unchanged and the real cost shows up only in frame time. Mobile pays nothing:
+shadows never initialize there. Water, river, waterfalls, sky and stars are deliberately excluded from
+shadowing — a shadow-receiving flat plane that large bands with acne the bias cannot hide, and the
+water's Gerstner displacement lives in the fragment shader (ADR-0048), so its shadow-map depth would
+not match its rendered surface anyway.
+
+**Etkilenen sistemler.** New `renderQuality.js`; `sceneManager.js` (renderer + sun setup, shadow roles
+on standing geometry, returns `renderQuality`); `world/terrain.js` (one line: chunks receive shadows —
+set inside `createTerrainChunk` so streamed chunks are covered too, which a one-time scene traverse
+would miss); `game3d.js` (per-frame focus call + living-entity opt-in; now 577/600 lines, **approaching
+the cap — plan a split before adding to it**). No geometry, material, light keyframe, world data,
+editor, RTS or service-worker change. The day/night look is preserved by construction:
+`focusSunShadow` translates the sun's position and target by the *same* offset, so the
+position→target vector — the only thing a directional light's shading depends on — is unchanged.
+
+**Bir ölçüm hatası yakalandı ve düzeltildi (GOVERNANCE.md §5).** A first FPS reading taken while
+walking and capturing screenshots showed 51.1 avg and would have been reported as the shadow cost —
+a ~16% regression. Re-measuring with a controlled A/B (toggling only `shadowsEnabled`, holding tone
+mapping and everything else constant, both runs immediately post-reload) showed the real cost is ~4%
+and the 51.1 figure was measurement-harness noise. The uncontrolled number was discarded rather than
+published.
+
+**Doğrulama.** `node --check` clean on all four touched files; `checkSmokeCheckRegistry.js` OK (528
+JS files within the 600-line cap). Real in-browser proof on the live `game3d.html`: the player casts
+a visible, correctly-oriented shadow (long and low at 08:09, shortening toward noon as the sun
+rises), the ground reads as lit rather than flat, zero console errors across reloads, and the shadow
+is present *at all* only because `focusSunShadow` works — the player stands thousands of meters from
+the world origin the sun orbits, so an unfocused frustum would have produced none.
+
+**Geri alma planı.** `git revert` the single commit. `renderQuality.js` is a new file with no other
+importers; the four call sites are additive lines. Reverting restores `NoToneMapping` and a
+shadowless scene with no data migration, no asset change and no config change — `QUALITY_PRESETS`
+simply goes back to being unread.
