@@ -8,7 +8,7 @@
   "branch": "agent/kizil-ufuk-g77-rock-snow-exact-cdca07-r9-20260814",
   "pr": 520,
   "base_commit": "cdca07cc3f29c635db382cba8b8bbdb11a4c5998",
-  "last_commit": "c3d07c3be087f6a4e153971c05e8a5d9bdbe5d2b",
+  "last_commit": null,
   "quality_before": {
     "coast_hydrology": "merged continuous G77 coastline; canonical 44 water / 52 land",
     "macro_biome": "merged continuous G77 owner-map albedo/roughness",
@@ -17,10 +17,10 @@
   },
   "quality_after": {
     "target": "continuous relief/biome/hydrology-driven Rock/Snow with symmetric 3x3 slope filtering, zero canonical-water leakage and no GeoCell/grid imprint",
-    "terrain3d": "pinned v1.0.2 real 257x257 Height+Control import across >=4 regions, 255/256 roundtrip, persistence, reload, LOD0 bake twice and imported top-down proof",
+    "terrain3d": "pinned v1.0.2 real 257x257 Height+Control import across >=4 regions; native lifecycle is import -> audit -> LOD0 bake -> persist -> new-instance reload -> reload audit -> reload LOD0 bake -> imported top-down proof, plus an independent-process reload gate",
     "visual": "near + far + local top-down + full-world top-down evidence, with map.png geography readable and GeoCell overlay hidden",
-    "state": "pending exact-head CI evidence"
+    "state": "pending exact-head CI evidence after native persistence/reload lifecycle repair"
   },
   "next_layer_after_merge": "Road/Path",
-  "updated_at": "2026-08-14T16:18:00+03:00"
+  "updated_at": "2026-08-14T16:31:00+03:00"
 }
