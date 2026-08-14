@@ -6,7 +6,7 @@
   "status": "validating",
   "layer": "Road/Path",
   "branch": "terrain/ne-g70-terrain3d-road-path-r1-exact-20260814",
-  "pr": null,
+  "pr": 479,
   "last_commit": null,
   "selection_reason": "G70 Coast/Hydrology, Macro Albedo/Biome, Relief/Height Character and Rock/Snow are merged. Strict same-cell order therefore advances to Road/Path. Canonical G70 is 96/96 open sea and the real runtime road graph remains west of the cell, so Road/Path must prove zero crossing, zero road/path coverage and zero Terrain3D road control rather than inventing a bridge, causeway, island or GeoCell-shaped route patch.",
   "quality_before": {
@@ -64,5 +64,5 @@
   },
   "engine": "real runtime road graph projection + canonical road-envelope exclusion -> zero Road/Path coverage for canonical G70 sea -> merged Rock/Snow height/control preserved -> pinned Terrain3D v1.0.2-stable 257x257 Height+Control import/regions/save/round-trip/255-256 seams/LOD0 bake; near+far+full-world no-route-patch proof; HTerrain retained as regression/control",
   "exact_base": "8d14034c42275869b80fdd24fb8a360a51e776e0",
-  "updated_at": "2026-08-14T07:49:00+03:00"
+  "updated_at": "2026-08-14T07:56:00+03:00"
 }
