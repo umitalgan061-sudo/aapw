@@ -1,0 +1,103 @@
+name: Live Map Mountain Relief
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/worldReferenceMountainRelief.js'
+      - 'fixtures/world-reference-mountain-relief-v1.json'
+      - 'scripts/checkWorldReferenceMountainRelief.mjs'
+      - 'service-worker.js'
+      - '.github/workflows/live-map-mountain-relief.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-map-mountain-relief-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+  BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main concurrency gate
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Mountain source syntax and deterministic contract
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferenceMountainRelief.js
+          node --check src/3d/world/terrain.js
+          node --check scripts/checkWorldReferenceMountainRelief.mjs
+          node --check service-worker.js
+          node scripts/checkWorldReferenceMountainRelief.mjs
+
+      - name: Offline determinism and repository policy
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Install Chromium dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Live seat road and full-scene regressions
+        run: |
+          set -euo pipefail
+          node scripts/terrainSeatSafetyCheck.js | tee "$RUNNER_TEMP/terrain-seat.log"
+          node scripts/roadNetworkSafetyCheck.js | tee "$RUNNER_TEMP/road-network.log"
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/game3d-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/game3d-smoke.log")" -ge 40
+
+      - name: Final source-preservation gate
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA" HEAD
+          test -z "$(git diff --name-only "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceMap.js)"
+          test -z "$(git diff --name-only "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfacePindexes.js)"
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-map-mountain-relief-logs-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/terrain-seat.log
+            ${{ runner.temp }}/road-network.log
+            ${{ runner.temp }}/game3d-smoke.log
+          if-no-files-found: warn
+          retention-days: 30

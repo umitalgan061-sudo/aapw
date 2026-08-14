@@ -1,3 +1,9 @@
+// Owner-map mountain relief offline shell extension. terrain.js imports this canonical live-height
+// source, so an offline 3D boot must cache it before any chunk can be generated.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceMountainRelief.js');
+});
+
 // Run341 offline-shell completeness fix — not this run's own feature (the settings screen, ADR-0289),
 // but a real `checkServiceWorkerCache.js` FAIL found while running this run's full DoD sweep: two
 // `src/3d` files landed on `main` between run 340 and this run (the renderer-realism-baseline commit's
@@ -219,7 +225,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // must actually clean up the old, now-stale entry" reasoning as every prior bump entry in this file.
 // G70 runtime parity adds another offline-loadable `src/3d` module, so v12->v13 forces existing
 // installs to replace the old shell rather than retaining a cache that cannot load the G70 adapter.
-const SHELL_CACHE = 'westeros-shell-v13';
+const SHELL_CACHE = 'westeros-shell-v14';
 const SHELL_FILES = [
     './',
     './index.html',
