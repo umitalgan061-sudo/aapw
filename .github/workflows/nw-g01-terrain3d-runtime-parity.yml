@@ -7,6 +7,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/checkNWG01RuntimeVisualParity.mjs'
       - 'godot/terrain-authoring/corner_claims/NW.json'
       - '.github/workflows/nw-g01-terrain3d-runtime-parity.yml'
   workflow_dispatch:
@@ -37,8 +38,8 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g01-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 2
+          test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkNWG01RuntimeVisualParity.mjs|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g01-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 3
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "Runtime parity qualification quota: additions=$A deletions=$D total=$((A+D))"
@@ -69,6 +70,7 @@ jobs:
           node scripts/checkNWG01NearDetail.mjs
           node --check src/3d/world/g01Terrain3dRuntimeAdapter.js
           node --check scripts/checkNWG01Terrain3DRuntimeParity.mjs
+          node --check scripts/checkNWG01RuntimeVisualParity.mjs
           node scripts/checkNWG01Terrain3DRuntimeParity.mjs | tee "$RUNNER_TEMP/source-a.log"
           cp godot/terrain-authoring/.terrain3d-proof/g01-runtime-source.json "$RUNNER_TEMP/source-a.json"
           node scripts/checkNWG01Terrain3DRuntimeParity.mjs | tee "$RUNNER_TEMP/source-b.log"
@@ -113,6 +115,16 @@ jobs:
           set -euo pipefail
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG01Terrain3DRuntimeParity.mjs --verify | tee "$RUNNER_TEMP/runtime.log"
           grep -F 'NW_G01_TERRAIN3D_RUNTIME_PARITY_OK' "$RUNNER_TEMP/runtime.log"
+      - name: Near far and full-world top-down visual parity
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNWG01RuntimeVisualParity.mjs --out-dir=artifacts/nw-g01-runtime-visual | tee "$RUNNER_TEMP/visual.log"
+          grep -F 'NW_G01_RUNTIME_VISUAL_PARITY_OK' "$RUNNER_TEMP/visual.log"
+          test -s artifacts/nw-g01-runtime-visual/g01-runtime-near.png
+          test -s artifacts/nw-g01-runtime-visual/g01-runtime-far.png
+          test -s artifacts/nw-g01-runtime-visual/g01-full-world-reference-topdown.png
+          test -s artifacts/nw-g01-runtime-visual/metrics.json
       - name: HTerrain regression and deterministic world-reference safety
         run: |
           set -euo pipefail
@@ -127,13 +139,14 @@ jobs:
           node scripts/roadNetworkSafetyCheck.js
           node scripts/checkRoadVisualContract.js
           node scripts/checkMedievalRoadSurface.js
-      - name: PWA cache technical debt and mobile performance regressions
-        run: |
-          set -euo pipefail
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkTechnicalDebt.js
-          node scripts/checkMobilePerfBudget.js
+      - name: PWA installability regression
+        run: node scripts/checkPwaInstallability.js
+      - name: Service worker offline-shell regression
+        run: node scripts/checkServiceWorkerCache.js
+      - name: Technical debt regression
+        run: node scripts/checkTechnicalDebt.js
+      - name: Mobile performance budget
+        run: node scripts/checkMobilePerfBudget.js
       - name: Browser runtime smoke and clean console
         run: |
           set -euo pipefail
@@ -155,3 +168,7 @@ jobs:
             godot/terrain-authoring/.terrain3d-proof/g01-runtime-source.json
             godot/terrain-authoring/.terrain3d-proof/g01-runtime-bake.json
             godot/terrain-authoring/.terrain3d-proof/g01-runtime-bake-topdown.png
+            artifacts/nw-g01-runtime-visual/g01-runtime-near.png
+            artifacts/nw-g01-runtime-visual/g01-runtime-far.png
+            artifacts/nw-g01-runtime-visual/g01-full-world-reference-topdown.png
+            artifacts/nw-g01-runtime-visual/metrics.json
