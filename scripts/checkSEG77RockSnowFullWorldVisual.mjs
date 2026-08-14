@@ -8,7 +8,7 @@ import { G77_ROCK_SNOW_POLICY } from '../godot/terrain-authoring/geocells/se/g77
 const { loadPlaywright, startStaticServer } = devServerHelper;
 const W = 1536, H = 1024, OUT_ARG = process.argv.find((a) => a.startsWith('--out-dir='));
 const OUT = path.resolve(OUT_ARG ? OUT_ARG.slice(10) : 'artifacts/se-g77-rock-snow-r9');
-const PNG = path.join(OUT, 'g77-rock-snow-full-world-3d-topdown.png'), META = path.join(OUT, 'g77-rock-snow-full-world-3d-topdown.json');
+const PNG = path.join(OUT, 'g77-rock-snow-full-world-topdown.png'), META = path.join(OUT, 'g77-rock-snow-full-world-metrics.json');
 const need = (ok, m) => { if (!ok) throw new Error(`[checkSEG77RockSnowFullWorldVisual] ${m}`); };
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const runtimeSourceSha256 = sha(Buffer.concat(['src/3d/config.js','src/3d/sceneManager.js','src/3d/world/terrain.js','src/3d/world/worldReferenceSurfaceTerrainVisual.js'].map((f) => fs.readFileSync(f))));
