@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/buzul-muhafizi-g10-relief-exact-cdca07-20260814
+      - agent/nw-g10-full-world-3d-topdown-20260814
   pull_request:
     branches: [main]
     paths:
