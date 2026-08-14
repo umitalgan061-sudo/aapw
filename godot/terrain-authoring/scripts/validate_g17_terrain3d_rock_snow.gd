@@ -41,7 +41,7 @@ func aligned_proof(t,p:Dictionary)->Dictionary:
 	for sz in 65:
 		for sx in 65:
 			var x:=sx*4; var z:=sz*4; var s:Array=p.rows[z][x]; var pos:=Vector3(x,0,z)
-			var ah:=t.data.get_height(pos); var ab:=t.data.get_control_blend(pos)
+			var ah:float=float(t.data.get_height(pos)); var ab:float=float(t.data.get_control_blend(pos))
 			if is_nan(ah) or is_nan(ab): return {}
 			if t.data.get_control_base_id(pos)!=int(s[0]) or t.data.get_control_overlay_id(pos)!=int(s[1]): return {}
 			mh=maxf(mh,absf(ah-float(s[3]))); mb=maxf(mb,absf(ab-float(s[2])/255.0)); count+=1
@@ -54,13 +54,13 @@ func seam_proof(t,p:Dictionary)->Dictionary:
 	for edge in [254.5,255.0,255.5,256.0]:
 		for other in [32.25,72.5,112.75,153.25,193.5,233.75]:
 			for q in [Vector2(edge,other),Vector2(other,edge)]:
-				var a:=t.data.get_height(Vector3(q.x,0,q.y)); if is_nan(a): return {}
+				var a:float=float(t.data.get_height(Vector3(q.x,0,q.y))); if is_nan(a): return {}
 				mh=maxf(mh,absf(a-value_at(p,q.x,q.y,3))); heights+=1
 	var mb:=0.0; var controls:=0
 	for edge in [255,256]:
 		for other in [16,64,128,192,240]:
 			for q in [Vector2(edge,other),Vector2(other,edge)]:
-				var s:Array=p.rows[int(q.y)][int(q.x)]; var pos:=Vector3(q.x,0,q.y); var b:=t.data.get_control_blend(pos)
+				var s:Array=p.rows[int(q.y)][int(q.x)]; var pos:=Vector3(q.x,0,q.y); var b:float=float(t.data.get_control_blend(pos))
 				if is_nan(b) or t.data.get_control_base_id(pos)!=int(s[0]) or t.data.get_control_overlay_id(pos)!=int(s[1]): return {}
 				mb=maxf(mb,absf(b-float(s[2])/255.0)); controls+=1
 	return {"height":mh,"blend":mb,"heights":heights,"controls":controls}
@@ -69,7 +69,7 @@ func write_preview(t)->bool:
 	var image:=Image.create_empty(256,256,false,Image.FORMAT_RGB8)
 	for z in 256:
 		for x in 256:
-			var b:=t.data.get_control_blend(Vector3(x,0,z)); if is_nan(b): return false
+			var b:float=float(t.data.get_control_blend(Vector3(x,0,z))); if is_nan(b): return false
 			image.set_pixel(x,z,Color(0.12,0.10,0.08).lerp(Color(0.30,0.31,0.32),clampf(b,0,1)))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PREVIEW).get_base_dir()); return image.save_png(PREVIEW)==OK
 
