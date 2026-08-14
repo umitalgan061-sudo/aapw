@@ -130,7 +130,7 @@ export function measureG60Terrain3DBiome() {
       const owner = g60BiomeOwnerCoordinates(coordinates.normalizedX, coordinates.normalizedY, { allowGuard: false });
       const sample = sampleG60Biome(coordinates.normalizedX, coordinates.normalizedY);
       if (sample.body !== 'sea') nonSeaSamples += 1;
-      for (const value of [sample.heightMeters, ...sample.color, sample.roughness]) checksum = hashQuantized(checksum, value);
+      for (const value of [sample.heightMeters, sample.waterConfidence, ...sample.color, sample.roughness]) checksum = hashQuantized(checksum, value);
       for (const value of [coordinates.normalizedX, coordinates.normalizedY, owner.u, owner.v]) coordinateChecksum = hashQuantized(coordinateChecksum, value);
       maxCoordinateRoundTripError = Math.max(
         maxCoordinateRoundTripError,
