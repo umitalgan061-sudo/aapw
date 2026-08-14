@@ -139,7 +139,7 @@ jobs:
           test -s artifacts/nw-g10-relief-visual/g10-relief-far.png
           test -s artifacts/nw-g10-relief-visual/g10-relief-full-world-topdown.png
 
-      - name: Real runtime full-world orthographic 3D top-down gate
+      - name: Real runtime full-world orthographic 3D relief and ocean gate
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
@@ -147,7 +147,7 @@ jobs:
           grep -F 'NW_G10_FULL_WORLD_3D_TOPDOWN_OK' "$RUNNER_TEMP/full-world-3d.log"
           test -s artifacts/nw-g10-relief-visual/g10-relief-full-world-3d-topdown.png
           test -s artifacts/nw-g10-relief-visual/g10-relief-full-world-3d-topdown.json
-          node -e "const m=require('./artifacts/nw-g10-relief-visual/g10-relief-full-world-3d-topdown.json');if(!m.orthographicMode||m.visibleGeoCellOverlay||m.consoleErrors.length||m.pageErrors.length||m.requestFailures.length||!/^[a-f0-9]{64}$/.test(m.renderSha256))process.exit(1)"
+          node -e "const m=require('./artifacts/nw-g10-relief-visual/g10-relief-full-world-3d-topdown.json');if(m.schema!=='westeros-nw-g10-full-world-3d-topdown-v2'||!m.orthographicMode||m.visibleGeoCellOverlay||m.consoleErrors.length||m.pageErrors.length||m.requestFailures.length||!m.waterArtifactProbe.frustumCovered||m.waterArtifactProbe.brightCyanRatio>=m.waterArtifactProbe.brightCyanThreshold||m.waterArtifactProbe.edgeBrightBlueRatio>=m.waterArtifactProbe.edgeBrightBlueThreshold||m.terrainReliefProbe.verticalExaggeration!==4||m.terrainReliefProbe.renderedHeightRangeMeters<=560||m.terrainReliefProbe.hillshadeStdDev<=0.04||!/^[a-f0-9]{64}$/.test(m.renderSha256))process.exit(1)"
           node scripts/checkNWG10ReliefEvidenceManifest.mjs | tee "$RUNNER_TEMP/manifest.log"
           grep -F 'NW_G10_RELIEF_EVIDENCE_MANIFEST_OK' "$RUNNER_TEMP/manifest.log"
 
