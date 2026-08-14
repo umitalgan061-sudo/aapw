@@ -39,13 +39,21 @@ need(visual.sourceMapSha256 === MAP_SHA, 'visual map provenance drift');
 need(visual.sourceWidth === 1536 && visual.sourceHeight === 1024, 'visual canonical dimensions drift');
 need(visual.visibleGeoCellOverlay === false, 'semantic visual has a visible GeoCell overlay');
 need(visual.nearSha !== visual.farSha && visual.nearSha !== visual.topSha && visual.farSha !== visual.topSha, 'semantic visual frames are not distinct');
-need(fullWorld3D.schema === 'westeros-nw-g10-full-world-3d-topdown-v1', '3D top-down metadata schema drift');
+need(fullWorld3D.schema === 'westeros-nw-g10-full-world-3d-topdown-v2', '3D top-down metadata schema drift');
 need(fullWorld3D.orthographicMode === true && fullWorld3D.camera?.type === 'OrthographicCamera', '3D top-down is not orthographic');
 need(fullWorld3D.camera.downDot > 0.999999, '3D top-down camera is not vertical');
 need(fullWorld3D.visibleGeoCellOverlay === false, '3D top-down has a visible GeoCell/grid overlay');
 need(fullWorld3D.consoleErrors.length === 0 && fullWorld3D.pageErrors.length === 0 && fullWorld3D.requestFailures.length === 0, '3D top-down browser was not clean');
 need(fullWorld3D.runtime.sceneFactory === 'src/3d/sceneManager.js#createScene', '3D top-down did not use the runtime scene builder');
 need(fullWorld3D.scene.terrainMeshCount >= 550 && fullWorld3D.scene.waterPresent === true, '3D top-down scene is incomplete');
+need(fullWorld3D.captureOverrides?.waterScaledFromRuntimeMeshToCameraFrustum === true, '3D top-down water does not cover the camera frustum');
+need(fullWorld3D.waterArtifactProbe?.frustumCovered === true, '3D top-down has an uncovered ocean frame edge');
+need(fullWorld3D.waterArtifactProbe.brightCyanRatio < fullWorld3D.waterArtifactProbe.brightCyanThreshold, '3D top-down contains cyan far-field water artifacts');
+need(fullWorld3D.waterArtifactProbe.edgeBrightBlueRatio < fullWorld3D.waterArtifactProbe.edgeBrightBlueThreshold, '3D top-down contains light-blue background bars');
+need(fullWorld3D.terrainReliefProbe?.verticalExaggeration === 4, '3D top-down relief exaggeration drift');
+need(fullWorld3D.terrainReliefProbe.rawHeightRangeMeters > 140, '3D top-down runtime mountain height range missing');
+need(fullWorld3D.terrainReliefProbe.renderedHeightRangeMeters > 560, '3D top-down rendered relief is too flat');
+need(fullWorld3D.terrainReliefProbe.hillshadeStdDev > 0.04, '3D top-down mountain hillshade is not visible');
 need(fullWorld3D.renderSha256 === digest(fullWorld3DPath).sha256, '3D top-down checksum mismatch');
 
 const manifest = {
@@ -85,6 +93,12 @@ const manifest = {
 		orthographicMode: true,
 		sceneFactory: fullWorld3D.runtime.sceneFactory,
 		terrainMeshes: fullWorld3D.scene.terrainMeshCount,
+		rawHeightRangeMeters: fullWorld3D.terrainReliefProbe.rawHeightRangeMeters,
+		renderedHeightRangeMeters: fullWorld3D.terrainReliefProbe.renderedHeightRangeMeters,
+		verticalExaggeration: fullWorld3D.terrainReliefProbe.verticalExaggeration,
+		hillshadeStdDev: fullWorld3D.terrainReliefProbe.hillshadeStdDev,
+		brightCyanWaterArtifactRatio: fullWorld3D.waterArtifactProbe.brightCyanRatio,
+		edgeBackgroundLeakRatio: fullWorld3D.waterArtifactProbe.edgeBrightBlueRatio,
 		renderSha256: fullWorld3D.renderSha256,
 	},
 	visibleGeoCellOverlay: false,
