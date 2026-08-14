@@ -24,11 +24,7 @@ try {
     const terrain = await import('/src/3d/world/terrain.js');
     const physics = await import('/src/3d/physics.js');
     const { ChunkManager } = await import('/src/3d/world/chunkManager.js');
-    const { WORLD_DEFAULTS, WORLD_SCALE, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
-    const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
-    const { buildRoadNetwork } = await import('/src/3d/world/roads.js');
-    const { sampleReferenceWaterMask } = await import('/src/3d/world/worldReferenceWaterMask.js');
-    const { sampleReferencePindexQualityV2 } = await import('/src/3d/world/worldReferenceSurfacePindexes.js');
+    const { WORLD_DEFAULTS } = await import('/src/3d/config.js');
     const THREE = await import('three');
     const current = await import('/src/3d/world/currentTerrainRuntime.js');
 
@@ -57,56 +53,6 @@ try {
       maxRenderError = Math.max(maxRenderError, Math.abs(position.getY(index) - collider.getGroundHeight(worldX, worldZ)));
     }
 
-    // Keep the 20-degree road acceptance gate unchanged. This diagnostic locates the exact segment
-    // responsible for any remaining over-grade edge so fixes can target terrain continuity instead
-    // of weakening the path safety contract.
-    const baseRoadSampler = terrain.createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
-    const flattenPads = computeSettlementFlattenPads({
-      sampleHeightMeters: baseRoadSampler,
-      seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-      minGroundClearanceMeters: SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
-      mapBounds: WORLD_SCALE.MAP_BOUNDS,
-      metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
-    });
-    const roadSampler = terrain.createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
-    const roadSeats = KINGDOM_SEATS.map((seat) => {
-      const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
-      return { id: seat.id, x, z, groundY: roadSampler(x, z) };
-    });
-    const roadNetwork = buildRoadNetwork({ seats: roadSeats, sampleHeightMeters: roadSampler });
-    const roadGradeDiagnostics = roadNetwork.edges.filter((edge) => edge.maxGradeDegrees > 20).map((edge) => {
-      let worst = null;
-      for (let index = 1; index < edge.points.length; index += 1) {
-        const a = edge.points[index - 1];
-        const b = edge.points[index];
-        const horizontalMeters = Math.hypot(b.x - a.x, b.z - a.z);
-        if (horizontalMeters <= 1e-9) continue;
-        const y0 = roadSampler(a.x, a.z);
-        const y1 = roadSampler(b.x, b.z);
-        const gradeDegrees = Math.atan2(Math.abs(y1 - y0), horizontalMeters) * 180 / Math.PI;
-        if (!worst || gradeDegrees > worst.gradeDegrees) worst = { a, b, y0, y1, horizontalMeters, gradeDegrees };
-      }
-      const describe = (point, heightMeters) => {
-        const map = current.currentWorldToOwnerMap(point.x, point.z);
-        const rawWater = sampleReferenceWaterMask(map.normalizedX, map.normalizedY);
-        const pindex = sampleReferencePindexQualityV2(map.normalizedX, map.normalizedY);
-        return {
-          worldX: point.x, worldZ: point.z, heightMeters,
-          mapX: map.mapX, mapY: map.mapY,
-          rawWater,
-          pindexWaterWeight: (pindex.surfaceWeights.sea ?? 0) + (pindex.surfaceWeights.lake ?? 0),
-          terrain: current.sampleCurrentTerrainNormalized(map.normalizedX, map.normalizedY),
-        };
-      };
-      return {
-        fromId: edge.fromId, toId: edge.toId, edgeMaxGradeDegrees: edge.maxGradeDegrees,
-        worstGradeDegrees: worst?.gradeDegrees ?? null,
-        horizontalMeters: worst?.horizontalMeters ?? null,
-        from: worst ? describe(worst.a, worst.y0) : null,
-        to: worst ? describe(worst.b, worst.y1) : null,
-      };
-    });
-
     const spawn = current.sampleCurrentTerrainNormalized(3885 / 9000, 5404 / 7000);
     const runtime = window.__WESTEROS_CURRENT_TERRAIN__;
     const output = {
@@ -121,7 +67,6 @@ try {
       meshSingleSource: mesh.userData.currentTerrainSingleSource === true,
       spawnSource: spawn.source,
       spawnHeight: spawn.heightMeters,
-      roadGradeDiagnostics,
       runtime,
     };
     manager.disposeAll();
