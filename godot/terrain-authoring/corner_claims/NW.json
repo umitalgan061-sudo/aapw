@@ -3,32 +3,35 @@
   "task_name": "Buzul Muhafızı",
   "origin": [0, 0],
   "current_cell": "G01",
-  "status": "in_progress_exact_main",
-  "branch": "agent/buzul-muhafizi-g01-runtime-parity-exact-84a0-20260814",
-  "pr": 491,
-  "last_commit": "0d600ce995a81b703625067971fe915ca4db01f4",
+  "status": "in_progress_exact_main_requalification",
+  "branch": "agent/buzul-muhafizi-g01-parity-exact-732d80-20260814",
+  "pr": null,
+  "last_commit": "09c136dcbf303daf05ed33ef0d78312ac391b2b6",
+  "exact_base": "732d80ba73739ed9c433a174aa830006a6061981",
   "quality_before": {
     "layer": "Near Detail",
     "merged_pr": 476,
     "source_map_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
     "hydrology_fingerprint": "88 water / 8 land canonical centres",
     "seam_contract": "G00/G01 Near Detail shared-edge tint and roughness deltas remain <= 0.00001",
-    "note": "G01 Coast/Hydrology through Near Detail are merged; the cell remains active until Terrain3D Bake/Three.js runtime parity is exact-main green and merged."
+    "note": "G01 Coast/Hydrology through Near Detail are merged. PR #491 merged the parity payload but its exact-head qualification was not green, so G01 remains active until a fresh exact-main qualification is green and merged."
   },
   "quality_after": {
     "layer": "Terrain3D Bake/Three.js runtime parity",
-    "state": "awaiting_exact_head_ci",
+    "state": "awaiting_fresh_exact_head_ci",
     "source_grid": "65x65 deterministic continuous runtime source sampled from the merged G01 Near Detail field",
     "terrain3d_import": "257x257 Height + Control + Color/Roughness at region_size=256 with >=4 real regions",
-    "runtime_adapter": "isolated continuous bilinear normalized owner-map and actual Three.js world-coordinate sampling; shared worldReferenceTerrainAdapter remains untouched",
+    "runtime_adapter": "continuous bilinear normalized owner-map and actual Three.js world-coordinate sampling",
+    "visual_evidence": "real persisted Terrain3D bake feeds near, far and full-world top-down Three.js evidence; GeoCell/source grids are never rendered",
     "surface_contract": "rock base id 0, snow overlay id 1, canonical full-water snow=0, tint RGB=1, roughness=0.90 within round-trip tolerance",
     "persistence": "real Terrain3D region save plus non-empty LOD0 bake twice with deterministic preview/evidence",
     "guard_band": "255/256 Terrain3D region boundary height parity plus merged G00/G01 Near Detail seam regression",
     "grid_policy": "GeoCell/Pindex/source grids are addressing and QA only; no visible square, nearest-neighbour coastline step, mosaic or seam",
+    "pwa_state": "current exact main already precaches g01Terrain3dRuntimeAdapter.js and uses a bumped shell cache, resolving the prior isolated offline-shell blocker without an NW-owned service-worker edit",
     "ci_workflow": ".github/workflows/nw-g01-terrain3d-runtime-parity.yml",
-    "visual_proof": "nw-g01-terrain3d-runtime-parity-proof/g01-runtime-bake-topdown.png",
-    "next_layer_if_green": "G01 complete only after merge; then select the nearest unfinished NW GeoCell from exact main"
+    "visual_proof": "nw-g01-terrain3d-runtime-parity-proof/{g01-runtime-near.png,g01-runtime-far.png,g01-full-world-reference-topdown.png,metrics.json}",
+    "next_layer_if_green": "G01 complete only after this exact-main qualification merges; then select the nearest unfinished NW GeoCell"
   },
   "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable is mandatory for real Height/Control/Color import, persisted multi-region data and LOD0 bake. HTerrain remains preserved as regression/control; Three.js consumes only deterministic bake output.",
-  "updated_at": "2026-08-14T09:36:00+03:00"
+  "updated_at": "2026-08-14T12:45:00+03:00"
 }
