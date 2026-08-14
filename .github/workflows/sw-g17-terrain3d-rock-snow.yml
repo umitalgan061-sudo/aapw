@@ -19,6 +19,11 @@ jobs:
         with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      - name: Install pinned browser safety harness
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false playwright@1.62.0
+          ./node_modules/.bin/playwright install --with-deps chromium
       - name: Exact-main and quota
         run: |
           set -euo pipefail
