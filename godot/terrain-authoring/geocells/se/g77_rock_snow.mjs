@@ -4,7 +4,7 @@ import { G77_RELIEF_POLICY, sampleG77ReliefHeight, sampleG77ReliefNormal } from 
 import { sampleG77WaterConfidence } from './g77_hydrology.mjs';
 
 export const G77_ROCK_SNOW_POLICY = Object.freeze({
-  id: 'kizil-ufuk-g77-terrain3d-rock-snow-2026-08-14-v3',
+  id: 'kizil-ufuk-g77-terrain3d-rock-snow-2026-08-14-v4',
   sourceMapSha256: G77_RELIEF_POLICY.sourceMapSha256,
   geoCell: 'G77', gx: 7, gy: 7, layer: 'Rock/Snow',
   normalizedBounds: G77_RELIEF_POLICY.normalizedBounds,
@@ -15,6 +15,8 @@ export const G77_ROCK_SNOW_POLICY = Object.freeze({
   groundTextureId: 0,
   rockTextureId: 1,
   snowTextureId: 2,
+  landFadeStart: 0.0,
+  landFadeEnd: 0.5,
   guardBandNormalized: 1 / 1536,
 });
 
@@ -43,9 +45,10 @@ function reliefSlope(normal) {
 export function sampleG77RockSnow(nx, ny) {
   if (!Number.isFinite(nx) || !Number.isFinite(ny)) throw new TypeError('normalized coordinates must be finite');
   const water = sampleG77WaterConfidence(nx, ny);
-  // Canonical water starts at 0.5. Use a wider continuous fade so dense resampling cannot
-  // create an abrupt material derivative while still reaching exactly zero at the boundary.
-  const landFactor = 1 - smoothstep(0.30, 0.50, water);
+  // The 96x64 water mask is semantic addressing, not a material-resolution grid. Fade across
+  // the full bilinear land-to-water confidence interval so 257x257 control resampling keeps a
+  // bounded derivative while still reaching exactly zero at the canonical 0.5 water boundary.
+  const landFactor = 1 - smoothstep(G77_ROCK_SNOW_POLICY.landFadeStart, G77_ROCK_SNOW_POLICY.landFadeEnd, water);
   const height = sampleG77ReliefHeight(nx, ny);
   const normal = sampleG77ReliefNormal(nx, ny);
   const slope = reliefSlope(normal);
