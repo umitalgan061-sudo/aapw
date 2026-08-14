@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { WORLD_SCALE, CHUNK_CONFIG } from '../src/3d/config.js';
+import { FULL_REFERENCE_EXTENT_PLAN } from '../src/3d/world/worldReferenceExtent.js';
 import {
   CURRENT_TERRAIN_POLICY,
   createCurrentTerrainHeightSampler,
@@ -12,6 +14,12 @@ function assert(condition, message) {
 
 assert(CURRENT_TERRAIN_POLICY.fullOwnerMapCoverage === true, 'full owner-map coverage must be enabled');
 assert(CURRENT_TERRAIN_POLICY.legacyProceduralFallback === false, 'legacy FBM fallback must be disabled');
+assert(WORLD_SCALE.MAP_BOUNDS.minX === 0 && WORLD_SCALE.MAP_BOUNDS.maxX === 9000, 'live world must cover full 9000 map width');
+assert(WORLD_SCALE.MAP_BOUNDS.minY === 0 && WORLD_SCALE.MAP_BOUNDS.maxY === 7000, 'live world must cover full 7000 map height');
+assert(Math.abs(WORLD_SCALE.METERS_PER_MAP_UNIT - FULL_REFERENCE_EXTENT_PLAN.metersPerMapUnit) < 1e-12, 'live world scale must equal approved full-reference plan');
+assert(Math.abs(WORLD_SCALE.WORLD_WIDTH_METERS - FULL_REFERENCE_EXTENT_PLAN.widthMeters) < 1e-9, 'live world width must equal approved full-reference plan');
+assert(Math.abs(WORLD_SCALE.WORLD_DEPTH_METERS - FULL_REFERENCE_EXTENT_PLAN.depthMeters) < 1e-9, 'live world depth must equal approved full-reference plan');
+assert(CHUNK_CONFIG.GRID_COLUMNS === 27 && CHUNK_CONFIG.GRID_ROWS === 21, 'live world grid must cover full map at 27x21 chunks');
 
 const authoredCenters = Object.freeze({
   G00: [0.5 / 8, 0.5 / 8],
@@ -76,8 +84,14 @@ for (const htmlFile of ['../game3d.html', '../editor.html']) {
   assert(html.includes('"./src/3d/world/terrain.js": "./src/3d/world/currentTerrainAdapter.js"'), `${htmlFile} must map live terrain to current adapter`);
 }
 
+const serviceWorker = fs.readFileSync(new URL('../service-worker.js', import.meta.url), 'utf8');
+for (const entry of ['./src/3d/world/currentTerrainAdapter.js', './src/3d/world/currentTerrainRuntime.js']) {
+  assert(serviceWorker.includes(`GAME3D_SHELL_FILES.push('${entry}')`), `service-worker missing current terrain offline entry ${entry}`);
+}
+
 console.log(`CURRENT_TERRAIN_POLICY=${CURRENT_TERRAIN_POLICY.id}`);
 console.log(`CURRENT_TERRAIN_AUTHORED_CELLS=${CURRENT_TERRAIN_POLICY.authoredCells.join(',')}`);
+console.log(`CURRENT_TERRAIN_EXTENT=${WORLD_SCALE.MAP_BOUNDS.minX},${WORLD_SCALE.MAP_BOUNDS.minY}-${WORLD_SCALE.MAP_BOUNDS.maxX},${WORLD_SCALE.MAP_BOUNDS.maxY} grid=${CHUNK_CONFIG.GRID_COLUMNS}x${CHUNK_CONFIG.GRID_ROWS}`);
 console.log(`CURRENT_TERRAIN_GRID canonical=${canonicalSamples} authored=${authoredSamples} min=${minHeight.toFixed(3)} max=${maxHeight.toFixed(3)}`);
 console.log(`CURRENT_TERRAIN_SPAWN source=${spawn.source} height=${spawn.heightMeters.toFixed(3)}`);
 console.log('CURRENT_TERRAIN_SINGLE_SOURCE_OK');
