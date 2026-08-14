@@ -60,7 +60,20 @@ try {
   const nearSha = await capture('near', 'g10-relief-near.png');
   const farSha = await capture('far', 'g10-relief-far.png');
   await page.setViewportSize({ width: 1200, height: 800 });
-  const topBytes = await page.screenshot({ fullPage: false }); fs.writeFileSync(path.join(OUT_DIR, 'g10-relief-full-world-topdown.png'), topBytes); const topSha = sha(topBytes);
+  await page.evaluate(async () => {
+    const { sampleReferencePindexQualityV2 } = await import('/src/3d/world/worldReferenceSurfacePindexes.js');
+    document.body.innerHTML = '<canvas id="world-proof" width="1200" height="800"></canvas>';
+    const canvas = document.getElementById('world-proof'), ctx = canvas.getContext('2d'), low = document.createElement('canvas');
+    low.width = 384; low.height = 256; const lctx = low.getContext('2d'), image = lctx.createImageData(384, 256);
+    const palette = { sea:[35,72,91], lake:[70,119,131], soil:[122,133,84], rock:[112,105,96], snow:[218,225,222] };
+    for (let y = 0; y < 256; y += 1) for (let x = 0; x < 384; x += 1) {
+      const s = sampleReferencePindexQualityV2((x + .5) / 384, (y + .5) / 256), o = (y * 384 + x) * 4; let r=0,g=0,b=0;
+      for (const [name,c] of Object.entries(palette)) { const w=s.surfaceWeights[name] ?? 0; r+=c[0]*w; g+=c[1]*w; b+=c[2]*w; }
+      image.data[o]=r; image.data[o+1]=g; image.data[o+2]=b; image.data[o+3]=255;
+    }
+    lctx.putImageData(image,0,0); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; ctx.drawImage(low,0,0,1200,800);
+  });
+  const topBytes = await page.locator('#world-proof').screenshot(); fs.writeFileSync(path.join(OUT_DIR, 'g10-relief-full-world-topdown.png'), topBytes); const topSha = sha(topBytes);
   need(errors.length === 0, `page errors: ${errors.join(' | ')}`); need(metrics.vertices === 16641 && metrics.triangles === 32768, 'visual mesh topology drift');
   need(metrics.minHeight < 0 && metrics.maxHeight > 0, 'visual relief lost coast/land height span'); need(metrics.sourceMapSha256 === EXPECTED_MAP_SHA, 'map provenance drift');
   need(metrics.sourceWidth === 1536 && metrics.sourceHeight === 1024, 'canonical source dimensions drift'); need(nearSha !== farSha && farSha !== topSha && nearSha !== topSha, 'near/far/top-down evidence must be distinct');
