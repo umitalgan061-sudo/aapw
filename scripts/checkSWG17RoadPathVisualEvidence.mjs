@@ -11,7 +11,11 @@ function value(flag) {
 function digest(file) {
   const bytes = fs.readFileSync(file);
   if (bytes.length < 1000) throw new Error(`visual evidence too small: ${file} (${bytes.length})`);
-  return { bytes: bytes.length, sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
+  if (!bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw new Error(`visual evidence is not PNG: ${file}`);
+  if (bytes.subarray(12, 16).toString('ascii') !== 'IHDR') throw new Error(`visual evidence missing PNG IHDR: ${file}`);
+  const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
+  if (width < 1 || height < 1) throw new Error(`visual evidence has invalid dimensions: ${file} (${width}x${height})`);
+  return { bytes: bytes.length, width, height, sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
 }
 
 const visualDir = value('--visual-dir');
