@@ -25,7 +25,7 @@ for (const key of toleranceKeys) if (Math.abs(Number(ra[key]) - Number(rb[key]))
 if (a.regionCount < 4 || a.sampleCount < 324 || a.reloadRegionCount < 4) throw new Error('Terrain3D multi-region/sample proof is too small');
 if (a.bakedSurfaces < 1 || a.bakedVertices < 1 || a.reloadBakedSurfaces < 1) throw new Error('Terrain3D LOD0/reload bake evidence is empty');
 if (a.savedFiles < 4 || a.savedBytes <= 0 || b.savedBytes <= 0) throw new Error('Terrain3D persistence evidence is empty');
-if (ra.regionCount < 4 || ra.alignedSamples !== 4225 || ra.bakedSurfaces < 1 || ra.bakedVertices < 1) throw new Error('cross-process reload proof is incomplete');
+if (ra.regionCount < 4 || ra.alignedSamples !== 4225 || ra.seamSamples !== 68 || ra.bakedSurfaces < 1 || ra.bakedVertices < 1) throw new Error('cross-process reload proof is incomplete');
 if (a.checksum !== a.reloadChecksum || b.checksum !== b.reloadChecksum || ra.checksum !== rb.checksum) throw new Error('import/reload checksum parity failed');
 for (const m of [a, b, ra, rb]) {
   if (m.maxBlendError > 0.006 || m.seamBlendError > 0.006) throw new Error('Terrain3D control roundtrip exceeded tolerance');
