@@ -1,0 +1,75 @@
+name: SE G77 Terrain3D Relief Exact Main Regression
+on:
+  push:
+    branches: [agent/kizil-ufuk-g77-terrain3d-relief-r2-20260813]
+  pull_request:
+    branches: [main]
+permissions: { contents: read }
+concurrency:
+  group: se-g77-relief-regression-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main scope and quota
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"; git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_relief\.mjs|scripts/checkSEG77Relief(Continuity|Terrain3DEvidence|VisualEvidence)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_relief(_reload|_grid|_seam|_lod)?\.gd|\.github/workflows/se-g77-terrain3d-relief-(core|regression)\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 12
+          TOTAL="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1;d+=$2} END{print a+d+0}')"; test "$TOTAL" -le 1000
+      - name: Source regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkSEG77Terrain3DHydrology.mjs
+          node scripts/checkSEG77Biome.mjs
+          node scripts/checkSEG77Relief.mjs
+          node scripts/checkSEG77ReliefContinuity.mjs
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+      - name: Install authoring and browser runtimes
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/install.log; grep -F TERRAIN3D_INSTALL_OK /tmp/install.log
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true'
+          curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/godot.zip
+          mkdir -p /tmp/godot; unzip -q /tmp/godot.zip -d /tmp/godot; GODOT_BIN="$(find /tmp/godot -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; chmod +x "$GODOT_BIN"; "$GODOT_BIN" --version | grep -F 4.6.3; echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          mkdir -p /tmp/pw; npm install --prefix /tmp/pw --no-save --no-package-lock playwright@1.55.0; /tmp/pw/node_modules/.bin/playwright install --with-deps chromium; echo "NODE_PATH=/tmp/pw/node_modules" >> "$GITHUB_ENV"
+      - name: HTerrain world settlement road and platform regression
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 | tee /tmp/editor.log
+          ! grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' /tmp/editor.log
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log
+          grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/hterrain.log
+          NODE_PATH=/tmp/pw/node_modules node scripts/terrainSeatSafetyCheck.js
+          NODE_PATH=/tmp/pw/node_modules node scripts/roadNetworkSafetyCheck.js
+          NODE_PATH=/tmp/pw/node_modules node scripts/checkRoadVisualContract.js
+          NODE_PATH=/tmp/pw/node_modules node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          NODE_PATH=/tmp/pw/node_modules node scripts/checkMobilePerfBudget.js
+          NODE_PATH=/tmp/pw/node_modules node scripts/smokeTestGame3D.js
+      - name: Near far and top-down Relief visual evidence
+        run: |
+          set -euo pipefail
+          NODE_PATH=/tmp/pw/node_modules node scripts/checkSEG77ReliefVisualEvidence.mjs --out-dir=artifacts/se-g77-relief-visual | tee /tmp/visual.log
+          grep -F SE_G77_RELIEF_VISUAL_OK /tmp/visual.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: se-g77-relief-regression-proof
+          path: artifacts/se-g77-relief-visual/
+          if-no-files-found: warn
+      - name: Final exact-main freshness
+        run: git fetch origin main && test "$(git rev-parse origin/main)" = "$BASE_SHA"
