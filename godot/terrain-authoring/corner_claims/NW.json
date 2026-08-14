@@ -3,32 +3,35 @@
   "task_name": "Buzul Muhafızı",
   "origin": [0, 0],
   "current_cell": "G01",
-  "status": "in_progress_exact_main",
-  "branch": "agent/buzul-muhafizi-g01-runtime-parity-exact-84a0-20260814",
-  "pr": 491,
-  "last_commit": "0d600ce995a81b703625067971fe915ca4db01f4",
+  "status": "in_progress_exact_main_requalification",
+  "branch": "agent/buzul-muhafizi-g01-parity-qualify-ce2843-20260814",
+  "pr": null,
+  "last_commit": "ce284392825a33de7b3629c6013e897af8c0b35e",
   "quality_before": {
-    "layer": "Near Detail",
-    "merged_pr": 476,
+    "layer": "Terrain3D Bake/Three.js runtime parity",
+    "merged_pr": 491,
+    "merged_commit": "ce284392825a33de7b3629c6013e897af8c0b35e",
     "source_map_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
     "hydrology_fingerprint": "88 water / 8 land canonical centres",
     "seam_contract": "G00/G01 Near Detail shared-edge tint and roughness deltas remain <= 0.00001",
-    "note": "G01 Coast/Hydrology through Near Detail are merged; the cell remains active until Terrain3D Bake/Three.js runtime parity is exact-main green and merged."
+    "qualification_gap": "PR #491 was merged while its dedicated exact-head runtime-parity workflow had failed inside the bundled HTerrain/world/settlement/road/PWA/mobile/browser regression step; G01 therefore remains active and must not advance."
   },
   "quality_after": {
     "layer": "Terrain3D Bake/Three.js runtime parity",
-    "state": "awaiting_exact_head_ci",
+    "state": "awaiting_exact_head_requalification_ci",
+    "exact_base": "ce284392825a33de7b3629c6013e897af8c0b35e",
     "source_grid": "65x65 deterministic continuous runtime source sampled from the merged G01 Near Detail field",
     "terrain3d_import": "257x257 Height + Control + Color/Roughness at region_size=256 with >=4 real regions",
-    "runtime_adapter": "isolated continuous bilinear normalized owner-map and actual Three.js world-coordinate sampling; shared worldReferenceTerrainAdapter remains untouched",
+    "runtime_adapter": "continuous bilinear normalized owner-map and actual Three.js world-coordinate sampling",
     "surface_contract": "rock base id 0, snow overlay id 1, canonical full-water snow=0, tint RGB=1, roughness=0.90 within round-trip tolerance",
-    "persistence": "real Terrain3D region save plus non-empty LOD0 bake twice with deterministic preview/evidence",
+    "persistence": "real pinned Terrain3D region save plus non-empty LOD0 bake twice with deterministic preview/evidence",
     "guard_band": "255/256 Terrain3D region boundary height parity plus merged G00/G01 Near Detail seam regression",
+    "regression_policy": "same acceptance thresholds retained; previously bundled HTerrain/world/settlement/road/PWA/mobile/browser gate is split into independently attributable CI steps without weakening any test",
     "grid_policy": "GeoCell/Pindex/source grids are addressing and QA only; no visible square, nearest-neighbour coastline step, mosaic or seam",
     "ci_workflow": ".github/workflows/nw-g01-terrain3d-runtime-parity.yml",
     "visual_proof": "nw-g01-terrain3d-runtime-parity-proof/g01-runtime-bake-topdown.png",
-    "next_layer_if_green": "G01 complete only after merge; then select the nearest unfinished NW GeoCell from exact main"
+    "next_layer_if_green": "G01 becomes seven-layer complete only after a fresh exact-main qualification PR is green and merged; only then select the nearest unfinished NW GeoCell"
   },
-  "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable is mandatory for real Height/Control/Color import, persisted multi-region data and LOD0 bake. HTerrain remains preserved as regression/control; Three.js consumes only deterministic bake output.",
-  "updated_at": "2026-08-14T09:36:00+03:00"
+  "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable remains mandatory for real Height/Control/Color import, persisted multi-region data and LOD0 bake. HTerrain remains preserved as regression/control; Three.js consumes only deterministic bake output.",
+  "updated_at": "2026-08-14T10:30:00+03:00"
 }
