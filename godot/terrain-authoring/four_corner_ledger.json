@@ -28,6 +28,20 @@
       "affected_cells": "G00..G77",
       "status": "blocked",
       "blocker": "canonical map.png binary is not tracked in exact-main; do not create per-corner substitute extractors"
+    },
+    "shared-full-world-runtime-coverage-v1": {
+      "owner": "Kızıl Ufuk",
+      "scope": "canonical full-reference currentTerrain/world-data coverage shared by renderer, collider, water, roads and vegetation",
+      "affected_cells": "G00..G77",
+      "status": "blocked",
+      "blocker": "live MAP_BOUNDS end near normalized x=0.7767 while G77 begins at x=0.875; stale PR #510 cannot satisfy exact-main"
+    },
+    "shared-lfs-primary-asset-integrity-v1": {
+      "owner": "asset-governance",
+      "scope": "primary FBX LFS object availability for terrain browser/PWA gates",
+      "affected_cells": "G00..G77 platform validation",
+      "status": "blocked",
+      "blocker": "missing LFS objects: assets/models/fbx/2.FBX; Old House 2/Old House Files/Old House 2 3D Models.FBX; singlemountain.FBX"
     }
   },
   "notes": "Missing cell_state means pending. Each task must refresh main before claiming a cell. Store status, quality metrics, engine, branch/pr and last_commit only after evidence exists. Shared/overlap cells are refinements, never blind rewrites."
