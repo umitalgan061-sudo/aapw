@@ -47,9 +47,9 @@ func _audit(terrain: Variant, probe: Dictionary) -> Dictionary:
 	for z in positions:
 		for x in positions:
 			var u := float(x) / 256.0; var v := float(z) / 256.0; var expected := _expected_control(probe, u, v); var pos := Vector3(x, 0, z)
-			var h := terrain.data.get_height(pos); var blend := terrain.data.get_control_blend(pos)
+			var h: float = float(terrain.data.get_height(pos)); var blend: float = float(terrain.data.get_control_blend(pos))
 			if is_nan(h) or is_nan(blend): return {}
-			var base_ok := terrain.data.get_control_base_id(pos) == int(probe["groundTextureId"]); var overlay_materialized := int(round(float(expected["blend"]) * 255.0)) > 0
+			var base_ok: bool = terrain.data.get_control_base_id(pos) == int(probe["groundTextureId"]); var overlay_materialized := int(round(float(expected["blend"]) * 255.0)) > 0
 			if not base_ok or (overlay_materialized and terrain.data.get_control_overlay_id(pos) != int(expected["overlay"])): return {}
 			var he := absf(h - _source_value(probe, u, v, 4)); var be := absf(blend - float(expected["blend"]))
 			max_h = maxf(max_h, he); max_b = maxf(max_b, be)
@@ -73,7 +73,7 @@ func _write_preview(terrain: Variant, probe: Dictionary) -> bool:
 	var ground := Color(0.34, 0.30, 0.24, 1.0); var rock := Color(0.34, 0.34, 0.33, 1.0); var snow := Color(0.90, 0.92, 0.94, 1.0)
 	for z in IMPORT_SIZE:
 		for x in IMPORT_SIZE:
-			var pos := Vector3(x, 0, z); var blend := terrain.data.get_control_blend(pos)
+			var pos := Vector3(x, 0, z); var blend: float = float(terrain.data.get_control_blend(pos))
 			if is_nan(blend): return false
 			var target := snow if terrain.data.get_control_overlay_id(pos) == int(probe["snowTextureId"]) else rock
 			image.set_pixel(x, z, ground.lerp(target, clampf(blend, 0.0, 1.0)))
