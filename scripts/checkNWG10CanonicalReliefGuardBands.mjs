@@ -17,6 +17,16 @@ function relief(x, y) {
 	return sampleWorldReferenceRelief(x, y, hydro(x, y)).heightDeltaMeters;
 }
 
+function derivativeStencilKeepsHydrologyClass(x, y) {
+	const center = hydro(x, y).water;
+	return [
+		[Math.max(0, x - STEP), y],
+		[Math.min(1, x + STEP), y],
+		[x, Math.max(0, y - STEP)],
+		[x, Math.min(1, y + STEP)],
+	].every(([sx, sy]) => hydro(sx, sy).water === center);
+}
+
 function normalAt(x, y) {
 	const hx0 = relief(Math.max(0, x - STEP), y);
 	const hx1 = relief(Math.min(1, x + STEP), y);
@@ -34,6 +44,8 @@ function normalDelta(a, b) {
 
 function auditEdge(name, axis, boundary, from, to, inwardSign) {
 	let sameClassPairs = 0;
+	let normalPairs = 0;
+	let coastDerivativeSkips = 0;
 	let maxHeightJump = 0;
 	let maxNormalJump = 0;
 	let classTransitions = 0;
@@ -55,12 +67,18 @@ function auditEdge(name, axis, boundary, from, to, inwardSign) {
 		}
 		sameClassPairs += 1;
 		maxHeightJump = Math.max(maxHeightJump, Math.abs(relief(a.x, a.y) - relief(b.x, b.y)));
+		if (!derivativeStencilKeepsHydrologyClass(a.x, a.y) || !derivativeStencilKeepsHydrologyClass(b.x, b.y)) {
+			coastDerivativeSkips += 1;
+			continue;
+		}
+		normalPairs += 1;
 		maxNormalJump = Math.max(maxNormalJump, normalDelta(normalAt(a.x, a.y), normalAt(b.x, b.y)));
 	}
 	assert.ok(sameClassPairs >= 40, `${name}: insufficient same-class guard pairs ${sameClassPairs}`);
+	assert.ok(normalPairs >= 32, `${name}: insufficient coast-stable normal guard pairs ${normalPairs}`);
 	assert.ok(maxHeightJump <= 1.5, `${name}: relief height guard jump ${maxHeightJump.toFixed(6)}m`);
 	assert.ok(maxNormalJump <= 0.45, `${name}: relief normal guard jump ${maxNormalJump.toFixed(6)}`);
-	return { name, sameClassPairs, classTransitions, maxHeightJump, maxNormalJump };
+	return { name, sameClassPairs, normalPairs, coastDerivativeSkips, classTransitions, maxHeightJump, maxNormalJump };
 }
 
 const edges = [
