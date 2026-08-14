@@ -9,6 +9,7 @@ on:
       - 'godot/terrain-authoring/geocells/se/g77_rock_snow.mjs'
       - 'scripts/checkSEG77RockSnow.mjs'
       - 'scripts/checkSEG77RockSnowControlEnvelope.mjs'
+      - 'scripts/checkSEG77RockSnowVisualEvidence.mjs'
       - 'godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow.gd'
       - 'godot/terrain-authoring/corner_claims/SE.json'
       - '.github/workflows/se-g77-terrain3d-rock-snow.yml'
@@ -39,7 +40,7 @@ jobs:
           test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_rock_snow\.mjs|scripts/checkSEG77RockSnow(ControlEnvelope)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow\.gd|godot/terrain-authoring/corner_claims/SE\.json|\.github/workflows/se-g77-terrain3d-rock-snow\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_rock_snow\.mjs|scripts/checkSEG77RockSnow(ControlEnvelope|VisualEvidence)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow\.gd|godot/terrain-authoring/corner_claims/SE\.json|\.github/workflows/se-g77-terrain3d-rock-snow\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1} END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2} END{print s+0}')"
           echo "G77 Rock/Snow diff lines: $((A+D))"
@@ -56,6 +57,7 @@ jobs:
           node --check godot/terrain-authoring/geocells/se/g77_rock_snow.mjs
           node --check scripts/checkSEG77RockSnow.mjs
           node --check scripts/checkSEG77RockSnowControlEnvelope.mjs
+          node --check scripts/checkSEG77RockSnowVisualEvidence.mjs
           node scripts/checkSEG77RockSnow.mjs | tee /tmp/a.log
           node scripts/checkSEG77RockSnow.mjs | tee /tmp/b.log
           cmp /tmp/a.log /tmp/b.log
@@ -108,8 +110,9 @@ jobs:
           node scripts/checkTechnicalDebt.js
           node scripts/checkMobilePerfBudget.js
           node scripts/smokeTestGame3D.js
-          node scripts/checkSEG77ReliefVisualEvidence.mjs --out-dir=artifacts/se-g77-rock-snow-visual
-          grep -F '"visibleGeoCellOverlay":false' artifacts/se-g77-rock-snow-visual/g77-relief-visual-metrics.json
+          node scripts/checkSEG77RockSnowVisualEvidence.mjs --out-dir=artifacts/se-g77-rock-snow-visual | tee /tmp/visual.log
+          grep -F SE_G77_ROCK_SNOW_VISUAL_OK /tmp/visual.log
+          grep -F '"visibleGeoCellOverlay": false' artifacts/se-g77-rock-snow-visual/g77-rock-snow-visual-metrics.json
 
       - name: Final exact-main freshness
         run: |
@@ -125,8 +128,8 @@ jobs:
           path: |
             godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-probe.json
             godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-imported-topdown.png
-            artifacts/se-g77-rock-snow-visual/g77-relief-near.png
-            artifacts/se-g77-rock-snow-visual/g77-relief-far.png
-            artifacts/se-g77-rock-snow-visual/g77-relief-topdown.png
-            artifacts/se-g77-rock-snow-visual/g77-relief-visual-metrics.json
+            artifacts/se-g77-rock-snow-visual/g77-rock-snow-near.png
+            artifacts/se-g77-rock-snow-visual/g77-rock-snow-far.png
+            artifacts/se-g77-rock-snow-visual/g77-rock-snow-topdown.png
+            artifacts/se-g77-rock-snow-visual/g77-rock-snow-visual-metrics.json
           if-no-files-found: warn
