@@ -10,6 +10,7 @@ on:
       - 'godot/terrain-authoring/geocells/ne/g60_biome.mjs'
       - 'scripts/checkNEG60Terrain3DBiome.mjs'
       - 'scripts/checkNEG60BiomeVisualEvidence.mjs'
+      - 'scripts/checkNEG60BiomePngEvidence.mjs'
       - 'godot/terrain-authoring/scripts/validate_g60_terrain3d_biome.gd'
       - 'godot/terrain-authoring/corner_claims/NE.json'
       - '.github/workflows/ne-g60-terrain3d-biome.yml'
@@ -44,7 +45,7 @@ jobs:
           git diff --check origin/main...HEAD
           CHANGED="$(git diff --name-only origin/main...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g60_biome.mjs|scripts/checkNEG60Terrain3DBiome.mjs|scripts/checkNEG60BiomeVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g60_terrain3d_biome.gd|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g60-terrain3d-biome.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/ne/g60_biome.mjs|scripts/checkNEG60Terrain3DBiome.mjs|scripts/checkNEG60BiomeVisualEvidence.mjs|scripts/checkNEG60BiomePngEvidence.mjs|godot/terrain-authoring/scripts/validate_g60_terrain3d_biome.gd|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g60-terrain3d-biome.yml)$' | wc -l)" -eq 0
           LINES="$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           echo "changed-lines=$LINES"
           test "$LINES" -le 1000
@@ -59,6 +60,7 @@ jobs:
           node --check godot/terrain-authoring/geocells/ne/g60_biome.mjs
           node --check scripts/checkNEG60Terrain3DBiome.mjs
           node --check scripts/checkNEG60BiomeVisualEvidence.mjs
+          node --check scripts/checkNEG60BiomePngEvidence.mjs
           node scripts/checkNEG60Hydrology.mjs
           node scripts/checkNEG60Terrain3DBiome.mjs | tee "$RUNNER_TEMP/g60-source-a.log"
           cp godot/terrain-authoring/.terrain3d-proof/g60-biome-source.json "$RUNNER_TEMP/g60-source-a.json"
@@ -115,6 +117,7 @@ jobs:
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkNEG60BiomeVisualEvidence.mjs --out-dir=artifacts/ne-g60-biome-visual | tee "$RUNNER_TEMP/g60-visual.log"
           grep -F 'NE_G60_BIOME_VISUAL_EVIDENCE_OK' "$RUNNER_TEMP/g60-visual.log"
+          node scripts/checkNEG60BiomePngEvidence.mjs --out-dir=artifacts/ne-g60-biome-visual
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
           grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
           node scripts/checkSeededRandomPolicy.js
