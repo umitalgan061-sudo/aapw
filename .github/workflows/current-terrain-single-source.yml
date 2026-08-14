@@ -11,6 +11,7 @@ on:
       - 'game3d.html'
       - 'editor.html'
       - 'service-worker.js'
+      - 'src/3d/config.js'
       - 'src/3d/world/currentTerrainRuntime.js'
       - 'src/3d/world/currentTerrainAdapter.js'
       - 'scripts/checkCurrentTerrainSingleSource.mjs'
@@ -40,20 +41,20 @@ jobs:
         with:
           node-version: 22
 
-      - name: Materialize game editor and offline terrain mapping
+      - name: Materialize game editor full-map extent and offline terrain
         id: materialize
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
           node scripts/materializeCurrentTerrainSingleSource.mjs
-          if git diff --quiet -- game3d.html editor.html service-worker.js; then
+          if git diff --quiet -- game3d.html editor.html service-worker.js src/3d/config.js; then
             echo 'changed=false' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add game3d.html editor.html service-worker.js
-          git commit -m 'terrain: route live current terrain and offline cache'
+          git add game3d.html editor.html service-worker.js src/3d/config.js
+          git commit -m 'terrain: materialize full-map live terrain runtime'
           git push origin HEAD:${GITHUB_REF_NAME}
           echo 'changed=true' >> "$GITHUB_OUTPUT"
 
@@ -72,7 +73,7 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(game3d\.html|editor\.html|service-worker\.js|src/3d/world/currentTerrainRuntime\.js|src/3d/world/currentTerrainAdapter\.js|scripts/checkCurrentTerrainSingleSource\.mjs|scripts/checkCurrentTerrainBrowser\.mjs|scripts/materializeCurrentTerrainSingleSource\.mjs|\.github/workflows/current-terrain-single-source\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(game3d\.html|editor\.html|service-worker\.js|src/3d/config\.js|src/3d/world/currentTerrainRuntime\.js|src/3d/world/currentTerrainAdapter\.js|scripts/checkCurrentTerrainSingleSource\.mjs|scripts/checkCurrentTerrainBrowser\.mjs|scripts/materializeCurrentTerrainSingleSource\.mjs|\.github/workflows/current-terrain-single-source\.yml)$' | wc -l)" -eq 0
           LINES="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           echo "CURRENT_TERRAIN_CHANGED_LINES=$LINES"
           test "$LINES" -le 1000
@@ -91,6 +92,9 @@ jobs:
           grep -F 'CURRENT_TERRAIN_SINGLE_SOURCE_OK' "$RUNNER_TEMP/current-terrain-source.log"
           grep -F 'legacyProceduralFallback: false' src/3d/world/currentTerrainRuntime.js
           grep -F 'renderAndPhysicsSingleSource: true' src/3d/world/currentTerrainAdapter.js
+          grep -F 'MAP_BOUNDS: Object.freeze({ minX: 0, maxX: 9000, minY: 0, maxY: 7000 })' src/3d/config.js
+          grep -F 'GRID_COLUMNS: 27' src/3d/config.js
+          grep -F 'GRID_ROWS: 21' src/3d/config.js
 
       - name: Install Playwright Chromium
         if: steps.materialize.outputs.changed != 'true'
