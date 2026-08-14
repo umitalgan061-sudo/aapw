@@ -3,9 +3,11 @@
  *
  * Near Detail lives only in Terrain3D Color/Roughness. Merged Relief height and
  * Rock/Snow control weights stay unchanged. GeoCell coordinates are traversal
- * addresses only; the detail field is continuous in full owner-map metres.
+ * addresses only; the detail field inherits G00's qualified global-metre phase
+ * so the shared G00/G01 boundary cannot reveal a cell seam.
  */
-import { FULL_REFERENCE_EXTENT_PLAN } from '../../../../src/3d/world/worldReferenceExtent.js';
+import { g00NearDetailSignal } from './g00_near_detail.mjs';
+import { sampleG00RockSnow } from './g00_rock_snow.mjs';
 import {
   G01_ROCK_SNOW_POLICY,
   sampleG01RockSnow,
@@ -28,62 +30,57 @@ export const G01_NEAR_DETAIL_POLICY = Object.freeze({
   roadTextureId: 2,
   pathTextureId: 3,
   guardBandNormalized: 1 / 1536,
-  detailWavelengthMeters: Object.freeze([71, 109, 157, 131, 223]),
+  detailWavelengthMeters: Object.freeze([53, 79, 97, 61, 149]),
   tintFloor: 0.90,
   tintCeiling: 1.0,
   roughnessFloor: 0.68,
   roughnessCeiling: 0.94,
 });
 
-const TAU = Math.PI * 2;
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const round8 = (value) => Number(value.toFixed(8));
 
-function physicalCoordinates(normalizedX, normalizedY) {
-  return {
-    xMeters: normalizedX * FULL_REFERENCE_EXTENT_PLAN.widthMeters,
-    zMeters: normalizedY * FULL_REFERENCE_EXTENT_PLAN.depthMeters,
-  };
-}
-
-/** Continuous detiling signal with no GeoCell, Pindex, mask or source-grid term. */
+/**
+ * Reuse the qualified G00 physical-metre phase instead of restarting a per-cell
+ * procedural field. G00's checker already forbids grid/Pindex terms here.
+ */
 export function g01NearDetailSignal(normalizedX, normalizedY) {
   if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) {
     throw new TypeError('normalized coordinates must be finite');
   }
-  const { xMeters, zMeters } = physicalCoordinates(normalizedX, normalizedY);
-  const a = Math.sin(TAU * (xMeters / 71 + zMeters / 109) + 0.413);
-  const b = Math.cos(TAU * (xMeters / 157 - zMeters / 131) + 1.173);
-  const c = Math.sin(TAU * ((xMeters * 0.59 + zMeters) / 223) + 2.107);
-  return 0.44 * a + 0.34 * b + 0.22 * c;
+  return g00NearDetailSignal(normalizedX, normalizedY);
 }
 
-export function sampleG01NearDetail(normalizedX, normalizedY) {
-  const base = sampleG01RockSnow(normalizedX, normalizedY);
-  const micro = g01NearDetailSignal(normalizedX, normalizedY);
-  const land = clamp01(base.landFactor);
-  const mass = Math.max(1e-9, base.rockWeight + base.snowWeight);
-  const rockRatio = land > 1e-9 ? clamp01(base.rockWeight / mass) : 0;
-  const snowRatio = land > 1e-9 ? clamp01(base.snowWeight / mass) : 0;
-
-  // Cold NW micro tint. It fades continuously to neutral over canonical water.
-  const amplitude = land * (0.010 + 0.006 * rockRatio + 0.004 * snowRatio);
-  const authoredR = clamp01(0.974 + amplitude * micro + 0.002 * rockRatio - 0.005 * snowRatio);
-  const authoredG = clamp01(0.980 + amplitude * micro - 0.001 * rockRatio + 0.002 * snowRatio);
-  const authoredB = clamp01(0.987 + amplitude * micro - 0.002 * rockRatio + 0.005 * snowRatio);
+/** G00-compatible no-road surface equation used on the shared NW field. */
+function surfaceDetail(substrate, detailSignal) {
+  const land = clamp01(substrate.landFactor);
+  const mass = Math.max(1e-9, substrate.rockWeight + substrate.snowWeight);
+  const rockRatio = land > 1e-9 ? clamp01(substrate.rockWeight / mass) : 0;
+  const snowRatio = land > 1e-9 ? clamp01(substrate.snowWeight / mass) : 0;
+  const tintAmplitude = land * (0.010 + 0.010 * rockRatio + 0.004 * (1 - snowRatio));
+  const authoredR = clamp01(0.973 + tintAmplitude * detailSignal + 0.004 * rockRatio - 0.004 * snowRatio);
+  const authoredG = clamp01(0.968 + tintAmplitude * detailSignal + 0.002 * rockRatio);
+  const authoredB = clamp01(0.962 + tintAmplitude * detailSignal - 0.004 * rockRatio + 0.007 * snowRatio);
   const tintR = 1 - land * (1 - authoredR);
   const tintG = 1 - land * (1 - authoredG);
   const tintB = 1 - land * (1 - authoredB);
-  const landRoughness = clamp01(0.830 + 0.035 * rockRatio - 0.055 * snowRatio + 0.025 * micro);
+  const landRoughness = clamp01(0.842 + 0.045 * (1 - rockRatio) - 0.025 * snowRatio + 0.030 * detailSignal);
   const roughness = 0.90 + land * (landRoughness - 0.90);
-
   return Object.freeze({
-    ...base,
-    detailSignal: micro,
     tintR: clamp01(tintR),
     tintG: clamp01(tintG),
     tintB: clamp01(tintB),
     roughness: clamp01(roughness),
+  });
+}
+
+export function sampleG01NearDetail(normalizedX, normalizedY) {
+  const base = sampleG01RockSnow(normalizedX, normalizedY);
+  const detailSignal = g01NearDetailSignal(normalizedX, normalizedY);
+  return Object.freeze({
+    ...base,
+    detailSignal,
+    ...surfaceDetail(base, detailSignal),
   });
 }
 
@@ -98,6 +95,24 @@ function maxTintDelta(a, b) {
     Math.abs(a.tintG - b.tintG),
     Math.abs(a.tintB - b.tintB),
   );
+}
+
+function measureSharedG00Seam() {
+  const { xMin, xMax, yMin } = G01_NEAR_DETAIL_POLICY.normalizedBounds;
+  let maxTintDeltaValue = 0;
+  let maxRoughnessDelta = 0;
+  for (let i = 0; i < 129; i += 1) {
+    const nx = xMin + (xMax - xMin) * (i / 128);
+    const signal = g01NearDetailSignal(nx, yMin);
+    const g01 = surfaceDetail(sampleG01RockSnow(nx, yMin), signal);
+    const g00 = surfaceDetail(sampleG00RockSnow(nx, yMin), signal);
+    maxTintDeltaValue = Math.max(maxTintDeltaValue, maxTintDelta(g01, g00));
+    maxRoughnessDelta = Math.max(maxRoughnessDelta, Math.abs(g01.roughness - g00.roughness));
+  }
+  return Object.freeze({
+    maxTintDelta: round8(maxTintDeltaValue),
+    maxRoughnessDelta: round8(maxRoughnessDelta),
+  });
 }
 
 export function measureG01NearDetail() {
@@ -192,6 +207,7 @@ export function measureG01NearDetail() {
     }
   }
 
+  const sharedG00Seam = measureSharedG00Seam();
   return Object.freeze({
     policyId: G01_NEAR_DETAIL_POLICY.id,
     sourceMapSha256: G01_NEAR_DETAIL_POLICY.sourceMapSha256,
@@ -216,6 +232,8 @@ export function measureG01NearDetail() {
     maxControlDelta: round8(maxControlDelta),
     maxCanonicalWaterTintDelta: round8(maxCanonicalWaterTintDelta),
     maxCanonicalWaterRoughnessDelta: round8(maxCanonicalWaterRoughnessDelta),
+    maxG00SharedSeamTintDelta: sharedG00Seam.maxTintDelta,
+    maxG00SharedSeamRoughnessDelta: sharedG00Seam.maxRoughnessDelta,
     detailChecksum: checksum,
   });
 }
