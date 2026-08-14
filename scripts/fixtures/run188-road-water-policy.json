@@ -1,0 +1,6 @@
+{
+  "version": "run188-road-water-policy-comparison-v1",
+  "baseCommit": "b7f570884f7f58d391c6fdb16393adef8bce9d5a",
+  "checksum": "c47d6ecbacff41a6ffc4e18623642905c1865c46f37f3f82fbd69a9eecd57214",
+  "note": "Run188 shadow-only road/water comparison checksum. No bridge, ferry, dry-route or mixed policy is selected by this fixture."
+}

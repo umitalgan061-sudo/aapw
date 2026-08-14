@@ -1,0 +1,124 @@
+name: Run 147 World Events Expansion
+
+on:
+  push:
+    branches: [agent/run147-world-events-expansion]
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      BASE_SHA: 1616868596abe2ec65b34971511fedbe1753b144
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/run147-world-events-expansion
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright outside repo
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Snapshot and initial concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md && test -f 3D_GAME_PROGRESS.md && test -f DECISIONS.md && test -f QUESTIONS_FOR_OWNER.md
+          grep -q 'ADR-0166' DECISIONS.md
+          grep -q 'ADR-0169' DECISIONS.md
+          grep -q 'game3d.js' QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+      - name: Baseline governance validation
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run147-baseline"
+          git worktree add --detach "$BASELINE" origin/main
+          ( cd "$BASELINE" && \
+            node scripts/checkCheckpointConsistency.js && \
+            node scripts/checkWorldEventCatalog.js && \
+            node scripts/checkWorldEventDiversity.js && \
+            node scripts/checkRun143WorldEvents.js && node scripts/checkRun144WorldEvents.js && node scripts/checkRun145WorldEvents.js && \
+            node scripts/checkPwaInstallability.js && node scripts/checkServiceWorkerCache.js && \
+            node scripts/checkMobileRadius4LiveWorld.js && node scripts/checkMobileVegetationCullingRun141.js && \
+            node scripts/terrainSeatSafetyCheck.js && node scripts/roadNetworkSafetyCheck.js && \
+            node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run147-smoke-before.log" )
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run147-smoke-before.log")" -ge 34
+          git worktree remove "$BASELINE"
+      - name: Apply additive changes and static gates
+        run: |
+          set -euo pipefail
+          python scripts/applyRun147WorldEvents.py
+          git diff --check
+          test "$(git diff --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+          node --check src/3d/gameplay/worldEvents.js
+          node --check scripts/checkRun147WorldEvents.js
+          python -m py_compile scripts/applyRun147WorldEvents.py
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkRun143WorldEvents.js
+          node scripts/checkRun144WorldEvents.js
+          node scripts/checkRun145WorldEvents.js
+          node scripts/checkRun147WorldEvents.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+      - name: Mobile and world safety gates
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+      - name: Full browser smoke and performance
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run147-smoke-after.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run147-smoke-after.log")" -ge 34
+          node scripts/collectPerfSnapshot.js run147
+          node scripts/analyzePerfTrend.js
+          echo "RUN147_PERF_ROW=$(tail -n 1 perf_log.csv)" >> "$GITHUB_ENV"
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/applyRun147WorldEvents.py scripts/checkRun147WorldEvents.js; then exit 1; fi
+      - name: Finalize records
+        run: |
+          set -euo pipefail
+          export RUN147_FINALIZE=1
+          export RUN147_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN147_PERF_ROW="$RUN147_PERF_ROW"
+          python scripts/applyRun147WorldEvents.py
+          export RUN147_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          echo "RUN147_TAG=$RUN147_TAG" >> "$GITHUB_ENV"
+          printf '%s\n' "- $RUN147_TAG — run 147 FAZ 8 world-event expansion; 34/34+ browser smoke, diversity/catalog/PWA/cache/mobile/road/terrain/additive gates PASS." >> STABLE_TAGS.md
+          node scripts/checkCheckpointConsistency.js
+      - name: Final concurrency gate and publish branch
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "Westeros Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/3d/gameplay/worldEvents.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv scripts/applyRun147WorldEvents.py scripts/checkRun147WorldEvents.js .github/workflows/run147-world-events-expansion.yml
+          git diff --cached --check
+          test "$(git diff --cached --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+          git commit -m "feat(3d): expand FAZ 8 world events (run 147)"
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git tag "$RUN147_TAG"
+          git push origin HEAD:agent/run147-world-events-expansion
+          git push origin "$RUN147_TAG" || true

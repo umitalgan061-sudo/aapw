@@ -1,0 +1,81 @@
+name: Run 252 Editor Consecutive Scene Load Finalize
+
+on:
+  push:
+    branches:
+      - agent/run252-editor-consecutive-scene-load
+    paths:
+      - '.github/workflows/run252-editor-consecutive-scene-load-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run252-editor-consecutive-scene-load-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun252EditorConsecutiveSceneLoad.js
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/editor/EditorLocalSession.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run252 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 252 — World Editor consecutive scene replacement regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium regression verifies two different valid scene JSON files can be loaded consecutively through the same hidden file input and that each successful load remains a full scene replacement.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- First load installs two distinct off-grid `marker-tree` objects with signed rotations/non-uniform scales including `0.007` and snap `true` / `2.5`; the file input resets after completion so a second file can be loaded without page reload.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Before the second load an object is explicitly selected and live snap is changed to `true` / `4.25`; second load replaces the first scene with exactly one new off-grid identity, removes all stale first-scene IDs/hierarchy entries, clears prior selection, and restores serialized snap to `true` / `3.75` without quantization.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- History remains stable/not restoring, owner grid-hidden/disabled policy stays intact, canonical success toast is shown, browser console/page errors remain zero, and three screenshots include a second camera angle after replacement.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Validation workflow `31463882079` PASS: syntax, Chromium regression, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates and visual artifact all PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- World Event Determinism Guard `31463882028` PASS on the same Run252 head.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed in Run252. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: refresh remote main and concurrent branches, then continue only a distinct additive-only World Editor compatibility regression without crossing unresolved owner gates.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run252,2026-08-11,editor-consecutive-scene-load' perf_log.csv; then
+            printf 'run252,%s,editor-consecutive-scene-load,,,,,,,"test-only consecutive scene replacement/reusable file-input regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run252 editor consecutive scene replacement regression' STABLE_TAGS.md; then
+            printf '%s — Run252 editor consecutive scene replacement regression; second valid import fully replaces the first without stale objects/selection or transform quantization; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run252 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run252): record consecutive scene replacement checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run252-editor-consecutive-scene-load
+          git push origin "$STABLE_TAG" || true

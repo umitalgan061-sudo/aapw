@@ -1,0 +1,153 @@
+name: Run 191 Medieval Stone Bridge Art V2
+
+on:
+  push:
+    branches: [chatgpt/run191-medieval-stone-bridge-shadow]
+    paths:
+      - 'src/3d/world/worldReferenceStoneBridgeMedievalArtV2.js'
+      - 'scripts/checkCanonicalStoneBridgeMedievalArtV2.js'
+      - 'scripts/applyRun191MedievalArtV2PwaPrecacheAddition.js'
+      - 'scripts/recordRun191MedievalArtV2.js'
+      - '.github/workflows/run191-medieval-stone-bridge-art-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BASE_SHA: 79e8a88695c0a57aacd471e9d2f71ccde38b4c12
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Concurrency syntax additive and core topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node --check src/3d/world/worldReferenceStoneBridgeMedievalArtV2.js
+          node --check scripts/checkCanonicalStoneBridgeMedievalArtV2.js
+          node --check scripts/applyRun191MedievalArtV2PwaPrecacheAddition.js
+          node --check scripts/recordRun191MedievalArtV2.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+          node scripts/checkRoadWaterPolicyComparison.js
+          node scripts/checkCanonicalStoneBridgeShadow.js --verify-fixture
+
+      - name: Medieval art V2 renderer and readability proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCanonicalStoneBridgeMedievalArtV2.js | tee "$RUNNER_TEMP/run191-art-v2.log"
+          SUMMARY="$(grep '^\[checkCanonicalStoneBridgeMedievalArtV2\] PASS:' "$RUNNER_TEMP/run191-art-v2.log" | tail -n1 | sed 's/^\[checkCanonicalStoneBridgeMedievalArtV2\] PASS: //')"
+          test -n "$SUMMARY"
+          test -s artifacts/run191-stone-bridge-art-v2/medieval-masonry-closeup.png
+          test -s artifacts/run191-stone-bridge-art-v2/medieval-multiarch-perspective.png
+          test -s artifacts/run191-stone-bridge-art-v2/proof.json
+          echo "RUN191_ART_V2_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+
+      - name: Additive PWA precache and cache gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/applyRun191MedievalArtV2PwaPrecacheAddition.js
+          git diff --numstat -- service-worker.js | awk -F'\t' '$2 != 0 { print "service-worker deletion detected: "$0; exit 1 }'
+          grep -F "'./src/3d/world/worldReferenceStoneBridgeMedievalArtV2.js'," service-worker.js
+          node scripts/checkServiceWorkerCache.js
+
+      - name: Determinism canonical road and mobile regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkCanonicalHydrologyTerrainShadow.js
+          node scripts/checkCanonicalChunkIntegrationShadow.js
+          node scripts/checkRoadWaterPolicyComparison.js
+          node scripts/checkCanonicalStoneBridgeShadow.js --verify-fixture
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run191-art-v2-mobile.log"
+          SAMPLE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run191-art-v2-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$SAMPLE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$SAMPLE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+
+      - name: Full browser smoke and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run191-art-v2-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run191-art-v2-smoke.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run191-art-v2-smoke.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run191-art-v2-smoke.log"; then exit 1; fi
+
+      - name: Upload medieval Art V2 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run191-medieval-stone-bridge-art-v2
+          path: |
+            artifacts/run191-stone-bridge-art-v2/medieval-masonry-closeup.png
+            artifacts/run191-stone-bridge-art-v2/medieval-multiarch-perspective.png
+            artifacts/run191-stone-bridge-art-v2/proof.json
+          if-no-files-found: error
+
+      - name: Final concurrency and publish checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkCanonicalStoneBridgeShadow.js --verify-fixture
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          echo "RUN191_ART_V2_STAMP=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+          echo "RUN191_ART_V2_STABLE_TAG=stable-$(date -u +'%Y-%m-%d-%H%M')" >> "$GITHUB_ENV"
+
+      - name: Record medieval Art V2 and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/recordRun191MedievalArtV2.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkCheckpointConsistency.js
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m "test(world): record readable medieval bridge art v2 proof"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git push origin HEAD:chatgpt/run191-medieval-stone-bridge-shadow
+          if ! git ls-remote --tags origin "refs/tags/$RUN191_ART_V2_STABLE_TAG" | grep -q .; then
+            git tag "$RUN191_ART_V2_STABLE_TAG"
+            git push origin "$RUN191_ART_V2_STABLE_TAG" || true
+          fi

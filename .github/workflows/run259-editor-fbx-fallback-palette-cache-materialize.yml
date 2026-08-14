@@ -1,0 +1,56 @@
+name: Run259 Editor FBX Fallback Palette Cache Materialize
+
+on:
+  push:
+    branches:
+      - agent/run259-editor-fbx-fallback-palette
+    paths:
+      - scripts/materializeRun259FallbackPaletteServiceWorkerCache.js
+      - .github/workflows/run259-editor-fbx-fallback-palette-cache-materialize.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run259-editor-fbx-fallback-palette-cache-materialize
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/run259-editor-fbx-fallback-palette
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify current main and materialize additive cache entry
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/materializeRun259FallbackPaletteServiceWorkerCache.js
+          node scripts/checkServiceWorkerCache.js
+          git diff --check
+          git diff -- service-worker.js
+      - name: Commit materialized cache entry
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- service-worker.js; then
+            echo "Cache entry already materialized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add service-worker.js
+          git commit -m "fix(run259): precache fallback palette module"
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          git push origin HEAD:agent/run259-editor-fbx-fallback-palette
+
+# Re-triggered after synchronizing Run259 with the latest main checkpoint.

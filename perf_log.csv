@@ -1,0 +1,241 @@
+date,run,fps,drawCalls,triangles,geometries,textures,jsHeapUsedMB
+2026-07-31,run59,2,46,393467,44,17,347
+2026-08-05,run63,2,46,393467,44,17,347
+2026-08-05,run64,2,46,393467,44,17,257
+2026-08-05,run65,2,46,393467,44,17,307
+2026-08-05,run66,3,46,393467,44,17,290
+2026-08-05,run66b,2,46,393467,44,17,290
+2026-08-05,run67,3,46,393231,44,17,326
+2026-08-05,run68,2,46,393231,44,17,326
+2026-08-05,run69,3,46,393231,44,17,368
+2026-08-05,run70,3,46,393231,44,17,307
+2026-08-05,run70b,2,46,393231,44,17,347
+2026-08-05,run71,3,46,393231,44,17,326
+2026-08-05,run71b,2,46,393231,44,17,307
+2026-08-05,run72,2,46,393231,44,17,326
+2026-08-05,run72b,2,46,393231,44,17,290
+2026-08-05,run73,2,46,393231,44,17,347
+2026-08-05,run74,2,46,393231,44,17,290
+2026-08-05,run75,2,46,393231,44,17,326
+2026-08-05,run76,3,46,393231,44,17,307
+2026-08-05,run77,3,46,393231,44,17,290
+2026-08-05,run78,3,46,393231,44,17,326
+2026-08-05,run79,3,46,393231,44,17,326
+2026-08-05,run80,2,46,393231,44,17,257
+2026-08-05,run81,2,46,393231,44,17,347
+2026-08-05,run82,3,46,393231,44,17,347
+2026-08-05,run83,3,46,393231,44,17,257
+2026-08-05,run83b,2,46,393231,44,17,347
+2026-08-05,run84,3,46,393231,44,17,307
+2026-08-06,run85,2,46,393231,44,17,347
+2026-08-06,run86,3,46,393231,44,17,326
+2026-08-06,run87,3,46,393231,44,17,326
+2026-08-06,run88,2,46,393231,44,17,326
+2026-08-06,run89,2,46,393231,44,17,326
+2026-08-06,run90,2,46,393231,44,17,347
+2026-08-06,run91,2,46,393231,44,17,257
+2026-08-06,run92,2,46,393231,44,17,307
+2026-08-06,run93,3,46,393231,44,17,307
+2026-08-06,run94,3,46,393231,44,17,326
+2026-08-06,run95,2,46,393231,44,17,347
+2026-08-06,run96,2,46,393231,44,17,326
+2026-08-06,run97,2,46,393231,44,17,347
+2026-08-06,run98,3,46,393231,44,17,326
+2026-08-06,run99,3,46,393231,44,17,290
+2026-08-06,run99b,3,46,393231,44,17,326
+2026-08-06,run100c,2,46,393231,44,17,273
+2026-08-06,run102,2,46,393231,44,17,307
+2026-08-06,run103,3,46,393231,44,17,326
+2026-08-06,run105,3,46,393231,44,17,307
+2026-08-06,run107,2,46,393231,44,17,326
+2026-08-06,run108,2,46,393231,44,17,326
+2026-08-06,run109,3,46,393231,44,17,307
+2026-08-06,run110,2,46,393231,44,17,326
+2026-08-07,run111,2,48,521526,46,17,326
+2026-08-07,run112,2,50,577043,48,17,347
+2026-08-07,run113,2,50,608296,48,17,347
+2026-08-07,run114,2,50,608296,48,17,307
+2026-08-07,run115,2,50,608296,48,17,307
+2026-08-07,run116,2,50,608296,48,17,307
+2026-08-07,run119,2,50,608296,48,17,257
+2026-08-07,run120,2,50,608296,48,17,347
+2026-08-07,run122,0,55,646282,49,22,242
+2026-08-07,run123,1,50,608296,48,17,242
+2026-08-07,run124,1,50,608296,48,17,307
+2026-08-07,run125,3,50,608296,48,17,347
+2026-08-07,run126,2,50,608296,48,17,257
+2026-08-07,run127,1,50,608296,48,17,391
+2026-08-07,run128,2,50,608296,48,17,326
+2026-08-07,run129,1,50,608296,48,17,326
+2026-08-07,run130,1,50,608296,48,17,347
+2026-08-07,run131,2,50,608296,48,17,290
+2026-08-07,run132,1,50,608296,48,17,307
+2026-08-07,run133,2,50,608296,48,17,326
+2026-08-07,run134,2,50,608296,48,17,368
+2026-08-07,run135,1,50,608296,48,17,273
+2026-08-07,run136,1,50,608296,48,17,391
+2026-08-07,run137,2,50,608296,48,17,307
+2026-08-07,run138,2,50,608296,48,17,273
+2026-08-07,run139,1,50,608296,48,17,391
+2026-08-07,run140,2,50,608296,48,17,326
+2026-08-07,run141,1,50,608296,48,17,368
+2026-08-07,run142,2,50,608296,48,17,347
+2026-08-07,run143,1,50,608296,48,17,368
+2026-08-07,run144,1,50,608296,48,17,347
+2026-08-07,run145,2,50,608296,48,17,347
+2026-08-07,run146,1,50,608296,48,17,347
+2026-08-07,run147,2,50,608296,48,17,368
+2026-08-07,run148,1,50,608296,48,17,326
+2026-08-07,run149,2,50,608296,48,17,290
+2026-08-07,run150,1,50,608296,48,17,347
+2026-08-07,run151,2,50,608296,48,17,290
+2026-08-07,run152,1,50,608296,48,17,368
+2026-08-07,run153,1,50,608296,48,17,326
+2026-08-07,run154,1,50,608296,48,17,368
+2026-08-07,run155,1,50,608296,48,17,326
+2026-08-07,run156,2,50,608296,48,17,347
+2026-08-07,run156b,2,50,608296,48,17,273
+2026-08-07,run157,1,50,608296,48,17,368
+2026-08-07,run158,2,50,608296,48,17,326
+2026-08-08,run159,1,50,608296,48,17,326
+2026-08-08,run160,1,50,608296,48,17,347
+
+2026-08-08,run161,1,50,608296,48,17,326
+2026-08-08,run162,1,50,608296,48,17,368
+2026-08-08,run163,1,50,608296,48,17,290
+
+2026-08-08,run164,1,50,608296,48,17,347
+2026-08-08,run165,1,50,608296,48,17,307
+2026-08-08,run166,1,50,608296,48,17,368
+2026-08-08,run167,2,50,608296,48,17,307
+2026-08-08,run168,2,50,608296,48,17,368
+2026-08-08,run169,1,50,608296,48,17,326
+2026-08-08,run170,1,50,608296,48,17,368
+2026-08-08,run171,2,50,608296,48,17,307
+2026-08-08,run172,2,50,608296,48,17,326
+2026-08-08,run173,1,50,608296,48,17,290
+2026-08-08,run174,1,50,608296,48,17,326
+2026-08-08,run175,1,50,608296,48,17,326
+2026-08-08,run176,1,50,608296,48,17,326
+2026-08-08,run177,1,50,608296,48,17,368
+2026-08-08,run179,1,50,608296,48,17,368
+
+2026-08-08,run181,1,50,608296,48,17,326
+
+2026-08-08,run182,1,50,608296,48,17,368
+
+2026-08-08,run183,1,51,688296,49,17,307
+
+2026-08-08,run184,1,51,688296,49,17,368
+
+2026-08-08,run185,1,51,688296,49,17,307
+
+2026-08-08,run186,1,51,688296,49,17,391
+
+2026-08-08,run187,1,51,688296,49,17,326
+
+2026-08-08,run188,1,51,688296,49,17,368
+
+2026-08-08,run189,1,51,688296,49,17,326
+
+2026-08-08,run190,1,51,688296,49,17,326
+
+2026-08-08,run191,1,51,688296,49,17,347
+
+2026-08-08,run192,1,51,688296,49,17,368
+
+2026-08-08,run193,1,51,688296,49,17,347
+
+2026-08-08,run194,1,51,688296,49,17,368
+2026-08-08,run195,1,51,688296,49,17,368
+2026-08-08,run196,1,51,688296,49,17,368
+2026-08-08,run197,1,51,688296,49,17,368
+2026-08-08,run198,1,51,688296,49,17,347
+2026-08-08,run199,1,51,688296,49,17,347
+2026-08-09,run200,1,51,688296,49,17,307
+2026-08-09,run201,1,51,688296,49,17,347
+2026-08-09,run202,1,51,688296,49,17,368
+2026-08-09,run203,1,51,688296,49,17,326
+2026-08-09,run204,1,51,688296,49,17,347
+2026-08-09,run205,1,51,688296,49,17,368
+2026-08-09,run206,1,51,688296,49,17,368
+2026-08-09,run207-rts,1,51,688296,49,17,326
+2026-08-09,run208-rts-feedback,1,51,688296,49,17,368
+run210,2026-08-09,desktop-rts,,66,821483,,,,"owner surface; 529 textured chunks; 3072 source -> 1024 runtime; console/page errors 0"
+run210,2026-08-09,mobile-rts,,28,202770,,,,"owner surface; 90 textured chunks; 3072 source -> 512 runtime; console/page errors 0"
+2026-08-09,run211-rts-shortcuts,1,51,688296,49,17,347
+2026-08-09,run212-rts-command-status,1,66,821483,,,,"DOM-only command status; no renderer objects/assets added; focused desktop RTS budget PASS"
+run213,2026-08-09,desktop-rts-selection-readability,,66,821483,,,,"DOM-only selection meter; 48/48=100%; no renderer ownership; console/page errors 0"
+run213,2026-08-09,mobile-rts-selection-readability,,28,202770,,,,"DOM-only selection meter; 48/48=100%; no renderer ownership; console/page errors 0"
+run218,2026-08-10,editor-authoring-regression,,,,,,,"test-only orchestration; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run219,2026-08-10,editor-history-regression,,,,,,,"test-only browser regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run220,2026-08-10,editor-history-shortcuts-mobile,,,,,,,"test-only keyboard/mobile browser regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run221,2026-08-10,editor-history-input-guard,,,,,,,"test-only inspector shortcut guard and Ctrl+Y redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run222,2026-08-10,editor-clipboard-history,,,,,,,"test-only copy/paste undo/redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run223,2026-08-10,editor-delete-history,,,,,,,"test-only delete/undo/redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run224,2026-08-10,editor-duplicate-history,,,,,,,"test-only duplicate/Ctrl+D/undo/redo regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run225,2026-08-10,editor-sub001-scale-history,,,,,,,"test-only sub-0.01 scale/undo/redo/reselect regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run226,2026-08-10,editor-signed-rotation-history,,,,,,,"test-only signed -179.9deg rotation undo/redo persistence regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run228,2026-08-10,editor-mixed-position-history,,,,,,,"test-only mixed-sign decimal position/undo/redo/reselect regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run230,2026-08-11,editor-responsive-layout-integrity,,35,195929,30,22,,"390px fresh+desktop-to-mobile layout fixed from bodyScrollWidth 2293 to 390; internal toolbar/status scrolling preserved; PWA/perf/determinism/full smoke PASS"
+run234,2026-08-11,editor-invalid-scene-atomicity,,,,,,,"test-only invalid scene atomicity proof; full PWA/perf/determinism/world/smoke gates PASS"
+run235,2026-08-11,periodic-platform-control,,35,195929,30,22,,"periodic platform control; PWA/cache, mobile budget, determinism/world, terrain/road, perf trend, debt and full browser smoke PASS; runtime/product delta 0"
+run236,2026-08-11,editor-unknown-asset-load-v2,,,,,,,"test-only isolated unknown asset scene-load regression; runtime unchanged; full PWA/perf/determinism/world/smoke gates PASS"
+run237,2026-08-11,editor-malformed-scene-atomicity-v2-clean,,,,,,,"test-only malformed/non-object scene-load atomicity regression; runtime unchanged; full PWA/perf/determinism/world/smoke gates PASS"
+run239,2026-08-11,editor-schema-version-atomicity,,,,,,,"test-only unsupported schemaVersion atomicity regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run240,2026-08-11,governance-consolidation-audit,,,,,,,"governance/workflow-only consolidation; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run241,2026-08-11,editor-valid-empty-scene-load,,,,,,,"test-only valid empty scene load/owner-grid/snap-state regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run242,2026-08-11,editor-missing-metadata-defaults,,,,,,,"test-only valid scene missing editor metadata/composed owner-grid defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run245,2026-08-11,editor-null-metadata-defaults,,,,,,,"test-only valid scene editor:null composed defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run246,2026-08-11,editor-empty-metadata-defaults,,,,,,,"test-only valid scene editor:{} composed defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run247,2026-08-11,editor-partial-metadata-defaults,,,,,,,"test-only valid scene partial editor metadata composed defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run248,2026-08-11,editor-scene-load-snap-isolation,,,,,,,"additive scene import snap isolation; exact transforms preserved; mobile perf budget, deterministic safety and full browser smoke PASS"
+run249,2026-08-11,editor-snap-enabled-offgrid-load,,,,,,,"test-only snap-enabled off-grid scene import regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run250,2026-08-11,editor-multiobject-offgrid-load,,,,,,,"test-only three-object off-grid scene import regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run251,2026-08-11,editor-unknown-asset-offgrid-load,,,,,,,"test-only unknown-asset plus two off-grid valid object import regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run252,2026-08-11,editor-consecutive-scene-load,,,,,,,"test-only consecutive scene replacement/reusable file-input regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run254,2026-08-11,editor-mobile-offgrid-load,,,,,,,"test-only real mobile/touch off-grid scene import regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run255,2026-08-11,editor-mobile-scene-save,,,,,,,"test-only real mobile/touch scene JSON browser-download fidelity regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run256,2026-08-11,editor-mobile-save-load-roundtrip,,,,,,,"test-only real mobile/touch actual-download save-to-load persistence roundtrip; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run258,2026-08-11,editor-mobile-multiobject-save-load,,,,,,,"test-only real mobile/touch multi-object actual-download save-to-load persistence roundtrip; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+run262,2026-08-11,editor-terrain-elevation-inline,,,,,,,"additive editor-only terrain stamp deformation; mobile perf budget/perf trend/full smoke PASS; no gameplay baseline budget regression observed"
+run259,2026-08-11,editor-fbx-fallback-palette,,,,,,,"288-color coordinated editor fallback material system; mobile perf budget PASS; full smoke PASS; console/page errors 0"
+run264,2026-08-11,run263-governance-checkpoint,,,,,,,"Run263 semantic checkpoint; runtime delta 0; full mandatory chain PASS"
+run267,2026-08-11,run266-governance-checkpoint,,,,,,,"Run266 entry-gate checkpoint; runtime delta 0; focused visual proof + full mandatory chain PASS"
+run268,2026-08-11,run264-hterrain-governance-checkpoint,,,,,,,"Run264 HTerrain checkpoint; runtime delta 0; Godot authoring + real-render normal-baker + full mandatory chain PASS"
+run272,2026-08-11,terrain-polish-001-governance-checkpoint,,,,,,,"runtime delta 0; merged grass anti-tiling checkpoint; full mandatory chain PASS"
+run274,2026-08-11,terrain-polish-002-governance-checkpoint,,,,,,,"material-only specular delta; full mandatory chain PASS"
+run276,2026-08-11,owner-map-surface-pindexes,,,,,,,"owner-map semantic vertex colors; geometry delta 0; mandatory DoD PASS"
+run277,2026-08-11,pindex01-deterministic-detail,,,,,,,"Pindex-01 color micro-detail only; geometry delta 0; mandatory DoD PASS"
+run278,2026-08-11,pindex02-deterministic-detail,,,,,,,"Pindex-02 color micro-detail only; geometry delta 0; mandatory DoD PASS"
+run280,2026-08-11,owner-map-semantic-fingerprint,,,,,,,"test-only immutable mask guard; runtime delta 0; mandatory DoD PASS"
+run281,2026-08-11,pindex03-deterministic-detail,,,,,,,"Pindex-03 color micro-detail only; geometry delta 0; mandatory DoD PASS"
+run282,2026-08-11,pindex04-deterministic-detail,,,,,,,"Pindex-04 color micro-detail only; geometry delta 0; mandatory DoD PASS"
+2026-08-12,run291-platform-control,1,51,688296,49,17,307
+2026-08-12,run292-pindex05-promotion,1,51,688296,49,17,326
+2026-08-12,run293-pindex06-detail,2,51,688296,49,17,347
+2026-08-12,run294-pindex07-detail,2,51,688296,49,17,347
+2026-08-12,run295-pindex08-detail,2,51,688296,49,17,326
+2026-08-12,run296-pindex09-detail,2,51,688296,49,17,347
+2026-08-12,run316-run303-write-workflow-retirement,1,51,688296,49,17,347
+2026-08-12,run318-pindex10-detail,1,51,688296,49,20,326
+2026-08-12,run321-platform-control,2,51,688296,49,20,307
+2026-08-13,run322-dragon-scale-shape,2,51,688296,49,20,326
+2026-08-13,run325-water-swell-river-flow,1,51,860328,49,21,391
+2026-08-13,run326-creature-rig,1,51,860328,49,21,326
+2026-08-13,run327-creature-gait,1,51,860328,49,21,257
+2026-08-13,run328-concurrency-verification,,,,,,,"verification-only concurrency collision; runtime/product source delta 0; full baseline reverified; no new render sample; last measured runtime sample remains run327"
+2026-08-13,run329-creature-brain,0,56,898314,50,26,326
+2026-08-13,run330-checkpoint-reverify,1,48,858912,46,16,391
+2026-08-13,run330-castles-villages,1,57,904446,51,29,326
+2026-08-13,run331-village-collision,1,52,866460,50,24,347
+2026-08-13,run332-npc-animal-collision,0,57,904446,51,29,257
+2026-08-13,run332-livingworldspawner-extract,1,57,904446,51,29,326
+2026-08-13,run333-merge-reconcile-livingworldspawner,2,57,904446,51,29,391
+2026-08-13,run334-bird-flight,1,52,866460,50,24,273
+2026-08-13,run335-worldevents-catalog-growth,1,52,866460,50,24,391
+2026-08-13,run336-cart-vehicle,1,57,904446,51,29,347
+2026-08-14,run337-player-cart-collision,1,52,866460,50,24,391
+2026-08-14,run338-cart-grade-speed,1,52,866460,50,24,347
+2026-08-14,run339-pause-menu,1,57,904446,51,29,415
+2026-08-14,run340-dialogue-pause-gate,1,52,866460,50,24,391

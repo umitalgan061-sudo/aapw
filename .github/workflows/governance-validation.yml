@@ -1,0 +1,127 @@
+name: Governance Validation
+
+on:
+  push:
+    branches:
+      - agent/run127-world-event-catalog-guard
+    paths:
+      - '.github/workflows/governance-validation.yml'
+      - 'scripts/checkWorldEventCatalog.js'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 120 GOVERNANCE.md
+          tail -n 160 3D_GAME_PROGRESS.md
+          tail -n 120 DECISIONS.md
+          tail -n 80 QUESTIONS_FOR_OWNER.md
+
+      - name: Syntax and integrity gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Full browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log")"
+          echo "SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+          test "$PASS_COUNT" -ge 34
+
+      - name: Performance snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run127 | tee "$RUNNER_TEMP/perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/perf-trend.log"
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          echo "PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+
+      - name: Self-review and additive guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkWorldEventCatalog.js; then exit 1; fi
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Append governance records
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          printf '\n## Run 127 — GitHub runner governance validation (%s)\n' "$STAMP" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Alt görev: WORLD_EVENTS katalog bütünlük guard gerçek repo checkout üzerinde doğrulandı." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Değişiklik: checkWorldEventCatalog.js + governance validation CI; mevcut uygulama kaynaklarından satır/dosya silinmedi." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- DoD: node --check PASS; katalog/PWA/cache/asset/smoke-registry/terrain/road guard PASS; browser smoke ${SMOKE_PASS_COUNT}/34+ PASS; additive-only PASS." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Performans: ${PERF_ROW}" >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Görsel doğrulama: runtime görsel davranışı değişmedi; gerçek 2D/3D browser boot ve UI smoke doğrulandı." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- ADR: runtime/mimari davranış değişmediği için yeni ADR gerekmiyor." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- Teknik borç: 0 yeni borç. World Coverage: değişmedi. World Evolution delta: 0. Risk: LOW. Güven: 5/5." >> 3D_GAME_PROGRESS.md
+          printf '%s\n' "- $TAG — run 127 governance validation; browser smoke ${SMOKE_PASS_COUNT}/34+ PASS, additive-only PASS, perf snapshot recorded." >> STABLE_TAGS.md
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Commit progress and performance log
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          git commit -m "docs: record run 127 validation and stable checkpoint"
+          git push origin HEAD:${GITHUB_REF_NAME}
+
+      - name: Stable tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag "$STABLE_TAG"
+          git push origin "$STABLE_TAG"

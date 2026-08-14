@@ -1,0 +1,27 @@
+name: World Event Determinism Guard
+
+on:
+  push:
+    branches: [main, 'agent/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  deterministic-world-events:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate fixed-seed world-event snapshot
+        run: |
+          set -euo pipefail
+          if [ ! -f scripts/fixtures/world-events-seed-148.json ]; then
+            echo "Run 148 bootstrap: fixture not committed yet; dedicated Run 148 workflow owns initial snapshot creation."
+            exit 0
+          fi
+          node --check scripts/checkWorldEventDeterminism.js
+          node --check src/3d/gameplay/worldEvents.js
+          node scripts/checkWorldEventDeterminism.js

@@ -12,10 +12,21 @@
  * standing at the drop's midpoint rather than a slanted patch following the real (gentle, non-
  * cliff) terrain between the two points.
  *
- * Scope of this first pass (see 3D_GAME_PROGRESS.md Known Issues): one static river near the
- * world origin, confined to the FAZ 1 preview area so it never renders over unloaded terrain;
- * a real flow-animated shader for either the river or its waterfalls is follow-up work, not
- * attempted here.
+ * Scope of the first pass (see 3D_GAME_PROGRESS.md Known Issues): one static river near the
+ * world origin, confined to the FAZ 1 preview area so it never renders over unloaded terrain.
+ * That pass deliberately deferred "a real flow-animated shader for either the river or its
+ * waterfalls" as follow-up work — **that follow-up is what `attachFlowAnimation` below now is**
+ * (ADR-0271). Both the river ribbon and the waterfall curtains keep their `MeshStandardMaterial`
+ * (so they still get `scene.fog` and the day/night lights for free, which was the original reason
+ * for choosing it over a custom `ShaderMaterial`); the flow is injected into that stock material
+ * through `onBeforeCompile` rather than replacing it.
+ *
+ * The animation is driven by three baked vertex attributes rather than by screen- or UV-space
+ * scrolling, so it follows the river's real geometry: `aFlowDistance` (arc length in meters from
+ * the source, which is what makes the foam travel *downstream* rather than in some fixed world
+ * direction), `aFlowSpeed` (per-vertex, derived from the local bed gradient — the river visibly
+ * rushes through its steep sections and idles through its flat ones) and `aFlowSide` (-1..1 across
+ * the ribbon, used to catch more foam against the banks than midstream).
  * @module world/rivers
  */
 
@@ -42,6 +53,111 @@ const DESCENT_ANGLE_JITTER_RADIANS = 0.35;
 const MAX_STUCK_ESCALATIONS = 4;
 
 const RIVER_COLOR = new THREE.Color(0x2f7ea8);
+
+/** Flow speed, in m/s, of the foam pattern over a perfectly flat reach. Not a physical current
+ * measurement — the speed the *visual* streaks travel at, tuned so a still-looking pool still reads
+ * as moving water. */
+const RIVER_BASE_FLOW_SPEED_MPS = 1.2;
+/** How much the local bed gradient adds to that speed, via `sqrt(grade)`. The square root (rather
+ * than a linear term) is the shape open-channel flow actually follows — Manning/Chézy both give
+ * velocity proportional to the square root of the slope — so the steep sections speed up markedly
+ * while the near-flat majority of the river stays calm, instead of everything scaling together. */
+const RIVER_GRADE_FLOW_GAIN = 6;
+/** Spatial frequency of the foam streaks, in radians per meter — 1.0 gives ~6.3m between crests,
+ * about two streaks per river width at the default 14m. An earlier 0.35 (~18m) was tried first and
+ * rejected on this run's own close-range evidence render: at one streak per two river widths the
+ * pattern read as a single drifting blob rather than as moving water. The streaks are evaluated
+ * per fragment from an interpolated arc length, so this frequency is independent of how far apart
+ * the traced river's actual path points are (~60m at the current step size). */
+const RIVER_FLOW_WAVENUMBER = 1.0;
+/** Waterfall curtains fall much faster than the river flows, and their drop is short, so they get
+ * their own fixed speed rather than a gradient-derived one. */
+const WATERFALL_FLOW_SPEED_MPS = 9;
+
+/**
+ * Injects downstream foam-streak animation into a stock `MeshStandardMaterial` via
+ * `onBeforeCompile`, leaving its PBR/fog/lighting behaviour untouched (see the module doc comment
+ * for why the material is not simply replaced with a `ShaderMaterial`).
+ *
+ * The mesh's geometry must already carry the `aFlowDistance`/`aFlowSpeed`/`aFlowSide` attributes —
+ * `createRiverMesh` and `createWaterfallMesh` both bake them.
+ * @param {THREE.MeshStandardMaterial} material Mutated in place.
+ * @param {string} cacheKey Distinguishes this injected program from any other material three.js
+ *   might otherwise consider identical; without it a sibling `MeshStandardMaterial` could be served
+ *   a cached program compiled without the injection.
+ * @param {number} foamStrength How far the foam colour is mixed in at a streak's peak. The waterfall
+ *   curtains get less than the river: their geometry already carries a white-to-blue vertex gradient
+ *   (foam at the lip, water at the plunge pool), and layering full-strength streaks on top of that
+ *   washed the whole curtain out to flat white in this run's evidence render.
+ * @returns {{uTime: {value: number}}} The uniform object `updateFlowAnimation` advances.
+ */
+function attachFlowAnimation(material, cacheKey, foamStrength) {
+	const flowUniforms = { uTime: { value: 0 } };
+	material.userData.flowUniforms = flowUniforms;
+	material.onBeforeCompile = (shader) => {
+		shader.uniforms.uTime = flowUniforms.uTime;
+		shader.vertexShader = shader.vertexShader
+			.replace(
+				'#include <common>',
+				`#include <common>
+				attribute float aFlowDistance;
+				attribute float aFlowSpeed;
+				attribute float aFlowSide;
+				varying float vFlowDistance;
+				varying float vFlowSpeed;
+				varying float vFlowSide;`,
+			)
+			.replace(
+				'#include <begin_vertex>',
+				`#include <begin_vertex>
+				vFlowDistance = aFlowDistance;
+				vFlowSpeed = aFlowSpeed;
+				vFlowSide = aFlowSide;`,
+			);
+		shader.fragmentShader = shader.fragmentShader
+			.replace(
+				'#include <common>',
+				`#include <common>
+				uniform float uTime;
+				varying float vFlowDistance;
+				varying float vFlowSpeed;
+				varying float vFlowSide;`,
+			)
+			.replace(
+				'#include <color_fragment>',
+				`#include <color_fragment>
+				{
+					// Subtracting time * speed from the along-flow arc length is what makes a crest of
+					// constant phase satisfy distance = time * speed, i.e. travel downstream at exactly
+					// the per-vertex speed baked from the local bed gradient.
+					float flowPhase = (vFlowDistance - uTime * vFlowSpeed) * ${RIVER_FLOW_WAVENUMBER.toFixed(4)};
+					float primary = sin(flowPhase) * 0.5 + 0.5;
+					// A second, longer band skewed across the channel keeps the streaks from reading as
+					// an evenly-spaced barcode marching in lockstep, and makes each one enter the bend
+					// at a slight angle the way real surface foam does.
+					float secondary = sin(flowPhase * 0.41 + vFlowSide * 3.7) * 0.5 + 0.5;
+					float foam = pow(primary * 0.6 + secondary * 0.4, 3.0);
+					// Banks catch and hold more foam than midstream does.
+					float bankBias = mix(0.5, 1.0, abs(vFlowSide));
+					diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.94, 0.97), foam * ${foamStrength.toFixed(3)} * bankBias);
+				}`,
+			);
+	};
+	material.customProgramCacheKey = () => cacheKey;
+	return flowUniforms;
+}
+
+/**
+ * Advances the flow animation on a mesh built by `createRiverMesh`/`createWaterfallMesh`. Safe to
+ * call on a mesh whose material never got the injection (it simply does nothing), so callers do not
+ * have to track which meshes are animated.
+ * @param {THREE.Mesh | null | undefined} mesh
+ * @param {number} elapsedSeconds
+ */
+export function updateFlowAnimation(mesh, elapsedSeconds) {
+	const flowUniforms = mesh?.material?.userData?.flowUniforms;
+	if (flowUniforms) flowUniforms.uTime.value = elapsedSeconds;
+}
 
 /**
  * Traces a deterministic downhill flow path from the highest point within `searchRadiusMeters` of
@@ -148,8 +264,13 @@ export function createRiverMesh(points, widthMeters = 14) {
 	const verticalOffset = 0.3; // meters above the sampled terrain height — see module/function doc.
 	const positions = new Float32Array(points.length * 2 * 3);
 	const colors = new Float32Array(points.length * 2 * 3);
+	// Flow-animation attributes — see the module doc comment and `attachFlowAnimation`.
+	const flowDistances = new Float32Array(points.length * 2);
+	const flowSpeeds = new Float32Array(points.length * 2);
+	const flowSides = new Float32Array(points.length * 2);
 	const indices = [];
 
+	let arcLengthMeters = 0;
 	for (let i = 0; i < points.length; i++) {
 		const point = points[i];
 		const prev = points[Math.max(0, i - 1)];
@@ -161,8 +282,21 @@ export function createRiverMesh(points, widthMeters = 14) {
 		const perpX = -tangentZ / tangentLength;
 		const perpZ = tangentX / tangentLength;
 
+		if (i > 0) arcLengthMeters += Math.hypot(point.x - points[i - 1].x, point.z - points[i - 1].z);
+		// Local bed gradient across this point's own neighbourhood (not just the previous segment),
+		// so a single noisy sample cannot make one ring of vertices race ahead of its neighbours.
+		const neighbourhoodRunMeters = Math.hypot(next.x - prev.x, next.z - prev.z) || 1;
+		const grade = Math.max(0, (prev.y - next.y) / neighbourhoodRunMeters);
+		const flowSpeedMps = RIVER_BASE_FLOW_SPEED_MPS + Math.sqrt(grade) * RIVER_GRADE_FLOW_GAIN;
+
 		const leftIndex = i * 2;
 		const rightIndex = i * 2 + 1;
+		flowDistances[leftIndex] = arcLengthMeters;
+		flowDistances[rightIndex] = arcLengthMeters;
+		flowSpeeds[leftIndex] = flowSpeedMps;
+		flowSpeeds[rightIndex] = flowSpeedMps;
+		flowSides[leftIndex] = -1;
+		flowSides[rightIndex] = 1;
 		positions[leftIndex * 3] = point.x + perpX * halfWidth;
 		positions[leftIndex * 3 + 1] = point.y + verticalOffset;
 		positions[leftIndex * 3 + 2] = point.z + perpZ * halfWidth;
@@ -187,6 +321,9 @@ export function createRiverMesh(points, widthMeters = 14) {
 	const geometry = new THREE.BufferGeometry();
 	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 	geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+	geometry.setAttribute('aFlowDistance', new THREE.BufferAttribute(flowDistances, 1));
+	geometry.setAttribute('aFlowSpeed', new THREE.BufferAttribute(flowSpeeds, 1));
+	geometry.setAttribute('aFlowSide', new THREE.BufferAttribute(flowSides, 1));
 	geometry.setIndex(indices);
 	geometry.computeVertexNormals();
 
@@ -198,8 +335,11 @@ export function createRiverMesh(points, widthMeters = 14) {
 		opacity: 0.88,
 		side: THREE.DoubleSide,
 	});
+	attachFlowAnimation(material, 'river-flow', 0.45);
 
-	return new THREE.Mesh(geometry, material);
+	const mesh = new THREE.Mesh(geometry, material);
+	mesh.userData.totalFlowLengthMeters = arcLengthMeters;
+	return mesh;
 }
 
 /**
@@ -285,10 +425,24 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 		RIVER_COLOR.r, RIVER_COLOR.g, RIVER_COLOR.b,
 	]);
 	const indices = [0, 2, 1, 2, 3, 1];
+	// Flow runs top-to-bottom here rather than along the channel: distance is measured down the
+	// curtain, so the same shader makes the foam fall instead of drift downstream.
+	// prettier-ignore
+	const flowDistances = new Float32Array([0, 0, dropMeters, dropMeters]);
+	const flowSpeeds = new Float32Array([
+		WATERFALL_FLOW_SPEED_MPS,
+		WATERFALL_FLOW_SPEED_MPS,
+		WATERFALL_FLOW_SPEED_MPS,
+		WATERFALL_FLOW_SPEED_MPS,
+	]);
+	const flowSides = new Float32Array([-1, 1, -1, 1]);
 
 	const geometry = new THREE.BufferGeometry();
 	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 	geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+	geometry.setAttribute('aFlowDistance', new THREE.BufferAttribute(flowDistances, 1));
+	geometry.setAttribute('aFlowSpeed', new THREE.BufferAttribute(flowSpeeds, 1));
+	geometry.setAttribute('aFlowSide', new THREE.BufferAttribute(flowSides, 1));
 	geometry.setIndex(indices);
 	geometry.computeVertexNormals();
 
@@ -300,6 +454,7 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 		opacity: 0.82,
 		side: THREE.DoubleSide,
 	});
+	attachFlowAnimation(material, 'waterfall-flow', 0.3);
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.userData.dropMeters = dropMeters;
 	return mesh;

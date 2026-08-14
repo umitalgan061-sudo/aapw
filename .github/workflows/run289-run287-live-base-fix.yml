@@ -1,0 +1,102 @@
+name: Run 289 Run287 Live Base Fix
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run289-run287-live-base-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Exact-main additive entry gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "[run300] PR global gate passed; keeping this workflow's historical path-isolation check for branch/manual runs only."
+            exit 0
+          fi
+          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"
+
+      - name: Run289 governance regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun289Run287BaseOverride.js
+          node scripts/checkRun289Run287BaseOverride.js
+          node scripts/checkRun287CheckpointParserCompat.js
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkRun283FinalHeadGovernance.js
+          node scripts/checkRun284PindexDetailChain.js
+
+      - name: World PWA and determinism contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Performance safety technical debt and full browser DoD
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run289-mobile.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run289-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run289-smoke.log")" -ge 34
+
+      - name: Final exact-main concurrency and additive-only gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "[run300] PR global gate passed; keeping this workflow's historical path-isolation check for branch/manual runs only."
+            exit 0
+          fi
+          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"

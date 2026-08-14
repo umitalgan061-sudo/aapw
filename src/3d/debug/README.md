@@ -30,7 +30,10 @@ debug/editor tool — it does not own or modify anything in `world/`, `gameplay/
   numbers. DOM writes are throttled to 4/sec; the underlying counters are still read fresh every
   call. Built to answer a real, twice-flagged gap (ADR-0047, ADR-0049): growing World Coverage
   (`CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS`) needs the *real*, not estimated, triangle/draw-call
-  cost of a frame before it's safe to commit to a bigger radius. See `DECISIONS.md` ADR-0053.
+  cost of a frame before it's safe to commit to a bigger radius. See `DECISIONS.md` ADR-0053. Run
+  66 (ADR-0084) added a fifth line: offline PWA storage-quota monitoring
+  (`navigator.storage.estimate()`, polled on its own 5s timer, feature-detected, flagged past 80%
+  usage) — closes the "izlenmesi" half of GOVERNANCE.md §15's cache-versioning rule.
 
 ## Conventions
 

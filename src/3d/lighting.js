@@ -12,6 +12,7 @@
  */
 
 import * as THREE from 'three';
+import { installNightVisualEnhancement, updateNightVisualEnhancement } from './nightVisualEnhancement.js';
 
 /**
  * Ordered day/night keyframes, each at a `ratio` in [0, 1) of a full day (0 = midnight, 0.5 =
@@ -35,6 +36,13 @@ const SKY_NIGHT = { horizon: new THREE.Color(0xd98a52), zenith: new THREE.Color(
 
 /** Radius, in meters, of the sun's circular path around the origin — only its direction matters (it's a DirectionalLight), the radius just keeps it a sane finite position for debugging/gizmos. */
 const SUN_ORBIT_RADIUS_METERS = 500;
+
+// Owner readability requirement (2026-08-10): gameplay may still become night, but never a near-black
+// silhouette scene. This cool fill is intentionally a child of the existing hemisphere light so the
+// public `{ sun, hemisphere }` contract and existing dispose path remain unchanged/additive-only.
+const NIGHT_READABILITY_LIGHT_NAME = 'Game Night Readability Fill';
+const NIGHT_READABILITY_DAY_INTENSITY = 0.08;
+const NIGHT_READABILITY_NIGHT_INTENSITY = 1.05;
 
 /**
  * Finds the two keyframes surrounding `ratio` and the local 0-1 blend between them.
@@ -70,6 +78,11 @@ export function createDayNightLighting(scene) {
 	const hemisphere = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
 	scene.add(sun);
 	scene.add(hemisphere);
+	const readability = new THREE.HemisphereLight(0xaed9ff, 0x4e5848, NIGHT_READABILITY_DAY_INTENSITY);
+	readability.name = NIGHT_READABILITY_LIGHT_NAME;
+	readability.userData.gameNightReadability = true;
+	hemisphere.add(readability);
+	installNightVisualEnhancement(hemisphere);
 	return { sun, hemisphere };
 }
 
@@ -100,6 +113,13 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 	lights.hemisphere.intensity = a.hemiIntensity + (b.hemiIntensity - a.hemiIntensity) * t;
 
 	const nightFactor = a.nightFactor + (b.nightFactor - a.nightFactor) * t;
+	const readability = lights.hemisphere.getObjectByName(NIGHT_READABILITY_LIGHT_NAME);
+	if (readability?.isHemisphereLight) {
+		const smoothNightFactor = nightFactor * nightFactor * (3 - 2 * nightFactor);
+		readability.intensity = NIGHT_READABILITY_DAY_INTENSITY +
+			(NIGHT_READABILITY_NIGHT_INTENSITY - NIGHT_READABILITY_DAY_INTENSITY) * smoothNightFactor;
+	}
+	updateNightVisualEnhancement(lights.hemisphere, nightFactor);
 
 	// Sun arcs through a fixed vertical plane: elevation via sine, tracking the same [0,1) ratio
 	// (0.25 = sunrise at the horizon, 0.5 = noon overhead, 0.75 = sunset at the horizon).

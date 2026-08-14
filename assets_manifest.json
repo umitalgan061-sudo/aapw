@@ -15,7 +15,8 @@
       "textureSize": null,
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Rigged medieval-style female character, downloaded manually via authenticated Mixamo session (cannot be automated by the cloud agent). Intended as base mesh for FAZ 4 (Oynanabilir Karakter) and/or generic NPC."
+      "notes": "Rigged medieval-style female character, downloaded manually via authenticated Mixamo session (cannot be automated by the cloud agent). Intended as base mesh for FAZ 4 (Oynanabilir Karakter) and/or generic NPC.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "anim_idle",
@@ -30,7 +31,8 @@
       "format": "FBX Binary",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Idle animation, no mesh (retarget onto peasant_girl skeleton via Three.js AnimationMixer)."
+      "notes": "Idle animation, no mesh (retarget onto peasant_girl skeleton via Three.js AnimationMixer).",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "anim_walking",
@@ -45,7 +47,8 @@
       "format": "FBX Binary",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Walking cycle, In Place enabled so root does not translate — movement driven by player controller code."
+      "notes": "Walking cycle, In Place enabled so root does not translate — movement driven by player controller code.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "anim_running",
@@ -60,7 +63,8 @@
       "format": "FBX Binary",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Running cycle, In Place enabled — movement driven by player controller code."
+      "notes": "Running cycle, In Place enabled — movement driven by player controller code.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "paladin_j_nordstrom",
@@ -76,7 +80,8 @@
       "textureSize": null,
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Armored paladin/knight, no weapon prop. Shares Mixamo standard skeleton — reuses peasant_girl's idle/walking/running animation clips via retargeting."
+      "notes": "Armored paladin/knight, no weapon prop. Shares Mixamo standard skeleton — reuses peasant_girl's idle/walking/running animation clips via retargeting.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "paladin_wprop_j_nordstrom",
@@ -92,7 +97,8 @@
       "textureSize": null,
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Same paladin, with attached weapon prop mesh. Shares Mixamo standard skeleton."
+      "notes": "Same paladin, with attached weapon prop mesh. Shares Mixamo standard skeleton.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "dreyar",
@@ -108,7 +114,8 @@
       "textureSize": null,
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Sci-fi/armored male character (by M.Aure). Shares Mixamo standard skeleton."
+      "notes": "Sci-fi/armored male character (by M.Aure). Shares Mixamo standard skeleton.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "erika_archer",
@@ -124,7 +131,8 @@
       "textureSize": null,
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Hooded ranger/archer character, no bow prop variant. Shares Mixamo standard skeleton."
+      "notes": "Hooded ranger/archer character, no bow prop variant. Shares Mixamo standard skeleton.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "uriel_a_plotexia",
@@ -140,7 +148,8 @@
       "textureSize": null,
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Ornate gold-armored heavy character. Shares Mixamo standard skeleton."
+      "notes": "Ornate gold-armored heavy character. Shares Mixamo standard skeleton.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "arissa",
@@ -156,7 +165,8 @@
       "textureSize": null,
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Hooded rogue/assassin-style female character with dual blades. Shares Mixamo standard skeleton."
+      "notes": "Hooded rogue/assassin-style female character with dual blades. Shares Mixamo standard skeleton.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "wolf",
@@ -180,7 +190,8 @@
       ],
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Low-poly rigged/animated wolf for FAZ 6 (Hayvanlar). Manually downloaded by project owner (bu sitenin indirme akışı otomatik tıklamayla tetiklenmiyor). glTF/GLB kullan — Three.js GLTFLoader zaten vendored, dönüştürme gerekmez."
+      "notes": "Low-poly rigged/animated wolf for FAZ 6 (Hayvanlar). Manually downloaded by project owner (bu sitenin indirme akışı otomatik tıklamayla tetiklenmiyor). glTF/GLB kullan — Three.js GLTFLoader zaten vendored, dönüştürme gerekmez.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "black_dragon",
@@ -204,7 +215,8 @@
       ],
       "deprecated": false,
       "replacedBy": null,
-      "notes": "ÖNEMLİ: Bu jenerik/orijinal bir ejderha tasarımıdır (3dhaupt'un kendi yaratımı), HBO/Game of Thrones'un 'Drogon' karakterinin kopyası DEĞİLDİR — o modeli kasıtlı olarak reddettik (telifli karakter replikası riski). FAZ 7 (Ejderhalar) için kullan — run 53'te ilk spawn+uçuş AI'ı için kullanıldı (gameplay/dragons.js, DECISIONS.md ADR-0071). animationClips run 53'te gerçek headless-Chromium render ile düzeltildi: eski liste (\"Run cycle\"/\"Walk cycle\"/\"Idle\"/\"Jump\"/\"Open Wings\"/\"Fly\") dosyanın gerçek klip adlarıyla eşleşmiyordu — gerçek dosyada sadece 4 klip var, \"Jump\"/\"Open Wings\" hiç yok. Ayrıca kaynak FBX'in gömülü doku referansları (Dragon_ground_color.jpg vb.) `textures/` alt klasöründe, FBXLoader'ın varsayılan çözümleme dizini (FBX'in kendi dizini) değil — AssetLoader.loadFBXModel'e yeni `resourcePath` seçeneği eklendi (run 53) bu yüzden. Manually downloaded by project owner (bu sitenin indirme akışı otomatik tıklamayla tetiklenmiyor)."
+      "notes": "ÖNEMLİ: Bu jenerik/orijinal bir ejderha tasarımıdır (3dhaupt'un kendi yaratımı), HBO/Game of Thrones'un 'Drogon' karakterinin kopyası DEĞİLDİR — o modeli kasıtlı olarak reddettik (telifli karakter replikası riski). FAZ 7 (Ejderhalar) için kullan — run 53'te ilk spawn+uçuş AI'ı için kullanıldı (gameplay/dragons.js, DECISIONS.md ADR-0071). animationClips run 53'te gerçek headless-Chromium render ile düzeltildi: eski liste (\"Run cycle\"/\"Walk cycle\"/\"Idle\"/\"Jump\"/\"Open Wings\"/\"Fly\") dosyanın gerçek klip adlarıyla eşleşmiyordu — gerçek dosyada sadece 4 klip var, \"Jump\"/\"Open Wings\" hiç yok. Ayrıca kaynak FBX'in gömülü doku referansları (Dragon_ground_color.jpg vb.) `textures/` alt klasöründe, FBXLoader'ın varsayılan çözümleme dizini (FBX'in kendi dizini) değil — AssetLoader.loadFBXModel'e yeni `resourcePath` seçeneği eklendi (run 53) bu yüzden. Manually downloaded by project owner (bu sitenin indirme akışı otomatik tıklamayla tetiklenmiyor).",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "elven_warrior",
@@ -219,7 +231,8 @@
       "animated": false,
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated ortaçağ/fantastik elf savaşçı karakteri, yeşil zırh. Manually downloaded by project owner (Meshy AI web arayüzünden, cloud ajanının erişemeyeceği bir hesap gerektiriyor). RİG/İSKELET İÇERMİYOR — FAZ 5 (NPC) için statik/dekoratif kullanım ya da Mixamo peasant_girl iskeletine manuel rigging/retarget gerekirse ek iş gerekir; ilk aşamada duruş (T-pose olmayabilir, üretilen pozda) sabit NPC olarak kullanılabilir. İki reddedilen kardeş model de indirildi ama eklenmedi: 'Boho Western Muse' (tema uyumsuz) ve 'Violet Neon Runner' (tema uyumsuz + ~152MB, performans bütçesine aykırı) — istenirse ileride tekrar değerlendirilebilir."
+      "notes": "AI-generated ortaçağ/fantastik elf savaşçı karakteri, yeşil zırh. Manually downloaded by project owner (Meshy AI web arayüzünden, cloud ajanının erişemeyeceği bir hesap gerektiriyor). RİG/İSKELET İÇERMİYOR — FAZ 5 (NPC) için statik/dekoratif kullanım ya da Mixamo peasant_girl iskeletine manuel rigging/retarget gerekirse ek iş gerekir; ilk aşamada duruş (T-pose olmayabilir, üretilen pozda) sabit NPC olarak kullanılabilir. İki reddedilen kardeş model de indirildi ama eklenmedi: 'Boho Western Muse' (tema uyumsuz) ve 'Violet Neon Runner' (tema uyumsuz + ~152MB, performans bütçesine aykırı) — istenirse ileride tekrar değerlendirilebilir.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "dragon_auric",
@@ -236,7 +249,8 @@
       "polygons": "unmeasured, ~29.8MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated 'Auric' dragon (golden theme). Geometry only, no material/texture baked in (Meshy 'generate' stage, not 'texture' stage) — needs a PBR material assigned in-engine before use. FAZ 7 candidate."
+      "notes": "AI-generated 'Auric' dragon (golden theme). Geometry only, no material/texture baked in (Meshy 'generate' stage, not 'texture' stage) — needs a PBR material assigned in-engine before use. FAZ 7 candidate.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "dragon_frostscale",
@@ -253,7 +267,8 @@
       "polygons": "unmeasured, ~32.8MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated ice/frost-themed dragon. Geometry only, no texture. A duplicate download of the same generation exists (discarded, byte-identical). FAZ 7 candidate."
+      "notes": "AI-generated ice/frost-themed dragon. Geometry only, no texture. A duplicate download of the same generation exists (discarded, byte-identical). FAZ 7 candidate.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "dragon_verdant_wyrm",
@@ -270,7 +285,8 @@
       "polygons": "unmeasured, ~38MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated green/verdant dragon, fully textured — ready-to-use appearance, the best of the Meshy dragon batch. FAZ 7 first-pick candidate for the dragon's visual model (still needs rigging/animation added separately, e.g. procedural wing-flap bone animation, since it has 0 skins/animations)."
+      "notes": "AI-generated green/verdant dragon, fully textured — ready-to-use appearance, the best of the Meshy dragon batch. FAZ 7 first-pick candidate for the dragon's visual model (still needs rigging/animation added separately, e.g. procedural wing-flap bone animation, since it has 0 skins/animations).",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "dragon_spiked_serpent",
@@ -287,7 +303,8 @@
       "polygons": "unmeasured, ~39.5MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated 'formidable spiked serpent/dragon', textured. Alternate visual style to verdant_wyrm for creature variety (e.g. a second wild dragon encountered in-world vs. the player's mount)."
+      "notes": "AI-generated 'formidable spiked serpent/dragon', textured. Alternate visual style to verdant_wyrm for creature variety (e.g. a second wild dragon encountered in-world vs. the player's mount).",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "dragon_reference_v1",
@@ -303,8 +320,9 @@
       "hasMaterial": true,
       "polygons": "1,986,672 triangles (measured, run 52 via `gltf-transform inspect`), 85.24MB raw",
       "deprecated": false,
-      "replacedBy": null,
-      "notes": "⚠️ MISLABELED (found run 52, confirmed by real headless-Chromium render through the project's own AssetLoader/GLTFLoader — not assumed from the filename): despite the `dragon_reference_v1` id/filename, this file's actual geometry is a fully-textured fantasy castle/gatehouse (keep, twin corner towers, conical roofs, a banner, a wooden drawbridge) — NOT a dragon, and NOT the same asset as dragon_reference_v2/v3 (those two really are the same ornate gold dragon as each other, confirmed by render — see their own notes). Likely a batch-download/organizing mixup during the original manual asset step, not a code bug. Do not use this file for any FAZ 7 dragon work. Its castle content may still be useful for FAZ 3 (it already has baked material/texture, unlike the 7 geometry-only `castle_*` entries below), but that is a separate, not-yet-made product decision — left as-is, unconsumed by code, until a human or a future run deliberately decides to use it as a castle asset under a correctly-labeled id. Still needs its own decimation (~2M triangles, two 4096x4096 PNGs) before any real use either way."
+      "replacedBy": "castle_reference_gatehouse_decimated",
+      "notes": "⚠️ MISLABELED (found run 52, confirmed by real headless-Chromium render through the project's own AssetLoader/GLTFLoader — not assumed from the filename): despite the `dragon_reference_v1` id/filename, this file's actual geometry is a fully-textured fantasy castle/gatehouse (keep, twin corner towers, conical roofs, a banner, a wooden drawbridge) — NOT a dragon, and NOT the same asset as dragon_reference_v2/v3 (those two really are the same ornate gold dragon as each other, confirmed by render — see their own notes). Likely a batch-download/organizing mixup during the original manual asset step, not a code bug. Do not use this file for any FAZ 7 dragon work. **Used run 67 (DECISIONS.md ADR-0086):** decimated into `castle_reference_gatehouse_decimated` and wired into `world/settlements.js`'s `CASTLE_MODEL_ASSIGNMENTS` as the `twin` kingdom seat's real castle (the model's own wooden-drawbridge/gatehouse silhouette fits the Twins' river-crossing dialogue flavor already in `dialogueChoices.js`), bringing real-castle coverage from 7/14 to 8/14. Kept at full size here for provenance/re-decimation, same convention every other `castle_*`/`dragon_reference_v2` original already follows.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "dragon_reference_v2",
@@ -321,7 +339,8 @@
       "polygons": "1,997,140 triangles (measured, run 52), 86.89MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "CONFIRMED (run 52, real headless-Chromium render): a real, fully-textured ornate gold/bronze dragon — the correct FAZ 7 reference model (dragon_reference_v1's id/filename is misleading, see its own note; v1 is actually an unrelated castle). Same tech debt as before (needs decimation/compression before use) — now resolved: see `dragon_reference_v2_decimated` below, produced this run and verified to render correctly at 19,762 triangles / 1.67MB, well inside the <20K tri / <5MB target. Kept at full size here for provenance/re-decimation if a different ratio is ever needed; the decimated file is the one any future FAZ 7 code should actually load."
+      "notes": "CONFIRMED (run 52, real headless-Chromium render): a real, fully-textured ornate gold/bronze dragon — the correct FAZ 7 reference model (dragon_reference_v1's id/filename is misleading, see its own note; v1 is actually an unrelated castle). Same tech debt as before (needs decimation/compression before use) — now resolved: see `dragon_reference_v2_decimated` below, produced this run and verified to render correctly at 19,762 triangles / 1.67MB, well inside the <20K tri / <5MB target. Kept at full size here for provenance/re-decimation if a different ratio is ever needed; the decimated file is the one any future FAZ 7 code should actually load.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "dragon_reference_v2_decimated",
@@ -338,7 +357,8 @@
       "polygons": "19,762 triangles, 1.67MB — inside the <20K tri / <5MB target from dragon_reference_v1's original notes",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Production-ready decimated dragon reference model — the file any future FAZ 7 spawn/AI code should actually load, not the ~2M-triangle originals. Verified via a real headless-Chromium render through the project's own AssetLoader.loadModel (not the placeholder-box fallback), zero console/page errors, silhouette/texture still clearly reads as the same dragon after a ~99% triangle reduction and ~98% file-size reduction. Not rigged/animated — FAZ 7 will still need to add a skeleton or procedural wing-flap/flight animation separately, same gap `dragon_verdant_wyrm`'s notes already flag for its own model."
+      "notes": "Production-ready decimated dragon reference model — the file any future FAZ 7 spawn/AI code should actually load, not the ~2M-triangle originals. Verified via a real headless-Chromium render through the project's own AssetLoader.loadModel (not the placeholder-box fallback), zero console/page errors, silhouette/texture still clearly reads as the same dragon after a ~99% triangle reduction and ~98% file-size reduction. Not rigged/animated — FAZ 7 will still need to add a skeleton or procedural wing-flap/flight animation separately, same gap `dragon_verdant_wyrm`'s notes already flag for its own model.",
+      "dateAdded": "2026-07-31"
     },
     {
       "id": "dragon_reference_v3",
@@ -355,7 +375,8 @@
       "polygons": "1,994,462 triangles (measured, run 52), 85.09MB raw",
       "deprecated": false,
       "replacedBy": "dragon_reference_v2_decimated",
-      "notes": "CONFIRMED (run 52, real render): the same ornate gold dragon as dragon_reference_v2 (not v1 — v1 is an unrelated castle, see its own note), a third generation attempt from the same reference image. dragon_reference_v2 was picked as the one to decimate (arbitrary tie-break between two near-identical successful generations, v2 tried first); this file is now superseded by dragon_reference_v2_decimated and not needed further. Kept for provenance rather than deleted this run — a future cleanup pass may delete v1/v3's full-size originals once FAZ 7 actually ships and nobody has needed to re-decimate at a different ratio."
+      "notes": "CONFIRMED (run 52, real render): the same ornate gold dragon as dragon_reference_v2 (not v1 — v1 is an unrelated castle, see its own note), a third generation attempt from the same reference image. dragon_reference_v2 was picked as the one to decimate (arbitrary tie-break between two near-identical successful generations, v2 tried first); this file is now superseded by dragon_reference_v2_decimated and not needed further. Kept for provenance rather than deleted this run — a future cleanup pass may delete v1/v3's full-size originals once FAZ 7 actually ships and nobody has needed to re-decimate at a different ratio.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "castle_brickstone_citadel",
@@ -367,12 +388,27 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~7.5MB raw",
+      "polygons": "438,250 triangles (measured, run 54), ~7.5MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_brickstone_citadel_decimated",
+      "notes": "AI-generated castle, geometry only (no texture — needs a procedural PBR material, same technique FAZ 3 already built for its settlement system). One of 7 castle variants added this batch for visual variety alongside the existing procedural kingdom-seat settlements. Kept at full size for provenance/re-decimation; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074).",
+      "dateAdded": "2026-07-30"
+    },
+    {
+      "id": "castle_brickstone_citadel_decimated",
+      "file": "assets/models/settlements/castles/brickstone_citadel_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "35,052 triangles (measured), 420.84 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated castle, geometry only (no texture — needs a procedural PBR material, same technique FAZ 3 already built for its settlement system). One of 7 castle variants added this batch for visual variety alongside the existing procedural kingdom-seat settlements.",
-      "rigged": false,
-      "animated": false
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_brickstone_citadel (same pipeline as DECISIONS.md ADR-0070's dragon decimation). Assigned to the `doran` kingdom seat (DECISIONS.md ADR-0074) — Dornish sandstone/brick architecture theme match. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file.",
+      "dateAdded": "2026-07-31"
     },
     {
       "id": "castle_on_a_rock",
@@ -384,12 +420,27 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~6.9MB raw",
+      "polygons": "403,870 triangles (measured, run 54), ~6.9MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_castle_on_a_rock_decimated",
+      "notes": "AI-generated castle on a rocky outcrop, geometry only. Good candidate for a coastal/cliffside kingdom seat. Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074).",
+      "dateAdded": "2026-07-30"
+    },
+    {
+      "id": "castle_castle_on_a_rock_decimated",
+      "file": "assets/models/settlements/castles/castle_on_a_rock_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "32,270 triangles (measured), 384.26 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated castle on a rocky outcrop, geometry only. Good candidate for a coastal/cliffside kingdom seat.",
-      "rigged": false,
-      "animated": false
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_on_a_rock. Assigned to the `balon` (Greyjoy) kingdom seat (DECISIONS.md ADR-0074) — Iron Islands coastal/rock theme match. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file.",
+      "dateAdded": "2026-07-31"
     },
     {
       "id": "castle_emerald_citadel",
@@ -401,12 +452,27 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~5.9MB raw",
+      "polygons": "342,614 triangles (measured, run 54), ~5.9MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_emerald_citadel_decimated",
+      "notes": "AI-generated castle, green/emerald theme, geometry only. Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074).",
+      "dateAdded": "2026-07-30"
+    },
+    {
+      "id": "castle_emerald_citadel_decimated",
+      "file": "assets/models/settlements/castles/emerald_citadel_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "27,382 triangles (measured), 327.01 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated castle, green/emerald theme, geometry only.",
-      "rigged": false,
-      "animated": false
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_emerald_citadel. Assigned to the `ziya` (Tyrell) kingdom seat (DECISIONS.md ADR-0074) — House Tyrell's own green/gold rose sigil theme match. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file.",
+      "dateAdded": "2026-07-31"
     },
     {
       "id": "castle_fortress_of_the_crown",
@@ -418,12 +484,27 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~7.7MB raw",
+      "polygons": "446,828 triangles (measured, run 54), ~7.7MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_fortress_of_the_crown_decimated",
+      "notes": "AI-generated grand fortress, geometry only. Good candidate for a capital/throne-seat kingdom (e.g. King's Landing equivalent). Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074).",
+      "dateAdded": "2026-07-30"
+    },
+    {
+      "id": "castle_fortress_of_the_crown_decimated",
+      "file": "assets/models/settlements/castles/fortress_of_the_crown_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "35,746 triangles (measured), 428.89 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated grand fortress, geometry only. Good candidate for a capital/throne-seat kingdom (e.g. King's Landing equivalent).",
-      "rigged": false,
-      "animated": false
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_fortress_of_the_crown. Assigned to the `cersei` (Lannister) kingdom seat (DECISIONS.md ADR-0074) — the manifest's own King's Landing/capital-seat suggestion, and cersei is this world's actual reigning-crown character in canon. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file.",
+      "dateAdded": "2026-07-31"
     },
     {
       "id": "castle_greystone_castle",
@@ -435,12 +516,27 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~2.5MB raw",
+      "polygons": "144,084 triangles (measured, run 54), ~2.5MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_greystone_castle_decimated",
+      "notes": "AI-generated grey stone castle, geometry only, smallest of the batch. Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074).",
+      "dateAdded": "2026-07-30"
+    },
+    {
+      "id": "castle_greystone_castle_decimated",
+      "file": "assets/models/settlements/castles/greystone_castle_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "11,526 triangles (measured), 138.97 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated grey stone castle, geometry only, smallest of the batch.",
-      "rigged": false,
-      "animated": false
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_greystone_castle. Assigned to the `berkalp` (Stark) kingdom seat (DECISIONS.md ADR-0074) — grey stone matches House Stark's own grey/direwolf theme. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file.",
+      "dateAdded": "2026-07-31"
     },
     {
       "id": "castle_icebound_citadel",
@@ -452,12 +548,27 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~4.0MB raw",
+      "polygons": "234,716 triangles (measured, run 54), ~4.0MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_icebound_citadel_decimated",
+      "notes": "AI-generated ice/frost-themed castle, geometry only. Good candidate for a northern kingdom seat (e.g. Winterfell equivalent). Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074).",
+      "dateAdded": "2026-07-30"
+    },
+    {
+      "id": "castle_icebound_citadel_decimated",
+      "file": "assets/models/settlements/castles/icebound_citadel_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "18,746 triangles (measured), 224.08 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated ice/frost-themed castle, geometry only. Good candidate for a northern kingdom seat (e.g. Winterfell equivalent).",
-      "rigged": false,
-      "animated": false
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_icebound_citadel. Assigned to the `jon` kingdom seat (DECISIONS.md ADR-0074) — this project's own manifest note's exact suggested match (northernmost seat by map coordinate, character 'Jon Snow'/Stark = the Wall/North in canon). Visually reads as jagged ice-spike/frost formations rather than traditional stone crenellations even before decimation — a real render, checked directly, not a decimation artifact; the source model's own low bounding-box height (~0.36 of its footprint) confirms a naturally flat/spiky ice-formation shape. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial) still reads fine over this geometry — the material's job is surface shading, not silhouette. Not baked into this file.",
+      "dateAdded": "2026-07-31"
     },
     {
       "id": "castle_walled_city_fortress",
@@ -469,12 +580,43 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "hasMaterial": false,
-      "polygons": "unmeasured, ~11.0MB raw",
+      "polygons": "478,460 triangles (measured, run 54), ~11.0MB raw",
+      "deprecated": false,
+      "replacedBy": "castle_walled_city_fortress_decimated",
+      "notes": "AI-generated walled city with fortress, geometry only, largest of the castle batch — likely the most detailed, good for a major/capital settlement. Kept at full size for provenance; the decimated file is the one real game code actually loads (see DECISIONS.md ADR-0074).",
+      "dateAdded": "2026-07-30"
+    },
+    {
+      "id": "castle_walled_city_fortress_decimated",
+      "file": "assets/models/settlements/castles/walled_city_fortress_decimated.glb",
+      "type": "settlement_model",
+      "source": "Meshy AI (decimated via gltf-transform, run 54)",
+      "sourceUrl": "https://www.meshy.ai",
+      "license": "Meshy AI generation license",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": false,
+      "polygons": "38,260 triangles (measured), 688.48 KB",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated walled city with fortress, geometry only, largest of the castle batch — likely the most detailed, good for a major/capital settlement.",
-      "rigged": false,
-      "animated": false
+      "notes": "gltf-transform weld -> simplify --ratio 0.08 --error 0.03 -> prune pass on castle_walled_city_fortress. Assigned to the `umit` kingdom seat (DECISIONS.md ADR-0074) — the player's own home seat, and this manifest's own largest/most-detailed entry, matching the note's 'major/capital settlement' suggestion. Real, deterministic stone material applied at runtime by world/settlements.js (createStoneMaterial), not baked into this file.",
+      "dateAdded": "2026-07-31"
+    },
+    {
+      "id": "castle_reference_gatehouse_decimated",
+      "file": "assets/models/settlements/castles/gatehouse_reference_decimated.glb",
+      "type": "settlement_model",
+      "source": "Hitem3d (image-to-3D generation) — decimated via gltf-transform, run 67",
+      "sourceUrl": "https://hitem3d.ai",
+      "license": "Hitem3d generation license — verify the account's plan terms before any public/commercial use (irrelevant for this private repo)",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "hasMaterial": true,
+      "polygons": "19,630 triangles (measured), 635KB — inside the same range every other decimated castle already lands in (11.5K-38K tri, 138KB-688KB)",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "gltf-transform weld -> simplify --ratio 0.0099 --error 0.06 (same ratio as ADR-0070's dragon decimation, not ADR-0074's 0.08 — this source has ~4-5x the triangle count of the 7 castle_* originals, so the same 0.08 ratio would have overshot the desktop triangle budget target; 0.0099 lands this file in the same final triangle range those 7 did) -> resize 512x512 (source had two 4096x4096 PNGs, ADR-0070 precedent for a textured source) -> prune pass on dragon_reference_v1 (mislabeled asset, see its own manifest note — real content is a fantasy castle/gatehouse with keep/twin corner towers/conical roofs/a wooden drawbridge, not a dragon). Assigned to the `twin` kingdom seat (DECISIONS.md ADR-0086) — the model's own drawbridge/gatehouse silhouette fits the Twins' river-crossing toll flavor already in `dialogueChoices.js`'s `twin-guard-1` entry. `hasMaterial: true` unlike the other 7 decimated castle entries: this source came with a baked PBR texture (unlike those 7's geometry-only Meshy originals), but `world/settlements.js`'s `spawnRealCastleModels` overwrites every loaded model's material with the same seeded `createStoneMaterial` regardless — the baked texture ships in the file (harmless, ~1MB) but is not actually rendered, same as it would be discarded if stripped instead. Real, deterministic stone material applied at runtime, not the baked one.",
+      "dateAdded": "2026-08-05"
     },
     {
       "id": "animal_ivory_stallion",
@@ -491,7 +633,8 @@
       "polygons": "unmeasured, ~0.9MB raw — smallest asset in the repo",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated white/ivory horse, geometry only, no texture, no rig. FAZ 6 (Hayvanlar) candidate — needs rigging (e.g. onto a generic quadruped skeleton) before it can be animated/ridden; usable as a static prop in the meantime."
+      "notes": "AI-generated white/ivory horse, geometry only, no texture, no rig. FAZ 6 (Hayvanlar) candidate — needs rigging (e.g. onto a generic quadruped skeleton) before it can be animated/ridden; usable as a static prop in the meantime.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "character_verdant_knight",
@@ -508,7 +651,8 @@
       "polygons": "unmeasured, ~2.9MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated knight in green livery, geometry only, no rig. FAZ 5 NPC candidate — static appearance only until rigged."
+      "notes": "AI-generated knight in green livery, geometry only, no rig. FAZ 5 NPC candidate — static appearance only until rigged.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "character_wooden_legion",
@@ -525,7 +669,8 @@
       "polygons": "unmeasured, ~2.7MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated 'March of the Wooden Legion' — likely a group/formation of wooden soldier or construct figures (exact content unverified, no visual preview available in this pipeline; whoever uses this in FAZ 5/8 should open it in a model viewer first to confirm what it actually contains before wiring it into code)."
+      "notes": "AI-generated 'March of the Wooden Legion' — likely a group/formation of wooden soldier or construct figures (exact content unverified, no visual preview available in this pipeline; whoever uses this in FAZ 5/8 should open it in a model viewer first to confirm what it actually contains before wiring it into code).",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "character_ionic_grace",
@@ -542,7 +687,8 @@
       "polygons": "unmeasured, ~23.5MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated character, textured, no rig. Name suggests a modern/generic style that may not fit the medieval fantasy theme as well as the other characters in this batch — verify visually before using as a Westeros NPC; may need a reskin or restyled generation to fit."
+      "notes": "AI-generated character, textured, no rig. Name suggests a modern/generic style that may not fit the medieval fantasy theme as well as the other characters in this batch — verify visually before using as a Westeros NPC; may need a reskin or restyled generation to fit.",
+      "dateAdded": "2026-07-30"
     },
     {
       "id": "character_casual_confidence",
@@ -559,7 +705,68 @@
       "polygons": "unmeasured, ~1.4MB raw, smallest character in the batch",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated character, geometry only, no rig. Name suggests a modern/casual pose that may not fit the medieval fantasy theme — verify visually before using as a Westeros NPC; may need a reskin or restyled generation to fit."
+      "notes": "AI-generated character, geometry only, no rig. Name suggests a modern/casual pose that may not fit the medieval fantasy theme — verify visually before using as a Westeros NPC; may need a reskin or restyled generation to fit.",
+      "dateAdded": "2026-07-30"
+    },
+    {
+      "id": "moon_2k",
+      "file": "assets/models/Ay/Moon 2K.fbx",
+      "type": "prop_model",
+      "source": "Owner upload; original source not recorded",
+      "sourceUrl": null,
+      "license": "UNKNOWN — owner-approved for runtime use (GOVERNANCE.md §33.3, 2026-08-13)",
+      "version": 1,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Formerly quarantined (assets_manifest.quarantine.json) pending provenance confirmation. Owner directive 2026-08-13 dissolved the quarantine outright: every file under assets/ is approved for runtime use regardless of recorded provenance. Original provenance hint kept below verbatim so the record is not lost. See GOVERNANCE_FULL_GAME_DIRECTIVE.md §4. Original sourceHint: FBX metadata shows Blender 2.79 export and an internal /foobar.fbx filename; this is not sufficient provenance.",
+      "dateAdded": "2026-08-13",
+      "formerlyQuarantined": true
+    },
+    {
+      "id": "character_golden_vanguard_knight",
+      "file": "assets/models/characters/Meshy_AI_Golden_Vanguard_Knigh_0809074809_texture.fbx",
+      "type": "character_model",
+      "source": "Owner upload; original source not independently verified",
+      "sourceUrl": null,
+      "license": "UNKNOWN — owner-approved for runtime use (GOVERNANCE.md §33.3, 2026-08-13)",
+      "version": 1,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Formerly quarantined (assets_manifest.quarantine.json) pending provenance confirmation. Owner directive 2026-08-13 dissolved the quarantine outright: every file under assets/ is approved for runtime use regardless of recorded provenance. Original provenance hint kept below verbatim so the record is not lost. See GOVERNANCE_FULL_GAME_DIRECTIVE.md §4. Original sourceHint: Filename contains Meshy_AI and the repository has other Meshy AI assets, but filename alone is not treated as license proof.",
+      "dateAdded": "2026-08-13",
+      "formerlyQuarantined": true
+    },
+    {
+      "id": "character_iron_sentinel",
+      "file": "assets/models/characters/Meshy_AI_Iron_Sentinel_0809085351_texture.fbx",
+      "type": "character_model",
+      "source": "Owner upload; original source not independently verified",
+      "sourceUrl": null,
+      "license": "UNKNOWN — owner-approved for runtime use (GOVERNANCE.md §33.3, 2026-08-13)",
+      "version": 1,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Formerly quarantined (assets_manifest.quarantine.json) pending provenance confirmation. Owner directive 2026-08-13 dissolved the quarantine outright: every file under assets/ is approved for runtime use regardless of recorded provenance. Original provenance hint kept below verbatim so the record is not lost. See GOVERNANCE_FULL_GAME_DIRECTIVE.md §4. Original sourceHint: Filename contains Meshy_AI and the repository has other Meshy AI assets, but filename alone is not treated as license proof.",
+      "dateAdded": "2026-08-13",
+      "formerlyQuarantined": true
+    },
+    {
+      "id": "surface_terrain_reference",
+      "file": "assets/textures/yüzey/model.fbx",
+      "type": "prop_model",
+      "source": "Owner upload; original source not recorded",
+      "sourceUrl": null,
+      "license": "UNKNOWN — owner-approved for runtime use (GOVERNANCE.md §33.3, 2026-08-13)",
+      "version": 1,
+      "format": "FBX Binary",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Formerly quarantined (assets_manifest.quarantine.json) pending provenance confirmation. Owner directive 2026-08-13 dissolved the quarantine outright: every file under assets/ is approved for runtime use regardless of recorded provenance. Original provenance hint kept below verbatim so the record is not lost. See GOVERNANCE_FULL_GAME_DIRECTIVE.md §4. Original sourceHint: Uploaded with a multi-format surface/model bundle; repository history does not record the original provider or license.",
+      "dateAdded": "2026-08-13",
+      "formerlyQuarantined": true
     },
     {
       "id": "animal_alpaca",

@@ -4,6 +4,11 @@
  * or textures — this is deliberately "geography first, polish later" (see 3D_GAME_PROGRESS.md's
  * World Coverage section): cheap enough to generate hundreds of chunks, detail arrives later.
  *
+ * On top of that fine-detail FBM, `MACRO_RELIEF_FEATURES` layers a few large, low-frequency
+ * hill/mountain "domes" (see DECISIONS.md ADR-0075) so the world reads as having real macro
+ * topography, not just uniform rolling noise at a single scale — see `sampleMacroReliefMeters`'s
+ * own doc comment for the exact shape and the kingdom-seat safety margins it was placed with.
+ *
  * Chunk grid convention (shared with `CHUNK_CONFIG` in `config.js`): chunk `(chunkX, chunkZ)` is
  * centered at world position `(chunkX * size, 0, chunkZ * size)`, so chunk `(0, 0)` sits centered
  * on the world origin. A future chunk-manager/streaming system should reuse this convention
@@ -95,8 +100,85 @@ function fbm2D(noise2D, x, y, { octaves = 5, lacunarity = 2, gain = 0.5 } = {}) 
 	return sum / maxAmplitude;
 }
 
-const LOW_COLOR = new THREE.Color(0x2c4a1e);
+/**
+ * Macro-scale relief: a few large, low-frequency "dome" bumps layered on top of the fine-detail FBM
+ * noise (see `createHeightSampler`) so the world reads as having real macro topography — a couple
+ * of small hills and one large mountain — instead of uniform noise-bumpiness at a single scale.
+ * Fixed, hand-picked world-space centers (not derived from `seed`'s PRNG at runtime): a rejection-
+ * sampling loop against the 14 kingdom seats would need the exact same seat-avoidance reasoning
+ * anyway, and fixed constants are simpler to audit/adjust than an algorithm whose output depends on
+ * seat data this module has no reason to import (`world/terrain.js` sits below `world/settlements.js`
+ * in this project's layering — see this module's own doc comment — so it must not depend on it).
+ * Centers were chosen with `scripts/terrainSeatSafetyCheck.js` (GOVERNANCE.md §8.4's "Arazi
+ * Değişiklik Güvenlik Kontrolü") run before and after, confirming every one of the 14 seats stays
+ * exactly as far above water and exactly as walkable as before this layer was added — each feature's
+ * `radiusMeters` is smaller than its own distance to the nearest kingdom seat by a wide margin (the
+ * dome contributes exactly 0 beyond `radiusMeters`, not just a small numerical amount), so every seat
+ * is mathematically guaranteed unaffected, not merely measured-and-hoped-unaffected.
+ * Purely additive, in real meters — deliberately NOT scaled by `maxHeightMeters` (that parameter
+ * governs only the fine-detail FBM's amplitude; a mountain's real height must not shrink just
+ * because some future caller asks `sampleHeightMeters` for a flatter local detail pass).
+ * @type {{x: number, z: number, radiusMeters: number, amplitudeMeters: number}[]}
+ */
+const MACRO_RELIEF_FEATURES = Object.freeze([
+	// Mountain. Nearest seat (Xaro, world (4611, 3596)) is 2448m from this center — 1148m of margin
+	// beyond the dome's own 1300m falloff radius.
+	Object.freeze({ x: 2600, z: 2200, radiusMeters: 1300, amplitudeMeters: 150 }),
+	// Hill A. Nearest seat (Xaro) is 1353m from this center — 853m margin beyond its 500m radius.
+	Object.freeze({ x: 3400, z: 4200, radiusMeters: 500, amplitudeMeters: 45 }),
+	// Hill B. Nearest seat (Xaro) is 3314m from this center — 2764m margin beyond its 550m radius.
+	Object.freeze({ x: 3000, z: 700, radiusMeters: 550, amplitudeMeters: 40 }),
+]);
+
+/**
+ * Sums every `MACRO_RELIEF_FEATURES` dome's contribution at one world-space point. Each dome uses
+ * the same smoothstep ease `createValueNoise2D`'s own lattice interpolation uses (`t*t*(3-2*t)`) so
+ * it rises/falls with a rounded, natural-looking profile rather than a hard cone, and is exactly 0
+ * for any point at or beyond `radiusMeters` from that feature's center — not an asymptotic
+ * approach-to-zero, a literal zero, which is what makes the kingdom-seat safety margins above exact
+ * rather than approximate.
+ * @param {number} worldX
+ * @param {number} worldZ
+ * @returns {number} Additive height in meters, always >= 0.
+ */
+function sampleMacroReliefMeters(worldX, worldZ) {
+	let total = 0;
+	for (const feature of MACRO_RELIEF_FEATURES) {
+		const distance = Math.hypot(worldX - feature.x, worldZ - feature.z);
+		if (distance >= feature.radiusMeters) continue;
+		const t = 1 - distance / feature.radiusMeters;
+		const eased = t * t * (3 - 2 * t);
+		total += feature.amplitudeMeters * eased;
+	}
+	return total;
+}
+
+/**
+ * Blend weight for a "settlement flatten pad" (see `createHeightSampler`'s `flattenPads` param) at
+ * a given distance from its center: `1` (fully flattened to the pad's own anchor height) at or
+ * inside `innerRadiusMeters`, easing down to exactly `0` (pure natural terrain, untouched) at or
+ * beyond `outerRadiusMeters` via the same `t*t*(3-2*t)` smoothstep `sampleMacroReliefMeters` already
+ * uses — so a castle's full footprint sits on a genuinely flat pad (no residual slope under any part
+ * of it) while the pad itself blends into the surrounding terrain with no hard, cliff-like edge.
+ * @param {number} distanceMeters
+ * @param {number} innerRadiusMeters
+ * @param {number} outerRadiusMeters
+ * @returns {number} In `[0, 1]`.
+ */
+function computeFlattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {
+	if (distanceMeters <= innerRadiusMeters) return 1;
+	if (distanceMeters >= outerRadiusMeters) return 0;
+	const t = 1 - (distanceMeters - innerRadiusMeters) / (outerRadiusMeters - innerRadiusMeters);
+	return t * t * (3 - 2 * t);
+}
+
+const LOW_COLOR = new THREE.Color(0x3d6b28);
 const HIGH_COLOR = new THREE.Color(0x6b6152);
+/** Exponent applied to the clamped low/high blend fraction before it drives the `LOW_COLOR`->
+ * `HIGH_COLOR` lerp (see `createTerrainChunk`). >1 biases the curve toward `LOW_COLOR` (grass) —
+ * a vertex needs a higher fraction of `maxHeightMeters` before rock starts blending in, so grass
+ * reads as the dominant color across more of the height range instead of a linear 50/50 split. */
+const HEIGHT_COLOR_BLEND_EXPONENT = 1.5;
 /** World-units-per-noise-cell; tuned by eye so a single chunk shows a few rolling hills, not one giant bump or pure static. */
 const NOISE_SCALE = 0.006;
 /** Default peak height variation, in meters. Exported so callers that need to sample this same
@@ -112,18 +194,60 @@ export const DEFAULT_MAX_HEIGHT_METERS = 24;
  * matches whatever `createTerrainChunk` would bake at that point (both derive from the same
  * `noise2D`/`fbm2D` calls) — used by `world/rivers.js` to trace a path over the *actual* terrain
  * a chunk would render, not an approximation of it.
+ *
+ * Also layers in `MACRO_RELIEF_FEATURES`' large-scale hill/mountain domes on top of the fine-detail
+ * FBM (added, not blended/replacing — see that constant's own doc comment). Every consumer of this
+ * sampler (`createTerrainChunk`, `world/rivers.js`'s downhill trace) automatically sees the macro
+ * relief through this one shared function, so chunk geometry and any height query elsewhere always
+ * agree — no second, potentially-drifting copy of the macro layer.
  * @param {number} seed
  * @param {{octaves?: number, lacunarity?: number, gain?: number}} [fbmOptions] Forwarded to
  *   `fbm2D`. Default (5 octaves, matching `createTerrainChunk`) is what chunk geometry actually
  *   renders; a caller that needs the terrain's *macro* shape without its finest bumps (e.g.
  *   `world/rivers.js` picking a downhill flow direction — see DECISIONS.md ADR-0009 for why) can
- *   pass fewer octaves for a low-pass-filtered version of the same underlying noise field.
+ *   pass fewer octaves for a low-pass-filtered version of the same underlying noise field. The
+ *   macro-relief domes are unaffected by this option either way — they're a separate additive term,
+ *   not another FBM octave.
+ * @param {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]} [flattenPads]
+ *   "Settlement flatten pads" (DECISIONS.md ADR-0118) — ground truth for "how tall is the terrain
+ *   under/around this castle" would otherwise be a single point sample at the seat's exact center,
+ *   which is why castles used to visibly float/gap over uneven ground: nothing flattened the terrain
+ *   *around* that one sampled point to match. Each pad blends the base (fine-FBM + macro-relief)
+ *   height toward its own `anchorHeightMeters` — see `computeFlattenWeight` — fully flat within
+ *   `innerRadiusMeters` (sized to cover the castle's real footprint, so nothing pokes up through or
+ *   gaps under any part of it), easing back to untouched natural terrain by `outerRadiusMeters`. Not
+ *   `terrain.js`'s own concern which seats need one or how large — see
+ *   `world/settlements.js`'s `computeSettlementFlattenPads` (this module must not import
+ *   `world/settlements.js`, matching the existing layering `world/roads.js`'s `seats` parameter
+ *   already established — see this module's own doc comment). Omit/empty (the default) for the
+ *   unflattened field exactly as before this parameter existed — every pre-existing caller that
+ *   doesn't pass it sees byte-identical output. When more than one pad's `outerRadiusMeters` reaches
+ *   a query point (not expected in practice — kingdom seats sit far apart relative to any pad's
+ *   radius — but not assumed impossible either), the pad with the *strongest* (highest-weight, i.e.
+ *   nearest) influence wins outright rather than summing/averaging multiple pads' anchors, so a
+ *   point can never land on a physically-meaningless blend of two different castles' ground levels.
  * @returns {(worldX: number, worldZ: number, maxHeightMeters?: number) => number}
  */
-export function createHeightSampler(seed, fbmOptions) {
+export function createHeightSampler(seed, fbmOptions, flattenPads = []) {
 	const noise2D = createValueNoise2D(seed);
 	return function sampleHeightMeters(worldX, worldZ, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS) {
-		return fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE, fbmOptions) * maxHeightMeters;
+		const fineDetailMeters = fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE, fbmOptions) * maxHeightMeters;
+		const baseHeightMeters = fineDetailMeters + sampleMacroReliefMeters(worldX, worldZ);
+		if (flattenPads.length === 0) return baseHeightMeters;
+
+		let strongestWeight = 0;
+		let strongestAnchorMeters = 0;
+		for (const pad of flattenPads) {
+			const distanceMeters = Math.hypot(worldX - pad.x, worldZ - pad.z);
+			if (distanceMeters >= pad.outerRadiusMeters) continue;
+			const weight = computeFlattenWeight(distanceMeters, pad.innerRadiusMeters, pad.outerRadiusMeters);
+			if (weight > strongestWeight) {
+				strongestWeight = weight;
+				strongestAnchorMeters = pad.anchorHeightMeters;
+			}
+		}
+		if (strongestWeight <= 0) return baseHeightMeters;
+		return baseHeightMeters + (strongestAnchorMeters - baseHeightMeters) * strongestWeight;
 	};
 }
 
@@ -138,10 +262,15 @@ export function createHeightSampler(seed, fbmOptions) {
  * @param {number} [options.segments=64] Geometry subdivisions per edge (resolution).
  * @param {number} [options.maxHeightMeters] Peak height variation within the chunk (`DEFAULT_MAX_HEIGHT_METERS`).
  * @param {number} [options.seed=1] World seed — same seed + same args always produce the same chunk.
+ * @param {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]} [options.flattenPads]
+ *   Forwarded to `createHeightSampler` — see that function's own doc comment. Baking this into the
+ *   chunk mesh's own vertex heights (not just gameplay height queries via `physics.js`) is what
+ *   actually fixes castles visibly floating/gapping over the rendered ground, not merely over a
+ *   height value nothing draws.
  * @returns {THREE.Mesh} Positioned at the chunk's world-space center, ready to `scene.add()`.
  */
-export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1 }) {
-	const sampleHeightMeters = createHeightSampler(seed);
+export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [] }) {
+	const sampleHeightMeters = createHeightSampler(seed, undefined, flattenPads);
 	const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
 	geometry.rotateX(-Math.PI / 2);
 
@@ -155,7 +284,12 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		const y = sampleHeightMeters(worldX, worldZ, maxHeightMeters);
 		position.setY(i, y);
 
-		blended.copy(LOW_COLOR).lerp(HIGH_COLOR, y / maxHeightMeters);
+		// Clamp before the curve: `sampleHeightMeters` is mathematically bounded to [0, maxHeightMeters)
+		// by the FBM's own weighted-average-of-noise-in-[0,1) construction, but nothing upstream
+		// *guarantees* that for every future noise function/octave config, and an unclamped fraction
+		// here would let `THREE.Color.lerp` extrapolate past LOW_COLOR/HIGH_COLOR into unintended hues.
+		const heightFraction = THREE.MathUtils.clamp(y / maxHeightMeters, 0, 1);
+		blended.copy(LOW_COLOR).lerp(HIGH_COLOR, Math.pow(heightFraction, HEIGHT_COLOR_BLEND_EXPONENT));
 		colors[i * 3] = blended.r;
 		colors[i * 3 + 1] = blended.g;
 		colors[i * 3 + 2] = blended.b;

@@ -1,0 +1,213 @@
+name: NW G00 Terrain3D Near Detail
+
+on:
+  push:
+    branches:
+      - terrain/nw-g00-terrain3d-near-detail-20260813
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/geocells/nw/g00_near_detail.mjs'
+      - 'scripts/checkNWG00NearDetail.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g00_terrain3d_near_detail.gd'
+      - 'godot/terrain-authoring/corner_claims/NW.json'
+      - '.github/workflows/nw-g00-terrain3d-near-detail.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nw-g00-terrain3d-near-detail-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main and bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
+          CHANGED="$(git diff --name-only origin/main...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g00_near_detail.mjs|scripts/checkNWG00NearDetail.mjs|godot/terrain-authoring/scripts/validate_g00_terrain3d_near_detail.gd|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g00-terrain3d-near-detail.yml)$' | wc -l)" -eq 0
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/geocells/nw/g00_biome.mjs
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/geocells/nw/g00_relief.mjs
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/geocells/nw/g00_rock_snow.mjs
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/geocells/nw/g00_road_path.mjs
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/terrain3d.lock.json
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/tools/install_terrain3d.py
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/addons/zylann.hterrain
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Preserve merged G00 Road Path
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG00RoadPath.mjs | tee "$RUNNER_TEMP/g00-road-path-regression.log"
+          grep -F 'NW_G00_ROAD_PATH_VALIDATION_OK' "$RUNNER_TEMP/g00-road-path-regression.log"
+
+      - name: Deterministic G00 near detail surface vegetation and controls
+        run: |
+          set -euo pipefail
+          PROOF='godot/terrain-authoring/.terrain3d-proof/g00-near-detail-probe.json'
+          mkdir -p "$(dirname "$PROOF")"
+          node --check godot/terrain-authoring/geocells/nw/g00_near_detail.mjs
+          node --check scripts/checkNWG00NearDetail.mjs
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG00NearDetail.mjs --emit-probe="$PROOF" | tee "$RUNNER_TEMP/g00-near-a.log"
+          cp "$PROOF" "$RUNNER_TEMP/g00-near-probe-a.json"
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNWG00NearDetail.mjs --emit-probe="$PROOF" | tee "$RUNNER_TEMP/g00-near-b.log"
+          cp "$PROOF" "$RUNNER_TEMP/g00-near-probe-b.json"
+          cmp "$RUNNER_TEMP/g00-near-a.log" "$RUNNER_TEMP/g00-near-b.log"
+          cmp "$RUNNER_TEMP/g00-near-probe-a.json" "$RUNNER_TEMP/g00-near-probe-b.json"
+          grep -F 'NW_G00_NEAR_DETAIL_VALIDATION_OK' "$RUNNER_TEMP/g00-near-a.log"
+          grep -F 'landDetailSamples' "$RUNNER_TEMP/g00-near-a.log"
+          grep -F 'coreInstanceCount' "$RUNNER_TEMP/g00-near-a.log"
+
+      - name: Install pinned Terrain3D and preserve HTerrain
+        run: |
+          set -euo pipefail
+          cp godot/terrain-authoring/project.godot "$RUNNER_TEMP/project.godot.before-terrain3d"
+          ok=0
+          for attempt in 1 2 3; do
+            if python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee "$RUNNER_TEMP/t3d-install-$attempt.log"; then
+              grep -F 'TERRAIN3D_INSTALL_OK' "$RUNNER_TEMP/t3d-install-$attempt.log"
+              ok=1
+              break
+            fi
+            sleep $((attempt * 3))
+          done
+          test "$ok" -eq 1
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'TERRAIN3D_VERIFY_OK' "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'version="1.0.2"' godot/terrain-authoring/addons/terrain_3d/plugin.cfg
+          test -f godot/terrain-authoring/addons/terrain_3d/bin/libterrain.linux.debug.x86_64.so
+          grep -F 'res://addons/zylann.hterrain/plugin.cfg' godot/terrain-authoring/project.godot
+          grep -F 'res://addons/terrain_3d/plugin.cfg' godot/terrain-authoring/project.godot
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$ZIP"
+          unzip -q "$ZIP" -d "$DIR"
+          GODOT_BIN="$(find "$DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | grep -F '4.6.3'
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Real Terrain3D Road Path color instancer persist and LOD0 proof twice
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 2>&1 | tee "$RUNNER_TEMP/t3d-editor.log"
+          if grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' "$RUNNER_TEMP/t3d-editor.log"; then
+            echo 'Terrain3D emitted a load error.' >&2
+            exit 1
+          fi
+          G00_NEAR_DETAIL_PROOF_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g00_terrain3d_near_detail.gd 2>&1 | tee "$RUNNER_TEMP/g00-near-t3d-a.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g00-near-detail-imported-topdown.png "$RUNNER_TEMP/g00-near-a.png"
+          G00_NEAR_DETAIL_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g00_terrain3d_near_detail.gd 2>&1 | tee "$RUNNER_TEMP/g00-near-t3d-b.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g00-near-detail-imported-topdown.png "$RUNNER_TEMP/g00-near-b.png"
+          grep -F 'NW_G00_TERRAIN3D_NEAR_DETAIL_VALIDATION_OK' "$RUNNER_TEMP/g00-near-t3d-a.log"
+          grep -F 'NW_G00_TERRAIN3D_NEAR_DETAIL_VALIDATION_OK' "$RUNNER_TEMP/g00-near-t3d-b.log"
+          grep -F 'G00_TERRAIN3D_NEAR_DETAIL_METRICS=' "$RUNNER_TEMP/g00-near-t3d-a.log" | tail -1 > "$RUNNER_TEMP/g00-near-metrics-a.txt"
+          grep -F 'G00_TERRAIN3D_NEAR_DETAIL_METRICS=' "$RUNNER_TEMP/g00-near-t3d-b.log" | tail -1 > "$RUNNER_TEMP/g00-near-metrics-b.txt"
+          node - "$RUNNER_TEMP/g00-near-metrics-a.txt" "$RUNNER_TEMP/g00-near-metrics-b.txt" <<'NODE'
+          const fs = require('node:fs');
+          const [aPath, bPath] = process.argv.slice(2);
+          const prefix = 'G00_TERRAIN3D_NEAR_DETAIL_METRICS=';
+          const parse = (file) => {
+            const line = fs.readFileSync(file, 'utf8').trim();
+            if (!line.startsWith(prefix)) throw new Error(`missing Terrain3D metrics prefix: ${file}`);
+            return JSON.parse(line.slice(prefix.length));
+          };
+          const a = parse(aPath); const b = parse(bPath);
+          for (const key of [
+            'terrain3dVersion', 'regionSize', 'regionCount', 'sampleCount', 'activeRoundtripSamples',
+            'maxHeightError', 'maxBlendError', 'maxColorError', 'maxRoughnessError',
+            'controlChecksum', 'colorChecksum', 'pineInstances', 'roundInstances',
+            'storedInstances', 'instanceChecksum', 'bakedSurfaces', 'bakedVertices', 'savedRegionFiles',
+          ]) {
+            if (a[key] !== b[key]) throw new Error(`nondeterministic ${key}: ${a[key]} != ${b[key]}`);
+          }
+          if (!(a.savedRegionBytes > 0 && b.savedRegionBytes > 0)) throw new Error('persisted Terrain3D near-detail resource is empty');
+          NODE
+          cmp "$RUNNER_TEMP/g00-near-a.png" "$RUNNER_TEMP/g00-near-b.png"
+          test -s godot/terrain-authoring/.terrain3d-proof/g00-near-detail-imported-topdown.png
+
+      - name: HTerrain world settlement road PWA mobile and browser regressions
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/terrainSeatSafetyCheck.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/roadNetworkSafetyCheck.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkRoadVisualContract.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
+
+      - name: Restore authoring bootstrap mutations
+        if: always()
+        run: |
+          set -euo pipefail
+          if test -f "$RUNNER_TEMP/project.godot.before-terrain3d"; then
+            cp "$RUNNER_TEMP/project.godot.before-terrain3d" godot/terrain-authoring/project.godot
+          fi
+          rm -rf godot/terrain-authoring/addons/terrain_3d
+          git restore --worktree -- godot/terrain-authoring/addons/zylann.hterrain
+          test "$(git ls-files godot/terrain-authoring/terrain_data)" = 'godot/terrain-authoring/terrain_data/.gitkeep'
+          git clean -fdx -- godot/terrain-authoring/terrain_data
+          git diff --exit-code -- godot/terrain-authoring/project.godot
+          git diff --exit-code -- godot/terrain-authoring/addons/zylann.hterrain
+          test -z "$(git status --porcelain --untracked-files=all godot/terrain-authoring/terrain_data/)"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nw-g00-terrain3d-near-detail-proof
+          include-hidden-files: true
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g00-near-detail-probe.json
+            godot/terrain-authoring/.terrain3d-proof/g00-near-detail-imported-topdown.png
+          if-no-files-found: warn

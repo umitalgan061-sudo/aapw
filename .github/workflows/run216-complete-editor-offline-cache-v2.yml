@@ -1,0 +1,60 @@
+name: Run216 Complete Editor Offline Cache V2
+
+on:
+  push:
+    branches:
+      - agent/run216-owner-editor-usability-fixes
+    paths:
+      - '.github/workflows/run216-complete-editor-offline-cache-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  materialize-offline-cache:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/run216-owner-editor-usability-fixes
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Preflight concurrency
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+      - name: Materialize and validate complete offline graph
+        run: |
+          set -euo pipefail
+          node --check scripts/materializeRun216CompleteEditorServiceWorkerCache.js
+          node scripts/materializeRun216CompleteEditorServiceWorkerCache.js
+          node --check service-worker.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          git diff --check
+          git diff --exit-code -- . ':!service-worker.js'
+          if git diff -- service-worker.js | grep -E '^-' | grep -v '^---'; then
+            echo 'service-worker materialization deleted or replaced existing lines'
+            exit 1
+          fi
+      - name: Publish after final concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js
+          git commit -m 'pwa(run216): cache complete editor module graph'
+          git push origin HEAD:agent/run216-owner-editor-usability-fixes

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="description" content="Westeros World Editor — tarayıcı içinde 3D dünya düzenleyici">
+<title>Westeros World Editor</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="stylesheet" href="editor.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./src/3d/vendor/three/three.module.js",
+    "three/addons/": "./src/3d/vendor/three/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<div class="we-shell">
+  <header class="we-toolbar">
+    <div class="we-brand">WESTEROS <span>WORLD EDITOR</span></div>
+    <div class="we-toolbar-actions" role="toolbar" aria-label="Editör araçları">
+      <button id="we-save" type="button">Kaydet JSON</button>
+      <button id="we-load" type="button">Yükle JSON</button>
+      <button id="we-duplicate" type="button">Kopyala</button>
+      <button id="we-delete" type="button">Sil</button>
+      <button id="we-focus" type="button">Odaklan (F)</button>
+      <button id="we-auto-texture" type="button" title="Seçili figürün cinsine ve Türkçe/İngilizce adına göre doku giydirir">Otomatik Doku Giydir</button>
+      <button id="we-auto-texture-all" type="button" title="Sahnedeki tüm objelere adlarına göre doku giydirir">Tümüne Giydir</button>
+      <button id="we-restore-texture" type="button" title="Objenin özgün materyalini geri yükler">Dokuyu Geri Al</button>
+      <a class="we-link" href="game3d.html">▶ Oyuna Dön</a>
+    </div>
+  </header>
+
+  <aside class="we-panel we-assets-panel" aria-label="Asset kitaplığı">
+    <div class="we-panel-title">ASSETS</div>
+    <input id="we-asset-search" class="we-input" type="search" placeholder="Asset ara…" autocomplete="off">
+    <div id="we-asset-categories" class="we-categories" aria-label="Asset kategorileri"></div>
+    <div id="we-assets" class="we-assets"></div>
+    <div class="we-formation">
+      <div class="we-section-title">FORMASYON</div>
+      <label>Satır <input id="we-rows" class="we-number" type="number" min="1" max="100" value="20"></label>
+      <label>Sütun <input id="we-columns" class="we-number" type="number" min="1" max="100" value="25"></label>
+      <label>Aralık (m) <input id="we-spacing" class="we-number" type="number" min="0.25" max="20" step="0.25" value="1.5"></label>
+      <button id="we-create-formation" type="button">Seçili Asset ile Oluştur</button>
+    </div>
+  </aside>
+
+  <main class="we-viewport-wrap">
+    <canvas id="we-canvas" aria-label="Westeros 3D editör görünümü"></canvas>
+    <div class="we-viewport-badge">EDIT MODE</div>
+    <div id="we-toast" class="we-toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <aside class="we-panel we-right-panel">
+    <section class="we-hierarchy-wrap">
+      <div class="we-panel-title">HIERARCHY</div>
+      <input id="we-hierarchy-search" class="we-input" type="search" placeholder="Obje ara…" autocomplete="off">
+      <div id="we-hierarchy" class="we-hierarchy" role="tree"></div>
+    </section>
+    <section class="we-inspector-wrap">
+      <div class="we-panel-title">INSPECTOR</div>
+      <div id="we-inspector-empty" class="we-muted">Bir obje seç.</div>
+      <div id="we-inspector" hidden>
+        <label>Ad <input id="we-name" class="we-input" type="text"></label>
+        <div class="we-section-title">POSITION</div>
+        <div class="we-vector-row">
+          <label>X <input id="we-pos-x" class="we-number" type="number" step="0.1"></label>
+          <label>Y <input id="we-pos-y" class="we-number" type="number" step="0.1"></label>
+          <label>Z <input id="we-pos-z" class="we-number" type="number" step="0.1"></label>
+        </div>
+        <div class="we-section-title">ROTATION °</div>
+        <div class="we-vector-row">
+          <label>X <input id="we-rot-x" class="we-number" type="number" step="1"></label>
+          <label>Y <input id="we-rot-y" class="we-number" type="number" step="1"></label>
+          <label>Z <input id="we-rot-z" class="we-number" type="number" step="1"></label>
+        </div>
+        <div class="we-section-title">SCALE</div>
+        <div class="we-vector-row">
+          <label>X <input id="we-scale-x" class="we-number" type="number" step="0.1" min="0.01"></label>
+          <label>Y <input id="we-scale-y" class="we-number" type="number" step="0.1" min="0.01"></label>
+          <label>Z <input id="we-scale-z" class="we-number" type="number" step="0.1" min="0.01"></label>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <footer class="we-statusbar">
+    <label class="we-toggle"><input id="we-grid-toggle" type="checkbox" checked> Grid</label>
+    <label class="we-toggle"><input id="we-snap-toggle" type="checkbox" checked> Snap</label>
+    <label>Snap <input id="we-snap-size" class="we-number we-snap-size" type="number" min="0.1" max="100" step="0.1" value="1"> m</label>
+    <span id="we-selection-status">Seçim: yok</span>
+    <span id="we-render-status">0 obje</span>
+  </footer>
+</div>
+<input id="we-load-file" type="file" accept="application/json,.json" hidden>
+<script type="module" src="./src/3d/editor/worldEditor.js"></script>
+<script type="module" src="./src/3d/editor/EditorClipboardController.js"></script>
+<script type="module" src="./src/3d/editor/EditorEditModeEnvironment.js"></script>
+<script type="module" src="./src/3d/editor/EditorLiveWorldBridge.js"></script>
+<script type="module" src="./src/3d/editor/EditorRoadController.js"></script>
+<script type="module" src="./src/3d/editor/EditorTerrainPaintController.js"></script>
+<script type="module" src="./src/3d/editor/EditorLiveWorldAuthoring.js"></script>
+<script type="module" src="./src/3d/editor/EditorLiveWorldVisualSync.js"></script>
+<script type="module" src="./src/3d/editor/EditorPlacementControllerSafe.js"></script>
+<script type="module" src="./src/3d/editor/EditorTerrainSemantics.js"></script>
+<script type="module" src="./src/3d/editor/EditorLocalSession.js"></script>
+<script type="module" src="./src/3d/editor/EditorHistoryController.js"></script>
+<script type="module" src="./src/3d/editor/EditorGamePreviewLauncher.js"></script>
+<script type="module" src="./src/3d/editor/EditorLocationNavigator.js"></script>
+<script type="module" src="./src/3d/editor/EditorLiveWorldResourceCleanup.js"></script>
+<script type="module">
+const ownerApi = window.__WESTEROS_WORLD_EDITOR__;
+if (ownerApi?.grid) {
+  const gridToggle = document.getElementById('we-grid-toggle');
+  const hierarchy = document.getElementById('we-hierarchy');
+  const scaleAxes = Object.freeze({ 'we-scale-x': 'x', 'we-scale-y': 'y', 'we-scale-z': 'z' });
+  const hideMovingGridBase = () => {
+    if (gridToggle) {
+      gridToggle.checked = false;
+      gridToggle.disabled = true;
+      gridToggle.title = 'Canlı dünya editöründe hareketli grid tabanı gizlendi';
+    }
+    ownerApi.grid.visible = false;
+  };
+  const applyPreciseScale = (event) => {
+    const axis = scaleAxes[event.currentTarget?.id];
+    if (!axis) return;
+    const object = ownerApi.getSelectedObject?.();
+    if (!object || object.isInstancedMesh) return;
+    const raw = String(event.currentTarget.value).trim();
+    if (!raw) return;
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) return;
+    event.stopImmediatePropagation();
+    object.scale[axis] = Math.max(0.001, numeric);
+    ownerApi.writeInspector?.(object);
+    ownerApi.refreshHierarchy?.();
+  };
+  hideMovingGridBase();
+  const hierarchyObserver = hierarchy ? new MutationObserver(hideMovingGridBase) : null;
+  hierarchyObserver?.observe(hierarchy, { childList: true, subtree: true });
+  for (const id of Object.keys(scaleAxes)) {
+    const input = document.getElementById(id);
+    if (!input) continue;
+    input.min = '0.001';
+    input.step = '0.001';
+    input.setAttribute('inputmode', 'decimal');
+    input.addEventListener('change', applyPreciseScale, true);
+  }
+  window.addEventListener('pagehide', () => hierarchyObserver?.disconnect(), { once: true });
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { computeEditorAssetImportScale } from './src/3d/editor/EditorAssetScalePolicy.js';
+
+const localApi = window.__WESTEROS_WORLD_EDITOR__;
+const localAuthoring = window.__WESTEROS_EDITOR_LIVE_AUTHORING__;
+if (localApi?.scene && localAuthoring?.targetGroundPoint) {
+  const assetsPanel = document.querySelector('.we-assets-panel');
+  const formation = assetsPanel?.querySelector('.we-formation');
+  const toast = document.getElementById('we-toast');
+  const objectUrls = new Map();
+  const localFilesByPath = new Map();
+  const localFilesByName = new Map();
+  let localFiles = [];
+  let entries = [];
+  let localObjectCounter = 1;
+  let toastTimer = 0;
+
+  const section = document.createElement('section');
+  section.id = 'we-local-fbx-library';
+  section.innerHTML = '<div class="we-section-title">FBX_DOSYALARI</div><div class="we-local-fbx-actions"><button id="we-fbx-scan-project" type="button">Projeyi Tara</button><button id="we-fbx-pick-folder" type="button">FBX Klasörü Bağla</button></div><input id="we-fbx-search" class="we-input" type="search" placeholder="FBX ara…" autocomplete="off"><div id="we-fbx-status" class="we-muted">assets/models/fbx_dosyaları bekleniyor…</div><div id="we-fbx-list" class="we-assets"></div>';
+  formation?.parentNode?.insertBefore(section, formation);
+  const folderInput = document.createElement('input');
+  folderInput.type = 'file';
+  folderInput.multiple = true;
+  folderInput.accept = '.fbx';
+  folderInput.hidden = true;
+  folderInput.setAttribute('webkitdirectory', '');
+  folderInput.setAttribute('directory', '');
+  section.append(folderInput);
+
+  const style = document.createElement('style');
+  style.textContent = '#we-local-fbx-library{margin-top:10px;padding-top:10px;border-top:1px solid var(--we-border)}.we-local-fbx-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0}#we-fbx-list{max-height:220px;overflow:auto;margin-top:6px}#we-fbx-list .we-asset{width:100%;text-align:left}';
+  document.head.append(style);
+
+  const status = section.querySelector('#we-fbx-status');
+  const list = section.querySelector('#we-fbx-list');
+  const search = section.querySelector('#we-fbx-search');
+  const scanButton = section.querySelector('#we-fbx-scan-project');
+  const pickButton = section.querySelector('#we-fbx-pick-folder');
+
+  function showToast(message) {
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 2200);
+  }
+
+  function normalizePath(value) {
+    return decodeURIComponent(String(value || '')).replace(/\\/g, '/').replace(/^\.\//, '').toLocaleLowerCase('tr-TR');
+  }
+
+  function slug(value) {
+    return String(value || 'fbx').toLocaleLowerCase('tr-TR').normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'fbx';
+  }
+
+  function fileObjectUrl(file) {
+    if (!objectUrls.has(file)) objectUrls.set(file, URL.createObjectURL(file));
+    return objectUrls.get(file);
+  }
+
+  function indexLocalFiles(files) {
+    localFiles = files;
+    localFilesByPath.clear();
+    localFilesByName.clear();
+    for (const file of files) {
+      const relative = normalizePath(file.webkitRelativePath || file.name);
+      localFilesByPath.set(relative, file);
+      const base = normalizePath(file.name);
+      if (!localFilesByName.has(base)) localFilesByName.set(base, file);
+      else localFilesByName.set(base, null);
+    }
+  }
+
+  function resolveLocalDependency(url) {
+    const normalized = normalizePath(url);
+    let match = null;
+    for (const [relative, file] of localFilesByPath) {
+      if (normalized.endsWith(relative) || normalized.endsWith(relative.split('/').slice(-2).join('/'))) {
+        match = file;
+        break;
+      }
+    }
+    if (!match) match = localFilesByName.get(normalized.split('/').at(-1)) || null;
+    return match ? fileObjectUrl(match) : url;
+  }
+
+  function renderEntries() {
+    const query = search.value.trim().toLocaleLowerCase('tr-TR');
+    const filtered = entries.filter((entry) => !query || entry.name.toLocaleLowerCase('tr-TR').includes(query));
+    list.replaceChildren();
+    for (const entry of filtered.slice(0, 500)) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'we-asset';
+      const strong = document.createElement('strong');
+      strong.textContent = entry.name;
+      const meta = document.createElement('span');
+      meta.textContent = entry.kind === 'local' ? 'Yerel FBX · çift tıkla' : 'Proje FBX · çift tıkla';
+      button.append(strong, meta);
+      button.addEventListener('dblclick', () => void placeEntry(entry));
+      list.append(button);
+    }
+    const clipped = filtered.length > 500 ? ` · ilk 500 gösteriliyor` : '';
+    status.textContent = `${entries.length} FBX indekslendi${clipped}`;
+  }
+
+  async function crawlProjectDirectory(directoryUrl, rootPath, seen, found, depth = 0) {
+    if (depth > 8 || found.length >= 10000 || seen.has(directoryUrl.href)) return;
+    seen.add(directoryUrl.href);
+    const response = await fetch(directoryUrl.href, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const html = await response.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    for (const anchor of doc.querySelectorAll('a[href]')) {
+      if (found.length >= 10000) break;
+      const href = anchor.getAttribute('href');
+      if (!href || href === '../' || href.startsWith('?') || href.startsWith('#')) continue;
+      const next = new URL(href, directoryUrl);
+      if (next.origin !== location.origin || !next.pathname.startsWith(rootPath)) continue;
+      if (next.pathname.endsWith('/')) {
+        await crawlProjectDirectory(next, rootPath, seen, found, depth + 1);
+      } else if (/\.fbx$/i.test(next.pathname)) {
+        found.push({ kind: 'http', name: decodeURIComponent(next.pathname.split('/').at(-1)), url: next.href });
+      }
+    }
+  }
+
+  async function scanProjectFolder() {
+    const base = new URL('./assets/models/fbx_dosyaları/', location.href);
+    status.textContent = 'Projedeki fbx_dosyaları taranıyor…';
+    try {
+      const found = [];
+      await crawlProjectDirectory(base, base.pathname, new Set(), found);
+      entries = found.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+      renderEntries();
+      if (!entries.length) status.textContent = 'Klasör bulundu ama dizin listesi FBX döndürmedi. “FBX Klasörü Bağla”yı kullan.';
+    } catch (error) {
+      console.info('[WorldEditor] project FBX directory listing unavailable', error);
+      status.textContent = 'Sunucu klasör listelemesini açmıyor. “FBX Klasörü Bağla” ile 6 GB klasörü seç.';
+    }
+  }
+
+  async function loadEntry(entry) {
+    const manager = new THREE.LoadingManager();
+    const loader = new FBXLoader(manager);
+    if (entry.kind === 'local') {
+      manager.setURLModifier(resolveLocalDependency);
+      return loader.loadAsync(fileObjectUrl(entry.file));
+    }
+    loader.setResourcePath(new URL('.', entry.url).href);
+    return loader.loadAsync(entry.url);
+  }
+
+  async function placeEntry(entry) {
+    showToast(`${entry.name} yükleniyor…`);
+    try {
+      const object = await loadEntry(entry);
+      object.position.set(0, 0, 0);
+      object.updateMatrixWorld(true);
+      const sourceBounds = new THREE.Box3().setFromObject(object);
+      const sourceSize = sourceBounds.getSize(new THREE.Vector3());
+      const importScale = computeEditorAssetImportScale({ id: `local-${slug(entry.name)}`, format: 'fbx' }, Math.max(sourceSize.x, sourceSize.y, sourceSize.z));
+      if (importScale !== 1) object.scale.multiplyScalar(importScale);
+      object.updateMatrixWorld(true);
+      const scaledBounds = new THREE.Box3().setFromObject(object);
+      const baseY = Number.isFinite(scaledBounds.min.y) ? scaledBounds.min.y : 0;
+      const target = localAuthoring.targetGroundPoint();
+      object.position.set(target.x, target.y - baseY, target.z);
+      object.name = entry.name.replace(/\.fbx$/i, '');
+      object.userData.editorId = `local-fbx-${slug(entry.name)}-${String(localObjectCounter).padStart(4, '0')}`;
+      object.userData.editorAssetId = `local-${slug(entry.name)}`;
+      object.userData.editorFormat = 'fbx';
+      object.userData.editorImportScale = importScale;
+      localObjectCounter += 1;
+      object.traverse((child) => {
+        if (!child.isMesh) return;
+        child.castShadow = true;
+        child.receiveShadow = true;
+        child.userData.editorRoot = object;
+      });
+      localApi.editableObjects.push(object);
+      localApi.scene.add(object);
+      localApi.refreshHierarchy();
+      const matches = [...document.querySelectorAll('#we-hierarchy .we-hierarchy-item')].filter((button) => button.textContent === object.name);
+      matches.at(-1)?.click();
+      showToast(`${object.name} gerçek araziye eklendi.`);
+    } catch (error) {
+      console.error('[WorldEditor] local FBX load failed', entry.name, error);
+      showToast(`${entry.name} yüklenemedi.`);
+    }
+  }
+
+  folderInput.addEventListener('change', () => {
+    const files = [...(folderInput.files || [])];
+    indexLocalFiles(files);
+    entries = files.filter((file) => /\.fbx$/i.test(file.name)).map((file) => ({ kind: 'local', name: file.name, file })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    renderEntries();
+    if (!entries.length) status.textContent = 'Seçilen klasörde FBX bulunamadı.';
+  });
+  scanButton.addEventListener('click', () => void scanProjectFolder());
+  pickButton.addEventListener('click', () => folderInput.click());
+  search.addEventListener('input', renderEntries);
+  window.addEventListener('pagehide', () => {
+    clearTimeout(toastTimer);
+    for (const url of objectUrls.values()) URL.revokeObjectURL(url);
+    objectUrls.clear();
+  }, { once: true });
+  void scanProjectFolder();
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { WORLD_DEFAULTS, WORLD_SCALE } from './src/3d/config.js';
+
+const waterLiveState = window.__WESTEROS_EDITOR_LIVE_WORLD__?.liveState;
+const waterMesh = waterLiveState?.water;
+const groundSampler = waterLiveState?.groundCollider?.getGroundHeight;
+if (waterMesh?.material?.fragmentShader && typeof groundSampler === 'function') {
+  const resolution = 256;
+  const data = new Uint8Array(resolution * resolution);
+  const width = WORLD_SCALE.WORLD_WIDTH_METERS;
+  const depth = WORLD_SCALE.WORLD_DEPTH_METERS;
+  const minX = -width * 0.5;
+  const minZ = -depth * 0.5;
+  const seaLevel = WORLD_DEFAULTS.WATER_LEVEL_METERS;
+  let wetCells = 0;
+  for (let zIndex = 0; zIndex < resolution; zIndex += 1) {
+    const worldZ = minZ + ((zIndex + 0.5) / resolution) * depth;
+    for (let xIndex = 0; xIndex < resolution; xIndex += 1) {
+      const worldX = minX + ((xIndex + 0.5) / resolution) * width;
+      const wet = Number(groundSampler(worldX, worldZ)) < seaLevel - 0.05;
+      data[zIndex * resolution + xIndex] = wet ? 255 : 0;
+      if (wet) wetCells += 1;
+    }
+  }
+  const mask = new THREE.DataTexture(data, resolution, resolution, THREE.RedFormat, THREE.UnsignedByteType);
+  mask.minFilter = THREE.NearestFilter;
+  mask.magFilter = THREE.NearestFilter;
+  mask.generateMipmaps = false;
+  mask.flipY = false;
+  mask.needsUpdate = true;
+  const material = waterMesh.material;
+  const declarationMarker = 'uniform vec3 uCameraPosition;';
+  const mainMarker = 'void main() {';
+  if (!material.fragmentShader.includes('uEditorTerrainWaterMask') && material.fragmentShader.includes(declarationMarker) && material.fragmentShader.includes(mainMarker)) {
+    material.uniforms.uEditorTerrainWaterMask = { value: mask };
+    material.uniforms.uEditorTerrainMaskMin = { value: new THREE.Vector2(minX, minZ) };
+    material.uniforms.uEditorTerrainMaskSize = { value: new THREE.Vector2(width, depth) };
+    material.fragmentShader = material.fragmentShader.replace(declarationMarker, `${declarationMarker}\nuniform sampler2D uEditorTerrainWaterMask;\nuniform vec2 uEditorTerrainMaskMin;\nuniform vec2 uEditorTerrainMaskSize;`);
+    material.fragmentShader = material.fragmentShader.replace(mainMarker, `${mainMarker}\n\t\tvec2 editorMaskUv = (vWorldPosition.xz - uEditorTerrainMaskMin) / uEditorTerrainMaskSize;\n\t\tbool editorMaskInside = editorMaskUv.x >= 0.0 && editorMaskUv.x <= 1.0 && editorMaskUv.y >= 0.0 && editorMaskUv.y <= 1.0;\n\t\tif (editorMaskInside && texture2D(uEditorTerrainWaterMask, editorMaskUv).r < 0.5) discard;`);
+    material.needsUpdate = true;
+    waterMesh.userData.editorTerrainWaterMask = Object.freeze({ resolution, wetCells, dryCells: data.length - wetCells, seaLevel });
+    material.addEventListener('dispose', () => mask.dispose());
+  }
+}
+</script>
+</body>
+</html>

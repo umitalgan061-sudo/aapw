@@ -31,6 +31,7 @@ export class TouchJoystick {
 		this._dragX = 0;
 		this._dragY = 0;
 		this._pointerId = null;
+		this._jumpRequested = false;
 
 		this._base = document.createElement('div');
 		this._base.className = 'g3d-joystick-base';
@@ -38,6 +39,15 @@ export class TouchJoystick {
 		this._knob.className = 'g3d-joystick-knob';
 		this._base.appendChild(this._knob);
 		container.appendChild(this._base);
+
+		this._jumpButton = document.createElement('button');
+		this._jumpButton.type = 'button';
+		this._jumpButton.className = 'g3d-touch-jump-button';
+		this._jumpButton.textContent = 'Zıpla';
+		this._jumpButton.setAttribute('aria-label', 'Zıpla');
+		this._onJumpClick = () => { this._jumpRequested = true; };
+		this._jumpButton.addEventListener('click', this._onJumpClick);
+		container.appendChild(this._jumpButton);
 
 		this._onPointerDown = this._handlePointerDown.bind(this);
 		this._onPointerMove = this._handlePointerMove.bind(this);
@@ -105,12 +115,22 @@ export class TouchJoystick {
 		};
 	}
 
+	/** Returns one edge-triggered mobile jump request and clears it immediately. */
+	consumeJumpRequested() {
+		const requested = this._jumpRequested;
+		this._jumpRequested = false;
+		return requested;
+	}
+
 	/** Removes DOM elements and listeners. Call on teardown (memory-leak checklist). */
 	dispose() {
 		this._base.removeEventListener('pointerdown', this._onPointerDown);
 		this._base.removeEventListener('pointermove', this._onPointerMove);
 		this._base.removeEventListener('pointerup', this._onPointerUp);
 		this._base.removeEventListener('pointercancel', this._onPointerUp);
+		this._jumpButton.removeEventListener('click', this._onJumpClick);
+		this._jumpRequested = false;
+		this._jumpButton.remove();
 		this._base.remove();
 	}
 }

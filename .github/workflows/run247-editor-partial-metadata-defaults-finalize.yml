@@ -1,0 +1,77 @@
+name: Run 247 Editor Partial Metadata Defaults Finalize
+
+on:
+  push:
+    branches:
+      - agent/run247-editor-partial-metadata-defaults
+    paths:
+      - '.github/workflows/run247-editor-partial-metadata-defaults-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run247-editor-partial-metadata-defaults-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main, syntax and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun247EditorPartialMetadataDefaults.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run247 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 247 — World Editor partial editor-metadata composed defaults regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium regression verifies a valid schema-v1 scene with partial `editor: { gridVisible: false }` metadata loads exact object identity/name/asset and transform data without changing runtime/product source.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Missing snap fields compose to defaults (`enabled=true`, size `1`), selection clears, history remains stable, success toast completes, and browser console/page errors remain zero.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Explicit `gridVisible=false` remains authoritative while owner live-grid policy keeps Grid unchecked, disabled and hidden.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- PWA cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, performance trend, technical-debt audit, full browser smoke, final remote-main concurrency/additive gates, visual artifact upload and World Event Determinism Guard PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed. Test/docs/workflow-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Evidence: Run247 workflow `31455193757` PASS and World Event Determinism Guard `31455193727` PASS. Next safe step: re-read current main and active branches; continue only a distinct, unclaimed World Editor compatibility edge case.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run247,' perf_log.csv; then
+            printf 'run247,%s,editor-partial-metadata-defaults,,,,,,,"test-only valid scene partial editor metadata composed defaults regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run247 editor partial-metadata composed defaults regression' STABLE_TAGS.md; then
+            printf '%s — Run247 editor partial-metadata composed defaults regression; valid scene preserves exact object data, explicit gridVisible=false and default snap state; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run247 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run247): record partial-metadata checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run247-editor-partial-metadata-defaults
+          git push origin "$STABLE_TAG" || true

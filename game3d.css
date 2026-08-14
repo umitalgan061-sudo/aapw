@@ -1,6 +1,21 @@
 /* Styles for game3d.html only — deliberately isolated from style.css (the 2D game's stylesheet).
    Colors are literal, not shared CSS variables, so this page has zero coupling to the 2D UI. */
 
+/* Root-cause fix (run 107, ADR-0134): this file never declared box-sizing, so every fixed-position
+   HUD widget below defaulted to content-box — a `width: min(360px, calc(100vw - Npx))` computed
+   against *content* width only, then silently grew past that intended viewport-safe bound by its
+   own padding+border (e.g. `.g3d-event-toast`'s 14px/side padding + ~4px border added ~32px on top
+   of its calculated 360px, actually rendering ~392px wide on a 390px-wide mobile viewport — found by
+   this run's own real-browser visual proof for the new day/night clock: the event toast, while
+   showing, overlapped both the health bar and the settlement compass, not merely the clock this run
+   was adding). `style.css` (the 2D page) already resets to border-box; this file simply never did.
+   Every `min(Npx, calc(100vw - Mpx))` width and `max(Npx, calc(env(safe-area-inset-*) + Npx))`
+   position in this file was written assuming border-box sizing, so this is the single fix that
+   makes them all correct at once — not a widget-by-widget patch. See DECISIONS.md ADR-0134. */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -115,6 +130,19 @@ html, body {
   backdrop-filter: blur(4px);
 }
 
+
+.g3d-interaction-prompt.g3d-interaction-prompt-action {
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.g3d-interaction-prompt.g3d-interaction-prompt-action:active {
+  background: rgba(42, 26, 6, 0.82);
+  border-color: rgba(232, 212, 160, 0.82);
+}
+
 .g3d-dialogue-box {
   position: fixed;
   left: 50%;
@@ -145,6 +173,54 @@ html, body {
   margin: 4px 0;
   font-size: 14px;
   color: #f0d9a0;
+}
+
+.g3d-dialogue-box-actionable {
+  pointer-events: auto;
+}
+
+.g3d-dialogue-box-actionable .g3d-dialogue-box-choice {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid rgba(200, 150, 10, 0.35);
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.g3d-dialogue-box-actionable .g3d-dialogue-box-choice:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
+}
+
+.g3d-dialogue-box-actionable .g3d-dialogue-box-choice:active {
+  background: rgba(200, 150, 10, 0.22);
+  border-color: rgba(232, 212, 160, 0.8);
+}
+
+.g3d-dialogue-box-close-action {
+  width: fit-content;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  margin: 4px 0 -8px auto;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.g3d-dialogue-box-close-action:active {
+  background: rgba(200, 150, 10, 0.22);
+}
+
+.g3d-dialogue-box-close-action:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
 }
 
 .g3d-dialogue-box-hint {
@@ -212,4 +288,419 @@ html, body {
   font-size: 12px;
   line-height: 1.35;
   opacity: 0.9;
+}
+
+/* Player health bar (FAZ 7 dragon combat, run 90, DECISIONS.md ADR-0116) — src/3d/ui/healthBar.js.
+   Top-right, the one HUD corner none of the widgets above already occupy (back-link/perf-panel:
+   top-left; event-toast: top-center; interaction-prompt/dialogue-box: bottom-center; joystick:
+   bottom-left). Always visible (unlike the F2 panel), since health matters as an ambient HUD
+   element the moment a health system exists at all. */
+.g3d-health-bar {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  right: 12px;
+  z-index: 20;
+  width: 160px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(10, 6, 2, 0.7);
+  border: 1px solid rgba(200, 150, 10, 0.5);
+  color: #e8d4a0;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  transition: background 0.15s ease;
+}
+
+.g3d-health-bar-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.g3d-health-bar-track {
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.g3d-health-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #7a1010, #c8430a);
+  transition: width 0.2s ease;
+}
+
+.g3d-health-bar.g3d-health-bar-low .g3d-health-bar-fill {
+  background: linear-gradient(90deg, #7a1010, #e04040);
+}
+
+.g3d-health-bar-text {
+  margin: 4px 0 0;
+  font-size: 11px;
+  text-align: right;
+  font-family: monospace;
+}
+
+.g3d-health-bar.g3d-health-bar-flash {
+  background: rgba(120, 10, 10, 0.75);
+}
+
+@media (max-width: 600px) {
+  /* run 107 (ADR-0134): 64px (ADR-0129's own fix) only cleared the back-link — it never accounted
+     for the settlement compass (run 106) or health bar sitting above/overlapping that same band, so
+     a two-line toast description (up to ~72px tall) could still overlap the health bar's own bottom
+     edge (12px top + ~61px tall = 73px) and, more visibly, the whole second HUD row (compass/clock,
+     top:122px + up to ~48px tall = 170px) for the several seconds a toast is shown. 184px clears the
+     taller of the two second-row widgets (compass, ~48px) with a 14px margin — found by this run's
+     own real-browser visual proof for the new day/night clock, not assumed. */
+  .g3d-event-toast {
+    top: max(184px, calc(env(safe-area-inset-top, 0px) + 184px));
+    width: min(360px, calc(100vw - 24px));
+  }
+}
+
+.g3d-controls-help {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  z-index: 24;
+}
+
+.g3d-controls-help-button {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+  border: 1px solid rgba(200, 150, 10, 0.65);
+  border-radius: 50%;
+  background: rgba(10, 6, 2, 0.82);
+  color: #e8d4a0;
+  font: 700 20px/1 serif;
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-controls-help-button:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
+}
+
+.g3d-controls-help-panel {
+  width: min(300px, calc(100vw - 24px));
+  max-height: min(420px, calc(100vh - 88px));
+  margin-bottom: 8px;
+  padding: 14px 16px;
+  overflow-y: auto;
+  border: 1px solid rgba(200, 150, 10, 0.55);
+  border-radius: 10px;
+  background: rgba(10, 6, 2, 0.9);
+  color: #e8d4a0;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+}
+
+.g3d-controls-help-panel h2 {
+  margin: 0 0 10px;
+  color: #c8960a;
+  font-size: 16px;
+}
+
+.g3d-controls-help-panel dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 7px 12px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.g3d-controls-help-panel dt {
+  color: #f0d9a0;
+  font-weight: 700;
+}
+
+.g3d-controls-help-panel dd {
+  margin: 0;
+  color: rgba(232, 212, 160, 0.82);
+}
+
+/* Pause menu (run 339, GOVERNANCE_FULL_GAME_DIRECTIVE.md §3 item 7) — src/3d/ui/pauseMenu.js.
+   Button stacks directly above the controls-help "?" button (same right:12px column, controls-help
+   itself is bottom:12/height:44, so bottom:64 leaves an 8px gap) rather than sharing its row, since
+   the touch jump button already occupies that row further right (right:72px) on touch devices. */
+.g3d-pause-menu-button {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(64px, calc(env(safe-area-inset-bottom, 0px) + 64px));
+  z-index: 24;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(200, 150, 10, 0.65);
+  border-radius: 50%;
+  background: rgba(10, 6, 2, 0.82);
+  color: #e8d4a0;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-pause-menu-button:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
+}
+
+/* `display: flex` only applies while the overlay is shown -- `.g3d-pause-menu-overlay[hidden]` and
+   this rule are equal specificity, so without the `:not([hidden])` guard this would win over the
+   `[hidden]` UA-stylesheet rule by source order alone and the "hidden" overlay would still visually
+   cover (and intercept clicks on) the rest of the HUD, `PauseMenu.setOpen(false)`'s own `hidden = true`
+   notwithstanding. Found by this run's own real-browser evidence capture, not assumed. */
+.g3d-pause-menu-overlay:not([hidden]) {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 3, 1, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.g3d-pause-menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(320px, calc(100vw - 48px));
+  padding: 28px 26px;
+  border: 1px solid rgba(200, 150, 10, 0.55);
+  border-radius: 12px;
+  background: rgba(10, 6, 2, 0.94);
+  color: #e8d4a0;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.g3d-pause-menu-panel h2 {
+  margin: 0 0 4px;
+  color: #c8960a;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+}
+
+.g3d-pause-menu-resume,
+.g3d-pause-menu-quit {
+  padding: 11px 16px;
+  border-radius: 8px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.g3d-pause-menu-resume {
+  border: 1px solid rgba(200, 150, 10, 0.75);
+  background: #c8960a;
+  color: #1a1206;
+  font-weight: 700;
+}
+
+.g3d-pause-menu-resume:active {
+  background: #e8ab0e;
+}
+
+.g3d-pause-menu-quit {
+  display: block;
+  border: 1px solid rgba(200, 150, 10, 0.45);
+  background: transparent;
+  color: #e8d4a0;
+}
+
+.g3d-pause-menu-quit:active {
+  background: rgba(200, 150, 10, 0.15);
+}
+
+.g3d-pause-menu-resume:focus-visible,
+.g3d-pause-menu-quit:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
+}
+
+.g3d-settlement-compass {
+  position: fixed;
+  top: max(78px, calc(env(safe-area-inset-top, 0px) + 78px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  z-index: 19;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(230px, calc(100vw - 24px));
+  padding: 8px 11px;
+  border: 1px solid rgba(200, 150, 10, 0.45);
+  border-radius: 9px;
+  background: rgba(10, 6, 2, 0.76);
+  color: #e8d4a0;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-settlement-compass-arrow {
+  display: inline-block;
+  color: #c8960a;
+  font-size: 24px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.g3d-settlement-compass-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.g3d-settlement-compass-text strong {
+  overflow: hidden;
+  color: #f0d9a0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.g3d-settlement-compass-distance {
+  opacity: 0.72;
+}
+
+@media (max-width: 600px) {
+  .g3d-settlement-compass {
+    top: max(122px, calc(env(safe-area-inset-top, 0px) + 122px));
+    right: 12px;
+  }
+}
+
+/* Day/night clock (FAZ 8 discoverability, run 107) — src/3d/ui/dayNightClock.js. Top-left,
+   mirroring the settlement compass's top-right placement: below the always-present back-link
+   (top:12/left:12), the one left-side HUD spot free on every viewport (the F4/F2 debug panel only
+   ever appears on developer request, never in the ordinary play path this HUD serves). */
+.g3d-day-night-clock {
+  position: fixed;
+  top: max(78px, calc(env(safe-area-inset-top, 0px) + 78px));
+  left: max(12px, env(safe-area-inset-left, 0px));
+  z-index: 19;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid rgba(200, 150, 10, 0.45);
+  border-radius: 9px;
+  background: rgba(10, 6, 2, 0.76);
+  color: #e8d4a0;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-day-night-clock-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.g3d-day-night-clock-time {
+  font-family: monospace;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+}
+
+@media (max-width: 600px) {
+  .g3d-day-night-clock {
+    top: max(122px, calc(env(safe-area-inset-top, 0px) + 122px));
+    left: 12px;
+  }
+}
+
+/* First-arrival feedback (FAZ 8): a non-blocking discovery card above movement controls. */
+.g3d-settlement-discovery {
+  position: fixed;
+  bottom: max(28px, calc(env(safe-area-inset-bottom, 0px) + 28px));
+  left: 50%;
+  z-index: 21;
+  display: flex;
+  min-width: min(280px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  padding: 11px 18px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(200, 150, 10, 0.72);
+  border-radius: 10px;
+  background: rgba(10, 6, 2, 0.9);
+  color: #f0d9a0;
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(5px);
+}
+
+.g3d-settlement-discovery-eyebrow {
+  color: rgba(232, 212, 160, 0.76);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.g3d-settlement-discovery strong {
+  margin-top: 3px;
+  font-size: 18px;
+}
+
+
+.g3d-settlement-discovery.is-complete {
+  border-color: rgba(240, 217, 160, 0.95);
+  box-shadow: 0 0 18px rgba(200, 150, 10, 0.28);
+}
+
+.g3d-settlement-discovery-progress {
+  margin-top: 4px;
+  color: rgba(232, 212, 160, 0.82);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 600px) {
+  .g3d-settlement-discovery {
+    bottom: max(168px, calc(env(safe-area-inset-bottom, 0px) + 168px));
+  }
+}
+
+/* Run 166 / ADR-0188 — touch-primary FAZ 4 jump control. Kept clear of the bottom-left
+   movement joystick and bottom-right controls-help affordance; 64px exceeds the 44px touch target. */
+.g3d-touch-jump-button {
+  position: fixed;
+  right: max(72px, calc(env(safe-area-inset-right, 0px) + 72px));
+  bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 22px));
+  z-index: 23;
+  width: 64px;
+  height: 64px;
+  border: 1px solid rgba(200, 150, 10, 0.72);
+  border-radius: 50%;
+  background: rgba(10, 6, 2, 0.72);
+  color: #e8d4a0;
+  font: 700 13px/1 Georgia, 'Times New Roman', serif;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-touch-jump-button:active {
+  background: rgba(200, 150, 10, 0.28);
+  border-color: rgba(232, 212, 160, 0.9);
+}
+
+.g3d-touch-jump-button:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
 }

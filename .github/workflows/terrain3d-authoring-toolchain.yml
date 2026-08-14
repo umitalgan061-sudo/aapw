@@ -1,0 +1,143 @@
+name: Terrain3D Authoring Toolchain
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'godot/terrain-authoring/terrain3d.lock.json'
+      - 'godot/terrain-authoring/tools/install_terrain3d.py'
+      - 'godot/terrain-authoring/scripts/validate_terrain3d_toolchain.gd'
+      - 'godot/terrain-authoring/TERRAIN_AUTOMATION_RULES.md'
+      - 'godot/terrain-authoring/four_corner_ledger.json'
+      - 'godot/terrain-authoring/README.md'
+      - '.github/workflows/terrain3d-authoring-toolchain.yml'
+  push:
+    branches:
+      - 'terrain/terrain3d-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terrain3d-authoring-toolchain-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main entry gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'ec2d569e334dd75e14a218b9d9e9519b058a5c39' }}"
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Terrain3D lock and installer syntax
+        run: |
+          set -euo pipefail
+          python3 -m py_compile godot/terrain-authoring/tools/install_terrain3d.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          lock = json.loads(Path('godot/terrain-authoring/terrain3d.lock.json').read_text())
+          assert lock['repository'] == 'https://github.com/TokisanGames/Terrain3D'
+          assert lock['asset_library_id'] == 3892
+          assert lock['tag'] == 'v1.0.2-stable'
+          assert lock['version'] == '1.0.2'
+          assert lock['sha256'] == 'a071850250ec5e596aa54da61c01d75768774eb379ee997584d426a45f4884a2'
+          assert len(lock['sha256']) == 64
+          print('TERRAIN3D_LOCK_OK', lock['tag'])
+          PY
+          grep -F 'TokisanGames/Terrain3D' godot/terrain-authoring/TERRAIN_AUTOMATION_RULES.md
+          grep -F 'Buzul Muhafızı' godot/terrain-authoring/four_corner_ledger.json
+          grep -F 'Şafak Kartalı' godot/terrain-authoring/four_corner_ledger.json
+          grep -F 'Günbatımı Ustası' godot/terrain-authoring/four_corner_ledger.json
+          grep -F 'Kızıl Ufuk' godot/terrain-authoring/four_corner_ledger.json
+
+      - name: Install pinned official Terrain3D and enable plugins
+        run: |
+          set -euo pipefail
+          cp godot/terrain-authoring/project.godot "$RUNNER_TEMP/project.godot.before-terrain3d"
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --check-upstream | tee "$RUNNER_TEMP/terrain3d-upstream.log"
+          python3 godot/terrain-authoring/tools/install_terrain3d.py | tee "$RUNNER_TEMP/terrain3d-install.log"
+          grep -F 'TERRAIN3D_INSTALL_OK' "$RUNNER_TEMP/terrain3d-install.log"
+          grep -F 'version="1.0.2"' godot/terrain-authoring/addons/terrain_3d/plugin.cfg
+          test -f godot/terrain-authoring/addons/terrain_3d/terrain.gdextension
+          test -d godot/terrain-authoring/addons/terrain_3d/bin
+          grep -F 'res://addons/zylann.hterrain/plugin.cfg' godot/terrain-authoring/project.godot
+          grep -F 'res://addons/terrain_3d/plugin.cfg' godot/terrain-authoring/project.godot
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot Terrain3D plugin load proof
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 \
+            2>&1 | tee "$RUNNER_TEMP/terrain3d-editor.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_terrain3d_toolchain.gd \
+            2>&1 | tee "$RUNNER_TEMP/terrain3d-probe.log"
+          grep -F 'TERRAIN3D_TOOLCHAIN_VALIDATION_OK' "$RUNNER_TEMP/terrain3d-probe.log"
+          if grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' "$RUNNER_TEMP/terrain3d-editor.log"; then
+            echo 'Terrain3D emitted a load error.' >&2
+            exit 1
+          fi
+
+      - name: Install Chromium terrain-safety dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Existing PWA and terrain safety regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Restore bootstrap-only project mutation and final gate
+        if: always()
+        run: |
+          set -euo pipefail
+          if test -f "$RUNNER_TEMP/project.godot.before-terrain3d"; then
+            cp "$RUNNER_TEMP/project.godot.before-terrain3d" godot/terrain-authoring/project.godot
+          fi
+          rm -rf godot/terrain-authoring/addons/terrain_3d
+          git diff --exit-code -- godot/terrain-authoring/project.godot
+          git diff --check

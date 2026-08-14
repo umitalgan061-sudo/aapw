@@ -1,0 +1,265 @@
+name: Run 190 Canonical Rock Geometry Shadow
+
+on:
+  push:
+    branches: [chatgpt/run190-canonical-rock-geometry-shadow]
+    paths:
+      - 'src/3d/world/worldReferenceRockShadow.js'
+      - 'scripts/checkCanonicalRockGeometryShadow.js'
+      - 'scripts/applyRun190PwaPrecacheAddition.js'
+      - 'scripts/recordRun190Governance.js'
+      - '.github/workflows/run190-canonical-rock-geometry-shadow.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: 59781d9b80de413d03ca7d5f95f0f46f0d6a245d
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Snapshot and start concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F '## Run 189 — Canonical deterministic rock/stone placement shadow qualification' 3D_GAME_PROGRESS.md
+          grep -F '## ADR-0209 — Qualify deterministic canonical rock sites before adding any live rock geometry or macro relief (run 189)' DECISIONS.md
+          grep -F '(run 188, ADR-0208) Canonical full-reference yol/su politikası hangisi olmalı' QUESTIONS_FOR_OWNER.md
+          if grep -q '^## ADR-0210 ' DECISIONS.md; then echo 'ADR-0210 already occupied on main'; exit 1; fi
+          if grep -q '^## Run 190 ' 3D_GAME_PROGRESS.md; then echo 'Run190 already occupied on main'; exit 1; fi
+          git log -12 --oneline
+          tail -n 90 3D_GAME_PROGRESS.md
+          tail -n 70 DECISIONS.md
+          tail -n 70 QUESTIONS_FOR_OWNER.md
+
+      - name: Baseline full browser smoke on Run 189 main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run190-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run190-smoke-before.log" && test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run190-smoke-before.log")" -ge 34)
+          git worktree remove "$BASELINE"
+
+      - name: Syntax additive and real rock geometry fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferenceRockShadow.js
+          node --check scripts/checkCanonicalRockGeometryShadow.js
+          node --check scripts/applyRun190PwaPrecacheAddition.js
+          node --check scripts/recordRun190Governance.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+          node scripts/checkCanonicalRockGeometryShadow.js --write-fixture | tee "$RUNNER_TEMP/run190-rock.log"
+          node scripts/checkCanonicalRockGeometryShadow.js --verify-fixture
+          SUMMARY="$(grep '^\[checkCanonicalRockGeometryShadow\] PASS:' "$RUNNER_TEMP/run190-rock.log" | tail -n1 | sed 's/^\[checkCanonicalRockGeometryShadow\] PASS: //')"
+          CHECKSUM="$(grep '^\[checkCanonicalRockGeometryShadow\] CHECKSUM:' "$RUNNER_TEMP/run190-rock.log" | tail -n1 | awk '{print $3}')"
+          test -n "$SUMMARY"
+          test -n "$CHECKSUM"
+          test -s artifacts/run190-rock-geometry/proof.json
+          test -s scripts/fixtures/run190-rock-geometry.json
+          echo "RUN190_ROCK_GEOMETRY_SUMMARY=$SUMMARY" >> "$GITHUB_ENV"
+          echo "RUN190_ROCK_GEOMETRY_CHECKSUM=$CHECKSUM" >> "$GITHUB_ENV"
+
+      - name: Additive PWA precache entry for shadow module
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/applyRun190PwaPrecacheAddition.js
+          git diff --numstat -- service-worker.js | awk -F'\t' '$2 != 0 { print "service-worker deletion detected: "$0; exit 1 }'
+          git diff --check
+          grep -F "'./src/3d/world/worldReferenceRockShadow.js'," service-worker.js
+          node scripts/checkServiceWorkerCache.js
+
+      - name: Canonical map terrain road and world visual gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkFullReferenceMigrationDryRun.js
+          node scripts/checkWorldReferenceMigrationDryRun.js
+          node scripts/checkCanonicalHydrologyTerrainShadow.js
+          node scripts/checkCanonicalChunkIntegrationShadow.js
+          node scripts/checkRoadWaterPolicyComparison.js
+          node scripts/checkCanonicalRockPlacementShadow.js --verify-fixture
+          node scripts/checkCanonicalRockGeometryShadow.js --verify-fixture
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+          node scripts/checkTerrainVisualContract.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkWaterVisualContract.js
+          node scripts/checkSkyVisualContract.js
+          node scripts/checkFogVisualContract.js
+          node scripts/checkLightingVisualContract.js
+          node scripts/checkStarfieldVisualContract.js
+          node scripts/checkCameraContract.js
+          node scripts/checkWindGrassContractRun180.js
+          node scripts/checkWindGrassSceneIntegrationRun180.js
+
+      - name: Determinism assets PWA governance a11y input physics gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkControlsHelpAccessibility.js
+          node scripts/checkJumpArcContract.js
+          node scripts/checkEventBusContract.js
+          node scripts/checkHealthStateContract.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkMobileJumpControl.js
+
+      - name: Mobile streaming LOD and real render budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run190-mobile-budget.log"
+          SAMPLE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run190-mobile-budget.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$SAMPLE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.drawCalls))' "$SAMPLE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(String(x.triangles))' "$SAMPLE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+          echo "RUN190_MOBILE_BUDGET_SUMMARY=live mobile F2 ${DRAW} draw calls / ${TRI} triangles, under <500 / <500K; Run190 shadow module remains unwired and adds zero live render cost." >> "$GITHUB_ENV"
+
+      - name: Full browser smoke after change and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run190-smoke-after.log"
+          AFTER_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run190-smoke-after.log")"
+          test "$AFTER_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run190-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run190-smoke-after.log"; then exit 1; fi
+          echo "RUN190_SMOKE_PASS_COUNT=$AFTER_COUNT" >> "$GITHUB_ENV"
+
+      - name: Mobile near and F4 far visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureRun130MobileEvidence.js
+
+      - name: Upload Run 190 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run190-canonical-rock-geometry-shadow-evidence
+          path: |
+            artifacts/run190-rock-geometry/proof.json
+            scripts/fixtures/run190-rock-geometry.json
+            artifacts/run130-mobile/*.png
+          if-no-files-found: error
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run190 | tee "$RUNNER_TEMP/run190-perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/run190-trend.log"
+          PERF_ROW="$(grep '^\[collectPerfSnapshot\] sampled:' "$RUNNER_TEMP/run190-perf.log" | tail -n1 | sed 's/^\[collectPerfSnapshot\] sampled: //')"
+          test -n "$PERF_ROW"
+          test "$(printf '%s\n' "$PERF_ROW" | awk -F',' '{print NF}')" -eq 8
+          echo "RUN190_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+          git checkout -- perf_log.csv
+
+      - name: Senior self-review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/world/worldReferenceRockShadow.js scripts/checkCanonicalRockGeometryShadow.js scripts/applyRun190PwaPrecacheAddition.js scripts/recordRun190Governance.js; then exit 1; fi
+          git diff --quiet "$BASE_SHA" HEAD -- src/3d/game3d.js src/3d/sceneManager.js src/3d/world/chunkManager.js src/3d/world/terrain.js src/3d/world/roads.js src/3d/world/vegetation.js src/3d/physics.js script.js index.html game3d.html manifest.json
+          git diff --quiet -- src/3d/game3d.js src/3d/sceneManager.js src/3d/world/chunkManager.js src/3d/world/terrain.js src/3d/world/roads.js src/3d/world/vegetation.js src/3d/physics.js script.js index.html game3d.html manifest.json
+          node scripts/checkCanonicalRockPlacementShadow.js --verify-fixture
+          node scripts/checkCanonicalRockGeometryShadow.js --verify-fixture
+          node scripts/checkCanonicalChunkIntegrationShadow.js
+          node scripts/checkRoadWaterPolicyComparison.js
+          node scripts/checkServiceWorkerCache.js
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if grep -q '^## ADR-0210 ' DECISIONS.md; then echo 'ADR-0210 occupied before publish'; exit 1; fi
+          if grep -q '^## Run 190 ' 3D_GAME_PROGRESS.md; then echo 'Run190 occupied before publish'; exit 1; fi
+
+      - name: Prepare Run 190 governance values
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RUN190_STAMP=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+          echo "RUN190_STABLE_TAG=stable-$(date -u +'%Y-%m-%d-%H%M')" >> "$GITHUB_ENV"
+
+      - name: Record Run 190 governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/recordRun190Governance.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkCheckpointConsistency.js
+
+      - name: Final publish concurrency gate and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          if git ls-remote --tags origin "refs/tags/$RUN190_STABLE_TAG" | grep -q .; then echo 'stable tag already exists'; exit 1; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add service-worker.js scripts/fixtures/run190-rock-geometry.json WORLD_REFERENCE_MAP.md 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          git commit -m "test(world): record canonical rock geometry shadow proof"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git push origin HEAD:chatgpt/run190-canonical-rock-geometry-shadow
+          git tag "$RUN190_STABLE_TAG"
+          git push origin "$RUN190_STABLE_TAG" || true

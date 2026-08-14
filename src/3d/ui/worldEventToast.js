@@ -73,3 +73,20 @@ export class WorldEventToast {
 		this._el.remove();
 	}
 }
+
+/**
+ * Run 150 accessibility extension. The existing toast lifecycle remains untouched; this additive
+ * wrapper only adds live-region semantics when a real world event is shown. `role="status"` keeps
+ * announcements polite/non-interruptive, `aria-atomic="true"` makes title + description read as a
+ * single update, and the decorative emoji is hidden from assistive technology so the Turkish event
+ * text remains the useful announcement. ARIA attributes do not affect layout, rendering, timers,
+ * EventBus wiring, pointer input, or the mobile/PWA performance budget.
+ */
+const showBeforeWorldEventAccessibilityRun150 = WorldEventToast.prototype._show;
+WorldEventToast.prototype._show = function showAccessibleWorldEventRun150(event) {
+	this._el.setAttribute('role', 'status');
+	this._el.setAttribute('aria-live', 'polite');
+	this._el.setAttribute('aria-atomic', 'true');
+	this._iconEl.setAttribute('aria-hidden', 'true');
+	showBeforeWorldEventAccessibilityRun150.call(this, event);
+};

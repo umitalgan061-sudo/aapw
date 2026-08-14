@@ -8,6 +8,9 @@
  * (`EVENTS.WORLD_EVENT_TRIGGERED`) rather than called directly — the explicit ask was to extend the
  * EventBus to real gameplay events, not just add another direct function call. `ui/worldEventToast.js`
  * is the (only, for now) listener, rendering the same icon/title/description shape as a toast card.
+ * Selection is weighted by rarity tier (ADR-0110) and, for the handful of entries whose own text is
+ * unambiguous about when they happen, gated against `lighting.js`'s real day/night state (ADR-0111,
+ * run 86) — an aurora no longer fires at high noon, an eclipse no longer fires at midnight.
  * @module gameplay/worldEvents
  */
 
@@ -30,27 +33,224 @@ function mulberry32(seed) {
 	};
 }
 
+/** Rarity-tier weights for `WORLD_EVENTS`' weighted pick (ADR-0110). Higher = fires more often.
+ * Three tiers only — enough to make big/ominous events read as rarer than everyday ambiance without
+ * a per-entry tuning knob nobody could calibrate against real playtesting yet (same "don't invent
+ * precision you can't justify" reasoning as every `QUESTIONS_FOR_OWNER.md` temporary-default entry). */
+const WEIGHT = Object.freeze({ COMMON: 3, UNCOMMON: 2, RARE: 1 });
+
+/** How close to full day/night `dayNight.nightFactor` (`lighting.js`, 0 = noon, 1 = midnight) must
+ * be before a `timeOfDay`-restricted event (ADR-0111) is eligible to fire. Both thresholds
+ * deliberately exclude `lighting.js`'s own dusk/dawn keyframes (`nightFactor` 0.35 at ratio
+ * 0.27/0.73) — an event tagged `'night'` shouldn't fire during a still-orange sunset, and one tagged
+ * `'day'` shouldn't fire during a still-dim dawn. Single-number engineering judgment, not measured
+ * against a real playtest — see `QUESTIONS_FOR_OWNER.md`'s newest entry (run 86). */
+const NIGHT_THRESHOLD = 0.6;
+const DAY_THRESHOLD = 0.15;
+
 /** Curated flavor events — pure lore/ambiance, no stat effects (see module doc for why). Kept local
  * to this file rather than in `config.js`, which is already at its 600-line cap — same
- * "tool/system-specific constants stay local" precedent `debug/perfPanel.js`'s own budgets set. */
+ * "tool/system-specific constants stay local" precedent `debug/perfPanel.js`'s own budgets set.
+ * `weight` (ADR-0110): COMMON = routine background detail (a howl, a bell, a hammer blow) that
+ * could plausibly happen most nights; UNCOMMON = a specific notable occurrence (a visitor, an
+ * announcement) that stands out from routine ambiance; RARE = a dramatic or ominous occurrence this
+ * pool's own text frames as a possible omen/portent, or a lore-significant one-off (a season
+ * changing, a dragon's shadow). The split is this run's own editorial judgment, not measured against
+ * a real playtest — see ADR-0110's Alternatives for why a per-entry knob was rejected in favor of
+ * just three tiers. `timeOfDay` (ADR-0111, run 86): an optional `'day'`/`'night'` gate, omitted =
+ * eligible any time. Only applied to the entries whose own text (or real-world convention for the
+ * phenomenon it names) is unambiguous about when it happens — see ADR-0111's Decision for why every
+ * other entry, including tonally-similar ones like `dragon_shadow`/`red_comet`, was deliberately left
+ * ungated rather than guessed at. Currently 8 of 32 entries carry a `timeOfDay` gate (kept as a
+ * relative, not a hardcoded count, so future additions don't leave this comment stale the way
+ * run 102's `harvest_wagons` addition briefly did). */
+// Run 123 live count: 9 of 34 entries are time-gated; the JSDoc above retains run 120's snapshot.
 const WORLD_EVENTS = Object.freeze([
-	{ id: 'raven', icon: '🐦', title: 'Kuzgun Ulaştı', desc: 'Uzak bir kaleden kuzgun mesajı geldi.', color: '#8faabb' },
-	{ id: 'distant_storm', icon: '🌩️', title: 'Uzak Fırtına', desc: 'Ufukta fırtına bulutları toplanıyor.', color: '#4a88c8' },
-	{ id: 'wolf_howl', icon: '🐺', title: 'Kurt Uluması', desc: 'Gecenin sessizliğinde bir kurt uluması yankılandı.', color: '#8faabb' },
-	{ id: 'feast_fires', icon: '🔥', title: 'Şölen Ateşleri', desc: 'Bir kalede şölen ateşleri yakıldı, kutlama sesleri rüzgarda taşınıyor.', color: '#e8784a' },
-	{ id: 'dragon_shadow', icon: '🐉', title: 'Ejderha Gölgesi', desc: 'Gökyüzünde bir gölge geçti — yoksa hayal mi gördün?', color: '#c8430a' },
-	{ id: 'guard_change', icon: '⚔️', title: 'Nöbetçi Değişimi', desc: 'Kale kapılarında nöbetçiler el değiştiriyor.', color: '#c8960a' },
-	{ id: 'sept_prayer', icon: '🕯️', title: 'Yedi Tanrı\'ya Dua', desc: 'Bir Sept\'ten mumların titreyen ışığı görünüyor.', color: '#e8b420' },
-	{ id: 'maester_raven', icon: '📜', title: 'Maester\'ın Kaydı', desc: 'Bir maester yeni bilgi kayıtlarını tamamladı.', color: '#20c8a0' },
-	{ id: 'falling_star', icon: '🌠', title: 'Düşen Yıldız', desc: 'Gökyüzünde bir yıldız kayarken görüldü — bazıları bunu bir alamet sayar.', color: '#c8b4e8' },
-	{ id: 'horse_gallop', icon: '🐎', title: 'Nal Sesleri', desc: 'Uzaktan bir atın nal sesleri duyuluyor — bir haberci mi, yoksa devriye mi?', color: '#b48a5a' },
-	{ id: 'trade_caravan', icon: '🛒', title: 'Tüccar Kervanı', desc: 'Kale yoluna bir tüccar kervanı yaklaşıyor, çanları uzaktan duyuluyor.', color: '#c89a30' },
-	{ id: 'bell_toll', icon: '🔔', title: 'Çan Sesi', desc: 'Bir kalenin çanı çalıyor — nöbet değişimi mi, yoksa bir uyarı mı?', color: '#a0a0c8' },
-	{ id: 'watch_horn', icon: '📯', title: 'Nöbet Boynuzu', desc: 'Uzaktan, kuzey yönünden tek bir boynuz sesi duyuldu. Sadece bir devriye mi dönüyor?', color: '#607890' },
-	{ id: 'tourney_announce', icon: '🏆', title: 'Turnuva Duyurusu', desc: 'Bir haberci komşu bir kalede düzenlenecek mızrak turnuvasını duyuruyor.', color: '#d4a017' },
-	{ id: 'ship_sighted', icon: '⛵', title: 'Yelken Göründü', desc: 'Ufukta bir yelkenli belirdi — dost mu, yoksa yabancı bir bayrak mı taşıyor?', color: '#2c5f7a' },
-	{ id: 'blacksmith_hammer', icon: '🔨', title: 'Demirci Çekici', desc: 'Bir kaleden ritmik çekiç sesleri geliyor — silahlar mı dövülüyor, at nalı mı?', color: '#7a5230' },
+	{ id: 'raven', icon: '🐦', title: 'Kuzgun Ulaştı', desc: 'Uzak bir kaleden kuzgun mesajı geldi.', color: '#8faabb', weight: WEIGHT.COMMON },
+	{ id: 'distant_storm', icon: '🌩️', title: 'Uzak Fırtına', desc: 'Ufukta fırtına bulutları toplanıyor.', color: '#4a88c8', weight: WEIGHT.COMMON },
+	{ id: 'wolf_howl', icon: '🐺', title: 'Kurt Uluması', desc: 'Gecenin sessizliğinde bir kurt uluması yankılandı.', color: '#8faabb', weight: WEIGHT.COMMON, timeOfDay: 'night' },
+	{ id: 'feast_fires', icon: '🔥', title: 'Şölen Ateşleri', desc: 'Bir kalede şölen ateşleri yakıldı, kutlama sesleri rüzgarda taşınıyor.', color: '#e8784a', weight: WEIGHT.UNCOMMON },
+	{ id: 'dragon_shadow', icon: '🐉', title: 'Ejderha Gölgesi', desc: 'Gökyüzünde bir gölge geçti — yoksa hayal mi gördün?', color: '#c8430a', weight: WEIGHT.RARE },
+	{ id: 'guard_change', icon: '⚔️', title: 'Nöbetçi Değişimi', desc: 'Kale kapılarında nöbetçiler el değiştiriyor.', color: '#c8960a', weight: WEIGHT.COMMON },
+	{ id: 'sept_prayer', icon: '🕯️', title: 'Yedi Tanrı\'ya Dua', desc: 'Bir Sept\'ten mumların titreyen ışığı görünüyor.', color: '#e8b420', weight: WEIGHT.COMMON },
+	{ id: 'maester_raven', icon: '📜', title: 'Maester\'ın Kaydı', desc: 'Bir maester yeni bilgi kayıtlarını tamamladı.', color: '#20c8a0', weight: WEIGHT.UNCOMMON },
+	{ id: 'falling_star', icon: '🌠', title: 'Düşen Yıldız', desc: 'Gökyüzünde bir yıldız kayarken görüldü — bazıları bunu bir alamet sayar.', color: '#c8b4e8', weight: WEIGHT.UNCOMMON, timeOfDay: 'night' },
+	{ id: 'horse_gallop', icon: '🐎', title: 'Nal Sesleri', desc: 'Uzaktan bir atın nal sesleri duyuluyor — bir haberci mi, yoksa devriye mi?', color: '#b48a5a', weight: WEIGHT.COMMON },
+	{ id: 'trade_caravan', icon: '🛒', title: 'Tüccar Kervanı', desc: 'Kale yoluna bir tüccar kervanı yaklaşıyor, çanları uzaktan duyuluyor.', color: '#c89a30', weight: WEIGHT.UNCOMMON },
+	{ id: 'bell_toll', icon: '🔔', title: 'Çan Sesi', desc: 'Bir kalenin çanı çalıyor — nöbet değişimi mi, yoksa bir uyarı mı?', color: '#a0a0c8', weight: WEIGHT.UNCOMMON },
+	{ id: 'watch_horn', icon: '📯', title: 'Nöbet Boynuzu', desc: 'Uzaktan, kuzey yönünden tek bir boynuz sesi duyuldu. Sadece bir devriye mi dönüyor?', color: '#607890', weight: WEIGHT.COMMON },
+	{ id: 'tourney_announce', icon: '🏆', title: 'Turnuva Duyurusu', desc: 'Bir haberci komşu bir kalede düzenlenecek mızrak turnuvasını duyuruyor.', color: '#d4a017', weight: WEIGHT.UNCOMMON },
+	{ id: 'ship_sighted', icon: '⛵', title: 'Yelken Göründü', desc: 'Ufukta bir yelkenli belirdi — dost mu, yoksa yabancı bir bayrak mı taşıyor?', color: '#2c5f7a', weight: WEIGHT.UNCOMMON },
+	{ id: 'blacksmith_hammer', icon: '🔨', title: 'Demirci Çekici', desc: 'Bir kaleden ritmik çekiç sesleri geliyor — silahlar mı dövülüyor, at nalı mı?', color: '#7a5230', weight: WEIGHT.COMMON },
+	{ id: 'white_raven', icon: '🕊️', title: 'Beyaz Kuzgun', desc: 'Citadel\'den beyaz bir kuzgun geldi — mevsimin değiştiğinin habercisi.', color: '#e8e8e8', weight: WEIGHT.RARE },
+	{ id: 'iron_bank', icon: '🪙', title: 'Demir Banka Ziyareti', desc: 'Şehre yabancı bir tahsildar geldi — kimin ne borcu olduğunu fısıldıyorlar.', color: '#3a3a5a', weight: WEIGHT.UNCOMMON },
+	{ id: 'wildling_rumor', icon: '❄️', title: 'Vahşi Kuzeyliler Söylentisi', desc: 'Duvar\'ın ötesinden endişeli fısıltılar yayılıyor — bu kez gerçek mi?', color: '#4a6a8a', weight: WEIGHT.RARE },
+	{ id: 'mourning_bells', icon: '🖤', title: 'Yas Çanları', desc: 'Bir kaleden yavaş, ağır çan sesleri geliyor — biri kaybedilmiş.', color: '#4a4a4a', weight: WEIGHT.RARE },
+	{ id: 'red_comet', icon: '☄️', title: 'Kızıl Kuyruklu Yıldız', desc: 'Gökyüzünde günlerdir asılı duran kızıl bir kuyruklu yıldız — kimileri bunu bir hanedanın alâmeti sayıyor.', color: '#9c2a1e', weight: WEIGHT.RARE },
+	{ id: 'hunting_party', icon: '🦌', title: 'Av Dönüşü', desc: 'Bir av birliği kale kapısından geri döndü, atların sırtında günün avı asılı.', color: '#5a7a3a', weight: WEIGHT.UNCOMMON },
+	{ id: 'eclipse', icon: '🌑', title: 'Güneş Tutulması', desc: 'Öğle vakti gökyüzü kararıyor — kimileri bunu bir felaket alâmeti sayıyor, kimileri sadece doğanın bir cilvesi.', color: '#2a1f3d', weight: WEIGHT.RARE, timeOfDay: 'day' },
+	{ id: 'shackled_prisoner', icon: '⛓️', title: 'Zincirli Mahkûm', desc: 'Nöbetçiler zincirli bir mahkûmu kale kapısından zindana sürüklüyor — suçu neydi, kimse bilmiyor.', color: '#5c5c4a', weight: WEIGHT.UNCOMMON },
+	{ id: 'northern_lights', icon: '🌌', title: 'Kuzey Işıkları', desc: 'Ufkun kuzeyinde gökyüzü yeşile çalan bir ışıkla dalgalanıyor — yaşlılar bunu Duvar\'ın kendi uyarısı sayar.', color: '#2a7a5a', weight: WEIGHT.RARE, timeOfDay: 'night' },
+	{ id: 'traveling_singer', icon: '🎻', title: 'Gezgin Ozan', desc: 'Kale kapısına gelen bir ozan, eski krallardan kalma bir türküyü mızıkasıyla çalmaya başlıyor.', color: '#8a5ac8', weight: WEIGHT.UNCOMMON },
+	{ id: 'harvest_wagons', icon: '🌾', title: 'Hasat Arabaları', desc: 'Gün ışığında tahıl yüklü arabalar kale ambarlarına doğru ilerliyor; yol kenarında saman kokusu kalıyor.', color: '#c8a84a', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	{ id: 'market_day', icon: '🧺', title: 'Pazar Günü', desc: 'Kale meydanında pazar kuruldu; tüccarlar mallarını gün ışığında sergiliyor, pazarlık sesleri yankılanıyor.', color: '#d4883a', weight: WEIGHT.UNCOMMON, timeOfDay: 'day' },
+	{ id: 'sellsword_arrival', icon: '🗡️', title: 'Kiralık Kılıç Gelişi', desc: 'Yorgun görünüşlü bir kiralık kılıç kale kapısına yaklaşıyor — iş mi arıyor, yoksa bir şeyden mi kaçıyor?', color: '#8a6a4a', weight: WEIGHT.UNCOMMON },
+	{ id: 'alms_giving', icon: '🍞', title: 'Sadaka Dağıtımı', desc: 'Kale kapısında bir septon dilencilere ekmek dağıtıyor, uzun bir sıra oluşmuş.', color: '#c8964a', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	{ id: 'direwolf_track', icon: '🐾', title: 'Direwolf İzi', desc: 'Ormanın kenarında bir insan avucundan büyük pençe izleri bulundu — Stark\'ların efsanevi direwolf\'larından biri mi, yoksa sadece sıradan bir kurt mu?', color: '#5a6a72', weight: WEIGHT.RARE },
+	{ id: 'falconer_flight', icon: '🦅', title: 'Şahin Uçuşu', desc: 'Kale avlusunda bir doğancı, kolundaki şahini gün ışığında gökyüzüne salıyor.', color: '#8a6a3a', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	{ id: 'owl_watch', icon: '🦉', title: 'Baykuş Nöbeti', desc: 'Ay ışığında bir baykuş kale surlarına konuyor; nöbetçiler sessiz kanat sesini dinliyor.', color: '#6f7898', weight: WEIGHT.COMMON, timeOfDay: 'night' },
+	{ id: 'crow_flock', icon: '🐦', title: 'Karga Sürüsü', desc: 'Kale surlarının üzerinde toplanan bir karga sürüsü aniden havalanıp dağılıyor — kimileri bunu kötü bir işaret sayar.', color: '#2e2e33', weight: WEIGHT.RARE },
+	{ id: 'midwife_summoned', icon: '👶', title: 'Ebe Çağrısı', desc: 'Kale içinde bir ebe aceleyle bir kuleye çağrılıyor — bir doğum yaklaşıyor.', color: '#d4849a', weight: WEIGHT.UNCOMMON },
+	{ id: 'nightswatch_levy', icon: '🏴', title: 'Gece Nöbeti Devşirmesi', desc: 'Kara pelerinli bir devşirici kale kapısında duruyor — Duvar için gönüllü ya da mahkûm arıyor.', color: '#1c1c22', weight: WEIGHT.UNCOMMON },
+	/** Run 131 addition (ADR-0155): Silent Sisters funeral procession — Westeros lore's dedicated
+	 * order that prepares and escorts the dead (distinct from `mourning_bells`, which is a purely
+	 * auditory cue with no visual procession described). No `timeOfDay` gate: a funeral procession
+	 * isn't tied to a specific time of day, same "only gate unambiguous text" rule as every other
+	 * ungated entry here. */
+	{ id: 'silent_sisters_procession', icon: '🥀', title: 'Sessiz Kızkardeşler Alayı', desc: 'Kara örtülü Sessiz Kızkardeşler örtülü bir tabutu kale kapısından sessizce taşıyor — kimin cenazesi olduğunu kimse yüksek sesle sormuyor.', color: '#463a4a', weight: WEIGHT.RARE },
+	/** Run 133 addition (ADR-0157): a wandering hedge knight requesting a lord's service or a night's
+	 * lodging at the gate — distinct from `sellsword_arrival` (an unaffiliated mercenary, ambiguous
+	 * intent framed as possibly fleeing something) and `traveling_singer` (a musician, no request for
+	 * service/lodging). No `timeOfDay` gate: a knight can plausibly arrive at any hour, same "only gate
+	 * unambiguous text" rule as every other ungated entry here. */
+	{ id: 'hedge_knight_arrival', icon: '🛡️', title: 'Gezgin Şövalye', desc: 'Zırhı hırpalanmış bir gezgin şövalye kale kapısında dizginlerini çekiyor — bir efendiye hizmet mi arıyor, yoksa sadece bir gecelik yatak mı istiyor?', color: '#6a7a8a', weight: WEIGHT.UNCOMMON },
+	/** Run 137 addition: a lord's wedding procession passing through the gate — distinct from
+	 * `feast_fires` (a purely auditory celebration cue, no procession described) and from
+	 * `traveling_singer`/`hedge_knight_arrival` (single arriving figures, not a two-house
+	 * procession). Westeros weddings are a distinct social/political occasion (two houses' colors
+	 * carried together), not just generic festivity. No `timeOfDay` gate: the text names no specific
+	 * hour, same "only gate unambiguous text" rule as every other ungated entry here. */
+	{ id: 'wedding_procession', icon: '💍', title: 'Düğün Alayı', desc: 'Kale kapısından çiçeklerle süslenmiş bir düğün alayı geçiyor — gelinin ve damadın pelerinlerinde iki farklı evin renkleri bir arada taşınıyor.', color: '#c86a9a', weight: WEIGHT.UNCOMMON },
+	/** Run 138 addition: a highborn child sent to another house's wardship — Westeros's real
+	 * political custom of fostering a lord's son with a rival/ally house as a de facto hostage,
+	 * guaranteeing the birth house's loyalty (canon precedent: Theon Greyjoy fostered/held at
+	 * Winterfell after Balon Greyjoy's rebellion). Distinct from `shackled_prisoner` (a chained
+	 * criminal, punitive, no political-guarantee framing) and from `hedge_knight_arrival`/
+	 * `sellsword_arrival` (adults arriving of their own will seeking service, not a child sent by
+	 * his own family). No `timeOfDay` gate: the text names no specific hour, same "only gate
+	 * unambiguous text" rule as every other ungated entry here. */
+	{ id: 'ward_hostage_arrival', icon: '🧒', title: 'Vesayet Genci', desc: 'Soylu bir ailenin genç oğlu, kendi evinin sadakatini garanti altına almak için başka bir evin vesayetine gönderiliyor — fiilen bir rehine olarak. Atının yanında yürüyen muhafızlar dışında kimse tek kelime etmiyor.', color: '#7a9a6a', weight: WEIGHT.UNCOMMON },
+	/** Run 143 addition: a distant signal fire visible only in true night, distinct from feast fires
+	 * (celebration) and the Night's Watch horn (auditory patrol cue). */
+	{ id: 'night_signal_fire', icon: '🔥', title: 'Gece İşaret Ateşi', desc: 'Karanlıkta uzak bir gözetleme kulesinde tek bir işaret ateşi yanıyor — dostlara çağrı mı, yoksa yaklaşan bir tehlikenin haberi mi?', color: '#d05a32', weight: WEIGHT.UNCOMMON, timeOfDay: 'night' },
+	/** Run 143 addition: daylight petitioners gathering at a lord's gate, a civilian/political cue
+	 * distinct from market-day commerce and alms-giving charity. */
+	{ id: 'court_petitioners', icon: '📜', title: 'Dilekçe Kuyruğu', desc: 'Gün ışığında köylüler ve küçük toprak sahipleri kale kapısında sıraya girmiş; herkes derdini lordun görevlilerine anlatmak için bekliyor.', color: '#9a7a52', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	/** Run 143 addition: an itinerant healer offering herbs and remedies, distinct from maesters,
+	 * merchants, singers and sellswords already represented in the catalog. */
+	{ id: 'wandering_healer', icon: '🌿', title: 'Gezgin Şifacı', desc: 'Omzunda ot demetleri taşıyan gezgin bir şifacı kale yolunda durup yaralara merhem, ateşe çay ve uykusuzluğa kök sattığını söylüyor.', color: '#5f8a58', weight: WEIGHT.UNCOMMON },
+	/** Run 144 addition: a routine torch patrol visible only at true night, distinct from
+	 * `guard_change` (shift handover) and `night_signal_fire` (a distant warning beacon). */
+	{ id: 'torch_patrol', icon: '🔥', title: 'Meşaleli Devriye', desc: 'Karanlık bastığında kale dış yolunda meşaleli bir devriye ağır adımlarla ilerliyor; zırhların metal sesi gecede kısa kısa yankılanıyor.', color: '#b86a3c', weight: WEIGHT.COMMON, timeOfDay: 'night' },
+	/** Run 144 addition: a daylight public proclamation, distinct from tournament announcements and
+	 * petitioners waiting to speak; this is the lordship broadcasting a formal order to the crowd. */
+	{ id: 'herald_proclamation', icon: '📣', title: 'Meydan Fermanı', desc: 'Gün ışığında bir haberci kale meydanında tomarını açıp lordun yeni fermanını yüksek sesle okuyor; kalabalık her cümleden sonra birbirine bakıyor.', color: '#b8924a', weight: WEIGHT.UNCOMMON, timeOfDay: 'day' },
+	/** Run 144 addition: a silent aftermath clue rather than an active battle event; no time gate
+	 * because the discovered banner can plausibly remain beside the road at any hour. */
+	{ id: 'broken_banner_found', icon: '🚩', title: 'Yırtık Sancak', desc: 'Kale yolunun kenarında çamura bulanmış, arması seçilemeyen yırtık bir sancak bulundu — yakınlarda bir çatışma yaşanmış olabilir.', color: '#6f4a45', weight: WEIGHT.RARE },
+	/** Run 145 addition: a traveling mummer troupe staging a short performance in the yard, distinct
+	 * from `traveling_singer` (a lone musician) and `tourney_announce` (an announcement, not a show).
+	 * No `timeOfDay` gate: the text names no specific hour, same "only gate unambiguous text" rule as
+	 * every other ungated entry here. */
+	{ id: 'mummer_troupe', icon: '🎭', title: 'Gezgin Soytarılar', desc: 'Rengarenk kıyafetler giymiş bir soytarı topluluğu kale avlusunda kısa bir oyun sahneliyor; çocuklar gülüşürken yaşlılar başını sallıyor.', color: '#a0509a', weight: WEIGHT.UNCOMMON },
+	/** Run 145 addition: a shepherd driving a flock past the gate at daylight — pastoral daily-life
+	 * cue, distinct from `harvest_wagons` (grain, not livestock) and `trade_caravan` (merchants, not a
+	 * single local shepherd). Gated `day`: a flock being driven to pasture is a daylight activity, same
+	 * unambiguous-text rule as every other gated entry here. */
+	{ id: 'shepherd_flock', icon: '🐑', title: 'Çoban Sürüsü', desc: 'Gün ışığında bir çoban, meleyen koyun sürüsünü kale yolunun kenarından otlağa doğru sürüyor.', color: '#8a9a6a', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	/** Run 145 addition: a maester's own nighttime observation of the sky, distinct from `falling_star`
+	 * (a passive natural phenomenon anyone might see) and `maester_raven` (daytime record-keeping, no
+	 * stargazing). Gated `night`: studying the stars requires true darkness, same unambiguous-text rule
+	 * as every other gated entry here. */
+	{ id: 'stargazing_maester', icon: '🔭', title: 'Yıldız Gözlemi', desc: 'Gece yarısına yakın, kale kulesinde bir maester bakır bir aletle gökyüzünü inceliyor; kayıtlarına usulca bir şeyler not düşüyor.', color: '#3a5a7a', weight: WEIGHT.RARE, timeOfDay: 'night' },
+	/** Run 147 addition: a sealed-scroll courier arriving without a fixed hour, distinct from
+	 * `raven`/`maester_raven` (bird-delivered messages) and `horse_gallop` (unidentified distant rider). */
+	{ id: 'sealed_courier', icon: '✉️', title: 'Mühürlü Haberci', desc: 'Toz içindeki bir haberci kale kapısında atından inip balmumuyla mühürlenmiş bir tomar uzatıyor; üzerindeki arma uzaktan seçilemiyor.', color: '#8a5d45', weight: WEIGHT.UNCOMMON },
+	/** Run 147 addition: daylight weapons drill in the yard, distinct from `guard_change` (handover)
+	 * and `blacksmith_hammer` (crafting); explicitly day-gated by the text. */
+	{ id: 'training_yard_drill', icon: '🛡️', title: 'Avlu Talimi', desc: 'Gün ışığında kale avlusunda askerler kalkan ve tahta kılıçlarla sıra talimi yapıyor; komut sesleri taş duvarlarda yankılanıyor.', color: '#7f6f58', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	/** Run 147 addition: a quiet graveyard vigil, distinct from `mourning_bells` (audible loss
+	 * announcement) and `sept_prayer` (generic worship); true-night only. */
+	{ id: 'graveyard_vigil', icon: '🕯️', title: 'Mezarlık Nöbeti', desc: 'Gece karanlığında kale dışındaki mezarlıkta tek bir mum yanıyor; pelerinli bir siluet eski bir mezarın başında sessizce bekliyor.', color: '#57506f', weight: WEIGHT.RARE, timeOfDay: 'night' },
+	/** Run 335 addition (ADR-0281): pilgrims walking to a godswood to pray before a weirwood tree —
+	 * Eski Tanrılar (old-gods) worship, distinct from `sept_prayer` (the Seven, candlelight inside a
+	 * sept building, no procession). Gated `day`: the text describes a visible walking procession,
+	 * which reads as a daylight activity, same "only gate unambiguous text" rule as every other gated
+	 * entry here. */
+	{ id: 'godswood_pilgrimage', icon: '🌳', title: 'Tanrı Ormanı Hac Yürüyüşü', desc: 'Gün ışığında bir grup hacı, kızıl yapraklı bir yüce ağacın önünde dua etmek için tanrı ormanına doğru sessizce yürüyor.', color: '#6a8a4a', weight: WEIGHT.UNCOMMON, timeOfDay: 'day' },
+	/** Run 335 addition (ADR-0281): a friendly archery contest among soldiers, distinct from
+	 * `training_yard_drill` (formal sword/shield drill, command-driven) and `tourney_announce` (a
+	 * herald's announcement of a future event, not an activity happening now). Gated `day`: an
+	 * archery contest needs visible targets, same unambiguous-text rule as every other gated entry
+	 * here. */
+	{ id: 'archery_contest', icon: '🏹', title: 'Okçuluk Yarışması', desc: 'Gün ışığında kale avlusunda askerler nişan tahtalarına ok atarak birbirleriyle şakalaşıyor; her isabetli atışta kısa bir alkış yükseliyor.', color: '#a08040', weight: WEIGHT.COMMON, timeOfDay: 'day' },
+	/** Run 335 addition (ADR-0281): a kraken-sailed Iron Islands raiding fleet sighted along the
+	 * coast — a specific, ominous political/military signal, distinct from `ship_sighted` (a single
+	 * sail of ambiguous origin, not a fleet, no faction implied). No `timeOfDay` gate: a fleet on the
+	 * horizon can plausibly be sighted at any hour, same "only gate unambiguous text" rule as every
+	 * other ungated entry here. */
+	{ id: 'iron_fleet_sighted', icon: '🚢', title: 'Demir Filo Göründü', desc: 'Ufukta ahtapot armalı kara yelkenli bir filo süzülüyor — Demir Adalar\'ın gemileri bu kadar güneye neden geldi?', color: '#2a3a4a', weight: WEIGHT.RARE },
+	/** Run 335 addition (ADR-0281): a rumor of giant bones found beyond the Wall — a lore/omen entry
+	 * distinct from `wildling_rumor` (living people, not remains) and `broken_banner_found` (a human
+	 * battle's aftermath, not a legendary creature). No `timeOfDay` gate: a rumor being repeated
+	 * carries no specific hour, same unambiguous-text rule as every other ungated entry here. */
+	{ id: 'giant_bones_rumor', icon: '🦴', title: 'Dev Kemikleri Söylentisi', desc: 'Duvar\'ın ötesinden dönen bir devriye, kar altında bir adamdan üç kat büyük kemikler bulduklarını fısıldıyor — kimse tam olarak inanmak istemiyor.', color: '#8a8a7a', weight: WEIGHT.RARE },
+	/** Run 335 addition (ADR-0281): a child's name-day celebration with song in the yard — a family/
+	 * community joy occasion distinct from `wedding_procession` (a political two-house union, not a
+	 * child's birth-anniversary) and `traveling_singer` (a lone itinerant musician performing for
+	 * coin, not a family celebrating together). No `timeOfDay` gate: the text names no specific hour,
+	 * same unambiguous-text rule as every other ungated entry here. */
+	{ id: 'name_day_song', icon: '🎂', title: 'Ad Günü Şarkısı', desc: 'Kale avlusundan bir çocuğun ad gününü kutlayan neşeli bir şarkı ve kahkaha sesleri geliyor; aile ve hizmetliler bir araya toplanmış.', color: '#d49aa0', weight: WEIGHT.UNCOMMON },
 ]);
+// Run 126 live count: 9 of 35 entries are time-gated; the JSDoc/comment above retain earlier runs'
+// snapshots rather than being edited in place (GOVERNANCE.md §2 madde 9, additive-only diff guard).
+// Run 128 live count: 9 of 36 entries are time-gated.
+// Run 131 live count: 9 of 37 entries are time-gated.
+// Run 133 live count: 9 of 38 entries are time-gated.
+// Run 137 live count: 9 of 39 entries are time-gated.
+// Run 138 live count: 9 of 40 entries are time-gated.
+// Run 143 live count: 11 of 43 entries are time-gated.
+// Run 144 live count: 13 of 46 entries are time-gated.
+// Run 145 live count: 15 of 49 entries are time-gated.
+// Run 147 live count: 17 of 52 entries are time-gated.
+// Run 335 live count: 19 of 57 entries are time-gated.
+
+/** True if `event` is allowed to fire given the current `nightFactor` (`lighting.js`'s 0=noon..1=
+ * midnight scale). `nightFactor === undefined` (no day/night state available — e.g. an older/test
+ * caller that only passes `deltaSeconds`) always returns `true`: gating is additive, never a new
+ * required argument. An event with no `timeOfDay` field is likewise always eligible. */
+function isEligible(event, nightFactor) {
+	if (event.timeOfDay === undefined || nightFactor === undefined) return true;
+	if (event.timeOfDay === 'night') return nightFactor >= NIGHT_THRESHOLD;
+	if (event.timeOfDay === 'day') return nightFactor <= DAY_THRESHOLD;
+	return true;
+}
+
+/**
+ * Picks one `WORLD_EVENTS` entry, weighted by its `weight` field (ADR-0110) and, when `nightFactor`
+ * is supplied, filtered first by `timeOfDay` eligibility (ADR-0111) — higher-weight *eligible*
+ * entries come up more often. Still one `random()` call per pick, same shape as before ADR-0110/0111
+ * both times, so this doesn't change how many PRNG draws an `update()` call consumes.
+ * @param {() => number} random
+ * @param {number} [nightFactor] `lighting.js`'s day/night blend (0=noon..1=midnight). Omit to skip
+ *   time-of-day gating entirely (every entry eligible, same as before ADR-0111).
+ * @returns {{id: string, icon: string, title: string, desc: string, color: string, weight: number, timeOfDay?: string}}
+ */
+function pickWeightedEvent(random, nightFactor) {
+	const eligible = WORLD_EVENTS.filter((event) => isEligible(event, nightFactor));
+	// 24 of 32 entries carry no `timeOfDay` at all, so `eligible` can only ever come up empty from a
+	// bug in this function itself — this fallback is a safety net against ever emitting nothing, not
+	// an expected runtime path.
+	// Run 123 live fallback basis: 25 ungated entries remain available within the 34-entry pool.
+	const pool = eligible.length > 0 ? eligible : WORLD_EVENTS;
+	const totalWeight = pool.reduce((sum, event) => sum + event.weight, 0);
+	let remaining = random() * totalWeight;
+	for (const event of pool) {
+		remaining -= event.weight;
+		if (remaining < 0) return event;
+	}
+	return pool[pool.length - 1]; // Float rounding guard; never hit in practice.
+}
 
 /** Real-time seconds between events — randomized per-firing within this range so it never reads as
  * a metronome. Deliberately real-time, not turn-based: FAZ 8 has no turn system yet. */
@@ -60,7 +260,9 @@ const MAX_INTERVAL_SECONDS = 90;
 /**
  * @param {object} options
  * @param {import('../eventBus.js').EventBus} options.eventsBus Emits `EVENTS.WORLD_EVENT_TRIGGERED`
- *   with the picked event object (`{id, icon, title, desc, color}`) as payload.
+ *   with the picked event object (`{id, icon, title, desc, color, weight}`) as payload — `weight`
+ *   (ADR-0110) is carried along for consumers that might want it, but `ui/worldEventToast.js` (the
+ *   only listener so far) only reads `icon`/`title`/`desc`/`color`.
  * @param {number} options.seed Deterministic seed — same seed always produces the same sequence of
  *   events and intervals (this project's determinism rule).
  * @param {string} options.eventName The `EVENTS.WORLD_EVENT_TRIGGERED` string (passed in, not
@@ -78,13 +280,17 @@ export function createWorldEventSystem({ eventsBus, seed, eventName }) {
 	/**
 	 * Call once per frame with the real elapsed seconds since the last call. No-op after `dispose()`.
 	 * @param {number} deltaSeconds
+	 * @param {number} [nightFactor] `lighting.js`'s day/night blend for this frame (0=noon..1=
+	 *   midnight), forwarded into `pickWeightedEvent` for `timeOfDay` gating (ADR-0111). Optional and
+	 *   additive — omitting it (as every caller did before run 86) picks from the full pool exactly
+	 *   like before, gating none of it.
 	 */
-	system.update = (deltaSeconds) => {
+	system.update = (deltaSeconds, nightFactor) => {
 		if (disposed) return;
 		secondsUntilNext -= deltaSeconds;
 		if (secondsUntilNext > 0) return;
 		secondsUntilNext += MIN_INTERVAL_SECONDS + random() * (MAX_INTERVAL_SECONDS - MIN_INTERVAL_SECONDS);
-		const picked = WORLD_EVENTS[Math.floor(random() * WORLD_EVENTS.length)];
+		const picked = pickWeightedEvent(random, nightFactor);
 		eventsBus.emit(eventName, picked);
 	};
 

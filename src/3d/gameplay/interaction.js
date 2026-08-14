@@ -31,9 +31,17 @@ const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
  *   literal `{name}` placeholder) — see `gameplayConfig.js`'s `CHOICES_BY_NPC_ID`. An id with no
  *   entry (or an empty array) never offers choices — same greeting-then-close-on-E as before.
  * @param {number} options.radiusMeters
- * @returns {{update: (npcs: Array<{object3D: import('three').Object3D, displayName: (string|null)}>, playerPos: {x: number, z: number}) => void, handleKeyDown: (event: KeyboardEvent) => void}}
+ * @param {() => boolean} [options.isPaused] Polled at the top of `handleKeyDown`/`handleChoice`
+ *   (run 340, ADR-0286) — while it returns `true` both are no-ops, closing the gap `QUESTIONS_FOR_
+ *   OWNER.md`'s run-339 entry disclosed: `game3d.js`'s pause overlay only ever froze the *visual*
+ *   tick loop, not this controller, so a dialogue already open when the player paused could still
+ *   have a choice picked (Enter/Space on a focused, overlay-hidden choice element) or be closed (E)
+ *   while invisible underneath it. Defaults to `() => false` (unpaused) so every existing caller —
+ *   this project's own smoke checks included — keeps its exact prior behavior with no call-site
+ *   changes required.
+ * @returns {{update: (npcs: Array<{object3D: import('three').Object3D, displayName: (string|null)}>, playerPos: {x: number, z: number}) => void, handleKeyDown: (event: KeyboardEvent) => void, handleChoice: (index: number) => void}}
  */
-export function createInteractionController({ interactionPrompt, dialogueBox, greetingTemplate, greetingsByNpcId = {}, choicesByNpcId = {}, radiusMeters }) {
+export function createInteractionController({ interactionPrompt, dialogueBox, greetingTemplate, greetingsByNpcId = {}, choicesByNpcId = {}, radiusMeters, isPaused = () => false }) {
 	let activeNpc = null;
 	let nearestNpc = null;
 	// Non-null only between opening a dialogue that has choices and one of them being picked (or the
@@ -67,6 +75,13 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 	}
 
 	return {
+		/** Selects a visible dialogue choice by zero-based index (mobile/PWA pointer path). */
+		handleChoice(index) {
+			if (isPaused()) return;
+			if (!Number.isInteger(index) || !activeChoices || index < 0 || index >= activeChoices.length) return;
+			selectChoice(index);
+		},
+
 		/** Call once per frame with the current NPC list and player world position. */
 		update(npcs, playerPos) {
 			nearestNpc = null;
@@ -88,6 +103,7 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 
 		/** Pass a `keydown` event straight through from the caller's own listener. */
 		handleKeyDown(event) {
+			if (isPaused()) return;
 			// Guards against the browser's own key-repeat firing this multiple times per held key.
 			if (event.repeat) return;
 			if (event.code === 'Escape') {

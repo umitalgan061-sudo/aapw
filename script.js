@@ -1,13 +1,36 @@
 /* ════════ FIREBASE ════════ */
-firebase.initializeApp({
-  apiKey: "AIzaSyBBhbil5iHbMSkq8tPjoQ1rlSFqM8JfyhY",
-  authDomain: "gameofthrones-06.firebaseapp.com",
-  projectId: "gameofthrones-06",
-  storageBucket: "gameofthrones-06.firebasestorage.app",
-  messagingSenderId: "490086122361",
-  appId: "1:490086122361:web:4603437d56b76ea6afe5a8",
-});
-const db = firebase.firestore();
+// Firebase SDK'sı Google'ın CDN'inden yükleniyor (bkz. index.html'deki üç gstatic.com <script>
+// etiketi). O CDN'e ulaşılamadığında — uygulama kurulu bir PWA olarak çevrimdışı çalışırken,
+// filtreli/engelli bir ağda, ya da CDN kesintisinde — bu global'ler hiç var olmaz. Run 83'e kadar
+// bu dosya ilk satırında `firebase.initializeApp()`i korumasız çağırıyordu: SDK yoksa 2. satırda
+// yakalanmamış bir ReferenceError fırlıyor ve bu 4.100 satırlık dosyanın TAMAMI iptal oluyordu —
+// yani sadece bulut senkronu değil, 2D oyunun tümü ölüyordu. Korumayı burada yapmak yeterli,
+// çünkü aşağıdaki her tüketici zaten kendi başına nazikçe geriliyor: `loadData()`/`saveData()`
+// Firestore çağrılarını try/catch içine alıp "Yerel veri kullanılıyor" toast'ıyla yerel veriye
+// düşüyor. Bkz. DECISIONS.md ADR-0109.
+const firebaseReady = (() => {
+  if (typeof firebase === 'undefined') {
+    console.warn('⚠️ Firebase SDK yüklenemedi (çevrimdışı veya CDN engelli) — oyun yerel verilerle devam ediyor.');
+    return false;
+  }
+  try {
+    firebase.initializeApp({
+      apiKey: "AIzaSyBBhbil5iHbMSkq8tPjoQ1rlSFqM8JfyhY",
+      authDomain: "gameofthrones-06.firebaseapp.com",
+      projectId: "gameofthrones-06",
+      storageBucket: "gameofthrones-06.firebasestorage.app",
+      messagingSenderId: "490086122361",
+      appId: "1:490086122361:web:4603437d56b76ea6afe5a8",
+    });
+    return true;
+  } catch (e) {
+    console.error('⚠️ Firebase başlatılamadı — oyun yerel verilerle devam ediyor.', e);
+    return false;
+  }
+})();
+// Alt SDK'lar ayrı <script> etiketleri olduğundan biri yüklenip diğeri yüklenmemiş olabilir; her
+// birini ayrıca yokla. `null` kalırlarsa çağrı yerleri zaten korumalı (bkz. yukarıdaki not).
+const db = firebaseReady && typeof firebase.firestore === 'function' ? firebase.firestore() : null;
 
 /* ════════ PWA INSTALLATION PROMPT ════════ */
 let deferredPrompt = null;
@@ -32,7 +55,7 @@ try {
   benimID = 'player_' + Math.random().toString(36).substr(2, 9);
 }
 
-const rtdb = firebase.database();
+const rtdb = firebaseReady && typeof firebase.database === 'function' ? firebase.database() : null;
 let multiplayerAktif = false;
 
 console.log('🎮 Oyuncu ID:', benimID);
@@ -40,6 +63,13 @@ console.log('🎮 Oyuncu ID:', benimID);
 // MULTIPLAYER BAŞLAT
 function multiplayerBaslat() {
   if (multiplayerAktif) return;
+  // Realtime Database yoksa (çevrimdışı/CDN engelli) multiplayer'ı hiç başlatma. `multiplayerAktif`
+  // false kaldığı için `krallığıGuncelleMultiplayer()` de kendi mevcut korumasıyla erken dönüyor —
+  // ikinci bir kontrol gerekmiyor. Tek oyunculu yerel oyun normal çalışmaya devam eder.
+  if (!rtdb) {
+    console.warn('⚠️ Multiplayer başlatılamadı: Firebase Realtime Database yok — tek oyunculu devam ediliyor.');
+    return;
+  }
   multiplayerAktif = true;
   
   // Tüm krallıkları Firebase'e gönder

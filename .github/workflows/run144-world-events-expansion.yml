@@ -1,0 +1,175 @@
+name: Run 144 World Events Expansion
+
+on:
+  push:
+    branches:
+      - agent/run144-world-events-expansion
+    paths:
+      - '.github/workflows/run144-world-events-expansion.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/run144-world-events-expansion.yml'
+      - 'scripts/applyRun144WorldEvents.py'
+      - 'scripts/checkRun144WorldEvents.js'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      BASE_SHA: 1964dd7615515f8fcdd8dfb8b4fe8a5045f445ea
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          ref: agent/run144-world-events-expansion
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 120 GOVERNANCE.md
+          tail -n 160 3D_GAME_PROGRESS.md
+          tail -n 120 DECISIONS.md
+          tail -n 100 QUESTIONS_FOR_OWNER.md
+          grep -q 'ADR-0166' DECISIONS.md
+          grep -q 'ADR-0167' DECISIONS.md
+
+      - name: Baseline validation on clean main worktree
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run144-baseline"
+          git worktree add --detach "$BASELINE" origin/main
+          (
+            cd "$BASELINE"
+            node scripts/checkCheckpointConsistency.js
+            node scripts/checkWorldEventCatalog.js
+            node scripts/checkRun143WorldEvents.js
+            node scripts/checkAssetsManifest.js
+            node scripts/checkCreatureSpeciesConfig.js
+            node scripts/checkDialogueChoicesShape.js
+            node scripts/checkPwaInstallability.js
+            node scripts/checkServiceWorkerCache.js
+            node scripts/checkMobileRadius4LiveWorld.js
+            node scripts/checkMobileVegetationCullingRun141.js
+            node scripts/terrainSeatSafetyCheck.js
+            node scripts/roadNetworkSafetyCheck.js
+            node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run144-smoke-before.log"
+            test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run144-smoke-before.log")" -ge 34
+          )
+          git worktree remove "$BASELINE"
+
+      - name: Apply additive world-event changes
+        run: |
+          set -euo pipefail
+          python scripts/applyRun144WorldEvents.py
+          git diff --check
+          test "$(git diff --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+
+      - name: Syntax and catalog gates
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/worldEvents.js
+          node --check scripts/checkRun144WorldEvents.js
+          python -m py_compile scripts/applyRun144WorldEvents.py
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkRun143WorldEvents.js
+          node scripts/checkRun144WorldEvents.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+
+      - name: Current mobile and world safety regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run144-mobile-perf.log"
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Full browser and WebGL smoke after change
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run144-smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run144-smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          echo "RUN144_SMOKE=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and self-review
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run144 | tee "$RUNNER_TEMP/run144-perf.log"
+          node scripts/analyzePerfTrend.js
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          echo "RUN144_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+          git diff --check
+          test "$(git diff --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+          grep -q "id: 'torch_patrol'" src/3d/gameplay/worldEvents.js
+          grep -q "id: 'herald_proclamation'" src/3d/gameplay/worldEvents.js
+          grep -q "id: 'broken_banner_found'" src/3d/gameplay/worldEvents.js
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/applyRun144WorldEvents.py scripts/checkRun144WorldEvents.js; then exit 1; fi
+
+      - name: Finalize progress and checkpoint records
+        run: |
+          set -euo pipefail
+          export RUN144_FINALIZE=1
+          export RUN144_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN144_PERF_ROW="$RUN144_PERF_ROW"
+          python scripts/applyRun144WorldEvents.py
+          export RUN144_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          echo "RUN144_TAG=$RUN144_TAG" >> "$GITHUB_ENV"
+          printf '%s\n' "- $RUN144_TAG — run 144 FAZ 8 world-event expansion; 34/34+ browser smoke, catalog/PWA/cache/mobile/additive gates PASS." >> STABLE_TAGS.md
+          node scripts/checkCheckpointConsistency.js
+
+      - name: Final concurrency gate, commit, tag and push
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "Westeros Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            src/3d/gameplay/worldEvents.js \
+            3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv \
+            scripts/applyRun144WorldEvents.py scripts/checkRun144WorldEvents.js \
+            .github/workflows/run144-world-events-expansion.yml
+          git diff --cached --check
+          test "$(git diff --cached --numstat origin/main | awk '$2 != 0 {n++} END {print n+0}')" = "0"
+          git commit -m "feat(3d): expand FAZ 8 world events (run 144)"
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git tag "$RUN144_TAG"
+          git push origin HEAD:agent/run144-world-events-expansion
+          git push origin "$RUN144_TAG"

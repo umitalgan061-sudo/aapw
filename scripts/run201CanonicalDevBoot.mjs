@@ -1,0 +1,165 @@
+/** Run201 opt-in developer-only canonical startup surface. Default game3d.html does not import this file. */
+import { createScene } from '../src/3d/sceneManager.js';
+import { buildClippedBridgeOwnershipTargets } from '../src/3d/world/worldReferenceClippedWindowOwnershipShadow.js';
+import { createRun200StartupSelector } from './run200CanonicalStartupSelectorShadow.mjs';
+
+const CACHE_NAME = 'westeros-shell-v11';
+const DEV_FILES = ['./canonical-dev.html?worldSource=canonical-dev','./scripts/run201CanonicalDevBoot.mjs','./scripts/run200CanonicalStartupSelectorShadow.mjs'];
+const status = document.getElementById('run201-status');
+const canvas = document.getElementById('run201-canvas');
+const state = createScene(canvas);
+state.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+state.renderer.setSize(innerWidth, innerHeight, false);
+const target = buildClippedBridgeOwnershipTargets().slice().sort((a,b)=>a.bridgeId.localeCompare(b.bridgeId))[0];
+const selector = createRun200StartupSelector({ state, search: location.search, bridgeId: target.bridgeId, profile: matchMedia('(pointer: coarse)').matches ? 'mobile' : 'desktop' });
+state.renderer.render(state.scene, state.camera);
+
+document.body.dataset.run201ActiveSource = selector.getActiveSource();
+document.body.dataset.run201RequestedSource = selector.requestedSource;
+document.body.dataset.run201Offline = navigator.onLine ? 'false' : 'true';
+document.body.dataset.run201BridgeId = target.bridgeId;
+status.textContent = `Run201 dev-only | requested=${selector.requestedSource} | active=${selector.getActiveSource()} | offline=${!navigator.onLine} | bridge=${target.bridgeId}`;
+
+async function warmOfflineSurface() {
+  if (!('serviceWorker' in navigator) || !('caches' in window)) return;
+  await navigator.serviceWorker.register('./service-worker.js');
+  await navigator.serviceWorker.ready;
+  const cache = await caches.open(CACHE_NAME);
+  await cache.addAll(DEV_FILES);
+  document.body.dataset.run201CacheReady = 'true';
+}
+
+warmOfflineSurface().catch((error) => {
+  document.body.dataset.run201CacheReady = 'false';
+  console.error('[run201CanonicalDevBoot] cache warm failed', error);
+});
+
+addEventListener('resize', () => {
+  state.renderer.setSize(innerWidth, innerHeight, false);
+  state.camera.aspect = innerWidth / innerHeight;
+  state.camera.updateProjectionMatrix();
+  state.renderer.render(state.scene, state.camera);
+});
+
+addEventListener('pagehide', () => {
+  try { selector.rollbackToCurrent(); } catch {}
+  selector.dispose();
+  state.controls.dispose();
+  state.freeCamera.dispose();
+  state.chunkManager.disposeAll();
+  state.renderer.dispose();
+}, { once: true });
+
+// Run276 canonical owner-map semantic terrain surface activation.
+import { applyReferenceSurfaceToTerrainGroup } from '../src/3d/world/worldReferenceSurfaceTerrainVisual.js';
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const run276Surface = applyReferenceSurfaceToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run273SurfaceReady = 'true';
+  document.body.dataset.run273SurfaceSourceSha = run276Surface.sourceMapSha256;
+  document.body.dataset.run273SurfaceCounts = JSON.stringify(run276Surface.counts);
+  document.body.dataset.run273SurfacePindexes = JSON.stringify(run276Surface.pindexVertexCounts);
+  document.body.dataset.run273SurfaceMeshCount = String(run276Surface.meshCount);
+  document.body.dataset.run273SurfaceVertexCount = String(run276Surface.vertexCount);
+  status.textContent += ' | map-surface=' + run276Surface.vertexCount + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run277 deterministic Pindex-01 micro-surface detail activation.
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex01DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex01Detail.js');
+  const run277Detail = applyPindex01DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run277Pindex01Ready = 'true';
+  document.body.dataset.run277Pindex01TouchedVertices = String(run277Detail.touchedVertices);
+  status.textContent += ' | pindex01-detail=' + run277Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run278 deterministic Pindex-02 micro-surface detail activation.
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex02DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex02Detail.js');
+  const run278Detail = applyPindex02DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run278Pindex02Ready = 'true';
+  document.body.dataset.run278Pindex02TouchedVertices = String(run278Detail.touchedVertices);
+  status.textContent += ' | pindex02-detail=' + run278Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run281 deterministic Pindex-03 micro-surface detail activation.
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex03DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex03Detail.js');
+  const run281Detail = applyPindex03DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run281Pindex03Ready = 'true';
+  document.body.dataset.run281Pindex03TouchedVertices = String(run281Detail.touchedVertices);
+  status.textContent += ' | pindex03-detail=' + run281Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run282 deterministic Pindex-04 micro-surface detail activation.
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex04DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex04Detail.js');
+  const run282Detail = applyPindex04DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run282Pindex04Ready = 'true';
+  document.body.dataset.run282Pindex04TouchedVertices = String(run282Detail.touchedVertices);
+  status.textContent += ' | pindex04-detail=' + run282Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run292 deterministic Pindex-05 micro-surface detail activation (promoted from the Run290 experiment candidate).
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex05DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex05Detail.js');
+  const run292Detail = applyPindex05DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run292Pindex05Ready = 'true';
+  document.body.dataset.run292Pindex05TouchedVertices = String(run292Detail.touchedVertices);
+  status.textContent += ' | pindex05-detail=' + run292Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run293 deterministic Pindex-06 micro-surface detail activation (soil-led, no canonical rock/snow/lake cells).
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex06DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex06Detail.js');
+  const run293Detail = applyPindex06DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run293Pindex06Ready = 'true';
+  document.body.dataset.run293Pindex06TouchedVertices = String(run293Detail.touchedVertices);
+  status.textContent += ' | pindex06-detail=' + run293Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run294 deterministic Pindex-07 micro-surface detail activation.
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex07DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex07Detail.js');
+  const run294Detail = applyPindex07DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run294Pindex07Ready = 'true';
+  document.body.dataset.run294Pindex07TouchedVertices = String(run294Detail.touchedVertices);
+  status.textContent += ' | pindex07-detail=' + run294Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run295 deterministic Pindex-08 micro-surface detail activation (first pindex in this batch with a real lake cell).
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex08DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex08Detail.js');
+  const run295Detail = applyPindex08DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run295Pindex08Ready = 'true';
+  document.body.dataset.run295Pindex08TouchedVertices = String(run295Detail.touchedVertices);
+  status.textContent += ' | pindex08-detail=' + run295Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run296 deterministic Pindex-09 micro-surface detail activation (soil-led, no canonical rock/snow/lake cells).
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex09DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex09Detail.js');
+  const run296Detail = applyPindex09DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run296Pindex09Ready = 'true';
+  document.body.dataset.run296Pindex09TouchedVertices = String(run296Detail.touchedVertices);
+  status.textContent += ' | pindex09-detail=' + run296Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}
+
+// Run317 deterministic Pindex-10 micro-surface detail activation (sea/soil/rock mix, last pindex in the 10-pindex pass).
+if (selector.getActiveSource() === 'canonical' && selector.activation?.windowState?.terrainGroup) {
+  const { applyPindex10DetailToTerrainGroup } = await import('../src/3d/world/worldReferencePindex10Detail.js');
+  const run317Detail = applyPindex10DetailToTerrainGroup(selector.activation.windowState.terrainGroup);
+  document.body.dataset.run317Pindex10Ready = 'true';
+  document.body.dataset.run317Pindex10TouchedVertices = String(run317Detail.touchedVertices);
+  status.textContent += ' | pindex10-detail=' + run317Detail.touchedVertices + 'v';
+  state.renderer.render(state.scene, state.camera);
+}

@@ -1,0 +1,79 @@
+name: Run 250 Editor Multiobject Offgrid Load Finalize
+
+on:
+  push:
+    branches:
+      - agent/run250-editor-multiobject-offgrid-load
+    paths:
+      - '.github/workflows/run250-editor-multiobject-offgrid-load-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run250-editor-multiobject-offgrid-load-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and additive gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun250EditorMultiobjectOffgridLoad.js
+          node --check src/3d/editor/EditorLocalSession.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append verified Run250 records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          MARKER='## Run 250 — World Editor multi-object off-grid scene import regression'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Permanent additive-only Chromium regression extends Run249 from one object to a three-object scene and verifies every serialized transform survives snap-enabled import independently and exactly.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- The fixture loads three distinct `marker-tree` identities with mixed positive/negative off-grid positions, signed rotations, and non-uniform scales including `0.007`; object IDs remain unique and every object matches its serialized transform after load.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Pre-load live snap is deliberately enabled at `4.25`; serialized editor metadata restores snap to `true` / `2.5` without cross-object quantization or identity collision. Selection clears, history remains stable, owner grid-hidden/disabled policy remains intact, canonical success toast is shown, and browser console/page errors remain zero.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Validation workflow `31462280852` PASS: syntax, Chromium regression, PWA cache/installability, mobile performance, deterministic/world-reference/hydrology, terrain/road safety, perf trend, technical-debt audit, full browser smoke, final remote-main/additive-only gates, and two-screenshot artifact all PASS.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- World Event Determinism Guard `31462280861` PASS on the same Run250 head.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Runtime/product source delta: 0 lines changed in Run250. Test/workflow/checkpoint-only publication. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5. ADR not required.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Next safe step: refresh remote main and concurrent branches, then continue a distinct additive-only World Editor compatibility regression without crossing unresolved owner gates.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run250,2026-08-11,editor-multiobject-offgrid-load' perf_log.csv; then
+            printf 'run250,%s,editor-multiobject-offgrid-load,,,,,,,"test-only three-object off-grid scene import regression; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"\n' "$(date +%Y-%m-%d)" >> perf_log.csv
+          fi
+          if ! grep -Fq 'Run250 editor multi-object off-grid scene import regression' STABLE_TAGS.md; then
+            printf '%s — Run250 editor multi-object off-grid scene import regression; three independent serialized transforms survive snap-enabled import exactly; PWA/perf/determinism/smoke gates verified.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          echo "STABLE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Commit checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md; then
+            echo 'Run250 checkpoint records already present.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run250): record multi-object off-grid load checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run250-editor-multiobject-offgrid-load
+          git push origin "$STABLE_TAG" || true

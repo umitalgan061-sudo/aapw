@@ -168,4 +168,23 @@ export const EVENTS = Object.freeze({
 	GAME_ERROR: 'game:error',
 	/** `gameplay/worldEvents.js`'s periodic flavor events — see DECISIONS.md ADR-0056. */
 	WORLD_EVENT_TRIGGERED: 'world:eventTriggered',
+	/** FAZ 7 dragon combat (run 90, DECISIONS.md ADR-0116) — `gameplay/health.js`'s player health
+	 * state listens for this (payload `{amount, sourceId}`), emitted by `gameplay/dragonController.js`
+	 * when a fully-committed attack lunge connects within `biteRadiusMeters`. */
+	PLAYER_DAMAGED: 'player:damaged',
+	/** `gameplay/health.js` emits this every time `current`/`maxHealth` changes (damage, heal, or
+	 * reset) — `ui/healthBar.js` is the (only, for now) listener, same "emits, one listener reacts"
+	 * shape `WORLD_EVENT_TRIGGERED` already established. */
+	PLAYER_HEALTH_CHANGED: 'player:healthChanged',
+	/** `gameplay/health.js` emits this once, edge-triggered, the instant `current` reaches 0 — never
+	 * re-fires while still dead (`heal()`/`reset()` re-arm it). `game3d.js` is the (only, for now)
+	 * listener: respawns the player at their spawn point and heals back to full. */
+	PLAYER_DIED: 'player:died',
+});
+
+/** Run 141 / ADR-0165 — whole-disc mobile vegetation culling safety margin. Terrain radius
+ * and vegetation-disc radius are derived from their live/config sources in the culling module;
+ * only the visual overlap margin is a tuning value here, per the no-magic-numbers rule. */
+export const MOBILE_VEGETATION_CULLING_CONFIG_RUN141 = Object.freeze({
+	INTERSECTION_MARGIN_METERS: 100,
 });

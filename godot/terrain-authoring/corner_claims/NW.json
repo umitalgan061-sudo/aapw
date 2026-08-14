@@ -1,0 +1,39 @@
+{
+  "corner": "NW",
+  "task_name": "Buzul Muhafızı",
+  "origin": [0, 0],
+  "current_cell": "G00",
+  "status": "in_progress_exact_main",
+  "branch": "agent/buzul-muhafizi-g00-road-path-r3-20260813",
+  "pr": null,
+  "last_commit": "1f069fb626a3864565774bad2628eaafbf6da1be",
+  "quality_before": {
+    "layer": "Rock/Snow",
+    "merged_pr": 336,
+    "merged_commit": "b88767931917d9d631bb9e19d80d2126c867eded",
+    "source_map_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+    "terrain3d_control_map": "256x256 RF encoded rock/snow base-overlay-blend plus qualified RF height",
+    "ci_artifact_digest": "sha256:1a886af657a6ce9d0b5d0932dd25f78b00eeaaa3f87d6ce7e4c7964fd157a53e",
+    "hydrology_fingerprint": "60 water / 36 land canonical centres, zero height-sign mismatch",
+    "note": "PR #336 qualified on exact head 3f62590d with deterministic physical Rock/Snow, pinned Terrain3D v1.0.2, Godot 4.6.3, real height+control import/persist/LOD0 proof twice, HTerrain and full settlement/road/PWA/mobile/browser regressions before squash merge."
+  },
+  "quality_after": {
+    "layer": "Road/Path",
+    "state": "awaiting_exact_head_ci",
+    "source_grid": "257x257 continuous corridor field sourced only from the live deterministic Three.js road network",
+    "terrain3d_control_map": "256x256 RF encoded qualified substrate plus road/path overlay",
+    "road_texture_id": 2,
+    "path_texture_id": 3,
+    "corridor_policy": "live slope-aware roads.js polylines in world coordinates; no GeoCell/grid steering and no invented corridor when the live network does not cross G00",
+    "substrate_preservation": "outside road/path coverage, qualified Rock/Snow blend remains encoded; inside a corridor the dominant qualified substrate is retained under road/path overlay",
+    "height_preservation": "qualified G00 RF relief is imported with the control map and round-tripped in the same Terrain3D proof",
+    "hydrology_policy": "canonical water outside settlement-safe pads receives zero road/path coverage and previous 60/36 fingerprint must remain unchanged",
+    "guard_band": "1/1536 normalized owner-map unit",
+    "grid_policy": "GeoCell/source grid is authoring address only; corridor geometry is continuous world-space distance to live runtime polylines",
+    "ci_workflow": ".github/workflows/nw-g00-terrain3d-road-path.yml",
+    "visual_proof": "nw-g00-terrain3d-road-path-proof/g00-road-path-imported-topdown.png",
+    "next_layer_if_green": "Near Detail"
+  },
+  "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable is mandatory: live-road source determinism, real qualified relief+substrate+road/path control import, base/overlay/blend+height round-trip, persisted region and LOD0 bake are required. HTerrain and shipped Three.js runtime remain regression/control surfaces.",
+  "updated_at": "2026-08-13T13:02:00+03:00"
+}

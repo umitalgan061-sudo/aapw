@@ -1,0 +1,24 @@
+{
+  "name": "Westeros Developer Standalone",
+  "short_name": "Westeros Dev",
+  "description": "Isolated developer-only shell for Current/Canonical runtime validation.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#06040a",
+  "theme_color": "#06040a",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "prefer_related_applications": false
+}

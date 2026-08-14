@@ -1,0 +1,184 @@
+name: Run 211 RTS Keyboard Command Parity
+
+on:
+  push:
+    branches:
+      - agent/run211-rts-keyboard-command-parity
+    paths:
+      - '.github/workflows/run211-rts-keyboard-command-parity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  BASE_MAIN: 846cba8d61e5077d75034a1de8cef677d5917a7f
+
+jobs:
+  validate-and-finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Session snapshot and initial concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$BASE_MAIN"
+          test "$(git merge-base HEAD origin/main)" = "$CURRENT_MAIN"
+          grep -F 'Additive-only diff guard' GOVERNANCE.md
+          grep -F 'Eşzamanlılık Kontrolü' GOVERNANCE.md
+          grep -F 'Run 210 — Owner surface texture production activation' 3D_GAME_PROGRESS.md
+          grep -F 'ADR-0228' DECISIONS.md
+          grep -F 'run 142/ADR-0166 mobil radius-5' QUESTIONS_FOR_OWNER.md
+
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Baseline browser smoke before runtime integration
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run211-baseline-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run211-baseline-smoke.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run211-baseline-smoke.log" | grep -F 'zero console/page errors'
+
+      - name: Integrate keyboard layer additively
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          rts_path = Path('rts.html')
+          rts = rts_path.read_text(encoding='utf-8')
+          hook = '<script type="module" src="./src/3d/rts/rtsCommandShortcuts.js"></script>'
+          if hook not in rts:
+              marker = '</body>'
+              if marker not in rts:
+                  raise SystemExit('rts.html body marker missing')
+              rts = rts.replace(marker, hook + '\n' + marker, 1)
+              rts_path.write_text(rts, encoding='utf-8')
+
+          sw_path = Path('service-worker.js')
+          sw = sw_path.read_text(encoding='utf-8')
+          cache_line = "GAME3D_SHELL_FILES.push('./src/3d/rts/rtsCommandShortcuts.js');"
+          if cache_line not in sw:
+              marker = "const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];"
+              if marker not in sw:
+                  raise SystemExit('service-worker image-extension marker missing')
+              addition = (
+                  "// Run211 RTS keyboard-command parity: module-only shell entry; no new asset/cache role.\n"
+                  + cache_line + "\n\n"
+              )
+              sw = sw.replace(marker, addition + marker, 1)
+              sw_path.write_text(sw, encoding='utf-8')
+          PY
+          node --check src/3d/rts/rtsCommandShortcuts.js
+          node --check scripts/checkRun211RtsKeyboardShortcuts.js
+          node --check service-worker.js
+          node --check script.js
+          git diff --check
+          git diff --numstat origin/main -- rts.html service-worker.js | awk '$2 != 0 { print "non-additive source diff:", $0; bad=1 } END { exit bad }'
+
+      - name: Focused desktop/mobile keyboard proof and visual evidence
+        run: node scripts/checkRun211RtsKeyboardShortcuts.js
+
+      - name: Existing RTS surface online and offline regression
+        run: |
+          set -euo pipefail
+          node scripts/checkRun210RtsSurfaceTexture.js
+          node scripts/checkRun210RtsSurfaceOffline.js
+
+      - name: Full smoke PWA determinism terrain road and mobile budgets
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run211-post-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run211-post-smoke.log")" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run211-post-smoke.log" | grep -F 'zero console/page errors'
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Collect performance snapshot and trend guard
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run211-rts-shortcuts
+          node scripts/analyzePerfTrend.js
+
+      - name: Append Run211 progress ADR and stable checkpoint record
+        run: |
+          set -euo pipefail
+          TAG="stable-$(TZ=Europe/Istanbul date +%Y-%m-%d-%H%M)"
+          echo "RUN211_TAG=$TAG" >> "$GITHUB_ENV"
+          node - <<'NODE'
+          const fs = require('fs');
+          const proof = JSON.parse(fs.readFileSync('artifacts/run211/proof.json', 'utf8'));
+          const desktop = proof.desktop.focusState.rts;
+          const mobile = proof.mobile.rts;
+          const perfLines = fs.readFileSync('perf_log.csv', 'utf8').trim().split(/\r?\n/);
+          const perf = perfLines[perfLines.length - 1];
+          const tag = `stable-${new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).replace(/\//g, '-')}`;
+          const progress = `\n\n## Run 211 — RTS keyboard command parity without gameplay ownership\n- Base/main at start: \`846cba8d61e5077d75034a1de8cef677d5917a7f\` (Run210 merged state). Owner-gated radius-5 / game3d split / world-event checksum items remain untouched.\n- Added an isolated \`rtsCommandShortcuts.js\` layer: plain **M** delegates to the established **Hareket Emri** button and plain **F** delegates to **Orduya Odaklan**. No army/world/terrain/camera state is reimplemented; deterministic command ownership remains in the existing RTS runtime.\n- Safety/accessibility: editable targets plus Ctrl/Alt/Meta chords are ignored; command buttons expose \`aria-keyshortcuts\`; desktop help gains a small M/F hint while coarse-pointer/mobile intentionally gets no keyboard-hint UI. Listener and hint have an explicit dispose path tied to \`pagehide\`.\n- Focused Chromium proof: desktop selected=${desktop.selectedCount}/${desktop.unitCount}, drawCalls=${desktop.drawCalls}, triangles=${desktop.triangles}; mobile drawCalls=${mobile.drawCalls}, triangles=${mobile.triangles}. Both remain inside project budgets with zero console/page errors. Two visual artifacts prove Move-mode feedback and Focus feedback.\n- Regression: pre-change and post-change 34+ browser smoke PASS; Run210 surface online + fresh-install offline PWA PASS; mobile perf budget, installability/cache, seeded RNG, world-reference map/water/alignment/hydrology, 14-seat terrain safety and road connectivity PASS.\n- Perf log appended by the standing real-scene collector: \`${perf}\`; trend guard PASS. World Coverage unchanged: desktop **96.2%**, mobile radius-4 **81 chunks / 20.25 km² (~14.7%)**.\n- Memory-leak checklist: one window keydown listener + one pagehide listener + one desktop hint span; all have one bounded owner and explicit disposal/removal. No timers, RAFs, geometry, materials, textures or new asset fetches are introduced.\n- Technical debt introduced: **0 live-runtime architectural items**. New maintenance surface: one small isolated RTS input module + one focused regression test. Risk **LOW**, confidence **5/5**.\n- Next safe step: retain the same isolated RTS track and evaluate a world-space rally/destination decal only if it can attach without moving command ownership or breaching render/mobile budgets; otherwise continue unit/selection readability with instanced or DOM-only additions.\n`;
+          fs.appendFileSync('3D_GAME_PROGRESS.md', progress);
+
+          const adr = `\n\n## ADR-0229 — Add RTS keyboard command parity by delegating to existing command-bar ownership\n**Risk:** LOW\n\n**Decision:** Add a small isolated \`src/3d/rts/rtsCommandShortcuts.js\` module. Plain M clicks the existing Move Command button and plain F clicks the existing Focus Army button. The module annotates those buttons with \`aria-keyshortcuts\`, adds a desktop-only discoverability hint, ignores editable targets and Ctrl/Alt/Meta chords, and disposes its listener/hint on pagehide.\n\n**Why:** RTS already has deterministic, tested button handlers for both actions. Delegating keyboard input to those established controls improves desktop command ergonomics without duplicating movement/focus logic or requiring edits to \`rtsGame.js\`/\`rtsArmy.js\`.\n\n**Alternatives considered:** modify the established \`rtsGame.js\` key handler (rejected: additive-only policy forbids editing existing source lines and would duplicate ownership); synthesize world/camera commands in the shortcut module (rejected: would create a second gameplay owner); add mobile-visible keyboard hints (rejected: wastes scarce coarse-pointer UI space for controls unavailable on normal touch use).\n\n**Consequences:** Desktop gains M/F command parity and keyboard discoverability; mobile rendering/UI remains unchanged apart from inert ARIA button metadata. No seeded state, formation order, movement target, camera math, world generation, 2D behavior, renderer object count or asset set is changed. The module is included in the 3D/RTS shell cache for offline PWA use.\n\n**Affected systems:** \`rts.html\` additive module hook, \`src/3d/rts/rtsCommandShortcuts.js\`, \`service-worker.js\` shell membership, focused Run211 test/CI/docs only.\n\n**Rollback:** because the implementation is isolated, a future owner-approved cleanup can stop loading the module and remove its shell entry; existing RTS button/mouse/touch behavior remains the rollback baseline.\n\n**Future-phase impact:** later rally markers, formation UI or richer keyboard controls can delegate through the same established command surface rather than creating parallel simulation ownership.\n`;
+          fs.appendFileSync('DECISIONS.md', adr);
+          NODE
+          printf '\n- %s — Run211 RTS keyboard command parity: M/F delegate to established controls; pre/post smoke, PWA/offline, mobile budget, determinism, terrain/roads and console gates PASS.\n' "$TAG" >> STABLE_TAGS.md
+          git diff --check
+
+      - name: Final concurrency additive and governance gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$BASE_MAIN"
+          test "$(git merge-base HEAD origin/main)" = "$CURRENT_MAIN"
+          git diff --numstat origin/main | awk '$2 != 0 { print "deletion/change detected:", $0; bad=1 } END { exit bad }'
+          node --check src/3d/rts/rtsCommandShortcuts.js
+          node --check scripts/checkRun211RtsKeyboardShortcuts.js
+          node --check service-worker.js
+          node scripts/checkServiceWorkerCache.js
+          git diff --check
+
+      - name: Commit verified Run211 state and run committed additive guard
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rts.html service-worker.js 3D_GAME_PROGRESS.md DECISIONS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'feat(run211): add RTS keyboard command parity'
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_MAIN" HEAD
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_MAIN"
+          git push origin HEAD:agent/run211-rts-keyboard-command-parity
+          git tag "$RUN211_TAG"
+          git push origin "$RUN211_TAG" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run211-rts-keyboard-proof
+          path: artifacts/run211/
+          if-no-files-found: warn

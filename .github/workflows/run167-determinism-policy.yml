@@ -1,0 +1,84 @@
+name: Run 167 Determinism Policy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/checkSeededRandomPolicy.js'
+      - 'src/3d/**'
+      - '.github/workflows/run167-determinism-policy.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/checkSeededRandomPolicy.js'
+      - 'src/3d/**'
+      - '.github/workflows/run167-determinism-policy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  determinism-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Syntax and determinism policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkSeededRandomPolicy.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Determinism guard regression fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          FIXTURE_ROOT="$RUNNER_TEMP/determinism-policy-fixture"
+          mkdir -p "$FIXTURE_ROOT/vendor"
+          printf '/** Math.random() documentation only */\nexport const seeded = 1;\n' > "$FIXTURE_ROOT/fixture.js"
+          printf 'export const thirdParty = Math.random();\n' > "$FIXTURE_ROOT/vendor/third-party.js"
+          node scripts/checkSeededRandomPolicy.js "$FIXTURE_ROOT"
+          printf 'export const forbidden = Math.random();\n' >> "$FIXTURE_ROOT/fixture.js"
+          if node scripts/checkSeededRandomPolicy.js "$FIXTURE_ROOT"; then
+            echo 'Determinism guard fixture FAILED: executable Math.random() was accepted.' >&2
+            exit 1
+          fi
+
+      - name: Browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log")"
+          test "$PASS_COUNT" -ge 34
+
+      - name: Self review
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkSeededRandomPolicy.js; then exit 1; fi

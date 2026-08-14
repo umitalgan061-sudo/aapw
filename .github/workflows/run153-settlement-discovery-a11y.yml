@@ -1,0 +1,158 @@
+name: Run 153 Settlement Discovery Accessibility
+
+on:
+  push:
+    branches:
+      - agent/run153-settlement-discovery-a11y
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    env:
+      BASE_SHA: 84604991a709efb09b98e19a9fc5a9a0da4299b6
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and initial concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          grep -q 'Run 152' 3D_GAME_PROGRESS.md
+          grep -q 'ADR-0174' DECISIONS.md
+
+      - name: Baseline validation on clean main worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run153-baseline"
+          git worktree add --detach "$BASELINE" origin/main
+          (
+            cd "$BASELINE"
+            node scripts/checkCheckpointConsistency.js
+            node scripts/checkLatestRunUniqueness.js
+            node scripts/checkPwaInstallability.js
+            node scripts/checkServiceWorkerCache.js
+            node scripts/checkWorldEventCatalog.js
+            node scripts/checkWorldEventDiversity.js
+            node scripts/checkWorldEventDeterminism.js
+            node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run153-smoke-before.log"
+            test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run153-smoke-before.log")" -ge 34
+          )
+          git worktree remove "$BASELINE"
+
+      - name: Syntax, target regression and additive-only gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/ui/settlementDiscovery.js
+          node --check scripts/checkSettlementDiscoveryAccessibility.js
+          python -m py_compile scripts/applyRun153Records.py
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          git diff --check origin/main...HEAD
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Repository invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkSmokeCheckRegistry.js
+
+      - name: Mobile and world safety regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Full browser and WebGL smoke after change
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run153-smoke-after.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run153-smoke-after.log")"
+          test "$PASS_COUNT" -ge 34
+          echo "RUN153_SMOKE=$PASS_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and self-review gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run153
+          node scripts/analyzePerfTrend.js
+          git diff --check
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Finalize governance records
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN153_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN153_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          echo "RUN153_TAG=$RUN153_TAG" >> "$GITHUB_ENV"
+          python scripts/applyRun153Records.py
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkLatestRunUniqueness.js
+          git diff --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Final concurrency gate, commit, tag and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "Westeros Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/3d/ui/settlementDiscovery.js scripts/checkSettlementDiscoveryAccessibility.js scripts/applyRun153Records.py .github/workflows/run153-settlement-discovery-a11y.yml 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git commit -m "docs(3d): record run153 stable checkpoint"
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkLatestRunUniqueness.js
+          git tag "$RUN153_TAG"
+          git push origin HEAD:agent/run153-settlement-discovery-a11y
+          git push origin "$RUN153_TAG" || echo "[run153] tag push blocked; STABLE_TAGS.md remains authoritative per GOVERNANCE.md §8.11"

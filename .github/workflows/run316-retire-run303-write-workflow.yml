@@ -1,0 +1,77 @@
+name: Run 316 Retire Run303 Write Workflow
+
+on:
+  push:
+    branches:
+      - run316-retire-run303-write-workflow
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run316-retire-run303-write-workflow-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'd89f1a01c76d48eb60f9f1cad0a6bfac026aa37c' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-current-main entry and scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "Run316 retirement contract is a global PR security regression; historical no-runtime-delta scope applies only to the Run316 branch/manual publication."
+          else
+            test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js game3d.html canonical-dev.html rts.html godot/terrain-authoring)"
+          fi
+
+      - name: Run303 write-workflow retirement contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun316Run303WriteWorkflowRetired.js
+          node scripts/checkRun316Run303WriteWorkflowRetired.js
+          node --check scripts/checkRun316ProgressMaterializer.js
+          node scripts/checkRun316ProgressMaterializer.js
+          node scripts/checkRun216ServiceWorkerMaterializer.js
+          node scripts/checkRun300LegacyPrScopeGate.js
+          node scripts/checkRun283FinalHeadGovernance.js
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            node scripts/checkCheckpointConsistency.js
+          else
+            echo "Run316 branch pre-materialization: checkpoint consistency is intentionally deferred to the guarded progress materializer and final PR head."
+          fi
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+
+      - name: Final exact-current-main concurrency and scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA" HEAD
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "Run316 global PR security regression passed; historical no-runtime-delta scope is intentionally not imposed on unrelated current-main PRs."
+          else
+            test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js game3d.html canonical-dev.html rts.html godot/terrain-authoring)"
+          fi

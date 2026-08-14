@@ -1,0 +1,92 @@
+:root {
+  color-scheme: dark;
+  --we-bg: #0b0f16;
+  --we-panel: #111827;
+  --we-panel-2: #161f2f;
+  --we-line: #2c394f;
+  --we-text: #e8edf5;
+  --we-muted: #95a1b5;
+  --we-gold: #c8960a;
+  --we-gold-2: #f0c34f;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--we-bg); color: var(--we-text); }
+button, input { font: inherit; }
+button, .we-link { border: 1px solid var(--we-line); background: var(--we-panel-2); color: var(--we-text); border-radius: 6px; padding: 7px 10px; cursor: pointer; text-decoration: none; }
+button:hover, .we-link:hover, button:focus-visible, .we-link:focus-visible { border-color: var(--we-gold); outline: none; }
+.we-shell { display: grid; grid-template-columns: 260px minmax(320px, 1fr) 310px; grid-template-rows: 52px minmax(0, 1fr) 36px; width: 100%; height: 100%; }
+.we-toolbar { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--we-line); background: #0d1420; }
+.we-brand { font-weight: 800; letter-spacing: .12em; color: var(--we-gold-2); white-space: nowrap; }
+.we-brand span { color: var(--we-text); font-weight: 600; letter-spacing: .05em; }
+.we-toolbar-actions { display: flex; align-items: center; gap: 6px; overflow-x: auto; }
+.we-panel { min-width: 0; background: var(--we-panel); overflow: auto; }
+.we-assets-panel { border-right: 1px solid var(--we-line); padding: 10px; }
+.we-right-panel { border-left: 1px solid var(--we-line); display: grid; grid-template-rows: minmax(200px, 1fr) minmax(280px, 1fr); overflow: hidden; }
+.we-hierarchy-wrap, .we-inspector-wrap { min-height: 0; overflow: auto; padding: 10px; }
+.we-hierarchy-wrap { border-bottom: 1px solid var(--we-line); }
+.we-panel-title, .we-section-title { color: var(--we-gold-2); font-size: 12px; font-weight: 800; letter-spacing: .12em; margin: 2px 0 9px; }
+.we-input, .we-number { width: 100%; min-width: 0; border: 1px solid var(--we-line); background: #0b1220; color: var(--we-text); border-radius: 5px; padding: 7px 8px; }
+.we-input:focus, .we-number:focus { border-color: var(--we-gold); outline: none; }
+.we-categories { display: flex; gap: 5px; flex-wrap: wrap; margin: 9px 0; }
+.we-category { padding: 5px 7px; font-size: 12px; }
+.we-category.is-active { border-color: var(--we-gold); color: var(--we-gold-2); }
+.we-assets { display: grid; gap: 6px; }
+.we-asset { text-align: left; display: grid; gap: 2px; }
+.we-asset strong { font-size: 13px; }
+.we-asset span { color: var(--we-muted); font-size: 11px; }
+.we-asset.is-selected { border-color: var(--we-gold); box-shadow: inset 3px 0 0 var(--we-gold); }
+.we-formation { margin-top: 16px; border-top: 1px solid var(--we-line); padding-top: 12px; display: grid; gap: 7px; }
+.we-formation label, .we-inspector-wrap label { display: grid; grid-template-columns: 1fr 92px; align-items: center; gap: 8px; font-size: 12px; color: var(--we-muted); }
+.we-viewport-wrap { position: relative; min-width: 0; min-height: 0; background: #0b0f16; }
+#we-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.we-viewport-badge { position: absolute; top: 12px; left: 12px; pointer-events: none; padding: 5px 8px; border: 1px solid rgba(240,195,79,.55); color: var(--we-gold-2); background: rgba(11,15,22,.8); border-radius: 5px; font-size: 11px; font-weight: 800; letter-spacing: .1em; }
+.we-toast { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 8px 11px; border: 1px solid var(--we-line); background: rgba(11,15,22,.94); border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+.we-toast.is-visible { opacity: 1; }
+.we-hierarchy { display: grid; gap: 4px; margin-top: 8px; }
+.we-hierarchy-item { text-align: left; width: 100%; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.we-hierarchy-item.is-selected { border-color: var(--we-gold); color: var(--we-gold-2); }
+.we-muted { color: var(--we-muted); font-size: 12px; }
+.we-vector-row { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; margin-bottom: 12px; }
+.we-vector-row label { display: grid; grid-template-columns: 15px 1fr; gap: 4px; }
+.we-inspector-wrap > #we-inspector > label { grid-template-columns: 42px 1fr; margin-bottom: 12px; }
+.we-statusbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 5px 10px; border-top: 1px solid var(--we-line); background: #0d1420; color: var(--we-muted); font-size: 12px; overflow-x: auto; white-space: nowrap; }
+.we-toggle { display: inline-flex; align-items: center; gap: 5px; }
+.we-snap-size { display: inline-block; width: 62px; padding: 3px 5px; }
+@media (max-width: 900px) {
+  .we-shell { grid-template-columns: 200px minmax(280px,1fr); grid-template-rows: 52px minmax(0,1fr) 300px 36px; }
+  .we-right-panel { grid-column: 1 / -1; grid-row: 3; border-left: 0; border-top: 1px solid var(--we-line); grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+  .we-statusbar { grid-row: 4; }
+  .we-toolbar-actions button:nth-of-type(3), .we-toolbar-actions button:nth-of-type(4) { display: none; }
+}
+@media (max-width: 640px) {
+  .we-shell { grid-template-columns: 1fr; grid-template-rows: auto 180px minmax(260px,1fr) 240px 36px; }
+  .we-toolbar { grid-row: 1; flex-direction: column; align-items: stretch; }
+  .we-assets-panel { grid-row: 2; border-right: 0; border-bottom: 1px solid var(--we-line); }
+  .we-viewport-wrap { grid-row: 3; }
+  .we-right-panel { grid-row: 4; grid-column: 1; }
+  .we-statusbar { grid-row: 5; }
+  .we-brand { font-size: 12px; }
+}
+
+/* Run216 keeps nested transform controls visible under the legacy compact-toolbar nth-of-type rule. */
+@media (max-width: 900px) {
+  .we-toolbar-actions .we-transform-tools button { display: inline-block; }
+}
+
+/* Run216 keeps the relabeled legacy duplicate control visible beside Copy/Paste on compact layouts. */
+@media (max-width: 900px) {
+  .we-toolbar-actions #we-duplicate { display: inline-block; }
+}
+
+/* Run230 prevents dynamically injected toolbar min-content from expanding the mobile editor grid beyond the viewport. */
+@media (max-width: 640px) {
+  .we-shell { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+  .we-toolbar,
+  .we-toolbar-actions,
+  .we-assets-panel,
+  .we-viewport-wrap,
+  .we-right-panel,
+  .we-statusbar { min-width: 0; max-width: 100%; }
+  .we-toolbar-actions { width: 100%; }
+}

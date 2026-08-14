@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "world": {
+    "name": "Westeros",
+    "coordinateSystem": "threejs-y-up",
+    "units": "meters"
+  },
+  "editor": {
+    "gridVisible": true,
+    "snapEnabled": true,
+    "snapSize": 1
+  },
+  "objects": [
+    {
+      "id": "marker-castle-0001",
+      "name": "Winterfell Marker",
+      "asset": "marker-castle",
+      "transform": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0],
+        "scale": [1, 1, 1]
+      }
+    }
+  ],
+  "instanceGroups": []
+}

@@ -1,0 +1,48 @@
+name: Run 245 Editor Null Metadata Defaults Exact Head
+
+on:
+  push:
+    branches:
+      - agent/run245-editor-null-metadata-defaults
+    paths:
+      - '.github/workflows/run245-editor-null-metadata-defaults-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run245-editor-null-metadata-defaults-exact-head-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact head against current main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node --check scripts/checkRun245EditorNullMetadataDefaults.js
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Verify Run245 checkpoint records
+        run: |
+          set -euo pipefail
+          grep -Fq '## Run 245 — World Editor null editor-metadata composed defaults regression' 3D_GAME_PROGRESS.md
+          grep -Fq 'run245,' perf_log.csv
+          grep -Fq 'Run245 editor null-metadata composed defaults regression' STABLE_TAGS.md
+          grep -Fq '31451213771' 3D_GAME_PROGRESS.md
+          grep -Fq '31451213756' 3D_GAME_PROGRESS.md

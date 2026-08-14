@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "status": "DISSOLVED",
+  "dissolvedOn": "2026-08-13",
+  "dissolvedBy": "Owner directive — GOVERNANCE.md §33.3 / GOVERNANCE_FULL_GAME_DIRECTIVE.md §4",
+  "purpose": "Historical tombstone. This file previously withheld 4 assets from runtime use pending provenance confirmation. The owner dissolved the quarantine on 2026-08-13: every file under assets/ is approved for runtime use. All 4 entries were merged into assets_manifest.json with license \"UNKNOWN — owner-approved for runtime use\". No asset is quarantined any more, and future runs must not re-introduce a quarantine.",
+  "migratedAssetIds": [
+    "moon_2k",
+    "character_golden_vanguard_knight",
+    "character_iron_sentinel",
+    "surface_terrain_reference"
+  ],
+  "assets": []
+}

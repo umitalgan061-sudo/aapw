@@ -15,10 +15,12 @@ import { integrateJumpArc } from '../physics.js';
  * @param {object} options
  * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider `physics.js`'s collider.
- * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.settlementCollider]
- *   `physics.js`'s `createSettlementCollider` (FAZ 3's "Basit ... collider") — optional so this
- *   module still works in any future context with no settlements (e.g. a unit test) without a
- *   caller needing to fabricate one; movement simply isn't blocked by castles when omitted.
+ * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
+ *   `sceneManager.js`'s combined castle+village collider (FAZ 3's "Basit ... collider", extended
+ *   run 330's own follow-up to also cover village houses — see `physics.js`'s
+ *   `createSettlementCollider`/`createCircleCollider`) — optional so this module still works in any
+ *   future context with no settlements/villages (e.g. a unit test) without a caller needing to
+ *   fabricate one; movement simply isn't blocked by any placed geometry when omitted.
  * @param {{x: number, z: number}} [options.spawn] World-space spawn point. `game3d.js` always
  *   passes this explicitly (converted from `PLAYER_CONFIG.SPAWN_MAP_X`/`SPAWN_MAP_Y` via
  *   `mapToWorldXZ`); the world-origin default below only covers a hypothetical future caller
@@ -32,7 +34,7 @@ import { integrateJumpArc } from '../physics.js';
 export async function createPlayer({
 	assetLoader,
 	groundCollider,
-	settlementCollider = null,
+	playerCollider = null,
 	spawn = { x: 0, z: 0 },
 }) {
 	const model = await assetLoader.loadFBXModel(PLAYER_CONFIG.MODEL_URL, {
@@ -95,8 +97,8 @@ export async function createPlayer({
 				const speed = isRunning ? PLAYER_CONFIG.RUN_SPEED_MPS : PLAYER_CONFIG.WALK_SPEED_MPS;
 				let nextX = model.position.x + moveDirectionXZ.x * speed * delta;
 				let nextZ = model.position.z + moveDirectionXZ.z * speed * delta;
-				if (settlementCollider) {
-					({ x: nextX, z: nextZ } = settlementCollider.resolveXZ(nextX, nextZ));
+				if (playerCollider) {
+					({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
 				}
 				model.position.x = nextX;
 				model.position.z = nextZ;

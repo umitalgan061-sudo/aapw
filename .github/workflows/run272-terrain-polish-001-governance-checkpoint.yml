@@ -1,0 +1,172 @@
+name: Run 272 Terrain Polish 001 Governance Checkpoint
+
+on:
+  push:
+    branches:
+      - agent/run272-terrain-polish-001-governance-checkpoint
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run272-terrain-polish-001-governance-checkpoint-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 1a45ffb7517803da0b0e2ed8c8e9091483e6f372
+  TZ: Europe/Istanbul
+
+jobs:
+  validate-and-checkpoint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Starting exact-main concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+
+      - name: Terrain polish 001 merged contract
+        run: |
+          set -euo pipefail
+          test -f godot/terrain-authoring/TERRAIN_POLISH_LOG.md
+          test -f godot/terrain-authoring/scripts/validate_terrain_polish_iteration_01.gd
+          grep -F 'shader_params/u_tile_reduction = Vector4(1, 0, 0, 0)' godot/terrain-authoring/scenes/westeros_terrain_authoring.tscn
+          grep -F 'Iteration #01 DoD sonucu' godot/terrain-authoring/TERRAIN_POLISH_LOG.md
+          grep -F 'Iteration #01 başarılı kabul edildi' godot/terrain-authoring/TERRAIN_POLISH_LOG.md
+
+      - name: Download official Godot 4.6.3 editor
+        run: |
+          set -euo pipefail
+          GODOT_ZIP="$RUNNER_TEMP/godot-4.6.3.zip"
+          GODOT_DIR="$RUNNER_TEMP/godot-4.6.3"
+          mkdir -p "$GODOT_DIR"
+          curl --fail --location --retry 3 \
+            'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' \
+            --output "$GODOT_ZIP"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          GODOT_BIN="$(find "$GODOT_DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
+      - name: Godot resource import without plugin first-scan race
+        run: |
+          set -euo pipefail
+          PROJECT_FILE='godot/terrain-authoring/project.godot'
+          BACKUP_FILE="$RUNNER_TEMP/run272-project.godot"
+          cp "$PROJECT_FILE" "$BACKUP_FILE"
+          restore_project() { cp "$BACKUP_FILE" "$PROJECT_FILE"; }
+          trap restore_project EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('godot/terrain-authoring/project.godot')
+          text = path.read_text(encoding='utf-8')
+          expected = 'enabled=PackedStringArray("res://addons/zylann.hterrain/plugin.cfg")'
+          assert expected in text
+          path.write_text(text.replace(expected, 'enabled=PackedStringArray()'), encoding='utf-8')
+          PY
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --import
+          restore_project
+          trap - EXIT
+          git diff --exit-code -- "$PROJECT_FILE"
+
+      - name: Godot terrain polish validation
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 \
+            2>&1 | tee "$RUNNER_TEMP/run272-editor.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_hterrain_authoring.gd \
+            2>&1 | tee "$RUNNER_TEMP/run272-hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/run272-hterrain.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring \
+            --script res://scripts/validate_terrain_polish_iteration_01.gd \
+            2>&1 | tee "$RUNNER_TEMP/run272-polish.log"
+          grep -F 'TERRAIN_POLISH_ITERATION_01_OK' "$RUNNER_TEMP/run272-polish.log"
+
+      - name: PWA cache installability regression
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+
+      - name: Install Chromium smoke dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Performance determinism world safety technical debt
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full Chromium smoke and console gate
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run272-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run272-smoke.log")" -ge 34
+
+      - name: Final exact-main concurrency and additive-only gates
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check
+
+      - name: Append verified terrain-polish checkpoint records
+        run: |
+          set -euo pipefail
+          MARKER='## Run 272 — Terrain Polish Iteration 001 governance checkpoint'
+          if ! grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            printf '\n%s\n' "$MARKER" >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Revalidated merged Terrain Polish Iteration #01: only HTerrain grass slot 0 uses tile reduction Vector4(1,0,0,0); plugin core remains untouched and web/runtime behavior is unchanged.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Godot 4.6.3 authoring + Iteration #01 validation, PWA/cache/installability, mobile performance, seeded determinism, world-reference/hydrology, terrain/road safety, technical debt and full Chromium smoke/console gates passed before checkpoint write.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Memory/perf review: no runtime listeners/timers/DOM/geometry ownership added; the merged terrain polish measured 35 draw calls and 195929 triangles, below existing mobile budgets.' >> 3D_GAME_PROGRESS.md
+            printf '%s\n' '- Risk LOW. Next terrain polish must refresh main/log first and must not repeat grass anti-tiling Iteration #01.' >> 3D_GAME_PROGRESS.md
+          fi
+          if ! grep -Fq 'run272,2026-08-11,terrain-polish-001-governance-checkpoint' perf_log.csv; then
+            printf '%s\n' 'run272,2026-08-11,terrain-polish-001-governance-checkpoint,,,,,,,"runtime delta 0; merged grass anti-tiling checkpoint; full mandatory chain PASS"' >> perf_log.csv
+          fi
+          TAG="stable-$(date +%Y-%m-%d-%H%M)"
+          if ! grep -Fq 'Run272 Terrain Polish Iteration 001 governance checkpoint' STABLE_TAGS.md; then
+            printf '\n- `%s` — Run272 Terrain Polish Iteration 001 governance checkpoint; Godot/PWA/perf/determinism/world-safety/full smoke and console-zero PASS.\n' "$TAG" >> STABLE_TAGS.md
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          if git diff --cached --quiet; then
+            echo 'Run272 checkpoint records already present.'
+            exit 0
+          fi
+          git commit -m 'docs(run272): record Terrain Polish 001 checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git push origin HEAD:agent/run272-terrain-polish-001-governance-checkpoint
+          git tag "$TAG" || true
+          git push origin "$TAG" || echo 'Known stable-tag push restriction retained per governance.'

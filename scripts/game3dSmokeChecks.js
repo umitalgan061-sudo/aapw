@@ -9,8 +9,23 @@
  * this run (was 596/600 lines; the next check added here wouldn't have fit): the waypoint-patrol/
  * flee/pack-alert movement-AI checks (wolf flee/pack-alert, NPC waypoint patrol, wolf waypoint
  * patrol) moved into `game3dSmokeChecksMovement.js`. This file now keeps only the non-movement
- * per-entity checks: settlement collider, jump arc, interaction controller. `smokeTestGame3D.js`
- * calls all three files' exports — see its own comment for the combined check list.
+ * per-entity checks: settlement collider, jump arc, interaction controller, interaction-prompt tap.
+ * There are now five check modules in total (run 68's split added `game3dSmokeChecksDragonFlight.js`
+ * — DECISIONS.md ADR-0087); `smokeTestGame3D.js` calls every one of their exports and its own header
+ * carries the authoritative module + check list.
+ *
+ * **Run 87 addition:** `checkStarfieldTwinkle` (atmosphere, not really "per-entity gameplay") landed
+ * here rather than in the thematically-closer `game3dSmokeChecksScene.js` purely on line-budget
+ * grounds — that file was already at 573/600 (flagged as approaching the cap in run 86's Next step),
+ * and this file had the most headroom (346/600) of any check module. Same precedent run 64 already
+ * set (route a new check by available budget once the "obvious" file is full, rather than push a
+ * flagged file over its cap) — see this file's own history above.
+ *
+ * **Run 337 addition:** `checkPlayerCartDynamicCollider` (player-cart collision, ADR-0283) landed
+ * here rather than `game3dSmokeChecksMovement.js` for the same two reasons — it's conceptually closer
+ * to `checkSettlementCollider`'s own "does `physics.js`'s collider math actually resolve" scope than
+ * to that file's wander/patrol/flee AI checks, and `game3dSmokeChecksMovement.js` was already at
+ * 583/600 (this file had far more headroom).
  *
  * Every function here takes `(browser, baseUrl)` and returns `Promise<{name, ok, details}>`. See
  * each function's own comment for what it guards against.
@@ -21,7 +36,17 @@
  * value/convention as `game3dSmokeChecksScene.js`'s/`game3dSmokeChecksMovement.js`'s own copies;
  * duplicated rather than shared/imported across the sibling check files since it's a single
  * primitive with no other state. */
-const NAV_TIMEOUT_MS = 15000;
+// Run 332 RCA (game3d.js line-cap extraction, ADR-0279): this project's own boot cost has grown
+// past this constant's original assumption -- run-326/330/330b/331's procedural creatures, real
+// castle models, and villages pushed a real game3d.html boot to ~9-13s (observed via direct
+// domcontentloaded-timing instrumentation) in this project's software-WebGL sandboxed CI/dev
+// environment, which sat right at or over the old 10s/15s ceiling -- a pre-existing flake
+// (already recorded as an "environment quirk" by game3dSmokeChecksScene.js's own run-68 comment)
+// that reproduced on unmodified `main` in this run's own RCA, not something the run's actual code
+// change caused (confirmed: that change executes strictly after the domcontentloaded event this
+// timeout gates on). 30s gives real margin above the observed range, including one measured 20s+
+// outlier under sandbox contention.
+const NAV_TIMEOUT_MS = 30_000;
 
 /**
  * Replays ADR-0037's manual collider verification as a persisted, always-run regression check.
@@ -295,8 +320,224 @@ async function checkInteractionController(browser, baseUrl) {
 	return { name: 'interaction controller (gameplay/interaction.js)', ok, details };
 }
 
+
+async function checkInteractionPromptTap(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { InteractionPrompt } = await import('/src/3d/ui/interactionPrompt.js');
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			const prompt = new InteractionPrompt(container);
+			let activations = 0;
+			prompt.setActivateHandler(() => { activations++; });
+
+			prompt.setVisible(false);
+			prompt._el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+			const hiddenTapIgnored = activations === 0;
+
+			prompt.setVisible(true);
+			prompt._el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+			const visibleTapActivates = activations === 1;
+			const actionClassApplied = prompt._el.classList.contains('g3d-interaction-prompt-action');
+
+			prompt.setActivateHandler(null);
+			prompt._el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+			const nullHandlerDisablesTap = activations === 1 && !prompt._el.classList.contains('g3d-interaction-prompt-action');
+
+			prompt.dispose();
+			container.remove();
+			return { hiddenTapIgnored, visibleTapActivates, actionClassApplied, nullHandlerDisablesTap };
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'prompt tap only activates while visible and handler-enabled; disabling the handler removes the action class'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'interaction prompt tap activation (ui/interactionPrompt.js)', ok, details };
+}
+
+/**
+ * Regression guard for this run's starfield twinkle (`stars.js`, DECISIONS.md ADR-0112). Was flagged
+ * a known limitation ("fixed, non-twinkling pattern") since FAZ 2 with zero test coverage of any
+ * kind — this is the starfield's first smoke check at all, not just a twinkle-specific addition.
+ *
+ * Verifies, against the real module over HTTP (same in-page dynamic-`import()` pattern every other
+ * check here uses): the twinkle attributes exist and are well-formed (finite, in-range) for all 1200
+ * stars; the same seed reproduces the exact same phase/frequency per star (determinism rule —
+ * extends the pre-existing position determinism to the new attributes); `updateStarfield` forwards
+ * `elapsedSeconds`/`nightFactor` into the shader's `uTime`/`uNightFactor` uniforms unchanged (the
+ * values the vertex shader multiplies the twinkle by, so a wiring regression here would silently
+ * freeze the animation or break night-gating); the vertex shader source structurally references both
+ * new attributes and multiplies by `uNightFactor` (so `nightFactor=0` — full daylight — still forces
+ * every star fully transparent regardless of twinkle phase, mirroring `checkWaterDepthTaperedSwell`'s
+ * source-inspection style just above); and `disposeStarfield` doesn't throw.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkStarfieldTwinkle(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createStarfield, updateStarfield, disposeStarfield } = await import('/src/3d/stars.js');
+
+			const starsA = createStarfield(1337);
+			const phaseAttr = starsA.geometry.getAttribute('aPhase');
+			const freqAttr = starsA.geometry.getAttribute('aFreq');
+			const countMatches = phaseAttr.count === 1200 && freqAttr.count === 1200;
+			let allFiniteAndInRange = true;
+			for (let i = 0; i < phaseAttr.count; i++) {
+				const phase = phaseAttr.getX(i);
+				const freq = freqAttr.getX(i);
+				const phaseOk = Number.isFinite(phase) && phase >= 0 && phase <= Math.PI * 2;
+				const freqOk = Number.isFinite(freq) && freq >= 0.4 && freq <= 1.3;
+				if (!phaseOk || !freqOk) { allFiniteAndInRange = false; break; }
+			}
+
+			// Determinism: a second starfield built from the same seed reproduces every phase/freq
+			// value exactly, not just the (already-covered-elsewhere) star positions.
+			const starsB = createStarfield(1337);
+			const phaseAttrB = starsB.geometry.getAttribute('aPhase');
+			const freqAttrB = starsB.geometry.getAttribute('aFreq');
+			let deterministic = true;
+			for (let i = 0; i < phaseAttr.count; i++) {
+				if (phaseAttr.getX(i) !== phaseAttrB.getX(i) || freqAttr.getX(i) !== freqAttrB.getX(i)) {
+					deterministic = false;
+					break;
+				}
+			}
+
+			// A different seed must NOT reproduce the same pattern (rules out a seed argument silently
+			// being ignored, the same failure mode ADR-0111's determinism check guards against).
+			const starsC = createStarfield(42);
+			const phaseAttrC = starsC.geometry.getAttribute('aPhase');
+			const seedActuallyUsed = phaseAttr.getX(0) !== phaseAttrC.getX(0);
+
+			updateStarfield(starsA, { x: 1, y: 2, z: 3 }, 12.5, 0.75);
+			const uniformsWiredCorrectly = starsA.material.uniforms.uTime.value === 12.5
+				&& starsA.material.uniforms.uNightFactor.value === 0.75;
+
+			const source = starsA.material.vertexShader;
+			const shaderReferencesTwinkleInputs = source.includes('aPhase') && source.includes('aFreq')
+				&& source.includes('uNightFactor') && /vAlpha\s*=\s*uNightFactor/.test(source);
+
+			let disposeThrew = false;
+			try {
+				disposeStarfield(starsA);
+				disposeStarfield(starsB);
+				disposeStarfield(starsC);
+			} catch (error) {
+				disposeThrew = true;
+			}
+
+			return {
+				countMatches, allFiniteAndInRange, deterministic, seedActuallyUsed,
+				uniformsWiredCorrectly, shaderReferencesTwinkleInputs, disposeThrew: !disposeThrew,
+			};
+		});
+	} catch (error) {
+		result = { error: String(error) };
+	}
+	await page.close();
+	const ok = result && Object.values(result).every((value) => value === true);
+	const details = ok
+		? '1200/1200 stars have finite in-range twinkle phase/freq, same seed reproduces them exactly, a different seed does not, updateStarfield forwards elapsedSeconds/nightFactor into uTime/uNightFactor, the vertex shader multiplies alpha by uNightFactor, dispose() does not throw'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'starfield twinkle (stars.js, ADR-0112)', ok, details };
+}
+
+/**
+ * Regression guard for run 337's player-cart collision — `physics.js`'s new
+ * `createDynamicCircleCollider`/`createComposedCollider`, which `sceneManager.js`'s `playerCollider`
+ * now uses and `gameplay/livingWorldSpawner.js` extends with each live cart's own
+ * `getCollisionCircle()` after carts spawn. Every obstacle this project collided against before this
+ * (castle keep/towers, village houses) is fixed the instant the scene is built, so a plain
+ * `createCircleCollider` snapshot was always enough; a cart moves every frame, so this specifically
+ * proves the *dynamic* re-query behavior a static collider cannot provide — not just "does resolveXZ
+ * push a point out of a circle" (already covered by `checkSettlementCollider` above and
+ * `game3dSmokeChecksMovement.js`'s `checkNpcAnimalCreatureObstacleCollider`). Same fabricated-input,
+ * manual step-toward-obstacle pattern `checkSettlementCollider` above already established, rather
+ * than driving the full `gameplay/player.js` controller (its own FBX asset loads are unrelated to
+ * what this check verifies).
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkPlayerCartDynamicCollider(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createComposedCollider, createDynamicCircleCollider } = await import('/src/3d/physics.js');
+
+			const playerRadiusMeters = 0.4;
+			// A movable "cart" circle — its own `x` is mutated between phases below to simulate a cart
+			// that has travelled since the collider was built, proving the collider re-queries live
+			// position rather than freezing what it saw at construction (a static createCircleCollider
+			// could never pass the second phase below).
+			const cartState = { x: 10, z: 0, radius: 2 };
+			const composed = createComposedCollider([]);
+			composed.registerDynamicCollider(createDynamicCircleCollider(() => [cartState], playerRadiusMeters));
+
+			function walkToward(collider, targetXSign) {
+				let x = 0;
+				let z = 0;
+				for (let i = 0; i < 3000; i++) {
+					({ x, z } = collider.resolveXZ(x + targetXSign * 0.05, z));
+				}
+				return x;
+			}
+
+			const stopX1 = walkToward(composed, 1);
+			const expectedStop1 = cartState.x - (cartState.radius + playerRadiusMeters);
+			const stoppedAtCart1 = Math.abs(stopX1 - expectedStop1) < 1e-6;
+
+			// Move the cart further away and re-approach from the origin — a static snapshot would
+			// still stop at expectedStop1 here; a correctly dynamic collider stops at expectedStop2.
+			cartState.x = 40;
+			const stopX2 = walkToward(composed, 1);
+			const expectedStop2 = cartState.x - (cartState.radius + playerRadiusMeters);
+			const stoppedAtCart2 = Math.abs(stopX2 - expectedStop2) < 1e-6;
+
+			// registerDynamicCollider must take effect even when called *after* the composed object was
+			// already built and handed to a caller — the exact call order gameplay/livingWorldSpawner.js
+			// uses (carts spawn, and their collider is registered, strictly after sceneManager.js has
+			// already constructed and returned `playerCollider`).
+			const lateComposed = createComposedCollider([]);
+			const beforeRegister = lateComposed.resolveXZ(cartState.x, cartState.z);
+			const noOpBeforeRegister = beforeRegister.x === cartState.x && beforeRegister.z === cartState.z;
+			lateComposed.registerDynamicCollider(createDynamicCircleCollider(() => [cartState], playerRadiusMeters));
+			const afterRegister = lateComposed.resolveXZ(cartState.x, cartState.z);
+			const pushedAfterRegister = Math.hypot(afterRegister.x - cartState.x, afterRegister.z - cartState.z) > 1;
+
+			return {
+				stopX1, expectedStop1, stoppedAtCart1,
+				stopX2, expectedStop2, stoppedAtCart2,
+				noOpBeforeRegister, pushedAfterRegister,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = result.stoppedAtCart1 && result.stoppedAtCart2 && result.noOpBeforeRegister && result.pushedAfterRegister;
+	const details = ok
+		? `player stopped at x=${result.stopX1.toFixed(2)} against the cart's first position (x=10), then ` +
+			`at x=${result.stopX2.toFixed(2)} after the cart moved to x=40 — proves the collider re-queries ` +
+			`live circle position every frame rather than freezing it at construction; registerDynamicCollider ` +
+			`is a no-op before being called and takes effect immediately after, even post-construction`
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'player-cart dynamic collider (run 337)', ok, details };
+}
+
 module.exports = {
 	checkSettlementCollider,
 	checkJumpArc,
 	checkInteractionController,
+	checkInteractionPromptTap,
+	checkStarfieldTwinkle,
+	checkPlayerCartDynamicCollider,
 };

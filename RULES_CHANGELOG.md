@@ -1,0 +1,89 @@
+# RULES_CHANGELOG.md — GOVERNANCE.md Kural Konsolidasyonu Kayıtları
+
+`GOVERNANCE.md` §8.12 gereği, her ~20 çalıştırmada bir (veya bir FAZ tamamlanınca) çalıştırılan
+"kural konsolidasyonu" alt görevinin tek satırlık özetleri. En yeni giriş en üstte.
+
+---
+
+- **Run 291 (2026-08-12, periodic platform control + rule consolidation):** §8.12 review was overdue
+  (last full consolidation Run240 targeted ~run260; last platform control Run235 targeted ~run255-265;
+  this run is 291). Re-read `GOVERNANCE.md` §1-32 end to end: no stale or internally-conflicting rule
+  found. §16 Ertelenmiş Kurallar: `SaveSystem` confirmed still absent (`grep -rn SaveSystem src/` finds
+  only a comment referencing its future non-existence), public API/mod support still absent, smoke
+  suite still sufficient (34/34 PASS), F2 `renderer.info` still sufficient — none of the four
+  activation conditions are met, no change. Platform control re-run fresh (not just re-stated): PWA
+  installability, service-worker cache completeness, 34/34 browser smoke, mobile perf budget (35 draw
+  calls / 195929 triangles), world-reference/hydrology/terrain-seat/road-network/world-event-determinism/
+  technical-debt/additive-only guards and perf-trend drift check all PASS; `npm audit` still N/A (no
+  `package.json`). Full evidence recorded in `GOVERNANCE.md` §15's Run291 superseding note and
+  `3D_GAME_PROGRESS.md`'s Run 291 entry. Separately (not a rule-content issue, but relevant to §8.14):
+  this session's local checkout had a stale `main` ref 52 commits behind `origin/main`'s actual tip;
+  resynchronized before any work started, no pushed work lost. Next consolidation + platform-control
+  target ~run311-321.
+
+- **Run 156 (2026-08-07, beşinci konsolidasyon geçişi):** `GOVERNANCE.md` (136'dan beri ~20
+  çalıştırma sonra beşinci kez) §1-29 baştan sona gözden geçirildi. §16 Ertelenmiş Kurallar
+  tablosu: `SaveSystem` hâlâ yok (sahte pozitif — `dragonController.js`'deki tek eşleşme kuralın
+  kendi açıklayıcı yorumu, gerçek bir `SaveSystem` modülü değil), public API/mod desteği hâlâ yok,
+  smoke test hâlâ yeterli (34/34 PASS, sık regresyon kaçmıyor), F2'nin `renderer.info`
+  istatistikleri hâlâ yeterli — dördü de hâlâ aktivasyon koşulunu karşılamıyor, değişiklik yok.
+  **Gerçek bulgu:** §15 Periyodik Platform Kontrolü satırı run 112'den beri güncellenmemişti; oysa
+  `3D_GAME_PROGRESS.md` run 143'ün kendi platform kontrolünü zaten yaptığını gösteriyordu — kural
+  metniyle gerçek geçmiş arasında bir tutarsızlıktı. Bu run kontrolü fiilen yeniden çalıştırdı
+  (`checkPwaInstallability.js` OK, `checkServiceWorkerCache.js` OK, `npm audit` hâlâ N/A, WebGL
+  smoke 34/34 PASS) ve §15'i run 156/sonraki pencere ~176-186 olarak güncelledi — tam da §8.12'nin
+  yakalaması gereken türden geçersiz kalmış bir madde. `perf_log.csv` artık 95 satıra ulaştı (30+
+  eşiği run 96'da zaten geçilmiş ve ADR-0137 ile ele alınmıştı, §16 satırı zaten "✅ Ele alındı"
+  işaretli — yeniden açılacak bir şey yok). §8.11 (tag push HTTP 403, run 58'den beri kalıcı) hâlâ
+  güncel ve doğru. Owner'a run 151'de push bildirimiyle iletilen 4 açık madde (🔴 sızmış API
+  anahtarı + mobil radius-5/ADR-0166 + `game3d.js` bölünmesi + world-event determinism/ADR-0172)
+  hâlâ yanıt bekliyor; bu run onları tekrar bildirmedi (anti-spam kuralı, run 151 notu). Başka
+  çelişen/geçersiz madde bulunmadı; geri kalan tüm kurallar hâlâ geçerli ve aktif. Sıradaki
+  konsolidasyon ~run 176 civarı (veya bir FAZ tamamlanınca daha erken).
+
+- **Run 116 (2026-08-07, üçüncü konsolidasyon geçişi):** `GOVERNANCE.md` (96'dan beri ~20
+  çalıştırma sonra üçüncü kez) baştan sona gözden geçirildi. §16 Ertelenmiş Kurallar tablosu:
+  `SaveSystem` hâlâ yok (sahte pozitif — `game3d.js:177`'deki tek eşleşme kuralın kendi açıklayıcı
+  yorumu, "SaveSystem exists yet" ifadesinin bir parçası, gerçek bir modül değil), public API/mod
+  desteği hâlâ yok (sahte pozitif — `dragonController.js`'deki eşleşme "no other public API"
+  ifadesinin bir parçası), smoke test hâlâ yeterli (33/33 PASS, sık regresyon kaçmıyor), F2'nin
+  `renderer.info` istatistikleri hâlâ yeterli (FPS düşüşü/nedeni belirsizliği yaşanmadı) — dördü de
+  hâlâ aktivasyon koşulunu karşılamıyor, değişiklik yok. `perf_log.csv` artık 57 veri satırı (run
+  96'da 30+ eşiği geçilmişti, run 110'da ADR-0137 ile zaten ele alınmıştı — §16 satırı zaten "✅ Ele
+  alındı" işaretli, yeniden açılacak bir şey yok). §8.11 (tag push HTTP 403, run 58'den beri kalıcı)
+  ve §15 (periyodik platform kontrolü, son run 112, sıradaki ~run 132-142) hâlâ güncel ve doğru.
+  Başka çelişen/geçersiz madde bulunmadı; geri kalan tüm kurallar hâlâ geçerli ve aktif. Sıradaki
+  konsolidasyon ~run 136 civarı (veya bir FAZ tamamlanınca daha erken).
+
+- **Run 96 (2026-08-06, ikinci konsolidasyon geçişi):** `GOVERNANCE.md` (76'dan beri ~20 çalıştırma
+  sonra ikinci kez) baştan sona gözden geçirildi. §16 Ertelenmiş Kurallar tablosu: `SaveSystem` hâlâ
+  yok (sahte pozitif — `game3d.js`'deki tek eşleşme kuralın kendi açıklayıcı yorumu, gerçek bir
+  `SaveSystem` modülü değil), public API/mod desteği hâlâ yok (sahte pozitif —
+  `dragonController.js`'deki eşleşme "no other public API" ifadesinin bir parçası), smoke test hâlâ
+  yeterli (28/28 PASS, sık regresyon kaçmıyor), F2'nin `renderer.info` istatistikleri hâlâ yeterli
+  (FPS düşüşü/nedeni belirsizliği yaşanmadı) — dördü de hâlâ aktivasyon koşulunu karşılamıyor,
+  değişiklik yok. Tek gerçek bulgu: `perf_log.csv` artık 39 veri satırına ulaştı (§16'nın "30+ satır"
+  eşiği run 96'da geçildi) — bu bir zorunluluk yaratmıyor, sadece "30-commit performans trend
+  grafiği" maddesini artık gerçekten ele alınabilir bir alt görev hâline getiriyor; `GOVERNANCE.md`
+  §16'ya tek satırlık not olarak işlendi. §8.11 (tag push HTTP 403) ve §15 (periyodik platform
+  kontrolü, son run 91, sıradaki ~run 111-121) hâlâ güncel ve doğru. Başka çelişen/geçersiz madde
+  bulunmadı; geri kalan tüm kurallar hâlâ geçerli ve aktif.
+
+- **Run 76 (2026-08-05, ilk konsolidasyon geçişi):** `GOVERNANCE.md` (56'dan beri ~20 çalıştırma
+  sonra ilk kez), §16 Ertelenmiş Kurallar tablosu (SaveSystem yok/perf_log.csv 19 satır — ikisi de
+  hâlâ eşiğin altında, aktivasyon yok), §15 Periyodik Platform Kontrolü (son kontrol run 70,
+  ~run 90-100'e kadar tekrar gerekmiyor) gözden geçirildi. Tek gerçek güncelleme: §8.11'e run
+  58'den beri her çalıştırmada aynı sonuçla tekrarlanan `git tag` push (`HTTP 403`) bilgisi kalıcı
+  bir ortam kısıtı olarak not düşüldü — artık her run'da yeniden "keşfedilecek" bir bulgu değil,
+  yerel tag + `STABLE_TAGS.md` girdisinin kontrol noktası için yeterli sayıldığı açıkça yazıldı.
+  Başka çelişen/geçersiz madde bulunmadı; geri kalan tüm kurallar hâlâ geçerli ve aktif.
+
+- **Run 136 (2026-08-07, dördüncü konsolidasyon geçişi):** Run 116dan ~20 çalıştırma sonra GOVERNANCE.md yeniden gözden geçirildi. SaveSystem/public API aktivasyon koşulları hâlâ karşılanmıyor; smoke ve F2/mobile perf kapıları yeterli çalışıyor; run132 platform kontrolü güncel. Çelişen/geçersiz kural bulunmadı. Mobil coverage programına yeni §26 vegetation geometry-LOD kapısı eklendi. Run135 checkpoint satır biçimi parser uyumluluğu additive alias ile onarıldı. Sıradaki konsolidasyon ~run 156 veya FAZ tamamlanınca.
+
+- 2026-08-09 run199 — §15 periodic platform control refreshed: latest verified run is now 199; next window ~219-229. No rule semantics changed, only stale maintenance state superseded additively.
+
+- **Run 235 (2026-08-11, periodic platform control refresh):** §15/run199 maintenance state was due for refresh. Corrected clean verification installs Playwright/Chromium and PASSes mobile render budget (35 draw calls / 195929 triangles / 30 geometries / 22 textures), seeded/world-reference/hydrology, 14/14 terrain-seat, road-network, perf-trend, technical-debt, full 2D-offline/3D-WebGL smoke, console and final remote-main/additive gates. Runtime/product source delta remains 0. Next platform-control window ~run255-265.
+
+- **Run 240 (2026-08-11, governance consolidation refresh):** `GOVERNANCE.md`, the active continuation/continuous owner directives, current owner gates, Run235 platform-control state, PWA/cache, mobile performance, seeded/world determinism, world-reference/hydrology, terrain/road safety, performance trend, technical debt, full browser smoke and final concurrency/additive gates were re-verified. The newer owner directives still supersede only §8.7/§19 duration/continuation semantics; all safety/quality/additive-only/owner-gate rules remain active. Run151 owner-gated items remain unresolved and untouched; no decision was guessed or re-notified. Run235 platform control remains current with the next window ~run255-265. No rule semantics changed; this refresh restores the periodic consolidation trail. Next consolidation target ~run260 or earlier on FAZ completion.
+
+- **Run 321 (2026-08-12, periodic platform control + rule consolidation, per Run291's due window ~311-321):** `GOVERNANCE.md` §1-32 re-read end to end; no stale or internally-conflicting rule found. §16 deferred-rule activation conditions re-checked and still unmet (`SaveSystem` absent, no public API/mod support, smoke suite still sufficient, F2 `renderer.info` still sufficient). Concurrency clean (`git fetch origin main` matched local `HEAD` exactly, `405b8fa`, no drift). Full platform sweep re-run fresh: `smokeTestGame3D.js` 34/34 PASS, `checkPwaInstallability`/`checkServiceWorkerCache`/`checkWorldReferenceMap`/`checkWorldReferenceAlignment`/`checkWorldReferenceHydrologyExtent`/`checkWorldReferenceWaterMask`/`checkWorldEventDeterminism`/`checkMobilePerfBudget`/`terrainSeatSafetyCheck` (14/14)/`roadNetworkSafetyCheck`/`checkTechnicalDebt`/`checkSmokeCheckRegistry` all PASS/OK (same 2 pre-existing near-cap-line WARNs, untouched). `analyzePerfTrend.js` — 220 rows, no sustained heap drift. `npm audit` remains N/A (no lockfile). No code/gameplay/world delta this run. See `GOVERNANCE.md` §15 Run321 superseding note for full detail. Next platform-control/consolidation window ~run 341-351.

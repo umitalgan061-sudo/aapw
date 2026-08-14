@@ -12,18 +12,61 @@
 /** FAZ 5's real branching pilot (started run 44, DECISIONS.md ADR-0058; grown run 46 to 4,
  * DECISIONS.md ADR-0060; grown run 47 to 6, DECISIONS.md ADR-0062; grown run 48 to 8,
  * DECISIONS.md ADR-0063; grown run 49 to 10, DECISIONS.md ADR-0064; grown run 50 to 12,
- * DECISIONS.md ADR-0067; grown run 51 to 13, DECISIONS.md ADR-0069). 13 of 14 NPCs
+ * DECISIONS.md ADR-0067; grown run 51 to 13, DECISIONS.md ADR-0069; run 80, DECISIONS.md
+ * ADR-0103, gave `umit-guard-1` a 3rd choice — the pilot's first NPC to use the 3rd of
+ * `interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` slots, which has been reachable since run 44 but
+ * never exercised; run 88, DECISIONS.md ADR-0114, gave `berkalp-guard-1` a 3rd choice too, its
+ * theme deliberately a personal/duty question — same angle ADR-0103 used for `umit-guard-1` — rather
+ * than a 3rd lore fact, so the two 3-choice NPCs read as distinct from each other, not just from the
+ * 2-choice majority; run 89, DECISIONS.md ADR-0115, gave `twin-guard-1` a 3rd choice too, its theme
+ * a paranoid toll-keeper's own suspicion — the exact angle ADR-0114's own "Alternatives considered"
+ * logged as this NPC's fitting next lever ("has anyone ever slipped through unnoticed?") — the
+ * pilot's 3rd NPC and 1st non-Stark/non-player-seat NPC to reach the 3rd slot; run 91, DECISIONS.md
+ * ADR-0117, gave `olena-guard-1` a 3rd choice too, its theme a sharp-tongued Tyrell guard's own
+ * regret about her wit — the exact angle ADR-0115's own "Alternatives considered" logged as this
+ * NPC's fitting next lever ("has your wit ever gotten you in trouble?"); run 93, DECISIONS.md
+ * ADR-0119, gave `stannis-guard-1` a 3rd choice too, its theme a stern justice-loyalist's own
+ * private conviction ("have you ever doubted Stannis's cause?") rather than a 3rd fact about his
+ * legal code — the pilot's 5th NPC and 1st Baratheon seat to reach the 3rd slot; run 94, DECISIONS.md
+ * ADR-0120, gave `cersei-guard-1` a 3rd choice too, its theme a fear-under-a-ruthless-queen angle
+ * ("what happens if you defy Cersei?") rather than a 3rd fact about Lannister wealth/rule — the
+ * exact angle ADR-0119's own "Alternatives considered" logged as this NPC's fitting next candidate —
+ * the pilot's 6th NPC and 1st Lannister seat to reach the 3rd slot; run 95, DECISIONS.md
+ * ADR-0121, gave `doran-guard-1` a 3rd choice too, its theme a personal cost-of-isolation confession
+ * ("has staying this independent ever cost you?") rather than a 3rd fact about Dorne's politics — the
+ * pilot's 7th NPC and 1st Dornish seat to reach the 3rd slot; run 96, DECISIONS.md ADR-0122, gave
+ * `xaro-guard-1` a 3rd choice too, its theme a gatekeeper's own restlessness ("have you ever thought
+ * about walking out through your own gate?") rather than a 3rd fact about Qarth's gates/trust — the
+ * pilot's 8th NPC and only non-Seven-Kingdoms seat to reach the 3rd slot; run 97, DECISIONS.md
+ * ADR-0123, gave `stannis-guard-2` a 3rd choice too, its theme a solitary hilltop watchman's own
+ * loneliness ("does keeping watch alone up here ever make you feel isolated?") rather than a 3rd fact
+ * about the watch itself — the pilot's 9th NPC and 2nd Baratheon seat to reach the 3rd slot; run 98,
+ * DECISIONS.md ADR-0124, gave `balon-guard-1` a 3rd choice too, its theme a stern Ironborn guard's own
+ * private doubt about the Old Way ("has the Old Way ever cost your house more than it won?") rather
+ * than a 3rd fact about the Iron Price/reaving — the pilot's 10th NPC and first Iron Islands seat to
+ * reach the 3rd slot; run 99, DECISIONS.md ADR-0125, gave `robin-guard-1` a 3rd choice too, its theme
+ * a height-guard's own quiet homesickness for lower ground ("doesn't keeping watch this high up ever
+ * unsettle you?") rather than a 3rd fact about the Eyrie's eagles — the pilot's 11th NPC and first
+ * Vale seat to reach the 3rd slot; run 99, DECISIONS.md ADR-0126, gave `ziya-guard-1` a 3rd choice
+ * too, its theme a garden-guard's own worry that abundance itself draws envy/danger ("doesn't being
+ * this fertile make you a target?") rather than a 3rd fact about the harvest — the pilot's 12th NPC
+ * and 2nd Reach seat to reach the 3rd slot; run 100, DECISIONS.md ADR-0128, gave `berk-guard-1` a
+ * 3rd choice too, its theme a gate-guard's own memory of misjudging someone's intent ("have you ever
+ * let the wrong person in?") rather than a 3rd fact about Reach hospitality — the pilot's 13th and
+ * final NPC to reach the 3rd slot, completing every choice-enabled seat (only `jon-guard-1`'s
+ * deliberate single-line exclusion below remains uncovered); no NPC below is left at exactly 2). 13
+ * of
+ * 14 NPCs
  * (`umit-guard-1`/`berkalp-guard-1` — the player's home seat and the Stark seat the wolves already
- * patrol at; `doran-guard-1`/`xaro-guard-1` — Dorne's pride and Qarth's thirteen gates;
- * `cersei-guard-1`/`stannis-guard-1` — Lannister gold and Baratheon justice, both already
- * flavor-rich in `GREETINGS_BY_NPC_ID`; `stannis-guard-2` — Baratheon's second watchman;
- * `balon-guard-1` — Greyjoy's "we do not sow" flavor, the pilot's first Iron Islands seat;
+ * patrol at;
  * `robin-guard-1` — Arryn's Eyrie height, the pilot's first Vale seat; `ziya-guard-1`/`berk-guard-1`/
  * `olena-guard-1` — Tyrell's gardens/growing-power flavor, now voiced at all 3 of its Reach seats;
  * `twin-guard-1` — the Twins' crossing/toll flavor, its own distinct Lannister-house seat, not
- * reusing `cersei-guard-1`'s gold-mine angle) get 2
- * numbered choices after their greeting; picking
- * one (Digit1/Digit2 — see
+ * reusing `cersei-guard-1`'s gold-mine angle) get at least 2
+ * numbered choices after their greeting (all 13 choice-enabled NPCs — `umit-guard-1`/`berkalp-guard-1`/
+ * `twin-guard-1`/`olena-guard-1`/`stannis-guard-1`/`cersei-guard-1`/`doran-guard-1`/`xaro-guard-1`/
+ * `stannis-guard-2`/`balon-guard-1`/`robin-guard-1`/`ziya-guard-1`/`berk-guard-1` — now get 3);
+ * picking one (Digit1/Digit2/Digit3 — see
  * `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response line,
  * replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry here —
  * an absent/empty array means the old greeting-then-close-on-E behavior, unchanged.
@@ -43,6 +86,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 			label: 'Ümit Targeryan nerede?',
 			response: '{name}: Lordumuz surların içinde, danışmanlarıyla meşgul. Onu rahatsız etmeni tavsiye etmem.',
 		}),
+		Object.freeze({
+			label: 'Burada nöbet tutmak seni hiç korkutuyor mu?',
+			response: '{name}: Korku, gafil avlanmayanı ısırmaz, yabancı. Ben gözümü dört açarım, korkuya vaktim olmaz.',
+		}),
 	]),
 	'berkalp-guard-1': Object.freeze([
 		Object.freeze({
@@ -52,6 +99,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Kurtlar neden bu kadar yakın dolaşıyor?',
 			response: '{name}: Direwolf bizim kanımızdandır. Onlar buradaysa, biz de güvende demektir.',
+		}),
+		Object.freeze({
+			label: 'Bu kadar uzun süren nöbetler seni hiç yorar mı?',
+			response: '{name}: Stark\'a hizmet yorgunluk tanımaz, yabancı. Kış geldiğinde dinlenecek vakit olmayacak, o yüzden şimdiden alışıyorum.',
 		}),
 	]),
 	'doran-guard-1': Object.freeze([
@@ -63,6 +114,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 			label: 'Dorne\'un gizli bahçeleri var mı?',
 			response: '{name}: Bahçelerimizde ne yetiştiğini yalnızca Dorne halkı bilir, yabancı. Sen bilmesen daha iyi.',
 		}),
+		Object.freeze({
+			label: 'Bu kadar bağımsız kalmanın hiç bir bedeli oldu mu?',
+			response: '{name}: Oldu elbette, yabancı. Yalnız yürüyen zor günde müttefik bulamaz. Ama biz bunu göze aldık, boyun eğmektense.',
+		}),
 	]),
 	'xaro-guard-1': Object.freeze([
 		Object.freeze({
@@ -72,6 +127,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Qarth\'a nasıl güven kazanılır?',
 			response: '{name}: Altınla, ya da sabırla. İkisi de yoksa, on üçüncü kapı seni hiç görmeyecek.',
+		}),
+		Object.freeze({
+			label: 'Hiç kendi kapından çıkıp gitmeyi düşündün mü?',
+			response: '{name}: Elbette düşündüm, yabancı. On üç kapıdan hangisinin ardında benim için bir hayat olduğunu hâlâ merak ederim. Ama nöbetim burada, hayalim değil.',
 		}),
 	]),
 	'cersei-guard-1': Object.freeze([
@@ -83,6 +142,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 			label: 'Cersei Lannister nasıl bir kraliçedir?',
 			response: '{name}: Sorgulanacak biri değildir. Sözü kanundur, burada da öyledir.',
 		}),
+		Object.freeze({
+			label: 'Cersei\'ye karşı gelmek ne olur dersin?',
+			response: '{name}: Karşı gelen fazla yaşamaz, yabancı. Ben emirlere uyarım, sorgulamam — hayatta kalmanın tek yolu bu.',
+		}),
 	]),
 	'stannis-guard-1': Object.freeze([
 		Object.freeze({
@@ -92,6 +155,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Neden başka bir kral değil de Stannis?',
 			response: '{name}: Hak onundur, yabancı. O, görevden kaçmaz — bu yeterli bir cevaptır.',
+		}),
+		Object.freeze({
+			label: 'Stannis\'in davasına hiç şüphe duydun mu?',
+			response: '{name}: Şüphe zayıflıktır, yabancı. Ben hakka hizmet ederim, sonucuna değil — Kral\'ın davası benim davamdır, sorgulamadan.',
 		}),
 	]),
 	'stannis-guard-2': Object.freeze([
@@ -103,6 +170,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 			label: 'Birinci nöbetçiyle aranız nasıl?',
 			response: '{name}: O kapıyı tutar, ben tepeyi. İkimiz de aynı krala hizmet ederiz, sorun çıkmaz.',
 		}),
+		Object.freeze({
+			label: 'Burada tek başına nöbet tutmak seni hiç yalnızlaştırıyor mu?',
+			response: '{name}: Yalnızlaştırıyor elbette, yabancı. Ama tepeden bakınca kaleyi de, aşağıdakileri de görürüm — hiç yalnız değilmişim gibi hissettiren de bu.',
+		}),
 	]),
 	'balon-guard-1': Object.freeze([
 		Object.freeze({
@@ -112,6 +183,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Demir Adalar\'a nasıl saygı gösterilir?',
 			response: '{name}: Güçle, yabancı. Zayıflık burada saygı görmez, ne sözle ne de altınla.',
+		}),
+		Object.freeze({
+			label: 'Eski Yol hiç istediğinden fazlasına mal oldu mu?',
+			response: '{name}: Oldu, yabancı, birden fazla kez. Denizin aldığını geri vermez o — ama teslim olmak daha ağır bir bedel, biz öyle biliriz.',
 		}),
 	]),
 	'robin-guard-1': Object.freeze([
@@ -123,6 +198,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 			label: 'Kartallarınız gerçekten her şeyi mi görür?',
 			response: '{name}: Vadi\'nin her karışını görürler. Sana da bir göz atıyorlardır şu an, merak etme.',
 		}),
+		Object.freeze({
+			label: 'Bu kadar yükseklikte nöbet tutmak seni hiç ürkütmüyor mu?',
+			response: '{name}: Ürkütmüyor değil, yabancı. Ay Kapısı\'nın altında neyin beklediğini herkes bilir burada — ama benim asıl korkum düşmek değil, bir gün aşağıyı özlemek.',
+		}),
 	]),
 	'ziya-guard-1': Object.freeze([
 		Object.freeze({
@@ -132,6 +211,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Büyüyen güç derken neyi kastediyorsun?',
 			response: '{name}: Ordular kılıçla büyür, biz tahılla. Sonunda ikisi de aynı kapıya çıkar.',
+		}),
+		Object.freeze({
+			label: 'Bu kadar bereketli olmak hiç sizi hedef hâline getirmiyor mu?',
+			response: '{name}: Getiriyor, yabancı, hem de sık sık. Aç kalan komşu dolu ambara göz diker. Reach\'in gerçek savunması surlar değil, kimin bize borçlu olduğudur.',
 		}),
 	]),
 	'berk-guard-1': Object.freeze([
@@ -143,6 +226,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 			label: 'Misafirperverliğinizin sınırı tam olarak ne?',
 			response: '{name}: Sofra herkese açıktır, ama kapı herkese değil. Niyetini belli et, gerisi kolay.',
 		}),
+		Object.freeze({
+			label: 'Yanlış birini içeri aldığın oldu mu hiç?',
+			response: '{name}: Oldu, yabancı, bir kez. O günden beri her yüze bakışım değişti — bu kapı artık taştan değil, benim vicdanımdan yapılma.',
+		}),
 	]),
 	'olena-guard-1': Object.freeze([
 		Object.freeze({
@@ -153,6 +240,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 			label: 'Keskin sözleri kimseyi kırmıyor mu hiç?',
 			response: '{name}: Kırar elbette, ama doğru söylenmiş bir söz her zaman bir yalandan iyidir.',
 		}),
+		Object.freeze({
+			label: 'Keskin dilin hiç başını belaya soktu mu?',
+			response: '{name}: Soktu elbette, yabancı. Ama sustuğum günler, konuştuğum günlerden daha pişman ettiği için artık susmuyorum.',
+		}),
 	]),
 	'twin-guard-1': Object.freeze([
 		Object.freeze({
@@ -162,6 +253,10 @@ export const CHOICES_BY_NPC_ID = Object.freeze({
 		Object.freeze({
 			label: 'Neden her adımı bu kadar yakından izliyorsunuz?',
 			response: '{name}: Nehrin iki yakası da bizimdir. Kimse habersiz geçemez, gece de olsa gündüz de.',
+		}),
+		Object.freeze({
+			label: 'Hiç fark edilmeden geçen biri oldu mu?',
+			response: '{name}: Bir kere oldu, bir daha olmadı, yabancı. O geceden sonra nöbeti hiç gevşetmedik.',
 		}),
 	]),
 });

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "reference": "map.png",
+  "reference_size": [1536, 1024],
+  "grid": [8, 8],
+  "cell_size": [192, 128],
+  "corners": {
+    "NW": {"task_name": "Buzul Muhafızı", "origin": [0, 0]},
+    "NE": {"task_name": "Şafak Kartalı", "origin": [7, 0]},
+    "SW": {"task_name": "Günbatımı Ustası", "origin": [0, 7]},
+    "SE": {"task_name": "Kızıl Ufuk", "origin": [7, 7]}
+  },
+  "rows": [
+    ["G00", "G10", "G20", "G30", "G40", "G50", "G60", "G70"],
+    ["G01", "G11", "G21", "G31", "G41", "G51", "G61", "G71"],
+    ["G02", "G12", "G22", "G32", "G42", "G52", "G62", "G72"],
+    ["G03", "G13", "G23", "G33", "G43", "G53", "G63", "G73"],
+    ["G04", "G14", "G24", "G34", "G44", "G54", "G64", "G74"],
+    ["G05", "G15", "G25", "G35", "G45", "G55", "G65", "G75"],
+    ["G06", "G16", "G26", "G36", "G46", "G56", "G66", "G76"],
+    ["G07", "G17", "G27", "G37", "G47", "G57", "G67", "G77"]
+  ],
+  "cell_state": {},
+  "active_leases": {},
+  "notes": "Missing cell_state means pending. Each task must refresh main before claiming a cell. Store status, quality metrics, engine, branch/pr and last_commit only after evidence exists. Shared/overlap cells are refinements, never blind rewrites."
+}

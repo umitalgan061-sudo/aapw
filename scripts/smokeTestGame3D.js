@@ -8,14 +8,41 @@
  * this project's own priority order as missing smoke-test/regression coverage (a real, committed
  * check outranks writing another feature). This script is that committed check.
  *
- * This file is just the infrastructure (static file server + Playwright bootstrap + result
- * printing). The actual per-feature assertions live in `game3dSmokeChecksScene.js` (page/scene-
- * level: 2D shell load, 3D mode boot, water vertex-shader-has-no-displacement, F4 debug camera, F2
- * debug/profiling panel, world-event system), `game3dSmokeChecks.js` (per-entity gameplay:
- * settlement collider, jump/gravity arc, interaction controller), and `game3dSmokeChecksMovement.js`
- * (waypoint-patrol/flee-AI: wolf flee/pack-alert, NPC waypoint patrol, wolf waypoint patrol) — split
- * across three files (run 40, then again this run once `game3dSmokeChecks.js` hit 596/600 lines) —
- * see each file's own header comment for why.
+ * This file is just the orchestration (result printing over each check) — the static file server
+ * and Playwright bootstrap it uses live in `devServerHelper.js` (run 59, shared with
+ * `collectPerfSnapshot.js`). The actual per-feature assertions live in twelve focused check modules:
+ * - `game3dSmokeChecksScene.js` — page-boot level: 2D shell load, 3D mode boot, water
+ *   vertex-shader-has-no-displacement, settlement ground-flatten pads (run 92, ADR-0118).
+ * - `game3dSmokeChecksDebugTools.js` — debug-tool + world-event singleton systems: F4 debug camera,
+ *   F2 debug/profiling panel, world-event system, world-event day/night gating (split out of
+ *   `game3dSmokeChecksScene.js` run 88, which had reached 573/600 — see that file's own header).
+ * - `game3dSmokeChecks.js` — non-movement per-entity gameplay: settlement collider, player-cart dynamic
+ *   collider (run 337, ADR-0283), jump/gravity arc, interaction controller, interaction-prompt tap;
+ *   plus (run 87, budget-placed — see that file's own header) the starfield twinkle check.
+ * - `game3dSmokeChecksMovement.js` — ground-movement AI: wolf flee/pack-alert, NPC waypoint patrol,
+ *   wolf waypoint patrol, NPC combat-stance, NPC/animal/creature obstacle collider (run 332, ADR-0278).
+ * - `game3dSmokeChecksDragonFlight.js` — dragon baseline flight/awareness: circling flight, notice
+ *   trigger, reactive flight, wing-flap agitation telegraph.
+ * - `game3dSmokeChecksDragonDive.js` — dragon dive/swoop path deviations: dive/swoop, dive telegraph,
+ *   and (run 90, ADR-0116) the attack lunge/bite escalation on top of it.
+ * - `game3dSmokeChecksDragonPursuit.js` — dragon continuous-chase path deviations: pursuit, pursuit
+ *   give-up cue.
+ * - `game3dSmokeChecksSafeMode.js` — `safeMode.js`'s dispose()/disposeOnError()-throws containment
+ *   (ADR-0106), per-entity and singleton.
+ * - `game3dSmokeChecksDialogueTouch.js` — touch/keyboard dialogue-choice activation (run 99, ADR-0125);
+ *   plus (run 340, ADR-0286) the dialogue-input paused-gate check.
+ * - `game3dSmokeChecksControlsHelp.js` — responsive controls-reference widget (run 104, ADR-0131).
+ * - `game3dSmokeChecksSettlementCompass.js` — nearest-settlement compass widget (run 106, ADR-0133).
+ * - `game3dSmokeChecksDayNightClock.js` — day/night clock widget (run 107, ADR-0134).
+ * - `game3dSmokeChecksVegetation.js` — procedural instanced-tree scatter placement rules (run 111, ADR-0138).
+ * - `game3dSmokeChecksPauseMenu.js` — menu/pause overlay open/close/dispose (run 339, ADR-0285).
+ *
+ * The split history: run 40 (`game3dSmokeChecks.js` hit 596/600), run 64 (a fifth check module rather
+ * than growing `game3dSmokeChecksMovement.js`, already at 614/600), run 68 (that 614-line violation
+ * finally fixed at its source by moving its three dragon checks out — DECISIONS.md ADR-0087), run 88
+ * (`game3dSmokeChecksScene.js` hit 573/600, its F4/F2/world-event checks moved into the new
+ * `game3dSmokeChecksDebugTools.js`). See each file's own header comment for why. Every module is
+ * under this project's 600-line cap.
  *
  * Requires Playwright's Chromium browser (dev-only tooling — this repo intentionally has no
  * `package.json`/build step for the *deployed* site; this script is never loaded by a browser or
@@ -28,80 +55,22 @@
  * shell's own navigation) failed. 2 = Playwright unavailable in this environment.
  */
 
-const http = require('http');
-const path = require('path');
-const fs = require('fs');
 const sceneChecks = require('./game3dSmokeChecksScene.js');
+const debugToolChecks = require('./game3dSmokeChecksDebugTools.js');
 const checks = require('./game3dSmokeChecks.js');
 const movementChecks = require('./game3dSmokeChecksMovement.js');
-
-const ROOT = path.resolve(__dirname, '..');
-
-const MIME_TYPES = {
-	'.html': 'text/html; charset=utf-8',
-	'.js': 'text/javascript; charset=utf-8',
-	'.css': 'text/css; charset=utf-8',
-	'.json': 'application/json; charset=utf-8',
-	'.png': 'image/png',
-	'.jpg': 'image/jpeg',
-	'.jpeg': 'image/jpeg',
-	'.glb': 'model/gltf-binary',
-	'.gltf': 'model/gltf+json',
-	'.fbx': 'application/octet-stream',
-	'.bin': 'application/octet-stream',
-	'.svg': 'image/svg+xml',
-	'.ico': 'image/x-icon',
-	'.webmanifest': 'application/manifest+json',
-};
-
-/**
- * Starts a plain static file server over the repo root on an OS-assigned free port. No external
- * dependency — this is the only "network" involved, entirely local (127.0.0.1).
- * @returns {Promise<import('http').Server>}
- */
-function startStaticServer() {
-	const server = http.createServer((req, res) => {
-		try {
-			const urlPath = decodeURIComponent(req.url.split('?')[0]);
-			const filePath = path.join(ROOT, urlPath === '/' ? '/index.html' : urlPath);
-			if (!filePath.startsWith(ROOT)) {
-				res.writeHead(403);
-				res.end('Forbidden');
-				return;
-			}
-			if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-				res.writeHead(404);
-				res.end('Not found');
-				return;
-			}
-			const ext = path.extname(filePath).toLowerCase();
-			res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-			fs.createReadStream(filePath).pipe(res);
-		} catch (error) {
-			res.writeHead(500);
-			res.end(String(error));
-		}
-	});
-	return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
-
-/**
- * Resolves Playwright without assuming it's a local project dependency (this repo has none by
- * design). Tries plain `require('playwright')` first (works if installed locally or already on
- * Node's module path), then a common global-install location as a fallback.
- * @returns {object|null} The Playwright module, or null if unavailable anywhere tried.
- */
-function loadPlaywright() {
-	const candidates = ['playwright', '/opt/node22/lib/node_modules/playwright'];
-	for (const id of candidates) {
-		try {
-			return require(id);
-		} catch (error) {
-			// Try the next candidate.
-		}
-	}
-	return null;
-}
+const dragonFlightChecks = require('./game3dSmokeChecksDragonFlight.js');
+const dragonDiveChecks = require('./game3dSmokeChecksDragonDive.js');
+const dragonPursuitChecks = require('./game3dSmokeChecksDragonPursuit.js');
+const safeModeChecks = require('./game3dSmokeChecksSafeMode.js');
+const dialogueTouchChecks = require('./game3dSmokeChecksDialogueTouch.js');
+const controlsHelpChecks = require('./game3dSmokeChecksControlsHelp.js');
+const settlementCompassChecks = require('./game3dSmokeChecksSettlementCompass.js');
+const settlementDiscoveryChecks = require('./game3dSmokeChecksSettlementDiscovery.js');
+const dayNightClockChecks = require('./game3dSmokeChecksDayNightClock.js');
+const vegetationChecks = require('./game3dSmokeChecksVegetation.js');
+const pauseMenuChecks = require('./game3dSmokeChecksPauseMenu.js');
+const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
 	const playwright = loadPlaywright();
@@ -123,18 +92,42 @@ async function main() {
 	try {
 		results.push(await sceneChecks.check2DShell(browser, baseUrl));
 		results.push(await sceneChecks.check3DMode(browser, baseUrl));
-		results.push(await sceneChecks.checkWaterVertexShaderStatic(browser, baseUrl));
-		results.push(await sceneChecks.checkFreeCamera(browser, baseUrl));
-		results.push(await sceneChecks.checkPerfPanel(browser, baseUrl));
-		results.push(await sceneChecks.checkWorldEvents(browser, baseUrl));
+		results.push(await sceneChecks.checkWaterDepthTaperedSwell(browser, baseUrl));
+		results.push(await sceneChecks.checkSettlementGroundFlatten(browser, baseUrl));
+		results.push(await debugToolChecks.checkFreeCamera(browser, baseUrl));
+		results.push(await debugToolChecks.checkPerfPanel(browser, baseUrl));
+		results.push(await debugToolChecks.checkWorldEvents(browser, baseUrl));
+		results.push(await debugToolChecks.checkWorldEventsTimeGating(browser, baseUrl));
 		results.push(await checks.checkSettlementCollider(browser, baseUrl));
+		results.push(await checks.checkPlayerCartDynamicCollider(browser, baseUrl));
 		results.push(await checks.checkJumpArc(browser, baseUrl));
 		results.push(await checks.checkInteractionController(browser, baseUrl));
+		results.push(await checks.checkInteractionPromptTap(browser, baseUrl));
+		results.push(await dialogueTouchChecks.checkDialogueChoiceTap(browser, baseUrl));
+		results.push(await dialogueTouchChecks.checkDialoguePauseGate(browser, baseUrl));
+		results.push(await controlsHelpChecks.checkControlsHelp(browser, baseUrl));
+		results.push(await settlementCompassChecks.checkSettlementCompass(browser, baseUrl));
+		results.push(await settlementDiscoveryChecks.checkSettlementDiscovery(browser, baseUrl));
+		results.push(await dayNightClockChecks.checkDayNightClock(browser, baseUrl));
+		results.push(await vegetationChecks.checkVegetation(browser, baseUrl));
+		results.push(await pauseMenuChecks.checkPauseMenu(browser, baseUrl));
+		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));
-		results.push(await movementChecks.checkDragonFlight(browser, baseUrl));
-		results.push(await movementChecks.checkDragonNotice(browser, baseUrl));
+		results.push(await movementChecks.checkNpcCombatStance(browser, baseUrl));
+		results.push(await movementChecks.checkNpcAnimalCreatureObstacleCollider(browser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonFlight(browser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonNotice(browser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonReactiveFlight(browser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonWingFlapAgitation(browser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonDive(browser, baseUrl));
+		results.push(await dragonPursuitChecks.checkDragonPursuit(browser, baseUrl));
+		results.push(await dragonPursuitChecks.checkDragonGiveUpCue(browser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonDiveTelegraph(browser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonBiteAttack(browser, baseUrl));
+		results.push(await safeModeChecks.checkSafeModeEntityDisposeThrows(browser, baseUrl));
+		results.push(await safeModeChecks.checkSafeModeSystemDisposeThrows(browser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();

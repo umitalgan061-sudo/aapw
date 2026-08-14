@@ -1,0 +1,68 @@
+{
+  "corner": "NE",
+  "task_name": "Şafak Kartalı",
+  "origin": [7, 0],
+  "current_cell": "G70",
+  "status": "validating",
+  "layer": "Road/Path",
+  "branch": "terrain/ne-g70-terrain3d-road-path-r1-exact-20260814",
+  "pr": 479,
+  "last_commit": null,
+  "selection_reason": "G70 Coast/Hydrology, Macro Albedo/Biome, Relief/Height Character and Rock/Snow are merged. Strict same-cell order therefore advances to Road/Path. Canonical G70 is 96/96 open sea and the real runtime road graph remains west of the cell, so Road/Path must prove zero crossing, zero road/path coverage and zero Terrain3D road control rather than inventing a bridge, causeway, island or GeoCell-shaped route patch.",
+  "quality_before": {
+    "base_cells": 96,
+    "water_cells": 96,
+    "land_cells": 0,
+    "merged_hydrology_pr": 361,
+    "merged_macro_biome_pr": 455,
+    "merged_relief_pr": 470,
+    "merged_rock_snow_pr": 477,
+    "rock_snow_in_main": true,
+    "rock_weight_max": 0,
+    "snow_weight_max": 0
+  },
+  "quality_target": {
+    "canonical_uniform_sea_preserved": true,
+    "invented_bridge_or_causeway": false,
+    "runtime_crossing_edges": 0,
+    "active_road_samples": 0,
+    "active_path_samples": 0,
+    "road_path_control_blend_max": 0,
+    "merged_rock_snow_surface_preserved": true,
+    "merged_relief_height_preserved": true,
+    "runtime_road_projection_proof": true,
+    "canonical_road_exclusion_margin_positive": true,
+    "west_guard_neighbor": "G60",
+    "south_guard_neighbor": "G71",
+    "qualification_grid": 257,
+    "probe_grid": 65,
+    "dense_owner_envelope": 193,
+    "terrain3d_filtered_import": 257,
+    "terrain3d_region_size": 256,
+    "terrain3d_guard_regions_min": 4,
+    "terrain3d_height_control_roundtrip": true,
+    "terrain3d_region_persistence": true,
+    "terrain3d_lod0_bake": true,
+    "terrain3d_255_256_seam_probes": true,
+    "near_far_full_world_visual_evidence": true,
+    "full_world_road_patch_alpha": 0,
+    "hterrain_regression_preserved": true,
+    "threejs_runtime_unchanged": true
+  },
+  "completed_cells": {
+    "G52": {
+      "seven_layers_qualified": true,
+      "runtime_parity_pr": 335,
+      "merge_commit": "24fa8656f7b585b0cedfe2f471fce705775ab13e",
+      "note": "G52 Terrain3D Bake/Three.js runtime parity merged after exact-head dedicated CI, final exact-main freshness, HTerrain, safety, PWA/mobile/browser gates. This does not imply full-world completion."
+    }
+  },
+  "merged_ne_hydrology_neighbors": {
+    "G60": {"pr": 249, "merge_commit": "b7753f96419aec2bd5f95d194022d097610850a6", "canonical": "96/96 sea"},
+    "G71": {"pr": 252, "merge_commit": "1e0c1dc35bc3726551d753d1fc1922bf01226fa9", "canonical": "96/96 sea"},
+    "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
+  },
+  "engine": "real runtime road graph projection + canonical road-envelope exclusion -> zero Road/Path coverage for canonical G70 sea -> merged Rock/Snow height/control preserved -> pinned Terrain3D v1.0.2-stable 257x257 Height+Control import/regions/save/round-trip/255-256 seams/LOD0 bake; near+far+full-world no-route-patch proof; HTerrain retained as regression/control",
+  "exact_base": "7ab4c2aecedb03150349a00025865652c468f762",
+  "updated_at": "2026-08-14T07:59:00+03:00"
+}

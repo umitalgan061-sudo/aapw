@@ -1,0 +1,72 @@
+name: Run216 Visible Aurora Progress Append V2
+
+on:
+  push:
+    branches:
+      - agent/run216-visible-aurora-followup
+    paths:
+      - '.github/workflows/run216-visible-aurora-progress-append-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  append-progress-v2:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Synchronize branch and verify main ancestry
+        run: |
+          set -euo pipefail
+          git fetch origin main agent/run216-visible-aurora-followup
+          git checkout -B agent/run216-visible-aurora-followup origin/agent/run216-visible-aurora-followup
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+      - name: Append Run216 visible aurora checkpoint
+        run: |
+          set -euo pipefail
+          MARKER='Run216 Visible Aurora Follow-up — 2026-08-10'
+          if grep -Fq "$MARKER" 3D_GAME_PROGRESS.md; then
+            echo 'Progress checkpoint already present; no duplicate append needed.'
+            exit 0
+          fi
+          printf '%s\n' \
+            '' \
+            '---' \
+            '' \
+            '## Run216 Visible Aurora Follow-up — 2026-08-10' \
+            '' \
+            'Owner usability follow-up: edit mode stays bright/readable and northern lights remain visibly prominent.' \
+            '' \
+            '- Editor authoring time remains locked to noon ratio 0.5; fog stays disabled; editor sun/hemisphere readability floors remain 2.35/1.65.' \
+            '- Editor-only visible aurora layer raises the existing sky uNightFactor to 3.4; aurora colors remain cyan-green #39ffd0 and violet #8f68ff. Gameplay sky/day-night semantics are unchanged.' \
+            '- Gameplay night readability remains intact: canonical midnight nightFactor=1.0, sun=0.05 and canonical hemisphere=0.25; additive child fill keeps night playable. WebGL proof measured luminance 2.60 -> 36.37, about 14.01x.' \
+            '- Two-angle Chromium aurora proof PASS with actual uniform 3.4. Desktop/mobile editor regression PASS including live-world load, placement, ground snap, road and terrain/water authoring, save/load, copy/paste, 390px mobile layout and zero editor console/page errors.' \
+            '- 3D smoke/console, Service Worker cache, PWA installability, seeded-random policy, performance trend and technical-debt checks PASS. Mobile budget measurement: 35 draw calls, 195929 triangles, 30 geometries, 21 textures. Headless CI FPS is not treated as representative gameplay FPS.' \
+            '- Exact validated runtime workflow: Run216 Visible Aurora Followup, run 31401447770, head cc207f8fbcd1ad6d5fd35dc686de88b4e6972c73. Runtime, visual, PWA, perf, determinism, debt and final concurrency gates passed.' \
+            '- ADR not required: this is editor-only visual calibration on the established authoring environment; no architecture, persistence, deterministic generation, gameplay day/night state, asset-license or public-API decision changed.' \
+            '- Technical debt/risk: no new runtime debt marker; editor aurora boost owns one RAF/listener surface with explicit cleanup. Remaining risk is only display-dependent aesthetic calibration.' \
+            '- Next safe step: merge the narrow visible-aurora follow-up after documentation-only exact-head postflight.' \
+            >> 3D_GAME_PROGRESS.md
+          git diff --check
+      - name: Commit and push additive progress checkpoint
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 3D_GAME_PROGRESS.md; then
+            echo 'No progress change to publish.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md
+          git commit -m 'docs(run216): record visible aurora checkpoint'
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          git push origin HEAD:agent/run216-visible-aurora-followup
+
+concurrency:
+  group: run216-visible-aurora-progress-append-v2
+  cancel-in-progress: false

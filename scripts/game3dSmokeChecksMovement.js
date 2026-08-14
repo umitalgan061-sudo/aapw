@@ -1,13 +1,21 @@
 /**
- * game3dSmokeChecksMovement.js — patrol/flee movement-AI check functions run by `smokeTestGame3D.js`.
+ * game3dSmokeChecksMovement.js — ground-movement AI check functions run by `smokeTestGame3D.js`:
+ * waypoint patrol, flee/pack-alert, and (run 73) combat-stance for the entities that walk on the
+ * terrain (wolves, NPCs).
  *
- * Split out of `game3dSmokeChecks.js` (was 596/600 lines; the next check added there wouldn't have
- * fit) — same "extract into a focused module, moved verbatim" pattern `game3dSmokeChecksScene.js`
- * itself used when it split off run 40 (see that file's own header, and DECISIONS.md ADR-0028 for
- * the original precedent). This file keeps the waypoint-patrol/flee/pack-alert movement checks
- * (wolf flee/pack-alert, NPC waypoint patrol, wolf waypoint patrol); `game3dSmokeChecks.js` keeps
- * the non-movement per-entity checks (settlement collider, jump arc, interaction controller).
- * `smokeTestGame3D.js` calls both files' exports — see its own comment for the combined check list.
+ * Originally split out of `game3dSmokeChecks.js` (run 40, was 596/600 lines) — same "extract into a
+ * focused module, moved verbatim" pattern `game3dSmokeChecksScene.js` used, see DECISIONS.md ADR-0028
+ * for the original precedent. Three dragon flight checks later accreted here and pushed this file to
+ * 614 lines, over the 600-line cap (GOVERNANCE.md Altın Kural 7); run 68 (DECISIONS.md ADR-0087) moved
+ * them out verbatim into `game3dSmokeChecksDragonFlight.js`, which both cleared the violation and
+ * restored this file to the ground-movement scope its header always described. Flying entities are
+ * now covered entirely by the two `...DragonFlight`/`...DragonDive` modules.
+ *
+ * Sibling check modules: `game3dSmokeChecksScene.js` (page/scene boot), `game3dSmokeChecks.js`
+ * (non-movement per-entity gameplay: settlement collider, jump arc, interaction),
+ * `game3dSmokeChecksDragonFlight.js` (dragon circling/notice/reactive flight),
+ * `game3dSmokeChecksDragonDive.js` (dragon dive + continuous chase). `smokeTestGame3D.js` calls every
+ * module's exports — see its own comment for the combined check list.
  *
  * Every function here takes `(browser, baseUrl)` and returns `Promise<{name, ok, details}>`. See
  * each function's own comment for what it guards against.
@@ -18,7 +26,17 @@
  * value/convention as `game3dSmokeChecks.js`'s/`game3dSmokeChecksScene.js`'s own copies; duplicated
  * rather than shared/imported across the sibling check files since it's a single primitive with no
  * other state. */
-const NAV_TIMEOUT_MS = 15000;
+// Run 332 RCA (game3d.js line-cap extraction, ADR-0279): this project's own boot cost has grown
+// past this constant's original assumption -- run-326/330/330b/331's procedural creatures, real
+// castle models, and villages pushed a real game3d.html boot to ~9-13s (observed via direct
+// domcontentloaded-timing instrumentation) in this project's software-WebGL sandboxed CI/dev
+// environment, which sat right at or over the old 10s/15s ceiling -- a pre-existing flake
+// (already recorded as an "environment quirk" by game3dSmokeChecksScene.js's own run-68 comment)
+// that reproduced on unmodified `main` in this run's own RCA, not something the run's actual code
+// change caused (confirmed: that change executes strictly after the domcontentloaded event this
+// timeout gates on). 30s gives real margin above the observed range, including one measured 20s+
+// outlier under sandbox contention.
+const NAV_TIMEOUT_MS = 30_000;
 
 /**
  * Regression guard for `gameplay/animals.js`'s `createWolf` flee/pack-alert logic (run 29/30,
@@ -116,6 +134,124 @@ async function checkWolfPackAlert(browser, baseUrl) {
 			'flee direction stays player-relative, out-of-range packmate correctly ignored'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
 	return { name: 'wolf flee/pack-alert (gameplay/animals.js)', ok, details };
+}
+
+/**
+ * Regression guard for `gameplay/npc.js`'s `createNPC` combat-stance logic (run 73, FAZ 11 "asker"
+ * archetype, DECISIONS.md ADR-0096) — the alert-blend easing, idle time-scale cue, player-facing turn,
+ * and patrol-freeze/resume behavior, on two real `createNPC` controllers (static and patrolling) with
+ * a real downloaded Mixamo FBX, the same in-page dynamic-`import()` pattern every sibling check in
+ * this file already uses.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkNpcCombatStance(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createNPC } = await import('/src/3d/gameplay/npc.js');
+			const { AssetLoader } = await import('/src/3d/assetLoader.js');
+			const { NPC_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+
+			const assetLoader = new AssetLoader();
+			const delta = 1 / 60;
+			const farPlayer = { x: 1000, z: 1000 };
+
+			// --- Static NPC: alert blend, idle time-scale cue, and player-facing turn. ---
+			const staticNpc = await createNPC({
+				assetLoader,
+				modelUrl: NPC_CONFIG.SPAWNS[0].modelUrl,
+				idleAnimationUrl: NPC_CONFIG.IDLE_ANIMATION_URL,
+				worldX: 0,
+				worldZ: 0,
+				groundY: 0,
+				turnRateRadiansPerSecond: NPC_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+				combatStanceTriggerRadiusMeters: NPC_CONFIG.COMBAT_STANCE_TRIGGER_RADIUS_METERS,
+				combatStanceIdleTimeScale: NPC_CONFIG.COMBAT_STANCE_IDLE_TIME_SCALE,
+				combatStanceTransitionSeconds: NPC_CONFIG.COMBAT_STANCE_TRANSITION_SECONDS,
+			});
+
+			staticNpc.update(delta, farPlayer);
+			const baselineCalm = staticNpc.object3D.userData.combatStanceBlend === 0;
+			const baselineFacingUnchanged = staticNpc.object3D.rotation.y === 0;
+
+			// 5m away, inside the 10m trigger radius -> expected yaw = atan2(5, 0) = PI/2. The alert
+			// blend itself settles within COMBAT_STANCE_TRANSITION_SECONDS, but `turnTowardYaw`'s
+			// lerp-based turn converges on its own, slower, per-frame-fraction schedule (same
+			// TURN_RATE_RADIANS_PER_SECOND-as-a-lerp-fraction shape `checkNpcPatrol` already runs many
+			// frames to let converge) — 2.5s is comfortably past both.
+			const nearPlayer = { x: 5, z: 0 };
+			const blendSettleFrames = Math.ceil((NPC_CONFIG.COMBAT_STANCE_TRANSITION_SECONDS + 0.5) / delta);
+			const turnSettleFrames = Math.ceil(2.5 / delta);
+			for (let i = 0; i < turnSettleFrames; i++) staticNpc.update(delta, nearPlayer);
+			const alertBlendReachesOne = staticNpc.object3D.userData.combatStanceBlend === 1;
+			const turnedToFacePlayer = Math.abs(staticNpc.object3D.rotation.y - Math.PI / 2) < 0.05;
+
+			for (let i = 0; i < blendSettleFrames; i++) staticNpc.update(delta, farPlayer);
+			const alertBlendReturnsToZero = staticNpc.object3D.userData.combatStanceBlend === 0;
+			staticNpc.dispose();
+
+			// --- Patrolling NPC: alert freezes movement in place, calm resumes the same lap. ---
+			const patrolNpc = await createNPC({
+				assetLoader,
+				modelUrl: NPC_CONFIG.SPAWNS[0].modelUrl,
+				idleAnimationUrl: NPC_CONFIG.IDLE_ANIMATION_URL,
+				walkAnimationUrl: NPC_CONFIG.WALK_ANIMATION_URL,
+				worldX: 0,
+				worldZ: 0,
+				groundY: 0,
+				groundCollider: { getGroundHeight: () => 0 },
+				patrolWaypoints: [{ x: 0, z: 0 }, { x: 10, z: 10 }],
+				speedMps: NPC_CONFIG.PATROL_SPEED_MPS,
+				pauseSeconds: NPC_CONFIG.PATROL_PAUSE_SECONDS,
+				turnRateRadiansPerSecond: NPC_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+				combatStanceTriggerRadiusMeters: NPC_CONFIG.COMBAT_STANCE_TRIGGER_RADIUS_METERS,
+				combatStanceIdleTimeScale: NPC_CONFIG.COMBAT_STANCE_IDLE_TIME_SCALE,
+				combatStanceTransitionSeconds: NPC_CONFIG.COMBAT_STANCE_TRANSITION_SECONDS,
+			});
+
+			// Clear the initial pause cycle and walk partway toward (10, 10), calm the whole time.
+			const pauseFrames = Math.ceil((NPC_CONFIG.PATROL_PAUSE_SECONDS + 0.5) / delta);
+			for (let i = 0; i < pauseFrames; i++) patrolNpc.update(delta, farPlayer);
+			for (let i = 0; i < 60; i++) patrolNpc.update(delta, farPlayer); // ~1s of walking, still short of the 14.14m leg
+			const midWalkX = patrolNpc.object3D.position.x;
+			const midWalkZ = patrolNpc.object3D.position.z;
+			const wasMoving = midWalkX > 0 || midWalkZ > 0;
+
+			// Player closes to combat range -> position must freeze exactly where it was.
+			const nearPatrolPlayer = { x: midWalkX, z: midWalkZ };
+			for (let i = 0; i < 60; i++) patrolNpc.update(delta, nearPatrolPlayer);
+			const frozeInPlace = patrolNpc.object3D.position.x === midWalkX && patrolNpc.object3D.position.z === midWalkZ;
+			const alertWhilePatrolling = patrolNpc.object3D.userData.combatStanceBlend === 1;
+
+			// Player retreats -> the lap resumes from exactly where it paused, same target as before.
+			let resumeFrames = 0;
+			while (
+				resumeFrames < 5000 &&
+				!(patrolNpc.object3D.position.x === 10 && patrolNpc.object3D.position.z === 10)
+			) {
+				patrolNpc.update(delta, farPlayer);
+				resumeFrames++;
+			}
+			const resumedAndArrived = patrolNpc.object3D.position.x === 10 && patrolNpc.object3D.position.z === 10;
+			patrolNpc.dispose();
+
+			return {
+				baselineCalm, baselineFacingUnchanged, alertBlendReachesOne, turnedToFacePlayer,
+				alertBlendReturnsToZero, wasMoving, frozeInPlace, alertWhilePatrolling, resumedAndArrived,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	const details = ok
+		? 'static NPC alert-blend eases to exactly 1 and back to 0, turns to face the player at the ' +
+			'expected yaw; a patrolling NPC freezes exactly in place while alert and resumes the same ' +
+			'lap (arriving at the original target) once the player retreats'
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'NPC combat-stance (gameplay/npc.js, run 73)', ok, details };
 }
 
 /**
@@ -315,190 +451,133 @@ async function checkWolfPatrol(browser, baseUrl) {
 }
 
 /**
- * Regression guard for `gameplay/dragons.js`'s `createDragon` circling-flight AI (run 53,
- * DECISIONS.md ADR-0071) — FAZ 7's first spawn point. Drives a real `createDragon` controller
- * (loading the actual `black_dragon` FBX via a real `AssetLoader` against this script's own local
- * static server) and asserts: the model actually loaded (not the placeholder box), it has a
- * texture (catches a regression of the `resourcePath` fix — this FBX's textures live in a
- * `textures/` subfolder its embedded material references don't include), the `Fly` clip is playing,
- * position stays exactly `circleRadiusMeters` from the center at every sampled frame (a closed
- * circle, not a spiral/drift), altitude never changes (level flight), and a full lap (360°) returns
- * to within floating-point tolerance of the start position.
+ * Regression guard for run 332's own extension of Run 331's ADR-0277 obstacle collider
+ * (`physics.js`'s `createCircleCollider`, already proven against the player in
+ * `game3dSmokeChecks.js`'s `checkSettlementCollider`) to `gameplay/npc.js`'s `createNPC`,
+ * `gameplay/animals.js`'s `createWolf`, and `gameplay/creatureBrain.js`'s `createCreatureBeing` — the
+ * exact "NPCs/animals still pass through village houses and castle walls" gap Run 331's own progress
+ * note named as this run's follow-up. One shared `createCircleCollider` instance carries three
+ * circles, each placed on a different axis/region so none of the three entities below ever crosses
+ * paths with another entity's own circle: a patrolling NPC walks straight into its circle along +X,
+ * a patrolling wolf walks straight into its circle along +Z, and a fleeing procedural creature (a
+ * `geyik`, whose 15m `reactiveTriggerRadiusMeters` comfortably covers the short flee distance used
+ * here — a tighter-trigger species would stop reacting, and start wandering back toward its spawn,
+ * partway there) runs straight into its own circle while fleeing a fixed nearby player position. All
+ * three should converge to resting exactly on their circle's edge (`radius + playerRadiusMeters`)
+ * rather than crossing through it.
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */
-async function checkDragonFlight(browser, baseUrl) {
+async function checkNpcAnimalCreatureObstacleCollider(browser, baseUrl) {
 	const page = await browser.newPage();
 	let result;
 	try {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
 		result = await page.evaluate(async () => {
-			const { createDragon } = await import('/src/3d/gameplay/dragons.js');
+			const { createNPC } = await import('/src/3d/gameplay/npc.js');
+			const { createWolf } = await import('/src/3d/gameplay/animals.js');
+			const { createCreatureBeing } = await import('/src/3d/gameplay/creatureBrain.js');
+			const { createCircleCollider } = await import('/src/3d/physics.js');
+			const { mulberry32 } = await import('/src/3d/world/terrain.js');
 			const { AssetLoader } = await import('/src/3d/assetLoader.js');
-			const { DRAGON_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
+			const { NPC_CONFIG, ANIMAL_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
 
 			const assetLoader = new AssetLoader();
-			const centerX = 100;
-			const centerZ = 200;
-			const centerY = 90;
-			const circleRadiusMeters = 150;
-			const dragon = await createDragon({
-				assetLoader,
-				modelUrl: DRAGON_CONFIG.MODEL_URL,
-				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
-				scale: DRAGON_CONFIG.SCALE,
-				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
-				centerX, centerZ, centerY, circleRadiusMeters,
-				speedMps: 12,
-				bankAngleRadians: 0.35,
-			});
-
-			const isPlaceholder = Boolean(dragon.object3D.userData && dragon.object3D.userData.isPlaceholder);
-			let hasTexture = false;
-			dragon.object3D.traverse((child) => {
-				if (child.isMesh) {
-					const mats = Array.isArray(child.material) ? child.material : [child.material];
-					for (const m of mats) if (m && m.map) hasTexture = true;
-				}
-			});
-
 			const delta = 1 / 60;
-			const angularSpeed = 12 / circleRadiusMeters;
-			const secondsPerLap = (2 * Math.PI) / angularSpeed;
-			const framesPerLap = Math.round(secondsPerLap / delta);
+			const groundCollider = { getGroundHeight: () => 0 };
+			const playerRadiusMeters = 0.4;
+			const npcCircle = { x: 10, z: 0, radius: 2 };
+			const wolfCircle = { x: 0, z: 10, radius: 2 };
+			const creatureCircle = { x: 5, z: 50, radius: 2 };
+			const playerCollider = createCircleCollider([npcCircle, wolfCircle, creatureCircle], playerRadiusMeters);
+			const expectedStop = (circle) => circle.radius + playerRadiusMeters;
 
-			let staysOnCircle = true;
-			let staysLevel = true;
-			for (let frame = 0; frame < framesPerLap; frame++) {
-				dragon.update(delta);
-				const { x, y, z } = dragon.object3D.position;
-				const distance = Math.hypot(x - centerX, z - centerZ);
-				if (Math.abs(distance - circleRadiusMeters) > 1e-6) staysOnCircle = false;
-				if (Math.abs(y - centerY) > 1e-9) staysLevel = false;
-			}
-			const finalX = dragon.object3D.position.x;
-			const finalZ = dragon.object3D.position.z;
-			const closesLap = Math.abs(finalX - centerX) < 0.5 && Math.abs(finalZ - (centerZ + circleRadiusMeters)) < 0.5;
-
-			return { isPlaceholder, hasTexture, staysOnCircle, staysLevel, closesLap };
-		});
-	} finally {
-		await page.close();
-	}
-	const ok = !result.isPlaceholder && result.hasTexture && result.staysOnCircle && result.staysLevel && result.closesLap;
-	const details = ok
-		? 'real black_dragon FBX loaded (not placeholder) with a resolved texture (resourcePath fix), ' +
-			'Fly clip circling stays exactly on-radius and level every sampled frame, closes a full 360° lap'
-		: `FAILED assertion(s): ${JSON.stringify(result)}`;
-	return { name: 'dragon circling flight (gameplay/dragons.js)', ok, details };
-}
-
-/**
- * Regression guard for `gameplay/dragons.js`'s player-awareness "notice" trigger (run 54,
- * DECISIONS.md ADR-0072) — the first FAZ 7 behavior beyond a static flight path. Drives a real
- * `createDragon` controller with `speedMps: 0` (angular speed is `speedMps / circleRadiusMeters`, so
- * this parks the dragon at a fixed, known position instead of adding flight-position math on top of
- * the thing under test) and a real `EventBus`, then asserts the emit is edge-triggered: fires once
- * when the player first enters `noticeRadiusMeters` of the dragon's real position, does NOT re-fire
- * on a second `update()` call while still inside, does NOT fire on exit, and DOES fire again on a
- * second, later entry (re-arms) — same edge-triggered shape `gameplay/animals.js`'s
- * `fleeTriggerRadiusMeters` already established for wolves. Also confirms a dragon spawned with no
- * `noticeRadiusMeters` never emits regardless of `playerPosition`, and that omitting
- * `playerPosition` entirely (as `checkDragonFlight`'s own calls already do) never throws.
- * @returns {Promise<{name: string, ok: boolean, details: string}>}
- */
-async function checkDragonNotice(browser, baseUrl) {
-	const page = await browser.newPage();
-	let result;
-	try {
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
-		result = await page.evaluate(async () => {
-			const { createDragon } = await import('/src/3d/gameplay/dragons.js');
-			const { AssetLoader } = await import('/src/3d/assetLoader.js');
-			const { EventBus } = await import('/src/3d/eventBus.js');
-			const { DRAGON_CONFIG } = await import('/src/3d/gameplay/gameplayConfig.js');
-
-			const assetLoader = new AssetLoader();
-			const eventsBus = new EventBus();
-			const eventName = 'test:dragonNotice';
-			const noticeToast = { icon: '🐉', title: 'test', desc: 'test', color: '#000000' };
-			const emitted = [];
-			eventsBus.on(eventName, (payload) => emitted.push(payload));
-
-			// speedMps: 0 -> angular speed 0 -> parks the dragon at its start position (centerX,
-			// centerY, centerZ + circleRadiusMeters) = (0, 0, 100), so this test drives playerPosition
-			// against a known-fixed dragon position instead of also tracking flight motion.
-			const dragon = await createDragon({
+			const npc = await createNPC({
 				assetLoader,
-				modelUrl: DRAGON_CONFIG.MODEL_URL,
-				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
-				scale: DRAGON_CONFIG.SCALE,
-				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
-				centerX: 0, centerZ: 0, centerY: 0, circleRadiusMeters: 100,
-				speedMps: 0,
-				noticeRadiusMeters: 50,
-				eventsBus, eventName, noticeToast,
+				modelUrl: NPC_CONFIG.SPAWNS[0].modelUrl,
+				idleAnimationUrl: NPC_CONFIG.IDLE_ANIMATION_URL,
+				walkAnimationUrl: NPC_CONFIG.WALK_ANIMATION_URL,
+				worldX: 0,
+				worldZ: 0,
+				groundY: 0,
+				groundCollider,
+				playerCollider,
+				patrolWaypoints: [{ x: 0, z: 0 }, { x: 20, z: 0 }],
+				speedMps: NPC_CONFIG.PATROL_SPEED_MPS,
+				pauseSeconds: NPC_CONFIG.PATROL_PAUSE_SECONDS,
+				turnRateRadiansPerSecond: NPC_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
 			});
+			for (let i = 0; i < 3000; i++) npc.update(delta);
+			const npcStopX = npc.object3D.position.x;
+			const npcStayedOutside = Math.abs(npcStopX - (npcCircle.x - expectedStop(npcCircle))) < 1e-6;
+			const npcNeverCrossedCenter = npcStopX < npcCircle.x;
+			npc.dispose();
 
-			const delta = 1 / 60;
-			dragon.update(delta, { x: 0, y: 0, z: 500 }); // far — no emit
-			const noEmitWhileFar = emitted.length === 0;
-
-			dragon.update(delta, { x: 0, y: 0, z: 120 }); // distance 20 < 50 — enters, should emit once
-			const emittedOnEntry = emitted.length === 1 && emitted[0] === noticeToast;
-
-			dragon.update(delta, { x: 0, y: 0, z: 110 }); // still inside — must NOT re-fire
-			const noReFireWhileInside = emitted.length === 1;
-
-			dragon.update(delta, { x: 0, y: 0, z: 500 }); // exits — must NOT fire on exit
-			const noFireOnExit = emitted.length === 1;
-
-			dragon.update(delta, { x: 0, y: 0, z: 130 }); // re-enters — should fire again (re-armed)
-			const reFiresOnReEntry = emitted.length === 2;
-
-			// A second dragon with no noticeRadiusMeters configured must never emit, and omitting
-			// playerPosition on an awareness-enabled dragon must never throw.
-			const disabledEmitted = [];
-			eventsBus.on('test:dragonNoticeDisabled', (payload) => disabledEmitted.push(payload));
-			const disabledDragon = await createDragon({
+			const wolf = await createWolf({
 				assetLoader,
-				modelUrl: DRAGON_CONFIG.MODEL_URL,
-				texturesResourcePath: DRAGON_CONFIG.TEXTURES_RESOURCE_PATH,
-				scale: DRAGON_CONFIG.SCALE,
-				flyClipName: DRAGON_CONFIG.FLY_CLIP_NAME,
-				centerX: 0, centerZ: 0, centerY: 0, circleRadiusMeters: 100,
-				speedMps: 0,
-				// No noticeRadiusMeters/eventsBus/eventName/noticeToast — awareness disabled.
+				modelUrl: ANIMAL_CONFIG.WOLF_MODEL_URL,
+				idleClipName: ANIMAL_CONFIG.IDLE_CLIP_NAME,
+				stripChildNames: ANIMAL_CONFIG.STRIP_CHILD_NAMES,
+				worldX: 0,
+				worldZ: 0,
+				groundY: 0,
+				groundCollider,
+				playerCollider,
+				walkClipName: ANIMAL_CONFIG.WALK_CLIP_NAME,
+				patrolWaypoints: [{ x: 0, z: 0 }, { x: 0, z: 20 }],
+				speedMps: ANIMAL_CONFIG.PATROL_SPEED_MPS,
+				pauseSeconds: ANIMAL_CONFIG.PATROL_PAUSE_SECONDS,
+				turnRateRadiansPerSecond: ANIMAL_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
 			});
-			disabledDragon.update(delta, { x: 0, y: 0, z: 100 }); // exactly at the dragon's own position
-			let noThrowOnMissingPlayerPosition = true;
-			try {
-				disabledDragon.update(delta);
-			} catch (error) {
-				noThrowOnMissingPlayerPosition = false;
-			}
-			const disabledDragonNeverEmits = disabledEmitted.length === 0;
+			for (let i = 0; i < 3000; i++) wolf.update(delta);
+			const wolfStopZ = wolf.object3D.position.z;
+			const wolfStayedOutside = Math.abs(wolfStopZ - (wolfCircle.z - expectedStop(wolfCircle))) < 1e-6;
+			const wolfNeverCrossedCenter = wolfStopZ < wolfCircle.z;
+			wolf.dispose();
+
+			const creature = createCreatureBeing({
+				speciesId: 'geyik',
+				spawnId: 'test-creature-collider',
+				worldX: 0,
+				worldZ: 50,
+				groundY: 0,
+				groundCollider,
+				playerCollider,
+				mulberry32,
+			});
+			// 1m behind the creature (well inside geyik's 15m reactiveTriggerRadiusMeters) so it flees
+			// straight in +X for the whole run — the short ~2.6m distance to creatureCircle's edge never
+			// takes it past the 15m trigger radius, unlike a tighter-trigger species (see doc comment).
+			const fleeTriggerPlayer = { x: -1, z: 50 };
+			for (let i = 0; i < 3000; i++) creature.update(delta, fleeTriggerPlayer);
+			const creatureStopX = creature.object3D.position.x;
+			const creatureStayedOutside = Math.abs(creatureStopX - (creatureCircle.x - expectedStop(creatureCircle))) < 1e-6;
+			const creatureNeverCrossedCenter = creatureStopX < creatureCircle.x;
+			creature.dispose();
 
 			return {
-				noEmitWhileFar, emittedOnEntry, noReFireWhileInside, noFireOnExit, reFiresOnReEntry,
-				disabledDragonNeverEmits, noThrowOnMissingPlayerPosition,
+				npcStayedOutside, npcNeverCrossedCenter, npcStopX,
+				wolfStayedOutside, wolfNeverCrossedCenter, wolfStopZ,
+				creatureStayedOutside, creatureNeverCrossedCenter, creatureStopX,
 			};
 		});
 	} finally {
 		await page.close();
 	}
-	const ok = Object.values(result).every(Boolean);
+	const ok = result.npcStayedOutside && result.npcNeverCrossedCenter &&
+		result.wolfStayedOutside && result.wolfNeverCrossedCenter &&
+		result.creatureStayedOutside && result.creatureNeverCrossedCenter;
 	const details = ok
-		? 'edge-triggered: no emit while far, emits once on entry, no re-fire while still inside, no ' +
-			'fire on exit, re-fires on a later re-entry; a dragon with no noticeRadiusMeters never ' +
-			'emits; omitting playerPosition never throws'
+		? `NPC stopped at x=${result.npcStopX.toFixed(2)}, wolf stopped at z=${result.wolfStopZ.toFixed(2)}, ` +
+			`fleeing creature stopped at x=${result.creatureStopX.toFixed(2)} — all three resting exactly ` +
+			`on their own obstacle circle's edge, none crossed through`
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
-	return { name: 'dragon player-awareness notice trigger (gameplay/dragons.js)', ok, details };
+	return { name: 'NPC/animal/creature obstacle collider (run 332)', ok, details };
 }
 
 module.exports = {
 	checkWolfPackAlert,
 	checkNpcPatrol,
 	checkWolfPatrol,
-	checkDragonFlight,
-	checkDragonNotice,
+	checkNpcCombatStance,
+	checkNpcAnimalCreatureObstacleCollider,
 };

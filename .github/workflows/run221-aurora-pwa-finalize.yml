@@ -1,0 +1,74 @@
+name: Run221 Aurora PWA Finalize
+
+on:
+  push:
+    branches:
+      - agent/run221-realistic-game-aurora
+    paths:
+      - '.github/workflows/run221-aurora-pwa-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run221-aurora-pwa-finalize-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  persist-pwa-cache:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Synchronize branch and verify current main ancestry
+        run: |
+          set -euo pipefail
+          git fetch origin main agent/run221-realistic-game-aurora
+          git checkout -B agent/run221-realistic-game-aurora origin/agent/run221-realistic-game-aurora
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+      - name: Prepend additive aurora offline shell extension
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('service-worker.js')
+          source = path.read_text(encoding='utf-8')
+          marker = '// Run221 realistic gameplay aurora offline shell extension.'
+          entries = [
+              "    GAME3D_SHELL_FILES.push('./src/3d/auroraRealism.js');",
+              "    GAME3D_SHELL_FILES.push('./src/3d/nightVisualEnhancement.js');",
+              "    GAME3D_SHELL_FILES.push('./src/3d/auroraRayCurtainV4.js');",
+              "    GAME3D_SHELL_FILES.push('./src/3d/auroraNightAtmosphereV5.js');",
+          ]
+          if marker not in source:
+              block = marker + "\nself.addEventListener('install', () => {\n" + "\n".join(entries) + "\n});\n\n"
+              path.write_text(block + source, encoding='utf-8')
+          for entry in entries:
+              if entry not in path.read_text(encoding='utf-8'):
+                  raise SystemExit(f'missing persisted PWA entry: {entry}')
+          PY
+          node --check service-worker.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          git diff --check
+      - name: Verify additive diff then commit and push
+        run: |
+          set -euo pipefail
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          if git diff --quiet -- service-worker.js; then
+            echo 'Run221 aurora PWA entries already persisted.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add service-worker.js
+          git commit -m 'pwa(run221): cache realistic aurora modules offline'
+          git push origin HEAD:agent/run221-realistic-game-aurora

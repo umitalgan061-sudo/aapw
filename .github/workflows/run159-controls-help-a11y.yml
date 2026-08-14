@@ -1,0 +1,190 @@
+name: Run 159 Controls Help Accessibility
+
+on:
+  push:
+    branches:
+      - agent/run159-controls-help-a11y
+    paths:
+      - 'src/3d/ui/controlsHelp.js'
+      - 'scripts/checkControlsHelpAccessibility.js'
+      - 'scripts/recordRun159Governance.js'
+      - '.github/workflows/run159-controls-help-a11y.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BASE_SHA: 6d596ee75f5cdc969dca9e08e17f758ddd4c6b37
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and start concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md
+          test -f 3D_GAME_PROGRESS.md
+          test -f DECISIONS.md
+          test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 160 GOVERNANCE.md
+          tail -n 180 3D_GAME_PROGRESS.md
+          tail -n 120 DECISIONS.md
+          tail -n 100 QUESTIONS_FOR_OWNER.md
+
+      - name: Baseline full browser smoke on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run159-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (
+            cd "$BASELINE"
+            node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run159-smoke-before.log"
+            test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run159-smoke-before.log")" -ge 34
+          )
+          git worktree remove "$BASELINE"
+
+      - name: Syntax and target accessibility regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/ui/controlsHelp.js
+          node --check scripts/checkControlsHelpAccessibility.js
+          node --check scripts/recordRun159Governance.js
+          node scripts/checkControlsHelpAccessibility.js
+          git diff --check
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+
+      - name: Governance and deterministic regression gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Existing accessibility regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+
+      - name: Mobile streaming LOD and budget regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js
+
+      - name: Full browser smoke after change and 3D console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run159-smoke-after.log"
+          AFTER_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run159-smoke-after.log")"
+          test "$AFTER_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run159-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run159-smoke-after.log"; then
+            exit 1
+          fi
+          echo "RUN159_SMOKE_PASS_COUNT=$AFTER_COUNT" >> "$GITHUB_ENV"
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run159 | tee "$RUNNER_TEMP/run159-perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/run159-perf-trend.log"
+          PERF_ROW="$(tail -n 1 perf_log.csv)"
+          test -n "$PERF_ROW"
+          echo "RUN159_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+
+      - name: Senior self-review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' src/3d/ui/controlsHelp.js scripts/checkControlsHelpAccessibility.js scripts/recordRun159Governance.js; then
+            exit 1
+          fi
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+
+      - name: Prepare Run 159 governance values
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RUN159_STAMP=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+          echo "RUN159_STABLE_TAG=stable-$(date -u +'%Y-%m-%d-%H%M')" >> "$GITHUB_ENV"
+
+      - name: Record Run 159 governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/recordRun159Governance.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkCheckpointConsistency.js
+
+      - name: Commit Run 159 records
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          git commit -m "docs(3d): record run159 stable checkpoint"
+          git push origin HEAD:${GITHUB_REF_NAME}
+
+      - name: Best-effort stable tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag "$RUN159_STABLE_TAG"
+          git push origin "$RUN159_STABLE_TAG" || true

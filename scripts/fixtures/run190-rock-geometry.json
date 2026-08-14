@@ -1,0 +1,136 @@
+{
+  "version": "run190-canonical-rock-geometry-shadow-v1",
+  "run189CandidateChecksum": "5917875bd2a937abf6560875a86809f11da09af50449b73c280da24d9fc8ab2b",
+  "candidateCount": 343,
+  "road": {
+    "edgeCount": 13,
+    "clearanceMeters": 24,
+    "safeCount": 332,
+    "conflictCount": 11,
+    "minDistanceMeters": 0.171,
+    "conflictChecksum": "6d9e83ba85a514665cb7c252b26fcf2645d456db5210aca642a05322e8986042"
+  },
+  "mobile": {
+    "anchor": {
+      "x": 2558.647,
+      "z": 51.514,
+      "nearbyCount": 123
+    },
+    "predicted": {
+      "profile": "mobile",
+      "anchor": {
+        "x": 2558.647,
+        "z": 51.514
+      },
+      "selectedInstances": 96,
+      "nearInstances": 52,
+      "farInstances": 44,
+      "drawCalls": 6,
+      "triangles": 3300,
+      "renderRadiusMeters": 1800,
+      "nearDistanceMeters": 650,
+      "maxInstances": 96
+    },
+    "actual": {
+      "drawCalls": 6,
+      "triangles": 3300,
+      "geometries": 6,
+      "textures": 0
+    },
+    "meshSummary": [
+      {
+        "name": "rock-shadow-stone-near",
+        "count": 41,
+        "trianglesPerInstance": 36
+      },
+      {
+        "name": "rock-shadow-stone-far",
+        "count": 30,
+        "trianglesPerInstance": 20
+      },
+      {
+        "name": "rock-shadow-rock-near",
+        "count": 10,
+        "trianglesPerInstance": 80
+      },
+      {
+        "name": "rock-shadow-rock-far",
+        "count": 9,
+        "trianglesPerInstance": 20
+      },
+      {
+        "name": "rock-shadow-boulder-near",
+        "count": 1,
+        "trianglesPerInstance": 144
+      },
+      {
+        "name": "rock-shadow-boulder-far",
+        "count": 5,
+        "trianglesPerInstance": 20
+      }
+    ],
+    "disposedChildren": 0
+  },
+  "desktop": {
+    "anchor": {
+      "x": 3227.3,
+      "z": 1481.205,
+      "nearbyCount": 127
+    },
+    "predicted": {
+      "profile": "desktop",
+      "anchor": {
+        "x": 3227.3,
+        "z": 1481.205
+      },
+      "selectedInstances": 127,
+      "nearInstances": 40,
+      "farInstances": 87,
+      "drawCalls": 6,
+      "triangles": 3920,
+      "renderRadiusMeters": 2600,
+      "nearDistanceMeters": 900,
+      "maxInstances": 192
+    },
+    "actual": {
+      "drawCalls": 6,
+      "triangles": 3920,
+      "geometries": 6,
+      "textures": 0
+    },
+    "meshSummary": [
+      {
+        "name": "rock-shadow-stone-near",
+        "count": 29,
+        "trianglesPerInstance": 36
+      },
+      {
+        "name": "rock-shadow-stone-far",
+        "count": 63,
+        "trianglesPerInstance": 20
+      },
+      {
+        "name": "rock-shadow-rock-near",
+        "count": 7,
+        "trianglesPerInstance": 80
+      },
+      {
+        "name": "rock-shadow-rock-far",
+        "count": 18,
+        "trianglesPerInstance": 20
+      },
+      {
+        "name": "rock-shadow-boulder-near",
+        "count": 4,
+        "trianglesPerInstance": 144
+      },
+      {
+        "name": "rock-shadow-boulder-far",
+        "count": 6,
+        "trianglesPerInstance": 20
+      }
+    ],
+    "disposedChildren": 0
+  },
+  "checksum": "7957c0e6dee8f64538753c0dc4a82060e5932ab66ff9d4035c793e8145239999"
+}

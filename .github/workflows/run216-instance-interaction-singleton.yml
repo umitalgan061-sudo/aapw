@@ -1,0 +1,28 @@
+name: Run216 Instance Interaction Singleton
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/EditorInstanceInteractionSingleton.js'
+      - 'scripts/checkRun216InstanceInteractionSingleton.js'
+      - '.github/workflows/run216-instance-interaction-singleton.yml'
+  workflow_dispatch:
+
+jobs:
+  singleton-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check src/3d/editor/EditorInstanceInteractionSingleton.js
+          node --check scripts/checkRun216InstanceInteractionSingleton.js
+      - name: Singleton lifecycle contract
+        run: node scripts/checkRun216InstanceInteractionSingleton.js
+      - name: Additive diff hygiene
+        run: git diff --check origin/${{ github.base_ref }}...HEAD

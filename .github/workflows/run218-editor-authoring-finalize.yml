@@ -1,0 +1,106 @@
+name: Run 218 Editor Authoring Finalize
+
+on:
+  push:
+    branches:
+      - agent/run218-editor-authoring-regression-suite-v2
+    paths:
+      - '.github/workflows/run218-editor-authoring-finalize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: run218-editor-authoring-finalize-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Starting remote-main gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$(git rev-parse origin/main)" HEAD
+          git diff --check
+      - name: Install Chromium proof dependency
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Reverify editor authoring and release gates
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun218EditorAuthoringRegressionSuiteV2.js
+          node scripts/checkRun218EditorAuthoringRegressionSuiteV2.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js
+      - name: Final remote-main concurrency gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CURRENT_MAIN="$(git rev-parse origin/main)"
+          test "$CURRENT_MAIN" = "$(git merge-base HEAD origin/main)"
+          node scripts/checkAdditiveOnlyDiff.js "$CURRENT_MAIN" HEAD
+          git diff --check
+      - name: Append Run218 governance records
+        run: |
+          set -euo pipefail
+          STAMP="$(date +%Y-%m-%d-%H%M)"
+          TAG="stable-${STAMP}"
+          cat >> 3D_GAME_PROGRESS.md <<EOF
+
+          ## Run 218 — Editor authoring regression suite
+          - Added a permanent additive-only regression orchestrator covering the owner-visible World Editor guarantees: bright authoring mode, prominent aurora, fog disabled in edit mode, sub-0.01 scale precision, clipboard wiring, and instance-editing safety.
+          - Browser proof verified bright-authoring lighting floors, aurora factor >=3.4, editor fog disabled, and zero console/page errors with captured visual evidence.
+          - Node 22 RCA: legacy fog contract requires \`--experimental-vm-modules\`; the new orchestrator supplies that runtime flag without modifying the legacy test or production source.
+          - PWA cache/installability, mobile performance, deterministic RNG/world-reference/hydrology, terrain/road safety, technical-debt audit, full browser smoke, and final remote-main/additive-only gates all PASS.
+          - Runtime/product source delta: 0 lines changed. New permanent files are test/workflow only. Technical debt introduced: 0. Risk: LOW. Confidence: 5/5.
+          - World Evolution delta: roads +0 km; coverage +0; castles +0; NPCs +0; world events +0; creatures +0. Existing desktop/mobile coverage metrics unchanged.
+          - Next safe step: continue additive-only editor/RTS usability work from current main; do not cross unresolved owner gates.
+          EOF
+          cat >> perf_log.csv <<EOF
+          run218,$(date +%Y-%m-%d),editor-authoring-regression,,,,,,,"test-only orchestration; runtime draw calls/triangles unchanged; mobile perf budget and full smoke PASS"
+          EOF
+          cat >> STABLE_TAGS.md <<EOF
+          ${TAG} — Run218 editor authoring regression suite; bright aurora/fog/scale/clipboard/instance safety plus PWA/perf/determinism/smoke gates verified.
+          EOF
+          echo "STABLE_TAG=${TAG}" >> "$GITHUB_ENV"
+      - name: Commit verified checkpoint
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md perf_log.csv STABLE_TAGS.md
+          git diff --cached --check
+          git commit -m 'docs(run218): record editor authoring regression checkpoint'
+          git tag "$STABLE_TAG"
+          git push origin HEAD:agent/run218-editor-authoring-regression-suite-v2
+          git push origin "$STABLE_TAG"

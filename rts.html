@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1710">
+<meta name="description" content="Westeros RTS — yüksekten ordu yönetimi, kaleler, yollar, hayvanlar ve ejderhalar">
+<title>Westeros — RTS Komutanlık</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="stylesheet" href="rts.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./src/3d/vendor/three/three.module.js",
+    "three/addons/": "./src/3d/vendor/three/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="rts-canvas" aria-label="Westeros RTS savaş alanı"></canvas>
+<div id="rts-loading" class="rts-loading">Westeros orduları konuşlanıyor&hellip;</div>
+<div id="rts-selection-box" hidden></div>
+<header class="rts-topbar">
+  <div class="rts-title">WESTEROS RTS</div>
+  <div id="rts-status" class="rts-status">Dünya hazırlanıyor&hellip;</div>
+  <div id="rts-selection-count" class="rts-selection-count">0 / 48 asker seçili</div>
+</header>
+<nav class="rts-commandbar" aria-label="RTS komutları">
+  <button id="rts-select-all" type="button">Tüm Ordu</button>
+  <button id="rts-move-command" type="button">Hareket Emri</button>
+  <button id="rts-focus-army" type="button">Orduya Odaklan</button>
+  <a class="rts-mode-link" href="game3d.html">Karakter Modu</a>
+  <a class="rts-mode-link" href="index.html">2D Harita</a>
+</nav>
+<div class="rts-help">Sol tık: asker seç • Sol sürükle: alan seçimi • Shift: seçime ekle • Sağ tık: seçili orduyu formasyon halinde yürüt • WASD / oklar: kamerayı kaydır • Fare tekeri / pinch: yakınlaş</div>
+<script type="module">
+  import { initRtsGame } from './src/3d/rts/rtsGame.js';
+  import { installRtsSurfaceTexture } from './src/3d/rts/rtsSurfaceTexture.js';
+  import { installRtsSelectionReadability } from './src/3d/rts/rtsSelectionReadability.js';
+
+  installRtsSurfaceTexture();
+  installRtsSelectionReadability();
+  initRtsGame().catch((error) => {
+    console.error('[rts.html] RTS initialization failed', error);
+    const loading = document.getElementById('rts-loading');
+    if (loading) loading.textContent = 'RTS modu başlatılamadı. Sayfayı yenilemeyi deneyin.';
+  });
+</script>
+<script type="module">
+  const canvas = document.getElementById('rts-canvas');
+  const moveButton = document.getElementById('rts-move-command');
+  const marker = document.createElement('div');
+  marker.id = 'rts-command-feedback';
+  marker.setAttribute('aria-hidden', 'true');
+  marker.innerHTML = '<span></span><span></span><span></span><span></span>';
+  marker.style.cssText = 'position:fixed;z-index:35;width:46px;height:46px;pointer-events:none;opacity:0;transform:translate(-50%,-50%) scale(.72);transition:opacity .16s ease,transform .16s ease;filter:drop-shadow(0 0 10px rgba(229,194,102,.45));';
+  for (const [index, arm] of Array.from(marker.children).entries()) {
+    arm.style.cssText = `position:absolute;left:50%;top:50%;width:17px;height:2px;background:#e5c266;transform-origin:0 50%;transform:rotate(${index * 90}deg) translateX(7px);box-shadow:0 0 0 1px rgba(24,19,11,.6);`;
+  }
+  document.body.appendChild(marker);
+  let hideTimer = 0;
+  const showCommandFeedback = (event) => {
+    window.clearTimeout(hideTimer);
+    marker.style.left = `${event.clientX}px`;
+    marker.style.top = `${event.clientY}px`;
+    marker.style.opacity = '1';
+    marker.style.transform = 'translate(-50%,-50%) scale(1)';
+    marker.dataset.visible = 'true';
+    hideTimer = window.setTimeout(() => {
+      marker.style.opacity = '0';
+      marker.style.transform = 'translate(-50%,-50%) scale(1.3)';
+      marker.dataset.visible = 'false';
+    }, 900);
+  };
+  const onContextMenu = (event) => showCommandFeedback(event);
+  const onPointerUpCapture = (event) => {
+    if (event.button === 0 && moveButton?.classList.contains('is-active')) showCommandFeedback(event);
+  };
+  const disposeCommandFeedback = () => {
+    window.clearTimeout(hideTimer);
+    canvas?.removeEventListener('contextmenu', onContextMenu);
+    canvas?.removeEventListener('pointerup', onPointerUpCapture, true);
+    marker.remove();
+  };
+  canvas?.addEventListener('contextmenu', onContextMenu);
+  canvas?.addEventListener('pointerup', onPointerUpCapture, true);
+  window.addEventListener('pagehide', disposeCommandFeedback, { once: true });
+</script>
+<script type="module" src="./src/3d/rts/rtsCommandShortcuts.js"></script>
+<script type="module">
+  const statusText = document.getElementById('rts-status');
+  const selectionText = document.getElementById('rts-selection-count');
+  const commandBar = document.querySelector('.rts-commandbar');
+  const moveCommand = document.getElementById('rts-move-command');
+  const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches === true;
+  const liveRegion = document.createElement('div');
+  liveRegion.id = 'rts-command-live-status';
+  liveRegion.setAttribute('role', 'status');
+  liveRegion.setAttribute('aria-live', 'polite');
+  liveRegion.setAttribute('aria-atomic', 'true');
+  liveRegion.style.cssText = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;';
+  document.body.appendChild(liveRegion);
+  const chip = document.createElement('div');
+  chip.id = 'rts-command-state-chip';
+  chip.setAttribute('aria-hidden', 'true');
+  chip.style.cssText = `position:fixed;right:${coarsePointer ? '10px' : '18px'};bottom:${coarsePointer ? '74px' : '54px'};z-index:34;pointer-events:none;padding:7px 10px;border:1px solid rgba(229,194,102,.45);border-radius:999px;background:rgba(20,17,12,.78);backdrop-filter:blur(6px);font:600 12px/1.1 system-ui,sans-serif;letter-spacing:.04em;color:#e5c266;box-shadow:0 3px 14px rgba(0,0,0,.24);`;
+  document.body.appendChild(chip);
+  commandBar?.setAttribute('aria-describedby', liveRegion.id);
+  let disposed = false;
+  let lastAnnouncement = '';
+  const refreshCommandStatus = () => {
+    if (disposed) return;
+    const moveActive = moveCommand?.classList.contains('is-active') === true;
+    const selected = selectionText?.textContent?.trim() || 'Seçim bilgisi hazır değil';
+    const status = statusText?.textContent?.trim() || 'Komut durumu hazır değil';
+    chip.textContent = moveActive ? 'KOMUT: HEDEF SEÇ' : 'KOMUT: SEÇİM';
+    chip.dataset.mode = moveActive ? 'move' : 'select';
+    const announcement = `${moveActive ? 'Hareket emri etkin.' : 'Seçim modu.'} ${selected}. ${status}`;
+    if (announcement !== lastAnnouncement) {
+      liveRegion.textContent = announcement;
+      lastAnnouncement = announcement;
+    }
+  };
+  const observer = new MutationObserver(refreshCommandStatus);
+  if (statusText) observer.observe(statusText, { childList: true, characterData: true, subtree: true });
+  if (selectionText) observer.observe(selectionText, { childList: true, characterData: true, subtree: true });
+  if (moveCommand) observer.observe(moveCommand, { attributes: true, attributeFilter: ['class'] });
+  const disposeCommandStatus = () => {
+    if (disposed) return;
+    disposed = true;
+    observer.disconnect();
+    liveRegion.remove();
+    chip.remove();
+    window.removeEventListener('pagehide', disposeCommandStatus);
+  };
+  refreshCommandStatus();
+  window.addEventListener('pagehide', disposeCommandStatus, { once: true });
+  window.__WESTEROS_RTS_COMMAND_STATUS__ = {
+    getSnapshot: () => ({
+      disposed,
+      mode: chip.dataset.mode || 'select',
+      chipText: chip.textContent || '',
+      announcement: liveRegion.textContent || '',
+      coarsePointer,
+    }),
+    dispose: disposeCommandStatus,
+  };
+</script>
+</body>
+</html>

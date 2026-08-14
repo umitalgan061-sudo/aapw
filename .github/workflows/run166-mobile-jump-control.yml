@@ -1,0 +1,230 @@
+name: Run 166 Mobile Jump Control
+
+on:
+  push:
+    branches:
+      - agent/run166-mobile-jump-control
+    paths:
+      - 'scripts/applyRun166MobileJump.py'
+      - 'scripts/checkMobileJumpControl.js'
+      - 'scripts/recordRun166Governance.js'
+      - '.github/workflows/run166-mobile-jump-control.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      BASE_SHA: c0fbf9b25e3b77f9a37df311acaa5650079c9d4b
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Session snapshot and start concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test -f GOVERNANCE.md && test -f 3D_GAME_PROGRESS.md && test -f DECISIONS.md && test -f QUESTIONS_FOR_OWNER.md
+          git log -10 --oneline
+          tail -n 180 GOVERNANCE.md
+          tail -n 180 3D_GAME_PROGRESS.md
+          tail -n 120 DECISIONS.md
+          tail -n 100 QUESTIONS_FOR_OWNER.md
+
+      - name: Baseline full browser smoke on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$RUNNER_TEMP/run166-baseline"
+          git worktree add --detach "$BASELINE" "$BASE_SHA"
+          (cd "$BASELINE" && node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run166-smoke-before.log" && test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run166-smoke-before.log")" -ge 34)
+          git worktree remove "$BASELINE"
+
+      - name: Apply additive mobile jump feature
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/applyRun166MobileJump.py
+          git diff --check
+          test "$(git diff --numstat origin/main | awk '$2 != 0 && $3 ~ /\.(js|mjs|cjs|html|css|json|xml|glsl|vert|frag)$/ {n++} END {print n+0}')" = "0"
+
+      - name: Syntax and mobile jump target gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/ui/touchJoystick.js
+          node --check src/3d/game3d.js
+          node --check src/3d/ui/controlsHelp.js
+          node --check scripts/checkTouchJoystickInputContract.js
+          node --check scripts/checkMobileJumpControl.js
+          node --check scripts/recordRun166Governance.js
+          python -m py_compile scripts/applyRun166MobileJump.py
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkJumpArcContract.js
+          node scripts/checkMobileJumpControl.js | tee "$RUNNER_TEMP/run166-mobile-jump.log"
+          LAYOUT="$(grep '^\[checkMobileJumpControl\] PASS:' "$RUNNER_TEMP/run166-mobile-jump.log" | tail -n 1 | sed 's/^\[checkMobileJumpControl\] PASS: //')"
+          test -n "$LAYOUT"
+          echo "RUN166_MOBILE_LAYOUT=$LAYOUT" >> "$GITHUB_ENV"
+
+      - name: Governance deterministic PWA world gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkWorldEventCatalog.js
+          node scripts/checkWorldEventDiversity.js
+          node scripts/checkWorldEventDeterminism.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkCreatureSpeciesConfig.js
+          node scripts/checkDialogueChoicesShape.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+
+      - name: Existing accessibility regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldEventToastAccessibility.js
+          node scripts/checkSettlementDiscoveryAccessibility.js
+          node scripts/checkDialogueBoxAccessibility.js
+          node scripts/checkHealthBarAccessibility.js
+          node scripts/checkInteractionPromptAccessibility.js
+          node scripts/checkDayNightClockAccessibility.js
+          node scripts/checkSettlementCompassAccessibility.js
+          node scripts/checkControlsHelpAccessibility.js
+
+      - name: Core gameplay and input contract regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkEventBusContract.js
+          node scripts/checkHealthStateContract.js
+          node scripts/checkJumpArcContract.js
+          node scripts/checkKeyboardInputContract.js
+          node scripts/checkTouchJoystickInputContract.js
+
+      - name: Mobile streaming LOD and budget regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileSpawnVegetation.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobileVegetationCullingRun141.js
+          node scripts/checkMobilePerfBudget.js
+
+      - name: Full browser smoke after change and console gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run166-smoke-after.log"
+          AFTER_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run166-smoke-after.log")"
+          test "$AFTER_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run166-smoke-after.log" | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' "$RUNNER_TEMP/run166-smoke-after.log"; then exit 1; fi
+          echo "RUN166_SMOKE_PASS_COUNT=$AFTER_COUNT" >> "$GITHUB_ENV"
+
+      - name: Mobile near and F4 far visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureRun130MobileEvidence.js
+
+      - name: Upload Run 166 mobile visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run166-mobile-jump-evidence
+          path: artifacts/run130-mobile/*.png
+          if-no-files-found: error
+
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run166 | tee "$RUNNER_TEMP/run166-perf.log"
+          node scripts/analyzePerfTrend.js | tee "$RUNNER_TEMP/run166-perf-trend.log"
+          PERF_ROW="$(grep '^\[collectPerfSnapshot\] sampled:' "$RUNNER_TEMP/run166-perf.log" | tail -n 1 | sed 's/^\[collectPerfSnapshot\] sampled: //')"
+          test -n "$PERF_ROW"
+          test "$(printf '%s\n' "$PERF_ROW" | awk -F',' '{print NF}')" -eq 8
+          echo "RUN166_PERF_ROW=$PERF_ROW" >> "$GITHUB_ENV"
+
+      - name: Restore tracked perf ledger before governance append
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -- perf_log.csv
+
+      - name: Senior self-review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/applyRun166MobileJump.py scripts/checkMobileJumpControl.js scripts/recordRun166Governance.js; then exit 1; fi
+          test "$(git diff --numstat origin/main | awk '$2 != 0 && $3 ~ /\.(js|mjs|cjs|html|css|json|xml|glsl|vert|frag)$/ {n++} END {print n+0}')" = "0"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+
+      - name: Prepare Run 166 governance values
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RUN166_STAMP=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+          echo "RUN166_STABLE_TAG=stable-$(date -u +'%Y-%m-%d-%H%M')" >> "$GITHUB_ENV"
+
+      - name: Record Run 166 governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/recordRun166Governance.js
+          node scripts/checkLatestRunUniqueness.js
+          node scripts/checkCheckpointConsistency.js
+
+      - name: Final publish concurrency gate and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/3d/ui/touchJoystick.js src/3d/game3d.js src/3d/ui/controlsHelp.js game3d.css scripts/checkTouchJoystickInputContract.js 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git diff --cached --check
+          test "$(git diff --cached --numstat | awk '$2 != 0 && $3 ~ /\.(js|mjs|cjs|html|css|json|xml|glsl|vert|frag)$/ {n++} END {print n+0}')" = "0"
+          git commit -m "feat(3d): add mobile jump control (run 166)"
+          node scripts/checkAdditiveOnlyDiff.js origin/main HEAD
+          git push origin HEAD:${GITHUB_REF_NAME}
+
+      - name: Best-effort stable tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag "$RUN166_STABLE_TAG"
+          git push origin "$RUN166_STABLE_TAG" || true

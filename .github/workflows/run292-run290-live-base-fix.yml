@@ -1,0 +1,115 @@
+name: Run 292 Run290 Live Base Fix
+
+on:
+  push:
+    branches: [run292-run290-live-base-fix]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run292-run290-live-base-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '9e94d5ef76ad75a1e4e84b514cf44af79c728e33' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Exact-main additive entry gate
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && github.sha || '9e94d5ef76ad75a1e4e84b514cf44af79c728e33' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "[run300] PR global gate passed; keeping this workflow's historical path-isolation check for branch/manual runs only."
+            exit 0
+          fi
+          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"
+
+      - name: Run292 governance regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun300LegacyPrScopeGate.js
+          node scripts/checkRun300LegacyPrScopeGate.js
+          node --check scripts/checkRun293DispatchBaseOverride.js
+          node scripts/checkRun293DispatchBaseOverride.js
+          node --check scripts/checkRun292Run290BaseOverride.js
+          node scripts/checkRun292Run290BaseOverride.js
+          node scripts/checkRun290Pindex05Detail.js
+          node scripts/checkRun289Run287BaseOverride.js
+          node scripts/checkRun287CheckpointParserCompat.js
+          node scripts/checkCheckpointConsistency.js
+          node scripts/checkRun283FinalHeadGovernance.js
+          node scripts/checkRun284PindexDetailChain.js
+
+      - name: World PWA and determinism contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Performance safety technical debt and full browser DoD
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun290Pindex05DetailBrowser.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run292-mobile.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run292-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run292-smoke.log")" -ge 34
+
+      - name: Final exact-main concurrency and additive-only gate
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'workflow_dispatch' && github.sha || '9e94d5ef76ad75a1e4e84b514cf44af79c728e33' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "[run300] PR global gate passed; keeping this workflow's historical path-isolation check for branch/manual runs only."
+            exit 0
+          fi
+          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- src/3d service-worker.js scripts/run201CanonicalDevBoot.mjs godot/terrain-authoring)"

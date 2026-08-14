@@ -1,0 +1,107 @@
+name: Run 284 Pindex Detail Chain Guard
+
+on:
+  push:
+    branches: [agent/run284-pindex-detail-chain-guard]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/worldReferencePindex*Detail.js'
+      - 'scripts/checkRun27*Pindex*Detail*'
+      - 'scripts/checkRun28*Pindex*Detail*'
+      - 'scripts/run201CanonicalDevBoot.mjs'
+      - 'service-worker.js'
+      - 'scripts/checkRun284PindexDetailChain.js'
+      - '.github/workflows/run284-pindex-detail-chain.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run284-pindex-detail-chain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main additive entry gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+
+      - name: Pindex detail source and chain contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkRun284PindexDetailChain.js
+          node scripts/checkRun284PindexDetailChain.js
+          node scripts/checkRun277Pindex01Detail.js
+          node scripts/checkRun278Pindex02Detail.js
+          node scripts/checkRun281Pindex03Detail.js
+          node scripts/checkRun282Pindex04Detail.js
+          node scripts/checkRun280OwnerMapSemanticFingerprint.js
+          node scripts/checkRun276MapSurfacePindexes.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Sequential online offline isolation proofs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun277Pindex01DetailBrowser.js
+          node scripts/checkRun278Pindex02DetailBrowser.js
+          node scripts/checkRun281Pindex03DetailBrowser.js
+          node scripts/checkRun282Pindex04DetailBrowser.js
+          test -s artifacts/run277-pindex01-detail/proof.json
+          test -s artifacts/run278-pindex02-detail/proof.json
+          test -s artifacts/run281-pindex03-detail/proof.json
+          test -s artifacts/run282-pindex04-detail/proof.json
+
+      - name: Full mandatory regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run284-mobile.log"
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run284-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run284-smoke.log")" -ge 34
+
+      - name: Final exact-main concurrency and additive-only gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD

@@ -1,0 +1,12 @@
+import { measureG17Relief, G17_RELIEF_POLICY } from '../godot/terrain-authoring/geocells/sw/g17_relief.mjs';
+const first = measureG17Relief();
+const second = measureG17Relief();
+if (JSON.stringify(first) !== JSON.stringify(second)) throw new Error('G17 relief is not deterministic');
+if (first.canonicalWater !== 96 || first.canonicalLand !== 0) throw new Error('G17 hydrology regression');
+if (!(first.maxHeight < G17_RELIEF_POLICY.waterCeilingMeters)) throw new Error('G17 relief crossed marine ceiling');
+if (!(first.heightSpan > 0.45)) throw new Error('G17 relief is too flat');
+if (!(first.maxAdjacentHeightDelta <= 0.12)) throw new Error('G17 local height step too large');
+if (!(first.maxGuardBandHeightDelta <= 0.40)) throw new Error('G17 guard-band height discontinuity too large');
+if (!(first.maxGuardBandNormalDelta <= 0.012)) throw new Error('G17 guard-band normal discontinuity too large');
+console.log('SW_G17_RELIEF_METRICS=' + JSON.stringify(first));
+console.log('SW_G17_RELIEF_OK');

@@ -1,0 +1,96 @@
+# Canonical 2D → 3D World Reference Map
+
+Owner directive, 2026-08-08: the supplied 2D world map is now the canonical macro-geography reference for the 3D world. The 3D implementation must progressively reproduce the visible geography rather than inventing unrelated terrain.
+
+This means coast/seas, mountain chains, cold/snow zones, marshes, grasslands/steppe, forests/jungle, deserts/arid zones and the road network are placed and tuned with this map as the visual source of truth. Existing settlement coordinates, deterministic generation, 2D behavior, mobile/PWA budgets and all safety checks remain hard constraints; the map reference guides macro shape and biome identity but does not authorize silently moving canonical settlements or breaking routes.
+
+The first additive foundation is `src/3d/world/worldReferenceMap.js`, which records normalized image-space biome/water/relief controls and a deterministic map-to-world projection helper. The source image is identified by SHA-256 `20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1`; the normalized vector controls are the repo-persisted implementation contract. Follow-up tasks consume this contract incrementally: coastline/water mask → macro relief/mountain chains → biome materials (snow/marsh/grass/steppe/desert/jungle) → roads aligned to terrain and settlements → localized rock/vegetation/detail passes.
+
+No single giant terrain rewrite is allowed. Each visual layer remains a separately measurable additive change with pre/post terrain-seat safety, road safety, deterministic checksum, browser smoke, console, performance, mobile and PWA/cache verification.
+
+## Coastline / water mask — run 179
+
+`src/3d/world/worldReferenceWaterMask.js` adds the first deterministic raster-derived macro layer: a 96x64 one-bit coastline/water mask (4052 water / 2092 land cells), persisted as compact hex rows with SHA-256 `2ca2bed8d8a137ba532a56e10b079fa845b0f7214e24f955388c8dd0a4517f27`. The mask is data-only in run 179: it does not yet alter terrain height or the water plane. Runtime adoption is intentionally deferred until the existing 2D kingdom-marker/world coordinate system is proven to align with this normalized image space; a naive direct full-extent mapping is not an acceptable substitute because terrain-seat and road safety remain hard constraints.
+
+## Exact 2D canvas alignment — run 181
+
+The normalized reference transform is no longer an assumption. The live 2D shell defines `#map-canvas` as exactly **9000x7000** units and stretches `resimler/map.png` across that canvas with `background-size: 100% 100%`. Therefore `src/3d/world/worldReferenceAlignment.js` maps 2D coordinates exactly as `normalizedX = mapX / 9000`, `normalizedY = mapY / 7000`, and provides inverse/world-space round trips through the existing `WORLD_SCALE.MAP_BOUNDS` convention.
+
+The alignment check also exposes two separate safety facts that must not be conflated with transform correctness: the coarse run179 mask classifies 12/14 kingdom-seat samples as land and flags `balon` + `jon` as raw-water cells, so a seat-safe hydrology override/refined mask is mandatory before runtime terrain adoption; and the current padded 3D `MAP_BOUNDS` span only about **67.3%** of the full normalized 2D reference rectangle, so whole-map 3D coverage requires a later measured world-extent/scale decision rather than silently pretending the current crop already represents the entire image.
+
+## Seat-safe hydrology and full-map extent — run 182
+
+Two run181 blockers are now explicit deterministic contracts, still without changing live terrain/water. `worldReferenceHydrology.js` composes the immutable coarse coastline mask with caller-supplied protected land sites. The standing settlement flatten outer radius (**75m**, read from the existing settlement source by the regression test) is used as the safety footprint during validation: raw mask remains 12/14 at kingdom-seat centers (`balon` + `jon` are the two coarse-mask false-water samples), while the protected composition is 14/14 land and leaves open Summer Sea water unchanged.
+
+`worldReferenceExtent.js` proves that the **entire 9000x7000 owner map can fit under the existing area budget** without increasing total world area beyond the project target. Holding the canonical target at 137.5 km² gives **1.4773421007 m/map-unit**, a full-map physical extent of about **13,296m × 10,341m**, and a 500m partition grid of **27×21 = 567 chunks**. This is only ~5.9% more area than the current ~129.8 km² crop; the full-map problem is therefore primarily coordinate re-centering/scaling + streaming, not an unavoidable >150 km² expansion. The runtime constants remain untouched until a dedicated migration pass proves roads, settlements, terrain, mobile budgets and determinism under the new full-reference extent.
+
+
+## Canonical hydrology-aware target terrain shadow — run 186
+
+Run186 adds an explicit opt-in height-sampler adapter for the planned full-reference world. It converts planned world X/Z back through the exact 9000x7000 map/reference transform, samples the immutable Run179 coastline plus Run182 protected-land overlay, and deterministically composes that result with the existing target-scale procedural height sampler. Canonical water is forced below the shared water plane, canonical land is kept dry, and protected settlement footprints retain their real flatten-pad anchors. The adapter is shadow-only: live scene/chunk/terrain/water/road/settlement consumers do not import it yet.
+
+The policy is intentionally conservative for qualification rather than final art tuning: open water can reach 8m below the water plane, coastal water stays at least 2.5m below it, raw land stays at least 0.35m dry, and protected-land edges stay at least 0.08m dry while seat centers keep the existing settlement clearance. A later visual/runtime adoption run may version these shaping values, but it must not mutate the raw coastline mask or bypass seat protection.
+
+
+## Canonical chunk / water / collider integration shadow — run 187
+
+Run187 bakes the Run186 canonical hydrology-aware sampler into real 64-segment `THREE.PlaneGeometry` chunks using the same chunk-center convention as the live world, pairs those meshes with the existing `world/water.js` flat sea plane, and exposes a `getGroundHeight(x,z)` collider facade backed by the identical sampler. This is still opt-in shadow infrastructure: live `game3d`, `sceneManager`, `ChunkManager`, terrain, water, roads, settlements and physics do not import it.
+
+The integration check uses protected Balon and Jon plus an open Summer Sea probe, proves every baked vertex agrees with the numeric canonical sampler, raycasts the actual meshes, verifies rendered terrain and collider agreement at protected settlement centers, and proves the existing water surface raycasts above the canonical seabed. It also diagnoses every target-scale road route against canonical hydrology; any water-crossing route is recorded as an explicit blocker for bridge/ferry/water-avoidance policy before live road migration.
+
+
+## Canonical road/water policy measurement — run 188
+
+Run188 preserves Run187's 399/1020 canonical-water road-point result across 6/13 MST edges and measures policy consequences without selecting one. Bridge-only interpretation needs 6.16 km total diagnostic chord span (longest 3.11 km); ferry-only interpretation traverses 6.51 km total canonical water (longest 3.32 km); a 40m-grid full-world dry-cart search with water impassable and the current 20° hard-grade ceiling finds 3/6 affected edges feasible. Mixed remains owner-mapped per edge. Checksum `c47d6ecbacff41a6ffc4e18623642905c1865c46f37f3f82fbd69a9eecd57214`.
+
+
+## Canonical rock/stone placement qualification — run 189
+
+Run189, mevcut canonical mountain/rocky-hills biome zoneları ile relief-chain anchorlarını deterministic geology influence olarak kullanıp full-reference planned world üzerinde 120m hücreli, seed=1337 shadow-only kaya/taş aday taraması yaptı. Canonical water elendi, 14/14 kingdom-seat center protected-land olarak doğrulandı, adaylar mevcut temporary 35° walkable-slope safety sınırının üstüne çıkmadı. 343 aday üretildi: stone 241, rock 77, boulder 25; geology coverage 5 zone/source (bone-mountains:123, dorne-mountains:23, relief-chain:111, vale-mountains:28, westerlands:58). Checksum `137567a4b8a6ce24c8cbb9792096a06a98063ea29c0011e58cdd1e11e4800ce0`.
+
+Qualification boundary: bu çıktı canlı rock mesh/spawn sistemi değildir; runtime scene/terrain/road/PWA import graphı değişmez. Yol-su policy owner kararı açık olduğu için rock-road clearance veya canonical live-road adoption bu run içinde varsayılmaz. Macro-relief height değişikliği de yapılmaz; bu yalnız ilerideki kaya geometry/placement katmanı için deterministik, su/yerleşim-güvenli aday sözleşmesidir.
+
+
+## Canonical rock geometry shadow proof — run 190
+
+Run190, Run189 canonical candidate sözleşmesini yeni shadow-only `worldReferenceRockShadow.js` içinde bağımsız olarak yeniden üretti ve candidate checksum `5917875bd2a937abf6560875a86809f11da09af50449b73c280da24d9fc8ab2b` değerini korudu. 343 adayın provisional canonical-target MST/pathfinder centerline'larına minimum 24m koridoru ölçüldü: safe=332, conflict=11. Bu corridor Run188 bridge/ferry/dry/mixed owner kararını seçmez ve live road policy değildir.
+
+Real geometry proof: mobile local bounded profile 96 instance, near/far 52/44, 6 gerçek renderer draw call / 3300 triangle; desktop 127 instance, near/far 40/87, 6 draw call / 3920 triangle. En fazla 3 tier x 2 LOD InstancedMesh resident olur; full 137.5 km² candidate set tek seferde resident yapılmaz. Proof checksum `7957c0e6dee8f64538753c0dc4a82060e5932ab66ff9d4035c793e8145239999`.
+
+Boundary: shadow modül live scene/chunk/terrain/road/vegetation/game3d import graphına bağlı değildir. Service worker listesine yalnız offline-loadability için additive precache entry eklenir. Canlı kaya spawn, collision veya macro-relief height değişikliği bu runın kapsamında değildir.
+
+
+## Canonical road/water medieval stone bridge policy — run 191
+
+Owner bridge policy is now explicit and deterministic. Same full-reference road/hydrology inputs resolve to 6/13 affected road edges and 7 distinct water crossings. Every crossing gets a stone arch structure; no ferry/dry-route/mixed optimizer is used.
+
+Geometry proof batches all 177 arches plus decks/piers/parapets into 4 renderer submissions / 37860 triangles. Original procedural 256x256 masonry CanvasTexture uses staggered stone blocks, mortar seams and sparse deterministic weather/moss variation. Proof checksum `13fadc3dbc3d3554c583215883614a56b5e9ee406ae74d66e335fd56fe4cf7f4`.
+
+Canonical boundary: bridge anchors derive from the planned full-reference road centerlines and seat-safe hydrology. Live legacy road/terrain coordinates are not silently replaced by this shadow module.
+
+
+## Canonical road + bridge scene-integration shadow contract — run 192
+
+Run192 composes the owner-approved Run191 stone-bridge plan with the canonical target-scale road routes in an isolated browser scene. All 399 canonical route points classified as water are covered by deterministic suppression ranges, so a future bridge-aware road renderer has an explicit rule for omitting the dirt ribbon underneath bridge/water spans rather than drawing both surfaces at once.
+
+Each of the 7 bridges receives two deterministic dry-bank approach candidates (14 total). Maximum measured approach grade is 17.87° and maximum approach length is 37.7m; 18° / 320m are proof-only safety caps, not new live product tuning. Bridge deck-center collider probes resolve above canonical terrain at all 7 structures.
+
+Core bridge-aware road candidate cost is 6 draw calls / 39184 triangles before live-world baseline composition. Near-camera frustum includes 1/7 bridge bounds and includes the selected target bridge, proving the candidate does not require treating every bridge as locally visible. This remains shadow-only; live scene imports are unchanged.
+
+
+## Reusable bounded canonical scene-window contract — run 193
+
+Run193 moves the validated Run192 road/bridge composition rules into versioned shadow module `worldReferenceSceneShadowAdapter.js`. The module still has no live scene consumer. It composes canonical terrain chunks, globally bridge-suppressed dry road ribbons, owner-approved medieval bridge Art V2, bounded Run190 rocks and the existing water surface inside one disposable local window.
+
+The mobile shadow profile keeps 25 terrain chunks resident around its anchor, 60 rock instances in the first window and 0 after a 4487.4m recenter. Full canonical suppression remains 399/399; Run190 road-clear rock classification remains 332 safe / 11 conflicts.
+
+Measured candidate renderer budgets are 24/63566 near, 29/73806 far and 21/109516 after recenter, all below the mobile <500 draw-call / <500K triangle hard limits. Dispose leaves both bounded windows empty and removes the proof canvas.
+
+
+## Exact-reference clipped 27x21 owner grid — run 194
+
+Run194 V1 deliberately failed when a fixed full 500m edge chunk asked the canonical sampler for a point beyond the 9000x7000 owner map. V2 preserves the existing 27x21 = 567 owner coordinates but clips each outer footprint to the exact planned 13296.079m x 10341.395m rectangle before any height sample.
+
+The resulting tiling has 475 full 500m cells and 92 partial edge cells. Area remains exactly 137.5 km² within 2.9802322387695312e-8m² numeric error and maximum seam error 0m. Outer cells trim 101.961m in X and 79.303m in Z from their nominal 500m footprint; no canonical terrain is owned or sampled beyond the reference rectangle.
+
+An exact corner mobile ownership window now contains 9 canonical chunks, 5 of them partial edge cells, rather than requesting out-of-map padding. Seven bridge-centered ownership windows then replace each other sequentially with deck-collider precedence preserved; minimum bridge-center clearance is 15.474m. Live scene/chunk managers remain unchanged.

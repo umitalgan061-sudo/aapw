@@ -1,0 +1,147 @@
+name: Run 201 Canonical Dev Offline
+
+on:
+  push:
+    branches: [agent/run201-canonical-dev-offline]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.event.head_commit.message != 'run201 validated checkpoint'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASE_SHA: af01405fea592318c45d1c3955aa38aa049b1912
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Session snapshot and concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          grep -F 'Run199 platform-control superseding note' GOVERNANCE.md
+          grep -F 'run 145' QUESTIONS_FOR_OWNER.md
+          grep -F 'run 149' QUESTIONS_FOR_OWNER.md
+          grep -F 'run 188' QUESTIONS_FOR_OWNER.md
+          node --check scripts/run201CanonicalDevBoot.mjs
+          node --check scripts/checkRun201CanonicalDevOffline.js
+          node --check scripts/recordRun201CanonicalDevOffline.js
+          node --check scripts/run200CanonicalStartupSelectorShadow.mjs
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git diff --quiet "$BASE_SHA" HEAD -- src game3d.html game3d.css service-worker.js index.html script.js style.css manifest.json assets_manifest.json
+      - name: Baseline full browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run201-smoke.log"
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run201-smoke.log")"
+          test "$PASS_COUNT" -ge 34
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/run201-smoke.log" | grep -F 'zero console/page errors'
+          echo "RUN201_SMOKE_PASS_COUNT=$PASS_COUNT" >> "$GITHUB_ENV"
+      - name: Run201 real online-to-offline canonical developer boot
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun201CanonicalDevOffline.js
+          test -s artifacts/run201-canonical-dev-offline/proof.json
+          PROOF="$(node -e "const fs=require('fs');process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync('artifacts/run201-canonical-dev-offline/proof.json','utf8'))))")"
+          echo "RUN201_PROOF_JSON=$PROOF" >> "$GITHUB_ENV"
+      - name: Canonical migration regression chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRun200CanonicalStartupSelector.js
+          node scripts/checkOptInMigrationControllerShadow.js
+          node scripts/checkCurrentRuntimeIntegrationShadow.js
+          node scripts/checkCurrentTickOwnershipShadow.js
+          node scripts/checkCurrentLifecycleReinitShadow.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+      - name: PWA cache and installability
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkAssetsManifest.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSmokeCheckRegistry.js
+      - name: Mobile streaming and performance budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkMobileChunkStreaming.js
+          node scripts/checkMobileRadius4LiveWorld.js
+          node scripts/checkMobileTerrainLod.js
+          node scripts/checkMobileVegetationLod.js
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run201-mobile.log"
+          LIVE="$(grep '^\[checkMobilePerfBudget\] sample ' "$RUNNER_TEMP/run201-mobile.log" | tail -n1 | sed 's/^\[checkMobilePerfBudget\] sample //')"
+          test -n "$LIVE"
+          DRAW="$(node -e 'const x=JSON.parse(process.argv[1]);process.stdout.write(String(x.drawCalls))' "$LIVE")"
+          TRI="$(node -e 'const x=JSON.parse(process.argv[1]);process.stdout.write(String(x.triangles))' "$LIVE")"
+          test "$DRAW" -lt 500
+          test "$TRI" -lt 500000
+          echo "RUN201_LIVE_MOBILE_JSON=$LIVE" >> "$GITHUB_ENV"
+      - name: Performance snapshot and trend
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/collectPerfSnapshot.js run201 | tee "$RUNNER_TEMP/run201-perf.log"
+          ROW="$(tail -n1 perf_log.csv)"
+          echo "$ROW" | grep -F ',run201,'
+          echo "RUN201_PERF_ROW=$ROW" >> "$GITHUB_ENV"
+          node scripts/analyzePerfTrend.js
+      - name: Senior review and final concurrency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' canonical-dev.html scripts/run201CanonicalDevBoot.mjs scripts/checkRun201CanonicalDevOffline.js scripts/recordRun201CanonicalDevOffline.js; then exit 1; fi
+          node scripts/checkRun201CanonicalDevOffline.js >/dev/null
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git diff --quiet "$BASE_SHA" HEAD -- src game3d.html game3d.css service-worker.js index.html script.js style.css manifest.json assets_manifest.json
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+      - name: Record validated checkpoint on branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          export RUN201_STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          export RUN201_STABLE_TAG="stable-$(date -u +'%Y-%m-%d-%H%M')"
+          export RUN201_BASE_SHA="$BASE_SHA"
+          export RUN201_SMOKE_PASS_COUNT RUN201_PROOF_JSON RUN201_LIVE_MOBILE_JSON RUN201_PERF_ROW
+          node scripts/recordRun201CanonicalDevOffline.js
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 3D_GAME_PROGRESS.md DECISIONS.md STABLE_TAGS.md perf_log.csv
+          git commit -m 'run201 validated checkpoint'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git tag "$RUN201_STABLE_TAG"
+          git push origin "$RUN201_STABLE_TAG" || echo '[run201] stable tag push unavailable; STABLE_TAGS record retained.'

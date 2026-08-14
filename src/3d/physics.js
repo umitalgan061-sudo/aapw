@@ -17,10 +17,15 @@ import { createHeightSampler } from './world/terrain.js';
  *   collision agrees with what actually rendered.
  * @param {{octaves?: number, lacunarity?: number, gain?: number}} [fbmOptions] Forwarded to
  *   `createHeightSampler` — leave unset to match `world/terrain.js`'s own chunk-baking defaults.
+ * @param {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]} [flattenPads]
+ *   Forwarded to `createHeightSampler` (DECISIONS.md ADR-0118) — `sceneManager.js` passes the exact
+ *   same array here and into `world/chunkManager.js`'s `ChunkManager`, so this collider's height
+ *   (what settlements/roads/NPCs/animals/dragons/the player all snap to) agrees with the rendered
+ *   ground mesh under every kingdom seat's castle.
  * @returns {{getGroundHeight: (worldX: number, worldZ: number) => number}}
  */
-export function createGroundCollider(seed, fbmOptions) {
-	const sampleHeightMeters = createHeightSampler(seed, fbmOptions);
+export function createGroundCollider(seed, fbmOptions, flattenPads) {
+	const sampleHeightMeters = createHeightSampler(seed, fbmOptions, flattenPads);
 	return {
 		/** Terrain height, in meters, at the given world-space (x, z). */
 		getGroundHeight(worldX, worldZ) {
@@ -114,6 +119,122 @@ export function createSettlementCollider(seats, settlementConfig, playerRadiusMe
 				}
 			}
 			return { x, z };
+		},
+	};
+}
+
+/**
+ * Pushes `(worldX, worldZ)` radially out of any of `circles` it's currently penetrating — shared by
+ * `createCircleCollider` (a fixed list, resolved once) and `createDynamicCircleCollider` (a list
+ * re-fetched fresh on every call, for obstacles that move). Same degenerate-center handling as
+ * `createSettlementCollider`'s tower loop: always escape somewhere rather than leave the point stuck
+ * exactly on a circle's center.
+ * @param {{x: number, z: number, radius: number}[]} circles
+ * @param {number} playerRadiusMeters
+ * @param {number} worldX
+ * @param {number} worldZ
+ * @returns {{x: number, z: number}}
+ */
+function pushOutOfCircles(circles, playerRadiusMeters, worldX, worldZ) {
+	let x = worldX;
+	let z = worldZ;
+	for (const circle of circles) {
+		const totalRadius = circle.radius + playerRadiusMeters;
+		const diffX = x - circle.x;
+		const diffZ = z - circle.z;
+		const distance = Math.hypot(diffX, diffZ);
+		if (distance < totalRadius) {
+			if (distance < 1e-6) {
+				x = circle.x + totalRadius;
+				z = circle.z;
+			} else {
+				const scale = totalRadius / distance;
+				x = circle.x + diffX * scale;
+				z = circle.z + diffZ * scale;
+			}
+		}
+	}
+	return { x, z };
+}
+
+/**
+ * Horizontal circle collider for a flat list of point obstacles — the same "Basit" (simple) analytic
+ * shape `createSettlementCollider` already uses for castle towers, generalized so it isn't tied to
+ * castles specifically. Added for `world/villages.js`'s houses (run 330's "no player collision"
+ * technical debt, GOVERNANCE.md §33.2 item 5 "dolu dünya"): a house has a yaw (it faces its hamlet's
+ * centre, see `villages.js`), so an axis-aligned box test would be wrong at most rotations, and
+ * `physics.js` deliberately has no rotated-box math (see this module's doc comment on why castles use
+ * cheap analytic shapes instead of a general physics engine). A circle sized to each house's own
+ * footprint diagonal is a little generous at the corners but never lets the player clip through a
+ * wall, and stays exactly as cheap as the tower loop this mirrors.
+ * @param {{x: number, z: number, radius: number}[]} circles Obstacle centers and their own solid
+ *   radius (before adding the player's own half-width) — e.g. `createVillages`'s returned `houses`.
+ *   Captured once at construction — use `createDynamicCircleCollider` instead for obstacles that move.
+ * @param {number} [playerRadiusMeters=0.4] Same default/meaning as `createSettlementCollider`'s.
+ * @returns {{resolveXZ: (worldX: number, worldZ: number) => {x: number, z: number}}}
+ */
+export function createCircleCollider(circles, playerRadiusMeters = 0.4) {
+	return {
+		/** Pushes `(worldX, worldZ)` radially out of any circle it's currently inside — a no-op for
+		 * every circle the point isn't penetrating, which is true almost every frame. */
+		resolveXZ(worldX, worldZ) {
+			return pushOutOfCircles(circles, playerRadiusMeters, worldX, worldZ);
+		},
+	};
+}
+
+/**
+ * Same shape/math as `createCircleCollider`, but `getCircles()` is called fresh on every
+ * `resolveXZ()` instead of once at construction — for obstacles whose position changes every frame
+ * (run 337's own reason to add this: `gameplay/cartBrain.js`'s carts move continuously along a road
+ * edge, unlike every prior obstacle this project collided against — castle keep/towers and village
+ * houses are both fixed the instant the scene is built). Cost is the same O(circle count) per call;
+ * the only difference from `createCircleCollider` is *when* each circle's `{x, z, radius}` is read.
+ * @param {() => {x: number, z: number, radius: number}[]} getCircles Called once per `resolveXZ()`
+ *   call — cheap to call often (e.g. `() => carts.map((cart) => cart.getCollisionCircle())`).
+ * @param {number} [playerRadiusMeters=0.4] Same default/meaning as `createCircleCollider`'s.
+ * @returns {{resolveXZ: (worldX: number, worldZ: number) => {x: number, z: number}}}
+ */
+export function createDynamicCircleCollider(getCircles, playerRadiusMeters = 0.4) {
+	return {
+		resolveXZ(worldX, worldZ) {
+			return pushOutOfCircles(getCircles(), playerRadiusMeters, worldX, worldZ);
+		},
+	};
+}
+
+/**
+ * Composes any number of `resolveXZ`-shaped colliders into one, applied in the order given — the
+ * same chaining `sceneManager.js`'s own `playerCollider` used to hand-roll inline for exactly two
+ * colliders (castle + village, run 330/331). Also exposes `registerDynamicCollider` so a collider
+ * that doesn't exist yet when the composed object is built (e.g. `gameplay/cartBrain.js`'s carts,
+ * spawned later by `gameplay/livingWorldSpawner.js`, well after `sceneManager.js` has already
+ * returned `playerCollider` to its caller) can still join the same chain — every caller
+ * (`gameplay/player.js` and now any future obstacle-aware controller) always calls the same object's
+ * `resolveXZ`, which composes whatever has been registered by the time that call actually happens,
+ * without the caller needing to know how many obstacle systems exist or when each was added.
+ * @param {{resolveXZ: (worldX: number, worldZ: number) => {x: number, z: number}}[]} [initialColliders]
+ * @returns {{
+ *   resolveXZ: (worldX: number, worldZ: number) => {x: number, z: number},
+ *   registerDynamicCollider: (collider: {resolveXZ: (worldX: number, worldZ: number) => {x: number, z: number}}) => void,
+ * }}
+ */
+export function createComposedCollider(initialColliders = []) {
+	const colliders = [...initialColliders];
+	return {
+		resolveXZ(worldX, worldZ) {
+			let x = worldX;
+			let z = worldZ;
+			for (const collider of colliders) {
+				({ x, z } = collider.resolveXZ(x, z));
+			}
+			return { x, z };
+		},
+		/** Appends `collider` to the chain — takes effect on every subsequent `resolveXZ()` call,
+		 * including calls made through a reference obtained before this was called (the chain lives
+		 * inside this object, not copied out to each caller). */
+		registerDynamicCollider(collider) {
+			colliders.push(collider);
 		},
 	};
 }

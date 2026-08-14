@@ -1,0 +1,93 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Westeros: Materialize TransformControls r160",
+      "type": "shell",
+      "command": "node scripts/materializeRun216TransformControls.js",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Verify TransformControls r160",
+      "type": "shell",
+      "command": "node scripts/materializeRun216TransformControls.js --verify-only",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Self-test TransformControls materializer",
+      "type": "shell",
+      "command": "node scripts/materializeRun216TransformControls.js --self-test",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Materialize Run216 PWA cache",
+      "type": "shell",
+      "command": "node scripts/materializeRun216ServiceWorkerCache.js",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Verify Run216 PWA cache",
+      "type": "shell",
+      "command": "node scripts/materializeRun216ServiceWorkerCache.js --verify-only",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Self-test Run216 PWA cache materializer",
+      "type": "shell",
+      "command": "node scripts/materializeRun216ServiceWorkerCache.js --self-test",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Check Run216 TransformControls core contract",
+      "type": "shell",
+      "command": "node scripts/checkRun216TransformControlsCoreContract.js",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: Prepare Run216 TransformControls locally",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Westeros: Materialize TransformControls r160",
+        "Westeros: Materialize Run216 PWA cache",
+        "Westeros: Check Run216 TransformControls core contract"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Westeros: World Editor Live",
+      "type": "process",
+      "command": "node",
+      "args": ["scripts/editorLiveServer.js"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -8,6 +8,93 @@
 <title>Westeros — 3D Dünya</title>
 <link rel="icon" type="image/png" href="logo.png">
 <link rel="stylesheet" href="game3d.css">
+<style id="run266-entry-gate-style">
+  html.run266-entry-gate-open,
+  html.run266-entry-gate-open body {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+  .run266-entry-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    display: block;
+    min-width: 100vw;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: hidden;
+    background: #050505;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .run266-entry-gate[hidden] { display: none !important; }
+  .run266-entry-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    pointer-events: none;
+    -webkit-user-drag: none;
+  }
+  .run266-entry-shade {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(0,0,0,.18), rgba(0,0,0,.04) 45%, rgba(0,0,0,.18));
+  }
+  .run266-entry-action {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    min-width: clamp(112px, 18vw, 190px);
+    min-height: 56px;
+    padding: 14px 22px;
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,.7);
+    color: #fff;
+    font: 800 clamp(15px, 1.8vw, 21px)/1.1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: .02em;
+    text-shadow: 0 1px 2px rgba(0,0,0,.85);
+    box-shadow: 0 12px 32px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.18);
+    -webkit-tap-highlight-color: transparent;
+  }
+  #run266-entry-back {
+    left: clamp(88px, 16vw, 250px);
+    background: linear-gradient(180deg, #df3f3f, #9d1515);
+    border-color: rgba(255,190,190,.92);
+    cursor: not-allowed;
+  }
+  #run266-entry-enter {
+    left: auto;
+    right: clamp(20px, 10vw, 150px);
+    transform: translateY(-50%);
+    background: linear-gradient(180deg, #42c96a, #177c36);
+    border-color: rgba(190,255,205,.95);
+    cursor: pointer;
+  }
+  #run266-entry-enter:hover,
+  #run266-entry-enter:focus-visible {
+    filter: brightness(1.08);
+    box-shadow: 0 14px 36px rgba(0,0,0,.48), 0 0 0 4px rgba(105,255,145,.2);
+    outline: none;
+  }
+  @media (max-width: 720px), (pointer: coarse) {
+    .run266-entry-action {
+      min-width: 112px;
+      min-height: 54px;
+      padding: 13px 16px;
+      font-size: 15px;
+    }
+    #run266-entry-back { left: 22%; }
+    #run266-entry-enter { right: 7%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .run266-entry-action { transition: none !important; }
+  }
+</style>
 <script type="importmap">
 {
   "imports": {
@@ -18,12 +105,21 @@
 </script>
 </head>
 <body>
+<div id="run266-entry-gate" class="run266-entry-gate" role="dialog" aria-modal="true" aria-label="3D dünyaya giriş">
+  <img class="run266-entry-art" src="./giriş.png" alt="" fetchpriority="high" decoding="async">
+  <div class="run266-entry-shade" aria-hidden="true"></div>
+  <button id="run266-entry-back" class="run266-entry-action" type="button" aria-disabled="true" tabindex="-1">Geri dön</button>
+  <button id="run266-entry-enter" class="run266-entry-action" type="button">Giriş yap</button>
+</div>
 <canvas id="game3d-canvas"></canvas>
 <div id="game3d-loading" class="g3d-loading">
   <div>Westeros 3D dünyası yükleniyor&hellip;</div>
 </div>
 <a class="g3d-back-link" href="index.html">&larr; 2D Haritaya Dön</a>
+<a class="g3d-back-link" href="rts.html" style="left:auto;right:max(12px, env(safe-area-inset-right));">⚔ RTS Komutanlık</a>
+<script type="module" src="./src/3d/editor/EditorGamePatchPreviewGateSafe.js"></script>
 <script type="module">
+  import { installRuntimePindexTerrainPolish } from './src/3d/world/worldReferenceSurfaceTerrainVisual.js';
   import { initGame3D } from './src/3d/game3d.js';
   import { gameEvents } from './src/3d/eventBus.js';
   import { EVENTS } from './src/3d/config.js';
@@ -45,7 +141,121 @@
     console.error('[game3d.html] game error', error);
   });
 
+  installRuntimePindexTerrainPolish();
   initGame3D();
+</script>
+<script>
+(() => {
+  const gate = document.getElementById('run266-entry-gate');
+  const backButton = document.getElementById('run266-entry-back');
+  const enterButton = document.getElementById('run266-entry-enter');
+  if (!gate || !backButton || !enterButton) return;
+
+  document.documentElement.classList.add('run266-entry-gate-open');
+  const removers = [];
+  let disposed = false;
+  let lastMoveAt = 0;
+
+  const candidates = Object.freeze([
+    [0.12, 0.20], [0.13, 0.50], [0.12, 0.80],
+    [0.31, 0.17], [0.34, 0.83], [0.46, 0.32],
+    [0.45, 0.68], [0.27, 0.36], [0.27, 0.64]
+  ]);
+
+  function on(target, type, handler, options) {
+    target.addEventListener(type, handler, options);
+    removers.push(() => target.removeEventListener(type, handler, options));
+  }
+
+  function centerOf(rect) {
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }
+
+  function squaredDistance(ax, ay, bx, by) {
+    const dx = ax - bx;
+    const dy = ay - by;
+    return dx * dx + dy * dy;
+  }
+
+  function moveBackButton(pointerX, pointerY) {
+    const rect = backButton.getBoundingClientRect();
+    const enterRect = enterButton.getBoundingClientRect();
+    const current = centerOf(rect);
+    const enter = centerOf(enterRect);
+    const halfW = Math.max(56, rect.width / 2);
+    const halfH = Math.max(28, rect.height / 2);
+    const margin = 14;
+
+    const ranked = candidates.map(([rx, ry], index) => {
+      const x = Math.min(window.innerWidth - halfW - margin, Math.max(halfW + margin, window.innerWidth * rx));
+      const y = Math.min(window.innerHeight - halfH - margin, Math.max(halfH + margin, window.innerHeight * ry));
+      const pointerScore = squaredDistance(x, y, pointerX, pointerY);
+      const enterScore = squaredDistance(x, y, enter.x, enter.y);
+      const currentScore = squaredDistance(x, y, current.x, current.y);
+      return { x, y, index, score: pointerScore + enterScore * 0.35, currentScore, enterScore };
+    }).filter((candidate) => candidate.enterScore > 140 * 140 && candidate.currentScore > 64 * 64)
+      .sort((a, b) => b.score - a.score || a.index - b.index);
+
+    const next = ranked[0] || {
+      x: Math.max(halfW + margin, Math.min(window.innerWidth * 0.12, window.innerWidth - halfW - margin)),
+      y: Math.max(halfH + margin, Math.min(window.innerHeight * 0.18, window.innerHeight - halfH - margin))
+    };
+    backButton.style.left = `${next.x}px`;
+    backButton.style.top = `${next.y}px`;
+    backButton.style.right = 'auto';
+    backButton.style.transform = 'translate(-50%, -50%)';
+    backButton.dataset.run266Moves = String((Number(backButton.dataset.run266Moves) || 0) + 1);
+  }
+
+  function repelFromPointer(event) {
+    if (disposed || event.pointerType === 'touch' || event.pointerType === 'pen') return;
+    const now = performance.now();
+    if (now - lastMoveAt < 70) return;
+    const rect = backButton.getBoundingClientRect();
+    const center = centerOf(rect);
+    const threshold = Math.max(125, Math.min(190, window.innerWidth * 0.15));
+    if (squaredDistance(center.x, center.y, event.clientX, event.clientY) <= threshold * threshold) {
+      lastMoveAt = now;
+      moveBackButton(event.clientX, event.clientY);
+    }
+  }
+
+  function rejectBack(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const point = event.touches?.[0] || event.changedTouches?.[0] || event;
+    moveBackButton(Number(point.clientX) || window.innerWidth / 2, Number(point.clientY) || window.innerHeight / 2);
+  }
+
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    removers.splice(0).reverse().forEach((remove) => remove());
+    document.documentElement.classList.remove('run266-entry-gate-open');
+    if (window.__WESTEROS_ENTRY_GATE_RUN266__ === surface) delete window.__WESTEROS_ENTRY_GATE_RUN266__;
+  }
+
+  function enterWorld(event) {
+    event.preventDefault();
+    dispose();
+    gate.hidden = true;
+    gate.remove();
+  }
+
+  on(gate, 'pointermove', repelFromPointer, { passive: true });
+  on(backButton, 'pointerdown', rejectBack, { passive: false });
+  on(backButton, 'click', rejectBack, { passive: false });
+  if (!window.PointerEvent) on(backButton, 'touchstart', rejectBack, { passive: false });
+  on(enterButton, 'click', enterWorld, { passive: false });
+  on(window, 'pagehide', dispose, { once: true });
+
+  const surface = Object.freeze({
+    moveBackButton,
+    dispose,
+    isOpen: () => !disposed && document.body.contains(gate) && !gate.hidden
+  });
+  window.__WESTEROS_ENTRY_GATE_RUN266__ = surface;
+})();
 </script>
 </body>
 </html>

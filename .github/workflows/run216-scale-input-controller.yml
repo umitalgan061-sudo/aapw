@@ -1,0 +1,35 @@
+name: Run216 Scale Input Controller
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/EditorScaleInputController.js'
+      - 'src/3d/editor/EditorTransformControls.js'
+      - 'scripts/checkRun216ScaleInputController.mjs'
+      - 'scripts/checkRun216ScaleInputWiring.js'
+      - 'scripts/checkRun216ScaleInputBehaviorNode20.cjs'
+      - 'scripts/checkRun216LargeAssetScalePolicyNode20.cjs'
+      - '.github/workflows/run216-scale-input-controller.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scale-input-controller:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check src/3d/editor/EditorScaleInputController.js
+      - run: node --check src/3d/editor/EditorTransformControls.js
+      - run: node --check scripts/checkRun216ScaleInputController.mjs
+      - run: node --check scripts/checkRun216ScaleInputWiring.js
+      - run: node scripts/checkRun216ScaleInputController.mjs
+      - run: node scripts/checkRun216ScaleInputWiring.js
+      - run: node --check scripts/checkRun216ScaleInputBehaviorNode20.cjs
+      - run: node --check scripts/checkRun216LargeAssetScalePolicyNode20.cjs
+      - run: node scripts/checkRun216ScaleInputBehaviorNode20.cjs
+      - run: node scripts/checkRun216LargeAssetScalePolicyNode20.cjs
