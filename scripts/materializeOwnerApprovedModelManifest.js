@@ -114,7 +114,9 @@ if (additions.length) {
 }
 
 let credits = fs.readFileSync(CREDITS_PATH, 'utf8');
-if (credits.includes(CREDIT_MARKER)) credits = credits.slice(0, credits.indexOf(CREDIT_MARKER)).trimEnd();
+const creditMarkerIndex = credits.indexOf(CREDIT_MARKER);
+if (creditMarkerIndex >= 0) credits = credits.slice(0, creditMarkerIndex);
+credits = credits.trimEnd();
 const allOwnerApproved = manifest.assets
   .filter((entry) => entry.license === OWNER_LICENSE && String(entry.file || '').match(/\.(fbx|glb)$/i))
   .sort((a, b) => a.file.localeCompare(b.file, 'en'));
