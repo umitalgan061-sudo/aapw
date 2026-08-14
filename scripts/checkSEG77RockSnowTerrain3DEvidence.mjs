@@ -7,8 +7,10 @@ function parseMetrics(file, prefix) {
   return JSON.parse(line.slice(prefix.length));
 }
 
-const [aFile, bFile, reloadAFile, reloadBFile] = process.argv.slice(2);
-if (!aFile || !bFile || !reloadAFile || !reloadBFile) throw new Error('usage: checkSEG77RockSnowTerrain3DEvidence.mjs <run-a.log> <run-b.log> <reload-a.log> <reload-b.log>');
+const args = process.argv.slice(2);
+const [aFile, bFile] = args;
+const reloadAFile = args[2] ?? '/tmp/reload-a.log', reloadBFile = args[3] ?? '/tmp/reload-b.log';
+if (!aFile || !bFile) throw new Error('usage: checkSEG77RockSnowTerrain3DEvidence.mjs <run-a.log> <run-b.log> [reload-a.log reload-b.log]');
 const importPrefix = 'G77_TERRAIN3D_ROCK_SNOW_METRICS=';
 const reloadPrefix = 'G77_TERRAIN3D_ROCK_SNOW_RELOAD_METRICS=';
 const a = parseMetrics(aFile, importPrefix), b = parseMetrics(bFile, importPrefix);
