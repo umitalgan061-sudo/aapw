@@ -5,8 +5,8 @@
   "current_cell": "G01",
   "status": "in_progress_exact_main",
   "branch": "agent/buzul-muhafizi-g01-runtime-parity-exact-b5b0-20260814",
-  "pr": null,
-  "last_commit": null,
+  "pr": 482,
+  "last_commit": "9d3f65b6c7e5f832f64c59e0d6877c39216f7f29",
   "quality_before": {
     "layer": "Near Detail",
     "merged_pr": 476,
@@ -30,5 +30,5 @@
     "next_layer_if_green": "G01 complete only after merge; then select the nearest unfinished NW GeoCell from exact main"
   },
   "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable is mandatory for real Height/Control/Color import, persisted multi-region data and LOD0 bake. HTerrain remains preserved as regression/control; the Three.js adapter consumes only deterministic bake output.",
-  "updated_at": "2026-08-14T08:35:00+03:00"
+  "updated_at": "2026-08-14T08:38:00+03:00"
 }
