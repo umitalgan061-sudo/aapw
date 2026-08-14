@@ -1,10 +1,19 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { G77_ROCK_SNOW_POLICY, buildG77RockSnowProbe, measureG77RockSnow, sampleG77RockSnow } from '../godot/terrain-authoring/geocells/se/g77_rock_snow.mjs';
 
+const mapPath = ['map.png', 'resimler/map.png'].find((candidate) => fs.existsSync(candidate)) ?? null;
+const mapBytes = mapPath ? fs.readFileSync(mapPath) : null;
+const mapActual = mapBytes ? {
+  path: mapPath,
+  sha256: crypto.createHash('sha256').update(mapBytes).digest('hex'),
+  size: mapBytes.subarray(12, 16).toString('ascii') === 'IHDR' ? [mapBytes.readUInt32BE(16), mapBytes.readUInt32BE(20)] : null,
+} : null;
+const withMapProvenance = (probe) => ({ ...probe, sourceMapTracked: Boolean(mapActual), sourceMapFile: mapActual?.path ?? null, sourceMapActualSha256: mapActual?.sha256 ?? null, sourceMapActualSize: mapActual?.size ?? null });
 const metrics = measureG77RockSnow();
-const probeA = buildG77RockSnowProbe();
-const probeB = buildG77RockSnowProbe();
+const probeA = withMapProvenance(buildG77RockSnowProbe());
+const probeB = withMapProvenance(buildG77RockSnowProbe());
 const jsonA = JSON.stringify(probeA);
 const jsonB = JSON.stringify(probeB);
 
@@ -12,6 +21,7 @@ if (jsonA !== jsonB) throw new Error('G77 Rock/Snow probe is not deterministic')
 if (probeA.policyId !== G77_ROCK_SNOW_POLICY.id) throw new Error('probe policy mismatch');
 if (probeA.sourceMapSha256 !== G77_ROCK_SNOW_POLICY.sourceMapSha256) throw new Error('map.png provenance mismatch');
 if (JSON.stringify(probeA.sourceMapSize) !== '[1536,1024]' || probeA.sourceMapVersion !== 'map.png-r1') throw new Error('map.png size/version provenance mismatch');
+if (probeA.sourceMapTracked && (probeA.sourceMapActualSha256 !== probeA.sourceMapSha256 || JSON.stringify(probeA.sourceMapActualSize) !== JSON.stringify(probeA.sourceMapSize))) throw new Error('tracked map.png does not match canonical SHA/size');
 if (probeA.geoCell !== 'G77' || probeA.layer !== 'Rock/Snow') throw new Error('G77 layer identity mismatch');
 if (probeA.sourceGridSize !== 65 || probeA.terrain3dRegionSize !== 256 || probeA.terrain3dImportSize !== 257) throw new Error('Terrain3D source/import contract drifted');
 if (probeA.groundTextureId !== 0 || probeA.rockTextureId !== 1 || probeA.snowTextureId !== 2) throw new Error('texture ID contract drifted');
@@ -45,5 +55,6 @@ if (emit) {
   fs.writeFileSync(output, `${jsonA}\n`);
 }
 
+console.log(`SE_G77_ROCK_SNOW_MAP_PROVENANCE=${JSON.stringify({ tracked: probeA.sourceMapTracked, file: probeA.sourceMapFile, actualSha256: probeA.sourceMapActualSha256, actualSize: probeA.sourceMapActualSize })}`);
 console.log(`SE_G77_ROCK_SNOW_METRICS=${JSON.stringify(metrics)}`);
 console.log('SE_G77_ROCK_SNOW_VALIDATION_OK');
