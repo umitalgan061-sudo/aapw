@@ -46,7 +46,6 @@ jobs:
 
       - name: Materialize game editor full-map extent and browser-safe terrain
         id: materialize
-        if: github.event_name == 'push'
         run: |
           set -euo pipefail
           node scripts/materializeCurrentTerrainSingleSource.mjs
@@ -59,7 +58,9 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add $MATERIALIZED_FILES
           git commit -m 'terrain: materialize full-map live terrain runtime'
-          git push origin HEAD:${GITHUB_REF_NAME}
+          TARGET_BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          test -n "$TARGET_BRANCH"
+          git push origin HEAD:"$TARGET_BRANCH"
           echo 'changed=true' >> "$GITHUB_OUTPUT"
 
       - name: Stop after materialization push
