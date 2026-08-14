@@ -1,0 +1,7 @@
+import { G17_ROCK_SNOW_POLICY, sampleG17RockSnow } from './g17_rock_snow_field.mjs';
+export function measureG17RockDistribution(){
+ const b=G17_ROCK_SNOW_POLICY.normalizedBounds,n=65,rocks=[],slopes=[];let sum=0,sum2=0,slopeSum=0,minWater=1,maxWeightError=0,clamped=0;const quantized=new Set();
+ for(let y=0;y<n;y++){const ny=b.yMin+(b.yMax-b.yMin)*y/(n-1);for(let x=0;x<n;x++){const nx=b.xMin+(b.xMax-b.xMin)*x/(n-1),s=sampleG17RockSnow(nx,ny);rocks.push(s.rockBlend);slopes.push(s.slope);sum+=s.rockBlend;sum2+=s.rockBlend*s.rockBlend;slopeSum+=s.slope;minWater=Math.min(minWater,s.waterConfidence);maxWeightError=Math.max(maxWeightError,Math.abs(s.groundWeight+s.rockWeight+s.snowWeight-1));if(s.rockBlend<=.001||s.rockBlend>=.999)clamped++;quantized.add(Math.round(s.rockBlend*255));}}
+ const count=rocks.length,mean=sum/count,slopeMean=slopeSum/count;let cov=0,slopeVar=0,rockVar=0;for(let i=0;i<count;i++){const ds=slopes[i]-slopeMean,dr=rocks[i]-mean;cov+=ds*dr;slopeVar+=ds*ds;rockVar+=dr*dr;}const sorted=[...rocks].sort((a,b)=>a-b),p=(q)=>sorted[Math.round((count-1)*q)],std=Math.sqrt(Math.max(0,sum2/count-mean*mean)),correlation=cov/Math.max(1e-18,Math.sqrt(slopeVar*rockVar));
+ return Object.freeze({samples:count,meanRockBlend:+mean.toFixed(8),stdRockBlend:+std.toFixed(8),p10:+p(.1).toFixed(8),p50:+p(.5).toFixed(8),p90:+p(.9).toFixed(8),quantizedBlendLevels:quantized.size,clampedSamples:clamped,minWaterConfidence:+minWater.toFixed(8),maxWeightSumError:+maxWeightError.toFixed(12),slopeRockCorrelation:+correlation.toFixed(8)});
+}
