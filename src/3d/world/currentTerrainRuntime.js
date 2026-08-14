@@ -141,11 +141,11 @@ export function sampleCanonicalCurrentRelativeHeight(normalizedX, normalizedY) {
     - waterWeight * 5.5
     - sample.reliefInfluence * 1.2
     + micro * 0.18;
-  // Pindex weights retain sharp map.png shoreline detail. A narrow semantic ramp (the former
-  // 0.34..0.66 interval) could therefore mix tens of metres of dry relief into seabed height over
-  // only one short road segment. Keep the source detail, but spread the vertical transition across
-  // the full ambiguous coastal weight band so terrain remains cart-walkable without moving roads.
-  const coastBlend = smoothstep(0.05, 0.95, waterWeight);
+  // Pindex water weights already encode the continuous map.png shoreline mixture. Feeding that
+  // signal through another smoothstep amplified its derivative around Stannis and reintroduced a
+  // short >35-degree raw terrain slope. Use the source weight directly: the coastline stays broad
+  // and detailed, while its vertical response cannot become steeper merely because of remapping.
+  const coastBlend = waterWeight;
   return lerp(dryHeight, wetHeight, coastBlend);
 }
 
