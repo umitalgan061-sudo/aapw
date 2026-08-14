@@ -17,6 +17,8 @@ on:
       - 'scripts/checkCurrentTerrainSingleSource.mjs'
       - 'scripts/checkCurrentTerrainBrowser.mjs'
       - 'scripts/checkWorldReferenceHydrologyExtent.js'
+      - 'scripts/terrainSeatSafetyCheck.js'
+      - 'scripts/roadNetworkSafetyCheck.js'
       - 'scripts/materializeCurrentTerrainSingleSource.mjs'
       - '.github/workflows/current-terrain-single-source.yml'
   workflow_dispatch:
@@ -42,19 +44,20 @@ jobs:
         with:
           node-version: 22
 
-      - name: Materialize game editor full-map extent and offline terrain
+      - name: Materialize game editor full-map extent and browser-safe terrain
         id: materialize
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
           node scripts/materializeCurrentTerrainSingleSource.mjs
-          if git diff --quiet -- game3d.html editor.html service-worker.js src/3d/config.js; then
+          MATERIALIZED_FILES='game3d.html editor.html service-worker.js src/3d/config.js scripts/terrainSeatSafetyCheck.js scripts/roadNetworkSafetyCheck.js'
+          if git diff --quiet -- $MATERIALIZED_FILES; then
             echo 'changed=false' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add game3d.html editor.html service-worker.js src/3d/config.js
+          git add $MATERIALIZED_FILES
           git commit -m 'terrain: materialize full-map live terrain runtime'
           git push origin HEAD:${GITHUB_REF_NAME}
           echo 'changed=true' >> "$GITHUB_OUTPUT"
@@ -74,7 +77,7 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(game3d\.html|editor\.html|service-worker\.js|src/3d/config\.js|src/3d/world/currentTerrainRuntime\.js|src/3d/world/currentTerrainAdapter\.js|scripts/checkCurrentTerrainSingleSource\.mjs|scripts/checkCurrentTerrainBrowser\.mjs|scripts/checkWorldReferenceHydrologyExtent\.js|scripts/materializeCurrentTerrainSingleSource\.mjs|\.github/workflows/current-terrain-single-source\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(game3d\.html|editor\.html|service-worker\.js|src/3d/config\.js|src/3d/world/currentTerrainRuntime\.js|src/3d/world/currentTerrainAdapter\.js|scripts/checkCurrentTerrainSingleSource\.mjs|scripts/checkCurrentTerrainBrowser\.mjs|scripts/checkWorldReferenceHydrologyExtent\.js|scripts/terrainSeatSafetyCheck\.js|scripts/roadNetworkSafetyCheck\.js|scripts/materializeCurrentTerrainSingleSource\.mjs|\.github/workflows/current-terrain-single-source\.yml)$' | wc -l)" -eq 0
           LINES="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           echo "CURRENT_TERRAIN_CHANGED_LINES=$LINES"
           test "$LINES" -le 1000
@@ -89,6 +92,8 @@ jobs:
           node --check scripts/checkCurrentTerrainSingleSource.mjs
           node --check scripts/checkCurrentTerrainBrowser.mjs
           node --check scripts/checkWorldReferenceHydrologyExtent.js
+          node --check scripts/terrainSeatSafetyCheck.js
+          node --check scripts/roadNetworkSafetyCheck.js
           node --check scripts/materializeCurrentTerrainSingleSource.mjs
           node scripts/checkCurrentTerrainSingleSource.mjs | tee "$RUNNER_TEMP/current-terrain-source.log"
           grep -F 'CURRENT_TERRAIN_SINGLE_SOURCE_OK' "$RUNNER_TEMP/current-terrain-source.log"
@@ -98,6 +103,8 @@ jobs:
           grep -F 'MAP_BOUNDS: Object.freeze({ minX: 0, maxX: 9000, minY: 0, maxY: 7000 })' src/3d/config.js
           grep -F 'GRID_COLUMNS: 27' src/3d/config.js
           grep -F 'GRID_ROWS: 21' src/3d/config.js
+          grep -F "'.mjs': 'text/javascript; charset=utf-8'" scripts/terrainSeatSafetyCheck.js
+          grep -F "'.mjs': 'text/javascript; charset=utf-8'" scripts/roadNetworkSafetyCheck.js
 
       - name: Install Playwright Chromium
         if: steps.materialize.outputs.changed != 'true'
@@ -126,6 +133,8 @@ jobs:
           node scripts/checkServiceWorkerCache.js
           node scripts/checkTechnicalDebt.js
           node scripts/checkMobilePerfBudget.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
           node scripts/smokeTestGame3D.js
 
       - name: Final exact-main freshness
