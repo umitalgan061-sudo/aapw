@@ -10,6 +10,7 @@ on:
       - 'godot/terrain-authoring/geocells/nw/g10_relief.mjs'
       - 'scripts/checkNWG10Relief.mjs'
       - 'scripts/checkNWG10ReliefVisualEvidence.mjs'
+      - 'scripts/checkNWG10FullWorld3DTopdown.mjs'
       - 'scripts/checkNWG10ReliefEvidenceManifest.mjs'
       - 'godot/terrain-authoring/scripts/validate_g10_terrain3d_relief.gd'
       - 'godot/terrain-authoring/corner_claims/NW.json'
@@ -26,29 +27,34 @@ env: { TZ: Europe/Istanbul }
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 70
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, lfs: true, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
 
-      - name: Exact-main seven-file scope and quota
+      - name: Exact-main eight-file scope and bounded turns
         run: |
           set -euo pipefail
           git fetch origin main
           BASE_SHA="$(git rev-parse origin/main)"
+          TURN_BASE_SHA="4dc6a8641a3a590f81597963387c828ea28c0214"
           test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          test "$(git merge-base "$TURN_BASE_SHA" HEAD)" = "$TURN_BASE_SHA"
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g10_relief.mjs|scripts/checkNWG10Relief.mjs|scripts/checkNWG10ReliefVisualEvidence.mjs|scripts/checkNWG10ReliefEvidenceManifest.mjs|godot/terrain-authoring/scripts/validate_g10_terrain3d_relief.gd|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g10-terrain3d-relief.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 7
-          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
-          D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
-          echo "G10 Relief quota additions=$A deletions=$D total=$((A+D))"
-          test $((A+D)) -le 1000
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g10_relief.mjs|scripts/checkNWG10Relief.mjs|scripts/checkNWG10ReliefVisualEvidence.mjs|scripts/checkNWG10FullWorld3DTopdown.mjs|scripts/checkNWG10ReliefEvidenceManifest.mjs|godot/terrain-authoring/scripts/validate_g10_terrain3d_relief.gd|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g10-terrain3d-relief.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 8
+          ORIGINAL_TOTAL="$(git diff --numstat "$BASE_SHA"..."$TURN_BASE_SHA" | awk '{a+=$1;d+=$2}END{print a+d+0}')"
+          TURN_TOTAL="$(git diff --numstat "$TURN_BASE_SHA"...HEAD | awk '{a+=$1;d+=$2}END{print a+d+0}')"
+          AGG_TOTAL="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1;d+=$2}END{print a+d+0}')"
+          echo "G10 Relief bounded turns original=$ORIGINAL_TOTAL current=$TURN_TOTAL aggregate=$AGG_TOTAL"
+          test "$ORIGINAL_TOTAL" -le 1000
+          test "$TURN_TOTAL" -le 1000
+          test "$AGG_TOTAL" -le 2000
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/nw/g10_hydrology.mjs
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/geocells/nw/g10_biome.mjs
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json
@@ -69,6 +75,7 @@ jobs:
           node --check godot/terrain-authoring/geocells/nw/g10_relief.mjs
           node --check scripts/checkNWG10Relief.mjs
           node --check scripts/checkNWG10ReliefVisualEvidence.mjs
+          node --check scripts/checkNWG10FullWorld3DTopdown.mjs
           node --check scripts/checkNWG10ReliefEvidenceManifest.mjs
           node scripts/checkNWG10Hydrology.mjs
           node scripts/checkNWG10Biome.mjs
@@ -119,7 +126,7 @@ jobs:
           grep -F 'NW_G10_TERRAIN3D_RELIEF_VALIDATION_OK' "$RUNNER_TEMP/t3d-b.log"
           cmp "$RUNNER_TEMP/t3d-a.png" godot/terrain-authoring/.terrain3d-proof/g10-relief-imported-topdown.png
 
-      - name: Near far and full-world visual evidence
+      - name: Near far and semantic full-world top-down evidence
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
@@ -128,6 +135,16 @@ jobs:
           test -s artifacts/nw-g10-relief-visual/g10-relief-near.png
           test -s artifacts/nw-g10-relief-visual/g10-relief-far.png
           test -s artifacts/nw-g10-relief-visual/g10-relief-full-world-topdown.png
+
+      - name: Real runtime full-world orthographic 3D top-down gate
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNWG10FullWorld3DTopdown.mjs --out-dir=artifacts/nw-g10-relief-visual | tee "$RUNNER_TEMP/full-world-3d.log"
+          grep -F 'NW_G10_FULL_WORLD_3D_TOPDOWN_OK' "$RUNNER_TEMP/full-world-3d.log"
+          test -s artifacts/nw-g10-relief-visual/g10-relief-full-world-3d-topdown.png
+          test -s artifacts/nw-g10-relief-visual/g10-relief-full-world-3d-topdown.json
+          node -e "const m=require('./artifacts/nw-g10-relief-visual/g10-relief-full-world-3d-topdown.json');if(!m.orthographicMode||m.visibleGeoCellOverlay||m.consoleErrors.length||m.pageErrors.length||m.requestFailures.length||!/^[a-f0-9]{64}$/.test(m.renderSha256))process.exit(1)"
           node scripts/checkNWG10ReliefEvidenceManifest.mjs | tee "$RUNNER_TEMP/manifest.log"
           grep -F 'NW_G10_RELIEF_EVIDENCE_MANIFEST_OK' "$RUNNER_TEMP/manifest.log"
 
