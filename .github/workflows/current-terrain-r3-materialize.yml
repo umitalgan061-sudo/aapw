@@ -1,0 +1,33 @@
+name: Current Terrain R3 Materialize
+
+on:
+  push:
+    branches:
+      - feature/current-terrain-single-source-r3-20260814
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/current-terrain-single-source-r3-20260814
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply deterministic materialization and self-remove
+        run: |
+          set -euo pipefail
+          node scripts/materializeCurrentTerrainSingleSource.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/current-terrain-r3-materialize.yml
+          git add scripts/terrainSeatSafetyCheck.js scripts/roadNetworkSafetyCheck.js
+          git diff --cached --check
+          git commit -m 'test: materialize current terrain browser safety timing'
+          git push origin HEAD:feature/current-terrain-single-source-r3-20260814
