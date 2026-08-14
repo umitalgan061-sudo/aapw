@@ -6,7 +6,7 @@
   "status": "active",
   "layer": "Rock/Snow",
   "branch": "agent/kizil-ufuk-g77-rock-snow-exact-1d5286-r11-20260814",
-  "pr": null,
+  "pr": 535,
   "base_commit": "1d5286385756ff79b4a67c2dd8e182861d9b2d7d",
   "last_commit": null,
   "quality_before": {
