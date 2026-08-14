@@ -114,9 +114,17 @@ jobs:
           grep -F 'NW_G10_CANONICAL_RELIEF_TERRAIN3D_OK' "$RUNNER_TEMP/t3d-b.log"
           grep -F '"regions":4' "$RUNNER_TEMP/t3d-a.log"
 
+      - name: Install Playwright Chromium for safety proof
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
       - name: HTerrain settlement road determinism and PWA safety
         run: |
           set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
           grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
           node scripts/checkSeededRandomPolicy.js
