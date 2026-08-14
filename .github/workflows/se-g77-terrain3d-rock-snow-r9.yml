@@ -121,8 +121,7 @@ jobs:
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log
           grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/hterrain.log
           git lfs install --local
-          git lfs pull
-          git lfs fsck
+          git lfs pull --exclude='assets/models/fbx/2.FBX,assets/models/fbx/Old House 2/Old House Files/Old House 2 3D Models.FBX,assets/models/fbx/singlemountain.FBX'
           npm install --no-save --no-package-lock playwright@1.55.0
           npx playwright install --with-deps chromium
           node scripts/checkSeededRandomPolicy.js
@@ -140,6 +139,7 @@ jobs:
           grep -F SE_G77_ROCK_SNOW_VISUAL_OK /tmp/visual.log
           node scripts/checkSEG77RockSnowEvidenceManifest.mjs --out-dir=artifacts/se-g77-rock-snow-r9 | tee /tmp/manifest.log
           grep -F SE_G77_ROCK_SNOW_EVIDENCE_MANIFEST_OK /tmp/manifest.log
+          git lfs fsck
 
       - name: Final exact-main freshness
         run: |
