@@ -1,4 +1,4 @@
-name: SE G77 Terrain3D Rock Snow R9
+name: SE G77 Terrain3D Rock Snow R10
 
 on:
   push:
@@ -21,9 +21,8 @@ on:
 
 permissions: { contents: read }
 concurrency:
-  group: se-g77-rock-snow-r9-${{ github.ref }}
+  group: se-g77-rock-snow-r10-${{ github.ref }}
   cancel-in-progress: true
-
 env:
   BASE_SHA: 99a98909339c8f59b855b03c848a0bc0cd2fc4fd
 
@@ -46,10 +45,8 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_rock_snow\.mjs|scripts/checkSEG77RockSnow(ControlEnvelope|MapFidelity|Terrain3DEvidence|VisualEvidence|FullWorldVisual|EvidenceManifest)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow(_reload)?\.gd|godot/terrain-authoring/corner_claims/SE\.json|\.github/workflows/se-g77-terrain3d-rock-snow-r9\.yml)$' | wc -l)" -eq 0
-          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1} END{print s+0}')"
-          D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2} END{print s+0}')"
-          echo "G77 Rock/Snow R9 diff lines: $((A+D))"
-          test $((A+D)) -le 1000
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1} END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2} END{print s+0}')"
+          echo "G77 Rock/Snow R10 diff lines: $((A+D))"; test $((A+D)) -le 1000
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py godot/terrain-authoring/addons/zylann.hterrain
           git lfs fsck
 
@@ -64,14 +61,7 @@ jobs:
       - name: Rock Snow source determinism
         run: |
           set -euo pipefail
-          node --check godot/terrain-authoring/geocells/se/g77_rock_snow.mjs
-          node --check scripts/checkSEG77RockSnow.mjs
-          node --check scripts/checkSEG77RockSnowControlEnvelope.mjs
-          node --check scripts/checkSEG77RockSnowMapFidelity.mjs
-          node --check scripts/checkSEG77RockSnowTerrain3DEvidence.mjs
-          node --check scripts/checkSEG77RockSnowVisualEvidence.mjs
-          node --check scripts/checkSEG77RockSnowFullWorldVisual.mjs
-          node --check scripts/checkSEG77RockSnowEvidenceManifest.mjs
+          for f in godot/terrain-authoring/geocells/se/g77_rock_snow.mjs scripts/checkSEG77RockSnow.mjs scripts/checkSEG77RockSnowControlEnvelope.mjs scripts/checkSEG77RockSnowMapFidelity.mjs scripts/checkSEG77RockSnowTerrain3DEvidence.mjs scripts/checkSEG77RockSnowVisualEvidence.mjs scripts/checkSEG77RockSnowFullWorldVisual.mjs scripts/checkSEG77RockSnowEvidenceManifest.mjs; do node --check "$f"; done
           node scripts/checkSEG77RockSnow.mjs | tee /tmp/source-a.log
           node scripts/checkSEG77RockSnow.mjs | tee /tmp/source-b.log
           cmp /tmp/source-a.log /tmp/source-b.log
@@ -107,8 +97,7 @@ jobs:
           curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/godot.zip
           mkdir -p /tmp/godot && unzip -q /tmp/godot.zip -d /tmp/godot
           GODOT_BIN="$(find /tmp/godot -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
-          test -n "$GODOT_BIN" && chmod +x "$GODOT_BIN"
-          "$GODOT_BIN" --version | grep -F 4.6.3
+          test -n "$GODOT_BIN" && chmod +x "$GODOT_BIN"; "$GODOT_BIN" --version | grep -F 4.6.3
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
           timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
 
@@ -126,7 +115,7 @@ jobs:
           node scripts/checkSEG77RockSnowTerrain3DEvidence.mjs /tmp/t3d-a.log /tmp/t3d-b.log | tee /tmp/t3d-evidence.log
           grep -F SE_G77_ROCK_SNOW_TERRAIN3D_EVIDENCE_OK /tmp/t3d-evidence.log
 
-      - name: HTerrain world safety platform and visual regressions
+      - name: HTerrain world safety platform and real runtime visual regressions
         run: |
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log
@@ -142,10 +131,10 @@ jobs:
           node scripts/checkTechnicalDebt.js
           node scripts/checkMobilePerfBudget.js
           node scripts/smokeTestGame3D.js
-          node scripts/checkSEG77RockSnowVisualEvidence.mjs --out-dir=artifacts/se-g77-rock-snow-r9 | tee /tmp/visual.log
-          grep -F SE_G77_ROCK_SNOW_VISUAL_OK /tmp/visual.log
           node scripts/checkSEG77RockSnowFullWorldVisual.mjs --out-dir=artifacts/se-g77-rock-snow-r9 | tee /tmp/full-world.log
           grep -F SE_G77_ROCK_SNOW_FULL_WORLD_VISUAL_OK /tmp/full-world.log
+          node scripts/checkSEG77RockSnowVisualEvidence.mjs --out-dir=artifacts/se-g77-rock-snow-r9 | tee /tmp/visual.log
+          grep -F SE_G77_ROCK_SNOW_VISUAL_OK /tmp/visual.log
           node scripts/checkSEG77RockSnowEvidenceManifest.mjs --out-dir=artifacts/se-g77-rock-snow-r9 | tee /tmp/manifest.log
           grep -F SE_G77_ROCK_SNOW_EVIDENCE_MANIFEST_OK /tmp/manifest.log
 
@@ -159,7 +148,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: se-g77-terrain3d-rock-snow-r9-proof
+          name: se-g77-terrain3d-rock-snow-r10-proof
           path: |
             godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-probe.json
             godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-imported-topdown.png
