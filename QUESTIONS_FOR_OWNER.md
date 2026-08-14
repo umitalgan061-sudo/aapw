@@ -375,3 +375,16 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   is still open, unchanged from the run-336 entry above:** `speedMps = 2.0` remains a flat, non-grade-
   aware constant, and carts remain desktop-only. Both remain this run's own engineering judgment,
   same "temporary default, no real playtest yet" category as every prior entry in this file.
+
+- **✅ ÇÖZÜLDÜ (run 338, ADR-0284) Grade-aware cart speed — `speedMps`'s "flat, non-grade-aware
+  constant" gap, restated in the run-336/337 entries above across two runs, is now closed.** A cart's
+  speed now scales with the real terrain grade under it, in its current direction of travel — unchanged
+  at/under `world/roadPathfinder.js`'s own `ROAD_COMFORT_GRADE_DEGREES` (10°), easing down to
+  `UPHILL_MIN_SPEED_FRACTION` (0.35x base) climbing and up to `DOWNHILL_MAX_SPEED_FRACTION` (1.3x base,
+  capped) descending, both clamping at a new `STEEP_GRADE_DEGREES` (30°). **Temporary defaults used
+  (this run's own engineering judgment, no real playtest yet — same category as every prior entry
+  here):** `STEEP_GRADE_DEGREES=30`, `UPHILL_MIN_SPEED_FRACTION=0.35`, `DOWNHILL_MAX_SPEED_FRACTION=1.3`,
+  and the linear (not curved) easing shape between the comfort and steep thresholds. Carts remain
+  desktop-only (unchanged, not this run's scope). Revisit the three constants above once a real
+  playtest exists, if the uphill slowdown reads as too severe/mild or the downhill speedup as
+  too tame/alarming.

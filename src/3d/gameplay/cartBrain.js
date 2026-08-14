@@ -34,6 +34,7 @@
  */
 
 import * as THREE from 'three';
+import { ROAD_COMFORT_GRADE_DEGREES } from '../world/roadPathfinder.js';
 
 /** Wood/iron/horse palette — kept in its own warm, muted family so a cart reads as "medieval cargo
  * traffic" against `world/roads.js`'s tan `ROAD_COLOR` (0x9c7b4a) without matching it exactly (a
@@ -83,6 +84,62 @@ const BASE_CART_CONFIG = {
  * rig's true geometric middle, close to the horse) covers the whole footprint far more tightly than
  * a circle centered on the axle would — same "generous at the edges, never under-blocks" precedent
  * `createCircleCollider`'s own doc comment already established for village houses. */
+/** Grade-aware speed calibration (run 338, closing run 336/ADR-0282's own named gap: "the cart moves
+ * at one constant speedMps regardless of a given road segment's real grade"). A horse leans into an
+ * uphill pull and eases off downhill rather than holding one pace regardless of slope — this scales
+ * `CART_CONFIG.speedMps` by the *signed* grade of the polyline segment currently under the cart, in
+ * its direction of travel (uphill when moving from a lower point to a higher one, downhill the
+ * reverse — the same edge is uphill one way and downhill the other, so this is direction-of-travel
+ * dependent, not a per-edge constant).
+ *
+ * Reuses `world/roadPathfinder.js`'s own `ROAD_COMFORT_GRADE_DEGREES` (10°) as the "still comfortable"
+ * reference rather than inventing a second grade constant — the road network already treats grades at
+ * or under this as effectively free to route, so a cart crossing one should barely need to slow. The
+ * upper reference, `STEEP_GRADE_DEGREES`, is this pass's own first-pass judgment (no prior reference
+ * value in this codebase, same "temporary default, no real playtest yet" category as `CART_CONFIG`'s
+ * own doc comment already logs for speed/dimensions/count) — set just under
+ * `scripts/terrainSeatSafetyCheck.js`'s 35° foot-walkable ceiling, since a laden cart should struggle
+ * on ground a person can still climb, not merely be inconvenienced by it. Grades at/beyond it clamp to
+ * this pass's own minimum/maximum multiplier rather than slowing/speeding without bound. */
+const STEEP_GRADE_DEGREES = 30;
+/** Speed multiplier at/beyond `STEEP_GRADE_DEGREES` uphill — a labouring walk, not a stop (this world's
+ * roads are always routable per `world/roadPathfinder.js`'s own module doc, so a cart is never asked
+ * to climb something impassable, just something slow). */
+const UPHILL_MIN_SPEED_FRACTION = 0.35;
+/** Speed multiplier at/beyond `STEEP_GRADE_DEGREES` downhill — capped well under "runaway wagon" so the
+ * effect reads as "eases off the brake" rather than a physically-simulated freewheel. */
+const DOWNHILL_MAX_SPEED_FRACTION = 1.3;
+
+/**
+ * Signed grade, in degrees, of the straight segment from `a` to `b` (positive = `b` higher than `a`).
+ * Matches `world/roadPathfinder.js`'s own horizontal-distance convention for "run" (XZ only, ignoring
+ * the rise itself in the denominator) so this reads the same physical angle the road network's own
+ * routing cost already reasons about.
+ * @param {{x: number, y: number, z: number}} a
+ * @param {{x: number, y: number, z: number}} b
+ * @returns {number}
+ */
+function segmentGradeDegrees(a, b) {
+	const runMeters = Math.hypot(b.x - a.x, b.z - a.z);
+	if (runMeters < 1e-6) return 0; // degenerate/zero-length segment — no defined slope, treat as flat
+	return (Math.atan2(b.y - a.y, runMeters) * 180) / Math.PI;
+}
+
+/**
+ * Converts a signed direction-of-travel grade into a speed multiplier: exactly 1 (no slowdown) at or
+ * under `ROAD_COMFORT_GRADE_DEGREES` — matching the road network's own "effectively free" threshold —
+ * then eases down when climbing / eases up (capped) when descending, linear out to
+ * `STEEP_GRADE_DEGREES` in each direction, clamped beyond it.
+ * @param {number} travelGradeDegrees Positive = climbing in the cart's current direction of travel.
+ * @returns {number}
+ */
+function gradeSpeedMultiplier(travelGradeDegrees) {
+	const absGrade = Math.abs(travelGradeDegrees);
+	if (absGrade <= ROAD_COMFORT_GRADE_DEGREES) return 1;
+	const t = Math.min(1, (absGrade - ROAD_COMFORT_GRADE_DEGREES) / (STEEP_GRADE_DEGREES - ROAD_COMFORT_GRADE_DEGREES));
+	return travelGradeDegrees >= 0 ? 1 - t * (1 - UPHILL_MIN_SPEED_FRACTION) : 1 + t * (DOWNHILL_MAX_SPEED_FRACTION - 1);
+}
+
 const RIG_BACK_METERS = -(BASE_CART_CONFIG.bedLengthMeters / 2);
 const RIG_FRONT_METERS = BASE_CART_CONFIG.wheelbaseMeters / 2 + BASE_CART_CONFIG.harnessGapMeters + BASE_CART_CONFIG.horseBodyLengthMeters + 0.2;
 
@@ -133,7 +190,10 @@ function buildArcLengthTable(points) {
  * @param {{x: number, y: number, z: number}[]} points
  * @param {number[]} cumulative `buildArcLengthTable(points)`'s output for the same `points`.
  * @param {number} distanceMeters
- * @returns {{x: number, y: number, z: number, tangentX: number, tangentZ: number}}
+ * @returns {{x: number, y: number, z: number, tangentX: number, tangentZ: number, gradeDegrees: number}}
+ *   `gradeDegrees` (run 338) is the bracketing segment's own signed grade from its lower-index point
+ *   to its higher-index point (see `segmentGradeDegrees`) — direction-of-travel sign is the caller's
+ *   job, since the same segment is uphill one travel direction and downhill the other.
  */
 function sampleAlongPath(points, cumulative, distanceMeters) {
 	const total = cumulative[cumulative.length - 1];
@@ -157,6 +217,7 @@ function sampleAlongPath(points, cumulative, distanceMeters) {
 		z: a.z + (b.z - a.z) * t,
 		tangentX: b.x - a.x,
 		tangentZ: b.z - a.z,
+		gradeDegrees: segmentGradeDegrees(a, b),
 	};
 }
 
@@ -333,7 +394,15 @@ export function createCartBeing({ cartId, edge, mulberry32 }) {
 				return;
 			}
 
-			distanceTravelledMeters += direction * CART_CONFIG.speedMps * delta;
+			// Grade-aware speed (run 338, ADR-0284): read the segment grade under the cart's *current*
+			// position — before moving — in its current direction of travel, so this frame's motion
+			// already reflects whatever slope the cart is on right now rather than lagging a frame
+			// behind. See `gradeSpeedMultiplier`'s own doc comment for the calibration.
+			const currentSample = sampleAlongPath(points, cumulative, distanceTravelledMeters);
+			const travelGradeDegrees = direction * currentSample.gradeDegrees;
+			const effectiveSpeedMps = CART_CONFIG.speedMps * gradeSpeedMultiplier(travelGradeDegrees);
+
+			distanceTravelledMeters += direction * effectiveSpeedMps * delta;
 			if (distanceTravelledMeters >= totalLengthMeters) {
 				distanceTravelledMeters = totalLengthMeters;
 				direction = -1;
@@ -353,8 +422,10 @@ export function createCartBeing({ cartId, edge, mulberry32 }) {
 			}
 
 			// Rolling wheels: angular speed = linear speed / radius, same real-wheel relationship,
-			// signed by travel direction so the wheels visibly reverse when the cart turns around.
-			wheelSpinRadians += (direction * CART_CONFIG.speedMps * delta) / CART_CONFIG.wheelRadiusMeters;
+			// signed by travel direction so the wheels visibly reverse when the cart turns around, and
+			// now scaled by this frame's own grade-eased speed so the wheels visibly labour uphill
+			// instead of spinning at a constant rate regardless of slope.
+			wheelSpinRadians += (direction * effectiveSpeedMps * delta) / CART_CONFIG.wheelRadiusMeters;
 			for (const pivot of wheelPivots) pivot.rotation.x = wheelSpinRadians;
 		},
 		dispose() {
