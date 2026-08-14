@@ -106,7 +106,9 @@ jobs:
       - name: Bind runtime smoothing evidence
         run: |
           node scripts/checkNWG10RuntimeSmoothingEvidence.mjs \
+            --topology=artifacts/nw-g10-runtime-smoothing/g10-runtime-topology.json \
             --smoothing=artifacts/nw-g10-runtime-smoothing/g10-runtime-smoothing-metrics.json \
+            --near-far=artifacts/nw-g10-runtime-smoothing/g10-runtime-smoothed-near-far.json \
             --topdown=artifacts/nw-g10-runtime-smoothing/g10-runtime-smoothed-full-world-3d-topdown.json \
             --png=artifacts/nw-g10-runtime-smoothing/g10-runtime-smoothed-full-world-3d-topdown.png \
             --out=artifacts/nw-g10-runtime-smoothing/evidence-manifest.json | tee "$RUNNER_TEMP/evidence.log"
