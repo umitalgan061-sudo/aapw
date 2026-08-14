@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'src/3d/world/worldReferenceReliefField.js'
+      - 'godot/terrain-authoring/lib/worldReferenceReliefField.mjs'
       - 'scripts/checkNWG10CanonicalReliefField.mjs'
       - 'scripts/checkNWG10CanonicalReliefGuardBands.mjs'
       - 'scripts/checkNWG10CanonicalReliefNoGrid.mjs'
@@ -44,7 +44,7 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceReliefField.js|scripts/checkNWG10CanonicalReliefField.mjs|scripts/checkNWG10CanonicalReliefGuardBands.mjs|scripts/checkNWG10CanonicalReliefNoGrid.mjs|scripts/emitNWG10CanonicalReliefProbe.mjs|scripts/checkNWG10CanonicalReliefEvidence.mjs|godot/terrain-authoring/scripts/validate_g10_canonical_relief_field.gd|\.github/workflows/nw-g10-canonical-relief-field.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/lib/worldReferenceReliefField.mjs|scripts/checkNWG10CanonicalReliefField.mjs|scripts/checkNWG10CanonicalReliefGuardBands.mjs|scripts/checkNWG10CanonicalReliefNoGrid.mjs|scripts/emitNWG10CanonicalReliefProbe.mjs|scripts/checkNWG10CanonicalReliefEvidence.mjs|godot/terrain-authoring/scripts/validate_g10_canonical_relief_field.gd|\.github/workflows/nw-g10-canonical-relief-field.yml)$' | wc -l)" -eq 0
           test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 8
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
@@ -59,7 +59,7 @@ jobs:
       - name: Syntax deterministic morphology guard bands and no-grid contract
         run: |
           set -euo pipefail
-          node --check src/3d/world/worldReferenceReliefField.js
+          node --check godot/terrain-authoring/lib/worldReferenceReliefField.mjs
           node --check scripts/checkNWG10CanonicalReliefField.mjs
           node --check scripts/checkNWG10CanonicalReliefGuardBands.mjs
           node --check scripts/checkNWG10CanonicalReliefNoGrid.mjs
