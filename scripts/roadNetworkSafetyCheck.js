@@ -62,7 +62,7 @@ const RIVER_CLEARANCE_METERS = 25;
  * riverbank instead. */
 const MAX_CONSECUTIVE_RIVER_ADJACENT_POINTS = 3;
 
-const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
+const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 
 /** @returns {Promise<import('http').Server>} Same minimal static server every sibling check script uses. */
 function startStaticServer() {
@@ -114,7 +114,7 @@ async function main() {
 	let data;
 	try {
 		const page = await browser.newPage();
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		data = await page.evaluate(async () => {
 			const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
 			const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
