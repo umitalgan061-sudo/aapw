@@ -14,12 +14,16 @@ const files = {
   fullWorldTopdown: path.join(out, 'g77-rock-snow-full-world-topdown.png'),
 };
 const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
+const pngSignature = Buffer.from([137,80,78,71,13,10,26,10]);
+const pngDimensions = { importedTerrain3D:[257,257], near:[960,640], far:[960,640], localTopdown:[960,640], fullWorldTopdown:[1200,800] };
 const evidence = {};
 for (const [name, file] of Object.entries(files)) {
   const resolved = path.resolve(root, file);
   if (!fs.existsSync(resolved)) throw new Error(`missing G77 evidence: ${name}`);
   const bytes = fs.readFileSync(resolved);
   if (bytes.length < (name === 'sourceProbe' ? 1024 : 4096)) throw new Error(`undersized G77 evidence: ${name}=${bytes.length}`);
+  if (name !== 'sourceProbe' && !bytes.subarray(0,8).equals(pngSignature)) throw new Error(`invalid PNG signature: ${name}`);
+  if (name !== 'sourceProbe' && (bytes.readUInt32BE(16) !== pngDimensions[name][0] || bytes.readUInt32BE(20) !== pngDimensions[name][1])) throw new Error(`unexpected PNG dimensions: ${name}`);
   evidence[name] = { bytes: bytes.length, sha256: sha256(bytes) };
 }
 if (new Set(['near','far','localTopdown','fullWorldTopdown'].map((k) => evidence[k].sha256)).size !== 4) throw new Error('visual evidence frames are not distinct');
