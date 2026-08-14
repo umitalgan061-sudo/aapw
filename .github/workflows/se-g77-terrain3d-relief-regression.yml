@@ -1,7 +1,7 @@
 name: SE G77 Terrain3D Relief Exact Main Regression
 on:
   push:
-    branches: [agent/kizil-ufuk-g77-terrain3d-relief-r2-20260813]
+    branches: [agent/kizil-ufuk-g77-relief-exact-aa89-20260814]
   pull_request:
     branches: [main]
 permissions: { contents: read }
