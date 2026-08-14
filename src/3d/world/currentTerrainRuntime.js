@@ -174,9 +174,22 @@ function authoredCellAt(nx, ny) {
 
 function applyCanonicalDryLandFloor(nx, ny, heightMeters) {
   const hydrology = sampleSeatSafeReferenceHydrology(nx, ny, PROTECTED_SEATS, PROTECTION_RADII);
-  if (hydrology.water) return heightMeters;
   const protectedClearance = MIN_PROTECTED_CLEARANCE_METERS
     + (INLAND_PROTECTED_CLEARANCE_METERS - MIN_PROTECTED_CLEARANCE_METERS) * hydrology.protectedLandWeight;
+
+  // A protected seat can legitimately sit in a coarse raw-water cell. The hydrology overlay's
+  // protectedLand flag is binary at the protection-radius edge, but its weight is smooth. Applying
+  // a full dry-land clamp anywhere weight > 0 therefore created an artificial vertical shoreline at
+  // that edge. Raise raw-water terrain toward the seat-safe floor by the same smooth protection
+  // weight instead, so the protected island reaches the required dry height at the seat and blends
+  // continuously back to the untouched seabed at the radius boundary.
+  if (hydrology.rawWater) {
+    if (!hydrology.protectedLand) return heightMeters;
+    const clearance = Math.max(MIN_LAND_CLEARANCE_METERS, protectedClearance);
+    const protectedFloor = Math.max(heightMeters, SEA_LEVEL + clearance);
+    return lerp(heightMeters, protectedFloor, hydrology.protectedLandWeight);
+  }
+
   const clearance = hydrology.protectedLand
     ? Math.max(MIN_LAND_CLEARANCE_METERS, protectedClearance)
     : MIN_LAND_CLEARANCE_METERS;
