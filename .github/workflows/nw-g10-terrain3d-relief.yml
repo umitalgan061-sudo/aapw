@@ -10,6 +10,7 @@ on:
       - 'godot/terrain-authoring/geocells/nw/g10_relief.mjs'
       - 'scripts/checkNWG10Relief.mjs'
       - 'scripts/checkNWG10ReliefVisualEvidence.mjs'
+      - 'scripts/checkNWG10ReliefEvidenceManifest.mjs'
       - 'godot/terrain-authoring/scripts/validate_g10_terrain3d_relief.gd'
       - 'godot/terrain-authoring/corner_claims/NW.json'
       - '.github/workflows/nw-g10-terrain3d-relief.yml'
@@ -32,7 +33,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
 
-      - name: Exact-main six-file scope and quota
+      - name: Exact-main seven-file scope and quota
         run: |
           set -euo pipefail
           git fetch origin main
@@ -42,8 +43,8 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g10_relief.mjs|scripts/checkNWG10Relief.mjs|scripts/checkNWG10ReliefVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g10_terrain3d_relief.gd|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g10-terrain3d-relief.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 6
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/nw/g10_relief.mjs|scripts/checkNWG10Relief.mjs|scripts/checkNWG10ReliefVisualEvidence.mjs|scripts/checkNWG10ReliefEvidenceManifest.mjs|godot/terrain-authoring/scripts/validate_g10_terrain3d_relief.gd|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g10-terrain3d-relief.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 7
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "G10 Relief quota additions=$A deletions=$D total=$((A+D))"
@@ -68,6 +69,7 @@ jobs:
           node --check godot/terrain-authoring/geocells/nw/g10_relief.mjs
           node --check scripts/checkNWG10Relief.mjs
           node --check scripts/checkNWG10ReliefVisualEvidence.mjs
+          node --check scripts/checkNWG10ReliefEvidenceManifest.mjs
           node scripts/checkNWG10Hydrology.mjs
           node scripts/checkNWG10Biome.mjs
           mkdir -p godot/terrain-authoring/.terrain3d-proof
@@ -126,6 +128,8 @@ jobs:
           test -s artifacts/nw-g10-relief-visual/g10-relief-near.png
           test -s artifacts/nw-g10-relief-visual/g10-relief-far.png
           test -s artifacts/nw-g10-relief-visual/g10-relief-full-world-topdown.png
+          node scripts/checkNWG10ReliefEvidenceManifest.mjs | tee "$RUNNER_TEMP/manifest.log"
+          grep -F 'NW_G10_RELIEF_EVIDENCE_MANIFEST_OK' "$RUNNER_TEMP/manifest.log"
 
       - name: HTerrain world settlement road and platform regressions
         run: |
@@ -162,3 +166,4 @@ jobs:
             godot/terrain-authoring/.terrain3d-proof/g10-relief-dense.json
             godot/terrain-authoring/.terrain3d-proof/g10-relief-imported-topdown.png
             artifacts/nw-g10-relief-visual/
+            artifacts/nw-g10-relief-evidence-manifest.json
