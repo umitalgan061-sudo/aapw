@@ -70,6 +70,17 @@ function publishRuntimeUse(kind) {
 /** Drop-in replacement for terrain.js createHeightSampler used by physics/rivers/scene systems. */
 export function createHeightSampler(_seed, _fbmOptions, flattenPads = []) {
   publishRuntimeUse('sampler');
+  // Keep canonical settlement-pad metadata truthful for callers that retain the same objects after
+  // constructing a sampler (including ADR-0118's boundary guard): if the adapter widens a known
+  // 38m/75m castle pad, its caller-visible outer radius must describe the same 225m influence the
+  // returned sampler actually applies. Custom/editor pads never clone here and therefore retain
+  // their caller-owned radii unchanged.
+  for (let index = 0; index < flattenPads.length; index += 1) {
+    const currentPad = currentTerrainFlattenPads([flattenPads[index]])[0];
+    if (currentPad !== flattenPads[index] && Object.isExtensible(flattenPads[index])) {
+      flattenPads[index].outerRadiusMeters = currentPad.outerRadiusMeters;
+    }
+  }
   return createCurrentTerrainHeightSampler({ flattenPads: currentTerrainFlattenPads(flattenPads) });
 }
 
