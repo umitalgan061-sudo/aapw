@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { sampleReferenceWaterMask } from '../src/3d/world/worldReferenceWaterMask.js';
-import { sampleWorldReferenceRelief } from '../src/3d/world/worldReferenceReliefField.js';
+import { sampleWorldReferenceRelief } from '../godot/terrain-authoring/lib/worldReferenceReliefField.mjs';
 
 const CELL = Object.freeze({ xMin: 1 / 8, xMax: 2 / 8, yMin: 0, yMax: 1 / 8 });
 const STEP = 1 / 16384;
