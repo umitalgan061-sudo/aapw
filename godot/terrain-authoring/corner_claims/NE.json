@@ -7,7 +7,7 @@
   "layer": "Rock/Snow",
   "branch": "terrain/ne-g70-terrain3d-rock-snow-r1-exact-20260814",
   "pr": 477,
-  "last_commit": "759fa52854c4f15f9b36d02ad991c31c7590cb8f",
+  "last_commit": null,
   "selection_reason": "G70 Coast/Hydrology, Macro Albedo/Biome and Relief/Height Character are merged. Strict same-cell order therefore advances to Rock/Snow. Canonical G70 is 96/96 open sea, so this layer must preserve the merged submerged height and prove zero terrestrial rock/snow/control leakage rather than inventing islands, coastline, submarine ridges or a GeoCell-shaped material patch.",
   "quality_before": {
     "base_cells": 96,
@@ -59,6 +59,6 @@
     "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
   },
   "engine": "merged G70 Hydrology + Macro Biome + Relief provenance -> zero terrestrial Rock/Snow weights for canonical open sea -> pinned Terrain3D v1.0.2-stable 257x257 Height+Control import/regions/save/round-trip/255-256 seam/LOD0 bake; HTerrain retained as regression/control",
-  "exact_base": "0ee9a7b4cab77b5f378045fd9f1e1ab415c04e2c",
-  "updated_at": "2026-08-14T07:26:00+03:00"
+  "exact_base": "a6366a507aac89a31386d6ef0f42a75ed3609c46",
+  "updated_at": "2026-08-14T07:36:00+03:00"
 }
