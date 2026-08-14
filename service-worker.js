@@ -4,6 +4,22 @@ self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/world/currentTerrainRuntime.js');
 });
 
+// Current 3D runtime offline dependency completion.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/renderQuality.js');
+    GAME3D_SHELL_FILES.push('./src/3d/world/g01Terrain3dRuntimeAdapter.js');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/white_horse_bEdE4rmZy9.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/cow_26zM1outCr.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/bull_a8PIIYwF7r.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/deer_T6Cs7tmMHJ.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/stag_tQdzbZ1Cmw.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/fox_Bc97C66HKi.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/husky_wcWiuEqwzq.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/alpaca_bCVFD48i2l.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/zebra_iclPBR6SBZ.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/sheep_C39AUXUUes.glb');
+});
+
 // Run339 pause-menu offline shell extension — `ui/pauseMenu.js` (ADR-0285), now imported by
 // `game3d.js`, so an offline PWA load needs it cached or the scene cannot boot at all.
 self.addEventListener('install', () => {
