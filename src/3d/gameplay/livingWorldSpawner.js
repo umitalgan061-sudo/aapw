@@ -24,6 +24,7 @@ import { spawnConfiguredCarts } from './cartBrain.js';
 import { mulberry32 } from '../world/terrain.js';
 import { spawnConfiguredDragons } from './dragons.js';
 import { isCoarsePointerDevice } from '../sceneManager.js';
+import { createDynamicCircleCollider } from '../physics.js';
 
 /**
  * Spawns NPCs, animals, procedural creatures, carts, and dragons into `state.scene`, storing the
@@ -112,6 +113,19 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 	state.carts = isMobileClassCreatures ? [] : spawnConfiguredCarts({ roadEdges: state.roadEdges, mulberry32 });
 	for (const cart of state.carts) state.scene.add(cart.object3D);
 	console.info(`[game3d] Spawned ${state.carts.length} FAZ 6 cart(s).`);
+
+	// Run 337: closes the "no player-cart collision" gap `QUESTIONS_FOR_OWNER.md`'s run-336 cart
+	// entry named. `state.playerCollider` is `sceneManager.js`'s already-built, already-in-use
+	// castle+village `createComposedCollider` — carts don't exist yet when that object is
+	// constructed, so this registers a live, position-re-querying collider onto it after the fact
+	// (`registerDynamicCollider`) rather than needing `sceneManager.js` itself to know about carts.
+	// A no-op on mobile (`state.carts` is empty there, so there is nothing to register) — matches
+	// `spawnConfiguredCarts`'s own desktop-only scope, no separate guard needed.
+	if (state.carts.length > 0 && typeof state.playerCollider?.registerDynamicCollider === 'function') {
+		state.playerCollider.registerDynamicCollider(
+			createDynamicCircleCollider(() => state.carts.map((cart) => cart.getCollisionCircle())),
+		);
+	}
 
 	// FAZ 7 (run 53): first dragon, circling a kingdom seat at a fixed altitude — see
 	// `gameplay/dragons.js` and DECISIONS.md ADR-0071. Same spawn-wiring shape as NPCs/animals

@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG } from './config.js';
 import { PLAYER_CONFIG } from './gameplay/gameplayConfig.js';
 import { ChunkManager } from './world/chunkManager.js';
-import { createGroundCollider, createSettlementCollider, createCircleCollider } from './physics.js';
+import { createGroundCollider, createSettlementCollider, createCircleCollider, createComposedCollider } from './physics.js';
 import {
 	createWater,
 	setWaterDepthField,
@@ -283,15 +283,15 @@ export function createScene(canvas) {
 
 	// Run 330's own "no collision" technical debt, fixed: one circle per house (physics.js's
 	// createCircleCollider), same default player half-width as the castle collider above. Combined
-	// with the castle collider into one `playerCollider` so gameplay/player.js only ever needs to
-	// call a single resolveXZ — it doesn't need to know how many separate obstacle systems exist.
+	// with the castle collider into one `playerCollider` (physics.js's `createComposedCollider`, run
+	// 337 — replaces this file's own hand-rolled two-collider chain object with the same behavior)
+	// so gameplay/player.js only ever needs to call a single resolveXZ — it doesn't need to know how
+	// many separate obstacle systems exist. `registerDynamicCollider` also lets a later-spawned,
+	// moving obstacle (`gameplay/cartBrain.js`'s carts, added by `gameplay/livingWorldSpawner.js`
+	// after this function has already returned) join the same chain without this function needing to
+	// know about it in advance.
 	const villageCollider = createCircleCollider(villagesResult.houses);
-	const playerCollider = {
-		resolveXZ(worldX, worldZ) {
-			const afterSettlements = settlementCollider.resolveXZ(worldX, worldZ);
-			return villageCollider.resolveXZ(afterSettlements.x, afterSettlements.z);
-		},
-	};
+	const playerCollider = createComposedCollider([settlementCollider, villageCollider]);
 
 	return {
 		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, playerCollider, sky, stars, water, river, waterfalls,

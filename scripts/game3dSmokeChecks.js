@@ -21,6 +21,12 @@
  * set (route a new check by available budget once the "obvious" file is full, rather than push a
  * flagged file over its cap) — see this file's own history above.
  *
+ * **Run 337 addition:** `checkPlayerCartDynamicCollider` (player-cart collision, ADR-0283) landed
+ * here rather than `game3dSmokeChecksMovement.js` for the same two reasons — it's conceptually closer
+ * to `checkSettlementCollider`'s own "does `physics.js`'s collider math actually resolve" scope than
+ * to that file's wander/patrol/flee AI checks, and `game3dSmokeChecksMovement.js` was already at
+ * 583/600 (this file had far more headroom).
+ *
  * Every function here takes `(browser, baseUrl)` and returns `Promise<{name, ok, details}>`. See
  * each function's own comment for what it guards against.
  * @module scripts/game3dSmokeChecks
@@ -445,10 +451,93 @@ async function checkStarfieldTwinkle(browser, baseUrl) {
 	return { name: 'starfield twinkle (stars.js, ADR-0112)', ok, details };
 }
 
+/**
+ * Regression guard for run 337's player-cart collision — `physics.js`'s new
+ * `createDynamicCircleCollider`/`createComposedCollider`, which `sceneManager.js`'s `playerCollider`
+ * now uses and `gameplay/livingWorldSpawner.js` extends with each live cart's own
+ * `getCollisionCircle()` after carts spawn. Every obstacle this project collided against before this
+ * (castle keep/towers, village houses) is fixed the instant the scene is built, so a plain
+ * `createCircleCollider` snapshot was always enough; a cart moves every frame, so this specifically
+ * proves the *dynamic* re-query behavior a static collider cannot provide — not just "does resolveXZ
+ * push a point out of a circle" (already covered by `checkSettlementCollider` above and
+ * `game3dSmokeChecksMovement.js`'s `checkNpcAnimalCreatureObstacleCollider`). Same fabricated-input,
+ * manual step-toward-obstacle pattern `checkSettlementCollider` above already established, rather
+ * than driving the full `gameplay/player.js` controller (its own FBX asset loads are unrelated to
+ * what this check verifies).
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
+async function checkPlayerCartDynamicCollider(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { createComposedCollider, createDynamicCircleCollider } = await import('/src/3d/physics.js');
+
+			const playerRadiusMeters = 0.4;
+			// A movable "cart" circle — its own `x` is mutated between phases below to simulate a cart
+			// that has travelled since the collider was built, proving the collider re-queries live
+			// position rather than freezing what it saw at construction (a static createCircleCollider
+			// could never pass the second phase below).
+			const cartState = { x: 10, z: 0, radius: 2 };
+			const composed = createComposedCollider([]);
+			composed.registerDynamicCollider(createDynamicCircleCollider(() => [cartState], playerRadiusMeters));
+
+			function walkToward(collider, targetXSign) {
+				let x = 0;
+				let z = 0;
+				for (let i = 0; i < 3000; i++) {
+					({ x, z } = collider.resolveXZ(x + targetXSign * 0.05, z));
+				}
+				return x;
+			}
+
+			const stopX1 = walkToward(composed, 1);
+			const expectedStop1 = cartState.x - (cartState.radius + playerRadiusMeters);
+			const stoppedAtCart1 = Math.abs(stopX1 - expectedStop1) < 1e-6;
+
+			// Move the cart further away and re-approach from the origin — a static snapshot would
+			// still stop at expectedStop1 here; a correctly dynamic collider stops at expectedStop2.
+			cartState.x = 40;
+			const stopX2 = walkToward(composed, 1);
+			const expectedStop2 = cartState.x - (cartState.radius + playerRadiusMeters);
+			const stoppedAtCart2 = Math.abs(stopX2 - expectedStop2) < 1e-6;
+
+			// registerDynamicCollider must take effect even when called *after* the composed object was
+			// already built and handed to a caller — the exact call order gameplay/livingWorldSpawner.js
+			// uses (carts spawn, and their collider is registered, strictly after sceneManager.js has
+			// already constructed and returned `playerCollider`).
+			const lateComposed = createComposedCollider([]);
+			const beforeRegister = lateComposed.resolveXZ(cartState.x, cartState.z);
+			const noOpBeforeRegister = beforeRegister.x === cartState.x && beforeRegister.z === cartState.z;
+			lateComposed.registerDynamicCollider(createDynamicCircleCollider(() => [cartState], playerRadiusMeters));
+			const afterRegister = lateComposed.resolveXZ(cartState.x, cartState.z);
+			const pushedAfterRegister = Math.hypot(afterRegister.x - cartState.x, afterRegister.z - cartState.z) > 1;
+
+			return {
+				stopX1, expectedStop1, stoppedAtCart1,
+				stopX2, expectedStop2, stoppedAtCart2,
+				noOpBeforeRegister, pushedAfterRegister,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = result.stoppedAtCart1 && result.stoppedAtCart2 && result.noOpBeforeRegister && result.pushedAfterRegister;
+	const details = ok
+		? `player stopped at x=${result.stopX1.toFixed(2)} against the cart's first position (x=10), then ` +
+			`at x=${result.stopX2.toFixed(2)} after the cart moved to x=40 — proves the collider re-queries ` +
+			`live circle position every frame rather than freezing it at construction; registerDynamicCollider ` +
+			`is a no-op before being called and takes effect immediately after, even post-construction`
+		: `FAILED assertion(s): ${JSON.stringify(result)}`;
+	return { name: 'player-cart dynamic collider (run 337)', ok, details };
+}
+
 module.exports = {
 	checkSettlementCollider,
 	checkJumpArc,
 	checkInteractionController,
 	checkInteractionPromptTap,
 	checkStarfieldTwinkle,
+	checkPlayerCartDynamicCollider,
 };

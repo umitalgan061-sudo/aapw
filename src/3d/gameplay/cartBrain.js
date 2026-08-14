@@ -17,12 +17,13 @@
  * edge (`{points: {x,y,z}[]}`, already routed slope-aware and terrain-sampled by
  * `world/roadPathfinder.js` — this module does no ground sampling of its own, it only interpolates
  * the edge's own points) and ping-pongs between the edge's two endpoints: travel forward until the
- * far end, pause briefly (loading/unloading flavor), reverse, travel back, pause, repeat. No
- * `playerCollider` consultation and no player-awareness — a cart is background road traffic, not a
- * reactive being; it does not flee, chase, or notice the player, and (same as `world/villages.js`'s
- * still-open "no house collision" gap already recorded in `QUESTIONS_FOR_OWNER.md`) the player can
- * currently walk through a cart. That is a named, deliberate scope boundary for this first pass, not
- * an oversight — see this module's own spawn function doc comment.
+ * far end, pause briefly (loading/unloading flavor), reverse, travel back, pause, repeat. Still no
+ * `playerCollider` consultation and no player-awareness — a cart never reacts to, flees, or notices
+ * the player, purely background road traffic on a committed path. It is, however, itself a *solid*
+ * obstacle as of run 337: `getCollisionCircle()` (below) feeds `physics.js`'s
+ * `createDynamicCircleCollider` so the player can no longer walk through a cart — the one-way
+ * "player notices the cart, the cart never notices the player" split is deliberate, not an
+ * oversight (a self-driving cart reacting to being bumped would need its own AI, out of scope here).
  *
  * Determinism: each cart's starting position along its edge and initial travel direction come from a
  * `mulberry32(hashSeedString(cartId) ^ tag)` stream (same "string id -> FNV-1a -> mulberry32" shape
@@ -48,7 +49,7 @@ const HORSE_MANE_COLOR = 0x241a10;
  * `CREATURE_BEHAVIOR_PROFILES` doc comment already logs — scaled against `world/roads.js`'s own
  * 8m-wide cart road (a ~1.3m track width comfortably fits two carts passing) and the player's own
  * ~1.8m body height (`PLAYER_CONFIG`) for a proportionate wagon. */
-export const CART_CONFIG = Object.freeze({
+const BASE_CART_CONFIG = {
 	speedMps: 2.0,
 	turnRateRadiansPerSecond: 1.6,
 	pauseAtEndSeconds: 2.5,
@@ -69,6 +70,31 @@ export const CART_CONFIG = Object.freeze({
 	/** Minimum road-edge length, in meters, for an edge to be worth putting a cart on — short enough
 	 * an edge and a full stop-turn-stop cycle reads as pointless jitter rather than real travel. */
 	minEdgeLengthMeters: 60,
+};
+
+/** Front/back extent of the whole wagon-plus-horse rig along its own local +Z (forward), derived
+ * from the same offsets `createCartMesh` places each part at — the wagon's back rail sits at
+ * `-bedLengthMeters/2`, the horse's own front (body + a small head/mane margin) sits at
+ * `wheelbaseMeters/2 + harnessGapMeters + horseBodyLengthMeters + 0.2`. Used below to size and
+ * center run 337's player-cart collision circle (see `getCollisionCircle()`) — `physics.js`
+ * deliberately has no rotated-box math (see its own doc comment on why castles/houses use cheap
+ * analytic shapes instead), and this asymmetric rig is even less rectangle-shaped than a house, so a
+ * single circle shifted forward off the wagon's own tracked axle point (which sits well behind the
+ * rig's true geometric middle, close to the horse) covers the whole footprint far more tightly than
+ * a circle centered on the axle would — same "generous at the edges, never under-blocks" precedent
+ * `createCircleCollider`'s own doc comment already established for village houses. */
+const RIG_BACK_METERS = -(BASE_CART_CONFIG.bedLengthMeters / 2);
+const RIG_FRONT_METERS = BASE_CART_CONFIG.wheelbaseMeters / 2 + BASE_CART_CONFIG.harnessGapMeters + BASE_CART_CONFIG.horseBodyLengthMeters + 0.2;
+
+export const CART_CONFIG = Object.freeze({
+	...BASE_CART_CONFIG,
+	/** Local +Z offset (meters, forward) from the cart's tracked position to the collision circle's
+	 * center — see `RIG_FRONT_METERS`/`RIG_BACK_METERS` above. */
+	collisionForwardOffsetMeters: (RIG_FRONT_METERS + RIG_BACK_METERS) / 2,
+	/** Collision circle radius (meters) — half the rig's own front-to-back span, so the circle just
+	 * covers both the wagon's back rail and the horse's front once shifted by
+	 * `collisionForwardOffsetMeters` above. */
+	collisionRadiusMeters: (RIG_FRONT_METERS - RIG_BACK_METERS) / 2,
 });
 
 /** FNV-1a 32-bit string hash — same "string id -> numeric seed" step `creatureBrain.js`'s
@@ -259,7 +285,9 @@ function createCartMesh() {
  *   One `world/roads.js` cart-road edge (`state.roadEdges` entry) — the cart travels back and forth
  *   along its real, already slope-aware-routed and terrain-sampled `points` polyline.
  * @param {(seed: number) => () => number} options.mulberry32
- * @returns {{object3D: THREE.Object3D, update: (delta: number) => void, dispose: () => void}}
+ * @returns {{object3D: THREE.Object3D, update: (delta: number) => void, dispose: () => void,
+ *   getCollisionCircle: () => {x: number, z: number, radius: number}}} `getCollisionCircle` is run
+ *   337's own addition — see its own doc comment below.
  */
 export function createCartBeing({ cartId, edge, mulberry32 }) {
 	const points = edge.points;
@@ -332,6 +360,27 @@ export function createCartBeing({ cartId, edge, mulberry32 }) {
 		dispose() {
 			disposeMesh();
 		},
+		/**
+		 * Run 337's player-cart collision (`QUESTIONS_FOR_OWNER.md`'s run-336 cart entry's "no
+		 * player-cart collision" gap, same category `world/villages.js`'s house-collision gap already
+		 * closed at ADR-0277): a live `{x, z, radius}` circle for `physics.js`'s
+		 * `createDynamicCircleCollider`, re-queried every frame (unlike a house or a castle tower, a
+		 * cart's position changes continuously) rather than baked once at scene build. Shifted forward
+		 * off `object3D.position` by `CART_CONFIG.collisionForwardOffsetMeters` along the cart's own
+		 * current heading (`object3D.rotation.y`, the same `atan2(tangentX, tangentZ)` yaw convention
+		 * `update()`/the initial-pose block above already use) so the circle centers on the rig's true
+		 * geometric middle instead of the wagon's own tracked axle point, which sits well behind it
+		 * (see `CART_CONFIG`'s own doc comment).
+		 * @returns {{x: number, z: number, radius: number}}
+		 */
+		getCollisionCircle() {
+			const yaw = object3D.rotation.y;
+			return {
+				x: object3D.position.x + Math.sin(yaw) * CART_CONFIG.collisionForwardOffsetMeters,
+				z: object3D.position.z + Math.cos(yaw) * CART_CONFIG.collisionForwardOffsetMeters,
+				radius: CART_CONFIG.collisionRadiusMeters,
+			};
+		},
 	};
 }
 
@@ -344,14 +393,15 @@ export function createCartBeing({ cartId, edge, mulberry32 }) {
  * "longest first" instead of a random pick is the deliberate choice here); each individual cart's own
  * start position/direction still comes from a seeded stream (`createCartBeing`).
  *
- * **Named scope boundary (not a bug):** carts do not consult `playerCollider` and the player does not
- * collide with a cart — same "no house collision yet" gap `world/villages.js` already has recorded in
- * `QUESTIONS_FOR_OWNER.md` (run 330), same reasoning: a real cart/player collision box wants its own
- * follow-up, not a rushed add-on to this first pass. Desktop-only for the same reason mobile skips
- * several other desktop-disc systems (`gameplay/creatureSpawner.js`'s own doc comment) — mobile's
- * small `STREAM_RADIUS_CHUNKS` world-coverage footprint means a cart bound to a full-map-scale road
- * edge would very often be outside the streamed chunk radius entirely, popping in/out with chunk
- * streaming instead of reading as a real presence; revisit once mobile's own coverage grows.
+ * **Named scope boundary (not a bug):** carts still do not consult `playerCollider` — a cart never
+ * reacts to the player (see this module's own header). The *reverse* direction (the player colliding
+ * with a cart) closed at run 337 via `getCollisionCircle()`; see `gameplay/livingWorldSpawner.js`'s
+ * own wiring of that into `physics.js`'s `createDynamicCircleCollider`. Desktop-only for the same
+ * reason mobile skips several other desktop-disc systems (`gameplay/creatureSpawner.js`'s own doc
+ * comment) — mobile's small `STREAM_RADIUS_CHUNKS` world-coverage footprint means a cart bound to a
+ * full-map-scale road edge would very often be outside the streamed chunk radius entirely, popping
+ * in/out with chunk streaming instead of reading as a real presence; revisit once mobile's own
+ * coverage grows.
  * @param {object} options
  * @param {{fromId: string, toId: string, points: {x:number,y:number,z:number}[], lengthMeters: number}[]} options.roadEdges
  * @param {(seed: number) => () => number} options.mulberry32

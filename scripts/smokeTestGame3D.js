@@ -16,9 +16,9 @@
  * - `game3dSmokeChecksDebugTools.js` — debug-tool + world-event singleton systems: F4 debug camera,
  *   F2 debug/profiling panel, world-event system, world-event day/night gating (split out of
  *   `game3dSmokeChecksScene.js` run 88, which had reached 573/600 — see that file's own header).
- * - `game3dSmokeChecks.js` — non-movement per-entity gameplay: settlement collider, jump/gravity arc,
- *   interaction controller, interaction-prompt tap; plus (run 87, budget-placed — see that file's own
- *   header) the starfield twinkle check.
+ * - `game3dSmokeChecks.js` — non-movement per-entity gameplay: settlement collider, player-cart dynamic
+ *   collider (run 337, ADR-0283), jump/gravity arc, interaction controller, interaction-prompt tap;
+ *   plus (run 87, budget-placed — see that file's own header) the starfield twinkle check.
  * - `game3dSmokeChecksMovement.js` — ground-movement AI: wolf flee/pack-alert, NPC waypoint patrol,
  *   wolf waypoint patrol, NPC combat-stance, NPC/animal/creature obstacle collider (run 332, ADR-0278).
  * - `game3dSmokeChecksDragonFlight.js` — dragon baseline flight/awareness: circling flight, notice
@@ -96,6 +96,7 @@ async function main() {
 		results.push(await debugToolChecks.checkWorldEvents(browser, baseUrl));
 		results.push(await debugToolChecks.checkWorldEventsTimeGating(browser, baseUrl));
 		results.push(await checks.checkSettlementCollider(browser, baseUrl));
+		results.push(await checks.checkPlayerCartDynamicCollider(browser, baseUrl));
 		results.push(await checks.checkJumpArc(browser, baseUrl));
 		results.push(await checks.checkInteractionController(browser, baseUrl));
 		results.push(await checks.checkInteractionPromptTap(browser, baseUrl));

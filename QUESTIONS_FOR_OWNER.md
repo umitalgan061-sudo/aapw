@@ -364,3 +364,14 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   collision yet" gap `world/villages.js` already has open here from run 330 — a real collision box is
   its own follow-up, not rushed into this pass). Revisit any of these once a real playtest exists, or
   if grade-aware cart speed is specifically wanted.
+
+- **✅ PARTIALLY ÇÖZÜLDÜ (run 337, ADR-0283) Player-cart collision, the gap the run-336 entry above
+  named, is now closed** — the player can no longer walk through a cart (`gameplay/cartBrain.js`'s
+  `getCollisionCircle()` feeds `physics.js`'s new `createDynamicCircleCollider`, registered onto
+  `sceneManager.js`'s `playerCollider` via the also-new `createComposedCollider`/
+  `registerDynamicCollider`). The circle's size/forward-offset are this run's own geometric estimate
+  from the rig's own dimensions (not a "feel" constant — see `CART_CONFIG.collisionRadiusMeters`'s own
+  doc comment for the derivation), so no new calibration-ambiguity entry is needed for that part. **What
+  is still open, unchanged from the run-336 entry above:** `speedMps = 2.0` remains a flat, non-grade-
+  aware constant, and carts remain desktop-only. Both remain this run's own engineering judgment,
+  same "temporary default, no real playtest yet" category as every prior entry in this file.
