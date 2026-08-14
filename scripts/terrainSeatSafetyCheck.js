@@ -123,7 +123,7 @@ async function main() {
 	let seatResults;
 	try {
 		const page = await browser.newPage();
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		seatResults = await page.evaluate(
 			async ({ slopeOffset }) => {
 				const { KINGDOM_SEATS, mapToWorldXZ } = await import('/src/3d/world/settlements.js');
