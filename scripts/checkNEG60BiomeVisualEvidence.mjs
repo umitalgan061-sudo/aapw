@@ -132,7 +132,9 @@ try {
       previous = row;
     }
     lctx.putImageData(image, 0, 0);
+    ctx.filter = 'blur(4px)';
     ctx.drawImage(low, 0, 0, 1200, 800);
+    ctx.filter = 'none';
     return { outputResolution:[1200,800], contextResolution:[600,400], transitionEdges, gridOverlay:false };
   });
 
