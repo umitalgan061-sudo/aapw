@@ -115,13 +115,13 @@ jobs:
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd
           node scripts/checkWorldReferenceMap.js
           node scripts/terrainSeatSafetyCheck.js
-          node scripts/roadNetworkCheck.js
-          node scripts/roadVisualCheck.js
-          node scripts/roadMedievalSurfaceCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
-          node scripts/checkMobileRenderBudget.mjs
-          node scripts/browserSmoke.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
 
       - name: Final exact-main freshness
         run: |
