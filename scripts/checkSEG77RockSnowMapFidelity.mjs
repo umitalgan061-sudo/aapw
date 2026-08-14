@@ -1,5 +1,4 @@
 import { G77_ROCK_SNOW_POLICY, sampleG77RockSnow } from '../godot/terrain-authoring/geocells/se/g77_rock_snow.mjs';
-import { sampleG77WaterConfidence } from '../godot/terrain-authoring/geocells/se/g77_hydrology.mjs';
 
 const p = G77_ROCK_SNOW_POLICY;
 const b = p.normalizedBounds;
@@ -27,8 +26,8 @@ for (let y = 0; y < N; y += 1) {
   const ny = lerp(b.yMin, b.yMax, y / (N - 1));
   for (let x = 0; x < N; x += 1) {
     const nx = lerp(b.xMin, b.xMax, x / (N - 1));
-    const w = sampleG77WaterConfidence(nx, ny);
     const s = sampleG77RockSnow(nx, ny);
+    const w = s.waterConfidence;
     const m = Math.max(s.rockWeight, s.snowWeight);
     water[idx(x, y)] = w;
     material[idx(x, y)] = m;
