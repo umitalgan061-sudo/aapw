@@ -16,6 +16,28 @@ for (const relative of ['game3d.html', 'editor.html']) {
   console.log(`CURRENT_TERRAIN_MATERIALIZED=${relative}`);
 }
 
+const configFile = path.join(root, 'src/3d/config.js');
+let config = fs.readFileSync(configFile, 'utf8');
+const configReplacements = Object.freeze([
+  ['METERS_PER_MAP_UNIT: 1.75,', 'METERS_PER_MAP_UNIT: 1.477342100713197,'],
+  ['MAP_BOUNDS: Object.freeze({ minX: 120, maxX: 6990, minY: 0, maxY: 6170 }),', 'MAP_BOUNDS: Object.freeze({ minX: 0, maxX: 9000, minY: 0, maxY: 7000 }),'],
+  ['WORLD_WIDTH_METERS: 12022.5,', 'WORLD_WIDTH_METERS: 13296.078906418774,'],
+  ['WORLD_DEPTH_METERS: 10797.5,', 'WORLD_DEPTH_METERS: 10341.394704992379,'],
+  ['GRID_COLUMNS: 25,', 'GRID_COLUMNS: 27,'],
+  ['GRID_ROWS: 22,', 'GRID_ROWS: 21,'],
+]);
+let configChanged = false;
+for (const [before, after] of configReplacements) {
+  if (config.includes(after)) continue;
+  if (!config.includes(before)) throw new Error(`config full-map extent anchor missing: ${before}`);
+  config = config.replace(before, after);
+  configChanged = true;
+}
+if (configChanged) {
+  fs.writeFileSync(configFile, config);
+  console.log('CURRENT_TERRAIN_MATERIALIZED=src/3d/config.js');
+}
+
 const serviceWorkerFile = path.join(root, 'service-worker.js');
 const serviceWorkerBefore = fs.readFileSync(serviceWorkerFile, 'utf8');
 const offlineEntries = Object.freeze([
