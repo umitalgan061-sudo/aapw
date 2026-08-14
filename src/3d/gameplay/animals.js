@@ -307,12 +307,31 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 						{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
 					]
 				: undefined;
-			const canFlee = spawn.canFlee !== false;
+			// Species resolution (run 300+): a spawn naming a `speciesId` takes its model and its clip
+			// names from `animalConfig.SPECIES`; a spawn without one keeps the pre-existing wolf-global
+			// behavior byte-for-byte, so every legacy wolf entry is unaffected. An unknown `speciesId` is
+			// skipped with a warning rather than silently falling back to a wolf model — a mistyped
+			// species would otherwise spawn a wolf where a cow was intended, which is far harder to
+			// notice than a missing animal plus a console line.
+			const species = spawn.speciesId ? animalConfig.SPECIES?.[spawn.speciesId] : null;
+			if (spawn.speciesId && !species) {
+				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" references unknown species "${spawn.speciesId}" — skipping.`);
+				return null;
+			}
+			const clips = species?.clips;
+			// A species with no `walk` clip (e.g. sheep — genuinely absent in the source file) never
+			// patrols, even if the spawn declares a `patrol` line: driving translation with no walk cycle
+			// is exactly the sliding-model artifact ADR-0047 avoided for the rigless horse.
+			const walkClipName = species ? clips?.walk : animalConfig.WALK_CLIP_NAME;
+			const effectiveWaypoints = walkClipName ? patrolWaypoints : undefined;
+			const fleeClipName = species ? clips?.flee : animalConfig.FLEE_CLIP_NAME;
+			// Same guard on the flee side: no flee clip means no flee/pack-alert branch at all.
+			const canFlee = spawn.canFlee !== false && Boolean(fleeClipName);
 			return createWolf({
 				assetLoader,
-				modelUrl: spawn.modelUrl ?? animalConfig.WOLF_MODEL_URL,
-				idleClipName: animalConfig.IDLE_CLIP_NAME,
-				stripChildNames: animalConfig.STRIP_CHILD_NAMES,
+				modelUrl: species?.modelUrl ?? spawn.modelUrl ?? animalConfig.WOLF_MODEL_URL,
+				idleClipName: species ? clips?.idle : animalConfig.IDLE_CLIP_NAME,
+				stripChildNames: species ? (species.stripChildNames ?? []) : animalConfig.STRIP_CHILD_NAMES,
 				worldX,
 				worldZ,
 				groundY: sampleGroundY(worldX, worldZ),
@@ -320,12 +339,12 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 				name: spawn.id,
 				groundCollider,
 				playerCollider,
-				walkClipName: patrolWaypoints ? animalConfig.WALK_CLIP_NAME : undefined,
-				patrolWaypoints,
+				walkClipName: effectiveWaypoints ? walkClipName : undefined,
+				patrolWaypoints: effectiveWaypoints,
 				speedMps: animalConfig.PATROL_SPEED_MPS,
 				pauseSeconds: animalConfig.PATROL_PAUSE_SECONDS,
 				turnRateRadiansPerSecond: animalConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
-				fleeClipName: canFlee ? animalConfig.FLEE_CLIP_NAME : undefined,
+				fleeClipName: canFlee ? fleeClipName : undefined,
 				fleeTriggerRadiusMeters: canFlee ? animalConfig.FLEE_TRIGGER_RADIUS_METERS : undefined,
 				fleeSpeedMps: animalConfig.FLEE_SPEED_MPS,
 				packAlertRadiusMeters: canFlee ? animalConfig.PACK_ALERT_RADIUS_METERS : undefined,

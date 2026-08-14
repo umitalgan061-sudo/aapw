@@ -15873,3 +15873,79 @@ Mevcut runtime satırlarını silmek/değiştirmek gerekmez.
 - Rollback plan: in `gameplay/interaction.js`, remove the `isPaused = () => false` default parameter and its two `if (isPaused()) return;` guards (restores the exact prior `handleKeyDown`/`handleChoice` bodies); in `game3d.js`, remove the `isPaused: () => state.paused,` line from the `createInteractionController` call. Delete `checkDialoguePauseGate` from `game3dSmokeChecksDialogueTouch.js` and its two lines (require-side export already shared, registration + header) from `smokeTestGame3D.js`. One additive diff each, no shared state with any other system to untangle.
 - Gelecek Faz Etkisi (§8.4): none for terrain/world-scale systems (touches no height field, road topology, placement rule, or determinism fixture). The `isPaused` poll-at-entry-point shape is a reusable precedent for any future system that needs to respect `state.paused` without `game3d.js`'s tick loop restructuring itself further (e.g. a future combat-input controller) — reuse this pattern rather than re-deriving a gate per call site.
 - Concurrency re-check immediately before commit: `git fetch origin main` re-run — local `main` matched `origin/main` exactly at `ad39bc0` ("run339 menu/pause flow checkpoint"), no drift, no resync needed.
+
+## ADR-0287 — Per-species animal model/clip table: wiring 10 unused rigged models into the live world (owner session)
+
+**Risk: MEDIUM.** Adds real animated content to the live scene and changes a config contract
+(`ANIMAL_CONFIG`) that `spawnConfiguredAnimals` reads, but every pre-existing spawn path is preserved
+byte-for-byte and no terrain/hydrology/road/settlement system is touched.
+
+**Karar.** `gameplay/animalConfig.js` gains an `ANIMAL_SPECIES` table holding, per species, a
+`modelUrl` plus that model's own verified `idle`/`walk`/`flee` animation-clip names (and optional
+`stripChildNames`). `SPAWNS` entries gain a `speciesId` field; `spawnConfiguredAnimals` resolves
+model + clips from the table when one is present and keeps the legacy wolf-global constants when it
+is not. 12 species-wired spawns were added across 8 kingdom seats and the pre-existing
+`umit-horse-1` was upgraded from the rigless `ivory_stallion.glb` to a real rigged horse.
+
+**Neden (problem).** The project owner manually downloaded 10 rigged, animated animal models
+(`assets_manifest.json`, all `rigged: true, animated: true`) that were **entirely unused**: a
+repo-wide grep for each id and filename returned zero `src/` hits. They were unusable through the
+existing config shape, because `IDLE_CLIP_NAME`/`WALK_CLIP_NAME`/`FLEE_CLIP_NAME` were single global
+constants holding the *wolf* glTF's Blender-exported names (`04_Idle_Armature_0`), while these models
+name their clips differently (`Idle`/`Walk`/`Gallop`, or `Armature|…` for two of them). The
+pre-existing per-spawn `modelUrl` override was not sufficient — clip names had to become per-species
+too. `spawnConfiguredAnimals`'s own JSDoc had already predicted and sanctioned this exact refactor
+("revisit if a 3rd species needs its own knobs").
+
+**Alternatifler.**
+1. *Per-spawn clip-name overrides instead of a species table.* Rejected: the clip names are a
+   property of the asset, not of the placement, so every additional spawn of the same species would
+   duplicate them and could drift out of sync.
+2. *Rename the clips inside each GLB to a shared convention.* Rejected: mutates owner-supplied
+   binaries, is irreversible without re-downloading, and would silently break if a model is ever
+   re-imported.
+3. *Route the new models through the existing procedural `creature*` system.* Rejected: those models
+   ship real authored skeletal animation; driving them with procedural gait code would discard the
+   very thing that makes them worth using.
+
+**Sonuç / trade-off.** 15 animals now spawn (3 legacy wolves + 12 species-wired). The cost is one
+more indirection level in animal config and 12 more animated models resident when their seats are
+loaded; per-species *gait speed* tuning was deliberately left out of this change so the visual result
+stays attributable to the wiring alone. Species with genuinely missing clips are encoded honestly:
+`sheep` (only `Idle` + `Jump` exist in its file) declares no `walk`/`flee` and therefore never
+patrols or flees, exactly as ADR-0047's rigless horse did, instead of silently failing a
+`findByName` lookup every frame.
+
+**Etkilenen sistemler.** `gameplay/animalConfig.js`, `gameplay/animals.js`
+(`spawnConfiguredAnimals` only — `createWolf` itself is untouched), plus a new static guard
+`scripts/checkAnimalSpeciesWiring.js` wired into `governance-validation.yml`. Terrain, hydrology,
+roads, settlements, NPCs, dragons, world events, the editor and the service worker are all
+untouched. ADR-0047's "needs rigging before a real walk/flee animation is possible" blocker is
+resolved rather than worked around.
+
+**Bir hata bulundu ve düzeltildi (GOVERNANCE.md §2).** The clip names were first copied from
+`assets_manifest.json` and **two species were wrong**: the zebra and sheep GLBs prefix every clip
+with `Armature|`, which the manifest had recorded unprefixed. Nothing would have thrown —
+`findByName` returns `null` on a miss and every action is null-guarded — so both animals would have
+rendered silently frozen. *Root cause:* `assets_manifest.json` is hand-maintained prose metadata, not
+a build artifact derived from the binaries, so it can drift from the files it describes.
+*Prevention:* stop trusting it for anything load-bearing. *Regression test:*
+`checkAnimalSpeciesWiring.js` parses each GLB's embedded JSON chunk directly and asserts every
+configured clip name really exists in the asset it names; it was negative-tested by re-injecting the
+`Armature|` bug and confirming a non-zero exit plus a report of the real clip names.
+
+**Doğrulama.** `node --check` clean on both touched files (339/600 and 355/600 lines).
+`checkAnimalSpeciesWiring.js`: 11 species, 31/31 clip names verified against real GLB binaries, 15
+spawns (12 species-wired, 3 legacy). `checkSmokeCheckRegistry.js` and `checkAssetsManifest.js` still
+OK. Real in-browser proof on the live `game3d.html` page (local Playwright unavailable, so the
+existing smoke suite self-skipped): all 15 animals load through the real `AssetLoader` with real
+skinned meshes and 2-26 clips each; all 31 configured clips resolve via
+`THREE.AnimationClip.findByName` with non-zero durations; over 3 simulated seconds all 15 change
+skeletal pose (24-51 bones each) and 13 translate 6.53m while the 2 sheep correctly stay put. Zero
+console errors. *A first pose probe that sampled only the first bone found reported 6 animals as
+non-animating — including the three known-good legacy wolves, which proved the probe wrong rather
+than the animals; it was replaced with an all-bone signature before drawing any conclusion.*
+
+**Geri alma planı.** `git revert` the single commit. `ANIMAL_SPECIES` and the `speciesId` field are
+purely additive: reverting restores the three wolf globals as the only clip source and the four
+original spawns, with no data migration, no asset deletion and no change to any other system.

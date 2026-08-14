@@ -58,6 +58,7 @@ jobs:
           node scripts/checkAssetsManifest.js
           node scripts/checkCreatureSpeciesConfig.js
           node scripts/checkDialogueChoicesShape.js
+          node scripts/checkAnimalSpeciesWiring.js
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
           node scripts/checkSmokeCheckRegistry.js

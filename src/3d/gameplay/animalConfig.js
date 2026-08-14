@@ -24,7 +24,99 @@
  * possible — see DECISIONS.md ADR-0047. */
 const HORSE_MODEL_URL = 'assets/models/animals/ivory_stallion.glb';
 
+/**
+ * Per-species model + animation-clip table. `spawnConfiguredAnimals`'s own JSDoc predicted this
+ * exact refactor ("a 'kind' field / per-species lookup table would be cleaner if a 3rd
+ * non-wolf-shaped animal shows up... revisit if a 3rd species needs its own knobs") — run 300+
+ * cashes that in, because the 10 real rigged/animated animal models the project owner manually
+ * downloaded (`assets_manifest.json`, all `rigged: true, animated: true`) sat entirely unused: a
+ * repo-wide grep for each of their ids/filenames returned zero `src/` hits. They could not be
+ * spawned through the pre-existing config shape at all, because `IDLE_CLIP_NAME`/`WALK_CLIP_NAME`/
+ * `FLEE_CLIP_NAME` were single global constants holding the *wolf* glTF's Blender-exported clip
+ * names (`04_Idle_Armature_0` etc.), and every one of these models names its clips differently
+ * (plain `Idle`/`Walk`/`Gallop`, or `Run` for the zebra). A per-spawn `modelUrl` override alone was
+ * therefore not enough — the clip names had to become per-species too.
+ *
+ * Every `clips` value below is copied from that asset's own verified `animationClips` array in
+ * `assets_manifest.json` (recorded when each model was imported), not guessed. `walk`/`flee` are
+ * optional: a species whose source file genuinely has no locomotion clip (see `sheep`) declares
+ * neither, and `spawnConfiguredAnimals` then drives it exactly the way the rigless
+ * `ivory_stallion.glb` horse was already handled — static/idle, no patrol, no flee branch.
+ *
+ * `flee` deliberately reuses each species' fastest natural gait rather than inventing a shared
+ * name: quadrupeds bolt with `Gallop`, the zebra's file calls the same thing `Run`, and the wolf
+ * keeps its own `01_Run_Armature_0`. Speeds stay on `ANIMAL_CONFIG`'s existing global
+ * `PATROL_SPEED_MPS`/`FLEE_SPEED_MPS` for now — per-species gait tuning is a separate, measurable
+ * pass and mixing it into this wiring change would make the visual result impossible to attribute.
+ */
+export const ANIMAL_SPECIES = Object.freeze({
+	wolf: Object.freeze({
+		modelUrl: 'assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
+		clips: Object.freeze({ idle: '04_Idle_Armature_0', walk: '02_walk_Armature_0', flee: '01_Run_Armature_0' }),
+		/** See `ANIMAL_CONFIG.STRIP_CHILD_NAMES` — only the wolf glTF bundles a shadow-catcher disc. */
+		stripChildNames: Object.freeze(['Circle']),
+	}),
+	/** Replaces the rigless `ivory_stallion.glb` as the live horse — see `HORSE_MODEL_URL`'s note and
+	 * DECISIONS.md ADR-0047, which explicitly recorded "needs rigging before a real walk/flee
+	 * animation is possible" as the blocker. This model is rigged and ships `Walk`/`Gallop`/`Idle`/
+	 * `Eating`, so that blocker is now genuinely resolved rather than worked around. */
+	horse: Object.freeze({
+		modelUrl: 'assets/models/animals/white_horse_bEdE4rmZy9.glb',
+		clips: Object.freeze({ idle: 'Idle', walk: 'Walk', flee: 'Gallop' }),
+	}),
+	cow: Object.freeze({
+		modelUrl: 'assets/models/animals/cow_26zM1outCr.glb',
+		clips: Object.freeze({ idle: 'Idle', walk: 'Walk', flee: 'Gallop' }),
+	}),
+	bull: Object.freeze({
+		modelUrl: 'assets/models/animals/bull_a8PIIYwF7r.glb',
+		clips: Object.freeze({ idle: 'Idle', walk: 'Walk', flee: 'Gallop' }),
+	}),
+	deer: Object.freeze({
+		modelUrl: 'assets/models/animals/deer_T6Cs7tmMHJ.glb',
+		clips: Object.freeze({ idle: 'Idle', walk: 'Walk', flee: 'Gallop' }),
+	}),
+	stag: Object.freeze({
+		modelUrl: 'assets/models/animals/stag_tQdzbZ1Cmw.glb',
+		clips: Object.freeze({ idle: 'Idle', walk: 'Walk', flee: 'Gallop' }),
+	}),
+	fox: Object.freeze({
+		modelUrl: 'assets/models/animals/fox_Bc97C66HKi.glb',
+		clips: Object.freeze({ idle: 'Idle', walk: 'Walk', flee: 'Gallop' }),
+	}),
+	/** Fills FAZ 6's long-standing "dog" gap (`3D_GAME_PROGRESS.md` listed at/araba/köpek-kedi/kuş as
+	 * needing a manual human download — the dog half is now covered by a real animated model). */
+	dog: Object.freeze({
+		modelUrl: 'assets/models/animals/husky_wcWiuEqwzq.glb',
+		clips: Object.freeze({ idle: 'Idle', walk: 'Walk', flee: 'Gallop' }),
+	}),
+	alpaca: Object.freeze({
+		modelUrl: 'assets/models/animals/alpaca_bCVFD48i2l.glb',
+		clips: Object.freeze({ idle: 'Idle', walk: 'Walk', flee: 'Gallop' }),
+	}),
+	/** Two separate per-species quirks in one file, both verified by reading this GLB's own embedded
+	 * JSON chunk rather than trusting `assets_manifest.json`: it names its sprint `Run` (not `Gallop`
+	 * like the other quadrupeds), *and* it prefixes every clip with `Armature|`. The manifest recorded
+	 * the unprefixed names, so copying them would have left this animal silently frozen — the exact
+	 * failure mode the clip-name verification pass was written to catch. */
+	zebra: Object.freeze({
+		modelUrl: 'assets/models/animals/zebra_iclPBR6SBZ.glb',
+		clips: Object.freeze({ idle: 'Armature|Idle', walk: 'Armature|Walk', flee: 'Armature|Run' }),
+	}),
+	/** Genuinely only ships `Idle` + `Jump` (verified in `assets_manifest.json`) — no walk, no run.
+	 * Declaring no `walk`/`flee` is the honest encoding: it renders grazing-still and never enters the
+	 * patrol or flee branch, exactly like the rigless horse did, instead of silently failing a
+	 * `findByName` lookup every frame. Worth revisiting only if a better-animated sheep is sourced. */
+	sheep: Object.freeze({
+		modelUrl: 'assets/models/animals/sheep_C39AUXUUes.glb',
+		clips: Object.freeze({ idle: 'Armature|Idle' }),
+	}),
+});
+
 export const ANIMAL_CONFIG = Object.freeze({
+	/** Per-species model/clip table (see `ANIMAL_SPECIES`). Exposed on `ANIMAL_CONFIG` too so
+	 * `spawnConfiguredAnimals` keeps taking exactly one config object, as it already did. */
+	SPECIES: ANIMAL_SPECIES,
 	WOLF_MODEL_URL: 'assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
 	HORSE_MODEL_URL,
 	/** Exact glTF animation-clip names (`THREE.AnimationClip.findByName`) — confirmed against the
@@ -115,14 +207,137 @@ export const ANIMAL_CONFIG = Object.freeze({
 		 * collider (reaches ≈35m from keep center at its farthest corner tower, but the box half-width
 		 * is only 17m and this offset's |x|=30 clears both) and clear of `umit-guard-1`'s own 12m
 		 * patrol zone. */
+		/** Upgraded (run 300+) from the rigless `HORSE_MODEL_URL` to the real rigged `horse` species.
+		 * ADR-0047 recorded the original as static/idle-only with "needs rigging before a real walk/flee
+		 * animation is possible"; the manually-downloaded `white_horse` model is rigged and ships
+		 * `Walk`/`Gallop`, so this spawn now gets a real patrol line and the flee branch its species
+		 * table finally supports. Kept at the same (-30, 0) offset — that placement was already verified
+		 * against `SETTLEMENT_CONFIG`'s collider and `umit-guard-1`'s 12m patrol zone, and reusing it
+		 * means the only thing this change alters is the model + whether it moves. */
 		Object.freeze({
 			id: 'umit-horse-1',
 			seatId: 'umit',
-			modelUrl: HORSE_MODEL_URL,
-			canFlee: false,
+			speciesId: 'horse',
 			offsetXMeters: -30,
 			offsetZMeters: 0,
 			rotationYRadians: Math.PI * 0.5,
+			patrol: Object.freeze({ toOffsetXMeters: -30, toOffsetZMeters: -24 }),
+		}),
+		/** House Baratheon's sigil is a crowned stag, so `stannis` gets the stag — the same deliberate
+		 * lore-fit reasoning that put every wolf at `berkalp` (House Stark/direwolf), not an arbitrary
+		 * seat pick. */
+		Object.freeze({
+			id: 'stannis-stag-1',
+			seatId: 'stannis',
+			speciesId: 'stag',
+			offsetXMeters: 36,
+			offsetZMeters: 20,
+			rotationYRadians: Math.PI,
+			patrol: Object.freeze({ toOffsetXMeters: 36, toOffsetZMeters: 44 }),
+		}),
+		/** `ziya`/`berk`/`olena` are the three Tyrell seats — the agricultural heartland in this world's
+		 * own 2D lore — so the farm animals (cows, sheep) cluster there rather than at a war seat. Two
+		 * cows on parallel, non-crossing patrol lines read as a small grazing herd. */
+		Object.freeze({
+			id: 'ziya-cow-1',
+			seatId: 'ziya',
+			speciesId: 'cow',
+			offsetXMeters: -28,
+			offsetZMeters: 24,
+			rotationYRadians: 0,
+			patrol: Object.freeze({ toOffsetXMeters: -46, toOffsetZMeters: 24 }),
+		}),
+		Object.freeze({
+			id: 'ziya-cow-2',
+			seatId: 'ziya',
+			speciesId: 'cow',
+			offsetXMeters: -30,
+			offsetZMeters: 38,
+			rotationYRadians: 0,
+			patrol: Object.freeze({ toOffsetXMeters: -48, toOffsetZMeters: 38 }),
+		}),
+		/** Sheep are deliberately static — their source file has no walk clip at all (see the `sheep`
+		 * species entry). No `patrol`, and `canFlee: false` for the same reason the rigless horse used
+		 * it: a model with no run cycle sliding across terrain looks broken. */
+		Object.freeze({
+			id: 'berk-sheep-1',
+			seatId: 'berk',
+			speciesId: 'sheep',
+			canFlee: false,
+			offsetXMeters: 30,
+			offsetZMeters: -22,
+			rotationYRadians: Math.PI * 0.25,
+		}),
+		Object.freeze({
+			id: 'berk-sheep-2',
+			seatId: 'berk',
+			speciesId: 'sheep',
+			canFlee: false,
+			offsetXMeters: 39,
+			offsetZMeters: -28,
+			rotationYRadians: Math.PI * 0.75,
+		}),
+		/** Lannister/Westerlands seat — a bull as working livestock at the richest seat. */
+		Object.freeze({
+			id: 'cersei-bull-1',
+			seatId: 'cersei',
+			speciesId: 'bull',
+			offsetXMeters: -32,
+			offsetZMeters: -26,
+			rotationYRadians: Math.PI * 1.5,
+			patrol: Object.freeze({ toOffsetXMeters: -32, toOffsetZMeters: -46 }),
+		}),
+		/** Arryn's Vale seat — mountain/forest country, so wild game (deer) rather than livestock. */
+		Object.freeze({
+			id: 'robin-deer-1',
+			seatId: 'robin',
+			speciesId: 'deer',
+			offsetXMeters: 42,
+			offsetZMeters: 18,
+			rotationYRadians: Math.PI * 0.5,
+			patrol: Object.freeze({ toOffsetXMeters: 62, toOffsetZMeters: 18 }),
+		}),
+		Object.freeze({
+			id: 'olena-fox-1',
+			seatId: 'olena',
+			speciesId: 'fox',
+			offsetXMeters: 26,
+			offsetZMeters: 30,
+			rotationYRadians: Math.PI,
+			patrol: Object.freeze({ toOffsetXMeters: 26, toOffsetZMeters: 50 }),
+		}),
+		/** The North/Wall seat gets the working dog — closes the "köpek" half of FAZ 6's outstanding
+		 * at/araba/köpek-kedi/kuş gap with a real animated model instead of another manual-download note
+		 * in `QUESTIONS_FOR_OWNER.md`. */
+		Object.freeze({
+			id: 'jon-dog-1',
+			seatId: 'jon',
+			speciesId: 'dog',
+			offsetXMeters: -30,
+			offsetZMeters: 22,
+			rotationYRadians: Math.PI * 1.25,
+			patrol: Object.freeze({ toOffsetXMeters: -48, toOffsetZMeters: 30 }),
+		}),
+		/** `Xaro` is this world's Qarth merchant seat — the one place non-native, imported exotic
+		 * animals (zebra, alpaca) are a deliberate thematic fit rather than a continuity break. Placed
+		 * on divergent axes so their patrol lines never intersect. */
+		Object.freeze({
+			id: 'Xaro-zebra-1',
+			seatId: 'Xaro',
+			speciesId: 'zebra',
+			offsetXMeters: 34,
+			offsetZMeters: -20,
+			rotationYRadians: Math.PI * 0.5,
+			patrol: Object.freeze({ toOffsetXMeters: 54, toOffsetZMeters: -20 }),
+		}),
+		Object.freeze({
+			id: 'Xaro-alpaca-1',
+			seatId: 'Xaro',
+			speciesId: 'alpaca',
+			offsetXMeters: 28,
+			offsetZMeters: 28,
+			rotationYRadians: Math.PI,
+			patrol: Object.freeze({ toOffsetXMeters: 28, toOffsetZMeters: 48 }),
 		}),
 	]),
 });
