@@ -19,8 +19,24 @@ const files = {
 };
 for (const [name, file] of Object.entries(files)) {
   assert.ok(fs.existsSync(file), `${name} proof file missing: ${file}`);
-  assert.ok(fs.statSync(file).size > (name.includes('Metrics') || name === 'probe' || name === 'bake' ? 10 : 1024), `${name} proof file too small`);
+  assert.ok(fs.statSync(file).size > 10, `${name} proof file is empty/truncated`);
 }
+
+// Uniform zero-overlay ocean evidence can compress below an arbitrary byte
+// threshold. Validate the PNG container and exact proof resolution instead.
+function assertPng(file, width, height, label) {
+  const bytes = fs.readFileSync(file);
+  assert.ok(bytes.length >= 24, `${label} PNG header truncated`);
+  assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `${label} PNG signature changed`);
+  assert.equal(bytes.subarray(12, 16).toString('ascii'), 'IHDR', `${label} PNG lacks IHDR`);
+  assert.equal(bytes.readUInt32BE(16), width, `${label} PNG width changed`);
+  assert.equal(bytes.readUInt32BE(20), height, `${label} PNG height changed`);
+}
+assertPng(files.imported, 256, 256, 'imported Terrain3D');
+assertPng(files.near, 960, 640, 'near');
+assertPng(files.far, 960, 640, 'far');
+assertPng(files.fullWorld, 1200, 800, 'full-world');
+
 const probe = JSON.parse(fs.readFileSync(files.probe, 'utf8'));
 const bake = JSON.parse(fs.readFileSync(files.bake, 'utf8'));
 const visual = JSON.parse(fs.readFileSync(files.visualMetrics, 'utf8'));
