@@ -7,7 +7,7 @@ import {
 	WORLD_REFERENCE_RELIEF_POLICY,
 	sampleWorldReferenceRelief,
 	createWorldReferenceReliefHeightSampler,
-} from '../src/3d/world/worldReferenceReliefField.js';
+} from '../godot/terrain-authoring/lib/worldReferenceReliefField.mjs';
 
 const G10 = Object.freeze({ xMin: 1 / 8, xMax: 2 / 8, yMin: 0, yMax: 1 / 8 });
 const DENSE_SIZE = 257;
