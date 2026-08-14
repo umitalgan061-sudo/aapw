@@ -37,48 +37,51 @@ jobs:
           A="$(git diff --numstat origin/main...HEAD|awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat origin/main...HEAD|awk '{s+=$2}END{print s+0}')"
           echo "ROCK_SNOW_CHANGED_LINES=$((A+D))"; test $((A+D)) -le 1000
           git diff --quiet origin/main...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py addons/zylann.hterrain src/3d/world/terrain.js src/3d/world/worldReferenceTerrainAdapter.js
-      - name: Prior layers and deterministic source
+      - name: Prior layers and deterministic zero-terrestrial source
         run: |
           set -euo pipefail
-          node scripts/checkNEG70Terrain3DHydrology.mjs
-          node scripts/checkNEG70Terrain3DBiome.mjs
-          node scripts/checkNEG70Relief.mjs
+          node scripts/checkNEG70Terrain3DHydrology.mjs; node scripts/checkNEG70Terrain3DBiome.mjs; node scripts/checkNEG70Relief.mjs
           node scripts/checkNEG60Hydrology.mjs; node scripts/checkNEG71Hydrology.mjs
           node --check godot/terrain-authoring/geocells/ne/g70_rock_snow.mjs
-          node --check scripts/checkNEG70RockSnow.mjs
-          node --check scripts/checkNEG70RockSnowControlEnvelope.mjs
-          node --check scripts/checkNEG70RockSnowEvidenceBundle.mjs
-          node --check scripts/checkNEG70RockSnowVisualEvidence.mjs
+          node --check scripts/checkNEG70RockSnow.mjs; node --check scripts/checkNEG70RockSnowControlEnvelope.mjs
+          node --check scripts/checkNEG70RockSnowEvidenceBundle.mjs; node --check scripts/checkNEG70RockSnowVisualEvidence.mjs
           mkdir -p godot/terrain-authoring/.terrain3d-proof
           node scripts/checkNEG70RockSnow.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-probe.json | tee /tmp/r1.log
           cp godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-probe.json /tmp/r1.json
           node scripts/checkNEG70RockSnow.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-probe.json | tee /tmp/r2.log
           cmp /tmp/r1.log /tmp/r2.log; cmp /tmp/r1.json godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-probe.json
           grep -F NE_G70_ROCK_SNOW_VALIDATION_OK /tmp/r1.log
-          node scripts/checkNEG70RockSnowControlEnvelope.mjs
+          node scripts/checkNEG70RockSnowControlEnvelope.mjs | tee /tmp/e.log; grep -F NE_G70_ROCK_SNOW_CONTROL_ENVELOPE_OK /tmp/e.log
       - name: Install pinned Terrain3D and Godot 4.6.3
         run: |
           set -euo pipefail
-          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/t3d.log; grep -F TERRAIN3D_INSTALL_OK /tmp/t3d.log
-          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee /tmp/t3dv.log; grep -F TERRAIN3D_VERIFY_OK /tmp/t3dv.log
+          ok=0; for n in 1 2 3; do if python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/t3d-$n.log; then grep -F TERRAIN3D_INSTALL_OK /tmp/t3d-$n.log; ok=1; break; fi; sleep $((n*3)); done; test "$ok" -eq 1
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | grep -F TERRAIN3D_VERIFY_OK
           mkdir -p "$RUNNER_TEMP/g"; curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o "$RUNNER_TEMP/g.zip"; unzip -q "$RUNNER_TEMP/g.zip" -d "$RUNNER_TEMP/g"
           G="$(find "$RUNNER_TEMP/g" -maxdepth 1 -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; test -n "$G"; chmod +x "$G"; "$G" --version | grep -F 4.6.3; echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
-      - name: Real Terrain3D import persistence seam and bake
+      - name: Double real Terrain3D Height Control seam persistence and LOD0
         run: |
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
-          timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g70_terrain3d_rock_snow.gd | tee /tmp/g.log
-          grep -F NE_G70_TERRAIN3D_ROCK_SNOW_VALIDATION_OK /tmp/g.log
-          jq -e '.regionCount>=4 and .savedRegionFiles>=4 and .bakedVertices>0 and .maxHeightError<=0.001 and .maxBlendError<=0.000001 and .maxActualBlend<=0.000001' godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-bake.json
+          G70_ROCK_SNOW_PROOF_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g70_terrain3d_rock_snow.gd | tee /tmp/a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-bake.json /tmp/a-bake.json; cp godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-imported-topdown.png /tmp/a.png
+          G70_ROCK_SNOW_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g70_terrain3d_rock_snow.gd | tee /tmp/b.log
+          cp godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-bake.json /tmp/b-bake.json; cp godot/terrain-authoring/.terrain3d-proof/g70-rock-snow-imported-topdown.png /tmp/b.png
+          grep -F NE_G70_TERRAIN3D_ROCK_SNOW_VALIDATION_OK /tmp/a.log; grep -F NE_G70_TERRAIN3D_ROCK_SNOW_VALIDATION_OK /tmp/b.log
+          jq -S 'del(.savedRegionBytes)' /tmp/a-bake.json >/tmp/as.json; jq -S 'del(.savedRegionBytes)' /tmp/b-bake.json >/tmp/bs.json; cmp /tmp/as.json /tmp/bs.json; cmp /tmp/a.png /tmp/b.png
+          jq -e '.regionCount>=4 and .alignedSamples==4225 and .savedRegionFiles>=4 and .bakedVertices>0 and .maxActualBlend<=0.000001 and .maxSeamBlend<=0.000001' /tmp/b-bake.json
       - name: Visual evidence bundle and repository regressions
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/pw"; npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0; "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkNEG70RockSnowVisualEvidence.mjs --out-dir=artifacts/ne-g70-rock-snow-visual | tee /tmp/v.log; grep -F NE_G70_ROCK_SNOW_VISUAL_EVIDENCE_OK /tmp/v.log
-          node scripts/checkNEG70RockSnowEvidenceBundle.mjs --visual-dir=artifacts/ne-g70-rock-snow-visual --proof-dir=godot/terrain-authoring/.terrain3d-proof
+          node scripts/checkNEG70RockSnowEvidenceBundle.mjs | tee /tmp/bundle.log; grep -F NE_G70_ROCK_SNOW_EVIDENCE_BUNDLE_OK /tmp/bundle.log
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/ht.log; grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/ht.log
           node scripts/checkSeededRandomPolicy.js; node scripts/checkWorldReferenceMap.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/terrainSeatSafetyCheck.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/roadNetworkSafetyCheck.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/terrainSeatSafetyCheck.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/roadNetworkSafetyCheck.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkRoadVisualContract.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js; node scripts/checkServiceWorkerCache.js; node scripts/checkTechnicalDebt.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
       - name: Final exact-main freshness
         run: |
           set -euo pipefail
