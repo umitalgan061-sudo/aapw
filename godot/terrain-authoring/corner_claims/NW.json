@@ -7,7 +7,7 @@
   "exact_base": "1722161c8eab06566e077e846d820dc38784795f",
   "branch": "agent/buzul-muhafizi-g01-parity-exact-172216-20260814",
   "pr": 514,
-  "last_commit": "bfb837f9b54dc3169dd886dd56701f57e33fc94d",
+  "last_commit": "a106b101cf49bce329097360fbc092384df23926",
   "quality_before": {
     "layer": "Near Detail",
     "merged_pr": 476,
@@ -22,6 +22,7 @@
     "source_grid": "65x65 deterministic continuous runtime source sampled from the merged G01 Near Detail field",
     "terrain3d_import": "257x257 Height + Control + Color/Roughness at region_size=256 with >=4 real regions",
     "runtime_adapter": "continuous bilinear normalized owner-map and actual Three.js world-coordinate parity against persisted Terrain3D bake",
+    "runtime_surface_gate": "257x257 dense physical-space sampling derives smoothed slope/normals/material gradients and measures every internal 65x65 source-grid seam plus one-sided external edge continuity; grid-aligned normal imprint ratio is rejected",
     "surface_contract": "rock base id 0, snow overlay id 1, canonical full-water snow=0, tint RGB=1, roughness=0.90 within round-trip tolerance",
     "persistence": "real Terrain3D region save plus non-empty LOD0 bake twice with deterministic semantic and PNG evidence",
     "guard_band": "255/256 Terrain3D region boundary parity plus merged G00/G01 Near Detail seam regression",
