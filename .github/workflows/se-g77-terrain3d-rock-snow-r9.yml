@@ -9,6 +9,8 @@ on:
       - 'godot/terrain-authoring/geocells/se/g77_rock_snow.mjs'
       - 'scripts/checkSEG77RockSnow.mjs'
       - 'scripts/checkSEG77RockSnowControlEnvelope.mjs'
+      - 'scripts/checkSEG77RockSnowMapFidelity.mjs'
+      - 'scripts/checkSEG77RockSnowTerrain3DEvidence.mjs'
       - 'scripts/checkSEG77RockSnowVisualEvidence.mjs'
       - 'godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow.gd'
       - 'godot/terrain-authoring/corner_claims/SE.json'
@@ -40,7 +42,7 @@ jobs:
           test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_rock_snow\.mjs|scripts/checkSEG77RockSnow(ControlEnvelope|VisualEvidence)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow\.gd|godot/terrain-authoring/corner_claims/SE\.json|\.github/workflows/se-g77-terrain3d-rock-snow-r9\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_rock_snow\.mjs|scripts/checkSEG77RockSnow(ControlEnvelope|MapFidelity|Terrain3DEvidence|VisualEvidence)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow\.gd|godot/terrain-authoring/corner_claims/SE\.json|\.github/workflows/se-g77-terrain3d-rock-snow-r9\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1} END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2} END{print s+0}')"
           echo "G77 Rock/Snow R9 diff lines: $((A+D))"
@@ -61,6 +63,8 @@ jobs:
           node --check godot/terrain-authoring/geocells/se/g77_rock_snow.mjs
           node --check scripts/checkSEG77RockSnow.mjs
           node --check scripts/checkSEG77RockSnowControlEnvelope.mjs
+          node --check scripts/checkSEG77RockSnowMapFidelity.mjs
+          node --check scripts/checkSEG77RockSnowTerrain3DEvidence.mjs
           node --check scripts/checkSEG77RockSnowVisualEvidence.mjs
           node scripts/checkSEG77RockSnow.mjs | tee /tmp/source-a.log
           node scripts/checkSEG77RockSnow.mjs | tee /tmp/source-b.log
@@ -72,6 +76,13 @@ jobs:
           node scripts/checkSEG77RockSnowControlEnvelope.mjs | tee /tmp/dense-a.log
           node scripts/checkSEG77RockSnowControlEnvelope.mjs | tee /tmp/dense-b.log
           cmp /tmp/dense-a.log /tmp/dense-b.log
+
+      - name: Map fidelity and no-grid imprint
+        run: |
+          set -euo pipefail
+          node scripts/checkSEG77RockSnowMapFidelity.mjs | tee /tmp/map-a.log
+          node scripts/checkSEG77RockSnowMapFidelity.mjs | tee /tmp/map-b.log
+          cmp /tmp/map-a.log /tmp/map-b.log
 
       - name: Emit Terrain3D source probe
         run: |
@@ -101,9 +112,9 @@ jobs:
           for suffix in a b; do
             G77_ROCK_SNOW_PROOF_SUFFIX="$suffix" timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g77_terrain3d_rock_snow.gd | tee "/tmp/t3d-$suffix.log"
             grep -F SE_G77_TERRAIN3D_ROCK_SNOW_VALIDATION_OK "/tmp/t3d-$suffix.log"
-            grep -F G77_TERRAIN3D_ROCK_SNOW_METRICS "/tmp/t3d-$suffix.log" > "/tmp/t3d-$suffix-metrics.log"
           done
-          cmp /tmp/t3d-a-metrics.log /tmp/t3d-b-metrics.log
+          node scripts/checkSEG77RockSnowTerrain3DEvidence.mjs /tmp/t3d-a.log /tmp/t3d-b.log | tee /tmp/t3d-evidence.log
+          grep -F SE_G77_ROCK_SNOW_TERRAIN3D_EVIDENCE_OK /tmp/t3d-evidence.log
 
       - name: HTerrain world safety platform and visual regressions
         run: |
