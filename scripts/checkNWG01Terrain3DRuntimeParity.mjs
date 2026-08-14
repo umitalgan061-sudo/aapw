@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { measureG01NearDetail, sampleG01NearDetail } from '../godot/terrain-authoring/geocells/nw/g01_near_detail.mjs';
-import { G01_TERRAIN3D_RUNTIME_PARITY } from '../src/3d/world/g01Terrain3dRuntimeAdapter.js';
+import { G01_TERRAIN3D_RUNTIME_PARITY } from '../src/3d/world/worldReferenceTerrainAdapter.js';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -207,7 +207,7 @@ async function verifyBrowserAdapter(bake) {
     page.on('pageerror', (error) => errors.push(String(error)));
     await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
     const result = await page.evaluate(async (payload) => {
-      const { G01_TERRAIN3D_RUNTIME_PARITY, createG01Terrain3DBakeSampler, createG01Terrain3DWorldSampler } = await import('/src/3d/world/g01Terrain3dRuntimeAdapter.js');
+      const { G01_TERRAIN3D_RUNTIME_PARITY, createG01Terrain3DBakeSampler, createG01Terrain3DWorldSampler } = await import('/src/3d/world/worldReferenceTerrainAdapter.js');
       const { WORLD_SCALE } = await import('/src/3d/config.js');
       const { normalizedReferenceToWorldXZ } = await import('/src/3d/world/worldReferenceAlignment.js');
       const sampleNormalized = createG01Terrain3DBakeSampler(payload);
