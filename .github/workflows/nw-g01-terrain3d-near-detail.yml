@@ -3,7 +3,7 @@ name: NW G01 Terrain3D Near Detail
 on:
   push:
     branches:
-      - agent/buzul-muhafizi-g01-near-detail-exact-48a6-20260814
+      - agent/buzul-muhafizi-g01-near-detail-exact-0ee9-20260814
   pull_request:
     branches: [main]
     paths:
