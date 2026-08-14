@@ -27,6 +27,28 @@ export const CURRENT_TERRAIN_ADAPTER_POLICY = Object.freeze({
   legacyProceduralFallback: false,
 });
 
+// settlements.js currently publishes a 38m fully-flat castle pad with a 75m easing edge. That
+// radius was tuned for the historical procedural terrain. The current full-map source can carry a
+// much larger height delta at a seat (especially where seat-safe hydrology raises coastal castles),
+// so the same 37m transition ring can create a short >20-degree cart approach. Widen only pads that
+// exactly match the established settlement contract; custom gameplay/editor flatten pads retain
+// their caller-owned radii. Both render chunks and every height sampler pass through this helper,
+// preserving the single-source render/physics invariant.
+const SETTLEMENT_PAD_INNER_RADIUS_METERS = 38;
+const LEGACY_SETTLEMENT_PAD_OUTER_RADIUS_METERS = 75;
+const CURRENT_SETTLEMENT_PAD_OUTER_RADIUS_METERS = 150;
+const RADIUS_EPSILON = 1e-9;
+
+function currentTerrainFlattenPads(flattenPads = []) {
+  return flattenPads.map((pad) => {
+    const isSettlementPad = Math.abs(pad.innerRadiusMeters - SETTLEMENT_PAD_INNER_RADIUS_METERS) <= RADIUS_EPSILON
+      && Math.abs(pad.outerRadiusMeters - LEGACY_SETTLEMENT_PAD_OUTER_RADIUS_METERS) <= RADIUS_EPSILON;
+    return isSettlementPad
+      ? { ...pad, outerRadiusMeters: CURRENT_SETTLEMENT_PAD_OUTER_RADIUS_METERS }
+      : pad;
+  });
+}
+
 function publishRuntimeUse(kind) {
   if (typeof globalThis === 'undefined') return;
   const prior = globalThis.__WESTEROS_CURRENT_TERRAIN__ ?? { samplers: 0, chunks: 0 };
@@ -47,13 +69,14 @@ function publishRuntimeUse(kind) {
 /** Drop-in replacement for terrain.js createHeightSampler used by physics/rivers/scene systems. */
 export function createHeightSampler(_seed, _fbmOptions, flattenPads = []) {
   publishRuntimeUse('sampler');
-  return createCurrentTerrainHeightSampler({ flattenPads });
+  return createCurrentTerrainHeightSampler({ flattenPads: currentTerrainFlattenPads(flattenPads) });
 }
 
 /** Drop-in replacement for terrain.js createTerrainChunk used by every ChunkManager/LOD path. */
 export function createTerrainChunk(options) {
   const mesh = createLegacyTerrainChunk(options);
-  const sampleHeightMeters = createCurrentTerrainHeightSampler({ flattenPads: options?.flattenPads ?? [] });
+  const flattenPads = currentTerrainFlattenPads(options?.flattenPads ?? []);
+  const sampleHeightMeters = createCurrentTerrainHeightSampler({ flattenPads });
   const position = mesh.geometry.getAttribute('position');
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
