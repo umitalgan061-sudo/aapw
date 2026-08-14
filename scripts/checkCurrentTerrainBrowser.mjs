@@ -27,6 +27,8 @@ try {
     const { WORLD_DEFAULTS, WORLD_SCALE, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
     const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
     const { buildRoadNetwork } = await import('/src/3d/world/roads.js');
+    const { sampleReferencePindexQualityV2 } = await import('/src/3d/world/worldReferenceSurfacePindexes.js');
+    const { sampleReferenceWaterMask } = await import('/src/3d/world/worldReferenceWaterMask.js');
     const THREE = await import('three');
     const current = await import('/src/3d/world/currentTerrainRuntime.js');
 
@@ -55,12 +57,22 @@ try {
       maxRenderError = Math.max(maxRenderError, Math.abs(position.getY(index) - collider.getGroundHeight(worldX, worldZ)));
     }
 
+    const describePoint = (x, z, sampleHeight = sampler) => {
+      const map = current.currentWorldToOwnerMap(x, z);
+      const pindex = sampleReferencePindexQualityV2(map.normalizedX, map.normalizedY);
+      return {
+        x, z, h: sampleHeight(x, z), mapX: map.mapX, mapY: map.mapY,
+        rawWater: sampleReferenceWaterMask(map.normalizedX, map.normalizedY),
+        waterWeight: (pindex.surfaceWeights.sea ?? 0) + (pindex.surfaceWeights.lake ?? 0),
+        relief: pindex.reliefInfluence, biome: pindex.biomeInfluence,
+      };
+    };
     const stannisSeat = KINGDOM_SEATS.find((seat) => seat.id === 'stannis');
     const stannis = mapToWorldXZ(stannisSeat.mapX, stannisSeat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
     const stannisSamples = Object.fromEntries([
       ['center', [stannis.x, stannis.z]], ['xp2', [stannis.x + 2, stannis.z]], ['xm2', [stannis.x - 2, stannis.z]],
       ['zp2', [stannis.x, stannis.z + 2]], ['zm2', [stannis.x, stannis.z - 2]],
-    ].map(([key, [x, z]]) => [key, { x, z, h: sampler(x, z), map: current.currentWorldToOwnerMap(x, z) }]));
+    ].map(([key, [x, z]]) => [key, describePoint(x, z)]));
 
     const pads = computeSettlementFlattenPads({
       sampleHeightMeters: sampler,
@@ -75,8 +87,18 @@ try {
       return { id: seat.id, x, z, groundY: roadSampler(x, z) };
     });
     const roadGrades = buildRoadNetwork({ seats, sampleHeightMeters: roadSampler }).edges
-      .map((edge) => ({ edge: `${edge.fromId}->${edge.toId}`, grade: edge.maxGradeDegrees }))
-      .filter((edge) => edge.grade > 15)
+      .filter((edge) => edge.maxGradeDegrees > 15)
+      .map((edge) => {
+        let worst = null;
+        for (let i = 1; i < edge.points.length; i += 1) {
+          const a = edge.points[i - 1]; const b = edge.points[i];
+          const horizontal = Math.hypot(b.x - a.x, b.z - a.z);
+          if (horizontal <= 1e-9) continue;
+          const grade = Math.atan2(Math.abs(roadSampler(b.x, b.z) - roadSampler(a.x, a.z)), horizontal) * 180 / Math.PI;
+          if (!worst || grade > worst.grade) worst = { grade, a: describePoint(a.x, a.z, roadSampler), b: describePoint(b.x, b.z, roadSampler) };
+        }
+        return { edge: `${edge.fromId}->${edge.toId}`, grade: edge.maxGradeDegrees, worst };
+      })
       .sort((a, b) => b.grade - a.grade);
 
     const spawn = current.sampleCurrentTerrainNormalized(3885 / 9000, 5404 / 7000);
