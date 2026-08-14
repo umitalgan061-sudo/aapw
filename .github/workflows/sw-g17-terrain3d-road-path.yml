@@ -1,0 +1,98 @@
+name: SW G17 Terrain3D Road Path
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'godot/terrain-authoring/geocells/sw/g17_road_path.mjs'
+      - 'scripts/checkSWG17RoadPath.mjs'
+      - 'scripts/checkSWG17RoadPathGeometry.mjs'
+      - 'scripts/checkSWG17RoadPathTerrain3DEvidence.mjs'
+      - 'scripts/checkSWG17RoadPathVisualEvidence.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g17_terrain3d_road_path.gd'
+      - '.github/workflows/sw-g17-terrain3d-road-path.yml'
+permissions: { contents: read }
+concurrency: { group: 'sw-g17-road-path-${{ github.event.pull_request.number || github.ref }}', cancel-in-progress: true }
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main bounded scope and syntax
+        shell: bash
+        run: |
+          set -euo pipefail; git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"; git diff --check "$BASE_SHA"...HEAD
+          mapfile -t FILES < <(git diff --name-only "$BASE_SHA"...HEAD); printf '%s\n' "${FILES[@]}"; test "${#FILES[@]}" -eq 7
+          ALLOWED='^(godot/terrain-authoring/geocells/sw/g17_road_path\.mjs|scripts/checkSWG17RoadPath\.mjs|scripts/checkSWG17RoadPathGeometry\.mjs|scripts/checkSWG17RoadPathTerrain3DEvidence\.mjs|scripts/checkSWG17RoadPathVisualEvidence\.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_road_path\.gd|\.github/workflows/sw-g17-terrain3d-road-path\.yml)$'
+          if printf '%s\n' "${FILES[@]}" | grep -Ev "$ALLOWED"; then exit 1; fi
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "ROAD_PATH_DIFF=$((A+D))/1000"; test $((A+D)) -le 1000
+          node --check godot/terrain-authoring/geocells/sw/g17_road_path.mjs
+          for f in scripts/checkSWG17RoadPath.mjs scripts/checkSWG17RoadPathGeometry.mjs scripts/checkSWG17RoadPathTerrain3DEvidence.mjs scripts/checkSWG17RoadPathVisualEvidence.mjs; do node --check "$f"; done
+      - name: Install pinned browser harness
+        run: |
+          set -euo pipefail; npm install --no-save --package-lock=false playwright@1.62.0
+          ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Exact geometry prior layer and live route source proof
+        run: |
+          set -euo pipefail; node scripts/checkSWG17Hydrology.mjs; node scripts/checkSWG17Biome.mjs; node scripts/checkSWG17Relief.mjs; node scripts/checkSWG17RockSnow.mjs; node scripts/checkSWG17RockSnowCrossLayer.mjs; node scripts/checkSWG17RockSnowGuardBand.mjs; node scripts/checkSWG17RoadPathGeometry.mjs
+          node scripts/checkSWG17RoadPath.mjs | tee /tmp/g17-road-source.log; grep -F SW_G17_ROAD_PATH_SOURCE_OK /tmp/g17-road-source.log
+          test -s godot/terrain-authoring/.terrain3d-proof/g17-road-path-probe.json; test -s godot/terrain-authoring/.terrain3d-proof/g17-road-path-source-evidence.json
+      - name: Install pinned Terrain3D and Godot 4.6.3
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/terrain3d-install.log; grep -F TERRAIN3D_INSTALL_OK /tmp/terrain3d-install.log
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee /tmp/terrain3d-verify.log; grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true' /tmp/terrain3d-verify.log
+          curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/g.zip
+          mkdir -p /tmp/g; unzip -q /tmp/g.zip -d /tmp/g; G="$(find /tmp/g -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; chmod +x "$G"
+          "$G" --version | grep -F 4.6.3; echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
+      - name: Prime Terrain3D plugin discovery
+        run: |
+          set -euo pipefail; timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 2>&1 | tee /tmp/g17-road-editor.log
+          if grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' /tmp/g17-road-editor.log; then echo 'Terrain3D load error' >&2; exit 1; fi
+      - name: Double native Height Control Color save-reload seam bake proof
+        run: |
+          set -euo pipefail
+          G17_ROAD_PATH_PROOF_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_road_path.gd | tee /tmp/road-a.log
+          grep -F SW_G17_TERRAIN3D_ROAD_PATH_VALIDATION_OK /tmp/road-a.log; cp godot/terrain-authoring/.terrain3d-proof/g17-road-path-imported-topdown.png /tmp/road-a.png
+          G17_ROAD_PATH_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_road_path.gd | tee /tmp/road-b.log
+          grep -F SW_G17_TERRAIN3D_ROAD_PATH_VALIDATION_OK /tmp/road-b.log; cp godot/terrain-authoring/.terrain3d-proof/g17-road-path-imported-topdown.png /tmp/road-b.png
+          node scripts/checkSWG17RoadPathTerrain3DEvidence.mjs --log-a=/tmp/road-a.log --log-b=/tmp/road-b.log --preview-a=/tmp/road-a.png --preview-b=/tmp/road-b.png --source=godot/terrain-authoring/.terrain3d-proof/g17-road-path-source-evidence.json --out=godot/terrain-authoring/.terrain3d-proof/g17-road-path-terrain3d-evidence.json
+      - name: HTerrain settlement and road regressions
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log; grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/hterrain.log
+          node scripts/terrainSeatSafetyCheck.js; node scripts/roadNetworkSafetyCheck.js; node scripts/checkRoadVisualContract.js; node scripts/checkMedievalRoadSurface.js; node scripts/checkSeededRandomPolicy.js
+      - name: Near far and full-world top-down no-grid evidence
+        run: |
+          set -euo pipefail; rm -rf artifacts/sw-g17-road-path-visual
+          node scripts/checkSWG17HydrologyVisualEvidence.mjs --out-dir=artifacts/sw-g17-road-path-visual | tee /tmp/g17-road-visual.log; grep -F SW_G17_HYDROLOGY_VISUAL_OK /tmp/g17-road-visual.log
+          node scripts/checkSWG17RoadPathVisualEvidence.mjs --visual-dir=artifacts/sw-g17-road-path-visual --source=godot/terrain-authoring/.terrain3d-proof/g17-road-path-source-evidence.json --out=artifacts/sw-g17-road-path-visual/g17-road-path-visual-evidence.json
+          grep -F '"visibleGeoCellOverlay": false' artifacts/sw-g17-road-path-visual/g17-road-path-visual-evidence.json
+      - name: Mobile PWA and full-browser safety
+        run: |
+          set -euo pipefail; node scripts/checkMobileChunkStreaming.js; node scripts/checkMobilePerfBudget.js
+          node scripts/checkPwaInstallability.js; node scripts/checkServiceWorkerCache.js
+          node scripts/smokeTestGame3D.js | tee /tmp/browser-smoke.log; test "$(grep -c '\[smokeTestGame3D\] PASS:' /tmp/browser-smoke.log)" -ge 34
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sw-g17-road-path-proof
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/
+            artifacts/sw-g17-road-path-visual/
+            /tmp/g17-road-source.log
+            /tmp/road-a.log
+            /tmp/road-b.log
+            /tmp/hterrain.log
+            /tmp/browser-smoke.log
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail; git fetch origin main; test "$(git rev-parse origin/main)" = "$BASE_SHA"
