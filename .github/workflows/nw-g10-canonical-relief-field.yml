@@ -12,6 +12,7 @@ on:
       - 'scripts/checkNWG10CanonicalReliefGuardBands.mjs'
       - 'scripts/checkNWG10CanonicalReliefNoGrid.mjs'
       - 'scripts/emitNWG10CanonicalReliefProbe.mjs'
+      - 'scripts/checkNWG10CanonicalReliefEvidence.mjs'
       - 'godot/terrain-authoring/scripts/validate_g10_canonical_relief_field.gd'
       - '.github/workflows/nw-g10-canonical-relief-field.yml'
   workflow_dispatch:
@@ -43,8 +44,8 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceReliefField.js|scripts/checkNWG10CanonicalReliefField.mjs|scripts/checkNWG10CanonicalReliefGuardBands.mjs|scripts/checkNWG10CanonicalReliefNoGrid.mjs|scripts/emitNWG10CanonicalReliefProbe.mjs|godot/terrain-authoring/scripts/validate_g10_canonical_relief_field.gd|\.github/workflows/nw-g10-canonical-relief-field.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 7
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceReliefField.js|scripts/checkNWG10CanonicalReliefField.mjs|scripts/checkNWG10CanonicalReliefGuardBands.mjs|scripts/checkNWG10CanonicalReliefNoGrid.mjs|scripts/emitNWG10CanonicalReliefProbe.mjs|scripts/checkNWG10CanonicalReliefEvidence.mjs|godot/terrain-authoring/scripts/validate_g10_canonical_relief_field.gd|\.github/workflows/nw-g10-canonical-relief-field.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 8
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "NW G10 canonical relief quota additions=$A deletions=$D total=$((A+D))"
@@ -63,6 +64,7 @@ jobs:
           node --check scripts/checkNWG10CanonicalReliefGuardBands.mjs
           node --check scripts/checkNWG10CanonicalReliefNoGrid.mjs
           node --check scripts/emitNWG10CanonicalReliefProbe.mjs
+          node --check scripts/checkNWG10CanonicalReliefEvidence.mjs
           node scripts/checkWorldReferenceMap.js
           node scripts/checkNWG10CanonicalReliefField.mjs | tee "$RUNNER_TEMP/relief-a.log"
           node scripts/checkNWG10CanonicalReliefField.mjs | tee "$RUNNER_TEMP/relief-b.log"
@@ -79,6 +81,8 @@ jobs:
           cp godot/terrain-authoring/.terrain3d-proof/g10-canonical-relief-probe.json "$RUNNER_TEMP/probe-a.json"
           node scripts/emitNWG10CanonicalReliefProbe.mjs --out=godot/terrain-authoring/.terrain3d-proof/g10-canonical-relief-probe.json
           cmp "$RUNNER_TEMP/probe-a.json" godot/terrain-authoring/.terrain3d-proof/g10-canonical-relief-probe.json
+          node scripts/checkNWG10CanonicalReliefEvidence.mjs | tee "$RUNNER_TEMP/evidence.log"
+          grep -F 'NW_G10_CANONICAL_RELIEF_EVIDENCE_OK' "$RUNNER_TEMP/evidence.log"
 
       - name: Install and verify pinned Terrain3D
         run: |
@@ -137,4 +141,6 @@ jobs:
           name: nw-g10-canonical-relief-proof
           include-hidden-files: true
           if-no-files-found: warn
-          path: godot/terrain-authoring/.terrain3d-proof/g10-canonical-relief-probe.json
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g10-canonical-relief-probe.json
+            artifacts/nw-g10-canonical-relief-evidence.json
