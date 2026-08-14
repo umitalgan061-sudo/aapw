@@ -17,6 +17,7 @@ on:
       - 'godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow.gd'
       - 'godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow_reload.gd'
       - 'godot/terrain-authoring/corner_claims/SE.json'
+      - 'godot/terrain-authoring/four_corner_ledger.json'
       - '.github/workflows/se-g77-terrain3d-rock-snow-r9.yml'
 
 permissions: { contents: read }
@@ -44,7 +45,7 @@ jobs:
           test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_rock_snow\.mjs|scripts/checkSEG77RockSnow(ControlEnvelope|MapFidelity|Terrain3DEvidence|VisualEvidence|FullWorldVisual|EvidenceManifest)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow(_reload)?\.gd|godot/terrain-authoring/corner_claims/SE\.json|\.github/workflows/se-g77-terrain3d-rock-snow-r9\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_rock_snow\.mjs|scripts/checkSEG77RockSnow(ControlEnvelope|MapFidelity|Terrain3DEvidence|VisualEvidence|FullWorldVisual|EvidenceManifest)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow(_reload)?\.gd|godot/terrain-authoring/corner_claims/SE\.json|godot/terrain-authoring/four_corner_ledger\.json|\.github/workflows/se-g77-terrain3d-rock-snow-r9\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1} END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2} END{print s+0}')"
           echo "G77 Rock/Snow R11 diff lines: $((A+D))"; test $((A+D)) -le 1000
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py godot/terrain-authoring/addons/zylann.hterrain
