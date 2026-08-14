@@ -5,8 +5,8 @@
   "current_cell": "G01",
   "status": "in_progress_exact_main_requalification",
   "branch": "agent/buzul-muhafizi-g01-parity-qualify-ce2843-20260814",
-  "pr": null,
-  "last_commit": "ce284392825a33de7b3629c6013e897af8c0b35e",
+  "pr": 498,
+  "last_commit": "36ed93ac59db9fcabc9402c0c73d8b9f1ac72ee0",
   "quality_before": {
     "layer": "Terrain3D Bake/Three.js runtime parity",
     "merged_pr": 491,
@@ -14,7 +14,7 @@
     "source_map_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
     "hydrology_fingerprint": "88 water / 8 land canonical centres",
     "seam_contract": "G00/G01 Near Detail shared-edge tint and roughness deltas remain <= 0.00001",
-    "qualification_gap": "PR #491 was merged while its dedicated exact-head runtime-parity workflow had failed inside the bundled HTerrain/world/settlement/road/PWA/mobile/browser regression step; G01 therefore remains active and must not advance."
+    "qualification_gap": "PR #491 was merged without a green dedicated exact-head runtime-parity workflow; G01 therefore remains active and may not advance."
   },
   "quality_after": {
     "layer": "Terrain3D Bake/Three.js runtime parity",
@@ -26,12 +26,19 @@
     "surface_contract": "rock base id 0, snow overlay id 1, canonical full-water snow=0, tint RGB=1, roughness=0.90 within round-trip tolerance",
     "persistence": "real pinned Terrain3D region save plus non-empty LOD0 bake twice with deterministic preview/evidence",
     "guard_band": "255/256 Terrain3D region boundary height parity plus merged G00/G01 Near Detail seam regression",
-    "regression_policy": "same acceptance thresholds retained; previously bundled HTerrain/world/settlement/road/PWA/mobile/browser gate is split into independently attributable CI steps without weakening any test",
+    "visual_contract": "real Terrain3D bake feeds Three.js near/far meshes plus a 1200x800 full-world top-down owner-map context; G01 overlay is feathered and no GeoCell/Pindex/source grid is rendered",
+    "visual_files": [
+      "nw-g01-terrain3d-runtime-parity-proof/g01-runtime-bake-topdown.png",
+      "nw-g01-terrain3d-runtime-parity-proof/g01-runtime-near.png",
+      "nw-g01-terrain3d-runtime-parity-proof/g01-runtime-far.png",
+      "nw-g01-terrain3d-runtime-parity-proof/g01-full-world-reference-topdown.png"
+    ],
+    "regression_policy": "same acceptance thresholds retained; HTerrain/world-reference, settlement/road, PWA installability, service-worker offline shell, technical debt, mobile budget and browser smoke are independently attributable CI gates",
+    "known_shared_blocker": "main currently lacks the G01 runtime adapter in the service-worker offline shell; concurrent terrain PR #499 already owns service-worker.js and carries that shared repair, so NW does not duplicate the edit",
     "grid_policy": "GeoCell/Pindex/source grids are addressing and QA only; no visible square, nearest-neighbour coastline step, mosaic or seam",
     "ci_workflow": ".github/workflows/nw-g01-terrain3d-runtime-parity.yml",
-    "visual_proof": "nw-g01-terrain3d-runtime-parity-proof/g01-runtime-bake-topdown.png",
     "next_layer_if_green": "G01 becomes seven-layer complete only after a fresh exact-main qualification PR is green and merged; only then select the nearest unfinished NW GeoCell"
   },
   "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable remains mandatory for real Height/Control/Color import, persisted multi-region data and LOD0 bake. HTerrain remains preserved as regression/control; Three.js consumes only deterministic bake output.",
-  "updated_at": "2026-08-14T10:30:00+03:00"
+  "updated_at": "2026-08-14"
 }
