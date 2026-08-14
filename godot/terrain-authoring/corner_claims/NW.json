@@ -7,7 +7,7 @@
   "exact_base": "cdca07cc3f29c635db382cba8b8bbdb11a4c5998",
   "branch": "agent/buzul-muhafizi-g10-relief-exact-cdca07-20260814",
   "pr": 522,
-  "last_commit": "a8f3b951895aa35775593b466d294fea67a22e4e",
+  "last_commit": "44a7009c7ba0998726cd6d2a658c869bfeca1343",
   "quality_before": {
     "layer": "Macro Albedo/Biome",
     "merged_pr": 439,
@@ -27,6 +27,7 @@
     "visual_proof": "Three.js near + far + full-world top-down evidence; GeoCell/Pindex/source/import grids are never drawn",
     "grid_policy": "8x8 GeoCell, Pindex, 96x64, 192x128, 65x65 and 257x257 are addressing/QA/import structures only; no square terrain, nearest-neighbour coast, mosaic or seam is accepted",
     "ci_workflow": ".github/workflows/nw-g10-terrain3d-relief.yml",
+    "platform_regression_fix": "checkout now resolves Git LFS assets before mobile/browser gates; Terrain3D/relief thresholds are unchanged",
     "next_layer_if_green": "stay on G10 and advance to Rock/Snow only after exact-head CI is green and this Relief PR merges"
   },
   "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable / SHA256 a071850250ec5e596aa54da61c01d75768774eb379ee997584d426a45f4884a2 remains mandatory. HTerrain is preserved as regression/control.",
