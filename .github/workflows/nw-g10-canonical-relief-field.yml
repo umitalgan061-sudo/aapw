@@ -9,6 +9,8 @@ on:
     paths:
       - 'src/3d/world/worldReferenceReliefField.js'
       - 'scripts/checkNWG10CanonicalReliefField.mjs'
+      - 'scripts/emitNWG10CanonicalReliefProbe.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g10_canonical_relief_field.gd'
       - '.github/workflows/nw-g10-canonical-relief-field.yml'
   workflow_dispatch:
 
@@ -22,7 +24,7 @@ env: { TZ: Europe/Istanbul }
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, lfs: true, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
@@ -39,8 +41,8 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceReliefField.js|scripts/checkNWG10CanonicalReliefField.mjs|\.github/workflows/nw-g10-canonical-relief-field.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 3
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceReliefField.js|scripts/checkNWG10CanonicalReliefField.mjs|scripts/emitNWG10CanonicalReliefProbe.mjs|godot/terrain-authoring/scripts/validate_g10_canonical_relief_field.gd|\.github/workflows/nw-g10-canonical-relief-field.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 5
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "NW G10 canonical relief quota additions=$A deletions=$D total=$((A+D))"
@@ -56,6 +58,7 @@ jobs:
           set -euo pipefail
           node --check src/3d/world/worldReferenceReliefField.js
           node --check scripts/checkNWG10CanonicalReliefField.mjs
+          node --check scripts/emitNWG10CanonicalReliefProbe.mjs
           node scripts/checkWorldReferenceMap.js
           node scripts/checkNWG10CanonicalReliefField.mjs | tee "$RUNNER_TEMP/relief-a.log"
           node scripts/checkNWG10CanonicalReliefField.mjs | tee "$RUNNER_TEMP/relief-b.log"
@@ -63,6 +66,11 @@ jobs:
           grep -F '"status": "PASS"' "$RUNNER_TEMP/relief-a.log"
           grep -F '"water": 60' "$RUNNER_TEMP/relief-a.log"
           grep -F '"land": 36' "$RUNNER_TEMP/relief-a.log"
+          mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node scripts/emitNWG10CanonicalReliefProbe.mjs --out=godot/terrain-authoring/.terrain3d-proof/g10-canonical-relief-probe.json
+          cp godot/terrain-authoring/.terrain3d-proof/g10-canonical-relief-probe.json "$RUNNER_TEMP/probe-a.json"
+          node scripts/emitNWG10CanonicalReliefProbe.mjs --out=godot/terrain-authoring/.terrain3d-proof/g10-canonical-relief-probe.json
+          cmp "$RUNNER_TEMP/probe-a.json" godot/terrain-authoring/.terrain3d-proof/g10-canonical-relief-probe.json
 
       - name: Install and verify pinned Terrain3D
         run: |
@@ -73,7 +81,7 @@ jobs:
           grep -F 'version="1.0.2"' godot/terrain-authoring/addons/terrain_3d/plugin.cfg
           grep -F 'res://addons/zylann.hterrain/plugin.cfg' godot/terrain-authoring/project.godot
 
-      - name: Download Godot 4.6.3 and verify plugin load plus HTerrain regression
+      - name: Download Godot 4.6.3
         run: |
           set -euo pipefail
           ZIP="$RUNNER_TEMP/godot.zip"; DIR="$RUNNER_TEMP/godot"; mkdir -p "$DIR"
@@ -81,14 +89,24 @@ jobs:
           unzip -q "$ZIP" -d "$DIR"
           GODOT_BIN="$(find "$DIR" -maxdepth 1 -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
           test -n "$GODOT_BIN"; chmod +x "$GODOT_BIN"; "$GODOT_BIN" --version | grep -F '4.6.3'
-          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 2>&1 | tee "$RUNNER_TEMP/editor.log"
-          ! grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' "$RUNNER_TEMP/editor.log"
-          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
-          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
 
-      - name: Settlement road determinism and PWA safety
+      - name: Real Terrain3D multi-region import persistence and LOD0 twice
         run: |
           set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 2>&1 | tee "$RUNNER_TEMP/editor.log"
+          ! grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' "$RUNNER_TEMP/editor.log"
+          G10_CANONICAL_RELIEF_SUFFIX=a timeout 300s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g10_canonical_relief_field.gd | tee "$RUNNER_TEMP/t3d-a.log"
+          G10_CANONICAL_RELIEF_SUFFIX=b timeout 300s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g10_canonical_relief_field.gd | tee "$RUNNER_TEMP/t3d-b.log"
+          grep -F 'NW_G10_CANONICAL_RELIEF_TERRAIN3D_OK' "$RUNNER_TEMP/t3d-a.log"
+          grep -F 'NW_G10_CANONICAL_RELIEF_TERRAIN3D_OK' "$RUNNER_TEMP/t3d-b.log"
+          grep -F '"regions":4' "$RUNNER_TEMP/t3d-a.log"
+
+      - name: HTerrain settlement road determinism and PWA safety
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee "$RUNNER_TEMP/hterrain.log"
+          grep -F 'HTERRAIN_AUTHORING_VALIDATION_OK' "$RUNNER_TEMP/hterrain.log"
           node scripts/checkSeededRandomPolicy.js
           node scripts/terrainSeatSafetyCheck.js
           node scripts/roadNetworkSafetyCheck.js
@@ -104,3 +122,11 @@ jobs:
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nw-g10-canonical-relief-proof
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: godot/terrain-authoring/.terrain3d-proof/g10-canonical-relief-probe.json
