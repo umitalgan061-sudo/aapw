@@ -120,10 +120,12 @@ jobs:
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log
           grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/hterrain.log
-          git lfs install --local
-          git lfs pull --exclude='assets/models/fbx/2.FBX,assets/models/fbx/Old House 2/Old House Files/Old House 2 3D Models.FBX,assets/models/fbx/singlemountain.FBX'
           npm install --no-save --no-package-lock playwright@1.55.0
           npx playwright install --with-deps chromium
+          node scripts/checkSEG77RockSnowFullWorldVisual.mjs --out-dir=artifacts/se-g77-rock-snow-r9 | tee /tmp/full-world.log
+          grep -F SE_G77_ROCK_SNOW_FULL_WORLD_VISUAL_OK /tmp/full-world.log
+          git lfs install --local
+          git lfs pull --exclude='assets/models/fbx/2.FBX,assets/models/fbx/Old House 2/Old House Files/Old House 2 3D Models.FBX,assets/models/fbx/singlemountain.FBX'
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkWorldReferenceMap.js
           node scripts/terrainSeatSafetyCheck.js
@@ -133,8 +135,6 @@ jobs:
           node scripts/checkTechnicalDebt.js
           node scripts/checkMobilePerfBudget.js
           node scripts/smokeTestGame3D.js
-          node scripts/checkSEG77RockSnowFullWorldVisual.mjs --out-dir=artifacts/se-g77-rock-snow-r9 | tee /tmp/full-world.log
-          grep -F SE_G77_ROCK_SNOW_FULL_WORLD_VISUAL_OK /tmp/full-world.log
           node scripts/checkSEG77RockSnowVisualEvidence.mjs --out-dir=artifacts/se-g77-rock-snow-r9 | tee /tmp/visual.log
           grep -F SE_G77_ROCK_SNOW_VISUAL_OK /tmp/visual.log
           node scripts/checkSEG77RockSnowEvidenceManifest.mjs --out-dir=artifacts/se-g77-rock-snow-r9 | tee /tmp/manifest.log
