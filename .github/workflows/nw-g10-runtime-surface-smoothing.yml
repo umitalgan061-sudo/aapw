@@ -8,6 +8,7 @@ on:
     paths:
       - 'src/3d/world/worldReferenceSurfaceTerrainVisual.js'
       - 'scripts/checkNWG10RuntimeSurfaceSmoothing.mjs'
+      - 'scripts/checkNWG10RuntimeSurfaceTopology.mjs'
       - 'scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs'
       - 'scripts/checkNWG10RuntimeSmoothingEvidence.mjs'
       - 'godot/terrain-authoring/corner_claims/NW.json'
@@ -33,7 +34,7 @@ jobs:
           ref: '${{ github.event.pull_request.head.sha || github.sha }}'
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Exact-main six-file scope and quota
+      - name: Exact-main seven-file scope and quota
         run: |
           set -euo pipefail
           git fetch origin main
@@ -43,8 +44,8 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceSurfaceTerrainVisual.js|scripts/checkNWG10RuntimeSurfaceSmoothing.mjs|scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs|scripts/checkNWG10RuntimeSmoothingEvidence.mjs|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g10-runtime-surface-smoothing.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 6
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceSurfaceTerrainVisual.js|scripts/checkNWG10RuntimeSurfaceSmoothing.mjs|scripts/checkNWG10RuntimeSurfaceTopology.mjs|scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs|scripts/checkNWG10RuntimeSmoothingEvidence.mjs|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/nw-g10-runtime-surface-smoothing.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 7
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "NW G10 runtime smoothing quota: additions=$A deletions=$D total=$((A+D))"
@@ -64,11 +65,19 @@ jobs:
           set -euo pipefail
           node --check src/3d/world/worldReferenceSurfaceTerrainVisual.js
           node --check scripts/checkNWG10RuntimeSurfaceSmoothing.mjs
+          node --check scripts/checkNWG10RuntimeSurfaceTopology.mjs
           node --check scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs
           node --check scripts/checkNWG10RuntimeSmoothingEvidence.mjs
           node scripts/checkTerrainPolishIteration08.js
           node scripts/checkTerrainPindexQualityV2.js
           node scripts/checkWorldReferenceMap.js
+      - name: Prove map topology stays anchored
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNWG10RuntimeSurfaceTopology.mjs --out=artifacts/nw-g10-runtime-smoothing/g10-runtime-topology.json | tee "$RUNNER_TEMP/topology.log"
+          grep -F NW_G10_RUNTIME_SURFACE_TOPOLOGY_OK "$RUNNER_TEMP/topology.log"
+          test -s artifacts/nw-g10-runtime-smoothing/g10-runtime-topology.json
       - name: Measure G10 hard-edge removal and determinism
         run: |
           set -euo pipefail
