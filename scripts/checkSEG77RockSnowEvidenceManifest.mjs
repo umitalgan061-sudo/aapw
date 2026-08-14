@@ -17,11 +17,12 @@ for(const [name,file] of Object.entries(files)){
 if(new Set(['near','far','localTopdown','fullWorldTopdown'].map((k)=>evidence[k].sha256)).size!==4)throw new Error('real runtime visual evidence frames are not distinct');
 const probe=JSON.parse(fs.readFileSync(path.resolve(root,files.sourceProbe),'utf8')), runtime=JSON.parse(fs.readFileSync(path.resolve(root,files.fullWorldMeta),'utf8'));
 if(probe.sourceMapSha256!=='20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1'||JSON.stringify(probe.sourceMapSize)!=='[1536,1024]'||probe.sourceMapVersion!=='map.png-r1')throw new Error('manifest map.png provenance mismatch');
+if(!probe.sourceMapTracked||probe.sourceMapActualSha256!==probe.sourceMapSha256||JSON.stringify(probe.sourceMapActualSize)!==JSON.stringify(probe.sourceMapSize))throw new Error('canonical map.png binary is missing or does not match the declared provenance');
 if(probe.policyId!=='kizil-ufuk-g77-terrain3d-rock-snow-2026-08-14-r9'||probe.geoCell!=='G77'||probe.layer!=='Rock/Snow'||probe.terrain3dRegionSize!==256||probe.terrain3dImportSize!==257)throw new Error('manifest source contract mismatch');
 if(runtime.cameraType!=='OrthographicCamera'||runtime.topDownDegrees!==90||runtime.downDot<0.999999||runtime.visibleGeoCellOverlay!==false||runtime.g77RuntimeCovered!==true)throw new Error('full-world runtime camera/coverage contract mismatch');
 if(runtime.sourceMapSha256!==probe.sourceMapSha256||runtime.renderSha256!==evidence.fullWorldTopdown.sha256||!/^[a-f0-9]{64}$/.test(runtime.runtimeSourceSha256))throw new Error('full-world runtime provenance mismatch');
 if(runtime.consoleErrors.length||runtime.pageErrors.length||runtime.requestFailures.length)throw new Error('full-world runtime error arrays are not clean');
-const manifest={schema:'se-g77-rock-snow-evidence-r11',sourceMapSha256:probe.sourceMapSha256,sourceMapSize:probe.sourceMapSize,sourceMapVersion:probe.sourceMapVersion,runtimeSourceSha256:runtime.runtimeSourceSha256,geoCell:'G77',layer:'Rock/Snow',terrain3dImportSize:257,evidence};
+const manifest={schema:'se-g77-rock-snow-evidence-r11',sourceMapSha256:probe.sourceMapSha256,sourceMapSize:probe.sourceMapSize,sourceMapVersion:probe.sourceMapVersion,sourceMapFile:probe.sourceMapFile,sourceMapActualSha256:probe.sourceMapActualSha256,runtimeSourceSha256:runtime.runtimeSourceSha256,geoCell:'G77',layer:'Rock/Snow',terrain3dImportSize:257,evidence};
 fs.writeFileSync(path.join(out,'g77-rock-snow-evidence-manifest.json'),`${JSON.stringify(manifest,null,2)}\n`);
 console.log(`SE_G77_ROCK_SNOW_EVIDENCE_MANIFEST=${JSON.stringify(manifest)}`);
 console.log('SE_G77_ROCK_SNOW_EVIDENCE_MANIFEST_OK');
