@@ -31,17 +31,19 @@ jobs:
           git fetch origin main
           CURRENT_MAIN="$(git rev-parse origin/main)"
           test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
-      - name: Syntax and materialize
+      - name: Syntax, materialize, and verify idempotence
         run: |
           set -euo pipefail
           node --check scripts/materializeOwnerApprovedModelManifest.js
           node scripts/materializeOwnerApprovedModelManifest.js
           node scripts/checkAssetsManifest.js
           git diff --check
-          git diff > "$RUNNER_TEMP/first.patch"
+          cp assets_manifest.json "$RUNNER_TEMP/assets_manifest.first.json"
+          cp CREDITS.md "$RUNNER_TEMP/CREDITS.first.md"
           node scripts/materializeOwnerApprovedModelManifest.js
-          git diff > "$RUNNER_TEMP/second.patch"
-          cmp "$RUNNER_TEMP/first.patch" "$RUNNER_TEMP/second.patch"
+          cmp "$RUNNER_TEMP/assets_manifest.first.json" assets_manifest.json
+          cmp "$RUNNER_TEMP/CREDITS.first.md" CREDITS.md
+          node scripts/checkAssetsManifest.js
       - name: Recheck main before publication
         run: |
           set -euo pipefail
