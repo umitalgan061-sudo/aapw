@@ -58,7 +58,7 @@ const WALKABLE_SLOPE_MAX_DEGREES = 35;
  * much larger area), large enough to stay well above floating-point noise. */
 const SLOPE_SAMPLE_OFFSET_METERS = 2;
 
-const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
+const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 
 /**
  * Starts a plain static file server over the repo root — same minimal pattern
