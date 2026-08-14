@@ -62,7 +62,7 @@ const RIVER_CLEARANCE_METERS = 25;
  * riverbank instead. */
 const MAX_CONSECUTIVE_RIVER_ADJACENT_POINTS = 3;
 
-const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
+const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 
 /** @returns {Promise<import('http').Server>} Same minimal static server every sibling check script uses. */
 function startStaticServer() {
