@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { sampleReferenceWaterMask } from '../src/3d/world/worldReferenceWaterMask.js';
-import { sampleWorldReferenceRelief } from '../src/3d/world/worldReferenceReliefField.js';
+import { sampleWorldReferenceRelief } from '../godot/terrain-authoring/lib/worldReferenceReliefField.mjs';
 
 const SIZE = 513;
 const CELL_STEP = 1 / 8;
