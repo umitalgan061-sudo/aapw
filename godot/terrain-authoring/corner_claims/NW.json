@@ -6,8 +6,8 @@
   "status": "in_progress_exact_main_requalification",
   "exact_base": "1722161c8eab06566e077e846d820dc38784795f",
   "branch": "agent/buzul-muhafizi-g01-parity-exact-172216-20260814",
-  "pr": null,
-  "last_commit": null,
+  "pr": 514,
+  "last_commit": "bfb837f9b54dc3169dd886dd56701f57e33fc94d",
   "quality_before": {
     "layer": "Near Detail",
     "merged_pr": 476,
