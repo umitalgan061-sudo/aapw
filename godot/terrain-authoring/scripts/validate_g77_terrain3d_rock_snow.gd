@@ -1,6 +1,7 @@
 extends SceneTree
 
 const PROBE_PATH := "res://.terrain3d-proof/g77-rock-snow-probe.json"
+const PREVIEW_PATH := "res://.terrain3d-proof/g77-rock-snow-imported-topdown.png"
 const EXPECTED_POLICY := "kizil-ufuk-g77-terrain3d-rock-snow-2026-08-14-r9"
 const EXPECTED_SOURCE_SHA := "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1"
 const MAX_BLEND_ERROR := 0.006
@@ -59,6 +60,23 @@ func _control_image(probe: Dictionary) -> Image:
 			image.set_pixel(x, z, Color(Terrain3DUtil.as_float(bits), 0, 0, 1))
 	return image
 
+func _write_preview(terrain: Terrain3D, probe: Dictionary) -> Error:
+	var n := int(probe["terrain3dImportSize"])
+	var image := Image.create_empty(n, n, false, Image.FORMAT_RGBA8)
+	var ground := Color(0.34, 0.30, 0.24, 1.0)
+	var rock := Color(0.34, 0.34, 0.33, 1.0)
+	var snow := Color(0.90, 0.92, 0.94, 1.0)
+	for z in n:
+		for x in n:
+			var pos := Vector3(float(x), 0, float(z))
+			var blend := terrain.data.get_control_blend(pos)
+			if is_nan(blend): blend = 0.0
+			var overlay := terrain.data.get_control_overlay_id(pos)
+			var target := snow if overlay == int(probe["snowTextureId"]) else rock
+			image.set_pixel(x, z, ground.lerp(target, clampf(blend, 0.0, 1.0)))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.terrain3d-proof"))
+	return image.save_png(PREVIEW_PATH)
+
 func _run() -> void:
 	if not _need(FileAccess.file_exists(PROBE_PATH), "probe JSON missing"): return
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(PROBE_PATH))
@@ -94,6 +112,7 @@ func _run() -> void:
 			checksum = int((checksum ^ int(round(clampf(blend, 0, 1) * 255.0))) * 16777619) & 0xffffffff; sample_count += 1
 	if not _need(max_blend_error <= MAX_BLEND_ERROR and seam_blend_error <= MAX_BLEND_ERROR, "control roundtrip tolerance exceeded"): return
 	if not _need(max_height_error <= MAX_HEIGHT_ERROR and seam_height_error <= MAX_HEIGHT_ERROR, "height roundtrip tolerance exceeded"): return
+	if not _need(_write_preview(terrain, probe) == OK, "imported top-down preview write failed"): return
 	var baked: Mesh = terrain.bake_mesh(0)
 	if not _need(baked != null and baked.get_surface_count() > 0, "LOD0 bake empty"): return
 	var vertices: PackedVector3Array = baked.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
