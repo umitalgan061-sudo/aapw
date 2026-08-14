@@ -414,3 +414,24 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   handlers). `game3d.js` passes `isPaused: () => state.paused`. Defaults to `() => false`, so no
   other caller (this project's own smoke checks included) needed a call-site change. No open
   edge left by this pass — not a temporary default.
+
+- **(run 341, ADR-0289) Settings screen scope — graphics quality only, no volume; only shadow
+  resolution actually changes.** `ui/pauseMenu.js`'s new "Ayarlar" tab picks among
+  `QUALITY_LEVELS` (Otomatik/Yüksek/Orta/Düşük) on desktop and persists to
+  `STORAGE_KEYS.QUALITY_SETTING`, applied by `renderQuality.js`'s `resolveRenderQuality()` at the
+  next page load (no live-apply path exists — the renderer/shadow camera are only ever configured
+  once, at scene construction). **Two disclosed scope edges, not silently dropped:** (1) no volume
+  control — `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 row 6 already records `assets/audio/` as empty,
+  so there is nothing to control yet; revisit once real audio assets exist. (2) of `QUALITY_PRESETS`'s
+  four knobs (`shadowMapSize`, `drawDistance`, `pixelRatioCap`, `textureSize`), only `shadowMapSize`
+  is actually read anywhere in the renderer (a pre-existing gap this run did not introduce — see
+  ADR-0288/`renderQuality.js`'s own module doc — and did not close either); picking "Düşük" today
+  only shrinks the shadow map, it does not reduce draw distance or texture memory yet. Both are this
+  run's own disclosed scope boundary, same "temporary default, no real playtest yet" category as
+  every prior entry in this file. Desktop-only by design, not an oversight: a coarse-pointer device
+  sees an explanatory note instead of the picker, since the mobile perf budget (ADR-0010) is treated
+  as fixed. Also folded into this run, not a separate item: a real, pre-existing
+  `checkServiceWorkerCache.js` FAIL (two `src/3d` files and 10 animal models that landed on `main`
+  via other concurrent runs/commits between run 340 and this run, never registered in
+  `GAME3D_SHELL_FILES`) was found and closed while running this run's own required full sweep —
+  `SHELL_CACHE` bumped v11->v12 accordingly.

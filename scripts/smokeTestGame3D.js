@@ -35,7 +35,9 @@
  * - `game3dSmokeChecksSettlementCompass.js` — nearest-settlement compass widget (run 106, ADR-0133).
  * - `game3dSmokeChecksDayNightClock.js` — day/night clock widget (run 107, ADR-0134).
  * - `game3dSmokeChecksVegetation.js` — procedural instanced-tree scatter placement rules (run 111, ADR-0138).
- * - `game3dSmokeChecksPauseMenu.js` — menu/pause overlay open/close/dispose (run 339, ADR-0285).
+ * - `game3dSmokeChecksPauseMenu.js` — menu/pause overlay open/close/dispose (run 339, ADR-0285); plus
+ *   (run 341, ADR-0289) the settings screen's quality picker and `renderQuality.js`'s manual-override
+ *   resolution.
  *
  * The split history: run 40 (`game3dSmokeChecks.js` hit 596/600), run 64 (a fifth check module rather
  * than growing `game3dSmokeChecksMovement.js`, already at 614/600), run 68 (that 614-line violation
@@ -111,6 +113,7 @@ async function main() {
 		results.push(await dayNightClockChecks.checkDayNightClock(browser, baseUrl));
 		results.push(await vegetationChecks.checkVegetation(browser, baseUrl));
 		results.push(await pauseMenuChecks.checkPauseMenu(browser, baseUrl));
+		results.push(await pauseMenuChecks.checkPauseMenuSettings(browser, baseUrl));
 		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));

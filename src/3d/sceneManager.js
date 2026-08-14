@@ -10,7 +10,7 @@
  */
 
 import * as THREE from 'three';
-import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG } from './config.js';
+import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, STORAGE_KEYS } from './config.js';
 import { PLAYER_CONFIG } from './gameplay/gameplayConfig.js';
 import { ChunkManager } from './world/chunkManager.js';
 import { createGroundCollider, createSettlementCollider, createCircleCollider, createComposedCollider } from './physics.js';
@@ -51,6 +51,21 @@ export function isCoarsePointerDevice() {
 }
 
 /**
+ * Reads the player's manual graphics-quality override (`ui/pauseMenu.js`'s settings screen, run 341,
+ * ADR-0289) — try/catch-wrapped the same way `isCoarsePointerDevice()` above is, so a blocked/absent
+ * `localStorage` (private browsing, some embedded webviews) falls back to `null` ("no override")
+ * instead of throwing and blocking scene creation.
+ * @returns {string|null}
+ */
+function readManualQualityLevel() {
+	try {
+		return window.localStorage.getItem(STORAGE_KEYS.QUALITY_SETTING);
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Converts a world-space coordinate to the chunk grid coordinate it falls in, matching the
  * `world/README.md` convention (chunk `(cx, cz)` centered at world `(cx * size, 0, cz * size)`).
  * Exported so `gameLoopHelpers.js`'s own per-frame chunk-coordinate lookups
@@ -82,7 +97,10 @@ export function createScene(canvas) {
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	// Filmic tone mapping + (desktop only) real sun shadows, finally consuming `QUALITY_PRESETS` —
 	// see `renderQuality.js` for why that config sat unread since FAZ 0 and what each knob buys.
-	const renderQuality = resolveRenderQuality({ coarsePointer: isCoarsePointerDevice() });
+	const renderQuality = resolveRenderQuality({
+		coarsePointer: isCoarsePointerDevice(),
+		manualLevel: readManualQualityLevel(),
+	});
 	configureRendererRealism(renderer, renderQuality);
 
 	const scene = new THREE.Scene();

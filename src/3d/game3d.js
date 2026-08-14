@@ -328,7 +328,13 @@ export async function initGame3D() {
 		// delta-scaled system already no-ops" pattern this codebase already relies on elsewhere
 		// (see e.g. `debug/perfPanel.js`'s own `delta > 0 ? 1 / delta : fps` guard).
 		state.paused = false;
-		state.pauseMenu = new PauseMenu({ onOpenChange: (open) => { state.paused = open; } });
+		// `isMobileClass` (run 341, ADR-0289's settings screen) reuses the same `isCoarsePointerDevice()`
+		// call every other device-budget decision in this file already routes through, rather than a
+		// second independent probe inside `PauseMenu` itself.
+		state.pauseMenu = new PauseMenu({
+			onOpenChange: (open) => { state.paused = open; },
+			isMobileClass: isCoarsePointerDevice(),
+		});
 		state.settlementCompass = new SettlementCompass({ seats: state.settlementSeats });
 		state.settlementDiscovery = new SettlementDiscovery({ seats: state.settlementSeats });
 		state.settlementCompass.setSeatFilter((seat) => !state.settlementDiscovery.isDiscovered(seat.id));

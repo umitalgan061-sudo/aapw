@@ -1,3 +1,32 @@
+// Run341 offline-shell completeness fix — not this run's own feature (the settings screen, ADR-0289),
+// but a real `checkServiceWorkerCache.js` FAIL found while running this run's full DoD sweep: two
+// `src/3d` files landed on `main` between run 340 and this run (the renderer-realism-baseline commit's
+// `renderQuality.js`, now imported by `sceneManager.js`/`game3d.js`, and a concurrent NW-corner
+// terrain-agent commit's `world/g01Terrain3dRuntimeAdapter.js`) without either being added here, so an
+// offline PWA load would have failed to boot the scene at all. Closed here since it blocks this run's
+// own required full sweep from passing, not deferred.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/renderQuality.js');
+    GAME3D_SHELL_FILES.push('./src/3d/world/g01Terrain3dRuntimeAdapter.js');
+});
+
+// Run341 offline-shell completeness fix (continued) — the same category of gap, this time 10 rigged
+// animal models a prior run's own "wire 10 unused rigged animal models into the live world" commit
+// added to `livingWorldSpawner.js`'s per-species clip table without registering any of the 10 in the
+// offline precache list, so an offline PWA session would spawn zero of them.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./assets/models/animals/white_horse_bEdE4rmZy9.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/cow_26zM1outCr.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/bull_a8PIIYwF7r.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/deer_T6Cs7tmMHJ.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/stag_tQdzbZ1Cmw.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/fox_Bc97C66HKi.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/husky_wcWiuEqwzq.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/alpaca_bCVFD48i2l.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/zebra_iclPBR6SBZ.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/animals/sheep_C39AUXUUes.glb');
+});
+
 // Run339 pause-menu offline shell extension — `ui/pauseMenu.js` (ADR-0285), now imported by
 // `game3d.js`, so an offline PWA load needs it cached or the scene cannot boot at all.
 self.addEventListener('install', () => {
@@ -184,7 +213,10 @@ self.addEventListener('install', () => {
 
 const SW_VERSION = 'westeros-media-v4';
 const MEDIA_CACHE = 'westeros-media-v4';
-const SHELL_CACHE = 'westeros-shell-v11';
+// `SHELL_CACHE` bumped v11->v12 (run 341): GAME3D_SHELL_FILES gained `renderQuality.js`,
+// `world/g01Terrain3dRuntimeAdapter.js` and 10 animal model .glb files above, same "existing installs
+// must actually clean up the old, now-stale entry" reasoning as every prior bump entry in this file.
+const SHELL_CACHE = 'westeros-shell-v12';
 const SHELL_FILES = [
     './',
     './index.html',

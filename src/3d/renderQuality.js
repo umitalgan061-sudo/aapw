@@ -74,20 +74,34 @@ const SHADOW_BIAS = -0.0004;
 const SHADOW_NORMAL_BIAS = 0.02;
 
 /**
- * Picks the quality level for this device. Deliberately a pure function of the one input rather than
- * reading `window` itself, so callers (and tests) stay in control — `sceneManager.js` already owns
- * the `isCoarsePointerDevice()` probe every other budget decision in this project routes through, and
- * a second independent device check here could disagree with it.
+ * Picks the quality level for this device. Deliberately a pure function of its inputs rather than
+ * reading `window`/`localStorage` itself, so callers (and tests) stay in control — `sceneManager.js`
+ * already owns the `isCoarsePointerDevice()` probe every other budget decision in this project routes
+ * through, and a second independent device check here could disagree with it.
  * @param {object} options
  * @param {boolean} options.coarsePointer `isCoarsePointerDevice()` — touch-primary hardware.
+ * @param {string|null} [options.manualLevel] A `QUALITY_LEVELS` value read from
+ *   `STORAGE_KEYS.QUALITY_SETTING` (`ui/pauseMenu.js`'s settings screen, run 341/ADR-0289) — the
+ *   player's manual override, if any. Only ever applied on desktop: the mobile budget
+ *   (DrawCalls<500, Triangles<500K, ADR-0010) is a fixed invariant this project already treats as
+ *   non-negotiable, not something a settings screen should be able to loosen, so `coarsePointer`
+ *   always wins regardless of what is stored. `QUALITY_LEVELS.AUTOMATIC`, `null`/`undefined`, and any
+ *   value that is not a real `QUALITY_PRESETS` key (a hand-edited or stale-version localStorage value
+ *   included) all mean "no override" and fall through to the existing per-device default below.
  * @returns {{level: string, preset: {shadowMapSize: number, drawDistance: number, pixelRatioCap: number, textureSize: number}, shadowsEnabled: boolean}}
  */
-export function resolveRenderQuality({ coarsePointer }) {
-	const level = coarsePointer ? QUALITY_LEVELS.LOW : QUALITY_LEVELS.HIGH;
+export function resolveRenderQuality({ coarsePointer, manualLevel = null }) {
+	const overrideLevel = !coarsePointer && manualLevel && manualLevel !== QUALITY_LEVELS.AUTOMATIC
+		&& QUALITY_PRESETS[manualLevel]
+		? manualLevel
+		: null;
+	const level = overrideLevel ?? (coarsePointer ? QUALITY_LEVELS.LOW : QUALITY_LEVELS.HIGH);
 	return {
 		level,
 		preset: QUALITY_PRESETS[level],
 		// See the module doc: shadow maps are the one realism feature the mobile budget cannot absorb.
+		// Unaffected by `manualLevel` — a manual override only ever picks among desktop presets, it
+		// never re-enables shadows on a coarse-pointer device.
 		shadowsEnabled: !coarsePointer,
 	};
 }
