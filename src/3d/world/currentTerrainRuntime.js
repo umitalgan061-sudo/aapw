@@ -51,6 +51,7 @@ const PROTECTION_RADII = referenceProtectionRadiiFromMeters(75, WORLD_SCALE.METE
 const MIN_LAND_CLEARANCE_METERS = 0.35;
 const MIN_PROTECTED_CLEARANCE_METERS = 0.08;
 const INLAND_PROTECTED_CLEARANCE_METERS = 1.25;
+const MAX_RAW_WATER_BED_METERS = SEA_LEVEL - 0.25;
 
 export const CURRENT_TERRAIN_POLICY = Object.freeze({
   id: 'westeros-current-terrain-single-source-2026-08-14-v1',
@@ -140,7 +141,11 @@ export function sampleCanonicalCurrentRelativeHeight(normalizedX, normalizedY) {
     - waterWeight * 5.5
     - sample.reliefInfluence * 1.2
     + micro * 0.18;
-  const coastBlend = smoothstep(0.34, 0.66, waterWeight);
+  // Pindex weights retain sharp map.png shoreline detail. A narrow semantic ramp (the former
+  // 0.34..0.66 interval) could therefore mix tens of metres of dry relief into seabed height over
+  // only one short road segment. Keep the source detail, but spread the vertical transition across
+  // the full ambiguous coastal weight band so terrain remains cart-walkable without moving roads.
+  const coastBlend = smoothstep(0.05, 0.95, waterWeight);
   return lerp(dryHeight, wetHeight, coastBlend);
 }
 
@@ -177,17 +182,15 @@ function applyCanonicalDryLandFloor(nx, ny, heightMeters) {
   const protectedClearance = MIN_PROTECTED_CLEARANCE_METERS
     + (INLAND_PROTECTED_CLEARANCE_METERS - MIN_PROTECTED_CLEARANCE_METERS) * hydrology.protectedLandWeight;
 
-  // A protected seat can legitimately sit in a coarse raw-water cell. The hydrology overlay's
-  // protectedLand flag is binary at the protection-radius edge, but its weight is smooth. Applying
-  // a full dry-land clamp anywhere weight > 0 therefore created an artificial vertical shoreline at
-  // that edge. Raise raw-water terrain toward the seat-safe floor by the same smooth protection
-  // weight instead, so the protected island reaches the required dry height at the seat and blends
-  // continuously back to the untouched seabed at the radius boundary.
+  // Keep canonical water physically below the 6m water plane even while the broader coastal blend
+  // approaches shore. Protected coastal seats are the sole exception and still rise continuously
+  // to their seat-safe floor using the accepted hydrology protection weight.
   if (hydrology.rawWater) {
-    if (!hydrology.protectedLand) return heightMeters;
+    const waterBedHeight = Math.min(heightMeters, MAX_RAW_WATER_BED_METERS);
+    if (!hydrology.protectedLand) return waterBedHeight;
     const clearance = Math.max(MIN_LAND_CLEARANCE_METERS, protectedClearance);
-    const protectedFloor = Math.max(heightMeters, SEA_LEVEL + clearance);
-    return lerp(heightMeters, protectedFloor, hydrology.protectedLandWeight);
+    const protectedFloor = Math.max(waterBedHeight, SEA_LEVEL + clearance);
+    return lerp(waterBedHeight, protectedFloor, hydrology.protectedLandWeight);
   }
 
   const clearance = hydrology.protectedLand
