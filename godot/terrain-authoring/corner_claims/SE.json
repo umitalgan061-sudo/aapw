@@ -1,21 +1,29 @@
 {
   "corner": "SE",
   "task_name": "Kızıl Ufuk",
-  "origin": [7, 7],
-  "current_cell": "G75",
+  "origin": [
+    7,
+    7
+  ],
+  "current_cell": "G77",
   "status": "active",
-  "layer": "Relief/Height Character",
-  "branch": "agent/kizil-ufuk-g75-relief-c1-20260813",
-  "pr": 301,
-  "last_commit": "3a7fd091ebcdd29689b19b6b58137b046218cee1",
+  "layer": "Rock/Snow",
+  "branch": "agent/kizil-ufuk-g77-rock-snow-exact-99a989-r10-20260814",
+  "pr": null,
+  "base_commit": "99a98909339c8f59b855b03c848a0bc0cd2fc4fd",
+  "last_commit": null,
   "quality_before": {
-    "coast_hydrology": "96/96 dry canonical centres; Terrain3D proof PR #285",
-    "macro_biome": "continuous owner-map color field; Terrain3D proof PR #288",
-    "relief_attempt": "PR #296 rejected at maxGuardNormalDelta 1.413918 > 0.8 and retired stale/unmerged"
+    "coast_hydrology": "merged continuous G77 coastline; canonical 44 water / 52 land",
+    "macro_biome": "merged continuous G77 owner-map albedo/roughness",
+    "relief": "merged G77 Relief/Height Character is present on current main",
+    "rock_snow": "not present on current main; stale PR #511 is not mergeable under exact-main policy"
   },
   "quality_after": {
-    "target": "same G75 height field with normals derived in canonical full-reference metre space; fixed seam threshold retained at 0.8",
-    "state": "pending exact-head CI evidence"
+    "target": "continuous relief/biome/hydrology-driven Rock/Snow with symmetric 3x3 slope filtering, zero canonical-water leakage and no GeoCell/grid imprint",
+    "terrain3d": "pinned v1.0.2 real 257x257 Height+Control import across >=4 regions; native lifecycle is import -> audit -> LOD0 bake -> persist -> new-instance reload -> reload audit -> reload LOD0 bake -> imported top-down proof, plus an independent-process reload gate",
+    "visual": "near + far + local top-down + full-world top-down evidence, with map.png geography readable and GeoCell overlay hidden",
+    "state": "pending exact-head CI after Godot 4.6.3 seam u/v type-inference repair"
   },
-  "updated_at": "2026-08-13T01:12:00+03:00"
+  "next_layer_after_merge": "Road/Path",
+  "updated_at": "2026-08-14T21:20:00+03:00"
 }
