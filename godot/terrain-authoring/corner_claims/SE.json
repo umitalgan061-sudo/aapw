@@ -6,20 +6,20 @@
   "status": "active",
   "layer": "Rock/Snow",
   "branch": "agent/kizil-ufuk-g77-rock-snow-exact-172216-r8-20260814",
-  "pr": null,
+  "pr": 511,
   "base_commit": "1722161c8eab06566e077e846d820dc38784795f",
-  "last_commit": null,
+  "last_commit": "1bbeefa5b746bd14fc95ce5b021fe69b548663d0",
   "quality_before": {
     "coast_hydrology": "merged G77 canonical 44 water / 52 land continuous coastline contract",
     "macro_biome": "merged continuous owner-map biome/color field",
     "relief": "merged real Terrain3D Height+Control+Color import/persist/reload/LOD proof",
-    "rock_snow_r7": "PR #505 was invalidated by exact-main advancement before Terrain3D execution"
+    "rock_snow_r8": "source determinism exposed a 0.249 single-sample slope-driven rock step before Terrain3D execution"
   },
   "quality_after": {
-    "target": "continuous relief/slope/biome-driven rock and snow weights with linear hydrology attenuation over 0.00..0.50, zero material at canonical water and unchanged dense seam thresholds",
+    "target": "v6 uses a symmetric 3x3 relief-slope footprint at 1/1024 normalized radius, continuous 0.00..0.50 hydrology attenuation and zero Rock/Snow on canonical water",
     "terrain3d": "pinned v1.0.2 257x257 Height+Control import across >=4 regions, 255/256 seam roundtrip, persistence, LOD0 bake twice and deterministic near/far/top-down evidence required by CI",
-    "state": "pending exact-head CI evidence"
+    "state": "949/1000 scoped lines; source and dense contracts hardened, pending exact-head CI evidence"
   },
   "next_layer_after_merge": "Road/Path",
-  "updated_at": "2026-08-14T14:04:00+03:00"
+  "updated_at": "2026-08-14T14:26:00+03:00"
 }
