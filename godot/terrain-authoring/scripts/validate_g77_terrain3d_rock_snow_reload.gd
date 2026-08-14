@@ -39,9 +39,11 @@ func _run()->void:
 		for other in range(0,257,16):
 			for point in [Vector2(edge,float(other)),Vector2(float(other),edge)]:
 				var u:=point.x/256.0; var v:=point.y/256.0; var pos:=Vector3(point.x,0,point.y); var expected:=_expected_control(probe,u,v)
+				var seam_overlay_materialized:bool=int(round(float(expected["blend"])*255.0))>0
+				if not _need(terrain.data.get_control_base_id(pos)==int(probe["groundTextureId"]) and (not seam_overlay_materialized or terrain.data.get_control_overlay_id(pos)==int(expected["overlay"])),"255/256 reloaded control IDs changed"): return
 				var seam_height:float=float(terrain.data.get_height(pos)); var seam_blend:float=float(terrain.data.get_control_blend(pos)); seam_h=maxf(seam_h,absf(seam_height-_source_value(probe,u,v,4))); seam_b=maxf(seam_b,absf(seam_blend-float(expected["blend"]))); seam_samples+=1
 	if not _need(aligned==4225 and max_h<=MAX_HEIGHT_ERROR and max_b<=MAX_BLEND_ERROR,"aligned save/reload parity failed"): return
-	if not _need(seam_h<=MAX_HEIGHT_ERROR and seam_b<=MAX_BLEND_ERROR,"255/256 save/reload seam parity failed"): return
+	if not _need(seam_samples==68 and seam_h<=MAX_HEIGHT_ERROR and seam_b<=MAX_BLEND_ERROR,"255/256 save/reload seam parity failed"): return
 	var mesh:Mesh=terrain.bake_mesh(0); if not _need(mesh!=null and mesh.get_surface_count()>0,"reloaded LOD0 bake empty"): return
 	var vertices:PackedVector3Array=mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]; if not _need(vertices.size()>0,"reloaded LOD0 vertices empty"): return
 	print("G77_TERRAIN3D_ROCK_SNOW_RELOAD_METRICS="+JSON.stringify({"regionCount":terrain.data.get_region_count(),"alignedSamples":aligned,"seamSamples":seam_samples,"maxHeightError":max_h,"maxBlendError":max_b,"seamHeightError":seam_h,"seamBlendError":seam_b,"checksum":checksum,"bakedSurfaces":mesh.get_surface_count(),"bakedVertices":vertices.size()}))
