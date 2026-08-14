@@ -7,7 +7,6 @@ on:
       - src/3d/world/g70Terrain3dRuntimeAdapter.js
       - scripts/checkNEG70Terrain3DRuntimeParity.mjs
       - godot/terrain-authoring/scripts/validate_g70_terrain3d_runtime_parity.gd
-      - godot/terrain-authoring/corner_claims/NE.json
       - .github/workflows/ne-g70-terrain3d-runtime-parity.yml
   workflow_dispatch:
 permissions: { contents: read }
@@ -24,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
 
-      - name: Exact-main five-file scope and 1000-line quota
+      - name: Exact-main four-file scope and 1000-line quota
         run: |
           set -euo pipefail
           git fetch origin main
@@ -33,11 +32,12 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"; echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/g70Terrain3dRuntimeAdapter.js|scripts/checkNEG70Terrain3DRuntimeParity.mjs|godot/terrain-authoring/scripts/validate_g70_terrain3d_runtime_parity.gd|godot/terrain-authoring/corner_claims/NE.json|\.github/workflows/ne-g70-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 5
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/g70Terrain3dRuntimeAdapter.js|scripts/checkNEG70Terrain3DRuntimeParity.mjs|godot/terrain-authoring/scripts/validate_g70_terrain3d_runtime_parity.gd|\.github/workflows/ne-g70-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 4
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "G70_RUNTIME_PARITY_CHANGED_LINES=$((A+D))"; test $((A+D)) -le 1000
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/corner_claims/NE.json
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py godot/terrain-authoring/addons/zylann.hterrain
           git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/terrain.js src/3d/world/roads.js service-worker.js
 
