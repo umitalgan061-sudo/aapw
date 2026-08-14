@@ -29,7 +29,8 @@
  *   give-up cue.
  * - `game3dSmokeChecksSafeMode.js` — `safeMode.js`'s dispose()/disposeOnError()-throws containment
  *   (ADR-0106), per-entity and singleton.
- * - `game3dSmokeChecksDialogueTouch.js` — touch/keyboard dialogue-choice activation (run 99, ADR-0125).
+ * - `game3dSmokeChecksDialogueTouch.js` — touch/keyboard dialogue-choice activation (run 99, ADR-0125);
+ *   plus (run 340, ADR-0286) the dialogue-input paused-gate check.
  * - `game3dSmokeChecksControlsHelp.js` — responsive controls-reference widget (run 104, ADR-0131).
  * - `game3dSmokeChecksSettlementCompass.js` — nearest-settlement compass widget (run 106, ADR-0133).
  * - `game3dSmokeChecksDayNightClock.js` — day/night clock widget (run 107, ADR-0134).
@@ -103,6 +104,7 @@ async function main() {
 		results.push(await checks.checkInteractionController(browser, baseUrl));
 		results.push(await checks.checkInteractionPromptTap(browser, baseUrl));
 		results.push(await dialogueTouchChecks.checkDialogueChoiceTap(browser, baseUrl));
+		results.push(await dialogueTouchChecks.checkDialoguePauseGate(browser, baseUrl));
 		results.push(await controlsHelpChecks.checkControlsHelp(browser, baseUrl));
 		results.push(await settlementCompassChecks.checkSettlementCompass(browser, baseUrl));
 		results.push(await settlementDiscoveryChecks.checkSettlementDiscovery(browser, baseUrl));

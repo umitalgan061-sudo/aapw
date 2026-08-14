@@ -78,4 +78,76 @@ async function checkDialogueChoiceTap(browser, baseUrl) {
 	};
 }
 
-module.exports = { checkDialogueChoiceTap };
+/** Pause-gate regression check (run 340, ADR-0286) — `QUESTIONS_FOR_OWNER.md`'s run-339 entry
+ * disclosed that a dialogue already open when the player paused stayed keyboard-reachable
+ * underneath the (visually covering) pause overlay: `createInteractionController`'s new `isPaused`
+ * option is meant to close that for every entry point (E-open/close, Escape, digit choice, and the
+ * touch/keyboard-activated pointer/Enter paths on `dialogueBox.js`'s own choice/hint elements, which
+ * route through `handleChoice`/`handleKeyDown` the same as every other caller) — proven directly
+ * here rather than only via `pauseMenu.js`'s own isolated open/close checks, since the actual
+ * cross-module wiring (this option threading into `game3d.js`'s real construction call) is what
+ * regressed silently before this run.
+ */
+async function checkDialoguePauseGate(browser, baseUrl) {
+	const page = await browser.newPage();
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
+			const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			const dialogueBox = new DialogueBox(container);
+			let paused = false;
+			const controller = createInteractionController({
+				interactionPrompt: { setVisible() {} },
+				dialogueBox,
+				greetingTemplate: 'Selam, {name}!',
+				choicesByNpcId: { 'pause-npc': [{ label: 'Soru', response: '{name}: cevap.' }] },
+				radiusMeters: 6,
+				isPaused: () => paused,
+			});
+			dialogueBox.setChoiceHandler((index) => controller.handleChoice(index));
+			dialogueBox.setCloseHandler(() => controller.handleKeyDown({ code: 'KeyE', repeat: false }));
+			const npc = { object3D: { name: 'pause-npc', position: { x: 0, z: 0 } }, displayName: 'Pause NPC' };
+			controller.update([npc], { x: 0, z: 0 });
+			controller.handleKeyDown({ code: 'KeyE', repeat: false });
+			const openedBeforePause = dialogueBox.isVisible;
+
+			paused = true;
+			const choiceEl = dialogueBox._choicesEl.firstElementChild;
+			choiceEl.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', bubbles: true, cancelable: true }));
+			const choiceBlockedWhilePaused = dialogueBox._choicesEl.childElementCount === 1
+				&& dialogueBox._textEl.textContent !== 'Pause NPC: cevap.';
+			dialogueBox._hintEl.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+			const closeBlockedWhilePaused = dialogueBox.isVisible === true;
+			controller.handleKeyDown({ code: 'Escape', repeat: false });
+			const escapeBlockedWhilePaused = dialogueBox.isVisible === true;
+
+			paused = false;
+			choiceEl.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', bubbles: true, cancelable: true }));
+			const choiceWorksOnceUnpaused = dialogueBox._textEl.textContent === 'Pause NPC: cevap.';
+
+			dialogueBox.dispose();
+			container.remove();
+			return {
+				openedBeforePause, choiceBlockedWhilePaused, closeBlockedWhilePaused,
+				escapeBlockedWhilePaused, choiceWorksOnceUnpaused,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	return {
+		name: 'dialogue input paused-gate (gameplay/interaction.js, run 340)',
+		ok,
+		details: ok
+			? 'a dialogue open when isPaused() flips true ignores choice-select, the touch/keyboard close '
+				+ 'affordance and Escape; the exact same inputs work again once isPaused() flips back'
+			: `FAILED assertion(s): ${JSON.stringify(result)}`,
+	};
+}
+
+module.exports = { checkDialogueChoiceTap, checkDialoguePauseGate };
