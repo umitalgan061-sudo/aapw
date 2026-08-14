@@ -51,3 +51,14 @@ if (!offlineEntries.every((entry) => serviceWorkerBefore.includes(entry))) {
   fs.writeFileSync(serviceWorkerFile, serviceWorkerBefore.replace(marker, `${block}${marker}`));
   console.log('CURRENT_TERRAIN_MATERIALIZED=service-worker.js');
 }
+
+const oldMime = "const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };";
+const currentMime = "const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };";
+for (const relative of ['scripts/terrainSeatSafetyCheck.js', 'scripts/roadNetworkSafetyCheck.js']) {
+  const file = path.join(root, relative);
+  const before = fs.readFileSync(file, 'utf8');
+  if (before.includes(currentMime)) continue;
+  if (!before.includes(oldMime)) throw new Error(`${relative}: browser MIME anchor missing`);
+  fs.writeFileSync(file, before.replace(oldMime, currentMime));
+  console.log(`CURRENT_TERRAIN_MATERIALIZED=${relative}`);
+}
