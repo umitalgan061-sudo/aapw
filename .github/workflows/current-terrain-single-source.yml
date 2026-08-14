@@ -16,6 +16,7 @@ on:
       - 'src/3d/world/currentTerrainAdapter.js'
       - 'scripts/checkCurrentTerrainSingleSource.mjs'
       - 'scripts/checkCurrentTerrainBrowser.mjs'
+      - 'scripts/checkWorldReferenceHydrologyExtent.js'
       - 'scripts/materializeCurrentTerrainSingleSource.mjs'
       - '.github/workflows/current-terrain-single-source.yml'
   workflow_dispatch:
@@ -73,7 +74,7 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(game3d\.html|editor\.html|service-worker\.js|src/3d/config\.js|src/3d/world/currentTerrainRuntime\.js|src/3d/world/currentTerrainAdapter\.js|scripts/checkCurrentTerrainSingleSource\.mjs|scripts/checkCurrentTerrainBrowser\.mjs|scripts/materializeCurrentTerrainSingleSource\.mjs|\.github/workflows/current-terrain-single-source\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(game3d\.html|editor\.html|service-worker\.js|src/3d/config\.js|src/3d/world/currentTerrainRuntime\.js|src/3d/world/currentTerrainAdapter\.js|scripts/checkCurrentTerrainSingleSource\.mjs|scripts/checkCurrentTerrainBrowser\.mjs|scripts/checkWorldReferenceHydrologyExtent\.js|scripts/materializeCurrentTerrainSingleSource\.mjs|\.github/workflows/current-terrain-single-source\.yml)$' | wc -l)" -eq 0
           LINES="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           echo "CURRENT_TERRAIN_CHANGED_LINES=$LINES"
           test "$LINES" -le 1000
@@ -87,9 +88,11 @@ jobs:
           node --check src/3d/world/currentTerrainAdapter.js
           node --check scripts/checkCurrentTerrainSingleSource.mjs
           node --check scripts/checkCurrentTerrainBrowser.mjs
+          node --check scripts/checkWorldReferenceHydrologyExtent.js
           node --check scripts/materializeCurrentTerrainSingleSource.mjs
           node scripts/checkCurrentTerrainSingleSource.mjs | tee "$RUNNER_TEMP/current-terrain-source.log"
           grep -F 'CURRENT_TERRAIN_SINGLE_SOURCE_OK' "$RUNNER_TEMP/current-terrain-source.log"
+          node scripts/checkWorldReferenceHydrologyExtent.js
           grep -F 'legacyProceduralFallback: false' src/3d/world/currentTerrainRuntime.js
           grep -F 'renderAndPhysicsSingleSource: true' src/3d/world/currentTerrainAdapter.js
           grep -F 'MAP_BOUNDS: Object.freeze({ minX: 0, maxX: 9000, minY: 0, maxY: 7000 })' src/3d/config.js
