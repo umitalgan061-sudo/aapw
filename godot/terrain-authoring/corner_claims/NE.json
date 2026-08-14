@@ -6,7 +6,7 @@
   "status": "validating",
   "layer": "Terrain3D Bake/Runtime parity",
   "branch": "terrain/ne-g70-terrain3d-runtime-parity-r1-exact-20260814",
-  "pr": null,
+  "pr": 497,
   "last_commit": null,
   "selection_reason": "G70 Coast/Hydrology, Macro Albedo/Biome, Relief/Height Character, Rock/Snow, Road/Path and Near Detail are merged; Near Detail PR #488 is merged on main. Strict same-cell order therefore advances G70 to its seventh required layer, Terrain3D Bake/Three.js runtime parity, without moving to another GeoCell.",
   "quality_before": {
@@ -64,5 +64,5 @@
   },
   "engine": "merged G70 Near Detail -> deterministic 65x65 source -> pinned Terrain3D v1.0.2-stable 257x257 Height+Control+Color/Roughness import -> >=4 regions -> aligned + 255/256 seam roundtrip -> persistence + LOD0 bake twice -> continuous bilinear owner-map/Three.js world sampler parity -> near/far/full-world evidence; HTerrain retained as regression/control",
   "exact_base": "ce284392825a33de7b3629c6013e897af8c0b35e",
-  "updated_at": "2026-08-14T10:25:40+03:00"
+  "updated_at": "2026-08-14T10:31:35+03:00"
 }
