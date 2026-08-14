@@ -1,0 +1,407 @@
+{
+  "characters": {
+    "king_north": {
+      "baseModel": "/var/games/game-20260814-4c6bfd3a/assets/characters/king_north/king_north.glb",
+      "rigTaskId": "library:fc05a584aadb1d43372e8f6b15f6421a67378ccfcaf1e9f1388f34fb509a5162",
+      "animations": {
+        "ual1_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/king_north/king_north_animations.tres",
+        "ual1_Idle_LookAround": "/var/games/game-20260814-4c6bfd3a/assets/characters/king_north/king_north_animations.tres",
+        "ual1_Walk": "/var/games/game-20260814-4c6bfd3a/assets/characters/king_north/king_north_animations.tres",
+        "ual1_Sprint": "/var/games/game-20260814-4c6bfd3a/assets/characters/king_north/king_north_animations.tres",
+        "ual1_Sword_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/king_north/king_north_animations.tres",
+        "ual1_Death01": "/var/games/game-20260814-4c6bfd3a/assets/characters/king_north/king_north_animations.tres",
+        "ual1_Sword_Attack": "/var/games/game-20260814-4c6bfd3a/assets/characters/king_north/king_north_animations.tres",
+        "ual1_Sword_Enter": "/var/games/game-20260814-4c6bfd3a/assets/characters/king_north/king_north_animations.tres",
+        "ual1_Sword_Exit": "/var/games/game-20260814-4c6bfd3a/assets/characters/king_north/king_north_animations.tres"
+      }
+    },
+    "village_woman": {
+      "baseModel": "/var/games/game-20260814-4c6bfd3a/assets/characters/village_woman/village_woman.glb",
+      "rigTaskId": "library:0da2223a2ce02c3288bde732079e6cee31e77b307f8c6d552c8588e7d134f1ff",
+      "animations": {
+        "ual1_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/village_woman/village_woman_animations.tres",
+        "ual1_Walk": "/var/games/game-20260814-4c6bfd3a/assets/characters/village_woman/village_woman_animations.tres",
+        "ual1_Idle_Talking": "/var/games/game-20260814-4c6bfd3a/assets/characters/village_woman/village_woman_animations.tres",
+        "ual1_Idle_LookAround": "/var/games/game-20260814-4c6bfd3a/assets/characters/village_woman/village_woman_animations.tres"
+      }
+    },
+    "queen_south": {
+      "baseModel": "/var/games/game-20260814-4c6bfd3a/assets/characters/queen_south/queen_south.glb",
+      "rigTaskId": "library:bb812acc70f2379ce18e9c58ef37a0aac1e4a46d474349b97959a98c39851817",
+      "animations": {
+        "ual1_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/queen_south/queen_south_animations.tres",
+        "ual1_Idle_Talking": "/var/games/game-20260814-4c6bfd3a/assets/characters/queen_south/queen_south_animations.tres",
+        "ual1_Walk": "/var/games/game-20260814-4c6bfd3a/assets/characters/queen_south/queen_south_animations.tres",
+        "ual1_Idle_LookAround": "/var/games/game-20260814-4c6bfd3a/assets/characters/queen_south/queen_south_animations.tres"
+      }
+    },
+    "sworn_knight": {
+      "baseModel": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight.glb",
+      "rigTaskId": "library:4696a14ec1a97faafea5945bb01b22b0d0f8a7dcb7b446a66a1e327c5349f3da",
+      "animations": {
+        "ual1_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight_animations.tres",
+        "ual1_Walk": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight_animations.tres",
+        "ual1_Sprint": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight_animations.tres",
+        "ual1_Sword_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight_animations.tres",
+        "ual1_Death01": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight_animations.tres",
+        "ual1_Sword_Attack": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight_animations.tres",
+        "ual1_Sword_Enter": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight_animations.tres",
+        "ual1_Sword_Exit": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight_animations.tres",
+        "ual2_Sword_Block": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight_animations.tres",
+        "ual2_Sword_Heavy_A": "/var/games/game-20260814-4c6bfd3a/assets/characters/sworn_knight/sworn_knight_animations.tres"
+      }
+    },
+    "peasant_man": {
+      "baseModel": "/var/games/game-20260814-4c6bfd3a/assets/characters/peasant_man/peasant_man.glb",
+      "rigTaskId": "library:58aebc963284fda53d9d5bf28c79e6391ee398f79dcacf837ffe21484501ca54",
+      "animations": {
+        "ual1_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/peasant_man/peasant_man_animations.tres",
+        "ual1_Idle_Talking": "/var/games/game-20260814-4c6bfd3a/assets/characters/peasant_man/peasant_man_animations.tres",
+        "ual1_Walk": "/var/games/game-20260814-4c6bfd3a/assets/characters/peasant_man/peasant_man_animations.tres",
+        "ual1_Idle_LookAround": "/var/games/game-20260814-4c6bfd3a/assets/characters/peasant_man/peasant_man_animations.tres"
+      }
+    },
+    "player_heir": {
+      "baseModel": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir.glb",
+      "rigTaskId": "library:e7f58347540de17e2bec6aa982bb2457b4119671f41dccd2a0cb9b875f26cc7f",
+      "animations": {
+        "ual1_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres",
+        "ual1_Idle_LookAround": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres",
+        "ual1_Walk": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres",
+        "ual1_Sprint": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres",
+        "ual1_Jump": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres",
+        "ual1_Sword_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres",
+        "ual1_Sword_Attack": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres",
+        "ual1_Sword_Enter": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres",
+        "ual1_Sword_Exit": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres",
+        "ual2_Sword_Block": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres",
+        "ual1_Death01": "/var/games/game-20260814-4c6bfd3a/assets/characters/player_heir/player_heir_animations.tres"
+      }
+    },
+    "bandit_raider": {
+      "baseModel": "/var/games/game-20260814-4c6bfd3a/assets/characters/bandit_raider/bandit_raider.glb",
+      "rigTaskId": "f9f89e65-f42c-407a-95d5-8cf118a5d8a6",
+      "animations": {
+        "ual1_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/bandit_raider/bandit_raider_animations.tres",
+        "ual1_Walk": "/var/games/game-20260814-4c6bfd3a/assets/characters/bandit_raider/bandit_raider_animations.tres",
+        "ual1_Sprint": "/var/games/game-20260814-4c6bfd3a/assets/characters/bandit_raider/bandit_raider_animations.tres",
+        "ual1_Sword_Idle": "/var/games/game-20260814-4c6bfd3a/assets/characters/bandit_raider/bandit_raider_animations.tres",
+        "ual1_Sword_Attack": "/var/games/game-20260814-4c6bfd3a/assets/characters/bandit_raider/bandit_raider_animations.tres",
+        "ual2_Sword_Heavy_A": "/var/games/game-20260814-4c6bfd3a/assets/characters/bandit_raider/bandit_raider_animations.tres",
+        "ual1_Death01": "/var/games/game-20260814-4c6bfd3a/assets/characters/bandit_raider/bandit_raider_animations.tres"
+      }
+    }
+  },
+  "props": {
+    "longsword_valyrian": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/weapons/longsword_valyrian.glb",
+      "taskId": "7bcc10a4-15c4-4742-8a62-710dee50db31"
+    },
+    "farm_cow": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/farm_cow.glb",
+      "taskId": "1ba1cc96-2833-408b-946b-dc1affd9030e"
+    },
+    "loyal_hound": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/loyal_hound.glb",
+      "taskId": "e6c0df95-01e3-472b-bd24-07923f269cc3"
+    },
+    "house_banner": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/decorations/house_banner.glb",
+      "taskId": "4be3f2b0-8024-471c-8f54-eba765a3cd9b"
+    },
+    "castle_cat": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/castle_cat.glb",
+      "taskId": "9ea2170c-350d-4fc0-8e3a-b7ae90038e0e"
+    },
+    "farm_sheep": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/farm_sheep.glb",
+      "taskId": "1eb5022d-584b-4f65-b83d-156f53c75b82"
+    },
+    "black_dragon": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/black_dragon.glb",
+      "taskId": "b9d863e3-1b04-42dd-a900-d256f8fae266"
+    },
+    "campfire": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/campfire.glb",
+      "taskId": "7b0b9556-8b5a-4d9f-8b6f-4489169ce0fc"
+    },
+    "iron_throne": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/furniture/iron_throne.glb",
+      "taskId": "3e992711-e6d4-4bca-ac05-e133527814dd"
+    },
+    "bandit_tent": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/bandit_tent.glb",
+      "taskId": "a566085f-494d-4847-a78c-c8c1c1064a4a"
+    },
+    "bandit_axe": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/weapons/bandit_axe.glb",
+      "taskId": "29061760-b650-4c89-9609-d74d258c0295"
+    }
+  },
+  "environment": {
+    "westeros_watchtower": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/environment/structures/westeros_watchtower.glb",
+      "taskId": "e1c97341-1874-4943-b373-f7224dc1e331"
+    },
+    "dragon_spire": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/environment/rocks/dragon_spire.glb",
+      "taskId": "c777d940-b79e-4cae-a618-74ea332a2959"
+    },
+    "village_house_b": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/environment/buildings/village_house_b.glb",
+      "taskId": "bb2fbbe5-73b3-4911-86e0-15f5570c3ea6"
+    },
+    "north_keep": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/environment/buildings/north_keep.glb",
+      "taskId": "51b9d242-4e75-469d-b53a-2968e356a435"
+    },
+    "village_house_a": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/environment/buildings/village_house_a.glb",
+      "taskId": "95c85bb5-2a63-4623-ac4d-98b4dd945f9f"
+    }
+  },
+  "weapons": {
+    "longsword_valyrian": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/weapons/longsword_valyrian.glb",
+      "sha256": "900555d4025f1bc2bd13ba7bd4a42f1f91559a25a87634760dd7bc771a66234f",
+      "driver_image_sha256": "585f206c4030ac3ff5122707305e7d97f8e73effc3e993eda222a19a97aa63ad",
+      "weapon_type": "melee",
+      "weapon_class": "melee",
+      "pipeline_version": 1,
+      "pipeline_contract": "tesana-held-weapon-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "6b32b38c-8774-448d-9a71-9c38bcaf62b7",
+      "convert_task_id": "7bcc10a4-15c4-4742-8a62-710dee50db31",
+      "orientation_contract": "tripo-p1-align-image-axes-v1",
+      "grip_version": 3,
+      "grip_sha256": "66609f4ca70c456730989e1caf45d706ca50ac2382ce833ffea7c87f9f04ffcb"
+    },
+    "bandit_axe": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/weapons/bandit_axe.glb",
+      "sha256": "04f8b7b3b4e575ee77d73765c209bba173cb29e52a6169aa73b20d668c2bcb85",
+      "driver_image_sha256": "7d9057630488497d1c654ebedd4107c3451fb2f4f5d7628d9a708595f2a938db",
+      "weapon_type": "melee",
+      "weapon_class": "melee",
+      "pipeline_version": 1,
+      "pipeline_contract": "tesana-held-weapon-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "8d234d68-3f73-4dac-a180-fb8c2e23d080",
+      "convert_task_id": "29061760-b650-4c89-9609-d74d258c0295",
+      "orientation_contract": "tripo-p1-align-image-axes-v1",
+      "grip_version": 3,
+      "grip_sha256": "66609f4ca70c456730989e1caf45d706ca50ac2382ce833ffea7c87f9f04ffcb"
+    }
+  },
+  "oriented": {
+    "westeros_watchtower": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/environment/structures/westeros_watchtower.glb",
+      "sha256": "d23989d0a16e9c193ecb2be4ec24fcba097517bb0e6e74e79444283a84868679",
+      "driver_image_sha256": "aa9eb3f3ac9161c34b65fac550c0f78e789b326bdf627cdcb80cdc85bd9d40bd",
+      "kind": "environment",
+      "category": "structures",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "c470ec00-ef93-4eb4-bbbc-095181948567",
+      "convert_task_id": "e1c97341-1874-4943-b373-f7224dc1e331",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "dragon_spire": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/environment/rocks/dragon_spire.glb",
+      "sha256": "a8a94ec6aab09fe1a44eab19da7a393e2b3192044dbf1a86949c1ada7765567d",
+      "driver_image_sha256": "1c3056457b912dd348930bcf8c8d47367d6d2c54ce73fc63a6cd885d8d6288ae",
+      "kind": "environment",
+      "category": "rocks",
+      "orient_class": "upright_neutral",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "04df111b-83c5-42a8-91f1-80d37d6a68f5",
+      "convert_task_id": "c777d940-b79e-4cae-a618-74ea332a2959",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "village_house_b": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/environment/buildings/village_house_b.glb",
+      "sha256": "57ce91a26335e459b4d69348e9b8a1ad8473522723b196674c1ed65770b68c9a",
+      "driver_image_sha256": "9209c9bc1aa101f6c8f0942d6953f08f61f993ca58bdc19b91c619f8ca3cd825",
+      "kind": "environment",
+      "category": "buildings",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "e30000f4-bcd8-4324-8e78-05cbc3b242ba",
+      "convert_task_id": "bb2fbbe5-73b3-4911-86e0-15f5570c3ea6",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "north_keep": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/environment/buildings/north_keep.glb",
+      "sha256": "eb732ce9be19db9a62f7fe92378bb8e841c6ee9070453bc63c2e73ba70bf7ddd",
+      "driver_image_sha256": "b7675653decb54c4af4ecec092f791719b26e3de7e02f14b4d5c4b93d1bab5f8",
+      "kind": "environment",
+      "category": "buildings",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "da8fcc9c-effc-481c-904d-5776a824a0fa",
+      "convert_task_id": "51b9d242-4e75-469d-b53a-2968e356a435",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "village_house_a": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/environment/buildings/village_house_a.glb",
+      "sha256": "a9914138626945c9213e9c4ef1106137a95faed7361b2c64848f4a3a4372883a",
+      "driver_image_sha256": "e6441b26d211dfb2494b725090fc34c8fe092db1fa143b47c700141eb1f7b065",
+      "kind": "environment",
+      "category": "buildings",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "14e6ed7b-6db6-4796-8e0e-79c455697b26",
+      "convert_task_id": "95c85bb5-2a63-4623-ac4d-98b4dd945f9f",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "farm_cow": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/farm_cow.glb",
+      "sha256": "ce892268dc8436a2399a64c203afabb4563071d1708367267c394071329399db",
+      "driver_image_sha256": "fb5b26f8c3f2209f69e0cb0f6774115143cfc7d4085f91bb71852c3c12f5cfa3",
+      "kind": "prop",
+      "category": "misc",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "e5a89285-aa47-40fd-841d-5902d2c4ca69",
+      "convert_task_id": "1ba1cc96-2833-408b-946b-dc1affd9030e",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "loyal_hound": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/loyal_hound.glb",
+      "sha256": "a9778df3a3b5f1f5dd86f8361027f30d18488900b36bac089b904b3fc0a0fde3",
+      "driver_image_sha256": "08b27e18ef0ec38196492997fa0eab57f41b35e2cbea93f34606069d5dec4539",
+      "kind": "prop",
+      "category": "misc",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "72704e9c-a2a8-4e5c-96dc-771803b6d3b5",
+      "convert_task_id": "e6c0df95-01e3-472b-bd24-07923f269cc3",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "house_banner": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/decorations/house_banner.glb",
+      "sha256": "b9a7cdd9f9985b0e00db68e94703d0d719ea96baf8aed930923100eaaac3a582",
+      "driver_image_sha256": "dd603541abc748c44b6d6c52d26d23b12a76acfb8097c0fcbc1e05d3df39ca04",
+      "kind": "prop",
+      "category": "decorations",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "52812491-bc4b-4fdd-a8ae-a2f00edd9750",
+      "convert_task_id": "4be3f2b0-8024-471c-8f54-eba765a3cd9b",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "castle_cat": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/castle_cat.glb",
+      "sha256": "cbc8100760c0e83f8509ae8162223113e2aae87b0108f653ed5f2e4304436f5e",
+      "driver_image_sha256": "29cff4f7b9c3f30303a6eaf264fe12ee789b1b41567d65289ad2d2d79158a71f",
+      "kind": "prop",
+      "category": "misc",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "ee10d487-75cc-4eaf-9e5b-7d821e3cb118",
+      "convert_task_id": "9ea2170c-350d-4fc0-8e3a-b7ae90038e0e",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "farm_sheep": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/farm_sheep.glb",
+      "sha256": "dd87c552bda32f5d21aaca404d86621a581419d567a0f773fd62108f0123e1df",
+      "driver_image_sha256": "688f7b97634c822349f83634811f3dc4cec48dc99cd94025c1d167d992cdd6a6",
+      "kind": "prop",
+      "category": "misc",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "d8046b4e-5dc8-4c3e-9b86-7f311f9fe943",
+      "convert_task_id": "1eb5022d-584b-4f65-b83d-156f53c75b82",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "black_dragon": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/black_dragon.glb",
+      "sha256": "459bc90c1264954bdda345b0f30f8f055cce49c94acd4f96f7c04e75c0275cdd",
+      "driver_image_sha256": "f44b26d5881a6a1e966c7dadeaa07fedaa4d2fc986099e776016b6bab01c5ead",
+      "kind": "prop",
+      "category": "misc",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "590ca251-a433-4caa-a3f9-95a8bd2a69c7",
+      "convert_task_id": "b9d863e3-1b04-42dd-a900-d256f8fae266",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "campfire": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/campfire.glb",
+      "sha256": "4947bdf133555ed94bb7d5850fe41bd22884c22581bad7e19af2c4fe2ad4dfc6",
+      "driver_image_sha256": "db206fac2f068637821443d7d4ba8fead386eebbc48803ce499cd3290e16ece0",
+      "kind": "prop",
+      "category": "misc",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "f70df238-2048-4e1c-b84c-430a3a184fcd",
+      "convert_task_id": "7b0b9556-8b5a-4d9f-8b6f-4489169ce0fc",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "iron_throne": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/furniture/iron_throne.glb",
+      "sha256": "0b930f1cb35bd50ae070a8f86c9882b9172d82f595ebd442c8c755b9c7dbc5d2",
+      "driver_image_sha256": "e0088906b89364562bb2fbf471cb8c7326fa33a8743627a49ab705ec511d923a",
+      "kind": "prop",
+      "category": "furniture",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "08c7dc7b-cf96-4d89-a973-eba968714dfb",
+      "convert_task_id": "3e992711-e6d4-4bca-ac05-e133527814dd",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    },
+    "bandit_tent": {
+      "model": "/var/games/game-20260814-4c6bfd3a/assets/props/misc/bandit_tent.glb",
+      "sha256": "468e259c006904d764233b856f99335852377d977a2eeed89e401921c571164f",
+      "driver_image_sha256": "0a7416716a24428652e82a85991e24606a21cb99db2a3a1290a2134b915c5325",
+      "kind": "prop",
+      "category": "misc",
+      "orient_class": "fronted",
+      "pipeline_version": 2,
+      "pipeline_contract": "tesana-oriented-prop-canonical-v1",
+      "tripo_model_version": "P1-20260311",
+      "model_task_id": "a91b83fa-3a05-43cb-bc96-1137afeafc2b",
+      "convert_task_id": "a566085f-494d-4847-a78c-c8c1c1064a4a",
+      "orientation_contract": "tripo-p1-align-image-prop-front-v2",
+      "bake_y_deg": 0
+    }
+  }
+}

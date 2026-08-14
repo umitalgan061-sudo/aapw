@@ -1,0 +1,5 @@
+# Tesana-derived binary assets are kept in Git LFS so the main Git history stays usable.
+godot/terrain-authoring/assets/tesana_westeros/**/*.glb filter=lfs diff=lfs merge=lfs -text
+godot/terrain-authoring/assets/tesana_westeros/**/*.png filter=lfs diff=lfs merge=lfs -text
+godot/terrain-authoring/assets/tesana_westeros/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+godot/terrain-authoring/assets/tesana_westeros/**/*.mp3 filter=lfs diff=lfs merge=lfs -text

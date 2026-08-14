@@ -1,0 +1,25 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/tesana_westeros/westeros_realism_showcase.gd" id="1_script"]
+
+[node name="WesterosRealismShowcase" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-48, -32, 0)
+light_color = Color(0.82, 0.87, 0.95, 1)
+light_energy = 1.15
+light_angular_distance = 0.5
+shadow_enabled = true
+directional_shadow_max_distance = 240.0
+directional_shadow_fade_start = 0.82
+directional_shadow_mode = 2
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.788011, -0.181955, 0.588211, 0, 0.95511, 0.296253, -0.615661, -0.233484, 0.752638, 42, 28, 52)
+current = true
+fov = 58.0
+near = 0.08
+far = 420.0

@@ -1,0 +1,36 @@
+[gd_resource type="ShaderMaterial" load_steps=6 format=3]
+
+[ext_resource type="Shader" path="res://assets/tesana_westeros/water/shader/water.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" path="res://assets/tesana_westeros/water/texture/caustics/caustics_texture_01.tres" id="2_caustics"]
+[ext_resource type="Texture2D" path="res://assets/tesana_westeros/water/texture/foam/foam_texture_01.tres" id="3_foam"]
+[ext_resource type="Texture2D" path="res://assets/tesana_westeros/water/texture/wave/wave_01/wave_normal_01.tres" id="4_normal"]
+[ext_resource type="Texture2D" path="res://assets/tesana_westeros/water/texture/wave/wave_01/wave_texture_01.tres" id="5_wave"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/surface_color = Color(0.075, 0.19, 0.23, 1)
+shader_parameter/depth_color = Color(0.012, 0.045, 0.075, 1)
+shader_parameter/foam_color = Color(0.79, 0.84, 0.82, 1)
+shader_parameter/depth_size = 18.0
+shader_parameter/surface_roughness = 0.13
+shader_parameter/foam_roughness = 0.78
+shader_parameter/caustics_texture = ExtResource("2_caustics")
+shader_parameter/caustics_strength = 0.62
+shader_parameter/caustics_scale = Vector2(0.42, 0.42)
+shader_parameter/wave_texture = ExtResource("5_wave")
+shader_parameter/wave_normal_texture = ExtResource("4_normal")
+shader_parameter/wave_softness = 3.8
+shader_parameter/wave_scale = Vector2(0.14, 0.17)
+shader_parameter/wave_layer_scale = Vector2(1.73, 1.39)
+shader_parameter/wave_highlight = 0.16
+shader_parameter/wave_velocity = Vector2(0.018, 0.011)
+shader_parameter/foam_texture = ExtResource("3_foam")
+shader_parameter/edge_foam_depth_size = 0.72
+shader_parameter/wave_foam_amount = 0.24
+shader_parameter/foam_start = 0.2
+shader_parameter/foam_end = 0.72
+shader_parameter/foam_exponent = 1.8
+shader_parameter/refraction_amount = 0.22
+shader_parameter/refraction_exponent = 0.82
+shader_parameter/displacement_amount = 0.18
