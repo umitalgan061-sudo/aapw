@@ -6,6 +6,24 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 340 itibarıyla (2026-08-14) — Artık her şey birbirine çarpıyor, atlı araba var, oyun duraklatılabiliyor
+
+Bu 10 çalıştırmanın (331-340) teması "dünya artık gerçekten bir dünya gibi davranıyor": önceden
+oyuncu/hayvan/NPC'ler kalelerin, köy evlerinin ve birbirlerinin içinden yürüyüp geçebiliyordu — artık
+hepsi gerçekten çarpışıyor. **En büyük yeni özellik: atlı araba.** Yol ağında otomatik ilerliyor,
+oyuncuyla çarpışıyor, ve yokuşta gerçekçi davranıyor (dik yokuşta yavaşlıyor, inişte hızlanıyor).
+Kuşlar artık gerçekten uçuyor (FAZ 6 hayvan listesindeki son eksik kapandı — at/araba, köpek-kedi
+tamam, sadece küçük detaylar kaldı). Dünya olayları havuzuna 5 yeni olay eklendi. **İkinci büyük
+özellik: duraklatma menüsü.** Sağ üstteki ⏸ butonuna veya Esc'e basınca oyun gerçekten donuyor
+(gece-gündüz, hayvanlar, su hareketi — hepsi durur), "Devam Et" / "Ana Menüye Dön" seçenekleri
+var; ayarlar ekranı (ses/kalite) henüz yok. Bu çalıştırma (340) küçük bir hata düzeltmesiydi: bir
+NPC'yle konuşurken oyunu duraklatırsan, diyalog kutusu görünmez olmasına rağmen tuşlar hâlâ ona
+ulaşabiliyordu — artık duraklatınca diyalog da gerçekten donuyor. **Bilmen gereken açık konu:**
+Esc tuşu bazen hem kontrol yardımı panelini kapatıp hem duraklatma menüsünü aynı anda açabiliyor
+(görsel bir çakışma, işlevsel değil) — küçük, bilinçli olarak ertelenmiş bir kozmetik pürüz.
+
+---
+
 ## Run 330 itibarıyla (2026-08-13) — Kaleler gerçekten taş göründü, köyler kuruldu
 
 Bu çalıştırmanın en büyük bulgusu bir hataydı: **oyundaki hiçbir kale aslında hiç dokulu görünmemiş.**
