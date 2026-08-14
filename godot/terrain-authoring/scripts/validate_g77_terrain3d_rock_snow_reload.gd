@@ -22,7 +22,9 @@ func _run()->void:
 	var probe:Dictionary=parsed; var suffix:=OS.get_environment("G77_ROCK_SNOW_PROOF_SUFFIX"); if suffix.is_empty(): suffix="default"
 	var directory:="user://g77-rock-snow-r9-"+suffix
 	if not _need(DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(directory)),"persisted directory missing"): return
-	var terrain:=Terrain3D.new(); terrain.region_size=256; get_root().add_child(terrain); terrain.data.load_directory(directory)
+	if not _need(ClassDB.class_exists("Terrain3D"),"Terrain3D class not registered in reload process"): return
+	var terrain:Variant=ClassDB.instantiate("Terrain3D"); if not _need(terrain!=null,"Terrain3D reload instantiate failed"): return
+	terrain.region_size=256; get_root().add_child(terrain); terrain.data.load_directory(directory)
 	if not _need(String(terrain.version).begins_with("1.0.2") and terrain.data.get_region_count()>=4,"pinned multi-region reload failed"): return
 	var max_h:=0.0; var max_b:=0.0; var seam_h:=0.0; var seam_b:=0.0; var aligned:=0; var checksum:int=2166136261
 	for sy in 65:
@@ -30,14 +32,14 @@ func _run()->void:
 			var u:=float(sx)/64.0; var v:=float(sy)/64.0; var pos:=Vector3(float(sx*4),0,float(sy*4)); var expected:=_expected_control(probe,u,v)
 			var h:float=float(terrain.data.get_height(pos)); var blend:float=float(terrain.data.get_control_blend(pos))
 			if not _need(not is_nan(h) and not is_nan(blend),"non-finite aligned reload sample"): return
-			var overlay_materialized:=int(round(float(expected["blend"])*255.0))>0; if not _need(terrain.data.get_control_base_id(pos)==int(probe["groundTextureId"]) and (not overlay_materialized or terrain.data.get_control_overlay_id(pos)==int(expected["overlay"])),"reloaded control IDs changed"): return
+			var overlay_materialized:bool=int(round(float(expected["blend"])*255.0))>0; if not _need(terrain.data.get_control_base_id(pos)==int(probe["groundTextureId"]) and (not overlay_materialized or terrain.data.get_control_overlay_id(pos)==int(expected["overlay"])),"reloaded control IDs changed"): return
 			max_h=maxf(max_h,absf(h-_source_value(probe,u,v,4))); max_b=maxf(max_b,absf(blend-float(expected["blend"]))); checksum=int((checksum^int(round(clampf(blend,0,1)*255.0)))*16777619)&0xffffffff; aligned+=1
 	var seam_samples:=0
 	for edge in [255.0,256.0]:
 		for other in range(0,257,16):
 			for point in [Vector2(edge,float(other)),Vector2(float(other),edge)]:
 				var u:=point.x/256.0; var v:=point.y/256.0; var pos:=Vector3(point.x,0,point.y); var expected:=_expected_control(probe,u,v)
-				seam_h=maxf(seam_h,absf(terrain.data.get_height(pos)-_source_value(probe,u,v,4))); seam_b=maxf(seam_b,absf(terrain.data.get_control_blend(pos)-float(expected["blend"]))); seam_samples+=1
+				var seam_height:float=float(terrain.data.get_height(pos)); var seam_blend:float=float(terrain.data.get_control_blend(pos)); seam_h=maxf(seam_h,absf(seam_height-_source_value(probe,u,v,4))); seam_b=maxf(seam_b,absf(seam_blend-float(expected["blend"]))); seam_samples+=1
 	if not _need(aligned==4225 and max_h<=MAX_HEIGHT_ERROR and max_b<=MAX_BLEND_ERROR,"aligned save/reload parity failed"): return
 	if not _need(seam_h<=MAX_HEIGHT_ERROR and seam_b<=MAX_BLEND_ERROR,"255/256 save/reload seam parity failed"): return
 	var mesh:Mesh=terrain.bake_mesh(0); if not _need(mesh!=null and mesh.get_surface_count()>0,"reloaded LOD0 bake empty"): return
