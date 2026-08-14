@@ -6,7 +6,7 @@
   "status": "validating",
   "layer": "Macro Albedo/Biome",
   "branch": "terrain/ne-g60-terrain3d-biome-r1-exact-172216-20260814",
-  "pr": null,
+  "pr": 513,
   "last_commit": null,
   "selection_reason": "G70 is seven-layer complete. G60 is a nearest Chebyshev ring-1 NE parcel with merged Coast/Hydrology and no active terrain PR. Strict same-cell order therefore advances G60 to Macro Albedo/Biome. Canonical G60 remains 96/96 open sea, so the measurable gain is pinned Terrain3D Height+Color/Roughness authoring provenance without invented land, coastline, road, snow, foliage or GeoCell-shaped material patches.",
   "quality_before": {
@@ -58,5 +58,5 @@
   },
   "engine": "merged G60 Coast/Hydrology -> deterministic 65x65 open-sea Height+Color/Roughness source -> pinned Terrain3D v1.0.2-stable 257x257 import -> >=4 regions -> aligned + 255/256 seam roundtrip -> persistence + deterministic LOD0 bake; HTerrain retained as regression/control",
   "exact_base": "1722161c8eab06566e077e846d820dc38784795f",
-  "updated_at": "2026-08-14T14:29:00+03:00"
+  "updated_at": "2026-08-14T14:34:00+03:00"
 }
