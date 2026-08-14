@@ -11,6 +11,7 @@ export const G77_ROCK_SNOW_POLICY = Object.freeze({
   maskBounds: G77_RELIEF_POLICY.maskBounds,
   sourceGridSize: 65,
   terrain3dRegionSize: 256,
+  terrain3dImportSize: 257,
   groundTextureId: 0,
   rockTextureId: 1,
   snowTextureId: 2,
@@ -122,12 +123,13 @@ export function measureG77RockSnow() {
 
   return Object.freeze({ policyId: G77_ROCK_SNOW_POLICY.id, sourceMapSha256: G77_ROCK_SNOW_POLICY.sourceMapSha256,
     geoCell: 'G77', layer: G77_ROCK_SNOW_POLICY.layer, sourceGridSize: size, sourceSamples: size * size,
-    terrain3dRegionSize: G77_ROCK_SNOW_POLICY.terrain3dRegionSize, canonicalWaterCells, canonicalLandCells,
-    fractionalRockSamples, rockDominantSamples, minRockBlend: Number(minRockBlend.toFixed(8)),
-    maxRockBlend: Number(maxRockBlend.toFixed(8)), rockBlendSpan: Number((maxRockBlend - minRockBlend).toFixed(8)),
-    maxSnowWeight: Number(maxSnowWeight.toFixed(8)), maxAdjacentRockStep: Number(maxAdjacentRockStep.toFixed(8)),
-    maxGuardBandRockDelta: Number(maxGuardBandRockDelta.toFixed(8)), maxGuardBandSnowDelta: Number(maxGuardBandSnowDelta.toFixed(8)),
-    maxCanonicalWaterSurfaceLeak: Number(maxCanonicalWaterSurfaceLeak.toFixed(8)), surfaceChecksum: checksum });
+    terrain3dRegionSize: G77_ROCK_SNOW_POLICY.terrain3dRegionSize, terrain3dImportSize: G77_ROCK_SNOW_POLICY.terrain3dImportSize,
+    canonicalWaterCells, canonicalLandCells, fractionalRockSamples, rockDominantSamples,
+    minRockBlend: Number(minRockBlend.toFixed(8)), maxRockBlend: Number(maxRockBlend.toFixed(8)),
+    rockBlendSpan: Number((maxRockBlend - minRockBlend).toFixed(8)), maxSnowWeight: Number(maxSnowWeight.toFixed(8)),
+    maxAdjacentRockStep: Number(maxAdjacentRockStep.toFixed(8)), maxGuardBandRockDelta: Number(maxGuardBandRockDelta.toFixed(8)),
+    maxGuardBandSnowDelta: Number(maxGuardBandSnowDelta.toFixed(8)), maxCanonicalWaterSurfaceLeak: Number(maxCanonicalWaterSurfaceLeak.toFixed(8)),
+    surfaceChecksum: checksum });
 }
 
 export function buildG77RockSnowProbe() {
@@ -143,6 +145,7 @@ export function buildG77RockSnowProbe() {
   }
   return Object.freeze({ policyId: G77_ROCK_SNOW_POLICY.id, sourceMapSha256: G77_ROCK_SNOW_POLICY.sourceMapSha256,
     geoCell: 'G77', layer: G77_ROCK_SNOW_POLICY.layer, sourceGridSize: size,
-    terrain3dRegionSize: G77_ROCK_SNOW_POLICY.terrain3dRegionSize, groundTextureId: G77_ROCK_SNOW_POLICY.groundTextureId,
-    rockTextureId: G77_ROCK_SNOW_POLICY.rockTextureId, snowTextureId: G77_ROCK_SNOW_POLICY.snowTextureId, rows });
+    terrain3dRegionSize: G77_ROCK_SNOW_POLICY.terrain3dRegionSize, terrain3dImportSize: G77_ROCK_SNOW_POLICY.terrain3dImportSize,
+    groundTextureId: G77_ROCK_SNOW_POLICY.groundTextureId, rockTextureId: G77_ROCK_SNOW_POLICY.rockTextureId,
+    snowTextureId: G77_ROCK_SNOW_POLICY.snowTextureId, rows });
 }
