@@ -1,0 +1,25 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { buildG17RockSnowProbe, measureG17RockSnow } from '../godot/terrain-authoring/geocells/sw/g17_rock_snow.mjs';
+import { measureG17RockDistribution } from '../godot/terrain-authoring/geocells/sw/g17_rock_snow_distribution.mjs';
+import { measureG17RockFullGrid } from '../godot/terrain-authoring/geocells/sw/g17_rock_snow_grid.mjs';
+import { measureG17RockSourceLods } from '../godot/terrain-authoring/geocells/sw/g17_rock_snow_lod.mjs';
+const first=measureG17RockSnow(),second=measureG17RockSnow(),dist=measureG17RockDistribution(),grid=measureG17RockFullGrid(),lods=measureG17RockSourceLods();
+if(JSON.stringify(first)!==JSON.stringify(second))throw new Error('G17 Rock/Snow metrics are not deterministic');
+if(first.sourceMapSha256!=='20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1')throw new Error('owner-map SHA changed');
+if(first.canonicalWaterCells!==96||first.canonicalLandCells!==0)throw new Error('G17 must remain 96/96 canonical water');
+if(first.sourceSamples!==4225||first.terrain3dRegionSize!==256||first.terrain3dImportSize!==257)throw new Error('G17 source/import geometry drifted');
+if(first.fractionalRockSamples!==4225||first.rockBlendSpan<.30||first.maxAdjacentRockStep>.05||first.maxGuardBandRockDelta>.01)throw new Error('G17 seabed rock continuity/variation failed');
+if(first.maxSnowWeight!==0||first.maxHeight>=-2.85||first.minHeight<-9.5)throw new Error('G17 Rock/Snow marine invariant failed');
+if(dist.samples!==4225||dist.clampedSamples!==0||dist.quantizedBlendLevels<64||dist.maxWeightSumError>1e-10)throw new Error('G17 Rock/Snow distribution integrity failed');
+if(dist.stdRockBlend<.06||dist.p90-dist.p10<.20||dist.slopeRockCorrelation<.35)throw new Error('G17 Rock/Snow physical distribution collapsed');
+if(grid.samples!==66049||grid.aligned!==4225||grid.maxRockErr!==0||grid.maxHeightErr!==0||grid.maxSnow!==0)throw new Error('G17 Rock/Snow full-grid parity failed');
+if(grid.quantizedBlendLevels<64||grid.maxStep>.006||grid.seamStep>.006)throw new Error('G17 Rock/Snow full-grid continuity failed');
+if(lods.length!==4||lods[0].size!==257||lods[3].size!==33)throw new Error('G17 Rock/Snow source LOD coverage drifted');
+const emit=process.argv.find((arg)=>arg.startsWith('--emit-probe='));
+if(emit){const output=emit.slice('--emit-probe='.length);fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,`${JSON.stringify(buildG17RockSnowProbe())}\n`);}
+console.log(`SW_G17_ROCK_SNOW_METRICS=${JSON.stringify(first)}`);
+console.log(`SW_G17_ROCK_SNOW_DISTRIBUTION=${JSON.stringify(dist)}`);
+console.log(`SW_G17_ROCK_SNOW_FULL_GRID=${JSON.stringify(grid)}`);
+console.log(`SW_G17_ROCK_SNOW_SOURCE_LODS=${JSON.stringify(lods)}`);
+console.log('SW_G17_ROCK_SNOW_VALIDATION_OK');
