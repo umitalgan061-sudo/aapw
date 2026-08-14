@@ -1,0 +1,44 @@
+name: SW G17 Terrain3D Road Path
+on:
+  pull_request:
+    branches: [main]
+    paths: ['godot/terrain-authoring/geocells/sw/g17_road_path.mjs', 'scripts/checkSWG17RoadPath.mjs', 'godot/terrain-authoring/scripts/validate_g17_terrain3d_road_path.gd', '.github/workflows/sw-g17-terrain3d-road-path.yml']
+permissions: { contents: read }
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main source and browser harness
+        run: |
+          set -euo pipefail; git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          test "$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1;d+=$2}END{print a+d+0}')" -le 1000
+          git diff --check "$BASE_SHA"...HEAD
+          npm install --no-save --package-lock=false playwright@1.62.0
+          ./node_modules/.bin/playwright install --with-deps chromium
+          node scripts/checkSWG17RockSnow.mjs
+          node scripts/checkSWG17RoadPath.mjs
+      - name: Pinned Terrain3D native proof and regressions
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | grep -F TERRAIN3D_INSTALL_OK
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true'
+          curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/g.zip
+          unzip -q /tmp/g.zip -d /tmp/g; G="$(find /tmp/g -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; chmod +x "$G"
+          timeout 180s "$G" --headless --editor --path godot/terrain-authoring --quit-after 60
+          timeout 240s "$G" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_road_path.gd | tee /tmp/a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g17-road-path-imported-topdown.png /tmp/a.png
+          timeout 240s "$G" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_road_path.gd | tee /tmp/b.log
+          grep G17_TERRAIN3D_ROAD_PATH_METRICS /tmp/a.log > /tmp/am; grep G17_TERRAIN3D_ROAD_PATH_METRICS /tmp/b.log > /tmp/bm; cmp /tmp/am /tmp/bm; cmp /tmp/a.png godot/terrain-authoring/.terrain3d-proof/g17-road-path-imported-topdown.png
+          timeout 180s "$G" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | grep -F HTERRAIN_AUTHORING_VALIDATION_OK
+          node scripts/terrainSeatSafetyCheck.js; node scripts/roadNetworkSafetyCheck.js; node scripts/checkSeededRandomPolicy.js
+          git fetch origin main; test "$(git rev-parse origin/main)" = "$BASE_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: sw-g17-road-path-proof, include-hidden-files: true, path: godot/terrain-authoring/.terrain3d-proof/ }
