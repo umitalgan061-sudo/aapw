@@ -96,6 +96,15 @@ need(probeA.sourceGridSize === 65, `probe source grid changed: ${probeA.sourceGr
 need(probeA.terrain3dRegionSize === 256 && probeA.terrain3dImportSize === 257, 'Terrain3D region/import geometry drifted');
 need(probeA.rowSchema.length === 12, `probe row schema drifted: ${probeA.rowSchema.length}`);
 need(probeA.rows.length === 65 && probeA.rows.every((row) => row.length === 65), 'probe rows are not 65x65');
+need(probeA.sourceMapSha256 === G77_ROCK_SNOW_POLICY.sourceMapSha256, 'probe map.png provenance drifted');
+need(probeA.geoCell === G77_ROCK_SNOW_POLICY.geoCell, `probe GeoCell drifted: ${probeA.geoCell}`);
+need(probeA.layer === G77_ROCK_SNOW_POLICY.layer, `probe layer drifted: ${probeA.layer}`);
+need(probeA.groundTextureId === G77_ROCK_SNOW_POLICY.groundTextureId, 'probe ground texture ID drifted');
+need(probeA.rockTextureId === G77_ROCK_SNOW_POLICY.rockTextureId, 'probe rock texture ID drifted');
+need(probeA.snowTextureId === G77_ROCK_SNOW_POLICY.snowTextureId, 'probe snow texture ID drifted');
+need(probeA.slopeFilterTaps === G77_ROCK_SNOW_POLICY.slopeFilterTaps, 'probe slope filter tap count drifted');
+need(nearlyEqual(probeA.slopeFilterRadiusNormalized, G77_ROCK_SNOW_POLICY.slopeFilterRadiusNormalized), 'probe slope filter radius drifted');
+need(Object.isFrozen(probeA.rowSchema), 'probe row schema must remain immutable');
 
 let probeFiniteValues = 0;
 let probeWaterLeakRows = 0;
