@@ -1,0 +1,144 @@
+name: SE G77 Terrain3D Rock Snow R9
+
+on:
+  push:
+    branches: [agent/kizil-ufuk-g77-rock-snow-exact-cdca07-r9-20260814]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'godot/terrain-authoring/geocells/se/g77_rock_snow.mjs'
+      - 'scripts/checkSEG77RockSnow.mjs'
+      - 'scripts/checkSEG77RockSnowControlEnvelope.mjs'
+      - 'scripts/checkSEG77RockSnowVisualEvidence.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow.gd'
+      - 'godot/terrain-authoring/corner_claims/SE.json'
+      - '.github/workflows/se-g77-terrain3d-rock-snow-r9.yml'
+
+permissions: { contents: read }
+concurrency:
+  group: se-g77-rock-snow-r9-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: cdca07cc3f29c635db382cba8b8bbdb11a4c5998
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Exact-main scope and 1000-line quota
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_rock_snow\.mjs|scripts/checkSEG77RockSnow(ControlEnvelope|VisualEvidence)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow\.gd|godot/terrain-authoring/corner_claims/SE\.json|\.github/workflows/se-g77-terrain3d-rock-snow-r9\.yml)$' | wc -l)" -eq 0
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1} END{print s+0}')"
+          D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2} END{print s+0}')"
+          echo "G77 Rock/Snow R9 diff lines: $((A+D))"
+          test $((A+D)) -le 1000
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py godot/terrain-authoring/addons/zylann.hterrain
+
+      - name: Prior G77 layer regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkSEG77Terrain3DHydrology.mjs
+          node scripts/checkSEG77Biome.mjs --write-probe
+          node scripts/checkSEG77Relief.mjs
+          node scripts/checkSEG77ReliefContinuity.mjs
+
+      - name: Rock Snow source determinism
+        run: |
+          set -euo pipefail
+          node --check godot/terrain-authoring/geocells/se/g77_rock_snow.mjs
+          node --check scripts/checkSEG77RockSnow.mjs
+          node --check scripts/checkSEG77RockSnowControlEnvelope.mjs
+          node --check scripts/checkSEG77RockSnowVisualEvidence.mjs
+          node scripts/checkSEG77RockSnow.mjs | tee /tmp/source-a.log
+          node scripts/checkSEG77RockSnow.mjs | tee /tmp/source-b.log
+          cmp /tmp/source-a.log /tmp/source-b.log
+
+      - name: Dense 257 control and seam envelope
+        run: |
+          set -euo pipefail
+          node scripts/checkSEG77RockSnowControlEnvelope.mjs | tee /tmp/dense-a.log
+          node scripts/checkSEG77RockSnowControlEnvelope.mjs | tee /tmp/dense-b.log
+          cmp /tmp/dense-a.log /tmp/dense-b.log
+
+      - name: Emit Terrain3D source probe
+        run: |
+          set -euo pipefail
+          mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node scripts/checkSEG77RockSnow.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-probe.json
+          test -s godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-probe.json
+
+      - name: Install pinned Terrain3D and Godot 4.6.3
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/install.log
+          grep -F TERRAIN3D_INSTALL_OK /tmp/install.log
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee /tmp/verify.log
+          grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true' /tmp/verify.log
+          curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/godot.zip
+          mkdir -p /tmp/godot && unzip -q /tmp/godot.zip -d /tmp/godot
+          GODOT_BIN="$(find /tmp/godot -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN" && chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version | grep -F 4.6.3
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+
+      - name: Real Terrain3D Height Control import persist bake twice
+        run: |
+          set -euo pipefail
+          for suffix in a b; do
+            G77_ROCK_SNOW_PROOF_SUFFIX="$suffix" timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g77_terrain3d_rock_snow.gd | tee "/tmp/t3d-$suffix.log"
+            grep -F SE_G77_TERRAIN3D_ROCK_SNOW_VALIDATION_OK "/tmp/t3d-$suffix.log"
+            grep -F G77_TERRAIN3D_ROCK_SNOW_METRICS "/tmp/t3d-$suffix.log" > "/tmp/t3d-$suffix-metrics.log"
+          done
+          cmp /tmp/t3d-a-metrics.log /tmp/t3d-b-metrics.log
+
+      - name: HTerrain world safety platform and visual regressions
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log
+          grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/hterrain.log
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
+          node scripts/checkSEG77RockSnowVisualEvidence.mjs --out-dir=artifacts/se-g77-rock-snow-r9 | tee /tmp/visual.log
+          grep -F SE_G77_ROCK_SNOW_VISUAL_OK /tmp/visual.log
+
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: se-g77-terrain3d-rock-snow-r9-proof
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-probe.json
+            artifacts/se-g77-rock-snow-r9/g77-rock-snow-near.png
+            artifacts/se-g77-rock-snow-r9/g77-rock-snow-far.png
+            artifacts/se-g77-rock-snow-r9/g77-rock-snow-topdown.png
+            artifacts/se-g77-rock-snow-r9/g77-rock-snow-visual-metrics.json
+          if-no-files-found: warn
