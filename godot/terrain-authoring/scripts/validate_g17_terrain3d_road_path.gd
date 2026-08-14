@@ -28,11 +28,11 @@ func _run()->void:
 	for z in range(0,257,4):
 		for x in range(0,257,4):
 			var s:Array=q.rows[z][x]; var rgba:Array=q.colors[z][x]; var p:=Vector3(x,0,z)
-			var base:int=t.data.get_control_base_id(p); var overlay:int=t.data.get_control_overlay_id(p); var actual:Color=t.data.get_color(p)
+			var base:int=t.data.get_control_base_id(p); var overlay:int=t.data.get_control_overlay_id(p); var actual:Color=t.data.get_color(p); var roughness:float=float(t.data.get_roughness(p))
 			var blend:float=float(t.data.get_control_blend(p)); var height:float=float(t.data.get_height(p))
 			if not need(base==int(s[0]) and overlay==int(s[1]) and overlay!=int(q.roadTextureId) and overlay!=int(q.pathTextureId),"phantom road/path texture"): return
 			max_h=maxf(max_h,absf(height-float(s[3]))); max_b=maxf(max_b,absf(blend-float(s[2])/255.0))
-			max_color=maxf(max_color,maxf(absf(actual.r-float(rgba[0])),maxf(absf(actual.g-float(rgba[1])),maxf(absf(actual.b-float(rgba[2])),absf(actual.a-float(rgba[3]))))))
+			max_color=maxf(max_color,maxf(absf(actual.r-float(rgba[0])),maxf(absf(actual.g-float(rgba[1])),maxf(absf(actual.b-float(rgba[2])),absf(roughness-float(rgba[3]))))))
 			checksum=int((checksum^int(round(blend*255.0)))*16777619)&0xffffffff; count+=1
 	if not need(count==4225 and max_h<=0.012 and max_b<=0.006 and max_color<=0.006,"Height+Control+Color roundtrip exceeded tolerance"): return
 	var preview:=Image.create_empty(256,256,false,Image.FORMAT_RGB8)
