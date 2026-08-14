@@ -93,7 +93,6 @@ export function worldToChunkCoord(worldCoord, chunkSizeMeters) {
  */
 export function createScene(canvas) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-	renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	// Filmic tone mapping + (desktop only) real sun shadows, finally consuming `QUALITY_PRESETS` —
 	// see `renderQuality.js` for why that config sat unread since FAZ 0 and what each knob buys.
@@ -102,6 +101,15 @@ export function createScene(canvas) {
 		manualLevel: readManualQualityLevel(),
 	});
 	configureRendererRealism(renderer, renderQuality);
+	// `pixelRatioCap` (run 343, ADR-0291): was a hardcoded `2` regardless of device or quality level —
+	// the second of `QUALITY_PRESETS`'s three still-unread knobs (see `renderQuality.js`'s own module
+	// doc). Desktop `AUTOMATIC` (-> HIGH, cap 2) is byte-identical to the old hardcoded behavior; a
+	// touch-primary device now renders at native resolution capped to 1x instead of up to 2x, which
+	// only ever reduces fragment-shader fill cost — never a risk to the fixed mobile
+	// DrawCalls/Triangles budget (ADR-0010), which this doesn't touch. A desktop MEDIUM/LOW manual
+	// override (`ui/pauseMenu.js` settings screen, ADR-0289) now also lowers pixel ratio, not just
+	// shadow-map size.
+	renderer.setPixelRatio(Math.min(window.devicePixelRatio, renderQuality.preset.pixelRatioCap));
 
 	const scene = new THREE.Scene();
 	// Fallback only — the aurora sky sphere (added below) fully covers the viewport every frame.

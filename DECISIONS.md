@@ -16104,3 +16104,96 @@ notes).
 **Geri alma planı.** `git revert` the single commit. The change is one added line inside an existing
 conditional branch — reverting restores the exact prior (buggy but harmless) coexistence behavior,
 no data migration, no asset change.
+## ADR-0291 — Wire `pixelRatioCap` into the renderer, the second of `renderQuality.js`'s three still-unread `QUALITY_PRESETS` knobs (scheduled routine)
+
+**Risk: LOW.** One hardcoded-constant replacement in `sceneManager.js` (`renderer.setPixelRatio`'s
+cap goes from a literal `2` to `renderQuality.preset.pixelRatioCap`), reordered to run after
+`resolveRenderQuality()` instead of before it. No terrain, height-field, road-topology, placement or
+determinism-fixture change — §8.4's terrain-safety gate does not apply.
+
+**Karar.** `createScene()` now calls `renderer.setPixelRatio(Math.min(window.devicePixelRatio,
+renderQuality.preset.pixelRatioCap))` after resolving `renderQuality`, instead of hardcoding `2`
+before `renderQuality` even existed. Desktop `AUTOMATIC` (→ `HIGH`, `pixelRatioCap: 2`) is
+byte-identical to the old behavior. A touch-primary device (→ `LOW`, `pixelRatioCap: 1`) now renders
+at native resolution capped to 1x instead of up to 2x — pure fragment-shader fill-rate reduction, no
+draw-call/triangle change, so it cannot touch the fixed mobile budget (ADR-0010). A desktop manual
+`MEDIUM`/`LOW` override from `ui/pauseMenu.js`'s settings screen (ADR-0289) now also lowers pixel
+ratio, not only shadow-map size — the settings picker's real effect grows closer to matching its
+name.
+
+**Neden (problem).** ADR-0289 named `pixelRatioCap`/`drawDistance`/`textureSize` as the three
+`QUALITY_PRESETS` knobs `renderQuality.js` still didn't read, explicitly deferred wiring any of them
+as "a distinct, separately-verifiable change with its own perf-measurement burden," and disclosed
+this in `QUESTIONS_FOR_OWNER.md`. Run 341 and Run 342 both named the same three knobs as "the most
+natural single next bounded slice." Of the three, `pixelRatioCap` is the only one that is a single
+existing renderer call with no other system depending on its current value — `drawDistance` would
+mean touching `CHUNK_CONFIG.STREAM_RADIUS_CHUNKS`/fog/far-plane and the mobile World Coverage
+figures those already calibrate against, and `textureSize` would mean touching `assetLoader.js`'s
+texture pipeline — both larger, riskier slices than a scheduled routine should take unattended.
+
+**Alternatifler.**
+1. *Wire all three knobs in one pass.* Rejected: `drawDistance` and `textureSize` each carry their
+   own verification burden (World Coverage recalibration; texture-memory/visual-quality regression
+   risk) that this run's own time budget cannot responsibly absorb in the same sweep as `pixelRatioCap`
+   — same "one bounded slice at a time" precedent this project's own ADR history already establishes
+   throughout the cart/pause/settings series.
+2. *Leave `pixelRatioCap` unwired until all three can ship together.* Rejected: it is fully
+   independent of the other two (no shared code path), already named and disclosed, and shipping it
+   alone narrows the open gap without waiting on two much larger changes.
+3. *Apply the cap without moving `setPixelRatio` after `resolveRenderQuality()`.* Rejected: the two
+   were adjacent lines with `renderQuality` computed second — reading `renderQuality.preset` before it
+   exists is a `ReferenceError`; the reorder is required, not optional, and is the entire size of the
+   diff beyond the constant swap itself.
+
+**Sonuç / trade-off.** A touch-primary device now renders slightly less sharp (native res, capped at
+1x instead of up to 2x) in exchange for lower fill-rate cost — a legitimate mobile-perf trade already
+implied by `LOW`'s own preset value, just never actually applied before this change. No other device
+class or code path affected. `drawDistance` and `textureSize` remain unwired — same disclosed gap as
+ADR-0289, just one knob narrower.
+
+**Etkilenen sistemler.** `src/3d/sceneManager.js` only. `renderQuality.js`, `config.js`,
+`ui/pauseMenu.js` unchanged (all three already exposed everything this change needed). No terrain,
+hydrology, road, settlement, NPC, dragon, or world-event system touched.
+
+**Doğrulama.** `node --check` clean. `checkTechnicalDebt.js` PASS (0 new debt, 0 forbidden markers).
+`checkSeededRandomPolicy.js` PASS. `checkSmokeCheckRegistry.js` OK — 40 smoke checks across 15
+modules unchanged, `sceneManager.js` 530 → 538/600 (real headroom), same 4 pre-existing near-cap
+WARNs, none newly crossed. `checkAssetsManifest.js` OK (no new asset). `terrainSeatSafetyCheck.js`
+PASS 14/14 (unaffected, read-only). `roadNetworkSafetyCheck.js` PASS 20.24km (unaffected, read-only).
+No smoke check references `pixelRatio` at all (grepped first, confirmed zero collision risk before
+touching the file). Full `smokeTestGame3D.js` real-browser suite run twice — cold baseline before
+this change (40/40 PASS, exit 0) and again after (40/40 PASS, exit 0, zero console/page errors both
+times). Real perf sample (`collectPerfSnapshot.js run343-pixelratio-cap`): 63 draw calls / 854,318
+triangles / 57 geometries / 31 textures / 273MB heap, sampled on the same desktop-class headless
+profile every prior run's own samples use (so this number reflects the `AUTOMATIC`→`HIGH`→cap-2 path,
+byte-identical to pre-change behavior) — the draw-call/triangle/texture drift vs Run 342's own
+58/816,332/27 sits inside this project's own already-documented default-camera-frustum sampling
+variance (see Run 336/339/341's own perf notes for the same pattern), not a regression from this
+diff; no mobile-class sample exists in this project's own perf-collection tooling to date, so the
+capped-to-1x path's fill-rate benefit is asserted from the code path (fewer shaded pixels is a
+strict reduction, never an increase) rather than separately measured this run.
+
+**Memory leak checklist.** No new listeners/timers/DOM. `renderer.setPixelRatio` is a single
+setup-time call, unchanged in kind from before — only its argument's source changed.
+
+**Technical debt.** 0 new. `src/3d/sceneManager.js` 530 → 538/600 lines, real headroom.
+
+**World Coverage.** Unchanged (no terrain/geometry delta, desktop 96.2% / mobile 4.5% unaffected).
+World Evolution Report delta: no yol/orman/kale/NPC/hayvan/creature/event/cart count change; ADR
+count +1 (ADR-0291); "oyuncu fark eder mi" — masaüstünde hayır (AUTOMATIC davranışı birebir aynı);
+mobilde dar ama gerçek bir fark var (biraz daha az keskin görüntü, karşılığında daha düşük GPU
+fill-rate maliyeti) — ayrı bir mobil cihazda görsel karşılaştırma yapılmadı, kod yolundan çıkarım.
+
+**`QUESTIONS_FOR_OWNER.md`:** narrowing note added to the existing ADR-0289 disclosure — two of three
+knobs now unwired (`drawDistance`, `textureSize`), not three.
+
+**Concurrency re-check immediately before commit:** `git fetch origin main` re-run — no drift found
+past `732d80b` (this run's own starting point); see commit log for the exact result at push time.
+
+**Next safe step:** `drawDistance` (touches `CHUNK_CONFIG`/fog/far-plane/World Coverage calibration)
+and `textureSize` (touches `assetLoader.js`'s texture pipeline) remain the two unwired
+`QUALITY_PRESETS` knobs — each its own bounded subtask with its own verification burden, not a free
+extension of this one. `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 remains at zero half-open rows and six
+entirely-uncoded, multi-run-scope rows (quest, save/load, inventory, player attack, dense
+settlements, audio). Terrain/road/Terrain3D geocell work remains claimed by the concurrent
+corner-agent sessions and was not touched here.

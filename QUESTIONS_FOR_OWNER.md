@@ -434,3 +434,10 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   via other concurrent runs/commits between run 340 and this run, never registered in
   `GAME3D_SHELL_FILES`) was found and closed while running this run's own required full sweep —
   `SHELL_CACHE` bumped v11->v12 accordingly.
+
+- **(run 343, ADR-0291) Narrowing note on the run-341 entry directly above.** `pixelRatioCap` is now
+  wired (`sceneManager.js`'s `renderer.setPixelRatio` reads it instead of a hardcoded `2`). Of the
+  original four `QUALITY_PRESETS` knobs, two remain unread anywhere: `drawDistance` and `textureSize`
+  — each its own larger, separately-verifiable bounded subtask (world-coverage recalibration and
+  texture-pipeline risk respectively), not this run's scope. No new question raised, same
+  "temporary default, no real playtest yet" category as every prior entry here.

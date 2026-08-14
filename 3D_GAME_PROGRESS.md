@@ -16160,3 +16160,77 @@ audio). Wiring `renderQuality.js`'s three still-unread `QUALITY_PRESETS` knobs (
 `pixelRatioCap`/`textureSize`), Run 341's own named next candidate, remains the most natural single
 next bounded slice if continuing that area. Terrain/road/Terrain3D geocell work remains claimed by the
 concurrent corner-agent sessions and was not touched here.
+
+## Run 343 (2026-08-14, scheduled run) — `pixelRatioCap` wired into the renderer, narrowing Run 341's disclosed `QUALITY_PRESETS` gap (ADR-0291)
+
+Synced with `origin/main` first: `git fetch origin main` confirmed local `main` matched `origin/main`
+exactly at `732d80b` ("Run 342 progress/checkpoint entries") — no drift, no resync needed. Read
+`GOVERNANCE.md` (through §33), both continuation/owner-directive files,
+`GOVERNANCE_FULL_GAME_DIRECTIVE.md`, this file's tail through Run 342, `DECISIONS.md`'s last ADRs
+(0289-0290) and `QUESTIONS_FOR_OWNER.md` in full. Ran the full `smokeTestGame3D.js` cold before
+touching anything: **40/40 PASS**, exit 0, confirming Run 342's own claimed state was real.
+
+Priority-order items 1-4 (macro relief, road network, ground color, castle texturing) remain
+closed-or-claimed per prior runs' own notes. `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 stays at zero
+half-open rows and six entirely-uncoded, multi-run-scope rows (quest, save/load, inventory, player
+attack, dense settlements, audio) — none a single bounded subtask a scheduled routine should take
+unattended. Both Run 341 and Run 342 independently named the same next candidate: wiring
+`renderQuality.js`'s three still-unread `QUALITY_PRESETS` knobs (`drawDistance`/`pixelRatioCap`/
+`textureSize`) into the actual renderer. Of those three, `pixelRatioCap` is the only one that is a
+single, already-isolated renderer call (`sceneManager.js`'s `renderer.setPixelRatio`) with no other
+system reading its current value — `drawDistance` would mean touching `CHUNK_CONFIG` and the mobile
+World Coverage figures calibrated against it, and `textureSize` would mean touching
+`assetLoader.js`'s texture pipeline; both larger, riskier slices left for their own dedicated runs.
+
+Full details in `DECISIONS.md` ADR-0291. Summary: `createScene()`'s `renderer.setPixelRatio` call was
+hardcoded to `Math.min(window.devicePixelRatio, 2)` *before* `resolveRenderQuality()` even ran — moved
+to run after it, now reading `renderQuality.preset.pixelRatioCap` (`HIGH`: 2, `MEDIUM`: 1.5, `LOW`: 1,
+`ULTRA`: 2). Desktop `AUTOMATIC` (→ `HIGH`) is byte-identical to the old hardcoded behavior. A
+touch-primary device (→ `LOW`) now renders at native resolution capped to 1x instead of up to 2x —
+pure fill-rate reduction, zero draw-call/triangle change, so the fixed mobile budget (ADR-0010) is
+untouched. A desktop manual `MEDIUM`/`LOW` override from `ui/pauseMenu.js`'s settings screen
+(ADR-0289) now also lowers pixel ratio, not just shadow-map size.
+
+**Oyuncu ne fark eder:** masaüstünde hayır (varsayılan davranış birebir aynı). Dokunmatik cihazda dar
+ama gerçek bir fark var: görüntü biraz daha az keskin (retina'nın altında), karşılığında daha düşük
+GPU fill-rate maliyeti — ayrı bir mobil cihazda görsel karşılaştırma yapılmadı (kod yolundan
+çıkarım: daha az piksel gölgelemek asla performansı kötüleştirmez).
+
+Full DoD sweep: `node --check` clean. `checkTechnicalDebt.js` PASS (0 new debt, 0 forbidden markers).
+`checkSeededRandomPolicy.js` PASS. `checkSmokeCheckRegistry.js` OK — 529 JS files within the 600-line
+cap, `sceneManager.js` 530 -> 538/600 (real headroom), same 4 pre-existing near-cap WARNs, none newly
+crossed, 40 smoke checks across 15 modules all correctly wired. `checkAssetsManifest.js` OK (no new
+asset). `terrainSeatSafetyCheck.js` PASS 14/14 (unaffected, read-only). `roadNetworkSafetyCheck.js`
+PASS 20.24km (unaffected, read-only). No smoke check references `pixelRatio` at all (grepped first).
+Full `smokeTestGame3D.js` run twice — cold baseline (40/40 PASS, exit 0) and again after the change
+(40/40 PASS, exit 0, zero console/page errors both times).
+
+Real perf sample (`collectPerfSnapshot.js run343-pixelratio-cap`): 63 draw calls / 854,318 triangles /
+57 geometries / 31 textures / 273MB heap — the drift vs Run 342's own 58/816,332/27 sits inside this
+project's own already-documented default-camera-frustum sampling variance, not a regression (sampled
+on the same desktop `AUTOMATIC`→`HIGH` path, byte-identical to pre-change behavior).
+
+Memory leak checklist: no new listeners/timers/DOM — `renderer.setPixelRatio` is the same single
+setup-time call as before, only its argument's source changed.
+
+Technical debt: 0 new. `src/3d/sceneManager.js` 530 -> 538/600 lines, real headroom.
+
+World Coverage: unchanged (no terrain/geometry delta, desktop 96.2% / mobile 4.5% unaffected). World
+Evolution Report delta: no yol/orman/kale/NPC/hayvan/creature/event/cart count change; ADR count +1
+(ADR-0291); "oyuncu fark eder mi" — yukarıya bakınız (masaüstü hayır, mobil dar ama gerçek).
+
+ADR-0291 (`DECISIONS.md`). `QUESTIONS_FOR_OWNER.md` run-341/ADR-0289 entry gained a narrowing note:
+two of the original four `QUALITY_PRESETS` knobs remain unwired (`drawDistance`, `textureSize`), not
+three.
+
+Risk LOW. Confidence 5/5.
+
+Concurrency re-check immediately before commit: `git fetch origin main` re-run — no drift found past
+`732d80b`; see commit log for the exact result at push time.
+
+Next safe step: `drawDistance` (touches `CHUNK_CONFIG`/fog/far-plane/World Coverage calibration) and
+`textureSize` (touches `assetLoader.js`'s texture pipeline) remain the two unwired `QUALITY_PRESETS`
+knobs, each its own bounded subtask with its own verification burden. `GOVERNANCE_FULL_GAME_DIRECTIVE.md`
+§3 remains at zero half-open rows and six entirely-uncoded, multi-run-scope rows (quest, save/load,
+inventory, player attack, dense settlements, audio). Terrain/road/Terrain3D geocell work remains
+claimed by the concurrent corner-agent sessions and was not touched here.
