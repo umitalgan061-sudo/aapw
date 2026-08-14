@@ -8,21 +8,31 @@ const arg = (name) => {
 	if (!value) throw new Error(`[checkNWG10RuntimeSmoothingEvidence] missing ${name}=...`);
 	return path.resolve(value.slice(name.length + 1));
 };
+const topologyPath = arg('--topology');
 const smoothingPath = arg('--smoothing');
+const nearFarPath = arg('--near-far');
 const topdownPath = arg('--topdown');
 const pngPath = arg('--png');
 const outPath = arg('--out');
+const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf8'));
 const smoothing = JSON.parse(fs.readFileSync(smoothingPath, 'utf8'));
+const nearFar = JSON.parse(fs.readFileSync(nearFarPath, 'utf8'));
 const topdown = JSON.parse(fs.readFileSync(topdownPath, 'utf8'));
 const png = fs.readFileSync(pngPath);
 const pngSha256 = crypto.createHash('sha256').update(png).digest('hex');
 const need = (condition, message) => { if (!condition) throw new Error(`[checkNWG10RuntimeSmoothingEvidence] ${message}`); };
 
-need(smoothing.mapSha256 === '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1', 'map.png provenance mismatch');
+need(topology.mapSha256 === '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1', 'topology map.png provenance mismatch');
+need(topology.fullWorldMismatches === 0 && topology.g10Mismatches === 0, 'continuous smoothing moved canonical center topology');
+need(topology.g10Water === 60 && topology.g10Land === 36, 'G10 water/land fingerprint drifted');
+need(smoothing.mapSha256 === topology.mapSha256, 'smoothing/topology map provenance mismatch');
 need(smoothing.denseSamples === 66_049, `dense proof drifted: ${smoothing.denseSamples}`);
 need(smoothing.boundaryCount >= 12, `insufficient G10 source boundaries: ${smoothing.boundaryCount}`);
 need(smoothing.meanJumpRatio <= 0.025, `hard-edge residual ratio too high: ${smoothing.meanJumpRatio}`);
 need(smoothing.continuousMaxJump <= 0.006, `continuous max jump too high: ${smoothing.continuousMaxJump}`);
+need(nearFar.schema === 'westeros-nw-g10-runtime-smoothing-near-far-v1', `unexpected near/far schema ${nearFar.schema}`);
+need(nearFar.continuousMeshes === nearFar.meshCount && nearFar.meshCount >= 40, 'near/far terrain lacks continuous semantic coverage');
+need(nearFar.near.sha256 !== nearFar.far.sha256, 'near/far frames are not distinct');
 need(topdown.schema === 'westeros-nw-g10-runtime-smoothed-full-world-3d-v1', `unexpected topdown schema ${topdown.schema}`);
 need(topdown.cameraType === 'OrthographicCamera' && topdown.downDot > 0.999999, 'topdown is not real vertical orthographic 3D');
 need(topdown.continuousSemanticMeshes === topdown.terrainMeshCount, 'not every runtime terrain mesh uses continuous semantics');
@@ -37,11 +47,8 @@ const manifest = {
 	geoCell: 'G10',
 	layerContext: 'Relief/Height Character runtime visual refinement',
 	sourceMapSha256: smoothing.mapSha256,
-	before: {
-		semanticSource: '96x64 hard classifyReferenceBaseSurface CPU macro blend',
-		legacyMeanJump: smoothing.legacyMeanJump,
-		legacyMaxJump: smoothing.legacyMaxJump,
-	},
+	topology: { fullWorldCenters: topology.fullWorldCenters, fullWorldMismatches: 0, g10Water: topology.g10Water, g10Land: topology.g10Land },
+	before: { semanticSource: '96x64 hard classifyReferenceBaseSurface CPU macro blend', legacyMeanJump: smoothing.legacyMeanJump, legacyMaxJump: smoothing.legacyMaxJump },
 	after: {
 		semanticSource: 'Pindex Quality V2 continuous weighted CPU macro blend + existing V2 GPU shader',
 		continuousMeanJump: smoothing.continuousMeanJump,
@@ -50,6 +57,7 @@ const manifest = {
 		blendedDenseSamples: smoothing.blendedDenseSamples,
 		deterministicChecksum: smoothing.checksum,
 	},
+	nearFar: { nearSha256: nearFar.near.sha256, farSha256: nearFar.far.sha256, terrainMeshes: nearFar.meshCount },
 	realRuntime3D: {
 		renderSha256: pngSha256,
 		pngBytes: png.length,
