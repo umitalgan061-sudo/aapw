@@ -49,7 +49,8 @@ func _audit(terrain: Variant, probe: Dictionary) -> Dictionary:
 			var u := float(x) / 256.0; var v := float(z) / 256.0; var expected := _expected_control(probe, u, v); var pos := Vector3(x, 0, z)
 			var h := terrain.data.get_height(pos); var blend := terrain.data.get_control_blend(pos)
 			if is_nan(h) or is_nan(blend): return {}
-			if terrain.data.get_control_base_id(pos) != int(probe["groundTextureId"]) or terrain.data.get_control_overlay_id(pos) != int(expected["overlay"]): return {}
+			var base_ok := terrain.data.get_control_base_id(pos) == int(probe["groundTextureId"]); var overlay_materialized := int(round(float(expected["blend"]) * 255.0)) > 0
+			if not base_ok or (overlay_materialized and terrain.data.get_control_overlay_id(pos) != int(expected["overlay"])): return {}
 			var he := absf(h - _source_value(probe, u, v, 4)); var be := absf(blend - float(expected["blend"]))
 			max_h = maxf(max_h, he); max_b = maxf(max_b, be)
 			if x >= 255 or z >= 255: seam_h = maxf(seam_h, he); seam_b = maxf(seam_b, be)
@@ -90,23 +91,29 @@ func _run() -> void:
 	var terrain: Variant = ClassDB.instantiate("Terrain3D"); if not _need(terrain != null, "Terrain3D instantiate failed"): return
 	get_root().add_child(terrain); terrain.region_size = REGION_SIZE
 	if not _need(String(terrain.version).begins_with("1.0.2"), "pinned Terrain3D 1.0.2 not loaded"): return
+	print("G77_T3D_STAGE=import")
 	terrain.data.import_images(_images(probe), Vector3.ZERO, 0.0, 1.0)
 	if not _need(terrain.data.get_region_count() >= 4, "257 import did not span >=4 regions"): return
+	print("G77_T3D_STAGE=audit")
 	var audit := _audit(terrain, probe)
 	if not _need(not audit.is_empty() and float(audit["maxBlendError"]) <= MAX_BLEND_ERROR and float(audit["seamBlendError"]) <= MAX_BLEND_ERROR, "control roundtrip failed"): return
 	if not _need(float(audit["maxHeightError"]) <= MAX_HEIGHT_ERROR and float(audit["seamHeightError"]) <= MAX_HEIGHT_ERROR, "height roundtrip failed"): return
+	print("G77_T3D_STAGE=bake")
 	var baked: Mesh = terrain.bake_mesh(0); if not _need(baked != null and baked.get_surface_count() > 0, "LOD0 bake empty"): return
 	var vertices: PackedVector3Array = baked.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]; if not _need(vertices.size() > 0, "LOD0 vertices empty"): return
 	var suffix := OS.get_environment("G77_ROCK_SNOW_PROOF_SUFFIX"); if suffix.is_empty(): suffix = "default"
 	var out_dir := "user://g77-rock-snow-r9-" + suffix; DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out_dir)); terrain.data.save_directory(out_dir)
+	print("G77_T3D_STAGE=persist")
 	var saved := _saved_stats(out_dir); if not _need(int(saved["files"]) >= 4 and int(saved["bytes"]) > 0, "persisted multi-region data missing"): return
 	var reloaded: Variant = ClassDB.instantiate("Terrain3D"); if not _need(reloaded != null, "Terrain3D reload instantiate failed"): return
 	get_root().add_child(reloaded); reloaded.region_size = REGION_SIZE; reloaded.data.load_directory(out_dir)
+	print("G77_T3D_STAGE=reload")
 	if not _need(reloaded.data.get_region_count() >= 4, "persisted multi-region reload failed"): return
 	var reload_audit := _audit(reloaded, probe)
 	if not _need(not reload_audit.is_empty() and int(reload_audit["checksum"]) == int(audit["checksum"]), "save/reload semantic parity failed"): return
 	if not _need(float(reload_audit["maxHeightError"]) <= MAX_HEIGHT_ERROR and float(reload_audit["maxBlendError"]) <= MAX_BLEND_ERROR, "save/reload tolerance failed"): return
 	var reload_bake: Mesh = reloaded.bake_mesh(0); if not _need(reload_bake != null and reload_bake.get_surface_count() > 0, "reloaded LOD0 bake empty"): return
+	print("G77_T3D_STAGE=preview")
 	if not _need(_write_preview(reloaded, probe), "imported top-down preview write failed"): return
 	print("G77_TERRAIN3D_ROCK_SNOW_METRICS=" + JSON.stringify({"regionCount": terrain.data.get_region_count(), "sampleCount": int(audit["count"]), "maxBlendError": audit["maxBlendError"], "maxHeightError": audit["maxHeightError"], "seamBlendError": audit["seamBlendError"], "seamHeightError": audit["seamHeightError"], "checksum": audit["checksum"], "bakedSurfaces": baked.get_surface_count(), "bakedVertices": vertices.size(), "savedFiles": saved["files"], "savedBytes": saved["bytes"], "reloadRegionCount": reloaded.data.get_region_count(), "reloadChecksum": reload_audit["checksum"], "reloadBakedSurfaces": reload_bake.get_surface_count()}))
 	print("SE_G77_TERRAIN3D_ROCK_SNOW_VALIDATION_OK"); quit(0)
