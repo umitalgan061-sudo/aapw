@@ -28,12 +28,17 @@ for (const file of [near, far, full]) {
   if (!fs.existsSync(file)) throw new Error(`missing visual evidence ${file}`);
 }
 
-const serialized = JSON.stringify(metrics);
-if (!serialized.includes('20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1')) {
-  throw new Error('visual metrics lost canonical map SHA');
+if (source.sourceMapSha256 !== '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1') {
+  throw new Error('Road/Path source evidence lost canonical map SHA');
 }
-if (serialized.includes('"visibleGeoCellOverlay":true')) {
-  throw new Error('full-world visual evidence exposes a GeoCell overlay');
+if (metrics.topdown?.sourceWidth !== 1536 || metrics.topdown?.sourceHeight !== 1024) {
+  throw new Error('full-world visual evidence lost canonical source dimensions');
+}
+if (metrics.topdown?.visibleGeoCellOverlay !== false || metrics.topdown?.imageSmoothing !== true || metrics.topdown?.sdfSmoothingPasses < 1) {
+  throw new Error('full-world visual evidence lost filtered no-grid SDF contract');
+}
+if (metrics.topdown?.landLikePixels <= 0 || metrics.topdown?.waterLikePixels <= 0) {
+  throw new Error('full-world silhouette must contain both land and water');
 }
 if (source.coverage?.activeSamples !== 0 || source.routeEvidence?.roadGuardCrossingSegments !== 0 || source.routeEvidence?.pathGuardCrossingSegments !== 0) {
   throw new Error('Road/Path negative visual proof source is not empty');
@@ -41,7 +46,7 @@ if (source.coverage?.activeSamples !== 0 || source.routeEvidence?.roadGuardCross
 
 const manifest = {
   schema: 'westeros-g17-road-path-visual-evidence-v2',
-  sourceMapSha256: '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1',
+  sourceMapSha256: source.sourceMapSha256,
   layer: 'Road/Path',
   geoCell: 'G17',
   negativePhysicalProof: true,
