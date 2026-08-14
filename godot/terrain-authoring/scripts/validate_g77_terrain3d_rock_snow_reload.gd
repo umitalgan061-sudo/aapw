@@ -28,9 +28,9 @@ func _run()->void:
 	for sy in 65:
 		for sx in 65:
 			var u:=float(sx)/64.0; var v:=float(sy)/64.0; var pos:=Vector3(float(sx*4),0,float(sy*4)); var expected:=_expected_control(probe,u,v)
-			var h:=terrain.data.get_height(pos); var blend:=terrain.data.get_control_blend(pos)
+			var h:float=float(terrain.data.get_height(pos)); var blend:float=float(terrain.data.get_control_blend(pos))
 			if not _need(not is_nan(h) and not is_nan(blend),"non-finite aligned reload sample"): return
-			if not _need(terrain.data.get_control_base_id(pos)==int(probe["groundTextureId"]) and terrain.data.get_control_overlay_id(pos)==int(expected["overlay"]),"reloaded control IDs changed"): return
+			var overlay_materialized:=int(round(float(expected["blend"])*255.0))>0; if not _need(terrain.data.get_control_base_id(pos)==int(probe["groundTextureId"]) and (not overlay_materialized or terrain.data.get_control_overlay_id(pos)==int(expected["overlay"])),"reloaded control IDs changed"): return
 			max_h=maxf(max_h,absf(h-_source_value(probe,u,v,4))); max_b=maxf(max_b,absf(blend-float(expected["blend"]))); checksum=int((checksum^int(round(clampf(blend,0,1)*255.0)))*16777619)&0xffffffff; aligned+=1
 	var seam_samples:=0
 	for edge in [255.0,256.0]:
