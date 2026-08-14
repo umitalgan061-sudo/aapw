@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
 import devServerHelper from './devServerHelper.js';
 
 const { loadPlaywright, startStaticServer } = devServerHelper;
@@ -6,6 +8,8 @@ const playwright = loadPlaywright();
 if (!playwright) throw new Error('[checkNWG10RuntimeSurfaceSmoothing] Playwright unavailable');
 
 const G10 = Object.freeze({ xMin: 1 / 8, xMax: 2 / 8, yMin: 0, yMax: 1 / 8 });
+const OUT_ARG = process.argv.find((arg) => arg.startsWith('--out='));
+const OUT_PATH = OUT_ARG ? path.resolve(OUT_ARG.slice('--out='.length)) : null;
 const server = await startStaticServer();
 const { port } = server.address();
 const browser = await playwright.chromium.launch({ headless: true });
@@ -170,6 +174,10 @@ try {
 	if (metrics.blendRange[0] < 0 || metrics.blendRange[1] > 0.700001) throw new Error(`semantic blend range invalid: ${metrics.blendRange}`);
 	if (metrics.roughnessRange[0] < 0.87 || metrics.roughnessRange[1] > 1.001) throw new Error(`roughness range invalid: ${metrics.roughnessRange}`);
 	if (metrics.checksum !== second) throw new Error(`runtime semantic reconstruction is non-deterministic: ${metrics.checksum} != ${second}`);
+	if (OUT_PATH) {
+		fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
+		fs.writeFileSync(OUT_PATH, `${JSON.stringify(metrics, null, 2)}\n`);
+	}
 	console.log(`NW_G10_RUNTIME_SURFACE_SMOOTHING=${JSON.stringify(metrics)}`);
 	console.log('NW_G10_RUNTIME_SURFACE_SMOOTHING_OK');
 } finally {
