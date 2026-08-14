@@ -44,7 +44,7 @@ func _surface_contract(probe: Dictionary, u: float, v: float) -> Dictionary:
 	return {"overlay": overlay, "blend": blend}
 
 func _build_height_image(probe: Dictionary) -> Image:
-	var n := int(probe["terrain3dRegionSize"])
+	var n := int(probe["terrain3dImportSize"])
 	var image := Image.create_empty(n, n, false, Image.FORMAT_RF)
 	for z in n:
 		var v := float(z) / float(n - 1)
@@ -54,7 +54,7 @@ func _build_height_image(probe: Dictionary) -> Image:
 	return image
 
 func _build_control_image(probe: Dictionary) -> Image:
-	var n := int(probe["terrain3dRegionSize"])
+	var n := int(probe["terrain3dImportSize"])
 	var base_id := int(probe["groundTextureId"])
 	var image := Image.create_empty(n, n, false, Image.FORMAT_RF)
 	for z in n:
@@ -68,7 +68,7 @@ func _build_control_image(probe: Dictionary) -> Image:
 	return image
 
 func _write_preview(terrain: Terrain3D, probe: Dictionary) -> Error:
-	var n := int(probe["terrain3dRegionSize"])
+	var n := int(probe["terrain3dImportSize"])
 	var image := Image.create_empty(n, n, false, Image.FORMAT_RGBA8)
 	for z in n:
 		for x in n:
@@ -106,6 +106,7 @@ func _run() -> void:
 	if not _require(String(probe["policyId"]) == EXPECTED_POLICY, "unexpected policy"): return
 	if not _require(String(probe["sourceMapSha256"]) == EXPECTED_SOURCE_SHA, "map.png SHA changed"): return
 	if not _require(int(probe["terrain3dRegionSize"]) == 256, "region size must be 256"): return
+	if not _require(int(probe["terrain3dImportSize"]) == 257, "import size must cross 255/256 region seam"): return
 
 	var terrain := Terrain3D.new()
 	terrain.name = "G77Terrain3DRockSnowProof"
@@ -114,29 +115,39 @@ func _run() -> void:
 	if not _require(String(terrain.version).begins_with("1.0.2"), "pinned Terrain3D v1.0.2 not loaded"): return
 
 	terrain.data.import_images([_build_height_image(probe), _build_control_image(probe), null], Vector3.ZERO, 0.0, 1.0)
-	if not _require(terrain.data.get_region_count() >= 1, "Terrain3D import produced no region"): return
+	if not _require(terrain.data.get_region_count() >= 4, "257 import did not span four Terrain3D regions"): return
 
 	var positions: Array[int] = []
-	for coordinate in range(0, 256, 16): positions.push_back(coordinate)
-	if positions[-1] != 255: positions.push_back(255)
+	for coordinate in range(0, 257, 16): positions.push_back(coordinate)
+	for coordinate in [255, 256]:
+		if not positions.has(coordinate): positions.push_back(coordinate)
+	positions.sort()
 	var max_blend_error := 0.0; var max_height_error := 0.0; var sample_count := 0
+	var max_region_seam_blend_error := 0.0; var max_region_seam_height_error := 0.0
 	var checksum: int = 2166136261
 	for z in positions:
 		for x in positions:
-			var u := float(x) / 255.0; var v := float(z) / 255.0
+			var u := float(x) / 256.0; var v := float(z) / 256.0
 			var contract := _surface_contract(probe, u, v)
 			var pos := Vector3(float(x), 0.0, float(z))
 			if not _require(terrain.data.get_control_base_id(pos) == int(probe["groundTextureId"]), "base texture ID changed"): return
 			if not _require(terrain.data.get_control_overlay_id(pos) == int(contract["overlay"]), "overlay texture ID changed"): return
 			var actual_blend := terrain.data.get_control_blend(pos)
 			if not _require(not is_nan(actual_blend), "control blend NAN"): return
-			max_blend_error = maxf(max_blend_error, absf(actual_blend - float(contract["blend"])))
+			var blend_error := absf(actual_blend - float(contract["blend"]))
+			max_blend_error = maxf(max_blend_error, blend_error)
 			var expected_height := _source_value(probe, u, v, 4)
-			max_height_error = maxf(max_height_error, absf(terrain.data.get_height(pos) - expected_height))
+			var height_error := absf(terrain.data.get_height(pos) - expected_height)
+			max_height_error = maxf(max_height_error, height_error)
+			if x >= 255 or z >= 255:
+				max_region_seam_blend_error = maxf(max_region_seam_blend_error, blend_error)
+				max_region_seam_height_error = maxf(max_region_seam_height_error, height_error)
 			checksum = int((checksum ^ int(round(clampf(actual_blend, 0.0, 1.0) * 255.0))) * 16777619) & 0xffffffff
 			sample_count += 1
 	if not _require(max_blend_error <= MAX_BLEND_ERROR, "control roundtrip tolerance exceeded"): return
 	if not _require(max_height_error <= MAX_HEIGHT_ERROR, "height roundtrip tolerance exceeded"): return
+	if not _require(max_region_seam_blend_error <= MAX_BLEND_ERROR, "255/256 control seam roundtrip exceeded tolerance"): return
+	if not _require(max_region_seam_height_error <= MAX_HEIGHT_ERROR, "255/256 height seam roundtrip exceeded tolerance"): return
 	if not _require(_write_preview(terrain, probe) == OK, "top-down preview write failed"): return
 
 	var baked: Mesh = terrain.bake_mesh(0)
@@ -150,13 +161,15 @@ func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output_dir))
 	terrain.data.save_directory(output_dir)
 	var saved := _saved_region_evidence(output_dir)
-	if not _require(int(saved["count"]) >= 1 and int(saved["bytes"]) > 0, "region persistence empty"): return
+	if not _require(int(saved["count"]) >= 4 and int(saved["bytes"]) > 0, "multi-region persistence empty"): return
 
 	var metrics := {"terrain3dVersion": String(terrain.version), "regionSize": int(terrain.region_size),
-		"regionCount": terrain.data.get_region_count(), "sampleCount": sample_count,
+		"importSize": int(probe["terrain3dImportSize"]), "regionCount": terrain.data.get_region_count(), "sampleCount": sample_count,
 		"maxBlendError": snappedf(max_blend_error, 0.00000001), "maxHeightError": snappedf(max_height_error, 0.00000001),
-		"outputChecksum": checksum, "bakedSurfaces": baked.get_surface_count(), "bakedVertices": vertices.size(),
-		"savedRegionFiles": int(saved["count"]), "savedRegionBytes": int(saved["bytes"])}
+		"maxRegionSeamBlendError": snappedf(max_region_seam_blend_error, 0.00000001),
+		"maxRegionSeamHeightError": snappedf(max_region_seam_height_error, 0.00000001), "outputChecksum": checksum,
+		"bakedSurfaces": baked.get_surface_count(), "bakedVertices": vertices.size(), "savedRegionFiles": int(saved["count"]),
+		"savedRegionBytes": int(saved["bytes"])}
 	print("G77_TERRAIN3D_ROCK_SNOW_METRICS=" + JSON.stringify(metrics))
 	print("SE_G77_TERRAIN3D_ROCK_SNOW_VALIDATION_OK")
 	quit(0)
