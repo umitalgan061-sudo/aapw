@@ -370,7 +370,9 @@
       "polygons": "unmeasured, ~7.5MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated castle, geometry only (no texture — needs a procedural PBR material, same technique FAZ 3 already built for its settlement system). One of 7 castle variants added this batch for visual variety alongside the existing procedural kingdom-seat settlements."
+      "notes": "AI-generated castle, geometry only (no texture — needs a procedural PBR material, same technique FAZ 3 already built for its settlement system). One of 7 castle variants added this batch for visual variety alongside the existing procedural kingdom-seat settlements.",
+      "rigged": false,
+      "animated": false
     },
     {
       "id": "castle_on_a_rock",
@@ -385,7 +387,9 @@
       "polygons": "unmeasured, ~6.9MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated castle on a rocky outcrop, geometry only. Good candidate for a coastal/cliffside kingdom seat."
+      "notes": "AI-generated castle on a rocky outcrop, geometry only. Good candidate for a coastal/cliffside kingdom seat.",
+      "rigged": false,
+      "animated": false
     },
     {
       "id": "castle_emerald_citadel",
@@ -400,7 +404,9 @@
       "polygons": "unmeasured, ~5.9MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated castle, green/emerald theme, geometry only."
+      "notes": "AI-generated castle, green/emerald theme, geometry only.",
+      "rigged": false,
+      "animated": false
     },
     {
       "id": "castle_fortress_of_the_crown",
@@ -415,7 +421,9 @@
       "polygons": "unmeasured, ~7.7MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated grand fortress, geometry only. Good candidate for a capital/throne-seat kingdom (e.g. King's Landing equivalent)."
+      "notes": "AI-generated grand fortress, geometry only. Good candidate for a capital/throne-seat kingdom (e.g. King's Landing equivalent).",
+      "rigged": false,
+      "animated": false
     },
     {
       "id": "castle_greystone_castle",
@@ -430,7 +438,9 @@
       "polygons": "unmeasured, ~2.5MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated grey stone castle, geometry only, smallest of the batch."
+      "notes": "AI-generated grey stone castle, geometry only, smallest of the batch.",
+      "rigged": false,
+      "animated": false
     },
     {
       "id": "castle_icebound_citadel",
@@ -445,7 +455,9 @@
       "polygons": "unmeasured, ~4.0MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated ice/frost-themed castle, geometry only. Good candidate for a northern kingdom seat (e.g. Winterfell equivalent)."
+      "notes": "AI-generated ice/frost-themed castle, geometry only. Good candidate for a northern kingdom seat (e.g. Winterfell equivalent).",
+      "rigged": false,
+      "animated": false
     },
     {
       "id": "castle_walled_city_fortress",
@@ -460,7 +472,9 @@
       "polygons": "unmeasured, ~11.0MB raw",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "AI-generated walled city with fortress, geometry only, largest of the castle batch — likely the most detailed, good for a major/capital settlement."
+      "notes": "AI-generated walled city with fortress, geometry only, largest of the castle batch — likely the most detailed, good for a major/capital settlement.",
+      "rigged": false,
+      "animated": false
     },
     {
       "id": "animal_ivory_stallion",
@@ -556,13 +570,28 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Alpaca\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Alpaca\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 13 animation clips and 1 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Attack_Headbutt",
+        "Attack_Kick",
+        "Death",
+        "Eating",
+        "Gallop",
+        "Gallop_Jump",
+        "Idle_HitReact_Left",
+        "Idle_HitReact_Right",
+        "Jump_toIdle",
+        "Walk",
+        "Idle_Headlow",
+        "Idle_2",
+        "Idle"
+      ]
     },
     {
       "id": "animal_badger",
@@ -913,13 +942,28 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Bull\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Bull\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 13 animation clips and 1 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Attack_Headbutt",
+        "Attack_Kick",
+        "Death",
+        "Eating",
+        "Gallop",
+        "Gallop_Jump",
+        "Idle_HitReact_Left",
+        "Idle_HitReact_Right",
+        "Jump_toIdle",
+        "Walk",
+        "Idle_Headlow",
+        "Idle_2",
+        "Idle"
+      ]
     },
     {
       "id": "animal_butterfly",
@@ -1160,9 +1204,9 @@
       "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Church\" by Poly by Google. Rig/animation status not verified — treat as static geometry until inspected."
     },
     {
-      "id": "animal_cottage",
+      "id": "bld_cottage",
       "file": "assets/models/animals/cottage_YDGLLT0emC.glb",
-      "type": "animals_model",
+      "type": "settlements_model",
       "source": "Sketchfab (by CreativeTrio)",
       "sourceUrl": "unknown — downloaded via Sketchfab bulk export, original model page URL not retained",
       "license": "Sketchfab free/downloadable license (owner-confirmed at download time — attribution in CREDITS.md)",
@@ -1174,7 +1218,7 @@
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Cottage\" by CreativeTrio. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Cottage\" by CreativeTrio. Rig/animation status not verified — treat as static geometry until inspected. CATEGORY CORRECTED: this is a building, not an animal — the batch import keyword rule misfiled it. File path left as-is to avoid breaking anything; id corrected."
     },
     {
       "id": "animal_cougar",
@@ -1219,13 +1263,28 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Cow\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Cow\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 13 animation clips and 1 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Attack_Headbutt",
+        "Attack_Kick",
+        "Death",
+        "Eating",
+        "Gallop",
+        "Gallop_Jump",
+        "Idle_HitReact_Left",
+        "Idle_HitReact_Right",
+        "Jump_toIdle",
+        "Walk",
+        "Idle_Headlow",
+        "Idle_2",
+        "Idle"
+      ]
     },
     {
       "id": "animal_coyote",
@@ -1372,13 +1431,28 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Deer\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Deer\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 13 animation clips and 1 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Attack_Headbutt",
+        "Attack_Kick",
+        "Death",
+        "Eating",
+        "Gallop",
+        "Gallop_Jump",
+        "Idle_HitReact_Left",
+        "Idle_HitReact_Right",
+        "Jump_toIdle",
+        "Walk",
+        "Idle_Headlow",
+        "Idle_2",
+        "Idle"
+      ]
     },
     {
       "id": "bld_docks",
@@ -1500,9 +1574,9 @@
       "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Fantasy Stable\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
     },
     {
-      "id": "animal_farm",
+      "id": "bld_farm_small",
       "file": "assets/models/animals/farm_5GDbUJV2vQb.glb",
-      "type": "animals_model",
+      "type": "settlements_model",
       "source": "Sketchfab (by Poly by Google)",
       "sourceUrl": "unknown — downloaded via Sketchfab bulk export, original model page URL not retained",
       "license": "CC-BY 4.0 (Google Poly asset — attribution in CREDITS.md)",
@@ -1514,12 +1588,12 @@
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Farm\" by Poly by Google. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Farm\" by Poly by Google. Rig/animation status not verified — treat as static geometry until inspected. CATEGORY CORRECTED: this is a building, not an animal — the batch import keyword rule misfiled it. File path left as-is to avoid breaking anything; id corrected."
     },
     {
-      "id": "animal_farm_2",
+      "id": "bld_farm",
       "file": "assets/models/animals/farm_91wMLb9kKo.glb",
-      "type": "animals_model",
+      "type": "settlements_model",
       "source": "Sketchfab (by Quaternius)",
       "sourceUrl": "unknown — downloaded via Sketchfab bulk export, original model page URL not retained",
       "license": "CC0 (publisher catalog-wide public domain policy)",
@@ -1531,7 +1605,7 @@
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Farm\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Farm\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CATEGORY CORRECTED: this is a building, not an animal — the batch import keyword rule misfiled it. File path left as-is to avoid breaking anything; id corrected."
     },
     {
       "id": "prop_farm_dirt",
@@ -1559,13 +1633,39 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Farmer\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Farmer\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 24 animation clips and 4 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Death",
+        "Gun_Shoot",
+        "HitRecieve",
+        "HitRecieve_2",
+        "Idle",
+        "Idle_Gun",
+        "Idle_Gun_Pointing",
+        "Idle_Gun_Shoot",
+        "Idle_Neutral",
+        "Idle_Sword",
+        "Interact",
+        "Kick_Left",
+        "Kick_Right",
+        "Punch_Left",
+        "Punch_Right",
+        "Roll",
+        "Run",
+        "Run_Back",
+        "Run_Left",
+        "Run_Right",
+        "Run_Shoot",
+        "Sword_Slash",
+        "Walk",
+        "Wave"
+      ]
     },
     {
       "id": "veg_flowers",
@@ -1644,13 +1744,27 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Fox\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Fox\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 12 animation clips and 1 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Attack",
+        "Death",
+        "Eating",
+        "Gallop",
+        "Gallop_Jump",
+        "Idle_HitReact_Left",
+        "Idle_HitReact_Right",
+        "Jump_ToIdle",
+        "Walk",
+        "Idle_2_HeadLow",
+        "Idle_2",
+        "Idle"
+      ]
     },
     {
       "id": "animal_goat",
@@ -1797,13 +1911,27 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Husky\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Husky\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 12 animation clips and 1 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Attack",
+        "Death",
+        "Eating",
+        "Gallop",
+        "Gallop_Jump",
+        "Idle_HitReact_Left",
+        "Idle_HitReact_Right",
+        "Jump_ToIdle",
+        "Walk",
+        "Idle_2",
+        "Idle_2_HeadLow",
+        "Idle"
+      ]
     },
     {
       "id": "char_king",
@@ -1814,13 +1942,39 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"King\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"King\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 24 animation clips and 4 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Death",
+        "Gun_Shoot",
+        "HitRecieve",
+        "HitRecieve_2",
+        "Idle",
+        "Idle_Gun",
+        "Idle_Gun_Pointing",
+        "Idle_Gun_Shoot",
+        "Idle_Neutral",
+        "Idle_Sword",
+        "Interact",
+        "Kick_Left",
+        "Kick_Right",
+        "Punch_Left",
+        "Punch_Right",
+        "Roll",
+        "Run",
+        "Run_Back",
+        "Run_Left",
+        "Run_Right",
+        "Run_Shoot",
+        "Sword_Slash",
+        "Walk",
+        "Wave"
+      ]
     },
     {
       "id": "char_knight",
@@ -1831,7 +1985,7 @@
       "license": "Sketchfab free/downloadable license (owner-confirmed at download time — attribution in CREDITS.md)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
+      "rigged": true,
       "animated": false,
       "hasMaterial": true,
       "polygons": "unmeasured",
@@ -2120,13 +2274,17 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Sheep\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Sheep\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 2 animation clips and 1 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Idle",
+        "Jump"
+      ]
     },
     {
       "id": "bld_silo_house",
@@ -2205,13 +2363,28 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Stag\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Stag\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 13 animation clips and 1 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Attack_Headbutt",
+        "Attack_Kick",
+        "Death",
+        "Eating",
+        "Gallop",
+        "Gallop_Jump",
+        "Idle_HitReact_Left",
+        "Idle_HitReact_Right",
+        "Jump_toIdle",
+        "Walk",
+        "Idle_Headlow",
+        "Idle_2",
+        "Idle"
+      ]
     },
     {
       "id": "bld_stone_wall_towers",
@@ -2409,13 +2582,28 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"White Horse\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"White Horse\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 13 animation clips and 1 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Attack_Headbutt",
+        "Attack_Kick",
+        "Death",
+        "Eating",
+        "Gallop_Jump",
+        "Gallop",
+        "Idle_HitReact_Left",
+        "Idle_HitReact_Right",
+        "Jump_toIdle",
+        "Walk",
+        "Idle_Headlow",
+        "Idle_2",
+        "Idle"
+      ]
     },
     {
       "id": "char_witch",
@@ -2426,13 +2614,39 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Witch\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Witch\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 24 animation clips and 4 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Death",
+        "Gun_Shoot",
+        "HitRecieve",
+        "HitRecieve_2",
+        "Idle",
+        "Idle_Gun",
+        "Idle_Gun_Pointing",
+        "Idle_Gun_Shoot",
+        "Idle_Neutral",
+        "Idle_Sword",
+        "Interact",
+        "Kick_Left",
+        "Kick_Right",
+        "Punch_Left",
+        "Punch_Right",
+        "Roll",
+        "Run",
+        "Run_Back",
+        "Run_Left",
+        "Run_Right",
+        "Run_Shoot",
+        "Sword_Slash",
+        "Walk",
+        "Wave"
+      ]
     },
     {
       "id": "prop_wood_log",
@@ -2461,12 +2675,26 @@
       "version": 1,
       "format": "glTF Binary (.glb)",
       "rigged": false,
-      "animated": false,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Wooden Door Rounded\" by Kenney. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Wooden Door Rounded\" by Kenney. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 12 animation clips and 0 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "handle|door|close|Animation Base Layer",
+        "handle|door|open-and-close|Animation Base Layer",
+        "handle|door|open|Animation Base Layer",
+        "handle|handle|close|Animation Base Layer",
+        "handle|handle|open-and-close|Animation Base Layer",
+        "handle|handle|open|Animation Base Layer",
+        "door|door|close|Animation Base Layer",
+        "door|door|open-and-close|Animation Base Layer",
+        "door|door|open|Animation Base Layer",
+        "door|handle|close|Animation Base Layer",
+        "door|handle|open-and-close|Animation Base Layer",
+        "door|handle|open|Animation Base Layer"
+      ]
     },
     {
       "id": "animal_woodrat",
@@ -2494,13 +2722,21 @@
       "license": "CC0 (publisher catalog-wide public domain policy)",
       "version": 1,
       "format": "glTF Binary (.glb)",
-      "rigged": false,
-      "animated": false,
+      "rigged": true,
+      "animated": true,
       "hasMaterial": true,
       "polygons": "unmeasured",
       "deprecated": false,
       "replacedBy": null,
-      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Zebra\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected."
+      "notes": "Batch-imported 2026-07-31 from Sketchfab download \"Zebra\" by Quaternius. Rig/animation status not verified — treat as static geometry until inspected. CORRECTED 2026-08-14: real GLB inspection found 6 animation clips and 1 skin(s) — the batch import had defaulted rigged/animated to false without inspecting. Ready to use with THREE.AnimationMixer.",
+      "animationClips": [
+        "Death",
+        "Idle",
+        "Jump",
+        "Run",
+        "Walk",
+        "WalkSlow"
+      ]
     },
     {
       "id": "char_viking",
