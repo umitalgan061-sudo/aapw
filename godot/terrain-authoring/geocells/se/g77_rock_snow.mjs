@@ -154,5 +154,5 @@ export function buildG77RockSnowProbe() {
     }
     rows.push(row);
   }
-  return Object.freeze({ schema: 'westeros-g77-terrain3d-rock-snow-r9', policyId: p.id, sourceMapSha256: p.sourceMapSha256, geoCell: p.geoCell, layer: p.layer, sourceGridSize: p.sourceGridSize, terrain3dRegionSize: p.terrain3dRegionSize, terrain3dImportSize: p.terrain3dImportSize, groundTextureId: p.groundTextureId, rockTextureId: p.rockTextureId, snowTextureId: p.snowTextureId, slopeFilterRadiusNormalized: p.slopeFilterRadiusNormalized, slopeFilterTaps: p.slopeFilterTaps, rows });
+  return Object.freeze({ schema: 'westeros-g77-terrain3d-rock-snow-r9', policyId: p.id, sourceMapSha256: p.sourceMapSha256, sourceMapSize: p.sourceMapSize, sourceMapVersion: p.sourceMapVersion, geoCell: p.geoCell, layer: p.layer, sourceGridSize: p.sourceGridSize, terrain3dRegionSize: p.terrain3dRegionSize, terrain3dImportSize: p.terrain3dImportSize, groundTextureId: p.groundTextureId, rockTextureId: p.rockTextureId, snowTextureId: p.snowTextureId, slopeFilterRadiusNormalized: p.slopeFilterRadiusNormalized, slopeFilterTaps: p.slopeFilterTaps, rows });
 }
