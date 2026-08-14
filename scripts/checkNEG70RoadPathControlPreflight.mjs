@@ -17,7 +17,7 @@ function bilerp(channel, u, v) {
   const x0 = Math.floor(gx), y0 = Math.floor(gy), x1 = Math.min(x0 + 1, size - 1), y1 = Math.min(y0 + 1, size - 1);
   const tx = gx - x0, ty = gy - y0;
   const top = probe.rows[y0][x0][channel] + (probe.rows[y0][x1][channel] - probe.rows[y0][x0][channel]) * tx;
-  const bottom = probe.rows[y1][x0][channel] + (probe.rows[y1][x1][channel] - probe.rows[y0][x0][channel]) * tx;
+  const bottom = probe.rows[y1][x0][channel] + (probe.rows[y1][x1][channel] - probe.rows[y1][x0][channel]) * tx;
   return top + (bottom - top) * ty;
 }
 let importSamples = 0, maxRoad = 0, maxPath = 0, maxControl = 0, minHeight = Infinity, maxHeight = -Infinity;
