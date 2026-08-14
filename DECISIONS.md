@@ -16043,3 +16043,64 @@ simply goes back to being unread.
 - Gelecek Faz Etkisi (§8.4): none for terrain/world-scale systems. Establishes a reusable precedent for any future settings-screen addition (a live-audio-volume slider, once real audio assets exist per §3 row 6, or the three still-unwired `QUALITY_PRESETS` knobs, once a live-apply construction path exists): add a new fieldset/control to the same `_buildSettingsPanel`, a new `STORAGE_KEYS` entry if it needs its own persistence key, same reload-to-apply shape until a live-apply path is separately built.
 - Concurrency re-check immediately before commit: `git fetch origin main` re-run — see commit log for result at push time.
 - Next safe step: `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 now has zero remaining half-open rows and six entirely-uncoded rows (quest, save/load, inventory, player attack, dense settlements, audio) — all larger, multi-run scopes. Wiring `renderQuality.js`'s three still-unread `QUALITY_PRESETS` knobs (`drawDistance`/`pixelRatioCap`/`textureSize`) into the actual renderer, disclosed above, is the most natural single next bounded slice if continuing this area. Terrain/road/Terrain3D geocell work remains claimed by the concurrent corner-agent sessions and was not touched here.
+## ADR-0290 — Controls-help/pause-menu Escape coexistence, closing the run-339 disclosed scope edge (scheduled routine)
+
+**Risk: LOW.** Touches only `ui/controlsHelp.js`'s own keydown handler (one added
+`event.stopImmediatePropagation()` call, gated behind the branch that already closes the panel);
+no other file changed.
+
+**Karar.** `ControlsHelp`'s Escape handler now calls `event.stopImmediatePropagation()` right after
+it closes the panel. Since `game3d.js` always constructs `ControlsHelp` before `PauseMenu`, and
+`window` keydown listeners fire in registration order, this means: if the controls-help panel is
+open, the first Escape press closes only that panel (consuming the keystroke before `PauseMenu`'s
+own, later-registered listener runs); once it's closed, Escape goes back to toggling the pause
+overlay normally on every subsequent press, exactly as before this change.
+
+**Neden (problem).** Run 339's own `QUESTIONS_FOR_OWNER.md` entry disclosed, as a deliberately
+out-of-scope edge, that pressing Escape while the controls-help panel was open closed that panel
+*and* opened the pause overlay in the same keystroke — two independent `window` keydown listeners
+both reacting to one event. Cosmetically harmless (both panels close independently on a second
+press) but not the single-purpose behavior a player expects from one key, and a genuinely
+uncontended, already-scoped gap to close — same precedent ADR-0283/0284/0286 already established
+for closing a prior run's own disclosed edge before starting a new large feature.
+
+**Alternatifler.**
+1. *Give `PauseMenu` a `isControlsHelpOpen()` getter and check it inside its own handler.* Rejected:
+   `ControlsHelp`'s handler (registered first) already runs and closes the panel before `PauseMenu`'s
+   handler would ever check that getter, so by the time it ran the getter would already read `false`
+   — the check would be silently useless. Consuming the event at the source, where the true
+   "did I just act on this keystroke" state is known synchronously, avoids that ordering trap
+   entirely.
+2. *Merge both widgets' Escape handling into one shared router.* Rejected: a larger refactor of two
+   otherwise-independent, already-shipped widgets for a one-line fix; `stopImmediatePropagation`
+   solves the actual bug (two handlers acting on one keystroke) without restructuring either class.
+3. *Leave it open, unchanged.* Rejected: it was already fully scoped and disclosed by name in
+   `QUESTIONS_FOR_OWNER.md`, carries none of the terrain/road merge-conflict risk claimed by the
+   concurrent corner-agent sessions, and is small enough to close in one bounded subtask.
+
+**Sonuç / trade-off.** None of substance — this only removes a redundant side effect on one specific
+keystroke sequence; every other Escape behavior (dialogue-close via `gameplay/interaction.js`,
+registered earlier and thus unaffected either way; pause toggle when controls-help is already
+closed; controls-help close on its own) is unchanged. The fix depends on `ControlsHelp` continuing
+to be constructed before `PauseMenu` in `game3d.js` — already true today and now documented inline
+at the call site of the fix itself, not just here.
+
+**Etkilenen sistemler.** `ui/controlsHelp.js` only. `ui/pauseMenu.js`, `game3d.js`,
+`gameplay/interaction.js` all unchanged. No terrain, hydrology, road, settlement, NPC, dragon, or
+world-event system touched.
+
+**Doğrulama.** `node --check` clean. New regression check
+`checkControlsHelpPauseMenuEscapeCoexistence` (`scripts/game3dSmokeChecksPauseMenu.js`, registered
+in `smokeTestGame3D.js`): constructs both real widgets in the same construction order `game3d.js`
+uses, proves the first Escape while controls-help is open closes only that panel (pause stays
+closed), the next Escape then opens pause normally, and Escape keeps toggling pause on every
+keystroke afterward. `checkSmokeCheckRegistry.js` OK — 39 checks across 15 modules, every export
+invoked exactly once. `checkTechnicalDebt.js` PASS (0 new debt). `checkSeededRandomPolicy.js` PASS.
+`terrainSeatSafetyCheck.js` PASS 14/14 (unaffected). `roadNetworkSafetyCheck.js` PASS 20.24km
+(unaffected). Full `smokeTestGame3D.js` real-browser suite run fresh before and after (see
+`3D_GAME_PROGRESS.md`'s own run entry for the exact pass count and any pre-existing environment
+notes).
+
+**Geri alma planı.** `git revert` the single commit. The change is one added line inside an existing
+conditional branch — reverting restores the exact prior (buggy but harmless) coexistence behavior,
+no data migration, no asset change.

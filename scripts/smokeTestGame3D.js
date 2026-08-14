@@ -114,6 +114,7 @@ async function main() {
 		results.push(await vegetationChecks.checkVegetation(browser, baseUrl));
 		results.push(await pauseMenuChecks.checkPauseMenu(browser, baseUrl));
 		results.push(await pauseMenuChecks.checkPauseMenuSettings(browser, baseUrl));
+		results.push(await pauseMenuChecks.checkControlsHelpPauseMenuEscapeCoexistence(browser, baseUrl));
 		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));

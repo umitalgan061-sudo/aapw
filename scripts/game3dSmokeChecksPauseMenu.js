@@ -203,4 +203,62 @@ async function checkPauseMenuSettings(browser, baseUrl) {
 	};
 }
 
-module.exports = { checkPauseMenu, checkPauseMenuSettings };
+/**
+ * Regression check for run 339's own disclosed `QUESTIONS_FOR_OWNER.md` scope edge, closed by this
+ * run: `ControlsHelp` and `PauseMenu` each bind an independent `window` "Escape" keydown listener,
+ * so pressing Escape while the controls-help panel was open used to close *that* panel and *also*
+ * open the pause overlay in the same keystroke. Fixed at the source
+ * (`ui/controlsHelp.js`'s own Escape handler now calls `event.stopImmediatePropagation()` once it
+ * acts), verified here through both real instances together -- exactly the two-listener interaction
+ * a check against either class in isolation cannot see.
+ */
+async function checkControlsHelpPauseMenuEscapeCoexistence(browser, baseUrl) {
+	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { ControlsHelp } = await import('/src/3d/ui/controlsHelp.js');
+			const { PauseMenu } = await import('/src/3d/ui/pauseMenu.js');
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			// Construction order matters: `game3d.js` always builds `ControlsHelp` before
+			// `PauseMenu`, which is what makes `ControlsHelp`'s Escape listener run first and get
+			// the chance to consume the keystroke -- reproduced here rather than assumed.
+			const help = new ControlsHelp({ container, isMobileClass: false });
+			const menu = new PauseMenu({ container });
+
+			help.setOpen(true);
+			window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
+			const firstEscapeClosesHelpOnly = !help.isOpen && !menu.isOpen;
+
+			window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
+			const secondEscapeThenOpensPause = !help.isOpen && menu.isOpen;
+
+			// The fix must not swallow Escape when `ControlsHelp` was already closed -- Escape
+			// should keep toggling `PauseMenu` normally on every other keystroke.
+			window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
+			const thirdEscapeClosesPauseAgain = !help.isOpen && !menu.isOpen;
+
+			help.dispose();
+			menu.dispose();
+			container.remove();
+
+			return { firstEscapeClosesHelpOnly, secondEscapeThenOpensPause, thirdEscapeClosesPauseAgain };
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	return {
+		name: 'controls-help/pause-menu Escape coexistence (ui/controlsHelp.js + ui/pauseMenu.js)',
+		ok,
+		details: ok
+			? 'Escape while controls-help is open closes only the help panel (pause stays closed); '
+				+ 'the next Escape then opens pause normally; Escape keeps toggling pause on every '
+				+ 'keystroke afterward'
+			: `FAILED assertion(s): ${JSON.stringify(result)}`,
+	};
+}
+
+module.exports = { checkPauseMenu, checkPauseMenuSettings, checkControlsHelpPauseMenuEscapeCoexistence };
