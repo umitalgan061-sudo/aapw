@@ -79,7 +79,7 @@ func sample_proof(terrain: Variant, p: Dictionary) -> Dictionary:
 			var actual_blend: float = float(terrain.data.get_control_blend(pos))
 			var actual_color: Color = terrain.data.get_color(pos)
 			var actual_roughness: float = float(terrain.data.get_roughness(pos))
-			var overlay := terrain.data.get_control_overlay_id(pos)
+			var overlay: int = int(terrain.data.get_control_overlay_id(pos))
 			if is_nan(actual_height) or is_nan(actual_blend) or is_nan(actual_roughness):
 				return {}
 			if terrain.data.get_control_base_id(pos) != int(source[0]) or overlay != int(source[1]):
@@ -115,7 +115,7 @@ func seam_proof(terrain: Variant, p: Dictionary) -> Dictionary:
 				var actual_blend: float = float(terrain.data.get_control_blend(pos))
 				var actual_color: Color = terrain.data.get_color(pos)
 				var actual_roughness: float = float(terrain.data.get_roughness(pos))
-				var overlay := terrain.data.get_control_overlay_id(pos)
+				var overlay: int = int(terrain.data.get_control_overlay_id(pos))
 				if is_nan(actual_height) or is_nan(actual_blend) or is_nan(actual_roughness): return {}
 				if terrain.data.get_control_base_id(pos) != int(source[0]) or overlay != int(source[1]): return {}
 				if overlay == int(p["roadTextureId"]) or overlay == int(p["pathTextureId"]): return {}
@@ -131,7 +131,7 @@ func write_preview(terrain: Variant, p: Dictionary) -> bool:
 	for z in 256:
 		for x in 256:
 			var pos := Vector3(float(x), 0.0, float(z))
-			var overlay := terrain.data.get_control_overlay_id(pos)
+			var overlay: int = int(terrain.data.get_control_overlay_id(pos))
 			if overlay == int(p["roadTextureId"]) or overlay == int(p["pathTextureId"]):
 				image.set_pixel(x, z, Color(1.0, 0.0, 0.0))
 				continue
