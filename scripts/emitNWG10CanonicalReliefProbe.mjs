@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { sampleReferenceWaterMask } from '../src/3d/world/worldReferenceWaterMask.js';
-import { WORLD_REFERENCE_RELIEF_POLICY, sampleWorldReferenceRelief } from '../src/3d/world/worldReferenceReliefField.js';
+import { WORLD_REFERENCE_RELIEF_POLICY, sampleWorldReferenceRelief } from '../godot/terrain-authoring/lib/worldReferenceReliefField.mjs';
 
 const G10 = Object.freeze({ xMin: 1 / 8, xMax: 2 / 8, yMin: 0, yMax: 1 / 8 });
 const SIZE = 65;
