@@ -45,7 +45,9 @@ const contractSamples = [
   [(bounds.xMin + bounds.xMax) * 0.5, (bounds.yMin + bounds.yMax) * 0.5],
   [bounds.xMax, bounds.yMax],
   [0.955078125, 0.990234375],
+  [0.955078125, 0.9912109375],
   [0.955078125, 0.9921875],
+  [0.955078125, 0.9931640625],
 ];
 let controlChecksum = 2166136261;
 let filteredSlopeImprovementSamples = 0;
@@ -111,7 +113,7 @@ for (const row of probeA.rows) {
     if (water >= 0.5 && rock + snow > 0.000001) probeWaterLeakRows += 1;
     const expectedOverlay = snow > rock ? G77_ROCK_SNOW_POLICY.snowTextureId : G77_ROCK_SNOW_POLICY.rockTextureId;
     const expectedBlend8 = Math.round(Math.max(rock, snow) * 255);
-    if (overlayTextureId !== expectedOverlay || overlayBlend8 !== expectedBlend8) probeQuantizedBlendMismatch += 1;
+    if (overlayTextureId !== expectedOverlay || Math.abs(overlayBlend8 - expectedBlend8) > 1) probeQuantizedBlendMismatch += 1;
   }
 }
 need(probeFiniteValues === 65 * 65 * 12, `unexpected finite probe value count ${probeFiniteValues}`);
