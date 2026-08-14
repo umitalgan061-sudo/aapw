@@ -1,3 +1,9 @@
+// Run339 pause-menu offline shell extension — `ui/pauseMenu.js` (ADR-0285), now imported by
+// `game3d.js`, so an offline PWA load needs it cached or the scene cannot boot at all.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/ui/pauseMenu.js');
+});
+
 // Run336 cart-brain offline shell extension — `gameplay/cartBrain.js` (ADR-0282), now imported by
 // `gameplay/livingWorldSpawner.js`, so an offline PWA load needs it cached or the scene cannot spawn
 // FAZ 6's horse-drawn carts at all.

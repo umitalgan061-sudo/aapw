@@ -52,6 +52,7 @@ import { DialogueBox } from './ui/dialogueBox.js';
 import { WorldEventToast } from './ui/worldEventToast.js';
 import { HealthBar } from './ui/healthBar.js';
 import { ControlsHelp } from './ui/controlsHelp.js';
+import { PauseMenu } from './ui/pauseMenu.js';
 import { SettlementCompass } from './ui/settlementCompass.js';
 import { SettlementDiscovery } from './ui/settlementDiscovery.js';
 import { DayNightClock } from './ui/dayNightClock.js';
@@ -301,6 +302,13 @@ export async function initGame3D() {
 		});
 		state.worldEventToast = new WorldEventToast({ eventsBus: gameEvents, eventName: EVENTS.WORLD_EVENT_TRIGGERED });
 		state.controlsHelp = new ControlsHelp({ isMobileClass: isCoarsePointerDevice() });
+		// Menu/pause flow (run 339, GOVERNANCE_FULL_GAME_DIRECTIVE.md §3 item 7) — this instance only
+		// owns the overlay DOM/open-state; the tick loop below reads `state.paused` (flipped here via
+		// `onOpenChange`) to freeze the world by clamping `delta` to 0, the same "delta=0 means every
+		// delta-scaled system already no-ops" pattern this codebase already relies on elsewhere
+		// (see e.g. `debug/perfPanel.js`'s own `delta > 0 ? 1 / delta : fps` guard).
+		state.paused = false;
+		state.pauseMenu = new PauseMenu({ onOpenChange: (open) => { state.paused = open; } });
 		state.settlementCompass = new SettlementCompass({ seats: state.settlementSeats });
 		state.settlementDiscovery = new SettlementDiscovery({ seats: state.settlementSeats });
 		state.settlementCompass.setSeatFilter((seat) => !state.settlementDiscovery.isDiscovered(seat.id));
@@ -309,7 +317,14 @@ export async function initGame3D() {
 		let frameId;
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
-			const delta = state.clock.getDelta();
+			// Paused: every downstream consumer below is already delta-scaled (movement, animation
+			// mixers, day/night, world-event countdowns, sky/water/starfield time), so clamping to 0
+			// freezes the whole world in one place without restructuring this loop — `state.clock`
+			// itself still ticks (avoids one big catch-up delta on resume), only the value read here
+			// doesn't. Camera orbit/zoom (`state.controls.update()` below) and rendering are untouched,
+			// so the player can still look around while paused, same as most third-person games.
+			const rawDelta = state.clock.getDelta();
+			const delta = state.paused ? 0 : rawDelta;
 			state.elapsedSeconds += delta;
 
 			const keyboardAxes = state.keyboardInput.getAxes();
@@ -496,6 +511,7 @@ export async function initGame3D() {
 			state.worldEvents.dispose();
 			state.worldEventToast.dispose();
 			state.controlsHelp.dispose();
+			state.pauseMenu.dispose();
 			state.settlementCompass.dispose();
 			state.settlementDiscovery.dispose();
 			state.dayNightClock.dispose();

@@ -426,6 +426,110 @@ html, body {
   color: rgba(232, 212, 160, 0.82);
 }
 
+/* Pause menu (run 339, GOVERNANCE_FULL_GAME_DIRECTIVE.md §3 item 7) — src/3d/ui/pauseMenu.js.
+   Button stacks directly above the controls-help "?" button (same right:12px column, controls-help
+   itself is bottom:12/height:44, so bottom:64 leaves an 8px gap) rather than sharing its row, since
+   the touch jump button already occupies that row further right (right:72px) on touch devices. */
+.g3d-pause-menu-button {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(64px, calc(env(safe-area-inset-bottom, 0px) + 64px));
+  z-index: 24;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(200, 150, 10, 0.65);
+  border-radius: 50%;
+  background: rgba(10, 6, 2, 0.82);
+  color: #e8d4a0;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(4px);
+}
+
+.g3d-pause-menu-button:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
+}
+
+/* `display: flex` only applies while the overlay is shown -- `.g3d-pause-menu-overlay[hidden]` and
+   this rule are equal specificity, so without the `:not([hidden])` guard this would win over the
+   `[hidden]` UA-stylesheet rule by source order alone and the "hidden" overlay would still visually
+   cover (and intercept clicks on) the rest of the HUD, `PauseMenu.setOpen(false)`'s own `hidden = true`
+   notwithstanding. Found by this run's own real-browser evidence capture, not assumed. */
+.g3d-pause-menu-overlay:not([hidden]) {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 3, 1, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.g3d-pause-menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(320px, calc(100vw - 48px));
+  padding: 28px 26px;
+  border: 1px solid rgba(200, 150, 10, 0.55);
+  border-radius: 12px;
+  background: rgba(10, 6, 2, 0.94);
+  color: #e8d4a0;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.g3d-pause-menu-panel h2 {
+  margin: 0 0 4px;
+  color: #c8960a;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+}
+
+.g3d-pause-menu-resume,
+.g3d-pause-menu-quit {
+  padding: 11px 16px;
+  border-radius: 8px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.g3d-pause-menu-resume {
+  border: 1px solid rgba(200, 150, 10, 0.75);
+  background: #c8960a;
+  color: #1a1206;
+  font-weight: 700;
+}
+
+.g3d-pause-menu-resume:active {
+  background: #e8ab0e;
+}
+
+.g3d-pause-menu-quit {
+  display: block;
+  border: 1px solid rgba(200, 150, 10, 0.45);
+  background: transparent;
+  color: #e8d4a0;
+}
+
+.g3d-pause-menu-quit:active {
+  background: rgba(200, 150, 10, 0.15);
+}
+
+.g3d-pause-menu-resume:focus-visible,
+.g3d-pause-menu-quit:focus-visible {
+  outline: 2px solid #e8d4a0;
+  outline-offset: 2px;
+}
+
 .g3d-settlement-compass {
   position: fixed;
   top: max(78px, calc(env(safe-area-inset-top, 0px) + 78px));

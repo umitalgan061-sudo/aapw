@@ -46,7 +46,7 @@ olanlar (§33.2 ile aynı liste, burada gerekçeli):
 | 4 | Oyuncunun kendi saldırısı | Yok — yalnız ejderha oyuncuya vurabiliyor, tersi yok. |
 | 5 | Dolu yerleşim (ev/ahır/çit/kalabalık) | Kale var, kasaba yok. |
 | 6 | Ses (müzik + efekt) | `assets/audio/` fiilen boş. |
-| 7 | Menü / duraklat / ayarlar akışı | Yok. |
+| 7 | Menü / duraklat / ayarlar akışı | Duraklatma (pause) kısmı var (Run 339, ADR-0285 — `ui/pauseMenu.js`, Escape/⏸ butonu, dünya donuyor). Ayarlar ekranı hâlâ yok. |
 
 Bu liste FAZ tablosunun yerine geçmez; onun **üstünde** bir ürün ölçütüdür. FAZ 0-10 teknik olarak
 bitse bile yukarıdakiler olmadan proje "tam anlamıyla oyun" sayılmaz.
