@@ -194,9 +194,9 @@ const routeEvidence = {
   pathEdges: paths.edgeCount,
   roadSegments: roads.segmentCount,
   pathSegments: paths.segmentCount,
-  roadOwnedCrossingSegments: roads.ownedCrossingSegments,
+  roadOwnedCrossingSegments: roads.ownedCrossings,
   roadGuardCrossingSegments: roads.guardCrossingSegments,
-  pathOwnedCrossingSegments: paths.ownedCrossingSegments,
+  pathOwnedCrossingSegments: paths.ownedCrossings,
   pathGuardCrossingSegments: paths.guardCrossingSegments,
   minRoadOwnedClearance: roads.minOwnedClearance,
   minRoadGuardClearance: roads.minGuardClearance,
@@ -232,7 +232,7 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'g17-road-path-probe.json'), JSON.stringify(probe));
 fs.writeFileSync(
   path.join(OUT, 'g17-road-path-source-evidence.json'),
-  `${JSON.stringify({ schema: 'westeros-g17-road-path-source-evidence-v2', coverage, routeEvidence }, null, 2)}\n`,
+  `${JSON.stringify({ schema: 'westeros-g17-road-path-source-evidence-v2', sourceMapSha256: G17_ROAD_PATH_POLICY.sourceMapSha256, coverage, routeEvidence }, null, 2)}\n`,
 );
 
 console.log(`SW_G17_ROAD_PATH_METRICS=${JSON.stringify({
