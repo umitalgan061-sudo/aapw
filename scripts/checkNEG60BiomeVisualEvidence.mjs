@@ -135,13 +135,26 @@ try {
     ctx.filter = 'blur(4px)';
     ctx.drawImage(low, 0, 0, 1200, 800);
     ctx.filter = 'none';
-    return { outputResolution:[1200,800], contextResolution:[600,400], transitionEdges, gridOverlay:false };
+    const rendered = ctx.getImageData(0, 0, 1200, 800).data;
+    let maxAdjacentChannelDelta = 0;
+    const compare = (a, b) => {
+      for (let c = 0; c < 3; c += 1) maxAdjacentChannelDelta = Math.max(maxAdjacentChannelDelta, Math.abs(rendered[a + c] - rendered[b + c]));
+    };
+    for (let y = 0; y < 800; y += 1) {
+      for (let x = 0; x < 1200; x += 1) {
+        const i = (y * 1200 + x) * 4;
+        if (x) compare(i, i - 4);
+        if (y) compare(i, i - 1200 * 4);
+      }
+    }
+    return { outputResolution:[1200,800], contextResolution:[600,400], transitionEdges, gridOverlay:false, maxAdjacentChannelDelta };
   });
 
   const png = await page.locator('#world').screenshot();
   requireOk(png.length > 4096, 'full-world PNG unexpectedly small');
   requireOk(topdown.transitionEdges > 100, 'full-world map silhouette lost expected geographic transitions');
   requireOk(topdown.gridOverlay === false, 'GeoCell grid overlay must remain disabled');
+  requireOk(topdown.maxAdjacentChannelDelta <= 16, `full-world proof retained a hard pixel/grid edge: ${topdown.maxAdjacentChannelDelta}`);
   fs.writeFileSync(path.join(OUT, 'g60-biome-full-world.png'), png);
   hashes.fullWorld = sha256(png);
   requireOk(pageErrors.length === 0, `browser page errors: ${pageErrors.join(' | ')}`);
