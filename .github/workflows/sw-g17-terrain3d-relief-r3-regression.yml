@@ -1,7 +1,13 @@
 name: SW G17 Terrain3D Relief Exact Main Regression
 on:
   push: { branches: [agent/gunbatimi-ustasi-g17-relief-r12-exact-20260813] }
-  pull_request: { branches: [main] }
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/checkSWG17ReliefTerrain3D*.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g17_terrain3d_relief*.gd'
+      - '.github/workflows/sw-g17-terrain3d-relief-r3-core.yml'
+      - '.github/workflows/sw-g17-terrain3d-relief-r3-regression.yml'
 permissions: { contents: read }
 concurrency: { group: 'sw-g17-relief-exact-regression-${{ github.ref }}', cancel-in-progress: true }
 jobs:
