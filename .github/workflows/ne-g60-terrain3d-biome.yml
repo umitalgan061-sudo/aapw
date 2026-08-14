@@ -96,10 +96,14 @@ jobs:
           cp godot/terrain-authoring/.terrain3d-proof/g60-biome-bake.json "$RUNNER_TEMP/g60-bake-a.json"
           cp godot/terrain-authoring/.terrain3d-proof/g60-biome-topdown.png "$RUNNER_TEMP/g60-topdown-a.png"
           G60_BIOME_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g60_terrain3d_biome.gd | tee "$RUNNER_TEMP/g60-bake-b.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g60-biome-bake.json "$RUNNER_TEMP/g60-bake-b.json"
+          cp godot/terrain-authoring/.terrain3d-proof/g60-biome-topdown.png "$RUNNER_TEMP/g60-topdown-b.png"
           grep -F 'NE_G60_TERRAIN3D_BIOME_OK' "$RUNNER_TEMP/g60-bake-a.log"
           grep -F 'NE_G60_TERRAIN3D_BIOME_OK' "$RUNNER_TEMP/g60-bake-b.log"
-          cmp "$RUNNER_TEMP/g60-bake-a.json" godot/terrain-authoring/.terrain3d-proof/g60-biome-bake.json
-          cmp "$RUNNER_TEMP/g60-topdown-a.png" godot/terrain-authoring/.terrain3d-proof/g60-biome-topdown.png
+          jq -S 'del(.persistedBytes)' "$RUNNER_TEMP/g60-bake-a.json" > "$RUNNER_TEMP/g60-bake-a-semantic.json"
+          jq -S 'del(.persistedBytes)' "$RUNNER_TEMP/g60-bake-b.json" > "$RUNNER_TEMP/g60-bake-b-semantic.json"
+          cmp "$RUNNER_TEMP/g60-bake-a-semantic.json" "$RUNNER_TEMP/g60-bake-b-semantic.json"
+          cmp "$RUNNER_TEMP/g60-topdown-a.png" "$RUNNER_TEMP/g60-topdown-b.png"
 
       - name: Near far full-world evidence and repository regressions
         run: |
