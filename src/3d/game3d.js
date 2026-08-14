@@ -282,6 +282,11 @@ export async function initGame3D() {
 			greetingTemplate: INTERACTION_CONFIG.GREETING_TEMPLATE, greetingsByNpcId: INTERACTION_CONFIG.GREETINGS_BY_NPC_ID,
 			choicesByNpcId: INTERACTION_CONFIG.CHOICES_BY_NPC_ID,
 			radiusMeters: INTERACTION_CONFIG.PROMPT_RADIUS_METERS,
+			// Run 340, ADR-0286: closes the run-339-disclosed gap where a dialogue already open when
+			// the player paused stayed keyboard-reachable underneath the (visually covering) pause
+			// overlay. `state.paused` isn't assigned until below (`PauseMenu`'s `onOpenChange`) — safe
+			// regardless, since this closure reads it at call time, never at construction time.
+			isPaused: () => state.paused,
 		});
 		const handleInteractKeyDown = (event) => state.interaction.handleKeyDown(event);
 		window.addEventListener('keydown', handleInteractKeyDown);

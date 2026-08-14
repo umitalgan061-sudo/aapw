@@ -395,14 +395,22 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   are independent `window` keydown listeners; pressing Escape while the controls-help panel is open
   closes *that* panel and *also* opens the pause overlay in the same keystroke (both then close
   independently on a second press — a harmless visual double-open, not a functional conflict, but
-  not the single-purpose behavior a player might expect from one key). (2) the global `E`-interact
-  keydown listener and `ui/dialogueBox.js`'s own keydown handlers are not gated by `state.paused` —
-  if a dialogue is already open when the player pauses, its choices can still be selected by Enter
-  while the pause overlay visually covers them (the overlay sits above it at z-index 30, so nothing
-  is visibly wrong, but the input still reaches the hidden dialogue). **Temporary defaults used:**
-  neither is blocked in this pass — both are this run's own judgment about where to draw this
-  bounded subtask's line, same "temporary default, no real playtest yet" category as every other
-  scope-edge entry above. A settings screen (quality/volume) inside the same overlay, and an
-  auto-pause on tab blur (`visibilitychange`), are also both deliberately deferred, not forgotten —
-  see ADR-0285's own Alternatives #3/#4. Revisit any of these once a real playtest exists, or if
-  they're specifically wanted.
+  not the single-purpose behavior a player might expect from one key). (2) ~~the global `E`-interact
+  keydown listener and `ui/dialogueBox.js`'s own keydown handlers are not gated by `state.paused`~~ —
+  **✅ ÇÖZÜLDÜ (run 340, ADR-0286).** **Temporary defaults used:** item (1) above is still this run's
+  own judgment about where to draw this bounded subtask's line, same "temporary default, no real
+  playtest yet" category as every other scope-edge entry above — left unchanged, out of this run's
+  scope. A settings screen (quality/volume) inside the same overlay, and an auto-pause on tab blur
+  (`visibilitychange`), are also both deliberately deferred, not forgotten — see ADR-0285's own
+  Alternatives #3/#4. Revisit any of these once a real playtest exists, or if they're specifically
+  wanted.
+
+- **✅ ÇÖZÜLDÜ (run 340, ADR-0286) Dialogue input paused-gate — the run-339 entry's item (2) above,
+  "choices can still be selected by Enter while the pause overlay visually covers them," is now
+  closed.** `createInteractionController` (`gameplay/interaction.js`) takes a new `isPaused` option,
+  polled at the top of both `handleKeyDown` and `handleChoice` — the two entry points every input
+  path into the controller already funnels through (global E/Escape/digit keydown, the interaction
+  prompt's touch-activate handler, and `dialogueBox.js`'s own choice/close pointer-and-keyboard
+  handlers). `game3d.js` passes `isPaused: () => state.paused`. Defaults to `() => false`, so no
+  other caller (this project's own smoke checks included) needed a call-site change. No open
+  edge left by this pass — not a temporary default.
