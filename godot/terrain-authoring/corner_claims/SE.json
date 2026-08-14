@@ -6,9 +6,9 @@
   "status": "active",
   "layer": "Rock/Snow",
   "branch": "agent/kizil-ufuk-g77-rock-snow-exact-7ab4-20260814",
-  "pr": null,
+  "pr": 480,
   "base_commit": "7ab4c2aecedb03150349a00025865652c468f762",
-  "last_commit": "ff96c3522701c89d219f126730590b9145955971",
+  "last_commit": "ea56b799755f44db3a883631e39213f09ed1c3aa",
   "quality_before": {
     "coast_hydrology": "merged G77 canonical 44 water / 52 land continuous coastline contract",
     "macro_biome": "merged continuous owner-map biome/color field",
@@ -16,9 +16,9 @@
   },
   "quality_after": {
     "target": "continuous relief/slope/biome-driven rock and snow weights with zero canonical-water surface leakage",
-    "terrain3d": "real pinned v1.0.2 Height+Control import, overlay/base roundtrip, persisted region, LOD0 bake and deterministic top-down evidence",
+    "terrain3d": "real pinned v1.0.2 257x257 Height+Control import across >=4 regions, 255/256 seam roundtrip, persistence, LOD0 bake and deterministic top-down evidence",
     "state": "pending exact-head CI evidence"
   },
   "next_layer_after_merge": "Road/Path",
-  "updated_at": "2026-08-14T08:03:35+03:00"
+  "updated_at": "2026-08-14T08:10:14+03:00"
 }
