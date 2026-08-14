@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root=process.cwd(), outArg=process.argv.find((a)=>a.startsWith('--out-dir=')), out=path.resolve(root,outArg?outArg.slice(10):'artifacts/se-g77-rock-snow-r9');
-const files={sourceProbe:'godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-probe.json',importedTerrain3D:'godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-imported-topdown.png',near:path.join(out,'g77-rock-snow-near.png'),far:path.join(out,'g77-rock-snow-far.png'),localTopdown:path.join(out,'g77-rock-snow-topdown.png'),fullWorldTopdown:path.join(out,'g77-rock-snow-full-world-3d-topdown.png'),fullWorldMeta:path.join(out,'g77-rock-snow-full-world-3d-topdown.json')};
+const files={sourceProbe:'godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-probe.json',importedTerrain3D:'godot/terrain-authoring/.terrain3d-proof/g77-rock-snow-imported-topdown.png',near:path.join(out,'g77-rock-snow-near.png'),far:path.join(out,'g77-rock-snow-far.png'),localTopdown:path.join(out,'g77-rock-snow-topdown.png'),fullWorldTopdown:path.join(out,'g77-rock-snow-full-world-topdown.png'),fullWorldMeta:path.join(out,'g77-rock-snow-full-world-metrics.json')};
 const sha256=(b)=>crypto.createHash('sha256').update(b).digest('hex'), pngSignature=Buffer.from([137,80,78,71,13,10,26,10]), jsonNames=new Set(['sourceProbe','fullWorldMeta']);
 const pngDimensions={importedTerrain3D:[257,257],near:[960,640],far:[960,640],localTopdown:[960,640],fullWorldTopdown:[1536,1024]}, evidence={};
 for(const [name,file] of Object.entries(files)){
