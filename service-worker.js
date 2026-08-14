@@ -8,6 +8,7 @@
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/renderQuality.js');
     GAME3D_SHELL_FILES.push('./src/3d/world/g01Terrain3dRuntimeAdapter.js');
+    GAME3D_SHELL_FILES.push('./src/3d/world/g70Terrain3dRuntimeAdapter.js');
 });
 
 // Run341 offline-shell completeness fix (continued) — the same category of gap, this time 10 rigged
@@ -216,7 +217,9 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // `SHELL_CACHE` bumped v11->v12 (run 341): GAME3D_SHELL_FILES gained `renderQuality.js`,
 // `world/g01Terrain3dRuntimeAdapter.js` and 10 animal model .glb files above, same "existing installs
 // must actually clean up the old, now-stale entry" reasoning as every prior bump entry in this file.
-const SHELL_CACHE = 'westeros-shell-v12';
+// G70 runtime parity adds another offline-loadable `src/3d` module, so v12->v13 forces existing
+// installs to replace the old shell rather than retaining a cache that cannot load the G70 adapter.
+const SHELL_CACHE = 'westeros-shell-v13';
 const SHELL_FILES = [
     './',
     './index.html',
