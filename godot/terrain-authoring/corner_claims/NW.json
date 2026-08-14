@@ -6,8 +6,8 @@
   "status": "in_progress_exact_main_relief",
   "exact_base": "cdca07cc3f29c635db382cba8b8bbdb11a4c5998",
   "branch": "agent/buzul-muhafizi-g10-relief-exact-cdca07-20260814",
-  "pr": null,
-  "last_commit": null,
+  "pr": 522,
+  "last_commit": "a8f3b951895aa35775593b466d294fea67a22e4e",
   "quality_before": {
     "layer": "Macro Albedo/Biome",
     "merged_pr": 439,
