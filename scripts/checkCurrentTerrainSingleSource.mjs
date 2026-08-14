@@ -89,6 +89,11 @@ for (const entry of ['./src/3d/world/currentTerrainAdapter.js', './src/3d/world/
   assert(serviceWorker.includes(`GAME3D_SHELL_FILES.push('${entry}')`), `service-worker missing current terrain offline entry ${entry}`);
 }
 
+for (const safetyFile of ['terrainSeatSafetyCheck.js', 'roadNetworkSafetyCheck.js']) {
+  const source = fs.readFileSync(new URL(`./${safetyFile}`, import.meta.url), 'utf8');
+  assert(source.includes("'.mjs': 'text/javascript; charset=utf-8'"), `${safetyFile} must serve authored .mjs terrain dependencies as JavaScript`);
+}
+
 console.log(`CURRENT_TERRAIN_POLICY=${CURRENT_TERRAIN_POLICY.id}`);
 console.log(`CURRENT_TERRAIN_AUTHORED_CELLS=${CURRENT_TERRAIN_POLICY.authoredCells.join(',')}`);
 console.log(`CURRENT_TERRAIN_EXTENT=${WORLD_SCALE.MAP_BOUNDS.minX},${WORLD_SCALE.MAP_BOUNDS.minY}-${WORLD_SCALE.MAP_BOUNDS.maxX},${WORLD_SCALE.MAP_BOUNDS.maxY} grid=${CHUNK_CONFIG.GRID_COLUMNS}x${CHUNK_CONFIG.GRID_ROWS}`);
