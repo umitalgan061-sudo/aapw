@@ -2,20 +2,24 @@
   "corner": "SE",
   "task_name": "Kızıl Ufuk",
   "origin": [7, 7],
-  "current_cell": "G75",
+  "current_cell": "G77",
   "status": "active",
-  "layer": "Relief/Height Character",
-  "branch": "agent/kizil-ufuk-g75-relief-c1-20260813",
-  "pr": 301,
-  "last_commit": "3a7fd091ebcdd29689b19b6b58137b046218cee1",
+  "layer": "Rock/Snow",
+  "branch": "agent/kizil-ufuk-g77-rock-snow-exact-84a0-r3-20260814",
+  "pr": null,
+  "base_commit": "84a0214cfbb2840a5a5d59be31692c8b32a288aa",
+  "last_commit": null,
   "quality_before": {
-    "coast_hydrology": "96/96 dry canonical centres; Terrain3D proof PR #285",
-    "macro_biome": "continuous owner-map color field; Terrain3D proof PR #288",
-    "relief_attempt": "PR #296 rejected at maxGuardNormalDelta 1.413918 > 0.8 and retired stale/unmerged"
+    "coast_hydrology": "merged G77 canonical 44 water / 52 land continuous coastline contract",
+    "macro_biome": "merged continuous owner-map biome/color field",
+    "relief": "merged real Terrain3D Height+Control+Color import/persist/reload/LOD proof",
+    "rock_snow_r2": "PR #483 failed before Terrain3D install in source/dense-control validation and became stale after main advanced"
   },
   "quality_after": {
-    "target": "same G75 height field with normals derived in canonical full-reference metre space; fixed seam threshold retained at 0.8",
+    "target": "continuous relief/slope/biome-driven rock and snow weights with canonical water ownership forcing zero material at waterConfidence >= 0.5 and a wider 0.30..0.50 coastal taper to reduce dense derivative steps",
+    "terrain3d": "pinned v1.0.2 257x257 Height+Control import across >=4 regions, 255/256 seam roundtrip, persistence, LOD0 bake and deterministic top-down evidence required by CI",
     "state": "pending exact-head CI evidence"
   },
-  "updated_at": "2026-08-13T01:12:00+03:00"
+  "next_layer_after_merge": "Road/Path",
+  "updated_at": "2026-08-14T10:00:00+03:00"
 }
