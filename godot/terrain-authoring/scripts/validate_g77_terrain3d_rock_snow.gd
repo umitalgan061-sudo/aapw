@@ -1,6 +1,6 @@
 extends SceneTree
 const PROBE_PATH := "res://.terrain3d-proof/g77-rock-snow-probe.json"
-const EXPECTED_POLICY := "kizil-ufuk-g77-terrain3d-rock-snow-2026-08-14-v5"
+const EXPECTED_POLICY := "kizil-ufuk-g77-terrain3d-rock-snow-2026-08-14-v6"
 const EXPECTED_SOURCE_SHA := "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1"
 const MAX_BLEND_ERROR := 0.006
 const MAX_HEIGHT_ERROR := 0.00001
