@@ -4,11 +4,11 @@
   "origin": [7, 0],
   "current_cell": "G70",
   "status": "validating",
-  "layer": "Terrain3D Bake/Runtime parity",
-  "branch": "terrain/ne-g70-terrain3d-runtime-parity-r1-exact-20260814",
-  "pr": 497,
+  "layer": "Near Detail",
+  "branch": "terrain/ne-g70-terrain3d-near-detail-r1-exact-20260814",
+  "pr": 488,
   "last_commit": null,
-  "selection_reason": "G70 Coast/Hydrology, Macro Albedo/Biome, Relief/Height Character, Rock/Snow, Road/Path and Near Detail are merged; Near Detail PR #488 is merged on main. Strict same-cell order therefore advances G70 to its seventh required layer, Terrain3D Bake/Three.js runtime parity, without moving to another GeoCell.",
+  "selection_reason": "G70 Coast/Hydrology, Macro Albedo/Biome, Relief/Height Character, Rock/Snow and Road/Path are merged. Strict same-cell order therefore advances to Near Detail. Canonical G70 remains 96/96 open sea, so the physical quality gain is continuous submerged Color/Roughness microvariation in full-reference metre space with zero invented foliage, land, road/path coverage or GeoCell-shaped material patch.",
   "quality_before": {
     "base_cells": 96,
     "water_cells": 96,
@@ -18,17 +18,24 @@
     "merged_relief_pr": 470,
     "merged_rock_snow_pr": 477,
     "merged_road_path_pr": 479,
-    "merged_near_detail_pr": 488,
-    "near_detail_in_main": true,
+    "road_path_in_main": true,
     "rock_weight_max": 0,
     "snow_weight_max": 0,
     "road_path_coverage_max": 0,
-    "foliage_density": 0,
-    "map_png_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1"
+    "foliage_density": 0
   },
   "quality_target": {
     "canonical_uniform_sea_preserved": true,
-    "source_grid": 65,
+    "height_delta_max": 0,
+    "rock_snow_control_delta_max": 0,
+    "road_path_delta_max": 0,
+    "foliage_density_max": 0,
+    "continuous_physical_metre_detail": true,
+    "microvariation_channels": ["color", "roughness"],
+    "west_guard_neighbor": "G60",
+    "south_guard_neighbor": "G71",
+    "source_grid": 129,
+    "dense_owner_envelope": 193,
     "terrain3d_filtered_import": 257,
     "terrain3d_region_size": 256,
     "terrain3d_guard_regions_min": 4,
@@ -36,18 +43,10 @@
     "terrain3d_region_persistence": true,
     "terrain3d_lod0_bake": true,
     "terrain3d_255_256_seam_probes": true,
-    "terrain3d_bake_deterministic_twice": true,
-    "threejs_owner_map_bilinear_sampler": true,
-    "threejs_world_coordinate_parity": true,
-    "threejs_exact_node_error_max": 1e-7,
-    "height_error_max_m": 0.012,
-    "surface_unit_error_max": 0.006,
-    "west_guard_neighbor": "G60",
-    "south_guard_neighbor": "G71",
     "near_far_full_world_visual_evidence": true,
-    "visible_geocell_grid_allowed": false,
+    "full_world_geocell_patch_alpha": 0,
     "hterrain_regression_preserved": true,
-    "live_threejs_terrain_replacement": false
+    "threejs_runtime_unchanged": true
   },
   "completed_cells": {
     "G52": {
@@ -62,7 +61,7 @@
     "G71": {"pr": 252, "merge_commit": "1e0c1dc35bc3726551d753d1fc1922bf01226fa9", "canonical": "96/96 sea"},
     "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
   },
-  "engine": "merged G70 Near Detail -> deterministic 65x65 source -> pinned Terrain3D v1.0.2-stable 257x257 Height+Control+Color/Roughness import -> >=4 regions -> aligned + 255/256 seam roundtrip -> persistence + LOD0 bake twice -> continuous bilinear owner-map/Three.js world sampler parity -> near/far/full-world evidence; HTerrain retained as regression/control",
-  "exact_base": "ce284392825a33de7b3629c6013e897af8c0b35e",
-  "updated_at": "2026-08-14T10:31:35+03:00"
+  "engine": "merged G70 Road/Path + full-reference metre-space marine detail -> pinned Terrain3D v1.0.2-stable 257x257 Height+Control+Color/Roughness import -> >=4 regions -> aligned + 255/256 seam roundtrip -> persistence + LOD0 bake -> near/far/full-world evidence; HTerrain retained as regression/control",
+  "exact_base": "84a0214cfbb2840a5a5d59be31692c8b32a288aa",
+  "updated_at": "2026-08-14T09:30:00+03:00"
 }
