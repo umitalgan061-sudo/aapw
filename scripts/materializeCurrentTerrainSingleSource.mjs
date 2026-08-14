@@ -54,11 +54,23 @@ if (!offlineEntries.every((entry) => serviceWorkerBefore.includes(entry))) {
 
 const oldMime = "const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };";
 const currentMime = "const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };";
-for (const relative of ['scripts/terrainSeatSafetyCheck.js', 'scripts/roadNetworkSafetyCheck.js']) {
+const safetyFiles = ['scripts/terrainSeatSafetyCheck.js', 'scripts/roadNetworkSafetyCheck.js'];
+for (const relative of safetyFiles) {
   const file = path.join(root, relative);
   const before = fs.readFileSync(file, 'utf8');
   if (before.includes(currentMime)) continue;
   if (!before.includes(oldMime)) throw new Error(`${relative}: browser MIME anchor missing`);
   fs.writeFileSync(file, before.replace(oldMime, currentMime));
   console.log(`CURRENT_TERRAIN_MATERIALIZED=${relative}`);
+}
+
+const oldNavigation = "await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });";
+const currentNavigation = "await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });";
+for (const relative of safetyFiles) {
+  const file = path.join(root, relative);
+  const before = fs.readFileSync(file, 'utf8');
+  if (before.includes(currentNavigation)) continue;
+  if (!before.includes(oldNavigation)) throw new Error(`${relative}: browser navigation timeout anchor missing`);
+  fs.writeFileSync(file, before.replace(oldNavigation, currentNavigation));
+  console.log(`CURRENT_TERRAIN_MATERIALIZED=${relative}:navigation-timeout`);
 }
