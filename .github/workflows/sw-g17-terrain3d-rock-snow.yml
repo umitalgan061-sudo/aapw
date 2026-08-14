@@ -1,0 +1,81 @@
+name: SW G17 Terrain3D Rock Snow
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'godot/terrain-authoring/geocells/sw/g17_rock_snow*.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g17_terrain3d_rock_snow.gd'
+      - 'scripts/checkSWG17RockSnow*.mjs'
+      - 'scripts/emitSWG17RockSnowTerrain3DProbe.mjs'
+      - '.github/workflows/sw-g17-terrain3d-rock-snow.yml'
+permissions: { contents: read }
+concurrency: { group: 'sw-g17-rock-snow-${{ github.ref }}', cancel-in-progress: true }
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main and quota
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
+          D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          test $((A+D)) -le 1000
+      - name: Source, guard and control qualification
+        run: |
+          set -euo pipefail
+          node scripts/checkSWG17RockSnow.mjs
+          node scripts/checkSWG17RockSnowCrossLayer.mjs
+          node scripts/checkSWG17RockSnowGuardBand.mjs
+          node scripts/checkSWG17RockSnowControlProbe.mjs
+          mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node scripts/checkSWG17RockSnowSourceEvidence.mjs --out=godot/terrain-authoring/.terrain3d-proof/g17-rock-snow-source.json
+          node scripts/emitSWG17RockSnowTerrain3DProbe.mjs
+      - name: Install pinned Terrain3D and Godot
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/install.log
+          grep -F TERRAIN3D_INSTALL_OK /tmp/install.log
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true'
+          curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o /tmp/g.zip
+          mkdir -p /tmp/g && unzip -q /tmp/g.zip -d /tmp/g
+          G="$(find /tmp/g -type f -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"
+          chmod +x "$G"; "$G" --version | grep -F 4.6.3; echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
+      - name: Prime Terrain3D GDExtension discovery
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 60 2>&1 | tee /tmp/g17-rock-snow-editor.log
+          if grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' /tmp/g17-rock-snow-editor.log; then
+            echo 'Terrain3D emitted a load error during editor discovery.' >&2
+            exit 1
+          fi
+      - name: Double Terrain3D Height Control roundtrip
+        run: |
+          set -euo pipefail
+          G17_ROCK_SNOW_PROOF_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_rock_snow.gd | tee /tmp/a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g17-rock-snow-imported-topdown.png /tmp/a.png
+          G17_ROCK_SNOW_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g17_terrain3d_rock_snow.gd | tee /tmp/b.log
+          cp godot/terrain-authoring/.terrain3d-proof/g17-rock-snow-imported-topdown.png /tmp/b.png
+          node scripts/checkSWG17RockSnowTerrain3DEvidence.mjs --log-a=/tmp/a.log --log-b=/tmp/b.log --preview-a=/tmp/a.png --preview-b=/tmp/b.png --out=godot/terrain-authoring/.terrain3d-proof/g17-rock-snow-terrain3d.json
+      - name: HTerrain and runtime regression
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log
+          grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/hterrain.log
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkSeededRandomPolicy.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: sw-g17-rock-snow-proof, include-hidden-files: true, path: godot/terrain-authoring/.terrain3d-proof/ }
+      - name: Final exact-main freshness
+        run: git fetch origin main && test "$(git rev-parse origin/main)" = "$BASE_SHA"
