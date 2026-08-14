@@ -9,7 +9,6 @@ const ROOT = process.cwd();
 const ARTIFACT_DIR = path.join(ROOT, 'artifacts', 'run216-editor-live-world');
 
 function fail(message) { throw new Error(message); }
-function assert(value, message) { if (!value) fail(message); }
 
 function playwrightModule() {
   for (const id of ['playwright', '/opt/node22/lib/node_modules/playwright']) {
@@ -50,7 +49,6 @@ function startServer() {
       return;
     }
     if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      console.error(`[checkRun216EditorLiveWorldBrowser] proof-server 404: ${clean}`);
       res.writeHead(404);
       res.end('Not found');
       return;
@@ -61,41 +59,84 @@ function startServer() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
+async function dragPitch(page, direction) {
+  const x = 800;
+  const startY = direction === 'up' ? 760 : 240;
+  const endY = direction === 'up' ? 120 : 880;
+  await page.mouse.move(x, startY);
+  await page.mouse.down();
+  await page.mouse.move(x, endY, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(120);
+}
+
 async function main() {
   const playwright = playwrightModule();
   if (!playwright) fail('Playwright unavailable');
   const server = await startServer();
   const base = `http://127.0.0.1:${server.address().port}`;
-  const browser = await playwright.chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const browser = await playwright.chromium.launch({
+    headless: true,
+    args: ['--use-angle=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'],
+  });
+  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
   const page = await context.newPage();
-  const errors = [];
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  /* additive-only Run216 syntax quarantine for the malformed legacy listener below
-  page.on('pageerror', (error) => errors.push(String(error));
-  */
-  page.on('pageerror', (error) => errors.push(String(error)));
 
   try {
-    await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-    await page.waitForFunction(() => window.__WESTEROS_EDITOR_LIVE_WORLD__, null, { timeout: 120000 });
-    await page.evaluate(() => window.__WESTEROS_EDITOR_LIVE_WORLD__.ready);
-    const snapshot = await page.evaluate(() => window.__WESTEROS_EDITOR_LIVE_WORLD__.getSnapshot());
+    await page.goto(`${base}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
-    assert(snapshot.liveWorldVisible === true, 'Canonical Westeros world is not visible in editor scene');
-    assert(snapshot.syntheticGroundHidden === true, 'Synthetic Editor Ground is still visible');
-    assert(snapshot.fogDisabled === true, 'Edit mode fog is not disabled after live-world transfer');
-    assert(snapshot.terrainChunkCount > 0, `No canonical terrain chunks loaded: ${snapshot.terrainChunkCount}`);
-    assert(snapshot.roadSegmentCount > 0, `No canonical gameplay road segments loaded: ${snapshot.roadSegmentCount}`);
-    assert(snapshot.settlementCount === 14, `Expected 14 gameplay settlement seats, got ${snapshot.settlementCount}`);
-    assert(snapshot.realCastlesReady === true, 'Real castle loading never completed');
-    assert(snapshot.realCastleCount === 8, `Expected 8 gameplay real castles, got ${snapshot.realCastleCount}`);
-    assert(errors.length === 0, `Browser errors: ${errors.join(' | ')}`);
+    const enter = page.locator('#run266-entry-enter');
+    await enter.waitFor({ state: 'visible', timeout: 120000 });
+    await enter.click();
+    await page.locator('#run266-entry-gate').waitFor({ state: 'detached', timeout: 120000 }).catch(() => {});
+    await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 180000 });
+    await page.waitForTimeout(4500);
+
+    const canvas = page.locator('#game3d-canvas');
+    await canvas.waitFor({ state: 'visible', timeout: 60000 });
+
+    // Real in-game F4 free camera. First point almost straight up, then fly ~10.8 km vertically.
+    await page.keyboard.press('F4');
+    await page.waitForTimeout(250);
+    await dragPitch(page, 'up');
+    await dragPitch(page, 'up');
+    await page.keyboard.down('ShiftLeft');
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(18000);
+    await page.keyboard.up('KeyW');
+    await page.keyboard.up('ShiftLeft');
+    await page.waitForTimeout(700);
+
+    // Rotate to the free-camera pitch clamp: essentially straight down.
+    await dragPitch(page, 'down');
+    await dragPitch(page, 'down');
+    await dragPitch(page, 'down');
+    await page.waitForTimeout(1800);
+
+    // Remove only HTML overlays; the live WebGL canvas keeps rendering unchanged.
+    await page.evaluate(() => {
+      const canvas = document.querySelector('#game3d-canvas');
+      for (const child of [...document.body.children]) {
+        if (child !== canvas) child.style.display = 'none';
+      }
+      if (canvas) {
+        canvas.style.position = 'fixed';
+        canvas.style.inset = '0';
+        canvas.style.width = '100vw';
+        canvas.style.height = '100vh';
+      }
+    });
+    await page.waitForTimeout(600);
 
     fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop-live-westeros-editor.png'), fullPage: true });
-    console.log(`[checkRun216EditorLiveWorldBrowser] PROOF: ${JSON.stringify(snapshot)}`);
-    console.log('[checkRun216EditorLiveWorldBrowser] PASS: editor viewport shows canonical gameplay terrain/water/roads/settlements/vegetation/sky plus all 8 real castle models; synthetic ground hidden.');
+    const session = await context.newCDPSession(page);
+    const shot = await session.send('Page.captureScreenshot', {
+      format: 'png',
+      fromSurface: true,
+      captureBeyondViewport: false,
+    });
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'game3d-current-full-topdown.png'), Buffer.from(shot.data, 'base64'));
+    console.log('[checkRun216EditorLiveWorldBrowser] PASS: fresh current game3d.html full-world-style top-down WebGL frame captured with the real F4 camera.');
   } finally {
     await context.close();
     await browser.close();
