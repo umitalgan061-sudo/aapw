@@ -2,7 +2,7 @@ name: SE G77 Terrain3D Rock Snow
 
 on:
   push:
-    branches: [agent/kizil-ufuk-g77-rock-snow-exact-001a-r4-20260814]
+    branches: [agent/kizil-ufuk-g77-rock-snow-exact-f45b-r5-20260814]
   pull_request:
     branches: [main]
     paths:
@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BASE_SHA: 001a3e11f97f9bcf8be74462c8b66ce72f66b620
+  BASE_SHA: f45b1e9a944b1c3512ce3fc368571edbe979935c
 
 jobs:
   validate:
