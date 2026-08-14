@@ -28,7 +28,7 @@ jobs:
           BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"; git diff --check "$BASE_SHA"...HEAD
           mapfile -t FILES < <(git diff --name-only "$BASE_SHA"...HEAD); printf '%s\n' "${FILES[@]}"; test "${#FILES[@]}" -eq 7
-          ALLOWED='^(godot/terrain-authoring/geocells/sw/g17_road_path\.mjs|scripts/checkSWG17RoadPath\.mjs|scripts/checkSWG17RoadPathGeometry.mjs|scripts/checkSWG17RoadPathTerrain3DEvidence\.mjs|scripts/checkSWG17RoadPathVisualEvidence\.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_road_path\.gd|\.github/workflows/sw-g17-terrain3d-road-path\.yml)$'
+          ALLOWED='^(godot/terrain-authoring/geocells/sw/g17_road_path\.mjs|scripts/checkSWG17RoadPath\.mjs|scripts/checkSWG17RoadPathGeometry\.mjs|scripts/checkSWG17RoadPathTerrain3DEvidence\.mjs|scripts/checkSWG17RoadPathVisualEvidence\.mjs|godot/terrain-authoring/scripts/validate_g17_terrain3d_road_path\.gd|\.github/workflows/sw-g17-terrain3d-road-path\.yml)$'
           if printf '%s\n' "${FILES[@]}" | grep -Ev "$ALLOWED"; then exit 1; fi
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "ROAD_PATH_DIFF=$((A+D))/1000"; test $((A+D)) -le 1000
