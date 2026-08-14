@@ -96,7 +96,6 @@ func _build_control_image(probe: Dictionary) -> Image:
 		var v := float(z) / float(size - 1)
 		for x in size:
 			var u := float(x) / float(size - 1)
-			# Preserve merged Rock/Snow convention: physical snowWeight is blend.
 			var blend_u8 := int(round(clampf(_source_value(probe, 1, u, v), 0.0, 1.0) * 255.0))
 			var bits: int = Terrain3DUtil.enc_base(rock_id) | Terrain3DUtil.enc_overlay(snow_id) | Terrain3DUtil.enc_blend(blend_u8)
 			image.set_pixel(x, z, Color(Terrain3DUtil.as_float(bits), 0.0, 0.0, 1.0))
@@ -204,6 +203,30 @@ func _run() -> void:
 	if not _require(max_color_error <= MAX_COLOR_ERROR, "Color map roundtrip exceeded tolerance"): return
 	if not _require(max_roughness_error <= MAX_ROUGHNESS_ERROR, "roughness roundtrip exceeded tolerance"): return
 
+	# Re-sample all 96 canonical mask centres from the imported Terrain3D data.
+	var imported_canonical_water := 0
+	var imported_canonical_land := 0
+	var max_water_color_error := 0.0
+	var max_water_roughness_error := 0.0
+	var max_water_snow_blend := 0.0
+	for mask_y in range(8, 16):
+		for mask_x in range(0, 12):
+			var u := (float(mask_x) + 0.5) / 12.0
+			var v := (float(mask_y) - 7.5) / 8.0
+			var pos := Vector3(u * 256.0, 0.0, v * 256.0)
+			var expected_water := _source_value(probe, 3, u, v)
+			var actual_color := terrain.data.get_color(pos)
+			var actual_roughness := terrain.data.get_roughness(pos)
+			var actual_blend := terrain.data.get_control_blend(pos)
+			if expected_water >= 0.5: imported_canonical_water += 1
+			else: imported_canonical_land += 1
+			if expected_water >= 0.999999:
+				max_water_color_error = maxf(max_water_color_error, _max3(absf(actual_color.r - 1.0), absf(actual_color.g - 1.0), absf(actual_color.b - 1.0)))
+				max_water_roughness_error = maxf(max_water_roughness_error, absf(actual_roughness - 0.90))
+				max_water_snow_blend = maxf(max_water_snow_blend, actual_blend)
+	if not _require(imported_canonical_water == 88 and imported_canonical_land == 8, "imported Terrain3D canonical hydrology fingerprint changed"): return
+	if not _require(max_water_color_error <= MAX_COLOR_ERROR and max_water_roughness_error <= MAX_ROUGHNESS_ERROR and max_water_snow_blend <= MAX_BLEND_ERROR, "imported canonical water lost neutral surface contract"): return
+
 	var seam_positions := [254.75, 255.0, 255.25, 255.5, 255.75, 256.0]
 	var max_seam_height_error := 0.0
 	var seam_samples := 0
@@ -263,6 +286,11 @@ func _run() -> void:
 		"maxSeamBlendError": snappedf(max_seam_blend_error, 0.00000001),
 		"maxSeamColorError": snappedf(max_seam_color_error, 0.00000001),
 		"maxSeamRoughnessError": snappedf(max_seam_roughness_error, 0.00000001),
+		"importedCanonicalWaterCells": imported_canonical_water,
+		"importedCanonicalLandCells": imported_canonical_land,
+		"maxImportedWaterColorError": snappedf(max_water_color_error, 0.00000001),
+		"maxImportedWaterRoughnessError": snappedf(max_water_roughness_error, 0.00000001),
+		"maxImportedWaterSnowBlend": snappedf(max_water_snow_blend, 0.00000001),
 		"outputChecksum": output_checksum,
 		"canonicalWaterCells": int(probe["canonicalWaterCells"]),
 		"canonicalLandCells": int(probe["canonicalLandCells"]),
