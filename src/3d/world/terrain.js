@@ -233,15 +233,16 @@ export function createHeightSampler(seed, fbmOptions, flattenPads = []) {
 	const noise2D = createValueNoise2D(seed);
 	return function sampleHeightMeters(worldX, worldZ, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS) {
 		const fineDetailMeters = fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE, fbmOptions) * maxHeightMeters;
+		const dryMacroReliefMeters = sampleMacroReliefMeters(worldX, worldZ);
 		const coastalBaseMeters = sampleWorldReferenceCoastalBaseMeters(
 			worldX,
 			worldZ,
 			fineDetailMeters,
 			maxHeightMeters,
+			dryMacroReliefMeters,
 		);
 		const baseHeightMeters =
 			coastalBaseMeters +
-			sampleMacroReliefMeters(worldX, worldZ) +
 			sampleWorldReferenceMountainReliefMeters(worldX, worldZ);
 		if (flattenPads.length === 0) return baseHeightMeters;
 
