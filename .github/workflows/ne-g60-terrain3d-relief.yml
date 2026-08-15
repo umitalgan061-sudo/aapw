@@ -1,0 +1,69 @@
+name: NE G60 Terrain3D Relief
+on:
+  push: { branches: ['terrain/ne-g60-terrain3d-relief-r*-exact-*'] }
+  pull_request:
+    branches: [main]
+    paths: ['godot/terrain-authoring/geocells/ne/g60_relief.mjs','scripts/checkNEG60Relief.mjs','scripts/checkNEG60ReliefVisualEvidence.mjs','godot/terrain-authoring/scripts/validate_g60_terrain3d_relief.gd','.github/workflows/ne-g60-terrain3d-relief.yml']
+  workflow_dispatch:
+permissions: { contents: read }
+concurrency: { group: 'ne-g60-relief-${{ github.head_ref || github.ref_name }}', cancel-in-progress: true }
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, lfs: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main five-file scope quota and LFS
+        run: |
+          set -euo pipefail; git fetch origin main; git lfs fsck
+          MAIN="$(git rev-parse origin/main)"; test "$(git merge-base HEAD origin/main)" = "$MAIN"; git diff --check origin/main...HEAD
+          CHANGED="$(git diff --name-only origin/main...HEAD)"; echo "$CHANGED"
+          test "$(echo "$CHANGED"|grep -Ev '^(godot/terrain-authoring/geocells/ne/g60_relief.mjs|scripts/checkNEG60Relief.mjs|scripts/checkNEG60ReliefVisualEvidence.mjs|godot/terrain-authoring/scripts/validate_g60_terrain3d_relief.gd|\.github/workflows/ne-g60-terrain3d-relief.yml)$'|wc -l)" -eq 0
+          test "$(echo "$CHANGED"|sed '/^$/d'|wc -l)" -eq 5; LINES="$(git diff --numstat origin/main...HEAD|awk '{a+=$1;d+=$2}END{print a+d+0}')"; echo "changed-lines=$LINES"; test "$LINES" -le 1000
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py addons/zylann.hterrain godot/terrain-authoring/geocells/ne/g60_hydrology.mjs godot/terrain-authoring/geocells/ne/g60_biome.mjs src/3d/world/terrain.js
+      - name: Prior layers neighbors and deterministic relief source
+        run: |
+          set -euo pipefail; node scripts/checkNEG60Hydrology.mjs; node scripts/checkNEG60Terrain3DBiome.mjs; node scripts/checkNEG70Terrain3DHydrology.mjs; node scripts/checkNEG61Hydrology.mjs
+          node --check godot/terrain-authoring/geocells/ne/g60_relief.mjs; node --check scripts/checkNEG60Relief.mjs; node --check scripts/checkNEG60ReliefVisualEvidence.mjs
+          mkdir -p godot/terrain-authoring/.terrain3d-proof; node scripts/checkNEG60Relief.mjs --emit-source=godot/terrain-authoring/.terrain3d-proof/g60-relief-source.json | tee /tmp/r1.log
+          cp godot/terrain-authoring/.terrain3d-proof/g60-relief-source.json /tmp/r1.json; node scripts/checkNEG60Relief.mjs --emit-source=godot/terrain-authoring/.terrain3d-proof/g60-relief-source.json | tee /tmp/r2.log
+          cmp /tmp/r1.log /tmp/r2.log; cmp /tmp/r1.json godot/terrain-authoring/.terrain3d-proof/g60-relief-source.json; grep -F NE_G60_RELIEF_VALIDATION_OK /tmp/r1.log
+      - name: Install pinned Terrain3D and Godot 4.6.3
+        run: |
+          set -euo pipefail; python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/t3d.log; grep -F TERRAIN3D_INSTALL_OK /tmp/t3d.log
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | grep -F TERRAIN3D_VERIFY_OK
+          mkdir -p "$RUNNER_TEMP/g"; curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o "$RUNNER_TEMP/g.zip"; unzip -q "$RUNNER_TEMP/g.zip" -d "$RUNNER_TEMP/g"
+          G="$(find "$RUNNER_TEMP/g" -maxdepth 1 -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; test -n "$G"; chmod +x "$G"; "$G" --version | grep -F 4.6.3; echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
+      - name: Double real Terrain3D import seam persistence and LOD0
+        run: |
+          set -euo pipefail; timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45
+          G60_RELIEF_PROOF_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g60_terrain3d_relief.gd | tee /tmp/a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g60-relief-bake.json /tmp/a.json; cp godot/terrain-authoring/.terrain3d-proof/g60-relief-imported-topdown.png /tmp/a.png
+          G60_RELIEF_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g60_terrain3d_relief.gd | tee /tmp/b.log
+          cp godot/terrain-authoring/.terrain3d-proof/g60-relief-bake.json /tmp/b.json; cp godot/terrain-authoring/.terrain3d-proof/g60-relief-imported-topdown.png /tmp/b.png
+          grep -F NE_G60_TERRAIN3D_RELIEF_VALIDATION_OK /tmp/a.log; grep -F NE_G60_TERRAIN3D_RELIEF_VALIDATION_OK /tmp/b.log; jq -S 'del(.savedRegionBytes)' /tmp/a.json >/tmp/as.json; jq -S 'del(.savedRegionBytes)' /tmp/b.json >/tmp/bs.json; cmp /tmp/as.json /tmp/bs.json; cmp /tmp/a.png /tmp/b.png
+          jq -e '.regionCount>=4 and .savedRegionFiles>=4 and .bakedVertices>0 and .alignedSamples==4225 and .maxHeightError<=0.001 and .maxSeamHeightError<=0.001 and .maxSeamPairDelta<=0.001 and (.maxImportedHeight-.minImportedHeight)<=0.001' /tmp/a.json
+      - name: Visual evidence and repository regressions
+        run: |
+          set -euo pipefail; mkdir -p "$RUNNER_TEMP/pw"; npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0; "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium; export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNEG60ReliefVisualEvidence.mjs --out-dir=artifacts/ne-g60-relief-visual | tee /tmp/v.log; grep -F NE_G60_RELIEF_VISUAL_EVIDENCE_OK /tmp/v.log
+          for f in g60-relief-near.png g60-relief-far.png g60-relief-full-world.png g60-relief-visual-metrics.json; do test -s "artifacts/ne-g60-relief-visual/$f"; done
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | grep -F HTERRAIN_AUTHORING_VALIDATION_OK
+          node scripts/checkSeededRandomPolicy.js; node scripts/checkWorldReferenceMap.js; node scripts/terrainSeatSafetyCheck.js; node scripts/roadNetworkSafetyCheck.js; node scripts/checkPwaInstallability.js; node scripts/checkServiceWorkerCache.js; node scripts/checkMobilePerfBudget.js; node scripts/smokeTestGame3D.js
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail; git fetch origin main; MAIN="$(git rev-parse origin/main)"; test "$(git merge-base HEAD origin/main)" = "$MAIN"; git diff --check origin/main...HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ne-g60-terrain3d-relief-proof
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g60-relief-source.json
+            godot/terrain-authoring/.terrain3d-proof/g60-relief-bake.json
+            godot/terrain-authoring/.terrain3d-proof/g60-relief-imported-topdown.png
+            artifacts/ne-g60-relief-visual/
