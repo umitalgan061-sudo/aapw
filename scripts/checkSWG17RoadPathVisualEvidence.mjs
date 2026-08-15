@@ -27,6 +27,8 @@ const near = path.join(visualDir, 'g17-road-path-runtime-near.png');
 const far = path.join(visualDir, 'g17-road-path-runtime-far.png');
 const full = path.join(visualDir, 'g17-road-path-full-world-3d-topdown.png');
 const metadataPath = path.join(visualDir, 'g17-road-path-full-world-3d-topdown.json');
+const mapPath = ['map.png', 'resimler/map.png', 'public/map.png'].find((candidate) => fs.existsSync(candidate));
+const trackedMap = mapPath ? digest(mapPath) : null;
 
 if (source.sourceMapSha256 !== G17_ROAD_PATH_POLICY.sourceMapSha256 ||
     source.sourceMapVersion !== G17_ROAD_PATH_POLICY.sourceMapVersion ||
@@ -45,9 +47,9 @@ const runtimeCovered = runtimeBounds.xMin <= g.xMin && runtimeBounds.xMax >= g.x
 const overlapX = Math.max(0, Math.min(runtimeBounds.xMax, g.xMax) - Math.max(runtimeBounds.xMin, g.xMin));
 const overlapY = Math.max(0, Math.min(runtimeBounds.yMax, g.yMax) - Math.max(runtimeBounds.yMin, g.yMin));
 const runtimeCoverageFraction = overlapX * overlapY / ((g.xMax - g.xMin) * (g.yMax - g.yMin));
-fs.writeFileSync(path.join(visualDir, 'g17-road-path-runtime-coverage.json'), `${JSON.stringify({ runtimeBounds, g17Bounds: g, runtimeCoverageFraction }, null, 2)}\n`);
-if (!runtimeCovered) {
-  throw new Error(`G17 live createScene coverage ${(runtimeCoverageFraction * 100).toFixed(6)}%; runtime=${JSON.stringify(runtimeBounds)} G17=${JSON.stringify(g)}`);
+fs.writeFileSync(path.join(visualDir, 'g17-road-path-runtime-coverage.json'), `${JSON.stringify({ runtimeBounds, g17Bounds: g, runtimeCoverageFraction, mapPath: mapPath ?? null, trackedMap }, null, 2)}\n`);
+if (!runtimeCovered || trackedMap?.sha256 !== G17_ROAD_PATH_POLICY.sourceMapSha256 || trackedMap?.width !== 1536 || trackedMap?.height !== 1024) {
+  throw new Error(`G17 live createScene coverage ${(runtimeCoverageFraction * 100).toFixed(6)}%; canonicalMap=${mapPath ?? 'missing'} ${trackedMap ? `${trackedMap.width}x${trackedMap.height} ${trackedMap.sha256}` : 'missing'}; runtime=${JSON.stringify(runtimeBounds)} G17=${JSON.stringify(g)}`);
 }
 
 for (const file of [semantic, near, far, full, metadataPath]) {
