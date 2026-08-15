@@ -115,6 +115,12 @@ async function verifyBrowser(bake) {
   try {
     const baseUrl = `http://127.0.0.1:${server.address().port}`;
     await page.goto(`${baseUrl}/scripts/fixtures/sw-g07-runtime-visual-harness.html`, { waitUntil: 'load', timeout: 30000 });
+    await page.evaluate(() => {
+      const importMap = document.createElement('script');
+      importMap.type = 'importmap';
+      importMap.textContent = JSON.stringify({ imports: { three: '/src/3d/vendor/three/three.module.js', 'three/addons/': '/src/3d/vendor/three/addons/' } });
+      document.head.append(importMap);
+    });
     const adapter = await page.evaluate(async (payload) => {
       const { createG60Terrain3DWorldSampler, G60_TERRAIN3D_RUNTIME_PARITY } = await import('/src/3d/world/g60Terrain3dRuntimeAdapter.js');
       const { CURRENT_TERRAIN_POLICY } = await import('/src/3d/world/terrain.js');
@@ -143,10 +149,6 @@ async function verifyBrowser(bake) {
     requireOk(adapter.finiteSamples === SOURCE_SIZE * SOURCE_SIZE && adapter.maxNodeError <= 1e-7, `Three.js adapter node parity ${adapter.maxNodeError}`);
 
     const fullWorld = await page.evaluate(async () => {
-      const importMap = document.createElement('script');
-      importMap.type = 'importmap';
-      importMap.textContent = JSON.stringify({ imports: { three: '/src/3d/vendor/three/three.module.js', 'three/addons/': '/src/3d/vendor/three/addons/' } });
-      document.head.append(importMap);
       document.body.innerHTML = '<canvas id="g60-full-world"></canvas>';
       const THREE = await import('/src/3d/vendor/three/three.module.js');
       const { createScene } = await import('/src/3d/sceneManager.js');
