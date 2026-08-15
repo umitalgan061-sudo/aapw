@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0, lfs: true }
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: Exact-main bounded scope
@@ -60,6 +60,10 @@ jobs:
         run: |
           set -euo pipefail
           NODE_PATH="$NODE_PATH" node scripts/checkFullWorldRuntimeBrowser.mjs
+      - name: Hydrate scoped smoke LFS assets
+        run: |
+          set -euo pipefail
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
       - name: Settlement road PWA mobile and browser safety
         run: |
           set -euo pipefail
