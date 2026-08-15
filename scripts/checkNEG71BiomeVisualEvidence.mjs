@@ -45,32 +45,32 @@ try {
     const near = new THREE.PerspectiveCamera(48, 1536 / 1024, 1, 20000);
     near.position.set(target.x - 520, 520, target.z + 620); near.lookAt(target.x, 0, target.z); near.updateProjectionMatrix();
     state.renderer.render(state.scene, near);
-    const nearPng = state.renderer.domElement.toDataURL('image/png');
-
-    const worldWidth = WORLD_SCALE.WORLD_WIDTH_METERS, worldDepth = WORLD_SCALE.WORLD_DEPTH_METERS, aspect = 1536 / 1024;
-    const halfWidth = Math.max(worldWidth / 2, worldDepth * aspect / 2) * 1.025, halfHeight = halfWidth / aspect;
-    const full = new THREE.OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, 1, 30000);
-    full.up.set(0, 0, -1); full.position.set(0, 13000, 0); full.lookAt(0, 0, 0); full.updateProjectionMatrix();
-    state.renderer.render(state.scene, full);
-    const fullPng = state.renderer.domElement.toDataURL('image/png');
+    globalThis.__g71Proof = { THREE, state, WORLD_SCALE };
     return {
-      nearPng, fullPng, terrainMeshCount: meshes.length, missingSingleSource,
+      terrainMeshCount: meshes.length, missingSingleSource,
       currentTerrainPolicy: CURRENT_TERRAIN_POLICY.id, fullOwnerMapCoverage: CURRENT_TERRAIN_POLICY.fullOwnerMapCoverage,
-      target, resolution: [1536, 1024], fullCamera: 'THREE.OrthographicCamera', fullPitchDegrees: 90,
-      worldWidth, worldDepth,
+      target, resolution: [1536, 1024], worldWidth: WORLD_SCALE.WORLD_WIDTH_METERS, worldDepth: WORLD_SCALE.WORLD_DEPTH_METERS,
     };
   });
   requireOk(metrics.terrainMeshCount >= 500, `full-world runtime incomplete: ${metrics.terrainMeshCount} terrain meshes`);
   requireOk(metrics.missingSingleSource === 0, `runtime has ${metrics.missingSingleSource} terrain meshes outside single-height-source contract`);
   requireOk(metrics.fullOwnerMapCoverage === true, 'shipped terrain lost full-owner-map coverage');
+  const near = await page.screenshot({ type: 'png' });
+  await page.evaluate(() => {
+    const { THREE, state, WORLD_SCALE } = globalThis.__g71Proof;
+    const aspect = 1536 / 1024;
+    const halfWidth = Math.max(WORLD_SCALE.WORLD_WIDTH_METERS / 2, WORLD_SCALE.WORLD_DEPTH_METERS * aspect / 2) * 1.025;
+    const halfHeight = halfWidth / aspect;
+    const full = new THREE.OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, 1, 30000);
+    full.up.set(0, 0, -1); full.position.set(0, 13000, 0); full.lookAt(0, 0, 0); full.updateProjectionMatrix();
+    state.renderer.render(state.scene, full);
+  });
+  const full = await page.screenshot({ type: 'png' });
   requireOk(errors.length === 0, `browser errors: ${errors.join(' | ')}`);
-  const decode = (url) => Buffer.from(url.slice(url.indexOf(',') + 1), 'base64');
-  const near = decode(metrics.nearPng); const full = decode(metrics.fullPng);
   requireOk(near.length > 4096 && full.length > 4096, 'visual proof PNG unexpectedly small');
   fs.writeFileSync(path.join(OUT_DIR, 'g71-near-perspective.png'), near);
   fs.writeFileSync(path.join(OUT_DIR, 'g71-full-world-orthographic.png'), full);
-  delete metrics.nearPng; delete metrics.fullPng;
-  const report = { ...metrics, nearSha256: sha256(near), fullSha256: sha256(full), browserErrors: errors };
+  const report = { ...metrics, fullCamera: 'THREE.OrthographicCamera', fullPitchDegrees: 90, nearSha256: sha256(near), fullSha256: sha256(full), browserErrors: errors };
   fs.writeFileSync(path.join(OUT_DIR, 'g71-visual-metrics.json'), `${JSON.stringify(report, null, 2)}\n`);
   console.log(`G71_BIOME_VISUAL_METRICS=${JSON.stringify(report)}`);
   console.log('NE_G71_BIOME_VISUAL_EVIDENCE_OK');
