@@ -1,24 +1,37 @@
 /**
- * Canonical coast-to-inland relief derived from the owner map's immutable 96x64 surface mask.
+ * Canonical coast-to-inland physical relief derived from the owner-map water mask.
  *
- * This is the missing physical counterpart to the map-aligned surface shader: sea/lake ownership
- * now influences the shared height field itself. Wet cells sit below WATER_LEVEL_METERS, shoreline
- * land starts only slightly above the water, and dry ground rises progressively toward the interior.
- * Mountains remain a separate additive layer in terrain.js, so the owner-map mountain chains keep
- * their audited real-meter peaks while inheriting a believable foothill/base elevation.
+ * The owner map's immutable 96x64 water raster is deliberately not edited. Instead this module
+ * composes it with the already-established run182 seat-safe hydrology contract: canonical kingdom
+ * seats receive a smooth 75m protected-land footprint, while ordinary sea/lake cells remain wet.
+ * Wet ownership is physically below WATER_LEVEL_METERS; shoreline land starts only slightly above
+ * water and rises progressively into interior highlands. The shared terrain height sampler consumes
+ * this base, so render geometry, collision, roads, rivers, vegetation and settlements agree.
  *
- * The distance fields are compiled once at module load from the tiny source-derived mask. Sampling
- * is allocation-free in the terrain hot path: two bilinear distance lookups + one dry-land weight.
+ * Distance fields are compiled once from the tiny source-derived mask. Per-vertex sampling remains
+ * allocation-free apart from the pre-existing frozen hydrology diagnostic object at protected-site
+ * resolution; the expensive distance search never occurs in the terrain hot path.
  * @module world/worldReferenceCoastalRelief
  */
 
 import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
-import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
-import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
+import {
+	WORLD_REFERENCE_ALIGNMENT,
+	mapCanvasToNormalizedReference,
+} from './worldReferenceAlignment.js';
+import {
+	WORLD_REFERENCE_WATER_MASK,
+	classifyReferenceWaterCell,
+} from './worldReferenceWaterMask.js';
+import {
+	referenceProtectionRadiiFromMeters,
+	sampleProtectedLandWeight,
+} from './worldReferenceHydrology.js';
 
 export const WORLD_REFERENCE_COASTAL_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-coastal-relief-2026-08-15-v1',
-	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
+	id: 'owner-map-coastal-relief-2026-08-15-v2-seat-safe',
+	waterMaskSha256: WORLD_REFERENCE_WATER_MASK.maskSha256,
+	protectedLandRadiusMeters: 75,
 	shoreClearanceMeters: 1.25,
 	coastRiseMeters: 24,
 	coastRiseDistanceMeters: 800,
@@ -36,9 +49,41 @@ export const WORLD_REFERENCE_COASTAL_RELIEF_POLICY = Object.freeze({
 	landBlendFull: 0.72,
 });
 
-const { width: MASK_WIDTH, height: MASK_HEIGHT, bitsPerCell: MASK_BITS } = WORLD_REFERENCE_BASE_SURFACE_MASK;
-const SEA_CODE = WORLD_REFERENCE_BASE_SURFACE_MASK.codes.sea;
-const LAKE_CODE = WORLD_REFERENCE_BASE_SURFACE_MASK.codes.lake;
+/**
+ * Low-level copy of the canonical seat anchors used only to protect mandatory land from coarse
+ * raster false-water. `scripts/checkWorldReferenceCoastalRelief.mjs` hard-fails if these coordinates
+ * ever drift from `settlements.js`, keeping the runtime dependency one-way (terrain must not import
+ * the Three.js-heavy settlements module) without silently duplicating geography.
+ */
+const PROTECTED_SEAT_MAP_ANCHORS = Object.freeze([
+	Object.freeze({ id: 'umit', mapX: 3885, mapY: 5370 }),
+	Object.freeze({ id: 'berkalp', mapX: 1525, mapY: 1750 }),
+	Object.freeze({ id: 'ziya', mapX: 1185, mapY: 4040 }),
+	Object.freeze({ id: 'berk', mapX: 1095, mapY: 4040 }),
+	Object.freeze({ id: 'olena', mapX: 1145, mapY: 3990 }),
+	Object.freeze({ id: 'cersei', mapX: 1750, mapY: 3580 }),
+	Object.freeze({ id: 'stannis', mapX: 2100, mapY: 3270 }),
+	Object.freeze({ id: 'doran', mapX: 1610, mapY: 4560 }),
+	Object.freeze({ id: 'balon', mapX: 920, mapY: 2900 }),
+	Object.freeze({ id: 'robin', mapX: 1850, mapY: 2790 }),
+	Object.freeze({ id: 'jon', mapX: 1650, mapY: 1060 }),
+	Object.freeze({ id: 'twin', mapX: 1050, mapY: 3360 }),
+	Object.freeze({ id: 'Xaro', mapX: 6190, mapY: 5140 }),
+	Object.freeze({ id: 'Night King', mapX: 1400, mapY: 300 }),
+]);
+
+export const WORLD_REFERENCE_COASTAL_PROTECTED_SITES = Object.freeze(PROTECTED_SEAT_MAP_ANCHORS.map((site) => {
+	const normalized = mapCanvasToNormalizedReference(site.mapX, site.mapY);
+	return Object.freeze({ ...site, x: normalized.x, y: normalized.y });
+}));
+
+const PROTECTION_RADII = referenceProtectionRadiiFromMeters(
+	WORLD_REFERENCE_COASTAL_RELIEF_POLICY.protectedLandRadiusMeters,
+	WORLD_SCALE.METERS_PER_MAP_UNIT,
+);
+
+const MASK_WIDTH = WORLD_REFERENCE_WATER_MASK.width;
+const MASK_HEIGHT = WORLD_REFERENCE_WATER_MASK.height;
 const MAP_WIDTH_METERS = WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits * WORLD_SCALE.METERS_PER_MAP_UNIT;
 const MAP_DEPTH_METERS = WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits * WORLD_SCALE.METERS_PER_MAP_UNIT;
 const CELL_X_METERS = MAP_WIDTH_METERS / MASK_WIDTH;
@@ -52,42 +97,27 @@ function smoothstep(edge0, edge1, value) {
 	return t * t * (3 - 2 * t);
 }
 
-function decodeSurfaceMask() {
-	const decoded = new Uint8Array(MASK_WIDTH * MASK_HEIGHT);
-	const totalBits = BigInt(MASK_WIDTH * MASK_BITS);
-	const codeMask = (1n << BigInt(MASK_BITS)) - 1n;
-	for (let y = 0; y < MASK_HEIGHT; y += 1) {
-		const row = BigInt(`0x${WORLD_REFERENCE_BASE_SURFACE_MASK.rowsHex[y]}`);
-		for (let x = 0; x < MASK_WIDTH; x += 1) {
-			const shift = totalBits - BigInt((x + 1) * MASK_BITS);
-			decoded[y * MASK_WIDTH + x] = Number((row >> shift) & codeMask);
-		}
-	}
-	return decoded;
+function rowBit(rowHex, x) {
+	const nibble = Number.parseInt(rowHex[Math.floor(x / 4)], 16);
+	return (nibble >> (3 - (x % 4))) & 1;
 }
 
-const DECODED_MASK = decodeSurfaceMask();
-
-function isWetCode(code) {
-	return code === SEA_CODE || code === LAKE_CODE;
-}
-
-function maskCodeAtCell(x, y) {
+function rawWaterAtCell(x, y) {
 	const clampedX = Math.min(MASK_WIDTH - 1, Math.max(0, x));
 	const clampedY = Math.min(MASK_HEIGHT - 1, Math.max(0, y));
-	return DECODED_MASK[clampedY * MASK_WIDTH + clampedX];
+	return rowBit(WORLD_REFERENCE_WATER_MASK.rowsHex[clampedY], clampedX) === 1;
 }
 
 function dryAtCell(x, y) {
-	return isWetCode(maskCodeAtCell(x, y)) ? 0 : 1;
+	return rawWaterAtCell(x, y) ? 0 : 1;
 }
 
-/** Chamfer distance field in real meters; sufficient at the 96x64 ownership-mask resolution. */
+/** Chamfer distance field in real meters at the immutable 96x64 owner-mask resolution. */
 function buildDistanceField(targetPredicate) {
 	const field = new Float32Array(MASK_WIDTH * MASK_HEIGHT);
 	for (let y = 0; y < MASK_HEIGHT; y += 1) {
 		for (let x = 0; x < MASK_WIDTH; x += 1) {
-			field[y * MASK_WIDTH + x] = targetPredicate(maskCodeAtCell(x, y)) ? 0 : Number.POSITIVE_INFINITY;
+			field[y * MASK_WIDTH + x] = targetPredicate(x, y) ? 0 : Number.POSITIVE_INFINITY;
 		}
 	}
 	const relax = (x, y, nx, ny, cost) => {
@@ -96,7 +126,6 @@ function buildDistanceField(targetPredicate) {
 		const candidate = field[ny * MASK_WIDTH + nx] + cost;
 		if (candidate < field[index]) field[index] = candidate;
 	};
-
 	for (let pass = 0; pass < 3; pass += 1) {
 		for (let y = 0; y < MASK_HEIGHT; y += 1) {
 			for (let x = 0; x < MASK_WIDTH; x += 1) {
@@ -118,8 +147,8 @@ function buildDistanceField(targetPredicate) {
 	return field;
 }
 
-const DISTANCE_TO_WET_METERS = buildDistanceField((code) => isWetCode(code));
-const DISTANCE_TO_DRY_METERS = buildDistanceField((code) => !isWetCode(code));
+const DISTANCE_TO_WET_METERS = buildDistanceField((x, y) => rawWaterAtCell(x, y));
+const DISTANCE_TO_DRY_METERS = buildDistanceField((x, y) => !rawWaterAtCell(x, y));
 
 function bilinearMaskSample(normalizedX, normalizedY, readCell) {
 	const fx = normalizedX * MASK_WIDTH - 0.5;
@@ -133,7 +162,7 @@ function bilinearMaskSample(normalizedX, normalizedY, readCell) {
 	return top * (1 - ty) + bottom * ty;
 }
 
-function sampleDryLandWeight(normalizedX, normalizedY) {
+function sampleRawDryLandWeight(normalizedX, normalizedY) {
 	return bilinearMaskSample(normalizedX, normalizedY, dryAtCell);
 }
 
@@ -160,19 +189,34 @@ function worldToNormalized(worldX, worldZ) {
 	];
 }
 
-function surfaceAtNormalized(normalizedX, normalizedY) {
+function rawSurfaceAtNormalized(normalizedX, normalizedY) {
 	const x = Math.min(MASK_WIDTH - 1, Math.max(0, Math.floor(normalizedX * MASK_WIDTH)));
 	const y = Math.min(MASK_HEIGHT - 1, Math.max(0, Math.floor(normalizedY * MASK_HEIGHT)));
-	const code = maskCodeAtCell(x, y);
-	if (code === SEA_CODE) return 'sea';
-	if (code === LAKE_CODE) return 'lake';
-	return 'land';
+	return classifyReferenceWaterCell(x, y);
+}
+
+function composedOwnership(normalizedX, normalizedY) {
+	const rawSurface = rawSurfaceAtNormalized(normalizedX, normalizedY);
+	const protectedLandWeight = sampleProtectedLandWeight(
+		normalizedX,
+		normalizedY,
+		WORLD_REFERENCE_COASTAL_PROTECTED_SITES,
+		PROTECTION_RADII,
+	);
+	const rawDryWeight = sampleRawDryLandWeight(normalizedX, normalizedY);
+	const dryLandWeight = Math.max(rawDryWeight, protectedLandWeight);
+	return {
+		rawSurface,
+		surface: protectedLandWeight > 0 ? 'land' : rawSurface,
+		protectedLandWeight,
+		dryLandWeight,
+	};
 }
 
 /**
  * Fast terrain hot-path sampler. `fineDetailMeters` is the deterministic FBM contribution and
  * `dryMacroReliefMeters` is the legacy hand-authored dome contribution. Both are placed inside the
- * same dry-land blend so neither can resurrect a hill above canonical sea/lake ownership.
+ * same seat-safe dry-land blend so neither can resurrect a hill above canonical sea/lake ownership.
  */
 export function sampleWorldReferenceCoastalBaseMeters(
 	worldX,
@@ -185,10 +229,9 @@ export function sampleWorldReferenceCoastalBaseMeters(
 	if (!normalized) return fineDetailMeters + dryMacroReliefMeters;
 	const normalizedX = normalized[0];
 	const normalizedY = normalized[1];
-	const dryWeight = sampleDryLandWeight(normalizedX, normalizedY);
+	const ownership = composedOwnership(normalizedX, normalizedY);
 	const landDistanceMeters = sampleDistanceField(DISTANCE_TO_WET_METERS, normalizedX, normalizedY);
 	const wetDistanceMeters = sampleDistanceField(DISTANCE_TO_DRY_METERS, normalizedX, normalizedY);
-	const surface = surfaceAtNormalized(normalizedX, normalizedY);
 	const policy = WORLD_REFERENCE_COASTAL_RELIEF_POLICY;
 
 	const coastRise = policy.coastRiseMeters * smoothstep(0, policy.coastRiseDistanceMeters, landDistanceMeters);
@@ -204,12 +247,12 @@ export function sampleWorldReferenceCoastalBaseMeters(
 
 	const noiseRatio = maxHeightMeters > 0 ? fineDetailMeters / maxHeightMeters : 0.5;
 	const centeredWetNoise = (noiseRatio - 0.5) * policy.wetFloorNoiseMeters * 2;
-	const wetDepth = surface === 'lake'
+	const wetDepth = ownership.rawSurface === 'lake'
 		? policy.lakeDepthMeters
 		: policy.seaNearshoreDepthMeters +
 			(policy.seaDeepDepthMeters - policy.seaNearshoreDepthMeters) * smoothstep(0, policy.seaDeepDistanceMeters, wetDistanceMeters);
 	const wetHeight = WORLD_DEFAULTS.WATER_LEVEL_METERS - wetDepth + centeredWetNoise;
-	const landBlend = smoothstep(policy.landBlendZero, policy.landBlendFull, dryWeight);
+	const landBlend = smoothstep(policy.landBlendZero, policy.landBlendFull, ownership.dryLandWeight);
 	return wetHeight + (landHeight - wetHeight) * landBlend;
 }
 
@@ -218,10 +261,13 @@ export function sampleWorldReferenceCoastalProfile(worldX, worldZ) {
 	const normalized = worldToNormalized(worldX, worldZ);
 	if (!normalized) return Object.freeze({ insideReference: false });
 	const [normalizedX, normalizedY] = normalized;
+	const ownership = composedOwnership(normalizedX, normalizedY);
 	return Object.freeze({
 		insideReference: true,
-		surface: surfaceAtNormalized(normalizedX, normalizedY),
-		dryLandWeight: sampleDryLandWeight(normalizedX, normalizedY),
+		surface: ownership.surface,
+		rawSurface: ownership.rawSurface,
+		dryLandWeight: ownership.dryLandWeight,
+		protectedLandWeight: ownership.protectedLandWeight,
 		landDistanceMeters: sampleDistanceField(DISTANCE_TO_WET_METERS, normalizedX, normalizedY),
 		wetDistanceMeters: sampleDistanceField(DISTANCE_TO_DRY_METERS, normalizedX, normalizedY),
 		normalizedX,
