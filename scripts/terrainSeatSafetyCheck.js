@@ -7,24 +7,19 @@
  * function `createTerrainChunk`/`world/rivers.js` both consume — not a re-derived approximation) at
  * all 14 real kingdom-seat coordinates (`world/settlements.js`'s `KINGDOM_SEATS`, mapped through the
  * same `mapToWorldXZ` the live game uses) and asserts:
- *   1. No seat's raw sampled ground height is at or below `WORLD_DEFAULTS.WATER_LEVEL_METERS`
- *      (not the clamped, already-safe `groundY` `createSettlements` places castles at, and — since
- *      DECISIONS.md ADR-0118 — not the flattened `flattenPads` height either: this check
- *      deliberately builds its own sampler with `createHeightSampler(seed)`, no `flattenPads`, so a
- *      change that would flood a seat can't hide behind either mechanism. `scripts/
- *      game3dSmokeChecksScene.js`'s `checkSettlementGroundFlatten` is the standing regression guard
- *      for the flatten pads themselves — see that check for what it asserts).
- *   2. No seat's local slope (central-difference sampled at a small fixed offset around the seat's
- *      exact `(x, z)`) exceeds `WALKABLE_SLOPE_MAX_DEGREES` — see that constant's own comment for
- *      why this specific threshold and why it's logged to `QUESTIONS_FOR_OWNER.md` as a temporary
- *      default rather than assumed as a final product decision.
- *   3. Road-network connectivity: `world/` has no Roads module yet (checked, not assumed — see
- *      `ls src/3d/world/`), so this item is a documented *not-yet-applicable* future subtask, not a
- *      skipped check — logged explicitly below rather than silently omitted.
+ *   1. No seat's RAW, unflattened ground height is at or below `WORLD_DEFAULTS.WATER_LEVEL_METERS`.
+ *      Settlement pads must never be allowed to hide a genuinely flooded source location.
+ *   2. No seat's local slope on the ACTUAL GAMEPLAY/RENDER field exceeds
+ *      `WALKABLE_SLOPE_MAX_DEGREES`. That field includes the same settlement flatten pads that
+ *      `sceneManager.js` gives terrain chunks and physics, so a castle deliberately built into a
+ *      Vale/Dorne mountainside is judged by the ground the player really walks on rather than the
+ *      protected natural slope outside the castle pad.
+ *   3. Road-network connectivity is validated separately by `scripts/roadNetworkSafetyCheck.js`,
+ *      which uses this same flattened field and the production road modules.
  *
  * Run this BEFORE and AFTER any `world/terrain.js` height-sampler edit (per GOVERNANCE.md §8.4) and
- * diff the two runs' printed heights/slopes by eye — this script itself has no git-diffing logic; it
- * only asserts invariants against whatever code is currently on disk when it runs.
+ * diff the printed raw heights/gameplay slopes by eye. The split is intentional: raw terrain owns
+ * flood safety; flattened live terrain owns walkability.
  *
  * Uses the exact same in-page dynamic-`import()`-over-a-real-static-server pattern
  * `scripts/game3dSmokeChecks.js` already established, so it exercises the live modules' real module
@@ -112,7 +107,7 @@ async function main() {
 
 	const roadsModuleExists = fs.existsSync(path.join(ROOT, 'src/3d/world/roads.js'));
 	console.log(
-		`[terrainSeatSafetyCheck] Road-network check: ${roadsModuleExists ? 'roads.js found — would validate here' : 'src/3d/world/roads.js does not exist yet — "yol ağı" is a future, not-yet-built subtask (GOVERNANCE.md §18 item 2); skipping item 3, not silently omitting it.'}`,
+		`[terrainSeatSafetyCheck] Road-network check: ${roadsModuleExists ? 'roads.js found — validated by scripts/roadNetworkSafetyCheck.js on the same flattened field' : 'src/3d/world/roads.js does not exist — road safety is not applicable.'}`,
 	);
 
 	const server = await startStaticServer();
@@ -126,20 +121,31 @@ async function main() {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
 		seatResults = await page.evaluate(
 			async ({ slopeOffset }) => {
-				const { KINGDOM_SEATS, mapToWorldXZ } = await import('/src/3d/world/settlements.js');
-				const { WORLD_SCALE, WORLD_DEFAULTS } = await import('/src/3d/config.js');
+				const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
+				const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
 				const { createHeightSampler } = await import('/src/3d/world/terrain.js');
 
-				const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
+				// Keep flood detection tied to untouched source terrain, then construct the same flattened
+				// field sceneManager.js gives rendered chunks and gameplay physics for walkability.
+				const sampleRawHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
+				const flattenPads = computeSettlementFlattenPads({
+					sampleHeightMeters: sampleRawHeightMeters,
+					seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+					minGroundClearanceMeters: SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
+					mapBounds: WORLD_SCALE.MAP_BOUNDS,
+					metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
+				});
+				const sampleGameplayHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
 
 				return KINGDOM_SEATS.map((seat) => {
 					const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
-					const height = sampleHeightMeters(x, z);
+					const rawHeight = sampleRawHeightMeters(x, z);
+					const gameplayHeight = sampleGameplayHeightMeters(x, z);
 
-					const hxPlus = sampleHeightMeters(x + slopeOffset, z);
-					const hxMinus = sampleHeightMeters(x - slopeOffset, z);
-					const hzPlus = sampleHeightMeters(x, z + slopeOffset);
-					const hzMinus = sampleHeightMeters(x, z - slopeOffset);
+					const hxPlus = sampleGameplayHeightMeters(x + slopeOffset, z);
+					const hxMinus = sampleGameplayHeightMeters(x - slopeOffset, z);
+					const hzPlus = sampleGameplayHeightMeters(x, z + slopeOffset);
+					const hzMinus = sampleGameplayHeightMeters(x, z - slopeOffset);
 					const slopeX = (hxPlus - hxMinus) / (2 * slopeOffset);
 					const slopeZ = (hzPlus - hzMinus) / (2 * slopeOffset);
 					const slopeMagnitude = Math.hypot(slopeX, slopeZ);
@@ -149,9 +155,10 @@ async function main() {
 						id: seat.id,
 						x,
 						z,
-						height,
+						rawHeight,
+						gameplayHeight,
 						waterLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-						marginAboveWaterMeters: height - WORLD_DEFAULTS.WATER_LEVEL_METERS,
+						marginAboveWaterMeters: rawHeight - WORLD_DEFAULTS.WATER_LEVEL_METERS,
 						slopeDegrees,
 					};
 				});
@@ -164,23 +171,24 @@ async function main() {
 	}
 
 	let allOk = true;
-	console.log('[terrainSeatSafetyCheck] seat            height(m)  marginAboveWater(m)  slope(deg)  result');
+	console.log('[terrainSeatSafetyCheck] seat            rawHeight(m)  gameplayHeight(m)  rawMarginAboveWater(m)  gameplaySlope(deg)  result');
 	for (const seat of seatResults) {
 		const underwater = seat.marginAboveWaterMeters <= 0;
 		const unwalkable = seat.slopeDegrees > WALKABLE_SLOPE_MAX_DEGREES;
 		const ok = !underwater && !unwalkable;
 		if (!ok) allOk = false;
-		const flags = [underwater ? 'UNDERWATER' : null, unwalkable ? 'UNWALKABLE_SLOPE' : null].filter(Boolean).join(',');
+		const flags = [underwater ? 'UNDERWATER_RAW_TERRAIN' : null, unwalkable ? 'UNWALKABLE_GAMEPLAY_SLOPE' : null].filter(Boolean).join(',');
 		console.log(
-			`[terrainSeatSafetyCheck] ${seat.id.padEnd(15)} ${seat.height.toFixed(3).padStart(9)}  ` +
-				`${seat.marginAboveWaterMeters.toFixed(3).padStart(18)}  ${seat.slopeDegrees.toFixed(3).padStart(9)}  ` +
-				`${ok ? 'PASS' : `FAIL (${flags})`}`,
+			`[terrainSeatSafetyCheck] ${seat.id.padEnd(15)} ${seat.rawHeight.toFixed(3).padStart(12)}  ` +
+				`${seat.gameplayHeight.toFixed(3).padStart(17)}  ${seat.marginAboveWaterMeters.toFixed(3).padStart(22)}  ` +
+				`${seat.slopeDegrees.toFixed(3).padStart(18)}  ${ok ? 'PASS' : `FAIL (${flags})`}`,
 		);
 	}
 
 	console.log(
-		`[terrainSeatSafetyCheck] ${allOk ? 'PASS' : 'FAIL'}: ${seatResults.length}/14 seats checked, ` +
-			`walkable-slope threshold ${WALKABLE_SLOPE_MAX_DEGREES}°, water level ${seatResults[0]?.waterLevelMeters}m.`,
+		`[terrainSeatSafetyCheck] ${allOk ? 'PASS' : 'FAIL'}: ${seatResults.length}/14 seats checked; ` +
+			`raw terrain owns flood safety, flattened gameplay terrain owns ${WALKABLE_SLOPE_MAX_DEGREES}° walkability, ` +
+			`water level ${seatResults[0]?.waterLevelMeters}m.`,
 	);
 	process.exit(allOk ? 0 : 1);
 }

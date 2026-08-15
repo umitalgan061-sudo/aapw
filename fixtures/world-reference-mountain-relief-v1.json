@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "policyId": "owner-map-live-mountain-relief-2026-08-14-v1",
+  "sourceMapSha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+  "surfaceMaskSha256": "afe62a77fcc9b15887540b49b3b60b199e416f5e033aefb987a192411c25ae44",
+  "grid": {
+    "width": 257,
+    "height": 193,
+    "quantizationCentimeters": 1
+  },
+  "heightChecksumSha256": "5767893ec05137f1d05678a80ccee36a003ec0b18975131befa5537c2a368f7a",
+  "metrics": {
+    "peakMeters": 542.264613,
+    "nonZeroSamples": 2881,
+    "nonZeroRatio": 0.05808351,
+    "wetLeakMaxMeters": 0,
+    "worldMappingMaxDeltaMeters": 0,
+    "chains": {
+      "vale-chain": {
+        "peakMeters": 245.073121,
+        "dryOwnedSamples": 97,
+        "dryPositiveSamples": 97,
+        "minDryOwnedMeters": 6.911878
+      },
+      "red-mountains": {
+        "peakMeters": 264.515754,
+        "dryOwnedSamples": 93,
+        "dryPositiveSamples": 93,
+        "minDryOwnedMeters": 39.138219
+      },
+      "bone-mountains": {
+        "peakMeters": 544.962579,
+        "dryOwnedSamples": 193,
+        "dryPositiveSamples": 193,
+        "minDryOwnedMeters": 386.275002
+      },
+      "eastern-chain": {
+        "peakMeters": 379.308874,
+        "dryOwnedSamples": 170,
+        "dryPositiveSamples": 170,
+        "minDryOwnedMeters": 121.838445
+      }
+    }
+  }
+}

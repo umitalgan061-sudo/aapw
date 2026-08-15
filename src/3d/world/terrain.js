@@ -4,10 +4,10 @@
  * or textures — this is deliberately "geography first, polish later" (see 3D_GAME_PROGRESS.md's
  * World Coverage section): cheap enough to generate hundreds of chunks, detail arrives later.
  *
- * On top of that fine-detail FBM, `MACRO_RELIEF_FEATURES` layers a few large, low-frequency
- * hill/mountain "domes" (see DECISIONS.md ADR-0075) so the world reads as having real macro
- * topography, not just uniform rolling noise at a single scale — see `sampleMacroReliefMeters`'s
- * own doc comment for the exact shape and the kingdom-seat safety margins it was placed with.
+ * On top of that fine-detail FBM, the legacy `MACRO_RELIEF_FEATURES` domes remain for compatibility
+ * and `worldReferenceMountainRelief.js` adds the owner map's connected, land-masked mountain
+ * chains in real meters. Both layers feed this module's one shared height sampler, so visible
+ * geometry and gameplay queries cannot drift.
  *
  * Chunk grid convention (shared with `CHUNK_CONFIG` in `config.js`): chunk `(chunkX, chunkZ)` is
  * centered at world position `(chunkX * size, 0, chunkZ * size)`, so chunk `(0, 0)` sits centered
@@ -17,6 +17,7 @@
  */
 
 import * as THREE from 'three';
+import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';
 
 /**
  * Deterministic 32-bit PRNG (mulberry32). Never use `Math.random()` for world generation — see
@@ -195,11 +196,10 @@ export const DEFAULT_MAX_HEIGHT_METERS = 24;
  * `noise2D`/`fbm2D` calls) — used by `world/rivers.js` to trace a path over the *actual* terrain
  * a chunk would render, not an approximation of it.
  *
- * Also layers in `MACRO_RELIEF_FEATURES`' large-scale hill/mountain domes on top of the fine-detail
- * FBM (added, not blended/replacing — see that constant's own doc comment). Every consumer of this
- * sampler (`createTerrainChunk`, `world/rivers.js`'s downhill trace) automatically sees the macro
- * relief through this one shared function, so chunk geometry and any height query elsewhere always
- * agree — no second, potentially-drifting copy of the macro layer.
+ * Also layers in both `MACRO_RELIEF_FEATURES`' legacy domes and the canonical owner-map mountain
+ * chains from `worldReferenceMountainRelief.js`. Every consumer of this sampler automatically sees
+ * both macro layers, so chunks, physics, rivers, roads, water depth, vegetation and settlements all
+ * agree — no second, potentially-drifting relief copy.
  * @param {number} seed
  * @param {{octaves?: number, lacunarity?: number, gain?: number}} [fbmOptions] Forwarded to
  *   `fbm2D`. Default (5 octaves, matching `createTerrainChunk`) is what chunk geometry actually
@@ -232,7 +232,10 @@ export function createHeightSampler(seed, fbmOptions, flattenPads = []) {
 	const noise2D = createValueNoise2D(seed);
 	return function sampleHeightMeters(worldX, worldZ, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS) {
 		const fineDetailMeters = fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE, fbmOptions) * maxHeightMeters;
-		const baseHeightMeters = fineDetailMeters + sampleMacroReliefMeters(worldX, worldZ);
+		const baseHeightMeters =
+			fineDetailMeters +
+			sampleMacroReliefMeters(worldX, worldZ) +
+			sampleWorldReferenceMountainReliefMeters(worldX, worldZ);
 		if (flattenPads.length === 0) return baseHeightMeters;
 
 		let strongestWeight = 0;
