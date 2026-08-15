@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { WORLD_DEFAULTS, WORLD_SCALE } from '../src/3d/config.js';
 import {
+	WORLD_REFERENCE_COASTAL_PROTECTED_SITES,
 	WORLD_REFERENCE_COASTAL_RELIEF_POLICY,
 	sampleWorldReferenceCoastalBaseMeters,
 	sampleWorldReferenceCoastalProfile,
@@ -15,6 +17,24 @@ const median = (values) => {
 	const middle = Math.floor(sorted.length / 2);
 	return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) * 0.5;
 };
+
+// Terrain intentionally cannot import the Three.js-heavy settlements module. Keep the lightweight
+// protected-land anchors honest by proving their copied id/map coordinates exactly match the live
+// canonical KINGDOM_SEATS source on every CI run.
+const settlementSource = fs.readFileSync(new URL('../src/3d/world/settlements.js', import.meta.url), 'utf8');
+const settlementAnchors = [];
+const seatPattern = /Object\.freeze\(\{ id: '([^']+)',[^\n]*?mapX: (\d+), mapY: (\d+) \}\)/g;
+let match;
+while ((match = seatPattern.exec(settlementSource)) !== null) {
+	settlementAnchors.push({ id: match[1], mapX: Number(match[2]), mapY: Number(match[3]) });
+}
+assert.equal(settlementAnchors.length, 14, `expected 14 canonical settlement anchors, found ${settlementAnchors.length}`);
+assert.deepEqual(
+	WORLD_REFERENCE_COASTAL_PROTECTED_SITES.map(({ id, mapX, mapY }) => ({ id, mapX, mapY })),
+	settlementAnchors,
+	'coastal protected-land anchors drifted from KINGDOM_SEATS',
+);
+assert.equal(WORLD_REFERENCE_COASTAL_RELIEF_POLICY.protectedLandRadiusMeters, 75, 'seat-safe protection radius drifted');
 
 const water = WORLD_DEFAULTS.WATER_LEVEL_METERS;
 const halfWidth = WORLD_SCALE.WORLD_WIDTH_METERS * 0.5;
@@ -62,6 +82,7 @@ assert(seaMaximum < water, `canonical pure sea floor leaked above water: ${seaMa
 console.log(JSON.stringify({
 	policyId: WORLD_REFERENCE_COASTAL_RELIEF_POLICY.id,
 	waterLevelMeters: water,
+	protectedSeatCount: WORLD_REFERENCE_COASTAL_PROTECTED_SITES.length,
 	nearshoreSampleCount: nearshore.length,
 	inlandSampleCount: inland.length,
 	seaSampleCount: pureSea.length,
