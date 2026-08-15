@@ -1,0 +1,71 @@
+name: Canonical Map Single Entry Patch
+on:
+  push:
+    branches: [chatgpt/canonical-map-single-entry-20260815]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: chatgpt/canonical-map-single-entry-20260815
+      - name: Apply exact guarded patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          scene_path = Path('src/3d/sceneManager.js')
+          scene = scene_path.read_text()
+          import_needle = "import { ChunkManager } from './world/chunkManager.js';\n"
+          import_line = "import { installRuntimePindexTerrainPolish } from './world/worldReferenceSurfaceTerrainVisual.js';\n"
+          if import_line not in scene:
+              if scene.count(import_needle) != 1:
+                  raise SystemExit('sceneManager ChunkManager import drifted')
+              scene = scene.replace(import_needle, import_needle + import_line, 1)
+
+          function_needle = "export function createScene(canvas) {\n\tconst renderer = new THREE.WebGLRenderer({ canvas, antialias: true });"
+          function_replacement = "export function createScene(canvas) {\n\t// Canonical owner-map rendering is a scene invariant, not an HTML-entrypoint option. Keeping\n\t// this install here means every real createScene() caller gets the same map.png/Pindex surface\n\t// before its first ChunkManager load; an omitted external pre-install can no longer expose the\n\t// legacy green procedural rectangle. The installer is intentionally idempotent.\n\tconst canonicalMapSurface = installRuntimePindexTerrainPolish();\n\tif (!canonicalMapSurface?.installed) throw new Error('[sceneManager] canonical map surface installation failed');\n\tconst renderer = new THREE.WebGLRenderer({ canvas, antialias: true });"
+          if function_replacement not in scene:
+              if scene.count(function_needle) != 1:
+                  raise SystemExit('sceneManager createScene bootstrap drifted')
+              scene = scene.replace(function_needle, function_replacement, 1)
+          scene_path.write_text(scene)
+
+          html_path = Path('game3d.html')
+          html = html_path.read_text()
+          html_import = "  import { installRuntimePindexTerrainPolish } from './src/3d/world/worldReferenceSurfaceTerrainVisual.js';\n"
+          if html.count(html_import) > 1:
+              raise SystemExit('game3d canonical installer import duplicated')
+          html = html.replace(html_import, '', 1)
+          html_call = "\n  installRuntimePindexTerrainPolish();\n  initGame3D();"
+          if html_call in html:
+              html = html.replace(html_call, "\n  initGame3D();", 1)
+          elif "installRuntimePindexTerrainPolish();" in html:
+              raise SystemExit('game3d canonical installer call drifted')
+          html_path.write_text(html)
+          PY
+      - name: Static safety checks
+        run: |
+          set -euo pipefail
+          node --check src/3d/sceneManager.js
+          git diff --check
+          grep -F "installRuntimePindexTerrainPolish" src/3d/sceneManager.js
+          ! grep -F "installRuntimePindexTerrainPolish" game3d.html
+          git diff -- src/3d/sceneManager.js game3d.html
+      - name: Commit branch-only patch
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/3d/sceneManager.js game3d.html; then
+            echo 'No patch needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/sceneManager.js game3d.html
+          git commit -m 'fix(terrain): make canonical map scene-owned'
+          git push origin HEAD:chatgpt/canonical-map-single-entry-20260815
