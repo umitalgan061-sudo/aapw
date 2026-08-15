@@ -143,8 +143,10 @@ func _run() -> void:
 	var max_seam_height_error := 0.0; var max_seam_blend := 0.0; var max_seam_material_error := 0.0; var seam_samples := 0
 	for edge in seam_axis:
 		for cross in cross_axis:
-			for pos in [Vector3(edge, 0, cross), Vector3(cross, 0, edge)]:
-				var u := pos.x / 256.0; var v := pos.z / 256.0
+			for raw_pos in [Vector3(float(edge), 0.0, float(cross)), Vector3(float(cross), 0.0, float(edge))]:
+				var pos: Vector3 = raw_pos
+				var u: float = pos.x / 256.0
+				var v: float = pos.z / 256.0
 				var height := terrain.data.get_height(pos); var color := terrain.data.get_color(pos); var roughness := terrain.data.get_roughness(pos); var blend := terrain.data.get_control_blend(pos)
 				if not _require(not is_nan(height) and not is_nan(color.r) and not is_nan(roughness) and not is_nan(blend), "invalid 255/256 seam sample"): return
 				max_seam_height_error = maxf(max_seam_height_error, absf(height - _source_value(probe, 3, u, v))); max_seam_blend = maxf(max_seam_blend, absf(blend))
