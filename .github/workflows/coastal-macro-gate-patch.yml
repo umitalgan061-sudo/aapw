@@ -1,0 +1,38 @@
+name: Coastal Macro Gate Patch
+on:
+  push:
+    branches: [chatgpt/coastal-relief-realism-20260815]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: chatgpt/coastal-relief-realism-20260815
+      - name: Gate legacy macro relief
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/3d/world/terrain.js')
+          text = path.read_text()
+          old = """\t\tconst coastalBaseMeters = sampleWorldReferenceCoastalBaseMeters(\n\t\t\tworldX,\n\t\t\tworldZ,\n\t\t\tfineDetailMeters,\n\t\t\tmaxHeightMeters,\n\t\t);\n\t\tconst baseHeightMeters =\n\t\t\tcoastalBaseMeters +\n\t\t\tsampleMacroReliefMeters(worldX, worldZ) +\n\t\t\tsampleWorldReferenceMountainReliefMeters(worldX, worldZ);"""
+          new = """\t\tconst dryMacroReliefMeters = sampleMacroReliefMeters(worldX, worldZ);\n\t\tconst coastalBaseMeters = sampleWorldReferenceCoastalBaseMeters(\n\t\t\tworldX,\n\t\t\tworldZ,\n\t\t\tfineDetailMeters,\n\t\t\tmaxHeightMeters,\n\t\t\tdryMacroReliefMeters,\n\t\t);\n\t\tconst baseHeightMeters =\n\t\t\tcoastalBaseMeters +\n\t\t\tsampleWorldReferenceMountainReliefMeters(worldX, worldZ);"""
+          if new not in text:
+              if text.count(old) != 1:
+                  raise SystemExit('terrain coastal block drifted')
+              path.write_text(text.replace(old, new, 1))
+          PY
+          node --check src/3d/world/terrain.js
+          git diff --check
+      - name: Commit patch
+        run: |
+          if git diff --quiet -- src/3d/world/terrain.js; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/world/terrain.js
+          git commit -m 'terrain: land-gate legacy macro relief'
+          git push origin HEAD:chatgpt/coastal-relief-realism-20260815
