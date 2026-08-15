@@ -1,0 +1,175 @@
+name: Canonical Map Single Entry Validation
+on:
+  push:
+    branches: [chatgpt/canonical-map-single-entry-20260815]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main and focused-scope gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(game3d\.html|src/3d/sceneManager\.js|\.github/workflows/canonical-map-single-entry-validation\.yml)$' | wc -l)" -eq 0
+      - name: Canonical ownership static gates
+        run: |
+          set -euo pipefail
+          node --check src/3d/sceneManager.js
+          grep -F "import { installRuntimePindexTerrainPolish } from './world/worldReferenceSurfaceTerrainVisual.js';" src/3d/sceneManager.js
+          grep -F "const canonicalMapSurface = installRuntimePindexTerrainPolish();" src/3d/sceneManager.js
+          grep -F "canonical map surface installation failed" src/3d/sceneManager.js
+          ! grep -F "installRuntimePindexTerrainPolish" game3d.html
+          node scripts/checkServiceWorkerCache.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+      - name: Hydrate smoke-test LFS assets
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+      - name: Install Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Direct createScene canonical-map ownership and top-down proof
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/canonical-map-single-entry
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const { startStaticServer, loadPlaywright } = require('./scripts/devServerHelper.js');
+
+          (async () => {
+            const playwright = loadPlaywright();
+            if (!playwright) throw new Error('Playwright unavailable');
+            const server = await startStaticServer();
+            const baseUrl = `http://127.0.0.1:${server.address().port}`;
+            const browser = await playwright.chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1536, height: 1024 } });
+            const errors = [];
+            page.on('pageerror', (e) => errors.push(`page:${e.message}`));
+            page.on('console', (m) => { if (m.type() === 'error') errors.push(`console:${m.text()}`); });
+            try {
+              await page.goto(`${baseUrl}/scripts/fixtures/sw-g07-runtime-visual-harness.html`, { waitUntil: 'load', timeout: 30000 });
+              const result = await page.evaluate(async () => {
+                const importMap = document.createElement('script');
+                importMap.type = 'importmap';
+                importMap.textContent = JSON.stringify({ imports: {
+                  three: '/src/3d/vendor/three/three.module.js',
+                  'three/addons/': '/src/3d/vendor/three/addons/',
+                } });
+                document.head.append(importMap);
+                document.body.innerHTML = '<canvas id="sole-canonical-map"></canvas>';
+                Object.assign(document.documentElement.style, { margin: '0', width: '100%', height: '100%', background: '#07151d' });
+                Object.assign(document.body.style, { margin: '0', width: '100%', height: '100%', overflow: 'hidden', background: '#07151d' });
+                const canvas = document.getElementById('sole-canonical-map');
+                Object.assign(canvas.style, { width: '100vw', height: '100vh', display: 'block' });
+
+                // Critical regression shape: import/create the scene directly. There is intentionally
+                // no external installRuntimePindexTerrainPolish() call here.
+                const THREE = await import('/src/3d/vendor/three/three.module.js');
+                const { createScene } = await import('/src/3d/sceneManager.js');
+                const { WORLD_DEFAULTS, WORLD_SCALE } = await import('/src/3d/config.js');
+                const state = createScene(canvas);
+                state.controls.enabled = false;
+                state.scene.fog = null;
+                state.sky.visible = false;
+                state.stars.visible = false;
+                state.renderer.setPixelRatio(1);
+                state.renderer.setSize(1536, 1024, false);
+                state.chunkManager.loadSquare(0, 0, 12);
+
+                const terrainMeshes = [...state.chunkManager.loaded.values()];
+                const missingIteration008 = terrainMeshes.filter((mesh) => !mesh.userData.runtimePindexTerrainPolish).length;
+                const missingQualityV2 = terrainMeshes.filter((mesh) => !mesh.userData.runtimePindexTerrainQualityV2).length;
+                const missingShader = terrainMeshes.filter((mesh) => !mesh.material.userData.runtimePindexQualityV2Shader).length;
+                const policyIds = [...new Set(terrainMeshes.map((mesh) => mesh.userData.runtimePindexTerrainQualityV2?.policyId).filter(Boolean))];
+
+                // Capture treatment only: same full-world ocean/frustum handling used by the accepted
+                // real-runtime top-down proof. Production geometry/physics are not modified.
+                const worldWidth = WORLD_SCALE.WORLD_WIDTH_METERS;
+                const worldDepth = WORLD_SCALE.WORLD_DEPTH_METERS;
+                const aspect = 1536 / 1024;
+                const halfWidth = Math.max(worldWidth / 2, worldDepth * aspect / 2) * 1.025;
+                const halfHeight = halfWidth / aspect;
+                state.water.geometry.computeBoundingBox();
+                const waterExtent = state.water.geometry.boundingBox.max.x - state.water.geometry.boundingBox.min.x;
+                const waterCoverage = Math.max(halfWidth * 2, halfHeight * 2) * 1.04;
+                state.water.scale.set(waterCoverage / waterExtent, 1, waterCoverage / waterExtent);
+                state.water.position.x = 0;
+                state.water.position.z = 0;
+                const proofDepthTexture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+                proofDepthTexture.needsUpdate = true;
+                state.water.material.uniforms.uDepthMap.value = proofDepthTexture;
+                state.water.material.uniforms.uDepthFieldExtentMeters.value = 1;
+                state.water.material.uniforms.uSwellStrength.value = 0;
+
+                const camera = new THREE.OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, 1, 30000);
+                camera.up.set(0, 0, -1);
+                camera.position.set(0, 13000, 0);
+                camera.lookAt(0, 0, 0);
+                camera.updateProjectionMatrix();
+                state.renderer.render(state.scene, camera);
+
+                return {
+                  terrainMeshCount: terrainMeshes.length,
+                  missingIteration008,
+                  missingQualityV2,
+                  missingShader,
+                  policyIds,
+                  waterScale: state.water.scale.x,
+                  worldWidth,
+                  worldDepth,
+                };
+              });
+
+              if (result.terrainMeshCount < 500) throw new Error(`full-world terrain incomplete: ${result.terrainMeshCount}`);
+              if (result.missingIteration008 !== 0) throw new Error(`unpolished terrain meshes: ${result.missingIteration008}`);
+              if (result.missingQualityV2 !== 0) throw new Error(`missing Quality V2 meshes: ${result.missingQualityV2}`);
+              if (result.missingShader !== 0) throw new Error(`missing Quality V2 shader meshes: ${result.missingShader}`);
+              if (result.policyIds.length !== 1 || result.policyIds[0] !== 'terrain-pindex-quality-v2-runtime-2026-08-12-v2') {
+                throw new Error(`unexpected canonical policy: ${JSON.stringify(result.policyIds)}`);
+              }
+              if (errors.length) throw new Error(`browser errors: ${JSON.stringify(errors)}`);
+              fs.writeFileSync('artifacts/canonical-map-single-entry/direct-createScene-proof.json', JSON.stringify({ ...result, errors }, null, 2));
+              await page.screenshot({ path: 'artifacts/canonical-map-single-entry/direct-createScene-topdown.png' });
+              console.log('CANONICAL_MAP_SINGLE_ENTRY_OK', JSON.stringify(result));
+            } finally {
+              await page.close();
+              await browser.close();
+              server.close();
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+      - name: Full game 3D smoke regression
+        run: node scripts/smokeTestGame3D.js
+      - name: Upload direct-scene visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-map-single-entry-proof
+          path: artifacts/canonical-map-single-entry/
+          if-no-files-found: warn
+          retention-days: 3
