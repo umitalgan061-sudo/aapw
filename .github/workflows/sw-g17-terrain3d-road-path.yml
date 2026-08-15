@@ -68,7 +68,7 @@ jobs:
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/hterrain.log; grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/hterrain.log
           node scripts/terrainSeatSafetyCheck.js; node scripts/roadNetworkSafetyCheck.js; node scripts/checkRoadVisualContract.js; node scripts/checkMedievalRoadSurface.js; node scripts/checkSeededRandomPolicy.js
-      - name: Near far and full-world top-down no-grid evidence
+      - name: Semantic reference and strict shipped-runtime 3D evidence
         run: |
           set -euo pipefail; rm -rf artifacts/sw-g17-road-path-visual
           node scripts/checkSWG17HydrologyVisualEvidence.mjs --out-dir=artifacts/sw-g17-road-path-visual | tee /tmp/g17-road-visual.log; grep -F SW_G17_HYDROLOGY_VISUAL_OK /tmp/g17-road-visual.log
