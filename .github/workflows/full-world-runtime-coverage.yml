@@ -12,6 +12,7 @@ on:
       - scripts/checkFullWorldRuntimeCoverage.mjs
       - scripts/checkFullWorldRuntimeBrowser.mjs
       - scripts/checkWorldReferenceAlignment.js
+      - scripts/checkWorldReferenceHydrologyExtent.js
       - .github/workflows/full-world-runtime-coverage.yml
   workflow_dispatch:
 permissions: { contents: read }
@@ -36,7 +37,7 @@ jobs:
           git diff --check origin/main...HEAD
           CHANGED="$(git diff --name-only origin/main...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(game3d.html|src/3d/config.js|src/3d/world/terrain.js|src/3d/world/settlements.js|scripts/checkFullWorldRuntimeCoverage.mjs|scripts/checkFullWorldRuntimeBrowser.mjs|scripts/checkWorldReferenceAlignment.js|\.github/workflows/full-world-runtime-coverage.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(game3d.html|src/3d/config.js|src/3d/world/terrain.js|src/3d/world/settlements.js|scripts/checkFullWorldRuntimeCoverage.mjs|scripts/checkFullWorldRuntimeBrowser.mjs|scripts/checkWorldReferenceAlignment.js|scripts/checkWorldReferenceHydrologyExtent.js|\.github/workflows/full-world-runtime-coverage.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END{print s+0}')"
           D="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END{print s+0}')"
           echo "FULL_WORLD_RUNTIME_CHANGED_LINES=$((A+D))"
@@ -47,12 +48,14 @@ jobs:
           node --check scripts/checkFullWorldRuntimeCoverage.mjs
           node --check scripts/checkFullWorldRuntimeBrowser.mjs
           node --check scripts/checkWorldReferenceAlignment.js
+          node --check scripts/checkWorldReferenceHydrologyExtent.js
           grep -F "editorPatch') === '1'" game3d.html
       - name: Full-map single-source and mountain contracts
         run: |
           set -euo pipefail
           node scripts/checkFullWorldRuntimeCoverage.mjs
           node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
           node scripts/checkWorldReferenceMountainRelief.mjs
           node scripts/checkWorldReferenceMap.js
           node scripts/checkSeededRandomPolicy.js
