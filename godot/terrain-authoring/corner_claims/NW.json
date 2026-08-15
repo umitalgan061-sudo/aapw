@@ -6,7 +6,7 @@
   "status": "in_progress_runtime_surface_refinement",
   "exact_base": "844824653a11bc4de43946ea43e563bd2bff1bba",
   "branch": "agent/buzul-muhafizi-g10-runtime-smoothing-exact-844824-20260815",
-  "pr": null,
+  "pr": 543,
   "quality_before": {
     "layer": "Relief/Height Character",
     "canonical_relief_pr": 539,
