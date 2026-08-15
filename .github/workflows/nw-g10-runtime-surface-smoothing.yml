@@ -127,7 +127,16 @@ jobs:
           grep -F NW_G10_TERRAIN3D_BIOME_VALIDATION_OK "$RUNNER_TEMP/t3d-b.log"
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | grep -F HTERRAIN_AUTHORING_VALIDATION_OK
           node scripts/checkSeededRandomPolicy.js
-          node scripts/terrainSeatSafetyCheck.js
+          set +e
+          node scripts/terrainSeatSafetyCheck.js 2>&1 | tee "$RUNNER_TEMP/seat-safety.log"
+          SEAT_RC=${PIPESTATUS[0]}
+          set -e
+          if [ "$SEAT_RC" -ne 0 ] && grep -Fq 'page.goto: Timeout 15000ms exceeded' "$RUNNER_TEMP/seat-safety.log"; then
+            echo 'Retrying terrainSeatSafetyCheck once after the known bounded full-world navigation timeout.'
+            node scripts/terrainSeatSafetyCheck.js
+          else
+            test "$SEAT_RC" -eq 0
+          fi
           node scripts/roadNetworkSafetyCheck.js
           node scripts/checkRoadVisualContract.js
           node scripts/checkMedievalRoadSurface.js
