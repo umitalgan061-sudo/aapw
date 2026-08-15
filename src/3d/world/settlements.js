@@ -109,15 +109,14 @@ const REAL_CASTLE_FOOTPRINT_METERS = 46;
  * ≈ 32.5m (a square footprint's own worst-case corner distance — real footprints are usually
  * narrower than that on at least one axis, so this is already a conservative upper bound, not a
  * measured-per-model number). `OUTER` is where the pad has fully eased back to untouched natural
- * terrain — picked wide enough (a 37m blend ring) that the transition reads as a gentle grade rather
- * than a visible seam given this world's typical local relief (`DEFAULT_MAX_HEIGHT_METERS` 24m over
- * ~167m noise-cell wavelengths — see `terrain.js`'s `NOISE_SCALE`), not derived from a stricter
- * formula since "how wide before a blend looks natural" is a visual judgment call, not a physical
- * constant. One shared radius pair for every seat (not per-shape) — simpler to reason about than a
- * real-model-vs-procedural branch, and both shapes fit comfortably inside it either way.
+ * terrain. The canonical full-owner-map relief is far taller than the historical 24m FBM field, so
+ * the old 75m outer radius produced >20° road segments at the pad feather. A 150m outer radius gives
+ * the same 38m flat castle footprint a 112m smooth transition; exact browser road qualification on
+ * the canonical field keeps every one of the 13 settlement routes at or below the 20° safety limit.
+ * One shared radius pair for every seat keeps render, physics, settlement and road metadata aligned.
  */
 const SETTLEMENT_FLATTEN_INNER_RADIUS_METERS = 38;
-const SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 75;
+const SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 150;
 
 /**
  * Builds the `flattenPads` list `world/terrain.js`'s `createHeightSampler` consumes to flatten the
