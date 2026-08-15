@@ -23,7 +23,6 @@ concurrency:
 
 env:
   TZ: Europe/Istanbul
-  BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
 
 jobs:
   validate:
@@ -33,6 +32,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -43,9 +43,10 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main
-          test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          git merge-base --is-ancestor "$BASE_SHA" HEAD
-          git diff --check "$BASE_SHA" HEAD
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$MAIN_SHA")" = "$MAIN_SHA"
+          git diff --check "$MAIN_SHA"...HEAD
+          echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
 
       - name: Mountain source syntax and deterministic contract
         run: |
@@ -88,7 +89,7 @@ jobs:
           set -euo pipefail
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
-          git diff --check "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA"...HEAD
           test -z "$(git diff --name-only "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceMap.js)"
           test -z "$(git diff --name-only "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfacePindexes.js)"
 
