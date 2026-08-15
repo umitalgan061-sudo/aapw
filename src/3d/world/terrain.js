@@ -18,6 +18,7 @@
 
 import * as THREE from 'three';
 import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';
+import { sampleWorldReferenceCoastalBaseMeters } from './worldReferenceCoastalRelief.js';
 
 /**
  * Deterministic 32-bit PRNG (mulberry32). Never use `Math.random()` for world generation — see
@@ -232,8 +233,14 @@ export function createHeightSampler(seed, fbmOptions, flattenPads = []) {
 	const noise2D = createValueNoise2D(seed);
 	return function sampleHeightMeters(worldX, worldZ, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS) {
 		const fineDetailMeters = fbm2D(noise2D, worldX * NOISE_SCALE, worldZ * NOISE_SCALE, fbmOptions) * maxHeightMeters;
+		const coastalBaseMeters = sampleWorldReferenceCoastalBaseMeters(
+			worldX,
+			worldZ,
+			fineDetailMeters,
+			maxHeightMeters,
+		);
 		const baseHeightMeters =
-			fineDetailMeters +
+			coastalBaseMeters +
 			sampleMacroReliefMeters(worldX, worldZ) +
 			sampleWorldReferenceMountainReliefMeters(worldX, worldZ);
 		if (flattenPads.length === 0) return baseHeightMeters;

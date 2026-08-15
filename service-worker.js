@@ -2,6 +2,7 @@
 // source, so an offline 3D boot must cache it before any chunk can be generated.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceMountainRelief.js');
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCoastalRelief.js');
 });
 
 // Run341 offline-shell completeness fix — not this run's own feature (the settings screen, ADR-0289),
