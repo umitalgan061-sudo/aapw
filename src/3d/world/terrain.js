@@ -20,7 +20,6 @@ export const DEFAULT_MAX_HEIGHT_METERS = 24; // compatibility only; production h
 const SEA_LEVEL = WORLD_DEFAULTS.WATER_LEVEL_METERS;
 const MAP_WIDTH = WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits;
 const MAP_HEIGHT = WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
-const MIN_SETTLEMENT_TRANSITION_OUTER_RADIUS_METERS = 150;
 const TAU = Math.PI * 2;
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -53,7 +52,6 @@ export const CURRENT_TERRAIN_POLICY = Object.freeze({
 	fullOwnerMapCoverage: true,
 	legacyProceduralFallback: false,
 	mapDerivedHeight: true,
-	minimumSettlementTransitionOuterRadiusMeters: MIN_SETTLEMENT_TRANSITION_OUTER_RADIUS_METERS,
 });
 
 function currentMapPoint(worldX, worldZ) {
@@ -106,10 +104,9 @@ function sampleCanonicalHeightMeters(worldX, worldZ) {
 }
 
 function flattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {
-	const effectiveOuterRadiusMeters = Math.max(outerRadiusMeters, MIN_SETTLEMENT_TRANSITION_OUTER_RADIUS_METERS);
 	if (distanceMeters <= innerRadiusMeters) return 1;
-	if (distanceMeters >= effectiveOuterRadiusMeters) return 0;
-	const t = 1 - (distanceMeters - innerRadiusMeters) / (effectiveOuterRadiusMeters - innerRadiusMeters);
+	if (distanceMeters >= outerRadiusMeters) return 0;
+	const t = 1 - (distanceMeters - innerRadiusMeters) / (outerRadiusMeters - innerRadiusMeters);
 	return t * t * (3 - 2 * t);
 }
 
