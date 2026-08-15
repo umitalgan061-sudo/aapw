@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, STORAGE_KEYS } from './config.js';
 import { PLAYER_CONFIG } from './gameplay/gameplayConfig.js';
 import { ChunkManager } from './world/chunkManager.js';
+import { installRuntimePindexTerrainPolish } from './world/worldReferenceSurfaceTerrainVisual.js';
 import { createGroundCollider, createSettlementCollider, createCircleCollider, createComposedCollider } from './physics.js';
 import {
 	createWater,
@@ -92,6 +93,12 @@ export function worldToChunkCoord(worldCoord, chunkSizeMeters) {
  * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, freeCamera: {camera: THREE.PerspectiveCamera, active: boolean, update: (delta: number) => void, dispose: () => void}, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, playerCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, roads: THREE.Group, roadEdges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], vegetation: THREE.Group, villages: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
  */
 export function createScene(canvas) {
+	// Canonical owner-map rendering is a scene invariant, not an HTML-entrypoint option. Keeping
+	// this install here means every real createScene() caller gets the same map.png/Pindex surface
+	// before its first ChunkManager load; an omitted external pre-install can no longer expose the
+	// legacy green procedural rectangle. The installer is intentionally idempotent.
+	const canonicalMapSurface = installRuntimePindexTerrainPolish();
+	if (!canonicalMapSurface?.installed) throw new Error('[sceneManager] canonical map surface installation failed');
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	// Filmic tone mapping + (desktop only) real sun shadows, finally consuming `QUALITY_PRESETS` —
