@@ -8,6 +8,47 @@ function vector3(vector) {
   return [round(vector.x), round(vector.y), round(vector.z)];
 }
 
+function tuple3(values) {
+  if (!Array.isArray(values) || values.length !== 3) return null;
+  const tuple = values.map(Number);
+  if (tuple.some((value) => !Number.isFinite(value))) return null;
+  return tuple.map(round);
+}
+
+function serializeFbxPackOverrides(object) {
+  const source = object?.userData?.editorFbxPackOverrides;
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null;
+  const records = Object.keys(source).sort().map((path) => {
+    const record = source[path];
+    const position = tuple3(record?.transform?.position);
+    const rotation = tuple3(record?.transform?.rotation);
+    const scale = tuple3(record?.transform?.scale);
+    if (!path || !position || !rotation || !scale) return null;
+    return {
+      path,
+      name: String(record?.name || ''),
+      transform: { position, rotation, scale }
+    };
+  }).filter(Boolean);
+  return records.length ? records : null;
+}
+
+function serializeObject(object) {
+  const record = {
+    id: object.userData.editorId,
+    name: object.name,
+    asset: object.userData.editorAssetId,
+    transform: {
+      position: vector3(object.position),
+      rotation: vector3(object.rotation),
+      scale: vector3(object.scale)
+    }
+  };
+  const fbxPacks = serializeFbxPackOverrides(object);
+  if (fbxPacks) record.fbxPacks = fbxPacks;
+  return record;
+}
+
 export function serializeEditorScene(objects, instanceGroups, editorState) {
   return {
     schemaVersion: EDITOR_SCENE_SCHEMA_VERSION,
@@ -17,16 +58,7 @@ export function serializeEditorScene(objects, instanceGroups, editorState) {
       snapEnabled: Boolean(editorState.snapEnabled),
       snapSize: Number(editorState.snapSize)
     },
-    objects: objects.map((object) => ({
-      id: object.userData.editorId,
-      name: object.name,
-      asset: object.userData.editorAssetId,
-      transform: {
-        position: vector3(object.position),
-        rotation: vector3(object.rotation),
-        scale: vector3(object.scale)
-      }
-    })),
+    objects: objects.map(serializeObject),
     instanceGroups
   };
 }
