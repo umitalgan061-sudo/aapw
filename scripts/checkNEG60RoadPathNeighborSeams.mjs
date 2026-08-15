@@ -4,7 +4,7 @@ import { G60_TERRAIN3D_ROAD_PATH_POLICY as P, sampleG60RoadPath } from '../godot
 import { sampleG70RoadPath } from '../godot/terrain-authoring/geocells/ne/g70_road_path.mjs';
 import { measureG61Hydrology } from '../godot/terrain-authoring/geocells/ne/g61_hydrology.mjs';
 
-const normalDelta=(a,b)=>Math.max(Math.abs(a[0]-b[0]),Math.abs(a[1]-b[1]),Math.abs(a[2]-b[2]));
+const normalDelta=(a,b)=>Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y),Math.abs(a.z-b.z));
 let pairs=0,maxHeight=0,maxNormal=0,maxControl=0,maxRoad=0,maxPath=0,maxSurface=0;
 const edgeX=P.normalizedBounds.xMax;
 for(let i=0;i<=256;i+=1){
