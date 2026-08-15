@@ -59,17 +59,19 @@ try{
     document.body.innerHTML='<canvas id="world" width="1200" height="800"></canvas>';
     const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false}),low=document.createElement('canvas');low.width=600;low.height=400;
     const lctx=low.getContext('2d',{alpha:false}),image=lctx.createImageData(600,400),palette={sea:[41,77,93],lake:[79,127,134],soil:[125,135,88],rock:[117,108,96],snow:[216,223,220]};
-    let transitionEdges=0,maxAdjacentChannelDelta=0,previousSurface=null,previousRgb=null;
-    for(let y=0;y<400;y+=1){const surfaceRow=[],rgbRow=[];
+    let transitionEdges=0,previousSurface=null;
+    for(let y=0;y<400;y+=1){const surfaceRow=[];
       for(let x=0;x<600;x+=1){const s=sampleReferencePindexQualityV2((x+0.5)/600,(y+0.5)/400);surfaceRow.push(s.dominantSurface);
         if(x&&surfaceRow[x-1]!==surfaceRow[x])transitionEdges+=1;if(previousSurface&&previousSurface[x]!==surfaceRow[x])transitionEdges+=1;
         let r=0,g=0,b=0;for(const [name,color] of Object.entries(palette)){const w=s.surfaceWeights[name];r+=color[0]*w;g+=color[1]*w;b+=color[2]*w;}
-        const rgb=[Math.round(r),Math.round(g),Math.round(b)];rgbRow.push(rgb);image.data.set([...rgb,255],(y*600+x)*4);
-        for(const other of [x?rgbRow[x-1]:null,previousRgb?.[x]])if(other)maxAdjacentChannelDelta=Math.max(maxAdjacentChannelDelta,...rgb.map((v,i)=>Math.abs(v-other[i])));
-      }previousSurface=surfaceRow;previousRgb=rgbRow;
+        image.data.set([Math.round(r),Math.round(g),Math.round(b),255],(y*600+x)*4);
+      }previousSurface=surfaceRow;
     }
-    lctx.putImageData(image,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(low,0,0,1200,800);
-    return{mode:'continuous-semantic-world-context',transitionEdges,maxAdjacentChannelDelta,g60PatchApplied:false,g60PatchAlpha:0,gridOverlay:false};
+    lctx.putImageData(image,0,0);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.filter='blur(4px)';ctx.drawImage(low,0,0,1200,800);ctx.filter='none';
+    const pixels=ctx.getImageData(0,0,1200,800).data;let maxAdjacentChannelDelta=0;
+    const compare=(a,b)=>{for(let channel=0;channel<3;channel+=1)maxAdjacentChannelDelta=Math.max(maxAdjacentChannelDelta,Math.abs(pixels[a+channel]-pixels[b+channel]));};
+    for(let y=0;y<800;y+=1)for(let x=0;x<1200;x+=1){const i=(y*1200+x)*4;if(x)compare(i,i-4);if(y)compare(i,i-4800);}
+    return{mode:'continuous-semantic-world-context',outputResolution:[1200,800],contextResolution:[600,400],transitionEdges,maxAdjacentChannelDelta,g60PatchApplied:false,g60PatchAlpha:0,gridOverlay:false};
   });
   requireOk(topdown.transitionEdges>100,'full-world geography transitions disappeared');
   requireOk(!topdown.g60PatchApplied&&topdown.g60PatchAlpha===0&&!topdown.gridOverlay,'Near Detail created a G60 square/grid patch');
