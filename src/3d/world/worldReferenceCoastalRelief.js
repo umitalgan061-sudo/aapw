@@ -97,8 +97,6 @@ function buildDistanceField(targetPredicate) {
 		if (candidate < field[index]) field[index] = candidate;
 	};
 
-	// Repeated forward/backward 8-neighbour sweeps propagate the nearest opposite ownership across
-	// the whole tiny mask without an allocation-heavy per-frame nearest-coast search.
 	for (let pass = 0; pass < 3; pass += 1) {
 		for (let y = 0; y < MASK_HEIGHT; y += 1) {
 			for (let x = 0; x < MASK_WIDTH; x += 1) {
@@ -172,13 +170,19 @@ function surfaceAtNormalized(normalizedX, normalizedY) {
 }
 
 /**
- * Fast terrain hot-path sampler. `fineDetailMeters` is the existing deterministic FBM contribution;
- * this function reshapes where that detail is allowed to sit, rather than inventing a second noise
- * field that could drift from gameplay height queries.
+ * Fast terrain hot-path sampler. `fineDetailMeters` is the deterministic FBM contribution and
+ * `dryMacroReliefMeters` is the legacy hand-authored dome contribution. Both are placed inside the
+ * same dry-land blend so neither can resurrect a hill above canonical sea/lake ownership.
  */
-export function sampleWorldReferenceCoastalBaseMeters(worldX, worldZ, fineDetailMeters, maxHeightMeters) {
+export function sampleWorldReferenceCoastalBaseMeters(
+	worldX,
+	worldZ,
+	fineDetailMeters,
+	maxHeightMeters,
+	dryMacroReliefMeters = 0,
+) {
 	const normalized = worldToNormalized(worldX, worldZ);
-	if (!normalized) return fineDetailMeters;
+	if (!normalized) return fineDetailMeters + dryMacroReliefMeters;
 	const normalizedX = normalized[0];
 	const normalizedY = normalized[1];
 	const dryWeight = sampleDryLandWeight(normalizedX, normalizedY);
@@ -195,7 +199,8 @@ export function sampleWorldReferenceCoastalBaseMeters(worldX, worldZ, fineDetail
 	);
 	const detailWeight = policy.fineDetailMinimumWeight +
 		(1 - policy.fineDetailMinimumWeight) * smoothstep(0, policy.fineDetailFullDistanceMeters, landDistanceMeters);
-	const landHeight = WORLD_DEFAULTS.WATER_LEVEL_METERS + policy.shoreClearanceMeters + coastRise + interiorRise + fineDetailMeters * detailWeight;
+	const landHeight = WORLD_DEFAULTS.WATER_LEVEL_METERS + policy.shoreClearanceMeters + coastRise + interiorRise +
+		fineDetailMeters * detailWeight + dryMacroReliefMeters;
 
 	const noiseRatio = maxHeightMeters > 0 ? fineDetailMeters / maxHeightMeters : 0.5;
 	const centeredWetNoise = (noiseRatio - 0.5) * policy.wetFloorNoiseMeters * 2;
