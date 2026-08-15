@@ -42,8 +42,12 @@ const runtimeBounds = { xMin: m.minX / mapW, xMax: m.maxX / mapW, yMin: m.minY /
 const g = G17_ROAD_PATH_POLICY.normalizedBounds;
 const runtimeCovered = runtimeBounds.xMin <= g.xMin && runtimeBounds.xMax >= g.xMax &&
   runtimeBounds.yMin <= g.yMin && runtimeBounds.yMax >= g.yMax;
+const overlapX = Math.max(0, Math.min(runtimeBounds.xMax, g.xMax) - Math.max(runtimeBounds.xMin, g.xMin));
+const overlapY = Math.max(0, Math.min(runtimeBounds.yMax, g.yMax) - Math.max(runtimeBounds.yMin, g.yMin));
+const runtimeCoverageFraction = overlapX * overlapY / ((g.xMax - g.xMin) * (g.yMax - g.yMin));
+fs.writeFileSync(path.join(visualDir, 'g17-road-path-runtime-coverage.json'), `${JSON.stringify({ runtimeBounds, g17Bounds: g, runtimeCoverageFraction }, null, 2)}\n`);
 if (!runtimeCovered) {
-  throw new Error(`G17 is not fully covered by live createScene runtime; runtime=${JSON.stringify(runtimeBounds)} G17=${JSON.stringify(g)}`);
+  throw new Error(`G17 live createScene coverage ${(runtimeCoverageFraction * 100).toFixed(6)}%; runtime=${JSON.stringify(runtimeBounds)} G17=${JSON.stringify(g)}`);
 }
 
 for (const file of [semantic, near, far, full, metadataPath]) {
