@@ -97,4 +97,3 @@ Hydrology, biome materials, forests, settlement placement and orthographic proof
 reading the shared live sampler. Future map refinements may add erosion and more audited relief
 anchors, but must not create an independent visual height field. A fresh real 90° full-world
 orthographic artifact is required after this branch is rebased with the existing 3D proof branch.
-
