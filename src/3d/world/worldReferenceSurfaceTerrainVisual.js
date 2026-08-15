@@ -18,6 +18,8 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import {
 	classifyReferenceBaseSurface,
 	referencePindexFromNormalizedX,
+	REFERENCE_PINDEX_QUALITY_V2_POLICY,
+	sampleReferencePindexQualityV2,
 } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_SURFACE_VISUAL_POLICY = Object.freeze({
@@ -178,6 +180,55 @@ const RUNTIME_PINDEX_DETAIL_APPLIERS = Object.freeze({
 	9: applyPindex09DetailToTerrainMesh,
 });
 
+const RUNTIME_SEMANTIC_SURFACES = Object.freeze(['sea', 'lake', 'soil', 'rock', 'snow']);
+
+function composeRuntimeSemanticTarget(surfaceWeights, vertexHeightMeters) {
+	const targetColor = new THREE.Color(0, 0, 0);
+	let roughness = 0;
+	let blend = 0;
+	for (const surface of RUNTIME_SEMANTIC_SURFACES) {
+		const weight = surfaceWeights[surface] ?? 0;
+		const color = COLOR_BY_SURFACE[surface];
+		targetColor.r += color.r * weight;
+		targetColor.g += color.g * weight;
+		targetColor.b += color.b * weight;
+		roughness += WORLD_REFERENCE_SURFACE_VISUAL_POLICY.roughness[surface] * weight;
+		blend += RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.semanticBlendBySurface[surface] * weight;
+	}
+	const wetWeight = (surfaceWeights.sea ?? 0) + (surfaceWeights.lake ?? 0);
+	if (wetWeight > 0) {
+		const heightAboveWater = Math.max(0, vertexHeightMeters - WORLD_DEFAULTS.WATER_LEVEL_METERS);
+		const lowHeightWeight = 1 - THREE.MathUtils.clamp(
+			heightAboveWater / RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.wetHeightFadeMeters,
+			0,
+			1,
+		);
+		blend += wetWeight * lowHeightWeight * RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.wetLowHeightBoost;
+	}
+	return Object.freeze({
+		color: targetColor,
+		roughness,
+		blend: THREE.MathUtils.clamp(blend, 0, 0.7),
+	});
+}
+
+/** Continuous runtime semantic target used by the shipped CPU pass and regression evidence. */
+export function sampleRuntimeSurfaceSemanticTarget(normalizedX, normalizedY, vertexHeightMeters) {
+	if (!Number.isFinite(vertexHeightMeters)) throw new TypeError('vertexHeightMeters must be finite');
+	const quality = sampleReferencePindexQualityV2(normalizedX, normalizedY);
+	const target = composeRuntimeSemanticTarget(quality.surfaceWeights, vertexHeightMeters);
+	return Object.freeze({
+		samplingPolicyId: REFERENCE_PINDEX_QUALITY_V2_POLICY.id,
+		pindex: quality.pindex,
+		dominantSurface: quality.dominantSurface,
+		surfaceWeights: quality.surfaceWeights,
+		boundaryBlend: quality.boundaryBlend,
+		color: Object.freeze([target.color.r, target.color.g, target.color.b]),
+		roughness: target.roughness,
+		blend: target.blend,
+	});
+}
+
 function currentWorldReferenceSample(worldX, worldZ) {
 	const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
 	const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
@@ -187,28 +238,15 @@ function currentWorldReferenceSample(worldX, worldZ) {
 	const mapY = THREE.MathUtils.clamp(rawMapY, 0, WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits);
 	const normalized = mapCanvasToNormalizedReference(mapX, mapY);
 	const planned = mapCanvasToPlannedWorldXZ(mapX, mapY);
+	const quality = sampleReferencePindexQualityV2(normalized.x, normalized.y);
 	return Object.freeze({
-		surface: classifyReferenceBaseSurface(normalized.x, normalized.y),
-		pindex: referencePindexFromNormalizedX(normalized.x),
+		surface: quality.dominantSurface,
+		surfaceWeights: quality.surfaceWeights,
+		boundaryBlend: quality.boundaryBlend,
+		pindex: quality.pindex,
 		plannedX: planned.x,
 		plannedZ: planned.z,
 	});
-}
-
-function runtimeSemanticBlend(surface, vertexHeightMeters) {
-	const base = RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.semanticBlendBySurface[surface] ?? 0;
-	if (surface !== 'sea' && surface !== 'lake') return base;
-	const heightAboveWater = Math.max(0, vertexHeightMeters - WORLD_DEFAULTS.WATER_LEVEL_METERS);
-	const lowHeightWeight = 1 - THREE.MathUtils.clamp(
-		heightAboveWater / RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.wetHeightFadeMeters,
-		0,
-		1,
-	);
-	return THREE.MathUtils.clamp(
-		base + lowHeightWeight * RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.wetLowHeightBoost,
-		0,
-		0.7,
-	);
 }
 
 /**
@@ -226,24 +264,31 @@ export function applyRuntimePindexTerrainPolishToMesh(mesh) {
 	const plannedZ = new Float64Array(position.count);
 	const activePindexes = new Set();
 	const counts = { sea: 0, lake: 0, soil: 0, rock: 0, snow: 0 };
+	const surfaceWeightSums = { sea: 0, lake: 0, soil: 0, rock: 0, snow: 0 };
 	const sourceColor = new THREE.Color();
 	let roughnessSum = 0;
 	let changedVertices = 0;
+	let boundaryBlendVertices = 0;
+	let maxBoundaryBlend = 0;
 
 	for (let index = 0; index < position.count; index += 1) {
 		const worldX = mesh.position.x + position.getX(index);
 		const worldZ = mesh.position.z + position.getZ(index);
 		const sample = currentWorldReferenceSample(worldX, worldZ);
+		const semanticTarget = composeRuntimeSemanticTarget(sample.surfaceWeights, position.getY(index));
 		plannedX[index] = sample.plannedX;
 		plannedZ[index] = sample.plannedZ;
 		activePindexes.add(sample.pindex);
 		counts[sample.surface] += 1;
-		roughnessSum += WORLD_REFERENCE_SURFACE_VISUAL_POLICY.roughness[sample.surface];
+		for (const surface of RUNTIME_SEMANTIC_SURFACES) surfaceWeightSums[surface] += sample.surfaceWeights[surface] ?? 0;
+		roughnessSum += semanticTarget.roughness;
+		if (sample.boundaryBlend > 1e-6) boundaryBlendVertices += 1;
+		maxBoundaryBlend = Math.max(maxBoundaryBlend, sample.boundaryBlend);
 		const beforeR = color.getX(index);
 		const beforeG = color.getY(index);
 		const beforeB = color.getZ(index);
 		sourceColor.setRGB(beforeR, beforeG, beforeB);
-		sourceColor.lerp(COLOR_BY_SURFACE[sample.surface], runtimeSemanticBlend(sample.surface, position.getY(index)));
+		sourceColor.lerp(semanticTarget.color, semanticTarget.blend);
 		color.setXYZ(index, sourceColor.r, sourceColor.g, sourceColor.b);
 		if (sourceColor.r !== beforeR || sourceColor.g !== beforeG || sourceColor.b !== beforeB) changedVertices += 1;
 	}
@@ -283,11 +328,15 @@ export function applyRuntimePindexTerrainPolishToMesh(mesh) {
 	mesh.material.needsUpdate = true;
 	const summary = Object.freeze({
 		policyId: RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.id,
+		semanticSamplingPolicyId: REFERENCE_PINDEX_QUALITY_V2_POLICY.id,
 		vertexCount: position.count,
 		changedVertices,
 		detailTouchedVertices,
 		activePindexes: Object.freeze([...activePindexes].sort((a, b) => a - b)),
 		counts: Object.freeze({ ...counts }),
+		surfaceWeightSums: Object.freeze({ ...surfaceWeightSums }),
+		boundaryBlendVertices,
+		maxBoundaryBlend,
 		averageRoughness: mesh.material.roughness,
 		detailPolicyIds: Object.freeze(detailSummaries.map((detail) => detail.policyId)),
 	});
@@ -321,7 +370,6 @@ export function installRuntimePindexTerrainPolish() {
 // Pindex Quality V2 — shader-first runtime: expensive source interpretation is baked once into a
 // tiny deterministic in-memory atlas, then every terrain fragment samples it on the GPU. This keeps
 // Iteration #08's accepted CPU vertex pass as the only per-vertex authoring cost during chunk boot.
-import { REFERENCE_PINDEX_QUALITY_V2_POLICY, sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
 
 export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
 	id: 'terrain-pindex-quality-v2-runtime-2026-08-12-v2',
