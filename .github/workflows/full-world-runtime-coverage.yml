@@ -7,6 +7,7 @@ on:
     paths:
       - src/3d/config.js
       - src/3d/world/terrain.js
+      - src/3d/editor/EditorGamePatchPreviewGateSafe.js
       - scripts/checkFullWorldRuntimeCoverage.mjs
       - scripts/checkFullWorldRuntimeBrowser.mjs
       - .github/workflows/full-world-runtime-coverage.yml
@@ -33,13 +34,14 @@ jobs:
           git diff --check origin/main...HEAD
           CHANGED="$(git diff --name-only origin/main...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/config.js|src/3d/world/terrain.js|scripts/checkFullWorldRuntimeCoverage.mjs|scripts/checkFullWorldRuntimeBrowser.mjs|\.github/workflows/full-world-runtime-coverage.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/config.js|src/3d/world/terrain.js|src/3d/editor/EditorGamePatchPreviewGateSafe.js|scripts/checkFullWorldRuntimeCoverage.mjs|scripts/checkFullWorldRuntimeBrowser.mjs|\.github/workflows/full-world-runtime-coverage.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END{print s+0}')"
           D="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END{print s+0}')"
           echo "FULL_WORLD_RUNTIME_CHANGED_LINES=$((A+D))"
           test $((A+D)) -le 1000
           node --check src/3d/config.js
           node --check src/3d/world/terrain.js
+          node --check src/3d/editor/EditorGamePatchPreviewGateSafe.js
           node --check scripts/checkFullWorldRuntimeCoverage.mjs
           node --check scripts/checkFullWorldRuntimeBrowser.mjs
       - name: Full-map single-source and mountain contracts
