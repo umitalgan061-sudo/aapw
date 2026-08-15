@@ -18,11 +18,21 @@ try {
     const terrain = await import('/src/3d/world/terrain.js');
     const physics = await import('/src/3d/physics.js');
     const { ChunkManager } = await import('/src/3d/world/chunkManager.js');
-    const { WORLD_DEFAULTS, WORLD_SCALE } = await import('/src/3d/config.js');
+    const { buildRoadNetwork } = await import('/src/3d/world/roads.js');
+    const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
+    const { WORLD_DEFAULTS, WORLD_SCALE, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
     const { WORLD_REFERENCE_ALIGNMENT } = await import('/src/3d/world/worldReferenceAlignment.js');
-    const sampler = terrain.createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
-    const repeatSampler = terrain.createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
-    const collider = physics.createGroundCollider(WORLD_DEFAULTS.WORLD_SEED);
+    const baseSampler = terrain.createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
+    const flattenPads = computeSettlementFlattenPads({
+      sampleHeightMeters: baseSampler,
+      seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+      minGroundClearanceMeters: SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
+      mapBounds: WORLD_SCALE.MAP_BOUNDS,
+      metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
+    });
+    const sampler = terrain.createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+    const repeatSampler = terrain.createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+    const collider = physics.createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
     const mapW = WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits;
     const mapH = WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
     const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
@@ -48,8 +58,40 @@ try {
       }
     }
 
+    const seats = KINGDOM_SEATS.map((seat) => {
+      const mapped = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
+      return { id: seat.id, x: mapped.x, z: mapped.z, groundY: sampler(mapped.x, mapped.z) };
+    });
+    const network = buildRoadNetwork({ seats, sampleHeightMeters: sampler });
+    const roadDiagnostics = network.edges.map((edge) => {
+      let worst = { gradeDegrees: 0 };
+      for (let i = 1; i < edge.points.length; i += 1) {
+        const a = edge.points[i - 1], b = edge.points[i];
+        const run = Math.hypot(b.x - a.x, b.z - a.z);
+        const rise = Math.abs(b.y - a.y);
+        const gradeDegrees = Math.atan2(rise, Math.max(run, 1e-9)) * 180 / Math.PI;
+        if (gradeDegrees > worst.gradeDegrees) {
+          const midX = (a.x + b.x) * 0.5, midZ = (a.z + b.z) * 0.5;
+          let nearestPadIndex = -1, nearestPadDistance = Infinity;
+          flattenPads.forEach((pad, index) => {
+            const distance = Math.hypot(midX - pad.x, midZ - pad.z);
+            if (distance < nearestPadDistance) { nearestPadDistance = distance; nearestPadIndex = index; }
+          });
+          worst = {
+            gradeDegrees, run, rise, segmentIndex: i - 1, midX, midZ,
+            nearestPadId: nearestPadIndex >= 0 ? KINGDOM_SEATS[nearestPadIndex].id : null,
+            nearestPadDistance,
+            nearestPadOuterRadius: nearestPadIndex >= 0 ? flattenPads[nearestPadIndex].outerRadiusMeters : null,
+            flattenDeltaA: sampler(a.x, a.z) - baseSampler(a.x, a.z),
+            flattenDeltaB: sampler(b.x, b.z) - baseSampler(b.x, b.z),
+          };
+        }
+      }
+      return { fromId: edge.fromId, toId: edge.toId, edgeMaxGradeDegrees: edge.maxGradeDegrees, worst };
+    }).sort((a, b) => b.worst.gradeDegrees - a.worst.gradeDegrees);
+
     const scene = new THREE.Scene();
-    const manager = new ChunkManager({ scene, chunkSizeMeters: 500, seed: WORLD_DEFAULTS.WORLD_SEED, flattenPads: [] });
+    const manager = new ChunkManager({ scene, chunkSizeMeters: 500, seed: WORLD_DEFAULTS.WORLD_SEED, flattenPads });
     const g17 = probes[0];
     const mesh = manager.loadChunk(Math.round(g17.x / 500), Math.round(g17.z / 500));
     const position = mesh.geometry.getAttribute('position');
@@ -71,6 +113,7 @@ try {
       meshPolicyId: mesh.userData.currentTerrainPolicy,
       meshSingleSource: mesh.userData.currentTerrainSingleSource === true,
       g17Height: sampler(g17.x, g17.z), g77Height: sampler(probes[1].x, probes[1].z),
+      roadDiagnostics: roadDiagnostics.slice(0, 6),
     };
     manager.disposeAll();
     return output;
@@ -84,7 +127,8 @@ try {
   if (result.maxPhysicsError > 1e-9) throw new Error(`render/physics sampler source mismatch ${result.maxPhysicsError}`);
   if (result.maxRenderError > 1e-5) throw new Error(`chunk/collider height mismatch ${result.maxRenderError}`);
   if (result.meshPolicyId !== result.policyId || !result.meshSingleSource) throw new Error('ChunkManager mesh missing current-terrain provenance');
-  console.log(`FULL_WORLD_RUNTIME_BROWSER=${JSON.stringify(result)}`);
+  console.log(`FULL_WORLD_RUNTIME_ROAD_DIAGNOSTICS=${JSON.stringify(result.roadDiagnostics)}`);
+  console.log(`FULL_WORLD_RUNTIME_BROWSER=${JSON.stringify({ ...result, roadDiagnostics: undefined })}`);
   console.log('FULL_WORLD_RUNTIME_BROWSER_OK');
 } finally {
   await browser.close();
