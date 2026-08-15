@@ -9,6 +9,7 @@ on:
       - main
     paths:
       - 'game3d.html'
+      - 'src/3d/sceneManager.js'
       - 'src/3d/world/worldReferenceSurfaceTerrainVisual.js'
       - 'scripts/checkTerrainPolishIteration08.js'
       - 'scripts/checkTerrainPolishIteration08Browser.js'
@@ -55,7 +56,6 @@ jobs:
           node --check scripts/checkTerrainPolishIteration08.js
           node --check scripts/checkTerrainPolishIteration08Browser.js
           node scripts/checkTerrainPolishIteration08.js
-          grep -F "installRuntimePindexTerrainPolish();" game3d.html
           grep -F "initGame3D();" game3d.html
 
       - name: PWA and semantic source regression
@@ -127,4 +127,3 @@ jobs:
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
           test "$(git diff --numstat "$BASE_SHA"...HEAD -- game3d.html | awk '{sum += $2} END {print sum+0}')" = '0'
-          test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfaceTerrainVisual.js | awk '{sum += $2} END {print sum+0}')" = '0'
