@@ -32,10 +32,10 @@ for (const [id, cell] of Object.entries({
   assert(runtimeBounds.xMin <= cell.xMin && runtimeBounds.xMax >= cell.xMax && runtimeBounds.yMin <= cell.yMin && runtimeBounds.yMax >= cell.yMax, `${id} remains outside shipped runtime`);
 }
 
-// `terrain.js` intentionally imports bare `three` for the browser import map. Keep this Node gate
-// package-independent: statically prove its source contract here and execute the live module in the
-// dedicated Chromium gate, where the production import map is authoritative.
+// Browser-facing modules intentionally import bare `three`; keep this Node gate package-independent
+// and statically lock the source contract. The dedicated Chromium gate executes the live modules.
 const terrainSource = fs.readFileSync(new URL('../src/3d/world/terrain.js', import.meta.url), 'utf8');
+const settlementsSource = fs.readFileSync(new URL('../src/3d/world/settlements.js', import.meta.url), 'utf8');
 for (const token of [
   "sourceMapSha256: '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1'",
   'fullOwnerMapCoverage: true',
@@ -46,6 +46,7 @@ for (const token of [
   'const sampleHeightMeters = createHeightSampler',
 ]) assert(terrainSource.includes(token), `terrain source contract missing: ${token}`);
 assert(!terrainSource.includes('fbm2D('), 'legacy FBM remains in production terrain source');
+assert(settlementsSource.includes('SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 150'), 'settlement transition radius must remain canonical 150m');
 
 console.log(`FULL_WORLD_RUNTIME_EXTENT=${JSON.stringify({ runtimeBounds, areaKm2: FULL_REFERENCE_EXTENT_PLAN.areaKm2, grid: [CHUNK_CONFIG.GRID_COLUMNS, CHUNK_CONFIG.GRID_ROWS] })}`);
 console.log('FULL_WORLD_RUNTIME_COVERAGE_OK');
