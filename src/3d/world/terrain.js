@@ -93,10 +93,10 @@ function sampleCanonicalHeightMeters(worldX, worldZ) {
 	const wetRelative = -3.0 - waterWeight * 5.25 - sample.reliefInfluence * 0.75 + micro * 0.12;
 	let heightMeters = SEA_LEVEL + lerp(dryRelative, wetRelative, waterWeight);
 
+	// Keep the Pindex V2 coastal blend continuous. `rawWater` is a semantic QA bit and must not
+	// reintroduce a binary height cliff after the continuous surface weights have been evaluated.
 	const hydrology = sampleSeatSafeReferenceHydrology(nx, ny, PROTECTED_SEATS, PROTECTION_RADII);
-	if (hydrology.rawWater && !hydrology.protectedLand) {
-		heightMeters = Math.min(heightMeters, SEA_LEVEL - 0.25);
-	} else {
+	if (hydrology.protectedLand) {
 		const minimumLand = SEA_LEVEL + 0.35 + hydrology.protectedLandWeight * 0.9;
 		heightMeters = Math.max(heightMeters, minimumLand);
 	}
