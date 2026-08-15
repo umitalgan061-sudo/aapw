@@ -42,19 +42,24 @@ assert(openSea.rawWater && openSea.water && !openSea.protectedLand, 'open Summer
 const currentAreaKm2 = (WORLD_SCALE.WORLD_WIDTH_METERS * WORLD_SCALE.WORLD_DEPTH_METERS) / 1_000_000;
 const planned = FULL_REFERENCE_EXTENT_PLAN;
 assert(Math.abs(planned.areaKm2 - FULL_REFERENCE_EXTENT_POLICY.targetAreaKm2) < 1e-9, 'full-reference target area drifted');
-assert(planned.areaKm2 <= FULL_REFERENCE_EXTENT_POLICY.maxAreaKm2, 'full-reference plan exceeds 150 km² cap');
-assert(planned.metersPerMapUnit < WORLD_SCALE.METERS_PER_MAP_UNIT, 'full-map plan must shrink map-unit scale versus current crop');
+assert(planned.areaKm2 <= FULL_REFERENCE_EXTENT_POLICY.maxAreaKm2, 'full-reference runtime exceeds 150 km² cap');
+assert(Math.abs(WORLD_SCALE.METERS_PER_MAP_UNIT - planned.metersPerMapUnit) < 1e-12, 'runtime map scale must match the approved full-reference plan');
+assert(WORLD_SCALE.MAP_BOUNDS.minX === 0 && WORLD_SCALE.MAP_BOUNDS.maxX === 9000, 'runtime X bounds must cover the full owner map');
+assert(WORLD_SCALE.MAP_BOUNDS.minY === 0 && WORLD_SCALE.MAP_BOUNDS.maxY === 7000, 'runtime Y bounds must cover the full owner map');
+assert(Math.abs(WORLD_SCALE.WORLD_WIDTH_METERS - planned.widthMeters) < 1e-9, 'runtime width must match the full-reference plan');
+assert(Math.abs(WORLD_SCALE.WORLD_DEPTH_METERS - planned.depthMeters) < 1e-9, 'runtime depth must match the full-reference plan');
+assert(Math.abs(currentAreaKm2 - planned.areaKm2) < 1e-9, 'runtime area must equal the approved full-reference target');
 assert(planned.metersPerMapUnit <= planned.maxMetersPerMapUnit, 'target scale exceeds max-area scale');
 assert(planned.gridColumns === 27 && planned.gridRows === 21, `expected 27x21 full-map grid, got ${planned.gridColumns}x${planned.gridRows}`);
 assert(planned.gridColumns * planned.gridRows === 567, 'full-map chunk count drifted');
-assert(Math.ceil(WORLD_SCALE.WORLD_WIDTH_METERS / CHUNK_CONFIG.CHUNK_SIZE_METERS) === CHUNK_CONFIG.GRID_COLUMNS, 'current grid columns/config drifted');
-assert(Math.ceil(WORLD_SCALE.WORLD_DEPTH_METERS / CHUNK_CONFIG.CHUNK_SIZE_METERS) === CHUNK_CONFIG.GRID_ROWS, 'current grid rows/config drifted');
+assert(Math.ceil(WORLD_SCALE.WORLD_WIDTH_METERS / CHUNK_CONFIG.CHUNK_SIZE_METERS) === CHUNK_CONFIG.GRID_COLUMNS, 'runtime grid columns/config drifted');
+assert(Math.ceil(WORLD_SCALE.WORLD_DEPTH_METERS / CHUNK_CONFIG.CHUNK_SIZE_METERS) === CHUNK_CONFIG.GRID_ROWS, 'runtime grid rows/config drifted');
+assert(CHUNK_CONFIG.GRID_COLUMNS === 27 && CHUNK_CONFIG.GRID_ROWS === 21, 'runtime chunk grid must adopt the 27x21 full-map plan');
 assert(Math.abs(metersPerMapUnitForAreaKm2(150) - 1.5430334996209192) < 1e-12, '150 km² scale ceiling drifted');
 
 const terrainSource = fs.readFileSync(new URL('../src/3d/world/terrain.js', import.meta.url), 'utf8');
 const waterSource = fs.readFileSync(new URL('../src/3d/world/water.js', import.meta.url), 'utf8');
-assert(!terrainSource.includes('worldReferenceHydrology.js') && !terrainSource.includes('worldReferenceExtent.js'), 'terrain runtime must remain unwired in run182');
-assert(!waterSource.includes('worldReferenceHydrology.js') && !waterSource.includes('worldReferenceExtent.js'), 'water runtime must remain unwired in run182');
+assert(!terrainSource.includes('worldReferenceHydrology.js') && !terrainSource.includes('worldReferenceExtent.js'), 'legacy terrain module must not duplicate current-reference extent logic');
+assert(!waterSource.includes('worldReferenceHydrology.js') && !waterSource.includes('worldReferenceExtent.js'), 'water module must keep extent ownership centralized');
 
-const areaIncreasePct = ((planned.areaKm2 / currentAreaKm2) - 1) * 100;
-console.log(`[checkWorldReferenceHydrologyExtent] PASS: raw-mask seat land 12/14 (${rawWaterIds.join('+')} protected); seat-safe overlay 14/14; full-map target ${planned.areaKm2.toFixed(1)} km² at ${planned.metersPerMapUnit.toFixed(6)} m/map-unit = ${planned.widthMeters.toFixed(0)}x${planned.depthMeters.toFixed(0)}m, ${planned.gridColumns}x${planned.gridRows}=567 chunks; area +${areaIncreasePct.toFixed(1)}% versus current ${currentAreaKm2.toFixed(1)} km².`);
+console.log(`[checkWorldReferenceHydrologyExtent] PASS: raw-mask seat land 12/14 (${rawWaterIds.join('+')} protected); seat-safe overlay 14/14; runtime now adopts full owner map ${planned.areaKm2.toFixed(1)} km² at ${planned.metersPerMapUnit.toFixed(6)} m/map-unit = ${planned.widthMeters.toFixed(0)}x${planned.depthMeters.toFixed(0)}m, ${planned.gridColumns}x${planned.gridRows}=567 chunks.`);

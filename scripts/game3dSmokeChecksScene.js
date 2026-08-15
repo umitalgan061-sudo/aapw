@@ -321,9 +321,11 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
  *   2. 8 points spaced around each seat's full `innerRadiusMeters` ring sample to that exact same
  *      anchor height (within float tolerance) — proves the *entire* castle footprint is flat, not
  *      just the single center point the old code sampled, which is the actual bug this fixes.
- *   3. A point just beyond each seat's `outerRadiusMeters` sample identically whether or not
- *      `flattenPads` is passed — proves the pad's influence is bounded exactly where it claims to
- *      stop, not leaking into unrelated terrain far from any castle.
+ *   3. For each seat, a point just beyond its `outerRadiusMeters` that is also outside every sibling
+ *      pad samples identically whether or not `flattenPads` is passed. Choosing an uncontested probe
+ *      matters when legitimate castle pads overlap: a probe inside a different castle's declared
+ *      radius must not be mislabelled as leakage from the pad under test. This still proves each
+ *      pad's influence is bounded exactly where it claims to stop.
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */
 async function checkSettlementGroundFlatten(browser, baseUrl) {
@@ -347,6 +349,8 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 			const flatSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
 
 			const EPSILON_METERS = 1e-6;
+			const BOUNDARY_PROBE_COUNT = 32;
+			const BOUNDARY_OFFSET_METERS = 5;
 			const failures = [];
 			KINGDOM_SEATS.forEach((seat, index) => {
 				const pad = flattenPads[index];
@@ -370,9 +374,24 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 					}
 				}
 
-				const beyondX = x + pad.outerRadiusMeters + 5;
-				const flattenedBeyond = flatSampleHeightMeters(beyondX, z);
-				const baseBeyond = baseSampleHeightMeters(beyondX, z);
+				let boundaryProbe = null;
+				for (let probeIndex = 0; probeIndex < BOUNDARY_PROBE_COUNT; probeIndex++) {
+					const angle = (probeIndex / BOUNDARY_PROBE_COUNT) * Math.PI * 2;
+					const probeX = x + Math.cos(angle) * (pad.outerRadiusMeters + BOUNDARY_OFFSET_METERS);
+					const probeZ = z + Math.sin(angle) * (pad.outerRadiusMeters + BOUNDARY_OFFSET_METERS);
+					const insideSiblingPad = flattenPads.some((other, otherIndex) => otherIndex !== index
+						&& Math.hypot(probeX - other.x, probeZ - other.z) <= other.outerRadiusMeters + EPSILON_METERS);
+					if (!insideSiblingPad) {
+						boundaryProbe = { x: probeX, z: probeZ };
+						break;
+					}
+				}
+				if (!boundaryProbe) {
+					failures.push(`${seat.id}: no uncontested beyond-outer probe outside sibling pad radii`);
+					return;
+				}
+				const flattenedBeyond = flatSampleHeightMeters(boundaryProbe.x, boundaryProbe.z);
+				const baseBeyond = baseSampleHeightMeters(boundaryProbe.x, boundaryProbe.z);
 				if (Math.abs(flattenedBeyond - baseBeyond) > EPSILON_METERS) {
 					failures.push(`${seat.id} beyond-outer: flattened=${flattenedBeyond.toFixed(4)} != base=${baseBeyond.toFixed(4)}`);
 				}
@@ -386,7 +405,7 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 	await page.close();
 	const ok = result && !result.error && result.failures.length === 0;
 	const details = ok
-		? `all ${result.seatCount} kingdom seats: center + 8-point footprint ring flat at the exact clamped anchor height, zero influence beyond outerRadiusMeters`
+		? `all ${result.seatCount} kingdom seats: center + 8-point footprint ring flat at the exact clamped anchor height, zero influence at an uncontested probe beyond outerRadiusMeters`
 		: `FAILED: ${result?.error ?? JSON.stringify(result.failures)}`;
 	return { name: 'settlement ground-flatten pads (world/terrain.js + world/settlements.js, ADR-0118)', ok, details };
 }
