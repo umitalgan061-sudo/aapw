@@ -2,7 +2,7 @@ name: NW G10 Runtime Surface Smoothing
 
 on:
   push:
-    branches: [agent/buzul-muhafizi-g10-runtime-smoothing-exact-844824-20260815]
+    branches: [agent/buzul-muhafizi-g10-runtime-smoothing-exact-1a39cf-20260815]
   pull_request:
     branches: [main]
     paths:
@@ -15,6 +15,7 @@ on:
       - 'scripts/checkTerrainPolishIteration08.js'
       - 'godot/terrain-authoring/corner_claims/NW.json'
       - '.github/workflows/terrain-polish-iteration-008.yml'
+      - '.github/workflows/terrain-pindex-quality-v2.yml'
       - '.github/workflows/nw-g10-runtime-surface-smoothing.yml'
   workflow_dispatch:
 
@@ -37,7 +38,7 @@ jobs:
           ref: '${{ github.event.pull_request.head.sha || github.sha }}'
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Exact-main ten-file scope and quota
+      - name: Exact-main eleven-file scope and quota
         run: |
           set -euo pipefail
           git fetch origin main
@@ -47,8 +48,8 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceSurfaceTerrainVisual.js|scripts/checkTerrainPolishIteration08.js|scripts/checkNWG10RuntimeSurfaceSmoothing.mjs|scripts/checkNWG10RuntimeSurfaceTopology.mjs|scripts/checkNWG10RuntimeSmoothingNearFar.mjs|scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs|scripts/checkNWG10RuntimeSmoothingEvidence.mjs|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/terrain-polish-iteration-008.yml|\.github/workflows/nw-g10-runtime-surface-smoothing.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 10
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceSurfaceTerrainVisual.js|scripts/checkTerrainPolishIteration08.js|scripts/checkNWG10RuntimeSurfaceSmoothing.mjs|scripts/checkNWG10RuntimeSurfaceTopology.mjs|scripts/checkNWG10RuntimeSmoothingNearFar.mjs|scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs|scripts/checkNWG10RuntimeSmoothingEvidence.mjs|godot/terrain-authoring/corner_claims/NW.json|\.github/workflows/terrain-polish-iteration-008.yml|\.github/workflows/terrain-pindex-quality-v2.yml|\.github/workflows/nw-g10-runtime-surface-smoothing.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 11
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "NW G10 runtime smoothing quota: additions=$A deletions=$D total=$((A+D))"
