@@ -143,7 +143,9 @@ func _run() -> void:
 	for seam in [255.0, 256.0]:
 		for cross in [0.0, 64.0, 128.0, 192.0, 255.0, 256.0]:
 			for pos in [Vector3(seam, 0.0, cross), Vector3(cross, 0.0, seam)]:
-				var u := pos.x / 256.0; var v := pos.z / 256.0; var expected_color := _source_color(source, u, v); var color := terrain.data.get_color(pos)
+				var u: float = float(pos.x) / 256.0
+				var v: float = float(pos.z) / 256.0
+				var expected_color := _source_color(source, u, v); var color := terrain.data.get_color(pos)
 				seam_height_error = maxf(seam_height_error, absf(terrain.data.get_height(pos) - _channel(source, "heights", u, v)))
 				seam_unit_error = maxf(seam_unit_error, absf(terrain.data.get_control_blend(pos) - _channel(source, "controlBlend", u, v)))
 				seam_unit_error = maxf(seam_unit_error, maxf(absf(color.r - expected_color.r), maxf(absf(color.g - expected_color.g), absf(color.b - expected_color.b))))
