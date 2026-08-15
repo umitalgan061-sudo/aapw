@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - src/3d/world/g60Terrain3dRuntimeAdapter.js
+      - scripts/g60Terrain3dRuntimeAdapter.mjs
       - scripts/checkNEG60Terrain3DRuntimeParity.mjs
       - godot/terrain-authoring/scripts/validate_g60_terrain3d_runtime_parity.gd
       - .github/workflows/ne-g60-terrain3d-runtime-parity.yml
@@ -32,7 +32,7 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"; echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/g60Terrain3dRuntimeAdapter.js|scripts/checkNEG60Terrain3DRuntimeParity.mjs|godot/terrain-authoring/scripts/validate_g60_terrain3d_runtime_parity.gd|\.github/workflows/ne-g60-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(scripts/g60Terrain3dRuntimeAdapter.mjs|scripts/checkNEG60Terrain3DRuntimeParity.mjs|godot/terrain-authoring/scripts/validate_g60_terrain3d_runtime_parity.gd|\.github/workflows/ne-g60-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
           test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 4
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
@@ -44,7 +44,7 @@ jobs:
           node scripts/checkNEG60Terrain3DBiome.mjs
           node scripts/checkNEG60Relief.mjs
           node scripts/checkNEG60RockSnow.mjs
-          node --check src/3d/world/g60Terrain3dRuntimeAdapter.js
+          node --check scripts/g60Terrain3dRuntimeAdapter.mjs
           node --check scripts/checkNEG60Terrain3DRuntimeParity.mjs
 
       - name: Near Detail and deterministic runtime source
