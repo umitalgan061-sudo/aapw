@@ -93,19 +93,32 @@ try {
     const scene = new THREE.Scene();
     const manager = new ChunkManager({ scene, chunkSizeMeters: 500, seed: WORLD_DEFAULTS.WORLD_SEED, flattenPads });
     const g17 = probes[0];
-    const mesh = manager.loadChunk(Math.round(g17.x / 500), Math.round(g17.z / 500));
+    const chunkX = Math.round(g17.x / 500), chunkZ = Math.round(g17.z / 500);
+    const mesh = manager.loadChunk(chunkX, chunkZ);
+    const directMesh = terrain.createTerrainChunk({ chunkX, chunkZ, size: 500, segments: 64, seed: WORLD_DEFAULTS.WORLD_SEED, flattenPads });
     const position = mesh.geometry.getAttribute('position');
-    let maxRenderError = 0;
-    let worstRender = null;
+    const directPosition = directMesh.geometry.getAttribute('position');
+    let maxRenderError = 0, maxDirectError = 0;
+    let worstRender = null, worstDirect = null;
     for (let index = 0; index < position.count; index += Math.max(1, Math.floor(position.count / 101))) {
       const x = mesh.position.x + position.getX(index);
       const z = mesh.position.z + position.getZ(index);
       const meshY = position.getY(index);
+      const samplerY = sampler(x, z);
       const colliderY = collider.getGroundHeight(x, z);
       const error = Math.abs(meshY - colliderY);
       if (error > maxRenderError) {
         maxRenderError = error;
-        worstRender = { index, x, z, meshY, colliderY, error };
+        worstRender = { index, x, z, meshY, samplerY, colliderY, error };
+      }
+      const directX = directMesh.position.x + directPosition.getX(index);
+      const directZ = directMesh.position.z + directPosition.getZ(index);
+      const directY = directPosition.getY(index);
+      const directExpected = sampler(directX, directZ);
+      const directError = Math.abs(directY - directExpected);
+      if (directError > maxDirectError) {
+        maxDirectError = directError;
+        worstDirect = { index, x: directX, z: directZ, directY, samplerY: directExpected, error: directError };
       }
     }
     const output = {
@@ -116,17 +129,18 @@ try {
       mapDerivedHeight: terrain.CURRENT_TERRAIN_POLICY.mapDerivedHeight,
       mapBounds: WORLD_SCALE.MAP_BOUNDS,
       denseHeight: { minimum, maximum, belowSea, aboveSea, checksum },
-      maxPhysicsError, maxRenderError, worstRender,
+      maxPhysicsError, maxRenderError, maxDirectError, worstRender, worstDirect,
       meshPolicyId: mesh.userData.currentTerrainPolicy,
       meshSingleSource: mesh.userData.currentTerrainSingleSource === true,
       g17Height: sampler(g17.x, g17.z), g77Height: sampler(probes[1].x, probes[1].z),
       roadDiagnostics: roadDiagnostics.slice(0, 6),
     };
+    terrain.disposeTerrainChunk(directMesh);
     manager.disposeAll();
     return output;
   });
   console.log(`FULL_WORLD_RUNTIME_ROAD_DIAGNOSTICS=${JSON.stringify(result.roadDiagnostics)}`);
-  console.log(`FULL_WORLD_RUNTIME_PARITY_DIAGNOSTICS=${JSON.stringify({ maxPhysicsError: result.maxPhysicsError, maxRenderError: result.maxRenderError, worstRender: result.worstRender })}`);
+  console.log(`FULL_WORLD_RUNTIME_PARITY_DIAGNOSTICS=${JSON.stringify({ maxPhysicsError: result.maxPhysicsError, maxRenderError: result.maxRenderError, maxDirectError: result.maxDirectError, worstRender: result.worstRender, worstDirect: result.worstDirect })}`);
   if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(' | ')}`);
   if (!result.fullOwnerMapCoverage || result.legacyProceduralFallback || !result.mapDerivedHeight) throw new Error(`invalid runtime policy ${JSON.stringify(result)}`);
   if (result.sourceMapSha256 !== '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1') throw new Error('runtime source-map checksum drifted');
@@ -134,6 +148,7 @@ try {
   if (result.denseHeight.belowSea === 0 || result.denseHeight.aboveSea === 0) throw new Error('dense live terrain lacks wet/dry range');
   if (result.denseHeight.maximum - result.denseHeight.minimum <= 100) throw new Error(`live relief is implausibly flat: ${JSON.stringify(result.denseHeight)}`);
   if (result.maxPhysicsError > 1e-9) throw new Error(`render/physics sampler source mismatch ${result.maxPhysicsError}`);
+  if (result.maxDirectError > 1e-5) throw new Error(`direct terrain mesh/sampler height mismatch ${result.maxDirectError}`);
   if (result.maxRenderError > 1e-5) throw new Error(`chunk/collider height mismatch ${result.maxRenderError}`);
   if (result.meshPolicyId !== result.policyId || !result.meshSingleSource) throw new Error('ChunkManager mesh missing current-terrain provenance');
   console.log(`FULL_WORLD_RUNTIME_BROWSER=${JSON.stringify({ ...result, roadDiagnostics: undefined })}`);
