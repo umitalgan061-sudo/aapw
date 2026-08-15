@@ -70,7 +70,9 @@ jobs:
           node --check scripts/checkNWG10RuntimeSmoothingNearFar.mjs
           node --check scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs
           node --check scripts/checkNWG10RuntimeSmoothingEvidence.mjs
-          node scripts/checkTerrainPolishIteration08.js
+          grep -F "import { installRuntimePindexTerrainPolish } from './world/worldReferenceSurfaceTerrainVisual.js';" src/3d/sceneManager.js
+          grep -F 'const canonicalMapSurface = installRuntimePindexTerrainPolish();' src/3d/sceneManager.js
+          grep -F "if (!canonicalMapSurface?.installed) throw new Error('[sceneManager] canonical map surface installation failed');" src/3d/sceneManager.js
           node scripts/checkTerrainPindexQualityV2.js
           node scripts/checkWorldReferenceMap.js
       - name: Prove map topology stays anchored
