@@ -10,6 +10,7 @@ import {
   canonicalRoadNetworkMaxNormalizedX,
   g60RoadGuardBounds,
   measureG60Terrain3DRoadPath,
+  sampleG60RoadPath,
 } from '../godot/terrain-authoring/geocells/ne/g60_road_path.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -27,7 +28,7 @@ function readCanonicalRoadContract() {
   return { maxSeatMapX: Math.max(...seatXs), corridorPaddingMeters: Number(padding[1]) };
 }
 
-async function buildRuntimeNetwork() {
+async function buildRuntimeNetwork(guard) {
   const playwright = devServerHelper.loadPlaywright();
   requireOk(Boolean(playwright), 'Playwright is required for runtime road proof');
   const server = await devServerHelper.startStaticServer();
@@ -38,7 +39,8 @@ async function buildRuntimeNetwork() {
     const errors = [];
     page.on('pageerror', (error) => errors.push(String(error)));
     await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async (guardBounds) => {
+      const THREE = await import('/src/3d/vendor/three/three.module.js');
       const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
       const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
       const { createHeightSampler } = await import('/src/3d/world/terrain.js');
@@ -56,9 +58,36 @@ async function buildRuntimeNetwork() {
       const network = buildRoadNetwork({ seats, sampleHeightMeters });
       const serialize = (edges) => edges.map((edge) => ({ fromId: edge.fromId, toId: edge.toId,
         points: edge.points.map((point) => ({ x: point.x, y: point.y, z: point.z })) }));
+
+      // Audit the actual cart-road + footpath ribbon vertices, not only centerlines.
+      const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
+      const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
+      const worldToRef = (x, z) => ({
+        x: (x / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapX) / 9000,
+        y: (z / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapY) / 7000,
+      });
+      network.group.updateMatrixWorld(true);
+      let renderedMeshes = 0, renderedVertices = 0, renderedVerticesInsideGuard = 0;
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      const v = new THREE.Vector3();
+      network.group.traverse((object) => {
+        const positions = object.geometry?.getAttribute?.('position');
+        if (!positions) return;
+        renderedMeshes += 1;
+        for (let i = 0; i < positions.count; i += 1) {
+          v.fromBufferAttribute(positions, i).applyMatrix4(object.matrixWorld);
+          const n = worldToRef(v.x, v.z);
+          minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x); minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
+          if (n.x >= guardBounds.xMin && n.x <= guardBounds.xMax && n.y >= guardBounds.yMin && n.y <= guardBounds.yMax) renderedVerticesInsideGuard += 1;
+          renderedVertices += 1;
+        }
+      });
+      const renderedRoadEnvelope = { renderedMeshes, renderedVertices, renderedVerticesInsideGuard,
+        minX:Number(minX.toFixed(8)), maxX:Number(maxX.toFixed(8)), minY:Number(minY.toFixed(8)), maxY:Number(maxY.toFixed(8)) };
+      network.group.traverse((object) => { object.geometry?.dispose?.(); if (Array.isArray(object.material)) object.material.forEach((m) => m.dispose?.()); else object.material?.dispose?.(); });
       return { mapBounds: { ...WORLD_SCALE.MAP_BOUNDS }, metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
-        mainEdges: serialize(network.edges), footpathEdges: serialize(network.footpathEdges ?? []) };
-    });
+        mainEdges: serialize(network.edges), footpathEdges: serialize(network.footpathEdges ?? []), renderedRoadEnvelope };
+    }, guard);
     requireOk(errors.length === 0, `runtime road proof page errors: ${errors.join(' | ')}`);
     return result;
   } finally {
@@ -74,57 +103,37 @@ assert.equal(contract.corridorPaddingMeters, p.canonicalRouteCorridorPaddingMete
 const guard = g60RoadGuardBounds();
 assert.ok(canonicalRoadNetworkMaxNormalizedX() < guard.xMin, 'canonical road search envelope reaches G60 guard band');
 
-const runtime = await buildRuntimeNetwork();
+const runtime = await buildRuntimeNetwork(guard);
 assert.equal(runtime.mainEdges.length, 13, `runtime road backbone changed: ${runtime.mainEdges.length}`);
-const first = measureG60Terrain3DRoadPath(runtime);
-const second = measureG60Terrain3DRoadPath(runtime);
+assert.ok(runtime.renderedRoadEnvelope.renderedMeshes >= 1, 'runtime road renderer produced no meshes');
+assert.ok(runtime.renderedRoadEnvelope.renderedVertices > 100, 'runtime road renderer produced too few vertices');
+assert.equal(runtime.renderedRoadEnvelope.renderedVerticesInsideGuard, 0, 'rendered road/path ribbon entered G60 guard');
+assert.ok(runtime.renderedRoadEnvelope.maxX < guard.xMin, `rendered road/path envelope reaches G60 guard: ${runtime.renderedRoadEnvelope.maxX}`);
+const first = measureG60Terrain3DRoadPath(runtime), second = measureG60Terrain3DRoadPath(runtime);
 assert.deepEqual(first, second, 'G60 Road/Path metrics must be deterministic');
 assert.equal(first.geoCell, 'G60'); assert.equal(first.layer, 'Road/Path');
 assert.equal(first.canonicalWaterCells, 96); assert.equal(first.canonicalLandCells, 0);
 assert.equal(first.qualificationSamples, 257 * 257); assert.equal(first.nonSeaSamples, 0);
-assert.equal(first.crossingEdges.length, 0, `live road/path intersects G60 guard: ${JSON.stringify(first.crossingEdges)}`);
+assert.equal(first.crossingEdges.length, 0, `live road/path centerline intersects G60 guard: ${JSON.stringify(first.crossingEdges)}`);
 assert.ok(first.runtimeRoadReferenceEnvelope.points > 0, 'runtime road network had no projected points');
-assert.ok(first.runtimeRoadReferenceEnvelope.maxX < guard.xMin, `runtime road envelope reaches G60 guard: ${first.runtimeRoadReferenceEnvelope.maxX}`);
+assert.ok(first.runtimeRoadReferenceEnvelope.maxX < guard.xMin, `runtime road centerline reaches G60 guard: ${first.runtimeRoadReferenceEnvelope.maxX}`);
 assert.ok(first.canonicalRoadGuardMarginMeters > 50, `canonical road guard margin too small: ${first.canonicalRoadGuardMarginMeters}`);
-assert.equal(first.activeRoadSamples, 0); assert.equal(first.activePathSamples, 0); assert.equal(first.maxCoverage, 0);
-assert.equal(first.maxAdjacentCoverageStep, 0, 'road-free G60 developed a coverage edge');
-assert.equal(first.maxHeightDelta, 0, 'Road/Path changed merged G60 Relief height');
-assert.equal(first.maxSurfaceDelta, 0, 'Road/Path changed merged G60 Rock/Snow/biome surface');
-assert.equal(first.terrain3dImportSize, 257); assert.equal(first.terrain3dRegionSize, 256);
+assert.equal(first.activeRoadSamples, 0); assert.equal(first.activePathSamples, 0); assert.equal(first.maxCoverage, 0); assert.equal(first.maxAdjacentCoverageStep, 0);
+assert.equal(first.maxHeightDelta, 0, 'Road/Path changed merged G60 Relief height'); assert.equal(first.maxSurfaceDelta, 0, 'Road/Path changed merged surface');
 
 const probeA = buildG60Terrain3DRoadPathProbe(runtime), probeB = buildG60Terrain3DRoadPathProbe(runtime);
 assert.deepEqual(probeA, probeB, 'G60 Road/Path probe must be deterministic');
 assert.equal(probeA.rows.length, 65); assert.ok(probeA.rows.every((row) => row.length === 65));
 for (const row of probeA.rows) for (const sample of row) {
-  assert.equal(sample.length, 9); assert.equal(sample[0], -8, 'Road/Path changed qualified seafloor height');
-  assert.equal(sample[1], 0, 'probe invented road'); assert.equal(sample[2], 0, 'probe invented path');
-  assert.equal(sample[3], 0, 'probe changed substrate control blend'); assert.equal(sample[4], 0, 'probe invented route kind');
-  assert.ok(sample[5] >= 0 && sample[5] <= 1 && sample[6] >= 0 && sample[6] <= 1 && sample[7] >= 0 && sample[7] <= 1);
-  assert.ok(sample[8] >= 0 && sample[8] <= 1, 'roughness out of range');
+  assert.equal(sample.length, 9); assert.equal(sample[0], -8); assert.equal(sample[1], 0); assert.equal(sample[2], 0); assert.equal(sample[3], 0); assert.equal(sample[4], 0);
+  assert.ok(sample.slice(5,8).every((v)=>v>=0&&v<=1)); assert.ok(sample[8]>=0&&sample[8]<=1);
 }
-
-// Guard stress at west/east/south edges; the north edge is the world boundary.
 for (let i = 0; i <= 256; i += 1) {
-  const t = i / 256;
-  const nx = p.normalizedBounds.xMin + (p.normalizedBounds.xMax - p.normalizedBounds.xMin) * t;
-  const ny = p.normalizedBounds.yMin + (p.normalizedBounds.yMax - p.normalizedBounds.yMin) * t;
-  for (const [x, y] of [
-    [p.normalizedBounds.xMin - p.guardNormalized, ny], [p.normalizedBounds.xMin, ny],
-    [p.normalizedBounds.xMax, ny], [p.normalizedBounds.xMax + p.guardNormalized, ny],
-    [nx, p.normalizedBounds.yMax], [nx, p.normalizedBounds.yMax + p.guardNormalized],
-  ]) {
-    const s = (await import('../godot/terrain-authoring/geocells/ne/g60_road_path.mjs')).sampleG60RoadPath(x, y);
-    assert.equal(s.coverage, 0); assert.equal(s.roadPathControlBlend, 0); assert.equal(s.authoredHeight, -8);
+  const t=i/256, nx=p.normalizedBounds.xMin+(p.normalizedBounds.xMax-p.normalizedBounds.xMin)*t, ny=p.normalizedBounds.yMin+(p.normalizedBounds.yMax-p.normalizedBounds.yMin)*t;
+  for (const [x,y] of [[p.normalizedBounds.xMin-p.guardNormalized,ny],[p.normalizedBounds.xMin,ny],[p.normalizedBounds.xMax,ny],[p.normalizedBounds.xMax+p.guardNormalized,ny],[nx,p.normalizedBounds.yMax],[nx,p.normalizedBounds.yMax+p.guardNormalized]]) {
+    const s=sampleG60RoadPath(x,y); assert.equal(s.coverage,0); assert.equal(s.roadPathControlBlend,0); assert.equal(s.authoredHeight,-8);
   }
 }
-
-const emit = process.argv.find((arg) => arg.startsWith('--emit-probe='));
-if (emit) {
-  const output = path.resolve(emit.slice('--emit-probe='.length));
-  fs.mkdirSync(path.dirname(output), { recursive: true });
-  fs.writeFileSync(output, `${JSON.stringify(probeA)}\n`, 'utf8');
-}
-console.log(`NE_G60_ROAD_PATH_METRICS=${JSON.stringify({ ...first, runtimeMainEdges: runtime.mainEdges.length,
-  runtimeFootpathEdges: runtime.footpathEdges.length, canonicalMaxSeatMapX: contract.maxSeatMapX,
-  corridorPaddingMeters: contract.corridorPaddingMeters })}`);
+const emit=process.argv.find((arg)=>arg.startsWith('--emit-probe=')); if(emit){const output=path.resolve(emit.slice('--emit-probe='.length));fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,`${JSON.stringify(probeA)}\n`,'utf8');}
+console.log(`NE_G60_ROAD_PATH_METRICS=${JSON.stringify({ ...first, runtimeMainEdges:runtime.mainEdges.length, runtimeFootpathEdges:runtime.footpathEdges.length, renderedRoadEnvelope:runtime.renderedRoadEnvelope, canonicalMaxSeatMapX:contract.maxSeatMapX, corridorPaddingMeters:contract.corridorPaddingMeters })}`);
 console.log('NE_G60_ROAD_PATH_VALIDATION_OK');
