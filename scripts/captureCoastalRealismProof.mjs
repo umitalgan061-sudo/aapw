@@ -97,23 +97,25 @@ try {
     camera.position.set(0, 13000, 0);
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
+    state.sky.position.copy(camera.position);
     state.renderer.render(state.scene, camera);
   });
   await page.screenshot({ path: `${OUT}/01-uzak-dik-ustten.png` });
 
   await page.evaluate(() => {
     const { THREE, state, coastView, sampleHeight } = window.__capture;
-    const inlandX = coastView.x - coastView.waterDx * 650;
-    const inlandZ = coastView.z - coastView.waterDz * 650;
+    const inlandX = coastView.x - coastView.waterDx * 900;
+    const inlandZ = coastView.z - coastView.waterDz * 900;
     const lookY = sampleHeight(inlandX, inlandZ) + 40;
     state.water.scale.set(1, 1, 1);
-    const cameraX = coastView.x + coastView.waterDx * 1200;
-    const cameraZ = coastView.z + coastView.waterDz * 1200;
+    const cameraX = coastView.x + coastView.waterDx * 1650;
+    const cameraZ = coastView.z + coastView.waterDz * 1650;
     state.water.position.set(cameraX, state.water.position.y, cameraZ);
-    const camera = new THREE.PerspectiveCamera(46, 1536 / 1024, 1, 22000);
-    camera.position.set(cameraX, Math.max(380, coastView.height + 430), cameraZ);
+    const camera = new THREE.PerspectiveCamera(50, 1536 / 1024, 1, 22000);
+    camera.position.set(cameraX, Math.max(650, coastView.height + 700), cameraZ);
     camera.lookAt(inlandX, lookY, inlandZ);
     camera.updateProjectionMatrix();
+    state.sky.position.copy(camera.position);
     state.renderer.render(state.scene, camera);
   });
   await page.screenshot({ path: `${OUT}/02-yakin-egik-gercek-gokyuzu.png` });
