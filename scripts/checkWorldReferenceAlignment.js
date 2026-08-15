@@ -52,10 +52,17 @@ const referenceBounds = {
 	maxY: WORLD_SCALE.MAP_BOUNDS.maxY / WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits,
 };
 const referenceExtentFraction = (referenceBounds.maxX - referenceBounds.minX) * (referenceBounds.maxY - referenceBounds.minY);
+assert(WORLD_SCALE.MAP_BOUNDS.minX === 0 && WORLD_SCALE.MAP_BOUNDS.maxX === 9000 && WORLD_SCALE.MAP_BOUNDS.minY === 0 && WORLD_SCALE.MAP_BOUNDS.maxY === 7000, '3D runtime must cover the complete 9000x7000 owner map');
+assert(Math.abs(referenceExtentFraction - 1) < 1e-12, `3D runtime owner-map coverage drifted: ${referenceExtentFraction}`);
 
 const terrainSource = fs.readFileSync(new URL('../src/3d/world/terrain.js', import.meta.url), 'utf8');
 const waterSource = fs.readFileSync(new URL('../src/3d/world/water.js', import.meta.url), 'utf8');
-assert(!terrainSource.includes('worldReferenceAlignment.js') && !terrainSource.includes('worldReferenceWaterMask.js'), 'terrain runtime must remain unwired until seat-safe hydrology exists');
-assert(!waterSource.includes('worldReferenceAlignment.js') && !waterSource.includes('worldReferenceWaterMask.js'), 'water runtime must remain unwired until seat-safe hydrology exists');
+assert(terrainSource.includes("from './worldReferenceAlignment.js'"), 'terrain runtime must use canonical owner-map alignment');
+assert(terrainSource.includes('sampleReferencePindexQualityV2(nx, ny)'), 'terrain runtime must use continuous Pindex V2 geography');
+assert(terrainSource.includes('sampleWorldReferenceMountainReliefMeters(worldX, worldZ)'), 'terrain runtime must preserve canonical mountain relief');
+assert(terrainSource.includes('sampleSeatSafeReferenceHydrology(nx, ny, PROTECTED_SEATS, PROTECTION_RADII)'), 'terrain runtime must apply seat-safe hydrology before land protection');
+assert(terrainSource.includes('fullOwnerMapCoverage: true') && terrainSource.includes('legacyProceduralFallback: false') && terrainSource.includes('mapDerivedHeight: true'), 'terrain runtime single-source policy drifted');
+assert(!terrainSource.includes('worldReferenceWaterMask.js'), 'terrain runtime must not bypass seat-safe hydrology with the raw water mask');
+assert(!waterSource.includes('worldReferenceAlignment.js') && !waterSource.includes('worldReferenceWaterMask.js'), 'water runtime must remain independent of raw reference-mask wiring');
 
-console.log(`[checkWorldReferenceAlignment] PASS: CSS proves exact 9000x7000 -> 1536x1024 stretch alignment; ${seats.length}/14 seats round-trip exactly; raw mask land=${seats.length - rawWaterSeatIds.length}/14, protected-before-runtime exceptions=${rawWaterSeatIds.join(',')}; current 3D map-bounds cover ${(referenceExtentFraction * 100).toFixed(1)}% of normalized reference rectangle.`);
+console.log(`[checkWorldReferenceAlignment] PASS: CSS and shipped 3D share exact 9000x7000 owner-map alignment; ${seats.length}/14 seats round-trip exactly; raw-mask exceptions=${rawWaterSeatIds.join(',')} are protected through seat-safe hydrology; runtime reference coverage=${(referenceExtentFraction * 100).toFixed(1)}%.`);

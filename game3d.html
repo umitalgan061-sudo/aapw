@@ -117,7 +117,7 @@
 </div>
 <a class="g3d-back-link" href="index.html">&larr; 2D Haritaya Dön</a>
 <a class="g3d-back-link" href="rts.html" style="left:auto;right:max(12px, env(safe-area-inset-right));">⚔ RTS Komutanlık</a>
-<script type="module" src="./src/3d/editor/EditorGamePatchPreviewGateSafe.js"></script>
+<script type="module">if (new URLSearchParams(location.search).get('editorPatch') === '1') await import('./src/3d/editor/EditorGamePatchPreviewGateSafe.js');</script>
 <script type="module">
   import { initGame3D } from './src/3d/game3d.js';
   import { gameEvents } from './src/3d/eventBus.js';
