@@ -1,0 +1,82 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+
+function value(flag) {
+  const arg = process.argv.find((candidate) => candidate.startsWith(`${flag}=`));
+  if (!arg) throw new Error(`missing ${flag}=...`);
+  return arg.slice(flag.length + 1);
+}
+
+function digest(file) {
+  const bytes = fs.readFileSync(file);
+  if (bytes.length < 1000) throw new Error(`visual evidence too small: ${file} (${bytes.length})`);
+  if (!bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw new Error(`visual evidence is not PNG: ${file}`);
+  if (bytes.subarray(12, 16).toString('ascii') !== 'IHDR') throw new Error(`visual evidence missing PNG IHDR: ${file}`);
+  const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
+  if (width < 1 || height < 1) throw new Error(`visual evidence has invalid dimensions: ${file} (${width}x${height})`);
+  return { bytes: bytes.length, width, height, sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
+}
+
+const visualDir = value('--visual-dir');
+const sourcePath = value('--source');
+const out = value('--out');
+const metricsPath = path.join(visualDir, 'g17-hydrology-visual-metrics.json');
+const metrics = JSON.parse(fs.readFileSync(metricsPath, 'utf8'));
+const source = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+
+const near = path.join(visualDir, 'g17-hydrology-near.png');
+const far = path.join(visualDir, 'g17-hydrology-far.png');
+const full = path.join(visualDir, 'g17-hydrology-full-world-topdown.png');
+for (const file of [near, far, full]) {
+  if (!fs.existsSync(file)) throw new Error(`missing visual evidence ${file}`);
+}
+
+if (source.sourceMapSha256 !== '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1') {
+  throw new Error('Road/Path source evidence lost canonical map SHA');
+}
+if (source.sourceMapVersion !== 'map.png-r1' || source.sourceMapSize?.[0] !== 1536 || source.sourceMapSize?.[1] !== 1024) throw new Error('Road/Path source evidence lost canonical map version/size');
+if (metrics.topdown?.sourceWidth !== 1536 || metrics.topdown?.sourceHeight !== 1024) {
+  throw new Error('full-world visual evidence lost canonical source dimensions');
+}
+if (metrics.topdown?.visibleGeoCellOverlay !== false || metrics.topdown?.imageSmoothing !== true || metrics.topdown?.sdfSmoothingPasses < 1) {
+  throw new Error('full-world visual evidence lost filtered no-grid SDF contract');
+}
+if (metrics.topdown?.landLikePixels <= 0 || metrics.topdown?.waterLikePixels <= 0) {
+  throw new Error('full-world silhouette must contain both land and water');
+}
+if (source.coverage?.activeSamples !== 0 || source.routeEvidence?.roadGuardCrossingSegments !== 0 || source.routeEvidence?.pathGuardCrossingSegments !== 0) {
+  throw new Error('Road/Path negative visual proof source is not empty');
+}
+
+const images = { near: digest(near), far: digest(far), fullWorldTopDown: digest(full) };
+if (new Set(Object.values(images).map((image) => image.sha256)).size !== 3) {
+  throw new Error('near, far and full-world top-down evidence must be three distinct renders');
+}
+
+const manifest = {
+  schema: 'westeros-g17-road-path-visual-evidence-v2',
+  sourceMapSha256: source.sourceMapSha256,
+  sourceMapVersion: source.sourceMapVersion,
+  sourceMapSize: source.sourceMapSize,
+  layer: 'Road/Path',
+  geoCell: 'G17',
+  negativePhysicalProof: true,
+  inheritedGeographyUnchanged: true,
+  visibleGeoCellOverlay: false,
+  roadGuardCrossings: source.routeEvidence.roadGuardCrossingSegments,
+  pathGuardCrossings: source.routeEvidence.pathGuardCrossingSegments,
+  minRoadGuardClearance: source.routeEvidence.minRoadGuardClearance,
+  minPathGuardClearance: source.routeEvidence.minPathGuardClearance,
+  images,
+  hydrologyVisualMetrics: metrics,
+};
+fs.mkdirSync(path.dirname(out), { recursive: true });
+fs.writeFileSync(out, `${JSON.stringify(manifest, null, 2)}\n`);
+console.log(`SW_G17_ROAD_PATH_VISUAL_EVIDENCE=${JSON.stringify({
+  visibleGeoCellOverlay: false,
+  roadGuardCrossings: manifest.roadGuardCrossings,
+  pathGuardCrossings: manifest.pathGuardCrossings,
+  fullWorldTopDownSha256: manifest.images.fullWorldTopDown.sha256,
+})}`);
+console.log('SW_G17_ROAD_PATH_VISUAL_EVIDENCE_OK');
