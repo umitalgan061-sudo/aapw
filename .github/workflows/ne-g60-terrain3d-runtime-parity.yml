@@ -1,0 +1,152 @@
+name: NE G60 Terrain3D Runtime Parity
+on:
+  push: { branches: ['terrain/ne-g60-terrain3d-runtime-parity-exact-*-20260815'] }
+  pull_request:
+    branches: [main]
+    paths:
+      - src/3d/world/g60Terrain3dRuntimeAdapter.js
+      - scripts/checkNEG60Terrain3DRuntimeParity.mjs
+      - godot/terrain-authoring/scripts/validate_g60_terrain3d_runtime_parity.gd
+      - .github/workflows/ne-g60-terrain3d-runtime-parity.yml
+  workflow_dispatch:
+permissions: { contents: read }
+concurrency: { group: 'ne-g60-runtime-parity-${{ github.head_ref || github.ref_name }}', cancel-in-progress: true }
+env: { TZ: Europe/Istanbul }
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, lfs: false, ref: '${{ github.event.pull_request.head.sha || github.sha }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Exact-main four-file scope quota and prior G60 layers
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"; echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/g60Terrain3dRuntimeAdapter.js|scripts/checkNEG60Terrain3DRuntimeParity.mjs|godot/terrain-authoring/scripts/validate_g60_terrain3d_runtime_parity.gd|\.github/workflows/ne-g60-terrain3d-runtime-parity.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 4
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
+          D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "G60_RUNTIME_PARITY_CHANGED_LINES=$((A+D))"; test $((A+D)) -le 1000
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/corner_claims/NE.json
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py
+          git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/terrain.js src/3d/world/roads.js src/3d/world/vegetation.js
+          node scripts/checkNEG60Hydrology.mjs
+          node scripts/checkNEG60Terrain3DBiome.mjs
+          node scripts/checkNEG60Relief.mjs
+          node scripts/checkNEG60RockSnow.mjs
+          node --check src/3d/world/g60Terrain3dRuntimeAdapter.js
+          node --check scripts/checkNEG60Terrain3DRuntimeParity.mjs
+
+      - name: Road Path Near Detail and deterministic runtime source
+        run: |
+          set -euo pipefail
+          mkdir -p godot/terrain-authoring/.terrain3d-proof
+          node scripts/checkNEG60RoadPath.mjs
+          node scripts/checkNEG60NearDetail.mjs
+          node scripts/checkNEG60NearDetailEnvelope.mjs
+          node scripts/checkNEG60NearDetailPreflight.mjs
+          node scripts/checkNEG60NearDetailLod.mjs
+          node scripts/checkNEG60Terrain3DRuntimeParity.mjs | tee /tmp/source-a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g60-runtime-source.json /tmp/source-a.json
+          node scripts/checkNEG60Terrain3DRuntimeParity.mjs | tee /tmp/source-b.log
+          cmp /tmp/source-a.log /tmp/source-b.log
+          cmp /tmp/source-a.json godot/terrain-authoring/.terrain3d-proof/g60-runtime-source.json
+          grep -F NE_G60_RUNTIME_PARITY_SOURCE_OK /tmp/source-a.log
+
+      - name: Install pinned Terrain3D Godot and Chromium
+        run: |
+          set -euo pipefail
+          ok=0; for n in 1 2 3; do if python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/t3d-$n.log; then grep -F TERRAIN3D_INSTALL_OK /tmp/t3d-$n.log; ok=1; break; fi; sleep $((n*3)); done; test "$ok" -eq 1
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | grep -F TERRAIN3D_VERIFY_OK
+          mkdir -p "$RUNNER_TEMP/g"; curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o "$RUNNER_TEMP/g.zip"
+          unzip -q "$RUNNER_TEMP/g.zip" -d "$RUNNER_TEMP/g"
+          G="$(find "$RUNNER_TEMP/g" -maxdepth 1 -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; test -n "$G"; chmod +x "$G"; "$G" --version | grep -F 4.6.3
+          echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/pw"; npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Double real Terrain3D import persistence seams and LOD0 bake
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 2>&1 | tee /tmp/editor.log
+          ! grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' /tmp/editor.log
+          G60_RUNTIME_PARITY_PROOF_SUFFIX=a timeout 300s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g60_terrain3d_runtime_parity.gd 2>&1 | tee /tmp/native-a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g60-runtime-bake.json /tmp/bake-a.json
+          cp godot/terrain-authoring/.terrain3d-proof/g60-runtime-bake-topdown.png /tmp/preview-a.png
+          G60_RUNTIME_PARITY_PROOF_SUFFIX=b timeout 300s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g60_terrain3d_runtime_parity.gd 2>&1 | tee /tmp/native-b.log
+          grep -F NE_G60_TERRAIN3D_RUNTIME_BAKE_OK /tmp/native-a.log
+          grep -F NE_G60_TERRAIN3D_RUNTIME_BAKE_OK /tmp/native-b.log
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'; import assert from 'node:assert/strict';
+          const read=(p)=>JSON.parse(fs.readFileSync(p,'utf8'));
+          const normalize=(b)=>{const o=structuredClone(b);delete o.savedRegionBytes;o.heights=o.heights.map(v=>Math.round(v*1e6));for(const k of ['controlBlend','tintR','tintG','tintB','roughness'])o[k]=o[k].map(v=>Math.round(Math.min(1,Math.max(0,v))*255));return o;};
+          assert.deepStrictEqual(normalize(read('/tmp/bake-a.json')),normalize(read('godot/terrain-authoring/.terrain3d-proof/g60-runtime-bake.json')));
+          console.log('NE_G60_TERRAIN3D_RUNTIME_NORMALIZED_DETERMINISM_OK');
+          NODE
+          cmp /tmp/preview-a.png godot/terrain-authoring/.terrain3d-proof/g60-runtime-bake-topdown.png
+
+      - name: Hydrate scoped smoke LFS assets
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+
+      - name: Three.js bake parity and real full-world orthographic proof
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNEG60Terrain3DRuntimeParity.mjs --verify --out-dir=artifacts/ne-g60-runtime-parity | tee /tmp/parity.log
+          grep -F NE_G60_TERRAIN3D_RUNTIME_PARITY_OK /tmp/parity.log
+
+      - name: Near far context and repository regression gates
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNEG60NearDetailVisualEvidence.mjs --out-dir=artifacts/ne-g60-runtime-parity/near-detail
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | tee /tmp/ht.log
+          grep -F HTERRAIN_AUTHORING_VALIDATION_OK /tmp/ht.log
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkFullWorldRuntimeCoverage.mjs
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkVegetationVisualContract.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
+
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ne-g60-terrain3d-runtime-parity-proof
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 5
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g60-runtime-source.json
+            godot/terrain-authoring/.terrain3d-proof/g60-runtime-bake.json
+            godot/terrain-authoring/.terrain3d-proof/g60-runtime-bake-topdown.png
+            artifacts/ne-g60-runtime-parity/
+            /tmp/native-a.log
+            /tmp/native-b.log
