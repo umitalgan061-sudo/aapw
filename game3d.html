@@ -119,7 +119,6 @@
 <a class="g3d-back-link" href="rts.html" style="left:auto;right:max(12px, env(safe-area-inset-right));">⚔ RTS Komutanlık</a>
 <script type="module" src="./src/3d/editor/EditorGamePatchPreviewGateSafe.js"></script>
 <script type="module">
-  import { installRuntimePindexTerrainPolish } from './src/3d/world/worldReferenceSurfaceTerrainVisual.js';
   import { initGame3D } from './src/3d/game3d.js';
   import { gameEvents } from './src/3d/eventBus.js';
   import { EVENTS } from './src/3d/config.js';
@@ -141,7 +140,6 @@
     console.error('[game3d.html] game error', error);
   });
 
-  installRuntimePindexTerrainPolish();
   initGame3D();
 </script>
 <script>
