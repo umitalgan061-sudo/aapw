@@ -9,6 +9,7 @@ on:
       - 'src/3d/world/worldReferenceMountainRelief.js'
       - 'fixtures/world-reference-mountain-relief-v1.json'
       - 'scripts/checkWorldReferenceMountainRelief.mjs'
+      - 'scripts/terrainSeatSafetyCheck.js'
       - 'service-worker.js'
       - '.github/workflows/live-map-mountain-relief.yml'
   workflow_dispatch:
@@ -52,6 +53,7 @@ jobs:
           node --check src/3d/world/worldReferenceMountainRelief.js
           node --check src/3d/world/terrain.js
           node --check scripts/checkWorldReferenceMountainRelief.mjs
+          node --check scripts/terrainSeatSafetyCheck.js
           node --check service-worker.js
           node scripts/checkWorldReferenceMountainRelief.mjs
 
