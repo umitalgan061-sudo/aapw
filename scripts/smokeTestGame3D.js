@@ -38,6 +38,8 @@
  * - `game3dSmokeChecksPauseMenu.js` — menu/pause overlay open/close/dispose (run 339, ADR-0285); plus
  *   (run 341, ADR-0289) the settings screen's quality picker and `renderQuality.js`'s manual-override
  *   resolution.
+ * - `game3dSmokeChecksEditorFbxPack.js` — World Editor independent static FBX-pack transforms,
+ *   root/rig isolation and scene-v1 persistence (run 344, ADR-0292).
  *
  * The split history: run 40 (`game3dSmokeChecks.js` hit 596/600), run 64 (a fifth check module rather
  * than growing `game3dSmokeChecksMovement.js`, already at 614/600), run 68 (that 614-line violation
@@ -72,6 +74,7 @@ const settlementDiscoveryChecks = require('./game3dSmokeChecksSettlementDiscover
 const dayNightClockChecks = require('./game3dSmokeChecksDayNightClock.js');
 const vegetationChecks = require('./game3dSmokeChecksVegetation.js');
 const pauseMenuChecks = require('./game3dSmokeChecksPauseMenu.js');
+const editorFbxPackChecks = require('./game3dSmokeChecksEditorFbxPack.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
@@ -115,6 +118,7 @@ async function main() {
 		results.push(await pauseMenuChecks.checkPauseMenu(browser, baseUrl));
 		results.push(await pauseMenuChecks.checkPauseMenuSettings(browser, baseUrl));
 		results.push(await pauseMenuChecks.checkControlsHelpPauseMenuEscapeCoexistence(browser, baseUrl));
+		results.push(await editorFbxPackChecks.checkEditorFbxPackTransforms(browser, baseUrl));
 		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));
