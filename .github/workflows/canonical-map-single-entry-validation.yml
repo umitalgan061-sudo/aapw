@@ -35,8 +35,6 @@ jobs:
           grep -F "canonical map surface installation failed" src/3d/sceneManager.js
           ! grep -F "installRuntimePindexTerrainPolish" game3d.html
           node scripts/checkServiceWorkerCache.js
-          node scripts/terrainSeatSafetyCheck.js
-          node scripts/roadNetworkSafetyCheck.js
       - name: Hydrate smoke-test LFS assets
         run: |
           set -euo pipefail
@@ -49,13 +47,17 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Terrain and road safety after Chromium
+        run: |
+          set -euo pipefail
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
       - name: Direct createScene canonical-map ownership and top-down proof
         run: |
           set -euo pipefail
           mkdir -p artifacts/canonical-map-single-entry
           node <<'NODE'
           const fs = require('fs');
-          const path = require('path');
           const { startStaticServer, loadPlaywright } = require('./scripts/devServerHelper.js');
 
           (async () => {
@@ -88,7 +90,7 @@ jobs:
                 // no external installRuntimePindexTerrainPolish() call here.
                 const THREE = await import('/src/3d/vendor/three/three.module.js');
                 const { createScene } = await import('/src/3d/sceneManager.js');
-                const { WORLD_DEFAULTS, WORLD_SCALE } = await import('/src/3d/config.js');
+                const { WORLD_SCALE } = await import('/src/3d/config.js');
                 const state = createScene(canvas);
                 state.controls.enabled = false;
                 state.scene.fog = null;
