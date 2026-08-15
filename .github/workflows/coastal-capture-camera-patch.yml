@@ -1,0 +1,56 @@
+name: Coastal Capture Camera Patch
+on:
+  push:
+    branches: [chatgpt/coastal-relief-realism-20260815]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: chatgpt/coastal-relief-realism-20260815
+      - name: Patch temporary capture only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/captureCoastalRealismProof.mjs')
+          text = path.read_text()
+          replacements = [
+            ("    camera.updateProjectionMatrix();\n    state.renderer.render(state.scene, camera);",
+             "    camera.updateProjectionMatrix();\n    state.sky.position.copy(camera.position);\n    state.renderer.render(state.scene, camera);"),
+            ("    const inlandX = coastView.x - coastView.waterDx * 650;\n    const inlandZ = coastView.z - coastView.waterDz * 650;",
+             "    const inlandX = coastView.x - coastView.waterDx * 900;\n    const inlandZ = coastView.z - coastView.waterDz * 900;"),
+            ("    const cameraX = coastView.x + coastView.waterDx * 1200;\n    const cameraZ = coastView.z + coastView.waterDz * 1200;",
+             "    const cameraX = coastView.x + coastView.waterDx * 1650;\n    const cameraZ = coastView.z + coastView.waterDz * 1650;"),
+            ("    const camera = new THREE.PerspectiveCamera(46, 1536 / 1024, 1, 22000);\n    camera.position.set(cameraX, Math.max(380, coastView.height + 430), cameraZ);",
+             "    const camera = new THREE.PerspectiveCamera(50, 1536 / 1024, 1, 22000);\n    camera.position.set(cameraX, Math.max(650, coastView.height + 700), cameraZ);")
+          ]
+          for old, new in replacements:
+            if new in text:
+              continue
+            count = text.count(old)
+            if old.startswith('    camera.updateProjectionMatrix();'):
+              if count != 2:
+                raise SystemExit(f'camera render anchor drifted: {count}')
+              text = text.replace(old, new)
+            else:
+              if count != 1:
+                raise SystemExit(f'capture anchor drifted: {old[:80]} count={count}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          node --check scripts/captureCoastalRealismProof.mjs
+          git diff --check
+      - name: Commit temporary capture patch
+        run: |
+          if git diff --quiet -- scripts/captureCoastalRealismProof.mjs; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/captureCoastalRealismProof.mjs
+          git commit -m 'test(terrain): recenter sky in coastal capture'
+          git push origin HEAD:chatgpt/coastal-relief-realism-20260815
