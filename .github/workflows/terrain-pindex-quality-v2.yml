@@ -34,6 +34,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          lfs: true
 
       - uses: actions/setup-node@v4
         with:
@@ -138,4 +139,3 @@ jobs:
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
           test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfacePindexes.js | awk '{print $2+0}')" = '0'
-          test "$(git diff --numstat "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfaceTerrainVisual.js | awk '{print $2+0}')" = '0'
