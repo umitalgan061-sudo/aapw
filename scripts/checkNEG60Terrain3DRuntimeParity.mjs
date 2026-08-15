@@ -8,7 +8,7 @@ import { sampleG60NearDetail } from '../godot/terrain-authoring/geocells/ne/g60_
 import {
   G60_TERRAIN3D_RUNTIME_PARITY,
   assertG60Terrain3DBakePayload,
-} from '../src/3d/world/g60Terrain3dRuntimeAdapter.js';
+} from './g60Terrain3dRuntimeAdapter.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PROOF_DIR = path.join(ROOT, 'godot/terrain-authoring/.terrain3d-proof');
@@ -122,7 +122,7 @@ async function verifyBrowser(bake) {
       document.head.append(importMap);
     });
     const adapter = await page.evaluate(async (payload) => {
-      const { createG60Terrain3DWorldSampler, G60_TERRAIN3D_RUNTIME_PARITY } = await import('/src/3d/world/g60Terrain3dRuntimeAdapter.js');
+      const { createG60Terrain3DWorldSampler, G60_TERRAIN3D_RUNTIME_PARITY } = await import('/scripts/g60Terrain3dRuntimeAdapter.mjs');
       const { CURRENT_TERRAIN_POLICY } = await import('/src/3d/world/terrain.js');
       const { WORLD_SCALE } = await import('/src/3d/config.js');
       const { normalizedReferenceToWorldXZ } = await import('/src/3d/world/worldReferenceAlignment.js');
