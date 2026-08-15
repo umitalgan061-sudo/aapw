@@ -1,0 +1,56 @@
+name: NE G60 Terrain3D Rock Snow
+on:
+  push: { branches: ['terrain/ne-g60-terrain3d-rock-snow-r*-exact-*'] }
+  pull_request:
+    branches: [main]
+    paths: ['godot/terrain-authoring/geocells/ne/g60_rock_snow.mjs','scripts/checkNEG60RockSnow.mjs','scripts/checkNEG60RockSnowControlEnvelope.mjs','scripts/checkNEG60RockSnowVisualEvidence.mjs','scripts/checkNEG60RockSnowEvidenceBundle.mjs','godot/terrain-authoring/scripts/validate_g60_terrain3d_rock_snow.gd','.github/workflows/ne-g60-terrain3d-rock-snow.yml']
+  workflow_dispatch:
+permissions: { contents: read }
+concurrency: { group: 'ne-g60-rock-snow-${{ github.head_ref || github.ref_name }}', cancel-in-progress: true }
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, lfs: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main scope quota and prior layers
+        run: |
+          set -euo pipefail; git fetch origin main; git lfs fsck; MAIN="$(git rev-parse origin/main)"; test "$(git merge-base HEAD origin/main)" = "$MAIN"; git diff --check origin/main...HEAD
+          test "$(git diff --name-only origin/main...HEAD | grep -Ev '^(godot/terrain-authoring/geocells/ne/g60_rock_snow.mjs|scripts/checkNEG60RockSnow.mjs|scripts/checkNEG60RockSnowControlEnvelope.mjs|scripts/checkNEG60RockSnowVisualEvidence.mjs|scripts/checkNEG60RockSnowEvidenceBundle.mjs|godot/terrain-authoring/scripts/validate_g60_terrain3d_rock_snow.gd|\.github/workflows/ne-g60-terrain3d-rock-snow.yml)$' | wc -l)" -eq 0
+          test "$(git diff --name-only origin/main...HEAD | sed '/^$/d' | wc -l)" -eq 7; test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1;d+=$2}END{print a+d+0}')" -le 1000
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py addons/zylann.hterrain godot/terrain-authoring/geocells/ne/g60_hydrology.mjs godot/terrain-authoring/geocells/ne/g60_biome.mjs godot/terrain-authoring/geocells/ne/g60_relief.mjs src/3d/world/terrain.js service-worker.js
+          node scripts/checkNEG60Hydrology.mjs; node scripts/checkNEG60Terrain3DBiome.mjs; node scripts/checkNEG60Relief.mjs; node scripts/checkNEG70Terrain3DHydrology.mjs; node scripts/checkNEG61Hydrology.mjs
+          node --check godot/terrain-authoring/geocells/ne/g60_rock_snow.mjs; node --check scripts/checkNEG60RockSnow.mjs; node --check scripts/checkNEG60RockSnowControlEnvelope.mjs; node --check scripts/checkNEG60RockSnowVisualEvidence.mjs; node --check scripts/checkNEG60RockSnowEvidenceBundle.mjs
+          mkdir -p godot/terrain-authoring/.terrain3d-proof; node scripts/checkNEG60RockSnow.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g60-rock-snow-probe.json | tee /tmp/r1.log; cp godot/terrain-authoring/.terrain3d-proof/g60-rock-snow-probe.json /tmp/r1.json
+          node scripts/checkNEG60RockSnow.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g60-rock-snow-probe.json | tee /tmp/r2.log; cmp /tmp/r1.log /tmp/r2.log; cmp /tmp/r1.json godot/terrain-authoring/.terrain3d-proof/g60-rock-snow-probe.json; node scripts/checkNEG60RockSnowControlEnvelope.mjs
+      - name: Pinned Terrain3D Godot and double native proof
+        run: |
+          set -euo pipefail; ok=0; for n in 1 2 3; do if python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh; then ok=1; break; fi; sleep $((n*3)); done; test "$ok" -eq 1; python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only
+          mkdir -p "$RUNNER_TEMP/g"; curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o "$RUNNER_TEMP/g.zip"; unzip -q "$RUNNER_TEMP/g.zip" -d "$RUNNER_TEMP/g"; G="$(find "$RUNNER_TEMP/g" -maxdepth 1 -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; test -n "$G"; chmod +x "$G"; "$G" --version | grep -F 4.6.3
+          timeout 180s "$G" --headless --editor --path godot/terrain-authoring --quit-after 45
+          G60_ROCK_SNOW_PROOF_SUFFIX=a timeout 240s "$G" --headless --path godot/terrain-authoring --script res://scripts/validate_g60_terrain3d_rock_snow.gd; cp godot/terrain-authoring/.terrain3d-proof/g60-rock-snow-bake.json /tmp/a.json; cp godot/terrain-authoring/.terrain3d-proof/g60-rock-snow-imported-topdown.png /tmp/a.png
+          G60_ROCK_SNOW_PROOF_SUFFIX=b timeout 240s "$G" --headless --path godot/terrain-authoring --script res://scripts/validate_g60_terrain3d_rock_snow.gd; cp godot/terrain-authoring/.terrain3d-proof/g60-rock-snow-bake.json /tmp/b.json; cp godot/terrain-authoring/.terrain3d-proof/g60-rock-snow-imported-topdown.png /tmp/b.png
+          jq -S 'del(.savedRegionBytes)' /tmp/a.json >/tmp/as.json; jq -S 'del(.savedRegionBytes)' /tmp/b.json >/tmp/bs.json; cmp /tmp/as.json /tmp/bs.json; cmp /tmp/a.png /tmp/b.png
+          jq -e '.regionCount>=4 and .alignedSamples==4225 and .seamSamples==60 and .savedRegionFiles>=4 and .bakedVertices>0 and .maxHeightError<=0.001 and .maxActualBlend<=0.000001 and .maxColorError<=0.006 and .maxRoughnessError<=0.006 and .maxSeamHeightError<=0.001 and .maxSeamBlend<=0.000001 and .maxSeamMaterialError<=0.006' /tmp/b.json
+          echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
+      - name: Visual repository and final freshness gates
+        run: |
+          set -euo pipefail; mkdir -p "$RUNNER_TEMP/pw"; npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0; "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium; export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNEG60RockSnowVisualEvidence.mjs --out-dir=artifacts/ne-g60-rock-snow-visual; node scripts/checkNEG60RockSnowEvidenceBundle.mjs
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | grep -F HTERRAIN_AUTHORING_VALIDATION_OK
+          node scripts/checkSeededRandomPolicy.js; node scripts/checkWorldReferenceMap.js; node scripts/terrainSeatSafetyCheck.js; node scripts/roadNetworkSafetyCheck.js; node scripts/checkRoadVisualContract.js; node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js; node scripts/checkServiceWorkerCache.js; node scripts/checkTechnicalDebt.js; node scripts/checkMobilePerfBudget.js; node scripts/smokeTestGame3D.js
+          git fetch origin main; MAIN="$(git rev-parse origin/main)"; test "$(git merge-base HEAD origin/main)" = "$MAIN"; git diff --check origin/main...HEAD; git lfs fsck
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ne-g60-terrain3d-rock-snow-proof
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g60-rock-snow-*.json
+            godot/terrain-authoring/.terrain3d-proof/g60-rock-snow-imported-topdown.png
+            artifacts/ne-g60-rock-snow-visual/
