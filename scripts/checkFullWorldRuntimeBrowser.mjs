@@ -96,10 +96,17 @@ try {
     const mesh = manager.loadChunk(Math.round(g17.x / 500), Math.round(g17.z / 500));
     const position = mesh.geometry.getAttribute('position');
     let maxRenderError = 0;
+    let worstRender = null;
     for (let index = 0; index < position.count; index += Math.max(1, Math.floor(position.count / 101))) {
       const x = mesh.position.x + position.getX(index);
       const z = mesh.position.z + position.getZ(index);
-      maxRenderError = Math.max(maxRenderError, Math.abs(position.getY(index) - collider.getGroundHeight(x, z)));
+      const meshY = position.getY(index);
+      const colliderY = collider.getGroundHeight(x, z);
+      const error = Math.abs(meshY - colliderY);
+      if (error > maxRenderError) {
+        maxRenderError = error;
+        worstRender = { index, x, z, meshY, colliderY, error };
+      }
     }
     const output = {
       policyId: terrain.CURRENT_TERRAIN_POLICY.id,
@@ -109,7 +116,7 @@ try {
       mapDerivedHeight: terrain.CURRENT_TERRAIN_POLICY.mapDerivedHeight,
       mapBounds: WORLD_SCALE.MAP_BOUNDS,
       denseHeight: { minimum, maximum, belowSea, aboveSea, checksum },
-      maxPhysicsError, maxRenderError,
+      maxPhysicsError, maxRenderError, worstRender,
       meshPolicyId: mesh.userData.currentTerrainPolicy,
       meshSingleSource: mesh.userData.currentTerrainSingleSource === true,
       g17Height: sampler(g17.x, g17.z), g77Height: sampler(probes[1].x, probes[1].z),
@@ -118,6 +125,8 @@ try {
     manager.disposeAll();
     return output;
   });
+  console.log(`FULL_WORLD_RUNTIME_ROAD_DIAGNOSTICS=${JSON.stringify(result.roadDiagnostics)}`);
+  console.log(`FULL_WORLD_RUNTIME_PARITY_DIAGNOSTICS=${JSON.stringify({ maxPhysicsError: result.maxPhysicsError, maxRenderError: result.maxRenderError, worstRender: result.worstRender })}`);
   if (pageErrors.length) throw new Error(`page errors: ${pageErrors.join(' | ')}`);
   if (!result.fullOwnerMapCoverage || result.legacyProceduralFallback || !result.mapDerivedHeight) throw new Error(`invalid runtime policy ${JSON.stringify(result)}`);
   if (result.sourceMapSha256 !== '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1') throw new Error('runtime source-map checksum drifted');
@@ -127,7 +136,6 @@ try {
   if (result.maxPhysicsError > 1e-9) throw new Error(`render/physics sampler source mismatch ${result.maxPhysicsError}`);
   if (result.maxRenderError > 1e-5) throw new Error(`chunk/collider height mismatch ${result.maxRenderError}`);
   if (result.meshPolicyId !== result.policyId || !result.meshSingleSource) throw new Error('ChunkManager mesh missing current-terrain provenance');
-  console.log(`FULL_WORLD_RUNTIME_ROAD_DIAGNOSTICS=${JSON.stringify(result.roadDiagnostics)}`);
   console.log(`FULL_WORLD_RUNTIME_BROWSER=${JSON.stringify({ ...result, roadDiagnostics: undefined })}`);
   console.log('FULL_WORLD_RUNTIME_BROWSER_OK');
 } finally {
