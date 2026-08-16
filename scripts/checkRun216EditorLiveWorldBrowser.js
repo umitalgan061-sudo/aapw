@@ -61,6 +61,97 @@ function startServer() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
+async function captureLiveGame(playwright, base) {
+  const browser = await playwright.chromium.launch({
+    headless: true,
+    args: ['--use-angle=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'],
+  });
+  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(`page:${String(error)}`));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
+
+  try {
+    await page.goto(`${base}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+
+    const enter = page.locator('#run266-entry-enter');
+    if (await enter.count()) {
+      await enter.waitFor({ state: 'visible', timeout: 30000 });
+      await enter.click();
+      await page.waitForFunction(() => !document.getElementById('run266-entry-gate'), null, { timeout: 10000 });
+    }
+
+    await page.waitForFunction(
+      () => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
+      null,
+      { timeout: 180000 },
+    );
+    await page.waitForTimeout(2500);
+
+    const canvas = page.locator('#game3d-canvas');
+    await canvas.waitFor({ state: 'visible', timeout: 30000 });
+
+    await page.keyboard.press('F4');
+    await page.waitForTimeout(300);
+    const box = await canvas.boundingBox();
+    assert(box, 'game3d canvas has no bounding box');
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx, box.y + 5, { steps: 24 });
+    await page.mouse.up();
+    await page.keyboard.down('ShiftLeft');
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1700);
+    await page.keyboard.up('KeyW');
+    await page.keyboard.up('ShiftLeft');
+    await page.waitForTimeout(350);
+
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx, box.y + box.height - 5, { steps: 30 });
+    await page.mouse.up();
+    await page.waitForTimeout(1200);
+
+    await page.evaluate(() => {
+      for (const child of Array.from(document.body.children)) {
+        if (child.id !== 'game3d-canvas') child.style.setProperty('display', 'none', 'important');
+      }
+      document.body.style.margin = '0';
+      document.body.style.overflow = 'hidden';
+    });
+    await page.waitForTimeout(500);
+
+    fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'game3d-close-overhead.png'), fullPage: false, animations: 'allow' });
+
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(1350);
+    await page.keyboard.up('KeyW');
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'game3d-closer-terrain.png'), fullPage: false, animations: 'allow' });
+
+    const metrics = await page.evaluate(() => ({
+      viewport: [innerWidth, innerHeight],
+      gatePresent: Boolean(document.getElementById('run266-entry-gate')),
+      loadingHidden: document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden') || false,
+      canvasWidth: document.getElementById('game3d-canvas')?.width || 0,
+      canvasHeight: document.getElementById('game3d-canvas')?.height || 0,
+    }));
+    fs.writeFileSync(
+      path.join(ARTIFACT_DIR, 'game3d-close-capture-metrics.json'),
+      JSON.stringify({ metrics, browserErrors: errors }, null, 2) + '\n',
+    );
+    console.log(`[checkRun216EditorLiveWorldBrowser] GAME3D CLOSE CAPTURE: ${JSON.stringify(metrics)}`);
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+}
+
 async function main() {
   const playwright = playwrightModule();
   if (!playwright) fail('Playwright unavailable');
@@ -71,9 +162,6 @@ async function main() {
   const page = await context.newPage();
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  /* additive-only Run216 syntax quarantine for the malformed legacy listener below
-  page.on('pageerror', (error) => errors.push(String(error));
-  */
   page.on('pageerror', (error) => errors.push(String(error)));
 
   try {
@@ -89,13 +177,15 @@ async function main() {
     assert(snapshot.roadSegmentCount > 0, `No canonical gameplay road segments loaded: ${snapshot.roadSegmentCount}`);
     assert(snapshot.settlementCount === 14, `Expected 14 gameplay settlement seats, got ${snapshot.settlementCount}`);
     assert(snapshot.realCastlesReady === true, 'Real castle loading never completed');
-    assert(snapshot.realCastleCount === 8, `Expected 8 gameplay real castles, got ${snapshot.realCastleCount}`);
+    assert(snapshot.realCastleCount === 14, `Expected 14 gameplay real castles, got ${snapshot.realCastleCount}`);
     assert(errors.length === 0, `Browser errors: ${errors.join(' | ')}`);
 
     fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop-live-westeros-editor.png'), fullPage: true });
     console.log(`[checkRun216EditorLiveWorldBrowser] PROOF: ${JSON.stringify(snapshot)}`);
-    console.log('[checkRun216EditorLiveWorldBrowser] PASS: editor viewport shows canonical gameplay terrain/water/roads/settlements/vegetation/sky plus all 8 real castle models; synthetic ground hidden.');
+    console.log('[checkRun216EditorLiveWorldBrowser] PASS: editor viewport shows canonical gameplay terrain/water/roads/settlements/vegetation/sky plus all current real castle models; synthetic ground hidden.');
+
+    await captureLiveGame(playwright, base);
   } finally {
     await context.close();
     await browser.close();
