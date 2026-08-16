@@ -27,13 +27,13 @@ func _value(probe: Dictionary, channel: int, u: float, v: float) -> float:
 func _control(probe: Dictionary, u: float, v: float) -> Dictionary:
 	var road := clampf(_value(probe, 1, u, v), 0, 1); var path := clampf(_value(probe, 2, u, v), 0, 1); var coverage := maxf(road, path)
 	if coverage > 0.002:
-		var ground := clampf(_value(probe, 4, u, v), 0, 1); var rock := clampf(_value(probe, 5, u, v), 0, 1); var snow := clampf(_value(probe, 6, u, v), 0, 1)
+		var ground := clampf(_value(probe, 4, u, v), 0, 1); var route_rock := clampf(_value(probe, 5, u, v), 0, 1); var route_snow := clampf(_value(probe, 6, u, v), 0, 1)
 		var base := int(probe["groundTextureId"]); var best := ground
-		if rock > best: base = int(probe["rockTextureId"]); best = rock
-		if snow > best: base = int(probe["snowTextureId"])
+		if route_rock > best: base = int(probe["rockTextureId"]); best = route_rock
+		if route_snow > best: base = int(probe["snowTextureId"])
 		return {"base": base, "overlay": int(probe["pathTextureId"]) if path > road else int(probe["roadTextureId"]), "blend": coverage, "route": true}
-	var rock := clampf(_value(probe, 5, u, v), 0, 1); var snow := clampf(_value(probe, 6, u, v), 0, 1)
-	return {"base": int(probe["groundTextureId"]), "overlay": int(probe["snowTextureId"]) if snow > rock else int(probe["rockTextureId"]), "blend": maxf(rock, snow), "route": false}
+	var substrate_rock := clampf(_value(probe, 5, u, v), 0, 1); var substrate_snow := clampf(_value(probe, 6, u, v), 0, 1)
+	return {"base": int(probe["groundTextureId"]), "overlay": int(probe["snowTextureId"]) if substrate_snow > substrate_rock else int(probe["rockTextureId"]), "blend": maxf(substrate_rock, substrate_snow), "route": false}
 
 func _images(probe: Dictionary) -> Array:
 	var height := Image.create_empty(IMPORT_SIZE, IMPORT_SIZE, false, Image.FORMAT_RF)
@@ -67,11 +67,18 @@ func _audit(terrain: Terrain3D, probe: Dictionary) -> Dictionary:
 func _saved(directory: String) -> Dictionary:
 	var dir := DirAccess.open(directory)
 	if dir == null: return {"files": 0, "bytes": 0}
-	var files := 0; var bytes := 0; dir.list_dir_begin(); var name := dir.get_next()
+	var files := 0; var bytes := 0
+	dir.list_dir_begin()
+	var name := dir.get_next()
 	while name != "":
-		if not dir.current_is_dir(): var payload := FileAccess.get_file_as_bytes(directory.path_join(name)); if payload.size() > 0: files += 1; bytes += payload.size()
+		if not dir.current_is_dir():
+			var payload := FileAccess.get_file_as_bytes(directory.path_join(name))
+			if payload.size() > 0:
+				files += 1
+				bytes += payload.size()
 		name = dir.get_next()
-	dir.list_dir_end(); return {"files": files, "bytes": bytes}
+	dir.list_dir_end()
+	return {"files": files, "bytes": bytes}
 
 func _color_for(id: int) -> Color:
 	match id:
