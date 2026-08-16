@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/questSystem.js'
+      - 'src/3d/ui/questJournal.js'
       - 'scripts/checkQuestDialogueLoop.mjs'
       - '.github/workflows/rpg-dialogue-quest-loop.yml'
   workflow_dispatch:
@@ -28,10 +29,11 @@ jobs:
           fetch-depth: 1
           lfs: false
 
-      - name: Syntax check quest lifecycle
+      - name: Syntax check quest lifecycle and journal
         run: |
           node --check src/3d/gameplay/questSystem.js
           node --check src/3d/gameplay/interaction.js
+          node --check src/3d/ui/questJournal.js
           node --check scripts/checkQuestDialogueLoop.mjs
 
       - name: Verify dialogue quest lifecycle
