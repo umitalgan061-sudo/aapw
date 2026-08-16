@@ -103,6 +103,18 @@ try {
 	const beforeDodge = await readLatestMotion();
 	await page.keyboard.down('ShiftLeft');
 	await waitForMotionState('dodge');
+	// The first observed dodge frame may only have travelled ~one 60 Hz step. Wait for actual
+	// world-space burst displacement while the real controller still reports dodge instead of using
+	// a fixed sleep that varies with runner frame rate.
+	await page.waitForFunction(
+		(origin) => {
+			const latest = window.__playerMotionFrames?.at(-1);
+			return latest?.state === 'dodge'
+				&& Math.hypot(latest.position.x - origin.x, latest.position.z - origin.z) > 0.35;
+		},
+		baseline.position,
+		{ timeout: 2500 },
+	);
 
 	const duringDodge = await page.evaluate(() => ({ latest: window.__playerMotionFrames.at(-1), frames: window.__playerMotionFrames.slice() }));
 	need(duringDodge.frames.some((frame) => frame.state === 'sprint'), 'real scene never entered sprint state');
@@ -140,19 +152,23 @@ try {
 	need(recovery.stamina > sprintEnd.stamina, `stamina did not recover after delay: ${sprintEnd.stamina} -> ${recovery.stamina}`);
 
 	// Sprint-jump exploit guard: while run intent + movement remain held, airborne frames may coast
-	// but must never regenerate stamina after the normal regen delay expires.
+	// but their stamina sequence must never increase after the normal regen delay expires.
 	await page.keyboard.down('KeyW');
 	await page.keyboard.down('ShiftLeft');
 	await waitForMotionState('sprint');
 	const airborneMarker = await page.evaluate(() => window.__playerMotionFrames.length);
 	await page.keyboard.press('Space');
 	await waitForMotionState('airborne', 2500);
-	const airborneStart = await readLatestMotion();
 	await waitForMotionState('sprint', 2500);
 	const airborneProof = await page.evaluate((startIndex) => window.__playerMotionFrames.slice(startIndex).filter((frame) => !frame.isGrounded), airborneMarker);
 	need(airborneProof.length > 0, 'sprint-jump produced no airborne telemetry');
+	let maxAirborneIncrease = 0;
+	for (let index = 1; index < airborneProof.length; index += 1) {
+		maxAirborneIncrease = Math.max(maxAirborneIncrease, airborneProof[index].stamina - airborneProof[index - 1].stamina);
+	}
+	const airborneStart = airborneProof[0];
 	const maxAirborneStamina = Math.max(...airborneProof.map((frame) => frame.stamina));
-	need(maxAirborneStamina <= airborneStart.stamina + 0.01, `stamina regenerated while sprint intent stayed held in air: ${airborneStart.stamina} -> ${maxAirborneStamina}`);
+	need(maxAirborneIncrease <= 0.01, `stamina increased while sprint intent stayed held in air: max step +${maxAirborneIncrease.toFixed(2)}`);
 
 	// Continue the same real sprint to zero. Exhaustion must fall back to walking movement, hold at
 	// zero while Shift remains held, then reopen sprint only after the configured 20-point budget.
@@ -202,7 +218,12 @@ try {
 		sprintStart,
 		sprintEnd,
 		recovery,
-		airborne: { first: airborneStart, framesObserved: airborneProof.length, maxStamina: maxAirborneStamina },
+		airborne: {
+			first: airborneStart,
+			framesObserved: airborneProof.length,
+			maxStamina: maxAirborneStamina,
+			maxIncrease: Number(maxAirborneIncrease.toFixed(2)),
+		},
 		exhausted,
 		heldExhausted,
 		restartBudget,
