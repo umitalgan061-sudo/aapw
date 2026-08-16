@@ -22,17 +22,6 @@ const defaultQuestSystem = createQuestSystem({
 	worldEventName: EVENTS.WORLD_EVENT_TRIGGERED,
 });
 
-// Browser-only projection of the shared quest state. The journal owns no gameplay state and
-// self-disposes on pagehide; headless imports never construct it because there is no DOM/window.
-const defaultQuestJournal = typeof document !== 'undefined' && document.body && typeof window !== 'undefined'
-	? new QuestJournal({
-		eventsBus: gameEvents,
-		eventNames: QUEST_EVENTS,
-		snapshotProvider: defaultQuestSystem.getSnapshot,
-	})
-	: null;
-void defaultQuestJournal;
-
 /**
  * @param {object} options
  * @param {{setVisible: (visible: boolean) => void}} options.interactionPrompt
@@ -61,6 +50,22 @@ export function createInteractionController({
 	let nearestNpc = null;
 	let activeChoices = null;
 	let activeNpcName = null;
+
+	// Construct the browser journal only when the real shipped quest adapter is actually in use.
+	// This keeps module imports/headless/no-canvas contexts side-effect free while preserving one
+	// state owner: the journal is still only a projection of `defaultQuestSystem.getSnapshot()`.
+	if (
+		onChoiceSelected === defaultQuestSystem.handleDialogueChoice &&
+		typeof document !== 'undefined' &&
+		document.body &&
+		typeof window !== 'undefined'
+	) {
+		new QuestJournal({
+			eventsBus: gameEvents,
+			eventNames: QUEST_EVENTS,
+			snapshotProvider: defaultQuestSystem.getSnapshot,
+		});
+	}
 
 	function openDialogue(npc) {
 		activeNpc = npc;
