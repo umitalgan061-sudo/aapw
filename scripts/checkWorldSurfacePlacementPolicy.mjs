@@ -5,7 +5,7 @@ import {
   evaluateWorldSurfacePlacement,
   normalizeWorldSurfaceSample,
   resolveWorldSurfacePolicy,
-} from '../src/3d/world/WorldAssetPlacementPipeline.js';
+} from '../src/3d/world/WorldSurfacePlacementPolicy.js';
 
 function expectOk(label, surface, policy) {
   const result = evaluateWorldSurfacePlacement(surface, policy);
@@ -147,13 +147,7 @@ const b = evaluateWorldSurfacePlacement(structuredClone(deterministicInput), str
 assert.deepEqual(a, b, 'surface placement evaluation must be deterministic');
 assert.deepEqual(deterministicPolicy.allowedBiomes, ['meadow', 'temperate-forest']);
 
-const malformedCases = [
-  null,
-  undefined,
-  {},
-  { height: Number.NaN },
-  { height: Infinity },
-];
+const malformedCases = [null, undefined, {}, { height: Number.NaN }, { height: Infinity }];
 for (const [index, sample] of malformedCases.entries()) {
   const result = normalizeWorldSurfaceSample(sample);
   assert.equal(result.ok, false, `malformed sample ${index} should fail`);
