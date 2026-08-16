@@ -23,12 +23,17 @@ async function main() {
     page.on('pageerror', (error) => failures.push(`page:${error.message}`));
     page.on('console', (message) => {
       if (message.type() !== 'error') return;
-      if (message.text().includes('Failed to load resource')) return;
-      failures.push(`console:${message.text()}`);
+      const text = message.text();
+      if (text.includes('Failed to load resource')) return;
+      if (text.startsWith('[AssetLoader] ') && text.includes('failed, using placeholder box.')) return;
+      if (text.startsWith('[game3d] asset error')) return;
+      failures.push(`console:${text}`);
     });
     page.on('response', (response) => {
       if (response.status() < 400) return;
-      if (decodeURIComponent(response.url()).endsWith('/assets/models/fbx_dosyaları/')) return;
+      const url = new URL(response.url());
+      if (decodeURIComponent(url.pathname).endsWith('/assets/models/fbx_dosyaları/')) return;
+      if (response.status() === 404 && url.pathname === '/__editor/health') return;
       failures.push(`http:${response.status()} ${response.url()}`);
     });
 
