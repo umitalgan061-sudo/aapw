@@ -6,6 +6,7 @@
  */
 
 import { getPaletteMaterial } from '../materials/textureFactory.js';
+import { findPalette } from '../materials/palettes.js';
 import {
   autoAssignMaterials,
   describeMaterialSubject,
@@ -32,10 +33,11 @@ export function autoTextureObject(object, { lookupAsset, paletteId, size } = {})
     textureSize: size || 256,
   });
   if (!result.ok) return { ok: false, error: materialError(result.error) };
+  const resolvedPaletteId = result.paletteId || result.recipe?.basePaletteId;
   return {
     ok: true,
-    paletteId: result.paletteId || result.recipe?.basePaletteId,
-    label: getPaletteMaterial(result.paletteId || result.recipe?.basePaletteId)?.name?.replace(/^palette:/, '') || result.paletteId || result.recipe?.basePaletteId,
+    paletteId: resolvedPaletteId,
+    label: findPalette(resolvedPaletteId)?.label || resolvedPaletteId,
     reason: result.recipe?.reason || (paletteId ? 'elle seçildi' : 'otomatik eşleşti'),
     meshes: result.meshes || 0,
     kit: result.kit,
