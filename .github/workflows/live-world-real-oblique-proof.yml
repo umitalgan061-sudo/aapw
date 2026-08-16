@@ -30,8 +30,8 @@ jobs:
           BASE_SHA="$(git merge-base HEAD origin/main)"
           test "$BASE_SHA" = "c234e5aaa66a704ad7be8acb9ff7b9f387aeb7d4"
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(scripts/captureLiveWorldRealOblique.mjs|\.github/workflows/live-world-real-oblique-proof.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 2
+          test "$(echo "$CHANGED" | grep -Ev '^(scripts/captureLiveWorldRealOblique.mjs|scripts/captureLiveWorldPlayerCinematic.mjs|\.github/workflows/live-world-real-oblique-proof.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 3
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "real-oblique proof quota additions=$A deletions=$D total=$((A+D))"
@@ -42,6 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/captureLiveWorldRealOblique.mjs
+          node --check scripts/captureLiveWorldPlayerCinematic.mjs
       - name: Hydrate shipped-scene LFS assets
         run: |
           set -euo pipefail
@@ -59,9 +60,12 @@ jobs:
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/captureLiveWorldRealOblique.mjs
+          node scripts/captureLiveWorldPlayerCinematic.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: live-world-real-oblique-proof
           if-no-files-found: error
-          path: artifacts/live-world-real-oblique/
+          path: |
+            artifacts/live-world-real-oblique/
+            artifacts/live-world-player-cinematic/
