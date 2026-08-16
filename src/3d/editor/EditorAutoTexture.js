@@ -44,9 +44,10 @@ export function describeFigure(object, lookupAsset) {
  * @param {object} [options]
  * @param {(assetId: string) => object|null} [options.lookupAsset]
  * @param {string} [options.paletteId] Force a specific palette instead of matching.
+ * @param {number} [options.size] Generated texture size; defaults to the shared texture-factory policy.
  * @returns {{ok: boolean, paletteId?: string, label?: string, reason?: string, meshes?: number, error?: string}}
  */
-export function autoTextureObject(object, { lookupAsset, paletteId } = {}) {
+export function autoTextureObject(object, { lookupAsset, paletteId, size } = {}) {
 	if (!object) return { ok: false, error: 'Önce bir obje seç.' };
 
 	let chosenId = paletteId;
@@ -65,7 +66,7 @@ export function autoTextureObject(object, { lookupAsset, paletteId } = {}) {
 	// Variant seeds from the object's own identity, so two castles in one scene weather differently —
 	// and two peasants get different skin tones and tunic colours — while staying deterministic.
 	const variant = object.userData?.editorId || object.name || '';
-	const applied = applyKitToObject(object, chosenId, { variant });
+	const applied = applyKitToObject(object, chosenId, { variant, size });
 	if (!applied.ok) return { ok: false, error: 'Bu objede giydirilecek mesh yok.' };
 
 	object.userData.autoTexturePaletteId = chosenId;
