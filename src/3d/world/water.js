@@ -158,7 +158,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// into a pow-80 specular term just produces crawling speckle. Fading it with distance keeps
 		// the near-field detail and leaves the far field to the swell alone.
 		float rippleFade = 1.0 - smoothstep(150.0, 900.0, distance(uCameraPosition, vWorldPosition));
-		// For a height field y = h(x, z) the surface normal is normalize(vec3(-dh/dx, 1, -dh/dz)).
+		// For a height field y = h(x, z) the surface normal is normalize(vec3(-dh/dx, 1.0, -dh/dz)).
 		vec2 slope = vSwellSlope + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
@@ -174,16 +174,15 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		vec3 halfVector = normalize(uSunDirection + viewDir);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), 80.0);
 
-		// Surf where the bed comes close, broken up by a slow travelling sine so it reads as moving
-		// water rather than a painted outline.
-		//
-		// No open-water whitecaps: an earlier revision foamed the tallest swell crests, but three
-		// sinusoids travelling in different directions interfere into a quasi-periodic *lattice* of
-		// maxima, so that read as a regular grid of round white dots rather than as surf (visible in
-		// this run's own first evidence render). Whitecaps are wind-driven steepness anyway, which
-		// this calm swell does not model — they belong with a future wind system, not here.
-		float surge = 0.55 + 0.45 * sin(dot(vWorldPosition.xz, vec2(0.31, -0.22)) + uTime * 1.7);
-		float foam = clamp(smoothstep(0.22, 0.0, vDepthFactor) * surge, 0.0, 1.0);
+		// Surf is confined by a defined inverse shallow-depth mask. The previous reversed-edge
+		// smoothstep was undefined GLSL, and its single short-period sine formed diagonal bands in
+		// orthographic world views. Two slower non-parallel components keep motion irregular while
+		// preserving the same 0.22 normalized-depth surf envelope.
+		float surfA = sin(dot(vWorldPosition.xz, vec2(0.018, -0.013)) + uTime * 0.55);
+		float surfB = sin(dot(vWorldPosition.xz, vec2(-0.009, 0.021)) - uTime * 0.37);
+		float surge = clamp(0.62 + 0.22 * surfA + 0.16 * surfB, 0.18, 1.0);
+		float shallowMask = 1.0 - smoothstep(0.0, 0.22, vDepthFactor);
+		float foam = clamp(shallowMask * surge, 0.0, 1.0);
 
 		vec3 color = mix(baseColor + specular * 0.6, vec3(0.92, 0.96, 0.98), foam);
 		// Shallow water is more see-through, so a lake bed or beach shelf shows through instead of
