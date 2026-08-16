@@ -62,8 +62,8 @@ function createNameTagSprite(text, widthMeters, heightMeters) {
 
 /**
  * Existing FBX/idle/walk NPC controller with bounded guard perception. The controller reuses the
- * world's composed X/Z collider as a LOS query, remembers the last visible player position, performs
- * a short investigation/search, then resumes its interrupted patrol (or returns a static guard home).
+ * world's composed X/Z collider as a LOS query, remembers the last visible/audible player position,
+ * performs a short investigation/search, then resumes its interrupted patrol (or returns home).
  */
 export async function createNPC({
 	assetLoader,
@@ -137,31 +137,43 @@ export async function createNPC({
 			investigationSpeedMps,
 			searchSeconds: investigationSearchSeconds,
 			alertThreshold: 0.72,
+			hearingRangeMeters: Math.max(4, combatStanceTriggerRadiusMeters * 0.8),
 		})
 		: null;
 	let alertBlend = 0;
 	let searchYawBase = null;
+	let previousPlayerPosition = null;
 
 	return {
 		object3D: model,
 		displayName: displayName ?? null,
 
 		update(delta, playerPosition) {
+			const currentPlayerPosition = playerPosition
+				? { x: Number(playerPosition.x), z: Number(playerPosition.z) }
+				: null;
+			const playerSpeedMps = currentPlayerPosition && previousPlayerPosition && delta > 1e-4
+				? Math.min(12, Math.hypot(currentPlayerPosition.x - previousPlayerPosition.x, currentPlayerPosition.z - previousPlayerPosition.z) / delta)
+				: 0;
+			const movementNoiseStrength = Math.max(0, Math.min(1, (playerSpeedMps - 1.5) / 5.5));
+			previousPlayerPosition = currentPlayerPosition ? { ...currentPlayerPosition } : null;
 			let perceptionState = null;
 			let lineOfSight = { clear: true, samples: 0, reason: 'disabled', blockedAt: null };
 			if (perception) {
-				const targetDistance = playerPosition
-					? Math.hypot(Number(playerPosition.x) - model.position.x, Number(playerPosition.z) - model.position.z)
+				const targetDistance = currentPlayerPosition
+					? Math.hypot(currentPlayerPosition.x - model.position.x, currentPlayerPosition.z - model.position.z)
 					: Infinity;
-				if (playerPosition && targetDistance <= combatStanceTriggerRadiusMeters) {
-					lineOfSight = queryColliderLineOfSight({ collider: playerCollider, observer: model.position, target: playerPosition });
+				if (currentPlayerPosition && targetDistance <= combatStanceTriggerRadiusMeters) {
+					lineOfSight = queryColliderLineOfSight({ collider: playerCollider, observer: model.position, target: currentPlayerPosition });
 				}
 				perceptionState = perception.update({
 					observer: model.position,
-					target: playerPosition,
+					target: currentPlayerPosition,
 					yawRadians: model.rotation.y,
 					deltaSeconds: delta,
 					hasLineOfSight: lineOfSight.clear,
+					noisePosition: currentPlayerPosition,
+					noiseStrength: movementNoiseStrength,
 				});
 				const combatAlert = perceptionState.intent === 'alert';
 				alertBlend = easeBlendToward(alertBlend, combatAlert ? 1 : 0, delta, combatStanceTransitionSeconds);
@@ -172,6 +184,8 @@ export async function createNPC({
 					intent: perceptionState.intent,
 					suspicion: Number(perceptionState.suspicion.toFixed(4)),
 					reason: perceptionState.reason,
+					heard: perceptionState.heard,
+					movementNoise: Number(movementNoiseStrength.toFixed(3)),
 					distanceMeters: Number.isFinite(perceptionState.distanceMeters) ? Number(perceptionState.distanceMeters.toFixed(3)) : null,
 					lineOfSight: lineOfSight.clear,
 					lineOfSightSamples: lineOfSight.samples,
