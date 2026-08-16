@@ -12,6 +12,7 @@ const DEFAULT_PORT = Number(process.env.WESTEROS_EDITOR_PORT) || 4173;
 const HOST = '127.0.0.1';
 const MODEL_EXTENSIONS = new Set(['.fbx', '.glb', '.gltf']);
 const MAX_SAVE_BYTES = 10 * 1024 * 1024;
+const FBX_WORKSPACE_URL_PREFIX = '/assets/models/fbx_dosyaları/';
 
 function toPosix(value) {
   return value.split(path.sep).join('/');
@@ -203,6 +204,28 @@ function safeStaticPath(root, pathname) {
   return full;
 }
 
+function htmlEscape(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function fbxDirectoryIndex(root, pathname, directory) {
+  const workspaceRoot = path.resolve(root, 'assets', 'models', 'fbx_dosyaları');
+  if (directory !== workspaceRoot && !directory.startsWith(`${workspaceRoot}${path.sep}`)) return null;
+  if (!decodeURIComponent(pathname).startsWith(FBX_WORKSPACE_URL_PREFIX)) return null;
+  const entries = fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  const links = entries.map((entry) => {
+    const suffix = entry.isDirectory() ? '/' : '';
+    const href = `${encodeURIComponent(entry.name)}${suffix}`;
+    return `<li><a href="${href}">${htmlEscape(entry.name)}${suffix}</a></li>`;
+  }).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>FBX workspace</title></head><body><ul>${links}</ul></body></html>`;
+}
+
 function createEditorLiveServer({ root = DEFAULT_ROOT } = {}) {
   const resolvedRoot = path.resolve(root);
   return http.createServer(async (req, res) => {
@@ -236,6 +259,20 @@ function createEditorLiveServer({ root = DEFAULT_ROOT } = {}) {
         return;
       }
       const file = safeStaticPath(resolvedRoot, requestUrl.pathname);
+      if (file && fs.existsSync(file) && fs.statSync(file).isDirectory()) {
+        const index = fbxDirectoryIndex(resolvedRoot, requestUrl.pathname, file);
+        if (index !== null) {
+          const body = Buffer.from(index, 'utf8');
+          res.writeHead(200, {
+            'content-type': 'text/html; charset=utf-8',
+            'content-length': body.length,
+            'cache-control': 'no-store',
+          });
+          if (req.method === 'HEAD') res.end();
+          else res.end(body);
+          return;
+        }
+      }
       if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
         res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
         res.end('Not found');
