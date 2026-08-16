@@ -2,77 +2,26 @@
   "corner": "NE",
   "task_name": "Şafak Kartalı",
   "origin": [7, 0],
-  "current_cell": "G70",
-  "status": "completed",
-  "layer": "Terrain3D Bake/Three.js runtime parity",
-  "branch": "terrain/ne-g70-terrain3d-runtime-parity-r5-exact-20260814",
-  "pr": 507,
-  "last_commit": "3dc42629c975224137e4ce93fa9dcf3d9b78a902",
-  "selection_reason": "G70 completed the strict seven-layer chain: Coast/Hydrology, Macro Albedo/Biome, Relief/Height Character, Rock/Snow, Road/Path, Near Detail and Terrain3D Bake/Three.js runtime parity. Canonical G70 remains 96/96 open sea; exact-head qualification preserved continuous owner-map/world-coordinate sampling with zero invented foliage, land, snow or road/path coverage.",
-  "quality_before": {
-    "base_cells": 96,
-    "water_cells": 96,
-    "land_cells": 0,
-    "merged_hydrology_pr": 361,
-    "merged_macro_biome_pr": 455,
-    "merged_relief_pr": 470,
-    "merged_rock_snow_pr": 477,
-    "merged_road_path_pr": 479,
-    "merged_near_detail_pr": 488,
-    "road_path_in_main": true,
-    "rock_weight_max": 0,
-    "snow_weight_max": 0,
-    "road_path_coverage_max": 0,
-    "foliage_density": 0
-  },
-  "quality_target": {
-    "canonical_uniform_sea_preserved": true,
-    "height_delta_max": 0,
-    "rock_snow_control_delta_max": 0,
-    "road_path_delta_max": 0,
-    "foliage_density_max": 0,
-    "continuous_physical_metre_detail": true,
-    "microvariation_channels": ["color", "roughness"],
-    "west_guard_neighbor": "G60",
-    "south_guard_neighbor": "G71",
-    "source_grid": 129,
-    "dense_owner_envelope": 193,
-    "terrain3d_filtered_import": 257,
-    "terrain3d_region_size": 256,
-    "terrain3d_guard_regions_min": 4,
-    "terrain3d_height_control_color_roundtrip": true,
-    "terrain3d_region_persistence": true,
-    "terrain3d_lod0_bake": true,
-    "terrain3d_255_256_seam_probes": true,
-    "near_far_full_world_visual_evidence": true,
-    "full_world_geocell_patch_alpha": 0,
-    "hterrain_regression_preserved": true,
-    "threejs_runtime_parity": true,
-    "runtime_height_tolerance_m": 0.012,
-    "runtime_material_tolerance": 0.006,
-    "runtime_source_node_tolerance": 1e-7
-  },
-  "completed_cells": {
-    "G52": {
-      "seven_layers_qualified": true,
-      "runtime_parity_pr": 335,
-      "merge_commit": "24fa8656f7b585b0cedfe2f471fce705775ab13e",
-      "note": "G52 Terrain3D Bake/Three.js runtime parity merged after exact-head dedicated CI, final exact-main freshness, HTerrain, safety, PWA/mobile/browser gates. This does not imply full-world completion."
-    },
-    "G70": {
-      "seven_layers_qualified": true,
-      "runtime_parity_pr": 507,
-      "merge_commit": "3dc42629c975224137e4ce93fa9dcf3d9b78a902",
-      "canonical": "96/96 sea",
-      "note": "G70 Terrain3D Bake/Three.js runtime parity merged after exact-head dedicated CI with double real Terrain3D import/persistence/LOD0 bake, Three.js parity, near/far/full-world evidence, HTerrain, settlement/road safety, PWA/mobile/browser and final exact-main freshness gates."
+  "current_cell": "G71",
+  "status": "road_path_merged_next_near_detail",
+  "authoritative_main_at_reconcile": "8988d5fa77c53c8643f78ce83125e48f2635a4a3",
+  "completed": {
+    "G52": {"state": "seven_layers_merged", "runtime_parity_pr": 335},
+    "G60": {"state": "seven_layers_merged", "runtime_parity_pr": 553},
+    "G70": {"state": "seven_layers_merged", "runtime_parity_pr": 507, "merge_commit": "3dc42629c975224137e4ce93fa9dcf3d9b78a902"},
+    "G71": {
+      "coast_hydrology_pr": 252,
+      "macro_biome_pr": 554,
+      "relief_pr": 555,
+      "rock_snow_pr": 556,
+      "road_path_pr": 557,
+      "road_path_merge_commit": "8988d5fa77c53c8643f78ce83125e48f2635a4a3",
+      "layers_merged": 5,
+      "layers_total": 7
     }
   },
-  "merged_ne_hydrology_neighbors": {
-    "G60": {"pr": 249, "merge_commit": "b7753f96419aec2bd5f95d194022d097610850a6", "canonical": "96/96 sea"},
-    "G71": {"pr": 252, "merge_commit": "1e0c1dc35bc3726551d753d1fc1922bf01226fa9", "canonical": "96/96 sea"},
-    "G61": {"pr": 264, "merge_commit": "3f32d688b1cbfcf676d23e5e93f849fbd57ef014", "canonical": "96/96 sea"}
-  },
-  "engine": "merged G70 seven-layer chain -> pinned Terrain3D v1.0.2-stable filtered Height+Control+Color/Roughness import -> >=4 regions -> aligned + 255/256 seam roundtrip -> persistence + deterministic LOD0 bake -> Three.js owner-map/world-coordinate runtime sampler; HTerrain retained as regression/control",
-  "exact_base": "5c51b08339e7427ca9b2ed0969981c4106123a90",
-  "updated_at": "2026-08-14T13:44:00+03:00"
+  "current_layer": "Near Detail",
+  "next_action": "Start G71 Near Detail from exact current main. Preserve the canonical 96/96 open-sea result and do not invent terrain/road/foliage merely to consume quota; prove real continuous marine detail, seams, Terrain3D and shipped runtime evidence.",
+  "coordination_policy": "origin/main + merged PR history outrank this file. PR #557 is merged; never return to G70 or re-open G71 Road/Path as current work unless a measured regression requires a dedicated refinement.",
+  "updated_at": "2026-08-16T10:06:00+03:00"
 }
