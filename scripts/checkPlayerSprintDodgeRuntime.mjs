@@ -104,15 +104,15 @@ try {
 	await page.keyboard.down('ShiftLeft');
 	await waitForMotionState('dodge');
 	// The first observed dodge frame may only have travelled ~one 60 Hz step. Wait for actual
-	// world-space burst displacement while the real controller still reports dodge instead of using
-	// a fixed sleep that varies with runner frame rate.
+	// world-space burst displacement from the synchronized pre-dodge position while the real
+	// controller still reports dodge instead of using a fixed sleep that varies with frame rate.
 	await page.waitForFunction(
 		(origin) => {
 			const latest = window.__playerMotionFrames?.at(-1);
 			return latest?.state === 'dodge'
 				&& Math.hypot(latest.position.x - origin.x, latest.position.z - origin.z) > 0.35;
 		},
-		baseline.position,
+		beforeDodge.position,
 		{ timeout: 2500 },
 	);
 
@@ -123,7 +123,7 @@ try {
 	const measuredDodgeCost = beforeDodge.stamina - dodgeFrame.stamina;
 	need(measuredDodgeCost >= 27.9 && measuredDodgeCost <= 28.1, `dodge cost mismatch: ${beforeDodge.stamina} -> ${dodgeFrame.stamina} (${measuredDodgeCost})`);
 	need(dodgeFrame.canDodge === false, 'active dodge should close dodge-ready telemetry');
-	need(distanceXZ(dodgeFrame, baseline) > 0.35, 'dodge produced no world-space displacement');
+	need(distanceXZ(dodgeFrame, beforeDodge) > 0.35, 'dodge produced no independent world-space displacement');
 	const dodgeVitals = await readVitals();
 	need(dodgeVitals.state === 'dodge', `HUD did not enter dodge state: ${JSON.stringify(dodgeVitals)}`);
 	need(Number(dodgeVitals.now) === Math.ceil(dodgeFrame.stamina), `HUD did not project dodge stamina cost: ${JSON.stringify(dodgeVitals)}`);
