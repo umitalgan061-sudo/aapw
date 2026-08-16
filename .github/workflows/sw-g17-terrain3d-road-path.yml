@@ -40,7 +40,7 @@ jobs:
           ./node_modules/.bin/playwright install --with-deps chromium
       - name: Exact geometry prior layer and live route source proof
         run: |
-          set -euo pipefail; node scripts/checkSWG17Hydrology.mjs; node scripts/checkSWG17Biome.mjs; node scripts/checkSWG17Relief.mjs; node scripts/checkSWG17RockSnow.mjs; node scripts/checkSWG17RockSnowCrossLayer.mjs; node scripts/checkSWG17RockSnowGuardBand.mjs; node scripts/checkSWG17RoadPathGeometry.mjs
+          set -euo pipefail; node scripts/testCanonicalMapProvenance.mjs; node scripts/checkSWG17Hydrology.mjs; node scripts/checkSWG17Biome.mjs; node scripts/checkSWG17Relief.mjs; node scripts/checkSWG17RockSnow.mjs; node scripts/checkSWG17RockSnowCrossLayer.mjs; node scripts/checkSWG17RockSnowGuardBand.mjs; node scripts/checkSWG17RoadPathGeometry.mjs
           node scripts/checkSWG17RoadPath.mjs | tee /tmp/g17-road-source.log; grep -F SW_G17_ROAD_PATH_SOURCE_OK /tmp/g17-road-source.log
           test -s godot/terrain-authoring/.terrain3d-proof/g17-road-path-probe.json; test -s godot/terrain-authoring/.terrain3d-proof/g17-road-path-source-evidence.json
       - name: Install pinned Terrain3D and Godot 4.6.3
@@ -73,7 +73,7 @@ jobs:
           set -euo pipefail; rm -rf artifacts/sw-g17-road-path-visual
           node scripts/checkSWG17HydrologyVisualEvidence.mjs --out-dir=artifacts/sw-g17-road-path-visual | tee /tmp/g17-road-visual.log; grep -F SW_G17_HYDROLOGY_VISUAL_OK /tmp/g17-road-visual.log
           node scripts/checkSWG17RoadPathVisualEvidence.mjs --visual-dir=artifacts/sw-g17-road-path-visual --source=godot/terrain-authoring/.terrain3d-proof/g17-road-path-source-evidence.json --out=artifacts/sw-g17-road-path-visual/g17-road-path-visual-evidence.json
-          grep -F '"visibleGeoCellOverlay": false' artifacts/sw-g17-road-path-visual/g17-road-path-visual-evidence.json
+          grep -F '"visibleGeoCellOverlay": false' artifacts/sw-g17-road-path-visual/g17-road-path-visual-evidence.json; grep -F '"rawPixelEvidenceClaimed": false' artifacts/sw-g17-road-path-visual/g17-road-path-visual-evidence.json
       - name: Mobile PWA and full-browser safety
         run: |
           set -euo pipefail; node scripts/checkMobileChunkStreaming.js; node scripts/checkMobilePerfBudget.js
