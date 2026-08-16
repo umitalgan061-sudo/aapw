@@ -41,9 +41,18 @@ assert(placement.includes('WORLD_SURFACE_POLICY_PRESETS'), 'world placement must
 assert(placement.includes('placementSurface'), 'world placement manifest must retain terrain-context evidence');
 assert(placement.includes('surface:non-finite-height'), 'invalid terrain height must fail instead of leaving floating assets');
 assert(placement.includes('createMaterialManifest'), 'world placement must persist a material/placement manifest');
-assert(placement.indexOf('applyMaterialRecipe') < placement.indexOf('applyTransform'), 'material assignment must happen before transform/placement validation');
-assert(placement.indexOf('applyTransform') < placement.indexOf('resolveWorldSurfacePlacement'), 'ground/context validation must happen after requested transform');
-assert(placement.indexOf('resolveWorldSurfacePlacement') < placement.indexOf('validateMaterialAssignment'), 'surface placement must be validated before final scene-ready marking');
+
+const materialCall = placement.indexOf('applyMaterialRecipe(object');
+const transformCall = placement.indexOf('applyTransform(object');
+const surfaceCall = placement.indexOf('resolveWorldSurfacePlacement(object');
+const validationCall = placement.indexOf('validateMaterialAssignment(object');
+assert(materialCall >= 0, 'world placement must call shared material assignment');
+assert(transformCall >= 0, 'world placement must apply the requested transform');
+assert(surfaceCall >= 0, 'world placement must resolve terrain-context placement');
+assert(validationCall >= 0, 'world placement must perform final material validation');
+assert(materialCall < transformCall, 'material assignment must happen before transform/placement validation');
+assert(transformCall < surfaceCall, 'ground/context validation must happen after requested transform');
+assert(surfaceCall < validationCall, 'surface placement must be validated before final scene-ready marking');
 
 assert(editor.includes("from '../materials/MaterialAssignmentCore.js'"), 'editor auto-texture path must delegate to the shared core');
 assert(editor.includes('autoAssignMaterials'), 'editor and agents must share the same auto assignment implementation');
