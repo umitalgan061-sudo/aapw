@@ -100,6 +100,7 @@ try {
 	await waitForMotionState('sprint');
 	await page.keyboard.up('ShiftLeft');
 	await waitForMotionState('walk');
+	const beforeDodge = await readLatestMotion();
 	await page.keyboard.down('ShiftLeft');
 	await waitForMotionState('dodge');
 
@@ -107,12 +108,13 @@ try {
 	need(duringDodge.frames.some((frame) => frame.state === 'sprint'), 'real scene never entered sprint state');
 	need(duringDodge.frames.some((frame) => frame.state === 'dodge'), 'real scene never entered dodge state');
 	const dodgeFrame = [...duringDodge.frames].reverse().find((frame) => frame.state === 'dodge');
-	need(dodgeFrame.stamina <= 71, `dodge did not spend expected stamina: ${dodgeFrame.stamina}`);
+	const measuredDodgeCost = beforeDodge.stamina - dodgeFrame.stamina;
+	need(measuredDodgeCost >= 27.9 && measuredDodgeCost <= 28.1, `dodge cost mismatch: ${beforeDodge.stamina} -> ${dodgeFrame.stamina} (${measuredDodgeCost})`);
 	need(dodgeFrame.canDodge === false, 'active dodge should close dodge-ready telemetry');
 	need(distanceXZ(dodgeFrame, baseline) > 0.35, 'dodge produced no world-space displacement');
 	const dodgeVitals = await readVitals();
 	need(dodgeVitals.state === 'dodge', `HUD did not enter dodge state: ${JSON.stringify(dodgeVitals)}`);
-	need(Number(dodgeVitals.now) <= 71, `HUD did not project dodge stamina cost: ${JSON.stringify(dodgeVitals)}`);
+	need(Number(dodgeVitals.now) === Math.ceil(dodgeFrame.stamina), `HUD did not project dodge stamina cost: ${JSON.stringify(dodgeVitals)}`);
 	need(dodgeVitals.fillFilter.includes('brightness'), 'HUD dodge emphasis was not applied');
 	const dodgePng = await canvas.screenshot();
 	const dodgeVitalsPng = await vitals.screenshot();
@@ -194,7 +196,9 @@ try {
 	const report = {
 		schema: 'aapw-player-sprint-dodge-runtime-v2',
 		baseline,
+		beforeDodge,
 		dodge: dodgeFrame,
+		measuredDodgeCost: Number(measuredDodgeCost.toFixed(2)),
 		sprintStart,
 		sprintEnd,
 		recovery,
