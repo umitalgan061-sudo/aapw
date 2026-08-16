@@ -3,7 +3,7 @@
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
   "current_cell": "G17",
-  "status": "rock_snow_merged_road_path_needs_fresh_exact_main",
+  "status": "rock_snow_merged_road_path_fresh_exact_main_required",
   "authoritative_main_at_reconcile": "8988d5fa77c53c8643f78ce83125e48f2635a4a3",
   "completed": {
     "coast_hydrology": "merged",
@@ -14,17 +14,21 @@
   "current_layer": "Road/Path",
   "stale_work": {
     "pr": 542,
-    "state": "stale_blocked_evidence_only",
-    "instruction": "Do not merge or keep #542 as the current candidate. Its old runtime-coverage blocker was resolved by merged #550. Its remaining real blocker is strict canonical map binary provenance."
+    "state": "closed_stale_evidence_only",
+    "instruction": "Do not revive #542. Its old runtime-coverage blocker was resolved by merged #550. Rebuild one successor from exact current main."
   },
   "resolved_blockers": {
     "full_world_runtime_coverage": {"resolved_by_pr": 550},
     "asset_manifest_and_lfs_governance": {"resolved_by_pr": 525}
   },
-  "remaining_shared_dependency": {
-    "canonical_map_binary": "Exact owner bytes are verified at 1536x1024 and SHA256 20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1, but strict repository provenance remains pending until those exact bytes are tracked."
+  "canonical_map_dependency": {
+    "sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+    "decoded_size": [1536, 1024],
+    "verified_owner_byte_encoding": "jpeg",
+    "repository_binary_pending": true,
+    "policy": "Existing merged G17 geography already bound to the canonical SHA may be used to requalify Road/Path. Do not create new raw-pixel extraction or new pixel-level map/render claims until exact source bytes are available to CI. Use scripts/canonicalMapProvenance.mjs when bytes are present."
   },
-  "next_action": "Once canonical map provenance is tracked, publish exactly one fresh exact-current-main G17 Road/Path successor, rerun real pinned Terrain3D + shipped Three.js evidence, then merge only on exact-head green CI. Do not advance to Near Detail before that merge.",
-  "coordination_policy": "origin/main + merged PR history outrank this file and stale PR prose. A resolved historical blocker must never be repeated as the reason for another empty hourly run.",
-  "updated_at": "2026-08-16T10:07:00+03:00"
+  "next_action": "Publish exactly one fresh exact-current-main G17 Road/Path successor using merged SHA-bound G17 Hydrology/Biome/Relief/Rock-Snow and the live road/runtime contracts. Re-run pinned Terrain3D + shipped Three.js evidence. If its authoritative checks are green and main is unchanged, mark ready, require ready-event freshness, and merge with expected-head protection. Do not advance to Near Detail before that merge.",
+  "coordination_policy": "origin/main + merged PR history + authoritative exact-head CI outrank this file and stale PR prose. A resolved historical blocker must never be repeated as the reason for another empty hourly run.",
+  "updated_at": "2026-08-16T10:21:00+03:00"
 }
