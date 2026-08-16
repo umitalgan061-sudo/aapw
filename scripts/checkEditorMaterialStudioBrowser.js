@@ -84,7 +84,7 @@ async function main() {
 
     await page.locator('#we-material-size').selectOption('512');
     await page.locator('#we-material-base').selectOption('peasant');
-    await page.locator('#we-material-auto').click();
+    await page.locator('#we-material-auto').evaluate((button) => button.click());
 
     const multiProof = await page.evaluate(async () => {
       const api = window.__WESTEROS_WORLD_EDITOR__;
@@ -126,7 +126,7 @@ async function main() {
     await page.waitForFunction(() => document.querySelector('#we-material-summary')?.textContent.includes('Material Studio QA Layered'));
     await page.locator('#we-material-size').selectOption('512');
     await page.locator('#we-material-base').selectOption('peasant');
-    await page.locator('#we-material-auto').click();
+    await page.locator('#we-material-auto').evaluate((button) => button.click());
 
     const layeredProof = await page.evaluate(() => {
       const object = window.__WESTEROS_WORLD_EDITOR__.editableObjects
