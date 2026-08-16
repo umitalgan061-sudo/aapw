@@ -1,36 +1,18 @@
 /**
- * The playable character (FAZ 4): loads the base Mixamo mesh + its idle/walking/running clips,
- * handles camera-relative WASD movement with ground-height snapping, and crossfades animation
- * state off real movement speed. See `src/3d/gameplay/README.md` for the module's conventions.
+ * Playable third-person character controller.
+ * Reuses the shipped peasant_girl Mixamo mesh/idle/walk/run clips, ground-height contract and
+ * settlement collider; sprint/dodge are layered onto that controller rather than a parallel one.
  * @module gameplay/player
  */
 
 import * as THREE from 'three';
 import { PLAYER_CONFIG } from './gameplayConfig.js';
+import { PLAYER_ACTION_CONFIG } from './playerActionConfig.js';
 import { AssetLoader } from '../assetLoader.js';
 import { integrateJumpArc } from '../physics.js';
 
-/**
- * Loads the character and its animation clips, and returns a small controller object.
- * @param {object} options
- * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
- * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider `physics.js`'s collider.
- * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
- *   `sceneManager.js`'s combined castle+village collider (FAZ 3's "Basit ... collider", extended
- *   run 330's own follow-up to also cover village houses — see `physics.js`'s
- *   `createSettlementCollider`/`createCircleCollider`) — optional so this module still works in any
- *   future context with no settlements/villages (e.g. a unit test) without a caller needing to
- *   fabricate one; movement simply isn't blocked by any placed geometry when omitted.
- * @param {{x: number, z: number}} [options.spawn] World-space spawn point. `game3d.js` always
- *   passes this explicitly (converted from `PLAYER_CONFIG.SPAWN_MAP_X`/`SPAWN_MAP_Y` via
- *   `mapToWorldXZ`); the world-origin default below only covers a hypothetical future caller
- *   (e.g. a unit test) that omits it.
- * @returns {Promise<{
- *   object3D: THREE.Object3D,
- *   update: (delta: number, moveDirectionXZ: {x: number, z: number}, isRunning: boolean, jumpRequested?: boolean) => void,
- *   dispose: () => void,
- * }>}
- */
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
 export async function createPlayer({
 	assetLoader,
 	groundCollider,
@@ -41,10 +23,6 @@ export async function createPlayer({
 		fallbackColor: 0x4a90d9,
 		fallbackSize: 1.8,
 	});
-
-	// Mixamo FBX exports store geometry in centimeters; correct it here rather than guessing a
-	// hardcoded 0.01, so a differently-scaled future character asset still comes out right. Shared
-	// with gameplay/npc.js via AssetLoader.correctMixamoFbxScale (added run 20) — see its doc comment.
 	AssetLoader.correctMixamoFbxScale(model);
 
 	const mixer = new THREE.AnimationMixer(model);
@@ -59,18 +37,27 @@ export async function createPlayer({
 	const groundY = groundCollider.getGroundHeight(spawn.x, spawn.z);
 	model.position.set(spawn.x, groundY, spawn.z);
 
-	// Jump/gravity state (`physics.js`'s `integrateJumpArc`) — height is tracked *above* whatever
-	// `groundCollider` reports at the player's current XZ each frame, so ordinary ground-following
-	// (slopes, steps) is untouched: it's 0 except during an actual jump.
 	let heightAboveGround = 0;
 	let velocityY = 0;
 	let isGrounded = true;
-
+	let stamina = PLAYER_ACTION_CONFIG.MAX_STAMINA;
+	let regenDelayRemaining = 0;
+	let dodgeRemaining = 0;
+	let dodgeCooldownRemaining = 0;
+	let lastRunPressAge = Infinity;
+	let wasRunHeld = false;
+	let dodgeDirectionX = 0;
+	let dodgeDirectionZ = 1;
+	let movementState = 'idle';
 	let currentActionName = null;
-	/** Crossfades to `name`'s action; a no-op if it's already the current one or was never loaded. */
-	function playAction(name) {
-		if (currentActionName === name || !actions[name]) return;
+	let lastTelemetryState = '';
+	let lastTelemetryStamina = -1;
+
+	function playAction(name, timeScale = 1) {
 		const next = actions[name];
+		if (!next) return;
+		next.setEffectiveTimeScale(timeScale);
+		if (currentActionName === name) return;
 		next.reset().fadeIn(PLAYER_CONFIG.ANIMATION_CROSSFADE_SECONDS).play();
 		if (currentActionName && actions[currentActionName]) {
 			actions[currentActionName].fadeOut(PLAYER_CONFIG.ANIMATION_CROSSFADE_SECONDS);
@@ -79,61 +66,146 @@ export async function createPlayer({
 	}
 	playAction('idle');
 
+	function moveBy(directionX, directionZ, speed, delta) {
+		let nextX = model.position.x + directionX * speed * delta;
+		let nextZ = model.position.z + directionZ * speed * delta;
+		if (playerCollider) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+		model.position.x = nextX;
+		model.position.z = nextZ;
+	}
+
+	function turnToward(directionX, directionZ, delta) {
+		const targetYaw = Math.atan2(directionX, directionZ);
+		const shortestTarget = model.rotation.y
+			+ THREE.MathUtils.euclideanModulo(targetYaw - model.rotation.y + Math.PI, Math.PI * 2)
+			- Math.PI;
+		model.rotation.y = THREE.MathUtils.lerp(
+			model.rotation.y,
+			shortestTarget,
+			Math.min(1, PLAYER_CONFIG.TURN_RATE_RADIANS_PER_SECOND * delta),
+		);
+	}
+
+	function spendStamina(amount) {
+		stamina = clamp(stamina - amount, 0, PLAYER_ACTION_CONFIG.MAX_STAMINA);
+		regenDelayRemaining = PLAYER_ACTION_CONFIG.STAMINA_REGEN_DELAY_SECONDS;
+	}
+
+	function motionSnapshot() {
+		return Object.freeze({
+			state: movementState,
+			stamina: Number(stamina.toFixed(2)),
+			isGrounded,
+			dodgeRemaining: Number(dodgeRemaining.toFixed(3)),
+			position: Object.freeze({
+				x: Number(model.position.x.toFixed(3)),
+				y: Number(model.position.y.toFixed(3)),
+				z: Number(model.position.z.toFixed(3)),
+			}),
+		});
+	}
+
+	function publishMotionTelemetry() {
+		const staminaBucket = Math.floor(stamina);
+		if (movementState === lastTelemetryState && staminaBucket === lastTelemetryStamina) return;
+		lastTelemetryState = movementState;
+		lastTelemetryStamina = staminaBucket;
+		model.userData.playerMotion = motionSnapshot();
+		// Read-only browser observability seam used by shipped-scene acceptance and future HUD work.
+		if (typeof globalThis.dispatchEvent === 'function' && typeof globalThis.CustomEvent === 'function') {
+			globalThis.dispatchEvent(new globalThis.CustomEvent('aapw:player-motion', { detail: model.userData.playerMotion }));
+		}
+	}
+	publishMotionTelemetry();
+
 	return {
 		object3D: model,
+		get stamina() { return stamina; },
+		get movementState() { return movementState; },
+		getMotionState: motionSnapshot,
 
 		/**
-		 * @param {number} delta Seconds since the last frame.
-		 * @param {{x: number, z: number}} moveDirectionXZ Normalized (or zero) world-space direction
-		 *   — already camera-relative, computed by the caller (see this module's doc comment).
-		 * @param {boolean} isRunning
-		 * @param {boolean} [jumpRequested] Edge-triggered — true for at most one `update()` call per
-		 *   jump key press (see `input.js`'s `KeyboardInput.getAxes`). Ignored while airborne.
+		 * `isRunning` remains the existing Shift/touch-run intent. A quick double press of that same
+		 * action while moving performs a stamina-costed dodge, so the shipped game loop/input API does
+		 * not need a parallel action framework. Mobile's existing run intent therefore shares the same
+		 * state machine without adding a second movement path.
 		 */
 		update(delta, moveDirectionXZ, isRunning, jumpRequested = false) {
+			const dt = Math.max(0, Number.isFinite(delta) ? delta : 0);
 			const hasInput = moveDirectionXZ.x !== 0 || moveDirectionXZ.z !== 0;
+			lastRunPressAge += dt;
+			dodgeCooldownRemaining = Math.max(0, dodgeCooldownRemaining - dt);
+			regenDelayRemaining = Math.max(0, regenDelayRemaining - dt);
 
-			if (hasInput) {
-				const speed = isRunning ? PLAYER_CONFIG.RUN_SPEED_MPS : PLAYER_CONFIG.WALK_SPEED_MPS;
-				let nextX = model.position.x + moveDirectionXZ.x * speed * delta;
-				let nextZ = model.position.z + moveDirectionXZ.z * speed * delta;
-				if (playerCollider) {
-					({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+			const runPressed = Boolean(isRunning) && !wasRunHeld;
+			if (
+				runPressed
+				&& lastRunPressAge <= PLAYER_ACTION_CONFIG.DODGE_DOUBLE_TAP_WINDOW_SECONDS
+				&& hasInput
+				&& isGrounded
+				&& dodgeCooldownRemaining <= 0
+				&& stamina >= PLAYER_ACTION_CONFIG.DODGE_COST
+			) {
+				const length = Math.hypot(moveDirectionXZ.x, moveDirectionXZ.z) || 1;
+				dodgeDirectionX = moveDirectionXZ.x / length;
+				dodgeDirectionZ = moveDirectionXZ.z / length;
+				dodgeRemaining = PLAYER_ACTION_CONFIG.DODGE_DURATION_SECONDS;
+				dodgeCooldownRemaining = PLAYER_ACTION_CONFIG.DODGE_COOLDOWN_SECONDS + dodgeRemaining;
+				spendStamina(PLAYER_ACTION_CONFIG.DODGE_COST);
+				lastRunPressAge = Infinity;
+			} else if (runPressed) {
+				lastRunPressAge = 0;
+			}
+			wasRunHeld = Boolean(isRunning);
+
+			if (dodgeRemaining > 0) {
+				dodgeRemaining = Math.max(0, dodgeRemaining - dt);
+				moveBy(dodgeDirectionX, dodgeDirectionZ, PLAYER_ACTION_CONFIG.DODGE_SPEED_MPS, dt);
+				turnToward(dodgeDirectionX, dodgeDirectionZ, dt);
+				movementState = 'dodge';
+				playAction('running', PLAYER_ACTION_CONFIG.DODGE_RUN_ANIMATION_TIMESCALE);
+			} else if (hasInput) {
+				const sprinting = Boolean(isRunning) && isGrounded && stamina > 0;
+				const speed = sprinting ? PLAYER_ACTION_CONFIG.SPRINT_SPEED_MPS : PLAYER_CONFIG.WALK_SPEED_MPS;
+				moveBy(moveDirectionXZ.x, moveDirectionXZ.z, speed, dt);
+				turnToward(moveDirectionXZ.x, moveDirectionXZ.z, dt);
+				if (sprinting) {
+					spendStamina(PLAYER_ACTION_CONFIG.SPRINT_DRAIN_PER_SECOND * dt);
+					movementState = 'sprint';
+					playAction('running', 1);
+				} else {
+					movementState = isGrounded ? 'walk' : 'airborne';
+					playAction('walking', 1);
 				}
-				model.position.x = nextX;
-				model.position.z = nextZ;
-
-				const targetYaw = Math.atan2(moveDirectionXZ.x, moveDirectionXZ.z);
-				const turnStep = PLAYER_CONFIG.TURN_RATE_RADIANS_PER_SECOND * delta;
-				model.rotation.y = THREE.MathUtils.lerp(
-					model.rotation.y,
-					// Shortest-path angle lerp: avoids spinning the long way around at the -PI/PI seam.
-					model.rotation.y + THREE.MathUtils.euclideanModulo(targetYaw - model.rotation.y + Math.PI, Math.PI * 2) - Math.PI,
-					Math.min(1, turnStep),
-				);
-				playAction(isRunning ? 'running' : 'walking');
 			} else {
-				playAction('idle');
+				movementState = isGrounded ? 'idle' : 'airborne';
+				playAction('idle', 1);
 			}
 
-			if (jumpRequested && isGrounded) {
+			if (dodgeRemaining <= 0 && jumpRequested && isGrounded) {
 				velocityY = PLAYER_CONFIG.JUMP_SPEED_MPS;
 				isGrounded = false;
 			}
 			({ heightAboveGroundMeters: heightAboveGround, velocityYMps: velocityY, isGrounded } = integrateJumpArc(
 				heightAboveGround,
 				velocityY,
-				delta,
+				dt,
 				PLAYER_CONFIG.GRAVITY_MPS2,
 			));
-			// Always ground-height + jump-arc offset — 0 offset (the common case) reproduces the old
-			// direct-snap-to-ground behavior exactly, so slope/step-following is unaffected by this change.
 			model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z) + heightAboveGround;
 
-			mixer.update(delta);
+			if (regenDelayRemaining <= 0 && dodgeRemaining <= 0 && !(Boolean(isRunning) && hasInput && isGrounded)) {
+				stamina = clamp(
+					stamina + PLAYER_ACTION_CONFIG.STAMINA_REGEN_PER_SECOND * dt,
+					0,
+					PLAYER_ACTION_CONFIG.MAX_STAMINA,
+				);
+			}
+
+			mixer.update(dt);
+			publishMotionTelemetry();
 		},
 
-		/** Stops all animation actions and releases the model's GPU resources. */
 		dispose() {
 			mixer.stopAllAction();
 			AssetLoader.disposeObject3D(model);
