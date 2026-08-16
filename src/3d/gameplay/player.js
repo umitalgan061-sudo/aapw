@@ -7,9 +7,22 @@
 
 import * as THREE from 'three';
 import { PLAYER_CONFIG } from './gameplayConfig.js';
-import { PLAYER_ACTION_CONFIG } from './playerActionConfig.js';
 import { AssetLoader } from '../assetLoader.js';
 import { integrateJumpArc } from '../physics.js';
+
+const PLAYER_ACTION_CONFIG = Object.freeze({
+	MAX_STAMINA: 100,
+	SPRINT_SPEED_MPS: 8.2,
+	SPRINT_DRAIN_PER_SECOND: 24,
+	STAMINA_REGEN_PER_SECOND: 19,
+	STAMINA_REGEN_DELAY_SECONDS: 0.65,
+	DODGE_DOUBLE_TAP_WINDOW_SECONDS: 0.28,
+	DODGE_COST: 28,
+	DODGE_DURATION_SECONDS: 0.38,
+	DODGE_SPEED_MPS: 10.5,
+	DODGE_COOLDOWN_SECONDS: 0.22,
+	DODGE_RUN_ANIMATION_TIMESCALE: 1.45,
+});
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
