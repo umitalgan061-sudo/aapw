@@ -2,35 +2,20 @@
   "corner": "NW",
   "task_name": "Buzul Muhafızı",
   "origin": [0, 0],
-  "current_cell": "G01",
-  "status": "in_progress_exact_main_requalification",
-  "exact_base": "1722161c8eab06566e077e846d820dc38784795f",
-  "branch": "agent/buzul-muhafizi-g01-parity-exact-172216-20260814",
-  "pr": 514,
-  "last_commit": "a106b101cf49bce329097360fbc092384df23926",
-  "quality_before": {
-    "layer": "Near Detail",
-    "merged_pr": 476,
-    "source_map_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
-    "hydrology_fingerprint": "88 water / 8 land canonical centres",
-    "seam_contract": "G00/G01 Near Detail shared-edge tint and roughness deltas remain <= 0.00001",
-    "note": "G01 Coast/Hydrology through Near Detail are merged. PR #508 proved every substantive Terrain3D/runtime/visual/safety gate on its exact head but failed only final exact-main freshness after main advanced; G01 therefore remains active for fresh requalification rather than being rewritten or skipped."
+  "current_cell": "G10",
+  "status": "reconciled_relief_merged_refinement_recheck",
+  "authoritative_main_at_reconcile": "8988d5fa77c53c8643f78ce83125e48f2635a4a3",
+  "completed": {
+    "G01": {"state": "seven_layers_merged", "runtime_parity_pr": 514, "merge_commit": "d2bd94b3b824ce61af86193cff994e43ea2363e9"},
+    "G10_relief": {"state": "merged", "pr": 549, "merge_commit": "8490b75d921b71f3f453f2d381b1ee6ecca59b25"}
   },
-  "quality_after": {
-    "layer": "Terrain3D Bake/Three.js runtime parity",
-    "state": "awaiting_exact_head_ci",
-    "source_grid": "65x65 deterministic continuous runtime source sampled from the merged G01 Near Detail field",
-    "terrain3d_import": "257x257 Height + Control + Color/Roughness at region_size=256 with >=4 real regions",
-    "runtime_adapter": "continuous bilinear normalized owner-map and actual Three.js world-coordinate parity against persisted Terrain3D bake",
-    "runtime_surface_gate": "257x257 dense physical-space sampling derives smoothed slope/normals/material gradients and measures every internal 65x65 source-grid seam plus one-sided external edge continuity; grid-aligned normal imprint ratio is rejected",
-    "surface_contract": "rock base id 0, snow overlay id 1, canonical full-water snow=0, tint RGB=1, roughness=0.90 within round-trip tolerance",
-    "persistence": "real Terrain3D region save plus non-empty LOD0 bake twice with deterministic semantic and PNG evidence",
-    "guard_band": "255/256 Terrain3D region boundary parity plus merged G00/G01 Near Detail seam regression",
-    "visual_proof": "near + far + full-world top-down from persisted Terrain3D bake; canonical 1536x1024 map aspect preserved and GeoCell grid geometry never drawn",
-    "grid_policy": "GeoCell/Pindex/96x64/192x128/65x65/257x257 structures are addressing, QA or import grids only; no visible square, nearest-neighbour coastline step, mosaic or seam",
-    "ci_workflow": ".github/workflows/nw-g01-terrain3d-runtime-parity.yml",
-    "next_layer_if_green": "G01 complete only after exact-main CI is green and PR merges; then select nearest unfinished/unclaimed NW GeoCell from (0,0)"
+  "stale_work": {
+    "pr": 552,
+    "state": "stale_against_current_main",
+    "purpose": "G10 runtime surface smoothing refinement",
+    "instruction": "Do not merge or keep this PR as the current candidate. Re-measure the smoothing defect on exact current main. Publish a fresh exact-main successor only if the measurable defect still exists; otherwise record no-regression evidence and proceed to the next required G10 layer."
   },
-  "engine": "Pinned TokisanGames/Terrain3D v1.0.2-stable / SHA256 a071850250ec5e596aa54da61c01d75768774eb379ee997584d426a45f4884a2 remains mandatory for real Height/Control/Color import, persisted multi-region data and LOD0 bake. HTerrain remains preserved as regression/control; Three.js consumes deterministic bake output.",
-  "updated_at": "2026-08-14"
+  "next_action": "Re-evaluate the G10 runtime smoothing refinement on exact current main. If still required, fresh-successor and requalify within 1000 lines; otherwise proceed to G10 Rock/Snow after recording the decision and regressions.",
+  "coordination_policy": "origin/main + merged PR history outrank this file. Never revive G01 or an old exact-base PR solely because this claim was stale.",
+  "updated_at": "2026-08-16T10:05:00+03:00"
 }
