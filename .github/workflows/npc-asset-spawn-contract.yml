@@ -1,0 +1,51 @@
+name: NPC Asset Spawn Contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/npc.js'
+      - 'src/3d/gameplay/npcConfig.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'service-worker.js'
+      - 'scripts/checkNpcAssetSpawnContract.mjs'
+      - '.github/workflows/npc-asset-spawn-contract.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: npc-asset-spawn-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact-main bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
+          CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$CHANGED" -le 1000
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: NPC asset and spawn contract
+        run: |
+          set -euo pipefail
+          node --check scripts/checkNpcAssetSpawnContract.mjs
+          node scripts/checkNpcAssetSpawnContract.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSeededRandomPolicy.js
