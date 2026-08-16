@@ -1,56 +1,171 @@
 /**
- * FAZ 5 interaction controller (run 33) — owns the proximity-prompt/dialogue-box open/close state
- * machine (nearest-NPC tracking, keypress handling, distance-based auto-close) so `game3d.js`'s
- * tick loop only calls one `update()` per frame and one `handleKeyDown()` per keydown event.
- * Extracted into its own module to stay under the project's 600-line-per-file cap — the same
- * reasoning ADR-0028 already used for the FAZ 5/6 spawn-resolution loops. Real per-NPC greeting
- * content landed run 40 (`INTERACTION_CONFIG.GREETINGS_BY_NPC_ID`, DECISIONS.md ADR-0051) —
- * `openDialogue` looks its speaker up by `object3D.name` (already carried as each NPC's spawn `id`
- * — see `gameplay/npc.js`'s `createNPC`), falling back to the old generic template for any id with
- * no entry. Run 44 (DECISIONS.md ADR-0058) adds an optional single-level choice branch on top of
- * the greeting for a small pilot subset of NPCs (`INTERACTION_CONFIG.CHOICES_BY_NPC_ID`) — picking
- * a numbered choice (Digit1/Digit2/Digit3) shows that choice's own response line; still no further
- * branching/quest hooks, and every NPC with no `CHOICES_BY_NPC_ID` entry keeps the old
- * greeting-then-close-on-E behavior unchanged.
+ * FAZ 5 interaction controller — proximity dialogue plus a small RPG quest lifecycle that reuses
+ * the already-shipped Stannis guard choices. Quest state stays inside the existing interaction
+ * owner instead of introducing a parallel dialogue/inventory/economy framework.
  * @module gameplay/interaction
  */
 
-/** Digit-key `event.code` values mapped to choice array indices, in order. Caps the pilot at 3
- * simultaneous choices — plenty for a first branching pass; extend if a future NPC needs more. */
 const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
 
-/**
- * @param {object} options
- * @param {{setVisible: (visible: boolean) => void}} options.interactionPrompt
- * @param {{show: (text: string, choiceLabels?: string[]) => void, hide: () => void}} options.dialogueBox
- * @param {string} options.greetingTemplate Contains a literal `{name}` placeholder. Fallback only.
- * @param {Object<string, string>} [options.greetingsByNpcId] Keyed by NPC id (`object3D.name`),
- *   each containing a literal `{name}` placeholder — see `gameplayConfig.js`'s `GREETINGS_BY_NPC_ID`.
- * @param {Object<string, {label: string, response: string}[]>} [options.choicesByNpcId] Keyed by
- *   NPC id, each entry a small ordered list of `{label, response}` (`response` may also contain a
- *   literal `{name}` placeholder) — see `gameplayConfig.js`'s `CHOICES_BY_NPC_ID`. An id with no
- *   entry (or an empty array) never offers choices — same greeting-then-close-on-E as before.
- * @param {number} options.radiusMeters
- * @param {() => boolean} [options.isPaused] Polled at the top of `handleKeyDown`/`handleChoice`
- *   (run 340, ADR-0286) — while it returns `true` both are no-ops, closing the gap `QUESTIONS_FOR_
- *   OWNER.md`'s run-339 entry disclosed: `game3d.js`'s pause overlay only ever froze the *visual*
- *   tick loop, not this controller, so a dialogue already open when the player paused could still
- *   have a choice picked (Enter/Space on a focused, overlay-hidden choice element) or be closed (E)
- *   while invisible underneath it. Defaults to `() => false` (unpaused) so every existing caller —
- *   this project's own smoke checks included — keeps its exact prior behavior with no call-site
- *   changes required.
- * @returns {{update: (npcs: Array<{object3D: import('three').Object3D, displayName: (string|null)}>, playerPos: {x: number, z: number}) => void, handleKeyDown: (event: KeyboardEvent) => void, handleChoice: (index: number) => void}}
- */
-export function createInteractionController({ interactionPrompt, dialogueBox, greetingTemplate, greetingsByNpcId = {}, choicesByNpcId = {}, radiusMeters, isPaused = () => false }) {
+const QUEST_STATUS = Object.freeze({
+	LOCKED: 'locked',
+	AVAILABLE: 'available',
+	ACTIVE: 'active',
+	READY: 'ready',
+	COMPLETED: 'completed',
+});
+
+export const INTERACTION_QUESTS = Object.freeze([
+	Object.freeze({
+		id: 'law-of-the-watch',
+		title: 'Nöbetin Kanunu',
+		description: 'Stannis’in iki nöbetçisinin görev düzenini öğren.',
+		prerequisite: null,
+		accept: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 0 }),
+		objectives: Object.freeze([
+			Object.freeze({ id: 'hill-watch', label: 'Tepedeki nöbetçiyle konuş', npcId: 'stannis-guard-2', choiceIndex: 0 }),
+		]),
+		turnIn: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 1 }),
+		reward: 'Dragonstone nöbetçilerinin güveni',
+	}),
+	Object.freeze({
+		id: 'watch-under-pressure',
+		title: 'Nöbetçinin Şüphesi',
+		description: 'İki nöbetçinin birbirine dair tanıklığını tamamla.',
+		prerequisite: 'law-of-the-watch',
+		accept: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 2 }),
+		objectives: Object.freeze([
+			Object.freeze({ id: 'partner', label: 'Nöbet arkadaşlığı hakkında konuş', npcId: 'stannis-guard-2', choiceIndex: 1 }),
+			Object.freeze({ id: 'solitude', label: 'Yalnız nöbet hakkında konuş', npcId: 'stannis-guard-2', choiceIndex: 2 }),
+		]),
+		turnIn: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 1 }),
+		reward: 'Dragonstone nöbetçilerinin itimadı',
+	}),
+]);
+
+function sameTrigger(trigger, npcId, choiceIndex) {
+	return trigger?.npcId === npcId && trigger?.choiceIndex === choiceIndex;
+}
+
+function createQuestTracker(definitions = INTERACTION_QUESTS) {
+	const byId = new Map(definitions.map((quest) => [quest.id, quest]));
+	const state = new Map(definitions.map((quest) => [quest.id, {
+		status: quest.prerequisite ? QUEST_STATUS.LOCKED : QUEST_STATUS.AVAILABLE,
+		completedObjectives: new Set(),
+		rewardGranted: false,
+	}]));
+
+	function unlockEligible() {
+		for (const quest of definitions) {
+			const current = state.get(quest.id);
+			if (current.status !== QUEST_STATUS.LOCKED) continue;
+			if (state.get(quest.prerequisite)?.status === QUEST_STATUS.COMPLETED) current.status = QUEST_STATUS.AVAILABLE;
+		}
+	}
+
+	function snapshot() {
+		return definitions.map((quest) => {
+			const current = state.get(quest.id);
+			return {
+				id: quest.id,
+				title: quest.title,
+				description: quest.description,
+				status: current.status,
+				objectives: quest.objectives.map((objective) => ({
+					id: objective.id,
+					label: objective.label,
+					completed: current.completedObjectives.has(objective.id),
+				})),
+				reward: quest.reward,
+				rewardGranted: current.rewardGranted,
+			};
+		});
+	}
+
+	function restore(savedSnapshot) {
+		if (!Array.isArray(savedSnapshot)) return;
+		for (const saved of savedSnapshot) {
+			const quest = byId.get(saved?.id);
+			const current = state.get(saved?.id);
+			if (!quest || !current) continue;
+			if (Object.values(QUEST_STATUS).includes(saved.status)) current.status = saved.status;
+			current.completedObjectives.clear();
+			const validIds = new Set(quest.objectives.map((objective) => objective.id));
+			for (const objective of saved.objectives ?? []) {
+				if (objective?.completed && validIds.has(objective.id)) current.completedObjectives.add(objective.id);
+			}
+			current.rewardGranted = current.status === QUEST_STATUS.COMPLETED && saved.rewardGranted === true;
+		}
+		unlockEligible();
+	}
+
+	function consume(npcId, choiceIndex) {
+		let changed = false;
+		for (const quest of definitions) {
+			const current = state.get(quest.id);
+			if (current.status === QUEST_STATUS.LOCKED || current.status === QUEST_STATUS.COMPLETED) continue;
+			if (current.status === QUEST_STATUS.AVAILABLE && sameTrigger(quest.accept, npcId, choiceIndex)) {
+				current.status = QUEST_STATUS.ACTIVE;
+				changed = true;
+				continue;
+			}
+			if (current.status === QUEST_STATUS.ACTIVE) {
+				for (const objective of quest.objectives) {
+					if (current.completedObjectives.has(objective.id)) continue;
+					if (objective.npcId === npcId && objective.choiceIndex === choiceIndex) {
+						current.completedObjectives.add(objective.id);
+						changed = true;
+					}
+				}
+				if (quest.objectives.every((objective) => current.completedObjectives.has(objective.id))) current.status = QUEST_STATUS.READY;
+				continue;
+			}
+			if (current.status === QUEST_STATUS.READY && sameTrigger(quest.turnIn, npcId, choiceIndex)) {
+				current.status = QUEST_STATUS.COMPLETED;
+				current.rewardGranted = true;
+				changed = true;
+				unlockEligible();
+			}
+		}
+		return changed;
+	}
+
+	return { consume, snapshot, restore };
+}
+
+export function buildQuestJournalText(snapshot) {
+	const visible = (Array.isArray(snapshot) ? snapshot : []).filter((quest) => ['active', 'ready', 'completed'].includes(quest.status));
+	if (visible.length === 0) return 'Görev Günlüğü\nHenüz kabul edilmiş bir görev yok.';
+	const lines = ['Görev Günlüğü'];
+	for (const quest of visible) {
+		const status = quest.status === 'ready' ? 'TESLİME HAZIR' : quest.status === 'completed' ? 'TAMAMLANDI' : 'AKTİF';
+		lines.push(`\n${quest.title} — ${status}`);
+		for (const objective of quest.objectives) lines.push(`${objective.completed ? '✓' : '○'} ${objective.label}`);
+		if (quest.rewardGranted) lines.push(`Ödül: ${quest.reward}`);
+	}
+	return lines.join('\n');
+}
+
+/** Existing proximity dialogue controller with quest/journal projection layered into its choice seam. */
+export function createInteractionController({
+	interactionPrompt,
+	dialogueBox,
+	greetingTemplate,
+	greetingsByNpcId = {},
+	choicesByNpcId = {},
+	radiusMeters,
+	isPaused = () => false,
+	onQuestChanged = () => {},
+}) {
 	let activeNpc = null;
 	let nearestNpc = null;
-	// Non-null only between opening a dialogue that has choices and one of them being picked (or the
-	// dialogue closing) — cleared by `selectChoice`/`closeDialogue` so a second key press never
-	// re-triggers a choice already consumed.
 	let activeChoices = null;
 	let activeNpcName = null;
+	let journalOpen = false;
+	const quests = createQuestTracker();
 
 	function openDialogue(npc) {
+		journalOpen = false;
 		activeNpc = npc;
 		interactionPrompt.setVisible(false);
 		activeNpcName = npc.displayName ?? 'Yabancı';
@@ -64,50 +179,57 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 		activeNpc = null;
 		activeChoices = null;
 		activeNpcName = null;
+		journalOpen = false;
 		dialogueBox.hide();
 	}
 
-	/** @param {number} index Into `activeChoices` — caller already validated it's in range. */
+	function showJournal() {
+		activeNpc = null;
+		activeChoices = null;
+		activeNpcName = null;
+		journalOpen = true;
+		interactionPrompt.setVisible(false);
+		dialogueBox.show(buildQuestJournalText(quests.snapshot()));
+	}
+
 	function selectChoice(index) {
-		const { response } = activeChoices[index];
-		activeChoices = null; // consumed — a further key press can no longer pick a(nother) choice
-		dialogueBox.show(response.replace('{name}', activeNpcName));
+		const choice = activeChoices[index];
+		const npcId = activeNpc?.object3D?.name ?? '';
+		activeChoices = null;
+		dialogueBox.show(choice.response.replace('{name}', activeNpcName));
+		if (quests.consume(npcId, index)) onQuestChanged(quests.snapshot());
 	}
 
 	return {
-		/** Selects a visible dialogue choice by zero-based index (mobile/PWA pointer path). */
 		handleChoice(index) {
 			if (isPaused()) return;
 			if (!Number.isInteger(index) || !activeChoices || index < 0 || index >= activeChoices.length) return;
 			selectChoice(index);
 		},
 
-		/** Call once per frame with the current NPC list and player world position. */
 		update(npcs, playerPos) {
 			nearestNpc = null;
 			let nearestDistance = Infinity;
 			for (const npc of npcs) {
-				const dx = npc.object3D.position.x - playerPos.x;
-				const dz = npc.object3D.position.z - playerPos.z;
-				const distance = Math.hypot(dx, dz);
+				const distance = Math.hypot(npc.object3D.position.x - playerPos.x, npc.object3D.position.z - playerPos.z);
 				if (distance < radiusMeters && distance < nearestDistance) {
 					nearestNpc = npc;
 					nearestDistance = distance;
 				}
 			}
-			// The player walked out of the active NPC's own radius (or it no longer resolves, e.g.
-			// disposed) — auto-close rather than leaving a dialogue box open with no one nearby.
 			if (activeNpc && activeNpc !== nearestNpc) closeDialogue();
-			interactionPrompt.setVisible(!activeNpc && nearestNpc !== null);
+			interactionPrompt.setVisible(!activeNpc && !journalOpen && nearestNpc !== null);
 		},
 
-		/** Pass a `keydown` event straight through from the caller's own listener. */
 		handleKeyDown(event) {
-			if (isPaused()) return;
-			// Guards against the browser's own key-repeat firing this multiple times per held key.
-			if (event.repeat) return;
+			if (isPaused() || event.repeat) return;
+			if (event.code === 'KeyJ') {
+				if (journalOpen) closeDialogue();
+				else showJournal();
+				return;
+			}
 			if (event.code === 'Escape') {
-				if (activeNpc) closeDialogue();
+				if (activeNpc || journalOpen) closeDialogue();
 				return;
 			}
 			if (activeChoices) {
@@ -120,6 +242,13 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 			if (event.code !== 'KeyE') return;
 			if (activeNpc) closeDialogue();
 			else if (nearestNpc) openDialogue(nearestNpc);
+		},
+
+		showQuestJournal: showJournal,
+		getQuestSnapshot: quests.snapshot,
+		restoreQuestSnapshot(snapshot) {
+			quests.restore(snapshot);
+			onQuestChanged(quests.snapshot());
 		},
 	};
 }
