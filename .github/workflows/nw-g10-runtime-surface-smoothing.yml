@@ -116,7 +116,7 @@ jobs:
           unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
           GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; test -n "$GODOT_BIN"; chmod +x "$GODOT_BIN"; "$GODOT_BIN" --version | grep -F 4.6.3
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
-      - name: Real Terrain3D persistence LOD0 and safety regressions
+      - name: Terrain3D persistence reload LOD0
         run: |
           set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 2>&1 | tee "$RUNNER_TEMP/editor.log"
@@ -127,9 +127,16 @@ jobs:
           cmp "$RUNNER_TEMP/g10-a.png" godot/terrain-authoring/.terrain3d-proof/g10-biome-color.png
           grep -F NW_G10_TERRAIN3D_BIOME_VALIDATION_OK "$RUNNER_TEMP/t3d-a.log"
           grep -F NW_G10_TERRAIN3D_BIOME_VALIDATION_OK "$RUNNER_TEMP/t3d-b.log"
+      - name: HTerrain and seeded determinism safety
+        run: |
+          set -euo pipefail
           timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | grep -F HTERRAIN_AUTHORING_VALIDATION_OK
           node scripts/checkSeededRandomPolicy.js
-          node scripts/terrainSeatSafetyCheck.js
+      - name: Settlement terrain safety
+        run: node scripts/terrainSeatSafetyCheck.js
+      - name: Road network and visual safety
+        run: |
+          set -euo pipefail
           node scripts/roadNetworkSafetyCheck.js
           node scripts/checkRoadVisualContract.js
           node scripts/checkMedievalRoadSurface.js
