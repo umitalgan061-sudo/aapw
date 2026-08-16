@@ -1,0 +1,40 @@
+name: RPG Dialogue Quest Loop
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/interaction.js'
+      - 'src/3d/gameplay/questSystem.js'
+      - 'src/3d/ui/questJournal.js'
+      - 'scripts/checkQuestDialogueLoop.mjs'
+      - '.github/workflows/rpg-dialogue-quest-loop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rpg-dialogue-quest-loop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quest-dialogue-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - name: Syntax check quest lifecycle and journal
+        run: |
+          node --check src/3d/gameplay/questSystem.js
+          node --check src/3d/gameplay/interaction.js
+          node --check src/3d/ui/questJournal.js
+          node --check scripts/checkQuestDialogueLoop.mjs
+
+      - name: Verify dialogue quest lifecycle
+        run: node scripts/checkQuestDialogueLoop.mjs
