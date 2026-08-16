@@ -8,6 +8,7 @@ on:
     paths:
       - 'src/3d/world/water.js'
       - 'scripts/checkWaterSurfVisualContract.mjs'
+      - 'scripts/captureLiveWorldWaterTopdown.mjs'
       - '.github/workflows/live-map-shallow-water-visual.yml'
   workflow_dispatch:
 
@@ -21,7 +22,7 @@ env: { TZ: Europe/Istanbul }
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,7 +31,7 @@ jobs:
           ref: '${{ github.event.pull_request.head.sha || github.sha }}'
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Exact-main three-file scope and quota
+      - name: Exact-main four-file scope and quota
         run: |
           set -euo pipefail
           git fetch origin main
@@ -39,8 +40,8 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water.js|scripts/checkWaterSurfVisualContract.mjs|\.github/workflows/live-map-shallow-water-visual.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 3
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water.js|scripts/checkWaterSurfVisualContract.mjs|scripts/captureLiveWorldWaterTopdown.mjs|\.github/workflows/live-map-shallow-water-visual.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 4
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "shallow-water visual quota additions=$A deletions=$D total=$((A+D))"
@@ -51,6 +52,7 @@ jobs:
           set -euo pipefail
           node --check src/3d/world/water.js
           node --check scripts/checkWaterSurfVisualContract.mjs
+          node --check scripts/captureLiveWorldWaterTopdown.mjs
           node scripts/checkWaterSurfVisualContract.mjs
       - name: Install Playwright Chromium
         run: |
@@ -59,12 +61,13 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Real GPU water, mobile and browser safety
+      - name: Real GPU water, full-world live proof, mobile and browser safety
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkWaterVisualContract.js
           node scripts/checkRun325WaterSwell.js
+          node scripts/captureLiveWorldWaterTopdown.mjs
           node scripts/checkMobilePerfBudget.js
           node scripts/smokeTestGame3D.js
       - name: Final exact-main freshness
@@ -78,4 +81,6 @@ jobs:
         with:
           name: live-map-shallow-water-visual-proof
           if-no-files-found: warn
-          path: artifacts/run325-water-swell/
+          path: |
+            artifacts/run325-water-swell/
+            artifacts/live-map-shallow-water-visual/
