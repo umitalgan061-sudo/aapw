@@ -1,3 +1,10 @@
+// RPG quest/journal offline shell extension. The shipped interaction controller imports these modules,
+// so a previously installed PWA must invalidate the old shell and precache both before offline boot.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/gameplay/questSystem.js');
+    GAME3D_SHELL_FILES.push('./src/3d/ui/questJournal.js');
+});
+
 // Owner-map mountain relief offline shell extension. terrain.js imports this canonical live-height
 // source, so an offline 3D boot must cache it before any chunk can be generated.
 self.addEventListener('install', () => {
@@ -225,7 +232,9 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // must actually clean up the old, now-stale entry" reasoning as every prior bump entry in this file.
 // G70 runtime parity adds another offline-loadable `src/3d` module, so v12->v13 forces existing
 // installs to replace the old shell rather than retaining a cache that cannot load the G70 adapter.
-const SHELL_CACHE = 'westeros-shell-v14';
+// RPG quest/journal adds two offline-loadable modules, so v14->v15 invalidates installed shells
+// that would otherwise keep a cache unable to satisfy interaction.js's new imports.
+const SHELL_CACHE = 'westeros-shell-v15';
 const SHELL_FILES = [
     './',
     './index.html',
