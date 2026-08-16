@@ -1,6 +1,7 @@
 import { EVENTS } from '../config.js';
 import { gameEvents } from '../eventBus.js';
-import { createQuestSystem } from './questSystem.js';
+import { QuestJournal } from '../ui/questJournal.js';
+import { createQuestSystem, QUEST_EVENTS } from './questSystem.js';
 
 /**
  * FAZ 5 interaction controller — owns the proximity-prompt/dialogue-box open/close state machine
@@ -13,13 +14,24 @@ import { createQuestSystem } from './questSystem.js';
 /** Digit-key `event.code` values mapped to choice array indices, in order. */
 const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
 
-// One shared in-memory quest journal for the shipped 3D scene. SaveSystem does not exist yet, so
-// this module deliberately keeps persistence out of the integration; `questSystem.getSnapshot()` /
-// `restoreSnapshot()` are already serializable seams for that future owner.
+// One shared in-memory quest state machine for the shipped 3D scene. SaveSystem does not exist yet,
+// so this module deliberately keeps persistence out of the integration; `getSnapshot()` /
+// `restoreSnapshot()` are serializable seams for that future owner.
 const defaultQuestSystem = createQuestSystem({
 	eventsBus: gameEvents,
 	worldEventName: EVENTS.WORLD_EVENT_TRIGGERED,
 });
+
+// Browser-only projection of the shared quest state. The journal owns no gameplay state and
+// self-disposes on pagehide; headless imports never construct it because there is no DOM/window.
+const defaultQuestJournal = typeof document !== 'undefined' && document.body && typeof window !== 'undefined'
+	? new QuestJournal({
+		eventsBus: gameEvents,
+		eventNames: QUEST_EVENTS,
+		snapshotProvider: defaultQuestSystem.getSnapshot,
+	})
+	: null;
+void defaultQuestJournal;
 
 /**
  * @param {object} options
