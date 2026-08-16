@@ -11,24 +11,10 @@ export const WORLD_SURFACE_POLICY_PRESETS = Object.freeze({
     minRoadDistance: 1.5,
     forbiddenBiomes: ['ocean', 'lake', 'river', 'cliff', 'alpine-bare'],
   }),
-  rock: Object.freeze({
-    maxSlopeDegrees: 72,
-    maxWaterDepth: 0.8,
-  }),
-  building: Object.freeze({
-    maxSlopeDegrees: 12,
-    maxWaterDepth: 0.02,
-    minRoadDistance: 0,
-  }),
-  settlement: Object.freeze({
-    maxSlopeDegrees: 12,
-    maxWaterDepth: 0.02,
-    minRoadDistance: 0,
-  }),
-  bridge: Object.freeze({
-    maxSlopeDegrees: 24,
-    maxWaterDepth: Infinity,
-  }),
+  rock: Object.freeze({ maxSlopeDegrees: 72, maxWaterDepth: 0.8 }),
+  building: Object.freeze({ maxSlopeDegrees: 12, maxWaterDepth: 0.02, minRoadDistance: 0 }),
+  settlement: Object.freeze({ maxSlopeDegrees: 12, maxWaterDepth: 0.02, minRoadDistance: 0 }),
+  bridge: Object.freeze({ maxSlopeDegrees: 24, maxWaterDepth: Infinity }),
 });
 
 export function resolveWorldSurfacePolicy(metadata = {}, override = null) {
@@ -38,8 +24,8 @@ export function resolveWorldSurfacePolicy(metadata = {}, override = null) {
 }
 
 export function normalizeWorldSurfaceSample(sample) {
-  if (Number.isFinite(Number(sample))) sample = { height: Number(sample) };
-  if (!sample || typeof sample !== 'object') {
+  if (typeof sample === 'number' && Number.isFinite(sample)) sample = { height: sample };
+  if (!sample || typeof sample !== 'object' || Array.isArray(sample)) {
     return { ok: false, error: 'missing-sample', sample: null };
   }
 
@@ -83,18 +69,10 @@ export function evaluateWorldSurfacePlacement(surface, policy = {}) {
   compareMin(errors, 'too-close-to-settlement', sample.settlementDistance, normalizedPolicy.minSettlementDistance);
   compareMax(errors, 'too-far-from-settlement', sample.settlementDistance, normalizedPolicy.maxSettlementDistance);
 
-  if (sample.biome && normalizedPolicy.allowedBiomes.length && !normalizedPolicy.allowedBiomes.includes(sample.biome)) {
-    errors.push('biome-not-allowed');
-  }
-  if (sample.biome && normalizedPolicy.forbiddenBiomes.includes(sample.biome)) {
-    errors.push('biome-forbidden');
-  }
-  if (sample.waterType && normalizedPolicy.allowedWaterTypes.length && !normalizedPolicy.allowedWaterTypes.includes(sample.waterType)) {
-    errors.push('water-type-not-allowed');
-  }
-  if (sample.waterType && normalizedPolicy.forbiddenWaterTypes.includes(sample.waterType)) {
-    errors.push('water-type-forbidden');
-  }
+  if (sample.biome && normalizedPolicy.allowedBiomes.length && !normalizedPolicy.allowedBiomes.includes(sample.biome)) errors.push('biome-not-allowed');
+  if (sample.biome && normalizedPolicy.forbiddenBiomes.includes(sample.biome)) errors.push('biome-forbidden');
+  if (sample.waterType && normalizedPolicy.allowedWaterTypes.length && !normalizedPolicy.allowedWaterTypes.includes(sample.waterType)) errors.push('water-type-not-allowed');
+  if (sample.waterType && normalizedPolicy.forbiddenWaterTypes.includes(sample.waterType)) errors.push('water-type-forbidden');
 
   return { ok: errors.length === 0, errors, surface: sample, policy: normalizedPolicy };
 }
