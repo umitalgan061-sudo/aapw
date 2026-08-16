@@ -8,6 +8,8 @@ export const DEFAULT_GUARD_PERCEPTION = Object.freeze({
 	investigationSpeedMps: 1.2,
 	searchSeconds: 1.25,
 	alertThreshold: 0.72,
+	hearingRangeMeters: 8,
+	hearingSuspicionGain: 0.18,
 	lineOfSightStepMeters: 0.5,
 	maxLineOfSightSamples: 64,
 });
@@ -127,8 +129,8 @@ export function evaluateGuardStimulus({
 }
 
 /**
- * Stateful suspicion + last-seen memory. Suspicion memory can cool quickly while an independent
- * travel/search budget keeps the investigate intent alive long enough to actually reach lastSeen.
+ * Stateful suspicion + last-known-position memory. Vision owns alert acquisition; bounded hearing
+ * can seed investigation without granting x-ray vision or immediately escalating to combat alert.
  */
 export function createGuardPerception({
 	visionRangeMeters,
@@ -139,6 +141,8 @@ export function createGuardPerception({
 	investigationSpeedMps = DEFAULT_GUARD_PERCEPTION.investigationSpeedMps,
 	searchSeconds = DEFAULT_GUARD_PERCEPTION.searchSeconds,
 	alertThreshold = DEFAULT_GUARD_PERCEPTION.alertThreshold,
+	hearingRangeMeters = DEFAULT_GUARD_PERCEPTION.hearingRangeMeters,
+	hearingSuspicionGain = DEFAULT_GUARD_PERCEPTION.hearingSuspicionGain,
 } = {}) {
 	let suspicion = 0;
 	let memoryRemaining = 0;
@@ -147,7 +151,7 @@ export function createGuardPerception({
 	let lastReason = 'none';
 	let lastSeen = null;
 
-	function update({ observer, target, yawRadians = 0, deltaSeconds = 0, hasLineOfSight = true } = {}) {
+	function update({ observer, target, yawRadians = 0, deltaSeconds = 0, hasLineOfSight = true, noisePosition = null, noiseStrength = 0 } = {}) {
 		const delta = Math.max(0, Math.min(0.25, Number(deltaSeconds) || 0));
 		const probe = evaluateGuardStimulus({
 			observer,
@@ -158,35 +162,49 @@ export function createGuardPerception({
 			peripheralRadiusMeters,
 			hasLineOfSight,
 		});
+		const strength = clamp01(noiseStrength);
+		const heardDistance = finitePoint(observer) && finitePoint(noisePosition)
+			? Math.hypot(Number(noisePosition.x) - Number(observer.x), Number(noisePosition.z) - Number(observer.z))
+			: Infinity;
+		const audibleRadius = Math.max(0, Number(hearingRangeMeters) || 0) * strength;
+		const heard = !probe.sensed && strength > 0 && heardDistance <= audibleRadius;
+		const travelSpeed = Math.max(0.25, Number(investigationSpeedMps) || DEFAULT_GUARD_PERCEPTION.investigationSpeedMps);
+		const searchBudget = Math.max(0, Number(searchSeconds) || 0);
 
 		if (probe.sensed) {
 			const proximity = 1 - Math.min(1, probe.distanceMeters / Math.max(0.001, visionRangeMeters));
 			const rate = 1 / Math.max(0.05, acquireSeconds * (1.1 - proximity * 0.45));
 			suspicion = clamp01(suspicion + delta * rate);
 			memoryRemaining = Math.max(0, memorySeconds);
-			const travelSpeed = Math.max(0.25, Number(investigationSpeedMps) || DEFAULT_GUARD_PERCEPTION.investigationSpeedMps);
-			const searchBudget = Math.max(0, Number(searchSeconds) || 0);
 			investigationDuration = Math.max(memoryRemaining, probe.distanceMeters / travelSpeed + searchBudget);
 			investigationRemaining = investigationDuration;
 			lastSeen = target ? { x: Number(target.x), z: Number(target.z) } : lastSeen;
 			lastReason = probe.reason;
+		} else if (heard) {
+			suspicion = clamp01(suspicion + Math.max(0, Number(hearingSuspicionGain) || 0) * strength);
+			investigationDuration = Math.max(investigationRemaining, heardDistance / travelSpeed + searchBudget);
+			investigationRemaining = investigationDuration;
+			lastSeen = { x: Number(noisePosition.x), z: Number(noisePosition.z) };
+			lastReason = 'hearing';
 		} else {
 			memoryRemaining = Math.max(0, memoryRemaining - delta);
 			investigationRemaining = Math.max(0, investigationRemaining - delta);
 			const calmSeconds = Math.max(0.25, Math.min(1.0, memorySeconds || 1));
 			suspicion = clamp01(suspicion - delta / calmSeconds);
-			lastReason = memoryRemaining > 0 ? 'memory' : probe.reason;
+			lastReason = memoryRemaining > 0 ? 'memory' : (investigationRemaining > 0 && lastReason === 'hearing' ? 'hearing' : probe.reason);
 		}
 
 		const threshold = clamp01(alertThreshold);
 		const alerted = suspicion >= threshold;
 		const intent = probe.sensed
 			? (alerted ? 'alert' : 'observe')
-			: (investigationRemaining > 0 && lastSeen ? 'investigate' : 'patrol');
+			: ((heard || investigationRemaining > 0) && lastSeen ? 'investigate' : 'patrol');
 		const memoryFraction = memorySeconds > 0 ? clamp01(memoryRemaining / memorySeconds) : 0;
 		const investigationFraction = investigationDuration > 0 ? clamp01(investigationRemaining / investigationDuration) : 0;
 		return Object.freeze({
 			...probe,
+			heard,
+			noiseStrength: strength,
 			alerted,
 			suspicion,
 			memoryRemaining,
@@ -195,7 +213,7 @@ export function createGuardPerception({
 			investigationFraction,
 			intent,
 			lastSeen: lastSeen ? Object.freeze({ ...lastSeen }) : null,
-			reason: intent === 'investigate' ? 'memory' : lastReason,
+			reason: intent === 'investigate' ? lastReason : lastReason,
 		});
 	}
 
