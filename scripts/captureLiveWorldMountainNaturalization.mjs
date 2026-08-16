@@ -122,7 +122,7 @@ try {
 				if (!coast || score > coast.score) coast = { x, z, h, score, lowH: low.h, highH: high.h, waterDir: low.dir };
 			}
 		}
-		need(coast, 'no coast target found');
+		if (!coast) throw new Error('[captureLiveWorldMountainNaturalization/browser] no coast target found');
 		let peak = { x: 0, z: 0, h: -Infinity };
 		for (let z = worldBounds.minZ + 300; z <= worldBounds.maxZ - 300; z += 180) {
 			for (let x = worldBounds.minX + 300; x <= worldBounds.maxX - 300; x += 180) {
