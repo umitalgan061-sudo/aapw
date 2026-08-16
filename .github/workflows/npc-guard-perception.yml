@@ -1,0 +1,29 @@
+name: NPC Guard Perception
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/npc.js'
+      - 'src/3d/gameplay/npcPerception.js'
+      - 'scripts/checkNPCPerception.mjs'
+      - 'service-worker.js'
+      - '.github/workflows/npc-guard-perception.yml'
+
+jobs:
+  perception:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/npc.js
+          node --check src/3d/gameplay/npcPerception.js
+          node --check scripts/checkNPCPerception.mjs
+          node --check service-worker.js
+      - name: Offline 3D cache parity
+        run: node scripts/checkServiceWorkerCache.js
+      - name: Deterministic guard perception
+        run: node scripts/checkNPCPerception.mjs
