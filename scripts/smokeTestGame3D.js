@@ -88,13 +88,7 @@ async function main() {
 	const server = await startStaticServer();
 	const { port } = server.address();
 	const baseUrl = `http://127.0.0.1:${port}`;
-	const softwareWebGlArgs = process.env.GAME3D_SOFTWARE_WEBGL === '1'
-		? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
-		: [];
-	if (softwareWebGlArgs.length) {
-		console.log('[smokeTestGame3D] CI WebGL: forcing SwANGLE/SwiftShader for deterministic GPU-less rendering.');
-	}
-	const browser = await playwright.chromium.launch({ headless: true, args: softwareWebGlArgs });
+	const browser = await playwright.chromium.launch({ headless: true });
 
 	const results = [];
 	try {
