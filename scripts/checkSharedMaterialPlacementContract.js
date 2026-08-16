@@ -35,14 +35,21 @@ assert(placement.includes('prepareWorldAssetForPlacement'), 'missing dress-befor
 assert(placement.includes('materialReadyForWorld'), 'placement must mark only validated dressed assets ready');
 assert(placement.includes('placeholder-model'), 'placeholder models must be rejected before placement');
 assert(placement.includes('groundHeight'), 'world placement must support terrain-ground alignment');
+assert(placement.includes('surfaceQuery'), 'world placement must accept a terrain-context query');
+assert(placement.includes('evaluateWorldSurfacePlacement'), 'world placement must validate terrain-context policy before scene attachment');
+assert(placement.includes('WORLD_SURFACE_POLICY_PRESETS'), 'world placement must expose shared category presets');
+assert(placement.includes('placementSurface'), 'world placement manifest must retain terrain-context evidence');
+assert(placement.includes('surface:non-finite-height'), 'invalid terrain height must fail instead of leaving floating assets');
 assert(placement.includes('createMaterialManifest'), 'world placement must persist a material/placement manifest');
 assert(placement.indexOf('applyMaterialRecipe') < placement.indexOf('applyTransform'), 'material assignment must happen before transform/placement validation');
+assert(placement.indexOf('applyTransform') < placement.indexOf('resolveWorldSurfacePlacement'), 'ground/context validation must happen after requested transform');
+assert(placement.indexOf('resolveWorldSurfacePlacement') < placement.indexOf('validateMaterialAssignment'), 'surface placement must be validated before final scene-ready marking');
 
 assert(editor.includes("from '../materials/MaterialAssignmentCore.js'"), 'editor auto-texture path must delegate to the shared core');
 assert(editor.includes('autoAssignMaterials'), 'editor and agents must share the same auto assignment implementation');
 assert(!editor.includes('applyKitToObject'), 'editor must not own a second figure-kit assignment path');
 
-console.log('[checkSharedMaterialPlacementContract] PASS: editor and autonomous world placement share one multi-surface material core; placeholders are rejected and manifests are emitted before scene attachment.');
+console.log('[checkSharedMaterialPlacementContract] PASS: editor and autonomous world placement share one multi-surface material core; placeholders, invalid ground/context placement, and missing material evidence are rejected before scene attachment.');
 
 function assert(condition, message) {
   if (!condition) {
