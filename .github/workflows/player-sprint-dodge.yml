@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
-      - 'src/3d/gameplay/playerActionConfig.js'
       - 'scripts/checkPlayerSprintDodgeRuntime.mjs'
       - '.github/workflows/player-sprint-dodge.yml'
   workflow_dispatch:
@@ -36,8 +35,8 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/playerActionConfig\.js|scripts/checkPlayerSprintDodgeRuntime\.mjs|\.github/workflows/player-sprint-dodge\.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 4
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerSprintDodgeRuntime\.mjs|\.github/workflows/player-sprint-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 3
           LINES="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1;d+=$2}END{print a+d+0}')"
           echo "PLAYER_SPRINT_DODGE_CHANGED_LINES=$LINES"
           test "$LINES" -le 1000
@@ -56,7 +55,6 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
-          node --check src/3d/gameplay/playerActionConfig.js
           node --check scripts/checkPlayerSprintDodgeRuntime.mjs
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkPwaInstallability.js
