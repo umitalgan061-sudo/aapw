@@ -32,6 +32,13 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Hydrate scoped smoke-test LFS assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+
       - name: Install Playwright outside repo
         shell: bash
         run: |
@@ -71,8 +78,6 @@ jobs:
 
       - name: Browser smoke
         shell: bash
-        env:
-          GAME3D_SOFTWARE_WEBGL: '1'
         run: |
           set -uo pipefail
           set +e
@@ -80,7 +85,7 @@ jobs:
           SMOKE_STATUS="${PIPESTATUS[0]}"
           set -e
           PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log" || true)"
-          grep -E '\[smokeTestGame3D\] (FAIL|SKIP):|FAIL: unexpected error|WebGL disabled|page\.(evaluate|goto)' "$RUNNER_TEMP/smoke.log" \
+          grep -Ei '\[smokeTestGame3D\] (FAIL|SKIP):|FAIL: unexpected error|WebGL disabled|git lfs|pointer|FBXLoader|GLTFLoader|failed to load|unexpected token|page\.(evaluate|goto)' "$RUNNER_TEMP/smoke.log" \
             | tail -n 20 \
             | while IFS= read -r line; do
                 line="${line//'%'/'%25'}"
