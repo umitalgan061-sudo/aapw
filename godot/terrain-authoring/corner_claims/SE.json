@@ -2,20 +2,37 @@
   "corner": "SE",
   "task_name": "Kızıl Ufuk",
   "origin": [7, 7],
-  "current_cell": "G75",
-  "status": "active",
-  "layer": "Relief/Height Character",
-  "branch": "agent/kizil-ufuk-g75-relief-c1-20260813",
-  "pr": 301,
-  "last_commit": "3a7fd091ebcdd29689b19b6b58137b046218cee1",
-  "quality_before": {
-    "coast_hydrology": "96/96 dry canonical centres; Terrain3D proof PR #285",
-    "macro_biome": "continuous owner-map color field; Terrain3D proof PR #288",
-    "relief_attempt": "PR #296 rejected at maxGuardNormalDelta 1.413918 > 0.8 and retired stale/unmerged"
+  "current_cell": "G77",
+  "status": "relief_merged_rock_snow_fresh_exact_main_required",
+  "authoritative_main_at_reconcile": "8988d5fa77c53c8643f78ce83125e48f2635a4a3",
+  "completed": {
+    "coast_hydrology": "merged",
+    "macro_albedo_biome": "merged",
+    "relief_height_character": {"state": "merged", "pr": 473, "merge_commit": "7ab4c2aecedb03150349a00025865652c468f762"}
   },
-  "quality_after": {
-    "target": "same G75 height field with normals derived in canonical full-reference metre space; fixed seam threshold retained at 0.8",
-    "state": "pending exact-head CI evidence"
+  "current_layer": "Rock/Snow",
+  "stale_work": {
+    "pr": 535,
+    "state": "closed_stale_evidence_only",
+    "instruction": "Do not revive #535. Its old runtime-coverage blocker was resolved by #550 and its old asset/LFS blocker was resolved by #525. Rebuild one successor from exact current main."
   },
-  "updated_at": "2026-08-13T01:12:00+03:00"
+  "resolved_blockers": {
+    "full_world_runtime_coverage": {"resolved_by_pr": 550},
+    "asset_manifest_and_lfs_governance": {"resolved_by_pr": 525}
+  },
+  "canonical_map_dependency": {
+    "sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+    "decoded_size": [1536, 1024],
+    "verified_owner_byte_encoding": "jpeg",
+    "repository_binary_pending": true,
+    "policy": "Existing merged G77 Hydrology/Biome/Relief inputs already bound to the canonical SHA may be used to requalify Rock/Snow. Do not create new raw-pixel extraction, an SE-only shared-geography substitute, or new pixel-level map/render claims until exact source bytes are available to CI. Use scripts/canonicalMapProvenance.mjs when bytes are present."
+  },
+  "shared_map_geography_package": {
+    "status": "pending_for_new_extraction_only",
+    "single_owner_required": true,
+    "instruction": "Do not let this pending new-extraction package block later layers that can be proven from already-merged SHA-bound geography."
+  },
+  "next_action": "Publish one fresh exact-current-main G77 Rock/Snow successor from the already-merged SHA-bound Hydrology/Biome/Relief inputs. Re-run native Terrain3D, real shipped runtime and all applicable safety gates. Do not claim new raw-pixel metrics. If authoritative checks are green and main is unchanged, mark ready, require ready-event freshness, and merge with expected-head protection. Do not advance to Road/Path before that merge.",
+  "coordination_policy": "origin/main + merged PR history + authoritative exact-head CI outrank this file and stale PR prose. Resolved historical blockers must be removed from the decision path immediately.",
+  "updated_at": "2026-08-16T10:22:00+03:00"
 }

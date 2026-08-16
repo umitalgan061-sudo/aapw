@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "version": "map.png-r1",
+  "historical_filename": "map.png",
+  "sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+  "byte_length": 667206,
+  "decoded_width": 1536,
+  "decoded_height": 1024,
+  "verified_owner_byte_encoding": "jpeg",
+  "verified_at": "2026-08-16T10:08:00+03:00",
+  "binary_tracked_in_repository": false,
+  "identity_rule": "Canonical identity is version + exact byte SHA256 + exact byte length + decoded dimensions. The historical .png filename is not an encoding guarantee.",
+  "encoding_rule": "Detect image encoding from magic bytes. PNG uses its signature/IHDR; JPEG uses SOI and SOF dimensions. Do not reject the canonical bytes merely because their encoding does not match the filename extension.",
+  "transcode_rule": "Never re-encode or transcode the owner source just to make its extension match; re-encoding changes the canonical SHA256 and byte length.",
+  "progress_rule": "Existing merged geography inputs already cryptographically bound to this SHA may continue to support later layers. New raw-pixel extraction or new pixel-to-render fidelity metrics require the exact canonical bytes to be available to the validating environment.",
+  "shared_helper": "scripts/canonicalMapProvenance.mjs"
+}

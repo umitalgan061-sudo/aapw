@@ -3,34 +3,32 @@
   "task_name": "Günbatımı Ustası",
   "origin": [0, 7],
   "current_cell": "G17",
-  "status": "in_progress_relief_height_character",
-  "branch": "agent/gunbatimi-ustasi-g17-relief-20260813",
-  "pr": null,
-  "last_implementation_commit": "d4ad5ca7e1d9bb30858f933923daa62c1aa83de3",
-  "quality_before": {
-    "cell": "G17",
-    "layer": "Macro Albedo/Biome",
-    "state": "merged_qualified",
-    "merge_commit": "7944352bcb7fa89b5db21b5aa7954efc2d5ca886",
-    "canonical_water_cells": 96,
-    "canonical_land_cells": 0,
-    "terrain3d_version": "1.0.2-stable",
-    "visual_policy": "near+far+full-world no-grid evidence accepted on merged main"
+  "status": "rock_snow_merged_road_path_fresh_exact_main_required",
+  "authoritative_main_at_reconcile": "8988d5fa77c53c8643f78ce83125e48f2635a4a3",
+  "completed": {
+    "coast_hydrology": "merged",
+    "macro_albedo_biome": "merged",
+    "relief_height_character": "merged",
+    "rock_snow": {"state": "merged", "pr": 486, "merge_commit": "001a3e11f97f9bcf8be74462c8b66ce72f66b620"}
   },
-  "quality_after": {
-    "cell": "G17",
-    "layer": "Relief/Height Character",
-    "state": "source_relief_authored_terrain3d_proof_pending",
-    "selection": "same_cell_next_required_layer",
-    "source_map_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
-    "canonical_water_cells": 96,
-    "canonical_land_cells": 0,
-    "relief_formula": "continuous global sunset/summer sea influence plus south/west shelf and low-amplitude long-wave bathymetry; no GeoCell-edge term",
-    "water_ceiling_meters": -2.5,
-    "terrain3d_target": "257x257 RF Height import, >=4 regions, 255/256 seam probe, persistence and LOD0 bake through pinned Terrain3D v1.0.2",
-    "guard_band_target": "height and derived normal continuity on west/east/north shared boundaries",
-    "full_world_completion_claim": false
+  "current_layer": "Road/Path",
+  "stale_work": {
+    "pr": 542,
+    "state": "closed_stale_evidence_only",
+    "instruction": "Do not revive #542. Its old runtime-coverage blocker was resolved by merged #550. Rebuild one successor from exact current main."
   },
-  "next_layer_if_qualified": "Rock/Snow",
-  "updated_at": "2026-08-13T12:59:00+03:00"
+  "resolved_blockers": {
+    "full_world_runtime_coverage": {"resolved_by_pr": 550},
+    "asset_manifest_and_lfs_governance": {"resolved_by_pr": 525}
+  },
+  "canonical_map_dependency": {
+    "sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+    "decoded_size": [1536, 1024],
+    "verified_owner_byte_encoding": "jpeg",
+    "repository_binary_pending": true,
+    "policy": "Existing merged G17 geography already bound to the canonical SHA may be used to requalify Road/Path. Do not create new raw-pixel extraction or new pixel-level map/render claims until exact source bytes are available to CI. Use scripts/canonicalMapProvenance.mjs when bytes are present."
+  },
+  "next_action": "Publish exactly one fresh exact-current-main G17 Road/Path successor using merged SHA-bound G17 Hydrology/Biome/Relief/Rock-Snow and the live road/runtime contracts. Re-run pinned Terrain3D + shipped Three.js evidence. If its authoritative checks are green and main is unchanged, mark ready, require ready-event freshness, and merge with expected-head protection. Do not advance to Near Detail before that merge.",
+  "coordination_policy": "origin/main + merged PR history + authoritative exact-head CI outrank this file and stale PR prose. A resolved historical blocker must never be repeated as the reason for another empty hourly run.",
+  "updated_at": "2026-08-16T10:21:00+03:00"
 }
