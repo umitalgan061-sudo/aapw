@@ -60,6 +60,37 @@ const noColliderSight = queryColliderLineOfSight({ observer: { x: 0, z: 0 }, tar
 assert.equal(noColliderSight.clear, true, 'tests/callers without a world collider preserve compatibility');
 assert.equal(noColliderSight.reason, 'no-collider');
 
+const hearingPerception = createGuardPerception({
+	visionRangeMeters: 10,
+	hearingRangeMeters: 8,
+	investigationSpeedMps: 1,
+	searchSeconds: 1,
+	alertThreshold: 0.72,
+});
+let hearingState = hearingPerception.update({
+	observer: { x: 0, z: 0 }, target: { x: 0, z: -20 }, yawRadians: 0,
+	deltaSeconds: 0.1, hasLineOfSight: false, noisePosition: { x: 4, z: 0 }, noiseStrength: 1,
+});
+assert.equal(hearingState.sensed, false, 'hearing must not masquerade as visual sensing');
+assert.equal(hearingState.heard, true, 'strong nearby movement noise must be heard');
+assert.equal(hearingState.intent, 'investigate', 'heard movement should seed a last-known-position investigation');
+assert.equal(hearingState.reason, 'hearing');
+assert.deepEqual(hearingState.lastSeen, { x: 4, z: 0 });
+assert.ok(hearingState.suspicion > 0 && hearingState.suspicion < 0.72, 'hearing raises suspicion without immediate combat alert');
+hearingState = hearingPerception.update({
+	observer: { x: 0, z: 0 }, target: { x: 0, z: -20 }, yawRadians: 0,
+	deltaSeconds: 0.25, hasLineOfSight: false,
+});
+assert.equal(hearingState.intent, 'investigate', 'investigation must persist after the one-frame noise stimulus ends');
+assert.equal(hearingState.reason, 'hearing', 'the last-known source remains classified as hearing while searching');
+const weakHearing = createGuardPerception({ visionRangeMeters: 10, hearingRangeMeters: 8 });
+const weakNoise = weakHearing.update({
+	observer: { x: 0, z: 0 }, target: { x: 0, z: -20 }, hasLineOfSight: false,
+	noisePosition: { x: 4, z: 0 }, noiseStrength: 0.25, deltaSeconds: 0.1,
+});
+assert.equal(weakNoise.heard, false, 'quiet movement beyond its strength-scaled hearing radius must be ignored');
+assert.equal(weakNoise.intent, 'patrol');
+
 const perception = createGuardPerception({
 	visionRangeMeters: 10,
 	acquireSeconds: 0.2,
@@ -149,6 +180,8 @@ console.log('NPC_PERCEPTION_PASS', JSON.stringify({
 	behind: behind.reason,
 	peripheral: peripheral.reason,
 	blockedSightSamples: blockedSight.samples,
+	hearingIntent: hearingState.intent,
+	weakNoiseHeard: weakNoise.heard,
 	travelBudgetExpiredTo: travelState.intent,
 	resetReacquired: reacquired.reason,
 	finalIntent: state.intent,
