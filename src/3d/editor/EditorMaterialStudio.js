@@ -117,11 +117,12 @@ function installMaterialStudio(editor) {
   $('we-material-auto').addEventListener('click', () => {
     if (!selected || selected.isInstancedMesh) return;
     const paletteId = els.base.value || undefined;
-    const result = autoTextureObject(selected, { lookupAsset: findEditorAsset, paletteId });
+    const size = Number(els.size.value) || 256;
+    const result = autoTextureObject(selected, { lookupAsset: findEditorAsset, paletteId, size });
     if (!result.ok) return setQuality(result.error, 'warn');
     selected.userData.editorMaterialRecipe = {
       version: 1, mode: 'auto', basePaletteId: result.paletteId,
-      textureSize: Number(els.size.value) || 256
+      textureSize: size
     };
     activePaletteId = result.paletteId;
     refreshSelected(true);
@@ -275,7 +276,7 @@ function installMaterialStudio(editor) {
       const current = recipe?.surfaceOverrides?.[surface.key] || surface.material?.userData?.paletteId || els.base.value;
       if (findPalette(current)) select.value = current;
       select.addEventListener('change', () => {
-        const nextRecipe = recipeForSurfaceEdit(selected, recipe);
+        const nextRecipe = recipeForSurfaceEdit(selected, selected.userData.editorMaterialRecipe);
         nextRecipe.textureSize = Number(els.size.value) || 256;
         nextRecipe.surfaceOverrides[surface.key] = select.value;
         nextRecipe.basePaletteId = els.base.value;
@@ -386,7 +387,11 @@ function installMaterialStudio(editor) {
     if (!object || !recipe) return false;
     let ok = false;
     if (recipe.mode === 'auto') {
-      ok = autoTextureObject(object, { lookupAsset: findEditorAsset, paletteId: recipe.basePaletteId }).ok;
+      ok = autoTextureObject(object, {
+        lookupAsset: findEditorAsset,
+        paletteId: recipe.basePaletteId,
+        size: Number(recipe.textureSize) || 256
+      }).ok;
     } else if (recipe.mode === 'surface') {
       ok = applySurfaceRecipe(object, recipe);
     } else if (recipe.mode === 'layers') {
