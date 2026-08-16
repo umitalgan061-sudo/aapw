@@ -50,6 +50,12 @@ try {
 
   await page.keyboard.up('ShiftLeft');
   await waitState('walk');
+  // Prime a fresh run press, then explicitly release/repress inside the controller's double-tap window.
+  // The previous long sprint press is intentionally not reused as a timing-sensitive dodge tap.
+  await page.keyboard.down('ShiftLeft');
+  await waitState('sprint');
+  await page.keyboard.up('ShiftLeft');
+  await waitState('walk');
   const beforeDodge = await latest();
   await page.keyboard.down('ShiftLeft');
   await waitState('dodge');
