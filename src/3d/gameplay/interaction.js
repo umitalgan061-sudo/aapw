@@ -1,13 +1,25 @@
+import { EVENTS } from '../config.js';
+import { gameEvents } from '../eventBus.js';
+import { createQuestSystem } from './questSystem.js';
+
 /**
  * FAZ 5 interaction controller — owns the proximity-prompt/dialogue-box open/close state machine
  * so `game3d.js` only forwards frame updates and input. Dialogue remains UI/state focused: higher
- * level systems may observe a consumed choice through `onChoiceSelected`, but interaction never
- * imports quest/economy/faction modules directly.
+ * level systems observe consumed choices through `onChoiceSelected`; the default adapter feeds the
+ * shared quest lifecycle without requiring `game3d.js` to know quest content.
  * @module gameplay/interaction
  */
 
 /** Digit-key `event.code` values mapped to choice array indices, in order. */
 const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
+
+// One shared in-memory quest journal for the shipped 3D scene. SaveSystem does not exist yet, so
+// this module deliberately keeps persistence out of the integration; `questSystem.getSnapshot()` /
+// `restoreSnapshot()` are already serializable seams for that future owner.
+const defaultQuestSystem = createQuestSystem({
+	eventsBus: gameEvents,
+	worldEventName: EVENTS.WORLD_EVENT_TRIGGERED,
+});
 
 /**
  * @param {object} options
@@ -19,9 +31,9 @@ const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
  * @param {number} options.radiusMeters
  * @param {() => boolean} [options.isPaused] While true input is ignored.
  * @param {(selection: {npcId: string, npcName: string, choiceIndex: number, choice: {label: string, response: string}}) => void}
- *   [options.onChoiceSelected] Called exactly once after a visible choice is consumed. This is the
- *   integration seam for quests/reputation without coupling this controller to those systems.
- * @returns {{update: Function, handleKeyDown: Function, handleChoice: Function}}
+ *   [options.onChoiceSelected] Called exactly once after a visible choice is consumed. Defaults to
+ *   the shared quest adapter; tests/alternate hosts may inject another consumer without coupling.
+ * @returns {{update: Function, handleKeyDown: Function, handleChoice: Function, getQuestSnapshot: Function}}
  */
 export function createInteractionController({
 	interactionPrompt,
@@ -31,7 +43,7 @@ export function createInteractionController({
 	choicesByNpcId = {},
 	radiusMeters,
 	isPaused = () => false,
-	onChoiceSelected = null,
+	onChoiceSelected = defaultQuestSystem.handleDialogueChoice,
 }) {
 	let activeNpc = null;
 	let nearestNpc = null;
@@ -110,6 +122,11 @@ export function createInteractionController({
 			if (event.code !== 'KeyE') return;
 			if (activeNpc) closeDialogue();
 			else if (nearestNpc) openDialogue(nearestNpc);
+		},
+
+		/** Read-only serializable quest state for debug/UI/save adapters. */
+		getQuestSnapshot() {
+			return defaultQuestSystem.getSnapshot();
 		},
 	};
 }
