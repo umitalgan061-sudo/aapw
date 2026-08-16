@@ -28,6 +28,14 @@ await page.addInitScript(() => {
 	});
 });
 
+const waitForMotionState = async (state, timeout = 3000) => {
+	await page.waitForFunction(
+		(expected) => window.__playerMotionFrames?.at(-1)?.state === expected,
+		state,
+		{ timeout },
+	);
+};
+
 try {
 	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 	await page.locator('#run266-entry-enter').click();
@@ -43,11 +51,11 @@ try {
 
 	await page.keyboard.down('KeyW');
 	await page.keyboard.down('ShiftLeft');
-	await page.waitForTimeout(70);
+	await waitForMotionState('sprint');
 	await page.keyboard.up('ShiftLeft');
-	await page.waitForTimeout(70);
+	await waitForMotionState('walk');
 	await page.keyboard.down('ShiftLeft');
-	await page.waitForTimeout(90);
+	await waitForMotionState('dodge');
 
 	const duringDodge = await page.evaluate(() => ({ latest: window.__playerMotionFrames.at(-1), frames: window.__playerMotionFrames.slice() }));
 	need(duringDodge.frames.some((frame) => frame.state === 'sprint'), 'real scene never entered sprint state');
