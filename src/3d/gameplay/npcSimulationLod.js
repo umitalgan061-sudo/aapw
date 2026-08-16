@@ -14,6 +14,13 @@ export function deterministicNpcPhaseSeconds(id, intervalSeconds) {
 		hash ^= char.charCodeAt(0);
 		hash = Math.imul(hash, 16777619) >>> 0;
 	}
+	// Avalanche the FNV result so similar authored ids (guard-1, guard-2, ...) do not cluster into
+	// the same wake-up frame. Integer-only mixing keeps this deterministic across browsers/Node.
+	hash ^= hash >>> 16;
+	hash = Math.imul(hash, 0x7feb352d) >>> 0;
+	hash ^= hash >>> 15;
+	hash = Math.imul(hash, 0x846ca68b) >>> 0;
+	hash ^= hash >>> 16;
 	return (hash / 0x100000000) * intervalSeconds;
 }
 
