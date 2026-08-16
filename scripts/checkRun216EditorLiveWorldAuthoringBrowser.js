@@ -31,6 +31,7 @@ async function main() {
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('pageerror', (error) => errors.push(String(error)));
+  await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
   try {
     await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await page.waitForFunction(() => window.__WESTEROS_EDITOR_LIVE_WORLD__?.ready, null, { timeout: 120000 });
