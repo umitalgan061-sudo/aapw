@@ -1,22 +1,12 @@
 /**
- * FAZ 5 interaction controller (run 33) — owns the proximity-prompt/dialogue-box open/close state
- * machine (nearest-NPC tracking, keypress handling, distance-based auto-close) so `game3d.js`'s
- * tick loop only calls one `update()` per frame and one `handleKeyDown()` per keydown event.
- * Extracted into its own module to stay under the project's 600-line-per-file cap — the same
- * reasoning ADR-0028 already used for the FAZ 5/6 spawn-resolution loops. Real per-NPC greeting
- * content landed run 40 (`INTERACTION_CONFIG.GREETINGS_BY_NPC_ID`, DECISIONS.md ADR-0051) —
- * `openDialogue` looks its speaker up by `object3D.name` (already carried as each NPC's spawn `id`
- * — see `gameplay/npc.js`'s `createNPC`), falling back to the old generic template for any id with
- * no entry. Run 44 (DECISIONS.md ADR-0058) adds an optional single-level choice branch on top of
- * the greeting for a small pilot subset of NPCs (`INTERACTION_CONFIG.CHOICES_BY_NPC_ID`) — picking
- * a numbered choice (Digit1/Digit2/Digit3) shows that choice's own response line; still no further
- * branching/quest hooks, and every NPC with no `CHOICES_BY_NPC_ID` entry keeps the old
- * greeting-then-close-on-E behavior unchanged.
+ * FAZ 5 interaction controller — owns the proximity-prompt/dialogue-box open/close state machine
+ * so `game3d.js` only forwards frame updates and input. Dialogue remains UI/state focused: higher
+ * level systems may observe a consumed choice through `onChoiceSelected`, but interaction never
+ * imports quest/economy/faction modules directly.
  * @module gameplay/interaction
  */
 
-/** Digit-key `event.code` values mapped to choice array indices, in order. Caps the pilot at 3
- * simultaneous choices — plenty for a first branching pass; extend if a future NPC needs more. */
+/** Digit-key `event.code` values mapped to choice array indices, in order. */
 const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
 
 /**
@@ -24,29 +14,27 @@ const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
  * @param {{setVisible: (visible: boolean) => void}} options.interactionPrompt
  * @param {{show: (text: string, choiceLabels?: string[]) => void, hide: () => void}} options.dialogueBox
  * @param {string} options.greetingTemplate Contains a literal `{name}` placeholder. Fallback only.
- * @param {Object<string, string>} [options.greetingsByNpcId] Keyed by NPC id (`object3D.name`),
- *   each containing a literal `{name}` placeholder — see `gameplayConfig.js`'s `GREETINGS_BY_NPC_ID`.
- * @param {Object<string, {label: string, response: string}[]>} [options.choicesByNpcId] Keyed by
- *   NPC id, each entry a small ordered list of `{label, response}` (`response` may also contain a
- *   literal `{name}` placeholder) — see `gameplayConfig.js`'s `CHOICES_BY_NPC_ID`. An id with no
- *   entry (or an empty array) never offers choices — same greeting-then-close-on-E as before.
+ * @param {Object<string, string>} [options.greetingsByNpcId] Keyed by NPC id (`object3D.name`).
+ * @param {Object<string, {label: string, response: string}[]>} [options.choicesByNpcId]
  * @param {number} options.radiusMeters
- * @param {() => boolean} [options.isPaused] Polled at the top of `handleKeyDown`/`handleChoice`
- *   (run 340, ADR-0286) — while it returns `true` both are no-ops, closing the gap `QUESTIONS_FOR_
- *   OWNER.md`'s run-339 entry disclosed: `game3d.js`'s pause overlay only ever froze the *visual*
- *   tick loop, not this controller, so a dialogue already open when the player paused could still
- *   have a choice picked (Enter/Space on a focused, overlay-hidden choice element) or be closed (E)
- *   while invisible underneath it. Defaults to `() => false` (unpaused) so every existing caller —
- *   this project's own smoke checks included — keeps its exact prior behavior with no call-site
- *   changes required.
- * @returns {{update: (npcs: Array<{object3D: import('three').Object3D, displayName: (string|null)}>, playerPos: {x: number, z: number}) => void, handleKeyDown: (event: KeyboardEvent) => void, handleChoice: (index: number) => void}}
+ * @param {() => boolean} [options.isPaused] While true input is ignored.
+ * @param {(selection: {npcId: string, npcName: string, choiceIndex: number, choice: {label: string, response: string}}) => void}
+ *   [options.onChoiceSelected] Called exactly once after a visible choice is consumed. This is the
+ *   integration seam for quests/reputation without coupling this controller to those systems.
+ * @returns {{update: Function, handleKeyDown: Function, handleChoice: Function}}
  */
-export function createInteractionController({ interactionPrompt, dialogueBox, greetingTemplate, greetingsByNpcId = {}, choicesByNpcId = {}, radiusMeters, isPaused = () => false }) {
+export function createInteractionController({
+	interactionPrompt,
+	dialogueBox,
+	greetingTemplate,
+	greetingsByNpcId = {},
+	choicesByNpcId = {},
+	radiusMeters,
+	isPaused = () => false,
+	onChoiceSelected = null,
+}) {
 	let activeNpc = null;
 	let nearestNpc = null;
-	// Non-null only between opening a dialogue that has choices and one of them being picked (or the
-	// dialogue closing) — cleared by `selectChoice`/`closeDialogue` so a second key press never
-	// re-triggers a choice already consumed.
 	let activeChoices = null;
 	let activeNpcName = null;
 
@@ -69,9 +57,14 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 
 	/** @param {number} index Into `activeChoices` — caller already validated it's in range. */
 	function selectChoice(index) {
-		const { response } = activeChoices[index];
-		activeChoices = null; // consumed — a further key press can no longer pick a(nother) choice
-		dialogueBox.show(response.replace('{name}', activeNpcName));
+		const choice = activeChoices[index];
+		const npcId = activeNpc?.object3D?.name ?? '';
+		const npcName = activeNpcName;
+		activeChoices = null; // consumed — a further key press cannot trigger a second choice
+		dialogueBox.show(choice.response.replace('{name}', npcName));
+		if (typeof onChoiceSelected === 'function') {
+			onChoiceSelected({ npcId, npcName, choiceIndex: index, choice });
+		}
 	}
 
 	return {
@@ -95,8 +88,6 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 					nearestDistance = distance;
 				}
 			}
-			// The player walked out of the active NPC's own radius (or it no longer resolves, e.g.
-			// disposed) — auto-close rather than leaving a dialogue box open with no one nearby.
 			if (activeNpc && activeNpc !== nearestNpc) closeDialogue();
 			interactionPrompt.setVisible(!activeNpc && nearestNpc !== null);
 		},
@@ -104,7 +95,6 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 		/** Pass a `keydown` event straight through from the caller's own listener. */
 		handleKeyDown(event) {
 			if (isPaused()) return;
-			// Guards against the browser's own key-repeat firing this multiple times per held key.
 			if (event.repeat) return;
 			if (event.code === 'Escape') {
 				if (activeNpc) closeDialogue();
