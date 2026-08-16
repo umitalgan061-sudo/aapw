@@ -124,12 +124,33 @@ for (let i = 0; i < 40; i += 1) {
 assert.equal(travelState.intent, 'patrol', 'travel-sized investigation budget must still end deterministically');
 assert.equal(travelState.investigationRemaining, 0);
 
+const resetPerception = createGuardPerception({
+	visionRangeMeters: 10,
+	acquireSeconds: 0.05,
+	memorySeconds: 1,
+	alertThreshold: 0.2,
+});
+for (let i = 0; i < 3; i += 1) {
+	resetPerception.update({ observer: { x: 0, z: 0 }, target: { x: 0, z: 4 }, deltaSeconds: 0.05 });
+}
+assert.equal(resetPerception.snapshot().lastSeen?.z, 4, 'precondition: target should be remembered before reset');
+resetPerception.reset();
+const resetSnapshot = resetPerception.snapshot();
+assert.equal(resetSnapshot.suspicion, 0, 'reset must clear suspicion');
+assert.equal(resetSnapshot.memoryRemaining, 0, 'reset must clear short-term memory');
+assert.equal(resetSnapshot.investigationRemaining, 0, 'reset must clear travel/search budget');
+assert.equal(resetSnapshot.lastSeen, null, 'reset must clear stale last-seen coordinates');
+const reacquired = resetPerception.update({ observer: { x: 0, z: 0 }, target: { x: 4, z: 0 }, yawRadians: Math.PI / 2, deltaSeconds: 0.05 });
+assert.equal(reacquired.sensed, true, 'a reset guard must immediately accept a fresh valid stimulus');
+assert.deepEqual(reacquired.lastSeen, { x: 4, z: 0 }, 'reacquisition must replace the old target memory');
+
 console.log('NPC_PERCEPTION_PASS', JSON.stringify({
 	front: front.reason,
 	behind: behind.reason,
 	peripheral: peripheral.reason,
 	blockedSightSamples: blockedSight.samples,
 	travelBudgetExpiredTo: travelState.intent,
+	resetReacquired: reacquired.reason,
 	finalIntent: state.intent,
 	finalSuspicion: Number(state.suspicion.toFixed(4)),
 }));
