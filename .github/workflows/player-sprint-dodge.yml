@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'src/3d/ui/healthBar.js'
       - 'scripts/checkPlayerSprintDodgeRuntime.mjs'
       - '.github/workflows/player-sprint-dodge.yml'
   workflow_dispatch:
@@ -35,8 +36,8 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerSprintDodgeRuntime\.mjs|\.github/workflows/player-sprint-dodge\.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 3
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerSprintDodgeRuntime\.mjs|\.github/workflows/player-sprint-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 4
           LINES="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1;d+=$2}END{print a+d+0}')"
           echo "PLAYER_SPRINT_DODGE_CHANGED_LINES=$LINES"
           test "$LINES" -le 1000
@@ -55,6 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
+          node --check src/3d/ui/healthBar.js
           node --check scripts/checkPlayerSprintDodgeRuntime.mjs
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkPwaInstallability.js
@@ -74,12 +76,17 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerSprintDodgeRuntime.mjs --out-dir=artifacts/player-sprint-dodge 2>&1 | tee "$RUNNER_TEMP/player-action.log"
           grep -F 'PLAYER_SPRINT_DODGE_RUNTIME_OK' "$RUNNER_TEMP/player-action.log"
           test -s artifacts/player-sprint-dodge/player-baseline.png
+          test -s artifacts/player-sprint-dodge/player-vitals-baseline.png
           test -s artifacts/player-sprint-dodge/player-dodge.png
+          test -s artifacts/player-sprint-dodge/player-vitals-dodge.png
           test -s artifacts/player-sprint-dodge/player-sprint.png
+          test -s artifacts/player-sprint-dodge/player-exhausted.png
+          test -s artifacts/player-sprint-dodge/player-vitals-exhausted.png
           test -s artifacts/player-sprint-dodge/player-sprint-dodge-metrics.json
       - name: Full game mobile and browser regressions
         run: |
           set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkHealthBarAccessibility.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/game3d-smoke.log"
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/game3d-smoke.log")" -ge 40
