@@ -25,8 +25,8 @@ for (const name of requiredCoreExports) {
 
 assert(core.includes("from './meshPartClassifier.js'"), 'shared core must classify real mesh/material slots');
 assert(core.includes('applyKitToObject'), 'shared core must use the existing figure-kit texture pipeline');
-assert(core.includes("mode === 'surface'"), 'shared core must support per-material-slot recipes');
-assert(core.includes("mode === 'layers'"), 'shared core must support single-mesh layered recipes');
+assert(core.includes("recipe.mode === 'surface'"), 'shared core must support per-material-slot recipes');
+assert(core.includes("recipe.mode === 'layers'"), 'shared core must support single-mesh layered recipes');
 assert(core.includes('generatedMaterialCount'), 'shared core must expose material validation evidence');
 assert(core.includes('worldPlacementManifest') === false, 'material core must remain world-placement agnostic');
 
