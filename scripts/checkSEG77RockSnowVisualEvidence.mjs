@@ -35,6 +35,7 @@ try {
     const { CURRENT_TERRAIN_POLICY } = await import('/src/3d/world/terrain.js');
     const state = createScene(document.getElementById('proof')); state.controls.enabled = false; state.scene.fog = null; state.sky.visible = false; state.stars.visible = false;
     state.renderer.setPixelRatio(1); state.renderer.setSize(1536, 1024, true); state.chunkManager.loadSquare(0, 0, 13);
+    state.scene.updateMatrixWorld(true);
     const meshes = [...state.chunkManager.loaded.values()];
     const target = normalizedReferenceToWorldXZ(15 / 16, 15 / 16, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
     const groundY = state.groundCollider.getGroundHeight(target.x, target.z);
