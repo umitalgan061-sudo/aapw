@@ -2,20 +2,29 @@
   "corner": "SE",
   "task_name": "Kızıl Ufuk",
   "origin": [7, 7],
-  "current_cell": "G75",
-  "status": "active",
-  "layer": "Relief/Height Character",
-  "branch": "agent/kizil-ufuk-g75-relief-c1-20260813",
-  "pr": 301,
-  "last_commit": "3a7fd091ebcdd29689b19b6b58137b046218cee1",
-  "quality_before": {
-    "coast_hydrology": "96/96 dry canonical centres; Terrain3D proof PR #285",
-    "macro_biome": "continuous owner-map color field; Terrain3D proof PR #288",
-    "relief_attempt": "PR #296 rejected at maxGuardNormalDelta 1.413918 > 0.8 and retired stale/unmerged"
+  "current_cell": "G77",
+  "status": "relief_merged_rock_snow_needs_fresh_exact_main",
+  "authoritative_main_at_reconcile": "8988d5fa77c53c8643f78ce83125e48f2635a4a3",
+  "completed": {
+    "coast_hydrology": "merged",
+    "macro_albedo_biome": "merged",
+    "relief_height_character": {"state": "merged", "pr": 473, "merge_commit": "7ab4c2aecedb03150349a00025865652c468f762"}
   },
-  "quality_after": {
-    "target": "same G75 height field with normals derived in canonical full-reference metre space; fixed seam threshold retained at 0.8",
-    "state": "pending exact-head CI evidence"
+  "current_layer": "Rock/Snow",
+  "stale_work": {
+    "pr": 535,
+    "state": "stale_evidence_only",
+    "instruction": "Do not merge or keep #535 as the current candidate. Its old runtime-coverage blocker was resolved by #550 and its old asset/LFS blocker was resolved by #525."
   },
-  "updated_at": "2026-08-13T01:12:00+03:00"
+  "resolved_blockers": {
+    "full_world_runtime_coverage": {"resolved_by_pr": 550},
+    "asset_manifest_and_lfs_governance": {"resolved_by_pr": 525}
+  },
+  "remaining_shared_dependencies": {
+    "canonical_map_binary": "Exact owner bytes are verified at 1536x1024 and SHA256 20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1, but strict repository provenance remains pending until those exact bytes are tracked.",
+    "shared_map_geography_package": "After the canonical bytes are tracked, one shared owner must produce the versioned label/symbol mask, ocean/lake/river/ridge/valley/pass and biome/forest package. Do not create an SE-only substitute."
+  },
+  "next_action": "After canonical map tracking and single-owner shared geography extraction are established, publish one fresh exact-current-main G77 Rock/Snow successor and rerun native Terrain3D, real shipped runtime, map-fidelity and safety gates. Do not advance to Road/Path before that merge.",
+  "coordination_policy": "origin/main + merged PR history outrank this file and stale PR prose. Resolved historical blockers must be removed from the decision path immediately.",
+  "updated_at": "2026-08-16T10:08:00+03:00"
 }
