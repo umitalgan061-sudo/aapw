@@ -14,6 +14,7 @@ const PLAYER_ACTION_CONFIG = Object.freeze({
 	MAX_STAMINA: 100,
 	SPRINT_SPEED_MPS: 8.2,
 	SPRINT_DRAIN_PER_SECOND: 24,
+	SPRINT_RESTART_STAMINA: 20,
 	STAMINA_REGEN_PER_SECOND: 19,
 	STAMINA_REGEN_DELAY_SECONDS: 0.65,
 	DODGE_DOUBLE_TAP_WINDOW_SECONDS: 0.28,
@@ -22,6 +23,7 @@ const PLAYER_ACTION_CONFIG = Object.freeze({
 	DODGE_SPEED_MPS: 10.5,
 	DODGE_COOLDOWN_SECONDS: 0.22,
 	DODGE_RUN_ANIMATION_TIMESCALE: 1.45,
+	MAX_COLLISION_STEP_METERS: 0.45,
 });
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -54,11 +56,15 @@ export async function createPlayer({
 	let velocityY = 0;
 	let isGrounded = true;
 	let stamina = PLAYER_ACTION_CONFIG.MAX_STAMINA;
+	let sprintExhausted = false;
 	let regenDelayRemaining = 0;
 	let dodgeRemaining = 0;
 	let dodgeCooldownRemaining = 0;
 	let lastRunPressAge = Infinity;
 	let wasRunHeld = false;
+	let runIntent = false;
+	let hasMovementInput = false;
+	let planarSpeedMps = 0;
 	let dodgeDirectionX = 0;
 	let dodgeDirectionZ = 1;
 	let movementState = 'idle';
@@ -80,11 +86,18 @@ export async function createPlayer({
 	playAction('idle');
 
 	function moveBy(directionX, directionZ, speed, delta) {
-		let nextX = model.position.x + directionX * speed * delta;
-		let nextZ = model.position.z + directionZ * speed * delta;
-		if (playerCollider) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
-		model.position.x = nextX;
-		model.position.z = nextZ;
+		const travelMeters = Math.hypot(directionX, directionZ) * speed * delta;
+		const steps = playerCollider
+			? Math.max(1, Math.ceil(travelMeters / PLAYER_ACTION_CONFIG.MAX_COLLISION_STEP_METERS))
+			: 1;
+		const stepDelta = steps > 0 ? delta / steps : 0;
+		for (let step = 0; step < steps; step += 1) {
+			let nextX = model.position.x + directionX * speed * stepDelta;
+			let nextZ = model.position.z + directionZ * speed * stepDelta;
+			if (playerCollider) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+			model.position.x = nextX;
+			model.position.z = nextZ;
+		}
 	}
 
 	function turnToward(directionX, directionZ, delta) {
@@ -102,14 +115,26 @@ export async function createPlayer({
 	function spendStamina(amount) {
 		stamina = clamp(stamina - amount, 0, PLAYER_ACTION_CONFIG.MAX_STAMINA);
 		regenDelayRemaining = PLAYER_ACTION_CONFIG.STAMINA_REGEN_DELAY_SECONDS;
+		if (stamina <= 0) sprintExhausted = true;
 	}
 
 	function motionSnapshot() {
 		return Object.freeze({
 			state: movementState,
 			stamina: Number(stamina.toFixed(2)),
+			maxStamina: PLAYER_ACTION_CONFIG.MAX_STAMINA,
+			staminaRatio: Number((stamina / PLAYER_ACTION_CONFIG.MAX_STAMINA).toFixed(4)),
+			sprintExhausted,
+			runIntent,
 			isGrounded,
+			canDodge: isGrounded
+				&& dodgeRemaining <= 0
+				&& dodgeCooldownRemaining <= 0
+				&& stamina >= PLAYER_ACTION_CONFIG.DODGE_COST,
+			speedMps: Number(planarSpeedMps.toFixed(3)),
 			dodgeRemaining: Number(dodgeRemaining.toFixed(3)),
+			dodgeCooldownRemaining: Number(dodgeCooldownRemaining.toFixed(3)),
+			regenDelayRemaining: Number(regenDelayRemaining.toFixed(3)),
 			position: Object.freeze({
 				x: Number(model.position.x.toFixed(3)),
 				y: Number(model.position.y.toFixed(3)),
@@ -129,11 +154,19 @@ export async function createPlayer({
 		}
 	}
 	publishMotionTelemetry();
+	// `HealthBar` is constructed after `createPlayer` resolves. Re-arm one equivalent first-tick
+	// publication so late HUD subscribers receive the full initial snapshot without a direct player
+	// reference or a second per-frame polling API.
+	lastTelemetryState = '';
+	lastTelemetryStamina = -1;
 
 	return {
 		object3D: model,
 		get stamina() { return stamina; },
+		get maxStamina() { return PLAYER_ACTION_CONFIG.MAX_STAMINA; },
 		get movementState() { return movementState; },
+		get sprintExhausted() { return sprintExhausted; },
+		get isDodging() { return dodgeRemaining > 0; },
 		getMotionState: motionSnapshot,
 
 		/**
@@ -143,16 +176,20 @@ export async function createPlayer({
 		 */
 		update(delta, moveDirectionXZ, isRunning, jumpRequested = false) {
 			const dt = Math.max(0, Number.isFinite(delta) ? delta : 0);
-			const hasInput = moveDirectionXZ.x !== 0 || moveDirectionXZ.z !== 0;
+			const frameStartX = model.position.x;
+			const frameStartZ = model.position.z;
+			hasMovementInput = moveDirectionXZ.x !== 0 || moveDirectionXZ.z !== 0;
+			runIntent = Boolean(isRunning);
 			lastRunPressAge += dt;
 			dodgeCooldownRemaining = Math.max(0, dodgeCooldownRemaining - dt);
 			regenDelayRemaining = Math.max(0, regenDelayRemaining - dt);
+			if (sprintExhausted && stamina >= PLAYER_ACTION_CONFIG.SPRINT_RESTART_STAMINA) sprintExhausted = false;
 
-			const runPressed = Boolean(isRunning) && !wasRunHeld;
+			const runPressed = runIntent && !wasRunHeld;
 			if (
 				runPressed
 				&& lastRunPressAge <= PLAYER_ACTION_CONFIG.DODGE_DOUBLE_TAP_WINDOW_SECONDS
-				&& hasInput
+				&& hasMovementInput
 				&& isGrounded
 				&& dodgeCooldownRemaining <= 0
 				&& stamina >= PLAYER_ACTION_CONFIG.DODGE_COST
@@ -167,7 +204,7 @@ export async function createPlayer({
 			} else if (runPressed) {
 				lastRunPressAge = 0;
 			}
-			wasRunHeld = Boolean(isRunning);
+			wasRunHeld = runIntent;
 
 			if (dodgeRemaining > 0) {
 				dodgeRemaining = Math.max(0, dodgeRemaining - dt);
@@ -175,8 +212,8 @@ export async function createPlayer({
 				turnToward(dodgeDirectionX, dodgeDirectionZ, dt);
 				movementState = 'dodge';
 				playAction('running', PLAYER_ACTION_CONFIG.DODGE_RUN_ANIMATION_TIMESCALE);
-			} else if (hasInput) {
-				const sprinting = Boolean(isRunning) && isGrounded && stamina > 0;
+			} else if (hasMovementInput) {
+				const sprinting = runIntent && isGrounded && !sprintExhausted && stamina > 0;
 				const speed = sprinting ? PLAYER_ACTION_CONFIG.SPRINT_SPEED_MPS : PLAYER_CONFIG.WALK_SPEED_MPS;
 				moveBy(moveDirectionXZ.x, moveDirectionXZ.z, speed, dt);
 				turnToward(moveDirectionXZ.x, moveDirectionXZ.z, dt);
@@ -185,7 +222,9 @@ export async function createPlayer({
 					movementState = 'sprint';
 					playAction('running', 1);
 				} else {
-					movementState = isGrounded ? 'walk' : 'airborne';
+					movementState = isGrounded && runIntent && sprintExhausted
+						? 'exhausted'
+						: (isGrounded ? 'walk' : 'airborne');
 					playAction('walking', 1);
 				}
 			} else {
@@ -205,10 +244,15 @@ export async function createPlayer({
 			));
 			model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z) + heightAboveGround;
 
-			if (regenDelayRemaining <= 0 && dodgeRemaining <= 0 && !(Boolean(isRunning) && hasInput && isGrounded)) {
+			// Run intent must keep owning the stamina budget while airborne too. The prior grounded-only
+			// guard let a held sprint-jump begin regenerating near the top/end of the arc after the delay.
+			if (regenDelayRemaining <= 0 && dodgeRemaining <= 0 && !(runIntent && hasMovementInput)) {
 				stamina = clamp(stamina + PLAYER_ACTION_CONFIG.STAMINA_REGEN_PER_SECOND * dt, 0, PLAYER_ACTION_CONFIG.MAX_STAMINA);
 			}
 
+			planarSpeedMps = dt > 0
+				? Math.hypot(model.position.x - frameStartX, model.position.z - frameStartZ) / dt
+				: 0;
 			mixer.update(dt);
 			publishMotionTelemetry();
 		},
