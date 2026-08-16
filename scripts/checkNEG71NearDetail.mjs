@@ -35,7 +35,6 @@ assert.ok(a.minSignal < -0.70 && a.maxSignal > 0.70); assert.ok(a.minTint>=P.tin
 assert.ok(a.minRoughness>=P.roughnessFloor&&a.maxRoughness<=P.roughnessCeiling&&a.maxRoughness-a.minRoughness>=0.06);
 assert.ok(a.maxAdjacentTintDelta<=0.025&&a.maxAdjacentRoughnessDelta<=0.08);
 
-// 193x193 owner+guard audit: west/north/south only; east is clipped to the world boundary.
 const e=g71NearDetailGuardBounds(); let guardSamples=0, maxGuardHeight=0, maxGuardControl=0, maxGuardRoad=0, maxGuardFoliage=0, guardChecksum=2166136261;
 for(let y=0;y<193;y++)for(let x=0;x<193;x++){
   const nx=e.xMin+(e.xMax-e.xMin)*x/192, ny=e.yMin+(e.yMax-e.yMin)*y/192;
@@ -47,7 +46,6 @@ for(let y=0;y<193;y++)for(let x=0;x<193;x++){
 }
 assert.equal(guardSamples,37249); assert.equal(maxGuardHeight,0); assert.equal(maxGuardControl,0); assert.equal(maxGuardRoad,0); assert.equal(maxGuardFoliage,0);
 
-// 257x257 filtered preflight + source LOD chain. No grid coordinate enters the detail phase.
 const core=P.normalizedBounds; const lod={}; let preflightSamples=0, maxPreflightTintStep=0, maxPreflightRoughStep=0, previous=null, preflightChecksum=2166136261;
 for(let y=0;y<257;y++){
   const ny=core.yMin+(core.yMax-core.yMin)*y/256,row=[];
@@ -61,19 +59,18 @@ for(let y=0;y<257;y++){
 assert.equal(preflightSamples,66049); assert.ok(maxPreflightTintStep<=0.015); assert.ok(maxPreflightRoughStep<=0.05);
 for(const size of [257,129,65,33]){let min=1,max=-1,checksum=2166136261;for(let y=0;y<size;y++)for(let x=0;x<size;x++){const nx=core.xMin+(core.xMax-core.xMin)*x/(size-1),ny=core.yMin+(core.yMax-core.yMin)*y/(size-1),v=g71NearDetailSignal(nx,ny);min=Math.min(min,v);max=Math.max(max,v);checksum=hash(checksum,v);}lod[size]={samples:size*size,min:Number(min.toFixed(8)),max:Number(max.toFixed(8)),checksum};assert.ok(min<-.65&&max>.65);}
 
-// Exact G70/G71 Near Detail seam at y=0.125. Same global physical phase must match exactly.
-let northPairs=0,maxSignal=0,maxTint=0,maxRough=0,maxHeight=0,maxNormal=0,maxControl=0,maxRoad=0;
+let northPairs=0,maxNorthSignalDelta=0,maxNorthTintDelta=0,maxNorthRoughnessDelta=0,maxNorthHeightDelta=0,maxNorthNormalDelta=0,maxNorthControlDelta=0,maxNorthRoadDelta=0;
 for(let i=0;i<=256;i++){
   const nx=core.xMin+(core.xMax-core.xMin)*i/256, ny=core.yMin;
   const s=sampleG71NearDetail(nx,ny), n=sampleG70NearDetail(nx,ny);
-  maxSignal=Math.max(maxSignal,Math.abs(s.detailSignal-n.detailSignal));maxTint=Math.max(maxTint,tintDelta(s,n));maxRough=Math.max(maxRough,Math.abs(s.roughness-n.roughness));
-  maxHeight=Math.max(maxHeight,Math.abs(s.authoredHeight-n.authoredHeight));maxNormal=Math.max(maxNormal,normalDelta(s.normal,n.normal));maxControl=Math.max(maxControl,Math.abs(s.controlBlend-n.controlBlend));maxRoad=Math.max(maxRoad,Math.abs(s.coverage-n.coverage));northPairs++;
+  maxNorthSignalDelta=Math.max(maxNorthSignalDelta,Math.abs(s.detailSignal-n.detailSignal)); maxNorthTintDelta=Math.max(maxNorthTintDelta,tintDelta(s,n)); maxNorthRoughnessDelta=Math.max(maxNorthRoughnessDelta,Math.abs(s.roughness-n.roughness));
+  maxNorthHeightDelta=Math.max(maxNorthHeightDelta,Math.abs(s.authoredHeight-n.authoredHeight)); maxNorthNormalDelta=Math.max(maxNorthNormalDelta,normalDelta(s.normal,n.normal)); maxNorthControlDelta=Math.max(maxNorthControlDelta,Math.abs(s.controlBlend-n.controlBlend)); maxNorthRoadDelta=Math.max(maxNorthRoadDelta,Math.abs(s.coverage-n.coverage)); northPairs++;
 }
-assert.equal(northPairs,257); assert.equal(maxSignal,0); assert.equal(maxTint,0); assert.equal(maxRough,0); assert.equal(maxHeight,0); assert.equal(maxNormal,0); assert.equal(maxControl,0); assert.equal(maxRoad,0);
+assert.equal(northPairs,257); assert.equal(maxNorthSignalDelta,0); assert.equal(maxNorthTintDelta,0); assert.equal(maxNorthRoughnessDelta,0); assert.equal(maxNorthHeightDelta,0); assert.equal(maxNorthNormalDelta,0); assert.equal(maxNorthControlDelta,0); assert.equal(maxNorthRoadDelta,0);
 const west=measureG61Hydrology(); assert.equal(west.waterCells,96); assert.equal(west.landCells,0); assert.equal(west.seaCells,96);
 for(let i=0;i<=256;i++){const ny=core.yMin+(core.yMax-core.yMin)*i/256;sampleG71NearDetail(1,ny);assert.throws(()=>sampleG71NearDetail(1+1e-6,ny),RangeError);}
 
 const probeA=buildG71Terrain3DNearDetailProbe(), probeB=buildG71Terrain3DNearDetailProbe(); assert.deepEqual(probeA,probeB);
-const report={...a,guardSamples,maxGuardHeight,maxGuardControl,maxGuardRoad,maxGuardFoliage,guardChecksum:guardChecksum>>>0,preflightSamples,maxPreflightTintStep,maxPreflightRoughStep,preflightChecksum:preflightChecksum>>>0,lod,northNeighbor:'G70',northPairs,maxSignal,maxTint,maxRough,maxHeight,maxNormal,maxControl,maxRoad,westNeighbor:'G61',eastBoundarySamples:257};
+const report={...a,guardSamples,maxGuardHeight,maxGuardControl,maxGuardRoad,maxGuardFoliage,guardChecksum:guardChecksum>>>0,preflightSamples,maxPreflightTintStep,maxPreflightRoughStep,preflightChecksum:preflightChecksum>>>0,lod,northNeighbor:'G70',northPairs,maxNorthSignalDelta,maxNorthTintDelta,maxNorthRoughnessDelta,maxNorthHeightDelta,maxNorthNormalDelta,maxNorthControlDelta,maxNorthRoadDelta,westNeighbor:'G61',eastBoundarySamples:257};
 console.log(`G71_NEAR_DETAIL_METRICS=${JSON.stringify(report)}`); console.log('NE_G71_NEAR_DETAIL_VALIDATION_OK');
 const emit=process.argv.find(v=>v.startsWith('--emit-probe='));if(emit){const out=path.resolve(ROOT,emit.slice('--emit-probe='.length));fs.mkdirSync(path.dirname(out),{recursive:true});fs.writeFileSync(out,`${JSON.stringify(probeA)}\n`,'utf8');}
