@@ -1,0 +1,77 @@
+name: SE G77 Terrain3D Road Path
+on:
+  push: { branches: ['terrain/se-g77-terrain3d-road-path-exact-*'] }
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/se-g77-terrain3d-road-path.yml'
+      - 'godot/terrain-authoring/geocells/se/g77_road_path.mjs'
+      - 'godot/terrain-authoring/scripts/validate_g77_terrain3d_road_path.gd'
+      - 'scripts/checkSEG77RoadPath.mjs'
+      - 'scripts/checkSEG77RoadPathControlPreflight.mjs'
+      - 'scripts/checkSEG77RoadPathMapFidelity.mjs'
+      - 'scripts/checkSEG77RoadPathNeighborSeams.mjs'
+      - 'scripts/checkSEG77RoadPathVisualEvidence.mjs'
+      - 'scripts/checkSEG77RoadPathEvidenceBundle.mjs'
+  workflow_dispatch:
+permissions: { contents: read }
+concurrency: { group: 'se-g77-road-path-${{ github.head_ref || github.ref_name }}', cancel-in-progress: true }
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, lfs: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main nine-file scope quota and predecessor layers
+        run: |
+          set -euo pipefail; git fetch origin main; git lfs fsck
+          MAIN="$(git rev-parse origin/main)"; test "$(git merge-base HEAD origin/main)" = "$MAIN"; git diff --check origin/main...HEAD
+          CHANGED="$(git diff --name-only origin/main...HEAD)"; echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(\.github/workflows/se-g77-terrain3d-road-path\.yml|godot/terrain-authoring/geocells/se/g77_road_path\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_road_path\.gd|scripts/checkSEG77RoadPath(ControlPreflight|MapFidelity|NeighborSeams|VisualEvidence|EvidenceBundle)?\.mjs)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 9
+          LINES="$(git diff --numstat origin/main...HEAD | awk '{a+=$1;d+=$2}END{print a+d+0}')"; echo "G77_ROAD_PATH_CHANGED_LINES=$LINES"; test "$LINES" -le 1000
+          git diff --quiet origin/main...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py godot/terrain-authoring/addons/zylann.hterrain godot/terrain-authoring/geocells/se/g77_hydrology.mjs godot/terrain-authoring/geocells/se/g77_biome.mjs godot/terrain-authoring/geocells/se/g77_relief.mjs godot/terrain-authoring/geocells/se/g77_rock_snow.mjs src/3d/world/terrain.js src/3d/world/roads.js godot/terrain-authoring/corner_claims/SE.json
+          node scripts/checkSEG77Terrain3DHydrology.mjs; node scripts/checkSEG77Biome.mjs --write-probe; node scripts/checkSEG77Relief.mjs; node scripts/checkSEG77ReliefContinuity.mjs; node scripts/checkSEG77RockSnow.mjs
+          for f in godot/terrain-authoring/geocells/se/g77_road_path.mjs scripts/checkSEG77RoadPath.mjs scripts/checkSEG77RoadPathControlPreflight.mjs scripts/checkSEG77RoadPathMapFidelity.mjs scripts/checkSEG77RoadPathNeighborSeams.mjs scripts/checkSEG77RoadPathVisualEvidence.mjs scripts/checkSEG77RoadPathEvidenceBundle.mjs; do node --check "$f"; done
+      - name: Chromium live Road Path source and deterministic 257 proof
+        run: |
+          set -euo pipefail; mkdir -p "$RUNNER_TEMP/pw"; npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0; "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium; echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+          mkdir -p godot/terrain-authoring/.terrain3d-proof
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkSEG77RoadPath.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g77-road-path-probe.json | tee /tmp/source-a.log; cp godot/terrain-authoring/.terrain3d-proof/g77-road-path-probe.json /tmp/source-a.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkSEG77RoadPath.mjs --emit-probe=godot/terrain-authoring/.terrain3d-proof/g77-road-path-probe.json | tee /tmp/source-b.log
+          grep -F SE_G77_ROAD_PATH_VALIDATION_OK /tmp/source-a.log; cmp /tmp/source-a.log /tmp/source-b.log; cmp /tmp/source-a.json godot/terrain-authoring/.terrain3d-proof/g77-road-path-probe.json
+          node scripts/checkSEG77RoadPathControlPreflight.mjs | tee /tmp/control.log; grep -F SE_G77_ROAD_PATH_CONTROL_PREFLIGHT_OK /tmp/control.log
+          node scripts/checkSEG77RoadPathMapFidelity.mjs | tee /tmp/map.log; grep -F SE_G77_ROAD_PATH_MAP_FIDELITY_OK /tmp/map.log
+          node scripts/checkSEG77RoadPathNeighborSeams.mjs | tee /tmp/seams.log; grep -F SE_G77_ROAD_PATH_NEIGHBOR_SEAMS_OK /tmp/seams.log
+      - name: Pinned Terrain3D Godot 4.6.3 double native persist reload LOD0
+        run: |
+          set -euo pipefail
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/t3d.log; grep -F 'TERRAIN3D_INSTALL_OK version=1.0.2 tag=v1.0.2-stable sha256=a071850250ec5e596aa54da61c01d75768774eb379ee997584d426a45f4884a2' /tmp/t3d.log
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | grep -F 'TERRAIN3D_VERIFY_OK version=1.0.2 enabled=true'
+          mkdir -p "$RUNNER_TEMP/g"; curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o "$RUNNER_TEMP/g.zip"; unzip -q "$RUNNER_TEMP/g.zip" -d "$RUNNER_TEMP/g"; G="$(find "$RUNNER_TEMP/g" -maxdepth 1 -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; test -n "$G"; chmod +x "$G"; "$G" --version | grep -F 4.6.3; echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
+          timeout 180s "$G" --headless --editor --path godot/terrain-authoring --quit-after 45
+          for suffix in a b; do G77_ROAD_PATH_PROOF_SUFFIX="$suffix" timeout 300s "$G" --headless --path godot/terrain-authoring --script res://scripts/validate_g77_terrain3d_road_path.gd | tee "/tmp/$suffix.log"; grep -F SE_G77_TERRAIN3D_ROAD_PATH_VALIDATION_OK "/tmp/$suffix.log"; cp godot/terrain-authoring/.terrain3d-proof/g77-road-path-bake.json "/tmp/$suffix.json"; cp godot/terrain-authoring/.terrain3d-proof/g77-road-path-imported-topdown.png "/tmp/$suffix.png"; done
+          jq -S 'del(.savedRegionBytes)' /tmp/a.json >/tmp/as.json; jq -S 'del(.savedRegionBytes)' /tmp/b.json >/tmp/bs.json; cmp /tmp/as.json /tmp/bs.json; cmp /tmp/a.png /tmp/b.png
+          jq -e '.regionCount>=4 and .gridSamples==66049 and .savedRegionFiles>=4 and .bakedVertices>0 and .maxHeightError<=0.00002 and .maxBlendError<=0.006 and .reloadRegionCount>=4 and .reloadGridSamples==66049 and .reloadChecksum==.outputChecksum and .reloadBakedVertices>0' /tmp/b.json
+      - name: Real shipped 3D road safety platform regressions and final freshness
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkSEG77RoadPathVisualEvidence.mjs --out-dir=artifacts/se-g77-road-path-visual | tee /tmp/visual.log; grep -F SE_G77_ROAD_PATH_VISUAL_EVIDENCE_OK /tmp/visual.log
+          node scripts/checkSEG77RoadPathEvidenceBundle.mjs | tee /tmp/evidence.log; grep -F SE_G77_ROAD_PATH_EVIDENCE_BUNDLE_OK /tmp/evidence.log
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | grep -F HTERRAIN_AUTHORING_VALIDATION_OK
+          node scripts/checkSeededRandomPolicy.js; node scripts/checkWorldReferenceMap.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/terrainSeatSafetyCheck.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/roadNetworkSafetyCheck.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkRoadVisualContract.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMedievalRoadSurface.js; node scripts/checkPwaInstallability.js; node scripts/checkServiceWorkerCache.js; node scripts/checkTechnicalDebt.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+          git fetch origin main; MAIN="$(git rev-parse origin/main)"; test "$(git merge-base HEAD origin/main)" = "$MAIN"; git diff --check origin/main...HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: se-g77-terrain3d-road-path-proof
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g77-road-path-*.json
+            godot/terrain-authoring/.terrain3d-proof/g77-road-path-*.png
+            artifacts/se-g77-road-path-visual/
