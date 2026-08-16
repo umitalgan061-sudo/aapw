@@ -227,7 +227,8 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // G70 runtime parity adds another offline-loadable `src/3d` module, so v12->v13 forces existing
 // installs to replace the old shell rather than retaining a cache that cannot load the G70 adapter.
 // Material Studio adds a new editor module to the offline graph; v14->v15 replaces existing editor caches.
-const SHELL_CACHE = 'westeros-shell-v15';
+// Shared material placement adds two runtime/headless modules; v15->v16 forces existing installs to cache them.
+const SHELL_CACHE = 'westeros-shell-v16';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -475,6 +476,9 @@ GAME3D_SHELL_FILES.push('./src/3d/materials/meshPartClassifier.js');
 GAME3D_SHELL_FILES.push('./src/3d/materials/figureKits.js');
 GAME3D_SHELL_FILES.push('./src/3d/materials/layeredMaterial.js');
 GAME3D_SHELL_FILES.push('./src/3d/editor/EditorAutoTexture.js');
+// Shared Material Studio core used by autonomous/headless world placement.
+GAME3D_SHELL_FILES.push('./src/3d/materials/MaterialAssignmentCore.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/WorldAssetPlacementPipeline.js');
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];
