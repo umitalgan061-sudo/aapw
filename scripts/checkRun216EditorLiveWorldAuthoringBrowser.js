@@ -91,7 +91,7 @@ async function main() {
     assert(Number.isFinite(before.target[1]), 'Canonical terrain target height is not finite.');
 
     const treeButton = page.locator('#we-assets .we-asset', { hasText: 'Ağaç İşaretçisi' }).first();
-    await treeButton.dblclick();
+    await treeButton.evaluate((button) => button.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window })));
     await page.waitForFunction(() => window.__WESTEROS_WORLD_EDITOR__.editableObjects.length === 1, null, { timeout: 30000 });
     const placed = await page.evaluate(() => {
       const api = window.__WESTEROS_WORLD_EDITOR__;

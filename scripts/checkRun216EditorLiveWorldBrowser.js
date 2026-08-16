@@ -89,13 +89,13 @@ async function main() {
     assert(snapshot.roadSegmentCount > 0, `No canonical gameplay road segments loaded: ${snapshot.roadSegmentCount}`);
     assert(snapshot.settlementCount === 14, `Expected 14 gameplay settlement seats, got ${snapshot.settlementCount}`);
     assert(snapshot.realCastlesReady === true, 'Real castle loading never completed');
-    assert(snapshot.realCastleCount === 8, `Expected 8 gameplay real castles, got ${snapshot.realCastleCount}`);
+    assert(snapshot.realCastleCount === 14, `Expected 14 gameplay real castles, got ${snapshot.realCastleCount}`);
     assert(errors.length === 0, `Browser errors: ${errors.join(' | ')}`);
 
     fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop-live-westeros-editor.png'), fullPage: true });
     console.log(`[checkRun216EditorLiveWorldBrowser] PROOF: ${JSON.stringify(snapshot)}`);
-    console.log('[checkRun216EditorLiveWorldBrowser] PASS: editor viewport shows canonical gameplay terrain/water/roads/settlements/vegetation/sky plus all 8 real castle models; synthetic ground hidden.');
+    console.log('[checkRun216EditorLiveWorldBrowser] PASS: editor viewport shows canonical gameplay terrain/water/roads/settlements/vegetation/sky plus all 14 real castle models; synthetic ground hidden.');
   } finally {
     await context.close();
     await browser.close();
