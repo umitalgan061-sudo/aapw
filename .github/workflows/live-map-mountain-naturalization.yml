@@ -1,0 +1,82 @@
+name: Live Map Mountain Naturalization
+
+on:
+  push:
+    branches: ['fix/mountain-ridge-naturalization-*']
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/worldReferenceMountainRelief.js'
+      - 'fixtures/world-reference-mountain-relief-v1.json'
+      - 'scripts/measureWorldReferenceMountainRelief.mjs'
+      - '.github/workflows/live-map-mountain-naturalization.yml'
+  workflow_dispatch:
+
+permissions: { contents: read }
+concurrency:
+  group: live-map-mountain-naturalization-${{ github.ref }}
+  cancel-in-progress: true
+
+env: { TZ: Europe/Istanbul }
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+          ref: '${{ github.event.pull_request.head.sha || github.sha }}'
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main bounded scope
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceMountainRelief.js|fixtures/world-reference-mountain-relief-v1.json|scripts/measureWorldReferenceMountainRelief.mjs|\.github/workflows/live-map-mountain-naturalization.yml)$' | wc -l)" -eq 0
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "mountain naturalization quota additions=$A deletions=$D total=$((A+D))"; test $((A+D)) -le 1000
+          git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/terrain.js src/3d/world/worldReferenceMap.js src/3d/world/worldReferenceSurfacePindexes.js
+      - name: Measure deterministic relief
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferenceMountainRelief.js
+          node --check scripts/measureWorldReferenceMountainRelief.mjs
+          node scripts/measureWorldReferenceMountainRelief.mjs | tee "$RUNNER_TEMP/mountain-measure.log"
+          grep -F MOUNTAIN_RELIEF_MEASURE_OK "$RUNNER_TEMP/mountain-measure.log"
+      - name: Canonical mountain contract
+        run: node scripts/checkWorldReferenceMountainRelief.mjs
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Shared height safety and browser smoke
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRun325WaterSwell.js
+          node scripts/smokeTestGame3D.js
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-map-mountain-naturalization-proof
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/mountain-measure.log
