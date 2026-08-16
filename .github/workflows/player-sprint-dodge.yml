@@ -71,7 +71,7 @@ jobs:
       - name: Real shipped-scene sprint dodge evidence
         run: |
           set -euo pipefail
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerSprintDodgeRuntime.mjs --out-dir=artifacts/player-sprint-dodge | tee "$RUNNER_TEMP/player-action.log"
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerSprintDodgeRuntime.mjs --out-dir=artifacts/player-sprint-dodge 2>&1 | tee "$RUNNER_TEMP/player-action.log"
           grep -F 'PLAYER_SPRINT_DODGE_RUNTIME_OK' "$RUNNER_TEMP/player-action.log"
           test -s artifacts/player-sprint-dodge/player-baseline.png
           test -s artifacts/player-sprint-dodge/player-dodge.png
