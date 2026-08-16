@@ -46,6 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/checkSeededRandomPolicy.js
+          node --check scripts/smokeTestGame3D.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkAssetsManifest.js
           node scripts/checkPwaInstallability.js
@@ -70,6 +71,8 @@ jobs:
 
       - name: Browser smoke
         shell: bash
+        env:
+          GAME3D_SOFTWARE_WEBGL: '1'
         run: |
           set -euo pipefail
           node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke.log"
