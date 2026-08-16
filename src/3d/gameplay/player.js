@@ -145,9 +145,12 @@ export async function createPlayer({
 
 	function publishMotionTelemetry() {
 		// Tenths keep HUD/runtime evidence responsive enough to detect sub-point regen changes while
-		// still avoiding an unconditional CustomEvent on every idle frame.
+		// still avoiding an unconditional CustomEvent on every idle frame. Dodge is the deliberate
+		// exception: its 0.38s burst publishes every frame so position/speed/dodgeRemaining consumers
+		// observe the actual high-speed trajectory instead of one frozen first-frame snapshot.
 		const staminaBucket = Math.floor(stamina * 10);
-		if (movementState === lastTelemetryState && staminaBucket === lastTelemetryStamina) return;
+		const publishDodgeFrame = movementState === 'dodge';
+		if (!publishDodgeFrame && movementState === lastTelemetryState && staminaBucket === lastTelemetryStamina) return;
 		lastTelemetryState = movementState;
 		lastTelemetryStamina = staminaBucket;
 		model.userData.playerMotion = motionSnapshot();
