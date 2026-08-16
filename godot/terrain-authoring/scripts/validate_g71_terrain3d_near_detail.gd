@@ -100,29 +100,41 @@ func _audit_grid(terrain: Terrain3D, probe: Dictionary) -> Dictionary:
 			samples += 1
 	return {"ok": true, "samples": samples, "maxHeightError": max_height, "maxBlendError": max_blend, "maxColorError": max_color, "maxRoughnessError": max_rough, "forbiddenOverlaySamples": forbidden_overlay_samples, "checksum": checksum}
 
-func _audit_seam(terrain: Terrain3D, probe: Dictionary) -> Dictionary:
+# Terrain3D height sampling is filtered, so fractional 255/256 probes are valid.
+func _audit_height_seam(terrain: Terrain3D, probe: Dictionary) -> Dictionary:
 	var seam_axis := [254.75, 255.0, 255.25, 255.5, 255.75, 256.0]
 	var cross_axis := [32.25, 96.5, 160.75, 224.5, 256.0]
-	var max_height := 0.0; var max_blend := 0.0; var max_color := 0.0; var max_rough := 0.0; var samples := 0
-	var worst := {"channel": "", "error": 0.0, "x": 0.0, "z": 0.0}
+	var max_error := 0.0; var samples := 0
+	for edge in seam_axis:
+		for cross in cross_axis:
+			for raw_pos in [Vector3(float(edge), 0.0, float(cross)), Vector3(float(cross), 0.0, float(edge))]:
+				var pos: Vector3 = raw_pos; var u: float = pos.x / 256.0; var v: float = pos.z / 256.0
+				max_error = maxf(max_error, absf(terrain.data.get_height(pos) - _source_value(probe, 0, u, v)))
+				samples += 1
+	return {"samples": samples, "maxHeightError": max_error}
+
+# Terrain3D v1.0.2 Color/Roughness/Control use discrete image pixels via get_pixel().
+# Material continuity must therefore be measured at the real 255/256 integer-pixel boundary.
+func _audit_material_boundary(terrain: Terrain3D, probe: Dictionary) -> Dictionary:
+	var seam_axis := [255, 256]; var cross_axis := [32, 96, 160, 224, 256]
+	var max_blend := 0.0; var max_color := 0.0; var max_rough := 0.0; var forbidden_overlay_samples := 0; var samples := 0
 	for edge in seam_axis:
 		for cross in cross_axis:
 			for raw_pos in [Vector3(float(edge), 0.0, float(cross)), Vector3(float(cross), 0.0, float(edge))]:
 				var pos: Vector3 = raw_pos; var u: float = pos.x / 256.0; var v: float = pos.z / 256.0
 				var expected := _source_color(probe, u, v); var color := terrain.data.get_color(pos)
-				var height_error := absf(terrain.data.get_height(pos) - _source_value(probe, 0, u, v))
-				var blend_error := absf(terrain.data.get_control_blend(pos) - _source_value(probe, 1, u, v))
-				var color_error := maxf(absf(color.r - expected.r), maxf(absf(color.g - expected.g), absf(color.b - expected.b)))
-				var rough_error := absf(terrain.data.get_roughness(pos) - expected.a)
-				max_height = maxf(max_height, height_error); max_blend = maxf(max_blend, blend_error)
-				max_color = maxf(max_color, color_error); max_rough = maxf(max_rough, rough_error)
-				for item in [["height", height_error], ["blend", blend_error], ["color", color_error], ["roughness", rough_error]]:
-					if float(item[1]) > float(worst["error"]): worst = {"channel": String(item[0]), "error": float(item[1]), "x": pos.x, "z": pos.z}
+				if terrain.data.get_control_base_id(pos) != int(probe["baseTextureId"]) or terrain.data.get_control_overlay_id(pos) != int(probe["overlayTextureId"]): forbidden_overlay_samples += 1
+				max_blend = maxf(max_blend, absf(terrain.data.get_control_blend(pos) - _source_value(probe, 1, u, v)))
+				max_color = maxf(max_color, maxf(absf(color.r - expected.r), maxf(absf(color.g - expected.g), absf(color.b - expected.b))))
+				max_rough = maxf(max_rough, absf(terrain.data.get_roughness(pos) - expected.a))
 				samples += 1
-	return {"samples": samples, "maxHeightError": max_height, "maxBlendError": max_blend, "maxColorError": max_color, "maxRoughnessError": max_rough, "worst": worst}
+	return {"samples": samples, "maxBlendError": max_blend, "maxColorError": max_color, "maxRoughnessError": max_rough, "forbiddenOverlaySamples": forbidden_overlay_samples}
 
-func _seam_ok(seam: Dictionary) -> bool:
-	return int(seam.get("samples", 0)) == 60 and float(seam["maxHeightError"]) <= HEIGHT_TOLERANCE and float(seam["maxBlendError"]) <= BLEND_TOLERANCE and float(seam["maxColorError"]) <= MATERIAL_TOLERANCE and float(seam["maxRoughnessError"]) <= MATERIAL_TOLERANCE
+func _height_seam_ok(seam: Dictionary) -> bool:
+	return int(seam.get("samples", 0)) == 60 and float(seam["maxHeightError"]) <= HEIGHT_TOLERANCE
+
+func _material_boundary_ok(seam: Dictionary) -> bool:
+	return int(seam.get("samples", 0)) == 20 and int(seam.get("forbiddenOverlaySamples", 1)) == 0 and float(seam["maxBlendError"]) <= BLEND_TOLERANCE and float(seam["maxColorError"]) <= MATERIAL_TOLERANCE and float(seam["maxRoughnessError"]) <= MATERIAL_TOLERANCE
 
 func _write_preview(terrain: Terrain3D) -> Error:
 	var image := Image.create_empty(IMPORT_SIZE, IMPORT_SIZE, false, Image.FORMAT_RGBA8)
@@ -151,9 +163,9 @@ func _run() -> void:
 	var grid := _audit_grid(terrain, probe)
 	if not _require(bool(grid.get("ok", false)) and int(grid.get("samples", 0)) == 66049 and int(grid.get("forbiddenOverlaySamples", 1)) == 0, "native full-grid audit failed"): return
 	if not _require(float(grid["maxHeightError"]) <= HEIGHT_TOLERANCE and float(grid["maxBlendError"]) <= BLEND_TOLERANCE and float(grid["maxColorError"]) <= MATERIAL_TOLERANCE and float(grid["maxRoughnessError"]) <= MATERIAL_TOLERANCE, "native roundtrip exceeded tolerance"): return
-	var seam := _audit_seam(terrain, probe)
-	print("G71_NEAR_DETAIL_SEAM_DIAGNOSTIC=" + JSON.stringify(seam))
-	if not _require(_seam_ok(seam), "255/256 seam failed"): return
+	var height_seam := _audit_height_seam(terrain, probe); var material_seam := _audit_material_boundary(terrain, probe)
+	if not _require(_height_seam_ok(height_seam), "fractional height seam failed"): return
+	if not _require(_material_boundary_ok(material_seam), "255/256 material boundary failed"): return
 
 	var mesh: Mesh = terrain.bake_mesh(0)
 	if not _require(mesh != null and mesh.get_surface_count() > 0, "LOD0 bake empty"): return
@@ -169,24 +181,25 @@ func _run() -> void:
 	var reload := Terrain3D.new(); reload.name = "G71Terrain3DNearDetailReload"; get_root().add_child(reload); reload.region_size = REGION_SIZE
 	reload.data.load_directory(out_dir)
 	if not _require(reload.data.get_region_count() >= 4, "reload region count failed"): return
-	var reload_grid := _audit_grid(reload, probe); var reload_seam := _audit_seam(reload, probe)
+	var reload_grid := _audit_grid(reload, probe); var reload_height_seam := _audit_height_seam(reload, probe); var reload_material_seam := _audit_material_boundary(reload, probe)
 	if not _require(bool(reload_grid.get("ok", false)) and int(reload_grid.get("samples", 0)) == 66049 and int(reload_grid.get("forbiddenOverlaySamples", 1)) == 0, "reload full-grid failed"): return
 	if not _require(float(reload_grid["maxHeightError"]) <= HEIGHT_TOLERANCE and float(reload_grid["maxBlendError"]) <= BLEND_TOLERANCE and float(reload_grid["maxColorError"]) <= MATERIAL_TOLERANCE and float(reload_grid["maxRoughnessError"]) <= MATERIAL_TOLERANCE, "reload roundtrip exceeded tolerance"): return
-	print("G71_NEAR_DETAIL_RELOAD_SEAM_DIAGNOSTIC=" + JSON.stringify(reload_seam))
-	if not _require(_seam_ok(reload_seam), "reload seam failed"): return
+	if not _require(_height_seam_ok(reload_height_seam) and _material_boundary_ok(reload_material_seam), "reload seam/boundary failed"): return
 	var reload_mesh: Mesh = reload.bake_mesh(0)
 	if not _require(reload_mesh != null and reload_mesh.get_surface_count() > 0, "reload LOD0 empty"): return
 	var reload_vertices: PackedVector3Array = reload_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	if not _require(reload_vertices.size() == vertices.size(), "reload LOD0 vertex count drifted"): return
-	if not _require(int(reload_grid["checksum"]) == int(grid["checksum"]), "reload semantic checksum drifted"): return
+	if not _require(reload_vertices.size() == vertices.size() and int(reload_grid["checksum"]) == int(grid["checksum"]), "reload semantic/bake drifted"): return
 
 	var metrics := {
 		"terrain3dVersion": String(terrain.version), "regionCount": terrain.data.get_region_count(), "fullGridSamples": int(grid["samples"]),
 		"forbiddenOverlaySamples": int(grid["forbiddenOverlaySamples"]), "maxHeightError": float(grid["maxHeightError"]), "maxBlendError": float(grid["maxBlendError"]),
-		"maxColorError": float(grid["maxColorError"]), "maxRoughnessError": float(grid["maxRoughnessError"]), "seamSamples": int(seam["samples"]),
-		"maxSeamHeightError": float(seam["maxHeightError"]), "maxSeamBlendError": float(seam["maxBlendError"]), "maxSeamColorError": float(seam["maxColorError"]), "maxSeamRoughnessError": float(seam["maxRoughnessError"]),
+		"maxColorError": float(grid["maxColorError"]), "maxRoughnessError": float(grid["maxRoughnessError"]),
+		"heightSeamSamples": int(height_seam["samples"]), "maxSeamHeightError": float(height_seam["maxHeightError"]),
+		"materialBoundarySamples": int(material_seam["samples"]), "materialBoundaryForbiddenOverlaySamples": int(material_seam["forbiddenOverlaySamples"]),
+		"maxMaterialBoundaryBlendError": float(material_seam["maxBlendError"]), "maxMaterialBoundaryColorError": float(material_seam["maxColorError"]), "maxMaterialBoundaryRoughnessError": float(material_seam["maxRoughnessError"]),
 		"bakedVertices": vertices.size(), "savedRegionFiles": saved["files"].size(), "savedRegionBytes": int(saved["bytes"]), "checksum": int(grid["checksum"]),
-		"reloadRegionCount": reload.data.get_region_count(), "reloadGridSamples": int(reload_grid["samples"]), "reloadChecksum": int(reload_grid["checksum"]), "reloadBakedVertices": reload_vertices.size()
+		"reloadRegionCount": reload.data.get_region_count(), "reloadGridSamples": int(reload_grid["samples"]), "reloadChecksum": int(reload_grid["checksum"]), "reloadBakedVertices": reload_vertices.size(),
+		"reloadHeightSeamSamples": int(reload_height_seam["samples"]), "reloadMaterialBoundarySamples": int(reload_material_seam["samples"])
 	}
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.terrain3d-proof"))
 	var file := FileAccess.open(METRICS_PATH, FileAccess.WRITE)
