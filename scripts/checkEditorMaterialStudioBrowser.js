@@ -122,7 +122,7 @@ async function main() {
       api.refreshHierarchy();
     });
 
-    await page.locator('#we-hierarchy .we-hierarchy-item', { hasText: 'Material Studio QA Layered' }).last().click();
+    await page.locator('#we-hierarchy .we-hierarchy-item', { hasText: 'Material Studio QA Layered' }).last().evaluate((button) => button.click());
     await page.waitForFunction(() => document.querySelector('#we-material-summary')?.textContent.includes('Material Studio QA Layered'));
     await page.locator('#we-material-size').selectOption('512');
     await page.locator('#we-material-base').selectOption('peasant');
