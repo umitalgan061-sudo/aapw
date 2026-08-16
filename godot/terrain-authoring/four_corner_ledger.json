@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "reference": "map.png",
   "reference_size": [1536, 1024],
   "reference_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
@@ -9,7 +9,7 @@
   "reconciled_at": "2026-08-16T10:01:13+03:00",
   "authority_order": [
     "current origin/main and merged PR history",
-    "exact-head CI evidence",
+    "exact-head authoritative CI evidence",
     "four_corner_ledger.json",
     "corner_claims/*.json",
     "open/stale PR prose"
@@ -22,6 +22,60 @@
     "repeat_same_blocker_twice_requires_rca_or_other_safe_work": true,
     "no_empty_hourly_cycles_when_safe_meaningful_work_exists": true,
     "rule": "At every run, reconcile claims and open PR prose against current origin/main and actual merged PRs before selecting work. If a PR no longer contains current main, close/supersede it or publish a fresh exact-main successor; never keep re-reporting it as the current candidate. If a historical blocker is already fixed on main, remove it from the decision path immediately."
+  },
+  "ci_authority_policy": {
+    "minimum_authoritative_checks": [
+      "the current scope-specific terrain workflow",
+      "Run 283 Final Head Governance Gate",
+      "PR Main Freshness Guard",
+      "World Event Determinism Guard"
+    ],
+    "terrain3d_toolchain_when_relevant": true,
+    "unrelated_red_workflow_is_noise_only_if": [
+      "its owned scope is unrelated to the PR changed paths",
+      "its first failing step is an exact-main/bounded-scope/changed-file ownership gate",
+      "all substantive terrain/runtime/safety steps after that gate are skipped",
+      "the PR records the run/job evidence for that classification"
+    ],
+    "never_ignore": [
+      "a failure after substantive tests started",
+      "a current global governance/safety/runtime failure",
+      "a failure in the PR's own scope-specific workflow",
+      "a freshness/concurrency failure",
+      "an unexplained red check"
+    ],
+    "rule": "Do not require every historical pull_request workflow in the repository to be green. Require every authoritative check for the current scope to be green, and classify any other red workflow as non-authoritative only with explicit first-step scope-gate evidence."
+  },
+  "merge_progression_policy": {
+    "green_draft_must_not_stall": true,
+    "required_before_merge": [
+      "all authoritative checks are green on the exact head",
+      "origin/main still equals the recorded exact base",
+      "no overlapping active lease or unresolved relevant blocker exists",
+      "the PR head SHA is unchanged"
+    ],
+    "procedure": [
+      "mark the PR ready for review",
+      "require the ready-event PR Main Freshness Guard to pass",
+      "re-read origin/main immediately before merge",
+      "merge only with expected-head SHA protection",
+      "after merge reconcile ledger/claim and advance to the next valid layer or measured refinement"
+    ],
+    "rule": "An agent must not leave its own exact-head fully qualified PR indefinitely as a green draft. If the required checks above are satisfied, progress it through ready-event freshness and expected-head merge; if main moved, do not merge and create a fresh successor instead."
+  },
+  "canonical_map_provenance_policy": {
+    "version": "map.png-r1",
+    "sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+    "decoded_size": [1536, 1024],
+    "historical_filename": "map.png",
+    "verified_owner_byte_encoding": "jpeg",
+    "extension_is_not_encoding_authority": true,
+    "shared_helper": "scripts/canonicalMapProvenance.mjs",
+    "never_reencode_to_satisfy_extension": true,
+    "existing_sha_bound_derived_inputs_may_continue": true,
+    "new_raw_pixel_extraction_requires_exact_source_bytes": true,
+    "new_pixel_to_render_metrics_require_exact_source_bytes": true,
+    "rule": "Canonical identity is version + SHA256 + decoded dimensions. The historical .png filename is not proof of PNG encoding. Detect the byte signature, accept only supported PNG/JPEG encodings, and never transcode the owner bytes because that changes the canonical SHA. Existing merged masks/biome/relief inputs already bound to this SHA may continue to drive later layers; do not invent new raw-pixel evidence while the exact source bytes are unavailable to CI."
   },
   "resolved_shared_blockers": {
     "full_world_runtime_coverage": {
@@ -39,23 +93,24 @@
   },
   "shared_blockers": {
     "canonical_map_binary": {
-      "status": "verified_bytes_available_not_yet_tracked",
+      "status": "verified_owner_bytes_not_yet_tracked_in_repo",
       "sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
       "size": [1536, 1024],
-      "note": "Owner Library copy was independently hash/dimension verified on 2026-08-16. Do not fabricate or substitute bytes. Strict provenance remains blocked only until those exact bytes are tracked in this repository."
+      "byte_encoding": "jpeg",
+      "note": "The owner Library copy was independently hash/dimension/signature verified on 2026-08-16. Do not fabricate, substitute or re-encode it. This blocks new raw-pixel extraction and new pixel-level map/render metrics, but it does not invalidate already-merged source-derived inputs cryptographically bound to the same SHA."
     },
     "shared_map_geography_package": {
-      "status": "pending_after_canonical_map_tracking",
+      "status": "pending_for_new_extraction_work",
       "single_owner_required": true,
       "required_outputs": ["label_symbol_mask", "land_ocean_shelf", "stable_lake_ids", "directed_river_graph", "ridge_peak_valley_pass", "forest_biome_ice_desert_marsh", "confidence_provenance"],
-      "note": "Do not create four conflicting per-corner extractors."
+      "note": "Do not create four conflicting per-corner extractors. Existing merged SHA-bound geography may continue to support later same-cell layers; new extraction waits for exact source bytes."
     }
   },
   "corners": {
     "NW": {"task_name": "Buzul Muhafızı", "origin": [0, 0], "current_cell": "G10", "current_layer": "Relief runtime refinement", "next_action": "Re-evaluate stale PR #552 on exact current main; publish a fresh successor only if its measured smoothing improvement is still missing, otherwise record no-regression evidence and proceed to G10 Rock/Snow."},
     "NE": {"task_name": "Şafak Kartalı", "origin": [7, 0], "current_cell": "G71", "current_layer": "Near Detail", "next_action": "G71 Road/Path merged via #557; start Near Detail from exact current main."},
-    "SW": {"task_name": "Günbatımı Ustası", "origin": [0, 7], "current_cell": "G17", "current_layer": "Road/Path", "next_action": "Old #542 is stale. Runtime coverage is already fixed by #550. After exact canonical map bytes are tracked, publish one fresh exact-main G17 Road/Path successor and rerun the strict Terrain3D/runtime evidence."},
-    "SE": {"task_name": "Kızıl Ufuk", "origin": [7, 7], "current_cell": "G77", "current_layer": "Rock/Snow", "next_action": "Old #535 is stale. Runtime coverage and LFS blockers are already fixed by #550/#525. After canonical map tracking and shared geography-package ownership are resolved, publish a fresh exact-main G77 Rock/Snow successor."}
+    "SW": {"task_name": "Günbatımı Ustası", "origin": [0, 7], "current_cell": "G17", "current_layer": "Road/Path", "next_action": "Old #542 is stale and #550 already fixed runtime coverage. Publish one fresh exact-main G17 Road/Path successor using the already-merged SHA-bound G17 geography and live road/runtime contracts. Do not claim new raw-pixel metrics until exact source bytes are tracked; do not let that prevent the already-supported physical zero-road/open-sea layer from being requalified."},
+    "SE": {"task_name": "Kızıl Ufuk", "origin": [7, 7], "current_cell": "G77", "current_layer": "Rock/Snow", "next_action": "Old #535 is stale; #550/#525 resolved its runtime/LFS blockers. Publish a fresh exact-main G77 Rock/Snow successor from the already-merged SHA-bound Hydrology/Biome/Relief inputs. New raw-pixel extraction/shared geography reconstruction waits for exact source bytes, but existing source-bound layer progression must not no-op."}
   },
   "rows": [
     ["G00", "G10", "G20", "G30", "G40", "G50", "G60", "G70"],
@@ -77,5 +132,5 @@
     "G77": {"corner": "SE", "status": "relief_merged_rock_snow_pending", "relief_pr": 473, "relief_merge_commit": "7ab4c2aecedb03150349a00025865652c468f762", "stale_rock_snow_pr": 535}
   },
   "active_leases": {},
-  "notes": "Missing cell_state means pending. Current main and merged PR history are authoritative over stale claims or PR descriptions. Never keep an obsolete blocker alive after its fixing PR is merged."
+  "notes": "Missing cell_state means pending. Current main and merged PR history are authoritative over stale claims or PR descriptions. Never keep an obsolete blocker alive after its fixing PR is merged. Required authoritative CI may be fully green even when unrelated historical bounded-scope workflows reject the PR at their first scope gate."
 }
