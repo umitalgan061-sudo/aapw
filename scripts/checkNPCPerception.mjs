@@ -175,6 +175,20 @@ const reacquired = resetPerception.update({ observer: { x: 0, z: 0 }, target: { 
 assert.equal(reacquired.sensed, true, 'a reset guard must immediately accept a fresh valid stimulus');
 assert.deepEqual(reacquired.lastSeen, { x: 4, z: 0 }, 'reacquisition must replace the old target memory');
 
+const longSight = queryColliderLineOfSight({
+	collider: { resolveXZ: (x, z) => ({ x, z }) },
+	observer: { x: 0, z: 0 }, target: { x: 1000, z: 0 }, stepMeters: 0.1, maxSamples: 16,
+});
+assert.equal(longSight.clear, true);
+assert.ok(longSight.samples <= 16, 'LOS work must stay inside the explicit sample budget at extreme distances');
+
+const hitchPerception = createGuardPerception({ visionRangeMeters: 10, acquireSeconds: 1, alertThreshold: 0.9 });
+const hitchState = hitchPerception.update({
+	observer: { x: 0, z: 0 }, target: { x: 0, z: 8 }, yawRadians: 0, deltaSeconds: 5,
+});
+assert.ok(hitchState.suspicion < 0.9, 'a multi-second frame hitch must not instantly skip bounded acquisition into alert');
+assert.equal(hitchState.intent, 'observe');
+
 console.log('NPC_PERCEPTION_PASS', JSON.stringify({
 	front: front.reason,
 	behind: behind.reason,
@@ -184,6 +198,8 @@ console.log('NPC_PERCEPTION_PASS', JSON.stringify({
 	weakNoiseHeard: weakNoise.heard,
 	travelBudgetExpiredTo: travelState.intent,
 	resetReacquired: reacquired.reason,
+	longSightSamples: longSight.samples,
+	hitchIntent: hitchState.intent,
 	finalIntent: state.intent,
 	finalSuspicion: Number(state.suspicion.toFixed(4)),
 }));
