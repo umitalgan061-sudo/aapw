@@ -2,8 +2,8 @@
 'use strict';
 
 const fs = require('fs');
-const http = require('http');
 const path = require('path');
+const { createEditorLiveServer } = require('./editorLiveServer');
 
 const ROOT = process.cwd();
 const ARTIFACT_DIR = path.join(ROOT, 'artifacts', 'run216-editor-live-authoring');
@@ -15,42 +15,8 @@ function playwrightModule() {
   }
   return null;
 }
-function contentType(file) {
-  const ext = path.extname(file).toLowerCase();
-  if (ext === '.html') return 'text/html; charset=utf-8';
-  if (ext === '.js' || ext === '.mjs') return 'text/javascript; charset=utf-8';
-  if (ext === '.css') return 'text/css; charset=utf-8';
-  if (ext === '.json' || ext === '.webmanifest') return ext === '.webmanifest' ? 'application/manifest+json' : 'application/json; charset=utf-8';
-  if (ext === '.png') return 'image/png';
-  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
-  if (ext === '.webp') return 'image/webp';
-  if (ext === '.glb') return 'model/gltf-binary';
-  if (ext === '.gltf') return 'model/gltf+json';
-  if (ext === '.fbx') return 'application/octet-stream';
-  return 'application/octet-stream';
-}
 function startServer() {
-  const server = http.createServer((req, res) => {
-    const clean = decodeURIComponent(req.url.split('?')[0]);
-    if (clean === '/favicon.ico') {
-      res.writeHead(204);
-      res.end();
-      return;
-    }
-    const relative = clean === '/' ? 'index.html' : clean.replace(/^\//, '');
-    const file = path.resolve(ROOT, relative);
-    const directoryIndex = path.join(file, 'index.html');
-    if (file.startsWith(ROOT + path.sep) && fs.existsSync(file) && fs.statSync(file).isDirectory() && fs.existsSync(directoryIndex)) {
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      fs.createReadStream(directoryIndex).pipe(res);
-      return;
-    }
-    if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      res.writeHead(404); res.end('Not found'); return;
-    }
-    res.writeHead(200, { 'content-type': contentType(file), 'cache-control': 'no-store' });
-    fs.createReadStream(file).pipe(res);
-  });
+  const server = createEditorLiveServer({ root: ROOT });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
@@ -64,9 +30,6 @@ async function main() {
   const page = await context.newPage();
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  /*
-  page.on('pageerror', (error) => errors.push(String(error));
-  */
   page.on('pageerror', (error) => errors.push(String(error)));
   try {
     await page.goto(`${base}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
@@ -91,7 +54,7 @@ async function main() {
     assert(Number.isFinite(before.target[1]), 'Canonical terrain target height is not finite.');
 
     const treeButton = page.locator('#we-assets .we-asset', { hasText: 'Ağaç İşaretçisi' }).first();
-    await treeButton.dblclick();
+    await treeButton.evaluate((button) => button.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window })));
     await page.waitForFunction(() => window.__WESTEROS_WORLD_EDITOR__.editableObjects.length === 1, null, { timeout: 30000 });
     const placed = await page.evaluate(() => {
       const api = window.__WESTEROS_WORLD_EDITOR__;
