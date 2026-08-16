@@ -179,6 +179,7 @@ self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLiveWorldVisualSync.js');
     GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLocalSession.js');
     GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLocationNavigator.js');
+    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorMaterialStudio.js');
     GAME3D_SHELL_FILES.push('./src/3d/editor/EditorPlacementController.js');
     GAME3D_SHELL_FILES.push('./src/3d/editor/EditorPlacementControllerSafe.js');
     GAME3D_SHELL_FILES.push('./src/3d/editor/EditorRoadController.js');
@@ -225,7 +226,8 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // must actually clean up the old, now-stale entry" reasoning as every prior bump entry in this file.
 // G70 runtime parity adds another offline-loadable `src/3d` module, so v12->v13 forces existing
 // installs to replace the old shell rather than retaining a cache that cannot load the G70 adapter.
-const SHELL_CACHE = 'westeros-shell-v14';
+// Material Studio adds a new editor module to the offline graph; v14->v15 replaces existing editor caches.
+const SHELL_CACHE = 'westeros-shell-v15';
 const SHELL_FILES = [
     './',
     './index.html',
