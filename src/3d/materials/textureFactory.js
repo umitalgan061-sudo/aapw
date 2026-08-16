@@ -157,8 +157,6 @@ export function applyPaletteToObject(root, paletteId, options = {}) {
 	return dressed;
 }
 
-
-
 /**
  * Dresses a figure part by part, which is what a real figure needs: a person is skin *and* hair
  * *and* eyes *and* tunic *and* boots, not one surface.
@@ -178,10 +176,16 @@ export function applyPaletteToObject(root, paletteId, options = {}) {
  * @param {string} paletteId Palette chosen by the matcher; selects the kit.
  * @param {object} [options]
  * @param {string} [options.variant] Seed material so individuals differ deterministically.
- * @param {number} [options.size]
+ * @param {number} [options.size] Texture size for named/material-slot surfaces.
+ * @param {number} [options.layeredSize] Explicit single-mesh layered resolution. Defaults to 128 for
+ *   bulk/crowd auto-dressing; editor hero workflows may opt into a larger value deliberately.
  * @returns {{ok: boolean, kit: string|null, named: number, banded: number, plain: number, slots: Record<string, number>}}
  */
-export function applyKitToObject(root, paletteId, { variant = '', size = DEFAULT_TEXTURE_SIZE } = {}) {
+export function applyKitToObject(root, paletteId, {
+	variant = '',
+	size = DEFAULT_TEXTURE_SIZE,
+	layeredSize = 128,
+} = {}) {
 	const summary = { ok: false, kit: null, named: 0, banded: 0, main: 0, plain: 0, slots: {} };
 	if (!root) return summary;
 
@@ -227,10 +231,16 @@ export function applyKitToObject(root, paletteId, { variant = '', size = DEFAULT
 	for (const [mesh, pending] of pendingByMesh) {
 		const anyNamed = pending.some(Boolean);
 		if (!anyNamed) {
-			// Nothing on this mesh was identifiable — dress it by height instead of by name.
+			// Nothing on this mesh was identifiable — dress it by height instead of by name. The crowd
+			// default stays 128px, while an explicit editor hero resolution can opt into up to 512px.
 			const range = meshHeightRange(mesh);
 			const layered = range
-				? createLayeredMaterial({ bands: resolved.bands, heightRange: range, variant, size: Math.min(size, 128) })
+				? createLayeredMaterial({
+					bands: resolved.bands,
+					heightRange: range,
+					variant,
+					size: Math.min(Math.max(64, layeredSize), 512),
+				})
 				: null;
 			if (layered) {
 				rememberAndAssign(mesh, layered);
