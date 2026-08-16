@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Run 155 regression guard for the player health meter semantics (ui/healthBar.js).
- * Uses real Chromium at mobile and desktop viewports and verifies semantic value updates,
- * visual text/fill state, EventBus cleanup, and damage-flash timer cleanup.
+ * Player vitals accessibility regression guard.
+ * Uses real Chromium at mobile and desktop viewports and verifies health + stamina meter semantics,
+ * visual text/fill state, EventBus/global-motion cleanup, and damage-flash timer cleanup.
  */
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
@@ -38,6 +38,9 @@ async function checkViewport(browser, baseUrl, viewport, label) {
 				role: bar._el.getAttribute('role'),
 				label: bar._el.getAttribute('aria-label'),
 				min: bar._el.getAttribute('aria-valuemin'),
+				staminaRole: bar._staminaEl.getAttribute('role'),
+				staminaLabel: bar._staminaEl.getAttribute('aria-label'),
+				staminaMin: bar._staminaEl.getAttribute('aria-valuemin'),
 				listenerCount: listeners.size,
 			};
 
@@ -50,28 +53,76 @@ async function checkViewport(browser, baseUrl, viewport, label) {
 				width: bar._fillEl.style.width,
 			};
 
+			window.dispatchEvent(new CustomEvent('aapw:player-motion', {
+				detail: { stamina: 71.2, maxStamina: 100, state: 'dodge' },
+			}));
+			const afterStamina = {
+				max: bar._staminaEl.getAttribute('aria-valuemax'),
+				now: bar._staminaEl.getAttribute('aria-valuenow'),
+				text: bar._staminaEl.getAttribute('aria-valuetext'),
+				visibleText: bar._staminaTextEl.textContent,
+				width: bar._staminaFillEl.style.width,
+				state: bar._staminaEl.dataset.state,
+				filter: bar._staminaFillEl.style.filter,
+			};
+
+			window.dispatchEvent(new CustomEvent('aapw:player-motion', {
+				detail: { stamina: 0, maxStamina: 100, state: 'exhausted' },
+			}));
+			const exhausted = {
+				now: bar._staminaEl.getAttribute('aria-valuenow'),
+				text: bar._staminaEl.getAttribute('aria-valuetext'),
+				visibleText: bar._staminaTextEl.textContent,
+				width: bar._staminaFillEl.style.width,
+				state: bar._staminaEl.dataset.state,
+				classApplied: bar._staminaEl.classList.contains('g3d-stamina-bar-exhausted'),
+			};
+
 			eventsBus.emit('health', { current: -4, maxHealth: 100 });
 			const clamped = {
 				now: bar._el.getAttribute('aria-valuenow'),
 				width: bar._fillEl.style.width,
 			};
 
+			const rect = bar._el.getBoundingClientRect();
+			const layout = {
+				fitsViewport: rect.left >= 0 && rect.right <= window.innerWidth,
+				gridColumns: getComputedStyle(bar._el).gridTemplateColumns.split(' ').length,
+			};
+
 			eventsBus.emit('damage');
 			const flashApplied = bar._el.classList.contains('g3d-health-bar-flash');
 			bar.dispose();
+			const staminaTextAfterDispose = bar._staminaTextEl.textContent;
+			window.dispatchEvent(new CustomEvent('aapw:player-motion', {
+				detail: { stamina: 88, maxStamina: 100, state: 'idle' },
+			}));
 			const disposed = {
 				listenerCount: listeners.size,
 				connected: bar._el.isConnected,
+				staminaTextStable: bar._staminaTextEl.textContent === staminaTextAfterDispose,
 			};
 			container.remove();
-			return { initial, afterHealth, clamped, flashApplied, disposed };
+			return { initial, afterHealth, afterStamina, exhausted, clamped, layout, flashApplied, disposed };
 		});
 
 		const expected = {
-			initial: { role: 'meter', label: 'Can', min: '0', listenerCount: 2 },
+			initial: {
+				role: 'meter', label: 'Can', min: '0',
+				staminaRole: 'meter', staminaLabel: 'Dayanıklılık', staminaMin: '0', listenerCount: 2,
+			},
 			afterHealth: { max: '100', now: '74', text: '74 / 100', visibleText: '74 / 100', width: '73.2%' },
+			afterStamina: {
+				max: '100', now: '72', text: '72 / 100 · Kaçınma', visibleText: '72 / 100',
+				width: '71.2%', state: 'dodge', filter: 'brightness(1.22)',
+			},
+			exhausted: {
+				now: '0', text: '0 / 100 · Tükendi', visibleText: '0 / 100', width: '0%',
+				state: 'exhausted', classApplied: true,
+			},
 			clamped: { now: '0', width: '0%' },
-			disposed: { listenerCount: 0, connected: false },
+			layout: { fitsViewport: true, gridColumns: 2 },
+			disposed: { listenerCount: 0, connected: false, staminaTextStable: true },
 		};
 		for (const [group, fields] of Object.entries(expected)) {
 			for (const [key, value] of Object.entries(fields)) {
