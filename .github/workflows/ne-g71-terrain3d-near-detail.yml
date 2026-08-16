@@ -1,0 +1,83 @@
+name: NE G71 Terrain3D Near Detail
+on:
+  push: { branches: ['terrain/ne-g71-terrain3d-near-detail-exact-*'] }
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/ne-g71-terrain3d-near-detail.yml
+      - godot/terrain-authoring/geocells/ne/g71_near_detail.mjs
+      - godot/terrain-authoring/scripts/validate_g71_terrain3d_near_detail.gd
+      - scripts/checkNEG71NearDetail.mjs
+      - scripts/checkNEG71NearDetailVisualEvidence.mjs
+      - scripts/checkNEG71NearDetailEvidenceBundle.mjs
+  workflow_dispatch:
+permissions: { contents: read }
+concurrency: { group: 'ne-g71-near-detail-${{ github.head_ref || github.ref_name }}', cancel-in-progress: true }
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, lfs: true, ref: '${{ github.event.pull_request.head.sha || github.sha }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main six-file scope quota prior layers and LFS
+        run: |
+          set -euo pipefail
+          git lfs fsck; git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"; test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"; echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(\.github/workflows/ne-g71-terrain3d-near-detail.yml|godot/terrain-authoring/geocells/ne/g71_near_detail.mjs|godot/terrain-authoring/scripts/validate_g71_terrain3d_near_detail.gd|scripts/checkNEG71NearDetail.mjs|scripts/checkNEG71NearDetailVisualEvidence.mjs|scripts/checkNEG71NearDetailEvidenceBundle.mjs)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 6
+          LINES="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1;d+=$2}END{print a+d+0}')"; echo "G71_NEAR_DETAIL_CHANGED_LINES=$LINES"; test "$LINES" -le 1000
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py addons/zylann.hterrain src/3d/world/terrain.js src/3d/world/roads.js src/3d/world/vegetation.js godot/terrain-authoring/geocells/ne/g71_hydrology.mjs godot/terrain-authoring/geocells/ne/g71_biome.mjs godot/terrain-authoring/geocells/ne/g71_relief.mjs godot/terrain-authoring/geocells/ne/g71_rock_snow.mjs godot/terrain-authoring/geocells/ne/g71_road_path.mjs godot/terrain-authoring/corner_claims/NE.json godot/terrain-authoring/four_corner_ledger.json godot/terrain-authoring/canonical_map_provenance.json
+          node scripts/checkNEG71Hydrology.mjs; node scripts/checkNEG71Terrain3DBiome.mjs; node scripts/checkNEG71Relief.mjs; node scripts/checkNEG71RockSnow.mjs
+          for f in godot/terrain-authoring/geocells/ne/g71_near_detail.mjs scripts/checkNEG71NearDetail.mjs scripts/checkNEG71NearDetailVisualEvidence.mjs scripts/checkNEG71NearDetailEvidenceBundle.mjs; do node --check "$f"; done
+      - name: Chromium prior Road Path and deterministic Near Detail
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"; npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"; export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNEG71RoadPath.mjs | tee /tmp/road.log; grep -F NE_G71_ROAD_PATH_VALIDATION_OK /tmp/road.log
+          mkdir -p godot/terrain-authoring/.terrain3d-proof; PROOF=godot/terrain-authoring/.terrain3d-proof/g71-near-detail-probe.json
+          node scripts/checkNEG71NearDetail.mjs --emit-probe="$PROOF" | tee /tmp/near-a.log; cp "$PROOF" /tmp/near-a.json
+          node scripts/checkNEG71NearDetail.mjs --emit-probe="$PROOF" | tee /tmp/near-b.log
+          cmp /tmp/near-a.log /tmp/near-b.log; cmp /tmp/near-a.json "$PROOF"; grep -F NE_G71_NEAR_DETAIL_VALIDATION_OK /tmp/near-a.log
+      - name: Pinned Terrain3D Godot double import persistence reload seam and LOD0
+        run: |
+          set -euo pipefail
+          ok=0; for n in 1 2 3; do if python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh | tee /tmp/t3d-$n.log; then grep -F TERRAIN3D_INSTALL_OK /tmp/t3d-$n.log; ok=1; break; fi; sleep $((n*3)); done; test "$ok" -eq 1
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | grep -F TERRAIN3D_VERIFY_OK
+          mkdir -p "$RUNNER_TEMP/g"; curl -fL --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o "$RUNNER_TEMP/g.zip"; unzip -q "$RUNNER_TEMP/g.zip" -d "$RUNNER_TEMP/g"
+          G="$(find "$RUNNER_TEMP/g" -maxdepth 1 -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; test -n "$G"; chmod +x "$G"; "$G" --version | grep -F 4.6.3; echo "GODOT_BIN=$G" >> "$GITHUB_ENV"
+          timeout 180s "$G" --headless --editor --path godot/terrain-authoring --quit-after 45
+          G71_NEAR_DETAIL_PROOF_SUFFIX=a timeout 300s "$G" --headless --path godot/terrain-authoring --script res://scripts/validate_g71_terrain3d_near_detail.gd | tee /tmp/a.log
+          cp godot/terrain-authoring/.terrain3d-proof/g71-near-detail-bake.json /tmp/a.json; cp godot/terrain-authoring/.terrain3d-proof/g71-near-detail-imported-topdown.png /tmp/a.png
+          G71_NEAR_DETAIL_PROOF_SUFFIX=b timeout 300s "$G" --headless --path godot/terrain-authoring --script res://scripts/validate_g71_terrain3d_near_detail.gd | tee /tmp/b.log
+          grep -F NE_G71_TERRAIN3D_NEAR_DETAIL_VALIDATION_OK /tmp/a.log; grep -F NE_G71_TERRAIN3D_NEAR_DETAIL_VALIDATION_OK /tmp/b.log
+          jq -S 'del(.savedRegionBytes)' /tmp/a.json >/tmp/as.json; jq -S 'del(.savedRegionBytes)' godot/terrain-authoring/.terrain3d-proof/g71-near-detail-bake.json >/tmp/bs.json; cmp /tmp/as.json /tmp/bs.json; cmp /tmp/a.png godot/terrain-authoring/.terrain3d-proof/g71-near-detail-imported-topdown.png
+          jq -e '.regionCount>=4 and .fullGridSamples==66049 and .forbiddenOverlaySamples==0 and .seamSamples==60 and .savedRegionFiles>=4 and .bakedVertices>0 and .reloadRegionCount>=4 and .reloadGridSamples==66049 and .reloadBakedVertices==.bakedVertices and .checksum==.reloadChecksum and .maxHeightError<=0.001 and .maxBlendError<=0.000001 and .maxColorError<=0.006 and .maxRoughnessError<=0.006 and .maxSeamHeightError<=0.001 and .maxSeamMaterialError<=0.006' godot/terrain-authoring/.terrain3d-proof/g71-near-detail-bake.json
+      - name: Real visual evidence vegetation repository regressions and final freshness
+        run: |
+          set -euo pipefail; export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNEG71NearDetailVisualEvidence.mjs --out-dir=artifacts/ne-g71-near-detail-visual | tee /tmp/visual.log; grep -F NE_G71_NEAR_DETAIL_VISUAL_EVIDENCE_OK /tmp/visual.log
+          node scripts/checkNEG71NearDetailEvidenceBundle.mjs | tee /tmp/bundle.log; grep -F NE_G71_NEAR_DETAIL_EVIDENCE_BUNDLE_OK /tmp/bundle.log
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | grep -F HTERRAIN_AUTHORING_VALIDATION_OK
+          node scripts/checkSeededRandomPolicy.js; node scripts/checkWorldReferenceMap.js; node scripts/terrainSeatSafetyCheck.js; node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkVegetationVisualContract.js; node scripts/checkMobileSpawnVegetation.js; node scripts/checkRoadVisualContract.js; node scripts/checkMedievalRoadSurface.js
+          node scripts/checkPwaInstallability.js; node scripts/checkServiceWorkerCache.js; node scripts/checkTechnicalDebt.js; node scripts/checkMobilePerfBudget.js; node scripts/smokeTestGame3D.js
+          git fetch origin main; test "$(git rev-parse origin/main)" = "$BASE_SHA"; git diff --check "$BASE_SHA"...HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ne-g71-terrain3d-near-detail-proof
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            godot/terrain-authoring/.terrain3d-proof/g71-near-detail-*.json
+            godot/terrain-authoring/.terrain3d-proof/g71-near-detail-*.png
+            artifacts/ne-g71-near-detail-visual/
