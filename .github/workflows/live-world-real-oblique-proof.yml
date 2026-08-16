@@ -1,0 +1,67 @@
+name: Real Live World Oblique Proof
+
+on:
+  push:
+    branches: ['proof/live-world-real-oblique-*']
+  workflow_dispatch:
+
+permissions: { contents: read }
+concurrency:
+  group: live-world-real-oblique-${{ github.ref }}
+  cancel-in-progress: true
+
+env: { TZ: Europe/Istanbul }
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main proof scope and quota
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git merge-base HEAD origin/main)"
+          test "$BASE_SHA" = "c234e5aaa66a704ad7be8acb9ff7b9f387aeb7d4"
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          test "$(echo "$CHANGED" | grep -Ev '^(scripts/captureLiveWorldRealOblique.mjs|\.github/workflows/live-world-real-oblique-proof.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 2
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
+          D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "real-oblique proof quota additions=$A deletions=$D total=$((A+D))"
+          test $((A+D)) -le 1000
+          git diff --check "$BASE_SHA"...HEAD
+          git diff --quiet "$BASE_SHA"...HEAD -- src/ game3d.html
+      - name: Static capture contract
+        run: |
+          set -euo pipefail
+          node --check scripts/captureLiveWorldRealOblique.mjs
+      - name: Hydrate shipped-scene LFS assets
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Capture real shipped 3D views
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/captureLiveWorldRealOblique.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-world-real-oblique-proof
+          if-no-files-found: error
+          path: artifacts/live-world-real-oblique/
