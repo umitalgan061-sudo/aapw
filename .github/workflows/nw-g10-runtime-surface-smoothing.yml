@@ -1,0 +1,167 @@
+name: NW G10 Runtime Surface Smoothing
+
+on:
+  push:
+    branches: ['agent/buzul-muhafizi-g10-runtime-smoothing-exact-*']
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/worldReferenceSurfaceTerrainVisual.js'
+      - 'scripts/checkNWG10RuntimeSurfaceSmoothing.mjs'
+      - 'scripts/checkNWG10RuntimeSurfaceTopology.mjs'
+      - 'scripts/checkNWG10RuntimeSmoothingNearFar.mjs'
+      - 'scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs'
+      - 'scripts/checkNWG10RuntimeSmoothingEvidence.mjs'
+      - 'scripts/checkTerrainPolishIteration08.js'
+      - 'scripts/terrainSeatSafetyCheck.js'
+      - 'scripts/roadNetworkSafetyCheck.js'
+      - '.github/workflows/terrain-polish-iteration-008.yml'
+      - '.github/workflows/terrain-pindex-quality-v2.yml'
+      - '.github/workflows/nw-g10-runtime-surface-smoothing.yml'
+  workflow_dispatch:
+
+permissions: { contents: read }
+concurrency:
+  group: nw-g10-runtime-surface-smoothing-${{ github.ref }}
+  cancel-in-progress: true
+
+env: { TZ: Europe/Istanbul }
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+          ref: '${{ github.event.pull_request.head.sha || github.sha }}'
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-main twelve-file scope and quota
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceSurfaceTerrainVisual.js|scripts/checkTerrainPolishIteration08.js|scripts/checkNWG10RuntimeSurfaceSmoothing.mjs|scripts/checkNWG10RuntimeSurfaceTopology.mjs|scripts/checkNWG10RuntimeSmoothingNearFar.mjs|scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs|scripts/checkNWG10RuntimeSmoothingEvidence.mjs|scripts/terrainSeatSafetyCheck.js|scripts/roadNetworkSafetyCheck.js|\.github/workflows/terrain-polish-iteration-008.yml|\.github/workflows/terrain-pindex-quality-v2.yml|\.github/workflows/nw-g10-runtime-surface-smoothing.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 12
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
+          D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "NW G10 runtime smoothing quota: additions=$A deletions=$D total=$((A+D))"
+          test $((A+D)) -le 1000
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/addons/zylann.hterrain src/3d/world/terrain.js src/3d/world/roads.js
+          git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/corner_claims/NW.json godot/terrain-authoring/four_corner_ledger.json godot/terrain-authoring/canonical_map_provenance.json
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Syntax and standing Pindex contracts
+        run: |
+          set -euo pipefail
+          for f in src/3d/world/worldReferenceSurfaceTerrainVisual.js scripts/checkTerrainPolishIteration08.js scripts/checkNWG10RuntimeSurfaceSmoothing.mjs scripts/checkNWG10RuntimeSurfaceTopology.mjs scripts/checkNWG10RuntimeSmoothingNearFar.mjs scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs scripts/checkNWG10RuntimeSmoothingEvidence.mjs scripts/terrainSeatSafetyCheck.js scripts/roadNetworkSafetyCheck.js; do node --check "$f"; done
+          node scripts/checkTerrainPolishIteration08.js
+          node scripts/checkTerrainPindexQualityV2.js
+          node scripts/checkWorldReferenceMap.js
+      - name: Runtime topology smoothing and real 3D evidence
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          OUT=artifacts/nw-g10-runtime-smoothing
+          mkdir -p "$OUT"
+          node scripts/checkNWG10RuntimeSurfaceTopology.mjs --out="$OUT/g10-runtime-topology.json" | tee "$RUNNER_TEMP/topology.log"
+          grep -F NW_G10_RUNTIME_SURFACE_TOPOLOGY_OK "$RUNNER_TEMP/topology.log"
+          node scripts/checkNWG10RuntimeSurfaceSmoothing.mjs --out="$OUT/g10-runtime-smoothing-metrics.json" | tee "$RUNNER_TEMP/smoothing.log"
+          grep -F NW_G10_RUNTIME_SURFACE_SMOOTHING_OK "$RUNNER_TEMP/smoothing.log"
+          node scripts/checkNWG10RuntimeSmoothingNearFar.mjs --out-dir="$OUT" | tee "$RUNNER_TEMP/near-far.log"
+          grep -F NW_G10_RUNTIME_SMOOTHING_NEAR_FAR_OK "$RUNNER_TEMP/near-far.log"
+          node scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs --out-dir="$OUT" | tee "$RUNNER_TEMP/topdown.log"
+          grep -F NW_G10_RUNTIME_SMOOTHED_3D_TOPDOWN_OK "$RUNNER_TEMP/topdown.log"
+          test -s "$OUT/g10-runtime-smoothed-near.png"
+          test -s "$OUT/g10-runtime-smoothed-far.png"
+          test -s "$OUT/g10-runtime-smoothed-full-world-3d-topdown.png"
+          test -s "$OUT/g10-runtime-smoothed-full-world-3d-topdown.json"
+          node scripts/checkNWG10RuntimeSmoothingEvidence.mjs --topology="$OUT/g10-runtime-topology.json" --smoothing="$OUT/g10-runtime-smoothing-metrics.json" --near-far="$OUT/g10-runtime-smoothed-near-far.json" --topdown="$OUT/g10-runtime-smoothed-full-world-3d-topdown.json" --png="$OUT/g10-runtime-smoothed-full-world-3d-topdown.png" --out="$OUT/evidence-manifest.json" | tee "$RUNNER_TEMP/evidence.log"
+          grep -F NW_G10_RUNTIME_SMOOTHING_EVIDENCE_OK "$RUNNER_TEMP/evidence.log"
+      - name: Reprove G10 biome source twice
+        run: |
+          set -euo pipefail
+          PROOF=godot/terrain-authoring/.terrain3d-proof/g10-biome-probe.json
+          mkdir -p "$(dirname "$PROOF")"
+          node scripts/checkNWG10Hydrology.mjs
+          node scripts/checkNWG10Biome.mjs --emit-probe="$PROOF" | tee "$RUNNER_TEMP/biome-a.log"
+          cp "$PROOF" "$RUNNER_TEMP/biome-a.json"
+          node scripts/checkNWG10Biome.mjs --emit-probe="$PROOF" | tee "$RUNNER_TEMP/biome-b.log"
+          cmp "$RUNNER_TEMP/biome-a.log" "$RUNNER_TEMP/biome-b.log"
+          cmp "$RUNNER_TEMP/biome-a.json" "$PROOF"
+          grep -F NW_G10_BIOME_VALIDATION_OK "$RUNNER_TEMP/biome-a.log"
+      - name: Install pinned Terrain3D and Godot 4.6.3
+        run: |
+          set -euo pipefail
+          cp godot/terrain-authoring/project.godot "$RUNNER_TEMP/project.before"
+          ok=0; for n in 1 2 3; do if python3 godot/terrain-authoring/tools/install_terrain3d.py --refresh; then ok=1; break; fi; sleep $((n*3)); done; test "$ok" -eq 1
+          python3 godot/terrain-authoring/tools/install_terrain3d.py --verify-only | tee "$RUNNER_TEMP/t3d-verify.log"
+          grep -F TERRAIN3D_VERIFY_OK "$RUNNER_TEMP/t3d-verify.log"
+          grep -F 'version="1.0.2"' godot/terrain-authoring/addons/terrain_3d/plugin.cfg
+          mkdir -p "$RUNNER_TEMP/godot"
+          curl --fail --location --retry 3 'https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.6.3' -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -name 'Godot_v4.6.3-stable_linux.x86_64' -print -quit)"; test -n "$GODOT_BIN"; chmod +x "$GODOT_BIN"; "$GODOT_BIN" --version | grep -F 4.6.3
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Real Terrain3D persistence LOD0 and safety regressions
+        run: |
+          set -euo pipefail
+          timeout 180s "$GODOT_BIN" --headless --editor --path godot/terrain-authoring --quit-after 45 2>&1 | tee "$RUNNER_TEMP/editor.log"
+          ! grep -E 'ERROR:.*(Terrain3D|terrain_3d)|Failed loading resource.*terrain_3d' "$RUNNER_TEMP/editor.log"
+          G10_BIOME_PROOF_SUFFIX=a timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g10_terrain3d_biome.gd | tee "$RUNNER_TEMP/t3d-a.log"
+          cp godot/terrain-authoring/.terrain3d-proof/g10-biome-color.png "$RUNNER_TEMP/g10-a.png"
+          G10_BIOME_PROOF_SUFFIX=b timeout 240s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_g10_terrain3d_biome.gd | tee "$RUNNER_TEMP/t3d-b.log"
+          cmp "$RUNNER_TEMP/g10-a.png" godot/terrain-authoring/.terrain3d-proof/g10-biome-color.png
+          grep -F NW_G10_TERRAIN3D_BIOME_VALIDATION_OK "$RUNNER_TEMP/t3d-a.log"
+          grep -F NW_G10_TERRAIN3D_BIOME_VALIDATION_OK "$RUNNER_TEMP/t3d-b.log"
+          timeout 180s "$GODOT_BIN" --headless --path godot/terrain-authoring --script res://scripts/validate_hterrain_authoring.gd | grep -F HTERRAIN_AUTHORING_VALIDATION_OK
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+      - name: PWA mobile browser regressions
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/smokeTestGame3D.js
+      - name: Restore authoring mutations
+        if: always()
+        run: |
+          test ! -f "$RUNNER_TEMP/project.before" || cp "$RUNNER_TEMP/project.before" godot/terrain-authoring/project.godot
+          rm -rf godot/terrain-authoring/addons/terrain_3d
+          git restore --worktree -- godot/terrain-authoring/addons/zylann.hterrain
+          git clean -fdx -- godot/terrain-authoring/terrain_data
+          git diff --exit-code -- godot/terrain-authoring/project.godot godot/terrain-authoring/addons/zylann.hterrain
+      - name: Final exact-main freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nw-g10-runtime-surface-smoothing-proof
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            artifacts/nw-g10-runtime-smoothing/
+            godot/terrain-authoring/.terrain3d-proof/g10-biome-color.png
