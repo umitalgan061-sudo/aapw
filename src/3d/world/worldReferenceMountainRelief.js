@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-14-v1',
+	id: 'owner-map-live-mountain-relief-2026-08-16-v2',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -25,6 +25,13 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	coordinateWarpNormalized: 0.003,
 	summitModulationMinimum: 0.08,
 	summitNoiseExponent: 2,
+	// Uniform shoulders make long polyline ranges read like tubes in orthographic views. Keep the
+	// canonical centerlines/peaks intact, but vary only their outer shoulder width with broad,
+	// deterministic world-space noise. The minimum is intentionally conservative so ranges remain
+	// connected and the shared render/physics sampler never develops broken ridges.
+	ridgeWidthScaleMinimum: 0.58,
+	ridgeWidthNoiseFrequencyBroad: 5.5,
+	ridgeWidthNoiseFrequencyDetail: 11,
 	// Western chains overlap shipped kingdom roads, so their audited map-space approaches are
 	// lowered into traversable passes instead of flattening/removing the surrounding mountains.
 	// Bone/eastern chains need no authored pass yet because no current live road crosses them.
@@ -88,6 +95,23 @@ function valueNoise2D(x, y, seed) {
 	const top = a + (b - a) * tx;
 	const bottom = c + (d - c) * tx;
 	return top + (bottom - top) * ty;
+}
+
+function sampleRidgeWidthScale(normalizedX, normalizedY, seed) {
+	const broad = valueNoise2D(
+		normalizedX * WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.ridgeWidthNoiseFrequencyBroad + 13,
+		normalizedY * WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.ridgeWidthNoiseFrequencyBroad - 7,
+		seed + 307,
+	);
+	const detail = valueNoise2D(
+		normalizedX * WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.ridgeWidthNoiseFrequencyDetail - 19,
+		normalizedY * WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.ridgeWidthNoiseFrequencyDetail + 23,
+		seed + 401,
+	);
+	const mixed = broad * 0.72 + detail * 0.28;
+	const shaped = smoothstep(0.12, 0.88, mixed);
+	return WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.ridgeWidthScaleMinimum +
+		(1 - WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.ridgeWidthScaleMinimum) * shaped;
 }
 
 function decodeSurfaceMask() {
@@ -213,8 +237,14 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 			const b = chain.points[index + 1];
 			distance = Math.min(distance, pointSegmentDistance(px, py, a[0], a[1], b[0], b[1]));
 		}
-		if (distance >= chain.profile.outerWidthNormalized) continue;
-		const ridge = 1 - smoothstep(chain.profile.coreWidthNormalized, chain.profile.outerWidthNormalized, distance);
+		const widthScale = sampleRidgeWidthScale(normalizedX, normalizedY, chain.profile.seed);
+		const outerWidth = chain.profile.outerWidthNormalized * widthScale;
+		if (distance >= outerWidth) continue;
+		// Keep the high ridge core nearly unchanged while allowing the broad shoulder to breathe.
+		// This changes silhouette/footprint, not the canonical connected centerline or summit heights.
+		const coreScale = 0.82 + widthScale * 0.18;
+		const coreWidth = chain.profile.coreWidthNormalized * coreScale;
+		const ridge = 1 - smoothstep(coreWidth, outerWidth, distance);
 		const summitNoise = (
 			valueNoise2D(normalizedX * 8, normalizedY * 8, chain.profile.seed + 101) * 0.75 +
 			valueNoise2D(normalizedX * 17, normalizedY * 17, chain.profile.seed + 211) * 0.25
