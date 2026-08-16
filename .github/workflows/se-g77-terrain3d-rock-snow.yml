@@ -23,12 +23,12 @@ jobs:
     timeout-minutes: 65
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0, lfs: false }
+        with: { fetch-depth: 0, lfs: true }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Exact-main ten-file scope quota
+      - name: Exact-main ten-file scope quota and LFS
         run: |
-          set -euo pipefail; git fetch origin main
+          set -euo pipefail; git fetch origin main; git lfs fsck
           MAIN="$(git rev-parse origin/main)"; test "$(git merge-base HEAD origin/main)" = "$MAIN"; git diff --check origin/main...HEAD
           CHANGED="$(git diff --name-only origin/main...HEAD)"; echo "$CHANGED"
           test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_rock_snow\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_rock_snow(_reload)?\.gd|scripts/checkSEG77RockSnow(ControlEnvelope|MapFidelity|Terrain3DEvidence|VisualEvidence|EvidenceManifest)?\.mjs|\.github/workflows/se-g77-terrain3d-rock-snow\.yml)$' | wc -l)" -eq 0
@@ -65,7 +65,7 @@ jobs:
           node scripts/checkSEG77RockSnowTerrain3DEvidence.mjs /tmp/t3d-a.log /tmp/t3d-b.log /tmp/reload-a.log /tmp/reload-b.log | tee /tmp/t3d-evidence.log; grep -F SE_G77_ROCK_SNOW_TERRAIN3D_EVIDENCE_OK /tmp/t3d-evidence.log
       - name: Real shipped 3D evidence HTerrain safety PWA mobile and browser regressions
         run: |
-          set -euo pipefail; git lfs pull; git lfs fsck
+          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/pw"; npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0; "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium; export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkSEG77RockSnowVisualEvidence.mjs --out-dir=artifacts/se-g77-rock-snow-visual | tee /tmp/visual.log; grep -F SE_G77_ROCK_SNOW_VISUAL_EVIDENCE_OK /tmp/visual.log
           node scripts/checkSEG77RockSnowEvidenceManifest.mjs --out-dir=artifacts/se-g77-rock-snow-visual | tee /tmp/manifest.log; grep -F SE_G77_ROCK_SNOW_EVIDENCE_MANIFEST_OK /tmp/manifest.log
