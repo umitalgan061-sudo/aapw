@@ -8,6 +8,16 @@ function vector3(vector) {
   return [round(vector.x), round(vector.y), round(vector.z)];
 }
 
+function cloneMaterialRecipe(object) {
+  const recipe = object?.userData?.editorMaterialRecipe;
+  if (!recipe) return null;
+  try {
+    return JSON.parse(JSON.stringify(recipe));
+  } catch {
+    return null;
+  }
+}
+
 export function serializeEditorScene(objects, instanceGroups, editorState) {
   return {
     schemaVersion: EDITOR_SCENE_SCHEMA_VERSION,
@@ -21,6 +31,7 @@ export function serializeEditorScene(objects, instanceGroups, editorState) {
       id: object.userData.editorId,
       name: object.name,
       asset: object.userData.editorAssetId,
+      materialRecipe: cloneMaterialRecipe(object),
       transform: {
         position: vector3(object.position),
         rotation: vector3(object.rotation),
