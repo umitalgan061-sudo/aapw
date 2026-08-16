@@ -74,10 +74,30 @@ jobs:
         env:
           GAME3D_SOFTWARE_WEBGL: '1'
         run: |
-          set -euo pipefail
-          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/smoke.log"
-          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log")"
+          set -uo pipefail
+          set +e
+          node scripts/smokeTestGame3D.js 2>&1 | tee "$RUNNER_TEMP/smoke.log"
+          SMOKE_STATUS="${PIPESTATUS[0]}"
+          set -e
+          PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/smoke.log" || true)"
+          grep -E '\[smokeTestGame3D\] (FAIL|SKIP):|FAIL: unexpected error|WebGL disabled|page\.(evaluate|goto)' "$RUNNER_TEMP/smoke.log" \
+            | tail -n 20 \
+            | while IFS= read -r line; do
+                line="${line//'%'/'%25'}"
+                line="${line//$'\r'/'%0D'}"
+                echo "::error title=Run 167 browser smoke::$line"
+              done || true
+          if [ "$SMOKE_STATUS" -ne 0 ]; then exit "$SMOKE_STATUS"; fi
           test "$PASS_COUNT" -ge 34
+
+      - name: Upload browser smoke diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run167-browser-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/smoke.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Self review
         shell: bash
