@@ -144,7 +144,9 @@ export async function createPlayer({
 	}
 
 	function publishMotionTelemetry() {
-		const staminaBucket = Math.floor(stamina);
+		// Tenths keep HUD/runtime evidence responsive enough to detect sub-point regen changes while
+		// still avoiding an unconditional CustomEvent on every idle frame.
+		const staminaBucket = Math.floor(stamina * 10);
 		if (movementState === lastTelemetryState && staminaBucket === lastTelemetryStamina) return;
 		lastTelemetryState = movementState;
 		lastTelemetryStamina = staminaBucket;
