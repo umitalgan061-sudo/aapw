@@ -1,14 +1,61 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "reference": "map.png",
   "reference_size": [1536, 1024],
+  "reference_sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
   "grid": [8, 8],
   "cell_size": [192, 128],
+  "reconciled_main": "8988d5fa77c53c8643f78ce83125e48f2635a4a3",
+  "reconciled_at": "2026-08-16T10:01:13+03:00",
+  "authority_order": [
+    "current origin/main and merged PR history",
+    "exact-head CI evidence",
+    "four_corner_ledger.json",
+    "corner_claims/*.json",
+    "open/stale PR prose"
+  ],
+  "recovery_policy": {
+    "stale_claim_is_not_authority": true,
+    "stale_pr_cannot_block_progress": true,
+    "resolved_blocker_must_not_be_reported_again": true,
+    "exact_main_successor_required_after_main_moves": true,
+    "repeat_same_blocker_twice_requires_rca_or_other_safe_work": true,
+    "no_empty_hourly_cycles_when_safe_meaningful_work_exists": true,
+    "rule": "At every run, reconcile claims and open PR prose against current origin/main and actual merged PRs before selecting work. If a PR no longer contains current main, close/supersede it or publish a fresh exact-main successor; never keep re-reporting it as the current candidate. If a historical blocker is already fixed on main, remove it from the decision path immediately."
+  },
+  "resolved_shared_blockers": {
+    "full_world_runtime_coverage": {
+      "resolved": true,
+      "pr": 550,
+      "merge_commit": "759c69e71d08430e6a23066e5e2865000cb1d66f",
+      "note": "Full 9000x7000 owner-map runtime coverage and single shipped height authority are merged; G17/G77 runtime-coverage prose from older PRs is stale."
+    },
+    "asset_manifest_and_lfs_governance": {
+      "resolved": true,
+      "pr": 525,
+      "merge_commit": "99a98909339c8f59b855b03c848a0bc0cd2fc4fd",
+      "note": "Primary model manifest registration and LFS-aware Run283 checkout/fsck are merged; old G77 LFS blocker prose is stale."
+    }
+  },
+  "shared_blockers": {
+    "canonical_map_binary": {
+      "status": "verified_bytes_available_not_yet_tracked",
+      "sha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
+      "size": [1536, 1024],
+      "note": "Owner Library copy was independently hash/dimension verified on 2026-08-16. Do not fabricate or substitute bytes. Strict provenance remains blocked only until those exact bytes are tracked in this repository."
+    },
+    "shared_map_geography_package": {
+      "status": "pending_after_canonical_map_tracking",
+      "single_owner_required": true,
+      "required_outputs": ["label_symbol_mask", "land_ocean_shelf", "stable_lake_ids", "directed_river_graph", "ridge_peak_valley_pass", "forest_biome_ice_desert_marsh", "confidence_provenance"],
+      "note": "Do not create four conflicting per-corner extractors."
+    }
+  },
   "corners": {
-    "NW": {"task_name": "Buzul Muhafızı", "origin": [0, 0]},
-    "NE": {"task_name": "Şafak Kartalı", "origin": [7, 0]},
-    "SW": {"task_name": "Günbatımı Ustası", "origin": [0, 7]},
-    "SE": {"task_name": "Kızıl Ufuk", "origin": [7, 7]}
+    "NW": {"task_name": "Buzul Muhafızı", "origin": [0, 0], "current_cell": "G10", "current_layer": "Relief runtime refinement", "next_action": "Re-evaluate stale PR #552 on exact current main; publish a fresh successor only if its measured smoothing improvement is still missing, otherwise record no-regression evidence and proceed to G10 Rock/Snow."},
+    "NE": {"task_name": "Şafak Kartalı", "origin": [7, 0], "current_cell": "G71", "current_layer": "Near Detail", "next_action": "G71 Road/Path merged via #557; start Near Detail from exact current main."},
+    "SW": {"task_name": "Günbatımı Ustası", "origin": [0, 7], "current_cell": "G17", "current_layer": "Road/Path", "next_action": "Old #542 is stale. Runtime coverage is already fixed by #550. After exact canonical map bytes are tracked, publish one fresh exact-main G17 Road/Path successor and rerun the strict Terrain3D/runtime evidence."},
+    "SE": {"task_name": "Kızıl Ufuk", "origin": [7, 7], "current_cell": "G77", "current_layer": "Rock/Snow", "next_action": "Old #535 is stale. Runtime coverage and LFS blockers are already fixed by #550/#525. After canonical map tracking and shared geography-package ownership are resolved, publish a fresh exact-main G77 Rock/Snow successor."}
   },
   "rows": [
     ["G00", "G10", "G20", "G30", "G40", "G50", "G60", "G70"],
@@ -20,7 +67,15 @@
     ["G06", "G16", "G26", "G36", "G46", "G56", "G66", "G76"],
     ["G07", "G17", "G27", "G37", "G47", "G57", "G67", "G77"]
   ],
-  "cell_state": {},
+  "cell_state": {
+    "G01": {"corner": "NW", "status": "seven_layers_merged", "runtime_parity_pr": 514, "merge_commit": "d2bd94b3b824ce61af86193cff994e43ea2363e9"},
+    "G10": {"corner": "NW", "status": "relief_merged_refinement_recheck", "relief_pr": 549, "merge_commit": "8490b75d921b71f3f453f2d381b1ee6ecca59b25", "stale_refinement_pr": 552},
+    "G60": {"corner": "NE", "status": "seven_layers_merged", "runtime_parity_pr": 553},
+    "G70": {"corner": "NE", "status": "seven_layers_merged", "runtime_parity_pr": 507},
+    "G71": {"corner": "NE", "status": "road_path_merged_5_of_7", "road_path_pr": 557, "merge_commit": "8988d5fa77c53c8643f78ce83125e48f2635a4a3", "next_layer": "Near Detail"},
+    "G17": {"corner": "SW", "status": "rock_snow_merged_road_path_pending", "rock_snow_pr": 486, "rock_snow_merge_commit": "001a3e11f97f9bcf8be74462c8b66ce72f66b620", "stale_road_path_pr": 542},
+    "G77": {"corner": "SE", "status": "relief_merged_rock_snow_pending", "relief_pr": 473, "relief_merge_commit": "7ab4c2aecedb03150349a00025865652c468f762", "stale_rock_snow_pr": 535}
+  },
   "active_leases": {},
-  "notes": "Missing cell_state means pending. Each task must refresh main before claiming a cell. Store status, quality metrics, engine, branch/pr and last_commit only after evidence exists. Shared/overlap cells are refinements, never blind rewrites."
+  "notes": "Missing cell_state means pending. Current main and merged PR history are authoritative over stale claims or PR descriptions. Never keep an obsolete blocker alive after its fixing PR is merged."
 }
