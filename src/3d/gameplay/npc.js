@@ -1,45 +1,7 @@
-/**
- * NPCs (FAZ 5): reuses `gameplay/player.js`'s FBX-loading and Mixamo-scale-correction pattern for a
- * non-player character. Two modes, both driven by the same `update`/`dispose` shape as
- * `gameplay/player.js`'s `createPlayer`:
- *  - **Static** (no `patrolWaypoints` passed, the default — run 20): stands at a fixed world
- *    position, plays a looping idle animation. No AI, pathing, or interaction.
- *  - **Patrolling** (`patrolWaypoints` passed — run 22, pilot on 2 of 6 NPCs): walks a straight
- *    line between 2+ world-space points in order (wrapping via modulo, so 2 points ping-pong and
- *    3+ points loop), pausing to idle at each one, reusing `player.js`'s per-frame ground-height
- *    resampling and shortest-path yaw-turn pattern. No pathfinding/collision avoidance — a straight
- *    line between caller-supplied points, same "don't build a full behavior tree in one run" scope
- *    `3D_GAME_PROGRESS.md`'s FAZ 5 roadmap and DECISIONS.md ADR-0019/ADR-0021 call for.
- *
- * `spawnConfiguredNPCs` (run 29, DECISIONS.md ADR-0028) resolves `gameplayConfig.js`'s `NPC_CONFIG.SPAWNS`
- * against kingdom seats and loads every NPC in parallel — moved here from `game3d.js` to keep that
- * file under the project's 600-line cap.
- *
- * **Combat-stance** (run 73, FAZ 11 "asker" archetype, DECISIONS.md ADR-0096): when the player comes
- * within `combatStanceTriggerRadiusMeters`, a guard turns to face them and holds its ground (pausing
- * any patrol) instead of idling/walking obliviously, and its idle clip eases to a faster time-scale —
- * the same "reuse an existing clip at an altered speed as a tension cue" trick
- * `gameplay/dragonController.js`'s wing-flap telegraph already established (ADR-0089), since no
- * dedicated combat-stance animation clip exists. Opt-in via config (omit either radius param to keep
- * a static/patrolling NPC exactly as before) — `spawnConfiguredNPCs` wires every real spawn to
- * `NPC_CONFIG`'s combat-stance values uniformly, since every current spawn is a guard archetype.
- * @module gameplay/npc
- */
-
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+import { createGuardPerception, queryColliderLineOfSight } from './npcPerception.js';
 
-/**
- * Eases a 0..1 blend linearly toward `targetBlend`, one frame's worth. Deliberately a local copy of
- * `gameplay/dragonFlightMath.js`'s `easeBlendToward` rather than an import — same "why duplicate"
- * reasoning DECISIONS.md ADR-0026 already established for this project (that module's own name/doc
- * frame it as dragon-flight-specific even though the arithmetic is generic; copying keeps `npc.js`'s
- * own combat-stance logic self-contained instead of reaching into a sibling system's file for nine
- * lines of math). A non-positive `transitionSeconds` means "no easing configured": the blend snaps to
- * the target.
- * @param {number} currentBlend @param {number} targetBlend @param {number} delta
- * @param {number} transitionSeconds @returns {number}
- */
 function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
 	if (transitionSeconds > 0) {
 		const step = delta / transitionSeconds;
@@ -50,14 +12,6 @@ function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
 	return targetBlend;
 }
 
-/**
- * Turns `model` toward `targetYaw`, rate-limited by `turnRateRadiansPerSecond` — the exact
- * shortest-path yaw-turn expression this file's own patrol-walk branch already used inline, factored
- * out so the new combat-stance facing (below) can share it instead of duplicating the wraparound math
- * a third time.
- * @param {THREE.Object3D} model @param {number} targetYaw @param {number} turnRateRadiansPerSecond
- * @param {number} delta
- */
 function turnTowardYaw(model, targetYaw, turnRateRadiansPerSecond, delta) {
 	const turnStep = turnRateRadiansPerSecond * delta;
 	model.rotation.y = THREE.MathUtils.lerp(
@@ -67,17 +21,25 @@ function turnTowardYaw(model, targetYaw, turnRateRadiansPerSecond, delta) {
 	);
 }
 
-/**
- * Builds a billboard name-tag sprite from canvas-rendered text. A `THREE.Sprite` always faces the
- * camera in view space — it only inherits its parent's *position*, not rotation — so this stays
- * legible even while a patrolling NPC turns. Real-world-space `scale` (meters, not pixels) means it
- * shrinks with distance like any other object, needing no separate LOD/culling at this NPC count.
- * See DECISIONS.md ADR-0022.
- * @param {string} text
- * @param {number} widthMeters
- * @param {number} heightMeters
- * @returns {THREE.Sprite}
- */
+function moveTowardXZ({ model, target, speedMps, delta, groundCollider, playerCollider, turnRateRadiansPerSecond, arrivalRadiusMeters = 0.65 }) {
+	const dx = Number(target.x) - model.position.x;
+	const dz = Number(target.z) - model.position.z;
+	const distance = Math.hypot(dx, dz);
+	if (!Number.isFinite(distance) || distance <= arrivalRadiusMeters) {
+		return { reached: true, moved: false, distanceMeters: distance };
+	}
+	const step = Math.min(distance, Math.max(0, speedMps) * Math.max(0, delta));
+	let nextX = model.position.x + (dx / distance) * step;
+	let nextZ = model.position.z + (dz / distance) * step;
+	if (playerCollider?.resolveXZ) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+	const moved = Math.hypot(nextX - model.position.x, nextZ - model.position.z) > 1e-6;
+	model.position.x = nextX;
+	model.position.z = nextZ;
+	if (groundCollider?.getGroundHeight) model.position.y = groundCollider.getGroundHeight(nextX, nextZ);
+	turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, delta);
+	return { reached: distance <= arrivalRadiusMeters + step, moved, distanceMeters: distance };
+}
+
 function createNameTagSprite(text, widthMeters, heightMeters) {
 	const canvas = document.createElement('canvas');
 	canvas.width = 512;
@@ -90,11 +52,8 @@ function createNameTagSprite(text, widthMeters, heightMeters) {
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
 	ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-
 	const texture = new THREE.CanvasTexture(canvas);
 	texture.colorSpace = THREE.SRGBColorSpace;
-	// depthWrite: false — a flat label shouldn't occlude geometry behind it in the depth buffer;
-	// depthTest stays on (the default) so the tag still hides correctly behind real terrain/walls.
 	const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
 	const sprite = new THREE.Sprite(material);
 	sprite.scale.set(widthMeters, heightMeters, 1);
@@ -102,48 +61,9 @@ function createNameTagSprite(text, widthMeters, heightMeters) {
 }
 
 /**
- * Loads one NPC's model (+ idle, and optionally walk, clips), places it, and returns a small
- * controller object.
- * @param {object} options
- * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
- * @param {string} options.modelUrl Mixamo T-pose character FBX (must share `peasant_girl`'s skeleton).
- * @param {string} options.idleAnimationUrl Skin-less idle clip FBX (retargets onto any shared-skeleton model).
- * @param {number} options.worldX World-space spawn X, in meters.
- * @param {number} options.worldZ World-space spawn Z, in meters.
- * @param {number} options.groundY World-space Y the NPC's feet rest at — caller-sampled via the
- *   same `physics.js` ground collider (+ sea-level clamp) every other placement system uses.
- * @param {number} [options.rotationYRadians]
- * @param {string} [options.name] Assigned to the loaded `Object3D` (useful for debugging/tests).
- * @param {string} [options.displayName] If set, a billboard name-tag sprite is added above the
- *   NPC's head (see `createNameTagSprite`). Omit for no tag.
- * @param {number} [options.nameTagWidthMeters]
- * @param {number} [options.nameTagHeightMeters]
- * @param {number} [options.nameTagVerticalOffsetMeters] Height, in meters above the model's local
- *   origin (its feet), the tag is centered at.
- * @param {{getGroundHeight: (x: number, z: number) => number}} [options.groundCollider] Required
- *   only when `patrolWaypoints` is passed — resamples ground height every frame while walking, same
- *   as `player.js`'s own movement.
- * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
- *   Run 332's own follow-up to Run 331's own named gap: the same castle+village obstacle collider
- *   `sceneManager.js` builds for `gameplay/player.js` (see its own JSDoc), applied here too so a
- *   patrolling NPC's waypoint walk pushes back out of a house/keep instead of passing through it.
- *   Optional — omit (the default) for a patrolling NPC whose waypoints never cross placed geometry,
- *   or for any caller with no obstacle collider available (e.g. a unit test).
- * @param {string} [options.walkAnimationUrl] Skin-less walk clip; required only for patrolling NPCs.
- * @param {{x: number, z: number}[]} [options.patrolWaypoints] World-space points to walk between, in
- *   order (index wraps via modulo — 2 points ping-pong, 3+ loop). Omit for a static, idle-only NPC.
- * @param {number} [options.speedMps]
- * @param {number} [options.pauseSeconds] Idle dwell time at each waypoint before moving to the next.
- * @param {number} [options.turnRateRadiansPerSecond]
- * @param {number} [options.combatStanceTriggerRadiusMeters] Run 73 (ADR-0096) combat-stance: how
- *   close, in meters, `update()`'s `playerPosition` argument needs to be before this NPC turns to
- *   face the player and holds its ground (pausing any patrol). Omit to disable the feature entirely
- *   (a static or patrolling NPC behaves exactly as before this run added it).
- * @param {number} [options.combatStanceIdleTimeScale] Idle-clip playback speed at full alert (see
- *   `combatStanceTriggerRadiusMeters`). Only meaningful when that param is also set.
- * @param {number} [options.combatStanceTransitionSeconds] Full 0->1 ease duration for the alert blend
- *   driving the time-scale cue above. Only meaningful when `combatStanceTriggerRadiusMeters` is set.
- * @returns {Promise<{object3D: THREE.Object3D, displayName: (string|null), update: (delta: number, playerPosition?: {x: number, z: number}) => void, dispose: () => void}>}
+ * Existing FBX/idle/walk NPC controller with bounded guard perception. The controller reuses the
+ * world's composed X/Z collider as a LOS query, remembers the last visible/audible player position,
+ * performs a short investigation/search, then resumes its interrupted patrol (or returns home).
  */
 export async function createNPC({
 	assetLoader,
@@ -174,37 +94,26 @@ export async function createNPC({
 	if (name) model.name = name;
 	model.position.set(worldX, groundY, worldZ);
 	model.rotation.y = rotationYRadians;
+	const homePosition = Object.freeze({ x: worldX, z: worldZ });
 
 	if (displayName) {
-		// The tag is parented under `model`, which carries the Mixamo cm->m scale correction just
-		// applied above (`AssetLoader.correctMixamoFbxScale`, typically ~0.01) — a child's local
-		// position/size gets multiplied by that same parent scale in the render matrix (confirmed
-		// against the vendored sprite vertex shader, which derives both from modelMatrix). Dividing
-		// by it here cancels that out so the tag's real-world size/height stay in actual meters
-		// regardless of the model's own FBX unit scale. See DECISIONS.md ADR-0022.
 		const inverseParentScale = model.scale.x !== 0 ? 1 / model.scale.x : 1;
-		const nameTag = createNameTagSprite(
-			displayName,
-			nameTagWidthMeters * inverseParentScale,
-			nameTagHeightMeters * inverseParentScale,
-		);
-		nameTag.position.set(0, nameTagVerticalOffsetMeters * inverseParentScale, 0);
-		model.add(nameTag);
+		const tag = createNameTagSprite(displayName, nameTagWidthMeters * inverseParentScale, nameTagHeightMeters * inverseParentScale);
+		tag.position.set(0, nameTagVerticalOffsetMeters * inverseParentScale, 0);
+		model.add(tag);
 	}
 
 	const mixer = new THREE.AnimationMixer(model);
 	const idleSource = await assetLoader.loadFBXModel(idleAnimationUrl);
 	const idleAction = idleSource.animations[0] ? mixer.clipAction(idleSource.animations[0]) : null;
-
-	const isPatrolling = Boolean(patrolWaypoints && patrolWaypoints.length > 0 && groundCollider && walkAnimationUrl);
+	const isPatrolling = Boolean(patrolWaypoints?.length && groundCollider && walkAnimationUrl);
 	let walkAction = null;
-	if (isPatrolling) {
+	if (walkAnimationUrl) {
 		const walkSource = await assetLoader.loadFBXModel(walkAnimationUrl);
 		if (walkSource.animations[0]) walkAction = mixer.clipAction(walkSource.animations[0]);
 	}
 
 	let currentAction = null;
-	/** Crossfades to `action`; a no-op if it's already playing or doesn't exist. */
 	function playAction(action) {
 		if (currentAction === action || !action) return;
 		action.reset().fadeIn(0.25).play();
@@ -213,59 +122,112 @@ export async function createNPC({
 	}
 	playAction(idleAction);
 
-	// Patrol state — unused (and never advanced) when isPatrolling is false.
 	let waypointIndex = 0;
-	// Starts at 0, not `pauseSeconds` (fixed run 38, DECISIONS.md ADR-0045) — `patrolWaypoints[0]` is
-	// always this NPC's own spawn point (see `spawnConfiguredNPCs`), so the very first `update()` call
-	// resolves it as an immediate zero-distance "arrival" (a no-op) and *then* starts the real
-	// `pauseSeconds` dwell before the first actual step. Pre-loading this to `pauseSeconds` would idle
-	// a second, redundant full cycle before that first arrival ever gets checked.
 	let pauseTimer = 0;
-
-	// Combat-stance state (run 73, ADR-0096) — unused (and never advanced) when
-	// combatStanceTriggerRadiusMeters is undefined, same opt-in shape as patrol state above.
 	const combatStanceEnabled = combatStanceTriggerRadiusMeters != null;
+	const investigationSearchSeconds = 1.25;
+	const investigationSpeedMps = Math.max(0.25, speedMps * 0.85);
+	const perception = combatStanceEnabled
+		? createGuardPerception({
+			visionRangeMeters: combatStanceTriggerRadiusMeters,
+			fieldOfViewDegrees: 120,
+			peripheralRadiusMeters: Math.min(3.25, combatStanceTriggerRadiusMeters * 0.4),
+			acquireSeconds: 0.22,
+			memorySeconds: 2.0,
+			investigationSpeedMps,
+			searchSeconds: investigationSearchSeconds,
+			alertThreshold: 0.72,
+			hearingRangeMeters: Math.max(4, combatStanceTriggerRadiusMeters * 0.8),
+		})
+		: null;
 	let alertBlend = 0;
+	let searchYawBase = null;
+	let previousPlayerPosition = null;
 
 	return {
 		object3D: model,
-		// FAZ 5 interaction (run 33, ADR-0033): exposed so game3d.js's dialogue affordance can
-		// address this NPC by name without a separate lookup back into NPC_CONFIG.SPAWNS.
 		displayName: displayName ?? null,
 
-		/**
-		 * @param {number} delta Seconds since the last frame.
-		 * @param {{x: number, z: number}} [playerPosition] Current player world position — only read
-		 *   when this NPC's combat-stance is enabled (see `combatStanceTriggerRadiusMeters`); omit or
-		 *   pass `undefined` for any NPC that doesn't need it, same as `packmateFleePositions` is
-		 *   optional on `gameplay/animals.js`'s wolf `update()`.
-		 */
 		update(delta, playerPosition) {
-			let isAlert = false;
-			if (combatStanceEnabled) {
-				const distanceToPlayer = playerPosition
-					? Math.hypot(model.position.x - playerPosition.x, model.position.z - playerPosition.z)
+			const currentPlayerPosition = playerPosition
+				? { x: Number(playerPosition.x), z: Number(playerPosition.z) }
+				: null;
+			const playerSpeedMps = currentPlayerPosition && previousPlayerPosition && delta > 1e-4
+				? Math.min(12, Math.hypot(currentPlayerPosition.x - previousPlayerPosition.x, currentPlayerPosition.z - previousPlayerPosition.z) / delta)
+				: 0;
+			const movementNoiseStrength = Math.max(0, Math.min(1, (playerSpeedMps - 1.5) / 5.5));
+			previousPlayerPosition = currentPlayerPosition ? { ...currentPlayerPosition } : null;
+			let perceptionState = null;
+			let lineOfSight = { clear: true, samples: 0, reason: 'disabled', blockedAt: null };
+			if (perception) {
+				const targetDistance = currentPlayerPosition
+					? Math.hypot(currentPlayerPosition.x - model.position.x, currentPlayerPosition.z - model.position.z)
 					: Infinity;
-				isAlert = distanceToPlayer <= combatStanceTriggerRadiusMeters;
-				alertBlend = easeBlendToward(alertBlend, isAlert ? 1 : 0, delta, combatStanceTransitionSeconds);
-				// Same "1 + (multiplier - 1) * blend" expression `dragonController.js`'s wingFlapTimeScale
-				// already uses (ADR-0089) — blend 0 lands exactly on 1 (unmodified speed), blend 1 lands
-				// exactly on combatStanceIdleTimeScale.
+				if (currentPlayerPosition && targetDistance <= combatStanceTriggerRadiusMeters) {
+					lineOfSight = queryColliderLineOfSight({ collider: playerCollider, observer: model.position, target: currentPlayerPosition });
+				}
+				perceptionState = perception.update({
+					observer: model.position,
+					target: currentPlayerPosition,
+					yawRadians: model.rotation.y,
+					deltaSeconds: delta,
+					hasLineOfSight: lineOfSight.clear,
+					noisePosition: currentPlayerPosition,
+					noiseStrength: movementNoiseStrength,
+				});
+				const combatAlert = perceptionState.intent === 'alert';
+				alertBlend = easeBlendToward(alertBlend, combatAlert ? 1 : 0, delta, combatStanceTransitionSeconds);
 				if (idleAction) idleAction.timeScale = 1 + (combatStanceIdleTimeScale - 1) * alertBlend;
-				// Exposed the same way dragonController.js exposes its own blends — a smoke check can
-				// assert this directly instead of reaching into idleAction's timeScale.
 				model.userData.combatStanceBlend = alertBlend;
+				model.userData.npcPerception = {
+					alerted: perceptionState.alerted,
+					intent: perceptionState.intent,
+					suspicion: Number(perceptionState.suspicion.toFixed(4)),
+					reason: perceptionState.reason,
+					heard: perceptionState.heard,
+					movementNoise: Number(movementNoiseStrength.toFixed(3)),
+					distanceMeters: Number.isFinite(perceptionState.distanceMeters) ? Number(perceptionState.distanceMeters.toFixed(3)) : null,
+					lineOfSight: lineOfSight.clear,
+					lineOfSightSamples: lineOfSight.samples,
+					investigationRemaining: Number(perceptionState.investigationRemaining.toFixed(3)),
+					lastSeen: perceptionState.lastSeen ? { ...perceptionState.lastSeen } : null,
+				};
 			}
 
-			if (isAlert) {
-				// Holds its ground and turns to face the threat instead of continuing any patrol —
-				// deliberately skips the waypoint-advance branch below entirely, so a mid-walk NPC
-				// resumes its lap from exactly where it paused once the player leaves range.
+			const isTracking = perceptionState?.intent === 'alert' || perceptionState?.intent === 'observe';
+			const isInvestigating = perceptionState?.intent === 'investigate' && perceptionState.lastSeen;
+			if (isTracking && playerPosition) {
+				searchYawBase = null;
 				const dx = playerPosition.x - model.position.x;
 				const dz = playerPosition.z - model.position.z;
 				if (dx !== 0 || dz !== 0) turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, delta);
 				playAction(idleAction);
+			} else if (isInvestigating) {
+				const target = perceptionState.lastSeen;
+				const dx = target.x - model.position.x;
+				const dz = target.z - model.position.z;
+				const distance = Math.hypot(dx, dz);
+				if (searchYawBase == null) searchYawBase = distance > 1e-6 ? Math.atan2(dx, dz) : model.rotation.y;
+				if (distance > 0.75) {
+					const movement = moveTowardXZ({
+						model,
+						target,
+						speedMps: investigationSpeedMps,
+						delta,
+						groundCollider,
+						playerCollider,
+						turnRateRadiansPerSecond,
+						arrivalRadiusMeters: 0.75,
+					});
+					playAction(movement.moved ? (walkAction || idleAction) : idleAction);
+				} else {
+					const searchProgress = 1 - Math.min(1, perceptionState.investigationRemaining / investigationSearchSeconds);
+					const sweepRadians = Math.sin(searchProgress * Math.PI * 3) * (Math.PI / 5);
+					turnTowardYaw(model, searchYawBase + sweepRadians, turnRateRadiansPerSecond * 0.65, delta);
+					playAction(idleAction);
+				}
 			} else if (isPatrolling) {
+				searchYawBase = null;
 				if (pauseTimer > 0) {
 					pauseTimer -= delta;
 					playAction(idleAction);
@@ -275,13 +237,10 @@ export async function createNPC({
 					const dz = target.z - model.position.z;
 					const distance = Math.hypot(dx, dz);
 					const step = speedMps * delta;
-
 					if (distance <= step) {
 						let targetX = target.x;
 						let targetZ = target.z;
-						if (playerCollider) {
-							({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
-						}
+						if (playerCollider?.resolveXZ) ({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
 						model.position.x = targetX;
 						model.position.z = targetZ;
 						model.position.y = groundCollider.getGroundHeight(targetX, targetZ);
@@ -291,23 +250,34 @@ export async function createNPC({
 					} else {
 						let nextX = model.position.x + (dx / distance) * step;
 						let nextZ = model.position.z + (dz / distance) * step;
-						if (playerCollider) {
-							({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
-						}
+						if (playerCollider?.resolveXZ) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
 						model.position.x = nextX;
 						model.position.z = nextZ;
 						model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
-
 						turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, delta);
 						playAction(walkAction);
 					}
 				}
+			} else if (!isPatrolling && Math.hypot(model.position.x - homePosition.x, model.position.z - homePosition.z) > 0.2) {
+				searchYawBase = null;
+				const movement = moveTowardXZ({
+					model,
+					target: homePosition,
+					speedMps: speedMps * 0.8,
+					delta,
+					groundCollider,
+					playerCollider,
+					turnRateRadiansPerSecond,
+					arrivalRadiusMeters: 0.2,
+				});
+				playAction(movement.moved ? (walkAction || idleAction) : idleAction);
+			} else {
+				searchYawBase = null;
+				playAction(idleAction);
 			}
-
 			mixer.update(delta);
 		},
 
-		/** Stops all animation actions and releases the model's GPU resources. */
 		dispose() {
 			mixer.stopAllAction();
 			AssetLoader.disposeObject3D(model);
@@ -315,64 +285,44 @@ export async function createNPC({
 	};
 }
 
-/**
- * Resolves and loads every configured NPC spawn (`gameplayConfig.js`'s `NPC_CONFIG.SPAWNS`) against a
- * kingdom-seat lookup, in parallel — moved out of `game3d.js` (run 29, DECISIONS.md ADR-0028) to
- * keep that file a thin orchestrator, per this folder's own ownership convention (see
- * `gameplay/README.md`). A spawn referencing an unknown `seatId` is skipped with a console warning,
- * not thrown — matches `game3d.js`'s prior inline behavior exactly.
- * @param {object} options
- * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
- * @param {typeof import('./gameplayConfig.js').NPC_CONFIG} options.npcConfig
- * @param {Map<string, {id: string, x: number, z: number}>} options.seatsById
- * @param {(worldX: number, worldZ: number) => number} options.sampleGroundY
- * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
- * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
- *   Forwarded to every `createNPC` call — see that function's own JSDoc.
- * @returns {Promise<Awaited<ReturnType<typeof createNPC>>[]>} Already filtered — no `null` entries.
- */
 export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, sampleGroundY, groundCollider, playerCollider }) {
-	const npcs = await Promise.all(
-		npcConfig.SPAWNS.map(async (spawn) => {
-			const seat = seatsById.get(spawn.seatId);
-			if (!seat) {
-				console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
-				return null;
-			}
-			const worldX = seat.x + spawn.offsetXMeters;
-			const worldZ = seat.z + spawn.offsetZMeters;
-			const groundY = sampleGroundY(worldX, worldZ);
-			const patrolWaypoints = spawn.patrol
-				? [
-						{ x: worldX, z: worldZ },
-						{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
-					]
-				: undefined;
-			return createNPC({
-				assetLoader,
-				modelUrl: spawn.modelUrl,
-				idleAnimationUrl: npcConfig.IDLE_ANIMATION_URL,
-				worldX,
-				worldZ,
-				groundY,
-				rotationYRadians: spawn.rotationYRadians,
-				name: spawn.id,
-				displayName: spawn.displayName,
-				nameTagWidthMeters: npcConfig.NAME_TAG_WIDTH_METERS,
-				nameTagHeightMeters: npcConfig.NAME_TAG_HEIGHT_METERS,
-				nameTagVerticalOffsetMeters: npcConfig.NAME_TAG_VERTICAL_OFFSET_METERS,
-				groundCollider: patrolWaypoints ? groundCollider : undefined,
-				playerCollider: patrolWaypoints ? playerCollider : undefined,
-				walkAnimationUrl: patrolWaypoints ? npcConfig.WALK_ANIMATION_URL : undefined,
-				patrolWaypoints,
-				speedMps: npcConfig.PATROL_SPEED_MPS,
-				pauseSeconds: npcConfig.PATROL_PAUSE_SECONDS,
-				combatStanceTriggerRadiusMeters: npcConfig.COMBAT_STANCE_TRIGGER_RADIUS_METERS,
-				combatStanceIdleTimeScale: npcConfig.COMBAT_STANCE_IDLE_TIME_SCALE,
-				combatStanceTransitionSeconds: npcConfig.COMBAT_STANCE_TRANSITION_SECONDS,
-				turnRateRadiansPerSecond: npcConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
-			});
-		}),
-	);
+	const npcs = await Promise.all(npcConfig.SPAWNS.map(async (spawn) => {
+		const seat = seatsById.get(spawn.seatId);
+		if (!seat) {
+			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
+			return null;
+		}
+		const worldX = seat.x + spawn.offsetXMeters;
+		const worldZ = seat.z + spawn.offsetZMeters;
+		const groundY = sampleGroundY(worldX, worldZ);
+		const patrolWaypoints = spawn.patrol ? [
+			{ x: worldX, z: worldZ },
+			{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
+		] : undefined;
+		return createNPC({
+			assetLoader,
+			modelUrl: spawn.modelUrl,
+			idleAnimationUrl: npcConfig.IDLE_ANIMATION_URL,
+			worldX,
+			worldZ,
+			groundY,
+			rotationYRadians: spawn.rotationYRadians,
+			name: spawn.id,
+			displayName: spawn.displayName,
+			nameTagWidthMeters: npcConfig.NAME_TAG_WIDTH_METERS,
+			nameTagHeightMeters: npcConfig.NAME_TAG_HEIGHT_METERS,
+			nameTagVerticalOffsetMeters: npcConfig.NAME_TAG_VERTICAL_OFFSET_METERS,
+			groundCollider,
+			playerCollider,
+			walkAnimationUrl: npcConfig.WALK_ANIMATION_URL,
+			patrolWaypoints,
+			speedMps: npcConfig.PATROL_SPEED_MPS,
+			pauseSeconds: npcConfig.PATROL_PAUSE_SECONDS,
+			combatStanceTriggerRadiusMeters: npcConfig.COMBAT_STANCE_TRIGGER_RADIUS_METERS,
+			combatStanceIdleTimeScale: npcConfig.COMBAT_STANCE_IDLE_TIME_SCALE,
+			combatStanceTransitionSeconds: npcConfig.COMBAT_STANCE_TRANSITION_SECONDS,
+			turnRateRadiansPerSecond: npcConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+		});
+	}));
 	return npcs.filter(Boolean);
 }

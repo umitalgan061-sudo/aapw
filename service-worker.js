@@ -225,7 +225,9 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // must actually clean up the old, now-stale entry" reasoning as every prior bump entry in this file.
 // G70 runtime parity adds another offline-loadable `src/3d` module, so v12->v13 forces existing
 // installs to replace the old shell rather than retaining a cache that cannot load the G70 adapter.
-const SHELL_CACHE = 'westeros-shell-v14';
+// Şafak Kartalı guard perception adds a new live 3D module, so v14->v15 forces existing installs
+// to replace an older shell that cannot load `gameplay/npcPerception.js` while offline.
+const SHELL_CACHE = 'westeros-shell-v15';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -439,6 +441,9 @@ GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceClippedWindowOwnershipShad
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceOptInMigrationControllerShadow.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCurrentRuntimeIntegrationShadow.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCurrentTickOwnershipShadow.js');
+
+// Şafak Kartalı guard perception is a live dependency of gameplay/npc.js; keep offline 3D boot parity.
+GAME3D_SHELL_FILES.push('./src/3d/gameplay/npcPerception.js');
 
 // Run210 owner surface offline cache: additive-only extension for the current RTS terrain detail.
 // Image requests are cache-first in MEDIA_CACHE, while the JS module belongs to the shell graph.
