@@ -32,8 +32,12 @@ async function main() {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const errors = [];
+  const httpErrors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('pageerror', (error) => errors.push(String(error)));
+  page.on('response', (response) => {
+    if (response.status() >= 400) httpErrors.push(`${response.status()} ${response.url()}`);
+  });
   await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
 
   try {
@@ -50,7 +54,7 @@ async function main() {
     assert(snapshot.settlementCount === 14, `Expected 14 gameplay settlement seats, got ${snapshot.settlementCount}`);
     assert(snapshot.realCastlesReady === true, 'Real castle loading never completed');
     assert(snapshot.realCastleCount === 14, `Expected 14 gameplay real castles, got ${snapshot.realCastleCount}`);
-    assert(errors.length === 0, `Browser errors: ${errors.join(' | ')}`);
+    assert(errors.length === 0, `Browser errors: ${errors.join(' | ')}; HTTP errors: ${httpErrors.join(' | ')}`);
 
     fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop-live-westeros-editor.png'), fullPage: true });
