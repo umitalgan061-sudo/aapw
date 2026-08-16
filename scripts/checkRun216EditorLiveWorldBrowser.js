@@ -57,7 +57,11 @@ async function main() {
     assert(errors.length === 0, `Browser errors: ${errors.join(' | ')}; HTTP errors: ${httpErrors.join(' | ')}`);
 
     fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
-    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop-live-westeros-editor.png'), fullPage: true });
+    await page.screenshot({
+      path: path.join(ARTIFACT_DIR, 'desktop-live-westeros-editor.png'),
+      fullPage: true,
+      timeout: 90000,
+    });
     console.log(`[checkRun216EditorLiveWorldBrowser] PROOF: ${JSON.stringify(snapshot)}`);
     console.log('[checkRun216EditorLiveWorldBrowser] PASS: editor viewport shows canonical gameplay terrain/water/roads/settlements/vegetation/sky plus all 14 real castle models; synthetic ground hidden.');
   } finally {
