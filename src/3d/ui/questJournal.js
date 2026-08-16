@@ -352,7 +352,7 @@ export class QuestJournal {
 			}
 			card.appendChild(objectiveList);
 
-			if (quest.status === 'completed' && quest.reward?.label) {
+			if (quest.status === 'completed' && quest.rewardGranted && quest.reward?.label) {
 				const reward = this._doc.createElement('p');
 				reward.className = 'g3d-quest-journal-reward';
 				reward.textContent = `Ödül: ${quest.reward.label}`;
