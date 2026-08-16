@@ -1,7 +1,7 @@
 /**
- * FAZ 5 interaction controller — proximity dialogue plus a small RPG quest lifecycle that reuses
- * the already-shipped Stannis guard choices. Quest state stays inside the existing interaction
- * owner instead of introducing a parallel dialogue/inventory/economy framework.
+ * FAZ 5 interaction controller — proximity dialogue plus a compact RPG quest/reputation lifecycle
+ * that reuses the already-shipped NPC choices. State stays inside the existing interaction owner
+ * instead of introducing parallel dialogue, quest, inventory, economy, or faction frameworks.
  * @module gameplay/interaction
  */
 
@@ -15,31 +15,47 @@ const QUEST_STATUS = Object.freeze({
 	COMPLETED: 'completed',
 });
 
+export const INTERACTION_FACTIONS = Object.freeze({
+	DRAGONSTONE: 'dragonstone',
+});
+
+const DEFAULT_REPUTATION = Object.freeze({
+	[INTERACTION_FACTIONS.DRAGONSTONE]: 0,
+});
+
 export const INTERACTION_QUESTS = Object.freeze([
 	Object.freeze({
 		id: 'law-of-the-watch',
 		title: 'Nöbetin Kanunu',
 		description: 'Stannis’in iki nöbetçisinin görev düzenini öğren.',
 		prerequisite: null,
+		reputationRequirement: null,
 		accept: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 0 }),
 		objectives: Object.freeze([
 			Object.freeze({ id: 'hill-watch', label: 'Tepedeki nöbetçiyle konuş', npcId: 'stannis-guard-2', choiceIndex: 0 }),
 		]),
 		turnIn: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 1 }),
-		reward: 'Dragonstone nöbetçilerinin güveni',
+		reward: Object.freeze({
+			label: 'Dragonstone nöbetçilerinin güveni',
+			reputation: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, amount: 10 }),
+		}),
 	}),
 	Object.freeze({
 		id: 'watch-under-pressure',
 		title: 'Nöbetçinin Şüphesi',
 		description: 'İki nöbetçinin birbirine dair tanıklığını tamamla.',
 		prerequisite: 'law-of-the-watch',
+		reputationRequirement: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, minimum: 10 }),
 		accept: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 2 }),
 		objectives: Object.freeze([
 			Object.freeze({ id: 'partner', label: 'Nöbet arkadaşlığı hakkında konuş', npcId: 'stannis-guard-2', choiceIndex: 1 }),
 			Object.freeze({ id: 'solitude', label: 'Yalnız nöbet hakkında konuş', npcId: 'stannis-guard-2', choiceIndex: 2 }),
 		]),
 		turnIn: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 1 }),
-		reward: 'Dragonstone nöbetçilerinin itimadı',
+		reward: Object.freeze({
+			label: 'Dragonstone nöbetçilerinin itimadı',
+			reputation: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, amount: 5 }),
+		}),
 	}),
 ]);
 
@@ -47,19 +63,56 @@ function sameTrigger(trigger, npcId, choiceIndex) {
 	return trigger?.npcId === npcId && trigger?.choiceIndex === choiceIndex;
 }
 
-function createQuestTracker(definitions = INTERACTION_QUESTS) {
+function createReputationState(initial = DEFAULT_REPUTATION) {
+	const values = new Map(Object.entries(initial));
+
+	function get(faction) {
+		const value = Number(values.get(faction));
+		return Number.isFinite(value) ? value : 0;
+	}
+
+	function grant(faction, amount) {
+		if (!faction || !Number.isFinite(amount) || amount === 0) return false;
+		values.set(faction, Math.max(0, get(faction) + amount));
+		return true;
+	}
+
+	function snapshot() {
+		return Object.fromEntries([...values.entries()].sort(([a], [b]) => a.localeCompare(b)));
+	}
+
+	function restore(saved) {
+		values.clear();
+		for (const [faction, baseValue] of Object.entries(DEFAULT_REPUTATION)) values.set(faction, baseValue);
+		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+		for (const [faction, rawValue] of Object.entries(saved)) {
+			const value = Number(rawValue);
+			if (Number.isFinite(value) && value >= 0) values.set(faction, value);
+		}
+	}
+
+	return { get, grant, snapshot, restore };
+}
+
+function createQuestTracker({ definitions = INTERACTION_QUESTS, reputation, onReward = () => {} }) {
 	const byId = new Map(definitions.map((quest) => [quest.id, quest]));
 	const state = new Map(definitions.map((quest) => [quest.id, {
-		status: quest.prerequisite ? QUEST_STATUS.LOCKED : QUEST_STATUS.AVAILABLE,
+		status: quest.prerequisite || quest.reputationRequirement ? QUEST_STATUS.LOCKED : QUEST_STATUS.AVAILABLE,
 		completedObjectives: new Set(),
 		rewardGranted: false,
 	}]));
 
+	function requirementsMet(quest) {
+		if (quest.prerequisite && state.get(quest.prerequisite)?.status !== QUEST_STATUS.COMPLETED) return false;
+		const requirement = quest.reputationRequirement;
+		if (requirement && reputation.get(requirement.faction) < requirement.minimum) return false;
+		return true;
+	}
+
 	function unlockEligible() {
 		for (const quest of definitions) {
 			const current = state.get(quest.id);
-			if (current.status !== QUEST_STATUS.LOCKED) continue;
-			if (state.get(quest.prerequisite)?.status === QUEST_STATUS.COMPLETED) current.status = QUEST_STATUS.AVAILABLE;
+			if (current.status === QUEST_STATUS.LOCKED && requirementsMet(quest)) current.status = QUEST_STATUS.AVAILABLE;
 		}
 	}
 
@@ -76,7 +129,7 @@ function createQuestTracker(definitions = INTERACTION_QUESTS) {
 					label: objective.label,
 					completed: current.completedObjectives.has(objective.id),
 				})),
-				reward: quest.reward,
+				reward: quest.reward.label,
 				rewardGranted: current.rewardGranted,
 			};
 		});
@@ -122,7 +175,10 @@ function createQuestTracker(definitions = INTERACTION_QUESTS) {
 			}
 			if (current.status === QUEST_STATUS.READY && sameTrigger(quest.turnIn, npcId, choiceIndex)) {
 				current.status = QUEST_STATUS.COMPLETED;
-				current.rewardGranted = true;
+				if (!current.rewardGranted) {
+					current.rewardGranted = true;
+					onReward(quest.reward);
+				}
 				changed = true;
 				unlockEligible();
 			}
@@ -130,13 +186,17 @@ function createQuestTracker(definitions = INTERACTION_QUESTS) {
 		return changed;
 	}
 
-	return { consume, snapshot, restore };
+	return { consume, snapshot, restore, unlockEligible };
 }
 
-export function buildQuestJournalText(snapshot) {
+export function buildQuestJournalText(snapshot, reputationSnapshot = {}) {
 	const visible = (Array.isArray(snapshot) ? snapshot : []).filter((quest) => ['active', 'ready', 'completed'].includes(quest.status));
-	if (visible.length === 0) return 'Görev Günlüğü\nHenüz kabul edilmiş bir görev yok.';
-	const lines = ['Görev Günlüğü'];
+	const dragonstoneReputation = Number(reputationSnapshot[INTERACTION_FACTIONS.DRAGONSTONE]) || 0;
+	const lines = ['Görev Günlüğü', `Dragonstone itibarı: ${dragonstoneReputation}`];
+	if (visible.length === 0) {
+		lines.push('Henüz kabul edilmiş bir görev yok.');
+		return lines.join('\n');
+	}
 	for (const quest of visible) {
 		const status = quest.status === 'ready' ? 'TESLİME HAZIR' : quest.status === 'completed' ? 'TAMAMLANDI' : 'AKTİF';
 		lines.push(`\n${quest.title} — ${status}`);
@@ -146,7 +206,7 @@ export function buildQuestJournalText(snapshot) {
 	return lines.join('\n');
 }
 
-/** Existing proximity dialogue controller with quest/journal projection layered into its choice seam. */
+/** Existing proximity dialogue controller with quest/reputation projection layered into its choice seam. */
 export function createInteractionController({
 	interactionPrompt,
 	dialogueBox,
@@ -156,22 +216,52 @@ export function createInteractionController({
 	radiusMeters,
 	isPaused = () => false,
 	onQuestChanged = () => {},
+	onReputationChanged = () => {},
 }) {
 	let activeNpc = null;
 	let nearestNpc = null;
 	let activeChoices = null;
 	let activeNpcName = null;
 	let journalOpen = false;
-	const quests = createQuestTracker();
+	const reputation = createReputationState();
+	const quests = createQuestTracker({
+		reputation,
+		onReward(reward) {
+			const reputationReward = reward?.reputation;
+			if (reputationReward && reputation.grant(reputationReward.faction, reputationReward.amount)) {
+				onReputationChanged(reputation.snapshot());
+			}
+		},
+	});
+
+	function questById(id) {
+		return quests.snapshot().find((quest) => quest.id === id);
+	}
+
+	function isChoiceAvailable(npcId, originalIndex) {
+		if (npcId === 'stannis-guard-1' && originalIndex === 2) {
+			return questById('watch-under-pressure')?.status === QUEST_STATUS.AVAILABLE;
+		}
+		return true;
+	}
+
+	function getAvailableChoices(npcId) {
+		const choices = choicesByNpcId[npcId];
+		if (!choices || choices.length === 0) return null;
+		const available = choices
+			.map((choice, originalIndex) => ({ ...choice, originalIndex }))
+			.filter((choice) => isChoiceAvailable(npcId, choice.originalIndex));
+		return available.length > 0 ? available : null;
+	}
 
 	function openDialogue(npc) {
 		journalOpen = false;
 		activeNpc = npc;
 		interactionPrompt.setVisible(false);
 		activeNpcName = npc.displayName ?? 'Yabancı';
-		const template = greetingsByNpcId[npc.object3D.name] ?? greetingTemplate;
-		const choices = choicesByNpcId[npc.object3D.name];
-		activeChoices = choices && choices.length > 0 ? choices : null;
+		const npcId = npc.object3D.name;
+		const template = greetingsByNpcId[npcId] ?? greetingTemplate;
+		activeChoices = getAvailableChoices(npcId);
 		dialogueBox.show(template.replace('{name}', activeNpcName), activeChoices?.map((choice) => choice.label) ?? []);
 	}
 
@@ -189,7 +279,7 @@ export function createInteractionController({
 		activeNpcName = null;
 		journalOpen = true;
 		interactionPrompt.setVisible(false);
-		dialogueBox.show(buildQuestJournalText(quests.snapshot()));
+		dialogueBox.show(buildQuestJournalText(quests.snapshot(), reputation.snapshot()));
 	}
 
 	function selectChoice(index) {
@@ -197,7 +287,28 @@ export function createInteractionController({
 		const npcId = activeNpc?.object3D?.name ?? '';
 		activeChoices = null;
 		dialogueBox.show(choice.response.replace('{name}', activeNpcName));
-		if (quests.consume(npcId, index)) onQuestChanged(quests.snapshot());
+		if (quests.consume(npcId, choice.originalIndex)) onQuestChanged(quests.snapshot());
+	}
+
+	function rebuildReputationFromQuestRewards(savedQuestSnapshot) {
+		reputation.restore(DEFAULT_REPUTATION);
+		for (const savedQuest of Array.isArray(savedQuestSnapshot) ? savedQuestSnapshot : []) {
+			if (savedQuest?.status !== QUEST_STATUS.COMPLETED || savedQuest.rewardGranted !== true) continue;
+			const definition = INTERACTION_QUESTS.find((quest) => quest.id === savedQuest.id);
+			const reward = definition?.reward?.reputation;
+			if (reward) reputation.grant(reward.faction, reward.amount);
+		}
+		onReputationChanged(reputation.snapshot());
+		quests.unlockEligible();
+	}
+
+	function restoreRpgSnapshot(saved) {
+		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+		reputation.restore(saved.reputation);
+		quests.restore(saved.quests);
+		if (!saved.reputation) rebuildReputationFromQuestRewards(saved.quests);
+		onReputationChanged(reputation.snapshot());
+		onQuestChanged(quests.snapshot());
 	}
 
 	return {
@@ -246,9 +357,15 @@ export function createInteractionController({
 
 		showQuestJournal: showJournal,
 		getQuestSnapshot: quests.snapshot,
+		getReputationSnapshot: reputation.snapshot,
+		getRpgSnapshot() {
+			return { schemaVersion: 1, quests: quests.snapshot(), reputation: reputation.snapshot() };
+		},
 		restoreQuestSnapshot(snapshot) {
 			quests.restore(snapshot);
+			rebuildReputationFromQuestRewards(snapshot);
 			onQuestChanged(quests.snapshot());
 		},
+		restoreRpgSnapshot,
 	};
 }
