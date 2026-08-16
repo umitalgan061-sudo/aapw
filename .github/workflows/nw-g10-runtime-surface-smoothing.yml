@@ -14,6 +14,7 @@ on:
       - 'scripts/checkNWG10RuntimeSmoothingEvidence.mjs'
       - 'scripts/checkTerrainPolishIteration08.js'
       - 'scripts/terrainSeatSafetyCheck.js'
+      - 'scripts/roadNetworkSafetyCheck.js'
       - '.github/workflows/terrain-polish-iteration-008.yml'
       - '.github/workflows/terrain-pindex-quality-v2.yml'
       - '.github/workflows/nw-g10-runtime-surface-smoothing.yml'
@@ -38,7 +39,7 @@ jobs:
           ref: '${{ github.event.pull_request.head.sha || github.sha }}'
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Exact-main eleven-file scope and quota
+      - name: Exact-main twelve-file scope and quota
         run: |
           set -euo pipefail
           git fetch origin main
@@ -47,8 +48,8 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceSurfaceTerrainVisual.js|scripts/checkTerrainPolishIteration08.js|scripts/checkNWG10RuntimeSurfaceSmoothing.mjs|scripts/checkNWG10RuntimeSurfaceTopology.mjs|scripts/checkNWG10RuntimeSmoothingNearFar.mjs|scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs|scripts/checkNWG10RuntimeSmoothingEvidence.mjs|scripts/terrainSeatSafetyCheck.js|\.github/workflows/terrain-polish-iteration-008.yml|\.github/workflows/terrain-pindex-quality-v2.yml|\.github/workflows/nw-g10-runtime-surface-smoothing.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 11
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceSurfaceTerrainVisual.js|scripts/checkTerrainPolishIteration08.js|scripts/checkNWG10RuntimeSurfaceSmoothing.mjs|scripts/checkNWG10RuntimeSurfaceTopology.mjs|scripts/checkNWG10RuntimeSmoothingNearFar.mjs|scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs|scripts/checkNWG10RuntimeSmoothingEvidence.mjs|scripts/terrainSeatSafetyCheck.js|scripts/roadNetworkSafetyCheck.js|\.github/workflows/terrain-polish-iteration-008.yml|\.github/workflows/terrain-pindex-quality-v2.yml|\.github/workflows/nw-g10-runtime-surface-smoothing.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 12
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "NW G10 runtime smoothing quota: additions=$A deletions=$D total=$((A+D))"
@@ -66,7 +67,7 @@ jobs:
       - name: Syntax and standing Pindex contracts
         run: |
           set -euo pipefail
-          for f in src/3d/world/worldReferenceSurfaceTerrainVisual.js scripts/checkTerrainPolishIteration08.js scripts/checkNWG10RuntimeSurfaceSmoothing.mjs scripts/checkNWG10RuntimeSurfaceTopology.mjs scripts/checkNWG10RuntimeSmoothingNearFar.mjs scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs scripts/checkNWG10RuntimeSmoothingEvidence.mjs scripts/terrainSeatSafetyCheck.js; do node --check "$f"; done
+          for f in src/3d/world/worldReferenceSurfaceTerrainVisual.js scripts/checkTerrainPolishIteration08.js scripts/checkNWG10RuntimeSurfaceSmoothing.mjs scripts/checkNWG10RuntimeSurfaceTopology.mjs scripts/checkNWG10RuntimeSmoothingNearFar.mjs scripts/checkNWG10RuntimeSmoothed3DTopdown.mjs scripts/checkNWG10RuntimeSmoothingEvidence.mjs scripts/terrainSeatSafetyCheck.js scripts/roadNetworkSafetyCheck.js; do node --check "$f"; done
           node scripts/checkTerrainPolishIteration08.js
           node scripts/checkTerrainPindexQualityV2.js
           node scripts/checkWorldReferenceMap.js
