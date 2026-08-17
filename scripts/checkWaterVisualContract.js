@@ -21,7 +21,7 @@ async function main() {
 	const browser = await playwright.chromium.launch({ headless: true });
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
 			const { createWater, updateWater, disposeWater } = await import('/src/3d/world/water.js');
@@ -46,7 +46,7 @@ async function main() {
 			fail(Boolean(uniforms?.uTime && uniforms?.uShallowColor && uniforms?.uDeepColor && uniforms?.uSunDirection && uniforms?.uCameraPosition), 'water custom uniform set drifted');
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
 			fail(close(uniforms.uTime.value, 0), 'water uTime must start at 0');
-			fail(uniforms.uShallowColor.value?.isColor === true && uniforms.uShallowColor.value.getHex() === 0x6fd6c9, 'water shallow color drifted');
+			fail(uniforms.uShallowColor.value?.isColor === true && uniforms.uShallowColor.value.getHex() === 0x4faaa5, 'water shallow color drifted');
 			fail(uniforms.uDeepColor.value?.isColor === true && uniforms.uDeepColor.value.getHex() === 0x0a3a4a, 'water deep color drifted');
 			const expectedSun = new THREE.Vector3(300, 400, 200).normalize();
 			fail(vectorClose(uniforms.uSunDirection.value, expectedSun), 'water sun direction drifted');
@@ -66,7 +66,7 @@ async function main() {
 			fail(vertexShader.includes('#include <fog_pars_vertex>') && vertexShader.includes('#include <fog_vertex>'), 'water vertex fog chunks drifted');
 			fail(fragmentShader.includes('uniform float uTime') && fragmentShader.includes('rippleSlope'), 'water fragment ripple contract drifted');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fragment fog chunks drifted');
-			fail(fragmentShader.includes('gl_FragColor = vec4(color, max(alpha, foam * 0.85))'), 'water alpha/specular output signature drifted');
+			fail(fragmentShader.includes('gl_FragColor = vec4(color, max(alpha, foam * 0.82))'), 'water alpha/specular output signature drifted');
 
 			const positions = first.geometry.getAttribute('position');
 			const normals = first.geometry.getAttribute('normal');

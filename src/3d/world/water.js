@@ -116,10 +116,11 @@ const WATER_VERTEX_SHADER = /* glsl */ `
 		addSwell(vec2(${SWELL_COMPONENTS[1][2]}, ${SWELL_COMPONENTS[1][3]}), ${SWELL_COMPONENTS[1][0]}.0, ${SWELL_COMPONENTS[1][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
 		addSwell(vec2(${SWELL_COMPONENTS[2][2]}, ${SWELL_COMPONENTS[2][3]}), ${SWELL_COMPONENTS[2][0]}.0, ${SWELL_COMPONENTS[2][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
 
-		// The depth taper is what makes geometric waves safe over shallow lakes (module doc / ADR-0048).
-		// uSwellStrength stays 0 until a real depth field is attached, so water is never displaced
-		// against unknown bathymetry.
-		float amplitudeScale = depthFactor * uSwellStrength;
+		// Keep the high-density 4km swell surface, but taper its displacement to zero before its edge
+		// so it blends invisibly into the two-triangle full-world water coverage mesh underneath.
+		float localEdgeDistance = max(abs(position.x), abs(position.z));
+		float nearCoverageFade = 1.0 - smoothstep(1500.0, 1950.0, localEdgeDistance);
+		float amplitudeScale = depthFactor * uSwellStrength * nearCoverageFade;
 		worldPos.y += swellHeight * amplitudeScale;
 
 		vWorldPosition = worldPos;
@@ -138,10 +139,25 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uDeepColor;
 	uniform vec3 uSunDirection;
 	uniform vec3 uCameraPosition;
+	uniform sampler2D uDepthMap;
+	uniform float uDepthFieldExtentMeters;
 	varying vec3 vWorldPosition;
 	varying float vDepthFactor;
 	varying vec2 vSwellSlope;
 	#include <fog_pars_fragment>
+
+	float sampleFragmentDepth(vec2 worldXZ) {
+		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
+		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+		return texture2D(uDepthMap, uv).r;
+	}
+
+	float shorelineGradientMask(vec2 worldXZ) {
+		const float STEP_METERS = 68.0;
+		float eastWest = abs(sampleFragmentDepth(worldXZ + vec2(STEP_METERS, 0.0)) - sampleFragmentDepth(worldXZ - vec2(STEP_METERS, 0.0)));
+		float northSouth = abs(sampleFragmentDepth(worldXZ + vec2(0.0, STEP_METERS)) - sampleFragmentDepth(worldXZ - vec2(0.0, STEP_METERS)));
+		return smoothstep(0.018, 0.11, max(eastWest, northSouth));
+	}
 
 	// Fine chop, far below the vertex grid's resolution: three sine ripples at different direction/
 	// frequency/speed, returned as a slope so it can be summed with the swell's own analytic slope
@@ -154,51 +170,49 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
-		// The fine chop is well below a pixel once it is a few hundred metres out, where sampling it
-		// into a pow-80 specular term just produces crawling speckle. Fading it with distance keeps
-		// the near-field detail and leaves the far field to the swell alone.
-		float rippleFade = 1.0 - smoothstep(150.0, 900.0, distance(uCameraPosition, vWorldPosition));
+		float fragmentDepth = sampleFragmentDepth(vWorldPosition.xz);
+		// Fine chop is intentionally near-field only. Beyond a few hundred metres its wavelength
+		// undersamples into repetitive screen-space bands, so the analytic long swell owns distance.
+		float rippleFade = 1.0 - smoothstep(120.0, 420.0, distance(uCameraPosition, vWorldPosition));
 		// For a height field y = h(x, z) the surface normal is normalize(vec3(-dh/dx, 1.0, -dh/dz)).
 		vec2 slope = vSwellSlope + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
 
-		// Shallow water reads as the lighter inshore tone, deep water as the dark offshore one —
-		// the same two-colour palette as before, now actually driven by real bathymetry.
-		vec3 bodyColor = mix(uShallowColor, uDeepColor, smoothstep(0.02, 0.6, vDepthFactor));
+		// Fragment depth (rather than vertex-interpolated depth) lets the two-triangle far plane retain
+		// the exact same canonical shallow/deep bathymetry response as the dense near-water mesh.
+		vec3 bodyColor = mix(uShallowColor, uDeepColor, smoothstep(0.02, 0.6, fragmentDepth));
 
 		// Fresnel-ish: nearer grazing angles read lighter/more reflective, straight-down reads deep.
 		float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.0);
-		vec3 baseColor = mix(bodyColor, uShallowColor, fresnel * 0.85);
+		vec3 baseColor = mix(bodyColor, uShallowColor, fresnel * 0.65);
 
 		vec3 halfVector = normalize(uSunDirection + viewDir);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), 80.0);
 
-		// Surf is confined by a defined inverse shallow-depth mask. The previous reversed-edge
-		// smoothstep was undefined GLSL, and its single short-period sine formed diagonal bands in
-		// orthographic world views. Two slower non-parallel components keep motion irregular while
-		// preserving the same 0.22 normalized-depth surf envelope.
+		// Surf remains depth-bounded, but now also requires a real bathymetry transition. Uniformly
+		// shallow lake interiors therefore stay calm instead of turning the whole polygon into foam.
 		float surfA = sin(dot(vWorldPosition.xz, vec2(0.018, -0.013)) + uTime * 0.55);
 		float surfB = sin(dot(vWorldPosition.xz, vec2(-0.009, 0.021)) - uTime * 0.37);
 		float surge = clamp(0.62 + 0.22 * surfA + 0.16 * surfB, 0.18, 1.0);
-		float shallowMask = 1.0 - smoothstep(0.0, 0.22, vDepthFactor);
+		float shallowMask = 1.0 - smoothstep(0.0, 0.22, fragmentDepth);
+		shallowMask *= shorelineGradientMask(vWorldPosition.xz);
 		float foam = clamp(shallowMask * surge, 0.0, 1.0);
 
-		vec3 color = mix(baseColor + specular * 0.6, vec3(0.92, 0.96, 0.98), foam);
+		vec3 color = mix(baseColor + specular * 0.55, vec3(0.90, 0.95, 0.96), foam * 0.82);
 		// Shallow water is more see-through, so a lake bed or beach shelf shows through instead of
 		// every depth rendering as the same opaque sheet.
-		float alpha = mix(0.55, 0.92, smoothstep(0.0, 0.35, vDepthFactor));
+		float alpha = mix(0.50, 0.90, smoothstep(0.0, 0.35, fragmentDepth));
 
-		gl_FragColor = vec4(color, max(alpha, foam * 0.85));
+		gl_FragColor = vec4(color, max(alpha, foam * 0.82));
 		#include <fog_fragment>
 	}
 `;
 
-/** World-space extent of the water plane. Large enough that its edge never appears before the
- * camera's far clip plane/horizon does (`WORLD_DEFAULTS.FAR_PLANE`, camera.js `maxDistance`), but
- * far smaller than the full world size — see DECISIONS.md ADR-0005 for why a world-sized plane
- * would be wasted triangle budget. */
+/** Near-field water retains the established dense swell geometry and physical quad spacing. */
 const WATER_PLANE_EXTENT_METERS = 4000;
+/** Full-owner-world diagonal coverage for orthographic acceptance and distant canonical water. */
+export const WATER_FULL_WORLD_EXTENT_METERS = 17000;
 /**
  * Default geometry resolution — unchanged from the pre-swell version (32,768 triangles) so every
  * existing caller and `scripts/checkWaterVisualContract.js` see exactly the mesh they did before.
@@ -223,7 +237,7 @@ export const WATER_PLANE_SEGMENTS_DESKTOP = 320;
  */
 export const WATER_PLANE_SEGMENTS_MOBILE = 192;
 
-const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x6fd6c9);
+const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x4faaa5);
 const DEFAULT_DEEP_COLOR = new THREE.Color(0x0a3a4a);
 /** Matches `game3d.js`'s directional "sun" light position, normalized — kept as a local constant
  * here (not `config.js`) since only this shader's specular highlight reads it today; promote it if
@@ -290,6 +304,24 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.position.y = waterLevelMeters;
 	mesh.frustumCulled = false; // recentered on the camera every frame — always meant to be in view.
+
+	// Two triangles cover the complete owner world underneath the dense near mesh. The shared shader
+	// samples bathymetry per fragment, while vertex swell is edge-faded to zero on this large plane.
+	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
+	farGeometry.rotateX(-Math.PI / 2);
+	const farMaterial = material.clone();
+	const farWater = new THREE.Mesh(farGeometry, farMaterial);
+	farWater.position.y = -0.06;
+	farWater.renderOrder = -1;
+	farWater.frustumCulled = false;
+	mesh.add(farWater);
+
+	mesh.userData.farWater = farWater;
+	mesh.userData.waterCoverage = Object.freeze({
+		nearExtentMeters: WATER_PLANE_EXTENT_METERS,
+		fullWorldExtentMeters: WATER_FULL_WORLD_EXTENT_METERS,
+		fullWorld: true,
+	});
 	return mesh;
 }
 
@@ -304,10 +336,12 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
  *   quality preset to soften or disable waves without rebaking the field.
  */
 export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
-	const { uniforms } = waterMesh.material;
-	uniforms.uDepthMap.value = depthField.texture;
-	uniforms.uDepthFieldExtentMeters.value = depthField.extentMeters;
-	uniforms.uSwellStrength.value = swellStrength;
+	for (const material of [waterMesh.material, waterMesh.userData.farWater?.material].filter(Boolean)) {
+		const { uniforms } = material;
+		uniforms.uDepthMap.value = depthField.texture;
+		uniforms.uDepthFieldExtentMeters.value = depthField.extentMeters;
+		uniforms.uSwellStrength.value = swellStrength;
+	}
 	// Remembered so `disposeWater` can release the baked texture with the mesh that owns it.
 	waterMesh.userData.depthField = depthField;
 }
@@ -323,8 +357,10 @@ export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
 export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
 	waterMesh.position.x = cameraPosition.x;
 	waterMesh.position.z = cameraPosition.z;
-	waterMesh.material.uniforms.uTime.value = elapsedSeconds;
-	waterMesh.material.uniforms.uCameraPosition.value.copy(cameraPosition);
+	for (const material of [waterMesh.material, waterMesh.userData.farWater?.material].filter(Boolean)) {
+		material.uniforms.uTime.value = elapsedSeconds;
+		material.uniforms.uCameraPosition.value.copy(cameraPosition);
+	}
 }
 
 /**
@@ -333,6 +369,13 @@ export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
  * @param {THREE.Mesh} waterMesh
  */
 export function disposeWater(waterMesh) {
+	const farWater = waterMesh.userData.farWater;
+	if (farWater) {
+		farWater.geometry.dispose();
+		farWater.material.dispose();
+		waterMesh.remove(farWater);
+		waterMesh.userData.farWater = null;
+	}
 	waterMesh.geometry.dispose();
 	waterMesh.material.dispose();
 	const depthField = waterMesh.userData.depthField;

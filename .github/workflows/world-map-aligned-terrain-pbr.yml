@@ -1,0 +1,82 @@
+name: World Map-Aligned Terrain PBR
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrain.js'
+      - 'assets/textures/yüzey/**'
+      - 'scripts/checkMapAlignedTerrainPBR.mjs'
+      - 'scripts/checkTerrainMicroSurface.mjs'
+      - '.github/workflows/world-map-aligned-terrain-pbr.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: world-map-aligned-terrain-pbr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  map-aligned-terrain-pbr:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact-main ancestry and 1000-line quota
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base HEAD "$LIVE_MAIN")"
+          test "$MERGE_BASE" = "$LIVE_MAIN" || {
+            echo "::error::PR head does not contain live origin/main ($LIVE_MAIN); merge-base=$MERGE_BASE"
+            exit 1
+          }
+          read -r ADDED DELETED < <(git diff --numstat "$LIVE_MAIN"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          TOTAL=$((ADDED + DELETED))
+          echo "exact_main=$LIVE_MAIN additions=$ADDED deletions=$DELETED changed_lines=$TOTAL"
+          test "$TOTAL" -le 1000 || {
+            echo "::error::changed-line quota exceeded: $TOTAL > 1000"
+            exit 1
+          }
+
+      - name: Install terrain runtime dependency
+        run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
+
+      - name: Static syntax
+        run: |
+          node --check src/3d/world/terrain.js
+          node --check scripts/checkMapAlignedTerrainPBR.mjs
+          node --check scripts/checkTerrainMicroSurface.mjs
+
+      - name: Map provenance macro and micro PBR seam regression
+        run: |
+          node scripts/checkMapAlignedTerrainPBR.mjs
+          node scripts/checkTerrainMicroSurface.mjs
+
+      - name: Final live-main freshness
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          START_MAIN="$(git merge-base HEAD origin/main)"
+          git fetch origin main --no-tags
+          LIVE_MAIN="$(git rev-parse origin/main)"
+          test "$START_MAIN" = "$LIVE_MAIN" || {
+            echo "::error::origin/main moved during terrain acceptance: start=$START_MAIN final=$LIVE_MAIN"
+            exit 1
+          }
