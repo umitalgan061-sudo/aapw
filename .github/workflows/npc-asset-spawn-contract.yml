@@ -10,6 +10,7 @@ on:
       - 'service-worker.js'
       - 'scripts/checkNpcAssetSpawnContract.mjs'
       - 'scripts/checkNpcGuardPerception.mjs'
+      - 'scripts/game3dSmokeChecksNpcPerception.js'
       - 'scripts/checkNpcSimulationLod.mjs'
       - 'scripts/checkNpcSimulationLodFairness.mjs'
       - '.github/workflows/npc-asset-spawn-contract.yml'
@@ -49,6 +50,7 @@ jobs:
           node scripts/checkNpcAssetSpawnContract.mjs
           node --check scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcGuardPerception.mjs
+          node --check scripts/game3dSmokeChecksNpcPerception.js
       - name: Deterministic NPC simulation LOD contract
         run: |
           set -euo pipefail
