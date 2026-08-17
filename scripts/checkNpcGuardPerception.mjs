@@ -48,10 +48,20 @@ assert.equal(evaluate({ observer, target: { x: 0, z: 5 }, yawRadians: 0, rangeMe
 assert.equal(evaluate({ observer, target: { x: 0, z: 11 }, yawRadians: 0, rangeMeters: 10 }).reason, 'range',
   'vision must stay range-bounded');
 
+// The authored FOV is exactly 120 degrees total. Lock both sides of the 60-degree half-angle so
+// later tuning cannot accidentally widen long-range guard vision while keeping the headline value.
+const radius = 8;
+const atBoundary = { x: Math.sin(Math.PI / 3) * radius, z: Math.cos(Math.PI / 3) * radius };
+const outsideBoundary = { x: Math.sin(61 * Math.PI / 180) * radius, z: Math.cos(61 * Math.PI / 180) * radius };
+assert.equal(evaluate({ observer, target: atBoundary, yawRadians: 0, rangeMeters: 10 }).visible, true,
+  'target at the authored 60-degree half-angle must remain visible');
+assert.equal(evaluate({ observer, target: outsideBoundary, yawRadians: 0, rangeMeters: 10 }).reason, 'behind',
+  'target just beyond the authored FOV must remain rejected');
+
 const clearCollider = { resolveXZ: (x, z) => ({ x, z }) };
 const clear = queryLos(clearCollider, observer, { x: 0, z: 1000 });
 assert.equal(clear.clear, true);
-assert.ok(clear.samples <= 32, 'LOS work must remain inside the explicit sample budget');
+assert.equal(clear.samples, 32, 'very long clear LOS must consume exactly the bounded 32-probe ceiling');
 let blockedProbes = 0;
 const wallCollider = {
   resolveXZ(x, z) {
@@ -62,6 +72,7 @@ const wallCollider = {
 const blocked = queryLos(wallCollider, observer, { x: 0, z: 10 });
 assert.equal(blocked.clear, false, 'collider displacement must block guard LOS');
 assert.ok(blocked.samples <= 32 && blockedProbes <= 32, 'blocked LOS must also stay bounded');
+assert.ok(blocked.samples < clear.samples, 'occluded LOS must early-exit instead of burning the full probe budget');
 
 assert.match(source, /perceptionEnabled = false/, 'direct createNPC consumers must keep legacy behavior by default');
 assert.match(source, /perceptionEnabled: true/, 'configured shipped NPCs must explicitly opt into perception');
@@ -78,7 +89,9 @@ assert.equal(source.includes('EditorMaterialStudio'), false, 'NPC runtime must n
 
 console.log('NPC_GUARD_PERCEPTION_PASS', JSON.stringify({
   fieldOfViewDegrees: 120,
+  fieldOfViewBoundaryLocked: true,
   losSampleBudget: 32,
+  losOcclusionEarlyExit: true,
   hearingCannotCombatDirectly: true,
   configuredPerceptionOptIn: true,
   staticReturnHome: true,
