@@ -41,20 +41,14 @@ jobs:
       - name: Install pinned Terrain3D via the locked installer
         run: |
           set -euo pipefail
-          # Reuses the existing SHA256-pinned toolchain rather than vendoring binaries into git.
           python3 godot/terrain-authoring/tools/install_terrain3d.py
           test -f godot/terrain-authoring/addons/terrain_3d/plugin.cfg
-          # MIT requires the licence notice travel with the installed copy.
           test -f godot/terrain-authoring/addons/terrain_3d/LICENSE.txt
-          # The Godot *editor* loads the debug variant; without it the extension never registers.
           test -f godot/terrain-authoring/addons/terrain_3d/bin/libterrain.linux.debug.x86_64.so
 
       - name: Install Playwright Chromium
         run: |
           set -euo pipefail
-          # The exporter calls devServerHelper.loadPlaywright(), so installing only the browser via
-          # `npx playwright install` is insufficient: Node also needs the Playwright module on its
-          # resolution path. Keep it outside the repository so package/lock state remains untouched.
           mkdir -p "$RUNNER_TEMP/pw"
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.56.1
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
@@ -63,9 +57,8 @@ jobs:
       - name: Hydrate scoped shipped-world LFS assets
         run: |
           set -euo pipefail
-          # exportWesterosHeightField boots the real game3d page. Keep its strict page-error contract
-          # and hydrate only asset families that shipped createScene requests during that boot; an LFS
-          # pointer must never be misdiagnosed by GLTF/FBX loaders as a corrupt production model.
+          # The exporter boots real game3d. Hydrate only families requested by shipped createScene;
+          # never feed an LFS pointer to GLTF/FBX loaders and then misdiagnose it as asset corruption.
           git lfs version
           git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
 
@@ -111,10 +104,20 @@ jobs:
 
       - name: Import the height field into Terrain3D regions
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          mkdir -p artifacts/run317-terrain3d
+          IMPORT_LOG="artifacts/run317-terrain3d/terrain3d-region-import.log"
+          set +e
           timeout 900s "$GODOT_BIN" --headless --path godot/terrain-authoring \
-            --script res://scripts/import_westeros_heightfield.gd
-          # A silent no-op import would otherwise pass — require all 36 regions on disk.
+            --script res://scripts/import_westeros_heightfield.gd 2>&1 | tee "$IMPORT_LOG"
+          STATUS="${PIPESTATUS[0]}"
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            tail -n 24 "$IMPORT_LOG" | while IFS= read -r line; do
+              echo "::error title=Run317 Terrain3D region import::$line"
+            done
+            exit "$STATUS"
+          fi
           test "$(find godot/terrain-authoring/terrain3d_data -name '*.res' | wc -l)" -eq 36
 
       - name: Validate authored terrain against the live JS sampler
@@ -139,8 +142,6 @@ jobs:
       - name: HTerrain regression — the sibling backend must stay untouched
         run: |
           set -euo pipefail
-          # TERRAIN_AUTOMATION_RULES.md preserves HTerrain for regression; this pipeline writes only
-          # terrain3d_data/, never terrain_data/.
           test -f godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
           test -z "$(git status --porcelain godot/terrain-authoring/terrain_data/)"
 
