@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/player.js'
-      - 'src/3d/ui/HealthBar.js'
+      - 'src/3d/ui/healthBar.js'
       - 'scripts/checkPlayerStaminaDodge.mjs'
       - '.github/workflows/player-stamina-dodge.yml'
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
       - name: Static syntax
         run: |
           node --check src/3d/gameplay/player.js
-          node --check src/3d/ui/HealthBar.js
+          node --check src/3d/ui/healthBar.js
           node --check scripts/checkPlayerStaminaDodge.mjs
 
       - name: Player action regression contract
