@@ -176,6 +176,7 @@ export async function createNPC({
 	combatStanceTriggerRadiusMeters,
 	combatStanceIdleTimeScale = 1.5,
 	combatStanceTransitionSeconds = 0.3,
+	simulationLodEnabled = false,
 	simulationLodNearRadiusMeters = 90,
 	simulationLodFarIntervalSeconds = 0.25,
 	simulationLodDistantRadiusMeters = 240,
@@ -226,6 +227,7 @@ export async function createNPC({
 	model.userData.simulationLodTier = 'near';
 	model.userData.simulationTicks = 0;
 	model.userData.simulationSkippedTicks = 0;
+	model.userData.combatStanceBlend = 0;
 	return {
 		object3D: model,
 		displayName: displayName ?? null,
@@ -235,8 +237,10 @@ export async function createNPC({
 				? Math.hypot(model.position.x - playerPosition.x, model.position.z - playerPosition.z)
 				: (simulationLodBootstrapDormant ? Infinity : 0);
 			const urgent = hasPlayerPosition && combatStanceEnabled && distanceToPlayer <= combatStanceTriggerRadiusMeters;
-			const simulationDelta = simulationLod.step(delta, distanceToPlayer, urgent);
-			model.userData.simulationLodTier = simulationLod.tier;
+			const simulationDelta = simulationLodEnabled
+				? simulationLod.step(delta, distanceToPlayer, urgent)
+				: clampSimulationDelta(delta, simulationLodMaxStepSeconds);
+			model.userData.simulationLodTier = simulationLodEnabled ? simulationLod.tier : 'near';
 			if (simulationDelta <= 0) {
 				model.userData.simulationSkippedTicks += 1;
 				return;
@@ -332,6 +336,7 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 			combatStanceIdleTimeScale: npcConfig.COMBAT_STANCE_IDLE_TIME_SCALE,
 			combatStanceTransitionSeconds: npcConfig.COMBAT_STANCE_TRANSITION_SECONDS,
 			turnRateRadiansPerSecond: npcConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+			simulationLodEnabled: true,
 			simulationLodBootstrapDormant: true,
 		});
 	}));
