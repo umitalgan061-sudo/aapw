@@ -24,6 +24,7 @@ const PLAYER_ACTION_CONFIG = Object.freeze({
 	DODGE_COOLDOWN_SECONDS: 0.22,
 	DODGE_RUN_ANIMATION_TIMESCALE: 1.45,
 	MAX_COLLISION_STEP_METERS: 0.45,
+	MAX_FRAME_DELTA_SECONDS: 0.1,
 });
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -168,7 +169,7 @@ export async function createPlayer({
 		getMotionState: motionSnapshot,
 
 		update(delta, moveDirectionXZ, isRunning, jumpRequested = false) {
-			const dt = Math.max(0, Number.isFinite(delta) ? delta : 0);
+			const dt = clamp(Number.isFinite(delta) ? delta : 0, 0, PLAYER_ACTION_CONFIG.MAX_FRAME_DELTA_SECONDS);
 			const frameStartX = model.position.x;
 			const frameStartZ = model.position.z;
 			hasMovementInput = moveDirectionXZ.x !== 0 || moveDirectionXZ.z !== 0;
