@@ -12,6 +12,7 @@ const FULL_QUARTERMASTER_ECONOMY = {
 	stockByOffer: {
 		'dragonstone-field-ration': 4,
 		'dragonstone-whetstone': 2,
+		'dragonstone-watch-ration-allotment': 1,
 	},
 };
 
