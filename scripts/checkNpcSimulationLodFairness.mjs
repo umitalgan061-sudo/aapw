@@ -6,6 +6,8 @@ const source = fs.readFileSync(new URL('../src/3d/gameplay/npc.js', import.meta.
 assert.match(source, /export function deterministicNpcPhaseSeconds/);
 assert.match(source, /Math\.imul\(hash, 0x7feb352d\)/);
 assert.match(source, /Math\.imul\(hash, 0x846ca68b\)/);
+assert.match(source, /hash = \(hash \^ \(hash >>> 16\)\) >>> 0;/,
+  'final avalanche must normalize back to uint32 before phase scaling');
 
 function phase(id, intervalSeconds) {
   let hash = 2166136261;
@@ -17,7 +19,7 @@ function phase(id, intervalSeconds) {
   hash = Math.imul(hash, 0x7feb352d) >>> 0;
   hash ^= hash >>> 15;
   hash = Math.imul(hash, 0x846ca68b) >>> 0;
-  hash ^= hash >>> 16;
+  hash = (hash ^ (hash >>> 16)) >>> 0;
   return (hash / 0x100000000) * intervalSeconds;
 }
 
