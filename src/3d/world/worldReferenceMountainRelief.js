@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-14-v1',
+	id: 'owner-map-live-mountain-relief-2026-08-17-v2',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -25,6 +25,19 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	coordinateWarpNormalized: 0.003,
 	summitModulationMinimum: 0.08,
 	summitNoiseExponent: 2,
+	shoulderWidthVariation: Object.freeze({
+		broadFrequency: 5.5,
+		detailFrequency: 13.5,
+		minimumScale: 0.72,
+		maximumScale: 1.34,
+	}),
+	talusBreakup: Object.freeze({
+		broadFrequency: 22,
+		detailFrequency: 47,
+		strength: 0.18,
+		shoulderStart: 0.20,
+		shoulderEnd: 0.90,
+	}),
 	// Western chains overlap shipped kingdom roads, so their audited map-space approaches are
 	// lowered into traversable passes instead of flattening/removing the surrounding mountains.
 	// Bone/eastern chains need no authored pass yet because no current live road crosses them.
@@ -66,6 +79,10 @@ function smoothstep(edge0, edge1, value) {
 	if (value >= edge1) return 1;
 	const t = (value - edge0) / (edge1 - edge0);
 	return t * t * (3 - 2 * t);
+}
+
+function clamp(value, min, max) {
+	return Math.min(max, Math.max(min, value));
 }
 
 function hash2D(x, y, seed) {
@@ -160,20 +177,56 @@ function samplePassMultiplier(normalizedX, normalizedY, passes = []) {
 	return multiplier;
 }
 
+function sampleShoulderWidthScale(normalizedX, normalizedY, seed) {
+	const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.shoulderWidthVariation;
+	const broad = valueNoise2D(
+		normalizedX * policy.broadFrequency,
+		normalizedY * policy.broadFrequency,
+		seed + 307,
+	);
+	const detail = valueNoise2D(
+		normalizedX * policy.detailFrequency + 17,
+		normalizedY * policy.detailFrequency - 29,
+		seed + 409,
+	);
+	const blend = broad * 0.72 + detail * 0.28;
+	return policy.minimumScale + (policy.maximumScale - policy.minimumScale) * blend;
+}
+
+function sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, seed) {
+	const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.talusBreakup;
+	const shoulderWeight = smoothstep(policy.shoulderStart, policy.shoulderEnd, normalizedDistance)
+		* (1 - smoothstep(policy.shoulderEnd, 1, normalizedDistance));
+	if (shoulderWeight <= 0) return 1;
+	const broad = valueNoise2D(
+		normalizedX * policy.broadFrequency + seed,
+		normalizedY * policy.broadFrequency - seed,
+		seed + 503,
+	);
+	const detail = valueNoise2D(
+		normalizedX * policy.detailFrequency - 11,
+		normalizedY * policy.detailFrequency + 23,
+		seed + 601,
+	);
+	const centered = (broad * 0.62 + detail * 0.38 - 0.5) * 2;
+	return 1 + centered * policy.strength * shoulderWeight;
+}
+
 const COMPILED_CHAINS = Object.freeze(REFERENCE_RELIEF_CHAINS.map((chain) => {
 	const profile = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.chains[chain.id];
 	if (!profile) throw new Error(`missing live mountain profile for ${chain.id}`);
 	const points = Object.freeze(chain.points.map(([x, y]) => Object.freeze([x * MAP_ASPECT, y])));
 	const xs = points.map((point) => point[0]);
 	const ys = points.map((point) => point[1]);
+	const maximumWidthScale = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.shoulderWidthVariation.maximumScale;
 	return Object.freeze({
 		id: chain.id,
 		points,
 		profile,
-		minX: Math.min(...xs) - profile.outerWidthNormalized,
-		maxX: Math.max(...xs) + profile.outerWidthNormalized,
-		minY: Math.min(...ys) - profile.outerWidthNormalized,
-		maxY: Math.max(...ys) + profile.outerWidthNormalized,
+		minX: Math.min(...xs) - profile.outerWidthNormalized * maximumWidthScale,
+		maxX: Math.max(...xs) + profile.outerWidthNormalized * maximumWidthScale,
+		minY: Math.min(...ys) - profile.outerWidthNormalized * maximumWidthScale,
+		maxY: Math.max(...ys) + profile.outerWidthNormalized * maximumWidthScale,
 	});
 }));
 
@@ -213,8 +266,13 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 			const b = chain.points[index + 1];
 			distance = Math.min(distance, pointSegmentDistance(px, py, a[0], a[1], b[0], b[1]));
 		}
-		if (distance >= chain.profile.outerWidthNormalized) continue;
-		const ridge = 1 - smoothstep(chain.profile.coreWidthNormalized, chain.profile.outerWidthNormalized, distance);
+
+		const widthScale = sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed);
+		const coreWidth = chain.profile.coreWidthNormalized * clamp(widthScale * 0.92, 0.78, 1.22);
+		const outerWidth = chain.profile.outerWidthNormalized * widthScale;
+		if (distance >= outerWidth) continue;
+		const ridge = 1 - smoothstep(coreWidth, outerWidth, distance);
+		const normalizedDistance = clamp((distance - coreWidth) / Math.max(outerWidth - coreWidth, 1e-9), 0, 1);
 		const summitNoise = (
 			valueNoise2D(normalizedX * 8, normalizedY * 8, chain.profile.seed + 101) * 0.75 +
 			valueNoise2D(normalizedX * 17, normalizedY * 17, chain.profile.seed + 211) * 0.25
@@ -223,10 +281,11 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		const modulation = summitFloor +
 			(1 - summitFloor) *
 				Math.pow(summitNoise, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitNoiseExponent);
+		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
 		strongestMeters = Math.max(
 			strongestMeters,
-			chain.profile.peakMeters * Math.pow(ridge, 1.12) * modulation * passMultiplier,
+			chain.profile.peakMeters * Math.pow(ridge, 1.12) * modulation * talusBreakup * passMultiplier,
 		);
 	}
 	if (strongestMeters === 0) return 0;
