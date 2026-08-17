@@ -48,8 +48,6 @@ assert.equal(evaluate({ observer, target: { x: 0, z: 5 }, yawRadians: 0, rangeMe
 assert.equal(evaluate({ observer, target: { x: 0, z: 11 }, yawRadians: 0, rangeMeters: 10 }).reason, 'range',
   'vision must stay range-bounded');
 
-// The authored FOV is exactly 120 degrees total. Lock both sides of the 60-degree half-angle with
-// a 0.1-degree epsilon so floating-point trig cannot turn the regression guard itself into a flake.
 const radius = 8;
 const insideBoundary = { x: Math.sin(59.9 * Math.PI / 180) * radius, z: Math.cos(59.9 * Math.PI / 180) * radius };
 const outsideBoundary = { x: Math.sin(60.1 * Math.PI / 180) * radius, z: Math.cos(60.1 * Math.PI / 180) * radius };
@@ -78,9 +76,14 @@ assert.match(source, /perceptionEnabled = false/, 'direct createNPC consumers mu
 assert.match(source, /perceptionEnabled: true/, 'configured shipped NPCs must explicitly opt into perception');
 assert.match(source, /simulationLodEnabled: true/, 'configured guards must preserve merged population LOD');
 assert.match(source, /heard = !awareness\.visible/, 'hearing must not masquerade as visual detection');
-assert.match(source, /perceptionIntent = awareness\.visible \? \(suspicion >= 0\.72 \? 'combat' : 'observe'\)/,
-  'combat intent must require visual acquisition rather than hearing alone');
-assert.match(source, /moveNpcToward\(model, lastKnownPlayer/, 'investigation must move the real NPC toward last-known position');
+assert.match(source, /perceptionIntent = distanceToPlayer > combatEngageRadiusMeters \? 'chase' : 'combat'/,
+  'fully acquired visible guards must chase outside engage radius and only enter combat inside it');
+assert.match(source, /moveNpcToward\(model, playerPosition, speedMps \* 1\.35/,
+  'chase must move the established NPC controller toward the current visible player');
+assert.match(source, /combatEngageRadiusMeters = combatStanceEnabled[\s\S]*Math\.max\(1\.5, Math\.min\(3\.5/,
+  'guard engage radius must remain bounded inside the broader perception radius');
+assert.match(source, /engageRadiusMeters:/, 'runtime telemetry must expose the chase-to-combat boundary');
+assert.match(source, /moveNpcToward\(model, lastKnownPlayer/, 'lost contact must fall back to last-known investigation');
 assert.match(source, /moveNpcToward\(model, homePosition/, 'static guards must return home after investigation expires');
 assert.match(source, /\n\t\t\tgroundCollider,\n\t\t\tplayerCollider,\n\t\t\twalkAnimationUrl:/,
   'configured guards must receive canonical ground and collision context even without patrol waypoints');
@@ -93,6 +96,8 @@ console.log('NPC_GUARD_PERCEPTION_PASS', JSON.stringify({
   losSampleBudget: 32,
   losOcclusionEarlyExit: true,
   hearingCannotCombatDirectly: true,
+  chaseBeforeCombat: true,
+  engageRadiusBounded: true,
   configuredPerceptionOptIn: true,
   staticReturnHome: true,
   canonicalColliderContext: true,
