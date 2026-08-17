@@ -78,7 +78,6 @@ jobs:
           node --check scripts/terrainSeatSafetyCheck.js
           node --check scripts/roadNetworkSafetyCheck.js
           node --check service-worker.js
-          sed -i "/const actual = buildMetrics();/a console.log('MOUNTAIN_FIXTURE_MEASURE', JSON.stringify(actual));" scripts/checkWorldReferenceMountainRelief.mjs
           node scripts/checkWorldReferenceMountainRelief.mjs | tee "$RUNNER_TEMP/mountain-source.log"
           node scripts/checkMountainNaturalizationProfile.mjs | tee "$RUNNER_TEMP/mountain-profile.log"
           node scripts/checkMountainNaturalizationDeterminism.mjs | tee "$RUNNER_TEMP/mountain-determinism.log"
