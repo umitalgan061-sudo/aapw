@@ -1,9 +1,9 @@
 const NAV_TIMEOUT_MS = 30_000;
 
 /**
- * Real shipped-runtime proof for the configured guard perception slice. Loads the same Mixamo FBX
- * family the game uses, drives the actual createNPC controller, and proves visual detect -> chase ->
- * combat plus hearing-only investigation before a static guard returns to its authored home.
+ * Real shipped-runtime proof for configured guard perception. Loads the same Mixamo FBX family the
+ * game uses and proves visual detect -> chase -> combat, hearing-only investigation, bounded local
+ * guard assist across authored settlement spacing, and return-home behavior on createNPC.
  */
 async function checkNpcGuardPerception(browser, baseUrl) {
 	const page = await browser.newPage();
@@ -21,16 +21,23 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 			const groundCollider = { getGroundHeight: () => 0 };
 			const passThroughCollider = { resolveXZ: (x, z) => ({ x, z }) };
 
-			function makeGuard(name) {
+			function makeGuard(name, {
+				modelUrl = spawn.modelUrl,
+				worldX = 0,
+				worldZ = 0,
+				rotationYRadians = 0,
+				guardAlertChannel = null,
+				guardAlertGroupId = null,
+			} = {}) {
 				return createNPC({
 					assetLoader,
-					modelUrl: spawn.modelUrl,
+					modelUrl,
 					idleAnimationUrl: NPC_CONFIG.IDLE_ANIMATION_URL,
 					walkAnimationUrl: NPC_CONFIG.WALK_ANIMATION_URL,
-					worldX: 0,
-					worldZ: 0,
+					worldX,
+					worldZ,
 					groundY: 0,
-					rotationYRadians: 0,
+					rotationYRadians,
 					name,
 					groundCollider,
 					playerCollider: passThroughCollider,
@@ -40,6 +47,8 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 					combatStanceIdleTimeScale: NPC_CONFIG.COMBAT_STANCE_IDLE_TIME_SCALE,
 					combatStanceTransitionSeconds: NPC_CONFIG.COMBAT_STANCE_TRANSITION_SECONDS,
 					perceptionEnabled: true,
+					guardAlertChannel,
+					guardAlertGroupId,
 				});
 			}
 
@@ -65,6 +74,55 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 			) <= (visualState?.engageRadiusMeters ?? 0) + 0.1;
 			visualGuard.dispose();
 
+			const assistChannel = { nextRevision: 1, groups: new Map() };
+			const leaderSpawn = NPC_CONFIG.SPAWNS.find((entry) => entry.id === 'stannis-guard-1');
+			const wingmanSpawn = NPC_CONFIG.SPAWNS.find((entry) => entry.id === 'stannis-guard-2');
+			const authoredPairDistance = Math.hypot(
+				leaderSpawn.offsetXMeters - wingmanSpawn.offsetXMeters,
+				leaderSpawn.offsetZMeters - wingmanSpawn.offsetZMeters,
+			);
+			const assistPlayer = {
+				x: leaderSpawn.offsetXMeters + Math.sin(leaderSpawn.rotationYRadians) * 8,
+				z: leaderSpawn.offsetZMeters + Math.cos(leaderSpawn.rotationYRadians) * 8,
+			};
+			const leader = await makeGuard('smoke-assist-leader', {
+				modelUrl: leaderSpawn.modelUrl,
+				worldX: leaderSpawn.offsetXMeters,
+				worldZ: leaderSpawn.offsetZMeters,
+				rotationYRadians: leaderSpawn.rotationYRadians,
+				guardAlertChannel: assistChannel,
+				guardAlertGroupId: leaderSpawn.seatId,
+			});
+			const wingman = await makeGuard('smoke-assist-wingman', {
+				modelUrl: wingmanSpawn.modelUrl,
+				worldX: wingmanSpawn.offsetXMeters,
+				worldZ: wingmanSpawn.offsetZMeters,
+				rotationYRadians: wingmanSpawn.rotationYRadians,
+				guardAlertChannel: assistChannel,
+				guardAlertGroupId: wingmanSpawn.seatId,
+			});
+			for (let i = 0; i < 60 && assistChannel.nextRevision === 1; i += 1) leader.update(delta, assistPlayer);
+			const publishedAlert = assistChannel.groups.get(leaderSpawn.seatId);
+			const leaderPublished = assistChannel.nextRevision === 2 && publishedAlert?.sourceId === 'smoke-assist-leader';
+			const revisionAfterLeader = assistChannel.nextRevision;
+			const wingmanDistanceBefore = Math.hypot(
+				wingman.object3D.position.x - assistPlayer.x,
+				wingman.object3D.position.z - assistPlayer.z,
+			);
+			wingman.update(delta, assistPlayer);
+			const assistState = wingman.object3D.userData.npcPerception;
+			const wingmanDistanceAfter = Math.hypot(
+				wingman.object3D.position.x - assistPlayer.x,
+				wingman.object3D.position.z - assistPlayer.z,
+			);
+			const authoredPairInsideAssist = authoredPairDistance <= (assistState?.assistRadiusMeters ?? 0);
+			const wingmanInvestigatesAssist = assistState?.assisted === true && assistState.reason === 'assist' && assistState.intent === 'investigate';
+			const assistDoesNotCombat = wingman.object3D.userData.combatStanceBlend === 0 && assistState?.heard === false;
+			const assistMovesTowardAlert = wingmanDistanceAfter < wingmanDistanceBefore;
+			const assistDoesNotRebroadcast = assistChannel.nextRevision === revisionAfterLeader;
+			leader.dispose();
+			wingman.dispose();
+
 			const hearingGuard = await makeGuard('smoke-hearing-guard');
 			hearingGuard.update(delta, { x: 0, z: -6 });
 			hearingGuard.update(delta, { x: 0, z: -5.8 });
@@ -88,11 +146,18 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 				visualLosBounded,
 				combatBlendRaised,
 				stoppedAtEngageRadius,
+				authoredPairInsideAssist,
+				leaderPublished,
+				wingmanInvestigatesAssist,
+				assistDoesNotCombat,
+				assistMovesTowardAlert,
+				assistDoesNotRebroadcast,
 				hearingInvestigates,
 				hearingDoesNotCombat,
 				movedTowardNoise,
 				returnedHome,
 				investigationExpired,
+				authoredPairDistance,
 				homeDistance,
 			};
 		});
@@ -100,11 +165,13 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 		await page.close();
 	}
 
-	const ok = Object.entries(result).filter(([key]) => key !== 'homeDistance').every(([, value]) => value === true);
+	const ok = Object.entries(result)
+		.filter(([key]) => !['homeDistance', 'authoredPairDistance'].includes(key))
+		.every(([, value]) => value === true);
 	const details = ok
-		? `real FBX guard detects -> chases -> engages, hearing only investigates, LOS <=32 probes, static return home=${result.homeDistance.toFixed(3)}m`
+		? `real FBX guards detect/chase/combat; authored Stannis pair ${result.authoredPairDistance.toFixed(1)}m apart shares bounded assist without rebroadcast/combat; hearing investigates; LOS <=32; return home=${result.homeDistance.toFixed(3)}m`
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
-	return { name: 'NPC guard detect/chase/combat/investigation (real createNPC runtime)', ok, details };
+	return { name: 'NPC guard detect/chase/combat/assist/investigation (real createNPC runtime)', ok, details };
 }
 
 module.exports = { checkNpcGuardPerception };

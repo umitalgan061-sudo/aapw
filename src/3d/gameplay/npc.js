@@ -63,6 +63,31 @@ export function evaluateNpcGuardAwareness({ observer, target, yawRadians = 0, ra
 	return { visible: angleDegrees <= 60, distanceMeters, reason: angleDegrees <= 60 ? 'vision' : 'behind' };
 }
 
+export function evaluateNpcGuardAssistAlert({ alert, observer, groupId, sourceId, lastRevision = 0, assistRadiusMeters = 25 } = {}) {
+	if (!alert || !observer || !groupId || alert.groupId !== groupId || !(alert.revision > lastRevision)) {
+		return { accepted: false, reason: 'stale', revision: lastRevision, sourceDistanceMeters: Infinity };
+	}
+	if (alert.sourceId === sourceId) {
+		return { accepted: false, reason: 'self', revision: alert.revision, sourceDistanceMeters: 0 };
+	}
+	const sourcePosition = alert.sourcePosition;
+	if (!sourcePosition || !(assistRadiusMeters > 0)) {
+		return { accepted: false, reason: 'invalid', revision: alert.revision, sourceDistanceMeters: Infinity };
+	}
+	const sourceDistanceMeters = Math.hypot(sourcePosition.x - observer.x, sourcePosition.z - observer.z);
+	if (!Number.isFinite(sourceDistanceMeters) || sourceDistanceMeters > assistRadiusMeters) {
+		return { accepted: false, reason: 'range', revision: alert.revision, sourceDistanceMeters };
+	}
+	return {
+		accepted: true,
+		reason: 'assist',
+		revision: alert.revision,
+		sourceDistanceMeters,
+		lastKnown: alert.lastKnown ? { x: alert.lastKnown.x, z: alert.lastKnown.z } : null,
+		sourceId: alert.sourceId,
+	};
+}
+
 function moveNpcToward(model, target, speedMps, delta, groundCollider, playerCollider, turnRateRadiansPerSecond, arrivalRadius = 0.7) {
 	const dx = target.x - model.position.x;
 	const dz = target.z - model.position.z;
@@ -215,6 +240,8 @@ export async function createNPC({
 	combatStanceIdleTimeScale = 1.5,
 	combatStanceTransitionSeconds = 0.3,
 	perceptionEnabled = false,
+	guardAlertChannel = null,
+	guardAlertGroupId = null,
 	simulationLodEnabled = false,
 	simulationLodNearRadiusMeters = 90,
 	simulationLodFarIntervalSeconds = 0.25,
@@ -258,6 +285,12 @@ export async function createNPC({
 	const combatEngageRadiusMeters = combatStanceEnabled
 		? Math.max(1.5, Math.min(3.5, combatStanceTriggerRadiusMeters * 0.35))
 		: 0;
+	const guardAssistRadiusMeters = combatStanceEnabled
+		? Math.max(12, Math.min(28, combatStanceTriggerRadiusMeters * 2.5))
+		: 0;
+	const guardSourceId = name ?? displayName ?? modelUrl;
+	let guardAlertPublished = false;
+	let lastGuardAlertRevision = 0;
 	let alertBlend = 0;
 	let suspicion = 0;
 	let lastKnownPlayer = null;
@@ -302,6 +335,8 @@ export async function createNPC({
 			let awareness = { visible: false, distanceMeters: distanceToPlayer, reason: 'disabled' };
 			let los = { clear: true, samples: 0 };
 			let heard = false;
+			let assisted = false;
+			let assistSourceId = null;
 			if (perceptionEnabled && combatStanceEnabled && hasPlayerPosition) {
 				if (distanceToPlayer <= combatStanceTriggerRadiusMeters) los = queryNpcLineOfSight(playerCollider, model.position, playerPosition);
 				awareness = evaluateNpcGuardAwareness({ observer: model.position, target: playerPosition, yawRadians: model.rotation.y, rangeMeters: combatStanceTriggerRadiusMeters, lineOfSight: los.clear });
@@ -319,7 +354,40 @@ export async function createNPC({
 					suspicion = Math.max(0, suspicion - simulationDelta / 1.0);
 					investigationRemaining = Math.max(0, investigationRemaining - simulationDelta);
 				}
+				guardAlertPublished = guardAlertPublished && awareness.visible;
+				const groupAlert = guardAlertChannel?.groups?.get?.(guardAlertGroupId);
+				const assist = evaluateNpcGuardAssistAlert({
+					alert: groupAlert,
+					observer: model.position,
+					groupId: guardAlertGroupId,
+					sourceId: guardSourceId,
+					lastRevision: lastGuardAlertRevision,
+					assistRadiusMeters: guardAssistRadiusMeters,
+				});
+				if (groupAlert?.revision > lastGuardAlertRevision) lastGuardAlertRevision = groupAlert.revision;
+				if (!awareness.visible && assist.accepted && assist.lastKnown) {
+					assisted = true;
+					assistSourceId = assist.sourceId;
+					suspicion = Math.max(suspicion, 0.35);
+					lastKnownPlayer = { ...assist.lastKnown };
+					investigationRemaining = Math.max(investigationRemaining, 1.5 + assist.sourceDistanceMeters / Math.max(0.25, speedMps));
+				}
 				if (awareness.visible && suspicion >= 0.72) {
+					if (!guardAlertPublished && guardAlertChannel?.groups && guardAlertGroupId) {
+						const revision = Number.isSafeInteger(guardAlertChannel.nextRevision) && guardAlertChannel.nextRevision > 0
+							? guardAlertChannel.nextRevision
+							: 1;
+						guardAlertChannel.nextRevision = revision + 1;
+						guardAlertChannel.groups.set(guardAlertGroupId, Object.freeze({
+							revision,
+							groupId: guardAlertGroupId,
+							sourceId: guardSourceId,
+							sourcePosition: Object.freeze({ x: model.position.x, z: model.position.z }),
+							lastKnown: Object.freeze({ x: playerPosition.x, z: playerPosition.z }),
+						}));
+						lastGuardAlertRevision = revision;
+						guardAlertPublished = true;
+					}
 					perceptionIntent = distanceToPlayer > combatEngageRadiusMeters ? 'chase' : 'combat';
 				} else if (awareness.visible) {
 					perceptionIntent = 'observe';
@@ -329,8 +397,11 @@ export async function createNPC({
 				model.userData.npcPerception = {
 					intent: perceptionIntent,
 					suspicion: Number(suspicion.toFixed(3)),
-					reason: heard ? 'hearing' : awareness.reason,
+					reason: assisted ? 'assist' : heard ? 'hearing' : awareness.reason,
 					heard,
+					assisted,
+					assistSourceId,
+					assistRadiusMeters: Number(guardAssistRadiusMeters.toFixed(3)),
 					lineOfSight: los.clear,
 					lineOfSightSamples: los.samples,
 					engageRadiusMeters: Number(combatEngageRadiusMeters.toFixed(3)),
@@ -401,6 +472,7 @@ export async function createNPC({
 }
 
 export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, sampleGroundY, groundCollider, playerCollider }) {
+	const guardAlertChannel = { nextRevision: 1, groups: new Map() };
 	const npcs = await Promise.all(npcConfig.SPAWNS.map(async (spawn) => {
 		const seat = seatsById.get(spawn.seatId);
 		if (!seat) {
@@ -438,6 +510,8 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 			combatStanceTransitionSeconds: npcConfig.COMBAT_STANCE_TRANSITION_SECONDS,
 			turnRateRadiansPerSecond: npcConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
 			perceptionEnabled: true,
+			guardAlertChannel,
+			guardAlertGroupId: spawn.seatId,
 			simulationLodEnabled: true,
 			simulationLodBootstrapDormant: true,
 		});
