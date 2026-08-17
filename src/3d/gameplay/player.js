@@ -247,6 +247,18 @@ export async function createPlayer({
 			));
 			model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z) + heightAboveGround;
 
+			// Physics resolves takeoff/landing after locomotion intent is chosen. Reconcile the public
+			// movement state in the same frame so telemetry can never claim `airborne` while grounded.
+			if (dodgeRemaining <= 0) {
+				if (!isGrounded) {
+					movementState = 'airborne';
+				} else if (movementState === 'airborne') {
+					movementState = hasMovementInput
+						? (runIntent && sprintExhausted ? 'exhausted' : 'walk')
+						: 'idle';
+				}
+			}
+
 			if (regenDelayRemaining <= 0 && dodgeRemaining <= 0 && !(runIntent && hasMovementInput)) {
 				stamina = clamp(stamina + PLAYER_ACTION_CONFIG.STAMINA_REGEN_PER_SECOND * dt, 0, PLAYER_ACTION_CONFIG.MAX_STAMINA);
 			}
