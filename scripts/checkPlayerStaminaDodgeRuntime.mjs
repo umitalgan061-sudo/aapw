@@ -28,6 +28,13 @@ const history = () => page.evaluate(() => structuredClone(window.__playerMotionF
 const distance = (a, b) => Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z);
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const readVitals = () => page.evaluate(() => ({ state: document.querySelector('.g3d-stamina-bar')?.dataset.state, now: document.querySelector('.g3d-stamina-bar')?.getAttribute('aria-valuenow'), label: document.querySelector('.g3d-stamina-bar')?.getAttribute('aria-label') }));
+const readHealth = () => page.evaluate(() => Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuenow')));
+async function emitPlayerDamage(amount, sourceId) {
+  await page.evaluate(async ({ amount: value, source }) => {
+    const [{ gameEvents }, { EVENTS }] = await Promise.all([import('./src/3d/eventBus.js'), import('./src/3d/config.js')]);
+    gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: value, sourceId: source });
+  }, { amount, source: sourceId });
+}
 async function waitForHistoryEvidence(findEvidence, { timeout = 5000, interval = 100, label = 'motion evidence' } = {}) {
   const deadline = Date.now() + timeout; let lastFrames = [];
   while (Date.now() < deadline) { lastFrames = await history(); const evidence = findEvidence(lastFrames); if (evidence) return evidence; await sleep(interval); }
@@ -52,6 +59,7 @@ try {
   const baseline = await latest();
   need(baseline.state === 'idle', `expected idle baseline, got ${baseline.state}`);
   need(baseline.stamina === 100 && baseline.isGrounded && baseline.canDodge, `bad baseline ${JSON.stringify(baseline)}`);
+
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
   await page.keyboard.down('KeyW'); await page.keyboard.down('ShiftLeft'); await waitState('sprint');
   const [sprintA, sprintB] = await waitForHistoryEvidence(findSprintEvidence, { timeout: 5000, interval: 100, label: 'sprint speed, stamina drain and >1.5m displacement' });
@@ -65,15 +73,45 @@ try {
   need(airborneFrames.every((frame) => frame.state !== 'dodge'), 'plain jump incorrectly became dodge without run intent');
   await page.keyboard.up('KeyW'); await waitState('idle', 6000); const recoveryStart = await latest();
   const recoveryEnd = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'idle' && frame.stamina > recoveryStart.stamina ? frame : null; }, { timeout: 6000, interval: 100, label: 'idle stamina recovery after regen delay' });
+
+  // Ordinary held guard: deliberately let the 160ms parry window expire, then prove the same real
+  // PLAYER_DAMAGED EventBus path health.js consumes is reduced from 20 -> 8 while stamina drains.
+  await page.keyboard.down('KeyQ');
+  const guardReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 4000, interval: 80, label: 'held guard after parry window' });
+  const guardHealthBefore = await readHealth();
+  await emitPlayerDamage(20, 'guard-proof');
+  const guardImpact = await waitForHistoryEvidence((frames) => [...frames].reverse().find((frame) => frame?.defenseResult === 'guard') ?? null, { timeout: 2000, interval: 50, label: 'guard damage mitigation telemetry' });
+  const guardHealthAfter = await readHealth();
+  need(guardHealthBefore - guardHealthAfter === 8, `guard should reduce 20 damage to 8, got health ${guardHealthBefore} -> ${guardHealthAfter}`);
+  need(guardImpact.stamina < guardReady.stamina, 'guard must spend stamina on impact/drain');
+  await page.keyboard.up('KeyQ'); await waitState('idle', 4000);
+
+  // Fresh Q press opens a short parry window. Emit another real 20-point damage packet inside that
+  // window; health must remain unchanged while telemetry reports the timed defense and stamina cost.
+  await page.keyboard.down('KeyQ');
+  const parryReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.parryWindowRemaining > 0 ? frame : null; }, { timeout: 2500, interval: 30, label: 'fresh parry window' });
+  const parryHealthBefore = await readHealth();
+  await emitPlayerDamage(20, 'parry-proof');
+  const parryImpact = await waitForHistoryEvidence((frames) => [...frames].reverse().find((frame) => frame?.defenseResult === 'parry') ?? null, { timeout: 2000, interval: 30, label: 'parry mitigation telemetry' });
+  const parryHealthAfter = await readHealth();
+  need(parryHealthAfter === parryHealthBefore, `parry must negate damage, got health ${parryHealthBefore} -> ${parryHealthAfter}`);
+  need(parryReady.stamina - parryImpact.stamina >= 7.5, 'parry stamina cost missing');
+  await page.keyboard.up('KeyQ'); await waitState('idle', 4500);
+
   const canvas = page.locator('#game3d-canvas');
   const canvasBox = await canvas.boundingBox();
   need(canvasBox && canvasBox.width > 100 && canvasBox.height > 100, `bad canvas bounds ${JSON.stringify(canvasBox)}`);
   const canvasPng = await page.screenshot({ clip: canvasBox, timeout: 20000 });
   need(canvasPng.length > 1024, `canvas proof too small (${canvasPng.length} bytes)`);
   fs.writeFileSync(path.join(outDir, 'player-runtime.png'), canvasPng);
-  fs.writeFileSync(path.join(outDir, 'metrics.json'), `${JSON.stringify({ baseline, sprintA, sprintB, beforeRunJumpDodge, runJumpDodge, airborneFrames: airborneFrames.slice(0, 8), recoveryStart, recoveryEnd, vitals, canvas: { width: canvasBox.width, height: canvasBox.height, pngBytes: canvasPng.length }, browserErrors: errors }, null, 2)}\n`);
+  fs.writeFileSync(path.join(outDir, 'metrics.json'), `${JSON.stringify({
+    baseline, sprintA, sprintB, beforeRunJumpDodge, runJumpDodge, airborneFrames: airborneFrames.slice(0, 8), recoveryStart, recoveryEnd, vitals,
+    guard: { ready: guardReady, impact: guardImpact, healthBefore: guardHealthBefore, healthAfter: guardHealthAfter, rawDamage: 20, appliedDamage: guardHealthBefore - guardHealthAfter },
+    parry: { ready: parryReady, impact: parryImpact, healthBefore: parryHealthBefore, healthAfter: parryHealthAfter, rawDamage: 20, appliedDamage: parryHealthBefore - parryHealthAfter },
+    canvas: { width: canvasBox.width, height: canvasBox.height, pngBytes: canvasPng.length }, browserErrors: errors,
+  }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
-  console.log('PLAYER_STAMINA_DODGE_RUNTIME_OK');
+  console.log('PLAYER_STAMINA_DODGE_GUARD_PARRY_RUNTIME_OK');
 } catch (error) {
   const frames = await history().catch(() => []);
   fs.writeFileSync(path.join(outDir, 'failure.json'), `${JSON.stringify({ error: String(error?.stack ?? error), browserErrors: errors, recentFrames: frames.slice(-50) }, null, 2)}\n`);
