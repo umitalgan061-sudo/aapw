@@ -13,6 +13,8 @@ on:
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - '.github/workflows/world-map-aligned-terrain-pbr.yml'
+      - '.github/workflows/run317-terrain3d-heightfield.yml'
+      - '.github/workflows/full-world-runtime-coverage.yml'
       - '.github/workflows/world-environment-acceptance.yml'
   workflow_dispatch:
 
@@ -45,7 +47,7 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkWorldEnvironmentAcceptanceMatrix\.mjs|scripts/checkWorldSurfacePlacementPolicy\.mjs|scripts/checkMapAlignedTerrainPBR\.mjs|scripts/checkSharedMaterialPlacementContract\.js|src/3d/world/terrain\.js|src/3d/world/WorldAssetPlacementPipeline\.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkWorldEnvironmentAcceptanceMatrix\.mjs|scripts/checkWorldSurfacePlacementPolicy\.mjs|scripts/checkMapAlignedTerrainPBR\.mjs|scripts/checkSharedMaterialPlacementContract\.js|src/3d/world/terrain\.js|src/3d/world/WorldAssetPlacementPipeline\.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "world acceptance quota additions=$A deletions=$D total=$((A+D))"
