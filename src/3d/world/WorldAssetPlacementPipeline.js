@@ -35,6 +35,10 @@ const POLICY_NUMERIC_FIELDS = Object.freeze([
 const POLICY_LIST_FIELDS = Object.freeze([
   'allowedBiomes', 'forbiddenBiomes', 'allowedWaterTypes', 'forbiddenWaterTypes',
 ]);
+const POLICY_FIELDS = Object.freeze([
+  ...POLICY_NUMERIC_FIELDS.map(([key]) => key),
+  ...POLICY_LIST_FIELDS,
+]);
 const POLICY_RANGES = Object.freeze([
   ['minSlopeDegrees', 'maxSlopeDegrees', 'slope'],
   ['minWaterDepth', 'maxWaterDepth', 'water-depth'],
@@ -286,6 +290,9 @@ export function validateWorldSurfacePolicy(policy = {}) {
   if (!source) return { ok: false, errors: ['policy-invalid-object'], policy: normalizedPolicy };
 
   const errors = [];
+  for (const key of Object.keys(source)) {
+    if (!POLICY_FIELDS.includes(key)) errors.push(`policy-unknown-${policyErrorKey(key)}`);
+  }
   for (const [key, allowInfinity] of POLICY_NUMERIC_FIELDS) {
     const value = source[key];
     if (value === null || value === undefined || value === '') continue;
@@ -333,6 +340,9 @@ export function normalizePlacementPolicy(policy = {}) {
 }
 
 function mergeWorldSurfacePolicy(metadata, override) {
+  if (override !== null && override !== undefined && (typeof override !== 'object' || Array.isArray(override))) {
+    return override;
+  }
   const category = String(metadata?.category || metadata?.kind || '').toLowerCase();
   const preset = WORLD_SURFACE_POLICY_PRESETS[category] || null;
   return { ...(preset || {}), ...(override || {}) };
