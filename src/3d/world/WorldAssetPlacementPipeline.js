@@ -25,6 +25,24 @@ export const WORLD_SURFACE_POLICY_PRESETS = Object.freeze({
   bridge: Object.freeze({ maxSlopeDegrees: 24, maxWaterDepth: Infinity }),
 });
 
+const POLICY_NUMERIC_FIELDS = Object.freeze([
+  ['minSlopeDegrees', false], ['maxSlopeDegrees', true],
+  ['minWaterDepth', false], ['maxWaterDepth', true],
+  ['minRoadDistance', false], ['maxRoadDistance', true],
+  ['minSettlementDistance', false], ['maxSettlementDistance', true],
+  ['minMoisture', false], ['maxMoisture', true],
+]);
+const POLICY_LIST_FIELDS = Object.freeze([
+  'allowedBiomes', 'forbiddenBiomes', 'allowedWaterTypes', 'forbiddenWaterTypes',
+]);
+const POLICY_RANGES = Object.freeze([
+  ['minSlopeDegrees', 'maxSlopeDegrees', 'slope'],
+  ['minWaterDepth', 'maxWaterDepth', 'water-depth'],
+  ['minRoadDistance', 'maxRoadDistance', 'road-distance'],
+  ['minSettlementDistance', 'maxSettlementDistance', 'settlement-distance'],
+  ['minMoisture', 'maxMoisture', 'moisture'],
+]);
+
 /**
  * Shared placement gate for editor-authored and autonomous world assets.
  * A model is dressed and validated before callers attach it to the live scene.
@@ -167,8 +185,11 @@ export function resolveWorldSurfacePlacement(object, {
 
   if (!surface) return { ok: true, surface: null, policy: null };
 
-  const policy = resolveWorldSurfacePolicy(metadata, placementPolicy);
-  const evaluation = evaluateWorldSurfacePlacement(surface.sample, policy);
+  const evaluation = evaluateWorldSurfacePlacement(
+    surface.sample,
+    mergeWorldSurfacePolicy(metadata, placementPolicy),
+  );
+  const policy = evaluation.policy || null;
   if (!evaluation.ok) {
     return {
       ok: false,
@@ -184,9 +205,11 @@ export function resolveWorldSurfacePlacement(object, {
 }
 
 export function resolveWorldSurfacePolicy(metadata = {}, override = null) {
-  const category = String(metadata.category || metadata.kind || '').toLowerCase();
-  const preset = WORLD_SURFACE_POLICY_PRESETS[category] || null;
-  return normalizePlacementPolicy({ ...(preset || {}), ...(override || {}) });
+  const validation = validateWorldSurfacePolicy(mergeWorldSurfacePolicy(metadata, override));
+  if (!validation.ok) {
+    throw new TypeError(`Invalid world surface placement policy: ${validation.errors.join(',')}`);
+  }
+  return validation.policy;
 }
 
 export function normalizeWorldSurfaceSample(sample) {
@@ -229,8 +252,12 @@ export function normalizeWorldSurfaceSample(sample) {
 export function evaluateWorldSurfacePlacement(surface, policy = {}) {
   const normalizedSurface = normalizeWorldSurfaceSample(surface);
   if (!normalizedSurface.ok) return { ok: false, errors: [normalizedSurface.error], surface: normalizedSurface.sample };
-  const normalizedPolicy = normalizePlacementPolicy(policy);
+  const policyValidation = validateWorldSurfacePolicy(policy);
+  const normalizedPolicy = policyValidation.policy;
   const sample = normalizedSurface.sample;
+  if (!policyValidation.ok) {
+    return { ok: false, errors: policyValidation.errors, surface: sample, policy: normalizedPolicy };
+  }
   const errors = [];
 
   requirePolicyContext(errors, sample, normalizedPolicy);
@@ -253,23 +280,62 @@ export function evaluateWorldSurfacePlacement(surface, policy = {}) {
   return { ok: errors.length === 0, errors, surface: sample, policy: normalizedPolicy };
 }
 
+export function validateWorldSurfacePolicy(policy = {}) {
+  const source = policy && typeof policy === 'object' && !Array.isArray(policy) ? policy : null;
+  const normalizedPolicy = normalizePlacementPolicy(source || {});
+  if (!source) return { ok: false, errors: ['policy-invalid-object'], policy: normalizedPolicy };
+
+  const errors = [];
+  for (const [key, allowInfinity] of POLICY_NUMERIC_FIELDS) {
+    const value = source[key];
+    if (value === null || value === undefined || value === '') continue;
+    const numeric = Number(value);
+    if ((!Number.isFinite(numeric) && !(allowInfinity && numeric === Infinity)) || numeric < 0) {
+      errors.push(`policy-invalid-${policyErrorKey(key)}`);
+    }
+  }
+  for (const key of POLICY_LIST_FIELDS) {
+    const value = source[key];
+    if (value === null || value === undefined) continue;
+    if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !item.trim())) {
+      errors.push(`policy-invalid-${policyErrorKey(key)}`);
+    }
+  }
+  if (normalizedPolicy.minMoisture !== null && normalizedPolicy.minMoisture > 1) errors.push('policy-invalid-min-moisture');
+  if (normalizedPolicy.maxMoisture !== null && normalizedPolicy.maxMoisture > 1) errors.push('policy-invalid-max-moisture');
+  for (const [minKey, maxKey, label] of POLICY_RANGES) {
+    const min = normalizedPolicy[minKey];
+    const max = normalizedPolicy[maxKey];
+    if (min !== null && max !== null && min > max) errors.push(`policy-inverted-${label}-range`);
+  }
+
+  return { ok: errors.length === 0, errors: [...new Set(errors)], policy: normalizedPolicy };
+}
+
 export function normalizePlacementPolicy(policy = {}) {
+  const source = policy && typeof policy === 'object' && !Array.isArray(policy) ? policy : {};
   return {
-    minSlopeDegrees: optionalFinite(policy.minSlopeDegrees),
-    maxSlopeDegrees: optionalFinite(policy.maxSlopeDegrees, true),
-    minWaterDepth: optionalFinite(policy.minWaterDepth),
-    maxWaterDepth: optionalFinite(policy.maxWaterDepth, true),
-    minRoadDistance: optionalFinite(policy.minRoadDistance),
-    maxRoadDistance: optionalFinite(policy.maxRoadDistance, true),
-    minSettlementDistance: optionalFinite(policy.minSettlementDistance),
-    maxSettlementDistance: optionalFinite(policy.maxSettlementDistance, true),
-    minMoisture: optionalFinite(policy.minMoisture),
-    maxMoisture: optionalFinite(policy.maxMoisture, true),
-    allowedBiomes: normalizedStringList(policy.allowedBiomes),
-    forbiddenBiomes: normalizedStringList(policy.forbiddenBiomes),
-    allowedWaterTypes: normalizedStringList(policy.allowedWaterTypes),
-    forbiddenWaterTypes: normalizedStringList(policy.forbiddenWaterTypes),
+    minSlopeDegrees: optionalFinite(source.minSlopeDegrees),
+    maxSlopeDegrees: optionalFinite(source.maxSlopeDegrees, true),
+    minWaterDepth: optionalFinite(source.minWaterDepth),
+    maxWaterDepth: optionalFinite(source.maxWaterDepth, true),
+    minRoadDistance: optionalFinite(source.minRoadDistance),
+    maxRoadDistance: optionalFinite(source.maxRoadDistance, true),
+    minSettlementDistance: optionalFinite(source.minSettlementDistance),
+    maxSettlementDistance: optionalFinite(source.maxSettlementDistance, true),
+    minMoisture: optionalFinite(source.minMoisture),
+    maxMoisture: optionalFinite(source.maxMoisture, true),
+    allowedBiomes: normalizedStringList(source.allowedBiomes),
+    forbiddenBiomes: normalizedStringList(source.forbiddenBiomes),
+    allowedWaterTypes: normalizedStringList(source.allowedWaterTypes),
+    forbiddenWaterTypes: normalizedStringList(source.forbiddenWaterTypes),
   };
+}
+
+function mergeWorldSurfacePolicy(metadata, override) {
+  const category = String(metadata?.category || metadata?.kind || '').toLowerCase();
+  const preset = WORLD_SURFACE_POLICY_PRESETS[category] || null;
+  return { ...(preset || {}), ...(override || {}) };
 }
 
 function applyTransform(object, { position, rotation, scale }) {
@@ -321,7 +387,11 @@ function hasNonFiniteTransform(object) {
 
 function normalizedStringList(value) {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.map((item) => String(item).toLowerCase()).filter(Boolean))].sort();
+  return [...new Set(value.map((item) => String(item).trim().toLowerCase()).filter(Boolean))].sort();
+}
+
+function policyErrorKey(key) {
+  return key.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`);
 }
 
 function requirePolicyContext(errors, sample, policy) {
