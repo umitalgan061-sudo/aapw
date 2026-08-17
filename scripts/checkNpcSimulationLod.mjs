@@ -9,6 +9,7 @@ assert.match(npcSource, /hysteresisMeters = 12/);
 assert.match(npcSource, /distantRadiusMeters = 240/);
 assert.match(npcSource, /distantIntervalSeconds = 1/);
 assert.match(npcSource, /distantHysteresisMeters = 30/);
+assert.match(npcSource, /tier = finiteDistance \? 'distant' : 'bootstrap'/);
 assert.match(npcSource, /simulationLod\.step\(delta, distanceToPlayer, urgent\)/);
 assert.equal(npcSource.includes("from './npcSimulationLod.js'"), false,
   'NPC LOD must remain inside the existing cached npc.js runtime owner');
@@ -43,9 +44,12 @@ function scheduler(id) {
     step(delta, distance, urgent = false) {
       const bounded = !Number.isFinite(delta) || delta <= 0 ? 0 : Math.min(delta, 0.25);
       const finiteDistance = Number.isFinite(distance);
-      if (urgent || !finiteDistance) {
+      if (urgent) {
         nearLatched = true;
         distantLatched = false;
+      } else if (!finiteDistance) {
+        nearLatched = false;
+        distantLatched = true;
       } else if (nearLatched) {
         nearLatched = distance <= nearRadius + hysteresis;
       } else {
@@ -57,10 +61,12 @@ function scheduler(id) {
         tier = urgent ? 'urgent' : 'near';
         return bounded;
       }
-      if (distantLatched) distantLatched = distance > distantRadius - distantHysteresis;
-      else distantLatched = distance > distantRadius + distantHysteresis;
+      if (finiteDistance) {
+        if (distantLatched) distantLatched = distance > distantRadius - distantHysteresis;
+        else distantLatched = distance > distantRadius + distantHysteresis;
+      }
       if (distantLatched) {
-        tier = 'distant';
+        tier = finiteDistance ? 'distant' : 'bootstrap';
         farAccumulated = 0;
         distantAccumulated = Math.min(distantInterval, distantAccumulated + bounded);
         if (distantAccumulated + Number.EPSILON < distantInterval) return 0;
@@ -102,6 +108,27 @@ for (let frame = 0; frame < 60; frame += 1) {
 }
 assert.ok(totalDistantTicks < 120, '100 distant NPCs must stay near a 1Hz dormancy budget');
 assert.ok(maxDistantWake < 10, 'distant deterministic phases must avoid wakeup spikes');
+
+const bootstrap = Array.from({ length: 100 }, (_, i) => scheduler(`bootstrap-${i}`));
+let totalBootstrapTicks = 0;
+let maxBootstrapWake = 0;
+for (let frame = 0; frame < 60; frame += 1) {
+  let wake = 0;
+  for (const lod of bootstrap) {
+    if (lod.step(frameDelta, Infinity, false) > 0) wake += 1;
+    assert.equal(lod.tier, 'bootstrap');
+  }
+  totalBootstrapTicks += wake;
+  maxBootstrapWake = Math.max(maxBootstrapWake, wake);
+}
+assert.ok(totalBootstrapTicks < 120, 'missing player position must not full-tick the authored NPC population');
+assert.ok(maxBootstrapWake < 10, 'bootstrap dormancy must retain deterministic staggered wakeups');
+const bootstrapWake = scheduler('bootstrap-wake');
+for (let i = 0; i < 10; i += 1) bootstrapWake.step(frameDelta, Infinity, false);
+assert.equal(bootstrapWake.tier, 'bootstrap');
+assert.equal(bootstrapWake.step(frameDelta, 20, false), frameDelta,
+  'NPC must wake immediately once a valid nearby player position becomes available');
+assert.equal(bootstrapWake.tier, 'near');
 
 const near = scheduler('near-guard');
 for (let i = 0; i < 120; i += 1) assert.equal(near.step(frameDelta, 20, false), frameDelta);
@@ -149,6 +176,9 @@ console.log('NPC_SIMULATION_LOD_PASS', JSON.stringify({
   distantNpcCount: distant.length,
   totalDistantTicks,
   maxDistantWake,
+  bootstrapNpcCount: bootstrap.length,
+  totalBootstrapTicks,
+  maxBootstrapWake,
   nearTicks: 120,
   hysteresisMeters: 12,
   distantHysteresisMeters: 30,
