@@ -27,7 +27,7 @@ function phase(id, interval) {
   hash = Math.imul(hash, 0x7feb352d) >>> 0;
   hash ^= hash >>> 15;
   hash = Math.imul(hash, 0x846ca68b) >>> 0;
-  hash ^= hash >>> 16;
+  hash = (hash ^ (hash >>> 16)) >>> 0;
   return (hash / 0x100000000) * interval;
 }
 
