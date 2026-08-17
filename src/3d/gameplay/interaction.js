@@ -1,7 +1,7 @@
 /**
- * FAZ 5 interaction controller — proximity dialogue plus a compact RPG quest/reputation lifecycle
+ * FAZ 5 interaction controller — proximity dialogue plus a compact RPG quest/reputation/progression lifecycle
  * that reuses the already-shipped NPC choices. State stays inside the existing interaction owner
- * instead of introducing parallel dialogue, quest, inventory, economy, or faction frameworks.
+ * instead of introducing parallel dialogue, quest, inventory, economy, faction, or skill frameworks.
  * @module gameplay/interaction
  */
 
@@ -23,6 +23,12 @@ const DEFAULT_REPUTATION = Object.freeze({
 	[INTERACTION_FACTIONS.DRAGONSTONE]: 0,
 });
 
+export const INTERACTION_PROGRESSION = Object.freeze({
+	START_LEVEL: 1,
+	XP_PER_LEVEL: 100,
+	MAX_LEVEL: 20,
+});
+
 export const INTERACTION_QUESTS = Object.freeze([
 	Object.freeze({
 		id: 'law-of-the-watch',
@@ -38,6 +44,7 @@ export const INTERACTION_QUESTS = Object.freeze([
 		reward: Object.freeze({
 			label: 'Dragonstone nöbetçilerinin güveni',
 			reputation: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, amount: 10 }),
+			experience: 60,
 		}),
 	}),
 	Object.freeze({
@@ -55,6 +62,7 @@ export const INTERACTION_QUESTS = Object.freeze([
 		reward: Object.freeze({
 			label: 'Dragonstone nöbetçilerinin itimadı',
 			reputation: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, amount: 5 }),
+			experience: 90,
 		}),
 	}),
 ]);
@@ -92,6 +100,47 @@ function createReputationState(initial = DEFAULT_REPUTATION) {
 	}
 
 	return { get, grant, snapshot, restore };
+}
+
+function createProgressionState() {
+	let totalExperience = 0;
+
+	function levelForExperience(experience) {
+		return Math.min(
+			INTERACTION_PROGRESSION.MAX_LEVEL,
+			INTERACTION_PROGRESSION.START_LEVEL + Math.floor(experience / INTERACTION_PROGRESSION.XP_PER_LEVEL),
+		);
+	}
+
+	function snapshot() {
+		const level = levelForExperience(totalExperience);
+		const atMaxLevel = level >= INTERACTION_PROGRESSION.MAX_LEVEL;
+		const levelFloor = (level - INTERACTION_PROGRESSION.START_LEVEL) * INTERACTION_PROGRESSION.XP_PER_LEVEL;
+		return {
+			level,
+			totalExperience,
+			experienceIntoLevel: atMaxLevel ? 0 : totalExperience - levelFloor,
+			experienceToNextLevel: atMaxLevel ? 0 : INTERACTION_PROGRESSION.XP_PER_LEVEL,
+		};
+	}
+
+	function grant(amount) {
+		if (!Number.isFinite(amount) || amount <= 0) return false;
+		const cap = (INTERACTION_PROGRESSION.MAX_LEVEL - INTERACTION_PROGRESSION.START_LEVEL) * INTERACTION_PROGRESSION.XP_PER_LEVEL;
+		totalExperience = Math.min(cap, totalExperience + amount);
+		return true;
+	}
+
+	function restore(saved) {
+		totalExperience = 0;
+		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+		const raw = Number(saved.totalExperience);
+		if (!Number.isFinite(raw) || raw < 0) return;
+		const cap = (INTERACTION_PROGRESSION.MAX_LEVEL - INTERACTION_PROGRESSION.START_LEVEL) * INTERACTION_PROGRESSION.XP_PER_LEVEL;
+		totalExperience = Math.min(cap, raw);
+	}
+
+	return { grant, snapshot, restore };
 }
 
 function createQuestTracker({ definitions = INTERACTION_QUESTS, reputation, onReward = () => {} }) {
@@ -189,10 +238,13 @@ function createQuestTracker({ definitions = INTERACTION_QUESTS, reputation, onRe
 	return { consume, snapshot, restore, unlockEligible };
 }
 
-export function buildQuestJournalText(snapshot, reputationSnapshot = {}) {
+export function buildQuestJournalText(snapshot, reputationSnapshot = {}, progressionSnapshot = {}) {
 	const visible = (Array.isArray(snapshot) ? snapshot : []).filter((quest) => ['active', 'ready', 'completed'].includes(quest.status));
 	const dragonstoneReputation = Number(reputationSnapshot[INTERACTION_FACTIONS.DRAGONSTONE]) || 0;
-	const lines = ['Görev Günlüğü', `Dragonstone itibarı: ${dragonstoneReputation}`];
+	const level = Number(progressionSnapshot.level) || INTERACTION_PROGRESSION.START_LEVEL;
+	const xp = Number(progressionSnapshot.experienceIntoLevel) || 0;
+	const xpToNext = Number(progressionSnapshot.experienceToNextLevel) || INTERACTION_PROGRESSION.XP_PER_LEVEL;
+	const lines = ['Görev Günlüğü', `Seviye: ${level} · XP: ${xp}/${xpToNext}`, `Dragonstone itibarı: ${dragonstoneReputation}`];
 	if (visible.length === 0) {
 		lines.push('Henüz kabul edilmiş bir görev yok.');
 		return lines.join('\n');
@@ -206,7 +258,7 @@ export function buildQuestJournalText(snapshot, reputationSnapshot = {}) {
 	return lines.join('\n');
 }
 
-/** Existing proximity dialogue controller with quest/reputation projection layered into its choice seam. */
+/** Existing proximity dialogue controller with quest/reputation/progression projected into its choice seam. */
 export function createInteractionController({
 	interactionPrompt,
 	dialogueBox,
@@ -217,6 +269,7 @@ export function createInteractionController({
 	isPaused = () => false,
 	onQuestChanged = () => {},
 	onReputationChanged = () => {},
+	onProgressionChanged = () => {},
 }) {
 	let activeNpc = null;
 	let nearestNpc = null;
@@ -224,6 +277,7 @@ export function createInteractionController({
 	let activeNpcName = null;
 	let journalOpen = false;
 	const reputation = createReputationState();
+	const progression = createProgressionState();
 	const quests = createQuestTracker({
 		reputation,
 		onReward(reward) {
@@ -231,6 +285,7 @@ export function createInteractionController({
 			if (reputationReward && reputation.grant(reputationReward.faction, reputationReward.amount)) {
 				onReputationChanged(reputation.snapshot());
 			}
+			if (progression.grant(Number(reward?.experience))) onProgressionChanged(progression.snapshot());
 		},
 	});
 
@@ -279,7 +334,7 @@ export function createInteractionController({
 		activeNpcName = null;
 		journalOpen = true;
 		interactionPrompt.setVisible(false);
-		dialogueBox.show(buildQuestJournalText(quests.snapshot(), reputation.snapshot()));
+		dialogueBox.show(buildQuestJournalText(quests.snapshot(), reputation.snapshot(), progression.snapshot()));
 	}
 
 	function selectChoice(index) {
@@ -290,24 +345,33 @@ export function createInteractionController({
 		if (quests.consume(npcId, choice.originalIndex)) onQuestChanged(quests.snapshot());
 	}
 
-	function rebuildReputationFromQuestRewards(savedQuestSnapshot) {
+	function rebuildRewardStateFromQuestRewards(savedQuestSnapshot) {
 		reputation.restore(DEFAULT_REPUTATION);
+		progression.restore(null);
 		for (const savedQuest of Array.isArray(savedQuestSnapshot) ? savedQuestSnapshot : []) {
 			if (savedQuest?.status !== QUEST_STATUS.COMPLETED || savedQuest.rewardGranted !== true) continue;
 			const definition = INTERACTION_QUESTS.find((quest) => quest.id === savedQuest.id);
-			const reward = definition?.reward?.reputation;
-			if (reward) reputation.grant(reward.faction, reward.amount);
+			const reward = definition?.reward;
+			if (reward?.reputation) reputation.grant(reward.reputation.faction, reward.reputation.amount);
+			progression.grant(Number(reward?.experience));
 		}
-		onReputationChanged(reputation.snapshot());
 		quests.unlockEligible();
 	}
 
 	function restoreRpgSnapshot(saved) {
 		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
 		reputation.restore(saved.reputation);
+		progression.restore(saved.progression);
 		quests.restore(saved.quests);
-		if (!saved.reputation) rebuildReputationFromQuestRewards(saved.quests);
+		if (!saved.reputation || !saved.progression) {
+			const explicitReputation = saved.reputation;
+			const explicitProgression = saved.progression;
+			rebuildRewardStateFromQuestRewards(saved.quests);
+			if (explicitReputation) reputation.restore(explicitReputation);
+			if (explicitProgression) progression.restore(explicitProgression);
+		}
 		onReputationChanged(reputation.snapshot());
+		onProgressionChanged(progression.snapshot());
 		onQuestChanged(quests.snapshot());
 	}
 
@@ -358,12 +422,20 @@ export function createInteractionController({
 		showQuestJournal: showJournal,
 		getQuestSnapshot: quests.snapshot,
 		getReputationSnapshot: reputation.snapshot,
+		getProgressionSnapshot: progression.snapshot,
 		getRpgSnapshot() {
-			return { schemaVersion: 1, quests: quests.snapshot(), reputation: reputation.snapshot() };
+			return {
+				schemaVersion: 2,
+				quests: quests.snapshot(),
+				reputation: reputation.snapshot(),
+				progression: progression.snapshot(),
+			};
 		},
 		restoreQuestSnapshot(snapshot) {
 			quests.restore(snapshot);
-			rebuildReputationFromQuestRewards(snapshot);
+			rebuildRewardStateFromQuestRewards(snapshot);
+			onReputationChanged(reputation.snapshot());
+			onProgressionChanged(progression.snapshot());
 			onQuestChanged(quests.snapshot());
 		},
 		restoreRpgSnapshot,
