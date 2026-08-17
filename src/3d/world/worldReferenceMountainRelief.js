@@ -53,7 +53,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			summitFloor: 0.65,
 			seed: 11,
 			passes: Object.freeze([
-				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.015, outerRadiusNormalized: 0.050, minimumMultiplier: 0.02 }),
+				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.015, outerRadiusNormalized: 0.050, minimumMultiplier: 0.02, corridorEnd: [0.185, 0.330], corridorInnerRadiusNormalized: 0.008, corridorOuterRadiusNormalized: 0.022 }),
 				Object.freeze({ id: 'vale-south-approach', center: [0.233, 0.467], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.055, minimumMultiplier: 0.02 }),
 			]),
 		}),
@@ -65,7 +65,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			seed: 23,
 			passes: Object.freeze([
 				Object.freeze({ id: 'red-west-approach', center: [0.145, 0.610], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.045, minimumMultiplier: 0.08 }),
-				Object.freeze({ id: 'red-central-approach', center: [0.179, 0.651], innerRadiusNormalized: 0.016, outerRadiusNormalized: 0.055, minimumMultiplier: 0.08 }),
+				Object.freeze({ id: 'red-central-approach', center: [0.179, 0.651], innerRadiusNormalized: 0.016, outerRadiusNormalized: 0.055, minimumMultiplier: 0.08, corridorEnd: [0.154, 0.612], corridorInnerRadiusNormalized: 0.009, corridorOuterRadiusNormalized: 0.024 }),
 				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.050, minimumMultiplier: 0.08 }),
 			]),
 		}),
@@ -185,8 +185,25 @@ function samplePassMultiplier(normalizedX, normalizedY, passes = []) {
 			(normalizedX - pass.center[0]) * MAP_ASPECT,
 			normalizedY - pass.center[1],
 		);
-		if (distance >= pass.outerRadiusNormalized) continue;
-		const influence = 1 - smoothstep(pass.innerRadiusNormalized, pass.outerRadiusNormalized, distance);
+		const centerInfluence = distance >= pass.outerRadiusNormalized
+			? 0
+			: 1 - smoothstep(pass.innerRadiusNormalized, pass.outerRadiusNormalized, distance);
+		let corridorInfluence = 0;
+		if (pass.corridorEnd) {
+			const corridorDistance = pointSegmentDistance(
+				normalizedX * MAP_ASPECT,
+				normalizedY,
+				pass.center[0] * MAP_ASPECT,
+				pass.center[1],
+				pass.corridorEnd[0] * MAP_ASPECT,
+				pass.corridorEnd[1],
+			);
+			corridorInfluence = corridorDistance >= pass.corridorOuterRadiusNormalized
+				? 0
+				: 1 - smoothstep(pass.corridorInnerRadiusNormalized, pass.corridorOuterRadiusNormalized, corridorDistance);
+		}
+		const influence = Math.max(centerInfluence, corridorInfluence);
+		if (influence <= 0) continue;
 		multiplier = Math.min(
 			multiplier,
 			1 - influence * (1 - pass.minimumMultiplier),
