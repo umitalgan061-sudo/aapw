@@ -15,6 +15,7 @@ import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { referenceProtectionRadiiFromMeters, sampleSeatSafeReferenceHydrology } from './worldReferenceHydrology.js';
 import { sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
 import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';
+import { applyTerrainMicroSurface } from './terrainMicroSurface.js';
 
 export const DEFAULT_MAX_HEIGHT_METERS = 24; // compatibility only; production height is map-derived.
 const SEA_LEVEL = WORLD_DEFAULTS.WATER_LEVEL_METERS;
@@ -161,6 +162,7 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	geometry.computeBoundingBox();
 	geometry.computeBoundingSphere();
 	const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+	applyTerrainMicroSurface(material, { chunkSizeMeters: size });
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.receiveShadow = true;
 	mesh.position.set(chunkX * size, 0, chunkZ * size);
