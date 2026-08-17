@@ -7,6 +7,13 @@ const dialogueHistory = [];
 const inventoryChanges = [];
 const guard1 = { object3D: { name: 'stannis-guard-1', position: { x: 0, z: 0 } }, displayName: 'Birinci Nöbetçi' };
 const guard2 = { object3D: { name: 'stannis-guard-2', position: { x: 0, z: 0 } }, displayName: 'İkinci Nöbetçi' };
+const FULL_QUARTERMASTER_ECONOMY = {
+	copper: 40,
+	stockByOffer: {
+		'dragonstone-field-ration': 4,
+		'dragonstone-whetstone': 2,
+	},
+};
 
 function createController(overrides = {}) {
 	return createInteractionController({
@@ -39,7 +46,6 @@ const controller = createController({
 });
 assert.deepEqual(controller.getInventorySnapshot(), { totalWeightKg: 0, items: [] });
 
-// Quest 1: accept -> objective -> turn-in grants a unique item with deterministic provenance.
 talk(controller, guard1, 0);
 talk(controller, guard2, 0);
 talk(controller, guard1, 1);
@@ -51,12 +57,10 @@ assert.deepEqual(inventory.items[0].provenance, [{ sourceType: 'quest', sourceId
 assert.equal(inventory.totalWeightKg, 0.15);
 assert.equal(inventoryChanges.length, 1);
 
-// Repeating an already-completed turn-in cannot duplicate the unique reward.
 talk(controller, guard1, 1);
 assert.deepEqual(controller.getInventorySnapshot(), inventory);
 assert.equal(inventoryChanges.length, 1);
 
-// Quest 2: prerequisite dialogue -> both objectives -> outcome -> second provenance-bearing reward.
 talk(controller, guard1, 2);
 talk(controller, guard2, 1);
 talk(controller, guard2, 2);
@@ -65,13 +69,9 @@ inventory = controller.getInventorySnapshot();
 assert.equal(inventory.items.length, 2);
 assert.equal(inventory.totalWeightKg, 0.2);
 assert.equal(inventory.items.find((item) => item.itemId === 'watch-captains-writ')?.quantity, 1);
-assert.deepEqual(
-	inventory.items.find((item) => item.itemId === 'watch-captains-writ')?.provenance,
-	[{ sourceType: 'quest', sourceId: 'watch-under-pressure' }],
-);
+assert.deepEqual(inventory.items.find((item) => item.itemId === 'watch-captains-writ')?.provenance,[{ sourceType: 'quest', sourceId: 'watch-under-pressure' }]);
 assert.equal(inventoryChanges.length, 2);
 
-// Shipped interaction UI exposes inventory on I and includes rarity/weight/provenance.
 key(controller, 'KeyI');
 const inventoryPanel = dialogueHistory.at(-1)?.text ?? '';
 assert.match(inventoryPanel, /Envanter/);
@@ -81,17 +81,15 @@ assert.match(inventoryPanel, /Toplam ağırlık: 0\.2 kg/);
 assert.match(inventoryPanel, /Kaynak: quest\/watch-under-pressure/);
 key(controller, 'KeyI');
 
-// Schema v5 round-trip preserves item semantics, provenance and the additive economy state.
 const saved = controller.getRpgSnapshot();
 assert.equal(saved.schemaVersion, 5);
 assert.deepEqual(saved.inventory, inventory);
-assert.deepEqual(saved.economy, { copper: 40 });
+assert.deepEqual(saved.economy, FULL_QUARTERMASTER_ECONOMY);
 const restored = createController();
 restored.restoreRpgSnapshot(saved);
 assert.deepEqual(restored.getInventorySnapshot(), inventory);
-assert.deepEqual(restored.getEconomySnapshot(), { copper: 40 });
+assert.deepEqual(restored.getEconomySnapshot(), FULL_QUARTERMASTER_ECONOMY);
 
-// Schema v3 had no inventory/economy: rewards reconstruct once and purse receives the safe default.
 const legacyV3 = structuredClone(saved);
 legacyV3.schemaVersion = 3;
 delete legacyV3.inventory;
@@ -99,8 +97,9 @@ delete legacyV3.economy;
 const migrated = createController();
 migrated.restoreRpgSnapshot(legacyV3);
 assert.deepEqual(migrated.getInventorySnapshot(), inventory);
-assert.deepEqual(migrated.getEconomySnapshot(), { copper: 40 });
+assert.deepEqual(migrated.getEconomySnapshot(), FULL_QUARTERMASTER_ECONOMY);
 migrated.restoreRpgSnapshot(legacyV3);
 assert.deepEqual(migrated.getInventorySnapshot(), inventory);
+assert.deepEqual(migrated.getEconomySnapshot(), FULL_QUARTERMASTER_ECONOMY);
 
-console.log('[checkInteractionInventoryRewards] PASS: quest rewards -> inventory -> UI -> schema v5 persistence/migration');
+console.log('[checkInteractionInventoryRewards] PASS: quest rewards -> inventory -> UI -> schema v5 stock-aware persistence/migration');
