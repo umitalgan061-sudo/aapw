@@ -19,6 +19,7 @@ import { NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG } from './gameplayConfig.js';
 import { spawnConfiguredNPCs } from './npc.js';
 import { spawnConfiguredAnimals } from './animals.js';
 import { spawnConfiguredCreatures } from './creatureBrain.js';
+import { wrapCreatureWithSimulationLod } from './creatureSimulationLod.js';
 import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS } from './creatureSpawner.js';
 import { spawnConfiguredCarts } from './cartBrain.js';
 import { mulberry32 } from '../world/terrain.js';
@@ -86,7 +87,9 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 	// `DESKTOP_SPECIES_COUNTS` across the same origin-centered disc `state.vegetation` already
 	// scatters trees over; mobile gets the much smaller `MOBILE_SPECIES_COUNTS`, anchored at
 	// `spawnWorld` like `game3d.js`'s own mobile spawn vegetation, for the same
-	// world-coverage-footprint reason.
+	// world-coverage-footprint reason. The controllers are wrapped in deterministic behavior LOD:
+	// near/threatened fauna keeps full-rate behavior, while far/distant fauna uses staggered
+	// 4Hz/1Hz ticks so the desktop population does not run every creature brain every frame.
 	const isMobileClassCreatures = isCoarsePointerDevice();
 	const creatureScatterRadiusMeters = (isMobileClassCreatures ? CHUNK_CONFIG.STREAM_RADIUS_CHUNKS : CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS) * CHUNK_CONFIG.CHUNK_SIZE_METERS;
 	const creatureSpawns = scatterCreatures({
@@ -102,9 +105,17 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 		radiusMeters: creatureScatterRadiusMeters,
 		speciesCounts: isMobileClassCreatures ? MOBILE_SPECIES_COUNTS : DESKTOP_SPECIES_COUNTS,
 	});
-	state.creatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, playerCollider: state.playerCollider, mulberry32 });
+	const rawCreatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, playerCollider: state.playerCollider, mulberry32 });
+	state.creatures = rawCreatures.map((creature, index) => wrapCreatureWithSimulationLod(creature, {
+		id: `${creatureSpawns[index]?.speciesId ?? 'creature'}:${index}`,
+		nearRadiusMeters: 70,
+		farIntervalSeconds: 0.25,
+		distantRadiusMeters: 180,
+		distantIntervalSeconds: 1,
+		maxStepSeconds: 0.25,
+	}));
 	for (const creature of state.creatures) state.scene.add(creature.object3D);
-	console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s).`);
+	console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s) with behavior LOD.`);
 
 	// FAZ 6's last named gap (`gameplay/cartBrain.js`, run 336) — horse-drawn carts travelling the
 	// real cart-road network back and forth, longest edges first. Desktop-only for now (see that
