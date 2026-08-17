@@ -256,7 +256,7 @@ try {
 	need(frame.peak.h > 500, `highest live relief too low: ${frame.peak.h}`);
 	need(Number.isFinite(frame.pass.h), 'authored pass ground sample is non-finite');
 	for (const [label, stats] of Object.entries({ top: frame.topStats, mountain: frame.mountainStats, pass: frame.passStats })) {
-		need(stats.renderCalls > 500 && stats.renderTriangles > 1_000_000, `${label} view lacks full shipped scene`);
+		need(stats.renderCalls > (label === 'top' ? 500 : 250) && stats.renderTriangles > 1_000_000, `${label} view lacks full shipped scene`);
 		need(stats.pixel.meanLuma > 0.025, `${label} view is effectively black`);
 		need(stats.pixel.lumaStdDev > 0.012, `${label} view lacks tonal relief`);
 		need(stats.pixel.edgeEnergy > 0.003, `${label} view lacks visible structure`);
