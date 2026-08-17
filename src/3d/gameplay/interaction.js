@@ -5,6 +5,8 @@
  * @module gameplay/interaction
  */
 
+import { WATCH_POLICY, createWatchWorldState, watchPolicyLabel } from './interactionConfig.js';
+
 const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
 
 const QUEST_STATUS = Object.freeze({
@@ -21,15 +23,6 @@ export const INTERACTION_FACTIONS = Object.freeze({
 
 const DEFAULT_REPUTATION = Object.freeze({
 	[INTERACTION_FACTIONS.DRAGONSTONE]: 0,
-});
-
-const DEFAULT_WORLD_STATE = Object.freeze({
-	dragonstoneWatchPolicy: null,
-});
-
-const WATCH_POLICY = Object.freeze({
-	DISCIPLINE: 'discipline',
-	MERCY: 'mercy',
 });
 
 export const INTERACTION_PROGRESSION = Object.freeze({
@@ -179,33 +172,6 @@ function createProgressionState() {
 	return { grant, snapshot, restore };
 }
 
-function createWorldState() {
-	const values = { ...DEFAULT_WORLD_STATE };
-
-	function set(key, value) {
-		if (key !== 'dragonstoneWatchPolicy') return false;
-		if (![null, WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(value)) return false;
-		values[key] = value;
-		return true;
-	}
-
-	function get(key) {
-		return values[key] ?? null;
-	}
-
-	function snapshot() {
-		return { ...values };
-	}
-
-	function restore(saved) {
-		values.dragonstoneWatchPolicy = null;
-		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
-		set('dragonstoneWatchPolicy', saved.dragonstoneWatchPolicy ?? null);
-	}
-
-	return { get, set, snapshot, restore };
-}
-
 function createQuestTracker({
 	definitions = INTERACTION_QUESTS,
 	reputation,
@@ -333,12 +299,6 @@ function createQuestTracker({
 	return { consume, snapshot, restore, unlockEligible };
 }
 
-function watchPolicyLabel(policy) {
-	if (policy === WATCH_POLICY.MERCY) return 'İkinci şans';
-	if (policy === WATCH_POLICY.DISCIPLINE) return 'Sıkı disiplin';
-	return null;
-}
-
 export function buildQuestJournalText(snapshot, reputationSnapshot = {}, progressionSnapshot = {}, worldStateSnapshot = {}) {
 	const visible = (Array.isArray(snapshot) ? snapshot : []).filter((quest) => ['active', 'ready', 'completed'].includes(quest.status));
 	const dragonstoneReputation = Number(reputationSnapshot[INTERACTION_FACTIONS.DRAGONSTONE]) || 0;
@@ -383,7 +343,7 @@ export function createInteractionController({
 	let journalOpen = false;
 	const reputation = createReputationState();
 	const progression = createProgressionState();
-	const worldState = createWorldState();
+	const worldState = createWatchWorldState();
 	const quests = createQuestTracker({
 		reputation,
 		progression,
@@ -398,8 +358,8 @@ export function createInteractionController({
 			if (progression.grant(Number(reward?.experience))) onProgressionChanged(progression.snapshot());
 		},
 		onOutcome({ questId, outcome }) {
-		if (questId !== 'watch-under-pressure') return;
-		if (worldState.set('dragonstoneWatchPolicy', outcome)) onWorldStateChanged(worldState.snapshot());
+			if (questId !== 'watch-under-pressure') return;
+			if (worldState.set('dragonstoneWatchPolicy', outcome)) onWorldStateChanged(worldState.snapshot());
 		},
 	});
 
