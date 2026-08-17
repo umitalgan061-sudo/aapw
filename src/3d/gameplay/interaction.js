@@ -5,6 +5,8 @@
  * @module gameplay/interaction
  */
 
+import { WATCH_POLICY, createWatchWorldState, watchPolicyLabel } from './interactionConfig.js';
+
 const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
 
 const QUEST_STATUS = Object.freeze({
@@ -50,15 +52,42 @@ export const INTERACTION_QUESTS = Object.freeze([
 	Object.freeze({
 		id: 'watch-under-pressure',
 		title: 'Nöbetçinin Şüphesi',
-		description: 'İki nöbetçinin birbirine dair tanıklığını tamamla.',
+		description: 'İki nöbetçinin birbirine dair tanıklığını tamamla ve nöbet düzeninin sonucuna karar ver.',
 		prerequisite: 'law-of-the-watch',
 		reputationRequirement: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, minimum: 10 }),
 		accept: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 2 }),
 		objectives: Object.freeze([
-			Object.freeze({ id: 'partner', label: 'Nöbet arkadaşlığı hakkında konuş', npcId: 'stannis-guard-2', choiceIndex: 1 }),
-			Object.freeze({ id: 'solitude', label: 'Yalnız nöbet hakkında konuş', npcId: 'stannis-guard-2', choiceIndex: 2 }),
+			Object.freeze({
+				id: 'partner',
+				label: 'Nöbet arkadaşlığı hakkında konuş',
+				npcId: 'stannis-guard-2',
+				choiceIndex: 1,
+				progressExperience: 20,
+			}),
+			Object.freeze({
+				id: 'solitude',
+				label: 'Yalnız nöbet hakkında konuş',
+				npcId: 'stannis-guard-2',
+				choiceIndex: 2,
+				progressExperience: 20,
+			}),
 		]),
-		turnIn: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 1 }),
+		turnIns: Object.freeze([
+			Object.freeze({
+				npcId: 'stannis-guard-1',
+				choiceIndex: 1,
+				outcome: WATCH_POLICY.DISCIPLINE,
+			}),
+			Object.freeze({
+				npcId: 'stannis-guard-1',
+				choiceIndex: 3,
+				outcome: WATCH_POLICY.MERCY,
+				requirement: Object.freeze({
+					minimumLevel: 2,
+					reputation: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, minimum: 10 }),
+				}),
+			}),
+		]),
 		reward: Object.freeze({
 			label: 'Dragonstone nöbetçilerinin itimadı',
 			reputation: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, amount: 5 }),
@@ -143,18 +172,35 @@ function createProgressionState() {
 	return { grant, snapshot, restore };
 }
 
-function createQuestTracker({ definitions = INTERACTION_QUESTS, reputation, onReward = () => {} }) {
+function createQuestTracker({
+	definitions = INTERACTION_QUESTS,
+	reputation,
+	progression,
+	onReward = () => {},
+	onObjectiveReward = () => {},
+	onOutcome = () => {},
+}) {
 	const byId = new Map(definitions.map((quest) => [quest.id, quest]));
 	const state = new Map(definitions.map((quest) => [quest.id, {
 		status: quest.prerequisite || quest.reputationRequirement ? QUEST_STATUS.LOCKED : QUEST_STATUS.AVAILABLE,
 		completedObjectives: new Set(),
 		rewardGranted: false,
+		outcome: null,
 	}]));
 
 	function requirementsMet(quest) {
 		if (quest.prerequisite && state.get(quest.prerequisite)?.status !== QUEST_STATUS.COMPLETED) return false;
 		const requirement = quest.reputationRequirement;
 		if (requirement && reputation.get(requirement.faction) < requirement.minimum) return false;
+		return true;
+	}
+
+	function turnInRequirementMet(turnIn) {
+		const requirement = turnIn?.requirement;
+		if (!requirement) return true;
+		if (Number.isFinite(requirement.minimumLevel) && progression.snapshot().level < requirement.minimumLevel) return false;
+		const reputationRequirement = requirement.reputation;
+		if (reputationRequirement && reputation.get(reputationRequirement.faction) < reputationRequirement.minimum) return false;
 		return true;
 	}
 
@@ -180,6 +226,7 @@ function createQuestTracker({ definitions = INTERACTION_QUESTS, reputation, onRe
 				})),
 				reward: quest.reward.label,
 				rewardGranted: current.rewardGranted,
+				outcome: current.outcome,
 			};
 		});
 	}
@@ -197,8 +244,17 @@ function createQuestTracker({ definitions = INTERACTION_QUESTS, reputation, onRe
 				if (objective?.completed && validIds.has(objective.id)) current.completedObjectives.add(objective.id);
 			}
 			current.rewardGranted = current.status === QUEST_STATUS.COMPLETED && saved.rewardGranted === true;
+			const validOutcomes = new Set((quest.turnIns ?? []).map((turnIn) => turnIn.outcome).filter(Boolean));
+			current.outcome = validOutcomes.has(saved.outcome) ? saved.outcome : null;
 		}
 		unlockEligible();
+	}
+
+	function matchingTurnIn(quest, npcId, choiceIndex) {
+		if (Array.isArray(quest.turnIns)) {
+			return quest.turnIns.find((turnIn) => sameTrigger(turnIn, npcId, choiceIndex)) ?? null;
+		}
+		return sameTrigger(quest.turnIn, npcId, choiceIndex) ? quest.turnIn : null;
 	}
 
 	function consume(npcId, choiceIndex) {
@@ -216,18 +272,23 @@ function createQuestTracker({ definitions = INTERACTION_QUESTS, reputation, onRe
 					if (current.completedObjectives.has(objective.id)) continue;
 					if (objective.npcId === npcId && objective.choiceIndex === choiceIndex) {
 						current.completedObjectives.add(objective.id);
+						onObjectiveReward(objective);
 						changed = true;
 					}
 				}
 				if (quest.objectives.every((objective) => current.completedObjectives.has(objective.id))) current.status = QUEST_STATUS.READY;
 				continue;
 			}
-			if (current.status === QUEST_STATUS.READY && sameTrigger(quest.turnIn, npcId, choiceIndex)) {
+			if (current.status === QUEST_STATUS.READY) {
+				const turnIn = matchingTurnIn(quest, npcId, choiceIndex);
+				if (!turnIn || !turnInRequirementMet(turnIn)) continue;
 				current.status = QUEST_STATUS.COMPLETED;
+				current.outcome = turnIn.outcome ?? null;
 				if (!current.rewardGranted) {
 					current.rewardGranted = true;
 					onReward(quest.reward);
 				}
+				if (current.outcome) onOutcome({ questId: quest.id, outcome: current.outcome });
 				changed = true;
 				unlockEligible();
 			}
@@ -238,13 +299,15 @@ function createQuestTracker({ definitions = INTERACTION_QUESTS, reputation, onRe
 	return { consume, snapshot, restore, unlockEligible };
 }
 
-export function buildQuestJournalText(snapshot, reputationSnapshot = {}, progressionSnapshot = {}) {
+export function buildQuestJournalText(snapshot, reputationSnapshot = {}, progressionSnapshot = {}, worldStateSnapshot = {}) {
 	const visible = (Array.isArray(snapshot) ? snapshot : []).filter((quest) => ['active', 'ready', 'completed'].includes(quest.status));
 	const dragonstoneReputation = Number(reputationSnapshot[INTERACTION_FACTIONS.DRAGONSTONE]) || 0;
 	const level = Number(progressionSnapshot.level) || INTERACTION_PROGRESSION.START_LEVEL;
 	const xp = Number(progressionSnapshot.experienceIntoLevel) || 0;
 	const xpToNext = Number(progressionSnapshot.experienceToNextLevel) || INTERACTION_PROGRESSION.XP_PER_LEVEL;
+	const policyLabel = watchPolicyLabel(worldStateSnapshot.dragonstoneWatchPolicy);
 	const lines = ['Görev Günlüğü', `Seviye: ${level} · XP: ${xp}/${xpToNext}`, `Dragonstone itibarı: ${dragonstoneReputation}`];
+	if (policyLabel) lines.push(`Nöbet kararı: ${policyLabel}`);
 	if (visible.length === 0) {
 		lines.push('Henüz kabul edilmiş bir görev yok.');
 		return lines.join('\n');
@@ -253,6 +316,7 @@ export function buildQuestJournalText(snapshot, reputationSnapshot = {}, progres
 		const status = quest.status === 'ready' ? 'TESLİME HAZIR' : quest.status === 'completed' ? 'TAMAMLANDI' : 'AKTİF';
 		lines.push(`\n${quest.title} — ${status}`);
 		for (const objective of quest.objectives) lines.push(`${objective.completed ? '✓' : '○'} ${objective.label}`);
+		if (quest.outcome) lines.push(`Sonuç: ${watchPolicyLabel(quest.outcome) ?? quest.outcome}`);
 		if (quest.rewardGranted) lines.push(`Ödül: ${quest.reward}`);
 	}
 	return lines.join('\n');
@@ -270,6 +334,7 @@ export function createInteractionController({
 	onQuestChanged = () => {},
 	onReputationChanged = () => {},
 	onProgressionChanged = () => {},
+	onWorldStateChanged = () => {},
 }) {
 	let activeNpc = null;
 	let nearestNpc = null;
@@ -278,14 +343,23 @@ export function createInteractionController({
 	let journalOpen = false;
 	const reputation = createReputationState();
 	const progression = createProgressionState();
+	const worldState = createWatchWorldState();
 	const quests = createQuestTracker({
 		reputation,
+		progression,
+		onObjectiveReward(objective) {
+			if (progression.grant(Number(objective?.progressExperience))) onProgressionChanged(progression.snapshot());
+		},
 		onReward(reward) {
 			const reputationReward = reward?.reputation;
 			if (reputationReward && reputation.grant(reputationReward.faction, reputationReward.amount)) {
 				onReputationChanged(reputation.snapshot());
 			}
 			if (progression.grant(Number(reward?.experience))) onProgressionChanged(progression.snapshot());
+		},
+		onOutcome({ questId, outcome }) {
+			if (questId !== 'watch-under-pressure') return;
+			if (worldState.set('dragonstoneWatchPolicy', outcome)) onWorldStateChanged(worldState.snapshot());
 		},
 	});
 
@@ -300,7 +374,29 @@ export function createInteractionController({
 		return true;
 	}
 
+	function resolutionChoices() {
+		const secondQuest = questById('watch-under-pressure');
+		if (secondQuest?.status !== QUEST_STATUS.READY) return null;
+		const choices = [{
+			label: 'Nöbet düzenini sıkılaştır.',
+			response: '{name}: Öyleyse gevşekliğe yer yok. Nöbet çizgisini bugün sıkılaştırırım.',
+			originalIndex: 1,
+		}];
+		if (progression.snapshot().level >= 2 && reputation.get(INTERACTION_FACTIONS.DRAGONSTONE) >= 10) {
+			choices.push({
+				label: 'Nöbetçiye ikinci bir şans ver.',
+				response: '{name}: Seviyeni ve sözünün ağırlığını gördüm. Bir kez daha kendini kanıtlamasına izin vereceğim.',
+				originalIndex: 3,
+			});
+		}
+		return choices;
+	}
+
 	function getAvailableChoices(npcId) {
+		if (npcId === 'stannis-guard-1') {
+			const resolutions = resolutionChoices();
+			if (resolutions) return resolutions;
+		}
 		const choices = choicesByNpcId[npcId];
 		if (!choices || choices.length === 0) return null;
 		const available = choices
@@ -309,13 +405,26 @@ export function createInteractionController({
 		return available.length > 0 ? available : null;
 	}
 
+	function outcomeGreeting(npcId, fallbackTemplate) {
+		if (npcId !== 'stannis-guard-2') return fallbackTemplate;
+		const policy = worldState.get('dragonstoneWatchPolicy');
+		if (policy === WATCH_POLICY.MERCY) {
+			return '{name}: Bana verdiğin ikinci şans boşa gitmeyecek. Tepedeki nöbet artık yalnız bir görev değil, borç bildiğim bir söz.';
+		}
+		if (policy === WATCH_POLICY.DISCIPLINE) {
+			return '{name}: Kararın duyuldu. Nöbet çizgisi sıkılaştı; artık hiçbir gevşeklik gözden kaçmayacak.';
+		}
+		return fallbackTemplate;
+	}
+
 	function openDialogue(npc) {
 		journalOpen = false;
 		activeNpc = npc;
 		interactionPrompt.setVisible(false);
 		activeNpcName = npc.displayName ?? 'Yabancı';
 		const npcId = npc.object3D.name;
-		const template = greetingsByNpcId[npcId] ?? greetingTemplate;
+		const baseTemplate = greetingsByNpcId[npcId] ?? greetingTemplate;
+		const template = outcomeGreeting(npcId, baseTemplate);
 		activeChoices = getAvailableChoices(npcId);
 		dialogueBox.show(template.replace('{name}', activeNpcName), activeChoices?.map((choice) => choice.label) ?? []);
 	}
@@ -334,7 +443,12 @@ export function createInteractionController({
 		activeNpcName = null;
 		journalOpen = true;
 		interactionPrompt.setVisible(false);
-		dialogueBox.show(buildQuestJournalText(quests.snapshot(), reputation.snapshot(), progression.snapshot()));
+		dialogueBox.show(buildQuestJournalText(
+			quests.snapshot(),
+			reputation.snapshot(),
+			progression.snapshot(),
+			worldState.snapshot(),
+		));
 	}
 
 	function selectChoice(index) {
@@ -345,33 +459,56 @@ export function createInteractionController({
 		if (quests.consume(npcId, choice.originalIndex)) onQuestChanged(quests.snapshot());
 	}
 
-	function rebuildRewardStateFromQuestRewards(savedQuestSnapshot) {
+	function rebuildRewardStateFromQuestRewards(savedQuestSnapshot, { includeObjectiveExperience = true } = {}) {
 		reputation.restore(DEFAULT_REPUTATION);
 		progression.restore(null);
 		for (const savedQuest of Array.isArray(savedQuestSnapshot) ? savedQuestSnapshot : []) {
-			if (savedQuest?.status !== QUEST_STATUS.COMPLETED || savedQuest.rewardGranted !== true) continue;
-			const definition = INTERACTION_QUESTS.find((quest) => quest.id === savedQuest.id);
-			const reward = definition?.reward;
+			const definition = INTERACTION_QUESTS.find((quest) => quest.id === savedQuest?.id);
+			if (!definition) continue;
+			if (includeObjectiveExperience) {
+				for (const savedObjective of savedQuest.objectives ?? []) {
+					if (!savedObjective?.completed) continue;
+					const objective = definition.objectives.find((candidate) => candidate.id === savedObjective.id);
+					progression.grant(Number(objective?.progressExperience));
+				}
+			}
+			if (savedQuest.status !== QUEST_STATUS.COMPLETED || savedQuest.rewardGranted !== true) continue;
+			const reward = definition.reward;
 			if (reward?.reputation) reputation.grant(reward.reputation.faction, reward.reputation.amount);
 			progression.grant(Number(reward?.experience));
 		}
 		quests.unlockEligible();
 	}
 
+	function inferWorldStateFromQuestSnapshot(savedQuestSnapshot) {
+		worldState.restore(null);
+		const secondQuest = (Array.isArray(savedQuestSnapshot) ? savedQuestSnapshot : [])
+			.find((quest) => quest?.id === 'watch-under-pressure');
+		if (secondQuest?.status !== QUEST_STATUS.COMPLETED) return;
+		const inferred = [WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(secondQuest.outcome)
+			? secondQuest.outcome
+			: WATCH_POLICY.DISCIPLINE;
+		worldState.set('dragonstoneWatchPolicy', inferred);
+	}
+
 	function restoreRpgSnapshot(saved) {
 		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+		const schemaVersion = Number(saved.schemaVersion) || 1;
 		reputation.restore(saved.reputation);
 		progression.restore(saved.progression);
+		worldState.restore(saved.worldState);
 		quests.restore(saved.quests);
 		if (!saved.reputation || !saved.progression) {
 			const explicitReputation = saved.reputation;
 			const explicitProgression = saved.progression;
-			rebuildRewardStateFromQuestRewards(saved.quests);
+			rebuildRewardStateFromQuestRewards(saved.quests, { includeObjectiveExperience: schemaVersion >= 3 });
 			if (explicitReputation) reputation.restore(explicitReputation);
 			if (explicitProgression) progression.restore(explicitProgression);
 		}
+		if (!saved.worldState) inferWorldStateFromQuestSnapshot(saved.quests);
 		onReputationChanged(reputation.snapshot());
 		onProgressionChanged(progression.snapshot());
+		onWorldStateChanged(worldState.snapshot());
 		onQuestChanged(quests.snapshot());
 	}
 
@@ -423,19 +560,23 @@ export function createInteractionController({
 		getQuestSnapshot: quests.snapshot,
 		getReputationSnapshot: reputation.snapshot,
 		getProgressionSnapshot: progression.snapshot,
+		getWorldStateSnapshot: worldState.snapshot,
 		getRpgSnapshot() {
 			return {
-				schemaVersion: 2,
+				schemaVersion: 3,
 				quests: quests.snapshot(),
 				reputation: reputation.snapshot(),
 				progression: progression.snapshot(),
+				worldState: worldState.snapshot(),
 			};
 		},
 		restoreQuestSnapshot(snapshot) {
 			quests.restore(snapshot);
-			rebuildRewardStateFromQuestRewards(snapshot);
+			rebuildRewardStateFromQuestRewards(snapshot, { includeObjectiveExperience: true });
+			inferWorldStateFromQuestSnapshot(snapshot);
 			onReputationChanged(reputation.snapshot());
 			onProgressionChanged(progression.snapshot());
+			onWorldStateChanged(worldState.snapshot());
 			onQuestChanged(quests.snapshot());
 		},
 		restoreRpgSnapshot,
