@@ -62,7 +62,7 @@ jobs:
           node --check scripts/checkWorldReferenceMountainRelief.mjs
           node --check scripts/terrainSeatSafetyCheck.js
           node --check service-worker.js
-          node scripts/checkWorldReferenceMountainRelief.mjs
+          node scripts/checkWorldReferenceMountainRelief.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-source.log"
 
       - name: Offline determinism and repository policy
         run: |
@@ -106,6 +106,7 @@ jobs:
           name: live-map-mountain-relief-logs-${{ github.sha }}
           path: |
             ${{ runner.temp }}/diff-check.log
+            ${{ runner.temp }}/mountain-source.log
             ${{ runner.temp }}/terrain-seat.log
             ${{ runner.temp }}/road-network.log
             ${{ runner.temp }}/game3d-smoke.log
