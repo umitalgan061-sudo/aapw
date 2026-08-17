@@ -14,17 +14,20 @@ const numberFrom = (text, pattern, label) => {
 	return Number(match[1]);
 };
 
-need(!/smoothstep\(\s*0\.22\s*,\s*0\.0\s*,\s*vDepthFactor\s*\)/.test(source), 'reversed-edge GLSL smoothstep returned');
-need(source.includes('float shallowMask = 1.0 - smoothstep(0.0, 0.22, vDepthFactor);'), 'defined inverse shallow-depth mask missing or surf envelope drifted');
+need(!/smoothstep\(\s*0\.22\s*,\s*0\.0\s*,\s*(?:vDepthFactor|fragmentDepth)\s*\)/.test(source), 'reversed-edge GLSL smoothstep returned');
+need(source.includes('float shallowMask = 1.0 - smoothstep(0.0, 0.22, fragmentDepth);'), 'defined inverse shallow-depth mask missing or surf envelope drifted');
 need(source.includes('shallowMask *= shorelineGradientMask(vWorldPosition.xz);'), 'surf must require a real bathymetry shoreline gradient');
-need(source.includes('float foam = clamp(shallowMask * surge, 0.0, 1.0);'), 'foam must remain depth-gated');
+need(source.includes('float foam = clamp(shallowMask * surge, 0.0, 1.0);'), 'foam must remain shoreline/depth gated');
 need(source.includes('smoothstep(120.0, 420.0, distance(uCameraPosition, vWorldPosition))'), 'fine ripple distance anti-aliasing drifted');
+need(source.includes('smoothstep(1500.0, 1950.0, localEdgeDistance)'), 'near swell must blend to zero before the dense mesh edge');
+need(source.includes('new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1)'), 'two-triangle full-world far-water coverage missing');
+need(source.includes('float fragmentDepth = sampleFragmentDepth(vWorldPosition.xz);'), 'far water must sample canonical bathymetry per fragment');
 
-const waterExtent = numberFrom(source, /export const WATER_PLANE_EXTENT_METERS = ([0-9.]+);/, 'water plane extent');
+const waterExtent = numberFrom(source, /export const WATER_FULL_WORLD_EXTENT_METERS = ([0-9.]+);/, 'full-world water extent');
 const worldWidth = numberFrom(configSource, /WORLD_WIDTH_METERS:\s*([0-9.]+)/, 'world width');
 const worldDepth = numberFrom(configSource, /WORLD_DEPTH_METERS:\s*([0-9.]+)/, 'world depth');
 const worldDiagonal = Math.hypot(worldWidth, worldDepth);
-need(waterExtent >= worldDiagonal, `water plane ${waterExtent}m cannot cover full-world diagonal ${worldDiagonal.toFixed(2)}m`);
+need(waterExtent >= worldDiagonal, `far-water plane ${waterExtent}m cannot cover full-world diagonal ${worldDiagonal.toFixed(2)}m`);
 need(source.includes('fullWorld: true'), 'runtime water coverage telemetry must mark full-world adoption');
 
 const component = (name) => {
