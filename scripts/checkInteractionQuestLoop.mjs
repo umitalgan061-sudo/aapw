@@ -15,6 +15,13 @@ const choicesByNpcId = {
 		{ label: 'Yalnızlık zor mu?', response: 'Nöbet yalnızlığı öğretir.' },
 	],
 };
+const FULL_QUARTERMASTER_ECONOMY = {
+	copper: 40,
+	stockByOffer: {
+		'dragonstone-field-ration': 4,
+		'dragonstone-whetstone': 2,
+	},
+};
 
 function createController(overrides = {}) {
 	return createInteractionController({
@@ -95,15 +102,15 @@ assert.match(journal, /Dragonstone itibarı: 15/);
 assert.match(journal, /Nöbet kararı: İkinci şans/);
 assert.match(journal, /Nöbetçinin Şüphesi — TAMAMLANDI/);
 
-// Current schema persists the complete RPG aggregate, including the additive purse.
+// Current schema persists the complete RPG aggregate, including purse + authored vendor stock.
 const saved = controller.getRpgSnapshot();
 assert.equal(saved.schemaVersion, 5);
-assert.deepEqual(saved.economy, { copper: 40 });
+assert.deepEqual(saved.economy, FULL_QUARTERMASTER_ECONOMY);
 const restored = createController();
 restored.restoreRpgSnapshot(saved);
 assert.deepEqual(restored.getRpgSnapshot(), saved);
 
-// Legacy v2 lacks world state and economy; deterministic migration keeps historical discipline fallback.
+// Legacy v2 lacks world state and economy; deterministic migration keeps historical discipline fallback and full authored stock.
 const legacyV2 = structuredClone(saved);
 legacyV2.schemaVersion = 2;
 delete legacyV2.worldState;
@@ -114,7 +121,7 @@ const migrated = createController();
 migrated.restoreRpgSnapshot(legacyV2);
 assert.deepEqual(migrated.getWorldStateSnapshot(), { dragonstoneWatchPolicy: 'discipline' });
 assert.equal(migrated.getProgressionSnapshot().totalExperience, 150);
-assert.deepEqual(migrated.getEconomySnapshot(), { copper: 40 });
+assert.deepEqual(migrated.getEconomySnapshot(), FULL_QUARTERMASTER_ECONOMY);
 
 // Unknown future objective data is ignored rather than corrupting the current definition.
 const tampered = structuredClone(saved);
@@ -122,4 +129,4 @@ tampered.quests[0].objectives.push({ id: 'future-objective', completed: true });
 restored.restoreRpgSnapshot(tampered);
 assert.equal(restored.getQuestSnapshot()[0].objectives.length, 1);
 
-console.log('[checkInteractionQuestLoop] PASS: quest chain -> objective XP -> level/reputation gate -> world outcome -> schema v5 migration');
+console.log('[checkInteractionQuestLoop] PASS: quest chain -> objective XP -> level/reputation gate -> world outcome -> schema v5 stock-aware migration');

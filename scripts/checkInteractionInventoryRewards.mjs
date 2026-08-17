@@ -7,6 +7,13 @@ const dialogueHistory = [];
 const inventoryChanges = [];
 const guard1 = { object3D: { name: 'stannis-guard-1', position: { x: 0, z: 0 } }, displayName: 'Birinci Nöbetçi' };
 const guard2 = { object3D: { name: 'stannis-guard-2', position: { x: 0, z: 0 } }, displayName: 'İkinci Nöbetçi' };
+const FULL_QUARTERMASTER_ECONOMY = {
+	copper: 40,
+	stockByOffer: {
+		'dragonstone-field-ration': 4,
+		'dragonstone-whetstone': 2,
+	},
+};
 
 function createController(overrides = {}) {
 	return createInteractionController({
@@ -81,17 +88,17 @@ assert.match(inventoryPanel, /Toplam ağırlık: 0\.2 kg/);
 assert.match(inventoryPanel, /Kaynak: quest\/watch-under-pressure/);
 key(controller, 'KeyI');
 
-// Schema v5 round-trip preserves item semantics, provenance and the additive economy state.
+// Schema v5 round-trip preserves item semantics, provenance and additive purse/vendor stock state.
 const saved = controller.getRpgSnapshot();
 assert.equal(saved.schemaVersion, 5);
 assert.deepEqual(saved.inventory, inventory);
-assert.deepEqual(saved.economy, { copper: 40 });
+assert.deepEqual(saved.economy, FULL_QUARTERMASTER_ECONOMY);
 const restored = createController();
 restored.restoreRpgSnapshot(saved);
 assert.deepEqual(restored.getInventorySnapshot(), inventory);
-assert.deepEqual(restored.getEconomySnapshot(), { copper: 40 });
+assert.deepEqual(restored.getEconomySnapshot(), FULL_QUARTERMASTER_ECONOMY);
 
-// Schema v3 had no inventory/economy: rewards reconstruct once and purse receives the safe default.
+// Schema v3 had no inventory/economy: rewards reconstruct once and economy receives safe authored defaults.
 const legacyV3 = structuredClone(saved);
 legacyV3.schemaVersion = 3;
 delete legacyV3.inventory;
@@ -99,8 +106,9 @@ delete legacyV3.economy;
 const migrated = createController();
 migrated.restoreRpgSnapshot(legacyV3);
 assert.deepEqual(migrated.getInventorySnapshot(), inventory);
-assert.deepEqual(migrated.getEconomySnapshot(), { copper: 40 });
+assert.deepEqual(migrated.getEconomySnapshot(), FULL_QUARTERMASTER_ECONOMY);
 migrated.restoreRpgSnapshot(legacyV3);
 assert.deepEqual(migrated.getInventorySnapshot(), inventory);
+assert.deepEqual(migrated.getEconomySnapshot(), FULL_QUARTERMASTER_ECONOMY);
 
-console.log('[checkInteractionInventoryRewards] PASS: quest rewards -> inventory -> UI -> schema v5 persistence/migration');
+console.log('[checkInteractionInventoryRewards] PASS: quest rewards -> inventory -> UI -> schema v5 stock-aware persistence/migration');
