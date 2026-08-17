@@ -18,7 +18,37 @@ import { applyNaturalAuroraRefinement } from './auroraRealism.js';
 import { applyAuroraCurtainRaysV3 } from './auroraRealism.js';
 import { applyAuroraRayCurtainV4 } from './auroraRayCurtainV4.js';
 import { applyAuroraNightAtmosphereV5 } from './auroraNightAtmosphereV5.js';
-import { sampleSkyAtmosphereProfile, SKY_ATMOSPHERE_PROFILE_POLICY } from './skyAtmosphereProfile.js';
+
+const clamp01 = (value) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+const smoothstep01 = (edge0, edge1, value) => {
+	const t = clamp01((value - edge0) / (edge1 - edge0));
+	return t * t * (3 - 2 * t);
+};
+const lerp = (a, b, t) => a + (b - a) * t;
+
+export const SKY_ATMOSPHERE_PROFILE_POLICY = Object.freeze({
+	id: 'world-sky-day-night-atmosphere-profile-v1',
+	input: 'lighting-day-night-factor',
+	cameraRelative: true,
+	mapSpaceNoise: false,
+	renderOnly: true,
+});
+
+/** Bounded atmosphere coefficients driven only by lighting phase, never by map coordinates. */
+export function sampleSkyAtmosphereProfile(nightFactor) {
+	const night = clamp01(nightFactor);
+	const day = 1 - night;
+	const twilight = 1 - Math.abs(day - 0.5) * 2;
+	const twilightCurve = smoothstep01(0.08, 0.92, twilight);
+	const deepNight = smoothstep01(0.62, 1, night);
+	const fullDay = smoothstep01(0.62, 1, day);
+	return Object.freeze({
+		horizonHazeStrength: clamp01(0.20 + twilightCurve * 0.18 + fullDay * 0.055 - deepNight * 0.035),
+		groundBounceStrength: clamp01(lerp(0.085, 0.145, fullDay) + twilightCurve * 0.018 + deepNight * 0.018),
+		upperAirStrength: clamp01(lerp(0.055, 0.105, fullDay) + twilightCurve * 0.012 - deepNight * 0.012),
+		bandingDitherStrength: 0.006,
+	});
+}
 
 export const WORLD_SKY_ATMOSPHERE_POLICY = Object.freeze({
 	id: 'camera-relative-horizon-atmosphere-2026-08-17-v1',
@@ -177,19 +207,14 @@ export function createAuroraSky() {
 	applyAuroraNightAtmosphereV5(material);
 	material.userData.worldSkyAtmosphere = WORLD_SKY_ATMOSPHERE_POLICY;
 	const mesh = new THREE.Mesh(geometry, material);
-	mesh.frustumCulled = false; // it must never disappear — it always surrounds the camera by construction.
-	mesh.renderOrder = -1; // draw first so opaque terrain/props overdraw it normally, not the other way around.
+	mesh.frustumCulled = false;
+	mesh.renderOrder = -1;
 	return mesh;
 }
 
 /**
  * Re-centers the skybox on the camera, advances its animated aurora bands, and applies the
  * current day/night sky gradient + aurora visibility from `lighting.js`. Call once per frame.
- * @param {THREE.Mesh} skyMesh
- * @param {THREE.Vector3} cameraPosition
- * @param {number} elapsedSeconds
- * @param {{horizonColor: THREE.Color, zenithColor: THREE.Color, nightFactor: number}} dayNight - the
- *   object returned by `lighting.js`'s `updateDayNightLighting`.
  */
 export function updateAuroraSky(skyMesh, cameraPosition, elapsedSeconds, dayNight) {
 	skyMesh.position.copy(cameraPosition);
@@ -205,11 +230,7 @@ export function updateAuroraSky(skyMesh, cameraPosition, elapsedSeconds, dayNigh
 	uniforms.uBandingDitherStrength.value = profile.bandingDitherStrength;
 }
 
-/**
- * Disposes the skybox's geometry/material. Call on teardown — see the project's memory-leak
- * checklist.
- * @param {THREE.Mesh} skyMesh
- */
+/** Disposes the skybox's geometry/material. */
 export function disposeAuroraSky(skyMesh) {
 	skyMesh.geometry.dispose();
 	skyMesh.material.dispose();
