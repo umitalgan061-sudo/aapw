@@ -52,17 +52,27 @@ export function createNpcSimulationLod({
 	nearRadiusMeters = 90,
 	farIntervalSeconds = 0.25,
 	maxStepSeconds = 0.25,
+	hysteresisMeters = 12,
 } = {}) {
 	if (!(nearRadiusMeters > 0)) throw new Error('nearRadiusMeters must be > 0');
 	if (!(farIntervalSeconds > 0)) throw new Error('farIntervalSeconds must be > 0');
 	if (!(maxStepSeconds > 0)) throw new Error('maxStepSeconds must be > 0');
+	if (!(hysteresisMeters >= 0)) throw new Error('hysteresisMeters must be >= 0');
 	let accumulatedSeconds = deterministicNpcPhaseSeconds(id, farIntervalSeconds);
 	let tier = 'near';
+	let nearLatched = true;
 	return {
 		step(delta, distanceToPlayer, urgent = false) {
 			const boundedDelta = clampSimulationDelta(delta, maxStepSeconds);
-			const near = urgent || !Number.isFinite(distanceToPlayer) || distanceToPlayer <= nearRadiusMeters;
-			if (near) {
+			const finiteDistance = Number.isFinite(distanceToPlayer);
+			if (urgent || !finiteDistance) {
+				nearLatched = true;
+			} else if (nearLatched) {
+				nearLatched = distanceToPlayer <= nearRadiusMeters + hysteresisMeters;
+			} else {
+				nearLatched = distanceToPlayer <= nearRadiusMeters;
+			}
+			if (nearLatched) {
 				accumulatedSeconds = 0;
 				tier = urgent ? 'urgent' : 'near';
 				return boundedDelta;
