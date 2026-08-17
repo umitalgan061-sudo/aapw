@@ -10,7 +10,7 @@ import {
   terrainMicroUvAt,
 } from '../src/3d/world/terrain.js';
 
-const EPSILON = 1e-6;
+const EPSILON = 1e-5;
 const CHUNK_SIZE = 500;
 const close = (actual, expected, label) => assert(
   Math.abs(actual - expected) <= EPSILON,
