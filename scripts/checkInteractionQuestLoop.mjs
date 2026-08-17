@@ -137,7 +137,7 @@ opened = openNpc(guard1);
 assert.deepEqual(opened.choices, ['Nöbet düzenini sıkılaştır.', 'Nöbetçiye ikinci bir şans ver.']);
 key('KeyE');
 const readyRpgSnapshot = controller.getRpgSnapshot();
-assert.equal(readyRpgSnapshot.schemaVersion, 3);
+assert.equal(readyRpgSnapshot.schemaVersion, 4);
 assert.equal(readyRpgSnapshot.quests[1].status, 'ready');
 
 talkTo(guard1, 1);
@@ -180,7 +180,7 @@ assert.match(visibleJournal, /Sonuç: İkinci şans/);
 assert.match(visibleJournal, /Ödül: Dragonstone nöbetçilerinin güveni/);
 
 const rpgSnapshot = controller.getRpgSnapshot();
-assert.equal(rpgSnapshot.schemaVersion, 3);
+assert.equal(rpgSnapshot.schemaVersion, 4);
 assert.deepEqual(rpgSnapshot.reputation, { dragonstone: 15 });
 assert.equal(rpgSnapshot.progression.level, 2);
 assert.equal(rpgSnapshot.progression.totalExperience, 190);
@@ -263,4 +263,4 @@ assert.deepEqual(restoredController.getWorldStateSnapshot(), { dragonstoneWatchP
 assert.ok(promptHistory.includes(true));
 assert.ok(dialogueHistory.some((entry) => Array.isArray(entry.choices) && entry.choices.length === 3));
 assert.ok(dialogueHistory.some((entry) => Array.isArray(entry.choices) && entry.choices.length === 2));
-console.log('[checkInteractionQuestLoop] PASS: quest objectives -> level gate -> branching outcome -> world consequence -> schema v3/v2/v1 migration');
+console.log('[checkInteractionQuestLoop] PASS: quest objectives -> level gate -> branching outcome -> world consequence -> schema v4/v2/v1 migration');
