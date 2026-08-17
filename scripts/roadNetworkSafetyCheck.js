@@ -114,7 +114,7 @@ async function main() {
 	let data;
 	try {
 		const page = await browser.newPage();
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		data = await page.evaluate(async () => {
 			const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
 			const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
@@ -123,9 +123,6 @@ async function main() {
 			const { findSlopeAwarePath } = await import('/src/3d/world/roadPathfinder.js');
 			const { generateRiverPath } = await import('/src/3d/world/rivers.js');
 
-			// Same flattened field `sceneManager.js` actually builds (DECISIONS.md ADR-0118) — not the
-			// raw unflattened sampler, so this check exercises exactly what roads route over in the
-			// live game (a flat pad under each castle can shift a routed edge's first/last few meters).
 			const baseSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
 			const flattenPads = computeSettlementFlattenPads({
 				sampleHeightMeters: baseSampleHeightMeters,
@@ -156,9 +153,6 @@ async function main() {
 				connected.add(edge.toId);
 			}
 
-			// Mountain-avoidance stress test: two synthetic points straddling MACRO_RELIEF_FEATURES'
-			// mountain (center (2600, 2200), radius 1300) so the straight line between them crosses
-			// directly over its steepest flank (see this script's own module doc).
 			const stressStart = { x: 900, z: 2200 };
 			const stressEnd = { x: 4300, z: 2200 };
 			const stressResult = findSlopeAwarePath({ sampleHeightMeters, start: stressStart, end: stressEnd });
@@ -204,16 +198,12 @@ async function main() {
 	};
 	const pass = (label, detail) => console.log(`[roadNetworkSafetyCheck] PASS: ${label} — ${detail}`);
 
-	// 1. Connectivity.
 	if (data.edgeCount === data.seatCount - 1 && data.connectedCount === data.seatCount) {
 		pass('connectivity', `${data.edgeCount} edges (spanning tree), all ${data.connectedCount}/${data.seatCount} seats connected`);
 	} else {
 		fail('connectivity', `${data.edgeCount} edges, ${data.connectedCount}/${data.seatCount} seats connected (expected ${data.seatCount - 1} edges, ${data.seatCount} seats)`);
 	}
 
-	// 2. Per-edge grade (the real, routed max grade — see item 3 below for a direct routed-vs-
-	// straight-line comparison, which is more informative than repeating a per-edge straight-line
-	// re-sample here).
 	console.log('[roadNetworkSafetyCheck] edge grades:');
 	for (const edge of data.edges) {
 		const ok = edge.maxGradeDegrees <= ROAD_HARD_MAX_GRADE_DEGREES;
@@ -224,7 +214,6 @@ async function main() {
 		);
 	}
 
-	// 3. Mountain-avoidance stress test.
 	const stressOk = data.stressMaxGradeDegrees <= ROAD_HARD_MAX_GRADE_DEGREES && data.routedClosestToMountain > data.straightLineClosestToMountain;
 	if (stressOk) {
 		pass(
@@ -240,7 +229,6 @@ async function main() {
 		);
 	}
 
-	// 4. River non-collision: no long run of consecutive road points within RIVER_CLEARANCE_METERS.
 	let worstRun = 0;
 	let anyCrossing = false;
 	for (const edge of data.edges) {
