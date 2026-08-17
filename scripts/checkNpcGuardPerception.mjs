@@ -33,10 +33,8 @@ function extractFunction(name) {
   return source.slice(start, end).replace(/^export\s+/, '');
 }
 
-const awarenessFactory = new Function(`${extractFunction('evaluateNpcGuardAwareness')}; return evaluateNpcGuardAwareness;`);
-const evaluate = awarenessFactory();
-const losFactory = new Function(`${extractFunction('queryNpcLineOfSight')}; return queryNpcLineOfSight;`);
-const queryLos = losFactory();
+const evaluate = new Function(`${extractFunction('evaluateNpcGuardAwareness')}; return evaluateNpcGuardAwareness;`)();
+const queryLos = new Function(`${extractFunction('queryNpcLineOfSight')}; return queryNpcLineOfSight;`)();
 
 const observer = { x: 0, z: 0 };
 assert.equal(evaluate({ observer, target: { x: 0, z: 8 }, yawRadians: 0, rangeMeters: 10 }).visible, true,
@@ -71,16 +69,19 @@ assert.match(source, /simulationLodEnabled: true/, 'configured guards must prese
 assert.match(source, /heard = !awareness\.visible/, 'hearing must not masquerade as visual detection');
 assert.match(source, /perceptionIntent = awareness\.visible \? \(suspicion >= 0\.72 \? 'combat' : 'observe'\)/,
   'combat intent must require visual acquisition rather than hearing alone');
-assert.match(source, /'investigate'/, 'lost/heard target memory must feed investigation');
-assert.match(source, /moveNpcToward\(model, lastKnownPlayer/, 'investigation must move the real NPC controller toward last-known position');
+assert.match(source, /moveNpcToward\(model, lastKnownPlayer/, 'investigation must move the real NPC toward last-known position');
+assert.match(source, /moveNpcToward\(model, homePosition/, 'static guards must return home after investigation expires');
+assert.match(source, /\n\t\t\tgroundCollider,\n\t\t\tplayerCollider,\n\t\t\twalkAnimationUrl:/,
+  'configured guards must receive canonical ground and collision context even without patrol waypoints');
 assert.match(source, /lineOfSightSamples/, 'runtime telemetry must expose bounded LOS work');
 assert.equal(source.includes('EditorMaterialStudio'), false, 'NPC runtime must not import editor/DOM material UI');
 
 console.log('NPC_GUARD_PERCEPTION_PASS', JSON.stringify({
   fieldOfViewDegrees: 120,
   losSampleBudget: 32,
-  closeAwarenessMeters: 3.5,
   hearingCannotCombatDirectly: true,
   configuredPerceptionOptIn: true,
+  staticReturnHome: true,
+  canonicalColliderContext: true,
   populationLodPreserved: true,
 }));
