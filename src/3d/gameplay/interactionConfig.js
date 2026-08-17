@@ -9,6 +9,46 @@
 
 import { CHOICES_BY_NPC_ID } from './dialogueChoices.js';
 
+/** Dragonstone watch outcome values shared by quest definitions and the interaction adapter. */
+export const WATCH_POLICY = Object.freeze({
+	DISCIPLINE: 'discipline',
+	MERCY: 'mercy',
+});
+
+/** Small serializable world-state owner for the shipped Dragonstone watch consequence. */
+export function createWatchWorldState() {
+	const values = { dragonstoneWatchPolicy: null };
+
+	function set(key, value) {
+		if (key !== 'dragonstoneWatchPolicy') return false;
+		if (![null, WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(value)) return false;
+		values[key] = value;
+		return true;
+	}
+
+	function get(key) {
+		return values[key] ?? null;
+	}
+
+	function snapshot() {
+		return { ...values };
+	}
+
+	function restore(saved) {
+		values.dragonstoneWatchPolicy = null;
+		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+		set('dragonstoneWatchPolicy', saved.dragonstoneWatchPolicy ?? null);
+	}
+
+	return { get, set, snapshot, restore };
+}
+
+export function watchPolicyLabel(policy) {
+	if (policy === WATCH_POLICY.MERCY) return 'İkinci şans';
+	if (policy === WATCH_POLICY.DISCIPLINE) return 'Sıkı disiplin';
+	return null;
+}
+
 /** FAZ 5 (run 32-33, per-NPC content run 40): `ui/interactionPrompt.js` shows a proximity
  * *affordance* ("E - Selamla") when the player is near any NPC; pressing E while it's showing opens
  * `ui/dialogueBox.js` with that NPC's own greeting — see DECISIONS.md ADR-0033 (the open/close
