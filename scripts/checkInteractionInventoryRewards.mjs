@@ -81,22 +81,26 @@ assert.match(inventoryPanel, /Toplam ağırlık: 0\.2 kg/);
 assert.match(inventoryPanel, /Kaynak: quest\/watch-under-pressure/);
 key(controller, 'KeyI');
 
-// Schema v4 round-trip preserves item semantics and provenance exactly.
+// Schema v5 round-trip preserves item semantics, provenance and the additive economy state.
 const saved = controller.getRpgSnapshot();
-assert.equal(saved.schemaVersion, 4);
+assert.equal(saved.schemaVersion, 5);
 assert.deepEqual(saved.inventory, inventory);
+assert.deepEqual(saved.economy, { copper: 40 });
 const restored = createController();
 restored.restoreRpgSnapshot(saved);
 assert.deepEqual(restored.getInventorySnapshot(), inventory);
+assert.deepEqual(restored.getEconomySnapshot(), { copper: 40 });
 
-// Schema v3 had no inventory: completed quest rewards are reconstructed exactly once.
+// Schema v3 had no inventory/economy: rewards reconstruct once and purse receives the safe default.
 const legacyV3 = structuredClone(saved);
 legacyV3.schemaVersion = 3;
 delete legacyV3.inventory;
+delete legacyV3.economy;
 const migrated = createController();
 migrated.restoreRpgSnapshot(legacyV3);
 assert.deepEqual(migrated.getInventorySnapshot(), inventory);
+assert.deepEqual(migrated.getEconomySnapshot(), { copper: 40 });
 migrated.restoreRpgSnapshot(legacyV3);
 assert.deepEqual(migrated.getInventorySnapshot(), inventory);
 
-console.log('[checkInteractionInventoryRewards] PASS: quest rewards -> inventory -> UI -> schema v4 persistence/migration');
+console.log('[checkInteractionInventoryRewards] PASS: quest rewards -> inventory -> UI -> schema v5 persistence/migration');

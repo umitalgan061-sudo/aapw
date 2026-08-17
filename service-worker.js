@@ -351,6 +351,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/gameplay/animalConfig.js',
     './src/3d/gameplay/dragonConfig.js',
     './src/3d/gameplay/interactionConfig.js',
+    './src/3d/gameplay/interactionEconomy.js',
     './src/3d/gameplay/creatureSpeciesConfig.js',
     './src/3d/gameplay/dialogueChoices.js',
     './src/3d/gameplay/player.js',

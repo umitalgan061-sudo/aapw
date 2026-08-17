@@ -12,6 +12,12 @@ import {
 	createWatchWorldState,
 	watchPolicyLabel,
 } from './interactionConfig.js';
+import {
+	QUARTERMASTER_NPC_ID,
+	QUARTERMASTER_OFFERS,
+	buildQuartermasterText,
+	createInteractionEconomyState,
+} from './interactionEconomy.js';
 
 const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
 const QUEST_STATUS = Object.freeze({
@@ -275,16 +281,19 @@ export function createInteractionController({
 	onProgressionChanged = () => {},
 	onWorldStateChanged = () => {},
 	onInventoryChanged = () => {},
+	onEconomyChanged = () => {},
 }) {
 	let activeNpc = null;
 	let nearestNpc = null;
 	let activeChoices = null;
 	let activeNpcName = null;
 	let journalOpen = false;
+	let shopOpen = false;
 	const reputation = createReputationState();
 	const progression = createProgressionState();
 	const worldState = createWatchWorldState();
 	const inventory = createInteractionInventoryState();
+	const economy = createInteractionEconomyState();
 	const quests = createQuestTracker({
 		reputation,
 		progression,
@@ -338,6 +347,7 @@ export function createInteractionController({
 	}
 	function openDialogue(npc) {
 		journalOpen = false;
+		shopOpen = false;
 		activeNpc = npc;
 		interactionPrompt.setVisible(false);
 		activeNpcName = npc.displayName ?? 'Yabancı';
@@ -347,17 +357,40 @@ export function createInteractionController({
 		dialogueBox.show(outcomeGreeting(npcId, baseTemplate).replace('{name}', activeNpcName), activeChoices?.map((choice) => choice.label) ?? []);
 	}
 	function closeDialogue() {
-		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = false; dialogueBox.hide();
+		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = false; shopOpen = false; dialogueBox.hide();
 	}
 	function showJournal() {
-		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true;
+		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false;
 		interactionPrompt.setVisible(false);
 		dialogueBox.show(buildQuestJournalText(quests.snapshot(), reputation.snapshot(), progression.snapshot(), worldState.snapshot()));
 	}
 	function showInventory() {
-		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true;
+		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false;
 		interactionPrompt.setVisible(false);
 		dialogueBox.show(buildInventoryText(inventory.snapshot()));
+	}
+	function showQuartermaster(feedback = '') {
+		if (nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) return false;
+		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = true;
+		interactionPrompt.setVisible(false);
+		dialogueBox.show(
+			buildQuartermasterText(economy.snapshot(), QUARTERMASTER_OFFERS, feedback),
+			QUARTERMASTER_OFFERS.map((offer) => `${offer.label} — ${offer.priceCopper} bakır`),
+		);
+		return true;
+	}
+	function selectShopOffer(index) {
+		const offer = QUARTERMASTER_OFFERS[index];
+		if (!offer) return;
+		const result = economy.purchase(offer, (...args) => inventory.grant(...args));
+		let feedback = 'Satın alma başarısız.';
+		if (result.ok) {
+			feedback = `${offer.label} çantana eklendi. ${result.spentCopper} bakır ödendi.`;
+			onInventoryChanged(inventory.snapshot());
+			onEconomyChanged(economy.snapshot());
+		} else if (result.reason === 'insufficient-funds') feedback = 'Kesende yeterli bakır yok.';
+		else if (result.reason === 'inventory-full') feedback = 'Bu eşyadan daha fazlasını taşıyamazsın.';
+		showQuartermaster(feedback);
 	}
 	function selectChoice(index) {
 		const choice = activeChoices[index];
@@ -401,6 +434,7 @@ export function createInteractionController({
 		reputation.restore(saved.reputation);
 		progression.restore(saved.progression);
 		inventory.restore(saved.inventory);
+		economy.restore(saved.economy);
 		worldState.restore(saved.worldState);
 		quests.restore(saved.quests);
 		if (!saved.reputation || !saved.progression || !saved.inventory) {
@@ -416,6 +450,7 @@ export function createInteractionController({
 		onReputationChanged(reputation.snapshot());
 		onProgressionChanged(progression.snapshot());
 		onInventoryChanged(inventory.snapshot());
+		onEconomyChanged(economy.snapshot());
 		onWorldStateChanged(worldState.snapshot());
 		onQuestChanged(quests.snapshot());
 	}
@@ -423,7 +458,9 @@ export function createInteractionController({
 	return {
 		handleChoice(index) {
 			if (isPaused()) return;
-			if (!Number.isInteger(index) || !activeChoices || index < 0 || index >= activeChoices.length) return;
+			if (!Number.isInteger(index)) return;
+			if (shopOpen) { selectShopOffer(index); return; }
+			if (!activeChoices || index < 0 || index >= activeChoices.length) return;
 			selectChoice(index);
 		},
 		update(npcs, playerPos) {
@@ -434,10 +471,16 @@ export function createInteractionController({
 				if (distance < radiusMeters && distance < nearestDistance) { nearestNpc = npc; nearestDistance = distance; }
 			}
 			if (activeNpc && activeNpc !== nearestNpc) closeDialogue();
+			if (shopOpen && nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) closeDialogue();
 			interactionPrompt.setVisible(!activeNpc && !journalOpen && nearestNpc !== null);
 		},
 		handleKeyDown(event) {
 			if (isPaused() || event.repeat) return;
+			if (shopOpen) {
+				const shopIndex = DIALOGUE_CHOICE_KEY_CODES.indexOf(event.code);
+				if (shopIndex !== -1 && shopIndex < QUARTERMASTER_OFFERS.length) { selectShopOffer(shopIndex); return; }
+			}
+			if (event.code === 'KeyB') { if (shopOpen) closeDialogue(); else showQuartermaster(); return; }
 			if (event.code === 'KeyJ') { if (journalOpen) closeDialogue(); else showJournal(); return; }
 			if (event.code === 'KeyI') { if (journalOpen) closeDialogue(); else showInventory(); return; }
 			if (event.code === 'Escape') { if (activeNpc || journalOpen) closeDialogue(); return; }
@@ -450,18 +493,21 @@ export function createInteractionController({
 		},
 		showQuestJournal: showJournal,
 		showInventory,
+		showQuartermaster,
 		getQuestSnapshot: quests.snapshot,
 		getReputationSnapshot: reputation.snapshot,
 		getProgressionSnapshot: progression.snapshot,
 		getInventorySnapshot: inventory.snapshot,
+		getEconomySnapshot: economy.snapshot,
 		getWorldStateSnapshot: worldState.snapshot,
 		getRpgSnapshot() {
 			return {
-				schemaVersion: 4,
+				schemaVersion: 5,
 				quests: quests.snapshot(),
 				reputation: reputation.snapshot(),
 				progression: progression.snapshot(),
 				inventory: inventory.snapshot(),
+				economy: economy.snapshot(),
 				worldState: worldState.snapshot(),
 			};
 		},
@@ -469,9 +515,11 @@ export function createInteractionController({
 			quests.restore(snapshot);
 			rebuildRewardStateFromQuestRewards(snapshot, { includeObjectiveExperience: true });
 			inferWorldStateFromQuestSnapshot(snapshot);
+			economy.restore(null);
 			onReputationChanged(reputation.snapshot());
 			onProgressionChanged(progression.snapshot());
 			onInventoryChanged(inventory.snapshot());
+			onEconomyChanged(economy.snapshot());
 			onWorldStateChanged(worldState.snapshot());
 			onQuestChanged(quests.snapshot());
 		},
