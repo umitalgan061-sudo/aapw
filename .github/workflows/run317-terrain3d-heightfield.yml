@@ -52,7 +52,13 @@ jobs:
       - name: Install Playwright Chromium
         run: |
           set -euo pipefail
-          npx --yes playwright@1.56.1 install --with-deps chromium
+          # The exporter calls devServerHelper.loadPlaywright(), so installing only the browser via
+          # `npx playwright install` is insufficient: Node also needs the Playwright module on its
+          # resolution path. Keep it outside the repository so package/lock state remains untouched.
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
       - name: Export the live Westeros height field
         run: |
