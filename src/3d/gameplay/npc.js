@@ -181,6 +181,7 @@ export async function createNPC({
 	simulationLodDistantRadiusMeters = 240,
 	simulationLodDistantIntervalSeconds = 1,
 	simulationLodMaxStepSeconds = 0.25,
+	simulationLodBootstrapDormant = false,
 }) {
 	const model = await assetLoader.loadFBXModel(modelUrl, { fallbackColor: 0x9c6b30, fallbackSize: 1.8 });
 	AssetLoader.correctMixamoFbxScale(model);
@@ -229,8 +230,11 @@ export async function createNPC({
 		object3D: model,
 		displayName: displayName ?? null,
 		update(delta, playerPosition) {
-			const distanceToPlayer = playerPosition ? Math.hypot(model.position.x - playerPosition.x, model.position.z - playerPosition.z) : Infinity;
-			const urgent = combatStanceEnabled && distanceToPlayer <= combatStanceTriggerRadiusMeters;
+			const hasPlayerPosition = Boolean(playerPosition);
+			const distanceToPlayer = hasPlayerPosition
+				? Math.hypot(model.position.x - playerPosition.x, model.position.z - playerPosition.z)
+				: (simulationLodBootstrapDormant ? Infinity : 0);
+			const urgent = hasPlayerPosition && combatStanceEnabled && distanceToPlayer <= combatStanceTriggerRadiusMeters;
 			const simulationDelta = simulationLod.step(delta, distanceToPlayer, urgent);
 			model.userData.simulationLodTier = simulationLod.tier;
 			if (simulationDelta <= 0) {
@@ -240,7 +244,7 @@ export async function createNPC({
 			model.userData.simulationTicks += 1;
 			let isAlert = false;
 			if (combatStanceEnabled) {
-				isAlert = distanceToPlayer <= combatStanceTriggerRadiusMeters;
+				isAlert = hasPlayerPosition && distanceToPlayer <= combatStanceTriggerRadiusMeters;
 				alertBlend = easeBlendToward(alertBlend, isAlert ? 1 : 0, simulationDelta, combatStanceTransitionSeconds);
 				if (idleAction) idleAction.timeScale = 1 + (combatStanceIdleTimeScale - 1) * alertBlend;
 				model.userData.combatStanceBlend = alertBlend;
@@ -295,7 +299,7 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 	const npcs = await Promise.all(npcConfig.SPAWNS.map(async (spawn) => {
 		const seat = seatsById.get(spawn.seatId);
 		if (!seat) {
-			console.warn(`[gameplay/npc] NPC spawn \"${spawn.id}\" references unknown seat \"${spawn.seatId}\" — skipping.`);
+			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
 			return null;
 		}
 		const worldX = seat.x + spawn.offsetXMeters;
@@ -328,6 +332,7 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 			combatStanceIdleTimeScale: npcConfig.COMBAT_STANCE_IDLE_TIME_SCALE,
 			combatStanceTransitionSeconds: npcConfig.COMBAT_STANCE_TRANSITION_SECONDS,
 			turnRateRadiansPerSecond: npcConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+			simulationLodBootstrapDormant: true,
 		});
 	}));
 	return npcs.filter(Boolean);
