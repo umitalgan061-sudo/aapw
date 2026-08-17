@@ -2,8 +2,8 @@ const NAV_TIMEOUT_MS = 30_000;
 
 /**
  * Real shipped-runtime proof for the configured guard perception slice. Loads the same Mixamo FBX
- * family the game uses, drives the actual createNPC controller, and distinguishes visual acquisition
- * from hearing-only investigation before verifying a static guard returns to its authored home.
+ * family the game uses, drives the actual createNPC controller, and proves visual detect -> chase ->
+ * combat plus hearing-only investigation before a static guard returns to its authored home.
  */
 async function checkNpcGuardPerception(browser, baseUrl) {
 	const page = await browser.newPage();
@@ -26,6 +26,7 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 					assetLoader,
 					modelUrl: spawn.modelUrl,
 					idleAnimationUrl: NPC_CONFIG.IDLE_ANIMATION_URL,
+					walkAnimationUrl: NPC_CONFIG.WALK_ANIMATION_URL,
 					worldX: 0,
 					worldZ: 0,
 					groundY: 0,
@@ -43,12 +44,25 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 			}
 
 			const visualGuard = await makeGuard('smoke-visual-guard');
-			const visiblePlayer = { x: 0, z: 5 };
-			for (let i = 0; i < 30; i += 1) visualGuard.update(delta, visiblePlayer);
+			const visiblePlayer = { x: 0, z: 8 };
+			let sawChase = false;
+			let chaseDistanceClosed = false;
+			const chaseStartZ = visualGuard.object3D.position.z;
+			for (let i = 0; i < 300; i += 1) {
+				visualGuard.update(delta, visiblePlayer);
+				const state = visualGuard.object3D.userData.npcPerception;
+				if (state?.intent === 'chase') sawChase = true;
+				if (visualGuard.object3D.position.z > chaseStartZ + 0.5) chaseDistanceClosed = true;
+				if (state?.intent === 'combat' && visualGuard.object3D.userData.combatStanceBlend > 0.5) break;
+			}
 			const visualState = visualGuard.object3D.userData.npcPerception;
 			const visualAcquiresCombat = visualState?.intent === 'combat' && visualState.heard === false;
 			const visualLosBounded = visualState?.lineOfSight === true && visualState.lineOfSightSamples <= 32;
 			const combatBlendRaised = visualGuard.object3D.userData.combatStanceBlend > 0.5;
+			const stoppedAtEngageRadius = Math.hypot(
+				visualGuard.object3D.position.x - visiblePlayer.x,
+				visualGuard.object3D.position.z - visiblePlayer.z,
+			) <= (visualState?.engageRadiusMeters ?? 0) + 0.1;
 			visualGuard.dispose();
 
 			const hearingGuard = await makeGuard('smoke-hearing-guard');
@@ -68,9 +82,12 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 			hearingGuard.dispose();
 
 			return {
+				sawChase,
+				chaseDistanceClosed,
 				visualAcquiresCombat,
 				visualLosBounded,
 				combatBlendRaised,
+				stoppedAtEngageRadius,
 				hearingInvestigates,
 				hearingDoesNotCombat,
 				movedTowardNoise,
@@ -85,9 +102,9 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 
 	const ok = Object.entries(result).filter(([key]) => key !== 'homeDistance').every(([, value]) => value === true);
 	const details = ok
-		? `real FBX guard visually acquires combat, hearing only investigates, LOS <=32 probes, static return home=${result.homeDistance.toFixed(3)}m`
+		? `real FBX guard detects -> chases -> engages, hearing only investigates, LOS <=32 probes, static return home=${result.homeDistance.toFixed(3)}m`
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
-	return { name: 'NPC guard perception/investigation (real createNPC runtime)', ok, details };
+	return { name: 'NPC guard detect/chase/combat/investigation (real createNPC runtime)', ok, details };
 }
 
 module.exports = { checkNpcGuardPerception };
