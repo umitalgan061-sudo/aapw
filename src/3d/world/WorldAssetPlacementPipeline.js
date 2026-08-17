@@ -285,7 +285,7 @@ export function evaluateWorldSurfacePlacement(surface, policy = {}) {
 }
 
 export function validateWorldSurfacePolicy(policy = {}) {
-  const source = policy && typeof policy === 'object' && !Array.isArray(policy) ? policy : null;
+  const source = isPlainObject(policy) ? policy : null;
   const normalizedPolicy = normalizePlacementPolicy(source || {});
   if (!source) return { ok: false, errors: ['policy-invalid-object'], policy: normalizedPolicy };
 
@@ -296,6 +296,10 @@ export function validateWorldSurfacePolicy(policy = {}) {
   for (const [key, allowInfinity] of POLICY_NUMERIC_FIELDS) {
     const value = source[key];
     if (value === null || value === undefined || value === '') continue;
+    if (typeof value !== 'number' && typeof value !== 'string') {
+      errors.push(`policy-invalid-${policyErrorKey(key)}`);
+      continue;
+    }
     const numeric = Number(value);
     if ((!Number.isFinite(numeric) && !(allowInfinity && numeric === Infinity)) || numeric < 0) {
       errors.push(`policy-invalid-${policyErrorKey(key)}`);
@@ -320,7 +324,7 @@ export function validateWorldSurfacePolicy(policy = {}) {
 }
 
 export function normalizePlacementPolicy(policy = {}) {
-  const source = policy && typeof policy === 'object' && !Array.isArray(policy) ? policy : {};
+  const source = isPlainObject(policy) ? policy : {};
   return {
     minSlopeDegrees: optionalFinite(source.minSlopeDegrees),
     maxSlopeDegrees: optionalFinite(source.maxSlopeDegrees, true),
@@ -340,9 +344,7 @@ export function normalizePlacementPolicy(policy = {}) {
 }
 
 function mergeWorldSurfacePolicy(metadata, override) {
-  if (override !== null && override !== undefined && (typeof override !== 'object' || Array.isArray(override))) {
-    return override;
-  }
+  if (override !== null && override !== undefined && !isPlainObject(override)) return override;
   const category = String(metadata?.category || metadata?.kind || '').toLowerCase();
   const preset = WORLD_SURFACE_POLICY_PRESETS[category] || null;
   return { ...(preset || {}), ...(override || {}) };
@@ -395,6 +397,12 @@ function hasNonFiniteTransform(object) {
   return values.some((value) => !Number.isFinite(value));
 }
 
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 function normalizedStringList(value) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((item) => String(item).trim().toLowerCase()).filter(Boolean))].sort();
@@ -429,6 +437,7 @@ function compareMax(errors, message, value, limit) {
 
 function optionalFinite(value, allowInfinity = false) {
   if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
   const number = Number(value);
   if (allowInfinity && number === Infinity) return Infinity;
   return Number.isFinite(number) ? number : null;
