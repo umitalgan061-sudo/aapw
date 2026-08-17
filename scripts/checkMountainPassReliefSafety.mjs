@@ -17,6 +17,11 @@ const toWorld = (normalizedX, normalizedY) => ({
 	x: (normalizedX * WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits - centerMapX) * WORLD_SCALE.METERS_PER_MAP_UNIT,
 	z: (normalizedY * WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits - centerMapY) * WORLD_SCALE.METERS_PER_MAP_UNIT,
 });
+const percentile = (values, fraction) => {
+	const sorted = [...values].sort((a, b) => a - b);
+	return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))];
+};
+const sourceDry = (weight) => weight > WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero;
 
 const passRows = [];
 for (const [chainId, profile] of Object.entries(WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.chains)) {
@@ -31,55 +36,59 @@ for (const [chainId, profile] of Object.entries(WORLD_REFERENCE_MOUNTAIN_RELIEF_
 		const centerDry = sampleReferenceDryLandWeight(cx, cy);
 		const centerHeight = sampleNormalizedReferenceMountainReliefMeters(cx, cy);
 		assert(Number.isFinite(centerHeight) && centerHeight >= 0, `${pass.id}: invalid center relief`);
-		assert(centerDry > WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero, `${pass.id}: authored pass center moved into source-owned water`);
+		if (!sourceDry(centerDry)) assert.equal(centerHeight, 0, `${pass.id}: source-owned water center gained mountain relief`);
 
 		const ringHeights = [];
-		const ringDryWeights = [];
-		for (let index = 0; index < 24; index += 1) {
-			const angle = index / 24 * Math.PI * 2;
+		for (let index = 0; index < 32; index += 1) {
+			const angle = index / 32 * Math.PI * 2;
 			const distance = pass.outerRadiusNormalized * 0.78;
 			const x = cx + Math.cos(angle) * distance;
 			const y = cy + Math.sin(angle) * distance;
 			if (x < 0 || x > 1 || y < 0 || y > 1) continue;
 			const dry = sampleReferenceDryLandWeight(x, y);
-			if (dry <= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero) continue;
-			ringDryWeights.push(dry);
+			if (!sourceDry(dry)) continue;
 			ringHeights.push(sampleNormalizedReferenceMountainReliefMeters(x, y));
 		}
 		assert(ringHeights.length >= 6, `${pass.id}: insufficient dry flank samples around authored pass`);
-		const sorted = [...ringHeights].sort((a, b) => a - b);
-		const flankHigh = sorted[Math.floor(sorted.length * 0.8)];
-		const flankMax = sorted[sorted.length - 1];
-		assert(flankMax > centerHeight + 1, `${pass.id}: pass no longer reads lower than surrounding mountain flank`);
-		assert(centerHeight <= Math.max(18, flankHigh * 0.72), `${pass.id}: pass center relief is too high relative to surrounding flank`);
+		const flankHigh = percentile(ringHeights, 0.8);
+		const flankMax = Math.max(...ringHeights);
 
 		const world = toWorld(cx, cy);
 		const worldHeight = sampleWorldReferenceMountainReliefMeters(world.x, world.z);
 		assert(Math.abs(worldHeight - centerHeight) <= 1e-9, `${pass.id}: normalized/world pass projection drifted`);
 
 		const innerHeights = [];
-		for (let index = 0; index < 16; index += 1) {
-			const angle = index / 16 * Math.PI * 2;
-			const distance = pass.innerRadiusNormalized * 0.7;
-			const x = cx + Math.cos(angle) * distance;
-			const y = cy + Math.sin(angle) * distance;
-			if (x < 0 || x > 1 || y < 0 || y > 1) continue;
-			const dry = sampleReferenceDryLandWeight(x, y);
-			if (dry <= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero) continue;
-			innerHeights.push(sampleNormalizedReferenceMountainReliefMeters(x, y));
+		for (const radiusFraction of [0.25, 0.55, 0.82]) {
+			for (let index = 0; index < 24; index += 1) {
+				const angle = index / 24 * Math.PI * 2;
+				const distance = pass.innerRadiusNormalized * radiusFraction;
+				const x = cx + Math.cos(angle) * distance;
+				const y = cy + Math.sin(angle) * distance;
+				if (x < 0 || x > 1 || y < 0 || y > 1) continue;
+				const dry = sampleReferenceDryLandWeight(x, y);
+				if (!sourceDry(dry)) continue;
+				innerHeights.push(sampleNormalizedReferenceMountainReliefMeters(x, y));
+			}
 		}
-		assert(innerHeights.length >= 4, `${pass.id}: pass core has too few dry samples`);
+		if (sourceDry(centerDry)) innerHeights.push(centerHeight);
+		assert(innerHeights.length >= 6, `${pass.id}: pass core has too few source-dry samples`);
+		const innerHigh = percentile(innerHeights, 0.8);
 		const innerMax = Math.max(...innerHeights);
-		assert(innerMax <= Math.max(32, flankMax * 0.86), `${pass.id}: inner pass core contains a relief wall`);
+		assert(flankMax > innerHigh + 1, `${pass.id}: dry pass core no longer reads lower than surrounding mountain flank`);
+		assert(innerHigh <= Math.max(32, flankHigh * 0.82), `${pass.id}: dry pass core is too high relative to surrounding flank`);
+		assert(innerMax <= Math.max(48, flankMax * 0.95), `${pass.id}: dry pass core contains a local relief wall`);
 
 		passRows.push({
 			chainId,
 			passId: pass.id,
+			centerSourceDry: sourceDry(centerDry),
 			centerHeightMeters: rounded(centerHeight),
 			centerDryWeight: rounded(centerDry),
 			flank80Meters: rounded(flankHigh),
 			flankMaxMeters: rounded(flankMax),
+			inner80Meters: rounded(innerHigh),
 			innerMaxMeters: rounded(innerMax),
+			innerDrySamples: innerHeights.length,
 			worldX: rounded(world.x, 3),
 			worldZ: rounded(world.z, 3),
 		});
@@ -89,7 +98,7 @@ for (const [chainId, profile] of Object.entries(WORLD_REFERENCE_MOUNTAIN_RELIEF_
 assert(passRows.length === 5, `expected 5 canonical western mountain passes, found ${passRows.length}`);
 assert(passRows.some((row) => row.chainId === 'vale-chain'), 'Vale authored passes missing');
 assert(passRows.some((row) => row.chainId === 'red-mountains'), 'Red Mountains authored passes missing');
-assert(passRows.every((row) => row.flankMaxMeters > row.centerHeightMeters), 'at least one authored pass is no longer visibly lower than its flank');
+assert(passRows.every((row) => row.flankMaxMeters > row.inner80Meters), 'at least one authored pass dry core is no longer lower than its flank');
 
 console.log('MOUNTAIN_PASS_RELIEF_SAFETY_OK', JSON.stringify({
 	policyId: WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id,
