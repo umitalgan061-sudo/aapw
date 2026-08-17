@@ -1,0 +1,59 @@
+name: Creature Simulation LOD
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/creatureSimulationLod.js'
+      - 'src/3d/gameplay/livingWorldSpawner.js'
+      - 'scripts/checkCreatureSimulationLod.mjs'
+      - '.github/workflows/creature-simulation-lod.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact-main bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
+          CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$CHANGED" -le 1000
+          git diff --check "$BASE_SHA" HEAD
+      - name: Creature behavior LOD contract
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/creatureSimulationLod.js
+          node --check src/3d/gameplay/livingWorldSpawner.js
+          node --check scripts/checkCreatureSimulationLod.mjs
+          node scripts/checkCreatureSimulationLod.mjs
+      - name: Fauna habitat and deterministic regression contracts
+        run: |
+          set -euo pipefail
+          node scripts/checkCreatureHabitatPlacement.mjs
+          node scripts/checkSeededRandomPolicy.js
+      - name: Shared material placement contract
+        run: |
+          set -euo pipefail
+          node scripts/checkSharedMaterialPlacementContract.js
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
