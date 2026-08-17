@@ -9,7 +9,12 @@ on:
       - 'src/3d/world/worldReferenceMountainRelief.js'
       - 'fixtures/world-reference-mountain-relief-v1.json'
       - 'scripts/checkWorldReferenceMountainRelief.mjs'
+      - 'scripts/checkMountainNaturalizationProfile.mjs'
+      - 'scripts/checkMountainPassReliefSafety.mjs'
+      - 'scripts/checkMountainVisualProofContract.mjs'
+      - 'scripts/captureLiveWorldMountainNaturalization.mjs'
       - 'scripts/terrainSeatSafetyCheck.js'
+      - 'scripts/roadNetworkSafetyCheck.js'
       - 'service-worker.js'
       - '.github/workflows/live-map-mountain-relief.yml'
   workflow_dispatch:
@@ -27,7 +32,7 @@ env:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,7 +43,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Exact-main concurrency gate
+      - name: Exact-main concurrency and quota gate
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
@@ -46,6 +51,10 @@ jobs:
           MAIN_SHA="$(git rev-parse origin/main)"
           test "$(git merge-base HEAD "$MAIN_SHA")" = "$MAIN_SHA"
           git diff --check "$MAIN_SHA"...HEAD | tee "$RUNNER_TEMP/diff-check.log"
+          A="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
+          D="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "mountain relief quota additions=$A deletions=$D total=$((A+D))"
+          test $((A+D)) -le 1000
           echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
 
       - name: Hydrate scoped smoke-test LFS assets
@@ -60,9 +69,17 @@ jobs:
           node --check src/3d/world/worldReferenceMountainRelief.js
           node --check src/3d/world/terrain.js
           node --check scripts/checkWorldReferenceMountainRelief.mjs
+          node --check scripts/checkMountainNaturalizationProfile.mjs
+          node --check scripts/checkMountainPassReliefSafety.mjs
+          node --check scripts/checkMountainVisualProofContract.mjs
+          node --check scripts/captureLiveWorldMountainNaturalization.mjs
           node --check scripts/terrainSeatSafetyCheck.js
+          node --check scripts/roadNetworkSafetyCheck.js
           node --check service-worker.js
-          node scripts/checkWorldReferenceMountainRelief.mjs
+          node scripts/checkWorldReferenceMountainRelief.mjs | tee "$RUNNER_TEMP/mountain-source.log"
+          node scripts/checkMountainNaturalizationProfile.mjs | tee "$RUNNER_TEMP/mountain-profile.log"
+          node scripts/checkMountainPassReliefSafety.mjs | tee "$RUNNER_TEMP/mountain-pass.log"
+          node scripts/checkMountainVisualProofContract.mjs | tee "$RUNNER_TEMP/mountain-proof-contract.log"
 
       - name: Offline determinism and repository policy
         run: |
@@ -81,13 +98,16 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Live seat road and full-scene regressions
+      - name: Live seat road full-scene and mountain-view regressions
         run: |
           set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/terrainSeatSafetyCheck.js | tee "$RUNNER_TEMP/terrain-seat.log"
           node scripts/roadNetworkSafetyCheck.js | tee "$RUNNER_TEMP/road-network.log"
           node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/game3d-smoke.log"
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/game3d-smoke.log")" -ge 40
+          node scripts/captureLiveWorldMountainNaturalization.mjs | tee "$RUNNER_TEMP/mountain-visual.log"
+          grep -F LIVE_WORLD_MOUNTAIN_NATURALIZATION_OK "$RUNNER_TEMP/mountain-visual.log"
 
       - name: Final source-preservation gate
         if: github.event_name == 'pull_request'
@@ -99,15 +119,21 @@ jobs:
           test -z "$(git diff --name-only "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceMap.js)"
           test -z "$(git diff --name-only "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfacePindexes.js)"
 
-      - name: Upload validation logs
+      - name: Upload validation logs and shipped visual proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: live-map-mountain-relief-logs-${{ github.sha }}
           path: |
             ${{ runner.temp }}/diff-check.log
+            ${{ runner.temp }}/mountain-source.log
+            ${{ runner.temp }}/mountain-profile.log
+            ${{ runner.temp }}/mountain-pass.log
+            ${{ runner.temp }}/mountain-proof-contract.log
             ${{ runner.temp }}/terrain-seat.log
             ${{ runner.temp }}/road-network.log
             ${{ runner.temp }}/game3d-smoke.log
+            ${{ runner.temp }}/mountain-visual.log
+            artifacts/live-map-mountain-naturalization/
           if-no-files-found: warn
           retention-days: 30
