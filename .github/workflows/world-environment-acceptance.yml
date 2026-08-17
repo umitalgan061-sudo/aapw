@@ -47,6 +47,10 @@ jobs:
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "world acceptance quota additions=$A deletions=$D total=$((A+D))"
           test $((A+D)) -le 1000
+      - name: Install shared placement runtime dependency
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
       - name: Static syntax and shared placement contract
         run: |
           set -euo pipefail
