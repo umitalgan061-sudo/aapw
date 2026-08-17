@@ -9,6 +9,8 @@ on:
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'service-worker.js'
       - 'scripts/checkNpcAssetSpawnContract.mjs'
+      - 'scripts/checkNpcGuardPerception.mjs'
+      - 'scripts/game3dSmokeChecksNpcPerception.js'
       - 'scripts/checkNpcSimulationLod.mjs'
       - 'scripts/checkNpcSimulationLodFairness.mjs'
       - '.github/workflows/npc-asset-spawn-contract.yml'
@@ -40,12 +42,15 @@ jobs:
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
           git diff --check "$BASE_SHA" HEAD
-      - name: NPC asset and spawn contract
+      - name: NPC asset spawn and guard perception contracts
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
           node --check scripts/checkNpcAssetSpawnContract.mjs
           node scripts/checkNpcAssetSpawnContract.mjs
+          node --check scripts/checkNpcGuardPerception.mjs
+          node scripts/checkNpcGuardPerception.mjs
+          node --check scripts/game3dSmokeChecksNpcPerception.js
       - name: Deterministic NPC simulation LOD contract
         run: |
           set -euo pipefail
