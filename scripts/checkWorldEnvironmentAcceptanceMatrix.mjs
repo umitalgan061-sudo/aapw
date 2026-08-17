@@ -54,7 +54,7 @@ try {
     const { createScene } = await import('/src/3d/sceneManager.js');
     const { WORLD_SCALE } = await import('/src/3d/config.js');
     const { normalizedReferenceToWorldXZ } = await import('/src/3d/world/worldReferenceAlignment.js');
-    const { CURRENT_TERRAIN_POLICY } = await import('/src/3d/world/terrain.js');
+    const { CURRENT_TERRAIN_POLICY, CURRENT_TERRAIN_ALBEDO_POLICY } = await import('/src/3d/world/terrain.js');
 
     const state = createScene(document.getElementById('world-acceptance'));
     state.controls.enabled = false;
@@ -64,6 +64,7 @@ try {
     state.chunkManager.loadSquare(0, 0, 12);
 
     const terrainMeshes = [...state.chunkManager.loaded.values()];
+    const terrainTextures = terrainMeshes.map((mesh) => mesh.material?.map).filter(Boolean);
     const world = {
       width: WORLD_SCALE.WORLD_WIDTH_METERS,
       depth: WORLD_SCALE.WORLD_DEPTH_METERS,
@@ -74,8 +75,19 @@ try {
     return {
       terrainMeshCount: terrainMeshes.length,
       terrainPolicy: CURRENT_TERRAIN_POLICY.id,
+      terrainAlbedoPolicy: CURRENT_TERRAIN_ALBEDO_POLICY.id,
+      terrainAlbedoAsset: CURRENT_TERRAIN_ALBEDO_POLICY.assetPath,
       fullOwnerMapCoverage: CURRENT_TERRAIN_POLICY.fullOwnerMapCoverage,
       singleSourceViolations: terrainMeshes.filter((mesh) => mesh.userData.currentTerrainSingleSource !== true).length,
+      albedoAdoptionViolations: terrainMeshes.filter((mesh) => (
+        mesh.userData.currentTerrainAlbedo?.policyId !== CURRENT_TERRAIN_ALBEDO_POLICY.id
+        || mesh.userData.currentTerrainAlbedo?.mapAlignedUv !== true
+        || mesh.userData.currentTerrainAlbedo?.textureEnabled !== true
+        || mesh.material?.isMeshStandardMaterial !== true
+        || mesh.material?.map?.userData?.terrainAlbedoPolicy !== CURRENT_TERRAIN_ALBEDO_POLICY.id
+      )).length,
+      texturedTerrainCount: terrainTextures.length,
+      sharedAlbedoTextureCount: new Set(terrainTextures.map((texture) => texture.uuid)).size,
       world,
     };
   }, { width: WIDTH, height: HEIGHT });
@@ -83,6 +95,9 @@ try {
   assert(boot.terrainMeshCount >= 500, `incomplete full-world terrain: ${boot.terrainMeshCount} meshes`);
   assert(boot.fullOwnerMapCoverage === true, 'terrain policy lost full-owner-map coverage');
   assert(boot.singleSourceViolations === 0, `single-height-source violations: ${boot.singleSourceViolations}`);
+  assert(boot.albedoAdoptionViolations === 0, `map-aligned terrain albedo adoption violations: ${boot.albedoAdoptionViolations}`);
+  assert(boot.texturedTerrainCount === boot.terrainMeshCount, `textured terrain ${boot.texturedTerrainCount}/${boot.terrainMeshCount}`);
+  assert(boot.sharedAlbedoTextureCount === 1, `terrain chunks must share one albedo texture, got ${boot.sharedAlbedoTextureCount}`);
 
   const fullMetrics = await page.evaluate(({ width, height }) => {
     const { THREE, state, world } = globalThis.__worldAcceptance;
