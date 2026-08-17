@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { createHeightSampler, createTerrainChunk, disposeTerrainChunk } from '../src/3d/world/terrain.js';
-import { applyTerrainMicroSurface, TERRAIN_MICRO_SURFACE_POLICY } from '../src/3d/world/terrainMicroSurface.js';
+import {
+	applyTerrainMicroSurface,
+	createHeightSampler,
+	createTerrainChunk,
+	disposeTerrainChunk,
+	TERRAIN_MICRO_SURFACE_POLICY,
+} from '../src/3d/world/terrain.js';
 
 const EPSILON = 1e-6;
 const CHUNK_SIZE = 500;
