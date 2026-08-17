@@ -73,9 +73,14 @@ export function createNpcSimulationLod({
 		step(delta, distanceToPlayer, urgent = false) {
 			const boundedDelta = clampSimulationDelta(delta, maxStepSeconds);
 			const finiteDistance = Number.isFinite(distanceToPlayer);
-			if (urgent || !finiteDistance) {
+			if (urgent) {
 				nearLatched = true;
 				distantLatched = false;
+			} else if (!finiteDistance) {
+				// During bootstrap/menu frames there is no authoritative player position yet.
+				// Treat that population as dormant instead of accidentally running every NPC full-rate.
+				nearLatched = false;
+				distantLatched = true;
 			} else if (nearLatched) {
 				nearLatched = distanceToPlayer <= nearRadiusMeters + hysteresisMeters;
 			} else {
@@ -88,13 +93,15 @@ export function createNpcSimulationLod({
 				return boundedDelta;
 			}
 
-			if (distantLatched) {
-				distantLatched = distanceToPlayer > distantRadiusMeters - distantHysteresisMeters;
-			} else {
-				distantLatched = distanceToPlayer > distantRadiusMeters + distantHysteresisMeters;
+			if (finiteDistance) {
+				if (distantLatched) {
+					distantLatched = distanceToPlayer > distantRadiusMeters - distantHysteresisMeters;
+				} else {
+					distantLatched = distanceToPlayer > distantRadiusMeters + distantHysteresisMeters;
+				}
 			}
 			if (distantLatched) {
-				tier = 'distant';
+				tier = finiteDistance ? 'distant' : 'bootstrap';
 				farAccumulatedSeconds = 0;
 				distantAccumulatedSeconds = Math.min(distantIntervalSeconds, distantAccumulatedSeconds + boundedDelta);
 				if (distantAccumulatedSeconds + Number.EPSILON < distantIntervalSeconds) return 0;
