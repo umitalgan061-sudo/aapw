@@ -54,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/**,assets/models/settlements/castles/**" --exclude=""
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
           test -s assets/models/characters/peasant_girl.fbx
           test -s assets/animations/peasant_girl/idle.fbx
           test -s assets/animations/peasant_girl/walking.fbx
