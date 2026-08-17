@@ -68,6 +68,7 @@ export function createNpcSimulationLod({
 	const distantPhaseSeconds = deterministicNpcPhaseSeconds(`${id}:distant`, distantIntervalSeconds);
 	let farAccumulatedSeconds = farPhaseSeconds;
 	let distantAccumulatedSeconds = distantPhaseSeconds;
+	let pendingSimulationSeconds = 0;
 	let tier = 'near';
 	let nearLatched = true;
 	let distantLatched = false;
@@ -93,10 +94,12 @@ export function createNpcSimulationLod({
 				// teleport pushes a whole crowd out of range on one frame, they must not all wake together.
 				farAccumulatedSeconds = farPhaseSeconds;
 				distantAccumulatedSeconds = distantPhaseSeconds;
+				pendingSimulationSeconds = 0;
 				tier = urgent ? 'urgent' : 'near';
 				return boundedDelta;
 			}
 
+			pendingSimulationSeconds = Math.min(maxStepSeconds, pendingSimulationSeconds + boundedDelta);
 			if (finiteDistance) {
 				if (distantLatched) {
 					distantLatched = distanceToPlayer > distantRadiusMeters - distantHysteresisMeters;
@@ -111,7 +114,9 @@ export function createNpcSimulationLod({
 				distantAccumulatedSeconds = Math.min(distantIntervalSeconds, distantAccumulatedSeconds + boundedDelta);
 				if (distantAccumulatedSeconds + Number.EPSILON < distantIntervalSeconds) return 0;
 				distantAccumulatedSeconds = 0;
-				return boundedDelta;
+				const simulationDelta = pendingSimulationSeconds;
+				pendingSimulationSeconds = 0;
+				return simulationDelta;
 			}
 
 			if (tier !== 'far') farAccumulatedSeconds = farPhaseSeconds;
@@ -120,7 +125,9 @@ export function createNpcSimulationLod({
 			farAccumulatedSeconds = Math.min(farIntervalSeconds, farAccumulatedSeconds + boundedDelta);
 			if (farAccumulatedSeconds + Number.EPSILON < farIntervalSeconds) return 0;
 			farAccumulatedSeconds = 0;
-			return boundedDelta;
+			const simulationDelta = pendingSimulationSeconds;
+			pendingSimulationSeconds = 0;
+			return simulationDelta;
 		},
 		get tier() { return tier; },
 	};
@@ -288,7 +295,7 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 	const npcs = await Promise.all(npcConfig.SPAWNS.map(async (spawn) => {
 		const seat = seatsById.get(spawn.seatId);
 		if (!seat) {
-			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
+			console.warn(`[gameplay/npc] NPC spawn \"${spawn.id}\" references unknown seat \"${spawn.seatId}\" — skipping.`);
 			return null;
 		}
 		const worldX = seat.x + spawn.offsetXMeters;
