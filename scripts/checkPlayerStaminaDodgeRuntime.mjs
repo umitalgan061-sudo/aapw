@@ -44,7 +44,10 @@ try {
   need(baseline.state === 'idle', `expected idle baseline, got ${baseline.state}`);
   need(baseline.stamina === 100 && baseline.isGrounded && baseline.canDodge, `bad baseline ${JSON.stringify(baseline)}`);
 
-  const sprintMarker = await page.evaluate(() => window.__playerMotionFrames.length);
+  const sprintMarker = await page.evaluate(() => {
+    window.__playerMotionFrames.length = 0;
+    return 0;
+  });
   await page.keyboard.down('KeyW');
   await page.keyboard.down('ShiftLeft');
   await waitState('sprint');
