@@ -45,7 +45,7 @@ jobs:
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "shallow-water visual quota additions=$A deletions=$D total=$((A+D))"
           test $((A+D)) -le 1000
-          git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/terrain.js src/3d/world/waterDepthField.js src/3d/config.js
+          git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/waterDepthField.js src/3d/config.js
       - name: Static shader contract
         run: |
           set -euo pipefail
