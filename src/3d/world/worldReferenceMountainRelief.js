@@ -166,7 +166,7 @@ function sampleCoastalReliefScale(normalizedX, normalizedY, centerDryWeight) {
 		sampleReferenceDryLandWeight(normalizedX, clamp(normalizedY - radiusY, 0, 1)),
 		sampleReferenceDryLandWeight(normalizedX, clamp(normalizedY + radiusY, 0, 1)),
 	);
-	return policy.minimumScale + (1 - policy.minimumScale) * smoothstep(0.18, 0.94, clearance);
+	return policy.minimumScale + (1 - policy.minimumScale) * smoothstep(0.18, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull, clearance);
 }
 
 function pointSegmentDistance(px, py, ax, ay, bx, by) {
