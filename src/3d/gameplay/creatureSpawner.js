@@ -23,12 +23,11 @@
  *
  * Placement reuses `world/vegetation.js`'s exported `isPlaceablePosition` (water/slope/seat/road
  * exclusion — unchanged, not reimplemented) over a uniform-disc rejection sample, same `r=R*sqrt(u)`
- * formula and same bounded-attempt-count discipline `createVegetation`'s own base pass uses. Herd
- * species (`at`/`geyik`/`koyun`/`inek`/`keci`/`zurafa` — `social: 'suru'` in `creatureSpeciesConfig.js`
- * where an entry exists) get no special clustering pass in this first version — an independent
- * per-creature scatter at these small counts already reads as loosely grouped often enough to be a
- * reasonable first pass; a real seat-style clustering ring (`world/vegetation.js`'s own run-113 second
- * pass) is a named, honest follow-up, not attempted here to keep this change small and reviewable.
+ * formula and same bounded-attempt-count discipline `createVegetation`'s own base pass uses. On top of
+ * that canonical physical gate, this module owns only the fauna-specific habitat envelope: domestic
+ * animals stay within settlement hinterlands, large wild animals do not spawn beside keeps, and a few
+ * broad lowland/highland preferences use the same canonical terrain height sampler already supplied to
+ * placement. These are deterministic rejection filters, not a second terrain/biome system.
  *
  * Determinism: one `mulberry32(seed ^ tag)` stream per call, drawn in species-declaration order — same
  * seed always reproduces the same spawn list (GOVERNANCE.md §8.9), same "XOR-tagged independent stream"
@@ -42,6 +41,58 @@ import { isPlaceablePosition } from '../world/vegetation.js';
  * `world/vegetation.js`'s `MAX_ATTEMPTS_PER_TREE` gives itself, so a heavily-excluded disc (e.g. mostly
  * water) terminates instead of looping forever. */
 const MAX_ATTEMPTS_PER_CREATURE = 10;
+
+/**
+ * Fauna-only habitat envelopes layered on top of the canonical water/slope/seat/road placement gate.
+ * Distances are measured to the nearest canonical settlement seat. Elevation is meters above the same
+ * sea level used by terrain placement. Missing keys intentionally mean "canonical physical gate only".
+ * This keeps the rules small and auditable instead of pretending to be a second biome framework.
+ */
+export const CREATURE_HABITAT_RULES = Object.freeze({
+	kedi: Object.freeze({ maxSeatDistanceMeters: 420, maxElevationAboveSeaMeters: 650 }),
+	kopek: Object.freeze({ maxSeatDistanceMeters: 520, maxElevationAboveSeaMeters: 800 }),
+	at: Object.freeze({ maxSeatDistanceMeters: 850, maxElevationAboveSeaMeters: 1050 }),
+	koyun: Object.freeze({ maxSeatDistanceMeters: 900, maxElevationAboveSeaMeters: 1300 }),
+	inek: Object.freeze({ maxSeatDistanceMeters: 700, maxElevationAboveSeaMeters: 900 }),
+	keci: Object.freeze({ maxSeatDistanceMeters: 950, maxElevationAboveSeaMeters: 1800 }),
+	domuz: Object.freeze({ minSeatDistanceMeters: 120, maxElevationAboveSeaMeters: 950 }),
+	tavuk: Object.freeze({ maxSeatDistanceMeters: 360, maxElevationAboveSeaMeters: 600 }),
+	geyik: Object.freeze({ minSeatDistanceMeters: 180, maxElevationAboveSeaMeters: 1450 }),
+	ayi: Object.freeze({ minSeatDistanceMeters: 320, minElevationAboveSeaMeters: 80 }),
+	aslan: Object.freeze({ minSeatDistanceMeters: 420, maxElevationAboveSeaMeters: 700 }),
+	zurafa: Object.freeze({ minSeatDistanceMeters: 500, maxElevationAboveSeaMeters: 520 }),
+	fil: Object.freeze({ minSeatDistanceMeters: 450, maxElevationAboveSeaMeters: 520 }),
+	tavsan: Object.freeze({ minSeatDistanceMeters: 80, maxElevationAboveSeaMeters: 1200 }),
+});
+
+function nearestSeatDistanceMeters(x, z, seats) {
+	let nearest = Infinity;
+	for (const seat of seats ?? []) nearest = Math.min(nearest, Math.hypot(x - seat.x, z - seat.z));
+	return nearest;
+}
+
+/**
+ * Evaluates only fauna-specific habitat constraints. Callers must still pass the canonical
+ * `isPlaceablePosition()` water/slope/seat/road gate separately.
+ */
+export function isCreatureHabitatCompatible(speciesId, x, z, {
+	sampleHeightMeters,
+	seaLevelMeters,
+	seats,
+	habitatRules = CREATURE_HABITAT_RULES,
+} = {}) {
+	const rule = habitatRules?.[speciesId];
+	if (!rule) return true;
+	const seatDistance = nearestSeatDistanceMeters(x, z, seats);
+	if (rule.minSeatDistanceMeters != null && seatDistance < rule.minSeatDistanceMeters) return false;
+	if (rule.maxSeatDistanceMeters != null && seatDistance > rule.maxSeatDistanceMeters) return false;
+	if (typeof sampleHeightMeters !== 'function') return false;
+	const elevationAboveSea = sampleHeightMeters(x, z) - seaLevelMeters;
+	if (!Number.isFinite(elevationAboveSea)) return false;
+	if (rule.minElevationAboveSeaMeters != null && elevationAboveSea < rule.minElevationAboveSeaMeters) return false;
+	if (rule.maxElevationAboveSeaMeters != null && elevationAboveSea > rule.maxElevationAboveSeaMeters) return false;
+	return true;
+}
 
 /** Desktop population — see this module's own doc comment for the draw-call/triangle budget math this
  * total (80) was chosen against. Herd-tagged species (per `creatureSpeciesConfig.js`) get a slightly
@@ -110,6 +161,7 @@ export function scatterCreatures({
 				const z = centerZ + Math.sin(angle) * radius;
 				const rotationYRadians = rng() * Math.PI * 2;
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+				if (!isCreatureHabitatCompatible(speciesId, x, z, { sampleHeightMeters, seaLevelMeters, seats })) continue;
 				spawns.push({ id: `creature-${speciesId}-${spawnIndex++}`, speciesId, x, z, rotationYRadians });
 				placed = true;
 				placedForSpecies++;
@@ -121,7 +173,7 @@ export function scatterCreatures({
 		if (placedForSpecies < count) {
 			console.warn(
 				`[gameplay/creatureSpawner] "${speciesId}": placed ${placedForSpecies}/${count} — remainder dropped ` +
-					`(no valid position found within ${MAX_ATTEMPTS_PER_CREATURE} attempts each; not a silent cap).`,
+					`(no valid physical+habitat position found within ${MAX_ATTEMPTS_PER_CREATURE} attempts each; not a silent cap).`,
 			);
 		}
 	}
