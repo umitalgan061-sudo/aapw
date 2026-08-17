@@ -50,6 +50,10 @@ try {
 
   await page.keyboard.up('ShiftLeft');
   await waitState('walk');
+  // The runtime intentionally treats a second run press inside 0.6s as dodge. Let that window
+  // expire before starting the deliberate double-tap sequence below, otherwise CI races between
+  // "sprint" and "dodge" depending on renderer/frame timing rather than testing either contract.
+  await page.waitForTimeout(700);
   await page.keyboard.down('ShiftLeft');
   await waitState('sprint');
   await page.keyboard.up('ShiftLeft');
@@ -114,6 +118,10 @@ try {
   fs.writeFileSync(path.join(outDir, 'metrics.json'), `${JSON.stringify({ baseline, sprintA, sprintB, beforeDodge, dodge, recoveryEnd, exhausted, restarted, browserErrors: errors }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
   console.log('PLAYER_SPRINT_DODGE_RUNTIME_OK');
+} catch (error) {
+  const frames = await page.evaluate(() => structuredClone(window.__playerMotionFrames ?? [])).catch(() => []);
+  fs.writeFileSync(path.join(outDir, 'failure.json'), `${JSON.stringify({ error: String(error?.stack ?? error), browserErrors: errors, recentFrames: frames.slice(-40) }, null, 2)}\n`);
+  throw error;
 } finally {
   await page.close();
   await browser.close();
