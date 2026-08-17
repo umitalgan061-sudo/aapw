@@ -70,7 +70,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			]),
 		}),
 		'bone-mountains': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.008, outerWidthNormalized: 0.060, seed: 37 }),
-		'eastern-chain': Object.freeze({ peakMeters: 1000, coreWidthNormalized: 0.007, outerWidthNormalized: 0.055, seed: 53 }),
+		'eastern-chain': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.007, outerWidthNormalized: 0.055, seed: 53 }),
 	}),
 });
 
