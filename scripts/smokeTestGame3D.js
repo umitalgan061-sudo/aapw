@@ -10,7 +10,41 @@
  *
  * This file is just the orchestration (result printing over each check) — the static file server
  * and Playwright bootstrap it uses live in `devServerHelper.js` (run 59, shared with
- * `collectPerfSnapshot.js`). The actual per-feature assertions live in focused check modules.
+ * `collectPerfSnapshot.js`). The actual per-feature assertions live in twelve focused check modules:
+ * - `game3dSmokeChecksScene.js` — page-boot level: 2D shell load, 3D mode boot, water
+ *   vertex-shader-has-no-displacement, settlement ground-flatten pads (run 92, ADR-0118).
+ * - `game3dSmokeChecksDebugTools.js` — debug-tool + world-event singleton systems: F4 debug camera,
+ *   F2 debug/profiling panel, world-event system, world-event day/night gating (split out of
+ *   `game3dSmokeChecksScene.js` run 88, which had reached 573/600 — see that file's own header).
+ * - `game3dSmokeChecks.js` — non-movement per-entity gameplay: settlement collider, player-cart dynamic
+ *   collider (run 337, ADR-0283), jump/gravity arc, interaction controller, interaction-prompt tap;
+ *   plus (run 87, budget-placed — see that file's own header) the starfield twinkle check.
+ * - `game3dSmokeChecksMovement.js` — ground-movement AI: wolf flee/pack-alert, NPC waypoint patrol,
+ *   wolf waypoint patrol, NPC combat-stance, NPC/animal/creature obstacle collider (run 332, ADR-0278).
+ * - `game3dSmokeChecksDragonFlight.js` — dragon baseline flight/awareness: circling flight, notice
+ *   trigger, reactive flight, wing-flap agitation telegraph.
+ * - `game3dSmokeChecksDragonDive.js` — dragon dive/swoop path deviations: dive/swoop, dive telegraph,
+ *   and (run 90, ADR-0116) the attack lunge/bite escalation on top of it.
+ * - `game3dSmokeChecksDragonPursuit.js` — dragon continuous-chase path deviations: pursuit, pursuit
+ *   give-up cue.
+ * - `game3dSmokeChecksSafeMode.js` — `safeMode.js`'s dispose()/disposeOnError()-throws containment
+ *   (ADR-0106), per-entity and singleton.
+ * - `game3dSmokeChecksDialogueTouch.js` — touch/keyboard dialogue-choice activation (run 99, ADR-0125);
+ *   plus (run 340, ADR-0286) the dialogue-input paused-gate check.
+ * - `game3dSmokeChecksControlsHelp.js` — responsive controls-reference widget (run 104, ADR-0131).
+ * - `game3dSmokeChecksSettlementCompass.js` — nearest-settlement compass widget (run 106, ADR-0133).
+ * - `game3dSmokeChecksDayNightClock.js` — day/night clock widget (run 107, ADR-0134).
+ * - `game3dSmokeChecksVegetation.js` — procedural instanced-tree scatter placement rules (run 111, ADR-0138).
+ * - `game3dSmokeChecksPauseMenu.js` — menu/pause overlay open/close/dispose (run 339, ADR-0285); plus
+ *   (run 341, ADR-0289) the settings screen's quality picker and `renderQuality.js`'s manual-override
+ *   resolution.
+ *
+ * The split history: run 40 (`game3dSmokeChecks.js` hit 596/600), run 64 (a fifth check module rather
+ * than growing `game3dSmokeChecksMovement.js`, already at 614/600), run 68 (that 614-line violation
+ * finally fixed at its source by moving its three dragon checks out — DECISIONS.md ADR-0087), run 88
+ * (`game3dSmokeChecksScene.js` hit 573/600, its F4/F2/world-event checks moved into the new
+ * `game3dSmokeChecksDebugTools.js`). See each file's own header comment for why. Every module is
+ * under this project's 600-line cap.
  *
  * Requires Playwright's Chromium browser (dev-only tooling — this repo intentionally has no
  * `package.json`/build step for the *deployed* site; this script is never loaded by a browser or
