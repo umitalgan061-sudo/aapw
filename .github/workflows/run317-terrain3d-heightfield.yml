@@ -118,7 +118,10 @@ jobs:
             done
             exit "$STATUS"
           fi
-          test "$(find godot/terrain-authoring/terrain3d_data -name '*.res' | wc -l)" -eq 36
+          EXPECTED_REGIONS="$(node -e "const m=require('./godot/terrain-authoring/source_data/westeros_height_r32.json'); process.stdout.write(String(m.regionsX*m.regionsZ))")"
+          ACTUAL_REGIONS="$(find godot/terrain-authoring/terrain3d_data -name '*.res' | wc -l | tr -d ' ')"
+          echo "terrain3d regions actual=$ACTUAL_REGIONS expected=$EXPECTED_REGIONS"
+          test "$ACTUAL_REGIONS" -eq "$EXPECTED_REGIONS"
 
       - name: Validate authored terrain against the live JS sampler
         run: |
