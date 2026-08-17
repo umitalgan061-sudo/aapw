@@ -99,13 +99,17 @@ export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMAS
 	const balance = Math.max(0, Math.floor(Number(economySnapshot.copper) || 0));
 	const stock = economySnapshot.stockByOffer && typeof economySnapshot.stockByOffer === 'object'
 		? economySnapshot.stockByOffer
-		: {};
+		: null;
 	const lines = ['Dragonstone Levazımcısı', `Kese: ${balance} bakır`];
 	if (feedback) lines.push(feedback);
 	lines.push('Satın almak için numarayı seç:');
 	for (const offer of offers) {
-		const remaining = Math.max(0, Math.min(stockLimitForText(offer), Math.floor(Number(stock[offer.id]) || 0)));
-		lines.push(`${offer.label} — ${offer.priceCopper} bakır · stok ${remaining}/${stockLimitForText(offer)}`);
+		const limit = stockLimitForText(offer);
+		const savedRemaining = stock && Object.hasOwn(stock, offer.id) ? Number(stock[offer.id]) : limit;
+		const remaining = Number.isFinite(savedRemaining)
+			? Math.max(0, Math.min(limit, Math.floor(savedRemaining)))
+			: limit;
+		lines.push(`${offer.label} — ${offer.priceCopper} bakır · stok ${remaining}/${limit}`);
 	}
 	return lines.join('\n');
 }
