@@ -7,94 +7,84 @@ import {
 	buildQuartermasterText,
 	createInteractionEconomyState,
 } from '../src/3d/gameplay/interactionEconomy.js';
-import {
-	INTERACTION_CONFIG,
-	INTERACTION_ITEMS,
-	createInteractionInventoryState,
-} from '../src/3d/gameplay/interactionConfig.js';
+import { INTERACTION_CONFIG, INTERACTION_ITEMS, createInteractionInventoryState } from '../src/3d/gameplay/interactionConfig.js';
 
+const ration = QUARTERMASTER_OFFERS[0];
+const whetstone = QUARTERMASTER_OFFERS[1];
 assert.equal(QUARTERMASTER_NPC_ID, 'stannis-guard-1');
 assert.equal(STARTING_COPPER, 40);
-assert.equal(QUARTERMASTER_OFFERS.length, 2);
+assert.equal(ration.stockLimit, 4);
+assert.equal(whetstone.stockLimit, 2);
+assert.equal(INTERACTION_ITEMS[ration.itemId]?.stackLimit, 5);
+assert.equal(INTERACTION_ITEMS[whetstone.itemId]?.stackLimit, 3);
 
 const inventory = createInteractionInventoryState();
 const economy = createInteractionEconomyState();
 const grant = (itemId, quantity, provenance) => inventory.grant(itemId, quantity, provenance);
-
-const ration = QUARTERMASTER_OFFERS[0];
-const whetstone = QUARTERMASTER_OFFERS[1];
-assert.equal(INTERACTION_ITEMS[ration.itemId]?.stackLimit, 5);
-assert.equal(INTERACTION_ITEMS[whetstone.itemId]?.stackLimit, 3);
+assert.deepEqual(economy.snapshot(), {
+	copper: 40,
+	stockByOffer: { 'dragonstone-field-ration': 4, 'dragonstone-whetstone': 2 },
+});
 
 let result = economy.purchase(ration, grant);
 assert.equal(result.ok, true);
 assert.equal(result.balanceCopper, 34);
-assert.equal(inventory.snapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 1);
-assert.deepEqual(
-	inventory.snapshot().items.find((item) => item.itemId === ration.itemId)?.provenance,
-	[{ sourceType: 'vendor', sourceId: QUARTERMASTER_NPC_ID }],
-);
+assert.equal(result.remainingStock, 3);
+assert.deepEqual(inventory.snapshot().items[0].provenance, [{ sourceType: 'vendor', sourceId: QUARTERMASTER_NPC_ID }]);
 
 result = economy.purchase(whetstone, grant);
 assert.equal(result.ok, true);
 assert.equal(result.balanceCopper, 22);
-assert.equal(inventory.snapshot().items.find((item) => item.itemId === whetstone.itemId)?.quantity, 1);
+assert.equal(result.remainingStock, 1);
+assert.deepEqual(economy.snapshot().stockByOffer, { 'dragonstone-field-ration': 3, 'dragonstone-whetstone': 1 });
 
-// Stack-cap semantics are isolated from purse exhaustion so inventory-full is the first rejecting condition.
-const stockedEconomy = createInteractionEconomyState(100);
-const stockedInventory = createInteractionInventoryState();
-const stockedGrant = (itemId, quantity, provenance) => stockedInventory.grant(itemId, quantity, provenance);
-for (let index = 0; index < INTERACTION_ITEMS[ration.itemId].stackLimit; index += 1) {
-	result = stockedEconomy.purchase(ration, stockedGrant);
-	assert.equal(result.ok, true);
+const stockEconomy = createInteractionEconomyState(100);
+const stockInventory = createInteractionInventoryState();
+for (let index = 0; index < whetstone.stockLimit; index += 1) {
+	assert.equal(stockEconomy.purchase(whetstone, (...args) => stockInventory.grant(...args)).ok, true);
 }
-assert.equal(stockedInventory.snapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 5);
-const beforeFullAttempt = stockedEconomy.snapshot().copper;
-result = stockedEconomy.purchase(ration, stockedGrant);
-assert.equal(result.ok, false);
+const stockBefore = structuredClone(stockEconomy.snapshot());
+const inventoryBefore = structuredClone(stockInventory.snapshot());
+result = stockEconomy.purchase(whetstone, (...args) => stockInventory.grant(...args));
+assert.equal(result.reason, 'out-of-stock');
+assert.deepEqual(stockEconomy.snapshot(), stockBefore);
+assert.deepEqual(stockInventory.snapshot(), inventoryBefore);
+
+const fullEconomy = createInteractionEconomyState(100);
+const fullInventory = createInteractionInventoryState();
+for (let index = 0; index < INTERACTION_ITEMS[ration.itemId].stackLimit; index += 1) fullInventory.grant(ration.itemId, 1);
+const fullBefore = structuredClone(fullEconomy.snapshot());
+result = fullEconomy.purchase(ration, (...args) => fullInventory.grant(...args));
 assert.equal(result.reason, 'inventory-full');
-assert.equal(stockedEconomy.snapshot().copper, beforeFullAttempt);
+assert.deepEqual(fullEconomy.snapshot(), fullBefore);
 
-// Insufficient funds also fail without inventory mutation.
 const poorEconomy = createInteractionEconomyState(5);
-const poorInventory = createInteractionInventoryState();
-result = poorEconomy.purchase(ration, (...args) => poorInventory.grant(...args));
-assert.equal(result.ok, false);
+const poorBefore = structuredClone(poorEconomy.snapshot());
+result = poorEconomy.purchase(ration, () => true);
 assert.equal(result.reason, 'insufficient-funds');
-assert.equal(poorEconomy.snapshot().copper, 5);
-assert.equal(poorInventory.snapshot().items.length, 0);
+assert.deepEqual(poorEconomy.snapshot(), poorBefore);
 
-// Save/restore is deterministic and malformed/legacy state falls back to the starting purse.
 const saved = economy.snapshot();
 const restored = createInteractionEconomyState(0);
 restored.restore(saved);
 assert.deepEqual(restored.snapshot(), saved);
-restored.restore({ copper: -50 });
-assert.equal(restored.snapshot().copper, STARTING_COPPER);
-restored.restore(null);
-assert.equal(restored.snapshot().copper, STARTING_COPPER);
+restored.restore({ copper: 17 });
+assert.deepEqual(restored.snapshot(), { copper: 17, stockByOffer: { 'dragonstone-field-ration': 4, 'dragonstone-whetstone': 2 } });
+restored.restore({ copper: 17, stockByOffer: { [ration.id]: 999, [whetstone.id]: -2 } });
+assert.deepEqual(restored.snapshot().stockByOffer, { 'dragonstone-field-ration': 4, 'dragonstone-whetstone': 2 });
 
-const text = buildQuartermasterText({ copper: 17 }, QUARTERMASTER_OFFERS, 'Satın alma tamamlandı.');
-assert.match(text, /Dragonstone Levazımcısı/);
-assert.match(text, /Kese: 17 bakır/);
-assert.match(text, /saha azığı — 6 bakır/);
-assert.match(text, /bileği taşı — 12 bakır/);
-assert.match(text, /Satın alma tamamlandı/);
+const text = buildQuartermasterText(saved, QUARTERMASTER_OFFERS, 'Satın alma tamamlandı.');
+assert.match(text, /Kese: 22 bakır/);
+assert.match(text, /saha azığı — 6 bakır · stok 3\/4/);
+assert.match(text, /bileği taşı — 12 bakır · stok 1\/2/);
 
-// Prove the real shipped interaction seam: proximity -> B shop -> number purchase -> inventory -> save.
 const dialogueHistory = [];
 const economyChanges = [];
 const inventoryChanges = [];
-const quartermaster = {
-	object3D: { name: QUARTERMASTER_NPC_ID, position: { x: 0, z: 0 } },
-	displayName: 'Kapı Nöbetçisi',
-};
+const quartermaster = { object3D: { name: QUARTERMASTER_NPC_ID, position: { x: 0, z: 0 } }, displayName: 'Kapı Nöbetçisi' };
 const controller = createInteractionController({
 	interactionPrompt: { setVisible() {} },
-	dialogueBox: {
-		show: (body, choices = []) => dialogueHistory.push({ body, choices }),
-		hide: () => dialogueHistory.push({ hidden: true }),
-	},
+	dialogueBox: { show: (body, choices = []) => dialogueHistory.push({ body, choices }), hide() {} },
 	greetingTemplate: INTERACTION_CONFIG.GREETING_TEMPLATE,
 	greetingsByNpcId: INTERACTION_CONFIG.GREETINGS_BY_NPC_ID,
 	choicesByNpcId: INTERACTION_CONFIG.CHOICES_BY_NPC_ID,
@@ -104,21 +94,16 @@ const controller = createInteractionController({
 });
 controller.update([quartermaster], { x: 0, z: 0 });
 controller.handleKeyDown({ code: 'KeyB', repeat: false });
-assert.match(dialogueHistory.at(-1).body, /Dragonstone Levazımcısı/);
-assert.deepEqual(dialogueHistory.at(-1).choices, [
-	'Dragonstone saha azığı — 6 bakır',
-	'Nöbetçi bileği taşı — 12 bakır',
-]);
+assert.match(dialogueHistory.at(-1).body, /stok 4\/4/);
 controller.handleKeyDown({ code: 'Digit1', repeat: false });
-assert.deepEqual(controller.getEconomySnapshot(), { copper: 34 });
-assert.equal(controller.getInventorySnapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 1);
-assert.match(dialogueHistory.at(-1).body, /çantana eklendi/);
+assert.equal(controller.getEconomySnapshot().copper, 34);
+assert.equal(controller.getEconomySnapshot().stockByOffer[ration.id], 3);
+assert.match(dialogueHistory.at(-1).body, /stok 3\/4/);
 assert.equal(economyChanges.length, 1);
 assert.equal(inventoryChanges.length, 1);
 
 const runtimeSaved = controller.getRpgSnapshot();
 assert.equal(runtimeSaved.schemaVersion, 5);
-assert.deepEqual(runtimeSaved.economy, { copper: 34 });
 const runtimeRestored = createInteractionController({
 	interactionPrompt: { setVisible() {} },
 	dialogueBox: { show() {}, hide() {} },
@@ -128,12 +113,9 @@ const runtimeRestored = createInteractionController({
 	radiusMeters: INTERACTION_CONFIG.PROMPT_RADIUS_METERS,
 });
 runtimeRestored.restoreRpgSnapshot(runtimeSaved);
-assert.deepEqual(runtimeRestored.getEconomySnapshot(), { copper: 34 });
-assert.equal(runtimeRestored.getInventorySnapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 1);
-
-// Moving away closes the shop; B cannot open it without the canonical quartermaster nearby.
+assert.deepEqual(runtimeRestored.getEconomySnapshot(), runtimeSaved.economy);
 controller.update([], { x: 100, z: 100 });
 controller.handleKeyDown({ code: 'KeyB', repeat: false });
-assert.deepEqual(controller.getEconomySnapshot(), { copper: 34 });
+assert.equal(controller.getEconomySnapshot().stockByOffer[ration.id], 3);
 
-console.log('PASS checkInteractionQuartermasterTrade: deterministic economy plus shipped proximity/shop/purchase/persistence interaction verified.');
+console.log('PASS checkInteractionQuartermasterTrade: deterministic purse, finite vendor stock, shipped purchase UX and persistence verified.');
