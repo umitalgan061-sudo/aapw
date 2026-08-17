@@ -9,6 +9,8 @@ assert.match(npcSource, /hysteresisMeters = 12/);
 assert.match(npcSource, /distantRadiusMeters = 240/);
 assert.match(npcSource, /distantIntervalSeconds = 1/);
 assert.match(npcSource, /distantHysteresisMeters = 30/);
+assert.match(npcSource, /farAccumulatedSeconds = farPhaseSeconds/);
+assert.match(npcSource, /distantAccumulatedSeconds = distantPhaseSeconds/);
 assert.match(npcSource, /tier = finiteDistance \? 'distant' : 'bootstrap'/);
 assert.match(npcSource, /simulationLod\.step\(delta, distanceToPlayer, urgent\)/);
 assert.equal(npcSource.includes("from './npcSimulationLod.js'"), false,
@@ -35,8 +37,10 @@ function scheduler(id) {
   const distantRadius = 240;
   const hysteresis = 12;
   const distantHysteresis = 30;
-  let farAccumulated = phase(id, farInterval);
-  let distantAccumulated = phase(`${id}:distant`, distantInterval);
+  const farPhase = phase(id, farInterval);
+  const distantPhase = phase(`${id}:distant`, distantInterval);
+  let farAccumulated = farPhase;
+  let distantAccumulated = distantPhase;
   let tier = 'near';
   let nearLatched = true;
   let distantLatched = false;
@@ -56,8 +60,8 @@ function scheduler(id) {
         nearLatched = distance <= nearRadius;
       }
       if (nearLatched) {
-        farAccumulated = 0;
-        distantAccumulated = 0;
+        farAccumulated = farPhase;
+        distantAccumulated = distantPhase;
         tier = urgent ? 'urgent' : 'near';
         return bounded;
       }
@@ -66,15 +70,17 @@ function scheduler(id) {
         else distantLatched = distance > distantRadius + distantHysteresis;
       }
       if (distantLatched) {
+        if (tier !== 'distant' && tier !== 'bootstrap') distantAccumulated = distantPhase;
         tier = finiteDistance ? 'distant' : 'bootstrap';
-        farAccumulated = 0;
+        farAccumulated = farPhase;
         distantAccumulated = Math.min(distantInterval, distantAccumulated + bounded);
         if (distantAccumulated + Number.EPSILON < distantInterval) return 0;
         distantAccumulated = 0;
         return bounded;
       }
+      if (tier !== 'far') farAccumulated = farPhase;
       tier = 'far';
-      distantAccumulated = 0;
+      distantAccumulated = distantPhase;
       farAccumulated = Math.min(farInterval, farAccumulated + bounded);
       if (farAccumulated + Number.EPSILON < farInterval) return 0;
       farAccumulated = 0;
@@ -130,6 +136,28 @@ assert.equal(bootstrapWake.step(frameDelta, 20, false), frameDelta,
   'NPC must wake immediately once a valid nearby player position becomes available');
 assert.equal(bootstrapWake.tier, 'near');
 
+// A crowd that was full-rate before a player/camera teleport must keep deterministic phases armed.
+// Resetting every accumulator to zero in near tier would make the whole crowd wake on the same frame.
+const nearToFar = Array.from({ length: 100 }, (_, i) => scheduler(`near-to-far-${i}`));
+for (const lod of nearToFar) assert.equal(lod.step(frameDelta, 20, false), frameDelta);
+let maxNearToFarWake = 0;
+for (let frame = 0; frame < 60; frame += 1) {
+  let wake = 0;
+  for (const lod of nearToFar) if (lod.step(frameDelta, 150, false) > 0) wake += 1;
+  maxNearToFarWake = Math.max(maxNearToFarWake, wake);
+}
+assert.ok(maxNearToFarWake < 20, 'near -> far crowd transition must not create a synchronized wakeup spike');
+
+const nearToDistant = Array.from({ length: 100 }, (_, i) => scheduler(`near-to-distant-${i}`));
+for (const lod of nearToDistant) assert.equal(lod.step(frameDelta, 20, false), frameDelta);
+let maxNearToDistantWake = 0;
+for (let frame = 0; frame < 60; frame += 1) {
+  let wake = 0;
+  for (const lod of nearToDistant) if (lod.step(frameDelta, 500, false) > 0) wake += 1;
+  maxNearToDistantWake = Math.max(maxNearToDistantWake, wake);
+}
+assert.ok(maxNearToDistantWake < 10, 'near -> distant crowd transition must retain staggered dormancy phases');
+
 const near = scheduler('near-guard');
 for (let i = 0; i < 120; i += 1) assert.equal(near.step(frameDelta, 20, false), frameDelta);
 
@@ -179,6 +207,8 @@ console.log('NPC_SIMULATION_LOD_PASS', JSON.stringify({
   bootstrapNpcCount: bootstrap.length,
   totalBootstrapTicks,
   maxBootstrapWake,
+  maxNearToFarWake,
+  maxNearToDistantWake,
   nearTicks: 120,
   hysteresisMeters: 12,
   distantHysteresisMeters: 30,
