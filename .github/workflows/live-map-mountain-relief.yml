@@ -83,10 +83,23 @@ jobs:
 
       - name: Live seat road and full-scene regressions
         run: |
-          set -euo pipefail
-          node scripts/terrainSeatSafetyCheck.js | tee "$RUNNER_TEMP/terrain-seat.log"
-          node scripts/roadNetworkSafetyCheck.js | tee "$RUNNER_TEMP/road-network.log"
-          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/game3d-smoke.log"
+          set -uo pipefail
+          run_live_check() {
+            local label="$1"
+            local log="$2"
+            shift 2
+            set +e
+            "$@" 2>&1 | tee "$log"
+            local status="${PIPESTATUS[0]}"
+            set -e
+            if [ "$status" -ne 0 ]; then
+              tail -n 20 "$log" | while IFS= read -r line; do echo "::error title=Live map ${label}::$line"; done
+              exit "$status"
+            fi
+          }
+          run_live_check terrain-seat "$RUNNER_TEMP/terrain-seat.log" node scripts/terrainSeatSafetyCheck.js
+          run_live_check road-network "$RUNNER_TEMP/road-network.log" node scripts/roadNetworkSafetyCheck.js
+          run_live_check full-scene "$RUNNER_TEMP/game3d-smoke.log" node scripts/smokeTestGame3D.js
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/game3d-smoke.log")" -ge 40
 
       - name: Final source-preservation gate
