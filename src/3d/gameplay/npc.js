@@ -51,38 +51,63 @@ export function createNpcSimulationLod({
 	id,
 	nearRadiusMeters = 90,
 	farIntervalSeconds = 0.25,
+	distantRadiusMeters = 240,
+	distantIntervalSeconds = 1,
 	maxStepSeconds = 0.25,
 	hysteresisMeters = 12,
+	distantHysteresisMeters = 30,
 } = {}) {
 	if (!(nearRadiusMeters > 0)) throw new Error('nearRadiusMeters must be > 0');
 	if (!(farIntervalSeconds > 0)) throw new Error('farIntervalSeconds must be > 0');
+	if (!(distantRadiusMeters > nearRadiusMeters)) throw new Error('distantRadiusMeters must exceed nearRadiusMeters');
+	if (!(distantIntervalSeconds >= farIntervalSeconds)) throw new Error('distantIntervalSeconds must be >= farIntervalSeconds');
 	if (!(maxStepSeconds > 0)) throw new Error('maxStepSeconds must be > 0');
 	if (!(hysteresisMeters >= 0)) throw new Error('hysteresisMeters must be >= 0');
-	let accumulatedSeconds = deterministicNpcPhaseSeconds(id, farIntervalSeconds);
+	if (!(distantHysteresisMeters >= 0)) throw new Error('distantHysteresisMeters must be >= 0');
+	let farAccumulatedSeconds = deterministicNpcPhaseSeconds(id, farIntervalSeconds);
+	let distantAccumulatedSeconds = deterministicNpcPhaseSeconds(`${id}:distant`, distantIntervalSeconds);
 	let tier = 'near';
 	let nearLatched = true;
+	let distantLatched = false;
 	return {
 		step(delta, distanceToPlayer, urgent = false) {
 			const boundedDelta = clampSimulationDelta(delta, maxStepSeconds);
 			const finiteDistance = Number.isFinite(distanceToPlayer);
 			if (urgent || !finiteDistance) {
 				nearLatched = true;
+				distantLatched = false;
 			} else if (nearLatched) {
 				nearLatched = distanceToPlayer <= nearRadiusMeters + hysteresisMeters;
 			} else {
 				nearLatched = distanceToPlayer <= nearRadiusMeters;
 			}
 			if (nearLatched) {
-				accumulatedSeconds = 0;
+				farAccumulatedSeconds = 0;
+				distantAccumulatedSeconds = 0;
 				tier = urgent ? 'urgent' : 'near';
 				return boundedDelta;
 			}
+
+			if (distantLatched) {
+				distantLatched = distanceToPlayer > distantRadiusMeters - distantHysteresisMeters;
+			} else {
+				distantLatched = distanceToPlayer > distantRadiusMeters + distantHysteresisMeters;
+			}
+			if (distantLatched) {
+				tier = 'distant';
+				farAccumulatedSeconds = 0;
+				distantAccumulatedSeconds = Math.min(distantIntervalSeconds, distantAccumulatedSeconds + boundedDelta);
+				if (distantAccumulatedSeconds + Number.EPSILON < distantIntervalSeconds) return 0;
+				distantAccumulatedSeconds = 0;
+				return boundedDelta;
+			}
+
 			tier = 'far';
-			accumulatedSeconds = Math.min(maxStepSeconds, accumulatedSeconds + boundedDelta);
-			if (accumulatedSeconds + Number.EPSILON < farIntervalSeconds) return 0;
-			const simulationDelta = Math.min(accumulatedSeconds, maxStepSeconds);
-			accumulatedSeconds = 0;
-			return simulationDelta;
+			distantAccumulatedSeconds = 0;
+			farAccumulatedSeconds = Math.min(farIntervalSeconds, farAccumulatedSeconds + boundedDelta);
+			if (farAccumulatedSeconds + Number.EPSILON < farIntervalSeconds) return 0;
+			farAccumulatedSeconds = 0;
+			return boundedDelta;
 		},
 		get tier() { return tier; },
 	};
@@ -133,6 +158,8 @@ export async function createNPC({
 	combatStanceTransitionSeconds = 0.3,
 	simulationLodNearRadiusMeters = 90,
 	simulationLodFarIntervalSeconds = 0.25,
+	simulationLodDistantRadiusMeters = 240,
+	simulationLodDistantIntervalSeconds = 1,
 	simulationLodMaxStepSeconds = 0.25,
 }) {
 	const model = await assetLoader.loadFBXModel(modelUrl, { fallbackColor: 0x9c6b30, fallbackSize: 1.8 });
@@ -171,6 +198,8 @@ export async function createNPC({
 		id: name ?? displayName ?? modelUrl,
 		nearRadiusMeters: simulationLodNearRadiusMeters,
 		farIntervalSeconds: simulationLodFarIntervalSeconds,
+		distantRadiusMeters: simulationLodDistantRadiusMeters,
+		distantIntervalSeconds: simulationLodDistantIntervalSeconds,
 		maxStepSeconds: simulationLodMaxStepSeconds,
 	});
 	model.userData.simulationLodTier = 'near';
