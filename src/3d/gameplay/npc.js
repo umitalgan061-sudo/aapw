@@ -64,8 +64,10 @@ export function createNpcSimulationLod({
 	if (!(maxStepSeconds > 0)) throw new Error('maxStepSeconds must be > 0');
 	if (!(hysteresisMeters >= 0)) throw new Error('hysteresisMeters must be >= 0');
 	if (!(distantHysteresisMeters >= 0)) throw new Error('distantHysteresisMeters must be >= 0');
-	let farAccumulatedSeconds = deterministicNpcPhaseSeconds(id, farIntervalSeconds);
-	let distantAccumulatedSeconds = deterministicNpcPhaseSeconds(`${id}:distant`, distantIntervalSeconds);
+	const farPhaseSeconds = deterministicNpcPhaseSeconds(id, farIntervalSeconds);
+	const distantPhaseSeconds = deterministicNpcPhaseSeconds(`${id}:distant`, distantIntervalSeconds);
+	let farAccumulatedSeconds = farPhaseSeconds;
+	let distantAccumulatedSeconds = distantPhaseSeconds;
 	let tier = 'near';
 	let nearLatched = true;
 	let distantLatched = false;
@@ -87,8 +89,10 @@ export function createNpcSimulationLod({
 				nearLatched = distanceToPlayer <= nearRadiusMeters;
 			}
 			if (nearLatched) {
-				farAccumulatedSeconds = 0;
-				distantAccumulatedSeconds = 0;
+				// Keep each NPC's deterministic phase armed while it is full-rate. If a camera/player
+				// teleport pushes a whole crowd out of range on one frame, they must not all wake together.
+				farAccumulatedSeconds = farPhaseSeconds;
+				distantAccumulatedSeconds = distantPhaseSeconds;
 				tier = urgent ? 'urgent' : 'near';
 				return boundedDelta;
 			}
@@ -101,16 +105,18 @@ export function createNpcSimulationLod({
 				}
 			}
 			if (distantLatched) {
+				if (tier !== 'distant' && tier !== 'bootstrap') distantAccumulatedSeconds = distantPhaseSeconds;
 				tier = finiteDistance ? 'distant' : 'bootstrap';
-				farAccumulatedSeconds = 0;
+				farAccumulatedSeconds = farPhaseSeconds;
 				distantAccumulatedSeconds = Math.min(distantIntervalSeconds, distantAccumulatedSeconds + boundedDelta);
 				if (distantAccumulatedSeconds + Number.EPSILON < distantIntervalSeconds) return 0;
 				distantAccumulatedSeconds = 0;
 				return boundedDelta;
 			}
 
+			if (tier !== 'far') farAccumulatedSeconds = farPhaseSeconds;
 			tier = 'far';
-			distantAccumulatedSeconds = 0;
+			distantAccumulatedSeconds = distantPhaseSeconds;
 			farAccumulatedSeconds = Math.min(farIntervalSeconds, farAccumulatedSeconds + boundedDelta);
 			if (farAccumulatedSeconds + Number.EPSILON < farIntervalSeconds) return 0;
 			farAccumulatedSeconds = 0;
