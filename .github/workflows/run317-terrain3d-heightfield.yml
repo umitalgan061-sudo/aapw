@@ -62,9 +62,20 @@ jobs:
 
       - name: Export the live Westeros height field
         run: |
-          set -euo pipefail
+          set -uo pipefail
           node --check scripts/exportWesterosHeightField.js
-          node scripts/exportWesterosHeightField.js
+          mkdir -p artifacts/run317-terrain3d
+          EXPORT_LOG="artifacts/run317-terrain3d/heightfield-export.log"
+          set +e
+          node scripts/exportWesterosHeightField.js 2>&1 | tee "$EXPORT_LOG"
+          STATUS="${PIPESTATUS[0]}"
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            tail -n 16 "$EXPORT_LOG" | while IFS= read -r line; do
+              echo "::error title=Run317 height exporter::$line"
+            done
+            exit "$STATUS"
+          fi
           test -f godot/terrain-authoring/source_data/westeros_height_r32.bin
           test -f godot/terrain-authoring/source_data/westeros_height_r32.json
 
