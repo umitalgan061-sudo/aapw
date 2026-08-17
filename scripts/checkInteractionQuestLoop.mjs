@@ -12,6 +12,7 @@ const dialogueHistory = [];
 const questChanges = [];
 const reputationChanges = [];
 const progressionChanges = [];
+const worldStateChanges = [];
 
 const choicesByNpcId = {
 	'stannis-guard-1': [
@@ -26,48 +27,61 @@ const choicesByNpcId = {
 	],
 };
 
-const controller = createInteractionController({
-	interactionPrompt: { setVisible: (visible) => promptHistory.push(visible) },
-	dialogueBox: {
-		show: (text, choices = []) => dialogueHistory.push({ text, choices }),
-		hide: () => dialogueHistory.push({ hidden: true }),
-	},
-	greetingTemplate: 'Selam {name}',
-	greetingsByNpcId: {},
-	choicesByNpcId,
-	radiusMeters: 4,
+function createController(overrides = {}) {
+	return createInteractionController({
+		interactionPrompt: { setVisible: (visible) => promptHistory.push(visible) },
+		dialogueBox: {
+			show: (text, choices = []) => dialogueHistory.push({ text, choices }),
+			hide: () => dialogueHistory.push({ hidden: true }),
+		},
+		greetingTemplate: 'Selam {name}',
+		greetingsByNpcId: {},
+		choicesByNpcId,
+		radiusMeters: 4,
+		...overrides,
+	});
+}
+
+const controller = createController({
 	onQuestChanged: (snapshot) => questChanges.push(structuredClone(snapshot)),
 	onReputationChanged: (snapshot) => reputationChanges.push(structuredClone(snapshot)),
 	onProgressionChanged: (snapshot) => progressionChanges.push(structuredClone(snapshot)),
+	onWorldStateChanged: (snapshot) => worldStateChanges.push(structuredClone(snapshot)),
 });
 
-function key(code) {
-	controller.handleKeyDown({ code, repeat: false });
+function key(code, target = controller) {
+	target.handleKeyDown({ code, repeat: false });
 }
 
-function openNpc(npc) {
-	controller.update([npc], { x: 0, z: 0 });
-	key('KeyE');
+function openNpc(npc, target = controller) {
+	target.update([npc], { x: 0, z: 0 });
+	key('KeyE', target);
 	return dialogueHistory.at(-1);
 }
 
-function talkTo(npc, visibleChoiceIndex) {
-	openNpc(npc);
-	controller.handleChoice(visibleChoiceIndex);
-	key('KeyE');
+function talkTo(npc, visibleChoiceIndex, target = controller) {
+	openNpc(npc, target);
+	target.handleChoice(visibleChoiceIndex);
+	key('KeyE', target);
 }
 
 let snapshot = controller.getQuestSnapshot();
 assert.equal(snapshot[0].status, 'available');
 assert.equal(snapshot[1].status, 'locked');
 assert.deepEqual(controller.getReputationSnapshot(), { dragonstone: 0 });
+assert.deepEqual(controller.getWorldStateSnapshot(), { dragonstoneWatchPolicy: null });
 assert.deepEqual(controller.getProgressionSnapshot(), {
 	level: 1,
 	totalExperience: 0,
 	experienceIntoLevel: 0,
 	experienceToNextLevel: 100,
 });
-assert.match(buildQuestJournalText(snapshot, controller.getReputationSnapshot(), controller.getProgressionSnapshot()), /Seviye: 1 · XP: 0\/100/);
+assert.match(buildQuestJournalText(
+	snapshot,
+	controller.getReputationSnapshot(),
+	controller.getProgressionSnapshot(),
+	controller.getWorldStateSnapshot(),
+), /Seviye: 1 · XP: 0\/100/);
 assert.match(buildQuestJournalText(snapshot), /Henüz kabul edilmiş bir görev yok/);
 
 // Reputation-gated dialogue is absent until the first quest reward lands.
@@ -108,97 +122,146 @@ key('KeyE');
 snapshot = controller.getQuestSnapshot();
 assert.equal(snapshot[1].status, 'active');
 
+// Each independent investigation objective grants its progress XP once.
 talkTo(guard2, 1);
 snapshot = controller.getQuestSnapshot();
 assert.equal(snapshot[1].status, 'active');
 assert.equal(snapshot[1].objectives.filter((objective) => objective.completed).length, 1);
+assert.equal(controller.getProgressionSnapshot().totalExperience, 80);
+assert.equal(controller.getProgressionSnapshot().level, 1);
 
 talkTo(guard2, 2);
 snapshot = controller.getQuestSnapshot();
 assert.equal(snapshot[1].status, 'ready');
+assert.equal(controller.getProgressionSnapshot().totalExperience, 100);
+assert.equal(controller.getProgressionSnapshot().level, 2);
 
+// Ready state replaces lore choices with two explicit outcomes. Mercy is unlocked by level 2 + reputation.
+opened = openNpc(guard1);
+assert.deepEqual(opened.choices, ['Nöbet düzenini sıkılaştır.', 'Nöbetçiye ikinci bir şans ver.']);
+key('KeyE');
+const readyRpgSnapshot = controller.getRpgSnapshot();
+assert.equal(readyRpgSnapshot.schemaVersion, 3);
+assert.equal(readyRpgSnapshot.quests[1].status, 'ready');
+
+// Choose the gated mercy outcome.
 talkTo(guard1, 1);
 snapshot = controller.getQuestSnapshot();
 assert.equal(snapshot[1].status, 'completed');
 assert.equal(snapshot[1].rewardGranted, true);
+assert.equal(snapshot[1].outcome, 'mercy');
+assert.deepEqual(controller.getWorldStateSnapshot(), { dragonstoneWatchPolicy: 'mercy' });
 assert.deepEqual(controller.getReputationSnapshot(), { dragonstone: 15 });
 assert.deepEqual(controller.getProgressionSnapshot(), {
 	level: 2,
-	totalExperience: 150,
-	experienceIntoLevel: 50,
+	totalExperience: 190,
+	experienceIntoLevel: 90,
 	experienceToNextLevel: 100,
 });
 assert.equal(reputationChanges.length, 2);
-assert.equal(progressionChanges.length, 2);
+assert.equal(progressionChanges.length, 4);
+assert.equal(worldStateChanges.length, 1);
 assert.equal(questChanges.length, 7);
 
-// Repeating completed turn-in dialogue cannot farm either reputation or XP.
+// The persistent outcome changes shipped dialogue on the affected guard.
+opened = openNpc(guard2);
+assert.match(opened.text, /ikinci şans boşa gitmeyecek/i);
+key('KeyE');
+
+// Repeating completed turn-in dialogue cannot farm reputation, objective XP, or final XP.
 talkTo(guard1, 1);
 assert.deepEqual(controller.getReputationSnapshot(), { dragonstone: 15 });
-assert.equal(controller.getProgressionSnapshot().totalExperience, 150);
+assert.equal(controller.getProgressionSnapshot().totalExperience, 190);
 assert.equal(reputationChanges.length, 2);
-assert.equal(progressionChanges.length, 2);
+assert.equal(progressionChanges.length, 4);
+assert.equal(worldStateChanges.length, 1);
 
 controller.showQuestJournal();
 const visibleJournal = dialogueHistory.at(-1)?.text ?? '';
-assert.match(visibleJournal, /Seviye: 2 · XP: 50\/100/);
+assert.match(visibleJournal, /Seviye: 2 · XP: 90\/100/);
 assert.match(visibleJournal, /Dragonstone itibarı: 15/);
+assert.match(visibleJournal, /Nöbet kararı: İkinci şans/);
 assert.match(visibleJournal, /Nöbetin Kanunu — TAMAMLANDI/);
 assert.match(visibleJournal, /Nöbetçinin Şüphesi — TAMAMLANDI/);
+assert.match(visibleJournal, /Sonuç: İkinci şans/);
 assert.match(visibleJournal, /Ödül: Dragonstone nöbetçilerinin güveni/);
 
-// Schema v2 preserves quest + reputation + progression without replaying rewards.
+// Schema v3 preserves quest + reputation + progression + world consequence without replaying rewards.
 const rpgSnapshot = controller.getRpgSnapshot();
-assert.equal(rpgSnapshot.schemaVersion, 2);
+assert.equal(rpgSnapshot.schemaVersion, 3);
 assert.deepEqual(rpgSnapshot.reputation, { dragonstone: 15 });
 assert.equal(rpgSnapshot.progression.level, 2);
-assert.equal(rpgSnapshot.progression.totalExperience, 150);
+assert.equal(rpgSnapshot.progression.totalExperience, 190);
+assert.deepEqual(rpgSnapshot.worldState, { dragonstoneWatchPolicy: 'mercy' });
 const restoredChanges = [];
 const restoredReputationChanges = [];
 const restoredProgressionChanges = [];
-const restoredController = createInteractionController({
+const restoredWorldChanges = [];
+const restoredController = createController({
 	interactionPrompt: { setVisible() {} },
 	dialogueBox: { show() {}, hide() {} },
-	greetingTemplate: 'Selam {name}',
-	choicesByNpcId,
-	radiusMeters: 4,
 	onQuestChanged: (next) => restoredChanges.push(structuredClone(next)),
 	onReputationChanged: (next) => restoredReputationChanges.push(structuredClone(next)),
 	onProgressionChanged: (next) => restoredProgressionChanges.push(structuredClone(next)),
+	onWorldStateChanged: (next) => restoredWorldChanges.push(structuredClone(next)),
 });
 restoredController.restoreRpgSnapshot(rpgSnapshot);
 assert.deepEqual(restoredController.getRpgSnapshot(), rpgSnapshot);
 assert.equal(restoredChanges.length, 1);
 assert.equal(restoredReputationChanges.length, 1);
 assert.equal(restoredProgressionChanges.length, 1);
+assert.equal(restoredWorldChanges.length, 1);
 
-// Schema v1 migration: progression did not exist, so earned XP is rebuilt from granted quest rewards.
-const schemaV1 = structuredClone(rpgSnapshot);
+// The same ready snapshot can take the strict branch; world state and later greeting diverge deterministically.
+const strictDialogue = [];
+const strictController = createController({
+	interactionPrompt: { setVisible() {} },
+	dialogueBox: {
+		show: (text, choices = []) => strictDialogue.push({ text, choices }),
+		hide() {},
+	},
+});
+strictController.restoreRpgSnapshot(readyRpgSnapshot);
+strictController.update([guard1], { x: 0, z: 0 });
+strictController.handleKeyDown({ code: 'KeyE', repeat: false });
+assert.deepEqual(strictDialogue.at(-1).choices, ['Nöbet düzenini sıkılaştır.', 'Nöbetçiye ikinci bir şans ver.']);
+strictController.handleChoice(0);
+strictController.handleKeyDown({ code: 'KeyE', repeat: false });
+assert.equal(strictController.getQuestSnapshot()[1].outcome, 'discipline');
+assert.deepEqual(strictController.getWorldStateSnapshot(), { dragonstoneWatchPolicy: 'discipline' });
+strictController.update([guard2], { x: 0, z: 0 });
+strictController.handleKeyDown({ code: 'KeyE', repeat: false });
+assert.match(strictDialogue.at(-1).text, /nöbet çizgisi sıkılaştı/i);
+
+// Schema v2 migration keeps its explicit old XP total and infers the historical strict outcome.
+const schemaV2 = structuredClone(rpgSnapshot);
+schemaV2.schemaVersion = 2;
+delete schemaV2.worldState;
+schemaV2.progression = { totalExperience: 150 };
+for (const quest of schemaV2.quests) delete quest.outcome;
+const v2Controller = createController({ interactionPrompt: { setVisible() {} }, dialogueBox: { show() {}, hide() {} } });
+v2Controller.restoreRpgSnapshot(schemaV2);
+assert.deepEqual(v2Controller.getReputationSnapshot(), { dragonstone: 15 });
+assert.equal(v2Controller.getProgressionSnapshot().totalExperience, 150);
+assert.deepEqual(v2Controller.getWorldStateSnapshot(), { dragonstoneWatchPolicy: 'discipline' });
+
+// Schema v1 had no progression; migration rebuilds only historical quest rewards, not newly-added objective XP.
+const schemaV1 = structuredClone(schemaV2);
 schemaV1.schemaVersion = 1;
 delete schemaV1.progression;
-const v1Controller = createInteractionController({
-	interactionPrompt: { setVisible() {} },
-	dialogueBox: { show() {}, hide() {} },
-	greetingTemplate: 'Selam {name}',
-	choicesByNpcId,
-	radiusMeters: 4,
-});
+const v1Controller = createController({ interactionPrompt: { setVisible() {} }, dialogueBox: { show() {}, hide() {} } });
 v1Controller.restoreRpgSnapshot(schemaV1);
 assert.deepEqual(v1Controller.getReputationSnapshot(), { dragonstone: 15 });
 assert.equal(v1Controller.getProgressionSnapshot().totalExperience, 150);
 assert.equal(v1Controller.getProgressionSnapshot().level, 2);
+assert.deepEqual(v1Controller.getWorldStateSnapshot(), { dragonstoneWatchPolicy: 'discipline' });
 
-// Older quest-only saves reconstruct both reputation and progression exactly once.
-const migratedController = createInteractionController({
-	interactionPrompt: { setVisible() {} },
-	dialogueBox: { show() {}, hide() {} },
-	greetingTemplate: 'Selam {name}',
-	choicesByNpcId,
-	radiusMeters: 4,
-});
+// Current quest-only snapshots reconstruct current objective XP and preserve an explicit branch outcome.
+const migratedController = createController({ interactionPrompt: { setVisible() {} }, dialogueBox: { show() {}, hide() {} } });
 migratedController.restoreQuestSnapshot(snapshot);
 assert.deepEqual(migratedController.getReputationSnapshot(), { dragonstone: 15 });
-assert.equal(migratedController.getProgressionSnapshot().totalExperience, 150);
+assert.equal(migratedController.getProgressionSnapshot().totalExperience, 190);
+assert.deepEqual(migratedController.getWorldStateSnapshot(), { dragonstoneWatchPolicy: 'mercy' });
 assert.deepEqual(migratedController.getQuestSnapshot(), snapshot);
 
 const tampered = structuredClone(rpgSnapshot);
@@ -206,8 +269,10 @@ tampered.quests[0].objectives.push({ id: 'future-unknown-objective', completed: 
 restoredController.restoreRpgSnapshot(tampered);
 assert.equal(restoredController.getQuestSnapshot()[0].objectives.length, 1);
 assert.deepEqual(restoredController.getReputationSnapshot(), { dragonstone: 15 });
-assert.equal(restoredController.getProgressionSnapshot().totalExperience, 150);
+assert.equal(restoredController.getProgressionSnapshot().totalExperience, 190);
+assert.deepEqual(restoredController.getWorldStateSnapshot(), { dragonstoneWatchPolicy: 'mercy' });
 
 assert.ok(promptHistory.includes(true));
 assert.ok(dialogueHistory.some((entry) => Array.isArray(entry.choices) && entry.choices.length === 3));
-console.log('[checkInteractionQuestLoop] PASS: gated dialogue -> quests -> reputation + XP/level -> journal -> schema v2 restore -> v1/legacy migration');
+assert.ok(dialogueHistory.some((entry) => Array.isArray(entry.choices) && entry.choices.length === 2));
+console.log('[checkInteractionQuestLoop] PASS: quest objectives -> level gate -> branching outcome -> world consequence -> schema v3/v2/v1 migration');
