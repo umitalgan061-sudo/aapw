@@ -4,6 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import {
   CURRENT_TERRAIN_ALBEDO_POLICY,
   CURRENT_TERRAIN_POLICY,
+  TERRAIN_MICRO_SURFACE_POLICY,
   createTerrainChunk,
   disposeTerrainChunk,
   terrainMapUvAt,
@@ -51,7 +52,7 @@ assert(terrainMapUvAt(0, -250).v > terrainMapUvAt(0, 250).v, 'south-to-north map
 const west = createTerrainChunk({ chunkX: 0, chunkZ: 0, size: 500, segments: 2, seed: 77 });
 const east = createTerrainChunk({ chunkX: 1, chunkZ: 0, size: 500, segments: 2, seed: 77 });
 assert.equal(west.material.isMeshStandardMaterial, true, 'terrain must stay on physically based MeshStandardMaterial');
-assert.equal(west.material.roughness, 1);
+assert.equal(west.material.roughness, TERRAIN_MICRO_SURFACE_POLICY.roughnessBase, 'macro material must expose the micro-PBR base roughness');
 assert.equal(west.material.metalness, 0);
 assert.equal(west.material.map, null, 'headless regression must use the intentional canonical-color fallback');
 assert.equal(west.userData.currentTerrainAlbedo.mapAlignedUv, true);
