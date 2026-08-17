@@ -138,10 +138,25 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uDeepColor;
 	uniform vec3 uSunDirection;
 	uniform vec3 uCameraPosition;
+	uniform sampler2D uDepthMap;
+	uniform float uDepthFieldExtentMeters;
 	varying vec3 vWorldPosition;
 	varying float vDepthFactor;
 	varying vec2 vSwellSlope;
 	#include <fog_pars_fragment>
+
+	float sampleFragmentDepth(vec2 worldXZ) {
+		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
+		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+		return texture2D(uDepthMap, uv).r;
+	}
+
+	float shorelineGradientMask(vec2 worldXZ) {
+		const float STEP_METERS = 68.0;
+		float eastWest = abs(sampleFragmentDepth(worldXZ + vec2(STEP_METERS, 0.0)) - sampleFragmentDepth(worldXZ - vec2(STEP_METERS, 0.0)));
+		float northSouth = abs(sampleFragmentDepth(worldXZ + vec2(0.0, STEP_METERS)) - sampleFragmentDepth(worldXZ - vec2(0.0, STEP_METERS)));
+		return smoothstep(0.018, 0.11, max(eastWest, northSouth));
+	}
 
 	// Fine chop, far below the vertex grid's resolution: three sine ripples at different direction/
 	// frequency/speed, returned as a slope so it can be summed with the swell's own analytic slope
@@ -154,10 +169,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
-		// The fine chop is well below a pixel once it is a few hundred metres out, where sampling it
-		// into a pow-80 specular term just produces crawling speckle. Fading it with distance keeps
-		// the near-field detail and leaves the far field to the swell alone.
-		float rippleFade = 1.0 - smoothstep(150.0, 900.0, distance(uCameraPosition, vWorldPosition));
+		// Fine chop is intentionally near-field only. Beyond a few hundred metres its wavelength
+		// undersamples into repetitive screen-space bands, so the analytic long swell owns distance.
+		float rippleFade = 1.0 - smoothstep(120.0, 420.0, distance(uCameraPosition, vWorldPosition));
 		// For a height field y = h(x, z) the surface normal is normalize(vec3(-dh/dx, 1.0, -dh/dz)).
 		vec2 slope = vSwellSlope + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
@@ -169,36 +183,37 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 
 		// Fresnel-ish: nearer grazing angles read lighter/more reflective, straight-down reads deep.
 		float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.0);
-		vec3 baseColor = mix(bodyColor, uShallowColor, fresnel * 0.85);
+		vec3 baseColor = mix(bodyColor, uShallowColor, fresnel * 0.65);
 
 		vec3 halfVector = normalize(uSunDirection + viewDir);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), 80.0);
 
-		// Surf is confined by a defined inverse shallow-depth mask. The previous reversed-edge
-		// smoothstep was undefined GLSL, and its single short-period sine formed diagonal bands in
-		// orthographic world views. Two slower non-parallel components keep motion irregular while
-		// preserving the same 0.22 normalized-depth surf envelope.
+		// Surf remains depth-bounded, but now also requires a real bathymetry transition. Uniformly
+		// shallow lake interiors therefore stay calm instead of turning the whole polygon into foam.
 		float surfA = sin(dot(vWorldPosition.xz, vec2(0.018, -0.013)) + uTime * 0.55);
 		float surfB = sin(dot(vWorldPosition.xz, vec2(-0.009, 0.021)) - uTime * 0.37);
 		float surge = clamp(0.62 + 0.22 * surfA + 0.16 * surfB, 0.18, 1.0);
 		float shallowMask = 1.0 - smoothstep(0.0, 0.22, vDepthFactor);
+		shallowMask *= shorelineGradientMask(vWorldPosition.xz);
 		float foam = clamp(shallowMask * surge, 0.0, 1.0);
 
-		vec3 color = mix(baseColor + specular * 0.6, vec3(0.92, 0.96, 0.98), foam);
+		vec3 color = mix(baseColor + specular * 0.55, vec3(0.90, 0.95, 0.96), foam * 0.82);
 		// Shallow water is more see-through, so a lake bed or beach shelf shows through instead of
 		// every depth rendering as the same opaque sheet.
-		float alpha = mix(0.55, 0.92, smoothstep(0.0, 0.35, vDepthFactor));
+		float alpha = mix(0.50, 0.90, smoothstep(0.0, 0.35, vDepthFactor));
 
-		gl_FragColor = vec4(color, max(alpha, foam * 0.85));
+		gl_FragColor = vec4(color, max(alpha, foam * 0.82));
 		#include <fog_fragment>
 	}
 `;
 
-/** World-space extent of the water plane. Large enough that its edge never appears before the
- * camera's far clip plane/horizon does (`WORLD_DEFAULTS.FAR_PLANE`, camera.js `maxDistance`), but
- * far smaller than the full world size — see DECISIONS.md ADR-0005 for why a world-sized plane
- * would be wasted triangle budget. */
-const WATER_PLANE_EXTENT_METERS = 4000;
+/**
+ * Full-world water coverage. The shipped perspective camera only needs 2*FAR_PLANE locally, but
+ * owner acceptance also renders the complete 13296x10341m world orthographically. 17000m exceeds
+ * that world's diagonal, so the camera-centered plane cannot expose a rectangular edge anywhere in
+ * the canonical full-world frame while preserving the single-mesh streaming/runtime contract.
+ */
+export const WATER_PLANE_EXTENT_METERS = 17000;
 /**
  * Default geometry resolution — unchanged from the pre-swell version (32,768 triangles) so every
  * existing caller and `scripts/checkWaterVisualContract.js` see exactly the mesh they did before.
@@ -208,22 +223,20 @@ const WATER_PLANE_EXTENT_METERS = 4000;
 const WATER_PLANE_SEGMENTS = 128;
 
 /**
- * Desktop-class segment count. 4000/320 = 12.5 m per quad, ~7.6 quads across the shortest swell
- * component — enough for the displaced surface to read as a smooth swell rather than a faceted one.
- * Costs 204,800 triangles against the desktop budget of 5M (`GOVERNANCE.md` §4); touch devices keep
- * `WATER_PLANE_SEGMENTS` so the 500K mobile triangle budget is untouched.
+ * Desktop-class segment count. Triangle count stays bounded independent of coverage extent; the
+ * shader carries exact analytic swell normals, while the 200m dominant geometric component remains
+ * the visible displacement owner. Costs 204,800 triangles against the desktop world budget.
  */
 export const WATER_PLANE_SEGMENTS_DESKTOP = 320;
 
 /**
- * Touch-device segment count. 4000/192 = 20.8 m per quad — coarser than desktop, but enough for the
- * two dominant swell components to read as a smooth undulation. Costs 73,728 triangles where the
- * pre-swell plane cost 32,768; `scripts/checkMobilePerfBudget.js` holds the whole scene to the 500K
- * mobile triangle budget and is the check to re-run if this is ever raised.
+ * Touch-device segment count. The same full-world coverage uses fewer subdivisions; fine chop stays
+ * fragment-only and geometric amplitudes remain depth-tapered. Costs 73,728 triangles and preserves
+ * the established mobile triangle count.
  */
 export const WATER_PLANE_SEGMENTS_MOBILE = 192;
 
-const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x6fd6c9);
+const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x4faaa5);
 const DEFAULT_DEEP_COLOR = new THREE.Color(0x0a3a4a);
 /** Matches `game3d.js`'s directional "sun" light position, normalized — kept as a local constant
  * here (not `config.js`) since only this shader's specular highlight reads it today; promote it if
@@ -290,6 +303,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.position.y = waterLevelMeters;
 	mesh.frustumCulled = false; // recentered on the camera every frame — always meant to be in view.
+	mesh.userData.waterCoverage = Object.freeze({ extentMeters: WATER_PLANE_EXTENT_METERS, fullWorld: true });
 	return mesh;
 }
 
