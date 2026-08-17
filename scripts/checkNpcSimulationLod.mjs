@@ -112,10 +112,12 @@ assert.ok(totalFarTicks < 720, '100 far NPCs must stay well below full-rate simu
 assert.ok(maxFarWake < 20, 'deterministic far staggering must bound per-frame wakeups');
 
 const farElapsed = scheduler('far-elapsed-time');
+let farFirstWake = 0;
+for (let frame = 0; frame < 60 && farFirstWake === 0; frame += 1) farFirstWake = farElapsed.step(frameDelta, 150, false);
 let farElapsedWake = 0;
 for (let frame = 0; frame < 60 && farElapsedWake === 0; frame += 1) farElapsedWake = farElapsed.step(frameDelta, 150, false);
-assert.ok(farElapsedWake > frameDelta * 2,
-  'far NPC wake must consume accumulated bounded simulation time instead of a single render-frame delta');
+assert.ok(farElapsedWake >= 0.2,
+  'steady-state far wake must consume accumulated simulation time instead of a single render-frame delta');
 assert.ok(farElapsedWake <= 0.25, 'far accumulated simulation must remain bounded by maxStepSeconds');
 
 const distant = Array.from({ length: 100 }, (_, i) => scheduler(`distant-${i}`));
