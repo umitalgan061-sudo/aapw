@@ -40,14 +40,20 @@ assert.equal(result.ok, true);
 assert.equal(result.balanceCopper, 22);
 assert.equal(inventory.snapshot().items.find((item) => item.itemId === whetstone.itemId)?.quantity, 1);
 
-// Stack cap rejects a purchase without charging the player.
-for (let index = 0; index < 4; index += 1) economy.purchase(ration, grant);
-assert.equal(inventory.snapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 5);
-const beforeFullAttempt = economy.snapshot().copper;
-result = economy.purchase(ration, grant);
+// Stack-cap semantics are isolated from purse exhaustion so inventory-full is the first rejecting condition.
+const stockedEconomy = createInteractionEconomyState(100);
+const stockedInventory = createInteractionInventoryState();
+const stockedGrant = (itemId, quantity, provenance) => stockedInventory.grant(itemId, quantity, provenance);
+for (let index = 0; index < INTERACTION_ITEMS[ration.itemId].stackLimit; index += 1) {
+	result = stockedEconomy.purchase(ration, stockedGrant);
+	assert.equal(result.ok, true);
+}
+assert.equal(stockedInventory.snapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 5);
+const beforeFullAttempt = stockedEconomy.snapshot().copper;
+result = stockedEconomy.purchase(ration, stockedGrant);
 assert.equal(result.ok, false);
 assert.equal(result.reason, 'inventory-full');
-assert.equal(economy.snapshot().copper, beforeFullAttempt);
+assert.equal(stockedEconomy.snapshot().copper, beforeFullAttempt);
 
 // Insufficient funds also fail without inventory mutation.
 const poorEconomy = createInteractionEconomyState(5);
