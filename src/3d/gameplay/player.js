@@ -119,6 +119,24 @@ export async function createPlayer({
 		if (stamina <= 0) sprintExhausted = true;
 	}
 
+	function canStartDodge() {
+		return hasMovementInput
+			&& isGrounded
+			&& dodgeRemaining <= 0
+			&& dodgeCooldownRemaining <= 0
+			&& stamina >= PLAYER_ACTION_CONFIG.DODGE_COST;
+	}
+
+	function startDodge(moveDirectionXZ) {
+		const length = Math.hypot(moveDirectionXZ.x, moveDirectionXZ.z) || 1;
+		dodgeDirectionX = moveDirectionXZ.x / length;
+		dodgeDirectionZ = moveDirectionXZ.z / length;
+		dodgeRemaining = PLAYER_ACTION_CONFIG.DODGE_DURATION_SECONDS;
+		dodgeCooldownRemaining = PLAYER_ACTION_CONFIG.DODGE_COOLDOWN_SECONDS + dodgeRemaining;
+		spendStamina(PLAYER_ACTION_CONFIG.DODGE_COST);
+		lastRunPressAge = Infinity;
+	}
+
 	function motionSnapshot() {
 		return Object.freeze({
 			state: movementState,
@@ -180,21 +198,12 @@ export async function createPlayer({
 			if (sprintExhausted && stamina >= PLAYER_ACTION_CONFIG.SPRINT_RESTART_STAMINA) sprintExhausted = false;
 
 			const runPressed = runIntent && !wasRunHeld;
+			const runJumpDodgeRequested = Boolean(jumpRequested) && runIntent;
 			if (
-				runPressed
-				&& lastRunPressAge <= PLAYER_ACTION_CONFIG.DODGE_DOUBLE_TAP_WINDOW_SECONDS
-				&& hasMovementInput
-				&& isGrounded
-				&& dodgeCooldownRemaining <= 0
-				&& stamina >= PLAYER_ACTION_CONFIG.DODGE_COST
+				canStartDodge()
+				&& (runJumpDodgeRequested || (runPressed && lastRunPressAge <= PLAYER_ACTION_CONFIG.DODGE_DOUBLE_TAP_WINDOW_SECONDS))
 			) {
-				const length = Math.hypot(moveDirectionXZ.x, moveDirectionXZ.z) || 1;
-				dodgeDirectionX = moveDirectionXZ.x / length;
-				dodgeDirectionZ = moveDirectionXZ.z / length;
-				dodgeRemaining = PLAYER_ACTION_CONFIG.DODGE_DURATION_SECONDS;
-				dodgeCooldownRemaining = PLAYER_ACTION_CONFIG.DODGE_COOLDOWN_SECONDS + dodgeRemaining;
-				spendStamina(PLAYER_ACTION_CONFIG.DODGE_COST);
-				lastRunPressAge = Infinity;
+				startDodge(moveDirectionXZ);
 			} else if (runPressed) {
 				lastRunPressAge = 0;
 			}
