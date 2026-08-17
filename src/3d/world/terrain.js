@@ -54,6 +54,25 @@ export const CURRENT_TERRAIN_POLICY = Object.freeze({
 	mapDerivedHeight: true,
 });
 
+/**
+ * Asset-first terrain material policy. `overlay.png` is the authored diffuse source referenced by
+ * the repository's `assets/textures/yüzey/model.mtl`; it is not used as a new geography authority.
+ * Geography, shoreline, relief and gameplay height remain sourced exclusively from map.png-derived
+ * terrain data above. The image is projected once over that same owner-map canvas so chunk borders
+ * share identical UVs and never expose a repeated tile grid.
+ */
+export const CURRENT_TERRAIN_ALBEDO_POLICY = Object.freeze({
+	id: 'owner-map-aligned-authored-terrain-albedo-2026-08-17-v1',
+	sourceMapSha256: CURRENT_TERRAIN_POLICY.sourceMapSha256,
+	assetPath: 'assets/textures/yüzey/overlay/overlay.png',
+	sourceMaterialPath: 'assets/textures/yüzey/model.mtl',
+	sourceMeshPath: 'assets/textures/yüzey/model.obj',
+	mapping: 'full-owner-map-global-uv',
+	wrap: 'clamp-to-edge',
+	mobileFallback: 'canonical-vertex-color',
+	terrainHeightAuthority: CURRENT_TERRAIN_POLICY.id,
+});
+
 function currentMapPoint(worldX, worldZ) {
 	const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
 	const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
@@ -64,6 +83,15 @@ function currentMapPoint(worldX, worldZ) {
 		ny: clamp01(rawMapY / MAP_HEIGHT),
 		insideOwnerMap: rawMapX >= 0 && rawMapX <= MAP_WIDTH && rawMapY >= 0 && rawMapY <= MAP_HEIGHT,
 	});
+}
+
+/**
+ * Stable map-space UV query shared by terrain chunks and visual QA. V is flipped because image UV
+ * origin is bottom-left while the canonical map canvas is addressed top-down.
+ */
+export function terrainMapUvAt(worldX, worldZ) {
+	const point = currentMapPoint(worldX, worldZ);
+	return Object.freeze({ u: point.nx, v: 1 - point.ny, insideOwnerMap: point.insideOwnerMap });
 }
 
 function canonicalMicroSignal(nx, ny) {
@@ -135,6 +163,46 @@ export function createHeightSampler(_seed, _fbmOptions, flattenPads = []) {
 
 const LOW_COLOR = new THREE.Color(0x3d6b28);
 const HIGH_COLOR = new THREE.Color(0x6b6152);
+let sharedTerrainAlbedoTexture = null;
+let sharedTerrainAlbedoLoadFailed = false;
+
+function isCoarsePointerDevice() {
+	return typeof window !== 'undefined'
+		&& typeof window.matchMedia === 'function'
+		&& window.matchMedia('(pointer: coarse)').matches;
+}
+
+/** One app-lifetime texture shared by every desktop chunk; mobile keeps the proven lightweight path. */
+export function getSharedTerrainAlbedoTexture() {
+	if (typeof document === 'undefined' || isCoarsePointerDevice() || sharedTerrainAlbedoLoadFailed) return null;
+	if (sharedTerrainAlbedoTexture) return sharedTerrainAlbedoTexture;
+
+	const url = new URL('../../../assets/textures/yüzey/overlay/overlay.png', import.meta.url).href;
+	const texture = new THREE.TextureLoader().load(
+		url,
+		undefined,
+		undefined,
+		() => {
+			sharedTerrainAlbedoLoadFailed = true;
+			texture.userData.loadFailed = true;
+		},
+	);
+	texture.name = 'owner-map-authored-terrain-albedo';
+	texture.colorSpace = THREE.SRGBColorSpace;
+	texture.wrapS = THREE.ClampToEdgeWrapping;
+	texture.wrapT = THREE.ClampToEdgeWrapping;
+	texture.minFilter = THREE.LinearMipmapLinearFilter;
+	texture.magFilter = THREE.LinearFilter;
+	texture.generateMipmaps = true;
+	texture.anisotropy = 4;
+	texture.userData = {
+		...texture.userData,
+		terrainAlbedoPolicy: CURRENT_TERRAIN_ALBEDO_POLICY.id,
+		repositoryAssetPath: CURRENT_TERRAIN_ALBEDO_POLICY.assetPath,
+	};
+	sharedTerrainAlbedoTexture = texture;
+	return texture;
+}
 
 /** Builds one chunk from the exact same sampler used by physics and gameplay. */
 export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [] }) {
@@ -142,6 +210,7 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
 	geometry.rotateX(-Math.PI / 2);
 	const position = geometry.attributes.position;
+	const uv = geometry.getAttribute('uv');
 	const colors = new Float32Array(position.count * 3);
 	const blended = new THREE.Color();
 	for (let index = 0; index < position.count; index += 1) {
@@ -149,6 +218,8 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		const worldZ = chunkZ * size + position.getZ(index);
 		const heightMeters = sampleHeightMeters(worldX, worldZ, maxHeightMeters);
 		position.setY(index, heightMeters);
+		const mapUv = terrainMapUvAt(worldX, worldZ);
+		uv.setXY(index, mapUv.u, mapUv.v);
 		const fraction = THREE.MathUtils.clamp((heightMeters - SEA_LEVEL) / 80, 0, 1);
 		blended.copy(LOW_COLOR).lerp(HIGH_COLOR, fraction);
 		colors[index * 3] = blended.r;
@@ -156,11 +227,18 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		colors[index * 3 + 2] = blended.b;
 	}
 	position.needsUpdate = true;
+	uv.needsUpdate = true;
 	geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 	geometry.computeVertexNormals();
 	geometry.computeBoundingBox();
 	geometry.computeBoundingSphere();
-	const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+	const terrainAlbedo = getSharedTerrainAlbedoTexture();
+	const material = new THREE.MeshStandardMaterial({
+		vertexColors: true,
+		map: terrainAlbedo,
+		roughness: 1,
+		metalness: 0,
+	});
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.receiveShadow = true;
 	mesh.position.set(chunkX * size, 0, chunkZ * size);
@@ -168,10 +246,19 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	mesh.userData.areaKm2 = (size * size) / 1_000_000;
 	mesh.userData.currentTerrainPolicy = CURRENT_TERRAIN_POLICY.id;
 	mesh.userData.currentTerrainSingleSource = true;
+	mesh.userData.currentTerrainAlbedo = Object.freeze({
+		policyId: CURRENT_TERRAIN_ALBEDO_POLICY.id,
+		assetPath: CURRENT_TERRAIN_ALBEDO_POLICY.assetPath,
+		mapAlignedUv: true,
+		textureEnabled: Boolean(terrainAlbedo),
+		mobileFallback: isCoarsePointerDevice(),
+	});
 	return mesh;
 }
 
 export function disposeTerrainChunk(chunkMesh) {
 	chunkMesh.geometry.dispose();
+	// `sharedTerrainAlbedoTexture` is app-lifetime and shared by every resident chunk. Disposing a
+	// single chunk must never invalidate the material map used by its neighbors.
 	chunkMesh.material.dispose();
 }
