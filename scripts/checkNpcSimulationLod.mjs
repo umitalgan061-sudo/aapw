@@ -11,6 +11,7 @@ assert.match(npcSource, /distantIntervalSeconds = 1/);
 assert.match(npcSource, /distantHysteresisMeters = 30/);
 assert.match(npcSource, /farAccumulatedSeconds = farPhaseSeconds/);
 assert.match(npcSource, /distantAccumulatedSeconds = distantPhaseSeconds/);
+assert.match(npcSource, /pendingSimulationSeconds/);
 assert.match(npcSource, /tier = finiteDistance \? 'distant' : 'bootstrap'/);
 assert.match(npcSource, /simulationLod\.step\(delta, distanceToPlayer, urgent\)/);
 assert.equal(npcSource.includes("from './npcSimulationLod.js'"), false,
@@ -41,6 +42,7 @@ function scheduler(id) {
   const distantPhase = phase(`${id}:distant`, distantInterval);
   let farAccumulated = farPhase;
   let distantAccumulated = distantPhase;
+  let pendingSimulation = 0;
   let tier = 'near';
   let nearLatched = true;
   let distantLatched = false;
@@ -62,9 +64,11 @@ function scheduler(id) {
       if (nearLatched) {
         farAccumulated = farPhase;
         distantAccumulated = distantPhase;
+        pendingSimulation = 0;
         tier = urgent ? 'urgent' : 'near';
         return bounded;
       }
+      pendingSimulation = Math.min(0.25, pendingSimulation + bounded);
       if (finiteDistance) {
         if (distantLatched) distantLatched = distance > distantRadius - distantHysteresis;
         else distantLatched = distance > distantRadius + distantHysteresis;
@@ -76,7 +80,9 @@ function scheduler(id) {
         distantAccumulated = Math.min(distantInterval, distantAccumulated + bounded);
         if (distantAccumulated + Number.EPSILON < distantInterval) return 0;
         distantAccumulated = 0;
-        return bounded;
+        const simulationDelta = pendingSimulation;
+        pendingSimulation = 0;
+        return simulationDelta;
       }
       if (tier !== 'far') farAccumulated = farPhase;
       tier = 'far';
@@ -84,7 +90,9 @@ function scheduler(id) {
       farAccumulated = Math.min(farInterval, farAccumulated + bounded);
       if (farAccumulated + Number.EPSILON < farInterval) return 0;
       farAccumulated = 0;
-      return bounded;
+      const simulationDelta = pendingSimulation;
+      pendingSimulation = 0;
+      return simulationDelta;
     },
     get tier() { return tier; },
   };
@@ -103,6 +111,13 @@ for (let frame = 0; frame < 60; frame += 1) {
 assert.ok(totalFarTicks < 720, '100 far NPCs must stay well below full-rate simulation');
 assert.ok(maxFarWake < 20, 'deterministic far staggering must bound per-frame wakeups');
 
+const farElapsed = scheduler('far-elapsed-time');
+let farElapsedWake = 0;
+for (let frame = 0; frame < 60 && farElapsedWake === 0; frame += 1) farElapsedWake = farElapsed.step(frameDelta, 150, false);
+assert.ok(farElapsedWake > frameDelta * 2,
+  'far NPC wake must consume accumulated bounded simulation time instead of a single render-frame delta');
+assert.ok(farElapsedWake <= 0.25, 'far accumulated simulation must remain bounded by maxStepSeconds');
+
 const distant = Array.from({ length: 100 }, (_, i) => scheduler(`distant-${i}`));
 let totalDistantTicks = 0;
 let maxDistantWake = 0;
@@ -114,6 +129,12 @@ for (let frame = 0; frame < 60; frame += 1) {
 }
 assert.ok(totalDistantTicks < 120, '100 distant NPCs must stay near a 1Hz dormancy budget');
 assert.ok(maxDistantWake < 10, 'distant deterministic phases must avoid wakeup spikes');
+
+const distantElapsed = scheduler('distant-elapsed-time');
+let distantElapsedWake = 0;
+for (let frame = 0; frame < 120 && distantElapsedWake === 0; frame += 1) distantElapsedWake = distantElapsed.step(frameDelta, 500, false);
+assert.equal(distantElapsedWake, 0.25,
+  'distant dormancy wake must catch up only to the bounded 0.25s simulation ceiling');
 
 const bootstrap = Array.from({ length: 100 }, (_, i) => scheduler(`bootstrap-${i}`));
 let totalBootstrapTicks = 0;
@@ -201,9 +222,11 @@ console.log('NPC_SIMULATION_LOD_PASS', JSON.stringify({
   farNpcCount: far.length,
   totalFarTicks,
   maxFarWake,
+  farElapsedWake,
   distantNpcCount: distant.length,
   totalDistantTicks,
   maxDistantWake,
+  distantElapsedWake,
   bootstrapNpcCount: bootstrap.length,
   totalBootstrapTicks,
   maxBootstrapWake,
