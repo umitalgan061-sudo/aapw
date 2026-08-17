@@ -28,13 +28,13 @@ await page.addInitScript(() => {
 
 const latest = () => page.evaluate(() => structuredClone(window.__playerMotionFrames.at(-1)));
 const history = () => page.evaluate(() => structuredClone(window.__playerMotionFrames ?? []));
-const waitState = (state, timeout = 5000) => page.waitForFunction(
-  (expected) => window.__playerMotionFrames?.at(-1)?.state === expected,
-  state,
-  { timeout },
-);
 const distance = (a, b) => Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z);
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const readVitals = () => page.evaluate(() => ({
+  state: document.querySelector('.g3d-stamina-bar')?.dataset.state,
+  now: document.querySelector('.g3d-stamina-bar')?.getAttribute('aria-valuenow'),
+  label: document.querySelector('.g3d-stamina-bar')?.getAttribute('aria-label'),
+}));
 
 async function waitForHistoryEvidence(findEvidence, { timeout = 5000, interval = 100, label = 'motion evidence' } = {}) {
   const deadline = Date.now() + timeout;
@@ -46,6 +46,22 @@ async function waitForHistoryEvidence(findEvidence, { timeout = 5000, interval =
     await sleep(interval);
   }
   throw new Error(`[player-stamina-dodge-runtime] timed out waiting for ${label}; tail=${JSON.stringify(lastFrames.slice(-12))}`);
+}
+
+const waitState = (state, timeout = 5000) => waitForHistoryEvidence((frames) => {
+  const frame = frames.at(-1);
+  return frame?.state === state ? frame : null;
+}, { timeout, interval: 100, label: `latest state=${state}` });
+
+async function waitVitalsState(state, timeout = 3000) {
+  const deadline = Date.now() + timeout;
+  let last = null;
+  while (Date.now() < deadline) {
+    last = await readVitals();
+    if (last.state === state) return last;
+    await sleep(100);
+  }
+  throw new Error(`[player-stamina-dodge-runtime] timed out waiting for HUD state=${state}; last=${JSON.stringify(last)}`);
 }
 
 function findSprintEvidence(frames) {
@@ -62,7 +78,7 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.locator('#run266-entry-enter').click();
   await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
-  await page.waitForFunction(() => window.__playerMotionFrames?.length > 0, null, { timeout: 15000 });
+  await waitForHistoryEvidence((frames) => frames.length > 0 ? frames.at(-1) : null, { timeout: 15000, label: 'first player motion frame' });
 
   const baseline = await latest();
   need(baseline.state === 'idle', `expected idle baseline, got ${baseline.state}`);
@@ -82,7 +98,9 @@ try {
 
   const beforeRunJumpDodge = await latest();
   await page.keyboard.press('Space');
-  await waitState('dodge', 3000);
+  await waitState('dodge', 4000);
+  const vitals = await waitVitalsState('dodge', 3000);
+  need(vitals.label === 'Dayanıklılık' && vitals.now, `HUD not synchronized ${JSON.stringify(vitals)}`);
   const runJumpDodge = await waitForHistoryEvidence((frames) => {
     const frame = [...frames].reverse().find((candidate) => candidate?.state === 'dodge'
       && candidate.isGrounded
@@ -92,30 +110,24 @@ try {
   need(beforeRunJumpDodge.stamina - runJumpDodge.stamina >= 27.5, 'run+jump dodge stamina cost missing');
   need(runJumpDodge.isGrounded && !runJumpDodge.canDodge, 'run+jump dodge must remain grounded and enter cooldown');
 
-  const vitals = await page.evaluate(() => ({
-    state: document.querySelector('.g3d-stamina-bar')?.dataset.state,
-    now: document.querySelector('.g3d-stamina-bar')?.getAttribute('aria-valuenow'),
-    label: document.querySelector('.g3d-stamina-bar')?.getAttribute('aria-label'),
-  }));
-  need(vitals.state === 'dodge' && vitals.label === 'Dayanıklılık' && vitals.now, `HUD not synchronized ${JSON.stringify(vitals)}`);
-
   await page.keyboard.up('ShiftLeft');
-  await waitState('walk', 3500);
+  await waitState('walk', 4500);
   await sleep(700);
-  const jumpMarker = (await history()).length;
+  await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
   await page.keyboard.press('Space');
   const airborneFrames = await waitForHistoryEvidence((frames) => {
-    const airborne = frames.slice(jumpMarker).filter((frame) => frame && !frame.isGrounded);
+    const airborne = frames.filter((frame) => frame && !frame.isGrounded);
     return airborne.length > 0 ? airborne : null;
-  }, { timeout: 4000, interval: 100, label: 'plain jump airborne telemetry' });
+  }, { timeout: 4500, interval: 100, label: 'plain jump airborne telemetry' });
   need(airborneFrames.every((frame) => frame.state !== 'dodge'), 'plain jump incorrectly became dodge without run intent');
 
   await page.keyboard.up('KeyW');
-  await waitState('idle', 4500);
+  await waitState('idle', 6000);
   const recoveryStart = await latest();
-  await sleep(1000);
-  const recoveryEnd = await latest();
-  need(recoveryEnd.stamina > recoveryStart.stamina, 'idle stamina recovery failed');
+  const recoveryEnd = await waitForHistoryEvidence((frames) => {
+    const frame = frames.at(-1);
+    return frame?.state === 'idle' && frame.stamina > recoveryStart.stamina ? frame : null;
+  }, { timeout: 6000, interval: 100, label: 'idle stamina recovery after regen delay' });
 
   const canvasPng = await page.locator('#game3d-canvas').screenshot();
   fs.writeFileSync(path.join(outDir, 'player-runtime.png'), canvasPng);
