@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createInteractionController } from '../src/3d/gameplay/interaction.js';
 import {
 	QUARTERMASTER_NPC_ID,
 	QUARTERMASTER_OFFERS,
@@ -7,6 +8,7 @@ import {
 	createInteractionEconomyState,
 } from '../src/3d/gameplay/interactionEconomy.js';
 import {
+	INTERACTION_CONFIG,
 	INTERACTION_ITEMS,
 	createInteractionInventoryState,
 } from '../src/3d/gameplay/interactionConfig.js';
@@ -73,4 +75,59 @@ assert.match(text, /saha azığı — 6 bakır/);
 assert.match(text, /bileği taşı — 12 bakır/);
 assert.match(text, /Satın alma tamamlandı/);
 
-console.log('PASS checkInteractionQuartermasterTrade: deterministic purse, purchase, stack-cap, provenance, persistence and shop text verified.');
+// Prove the real shipped interaction seam: proximity -> B shop -> number purchase -> inventory -> save.
+const dialogueHistory = [];
+const economyChanges = [];
+const inventoryChanges = [];
+const quartermaster = {
+	object3D: { name: QUARTERMASTER_NPC_ID, position: { x: 0, z: 0 } },
+	displayName: 'Kapı Nöbetçisi',
+};
+const controller = createInteractionController({
+	interactionPrompt: { setVisible() {} },
+	dialogueBox: {
+		show: (body, choices = []) => dialogueHistory.push({ body, choices }),
+		hide: () => dialogueHistory.push({ hidden: true }),
+	},
+	greetingTemplate: INTERACTION_CONFIG.GREETING_TEMPLATE,
+	greetingsByNpcId: INTERACTION_CONFIG.GREETINGS_BY_NPC_ID,
+	choicesByNpcId: INTERACTION_CONFIG.CHOICES_BY_NPC_ID,
+	radiusMeters: INTERACTION_CONFIG.PROMPT_RADIUS_METERS,
+	onEconomyChanged: (snapshot) => economyChanges.push(structuredClone(snapshot)),
+	onInventoryChanged: (snapshot) => inventoryChanges.push(structuredClone(snapshot)),
+});
+controller.update([quartermaster], { x: 0, z: 0 });
+controller.handleKeyDown({ code: 'KeyB', repeat: false });
+assert.match(dialogueHistory.at(-1).body, /Dragonstone Levazımcısı/);
+assert.deepEqual(dialogueHistory.at(-1).choices, [
+	'Dragonstone saha azığı — 6 bakır',
+	'Nöbetçi bileği taşı — 12 bakır',
+]);
+controller.handleKeyDown({ code: 'Digit1', repeat: false });
+assert.deepEqual(controller.getEconomySnapshot(), { copper: 34 });
+assert.equal(controller.getInventorySnapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 1);
+assert.match(dialogueHistory.at(-1).body, /çantana eklendi/);
+assert.equal(economyChanges.length, 1);
+assert.equal(inventoryChanges.length, 1);
+
+const runtimeSaved = controller.getRpgSnapshot();
+assert.equal(runtimeSaved.schemaVersion, 5);
+assert.deepEqual(runtimeSaved.economy, { copper: 34 });
+const runtimeRestored = createInteractionController({
+	interactionPrompt: { setVisible() {} },
+	dialogueBox: { show() {}, hide() {} },
+	greetingTemplate: INTERACTION_CONFIG.GREETING_TEMPLATE,
+	greetingsByNpcId: INTERACTION_CONFIG.GREETINGS_BY_NPC_ID,
+	choicesByNpcId: INTERACTION_CONFIG.CHOICES_BY_NPC_ID,
+	radiusMeters: INTERACTION_CONFIG.PROMPT_RADIUS_METERS,
+});
+runtimeRestored.restoreRpgSnapshot(runtimeSaved);
+assert.deepEqual(runtimeRestored.getEconomySnapshot(), { copper: 34 });
+assert.equal(runtimeRestored.getInventorySnapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 1);
+
+// Moving away closes the shop; B cannot open it without the canonical quartermaster nearby.
+controller.update([], { x: 100, z: 100 });
+controller.handleKeyDown({ code: 'KeyB', repeat: false });
+assert.deepEqual(controller.getEconomySnapshot(), { copper: 34 });
+
+console.log('PASS checkInteractionQuartermasterTrade: deterministic economy plus shipped proximity/shop/purchase/persistence interaction verified.');
