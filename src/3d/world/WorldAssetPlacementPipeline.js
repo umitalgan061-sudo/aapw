@@ -5,12 +5,24 @@ import {
   createMaterialManifest,
   validateMaterialAssignment,
 } from '../materials/MaterialAssignmentCore.js';
+import {
+  evaluateWorldSurfacePlacement,
+  normalizeWorldSurfaceSample,
+  resolveWorldSurfacePolicy,
+} from './WorldSurfacePlacementPolicy.js';
+
+export {
+  WORLD_SURFACE_POLICY_PRESETS,
+  evaluateWorldSurfacePlacement,
+  normalizePlacementPolicy,
+  normalizeWorldSurfaceSample,
+  resolveWorldSurfacePolicy,
+} from './WorldSurfacePlacementPolicy.js';
 
 /**
  * Shared placement gate for editor-authored and autonomous world assets.
  * A model is dressed and validated before callers attach it to the live scene.
  */
-
 export function prepareWorldAssetForPlacement(object, {
   metadata = {},
   materialRecipe = null,
@@ -20,6 +32,9 @@ export function prepareWorldAssetForPlacement(object, {
   rotation = null,
   scale = null,
   groundHeight = null,
+  surfaceQuery = null,
+  placementPolicy = null,
+  requireSurfaceContext = false,
   snapToGround = true,
   requireGeneratedTexture = true,
 } = {}) {
@@ -37,12 +52,16 @@ export function prepareWorldAssetForPlacement(object, {
   if (!materialResult.ok) return { ok: false, error: `material:${materialResult.error || 'assignment-failed'}` };
 
   applyTransform(object, { position, rotation, scale });
-  if (snapToGround && typeof groundHeight === 'function') {
-    const x = object.position.x;
-    const z = object.position.z;
-    const y = groundHeight(x, z, object);
-    if (Number.isFinite(y)) object.position.y = y;
-  }
+
+  const surfaceResult = resolveWorldSurfacePlacement(object, {
+    metadata,
+    groundHeight,
+    surfaceQuery,
+    placementPolicy,
+    requireSurfaceContext,
+    snapToGround,
+  });
+  if (!surfaceResult.ok) return surfaceResult;
 
   object.updateMatrixWorld?.(true);
   const validation = validateMaterialAssignment(object, { requireGeneratedTexture });
@@ -53,7 +72,13 @@ export function prepareWorldAssetForPlacement(object, {
     rotation: eulerRecord(object.rotation),
     scale: vectorRecord(object.scale),
   };
-  const manifest = createMaterialManifest(object, { metadata, placement });
+  const manifest = {
+    ...createMaterialManifest(object, { metadata, placement }),
+    placementSurface: surfaceResult.surface,
+    placementPolicy: surfaceResult.policy,
+  };
+  object.userData.worldPlacementSurface = surfaceResult.surface;
+  object.userData.worldPlacementPolicy = surfaceResult.policy;
   object.userData.worldPlacementManifest = manifest;
   object.userData.materialReadyForWorld = true;
 
@@ -62,6 +87,8 @@ export function prepareWorldAssetForPlacement(object, {
     object,
     material: materialResult,
     validation,
+    surface: surfaceResult.surface,
+    placementPolicy: surfaceResult.policy,
     manifest,
   };
 }
@@ -86,12 +113,64 @@ export function auditWorldAssetPlacement(object) {
   const errors = [...validation.errors];
   if (!object?.userData?.materialReadyForWorld) errors.push('placement-gate-not-used');
   if (hasNonFiniteTransform(object)) errors.push('non-finite-transform');
+  const storedSurface = object?.userData?.worldPlacementSurface;
+  const storedPolicy = object?.userData?.worldPlacementPolicy;
+  if (storedSurface && storedPolicy) {
+    const surfaceAudit = evaluateWorldSurfacePlacement(storedSurface, storedPolicy);
+    errors.push(...surfaceAudit.errors.map((error) => `surface:${error}`));
+  }
   return {
     ok: errors.length === 0,
     errors,
     warnings: [...validation.warnings],
+    surface: storedSurface || null,
+    placementPolicy: storedPolicy || null,
     manifest: object?.userData?.worldPlacementManifest || null,
   };
+}
+
+export function resolveWorldSurfacePlacement(object, {
+  metadata = {},
+  groundHeight = null,
+  surfaceQuery = null,
+  placementPolicy = null,
+  requireSurfaceContext = false,
+  snapToGround = true,
+} = {}) {
+  const x = object?.position?.x;
+  const z = object?.position?.z;
+  if (!Number.isFinite(x) || !Number.isFinite(z)) {
+    return { ok: false, error: 'surface:non-finite-xz' };
+  }
+
+  let surface = null;
+  if (typeof surfaceQuery === 'function') {
+    surface = normalizeWorldSurfaceSample(surfaceQuery(x, z, object));
+    if (!surface.ok) return { ok: false, error: `surface:${surface.error}`, surface: surface.sample };
+  } else if (typeof groundHeight === 'function') {
+    const height = Number(groundHeight(x, z, object));
+    if (!Number.isFinite(height)) return { ok: false, error: 'surface:non-finite-height' };
+    surface = normalizeWorldSurfaceSample({ height });
+  } else if (requireSurfaceContext) {
+    return { ok: false, error: 'surface:missing-query' };
+  }
+
+  if (!surface) return { ok: true, surface: null, policy: null };
+
+  const policy = resolveWorldSurfacePolicy(metadata, placementPolicy);
+  const evaluation = evaluateWorldSurfacePlacement(surface.sample, policy);
+  if (!evaluation.ok) {
+    return {
+      ok: false,
+      error: `surface:${evaluation.errors.join(',')}`,
+      surface: surface.sample,
+      policy,
+      evaluation,
+    };
+  }
+
+  if (snapToGround) object.position.y = surface.sample.height;
+  return { ok: true, surface: surface.sample, policy, evaluation };
 }
 
 function applyTransform(object, { position, rotation, scale }) {
