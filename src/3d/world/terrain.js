@@ -67,6 +67,7 @@ export const CURRENT_TERRAIN_ALBEDO_POLICY = Object.freeze({
 	assetPath: 'assets/textures/yüzey/overlay/overlay.png',
 	sourceMaterialPath: 'assets/textures/yüzey/model.mtl',
 	sourceMeshPath: 'assets/textures/yüzey/model.obj',
+	sourceDiffuseFactor: 0.588,
 	mapping: 'full-owner-map-global-uv',
 	wrap: 'clamp-to-edge',
 	mobileFallback: 'canonical-vertex-color',
@@ -356,6 +357,7 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	geometry.rotateX(-Math.PI / 2);
 	const position = geometry.attributes.position;
 	const uv = geometry.getAttribute('uv');
+	const terrainAlbedo = getSharedTerrainAlbedoTexture();
 	const colors = new Float32Array(position.count * 3);
 	const microUvs = new Float32Array(position.count * 2);
 	const blended = new THREE.Color();
@@ -369,8 +371,13 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		const microUv = terrainMicroUvAt(worldX, worldZ);
 		microUvs[index * 2] = microUv.u;
 		microUvs[index * 2 + 1] = microUv.v;
-		const fraction = THREE.MathUtils.clamp((heightMeters - SEA_LEVEL) / 80, 0, 1);
-		blended.copy(LOW_COLOR).lerp(HIGH_COLOR, fraction);
+		if (terrainAlbedo) {
+			const factor = CURRENT_TERRAIN_ALBEDO_POLICY.sourceDiffuseFactor;
+			blended.setRGB(factor, factor, factor);
+		} else {
+			const fraction = THREE.MathUtils.clamp((heightMeters - SEA_LEVEL) / 80, 0, 1);
+			blended.copy(LOW_COLOR).lerp(HIGH_COLOR, fraction);
+		}
 		colors[index * 3] = blended.r;
 		colors[index * 3 + 1] = blended.g;
 		colors[index * 3 + 2] = blended.b;
@@ -382,7 +389,6 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	geometry.computeVertexNormals();
 	geometry.computeBoundingBox();
 	geometry.computeBoundingSphere();
-	const terrainAlbedo = getSharedTerrainAlbedoTexture();
 	const material = new THREE.MeshStandardMaterial({
 		vertexColors: true,
 		map: terrainAlbedo,
@@ -402,6 +408,8 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		assetPath: CURRENT_TERRAIN_ALBEDO_POLICY.assetPath,
 		mapAlignedUv: true,
 		textureEnabled: Boolean(terrainAlbedo),
+		authoredDiffuseFactor: CURRENT_TERRAIN_ALBEDO_POLICY.sourceDiffuseFactor,
+		authoredColorFidelity: Boolean(terrainAlbedo),
 		mobileFallback: isCoarsePointerDevice(),
 	});
 	mesh.userData.currentTerrainMicroSurface = material.userData.terrainMicroSurface;
