@@ -127,6 +127,7 @@ assert(fixture.surfaceMaskSha256 === WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha25
 assert(Object.keys(WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.chains).length === REFERENCE_RELIEF_CHAINS.length, 'every canonical chain needs exactly one live profile');
 
 const actual = buildMetrics();
+console.log('[checkWorldReferenceMountainRelief] MEASURED', JSON.stringify(actual));
 assert(actual.heightChecksumSha256 === fixture.heightChecksumSha256, `height checksum drift: ${actual.heightChecksumSha256}`);
 assert(JSON.stringify(actual.metrics) === JSON.stringify(fixture.metrics), `metric drift: ${JSON.stringify(actual.metrics)}`);
 assert(actual.metrics.peakMeters >= 500, 'full reference has no large mountain peak');
