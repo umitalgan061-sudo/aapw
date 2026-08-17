@@ -220,6 +220,9 @@ export function normalizeWorldSurfaceSample(sample) {
       return { ok: false, error: `negative-${key}`, sample: normalized };
     }
   }
+  if (normalized.moisture !== null && (normalized.moisture < 0 || normalized.moisture > 1)) {
+    return { ok: false, error: 'moisture-out-of-range', sample: normalized };
+  }
   return { ok: true, sample: normalized };
 }
 
@@ -230,6 +233,7 @@ export function evaluateWorldSurfacePlacement(surface, policy = {}) {
   const sample = normalizedSurface.sample;
   const errors = [];
 
+  requirePolicyContext(errors, sample, normalizedPolicy);
   compareMax(errors, 'slope-too-steep', sample.slopeDegrees, normalizedPolicy.maxSlopeDegrees);
   compareMin(errors, 'slope-too-flat', sample.slopeDegrees, normalizedPolicy.minSlopeDegrees);
   compareMax(errors, 'water-too-deep', sample.waterDepth, normalizedPolicy.maxWaterDepth);
@@ -238,6 +242,8 @@ export function evaluateWorldSurfacePlacement(surface, policy = {}) {
   compareMax(errors, 'too-far-from-road', sample.roadDistance, normalizedPolicy.maxRoadDistance);
   compareMin(errors, 'too-close-to-settlement', sample.settlementDistance, normalizedPolicy.minSettlementDistance);
   compareMax(errors, 'too-far-from-settlement', sample.settlementDistance, normalizedPolicy.maxSettlementDistance);
+  compareMin(errors, 'too-dry', sample.moisture, normalizedPolicy.minMoisture);
+  compareMax(errors, 'too-wet', sample.moisture, normalizedPolicy.maxMoisture);
 
   if (sample.biome && normalizedPolicy.allowedBiomes.length && !normalizedPolicy.allowedBiomes.includes(sample.biome)) errors.push('biome-not-allowed');
   if (sample.biome && normalizedPolicy.forbiddenBiomes.includes(sample.biome)) errors.push('biome-forbidden');
@@ -257,6 +263,8 @@ export function normalizePlacementPolicy(policy = {}) {
     maxRoadDistance: optionalFinite(policy.maxRoadDistance, true),
     minSettlementDistance: optionalFinite(policy.minSettlementDistance),
     maxSettlementDistance: optionalFinite(policy.maxSettlementDistance, true),
+    minMoisture: optionalFinite(policy.minMoisture),
+    maxMoisture: optionalFinite(policy.maxMoisture, true),
     allowedBiomes: normalizedStringList(policy.allowedBiomes),
     forbiddenBiomes: normalizedStringList(policy.forbiddenBiomes),
     allowedWaterTypes: normalizedStringList(policy.allowedWaterTypes),
@@ -314,6 +322,21 @@ function hasNonFiniteTransform(object) {
 function normalizedStringList(value) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((item) => String(item).toLowerCase()).filter(Boolean))].sort();
+}
+
+function requirePolicyContext(errors, sample, policy) {
+  requireNumericContext(errors, sample, policy, 'slopeDegrees', ['minSlopeDegrees', 'maxSlopeDegrees'], 'missing-slope');
+  requireNumericContext(errors, sample, policy, 'waterDepth', ['minWaterDepth', 'maxWaterDepth'], 'missing-water-depth');
+  requireNumericContext(errors, sample, policy, 'roadDistance', ['minRoadDistance', 'maxRoadDistance'], 'missing-road-distance');
+  requireNumericContext(errors, sample, policy, 'settlementDistance', ['minSettlementDistance', 'maxSettlementDistance'], 'missing-settlement-distance');
+  requireNumericContext(errors, sample, policy, 'moisture', ['minMoisture', 'maxMoisture'], 'missing-moisture');
+  if ((policy.allowedBiomes.length || policy.forbiddenBiomes.length) && !sample.biome) errors.push('missing-biome');
+  if ((policy.allowedWaterTypes.length || policy.forbiddenWaterTypes.length) && !sample.waterType) errors.push('missing-water-type');
+}
+
+function requireNumericContext(errors, sample, policy, sampleKey, policyKeys, message) {
+  if (sample[sampleKey] !== null) return;
+  if (policyKeys.some((key) => policy[key] !== null)) errors.push(message);
 }
 
 function compareMin(errors, message, value, limit) {
