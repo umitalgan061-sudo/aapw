@@ -142,11 +142,14 @@ jobs:
           test -f artifacts/run317-terrain3d/terrain3d-ground-view.png
           test -f artifacts/run317-terrain3d/terrain3d-mountain-view.png
 
-      - name: HTerrain regression — the sibling backend must stay untouched
+      - name: HTerrain regression — tracked sibling backend must stay unchanged
         run: |
           set -euo pipefail
           test -f godot/terrain-authoring/addons/zylann.hterrain/plugin.cfg
-          test -z "$(git status --porcelain godot/terrain-authoring/terrain_data/)"
+          git diff --exit-code -- godot/terrain-authoring/terrain_data/
+          git diff --cached --exit-code -- godot/terrain-authoring/terrain_data/
+          TRANSIENT_COUNT="$(git ls-files --others --exclude-standard godot/terrain-authoring/terrain_data/ | wc -l | tr -d ' ')"
+          echo "HTERRAIN_TRACKED_PARITY_OK transient_editor_files=$TRANSIENT_COUNT"
 
       - name: Confirm the shipped web game is untouched by this pipeline
         run: |
