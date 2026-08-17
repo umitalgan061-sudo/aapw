@@ -69,6 +69,9 @@ for (const sample of [{ height: 1, slopeDegrees: -1 }, { height: 1, waterDepth: 
   assert.equal(normalizeWorldSurfaceSample(sample).ok, false, 'invalid terrain context must fail');
 }
 
+expectPolicyError('scalar-policy', 'invalid', 'policy-invalid-object');
+expectPolicyError('array-policy', [], 'policy-invalid-object');
+expectPolicyError('unknown-policy-key', { maxSlopeDegree: 20 }, 'policy-unknown-max-slope-degree');
 expectPolicyError('non-finite-max-slope', { maxSlopeDegrees: 'broken' }, 'policy-invalid-max-slope-degrees');
 expectPolicyError('negative-road-buffer', { minRoadDistance: -1 }, 'policy-invalid-min-road-distance');
 expectPolicyError('scalar-biome-list', { allowedBiomes: 'temperate-forest' }, 'policy-invalid-allowed-biomes');
@@ -81,22 +84,26 @@ assert.deepEqual(
   ['forest', 'meadow'],
   'policy string lists must trim, normalize case and deduplicate deterministically',
 );
-assert.throws(
-  () => resolveWorldSurfacePolicy({}, { maxSlopeDegrees: 'broken' }),
-  /policy-invalid-max-slope-degrees/,
-  'public policy resolver must fail closed on malformed overrides',
-);
+for (const badOverride of ['invalid', [], { maxSlopeDegrees: 'broken' }, { maxSlopeDegree: 20 }]) {
+  assert.throws(
+    () => resolveWorldSurfacePolicy({}, badOverride),
+    /policy-(invalid|unknown)-/,
+    'public policy resolver must fail closed on malformed overrides',
+  );
+}
 
-const unsnapped = { position: { x: 5, y: 999, z: 7 } };
-const rejectedRuntimePolicy = resolveWorldSurfacePlacement(unsnapped, {
-  metadata: { category: 'tree' },
-  surfaceQuery: () => forest,
-  placementPolicy: { maxSlopeDegrees: 'broken' },
-  requireSurfaceContext: true,
-});
-assert.equal(rejectedRuntimePolicy.ok, false, 'runtime placement must reject malformed policy before scene attach');
-assert(rejectedRuntimePolicy.error.includes('policy-invalid-max-slope-degrees'), `unexpected runtime rejection: ${rejectedRuntimePolicy.error}`);
-assert.equal(unsnapped.position.y, 999, 'rejected policy must not snap or mutate asset height');
+for (const badPolicy of ['invalid', [], { maxSlopeDegrees: 'broken' }, { maxSlopeDegree: 20 }]) {
+  const unsnapped = { position: { x: 5, y: 999, z: 7 } };
+  const rejectedRuntimePolicy = resolveWorldSurfacePlacement(unsnapped, {
+    metadata: { category: 'tree' },
+    surfaceQuery: () => forest,
+    placementPolicy: badPolicy,
+    requireSurfaceContext: true,
+  });
+  assert.equal(rejectedRuntimePolicy.ok, false, 'runtime placement must reject malformed policy before scene attach');
+  assert(rejectedRuntimePolicy.error.includes('policy-'), `unexpected runtime rejection: ${rejectedRuntimePolicy.error}`);
+  assert.equal(unsnapped.position.y, 999, 'rejected policy must not snap or mutate asset height');
+}
 
 const deterministicInput = { height: 44.25, slopeDegrees: 17.5, waterDepth: 0, roadDistance: 11, settlementDistance: 91, moisture: 0.6, biome: 'meadow' };
 const deterministicPolicy = resolveWorldSurfacePolicy({ category: 'vegetation' }, { maxSlopeDegrees: 24, minMoisture: 0.2, allowedBiomes: ['MEADOW', 'meadow', 'Temperate-Forest'] });
@@ -106,4 +113,4 @@ assert.deepEqual(
   'surface placement must be deterministic',
 );
 
-console.log('[checkWorldSurfacePlacementPolicy] PASS: shared placement core fails closed on missing terrain context and malformed policy, rejects invalid sea, cliff, road, biome, moisture, water-type and malformed-ground placements, and preserves valid deterministic tree/rock/building/bridge cases.');
+console.log('[checkWorldSurfacePlacementPolicy] PASS: shared placement core fails closed on missing terrain context, invalid policy shapes/keys and malformed policy values, rejects invalid sea, cliff, road, biome, moisture, water-type and malformed-ground placements, and preserves valid deterministic tree/rock/building/bridge cases.');
