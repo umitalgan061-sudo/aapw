@@ -255,6 +255,9 @@ export async function createNPC({
 	let waypointIndex = 0;
 	let pauseTimer = 0;
 	const combatStanceEnabled = combatStanceTriggerRadiusMeters != null;
+	const combatEngageRadiusMeters = combatStanceEnabled
+		? Math.max(1.5, Math.min(3.5, combatStanceTriggerRadiusMeters * 0.35))
+		: 0;
 	let alertBlend = 0;
 	let suspicion = 0;
 	let lastKnownPlayer = null;
@@ -316,7 +319,13 @@ export async function createNPC({
 					suspicion = Math.max(0, suspicion - simulationDelta / 1.0);
 					investigationRemaining = Math.max(0, investigationRemaining - simulationDelta);
 				}
-				perceptionIntent = awareness.visible ? (suspicion >= 0.72 ? 'combat' : 'observe') : (lastKnownPlayer && investigationRemaining > 0 ? 'investigate' : 'patrol');
+				if (awareness.visible && suspicion >= 0.72) {
+					perceptionIntent = distanceToPlayer > combatEngageRadiusMeters ? 'chase' : 'combat';
+				} else if (awareness.visible) {
+					perceptionIntent = 'observe';
+				} else {
+					perceptionIntent = lastKnownPlayer && investigationRemaining > 0 ? 'investigate' : 'patrol';
+				}
 				model.userData.npcPerception = {
 					intent: perceptionIntent,
 					suspicion: Number(suspicion.toFixed(3)),
@@ -324,6 +333,7 @@ export async function createNPC({
 					heard,
 					lineOfSight: los.clear,
 					lineOfSightSamples: los.samples,
+					engageRadiusMeters: Number(combatEngageRadiusMeters.toFixed(3)),
 					investigationRemaining: Number(investigationRemaining.toFixed(3)),
 					lastKnown: lastKnownPlayer ? { ...lastKnownPlayer } : null,
 				};
@@ -340,6 +350,9 @@ export async function createNPC({
 				const dz = playerPosition.z - model.position.z;
 				if (dx !== 0 || dz !== 0) turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, simulationDelta);
 				playAction(idleAction);
+			} else if (perceptionEnabled && perceptionIntent === 'chase' && playerPosition) {
+				const moved = moveNpcToward(model, playerPosition, speedMps * 1.35, simulationDelta, groundCollider, playerCollider, turnRateRadiansPerSecond, combatEngageRadiusMeters);
+				playAction(moved ? (walkAction || idleAction) : idleAction);
 			} else if (perceptionEnabled && perceptionIntent === 'investigate' && lastKnownPlayer) {
 				const moved = moveNpcToward(model, lastKnownPlayer, speedMps * 0.85, simulationDelta, groundCollider, playerCollider, turnRateRadiansPerSecond);
 				playAction(moved ? (walkAction || idleAction) : idleAction);
