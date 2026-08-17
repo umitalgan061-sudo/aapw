@@ -19,6 +19,17 @@ import { applyAuroraCurtainRaysV3 } from './auroraRealism.js';
 import { applyAuroraRayCurtainV4 } from './auroraRayCurtainV4.js';
 import { applyAuroraNightAtmosphereV5 } from './auroraNightAtmosphereV5.js';
 
+export const WORLD_SKY_ATMOSPHERE_POLICY = Object.freeze({
+	id: 'camera-relative-horizon-atmosphere-2026-08-17-v1',
+	cameraRelative: true,
+	blackBackgroundFallback: false,
+	horizonHazeStrength: 0.28,
+	groundBounceStrength: 0.12,
+	upperAirStrength: 0.08,
+	bandingDitherStrength: 0.006,
+	renderOnly: true,
+});
+
 const SKY_VERTEX_SHADER = /* glsl */ `
 	varying vec3 vWorldPosition;
 	void main() {
@@ -37,6 +48,10 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uAuroraColorB;
 	uniform float uTime;
 	uniform float uNightFactor;
+	uniform float uHorizonHazeStrength;
+	uniform float uGroundBounceStrength;
+	uniform float uUpperAirStrength;
+	uniform float uBandingDitherStrength;
 	varying vec3 vWorldPosition;
 
 	// Cheap 2D value-noise hash (not the seeded terrain PRNG — this only drives a visual, not
@@ -58,10 +73,39 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 		return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 	}
 
+	vec3 atmosphericBase(vec3 dir, vec3 horizonColor, vec3 zenithColor) {
+		// Extend the visible gradient below the mathematical horizon. The lower sky must remain a
+		// plausible terrain-reflected atmosphere instead of falling to an empty/black hemisphere when
+		// the camera pitches up from valleys, coasts or tall relief.
+		float skyHeight = smoothstep(-0.22, 0.82, dir.y);
+		float zenithBlend = pow(clamp(skyHeight, 0.0, 1.0), 0.62);
+		vec3 base = mix(horizonColor, zenithColor, zenithBlend);
+
+		// Broad humidity/aerial-perspective band. It is camera-relative and has no map-space phase, so
+		// it cannot create a world grid, tile boundary or invented geography.
+		float horizonBand = exp(-pow(abs(dir.y) / 0.19, 1.55));
+		vec3 hazeColor = mix(horizonColor, vec3(0.62, 0.72, 0.82), 0.24);
+		base = mix(base, hazeColor, horizonBand * uHorizonHazeStrength);
+
+		// Low hemisphere gets a restrained ground/sea bounce rather than black. Night preserves deep
+		// blue while daylight receives a warmer neutral reflection from the visible world surface.
+		float belowHorizon = smoothstep(0.06, -0.52, dir.y);
+		vec3 nightBounce = vec3(0.018, 0.026, 0.052);
+		vec3 dayBounce = mix(horizonColor, vec3(0.30, 0.32, 0.29), 0.44);
+		vec3 bounce = mix(dayBounce, nightBounce, uNightFactor);
+		base = mix(base, bounce, belowHorizon * uGroundBounceStrength);
+
+		// Slight high-altitude scattering prevents a flat single-color zenith without adding a visible
+		// procedural pattern. This is intentionally weaker than the authored day/night palette.
+		float upperAir = smoothstep(0.24, 0.94, dir.y);
+		vec3 upperTint = mix(vec3(0.48, 0.66, 0.90), vec3(0.055, 0.085, 0.18), uNightFactor);
+		base += upperTint * upperAir * uUpperAirStrength;
+		return base;
+	}
+
 	void main() {
 		vec3 dir = normalize(vWorldPosition);
-		float heightFactor = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-		vec3 skyColor = mix(uHorizonColor, uZenithColor, pow(heightFactor, 0.55));
+		vec3 skyColor = atmosphericBase(dir, uHorizonColor, uZenithColor);
 
 		// Aurora only above the horizon, fading out before it reaches the ground line.
 		float auroraMask = smoothstep(0.05, 0.55, dir.y) * (1.0 - smoothstep(0.75, 1.0, dir.y));
@@ -71,6 +115,10 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 		vec3 auroraColor = mix(uAuroraColorA, uAuroraColorB, valueNoise(sampleCoord + 5.0));
 
 		vec3 finalColor = skyColor + auroraColor * bands * auroraMask * uNightFactor * 0.55;
+		// Sub-LSB-ish ordered noise avoids smooth-gradient banding on mobile displays without creating
+		// a readable texture, moire or screen-space grid.
+		float dither = (hash21(gl_FragCoord.xy + vec2(17.0, 31.0)) - 0.5) * uBandingDitherStrength;
+		finalColor = max(finalColor + dither, vec3(0.0));
 		gl_FragColor = vec4(finalColor, 1.0);
 	}
 `;
@@ -101,6 +149,10 @@ export function createAuroraSky() {
 			uAuroraColorA: { value: DEFAULT_AURORA_COLOR_A },
 			uAuroraColorB: { value: DEFAULT_AURORA_COLOR_B },
 			uNightFactor: { value: 1 },
+			uHorizonHazeStrength: { value: WORLD_SKY_ATMOSPHERE_POLICY.horizonHazeStrength },
+			uGroundBounceStrength: { value: WORLD_SKY_ATMOSPHERE_POLICY.groundBounceStrength },
+			uUpperAirStrength: { value: WORLD_SKY_ATMOSPHERE_POLICY.upperAirStrength },
+			uBandingDitherStrength: { value: WORLD_SKY_ATMOSPHERE_POLICY.bandingDitherStrength },
 		},
 		side: THREE.BackSide,
 		depthWrite: false,
@@ -120,6 +172,7 @@ export function createAuroraSky() {
 	applyAuroraCurtainRaysV3(material);
 	applyAuroraRayCurtainV4(material);
 	applyAuroraNightAtmosphereV5(material);
+	material.userData.worldSkyAtmosphere = WORLD_SKY_ATMOSPHERE_POLICY;
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.frustumCulled = false; // it must never disappear — it always surrounds the camera by construction.
 	mesh.renderOrder = -1; // draw first so opaque terrain/props overdraw it normally, not the other way around.
