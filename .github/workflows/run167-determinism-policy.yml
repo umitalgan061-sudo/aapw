@@ -51,15 +51,32 @@ jobs:
       - name: Syntax and determinism policy
         shell: bash
         run: |
-          set -euo pipefail
-          node --check scripts/checkSeededRandomPolicy.js
-          node --check scripts/smokeTestGame3D.js
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkAssetsManifest.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/terrainSeatSafetyCheck.js
-          node scripts/roadNetworkSafetyCheck.js
+          set -uo pipefail
+          run_check() {
+            local label="$1"
+            shift
+            local log="$RUNNER_TEMP/run167-${label}.log"
+            set +e
+            "$@" 2>&1 | tee "$log"
+            local status="${PIPESTATUS[0]}"
+            set -e
+            if [ "$status" -ne 0 ]; then
+              tail -n 20 "$log" | while IFS= read -r line; do
+                line="${line//'%'/'%25'}"
+                line="${line//$'\r'/'%0D'}"
+                echo "::error title=Run167 ${label}::$line"
+              done
+              exit "$status"
+            fi
+          }
+          run_check syntax-seeded node --check scripts/checkSeededRandomPolicy.js
+          run_check syntax-smoke node --check scripts/smokeTestGame3D.js
+          run_check seeded-policy node scripts/checkSeededRandomPolicy.js
+          run_check assets-manifest node scripts/checkAssetsManifest.js
+          run_check pwa-installability node scripts/checkPwaInstallability.js
+          run_check service-worker-cache node scripts/checkServiceWorkerCache.js
+          run_check terrain-seat-safety node scripts/terrainSeatSafetyCheck.js
+          run_check road-network-safety node scripts/roadNetworkSafetyCheck.js
 
       - name: Determinism guard regression fixture
         shell: bash
