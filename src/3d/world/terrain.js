@@ -73,6 +73,26 @@ export const CURRENT_TERRAIN_ALBEDO_POLICY = Object.freeze({
 	terrainHeightAuthority: CURRENT_TERRAIN_POLICY.id,
 });
 
+/**
+ * Render-only micro PBR layer. This is deliberately not geography: canonical height, coastline,
+ * hydrology, placement and collision stay unchanged. The normal/roughness atlas uses a second UV
+ * channel whose phase is derived directly from world metres, so 22 m means 22 m everywhere and
+ * neighboring chunks cannot restart the detail pattern at their border.
+ */
+export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
+	id: 'terrain-micro-surface-world-uv-pbr-v2',
+	textureSize: 128,
+	detailRepeatMeters: 22,
+	normalStrength: 0.72,
+	normalSlopeGain: 3.4,
+	roughnessBase: 0.96,
+	roughnessMin: 0.68,
+	roughnessMax: 0.98,
+	uvChannel: 1,
+	maxAnisotropy: 8,
+	renderOnly: true,
+});
+
 function currentMapPoint(worldX, worldZ) {
 	const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
 	const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
@@ -92,6 +112,131 @@ function currentMapPoint(worldX, worldZ) {
 export function terrainMapUvAt(worldX, worldZ) {
 	const point = currentMapPoint(worldX, worldZ);
 	return Object.freeze({ u: point.nx, v: 1 - point.ny, insideOwnerMap: point.insideOwnerMap });
+}
+
+/** Stable metre-space UV for the render-only detail channel. Negative UV is valid with RepeatWrapping. */
+export function terrainMicroUvAt(worldX, worldZ) {
+	const repeatMeters = TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters;
+	return Object.freeze({ u: worldX / repeatMeters, v: worldZ / repeatMeters });
+}
+
+function terrainDetailHeight(u, v) {
+	// Integer spatial frequencies make the atlas itself exactly tileable at every edge.
+	return (
+		0.34 * Math.sin(TAU * (3 * u + 5 * v) + 0.41)
+		+ 0.22 * Math.cos(TAU * (7 * u - 4 * v) + 1.73)
+		+ 0.16 * Math.sin(TAU * (11 * u + 13 * v) + 2.19)
+		+ 0.11 * Math.cos(TAU * (19 * u - 17 * v) + 0.87)
+		+ 0.09 * Math.sin(TAU * (29 * u + 23 * v) + 2.81)
+		+ 0.08 * Math.cos(TAU * (37 * u - 31 * v) + 1.21)
+	);
+}
+
+function buildTerrainDetailField(size) {
+	const field = new Float32Array(size * size);
+	for (let y = 0; y < size; y += 1) {
+		for (let x = 0; x < size; x += 1) field[y * size + x] = terrainDetailHeight(x / size, y / size);
+	}
+	return field;
+}
+
+function wrappedTerrainDetailSample(field, size, x, y) {
+	return field[((y + size) % size) * size + ((x + size) % size)];
+}
+
+function buildTerrainNormalData(field, size) {
+	const data = new Uint8Array(size * size * 4);
+	const gain = TERRAIN_MICRO_SURFACE_POLICY.normalSlopeGain;
+	for (let y = 0; y < size; y += 1) {
+		for (let x = 0; x < size; x += 1) {
+			const dx = (wrappedTerrainDetailSample(field, size, x + 1, y) - wrappedTerrainDetailSample(field, size, x - 1, y)) * gain;
+			const dy = (wrappedTerrainDetailSample(field, size, x, y + 1) - wrappedTerrainDetailSample(field, size, x, y - 1)) * gain;
+			const inverseLength = 1 / Math.hypot(dx, dy, 1);
+			const offset = (y * size + x) * 4;
+			data[offset] = Math.round((-dx * inverseLength * 0.5 + 0.5) * 255);
+			data[offset + 1] = Math.round((-dy * inverseLength * 0.5 + 0.5) * 255);
+			data[offset + 2] = Math.round((inverseLength * 0.5 + 0.5) * 255);
+			data[offset + 3] = 255;
+		}
+	}
+	return data;
+}
+
+function buildTerrainRoughnessData(field, size) {
+	const data = new Uint8Array(size * size * 4);
+	const { roughnessMin, roughnessMax } = TERRAIN_MICRO_SURFACE_POLICY;
+	for (let y = 0; y < size; y += 1) {
+		for (let x = 0; x < size; x += 1) {
+			const center = wrappedTerrainDetailSample(field, size, x, y);
+			const dx = Math.abs(wrappedTerrainDetailSample(field, size, x + 1, y) - wrappedTerrainDetailSample(field, size, x - 1, y));
+			const dy = Math.abs(wrappedTerrainDetailSample(field, size, x, y + 1) - wrappedTerrainDetailSample(field, size, x, y - 1));
+			const grain = clamp01(0.5 + center * 0.28 + Math.hypot(dx, dy) * 0.9);
+			const encoded = Math.round(clamp01(lerp(roughnessMin, roughnessMax, grain)) * 255);
+			const offset = (y * size + x) * 4;
+			data[offset] = encoded;
+			data[offset + 1] = encoded;
+			data[offset + 2] = encoded;
+			data[offset + 3] = 255;
+		}
+	}
+	return data;
+}
+
+function configureTerrainDataTexture(texture, name) {
+	texture.name = name;
+	texture.wrapS = THREE.RepeatWrapping;
+	texture.wrapT = THREE.RepeatWrapping;
+	texture.repeat.set(1, 1);
+	texture.minFilter = THREE.LinearMipmapLinearFilter;
+	texture.magFilter = THREE.LinearFilter;
+	texture.generateMipmaps = true;
+	texture.anisotropy = TERRAIN_MICRO_SURFACE_POLICY.maxAnisotropy;
+	texture.colorSpace = THREE.NoColorSpace;
+	texture.channel = TERRAIN_MICRO_SURFACE_POLICY.uvChannel;
+	texture.userData = {
+		...texture.userData,
+		terrainMicroSurfacePolicy: TERRAIN_MICRO_SURFACE_POLICY.id,
+		worldSpaceRepeatMeters: TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters,
+	};
+	texture.needsUpdate = true;
+	return texture;
+}
+
+let sharedTerrainMicroSurface = null;
+
+/** Two tiny app-lifetime maps shared by every chunk; geometry density and canonical height are unchanged. */
+export function getSharedTerrainMicroSurfaceTextures() {
+	if (sharedTerrainMicroSurface) return sharedTerrainMicroSurface;
+	const size = TERRAIN_MICRO_SURFACE_POLICY.textureSize;
+	const field = buildTerrainDetailField(size);
+	const normalMap = configureTerrainDataTexture(
+		new THREE.DataTexture(buildTerrainNormalData(field, size), size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
+		'terrain-world-micro-normal-v2',
+	);
+	const roughnessMap = configureTerrainDataTexture(
+		new THREE.DataTexture(buildTerrainRoughnessData(field, size), size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
+		'terrain-world-micro-roughness-v2',
+	);
+	sharedTerrainMicroSurface = Object.freeze({ normalMap, roughnessMap });
+	return sharedTerrainMicroSurface;
+}
+
+export function applyTerrainMicroSurface(material) {
+	if (!material?.isMeshStandardMaterial) throw new TypeError('terrain micro-surface requires MeshStandardMaterial');
+	const surface = getSharedTerrainMicroSurfaceTextures();
+	material.normalMap = surface.normalMap;
+	material.normalMapType = THREE.TangentSpaceNormalMap;
+	material.normalScale.setScalar(TERRAIN_MICRO_SURFACE_POLICY.normalStrength);
+	material.roughnessMap = surface.roughnessMap;
+	material.roughness = TERRAIN_MICRO_SURFACE_POLICY.roughnessBase;
+	material.userData.terrainMicroSurface = Object.freeze({
+		policyId: TERRAIN_MICRO_SURFACE_POLICY.id,
+		detailRepeatMeters: TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters,
+		uvChannel: TERRAIN_MICRO_SURFACE_POLICY.uvChannel,
+		renderOnly: true,
+	});
+	material.needsUpdate = true;
+	return material;
 }
 
 function canonicalMicroSignal(nx, ny) {
@@ -212,6 +357,7 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	const position = geometry.attributes.position;
 	const uv = geometry.getAttribute('uv');
 	const colors = new Float32Array(position.count * 3);
+	const microUvs = new Float32Array(position.count * 2);
 	const blended = new THREE.Color();
 	for (let index = 0; index < position.count; index += 1) {
 		const worldX = chunkX * size + position.getX(index);
@@ -220,6 +366,9 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		position.setY(index, heightMeters);
 		const mapUv = terrainMapUvAt(worldX, worldZ);
 		uv.setXY(index, mapUv.u, mapUv.v);
+		const microUv = terrainMicroUvAt(worldX, worldZ);
+		microUvs[index * 2] = microUv.u;
+		microUvs[index * 2 + 1] = microUv.v;
 		const fraction = THREE.MathUtils.clamp((heightMeters - SEA_LEVEL) / 80, 0, 1);
 		blended.copy(LOW_COLOR).lerp(HIGH_COLOR, fraction);
 		colors[index * 3] = blended.r;
@@ -228,6 +377,7 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	}
 	position.needsUpdate = true;
 	uv.needsUpdate = true;
+	geometry.setAttribute('uv1', new THREE.BufferAttribute(microUvs, 2));
 	geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 	geometry.computeVertexNormals();
 	geometry.computeBoundingBox();
@@ -236,9 +386,10 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	const material = new THREE.MeshStandardMaterial({
 		vertexColors: true,
 		map: terrainAlbedo,
-		roughness: 1,
+		roughness: TERRAIN_MICRO_SURFACE_POLICY.roughnessBase,
 		metalness: 0,
 	});
+	applyTerrainMicroSurface(material);
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.receiveShadow = true;
 	mesh.position.set(chunkX * size, 0, chunkZ * size);
@@ -253,12 +404,13 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		textureEnabled: Boolean(terrainAlbedo),
 		mobileFallback: isCoarsePointerDevice(),
 	});
+	mesh.userData.currentTerrainMicroSurface = material.userData.terrainMicroSurface;
 	return mesh;
 }
 
 export function disposeTerrainChunk(chunkMesh) {
 	chunkMesh.geometry.dispose();
-	// `sharedTerrainAlbedoTexture` is app-lifetime and shared by every resident chunk. Disposing a
-	// single chunk must never invalidate the material map used by its neighbors.
+	// The albedo and micro normal/roughness textures are app-lifetime shared resources. Disposing a
+	// single chunk must never invalidate texture maps still referenced by neighboring chunk materials.
 	chunkMesh.material.dispose();
 }
