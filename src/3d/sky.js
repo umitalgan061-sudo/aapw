@@ -18,11 +18,13 @@ import { applyNaturalAuroraRefinement } from './auroraRealism.js';
 import { applyAuroraCurtainRaysV3 } from './auroraRealism.js';
 import { applyAuroraRayCurtainV4 } from './auroraRayCurtainV4.js';
 import { applyAuroraNightAtmosphereV5 } from './auroraNightAtmosphereV5.js';
+import { sampleSkyAtmosphereProfile, SKY_ATMOSPHERE_PROFILE_POLICY } from './skyAtmosphereProfile.js';
 
 export const WORLD_SKY_ATMOSPHERE_POLICY = Object.freeze({
 	id: 'camera-relative-horizon-atmosphere-2026-08-17-v1',
 	cameraRelative: true,
 	blackBackgroundFallback: false,
+	profilePolicyId: SKY_ATMOSPHERE_PROFILE_POLICY.id,
 	horizonHazeStrength: 0.28,
 	groundBounceStrength: 0.12,
 	upperAirStrength: 0.08,
@@ -89,7 +91,7 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 
 		// Low hemisphere gets a restrained ground/sea bounce rather than black. Night preserves deep
 		// blue while daylight receives a warmer neutral reflection from the visible world surface.
-		float belowHorizon = smoothstep(0.06, -0.52, dir.y);
+		float belowHorizon = 1.0 - smoothstep(-0.52, 0.06, dir.y);
 		vec3 nightBounce = vec3(0.018, 0.026, 0.052);
 		vec3 dayBounce = mix(horizonColor, vec3(0.30, 0.32, 0.29), 0.44);
 		vec3 bounce = mix(dayBounce, nightBounce, uNightFactor);
@@ -138,6 +140,7 @@ const SKY_RADIUS_METERS = 1900;
  * @returns {THREE.Mesh}
  */
 export function createAuroraSky() {
+	const initialProfile = sampleSkyAtmosphereProfile(1);
 	const geometry = new THREE.SphereGeometry(SKY_RADIUS_METERS, 32, 16);
 	const material = new THREE.ShaderMaterial({
 		vertexShader: SKY_VERTEX_SHADER,
@@ -149,10 +152,10 @@ export function createAuroraSky() {
 			uAuroraColorA: { value: DEFAULT_AURORA_COLOR_A },
 			uAuroraColorB: { value: DEFAULT_AURORA_COLOR_B },
 			uNightFactor: { value: 1 },
-			uHorizonHazeStrength: { value: WORLD_SKY_ATMOSPHERE_POLICY.horizonHazeStrength },
-			uGroundBounceStrength: { value: WORLD_SKY_ATMOSPHERE_POLICY.groundBounceStrength },
-			uUpperAirStrength: { value: WORLD_SKY_ATMOSPHERE_POLICY.upperAirStrength },
-			uBandingDitherStrength: { value: WORLD_SKY_ATMOSPHERE_POLICY.bandingDitherStrength },
+			uHorizonHazeStrength: { value: initialProfile.horizonHazeStrength },
+			uGroundBounceStrength: { value: initialProfile.groundBounceStrength },
+			uUpperAirStrength: { value: initialProfile.upperAirStrength },
+			uBandingDitherStrength: { value: initialProfile.bandingDitherStrength },
 		},
 		side: THREE.BackSide,
 		depthWrite: false,
@@ -191,10 +194,15 @@ export function createAuroraSky() {
 export function updateAuroraSky(skyMesh, cameraPosition, elapsedSeconds, dayNight) {
 	skyMesh.position.copy(cameraPosition);
 	const uniforms = skyMesh.material.uniforms;
+	const profile = sampleSkyAtmosphereProfile(dayNight.nightFactor);
 	uniforms.uTime.value = elapsedSeconds;
 	uniforms.uHorizonColor.value.copy(dayNight.horizonColor);
 	uniforms.uZenithColor.value.copy(dayNight.zenithColor);
 	uniforms.uNightFactor.value = dayNight.nightFactor;
+	uniforms.uHorizonHazeStrength.value = profile.horizonHazeStrength;
+	uniforms.uGroundBounceStrength.value = profile.groundBounceStrength;
+	uniforms.uUpperAirStrength.value = profile.upperAirStrength;
+	uniforms.uBandingDitherStrength.value = profile.bandingDitherStrength;
 }
 
 /**
