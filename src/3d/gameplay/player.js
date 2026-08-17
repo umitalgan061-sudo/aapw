@@ -1,7 +1,7 @@
 /**
  * Playable third-person character controller.
  * Reuses the shipped peasant_girl Mixamo mesh/idle/walk/run clips, ground-height contract and
- * settlement collider; sprint/dodge are layered onto that controller rather than a parallel one.
+ * settlement collider; sprint/dodge and equipment are layered onto that controller rather than a parallel one.
  * @module gameplay/player
  */
 
@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { PLAYER_CONFIG } from './gameplayConfig.js';
 import { AssetLoader } from '../assetLoader.js';
 import { integrateJumpArc } from '../physics.js';
+import { equipPlayerSword } from './playerEquipment.js';
 
 const PLAYER_ACTION_CONFIG = Object.freeze({
 	MAX_STAMINA: 100,
@@ -41,6 +42,13 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	}
 	const groundY = groundCollider.getGroundHeight(spawn.x, spawn.z);
 	model.position.set(spawn.x, groundY, spawn.z);
+	const swordEquipment = await equipPlayerSword({ assetLoader, playerRoot: model });
+	model.userData.playerEquipment = {
+		weapon: 'sword',
+		assetId: swordEquipment.object3D.userData.assetId,
+		socket: swordEquipment.socket.name,
+		manifest: swordEquipment.manifest,
+	};
 	let heightAboveGround = 0, velocityY = 0, isGrounded = true;
 	let stamina = PLAYER_ACTION_CONFIG.MAX_STAMINA, sprintExhausted = false, regenDelayRemaining = 0;
 	let dodgeRemaining = 0, dodgeCooldownRemaining = 0, lastRunPressAge = Infinity, wasRunHeld = false;
@@ -71,10 +79,10 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	function spendStamina(amount) { stamina = clamp(stamina - amount, 0, PLAYER_ACTION_CONFIG.MAX_STAMINA); regenDelayRemaining = PLAYER_ACTION_CONFIG.STAMINA_REGEN_DELAY_SECONDS; if (stamina <= 0) sprintExhausted = true; }
 	function canStartDodge() { return hasMovementInput && isGrounded && dodgeRemaining <= 0 && dodgeCooldownRemaining <= 0 && stamina >= PLAYER_ACTION_CONFIG.DODGE_COST; }
 	function startDodge(moveDirectionXZ) { const length = Math.hypot(moveDirectionXZ.x, moveDirectionXZ.z) || 1; dodgeDirectionX = moveDirectionXZ.x / length; dodgeDirectionZ = moveDirectionXZ.z / length; dodgeRemaining = PLAYER_ACTION_CONFIG.DODGE_DURATION_SECONDS; dodgeCooldownRemaining = PLAYER_ACTION_CONFIG.DODGE_COOLDOWN_SECONDS + dodgeRemaining; spendStamina(PLAYER_ACTION_CONFIG.DODGE_COST); lastRunPressAge = Infinity; }
-	function motionSnapshot() { return Object.freeze({ state: movementState, stamina: Number(stamina.toFixed(2)), maxStamina: PLAYER_ACTION_CONFIG.MAX_STAMINA, staminaRatio: Number((stamina / PLAYER_ACTION_CONFIG.MAX_STAMINA).toFixed(4)), sprintExhausted, runIntent, isGrounded, canDodge: isGrounded && dodgeRemaining <= 0 && dodgeCooldownRemaining <= 0 && stamina >= PLAYER_ACTION_CONFIG.DODGE_COST, speedMps: Number(planarSpeedMps.toFixed(3)), dodgeRemaining: Number(dodgeRemaining.toFixed(3)), dodgeCooldownRemaining: Number(dodgeCooldownRemaining.toFixed(3)), regenDelayRemaining: Number(regenDelayRemaining.toFixed(3)), position: Object.freeze({ x: Number(model.position.x.toFixed(3)), y: Number(model.position.y.toFixed(3)), z: Number(model.position.z.toFixed(3)) }) }); }
+	function motionSnapshot() { return Object.freeze({ state: movementState, stamina: Number(stamina.toFixed(2)), maxStamina: PLAYER_ACTION_CONFIG.MAX_STAMINA, staminaRatio: Number((stamina / PLAYER_ACTION_CONFIG.MAX_STAMINA).toFixed(4)), sprintExhausted, runIntent, isGrounded, canDodge: isGrounded && dodgeRemaining <= 0 && dodgeCooldownRemaining <= 0 && stamina >= PLAYER_ACTION_CONFIG.DODGE_COST, speedMps: Number(planarSpeedMps.toFixed(3)), dodgeRemaining: Number(dodgeRemaining.toFixed(3)), dodgeCooldownRemaining: Number(dodgeCooldownRemaining.toFixed(3)), regenDelayRemaining: Number(regenDelayRemaining.toFixed(3)), equippedWeapon: model.userData.playerEquipment?.assetId ?? null, position: Object.freeze({ x: Number(model.position.x.toFixed(3)), y: Number(model.position.y.toFixed(3)), z: Number(model.position.z.toFixed(3)) }) }); }
 	function publishMotionTelemetry() { const staminaBucket = Math.floor(stamina * 10); const publishDodgeFrame = movementState === 'dodge'; if (!publishDodgeFrame && movementState === lastTelemetryState && staminaBucket === lastTelemetryStamina) return; lastTelemetryState = movementState; lastTelemetryStamina = staminaBucket; model.userData.playerMotion = motionSnapshot(); if (typeof globalThis.dispatchEvent === 'function' && typeof globalThis.CustomEvent === 'function') globalThis.dispatchEvent(new globalThis.CustomEvent('aapw:player-motion', { detail: model.userData.playerMotion })); }
 	publishMotionTelemetry(); lastTelemetryState = ''; lastTelemetryStamina = -1;
-	return { object3D: model, get stamina() { return stamina; }, get maxStamina() { return PLAYER_ACTION_CONFIG.MAX_STAMINA; }, get movementState() { return movementState; }, get sprintExhausted() { return sprintExhausted; }, get isDodging() { return dodgeRemaining > 0; }, getMotionState: motionSnapshot,
+	return { object3D: model, equipment: swordEquipment, get stamina() { return stamina; }, get maxStamina() { return PLAYER_ACTION_CONFIG.MAX_STAMINA; }, get movementState() { return movementState; }, get sprintExhausted() { return sprintExhausted; }, get isDodging() { return dodgeRemaining > 0; }, getMotionState: motionSnapshot,
 		update(delta, moveDirectionXZ, isRunning, jumpRequested = false) {
 			const dt = clamp(Number.isFinite(delta) ? delta : 0, 0, PLAYER_ACTION_CONFIG.MAX_FRAME_DELTA_SECONDS), frameStartX = model.position.x, frameStartZ = model.position.z;
 			hasMovementInput = moveDirectionXZ.x !== 0 || moveDirectionXZ.z !== 0; runIntent = Boolean(isRunning); lastRunPressAge += dt; dodgeCooldownRemaining = Math.max(0, dodgeCooldownRemaining - dt); regenDelayRemaining = Math.max(0, regenDelayRemaining - dt); if (sprintExhausted && stamina >= PLAYER_ACTION_CONFIG.SPRINT_RESTART_STAMINA) sprintExhausted = false;
@@ -90,6 +98,6 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 			if (regenDelayRemaining <= 0 && dodgeRemaining <= 0 && !(runIntent && hasMovementInput)) stamina = clamp(stamina + PLAYER_ACTION_CONFIG.STAMINA_REGEN_PER_SECOND * dt, 0, PLAYER_ACTION_CONFIG.MAX_STAMINA);
 			planarSpeedMps = dt > 0 ? Math.hypot(model.position.x - frameStartX, model.position.z - frameStartZ) / dt : 0; mixer.update(dt); publishMotionTelemetry();
 		},
-		dispose() { mixer.stopAllAction(); AssetLoader.disposeObject3D(model); },
+		dispose() { mixer.stopAllAction(); swordEquipment.dispose(); AssetLoader.disposeObject3D(model); },
 	};
 }
