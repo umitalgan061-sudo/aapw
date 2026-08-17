@@ -34,6 +34,11 @@ const objPath = CURRENT_TERRAIN_ALBEDO_POLICY.sourceMeshPath;
 assert(statSync(overlayPath).size > 10_000_000, 'authored terrain overlay must be a real hydrated image, not an LFS pointer');
 const mtl = readFileSync(mtlPath, 'utf8');
 assert(/map_Kd[^\r\n]*overlay\.png/i.test(mtl), 'terrain MTL must prove overlay.png is the authored diffuse source');
+const kd = mtl.match(/^\s*Kd\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)/m);
+assert(kd, 'terrain MTL must declare its diffuse factor');
+for (const component of kd.slice(1).map(Number)) {
+  near(component, CURRENT_TERRAIN_ALBEDO_POLICY.sourceDiffuseFactor, 'runtime authored diffuse factor must match source MTL Kd');
+}
 const objHeader = readFileSync(objPath, 'utf8').slice(0, 1024);
 assert(objHeader.includes('# object Terrain'), 'authored mesh family must identify its terrain object');
 
@@ -57,6 +62,7 @@ assert.equal(west.material.metalness, 0);
 assert.equal(west.material.map, null, 'headless regression must use the intentional canonical-color fallback');
 assert.equal(west.userData.currentTerrainAlbedo.mapAlignedUv, true);
 assert.equal(west.userData.currentTerrainAlbedo.textureEnabled, false);
+assert.equal(west.userData.currentTerrainAlbedo.authoredColorFidelity, false, 'headless fallback must not claim authored texture color fidelity');
 
 function boundary(mesh, localX) {
   const position = mesh.geometry.getAttribute('position');
@@ -82,4 +88,4 @@ for (let i = 0; i < westEdge.length; i += 1) {
 
 disposeTerrainChunk(west);
 disposeTerrainChunk(east);
-console.log('[checkMapAlignedTerrainPBR] PASS: map.png provenance, authored terrain diffuse source, global non-tiling UVs, seam continuity, PBR material and mobile/headless fallback are deterministic.');
+console.log('[checkMapAlignedTerrainPBR] PASS: map.png provenance, authored terrain diffuse source/factor, global non-tiling UVs, seam continuity, PBR material and mobile/headless fallback are deterministic.');
