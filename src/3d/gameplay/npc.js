@@ -228,6 +228,7 @@ export async function createNPC({
 	if (name) model.name = name;
 	model.position.set(worldX, groundY, worldZ);
 	model.rotation.y = rotationYRadians;
+	const homePosition = Object.freeze({ x: worldX, z: worldZ });
 	if (displayName) {
 		const inverseParentScale = model.scale.x !== 0 ? 1 / model.scale.x : 1;
 		const nameTag = createNameTagSprite(displayName, nameTagWidthMeters * inverseParentScale, nameTagHeightMeters * inverseParentScale);
@@ -373,6 +374,9 @@ export async function createNPC({
 						playAction(walkAction);
 					}
 				}
+			} else if (perceptionEnabled && Math.hypot(model.position.x - homePosition.x, model.position.z - homePosition.z) > 0.2) {
+				const moved = moveNpcToward(model, homePosition, speedMps * 0.8, simulationDelta, groundCollider, playerCollider, turnRateRadiansPerSecond, 0.2);
+				playAction(moved ? (walkAction || idleAction) : idleAction);
 			}
 			mixer.update(simulationDelta);
 		},
@@ -410,8 +414,8 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 			nameTagWidthMeters: npcConfig.NAME_TAG_WIDTH_METERS,
 			nameTagHeightMeters: npcConfig.NAME_TAG_HEIGHT_METERS,
 			nameTagVerticalOffsetMeters: npcConfig.NAME_TAG_VERTICAL_OFFSET_METERS,
-			groundCollider: patrolWaypoints ? groundCollider : undefined,
-			playerCollider: patrolWaypoints ? playerCollider : undefined,
+			groundCollider,
+			playerCollider,
 			walkAnimationUrl: patrolWaypoints ? npcConfig.WALK_ANIMATION_URL : undefined,
 			patrolWaypoints,
 			speedMps: npcConfig.PATROL_SPEED_MPS,
