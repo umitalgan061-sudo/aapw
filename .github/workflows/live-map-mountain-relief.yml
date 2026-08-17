@@ -10,6 +10,7 @@ on:
       - 'fixtures/world-reference-mountain-relief-v1.json'
       - 'scripts/checkWorldReferenceMountainRelief.mjs'
       - 'scripts/checkMountainNaturalizationProfile.mjs'
+      - 'scripts/checkMountainNaturalizationDeterminism.mjs'
       - 'scripts/checkMountainPassReliefSafety.mjs'
       - 'scripts/checkMountainVisualProofContract.mjs'
       - 'scripts/captureLiveWorldMountainNaturalization.mjs'
@@ -70,6 +71,7 @@ jobs:
           node --check src/3d/world/terrain.js
           node --check scripts/checkWorldReferenceMountainRelief.mjs
           node --check scripts/checkMountainNaturalizationProfile.mjs
+          node --check scripts/checkMountainNaturalizationDeterminism.mjs
           node --check scripts/checkMountainPassReliefSafety.mjs
           node --check scripts/checkMountainVisualProofContract.mjs
           node --check scripts/captureLiveWorldMountainNaturalization.mjs
@@ -78,6 +80,7 @@ jobs:
           node --check service-worker.js
           node scripts/checkWorldReferenceMountainRelief.mjs | tee "$RUNNER_TEMP/mountain-source.log"
           node scripts/checkMountainNaturalizationProfile.mjs | tee "$RUNNER_TEMP/mountain-profile.log"
+          node scripts/checkMountainNaturalizationDeterminism.mjs | tee "$RUNNER_TEMP/mountain-determinism.log"
           node scripts/checkMountainPassReliefSafety.mjs | tee "$RUNNER_TEMP/mountain-pass.log"
           node scripts/checkMountainVisualProofContract.mjs | tee "$RUNNER_TEMP/mountain-proof-contract.log"
 
@@ -128,6 +131,7 @@ jobs:
             ${{ runner.temp }}/diff-check.log
             ${{ runner.temp }}/mountain-source.log
             ${{ runner.temp }}/mountain-profile.log
+            ${{ runner.temp }}/mountain-determinism.log
             ${{ runner.temp }}/mountain-pass.log
             ${{ runner.temp }}/mountain-proof-contract.log
             ${{ runner.temp }}/terrain-seat.log
