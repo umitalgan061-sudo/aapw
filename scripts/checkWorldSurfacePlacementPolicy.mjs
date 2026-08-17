@@ -5,7 +5,7 @@ import {
   evaluateWorldSurfacePlacement,
   normalizeWorldSurfaceSample,
   resolveWorldSurfacePolicy,
-} from '../src/3d/world/WorldSurfacePlacementPolicy.js';
+} from '../src/3d/world/WorldAssetPlacementPipeline.js';
 
 function expectOk(label, surface, policy) {
   const result = evaluateWorldSurfacePlacement(surface, policy);
@@ -51,4 +51,4 @@ assert.deepEqual(
   'surface placement must be deterministic',
 );
 
-console.log('[checkWorldSurfacePlacementPolicy] PASS: deterministic terrain-context placement rejects floating/invalid sea, cliff, road, biome and malformed-ground placements while preserving valid tree/rock/building/bridge cases.');
+console.log('[checkWorldSurfacePlacementPolicy] PASS: shared placement core deterministically rejects floating/invalid sea, cliff, road, biome and malformed-ground placements while preserving valid tree/rock/building/bridge cases.');
