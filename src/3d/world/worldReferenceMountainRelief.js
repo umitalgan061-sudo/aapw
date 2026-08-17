@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-17-v2',
+	id: 'owner-map-live-mountain-relief-2026-08-17-v3',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -28,8 +28,12 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	shoulderWidthVariation: Object.freeze({
 		broadFrequency: 5.5,
 		detailFrequency: 13.5,
-		minimumScale: 0.72,
-		maximumScale: 1.34,
+		minimumScale: 0.88,
+		maximumScale: 1.62,
+	}),
+	coastalReliefTaper: Object.freeze({
+		radiusNormalized: 0.012,
+		minimumScale: 0.12,
 	}),
 	talusBreakup: Object.freeze({
 		broadFrequency: 22,
@@ -149,6 +153,20 @@ export function sampleReferenceDryLandWeight(normalizedX, normalizedY) {
 	const top = dryLandAtCell(x0, y0) * (1 - tx) + dryLandAtCell(x0 + 1, y0) * tx;
 	const bottom = dryLandAtCell(x0, y0 + 1) * (1 - tx) + dryLandAtCell(x0 + 1, y0 + 1) * tx;
 	return top * (1 - ty) + bottom * ty;
+}
+
+function sampleCoastalReliefScale(normalizedX, normalizedY, centerDryWeight) {
+	const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coastalReliefTaper;
+	const radiusY = policy.radiusNormalized;
+	const radiusX = radiusY / MAP_ASPECT;
+	const clearance = Math.min(
+		centerDryWeight,
+		sampleReferenceDryLandWeight(clamp(normalizedX - radiusX, 0, 1), normalizedY),
+		sampleReferenceDryLandWeight(clamp(normalizedX + radiusX, 0, 1), normalizedY),
+		sampleReferenceDryLandWeight(normalizedX, clamp(normalizedY - radiusY, 0, 1)),
+		sampleReferenceDryLandWeight(normalizedX, clamp(normalizedY + radiusY, 0, 1)),
+	);
+	return policy.minimumScale + (1 - policy.minimumScale) * smoothstep(0.18, 0.94, clearance);
 }
 
 function pointSegmentDistance(px, py, ax, ay, bx, by) {
@@ -271,8 +289,10 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		const coreWidth = chain.profile.coreWidthNormalized * clamp(widthScale * 0.92, 0.78, 1.22);
 		const outerWidth = chain.profile.outerWidthNormalized * widthScale;
 		if (distance >= outerWidth) continue;
-		const ridge = 1 - smoothstep(coreWidth, outerWidth, distance);
-		const normalizedDistance = clamp((distance - coreWidth) / Math.max(outerWidth - coreWidth, 1e-9), 0, 1);
+		const normalizedDistance = clamp(distance / Math.max(outerWidth, 1e-9), 0, 1);
+		const coreRatio = clamp(coreWidth / Math.max(outerWidth, 1e-9), 0.06, 0.24);
+		const ridgeExponent = 1.10 + coreRatio * 2.0;
+		const ridge = Math.pow(Math.cos(normalizedDistance * Math.PI * 0.5), ridgeExponent);
 		const summitNoise = (
 			valueNoise2D(normalizedX * 8, normalizedY * 8, chain.profile.seed + 101) * 0.75 +
 			valueNoise2D(normalizedX * 17, normalizedY * 17, chain.profile.seed + 211) * 0.25
@@ -285,7 +305,7 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
 		strongestMeters = Math.max(
 			strongestMeters,
-			chain.profile.peakMeters * Math.pow(ridge, 1.12) * modulation * talusBreakup * passMultiplier,
+			chain.profile.peakMeters * ridge * modulation * talusBreakup * passMultiplier,
 		);
 	}
 	if (strongestMeters === 0) return 0;
@@ -296,7 +316,8 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull,
 		dryLandWeight,
 	);
-	return strongestMeters * landGate;
+	if (landGate === 0) return 0;
+	return strongestMeters * landGate * sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight);
 }
 
 /**
