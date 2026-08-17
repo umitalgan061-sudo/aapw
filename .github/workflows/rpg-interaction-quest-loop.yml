@@ -5,8 +5,11 @@ on:
     paths:
       - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionConfig.js'
+      - 'src/3d/gameplay/interactionEconomy.js'
       - 'scripts/checkInteractionQuestLoop.mjs'
       - 'scripts/checkInteractionInventoryRewards.mjs'
+      - 'scripts/checkInteractionQuartermasterTrade.mjs'
+      - 'service-worker.js'
       - '.github/workflows/rpg-interaction-quest-loop.yml'
   workflow_dispatch:
 
@@ -39,7 +42,7 @@ jobs:
           printf '%s\n' "${FILES[@]}"
           for path in "${FILES[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|.github/workflows/rpg-interaction-quest-loop.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
               *) echo "unexpected RPG scope path: $path" >&2; exit 1 ;;
             esac
           done
@@ -51,11 +54,14 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/interactionConfig.js
+          node --check src/3d/gameplay/interactionEconomy.js
           node --check src/3d/gameplay/interaction.js
           node --check scripts/checkInteractionQuestLoop.mjs
           node --check scripts/checkInteractionInventoryRewards.mjs
+          node --check scripts/checkInteractionQuartermasterTrade.mjs
           node scripts/checkInteractionQuestLoop.mjs
           node scripts/checkInteractionInventoryRewards.mjs
+          node scripts/checkInteractionQuartermasterTrade.mjs
 
       - name: Shared regression contracts
         run: |
