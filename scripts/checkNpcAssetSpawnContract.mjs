@@ -65,6 +65,12 @@ const npcSource = fs.readFileSync(new URL('../src/3d/gameplay/npc.js', import.me
 assert.ok(npcSource.includes('sampleGroundY(worldX, worldZ)'), 'NPCs must ground through the canonical ground sampler');
 assert.ok(npcSource.includes('groundCollider.getGroundHeight'), 'patrol movement must remain aligned to ground collider height');
 assert.ok(npcSource.includes('playerCollider'), 'NPC movement must retain shared collision/navigation adapter');
+assert.ok(npcSource.includes('simulationLodBootstrapDormant = false'),
+  'direct createNPC consumers must preserve full-rate bootstrap compatibility');
+assert.ok(npcSource.includes('simulationLodBootstrapDormant: true'),
+  'shipped configured population must explicitly opt into bootstrap dormancy');
+assert.ok(npcSource.includes('hasPlayerPosition && combatStanceEnabled'),
+  'missing player position must never fabricate an urgent combat stance');
 assert.equal(npcSource.includes('EditorMaterialStudio'), false,
   'runtime NPC code must never import editor/DOM material UI');
 
