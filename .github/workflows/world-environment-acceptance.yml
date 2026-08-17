@@ -2,11 +2,14 @@ name: World Environment Acceptance
 
 on:
   push:
-    branches: ['buzul/world-acceptance-*']
+    branches: ['buzul/world-*']
   pull_request:
     branches: [main]
     paths:
       - 'scripts/checkWorldEnvironmentAcceptanceMatrix.mjs'
+      - 'scripts/checkWorldSurfacePlacementPolicy.mjs'
+      - 'scripts/checkSharedMaterialPlacementContract.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - '.github/workflows/world-environment-acceptance.yml'
   workflow_dispatch:
 
@@ -39,7 +42,7 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkWorldEnvironmentAcceptanceMatrix\.mjs|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkWorldEnvironmentAcceptanceMatrix\.mjs|scripts/checkWorldSurfacePlacementPolicy\.mjs|scripts/checkSharedMaterialPlacementContract\.js|src/3d/world/WorldAssetPlacementPipeline\.js|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "world acceptance quota additions=$A deletions=$D total=$((A+D))"
@@ -48,9 +51,11 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
+          node --check scripts/checkWorldSurfacePlacementPolicy.mjs
           node --check src/3d/materials/MaterialAssignmentCore.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
           node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkWorldSurfacePlacementPolicy.mjs
       - name: Hydrate scoped runtime assets
         run: |
           set -euo pipefail
