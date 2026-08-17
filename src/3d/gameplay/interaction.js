@@ -5,31 +5,22 @@
  * @module gameplay/interaction
  */
 
-import { WATCH_POLICY, createWatchWorldState, watchPolicyLabel } from './interactionConfig.js';
+import {
+	WATCH_POLICY,
+	buildInventoryText,
+	createInteractionInventoryState,
+	createWatchWorldState,
+	watchPolicyLabel,
+} from './interactionConfig.js';
 
 const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
-
 const QUEST_STATUS = Object.freeze({
-	LOCKED: 'locked',
-	AVAILABLE: 'available',
-	ACTIVE: 'active',
-	READY: 'ready',
-	COMPLETED: 'completed',
+	LOCKED: 'locked', AVAILABLE: 'available', ACTIVE: 'active', READY: 'ready', COMPLETED: 'completed',
 });
 
-export const INTERACTION_FACTIONS = Object.freeze({
-	DRAGONSTONE: 'dragonstone',
-});
-
-const DEFAULT_REPUTATION = Object.freeze({
-	[INTERACTION_FACTIONS.DRAGONSTONE]: 0,
-});
-
-export const INTERACTION_PROGRESSION = Object.freeze({
-	START_LEVEL: 1,
-	XP_PER_LEVEL: 100,
-	MAX_LEVEL: 20,
-});
+export const INTERACTION_FACTIONS = Object.freeze({ DRAGONSTONE: 'dragonstone' });
+const DEFAULT_REPUTATION = Object.freeze({ [INTERACTION_FACTIONS.DRAGONSTONE]: 0 });
+export const INTERACTION_PROGRESSION = Object.freeze({ START_LEVEL: 1, XP_PER_LEVEL: 100, MAX_LEVEL: 20 });
 
 export const INTERACTION_QUESTS = Object.freeze([
 	Object.freeze({
@@ -47,6 +38,7 @@ export const INTERACTION_QUESTS = Object.freeze([
 			label: 'Dragonstone nöbetçilerinin güveni',
 			reputation: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, amount: 10 }),
 			experience: 60,
+			item: Object.freeze({ id: 'dragonstone-watch-seal', quantity: 1 }),
 		}),
 	}),
 	Object.freeze({
@@ -57,31 +49,13 @@ export const INTERACTION_QUESTS = Object.freeze([
 		reputationRequirement: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, minimum: 10 }),
 		accept: Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 2 }),
 		objectives: Object.freeze([
-			Object.freeze({
-				id: 'partner',
-				label: 'Nöbet arkadaşlığı hakkında konuş',
-				npcId: 'stannis-guard-2',
-				choiceIndex: 1,
-				progressExperience: 20,
-			}),
-			Object.freeze({
-				id: 'solitude',
-				label: 'Yalnız nöbet hakkında konuş',
-				npcId: 'stannis-guard-2',
-				choiceIndex: 2,
-				progressExperience: 20,
-			}),
+			Object.freeze({ id: 'partner', label: 'Nöbet arkadaşlığı hakkında konuş', npcId: 'stannis-guard-2', choiceIndex: 1, progressExperience: 20 }),
+			Object.freeze({ id: 'solitude', label: 'Yalnız nöbet hakkında konuş', npcId: 'stannis-guard-2', choiceIndex: 2, progressExperience: 20 }),
 		]),
 		turnIns: Object.freeze([
+			Object.freeze({ npcId: 'stannis-guard-1', choiceIndex: 1, outcome: WATCH_POLICY.DISCIPLINE }),
 			Object.freeze({
-				npcId: 'stannis-guard-1',
-				choiceIndex: 1,
-				outcome: WATCH_POLICY.DISCIPLINE,
-			}),
-			Object.freeze({
-				npcId: 'stannis-guard-1',
-				choiceIndex: 3,
-				outcome: WATCH_POLICY.MERCY,
+				npcId: 'stannis-guard-1', choiceIndex: 3, outcome: WATCH_POLICY.MERCY,
 				requirement: Object.freeze({
 					minimumLevel: 2,
 					reputation: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, minimum: 10 }),
@@ -92,6 +66,7 @@ export const INTERACTION_QUESTS = Object.freeze([
 			label: 'Dragonstone nöbetçilerinin itimadı',
 			reputation: Object.freeze({ faction: INTERACTION_FACTIONS.DRAGONSTONE, amount: 5 }),
 			experience: 90,
+			item: Object.freeze({ id: 'watch-captains-writ', quantity: 1 }),
 		}),
 	}),
 ]);
@@ -102,22 +77,18 @@ function sameTrigger(trigger, npcId, choiceIndex) {
 
 function createReputationState(initial = DEFAULT_REPUTATION) {
 	const values = new Map(Object.entries(initial));
-
 	function get(faction) {
 		const value = Number(values.get(faction));
 		return Number.isFinite(value) ? value : 0;
 	}
-
 	function grant(faction, amount) {
 		if (!faction || !Number.isFinite(amount) || amount === 0) return false;
 		values.set(faction, Math.max(0, get(faction) + amount));
 		return true;
 	}
-
 	function snapshot() {
 		return Object.fromEntries([...values.entries()].sort(([a], [b]) => a.localeCompare(b)));
 	}
-
 	function restore(saved) {
 		values.clear();
 		for (const [faction, baseValue] of Object.entries(DEFAULT_REPUTATION)) values.set(faction, baseValue);
@@ -127,20 +98,17 @@ function createReputationState(initial = DEFAULT_REPUTATION) {
 			if (Number.isFinite(value) && value >= 0) values.set(faction, value);
 		}
 	}
-
 	return { get, grant, snapshot, restore };
 }
 
 function createProgressionState() {
 	let totalExperience = 0;
-
 	function levelForExperience(experience) {
 		return Math.min(
 			INTERACTION_PROGRESSION.MAX_LEVEL,
 			INTERACTION_PROGRESSION.START_LEVEL + Math.floor(experience / INTERACTION_PROGRESSION.XP_PER_LEVEL),
 		);
 	}
-
 	function snapshot() {
 		const level = levelForExperience(totalExperience);
 		const atMaxLevel = level >= INTERACTION_PROGRESSION.MAX_LEVEL;
@@ -152,14 +120,12 @@ function createProgressionState() {
 			experienceToNextLevel: atMaxLevel ? 0 : INTERACTION_PROGRESSION.XP_PER_LEVEL,
 		};
 	}
-
 	function grant(amount) {
 		if (!Number.isFinite(amount) || amount <= 0) return false;
 		const cap = (INTERACTION_PROGRESSION.MAX_LEVEL - INTERACTION_PROGRESSION.START_LEVEL) * INTERACTION_PROGRESSION.XP_PER_LEVEL;
 		totalExperience = Math.min(cap, totalExperience + amount);
 		return true;
 	}
-
 	function restore(saved) {
 		totalExperience = 0;
 		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
@@ -168,7 +134,6 @@ function createProgressionState() {
 		const cap = (INTERACTION_PROGRESSION.MAX_LEVEL - INTERACTION_PROGRESSION.START_LEVEL) * INTERACTION_PROGRESSION.XP_PER_LEVEL;
 		totalExperience = Math.min(cap, raw);
 	}
-
 	return { grant, snapshot, restore };
 }
 
@@ -183,54 +148,36 @@ function createQuestTracker({
 	const byId = new Map(definitions.map((quest) => [quest.id, quest]));
 	const state = new Map(definitions.map((quest) => [quest.id, {
 		status: quest.prerequisite || quest.reputationRequirement ? QUEST_STATUS.LOCKED : QUEST_STATUS.AVAILABLE,
-		completedObjectives: new Set(),
-		rewardGranted: false,
-		outcome: null,
+		completedObjectives: new Set(), rewardGranted: false, outcome: null,
 	}]));
-
 	function requirementsMet(quest) {
 		if (quest.prerequisite && state.get(quest.prerequisite)?.status !== QUEST_STATUS.COMPLETED) return false;
 		const requirement = quest.reputationRequirement;
-		if (requirement && reputation.get(requirement.faction) < requirement.minimum) return false;
-		return true;
+		return !requirement || reputation.get(requirement.faction) >= requirement.minimum;
 	}
-
 	function turnInRequirementMet(turnIn) {
 		const requirement = turnIn?.requirement;
 		if (!requirement) return true;
 		if (Number.isFinite(requirement.minimumLevel) && progression.snapshot().level < requirement.minimumLevel) return false;
 		const reputationRequirement = requirement.reputation;
-		if (reputationRequirement && reputation.get(reputationRequirement.faction) < reputationRequirement.minimum) return false;
-		return true;
+		return !reputationRequirement || reputation.get(reputationRequirement.faction) >= reputationRequirement.minimum;
 	}
-
 	function unlockEligible() {
 		for (const quest of definitions) {
 			const current = state.get(quest.id);
 			if (current.status === QUEST_STATUS.LOCKED && requirementsMet(quest)) current.status = QUEST_STATUS.AVAILABLE;
 		}
 	}
-
 	function snapshot() {
 		return definitions.map((quest) => {
 			const current = state.get(quest.id);
 			return {
-				id: quest.id,
-				title: quest.title,
-				description: quest.description,
-				status: current.status,
-				objectives: quest.objectives.map((objective) => ({
-					id: objective.id,
-					label: objective.label,
-					completed: current.completedObjectives.has(objective.id),
-				})),
-				reward: quest.reward.label,
-				rewardGranted: current.rewardGranted,
-				outcome: current.outcome,
+				id: quest.id, title: quest.title, description: quest.description, status: current.status,
+				objectives: quest.objectives.map((objective) => ({ id: objective.id, label: objective.label, completed: current.completedObjectives.has(objective.id) })),
+				reward: quest.reward.label, rewardGranted: current.rewardGranted, outcome: current.outcome,
 			};
 		});
 	}
-
 	function restore(savedSnapshot) {
 		if (!Array.isArray(savedSnapshot)) return;
 		for (const saved of savedSnapshot) {
@@ -249,14 +196,10 @@ function createQuestTracker({
 		}
 		unlockEligible();
 	}
-
 	function matchingTurnIn(quest, npcId, choiceIndex) {
-		if (Array.isArray(quest.turnIns)) {
-			return quest.turnIns.find((turnIn) => sameTrigger(turnIn, npcId, choiceIndex)) ?? null;
-		}
+		if (Array.isArray(quest.turnIns)) return quest.turnIns.find((turnIn) => sameTrigger(turnIn, npcId, choiceIndex)) ?? null;
 		return sameTrigger(quest.turnIn, npcId, choiceIndex) ? quest.turnIn : null;
 	}
-
 	function consume(npcId, choiceIndex) {
 		let changed = false;
 		for (const quest of definitions) {
@@ -286,7 +229,7 @@ function createQuestTracker({
 				current.outcome = turnIn.outcome ?? null;
 				if (!current.rewardGranted) {
 					current.rewardGranted = true;
-					onReward(quest.reward);
+					onReward(quest.reward, quest);
 				}
 				if (current.outcome) onOutcome({ questId: quest.id, outcome: current.outcome });
 				changed = true;
@@ -295,7 +238,6 @@ function createQuestTracker({
 		}
 		return changed;
 	}
-
 	return { consume, snapshot, restore, unlockEligible };
 }
 
@@ -308,10 +250,7 @@ export function buildQuestJournalText(snapshot, reputationSnapshot = {}, progres
 	const policyLabel = watchPolicyLabel(worldStateSnapshot.dragonstoneWatchPolicy);
 	const lines = ['Görev Günlüğü', `Seviye: ${level} · XP: ${xp}/${xpToNext}`, `Dragonstone itibarı: ${dragonstoneReputation}`];
 	if (policyLabel) lines.push(`Nöbet kararı: ${policyLabel}`);
-	if (visible.length === 0) {
-		lines.push('Henüz kabul edilmiş bir görev yok.');
-		return lines.join('\n');
-	}
+	if (visible.length === 0) return [...lines, 'Henüz kabul edilmiş bir görev yok.'].join('\n');
 	for (const quest of visible) {
 		const status = quest.status === 'ready' ? 'TESLİME HAZIR' : quest.status === 'completed' ? 'TAMAMLANDI' : 'AKTİF';
 		lines.push(`\n${quest.title} — ${status}`);
@@ -335,6 +274,7 @@ export function createInteractionController({
 	onReputationChanged = () => {},
 	onProgressionChanged = () => {},
 	onWorldStateChanged = () => {},
+	onInventoryChanged = () => {},
 }) {
 	let activeNpc = null;
 	let nearestNpc = null;
@@ -344,18 +284,20 @@ export function createInteractionController({
 	const reputation = createReputationState();
 	const progression = createProgressionState();
 	const worldState = createWatchWorldState();
+	const inventory = createInteractionInventoryState();
 	const quests = createQuestTracker({
 		reputation,
 		progression,
 		onObjectiveReward(objective) {
 			if (progression.grant(Number(objective?.progressExperience))) onProgressionChanged(progression.snapshot());
 		},
-		onReward(reward) {
+		onReward(reward, quest) {
 			const reputationReward = reward?.reputation;
-			if (reputationReward && reputation.grant(reputationReward.faction, reputationReward.amount)) {
-				onReputationChanged(reputation.snapshot());
-			}
+			if (reputationReward && reputation.grant(reputationReward.faction, reputationReward.amount)) onReputationChanged(reputation.snapshot());
 			if (progression.grant(Number(reward?.experience))) onProgressionChanged(progression.snapshot());
+			if (reward?.item && inventory.grant(reward.item.id, reward.item.quantity, { sourceType: 'quest', sourceId: quest.id })) {
+				onInventoryChanged(inventory.snapshot());
+			}
 		},
 		onOutcome({ questId, outcome }) {
 			if (questId !== 'watch-under-pressure') return;
@@ -363,35 +305,20 @@ export function createInteractionController({
 		},
 	});
 
-	function questById(id) {
-		return quests.snapshot().find((quest) => quest.id === id);
-	}
-
+	function questById(id) { return quests.snapshot().find((quest) => quest.id === id); }
 	function isChoiceAvailable(npcId, originalIndex) {
-		if (npcId === 'stannis-guard-1' && originalIndex === 2) {
-			return questById('watch-under-pressure')?.status === QUEST_STATUS.AVAILABLE;
-		}
+		if (npcId === 'stannis-guard-1' && originalIndex === 2) return questById('watch-under-pressure')?.status === QUEST_STATUS.AVAILABLE;
 		return true;
 	}
-
 	function resolutionChoices() {
 		const secondQuest = questById('watch-under-pressure');
 		if (secondQuest?.status !== QUEST_STATUS.READY) return null;
-		const choices = [{
-			label: 'Nöbet düzenini sıkılaştır.',
-			response: '{name}: Öyleyse gevşekliğe yer yok. Nöbet çizgisini bugün sıkılaştırırım.',
-			originalIndex: 1,
-		}];
+		const choices = [{ label: 'Nöbet düzenini sıkılaştır.', response: '{name}: Öyleyse gevşekliğe yer yok. Nöbet çizgisini bugün sıkılaştırırım.', originalIndex: 1 }];
 		if (progression.snapshot().level >= 2 && reputation.get(INTERACTION_FACTIONS.DRAGONSTONE) >= 10) {
-			choices.push({
-				label: 'Nöbetçiye ikinci bir şans ver.',
-				response: '{name}: Seviyeni ve sözünün ağırlığını gördüm. Bir kez daha kendini kanıtlamasına izin vereceğim.',
-				originalIndex: 3,
-			});
+			choices.push({ label: 'Nöbetçiye ikinci bir şans ver.', response: '{name}: Seviyeni ve sözünün ağırlığını gördüm. Bir kez daha kendini kanıtlamasına izin vereceğim.', originalIndex: 3 });
 		}
 		return choices;
 	}
-
 	function getAvailableChoices(npcId) {
 		if (npcId === 'stannis-guard-1') {
 			const resolutions = resolutionChoices();
@@ -399,24 +326,16 @@ export function createInteractionController({
 		}
 		const choices = choicesByNpcId[npcId];
 		if (!choices || choices.length === 0) return null;
-		const available = choices
-			.map((choice, originalIndex) => ({ ...choice, originalIndex }))
-			.filter((choice) => isChoiceAvailable(npcId, choice.originalIndex));
+		const available = choices.map((choice, originalIndex) => ({ ...choice, originalIndex })).filter((choice) => isChoiceAvailable(npcId, choice.originalIndex));
 		return available.length > 0 ? available : null;
 	}
-
 	function outcomeGreeting(npcId, fallbackTemplate) {
 		if (npcId !== 'stannis-guard-2') return fallbackTemplate;
 		const policy = worldState.get('dragonstoneWatchPolicy');
-		if (policy === WATCH_POLICY.MERCY) {
-			return '{name}: Bana verdiğin ikinci şans boşa gitmeyecek. Tepedeki nöbet artık yalnız bir görev değil, borç bildiğim bir söz.';
-		}
-		if (policy === WATCH_POLICY.DISCIPLINE) {
-			return '{name}: Kararın duyuldu. Nöbet çizgisi sıkılaştı; artık hiçbir gevşeklik gözden kaçmayacak.';
-		}
+		if (policy === WATCH_POLICY.MERCY) return '{name}: Bana verdiğin ikinci şans boşa gitmeyecek. Tepedeki nöbet artık yalnız bir görev değil, borç bildiğim bir söz.';
+		if (policy === WATCH_POLICY.DISCIPLINE) return '{name}: Kararın duyuldu. Nöbet çizgisi sıkılaştı; artık hiçbir gevşeklik gözden kaçmayacak.';
 		return fallbackTemplate;
 	}
-
 	function openDialogue(npc) {
 		journalOpen = false;
 		activeNpc = npc;
@@ -424,33 +343,22 @@ export function createInteractionController({
 		activeNpcName = npc.displayName ?? 'Yabancı';
 		const npcId = npc.object3D.name;
 		const baseTemplate = greetingsByNpcId[npcId] ?? greetingTemplate;
-		const template = outcomeGreeting(npcId, baseTemplate);
 		activeChoices = getAvailableChoices(npcId);
-		dialogueBox.show(template.replace('{name}', activeNpcName), activeChoices?.map((choice) => choice.label) ?? []);
+		dialogueBox.show(outcomeGreeting(npcId, baseTemplate).replace('{name}', activeNpcName), activeChoices?.map((choice) => choice.label) ?? []);
 	}
-
 	function closeDialogue() {
-		activeNpc = null;
-		activeChoices = null;
-		activeNpcName = null;
-		journalOpen = false;
-		dialogueBox.hide();
+		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = false; dialogueBox.hide();
 	}
-
 	function showJournal() {
-		activeNpc = null;
-		activeChoices = null;
-		activeNpcName = null;
-		journalOpen = true;
+		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true;
 		interactionPrompt.setVisible(false);
-		dialogueBox.show(buildQuestJournalText(
-			quests.snapshot(),
-			reputation.snapshot(),
-			progression.snapshot(),
-			worldState.snapshot(),
-		));
+		dialogueBox.show(buildQuestJournalText(quests.snapshot(), reputation.snapshot(), progression.snapshot(), worldState.snapshot()));
 	}
-
+	function showInventory() {
+		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true;
+		interactionPrompt.setVisible(false);
+		dialogueBox.show(buildInventoryText(inventory.snapshot()));
+	}
 	function selectChoice(index) {
 		const choice = activeChoices[index];
 		const npcId = activeNpc?.object3D?.name ?? '';
@@ -458,10 +366,10 @@ export function createInteractionController({
 		dialogueBox.show(choice.response.replace('{name}', activeNpcName));
 		if (quests.consume(npcId, choice.originalIndex)) onQuestChanged(quests.snapshot());
 	}
-
 	function rebuildRewardStateFromQuestRewards(savedQuestSnapshot, { includeObjectiveExperience = true } = {}) {
 		reputation.restore(DEFAULT_REPUTATION);
 		progression.restore(null);
+		inventory.restore(null);
 		for (const savedQuest of Array.isArray(savedQuestSnapshot) ? savedQuestSnapshot : []) {
 			const definition = INTERACTION_QUESTS.find((quest) => quest.id === savedQuest?.id);
 			if (!definition) continue;
@@ -476,38 +384,38 @@ export function createInteractionController({
 			const reward = definition.reward;
 			if (reward?.reputation) reputation.grant(reward.reputation.faction, reward.reputation.amount);
 			progression.grant(Number(reward?.experience));
+			if (reward?.item) inventory.grant(reward.item.id, reward.item.quantity, { sourceType: 'quest', sourceId: definition.id });
 		}
 		quests.unlockEligible();
 	}
-
 	function inferWorldStateFromQuestSnapshot(savedQuestSnapshot) {
 		worldState.restore(null);
-		const secondQuest = (Array.isArray(savedQuestSnapshot) ? savedQuestSnapshot : [])
-			.find((quest) => quest?.id === 'watch-under-pressure');
+		const secondQuest = (Array.isArray(savedQuestSnapshot) ? savedQuestSnapshot : []).find((quest) => quest?.id === 'watch-under-pressure');
 		if (secondQuest?.status !== QUEST_STATUS.COMPLETED) return;
-		const inferred = [WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(secondQuest.outcome)
-			? secondQuest.outcome
-			: WATCH_POLICY.DISCIPLINE;
+		const inferred = [WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(secondQuest.outcome) ? secondQuest.outcome : WATCH_POLICY.DISCIPLINE;
 		worldState.set('dragonstoneWatchPolicy', inferred);
 	}
-
 	function restoreRpgSnapshot(saved) {
 		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
 		const schemaVersion = Number(saved.schemaVersion) || 1;
 		reputation.restore(saved.reputation);
 		progression.restore(saved.progression);
+		inventory.restore(saved.inventory);
 		worldState.restore(saved.worldState);
 		quests.restore(saved.quests);
-		if (!saved.reputation || !saved.progression) {
+		if (!saved.reputation || !saved.progression || !saved.inventory) {
 			const explicitReputation = saved.reputation;
 			const explicitProgression = saved.progression;
+			const explicitInventory = saved.inventory;
 			rebuildRewardStateFromQuestRewards(saved.quests, { includeObjectiveExperience: schemaVersion >= 3 });
 			if (explicitReputation) reputation.restore(explicitReputation);
 			if (explicitProgression) progression.restore(explicitProgression);
+			if (explicitInventory) inventory.restore(explicitInventory);
 		}
 		if (!saved.worldState) inferWorldStateFromQuestSnapshot(saved.quests);
 		onReputationChanged(reputation.snapshot());
 		onProgressionChanged(progression.snapshot());
+		onInventoryChanged(inventory.snapshot());
 		onWorldStateChanged(worldState.snapshot());
 		onQuestChanged(quests.snapshot());
 	}
@@ -518,55 +426,42 @@ export function createInteractionController({
 			if (!Number.isInteger(index) || !activeChoices || index < 0 || index >= activeChoices.length) return;
 			selectChoice(index);
 		},
-
 		update(npcs, playerPos) {
 			nearestNpc = null;
 			let nearestDistance = Infinity;
 			for (const npc of npcs) {
 				const distance = Math.hypot(npc.object3D.position.x - playerPos.x, npc.object3D.position.z - playerPos.z);
-				if (distance < radiusMeters && distance < nearestDistance) {
-					nearestNpc = npc;
-					nearestDistance = distance;
-				}
+				if (distance < radiusMeters && distance < nearestDistance) { nearestNpc = npc; nearestDistance = distance; }
 			}
 			if (activeNpc && activeNpc !== nearestNpc) closeDialogue();
 			interactionPrompt.setVisible(!activeNpc && !journalOpen && nearestNpc !== null);
 		},
-
 		handleKeyDown(event) {
 			if (isPaused() || event.repeat) return;
-			if (event.code === 'KeyJ') {
-				if (journalOpen) closeDialogue();
-				else showJournal();
-				return;
-			}
-			if (event.code === 'Escape') {
-				if (activeNpc || journalOpen) closeDialogue();
-				return;
-			}
+			if (event.code === 'KeyJ') { if (journalOpen) closeDialogue(); else showJournal(); return; }
+			if (event.code === 'KeyI') { if (journalOpen) closeDialogue(); else showInventory(); return; }
+			if (event.code === 'Escape') { if (activeNpc || journalOpen) closeDialogue(); return; }
 			if (activeChoices) {
 				const index = DIALOGUE_CHOICE_KEY_CODES.indexOf(event.code);
-				if (index !== -1 && index < activeChoices.length) {
-					selectChoice(index);
-					return;
-				}
+				if (index !== -1 && index < activeChoices.length) { selectChoice(index); return; }
 			}
 			if (event.code !== 'KeyE') return;
-			if (activeNpc) closeDialogue();
-			else if (nearestNpc) openDialogue(nearestNpc);
+			if (activeNpc) closeDialogue(); else if (nearestNpc) openDialogue(nearestNpc);
 		},
-
 		showQuestJournal: showJournal,
+		showInventory,
 		getQuestSnapshot: quests.snapshot,
 		getReputationSnapshot: reputation.snapshot,
 		getProgressionSnapshot: progression.snapshot,
+		getInventorySnapshot: inventory.snapshot,
 		getWorldStateSnapshot: worldState.snapshot,
 		getRpgSnapshot() {
 			return {
-				schemaVersion: 3,
+				schemaVersion: 4,
 				quests: quests.snapshot(),
 				reputation: reputation.snapshot(),
 				progression: progression.snapshot(),
+				inventory: inventory.snapshot(),
 				worldState: worldState.snapshot(),
 			};
 		},
@@ -576,6 +471,7 @@ export function createInteractionController({
 			inferWorldStateFromQuestSnapshot(snapshot);
 			onReputationChanged(reputation.snapshot());
 			onProgressionChanged(progression.snapshot());
+			onInventoryChanged(inventory.snapshot());
 			onWorldStateChanged(worldState.snapshot());
 			onQuestChanged(quests.snapshot());
 		},

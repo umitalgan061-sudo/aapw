@@ -49,6 +49,87 @@ export function watchPolicyLabel(policy) {
 	return null;
 }
 
+export const INTERACTION_ITEMS = Object.freeze({
+	'dragonstone-watch-seal': Object.freeze({
+		id: 'dragonstone-watch-seal',
+		name: 'Dragonstone Nöbet Mührü',
+		rarity: 'uncommon',
+		weightKg: 0.15,
+		stackLimit: 1,
+	}),
+	'watch-captains-writ': Object.freeze({
+		id: 'watch-captains-writ',
+		name: 'Nöbet Kaptanının Buyruğu',
+		rarity: 'rare',
+		weightKg: 0.05,
+		stackLimit: 1,
+	}),
+});
+
+/** Compact inventory state for interaction-owned quest rewards; deterministic provenance, no timestamps. */
+export function createInteractionInventoryState() {
+	const entries = new Map();
+
+	function grant(itemId, quantity = 1, provenance = null) {
+		const item = INTERACTION_ITEMS[itemId];
+		const amount = Math.max(0, Math.floor(Number(quantity) || 0));
+		if (!item || amount === 0) return false;
+		const current = entries.get(itemId) ?? { quantity: 0, provenance: [] };
+		const nextQuantity = Math.min(item.stackLimit, current.quantity + amount);
+		if (nextQuantity === current.quantity) return false;
+		const next = { quantity: nextQuantity, provenance: [...current.provenance] };
+		if (provenance?.sourceType && provenance?.sourceId) {
+			next.provenance.push({ sourceType: String(provenance.sourceType), sourceId: String(provenance.sourceId) });
+		}
+		entries.set(itemId, next);
+		return true;
+	}
+
+	function snapshot() {
+		const items = [...entries.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([itemId, state]) => {
+			const item = INTERACTION_ITEMS[itemId];
+			return {
+				itemId,
+				name: item.name,
+				rarity: item.rarity,
+				weightKg: item.weightKg,
+				quantity: state.quantity,
+				provenance: state.provenance.map((entry) => ({ ...entry })),
+			};
+		});
+		const totalWeightKg = items.reduce((sum, item) => sum + item.weightKg * item.quantity, 0);
+		return { totalWeightKg: Number(totalWeightKg.toFixed(2)), items };
+	}
+
+	function restore(saved) {
+		entries.clear();
+		for (const savedItem of Array.isArray(saved?.items) ? saved.items : []) {
+			const item = INTERACTION_ITEMS[savedItem?.itemId];
+			if (!item) continue;
+			const quantity = Math.min(item.stackLimit, Math.max(0, Math.floor(Number(savedItem.quantity) || 0)));
+			if (quantity === 0) continue;
+			const provenance = (Array.isArray(savedItem.provenance) ? savedItem.provenance : [])
+				.filter((entry) => entry?.sourceType && entry?.sourceId)
+				.map((entry) => ({ sourceType: String(entry.sourceType), sourceId: String(entry.sourceId) }));
+			entries.set(item.id, { quantity, provenance });
+		}
+	}
+
+	return { grant, snapshot, restore };
+}
+
+export function buildInventoryText(snapshot = {}) {
+	const items = Array.isArray(snapshot.items) ? snapshot.items : [];
+	const lines = ['Envanter', `Toplam ağırlık: ${Number(snapshot.totalWeightKg) || 0} kg`];
+	if (items.length === 0) return [...lines, 'Henüz eşya yok.'].join('\n');
+	for (const item of items) {
+		const origin = item.provenance?.at(-1);
+		const source = origin ? ` · Kaynak: ${origin.sourceType}/${origin.sourceId}` : '';
+		lines.push(`${item.name} ×${item.quantity} · ${item.rarity} · ${item.weightKg} kg${source}`);
+	}
+	return lines.join('\n');
+}
+
 /** FAZ 5 (run 32-33, per-NPC content run 40): `ui/interactionPrompt.js` shows a proximity
  * *affordance* ("E - Selamla") when the player is near any NPC; pressing E while it's showing opens
  * `ui/dialogueBox.js` with that NPC's own greeting — see DECISIONS.md ADR-0033 (the open/close
