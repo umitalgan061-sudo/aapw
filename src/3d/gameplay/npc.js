@@ -1,8 +1,7 @@
 /**
  * Existing FAZ 5 NPC runtime: real Mixamo FBX characters, optional waypoint patrol, collision-aware
- * ground following, name tags and the guard combat-stance proximity cue. Population simulation LOD
- * stays inside this established runtime so the game loop, offline shell and other entity owners keep
- * their existing contracts without a second NPC framework or a new runtime module edge.
+ * ground following, name tags and guard behavior. Population simulation LOD and perception stay
+ * inside this established runtime so the game loop and other entity owners keep their contracts.
  * @module gameplay/npc
  */
 
@@ -30,6 +29,54 @@ function turnTowardYaw(model, targetYaw, turnRateRadiansPerSecond, delta) {
 function clampSimulationDelta(delta, maxStepSeconds) {
 	if (!Number.isFinite(delta) || delta <= 0) return 0;
 	return Math.min(delta, maxStepSeconds);
+}
+
+function queryNpcLineOfSight(collider, observer, target, maxSamples = 32) {
+	if (!collider?.resolveXZ || !target) return { clear: true, samples: 0 };
+	const dx = target.x - observer.x;
+	const dz = target.z - observer.z;
+	const distance = Math.hypot(dx, dz);
+	const sampleCount = Math.max(0, Math.min(maxSamples, Math.ceil(distance / 0.5) - 1));
+	for (let i = 1; i <= sampleCount; i += 1) {
+		const t = i / (sampleCount + 1);
+		const x = observer.x + dx * t;
+		const z = observer.z + dz * t;
+		const resolved = collider.resolveXZ(x, z);
+		if (!resolved || Math.hypot(resolved.x - x, resolved.z - z) > 1e-4) return { clear: false, samples: i };
+	}
+	return { clear: true, samples: sampleCount };
+}
+
+export function evaluateNpcGuardAwareness({ observer, target, yawRadians = 0, rangeMeters = 10, lineOfSight = true } = {}) {
+	if (!observer || !target || !(rangeMeters > 0)) return { visible: false, distanceMeters: Infinity, reason: 'invalid' };
+	const dx = target.x - observer.x;
+	const dz = target.z - observer.z;
+	const distanceMeters = Math.hypot(dx, dz);
+	if (!Number.isFinite(distanceMeters) || distanceMeters > rangeMeters) return { visible: false, distanceMeters, reason: 'range' };
+	if (!lineOfSight) return { visible: false, distanceMeters, reason: 'occluded' };
+	const closeAwareness = distanceMeters <= Math.max(3.25, rangeMeters * 0.35);
+	if (closeAwareness || distanceMeters < 1e-6) return { visible: true, distanceMeters, reason: 'peripheral' };
+	const forwardX = Math.sin(yawRadians);
+	const forwardZ = Math.cos(yawRadians);
+	const dot = Math.max(-1, Math.min(1, (forwardX * dx + forwardZ * dz) / distanceMeters));
+	const angleDegrees = Math.acos(dot) * 180 / Math.PI;
+	return { visible: angleDegrees <= 60, distanceMeters, reason: angleDegrees <= 60 ? 'vision' : 'behind' };
+}
+
+function moveNpcToward(model, target, speedMps, delta, groundCollider, playerCollider, turnRateRadiansPerSecond, arrivalRadius = 0.7) {
+	const dx = target.x - model.position.x;
+	const dz = target.z - model.position.z;
+	const distance = Math.hypot(dx, dz);
+	if (!(distance > arrivalRadius)) return false;
+	const step = Math.min(distance, Math.max(0, speedMps) * delta);
+	let nextX = model.position.x + dx / distance * step;
+	let nextZ = model.position.z + dz / distance * step;
+	if (playerCollider?.resolveXZ) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+	model.position.x = nextX;
+	model.position.z = nextZ;
+	if (groundCollider?.getGroundHeight) model.position.y = groundCollider.getGroundHeight(nextX, nextZ);
+	turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, delta);
+	return true;
 }
 
 export function deterministicNpcPhaseSeconds(id, intervalSeconds) {
@@ -80,8 +127,6 @@ export function createNpcSimulationLod({
 				nearLatched = true;
 				distantLatched = false;
 			} else if (!finiteDistance) {
-				// During bootstrap/menu frames there is no authoritative player position yet.
-				// Treat that population as dormant instead of accidentally running every NPC full-rate.
 				nearLatched = false;
 				distantLatched = true;
 			} else if (nearLatched) {
@@ -90,22 +135,16 @@ export function createNpcSimulationLod({
 				nearLatched = distanceToPlayer <= nearRadiusMeters;
 			}
 			if (nearLatched) {
-				// Keep each NPC's deterministic phase armed while it is full-rate. If a camera/player
-				// teleport pushes a whole crowd out of range on one frame, they must not all wake together.
 				farAccumulatedSeconds = farPhaseSeconds;
 				distantAccumulatedSeconds = distantPhaseSeconds;
 				pendingSimulationSeconds = 0;
 				tier = urgent ? 'urgent' : 'near';
 				return boundedDelta;
 			}
-
 			pendingSimulationSeconds = Math.min(maxStepSeconds, pendingSimulationSeconds + boundedDelta);
 			if (finiteDistance) {
-				if (distantLatched) {
-					distantLatched = distanceToPlayer > distantRadiusMeters - distantHysteresisMeters;
-				} else {
-					distantLatched = distanceToPlayer > distantRadiusMeters + distantHysteresisMeters;
-				}
+				if (distantLatched) distantLatched = distanceToPlayer > distantRadiusMeters - distantHysteresisMeters;
+				else distantLatched = distanceToPlayer > distantRadiusMeters + distantHysteresisMeters;
 			}
 			if (distantLatched) {
 				if (tier !== 'distant' && tier !== 'bootstrap') distantAccumulatedSeconds = distantPhaseSeconds;
@@ -118,7 +157,6 @@ export function createNpcSimulationLod({
 				pendingSimulationSeconds = 0;
 				return simulationDelta;
 			}
-
 			if (tier !== 'far') farAccumulatedSeconds = farPhaseSeconds;
 			tier = 'far';
 			distantAccumulatedSeconds = distantPhaseSeconds;
@@ -176,6 +214,7 @@ export async function createNPC({
 	combatStanceTriggerRadiusMeters,
 	combatStanceIdleTimeScale = 1.5,
 	combatStanceTransitionSeconds = 0.3,
+	perceptionEnabled = false,
 	simulationLodEnabled = false,
 	simulationLodNearRadiusMeters = 90,
 	simulationLodFarIntervalSeconds = 0.25,
@@ -189,6 +228,7 @@ export async function createNPC({
 	if (name) model.name = name;
 	model.position.set(worldX, groundY, worldZ);
 	model.rotation.y = rotationYRadians;
+	const homePosition = Object.freeze({ x: worldX, z: worldZ });
 	if (displayName) {
 		const inverseParentScale = model.scale.x !== 0 ? 1 / model.scale.x : 1;
 		const nameTag = createNameTagSprite(displayName, nameTagWidthMeters * inverseParentScale, nameTagHeightMeters * inverseParentScale);
@@ -216,6 +256,10 @@ export async function createNPC({
 	let pauseTimer = 0;
 	const combatStanceEnabled = combatStanceTriggerRadiusMeters != null;
 	let alertBlend = 0;
+	let suspicion = 0;
+	let lastKnownPlayer = null;
+	let investigationRemaining = 0;
+	let previousPlayerPosition = null;
 	const simulationLod = createNpcSimulationLod({
 		id: name ?? displayName ?? modelUrl,
 		nearRadiusMeters: simulationLodNearRadiusMeters,
@@ -236,6 +280,11 @@ export async function createNPC({
 			const distanceToPlayer = hasPlayerPosition
 				? Math.hypot(model.position.x - playerPosition.x, model.position.z - playerPosition.z)
 				: (simulationLodBootstrapDormant ? Infinity : 0);
+			let playerSpeedMps = 0;
+			if (hasPlayerPosition && previousPlayerPosition && delta > 1e-4) {
+				playerSpeedMps = Math.min(12, Math.hypot(playerPosition.x - previousPlayerPosition.x, playerPosition.z - previousPlayerPosition.z) / delta);
+			}
+			previousPlayerPosition = hasPlayerPosition ? { x: playerPosition.x, z: playerPosition.z } : null;
 			const urgent = hasPlayerPosition && combatStanceEnabled && distanceToPlayer <= combatStanceTriggerRadiusMeters;
 			const simulationDelta = simulationLodEnabled
 				? simulationLod.step(delta, distanceToPlayer, urgent)
@@ -246,18 +295,54 @@ export async function createNPC({
 				return;
 			}
 			model.userData.simulationTicks += 1;
+			let perceptionIntent = 'patrol';
+			let awareness = { visible: false, distanceMeters: distanceToPlayer, reason: 'disabled' };
+			let los = { clear: true, samples: 0 };
+			let heard = false;
+			if (perceptionEnabled && combatStanceEnabled && hasPlayerPosition) {
+				if (distanceToPlayer <= combatStanceTriggerRadiusMeters) los = queryNpcLineOfSight(playerCollider, model.position, playerPosition);
+				awareness = evaluateNpcGuardAwareness({ observer: model.position, target: playerPosition, yawRadians: model.rotation.y, rangeMeters: combatStanceTriggerRadiusMeters, lineOfSight: los.clear });
+				const noiseStrength = Math.max(0, Math.min(1, (playerSpeedMps - 1.5) / 5.5));
+				heard = !awareness.visible && noiseStrength > 0 && distanceToPlayer <= Math.max(4, combatStanceTriggerRadiusMeters * 0.8) * noiseStrength;
+				if (awareness.visible) {
+					suspicion = Math.min(1, suspicion + simulationDelta / 0.22);
+					lastKnownPlayer = { x: playerPosition.x, z: playerPosition.z };
+					investigationRemaining = Math.max(investigationRemaining, 2 + distanceToPlayer / Math.max(0.25, speedMps * 0.85));
+				} else if (heard) {
+					suspicion = Math.min(1, suspicion + 0.18 * noiseStrength);
+					lastKnownPlayer = { x: playerPosition.x, z: playerPosition.z };
+					investigationRemaining = Math.max(investigationRemaining, 1.25 + distanceToPlayer / Math.max(0.25, speedMps * 0.85));
+				} else {
+					suspicion = Math.max(0, suspicion - simulationDelta / 1.0);
+					investigationRemaining = Math.max(0, investigationRemaining - simulationDelta);
+				}
+				perceptionIntent = awareness.visible ? (suspicion >= 0.72 ? 'combat' : 'observe') : (lastKnownPlayer && investigationRemaining > 0 ? 'investigate' : 'patrol');
+				model.userData.npcPerception = {
+					intent: perceptionIntent,
+					suspicion: Number(suspicion.toFixed(3)),
+					reason: heard ? 'hearing' : awareness.reason,
+					heard,
+					lineOfSight: los.clear,
+					lineOfSightSamples: los.samples,
+					investigationRemaining: Number(investigationRemaining.toFixed(3)),
+					lastKnown: lastKnownPlayer ? { ...lastKnownPlayer } : null,
+				};
+			}
 			let isAlert = false;
 			if (combatStanceEnabled) {
-				isAlert = hasPlayerPosition && distanceToPlayer <= combatStanceTriggerRadiusMeters;
+				isAlert = perceptionEnabled ? perceptionIntent === 'combat' : hasPlayerPosition && distanceToPlayer <= combatStanceTriggerRadiusMeters;
 				alertBlend = easeBlendToward(alertBlend, isAlert ? 1 : 0, simulationDelta, combatStanceTransitionSeconds);
 				if (idleAction) idleAction.timeScale = 1 + (combatStanceIdleTimeScale - 1) * alertBlend;
 				model.userData.combatStanceBlend = alertBlend;
 			}
-			if (isAlert) {
+			if (isAlert || (perceptionEnabled && perceptionIntent === 'observe')) {
 				const dx = playerPosition.x - model.position.x;
 				const dz = playerPosition.z - model.position.z;
 				if (dx !== 0 || dz !== 0) turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, simulationDelta);
 				playAction(idleAction);
+			} else if (perceptionEnabled && perceptionIntent === 'investigate' && lastKnownPlayer) {
+				const moved = moveNpcToward(model, lastKnownPlayer, speedMps * 0.85, simulationDelta, groundCollider, playerCollider, turnRateRadiansPerSecond);
+				playAction(moved ? (walkAction || idleAction) : idleAction);
 			} else if (isPatrolling) {
 				if (pauseTimer > 0) {
 					pauseTimer -= simulationDelta;
@@ -289,6 +374,9 @@ export async function createNPC({
 						playAction(walkAction);
 					}
 				}
+			} else if (perceptionEnabled && Math.hypot(model.position.x - homePosition.x, model.position.z - homePosition.z) > 0.2) {
+				const moved = moveNpcToward(model, homePosition, speedMps * 0.8, simulationDelta, groundCollider, playerCollider, turnRateRadiansPerSecond, 0.2);
+				playAction(moved ? (walkAction || idleAction) : idleAction);
 			}
 			mixer.update(simulationDelta);
 		},
@@ -326,8 +414,8 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 			nameTagWidthMeters: npcConfig.NAME_TAG_WIDTH_METERS,
 			nameTagHeightMeters: npcConfig.NAME_TAG_HEIGHT_METERS,
 			nameTagVerticalOffsetMeters: npcConfig.NAME_TAG_VERTICAL_OFFSET_METERS,
-			groundCollider: patrolWaypoints ? groundCollider : undefined,
-			playerCollider: patrolWaypoints ? playerCollider : undefined,
+			groundCollider,
+			playerCollider,
 			walkAnimationUrl: patrolWaypoints ? npcConfig.WALK_ANIMATION_URL : undefined,
 			patrolWaypoints,
 			speedMps: npcConfig.PATROL_SPEED_MPS,
@@ -336,6 +424,7 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 			combatStanceIdleTimeScale: npcConfig.COMBAT_STANCE_IDLE_TIME_SCALE,
 			combatStanceTransitionSeconds: npcConfig.COMBAT_STANCE_TRANSITION_SECONDS,
 			turnRateRadiansPerSecond: npcConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+			perceptionEnabled: true,
 			simulationLodEnabled: true,
 			simulationLodBootstrapDormant: true,
 		});
