@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "policyId": "owner-map-live-mountain-relief-2026-08-14-v1",
+  "policyId": "owner-map-live-mountain-relief-2026-08-17-v2",
   "sourceMapSha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
   "surfaceMaskSha256": "afe62a77fcc9b15887540b49b3b60b199e416f5e033aefb987a192411c25ae44",
   "grid": {
@@ -8,11 +8,11 @@
     "height": 193,
     "quantizationCentimeters": 1
   },
-  "heightChecksumSha256": "5767893ec05137f1d05678a80ccee36a003ec0b18975131befa5537c2a368f7a",
+  "heightChecksumSha256": "49638168444982ad84ee1976a1d85fb99669f38066a80567e3888023e27ebd94",
   "metrics": {
     "peakMeters": 542.264613,
-    "nonZeroSamples": 2881,
-    "nonZeroRatio": 0.05808351,
+    "nonZeroSamples": 2775,
+    "nonZeroRatio": 0.05594645,
     "wetLeakMaxMeters": 0,
     "worldMappingMaxDeltaMeters": 0,
     "chains": {
