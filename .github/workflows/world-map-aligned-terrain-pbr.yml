@@ -6,6 +6,7 @@ on:
       - 'src/3d/world/terrain.js'
       - 'assets/textures/yüzey/**'
       - 'scripts/checkMapAlignedTerrainPBR.mjs'
+      - 'scripts/checkTerrainMicroSurface.mjs'
       - '.github/workflows/world-map-aligned-terrain-pbr.yml'
   workflow_dispatch:
 
@@ -60,9 +61,12 @@ jobs:
         run: |
           node --check src/3d/world/terrain.js
           node --check scripts/checkMapAlignedTerrainPBR.mjs
+          node --check scripts/checkTerrainMicroSurface.mjs
 
-      - name: Map provenance PBR seam regression
-        run: node scripts/checkMapAlignedTerrainPBR.mjs
+      - name: Map provenance macro and micro PBR seam regression
+        run: |
+          node scripts/checkMapAlignedTerrainPBR.mjs
+          node scripts/checkTerrainMicroSurface.mjs
 
       - name: Final live-main freshness
         if: github.event_name == 'pull_request'
