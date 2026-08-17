@@ -22,8 +22,11 @@ import { applyAuroraNightAtmosphereV5 } from './auroraNightAtmosphereV5.js';
 const SKY_VERTEX_SHADER = /* glsl */ `
 	varying vec3 vWorldPosition;
 	void main() {
-		vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-		vWorldPosition = worldPosition.xyz;
+		// The sky mesh follows the camera every frame, so the gradient direction must remain local to
+		// the sphere. Feeding translated world coordinates here makes distant world positions skew the
+		// horizon/zenith lookup (and can collapse most of the dome toward one color). Keep the existing
+		// varying name for downstream aurora shader refinements, but deliberately carry local direction.
+		vWorldPosition = position;
 		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 	}
 `;
