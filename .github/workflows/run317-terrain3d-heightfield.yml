@@ -60,6 +60,15 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
+      - name: Hydrate scoped shipped-world LFS assets
+        run: |
+          set -euo pipefail
+          # exportWesterosHeightField boots the real game3d page. Keep its strict page-error contract
+          # and hydrate only asset families that shipped createScene requests during that boot; an LFS
+          # pointer must never be misdiagnosed by GLTF/FBX loaders as a corrupt production model.
+          git lfs version
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+
       - name: Export the live Westeros height field
         run: |
           set -uo pipefail
