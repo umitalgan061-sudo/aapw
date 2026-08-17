@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'src/3d/gameplay/playerEquipment.js'
       - 'src/3d/ui/healthBar.js'
       - 'scripts/checkPlayerStaminaDodge.mjs'
       - 'scripts/checkPlayerStaminaDodgeRuntime.mjs'
+      - 'scripts/checkPlayerSwordEquipment.mjs'
       - '.github/workflows/player-stamina-dodge.yml'
   workflow_dispatch:
 
@@ -40,7 +42,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/playerEquipment\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerSwordEquipment\.mjs|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$BASE additions=$ADD deletions=$DEL total=$TOTAL"
@@ -51,23 +53,31 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          git lfs pull --include="assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/props/sword_narsil_style.fbx,assets/models/props/sword_narsil_style_texture.png" --exclude=""
           test -s assets/models/characters/peasant_girl.fbx
           test -s assets/animations/peasant_girl/idle.fbx
           test -s assets/animations/peasant_girl/walking.fbx
           test -s assets/animations/peasant_girl/running.fbx
+          test -s assets/models/props/sword_narsil_style.fbx
+          test -s assets/models/props/sword_narsil_style_texture.png
+          test "$(wc -c < assets/models/props/sword_narsil_style.fbx)" -gt 132
+          test "$(wc -c < assets/models/props/sword_narsil_style_texture.png)" -gt 1000000
       - name: Static and shared contracts
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
+          node --check src/3d/gameplay/playerEquipment.js
           node --check src/3d/ui/healthBar.js
           node --check scripts/checkPlayerStaminaDodge.mjs
           node --check scripts/checkPlayerStaminaDodgeRuntime.mjs
+          node --check scripts/checkPlayerSwordEquipment.mjs
           node scripts/checkPlayerStaminaDodge.mjs
+          node scripts/checkPlayerSwordEquipment.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
+          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/playerEquipment.js
       - name: Install Chromium
         shell: bash
         run: |
@@ -83,6 +93,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerStaminaDodgeRuntime.mjs --out-dir=artifacts/player-stamina-dodge
           test -s artifacts/player-stamina-dodge/player-runtime.png
           test -s artifacts/player-stamina-dodge/metrics.json
+          grep -q 'player-narsil-sword' artifacts/player-stamina-dodge/metrics.json
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
       - name: Final main freshness
