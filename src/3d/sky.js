@@ -22,8 +22,10 @@ import { applyAuroraNightAtmosphereV5 } from './auroraNightAtmosphereV5.js';
 const SKY_VERTEX_SHADER = /* glsl */ `
 	varying vec3 vWorldPosition;
 	void main() {
-		vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-		vWorldPosition = worldPosition.xyz;
+		// The sphere follows the camera every frame. Gradient/aurora direction therefore belongs to
+		// the sphere's local direction; including camera translation here would skew horizon/zenith
+		// colors as the player travels across the full owner map.
+		vWorldPosition = position;
 		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 	}
 `;
