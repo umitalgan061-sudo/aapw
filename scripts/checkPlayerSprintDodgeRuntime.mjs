@@ -39,18 +39,29 @@ try {
   const baseline = await latest();
   need(baseline.state === 'idle' && baseline.stamina === 100 && baseline.canDodge, `bad baseline ${JSON.stringify(baseline)}`);
 
+  const sprintMarker = await page.evaluate(() => window.__playerMotionFrames.length);
   await page.keyboard.down('KeyW');
   await page.keyboard.down('ShiftLeft');
   await waitState('sprint');
-  const sprintA = await latest();
-  await page.waitForFunction((origin) => {
-    const frame = window.__playerMotionFrames?.at(-1);
-    return frame?.state === 'sprint'
+  await page.waitForFunction((start) => {
+    const frames = window.__playerMotionFrames?.slice(start) ?? [];
+    const origin = frames.find((frame) => frame?.state === 'sprint' && frame.speedMps > 6);
+    if (!origin) return false;
+    return frames.some((frame) => frame?.state === 'sprint'
       && frame.speedMps > 6
       && frame.stamina < origin.stamina
-      && Math.hypot(frame.position.x - origin.position.x, frame.position.z - origin.position.z) > 1.5;
-  }, sprintA, { timeout: 2500 });
-  const sprintB = await latest();
+      && Math.hypot(frame.position.x - origin.position.x, frame.position.z - origin.position.z) > 1.5);
+  }, sprintMarker, { timeout: 2500 });
+  const [sprintA, sprintB] = await page.evaluate((start) => {
+    const frames = window.__playerMotionFrames?.slice(start) ?? [];
+    const origin = frames.find((frame) => frame?.state === 'sprint' && frame.speedMps > 6);
+    const candidate = [...frames].reverse().find((frame) => frame?.state === 'sprint'
+      && frame.speedMps > 6
+      && frame.stamina < origin.stamina
+      && Math.hypot(frame.position.x - origin.position.x, frame.position.z - origin.position.z) > 1.5);
+    return [structuredClone(origin), structuredClone(candidate)];
+  }, sprintMarker);
+  need(sprintA && sprintB, 'missing sprint telemetry pair');
   need(sprintB.stamina < sprintA.stamina, 'sprint did not drain stamina');
   need(sprintB.speedMps > 6 && distance(sprintB, sprintA) > 1.5, 'sprint displacement/speed too low');
 
