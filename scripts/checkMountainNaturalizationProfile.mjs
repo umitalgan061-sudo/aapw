@@ -18,17 +18,23 @@ const EPSILON = 1e-9;
 const rounded = (value, digits = 6) => Number(value.toFixed(digits));
 
 const widthPolicy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.shoulderWidthVariation;
+const coastalPolicy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coastalReliefTaper;
 const talusPolicy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.talusBreakup;
 assert(widthPolicy, 'shoulder-width variation policy is missing');
+assert(coastalPolicy, 'coastal relief taper policy is missing');
 assert(talusPolicy, 'talus-breakup policy is missing');
-assert(widthPolicy.minimumScale >= 0.65, 'minimum shoulder scale would pinch canonical ranges too aggressively');
-assert(widthPolicy.maximumScale <= 1.4, 'maximum shoulder scale would over-grow canonical ranges');
+assert(widthPolicy.minimumScale >= 0.80, 'minimum shoulder scale would pinch canonical ranges too aggressively');
+assert(widthPolicy.maximumScale <= 1.70, 'maximum shoulder scale would over-grow canonical ranges');
 assert(widthPolicy.maximumScale - widthPolicy.minimumScale >= 0.45, 'shoulder-width envelope is too uniform to naturalize long ridges');
 assert(widthPolicy.broadFrequency > 0 && widthPolicy.detailFrequency > widthPolicy.broadFrequency, 'shoulder width needs broad + detail spatial scales');
+assert(coastalPolicy.radiusNormalized >= 0.008 && coastalPolicy.radiusNormalized <= 0.018, 'coastal relief taper radius drifted');
+assert(coastalPolicy.minimumScale >= 0.08 && coastalPolicy.minimumScale <= 0.20, 'coastal relief minimum is not bounded');
 assert(talusPolicy.strength > 0.08 && talusPolicy.strength <= 0.22, 'talus breakup must be visible but bounded');
 assert(talusPolicy.shoulderStart >= 0.1 && talusPolicy.shoulderStart < talusPolicy.shoulderEnd, 'talus shoulder envelope start drifted');
 assert(talusPolicy.shoulderEnd <= 0.95, 'talus breakup must fade before the canonical outer boundary');
 assert(source.includes('sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed)'), 'runtime relief no longer consumes shoulder-width variation');
+assert(source.includes('Math.cos(normalizedDistance * Math.PI * 0.5)'), 'runtime ridge cross-section returned to a flat core plateau');
+assert(source.includes('sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight)'), 'runtime relief no longer tapers source-adjacent coastal cliffs');
 assert(source.includes('sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed)'), 'runtime relief no longer consumes talus breakup');
 assert(source.includes('profile.outerWidthNormalized * maximumWidthScale'), 'broad-phase bounds do not cover widened shoulders');
 
@@ -161,6 +167,7 @@ assert(Math.max(...drySamples) > 450, 'naturalized dry-land relief lacks a major
 console.log('MOUNTAIN_NATURALIZATION_PROFILE_OK', JSON.stringify({
 	policyId: WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id,
 	widthScale: [widthPolicy.minimumScale, widthPolicy.maximumScale],
+	coastalReliefTaper: coastalPolicy,
 	talusStrength: talusPolicy.strength,
 	dryReliefSamples: drySamples.length,
 	evidence,
