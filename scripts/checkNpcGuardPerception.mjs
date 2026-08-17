@@ -9,7 +9,17 @@ function extractFunction(name) {
   const exportMarker = source.indexOf(`export function ${name}`);
   const start = exportMarker >= 0 ? exportMarker : marker;
   assert.ok(start >= 0, `${name} must exist in npc.js`);
-  const brace = source.indexOf('{', start);
+  const openParen = source.indexOf('(', start);
+  let parenDepth = 0;
+  let closeParen = -1;
+  for (let i = openParen; i < source.length; i += 1) {
+    if (source[i] === '(') parenDepth += 1;
+    else if (source[i] === ')') {
+      parenDepth -= 1;
+      if (parenDepth === 0) { closeParen = i; break; }
+    }
+  }
+  const brace = source.indexOf('{', closeParen);
   let depth = 0;
   let end = -1;
   for (let i = brace; i < source.length; i += 1) {
@@ -19,7 +29,7 @@ function extractFunction(name) {
       if (depth === 0) { end = i + 1; break; }
     }
   }
-  assert.ok(end > brace, `${name} must have a complete body`);
+  assert.ok(closeParen > openParen && end > brace, `${name} must have a complete body`);
   return source.slice(start, end).replace(/^export\s+/, '');
 }
 
