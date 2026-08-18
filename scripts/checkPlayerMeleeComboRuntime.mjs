@@ -62,7 +62,7 @@ try {
 	const lockedLight = await waitMotion((motion) => motion.attackKind === 'light' && motion.attackActive, 'light active motion');
 	need(!lockedLight.canDodge && !lockedLight.guarding && lockedLight.state === 'attack-light', `light attack must lock dodge/guard ${JSON.stringify(lockedLight)}`);
 
-	await waitMotion((motion) => motion.attackKind === 'light' && motion.attackPhase === 'recovery', 'light recovery buffer window');
+	await waitWindow((event) => event.serial === lightStart.serial && event.phase === 'active-end', 'light active-end recovery buffer window');
 	await page.keyboard.press('KeyR');
 	const heavyStart = await waitWindow((event) => event.phase === 'start' && event.kind === 'heavy' && event.comboStep === 2, 'buffered heavy combo start');
 	need(heavyStart.serial > lightStart.serial, 'heavy chain needs a new attack serial');
