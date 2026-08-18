@@ -53,7 +53,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			summitFloor: 0.65,
 			seed: 11,
 			passes: Object.freeze([
-				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.015, outerRadiusNormalized: 0.050, minimumMultiplier: 0.02, corridorEnd: [0.185, 0.330], corridorInnerRadiusNormalized: 0.008, corridorOuterRadiusNormalized: 0.022 }),
+				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.015, outerRadiusNormalized: 0.050, minimumMultiplier: 0.02, corridorEnd: [0.174, 0.275], corridorInnerRadiusNormalized: 0.008, corridorOuterRadiusNormalized: 0.022 }),
 				Object.freeze({ id: 'vale-south-approach', center: [0.233, 0.467], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.055, minimumMultiplier: 0.02 }),
 			]),
 		}),
@@ -65,7 +65,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			seed: 23,
 			passes: Object.freeze([
 				Object.freeze({ id: 'red-west-approach', center: [0.145, 0.610], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.045, minimumMultiplier: 0.08 }),
-				Object.freeze({ id: 'red-central-approach', center: [0.179, 0.651], innerRadiusNormalized: 0.016, outerRadiusNormalized: 0.055, minimumMultiplier: 0.08, corridorEnd: [0.154, 0.612], corridorInnerRadiusNormalized: 0.009, corridorOuterRadiusNormalized: 0.024 }),
+				Object.freeze({ id: 'red-central-approach', center: [0.179, 0.651], innerRadiusNormalized: 0.016, outerRadiusNormalized: 0.055, minimumMultiplier: 0.08, corridorEnd: [0.139, 0.587], corridorInnerRadiusNormalized: 0.009, corridorOuterRadiusNormalized: 0.024 }),
 				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.050, minimumMultiplier: 0.08 }),
 			]),
 		}),
