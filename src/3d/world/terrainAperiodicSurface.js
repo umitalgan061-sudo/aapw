@@ -4,9 +4,9 @@ import { ChunkManager } from './chunkManager.js';
 /**
  * Render-only P2 terrain anti-tiling layer.
  *
- * The canonical height/collider, coastline, hydrology and placement queries stay untouched. This
- * adapter only decorrelates the already-shipped MeshStandardMaterial in world metres so the former
- * 22 m micro-normal period is no longer the only readable ground-scale signal.
+ * Canonical height/collider, coastline, hydrology and placement queries stay untouched. This
+ * adapter only decorrelates the shipped MeshStandardMaterial in world metres so the former 22 m
+ * micro-normal period is no longer the only readable ground-scale signal.
  */
 export const TERRAIN_APERIODIC_SURFACE_POLICY = Object.freeze({
 	id: 'terrain-aperiodic-macro-breakup-2026-08-19-v1',
@@ -15,7 +15,6 @@ export const TERRAIN_APERIODIC_SURFACE_POLICY = Object.freeze({
 	fineScaleMeters: 19,
 	albedoAmplitude: 0.115,
 	roughnessAmplitude: 0.085,
-	slopeRockGain: 0.12,
 	maxDistanceMeters: 1750,
 	fadeStartMeters: 650,
 	renderOnly: true,
@@ -23,21 +22,14 @@ export const TERRAIN_APERIODIC_SURFACE_POLICY = Object.freeze({
 
 const INSTALL_FLAG = Symbol.for('aapw.terrainAperiodicSurface.install.v1');
 const MATERIAL_FLAG = Symbol.for('aapw.terrainAperiodicSurface.material.v1');
-const LOAD_CHUNK_FLAG = Symbol.for('aapw.terrainAperiodicSurface.loadChunk.v1');
 
 function terrainVertexInjection(shader) {
 	if (!shader.vertexShader.includes('#include <worldpos_vertex>')) {
 		throw new Error('[terrainAperiodicSurface] Three.js worldpos vertex chunk missing');
 	}
 	shader.vertexShader = shader.vertexShader
-		.replace(
-			'void main() {',
-			'varying vec3 vAapwTerrainWorldPosition;\nvoid main() {',
-		)
-		.replace(
-			'#include <worldpos_vertex>',
-			'#include <worldpos_vertex>\n\tvAapwTerrainWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;',
-		);
+		.replace('void main() {', 'varying vec3 vAapwTerrainWorldPosition;\nvoid main() {')
+		.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n\tvAapwTerrainWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;');
 }
 
 function terrainFragmentInjection(shader) {
@@ -47,11 +39,8 @@ function terrainFragmentInjection(shader) {
 	if (!shader.fragmentShader.includes('#include <color_fragment>')) {
 		throw new Error('[terrainAperiodicSurface] Three.js color fragment chunk missing');
 	}
-
 	shader.fragmentShader = shader.fragmentShader
-		.replace(
-			'void main() {',
-			`varying vec3 vAapwTerrainWorldPosition;
+		.replace('void main() {', `varying vec3 vAapwTerrainWorldPosition;
 float aapwHash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
 	p += dot(p, p + 45.32);
@@ -75,29 +64,20 @@ float aapwTerrainSignal(vec2 worldXZ) {
 	float fineNoise = aapwValueNoise(skewed / ${TERRAIN_APERIODIC_SURFACE_POLICY.fineScaleMeters.toFixed(1)} + vec2(-31.4, 12.8));
 	return (macroNoise - 0.5) * 0.58 + (mesoNoise - 0.5) * 0.29 + (fineNoise - 0.5) * 0.13;
 }
-void main() {`,
-		)
-		.replace(
-			'#include <color_fragment>',
-			`#include <color_fragment>
+void main() {`)
+		.replace('#include <color_fragment>', `#include <color_fragment>
 	float aapwTerrainDistance = length(vAapwTerrainWorldPosition.xz - cameraPosition.xz);
 	float aapwTerrainFade = 1.0 - smoothstep(${TERRAIN_APERIODIC_SURFACE_POLICY.fadeStartMeters.toFixed(1)}, ${TERRAIN_APERIODIC_SURFACE_POLICY.maxDistanceMeters.toFixed(1)}, aapwTerrainDistance);
 	float aapwTerrainBreakup = aapwTerrainSignal(vAapwTerrainWorldPosition.xz) * aapwTerrainFade;
-	float aapwSlope = 1.0 - clamp(normal.y, 0.0, 1.0);
-	float aapwAlbedoGain = 1.0 + aapwTerrainBreakup * ${TERRAIN_APERIODIC_SURFACE_POLICY.albedoAmplitude.toFixed(3)} - aapwSlope * ${TERRAIN_APERIODIC_SURFACE_POLICY.slopeRockGain.toFixed(3)};
-	diffuseColor.rgb *= clamp(aapwAlbedoGain, 0.82, 1.16);`,
-		)
-		.replace(
-			'#include <roughnessmap_fragment>',
-			`#include <roughnessmap_fragment>
-	roughnessFactor = clamp(roughnessFactor + aapwTerrainBreakup * ${TERRAIN_APERIODIC_SURFACE_POLICY.roughnessAmplitude.toFixed(3)} + aapwSlope * 0.045, 0.58, 1.0);`,
-		);
+	float aapwAlbedoGain = 1.0 + aapwTerrainBreakup * ${TERRAIN_APERIODIC_SURFACE_POLICY.albedoAmplitude.toFixed(3)};
+	diffuseColor.rgb *= clamp(aapwAlbedoGain, 0.84, 1.16);`)
+		.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+	roughnessFactor = clamp(roughnessFactor + aapwTerrainBreakup * ${TERRAIN_APERIODIC_SURFACE_POLICY.roughnessAmplitude.toFixed(3)}, 0.58, 1.0);`);
 }
 
 export function applyTerrainAperiodicSurface(material) {
 	if (!material?.isMeshStandardMaterial) throw new TypeError('aperiodic terrain surface requires MeshStandardMaterial');
 	if (material[MATERIAL_FLAG]) return material;
-
 	const previousCompile = material.onBeforeCompile;
 	material.onBeforeCompile = (shader, renderer) => {
 		if (typeof previousCompile === 'function') previousCompile.call(material, shader, renderer);
@@ -116,10 +96,7 @@ export function applyTerrainAperiodicSurfaceToMesh(mesh) {
 	if (!mesh?.material) throw new TypeError('terrain mesh with material is required');
 	if (Array.isArray(mesh.material)) throw new TypeError('terrain mesh must use one material');
 	applyTerrainAperiodicSurface(mesh.material);
-	mesh.userData.terrainAperiodicSurface = Object.freeze({
-		policyId: TERRAIN_APERIODIC_SURFACE_POLICY.id,
-		renderOnly: true,
-	});
+	mesh.userData.terrainAperiodicSurface = Object.freeze({ policyId: TERRAIN_APERIODIC_SURFACE_POLICY.id, renderOnly: true });
 	return mesh;
 }
 
@@ -132,7 +109,6 @@ export function installTerrainAperiodicSurface() {
 		return mesh;
 	};
 	Object.defineProperty(ChunkManager.prototype, INSTALL_FLAG, { value: true });
-	Object.defineProperty(ChunkManager.prototype.loadChunk, LOAD_CHUNK_FLAG, { value: true });
 	return true;
 }
 
