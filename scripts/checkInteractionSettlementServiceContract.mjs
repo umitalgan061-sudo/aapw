@@ -7,10 +7,19 @@ import {
 import { createInteractionInventoryState } from '../src/3d/gameplay/interactionConfig.js';
 
 const vendorOffer = QUARTERMASTER_OFFERS[0];
-const serviceOffer = QUARTERMASTER_OFFERS.find((offer) => offer.fulfillment?.kind === 'settlement-service');
-assert.ok(serviceOffer, 'quartermaster must expose a settlement-service offer');
-assert.equal(serviceOffer.id, 'dragonstone-watch-ration-allotment');
-assert.deepEqual(serviceOffer.fulfillment, {
+const armorerOffer = QUARTERMASTER_OFFERS.find((offer) => offer.fulfillment?.serviceId === 'dragonstone-watch-armorer-honing');
+const rationServiceOffer = QUARTERMASTER_OFFERS.find((offer) => offer.fulfillment?.serviceId === 'dragonstone-watch-ration-prep');
+assert.ok(armorerOffer, 'quartermaster must expose the Dragonstone armorer service');
+assert.ok(rationServiceOffer, 'quartermaster must retain the ration-prep settlement service');
+assert.equal(armorerOffer.id, 'dragonstone-whetstone');
+assert.deepEqual(armorerOffer.fulfillment, {
+	kind: 'settlement-service',
+	serviceId: 'dragonstone-watch-armorer-honing',
+	label: 'Zırhçı bileme hazırlığı',
+	stationId: 'dragonstone-armorer-bench',
+	discipline: 'smithing',
+});
+assert.deepEqual(rationServiceOffer.fulfillment, {
 	kind: 'settlement-service',
 	serviceId: 'dragonstone-watch-ration-prep',
 	label: 'Erzak hazırlama',
@@ -26,40 +35,71 @@ assert.deepEqual(
 	'ordinary quartermaster purchases must retain vendor provenance',
 );
 
-const serviceInventory = createInteractionInventoryState();
-const serviceEconomy = createInteractionEconomyState();
-const before = structuredClone(serviceEconomy.snapshot());
-result = serviceEconomy.purchase(serviceOffer, (...args) => serviceInventory.grant(...args));
+const armorerInventory = createInteractionInventoryState();
+const armorerEconomy = createInteractionEconomyState();
+const armorerBefore = structuredClone(armorerEconomy.snapshot());
+result = armorerEconomy.purchase(armorerOffer, (...args) => armorerInventory.grant(...args));
+assert.equal(result.ok, true);
+assert.equal(result.spentCopper, 12);
+assert.equal(result.balanceCopper, 28);
+assert.equal(result.remainingStock, 1);
+assert.equal(result.ledger.transactionCount, 1);
+assert.equal(result.ledger.lifetimeSpentCopper, 12);
+assert.equal(result.ledger.purchasesByOffer[armorerOffer.id], 1);
+assert.deepEqual(result.ledger.recentTransactions, [{
+	sequence: 1,
+	offerId: armorerOffer.id,
+	itemId: armorerOffer.itemId,
+	quantity: armorerOffer.quantity,
+	spentCopper: armorerOffer.priceCopper,
+	balanceCopper: 28,
+}]);
+assert.deepEqual(
+	armorerInventory.snapshot().items.find((item) => item.itemId === armorerOffer.itemId)?.provenance,
+	[{ sourceType: 'settlement-service', sourceId: 'dragonstone-watch-armorer-honing' }],
+	'armorer fulfillment must persist smithing-service provenance',
+);
+assert.notDeepEqual(armorerEconomy.snapshot(), armorerBefore, 'successful armorer service must mutate finite stock and ledger state');
+
+const armorerSaved = structuredClone(armorerEconomy.snapshot());
+const armorerRestored = createInteractionEconomyState();
+armorerRestored.restore(armorerSaved);
+assert.deepEqual(armorerRestored.snapshot(), armorerSaved, 'armorer settlement-service ledger/stock must survive save restore');
+
+const rationInventory = createInteractionInventoryState();
+const rationEconomy = createInteractionEconomyState();
+const before = structuredClone(rationEconomy.snapshot());
+result = rationEconomy.purchase(rationServiceOffer, (...args) => rationInventory.grant(...args));
 assert.equal(result.ok, true);
 assert.equal(result.spentCopper, 5);
 assert.equal(result.balanceCopper, 35);
 assert.equal(result.remainingStock, 0);
 assert.equal(result.ledger.transactionCount, 1);
 assert.equal(result.ledger.lifetimeSpentCopper, 5);
-assert.equal(result.ledger.purchasesByOffer[serviceOffer.id], 1);
+assert.equal(result.ledger.purchasesByOffer[rationServiceOffer.id], 1);
 assert.deepEqual(result.ledger.recentTransactions, [{
 	sequence: 1,
-	offerId: serviceOffer.id,
-	itemId: serviceOffer.itemId,
-	quantity: serviceOffer.quantity,
-	spentCopper: serviceOffer.priceCopper,
+	offerId: rationServiceOffer.id,
+	itemId: rationServiceOffer.itemId,
+	quantity: rationServiceOffer.quantity,
+	spentCopper: rationServiceOffer.priceCopper,
 	balanceCopper: 35,
 }]);
 assert.deepEqual(
-	serviceInventory.snapshot().items.find((item) => item.itemId === serviceOffer.itemId)?.provenance,
+	rationInventory.snapshot().items.find((item) => item.itemId === rationServiceOffer.itemId)?.provenance,
 	[{ sourceType: 'settlement-service', sourceId: 'dragonstone-watch-ration-prep' }],
-	'settlement fulfillment must persist its service identity in inventory provenance',
+	'ration fulfillment must persist its service identity in inventory provenance',
 );
 
-const after = structuredClone(serviceEconomy.snapshot());
-result = serviceEconomy.purchase(serviceOffer, (...args) => serviceInventory.grant(...args));
+const after = structuredClone(rationEconomy.snapshot());
+result = rationEconomy.purchase(rationServiceOffer, (...args) => rationInventory.grant(...args));
 assert.equal(result.ok, false);
 assert.equal(result.reason, 'out-of-stock');
-assert.deepEqual(serviceEconomy.snapshot(), after, 'sold-out service attempts must remain economy-atomic');
+assert.deepEqual(rationEconomy.snapshot(), after, 'sold-out service attempts must remain economy-atomic');
 assert.notDeepEqual(after, before, 'successful service must mutate finite stock and ledger state');
 
 const restored = createInteractionEconomyState();
 restored.restore(after);
-assert.deepEqual(restored.snapshot(), after, 'settlement service ledger/stock must survive save restore');
+assert.deepEqual(restored.snapshot(), after, 'ration settlement service ledger/stock must survive save restore');
 
-console.log('PASS checkInteractionSettlementServiceContract: vendor provenance stays vendor, ration prep uses settlement-service provenance, and finite service state persists atomically.');
+console.log('PASS checkInteractionSettlementServiceContract: vendor provenance stays vendor, armorer honing and ration prep use canonical settlement-service provenance, and finite service state persists.');

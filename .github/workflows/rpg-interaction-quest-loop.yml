@@ -13,6 +13,7 @@ on:
       - 'scripts/checkInteractionTradeLedgerBrowser.mjs'
       - 'scripts/checkInteractionSettlementServiceContract.mjs'
       - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
+      - 'scripts/checkInteractionArmorerServiceBrowser.mjs'
       - 'service-worker.js'
       - '.github/workflows/rpg-interaction-quest-loop.yml'
   workflow_dispatch:
@@ -46,7 +47,7 @@ jobs:
           printf '%s\n' "${FILES[@]}"
           for path in "${FILES[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|scripts/checkInteractionArmorerServiceBrowser.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
               *) echo "unexpected RPG scope path: $path" >&2; exit 1 ;;
             esac
           done
@@ -67,6 +68,7 @@ jobs:
           node --check scripts/checkInteractionTradeLedgerBrowser.mjs
           node --check scripts/checkInteractionSettlementServiceContract.mjs
           node --check scripts/checkInteractionSettlementServiceBrowser.mjs
+          node --check scripts/checkInteractionArmorerServiceBrowser.mjs
           node scripts/checkInteractionQuestLoop.mjs
           node scripts/checkInteractionInventoryRewards.mjs
           node scripts/checkInteractionQuartermasterTrade.mjs
@@ -94,6 +96,7 @@ jobs:
           set -euo pipefail
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionTradeLedgerBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionSettlementServiceBrowser.mjs
+          NODE_PATH="$NODE_PATH" node scripts/checkInteractionArmorerServiceBrowser.mjs
 
       - name: Final exact-main freshness
         run: |

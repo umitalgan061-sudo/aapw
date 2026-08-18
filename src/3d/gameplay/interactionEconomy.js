@@ -24,6 +24,13 @@ export const QUARTERMASTER_OFFERS = Object.freeze([
 		priceCopper: 12,
 		quantity: 1,
 		stockLimit: 2,
+		fulfillment: Object.freeze({
+			kind: 'settlement-service',
+			serviceId: 'dragonstone-watch-armorer-honing',
+			label: 'Zırhçı bileme hazırlığı',
+			stationId: 'dragonstone-armorer-bench',
+			discipline: 'smithing',
+		}),
 	}),
 	Object.freeze({
 		id: 'dragonstone-watch-ration-allotment',
