@@ -17,6 +17,11 @@ page.on('pageerror', (error) => pageErrors.push(String(error?.stack || error)));
 page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
 
 try {
+	await page.route(`http://127.0.0.1:${port}/src/3d/game3d.js`, (route) => route.fulfill({
+		status: 200,
+		contentType: 'text/javascript',
+		body: 'export function initGame3D() {}\n',
+	}));
 	await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 	const result = await page.evaluate(async () => {
 		const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
