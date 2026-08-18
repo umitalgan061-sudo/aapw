@@ -31,6 +31,11 @@ for (const [chainId, profile] of Object.entries(WORLD_REFERENCE_MOUNTAIN_RELIEF_
 		assert(pass.innerRadiusNormalized > 0, `${pass.id}: inner radius must be positive`);
 		assert(pass.outerRadiusNormalized > pass.innerRadiusNormalized, `${pass.id}: outer radius must exceed inner radius`);
 		assert(pass.minimumMultiplier >= 0 && pass.minimumMultiplier <= 0.12, `${pass.id}: pass relief multiplier is not a bounded cut`);
+		if (pass.corridorEnd) {
+			assert(pass.corridorEnd.length === 2 && pass.corridorEnd.every((value) => Number.isFinite(value) && value >= 0 && value <= 1), `${pass.id}: corridor end outside owner map`);
+			assert(pass.corridorInnerRadiusNormalized > 0 && pass.corridorOuterRadiusNormalized > pass.corridorInnerRadiusNormalized, `${pass.id}: invalid corridor radii`);
+			if (pass.corridorVia) assert(pass.corridorVia.length === 2 && pass.corridorVia.every((value) => Number.isFinite(value) && value >= 0 && value <= 1), `${pass.id}: corridor bend outside owner map`);
+		}
 
 		const [cx, cy] = pass.center;
 		const centerDry = sampleReferenceDryLandWeight(cx, cy);
