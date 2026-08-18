@@ -1,0 +1,60 @@
+name: Player Gamepad Parity
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/input.js'
+      - 'scripts/checkPlayerGamepadInput.mjs'
+      - '.github/workflows/player-gamepad-parity.yml'
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact main ancestry and bounded scope
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$MAIN_SHA")" = "$MAIN_SHA"
+          git diff --check "$MAIN_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$MAIN_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|scripts/checkPlayerGamepadInput\.mjs|\.github/workflows/player-gamepad-parity\.yml)$' | wc -l)" -eq 0
+          A="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
+          D="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "PLAYER_GAMEPAD_CHANGED_LINES=$((A+D))"
+          test $((A+D)) -le 1000
+          echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
+
+      - name: Standard gamepad player contract
+        run: |
+          set -euo pipefail
+          node --check src/3d/input.js
+          node --check scripts/checkPlayerGamepadInput.mjs
+          node scripts/checkPlayerGamepadInput.mjs
+
+      - name: Shared material and PWA contracts
+        run: |
+          set -euo pipefail
+          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkPwaInstallability.js
+
+      - name: Final main freshness
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git merge-base HEAD "$BASE_SHA")" = "$BASE_SHA"
