@@ -3,6 +3,7 @@ import { createInteractionController } from '../src/3d/gameplay/interaction.js';
 import {
 	QUARTERMASTER_NPC_ID,
 	QUARTERMASTER_OFFERS,
+	RECENT_TRANSACTION_LIMIT,
 	STARTING_COPPER,
 	buildQuartermasterText,
 	createInteractionEconomyState,
@@ -12,8 +13,27 @@ import { INTERACTION_CONFIG, INTERACTION_ITEMS, createInteractionInventoryState 
 const ration = QUARTERMASTER_OFFERS[0];
 const whetstone = QUARTERMASTER_OFFERS[1];
 const rationAllotment = QUARTERMASTER_OFFERS[2];
+const receipt = (sequence, offer, balanceCopper) => ({
+	sequence,
+	offerId: offer.id,
+	itemId: offer.itemId,
+	quantity: offer.quantity,
+	spentCopper: offer.priceCopper,
+	balanceCopper,
+});
+const emptyLedger = () => ({
+	transactionCount: 0,
+	lifetimeSpentCopper: 0,
+	purchasesByOffer: {
+		'dragonstone-field-ration': 0,
+		'dragonstone-whetstone': 0,
+		'dragonstone-watch-ration-allotment': 0,
+	},
+	recentTransactions: [],
+});
 assert.equal(QUARTERMASTER_NPC_ID, 'stannis-guard-1');
 assert.equal(STARTING_COPPER, 40);
+assert.equal(RECENT_TRANSACTION_LIMIT, 5);
 assert.equal(QUARTERMASTER_OFFERS.length, 3);
 assert.equal(ration.stockLimit, 4);
 assert.equal(whetstone.stockLimit, 2);
@@ -33,12 +53,17 @@ assert.deepEqual(economy.snapshot(), {
 		'dragonstone-whetstone': 2,
 		'dragonstone-watch-ration-allotment': 1,
 	},
+	ledger: emptyLedger(),
 });
 
 let result = economy.purchase(ration, grant);
 assert.equal(result.ok, true);
 assert.equal(result.balanceCopper, 34);
 assert.equal(result.remainingStock, 3);
+assert.equal(result.ledger.transactionCount, 1);
+assert.equal(result.ledger.lifetimeSpentCopper, 6);
+assert.equal(result.ledger.purchasesByOffer[ration.id], 1);
+assert.deepEqual(result.ledger.recentTransactions, [receipt(1, ration, 34)]);
 assert.deepEqual(inventory.snapshot().items[0].provenance, [{ sourceType: 'vendor', sourceId: QUARTERMASTER_NPC_ID }]);
 
 result = economy.purchase(whetstone, grant);
@@ -50,12 +75,32 @@ assert.deepEqual(economy.snapshot().stockByOffer, {
 	'dragonstone-whetstone': 1,
 	'dragonstone-watch-ration-allotment': 1,
 });
+assert.deepEqual(economy.snapshot().ledger, {
+	transactionCount: 2,
+	lifetimeSpentCopper: 18,
+	purchasesByOffer: {
+		'dragonstone-field-ration': 1,
+		'dragonstone-whetstone': 1,
+		'dragonstone-watch-ration-allotment': 0,
+	},
+	recentTransactions: [receipt(1, ration, 34), receipt(2, whetstone, 22)],
+});
 
 result = economy.purchase(rationAllotment, grant);
 assert.equal(result.ok, true);
 assert.equal(result.balanceCopper, 17);
 assert.equal(result.remainingStock, 0);
 assert.equal(inventory.snapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 2);
+assert.deepEqual(result.ledger, {
+	transactionCount: 3,
+	lifetimeSpentCopper: 23,
+	purchasesByOffer: {
+		'dragonstone-field-ration': 1,
+		'dragonstone-whetstone': 1,
+		'dragonstone-watch-ration-allotment': 1,
+	},
+	recentTransactions: [receipt(1, ration, 34), receipt(2, whetstone, 22), receipt(3, rationAllotment, 17)],
+});
 const allotmentBefore = structuredClone(economy.snapshot());
 result = economy.purchase(rationAllotment, grant);
 assert.equal(result.reason, 'out-of-stock');
@@ -63,9 +108,7 @@ assert.deepEqual(economy.snapshot(), allotmentBefore);
 
 const stockEconomy = createInteractionEconomyState(100);
 const stockInventory = createInteractionInventoryState();
-for (let index = 0; index < whetstone.stockLimit; index += 1) {
-	assert.equal(stockEconomy.purchase(whetstone, (...args) => stockInventory.grant(...args)).ok, true);
-}
+for (let index = 0; index < whetstone.stockLimit; index += 1) assert.equal(stockEconomy.purchase(whetstone, (...args) => stockInventory.grant(...args)).ok, true);
 const stockBefore = structuredClone(stockEconomy.snapshot());
 const inventoryBefore = structuredClone(stockInventory.snapshot());
 result = stockEconomy.purchase(whetstone, (...args) => stockInventory.grant(...args));
@@ -99,19 +142,54 @@ assert.deepEqual(restored.snapshot(), {
 		'dragonstone-whetstone': 2,
 		'dragonstone-watch-ration-allotment': 1,
 	},
+	ledger: emptyLedger(),
 });
-restored.restore({ copper: 17, stockByOffer: { [ration.id]: 999, [whetstone.id]: -2, [rationAllotment.id]: 99 } });
-assert.deepEqual(restored.snapshot().stockByOffer, {
-	'dragonstone-field-ration': 4,
-	'dragonstone-whetstone': 2,
-	'dragonstone-watch-ration-allotment': 1,
+restored.restore({
+	copper: 17,
+	stockByOffer: { [ration.id]: 999, [whetstone.id]: -2, [rationAllotment.id]: 99 },
+	ledger: {
+		transactionCount: 3.9,
+		lifetimeSpentCopper: 23.8,
+		purchasesByOffer: { [ration.id]: 1.7, [whetstone.id]: 1, [rationAllotment.id]: 1, unknown: 999 },
+		recentTransactions: [
+			{ sequence: 2, offerId: whetstone.id, itemId: 'forged', spentCopper: 999, balanceCopper: 22 },
+			{ sequence: 3, offerId: rationAllotment.id, balanceCopper: 17 },
+			{ sequence: 4, offerId: ration.id, balanceCopper: 11 },
+			{ sequence: 1, offerId: 'unknown', balanceCopper: 34 },
+		],
+	},
 });
+assert.deepEqual(restored.snapshot(), {
+	copper: 17,
+	stockByOffer: {
+		'dragonstone-field-ration': 4,
+		'dragonstone-whetstone': 2,
+		'dragonstone-watch-ration-allotment': 1,
+	},
+	ledger: {
+		transactionCount: 3,
+		lifetimeSpentCopper: 23,
+		purchasesByOffer: {
+			'dragonstone-field-ration': 1,
+			'dragonstone-whetstone': 1,
+			'dragonstone-watch-ration-allotment': 1,
+		},
+		recentTransactions: [receipt(2, whetstone, 22), receipt(3, rationAllotment, 17)],
+	},
+});
+restored.restore({ copper: 17, ledger: { transactionCount: -3, lifetimeSpentCopper: -2, purchasesByOffer: { [ration.id]: -1 }, recentTransactions: [{ sequence: 1, offerId: ration.id }] } });
+assert.deepEqual(restored.snapshot().ledger, emptyLedger());
 
 const text = buildQuartermasterText(saved, QUARTERMASTER_OFFERS, 'Satın alma tamamlandı.');
 assert.match(text, /Kese: 17 bakır/);
-assert.match(text, /saha azığı — 6 bakır · stok 3\/4/);
-assert.match(text, /bileği taşı — 12 bakır · stok 1\/2/);
-assert.match(text, /Nöbetçi erzak payı — 5 bakır · stok 0\/1/);
+assert.match(text, /Alışveriş defteri: 3 işlem · 23 bakır harcandı/);
+assert.match(text, /Son işlem: #3 Nöbetçi erzak payı · 5 bakır · bakiye 17/);
+assert.match(text, /saha azığı — 6 bakır · stok 3\/4 · aldın 1/);
+assert.match(text, /bileği taşı — 12 bakır · stok 1\/2 · aldın 1/);
+assert.match(text, /Nöbetçi erzak payı — 5 bakır · stok 0\/1 · aldın 1/);
+const legacyText = buildQuartermasterText({ copper: 8, stockByOffer: {} });
+assert.match(legacyText, /Alışveriş defteri: 0 işlem · 0 bakır harcandı/);
+assert.doesNotMatch(legacyText, /Son işlem:/);
 
 const dialogueHistory = [];
 const economyChanges = [];
@@ -130,13 +208,26 @@ const controller = createInteractionController({
 controller.update([quartermaster], { x: 0, z: 0 });
 controller.handleKeyDown({ code: 'KeyB', repeat: false });
 assert.match(dialogueHistory.at(-1).body, /stok 4\/4/);
-assert.match(dialogueHistory.at(-1).body, /Nöbetçi erzak payı — 5 bakır · stok 1\/1/);
+assert.match(dialogueHistory.at(-1).body, /Alışveriş defteri: 0 işlem · 0 bakır harcandı/);
+assert.match(dialogueHistory.at(-1).body, /Nöbetçi erzak payı — 5 bakır · stok 1\/1 · aldın 0/);
 assert.equal(dialogueHistory.at(-1).choices.length, 3);
 controller.handleKeyDown({ code: 'Digit3', repeat: false });
 assert.equal(controller.getEconomySnapshot().copper, 35);
 assert.equal(controller.getEconomySnapshot().stockByOffer[rationAllotment.id], 0);
+assert.deepEqual(controller.getEconomySnapshot().ledger, {
+	transactionCount: 1,
+	lifetimeSpentCopper: 5,
+	purchasesByOffer: {
+		'dragonstone-field-ration': 0,
+		'dragonstone-whetstone': 0,
+		'dragonstone-watch-ration-allotment': 1,
+	},
+	recentTransactions: [receipt(1, rationAllotment, 35)],
+});
 assert.equal(controller.getInventorySnapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 1);
-assert.match(dialogueHistory.at(-1).body, /Nöbetçi erzak payı — 5 bakır · stok 0\/1/);
+assert.match(dialogueHistory.at(-1).body, /Alışveriş defteri: 1 işlem · 5 bakır harcandı/);
+assert.match(dialogueHistory.at(-1).body, /Son işlem: #1 Nöbetçi erzak payı · 5 bakır · bakiye 35/);
+assert.match(dialogueHistory.at(-1).body, /Nöbetçi erzak payı — 5 bakır · stok 0\/1 · aldın 1/);
 assert.equal(economyChanges.length, 1);
 assert.equal(inventoryChanges.length, 1);
 
@@ -155,5 +246,7 @@ assert.deepEqual(runtimeRestored.getEconomySnapshot(), runtimeSaved.economy);
 controller.update([], { x: 100, z: 100 });
 controller.handleKeyDown({ code: 'KeyB', repeat: false });
 assert.equal(controller.getEconomySnapshot().stockByOffer[rationAllotment.id], 0);
+assert.equal(controller.getEconomySnapshot().ledger.transactionCount, 1);
+assert.deepEqual(controller.getEconomySnapshot().ledger.recentTransactions, [receipt(1, rationAllotment, 35)]);
 
-console.log('PASS checkInteractionQuartermasterTrade: deterministic purse, three finite vendor offers, shipped Digit3 purchase UX and persistence verified.');
+console.log('PASS checkInteractionQuartermasterTrade: deterministic purse, finite vendor stock, bounded receipts, persistent trade ledger, shipped Digit3 purchase UX and save/load verified.');
