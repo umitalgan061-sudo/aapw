@@ -63,6 +63,12 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		return Math.max(0, Math.floor(Number(offer?.stockLimit) || 0));
 	}
 
+	function configuredOfferFor(offer) {
+		if (!offer) return null;
+		const configured = offers.find((candidate) => candidate.id === offer.id);
+		return configured && configured.itemId === offer.itemId ? configured : null;
+	}
+
 	function resetStock() {
 		stockByOffer.clear();
 		for (const offer of offers) stockByOffer.set(offer.id, stockLimitFor(offer));
@@ -109,36 +115,43 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		}
 	}
 
-	function purchase(offer, grantItem) {
-		if (!offer || typeof grantItem !== 'function') return { ok: false, reason: 'invalid-offer' };
-		const configuredOffer = offers.find((candidate) => candidate.id === offer.id);
-		if (!configuredOffer || configuredOffer.itemId !== offer.itemId) return { ok: false, reason: 'invalid-offer' };
+	function quote(offer) {
+		const configuredOffer = configuredOfferFor(offer);
+		if (!configuredOffer) return { ok: false, reason: 'invalid-offer' };
 		const remainingStock = stockByOffer.get(configuredOffer.id) ?? stockLimitFor(configuredOffer);
-		if (remainingStock <= 0) return { ok: false, reason: 'out-of-stock' };
 		const price = normalizeCopper(configuredOffer.priceCopper, -1);
-		if (price < 0) return { ok: false, reason: 'invalid-price' };
-		if (copper < price) return { ok: false, reason: 'insufficient-funds' };
+		if (remainingStock <= 0) return { ok: false, reason: 'out-of-stock', offerId: configuredOffer.id, remainingStock: 0, priceCopper: price, balanceCopper: copper };
+		if (price < 0) return { ok: false, reason: 'invalid-price', offerId: configuredOffer.id, remainingStock, priceCopper: price, balanceCopper: copper };
+		if (copper < price) return { ok: false, reason: 'insufficient-funds', offerId: configuredOffer.id, remainingStock, priceCopper: price, balanceCopper: copper, shortfallCopper: price - copper };
+		return { ok: true, reason: 'available', offerId: configuredOffer.id, remainingStock, priceCopper: price, balanceCopper: copper, balanceAfterPurchase: copper - price };
+	}
+
+	function purchase(offer, grantItem) {
+		if (typeof grantItem !== 'function') return { ok: false, reason: 'invalid-offer' };
+		const purchaseQuote = quote(offer);
+		if (!purchaseQuote.ok) return purchaseQuote;
+		const configuredOffer = configuredOfferFor(offer);
 		const granted = grantItem(configuredOffer.itemId, configuredOffer.quantity ?? 1, {
 			sourceType: 'vendor',
 			sourceId: QUARTERMASTER_NPC_ID,
 		});
-		if (!granted) return { ok: false, reason: 'inventory-full' };
-		copper -= price;
-		stockByOffer.set(configuredOffer.id, remainingStock - 1);
+		if (!granted) return { ...purchaseQuote, ok: false, reason: 'inventory-full' };
+		copper -= purchaseQuote.priceCopper;
+		stockByOffer.set(configuredOffer.id, purchaseQuote.remainingStock - 1);
 		transactionCount += 1;
-		lifetimeSpentCopper += price;
+		lifetimeSpentCopper += purchaseQuote.priceCopper;
 		purchasesByOffer.set(configuredOffer.id, (purchasesByOffer.get(configuredOffer.id) ?? 0) + 1);
 		return {
 			ok: true,
-			spentCopper: price,
+			spentCopper: purchaseQuote.priceCopper,
 			balanceCopper: copper,
 			offerId: configuredOffer.id,
-			remainingStock: remainingStock - 1,
+			remainingStock: purchaseQuote.remainingStock - 1,
 			ledger: ledgerSnapshot(),
 		};
 	}
 
-	return { purchase, restore, snapshot };
+	return { purchase, quote, restore, snapshot };
 }
 
 export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMASTER_OFFERS, feedback = '') {
@@ -164,7 +177,9 @@ export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMAS
 			? Number(ledger.purchasesByOffer[offer.id])
 			: 0;
 		const bought = Number.isFinite(boughtRaw) && boughtRaw >= 0 ? Math.floor(boughtRaw) : 0;
-		lines.push(`${offer.label} — ${offer.priceCopper} bakır · stok ${remaining}/${limit} · aldın ${bought}`);
+		const price = Math.max(0, Math.floor(Number(offer.priceCopper) || 0));
+		const availability = remaining <= 0 ? 'TÜKENDİ' : balance < price ? `YETERSİZ BAKIR · ${price - balance} eksik` : `ALINABİLİR · sonra ${balance - price} bakır`;
+		lines.push(`${offer.label} — ${price} bakır · stok ${remaining}/${limit} · aldın ${bought} · ${availability}`);
 	}
 	return lines.join('\n');
 }
