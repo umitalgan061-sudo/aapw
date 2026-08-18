@@ -12,47 +12,82 @@ async function checkCreatureThreatMemory(browser, baseUrl) {
 			const { mulberry32 } = await import('/src/3d/world/terrain.js');
 			const groundCollider = { getGroundHeight: () => 0 };
 			const playerCollider = { resolveXZ: (x, z) => ({ x, z }) };
-			const spawn = { id: 'smoke-geyik-threat', speciesId: 'geyik', x: 0, z: 0, rotationYRadians: 0 };
-			const raw = spawnConfiguredCreatures({ spawns: [spawn], groundCollider, playerCollider, mulberry32 })[0];
-			const profile = CREATURE_BEHAVIOR_PROFILES.geyik;
-			const threatAware = wrapCreatureWithThreatMemory(raw, {
-				triggerRadiusMeters: profile.reactiveTriggerRadiusMeters,
-				reactiveDirection: profile.reactiveDirection,
-				memorySeconds: 1.25,
+			const spawns = [
+				{ id: 'smoke-geyik-leader', speciesId: 'geyik', x: 0, z: 0, rotationYRadians: 0 },
+				{ id: 'smoke-geyik-wingman', speciesId: 'geyik', x: 12, z: 0, rotationYRadians: 0 },
+				{ id: 'smoke-keci-neighbor', speciesId: 'keci', x: 12, z: 2, rotationYRadians: 0 },
+				{ id: 'smoke-geyik-relay', speciesId: 'geyik', x: 29, z: 0, rotationYRadians: 0 },
+			];
+			const raws = spawnConfiguredCreatures({ spawns, groundCollider, playerCollider, mulberry32 });
+			const herdRegistry = new Map();
+			const creatures = raws.map((raw, index) => {
+				const spawn = spawns[index];
+				const profile = CREATURE_BEHAVIOR_PROFILES[spawn.speciesId];
+				const threatAware = wrapCreatureWithThreatMemory(raw, {
+					triggerRadiusMeters: profile.reactiveTriggerRadiusMeters,
+					reactiveDirection: profile.reactiveDirection,
+					memorySeconds: 1.25,
+					speciesId: spawn.speciesId,
+					packAlertRadiusMeters: profile.packAlertRadiusMeters,
+					herdRegistry,
+					sourceId: spawn.id,
+				});
+				return wrapCreatureWithSimulationLod(threatAware, {
+					id: spawn.id, nearRadiusMeters: 70, farIntervalSeconds: 0.25,
+					distantRadiusMeters: 180, distantIntervalSeconds: 1, maxStepSeconds: 0.25,
+				});
 			});
-			const creature = wrapCreatureWithSimulationLod(threatAware, {
-				id: 'smoke-geyik-threat', nearRadiusMeters: 70, farIntervalSeconds: 0.25,
-				distantRadiusMeters: 180, distantIntervalSeconds: 1, maxStepSeconds: 0.25,
-			});
+			const [leader, wingman, goat, relay] = creatures;
 			const delta = 1 / 60;
 			const nearbyPlayer = { x: 0, z: 6 };
-			for (let i = 0; i < 12; i += 1) creature.update(delta, nearbyPlayer, []);
-			const fleeState = { ...creature.object3D.userData.creatureThreat };
-			const fleeZ = creature.object3D.position.z;
-			const directFlee = creature.isFleeing && fleeState.phase === 'flee' && fleeZ < -0.2;
+			for (let i = 0; i < 12; i += 1) leader.update(delta, nearbyPlayer, []);
+			const leaderState = { ...leader.object3D.userData.creatureThreat };
+			const directFlee = leader.isFleeing && leaderState.phase === 'flee' && leader.object3D.position.z < -0.2;
+
+			const wingmanXBefore = wingman.object3D.position.x;
+			const wingmanUrgentBeforeTick = wingman.isFleeing;
+			wingman.update(delta, { x: 100, z: 100 }, [{ x: goat.object3D.position.x, z: goat.object3D.position.z }]);
+			const wingmanState = { ...wingman.object3D.userData.creatureThreat };
+			const sameSpeciesHerdFlee = wingmanUrgentBeforeTick && wingmanState.phase === 'herd-flee' && wingmanState.herd === true;
+			const herdLodUrgent = wingman.object3D.userData.simulationLodTier === 'urgent';
+			const wingmanMoved = wingman.object3D.position.x > wingmanXBefore;
+
+			goat.update(delta, { x: 100, z: 100 }, [{ x: leader.object3D.position.x, z: leader.object3D.position.z }]);
+			const goatState = { ...goat.object3D.userData.creatureThreat };
+			const crossSpeciesIsolated = !goat.isFleeing && goatState.phase === 'roam' && goatState.herdReactiveCount === 0;
+			const noRelayStorm = !relay.isFleeing;
 
 			const farPlayer = { x: 0, z: 220 };
-			creature.update(delta, farPlayer, []);
-			const recoveryState = { ...creature.object3D.userData.creatureThreat };
-			const urgentRecovery = creature.isFleeing && recoveryState.phase === 'recover' && creature.object3D.userData.simulationLodTier === 'urgent';
-			const recoverZ = creature.object3D.position.z;
-			const recoveryMovesAway = recoverZ < fleeZ;
-
-			for (let i = 0; i < 100; i += 1) creature.update(delta, farPlayer, []);
-			const finalState = { ...creature.object3D.userData.creatureThreat };
-			const returnsToRoam = !creature.isFleeing && finalState.phase === 'roam' && finalState.memoryRemainingSeconds === 0;
-			const finalTier = creature.object3D.userData.simulationLodTier;
-			creature.dispose();
-			return { directFlee, urgentRecovery, recoveryMovesAway, returnsToRoam, finalTier };
+			leader.update(delta, farPlayer, []);
+			const recoveryState = { ...leader.object3D.userData.creatureThreat };
+			const urgentRecovery = leader.isFleeing && recoveryState.phase === 'recover' && leader.object3D.userData.simulationLodTier === 'urgent';
+			for (let i = 0; i < 100; i += 1) leader.update(delta, farPlayer, []);
+			const finalState = { ...leader.object3D.userData.creatureThreat };
+			const returnsToRoam = !leader.isFleeing && finalState.phase === 'roam' && finalState.memoryRemainingSeconds === 0;
+			for (const creature of creatures) creature.dispose();
+			const registryDisposed = herdRegistry.size === 0;
+			return {
+				directFlee,
+				sameSpeciesHerdFlee,
+				herdLodUrgent,
+				wingmanMoved,
+				crossSpeciesIsolated,
+				noRelayStorm,
+				urgentRecovery,
+				returnsToRoam,
+				registryDisposed,
+			};
 		});
 	} finally {
 		await page.close();
 	}
-	const ok = result.directFlee && result.urgentRecovery && result.recoveryMovesAway && result.returnsToRoam;
+	const ok = Object.values(result).every(Boolean);
 	return {
-		name: 'Creature threat -> flee -> bounded recovery -> roam (real Three.js creature runtime)',
+		name: 'Creature direct threat -> same-species herd flee -> bounded recovery (real Three.js runtime)',
 		ok,
-		details: ok ? `deer fled, recovery stayed urgent, then returned to roam; final LOD=${result.finalTier}` : JSON.stringify(result),
+		details: ok
+			? 'real deer leader alerted deer wingman with urgent LOD; nearby goat stayed calm; no relay storm; leader recovered to roam'
+			: JSON.stringify(result),
 	};
 }
 
