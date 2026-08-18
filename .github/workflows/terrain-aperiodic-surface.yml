@@ -1,0 +1,57 @@
+name: Terrain Aperiodic Surface
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainAperiodicSurface.js'
+      - 'src/3d/fog.js'
+      - 'scripts/checkTerrainAperiodicSurface.mjs'
+      - '.github/workflows/terrain-aperiodic-surface.yml'
+  workflow_dispatch:
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact-main bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          base="$(git merge-base HEAD origin/main)"
+          test "$(git rev-parse "$base")" = "$(git rev-parse origin/main)"
+          changed="$(git diff --name-only origin/main...HEAD)"
+          printf '%s\n' "$changed"
+          while IFS= read -r path; do
+            case "$path" in
+              src/3d/world/terrainAperiodicSurface.js|src/3d/fog.js|scripts/checkTerrainAperiodicSurface.mjs|.github/workflows/terrain-aperiodic-surface.yml) ;;
+              *) echo "unexpected path: $path" >&2; exit 1 ;;
+            esac
+          done <<< "$changed"
+          total="$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          echo "changed_lines=$total"
+          test "$total" -le 1000
+      - name: Syntax
+        run: |
+          node --check src/3d/world/terrainAperiodicSurface.js
+          node --check src/3d/fog.js
+          node --check scripts/checkTerrainAperiodicSurface.mjs
+      - name: Terrain aperiodic material contract
+        run: node scripts/checkTerrainAperiodicSurface.mjs
+      - name: Existing terrain micro-surface regression
+        run: node scripts/checkTerrainMicroSurface.mjs
+      - name: Shared material placement boundary
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
