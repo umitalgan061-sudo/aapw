@@ -53,7 +53,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			summitFloor: 0.65,
 			seed: 11,
 			passes: Object.freeze([
-				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.015, outerRadiusNormalized: 0.050, minimumMultiplier: 0.02, corridorEnd: [0.169444, 0.250], corridorInnerRadiusNormalized: 0.012, corridorOuterRadiusNormalized: 0.030 }),
+				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.015, outerRadiusNormalized: 0.050, minimumMultiplier: 0.02, corridorVia: [0.1755, 0.3738], corridorEnd: [0.169444, 0.250], corridorInnerRadiusNormalized: 0.012, corridorOuterRadiusNormalized: 0.030 }),
 				Object.freeze({ id: 'vale-south-approach', center: [0.233, 0.467], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.055, minimumMultiplier: 0.02 }),
 			]),
 		}),
@@ -190,13 +190,24 @@ function samplePassMultiplier(normalizedX, normalizedY, passes = []) {
 			: 1 - smoothstep(pass.innerRadiusNormalized, pass.outerRadiusNormalized, distance);
 		let corridorInfluence = 0;
 		if (pass.corridorEnd) {
-			const corridorDistance = pointSegmentDistance(
-				normalizedX * MAP_ASPECT,
-				normalizedY,
-				pass.center[0] * MAP_ASPECT,
-				pass.center[1],
-				pass.corridorEnd[0] * MAP_ASPECT,
-				pass.corridorEnd[1],
+			const corridorVia = pass.corridorVia ?? pass.center;
+			const corridorDistance = Math.min(
+				pointSegmentDistance(
+					normalizedX * MAP_ASPECT,
+					normalizedY,
+					pass.center[0] * MAP_ASPECT,
+					pass.center[1],
+					corridorVia[0] * MAP_ASPECT,
+					corridorVia[1],
+				),
+				pointSegmentDistance(
+					normalizedX * MAP_ASPECT,
+					normalizedY,
+					corridorVia[0] * MAP_ASPECT,
+					corridorVia[1],
+					pass.corridorEnd[0] * MAP_ASPECT,
+					pass.corridorEnd[1],
+				),
 			);
 			corridorInfluence = corridorDistance >= pass.corridorOuterRadiusNormalized
 				? 0
