@@ -17,15 +17,12 @@ page.on('pageerror', (error) => pageErrors.push(String(error?.stack || error)));
 page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
 
 try {
+	await page.route(`http://127.0.0.1:${port}/src/3d/game3d.js`, (route) => route.fulfill({
+		status: 200,
+		contentType: 'text/javascript',
+		body: 'export function initGame3D() {}\n',
+	}));
 	await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-
-	// This acceptance owns the shipped interaction surface, not full-world castle hydration.
-	// Stop background scene bootstrap immediately after the real game3d document is live so
-	// unrelated Git-LFS pointer castle loads cannot race into this feature-scoped proof.
-	await page.evaluate(() => window.stop());
-	if (pageErrors.length || consoleErrors.length) {
-		throw new Error(`Provisioning craft bootstrap emitted browser errors before isolation: ${JSON.stringify({ pageErrors, consoleErrors })}`);
-	}
 
 	const result = await page.evaluate(async () => {
 		const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
