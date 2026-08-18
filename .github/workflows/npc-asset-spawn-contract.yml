@@ -6,7 +6,6 @@ on:
       - 'src/3d/gameplay/npc.js'
       - 'src/3d/gameplay/npcConfig.js'
       - 'src/3d/gameplay/livingWorldSpawner.js'
-      - 'src/3d/gameplay/npcCombatAdapter.js'
       - 'src/3d/materials/MaterialAssignmentCore.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'service-worker.js'
@@ -50,7 +49,6 @@ jobs:
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
           node --check src/3d/gameplay/livingWorldSpawner.js
-          node --check src/3d/gameplay/npcCombatAdapter.js
           node --check scripts/checkNpcAssetSpawnContract.mjs
           node scripts/checkNpcAssetSpawnContract.mjs
           node --check scripts/checkNpcGuardPerception.mjs
