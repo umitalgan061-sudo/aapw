@@ -7,6 +7,15 @@ const dialogueHistory = [];
 const inventoryChanges = [];
 const guard1 = { object3D: { name: 'stannis-guard-1', position: { x: 0, z: 0 } }, displayName: 'Birinci Nöbetçi' };
 const guard2 = { object3D: { name: 'stannis-guard-2', position: { x: 0, z: 0 } }, displayName: 'İkinci Nöbetçi' };
+const EMPTY_LEDGER = {
+	transactionCount: 0,
+	lifetimeSpentCopper: 0,
+	purchasesByOffer: {
+		'dragonstone-field-ration': 0,
+		'dragonstone-whetstone': 0,
+		'dragonstone-watch-ration-allotment': 0,
+	},
+};
 const FULL_QUARTERMASTER_ECONOMY = {
 	copper: 40,
 	stockByOffer: {
@@ -14,6 +23,7 @@ const FULL_QUARTERMASTER_ECONOMY = {
 		'dragonstone-whetstone': 2,
 		'dragonstone-watch-ration-allotment': 1,
 	},
+	ledger: EMPTY_LEDGER,
 };
 
 function createController(overrides = {}) {
@@ -103,4 +113,4 @@ migrated.restoreRpgSnapshot(legacyV3);
 assert.deepEqual(migrated.getInventorySnapshot(), inventory);
 assert.deepEqual(migrated.getEconomySnapshot(), FULL_QUARTERMASTER_ECONOMY);
 
-console.log('[checkInteractionInventoryRewards] PASS: quest rewards -> inventory -> UI -> schema v5 stock-aware persistence/migration');
+console.log('[checkInteractionInventoryRewards] PASS: quest rewards -> inventory -> UI -> schema v5 ledger-aware persistence/migration');
