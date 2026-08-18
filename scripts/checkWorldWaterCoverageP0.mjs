@@ -81,7 +81,7 @@ try {
 		assert.deepEqual(texel(field.texture, resolution, row, 1), [0, 0, 255, 255], 'near dry land must stay uncovered');
 		assert.deepEqual(texel(field.texture, resolution, row, 2), [51, 128, 255, 255], 'coast footprint must encode 50% wet coverage');
 		assert.deepEqual(texel(field.texture, resolution, row, 3), [51, 255, 255, 255], 'shallow water must retain full coverage');
-		assert.deepEqual(texel(field.texture, resolution, row, 4), [255, 255, 255, 255], 'deep water must retain full coverage');
+		assert.deepEqual(texel(field.texture, resolution, row, 4), [153, 255, 255, 255], 'wet edge footprint must retain full coverage while averaging wet-only depth');
 	}
 	assert.equal(field.coverageSubsamplesPerAxis, 2);
 	assert.equal(field.mixedCoastTexelRatio, 5 / 25);
