@@ -73,6 +73,10 @@ jobs:
           node --check scripts/checkWorldWaterCoverageP0.mjs
           node --check scripts/game3dSmokeChecksScene.js
           grep -F "editorPatch') === '1'" game3d.html
+      - name: Install water contract runtime dependency
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
       - name: Full-map single-source and mountain contracts
         run: |
           set -euo pipefail
