@@ -1,53 +1,25 @@
 /**
- * `gameplay/creatureSpawner.js` — deterministic world placement for `gameplay/creatureBrain.js`'s
- * procedural creatures. Deliberately separate from `creatureBrain.js` itself: this module only decides
- * *where* a species goes (reusing `world/vegetation.js`'s own placement exclusion rules, never a second
- * drifting copy of them), `creatureBrain.js` only decides *how* a spawned being behaves once placed —
- * the same "world system decides where, gameplay system decides how" split this project already keeps
- * between `world/vegetation.js` and `gameplay/animals.js`'s wolf.
+ * `gameplay/creatureSpawner.js` — deterministic world placement and bounded simulation scheduling for
+ * `gameplay/creatureBrain.js`'s procedural creatures. Placement reuses `world/vegetation.js`'s own
+ * physical exclusion rules; behavior LOD only controls how often an already-spawned creature brain
+ * ticks. Keeping both fauna population budgets here avoids adding another runtime module to the PWA
+ * dependency graph while preserving `creatureBrain.js` as the owner of actual creature behavior.
  *
- * **Population size — a real performance budget, not "as many as fit".** Unlike `world/vegetation.js`'s
- * instanced trees (one draw call *per species*, regardless of tree count), every creature here is its
- * own unique `THREE.SkinnedMesh` with its own skeleton — one draw call *per creature*, plus a real
- * per-frame bone-rotation cost while it moves. `DESKTOP_SPECIES_COUNTS` below sums to 80 creatures
- * (≈1-2k triangles each per `creatureRig.js`'s own accounting, so ≈80-150k triangles total) — trivial
- * against this project's existing desktop budget (`GOVERNANCE.md` §7: DrawCalls<2500, Triangles<5M) but
- * a deliberate, explicit ceiling rather than an unbounded scatter, chosen so "populate the world
- * generously" doesn't quietly become a frame-budget regression. `MOBILE_SPECIES_COUNTS` sums to 12,
- * anchored to the player's own spawn point (mirrors `game3d.js`'s existing `mobileSpawnVegetation`
- * pattern) rather than the full-world desktop disc, consistent with mobile's own already-much-smaller
- * `STREAM_RADIUS_CHUNKS` world-coverage footprint (`GOVERNANCE.md`'s World Coverage line: 96.2% desktop
- * vs 4.5% mobile) and its own DrawCalls<500/Triangles<500K ceiling. `kuzgun`/`kartal`/`tavuk` (birds,
- * `gameplay/creatureBrain.js`'s new flight species) get modest counts of their own — small bodies, so
- * cheap even at a slightly higher count than the four-legged species above.
+ * **Population size — a real performance budget, not "as many as fit".** Unlike instanced trees,
+ * every creature is its own unique `THREE.SkinnedMesh` with its own skeleton. Desktop is capped at 80
+ * creatures and mobile at 12. Far/distant behavior ticks are additionally staggered by deterministic
+ * per-id phases so the population does not wake in lockstep.
  *
  * Placement reuses `world/vegetation.js`'s exported `isPlaceablePosition` (water/slope/seat/road
- * exclusion — unchanged, not reimplemented) over a uniform-disc rejection sample, same `r=R*sqrt(u)`
- * formula and same bounded-attempt-count discipline `createVegetation`'s own base pass uses. On top of
- * that canonical physical gate, this module owns only the fauna-specific habitat envelope: domestic
- * animals stay within settlement hinterlands, large wild animals do not spawn beside keeps, and a few
- * broad lowland/highland preferences use the same canonical terrain height sampler already supplied to
- * placement. These are deterministic rejection filters, not a second terrain/biome system.
- *
- * Determinism: one `mulberry32(seed ^ tag)` stream per call, drawn in species-declaration order — same
- * seed always reproduces the same spawn list (GOVERNANCE.md §8.9), same "XOR-tagged independent stream"
- * convention `world/vegetation.js`/`world/rivers.js` already established.
+ * exclusion — unchanged, not reimplemented) over a uniform-disc bounded rejection sample. On top of
+ * that canonical physical gate, this module owns only the fauna-specific habitat envelope.
  * @module gameplay/creatureSpawner
  */
 
 import { isPlaceablePosition } from '../world/vegetation.js';
 
-/** Rejection-sampling attempts per creature before it's dropped — same bounded-search guarantee
- * `world/vegetation.js`'s `MAX_ATTEMPTS_PER_TREE` gives itself, so a heavily-excluded disc (e.g. mostly
- * water) terminates instead of looping forever. */
 const MAX_ATTEMPTS_PER_CREATURE = 10;
 
-/**
- * Fauna-only habitat envelopes layered on top of the canonical water/slope/seat/road placement gate.
- * Distances are measured to the nearest canonical settlement seat. Elevation is meters above the same
- * sea level used by terrain placement. Missing keys intentionally mean "canonical physical gate only".
- * This keeps the rules small and auditable instead of pretending to be a second biome framework.
- */
 export const CREATURE_HABITAT_RULES = Object.freeze({
 	kedi: Object.freeze({ maxSeatDistanceMeters: 420, maxElevationAboveSeaMeters: 650 }),
 	kopek: Object.freeze({ maxSeatDistanceMeters: 520, maxElevationAboveSeaMeters: 800 }),
@@ -71,10 +43,6 @@ function nearestSeatDistanceMeters(x, z, seats) {
 	return nearest;
 }
 
-/**
- * Evaluates only fauna-specific habitat constraints. Callers must still pass the canonical
- * `isPlaceablePosition()` water/slope/seat/road gate separately.
- */
 export function isCreatureHabitatCompatible(speciesId, x, z, {
 	sampleHeightMeters,
 	seaLevelMeters,
@@ -94,31 +62,150 @@ export function isCreatureHabitatCompatible(speciesId, x, z, {
 	return true;
 }
 
-/** Desktop population — see this module's own doc comment for the draw-call/triangle budget math this
- * total (80) was chosen against. Herd-tagged species (per `creatureSpeciesConfig.js`) get a slightly
- * higher count than solitary ones; this run's own judgment, not a calibrated density. */
+function clampCreatureSimulationDelta(delta, maxStepSeconds) {
+	if (!Number.isFinite(delta) || delta <= 0) return 0;
+	return Math.min(delta, maxStepSeconds);
+}
+
+export function deterministicCreaturePhaseSeconds(id, intervalSeconds) {
+	if (!(intervalSeconds > 0)) return 0;
+	let hash = 2166136261;
+	for (const char of String(id ?? 'creature')) {
+		hash ^= char.charCodeAt(0);
+		hash = Math.imul(hash, 16777619) >>> 0;
+	}
+	hash ^= hash >>> 16;
+	hash = Math.imul(hash, 0x7feb352d) >>> 0;
+	hash ^= hash >>> 15;
+	hash = Math.imul(hash, 0x846ca68b) >>> 0;
+	hash = (hash ^ (hash >>> 16)) >>> 0;
+	return (hash / 0x100000000) * intervalSeconds;
+}
+
+export function createCreatureSimulationLod({
+	id,
+	nearRadiusMeters = 70,
+	farIntervalSeconds = 0.25,
+	distantRadiusMeters = 180,
+	distantIntervalSeconds = 1,
+	maxStepSeconds = 0.25,
+	hysteresisMeters = 10,
+	distantHysteresisMeters = 25,
+} = {}) {
+	if (!(nearRadiusMeters > 0)) throw new Error('nearRadiusMeters must be > 0');
+	if (!(farIntervalSeconds > 0)) throw new Error('farIntervalSeconds must be > 0');
+	if (!(distantRadiusMeters > nearRadiusMeters)) throw new Error('distantRadiusMeters must exceed nearRadiusMeters');
+	if (!(distantIntervalSeconds >= farIntervalSeconds)) throw new Error('distantIntervalSeconds must be >= farIntervalSeconds');
+	if (!(maxStepSeconds > 0)) throw new Error('maxStepSeconds must be > 0');
+	const farPhaseSeconds = deterministicCreaturePhaseSeconds(id, farIntervalSeconds);
+	const distantPhaseSeconds = deterministicCreaturePhaseSeconds(`${id}:distant`, distantIntervalSeconds);
+	let farAccumulatedSeconds = farPhaseSeconds;
+	let distantAccumulatedSeconds = distantPhaseSeconds;
+	let pendingSimulationSeconds = 0;
+	let tier = 'near';
+	let nearLatched = true;
+	let distantLatched = false;
+	return {
+		step(delta, distanceToPlayer, urgent = false) {
+			const boundedDelta = clampCreatureSimulationDelta(delta, maxStepSeconds);
+			const finiteDistance = Number.isFinite(distanceToPlayer);
+			if (urgent) {
+				nearLatched = true;
+				distantLatched = false;
+			} else if (!finiteDistance) {
+				nearLatched = false;
+				distantLatched = true;
+			} else if (nearLatched) {
+				nearLatched = distanceToPlayer <= nearRadiusMeters + hysteresisMeters;
+			} else {
+				nearLatched = distanceToPlayer <= nearRadiusMeters;
+			}
+			if (nearLatched) {
+				farAccumulatedSeconds = farPhaseSeconds;
+				distantAccumulatedSeconds = distantPhaseSeconds;
+				pendingSimulationSeconds = 0;
+				tier = urgent ? 'urgent' : 'near';
+				return boundedDelta;
+			}
+			pendingSimulationSeconds = Math.min(maxStepSeconds, pendingSimulationSeconds + boundedDelta);
+			if (finiteDistance) {
+				if (distantLatched) distantLatched = distanceToPlayer > distantRadiusMeters - distantHysteresisMeters;
+				else distantLatched = distanceToPlayer > distantRadiusMeters + distantHysteresisMeters;
+			}
+			if (distantLatched) {
+				if (tier !== 'distant' && tier !== 'bootstrap') distantAccumulatedSeconds = distantPhaseSeconds;
+				tier = finiteDistance ? 'distant' : 'bootstrap';
+				farAccumulatedSeconds = farPhaseSeconds;
+				distantAccumulatedSeconds = Math.min(distantIntervalSeconds, distantAccumulatedSeconds + boundedDelta);
+				if (distantAccumulatedSeconds + Number.EPSILON < distantIntervalSeconds) return 0;
+				distantAccumulatedSeconds = 0;
+				const simulationDelta = pendingSimulationSeconds;
+				pendingSimulationSeconds = 0;
+				return simulationDelta;
+			}
+			if (tier !== 'far') farAccumulatedSeconds = farPhaseSeconds;
+			tier = 'far';
+			distantAccumulatedSeconds = distantPhaseSeconds;
+			farAccumulatedSeconds = Math.min(farIntervalSeconds, farAccumulatedSeconds + boundedDelta);
+			if (farAccumulatedSeconds + Number.EPSILON < farIntervalSeconds) return 0;
+			farAccumulatedSeconds = 0;
+			const simulationDelta = pendingSimulationSeconds;
+			pendingSimulationSeconds = 0;
+			return simulationDelta;
+		},
+		get tier() { return tier; },
+	};
+}
+
+export function wrapCreatureWithSimulationLod(creature, {
+	id,
+	nearRadiusMeters = 70,
+	farIntervalSeconds = 0.25,
+	distantRadiusMeters = 180,
+	distantIntervalSeconds = 1,
+	maxStepSeconds = 0.25,
+} = {}) {
+	if (!creature?.object3D || typeof creature.update !== 'function') throw new Error('creature controller contract required');
+	const lod = createCreatureSimulationLod({ id, nearRadiusMeters, farIntervalSeconds, distantRadiusMeters, distantIntervalSeconds, maxStepSeconds });
+	const telemetry = creature.object3D.userData;
+	telemetry.simulationLodTier = 'near';
+	telemetry.simulationTicks = 0;
+	telemetry.simulationSkippedTicks = 0;
+	telemetry.simulationLastStepSeconds = 0;
+	return {
+		object3D: creature.object3D,
+		get isFleeing() { return Boolean(creature.isFleeing); },
+		update(delta, playerPosition, herdmateReactivePositions = []) {
+			const hasPlayerPosition = Boolean(playerPosition && Number.isFinite(playerPosition.x) && Number.isFinite(playerPosition.z));
+			const distanceToPlayer = hasPlayerPosition
+				? Math.hypot(creature.object3D.position.x - playerPosition.x, creature.object3D.position.z - playerPosition.z)
+				: Infinity;
+			const simulationDelta = lod.step(delta, distanceToPlayer, Boolean(creature.isFleeing));
+			telemetry.simulationLodTier = lod.tier;
+			if (simulationDelta <= 0) {
+				telemetry.simulationSkippedTicks += 1;
+				telemetry.simulationLastStepSeconds = 0;
+				return;
+			}
+			telemetry.simulationTicks += 1;
+			telemetry.simulationLastStepSeconds = simulationDelta;
+			creature.update(simulationDelta, playerPosition, herdmateReactivePositions);
+		},
+		dispose() { creature.dispose?.(); },
+	};
+}
+
 export const DESKTOP_SPECIES_COUNTS = Object.freeze({
 	kedi: 4, kopek: 4, at: 6, fil: 2, geyik: 8, koyun: 10, inek: 5,
 	keci: 6, domuz: 5, tavsan: 8, ayi: 3, aslan: 3, zurafa: 2,
 	kuzgun: 6, kartal: 2, tavuk: 6,
 });
 
-/** Mobile population — small and spawn-anchored, see this module's own doc comment. Only the two
- * lightest/most-recognizable birds are included (a raven and a chicken); `kartal` (eagle) is skipped
- * on mobile to keep the already-small budget from growing further for a species that reads similarly
- * to `kuzgun` at mobile's short view distance. */
 export const MOBILE_SPECIES_COUNTS = Object.freeze({
 	kedi: 1, kopek: 1, at: 1, geyik: 1, koyun: 2, inek: 1, keci: 1, domuz: 1, tavsan: 1,
 	kuzgun: 1, tavuk: 1,
 });
 
-/**
- * Deterministically scatters `speciesCounts` across a disc centered on `(centerX, centerZ)`, reusing
- * `world/vegetation.js`'s own placement-exclusion rule. A species/count entry that can't place every
- * requested individual within `MAX_ATTEMPTS_PER_CREATURE` attempts each drops the unplaced remainder
- * with a single summarizing `console.warn` (no silent cap — GOVERNANCE.md's "no silent truncation"
- * expectation, same as this module's own doc comment promises).
- */
 export function scatterCreatures({
 	sampleHeightMeters,
 	seaLevelMeters,
@@ -135,7 +222,6 @@ export function scatterCreatures({
 	const rng = mulberry32(seed ^ seedTag);
 	const spawns = [];
 	let spawnIndex = 0;
-
 	for (const [speciesId, count] of Object.entries(speciesCounts)) {
 		let placedForSpecies = 0;
 		for (let i = 0; i < count; i++) {
