@@ -15,6 +15,9 @@
  */
 
 import * as THREE from 'three';
+// Environment bootstrap side effect: decorrelate terrain material breakup before createScene()
+// asks ChunkManager for its first terrain mesh. Height/collider/hydrology remain untouched.
+import './world/terrainAperiodicSurface.js';
 
 /** Exponential-squared falloff (`THREE.FogExp2`) reads more natural than linear fog at this world's
  * scale. Tuned (via a headless-Chromium screenshot check, not just the formula) so nearby terrain
