@@ -62,6 +62,7 @@ const debugToolChecks = require('./game3dSmokeChecksDebugTools.js');
 const checks = require('./game3dSmokeChecks.js');
 const movementChecks = require('./game3dSmokeChecksMovement.js');
 const npcPerceptionChecks = require('./game3dSmokeChecksNpcPerception.js');
+const creatureThreatChecks = require('./game3dSmokeChecksCreatureThreatMemory.js');
 const dragonFlightChecks = require('./game3dSmokeChecksDragonFlight.js');
 const dragonDiveChecks = require('./game3dSmokeChecksDragonDive.js');
 const dragonPursuitChecks = require('./game3dSmokeChecksDragonPursuit.js');
@@ -122,6 +123,7 @@ async function main() {
 		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));
 		results.push(await movementChecks.checkNpcCombatStance(browser, baseUrl));
 		results.push(await npcPerceptionChecks.checkNpcGuardPerception(browser, baseUrl));
+		results.push(await creatureThreatChecks.checkCreatureThreatMemory(browser, baseUrl));
 		results.push(await movementChecks.checkNpcAnimalCreatureObstacleCollider(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonFlight(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonNotice(browser, baseUrl));

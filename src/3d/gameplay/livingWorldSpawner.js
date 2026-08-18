@@ -18,13 +18,71 @@ import { EVENTS, WORLD_DEFAULTS, SETTLEMENT_CONFIG, CHUNK_CONFIG } from '../conf
 import { NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG } from './gameplayConfig.js';
 import { spawnConfiguredNPCs } from './npc.js';
 import { spawnConfiguredAnimals } from './animals.js';
-import { spawnConfiguredCreatures } from './creatureBrain.js';
+import { spawnConfiguredCreatures, CREATURE_BEHAVIOR_PROFILES } from './creatureBrain.js';
 import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS, wrapCreatureWithSimulationLod } from './creatureSpawner.js';
 import { spawnConfiguredCarts } from './cartBrain.js';
 import { mulberry32 } from '../world/terrain.js';
 import { spawnConfiguredDragons } from './dragons.js';
 import { isCoarsePointerDevice } from '../sceneManager.js';
 import { createDynamicCircleCollider } from '../physics.js';
+
+/**
+ * Adds short bounded threat memory around the established creature brain. The inner controller still
+ * owns flee/herd/flight decisions; this adapter only prevents a skittish creature from flipping back
+ * to wander on the first frame it crosses the exact trigger-radius boundary. While memory is active,
+ * an away-reactive species receives a synthetic nearby threat on the last known away heading so the
+ * existing flee branch continues for at most `memorySeconds`, then the real player position resumes.
+ * Friendly approach species are intentionally untouched.
+ */
+export function wrapCreatureWithThreatMemory(creature, {
+	triggerRadiusMeters,
+	reactiveDirection = 'away',
+	memorySeconds = 1.25,
+} = {}) {
+	if (!creature?.object3D || typeof creature.update !== 'function') throw new Error('creature controller contract required');
+	const enabled = reactiveDirection === 'away' && triggerRadiusMeters > 0 && memorySeconds > 0;
+	let memoryRemainingSeconds = 0;
+	let awayX = 0;
+	let awayZ = 1;
+	const telemetry = creature.object3D.userData;
+	telemetry.creatureThreat = Object.freeze({ phase: 'roam', direct: false, memoryRemainingSeconds: 0 });
+	return {
+		object3D: creature.object3D,
+		get isFleeing() { return Boolean(creature.isFleeing || memoryRemainingSeconds > 0); },
+		update(delta, playerPosition, herdmateReactivePositions = []) {
+			const validPlayer = Boolean(playerPosition && Number.isFinite(playerPosition.x) && Number.isFinite(playerPosition.z));
+			const dx = validPlayer ? creature.object3D.position.x - playerPosition.x : 0;
+			const dz = validPlayer ? creature.object3D.position.z - playerPosition.z : 0;
+			const distance = validPlayer ? Math.hypot(dx, dz) : Infinity;
+			const direct = enabled && distance < triggerRadiusMeters;
+			if (direct) {
+				memoryRemainingSeconds = memorySeconds;
+				const safeDistance = Math.max(distance, 1e-6);
+				awayX = dx / safeDistance;
+				awayZ = dz / safeDistance;
+			}
+			let effectivePlayerPosition = playerPosition;
+			let usingMemory = false;
+			if (enabled && !direct && memoryRemainingSeconds > 0) {
+				memoryRemainingSeconds = Math.max(0, memoryRemainingSeconds - Math.max(0, delta));
+				const syntheticDistance = Math.max(0.5, triggerRadiusMeters * 0.5);
+				effectivePlayerPosition = {
+					x: creature.object3D.position.x - awayX * syntheticDistance,
+					z: creature.object3D.position.z - awayZ * syntheticDistance,
+				};
+				usingMemory = true;
+			}
+			creature.update(delta, effectivePlayerPosition, herdmateReactivePositions);
+			const fleeing = Boolean(creature.isFleeing || memoryRemainingSeconds > 0);
+			telemetry.creatureThreat = Object.freeze({
+				phase: fleeing ? (usingMemory ? 'recover' : 'flee') : 'roam',
+				direct,
+				memoryRemainingSeconds: Number(memoryRemainingSeconds.toFixed(3)),
+			});
+		},
+		dispose() { creature.dispose?.(); },
+	};
+}
 
 /**
  * Spawns NPCs, animals, procedural creatures, carts, and dragons into `state.scene`, storing the
@@ -72,8 +130,9 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 	console.info(`[game3d] Spawned ${state.animals.length} FAZ 6 animal(s).`);
 
 	// Procedural creature population. Placement and habitat rules remain in creatureSpawner.js;
-	// creatureBrain.js remains the behavior owner. The returned controllers are wrapped in deterministic
-	// behavior LOD: near/threatened fauna stays full-rate while far/distant fauna uses staggered 4Hz/1Hz.
+	// creatureBrain.js remains the behavior owner. Away-reactive wildlife gets a short boundary-memory
+	// adapter before deterministic behavior LOD, so flee remains urgent while the animal clears the
+	// trigger edge instead of flickering between flee and wander.
 	const isMobileClassCreatures = isCoarsePointerDevice();
 	const creatureScatterRadiusMeters = (isMobileClassCreatures ? CHUNK_CONFIG.STREAM_RADIUS_CHUNKS : CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS) * CHUNK_CONFIG.CHUNK_SIZE_METERS;
 	const creatureSpawns = scatterCreatures({
@@ -90,16 +149,25 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 		speciesCounts: isMobileClassCreatures ? MOBILE_SPECIES_COUNTS : DESKTOP_SPECIES_COUNTS,
 	});
 	const rawCreatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, playerCollider: state.playerCollider, mulberry32 });
-	state.creatures = rawCreatures.map((creature, index) => wrapCreatureWithSimulationLod(creature, {
-		id: `${creatureSpawns[index]?.speciesId ?? 'creature'}:${index}`,
-		nearRadiusMeters: 70,
-		farIntervalSeconds: 0.25,
-		distantRadiusMeters: 180,
-		distantIntervalSeconds: 1,
-		maxStepSeconds: 0.25,
-	}));
+	state.creatures = rawCreatures.map((creature, index) => {
+		const speciesId = creatureSpawns[index]?.speciesId;
+		const profile = CREATURE_BEHAVIOR_PROFILES[speciesId];
+		const threatAwareCreature = wrapCreatureWithThreatMemory(creature, {
+			triggerRadiusMeters: profile?.reactiveTriggerRadiusMeters ?? 0,
+			reactiveDirection: profile?.reactiveDirection,
+			memorySeconds: 1.25,
+		});
+		return wrapCreatureWithSimulationLod(threatAwareCreature, {
+			id: `${speciesId ?? 'creature'}:${index}`,
+			nearRadiusMeters: 70,
+			farIntervalSeconds: 0.25,
+			distantRadiusMeters: 180,
+			distantIntervalSeconds: 1,
+			maxStepSeconds: 0.25,
+		});
+	});
 	for (const creature of state.creatures) state.scene.add(creature.object3D);
-	console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s) with behavior LOD.`);
+	console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s) with threat memory + behavior LOD.`);
 
 	state.carts = isMobileClassCreatures ? [] : spawnConfiguredCarts({ roadEdges: state.roadEdges, mulberry32 });
 	for (const cart of state.carts) state.scene.add(cart.object3D);
