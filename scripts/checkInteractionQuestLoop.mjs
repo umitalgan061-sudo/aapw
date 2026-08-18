@@ -23,6 +23,7 @@ const EMPTY_LEDGER = {
 		'dragonstone-whetstone': 0,
 		'dragonstone-watch-ration-allotment': 0,
 	},
+	recentTransactions: [],
 };
 const FULL_QUARTERMASTER_ECONOMY = {
 	copper: 40,
@@ -126,4 +127,4 @@ tampered.quests[0].objectives.push({ id: 'future-objective', completed: true });
 restored.restoreRpgSnapshot(tampered);
 assert.equal(restored.getQuestSnapshot()[0].objectives.length, 1);
 
-console.log('[checkInteractionQuestLoop] PASS: quest chain -> objective XP -> level/reputation gate -> world outcome -> schema v5 ledger-aware migration');
+console.log('[checkInteractionQuestLoop] PASS: quest chain -> objective XP -> level/reputation gate -> world outcome -> schema v5 ledger/receipt-aware migration');
