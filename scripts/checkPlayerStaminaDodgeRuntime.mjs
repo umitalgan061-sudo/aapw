@@ -27,7 +27,14 @@ const latest = () => page.evaluate(() => structuredClone(window.__playerMotionFr
 const history = () => page.evaluate(() => structuredClone(window.__playerMotionFrames ?? []));
 const distance = (a, b) => Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z);
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-const readVitals = () => page.evaluate(() => ({ state: document.querySelector('.g3d-stamina-bar')?.dataset.state, now: document.querySelector('.g3d-stamina-bar')?.getAttribute('aria-valuenow'), label: document.querySelector('.g3d-stamina-bar')?.getAttribute('aria-label') }));
+const readVitals = () => page.evaluate(() => ({
+  staminaState: document.querySelector('.g3d-stamina-bar')?.dataset.state,
+  staminaNow: document.querySelector('.g3d-stamina-bar')?.getAttribute('aria-valuenow'),
+  staminaLabel: document.querySelector('.g3d-stamina-bar')?.getAttribute('aria-label'),
+  poiseState: document.querySelector('.g3d-poise-bar')?.dataset.state,
+  poiseNow: document.querySelector('.g3d-poise-bar')?.getAttribute('aria-valuenow'),
+  poiseLabel: document.querySelector('.g3d-poise-bar')?.getAttribute('aria-label'),
+}));
 const readHealth = () => page.evaluate(() => Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuenow')));
 async function emitPlayerDamage(amount, sourceId) {
   await page.evaluate(async ({ amount: value, source }) => {
@@ -58,7 +65,7 @@ async function waitForHistoryEvidence(findEvidence, { timeout = 5000, interval =
 const waitState = (state, timeout = 5000) => waitForHistoryEvidence((frames) => frames.at(-1)?.state === state ? frames.at(-1) : null, { timeout, interval: 100, label: `latest state=${state}` });
 async function waitVitalsState(state, timeout = 3000) {
   const deadline = Date.now() + timeout; let last = null;
-  while (Date.now() < deadline) { last = await readVitals(); if (last.state === state) return last; await sleep(100); }
+  while (Date.now() < deadline) { last = await readVitals(); if (last.staminaState === state) return last; await sleep(100); }
   throw new Error(`[player-stamina-dodge-runtime] timed out waiting for HUD state=${state}; last=${JSON.stringify(last)}`);
 }
 function findSprintEvidence(frames) {
@@ -73,14 +80,14 @@ try {
   await waitForHistoryEvidence((frames) => frames.length > 0 ? frames.at(-1) : null, { timeout: 15000, label: 'first player motion frame' });
   const baseline = await latest();
   need(baseline.state === 'idle', `expected idle baseline, got ${baseline.state}`);
-  need(baseline.stamina === 100 && baseline.isGrounded && baseline.canDodge, `bad baseline ${JSON.stringify(baseline)}`);
+  need(baseline.stamina === 100 && baseline.poise === 100 && baseline.isGrounded && baseline.canDodge, `bad baseline ${JSON.stringify(baseline)}`);
 
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
   await page.keyboard.down('KeyW'); await page.keyboard.down('ShiftLeft'); await waitState('sprint');
   const [sprintA, sprintB] = await waitForHistoryEvidence(findSprintEvidence, { timeout: 5000, interval: 100, label: 'sprint speed, stamina drain and >1.5m displacement' });
   need(sprintB.stamina < sprintA.stamina, 'sprint telemetry/drain missing'); need(distance(sprintA, sprintB) > 1.5 && sprintB.speedMps > 6, 'sprint displacement/speed too low');
   const beforeRunJumpDodge = await latest(); await page.keyboard.press('Space'); await waitState('dodge', 4000);
-  const vitals = await waitVitalsState('dodge', 3000); need(vitals.label === 'Dayanıklılık' && vitals.now, `HUD not synchronized ${JSON.stringify(vitals)}`);
+  const vitals = await waitVitalsState('dodge', 3000); need(vitals.staminaLabel === 'Dayanıklılık' && vitals.staminaNow && vitals.poiseLabel === 'Denge' && vitals.poiseNow, `HUD not synchronized ${JSON.stringify(vitals)}`);
   const runJumpDodge = await waitForHistoryEvidence((frames) => [...frames].reverse().find((candidate) => candidate?.state === 'dodge' && candidate.isGrounded && Math.hypot(candidate.position.x - beforeRunJumpDodge.position.x, candidate.position.z - beforeRunJumpDodge.position.z) > 0.3) ?? null, { timeout: 4000, interval: 100, label: 'grounded run+jump dodge displacement' });
   need(beforeRunJumpDodge.stamina - runJumpDodge.stamina >= 27.5, 'run+jump dodge stamina cost missing'); need(runJumpDodge.isGrounded && !runJumpDodge.canDodge, 'run+jump dodge must remain grounded and enter cooldown');
   await page.keyboard.up('ShiftLeft'); await waitState('walk', 4500); await sleep(700); await page.evaluate(() => { window.__playerMotionFrames.length = 0; }); await page.keyboard.press('Space');
@@ -89,9 +96,6 @@ try {
   await page.keyboard.up('KeyW'); await waitState('idle', 6000); const recoveryStart = await latest();
   const recoveryEnd = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'idle' && frame.stamina > recoveryStart.stamina ? frame : null; }, { timeout: 6000, interval: 100, label: 'idle stamina recovery after regen delay' });
 
-  // The shipped world can render at only a few headless ticks while terrain/assets settle. Keep the
-  // production 160ms simulation-time parry window authoritative and wait for that real timer to
-  // reach zero rather than replacing it with a wall-clock sleep.
   await page.keyboard.down('KeyQ');
   const guardReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'held guard after simulation-time parry window' });
   const guardHealthBefore = await readHealth();
@@ -99,12 +103,9 @@ try {
   const guardImpact = await waitForHistoryEvidence((frames) => [...frames].reverse().find((frame) => frame?.defenseResult === 'guard') ?? null, { timeout: 4000, interval: 50, label: 'guard damage mitigation telemetry' });
   const guardHealthAfter = await readHealth();
   need(guardHealthBefore - guardHealthAfter === 8, `guard should reduce 20 damage to 8, got health ${guardHealthBefore} -> ${guardHealthAfter}`);
-  need(guardImpact.stamina < guardReady.stamina, 'guard must spend stamina on impact/drain');
+  need(guardImpact.stamina < guardReady.stamina && guardImpact.poise < guardReady.poise, 'guard impact must spend stamina and poise');
   await page.keyboard.up('KeyQ'); await waitState('idle', 6000);
 
-  // Arm the damage source before the key press and fire it synchronously from the first telemetry
-  // event that proves the 160ms simulation-time parry window is actually open. This avoids a
-  // Node->browser round-trip consuming the real production window after it has already been observed.
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
   const parryHealthBefore = await readHealth();
   await armDamageOnActiveParry(20, 'parry-proof');
@@ -115,8 +116,29 @@ try {
   const parryHealthAfter = await readHealth();
   need(parryProof?.triggered && parryProof.frame?.parryWindowRemaining > 0, `parry damage must fire inside active window ${JSON.stringify(parryProof)}`);
   need(parryHealthAfter === parryHealthBefore, `parry must negate damage, got health ${parryHealthBefore} -> ${parryHealthAfter}`);
-  need(parryReady.stamina - parryImpact.stamina >= 7.5, 'parry stamina cost missing');
+  need(parryReady.stamina - parryImpact.stamina >= 7.5 && parryImpact.poise === parryReady.poise, 'parry must cost stamina without poise damage');
   await page.keyboard.up('KeyQ'); await waitState('idle', 6000);
+
+  // Apply a bounded pressure sequence through the same real EventBus. Each guarded 20-point hit
+  // removes 17.5 poise, so six hits must break 100 poise without bypassing ordinary mitigation.
+  await page.keyboard.down('KeyQ');
+  await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'guard ready for poise pressure' });
+  const breakHealthBefore = await readHealth();
+  let breakFrame = null;
+  for (let hit = 0; hit < 6; hit += 1) {
+    await emitPlayerDamage(20, `poise-break-${hit}`);
+    breakFrame = await waitForHistoryEvidence((frames) => [...frames].reverse().find((frame) => frame?.defenseResult === 'guard-break' || frame?.state === 'guard-break') ?? null, { timeout: hit === 5 ? 4000 : 700, interval: 40, label: `poise pressure hit ${hit + 1}` }).catch(() => null);
+    if (breakFrame) break;
+  }
+  need(breakFrame?.state === 'guard-break' && breakFrame.poise === 0 && breakFrame.guardBreakRemaining > 0, `guard break missing ${JSON.stringify(breakFrame)}`);
+  need(!breakFrame.guarding && !breakFrame.canDodge, 'guard break must lock guard/dodge');
+  const breakVitals = await readVitals();
+  need(breakVitals.poiseState === 'guard-break' && breakVitals.poiseLabel === 'Denge', `poise HUD must show break ${JSON.stringify(breakVitals)}`);
+  const breakHealthAfter = await readHealth();
+  need(breakHealthBefore - breakHealthAfter >= 40, 'pressure sequence must use real mitigated damage, not synthetic poise-only mutation');
+  await page.keyboard.up('KeyQ');
+  const recoveredPoise = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.guardBreakRemaining === 0 && frame.poise > 0 && frame.state !== 'guard-break' ? frame : null; }, { timeout: 10000, interval: 100, label: 'guard-break recovery and poise regeneration' });
+  need(recoveredPoise.poise > 0 && recoveredPoise.canDodge, 'poise recovery must restore locomotion eligibility');
 
   const canvas = page.locator('#game3d-canvas');
   const canvasBox = await canvas.boundingBox();
@@ -126,12 +148,13 @@ try {
   fs.writeFileSync(path.join(outDir, 'player-runtime.png'), canvasPng);
   fs.writeFileSync(path.join(outDir, 'metrics.json'), `${JSON.stringify({
     baseline, sprintA, sprintB, beforeRunJumpDodge, runJumpDodge, airborneFrames: airborneFrames.slice(0, 8), recoveryStart, recoveryEnd, vitals,
-    guard: { ready: guardReady, impact: guardImpact, healthBefore: guardHealthBefore, healthAfter: guardHealthAfter, rawDamage: 20, appliedDamage: guardHealthBefore - guardHealthAfter },
-    parry: { ready: parryReady, impact: parryImpact, trigger: parryProof?.frame ?? null, healthBefore: parryHealthBefore, healthAfter: parryHealthAfter, rawDamage: 20, appliedDamage: parryHealthBefore - parryHealthAfter },
+    guard: { ready: guardReady, impact: guardImpact, healthBefore: guardHealthBefore, healthAfter: guardHealthAfter },
+    parry: { ready: parryReady, impact: parryImpact, trigger: parryProof?.frame ?? null, healthBefore: parryHealthBefore, healthAfter: parryHealthAfter },
+    poise: { break: breakFrame, recovered: recoveredPoise, healthBefore: breakHealthBefore, healthAfter: breakHealthAfter, hud: breakVitals },
     canvas: { width: canvasBox.width, height: canvasBox.height, pngBytes: canvasPng.length }, browserErrors: errors,
   }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
-  console.log('PLAYER_STAMINA_DODGE_GUARD_PARRY_RUNTIME_OK');
+  console.log('PLAYER_STAMINA_DODGE_GUARD_PARRY_POISE_RUNTIME_OK');
 } catch (error) {
   const frames = await history().catch(() => []);
   fs.writeFileSync(path.join(outDir, 'failure.json'), `${JSON.stringify({ error: String(error?.stack ?? error), browserErrors: errors, recentFrames: frames.slice(-50) }, null, 2)}\n`);
