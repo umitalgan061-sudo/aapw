@@ -23,6 +23,16 @@ assert.deepEqual(rationServiceOffer.fulfillment, {
 	kind: 'settlement-service',
 	serviceId: 'dragonstone-watch-ration-prep',
 	label: 'Erzak hazırlama',
+	stationId: 'dragonstone-ration-prep-table',
+	discipline: 'provisioning',
+	craftUpgrade: {
+		recipeId: 'dragonstone-watch-travel-ration-pack',
+		inputItemId: 'dragonstone-field-ration',
+		inputQuantity: 2,
+		outputItemId: 'dragonstone-travel-ration-pack',
+		outputQuantity: 1,
+		label: '2 saha azığını 1 yol azığı paketine hazırla',
+	},
 });
 
 const vendorInventory = createInteractionInventoryState();
@@ -71,6 +81,7 @@ const rationEconomy = createInteractionEconomyState();
 const before = structuredClone(rationEconomy.snapshot());
 result = rationEconomy.purchase(rationServiceOffer, (...args) => rationInventory.grant(...args));
 assert.equal(result.ok, true);
+assert.equal(result.crafted, false, 'ration service without two carried inputs must preserve legacy one-ration fulfillment');
 assert.equal(result.spentCopper, 5);
 assert.equal(result.balanceCopper, 35);
 assert.equal(result.remainingStock, 0);
@@ -102,4 +113,4 @@ const restored = createInteractionEconomyState();
 restored.restore(after);
 assert.deepEqual(restored.snapshot(), after, 'ration settlement service ledger/stock must survive save restore');
 
-console.log('PASS checkInteractionSettlementServiceContract: vendor provenance stays vendor, armorer honing and ration prep use canonical settlement-service provenance, and finite service state persists.');
+console.log('PASS checkInteractionSettlementServiceContract: vendor provenance stays vendor, armorer honing and ration prep retain canonical settlement-service behavior, provisioning metadata is explicit, and finite service state persists.');
