@@ -112,14 +112,56 @@ try {
 		restored.dialogueBox.dispose();
 		restored.host.remove();
 
-		return { shopOpened, purchased, purchaseUx, callbacks, persisted, expectedBalance, transactions: roundTrip.economy.ledger.transactionCount, lifetimeSpentCopper: roundTrip.economy.ledger.lifetimeSpentCopper, purchaseCount: roundTrip.economy.ledger.purchasesByOffer[purchasedOffer.id], receiptSequence: restoredReceipt?.sequence };
+		const legacy = makeRuntime();
+		const legacySnapshot = structuredClone(saved);
+		delete legacySnapshot.economy.ledger;
+		legacy.controller.restoreRpgSnapshot(legacySnapshot);
+		const inferred = legacy.controller.getRpgSnapshot();
+		legacy.controller.handleKeyDown({ code: 'KeyB', repeat: false });
+		const inferredText = legacy.dialogueBox._textEl.textContent;
+		const inferredWithoutReceipt = inferred.economy.ledger.transactionCount === 1
+			&& inferred.economy.ledger.lifetimeSpentCopper === purchasedOffer.priceCopper
+			&& inferred.economy.ledger.purchasesByOffer[purchasedOffer.id] === 1
+			&& inferred.economy.ledger.recentTransactions.length === 0
+			&& inferredText.includes('Alışveriş defteri: 1 işlem · 6 bakır harcandı')
+			&& inferredText.includes('aldın 1')
+			&& !inferredText.includes('Son işlem:');
+		const resumedOffer = QUARTERMASTER_OFFERS[1];
+		legacy.controller.handleKeyDown({ code: 'Digit2', repeat: false });
+		const resumed = legacy.controller.getRpgSnapshot();
+		const resumedReceipt = resumed.economy.ledger.recentTransactions.at(-1);
+		const legacyMigration = inferredWithoutReceipt
+			&& resumed.economy.ledger.transactionCount === 2
+			&& resumed.economy.ledger.lifetimeSpentCopper === purchasedOffer.priceCopper + resumedOffer.priceCopper
+			&& resumed.economy.ledger.purchasesByOffer[resumedOffer.id] === 1
+			&& resumedReceipt?.sequence === 2
+			&& resumedReceipt?.offerId === resumedOffer.id
+			&& legacy.dialogueBox._textEl.textContent.includes(`Son işlem: #2 ${resumedOffer.label}`);
+		legacy.controller.handleKeyDown({ code: 'KeyB', repeat: false });
+		legacy.dialogueBox.dispose();
+		legacy.host.remove();
+
+		return {
+			shopOpened,
+			purchased,
+			purchaseUx,
+			callbacks,
+			persisted,
+			legacyMigration,
+			expectedBalance,
+			transactions: roundTrip.economy.ledger.transactionCount,
+			lifetimeSpentCopper: roundTrip.economy.ledger.lifetimeSpentCopper,
+			purchaseCount: roundTrip.economy.ledger.purchasesByOffer[purchasedOffer.id],
+			receiptSequence: restoredReceipt?.sequence,
+			legacyResumedSequence: resumedReceipt?.sequence,
+		};
 	});
 
 	if (pageErrors.length || consoleErrors.length) fail('Browser emitted page/console errors during quartermaster acceptance', { pageErrors, consoleErrors });
-	for (const key of ['shopOpened', 'purchased', 'purchaseUx', 'callbacks', 'persisted']) if (!result[key]) fail(`Quartermaster browser assertion failed: ${key}`, result);
+	for (const key of ['shopOpened', 'purchased', 'purchaseUx', 'callbacks', 'persisted', 'legacyMigration']) if (!result[key]) fail(`Quartermaster browser assertion failed: ${key}`, result);
 
-	console.log('[RPG Chromium] PASS: game3d.html quartermaster B→Digit1 purchase→ledger receipt→save/load→reopen UX');
-	console.log(`[RPG Chromium] balance=${result.expectedBalance}, transactions=${result.transactions}, lifetimeSpent=${result.lifetimeSpentCopper}, purchaseCount=${result.purchaseCount}, receipt=#${result.receiptSequence}`);
+	console.log('[RPG Chromium] PASS: game3d.html quartermaster B→Digit1 purchase→ledger receipt→save/load→reopen UX + stock-aware legacy inference');
+	console.log(`[RPG Chromium] balance=${result.expectedBalance}, transactions=${result.transactions}, lifetimeSpent=${result.lifetimeSpentCopper}, purchaseCount=${result.purchaseCount}, receipt=#${result.receiptSequence}, legacy-resumed=#${result.legacyResumedSequence}`);
 	console.log('[RPG Chromium] page errors=0, console errors=0');
 } finally {
 	await page.close();
