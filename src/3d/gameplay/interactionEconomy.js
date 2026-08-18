@@ -234,32 +234,6 @@ export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMAS
 	return lines.join('\n');
 }
 
-export function buildTradeLedgerText(economySnapshot = {}, offers = QUARTERMASTER_OFFERS) {
-	const balance = Math.max(0, Math.floor(Number(economySnapshot.copper) || 0));
-	const ledger = economySnapshot.ledger && typeof economySnapshot.ledger === 'object' && !Array.isArray(economySnapshot.ledger)
-		? economySnapshot.ledger
-		: null;
-	const transactionCount = Math.max(0, Math.floor(Number(ledger?.transactionCount) || 0));
-	const lifetimeSpentCopper = Math.max(0, Math.floor(Number(ledger?.lifetimeSpentCopper) || 0));
-	const lines = ['Dragonstone Alışveriş Defteri', `Kese: ${balance} bakır`, `Toplam: ${transactionCount} işlem · ${lifetimeSpentCopper} bakır harcandı`];
-	const recentTransactions = Array.isArray(ledger?.recentTransactions) ? ledger.recentTransactions : [];
-	const visible = recentTransactions
-		.map((receipt) => ({ receipt, offer: offers.find((candidate) => candidate.id === receipt?.offerId) }))
-		.filter(({ receipt, offer }) => offer && Number(receipt?.sequence) > 0)
-		.slice(-RECENT_TRANSACTION_LIMIT)
-		.reverse();
-	if (visible.length === 0) return [...lines, 'Henüz kayıtlı alışveriş yok.'].join('\n');
-	lines.push(`Son ${visible.length} işlem:`);
-	for (const { receipt, offer } of visible) {
-		const sequence = Math.max(1, Math.floor(Number(receipt.sequence) || 1));
-		const quantity = Math.max(1, Math.floor(Number(receipt.quantity) || Number(offer.quantity) || 1));
-		const spent = Math.max(0, Math.floor(Number(receipt.spentCopper) || 0));
-		const receiptBalance = Math.max(0, Math.floor(Number(receipt.balanceCopper) || 0));
-		lines.push(`#${sequence} · ${offer.label} x${quantity} · ${spent} bakır · bakiye ${receiptBalance}`);
-	}
-	return lines.join('\n');
-}
-
 function stockLimitForText(offer) {
 	return Math.max(0, Math.floor(Number(offer?.stockLimit) || 0));
 }
