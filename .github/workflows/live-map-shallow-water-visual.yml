@@ -7,9 +7,13 @@ on:
     branches: [main]
     paths:
       - 'src/3d/world/water.js'
+      - 'src/3d/world/waterDepthField.js'
       - 'scripts/checkWaterSurfVisualContract.mjs'
+      - 'scripts/checkWorldWaterCoverageP0.mjs'
       - 'scripts/captureLiveWorldWaterTopdown.mjs'
       - '.github/workflows/live-map-shallow-water-visual.yml'
+      - '.github/workflows/full-world-runtime-coverage.yml'
+      - '.github/workflows/world-environment-acceptance.yml'
   workflow_dispatch:
 
 permissions: { contents: read }
@@ -31,7 +35,7 @@ jobs:
           ref: '${{ github.event.pull_request.head.sha || github.sha }}'
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Exact-main four-file scope and quota
+      - name: Exact-main bounded water scope and quota
         run: |
           set -euo pipefail
           git fetch origin main
@@ -40,18 +44,23 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ec '^(src/3d/world/water.js|scripts/checkWaterSurfVisualContract.mjs)$')" -eq 2
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          echo "$CHANGED" | grep -Fx 'src/3d/world/water.js'
+          echo "$CHANGED" | grep -Fx 'src/3d/world/waterDepthField.js'
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "shallow-water visual quota additions=$A deletions=$D total=$((A+D))"
           test $((A+D)) -le 1000
-          git diff --quiet "$BASE_SHA"...HEAD -- src/3d/world/waterDepthField.js src/3d/config.js
-      - name: Static shader contract
+      - name: Static shader and coverage contract
         run: |
           set -euo pipefail
           node --check src/3d/world/water.js
+          node --check src/3d/world/waterDepthField.js
           node --check scripts/checkWaterSurfVisualContract.mjs
+          node --check scripts/checkWorldWaterCoverageP0.mjs
           node --check scripts/captureLiveWorldWaterTopdown.mjs
+          node scripts/checkWorldWaterCoverageP0.mjs
           node scripts/checkWaterSurfVisualContract.mjs
       - name: Hydrate scoped smoke-test LFS assets
         run: |
