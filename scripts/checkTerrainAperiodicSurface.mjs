@@ -44,7 +44,6 @@ gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 void main() {
 vec4 diffuseColor = vec4(1.0);
 float roughnessFactor = 1.0;
-vec3 normal = vec3(0.0, 1.0, 0.0);
 #include <color_fragment>
 #include <roughnessmap_fragment>
 gl_FragColor = diffuseColor;
@@ -57,8 +56,8 @@ assert(shader.fragmentShader.includes('aapwTerrainSignal'));
 assert(shader.fragmentShader.includes(`worldXZ / ${policy.macroScaleMeters.toFixed(1)}`));
 assert(shader.fragmentShader.includes(`rotated / ${policy.mesoScaleMeters.toFixed(1)}`));
 assert(shader.fragmentShader.includes(`skewed / ${policy.fineScaleMeters.toFixed(1)}`));
-assert(shader.fragmentShader.includes('aapwSlope'));
 assert(shader.fragmentShader.includes('roughnessFactor = clamp'));
+assert(shader.fragmentShader.includes('diffuseColor.rgb *= clamp'));
 assert(shader.fragmentShader.includes(`smoothstep(${policy.fadeStartMeters.toFixed(1)}, ${policy.maxDistanceMeters.toFixed(1)}`));
 assert(!shader.fragmentShader.includes('sin('), 'aperiodic breakup should use value noise, not obvious sinusoidal bands');
 assert(!shader.fragmentShader.includes('cos('), 'aperiodic breakup should use value noise, not obvious sinusoidal bands');
