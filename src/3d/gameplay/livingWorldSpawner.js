@@ -19,7 +19,7 @@ import { NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG } from './gameplayConfig.js';
 import { spawnConfiguredNPCs } from './npc.js';
 import { spawnConfiguredAnimals } from './animals.js';
 import { spawnConfiguredCreatures } from './creatureBrain.js';
-import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS } from './creatureSpawner.js';
+import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS, wrapCreatureWithSimulationLod } from './creatureSpawner.js';
 import { spawnConfiguredCarts } from './cartBrain.js';
 import { mulberry32 } from '../world/terrain.js';
 import { spawnConfiguredDragons } from './dragons.js';
@@ -44,16 +44,7 @@ import { createDynamicCircleCollider } from '../physics.js';
  * @returns {Promise<void>}
  */
 export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsBus }) {
-	// FAZ 5/6: NPCs and wild animals at kingdom-seat settlements. Loaded after the player (same
-	// "keep the loading overlay up for every character download" reasoning as the player itself).
-	// Spawn resolution itself (seat lookup, patrol-waypoint construction, per-spawn model loading)
-	// lives in `gameplay/npc.js`'s `spawnConfiguredNPCs` / `gameplay/animals.js`'s
-	// `spawnConfiguredAnimals` (run 29, DECISIONS.md ADR-0028) — moved out of `game3d.js` to keep it
-	// under the project's 600-line cap and let each gameplay system own its own spawn wiring.
 	const seatsById = new Map(state.settlementSeats.map((seat) => [seat.id, seat]));
-	// Same sea-level-clamp convention world/settlements.js's own placement uses (see
-	// world/README.md's "Sea level" convention), so a spawned character never ends up sitting
-	// below the water plane if an offset happens to land somewhere lower than the keep itself.
 	const sampleClampedGroundY = (worldX, worldZ) => Math.max(
 		state.groundCollider.getGroundHeight(worldX, worldZ),
 		WORLD_DEFAULTS.WATER_LEVEL_METERS + SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
@@ -80,13 +71,9 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 	for (const animal of state.animals) state.scene.add(animal.object3D);
 	console.info(`[game3d] Spawned ${state.animals.length} FAZ 6 animal(s).`);
 
-	// Procedural creature population (`gameplay/creatureBrain.js`/`creatureSpawner.js`, run 329) —
-	// wires run 326/327's dormant procedural rigs (`creatureRig.js`/`creatureGait.js`) into a live
-	// wander/flee tick for the first time (ADR-0273's declared next step). Desktop scatters
-	// `DESKTOP_SPECIES_COUNTS` across the same origin-centered disc `state.vegetation` already
-	// scatters trees over; mobile gets the much smaller `MOBILE_SPECIES_COUNTS`, anchored at
-	// `spawnWorld` like `game3d.js`'s own mobile spawn vegetation, for the same
-	// world-coverage-footprint reason.
+	// Procedural creature population. Placement and habitat rules remain in creatureSpawner.js;
+	// creatureBrain.js remains the behavior owner. The returned controllers are wrapped in deterministic
+	// behavior LOD: near/threatened fauna stays full-rate while far/distant fauna uses staggered 4Hz/1Hz.
 	const isMobileClassCreatures = isCoarsePointerDevice();
 	const creatureScatterRadiusMeters = (isMobileClassCreatures ? CHUNK_CONFIG.STREAM_RADIUS_CHUNKS : CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS) * CHUNK_CONFIG.CHUNK_SIZE_METERS;
 	const creatureSpawns = scatterCreatures({
@@ -95,54 +82,41 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 		seats: state.settlementSeats,
 		roadEdges: state.roadEdges,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
-		seedTag: isMobileClassCreatures ? 0x4352544d : 0x43524554, // "CRTM"/"CRET"-ish tags
+		seedTag: isMobileClassCreatures ? 0x4352544d : 0x43524554,
 		mulberry32,
 		centerX: isMobileClassCreatures ? spawnWorld.x : 0,
 		centerZ: isMobileClassCreatures ? spawnWorld.z : 0,
 		radiusMeters: creatureScatterRadiusMeters,
 		speciesCounts: isMobileClassCreatures ? MOBILE_SPECIES_COUNTS : DESKTOP_SPECIES_COUNTS,
 	});
-	state.creatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, playerCollider: state.playerCollider, mulberry32 });
+	const rawCreatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, playerCollider: state.playerCollider, mulberry32 });
+	state.creatures = rawCreatures.map((creature, index) => wrapCreatureWithSimulationLod(creature, {
+		id: `${creatureSpawns[index]?.speciesId ?? 'creature'}:${index}`,
+		nearRadiusMeters: 70,
+		farIntervalSeconds: 0.25,
+		distantRadiusMeters: 180,
+		distantIntervalSeconds: 1,
+		maxStepSeconds: 0.25,
+	}));
 	for (const creature of state.creatures) state.scene.add(creature.object3D);
-	console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s).`);
+	console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s) with behavior LOD.`);
 
-	// FAZ 6's last named gap (`gameplay/cartBrain.js`, run 336) — horse-drawn carts travelling the
-	// real cart-road network back and forth, longest edges first. Desktop-only for now (see that
-	// module's own `spawnConfiguredCarts` doc comment for why mobile's small streamed radius makes a
-	// full-map-scale road edge a poor fit today).
 	state.carts = isMobileClassCreatures ? [] : spawnConfiguredCarts({ roadEdges: state.roadEdges, mulberry32 });
 	for (const cart of state.carts) state.scene.add(cart.object3D);
 	console.info(`[game3d] Spawned ${state.carts.length} FAZ 6 cart(s).`);
-
-	// Run 337: closes the "no player-cart collision" gap `QUESTIONS_FOR_OWNER.md`'s run-336 cart
-	// entry named. `state.playerCollider` is `sceneManager.js`'s already-built, already-in-use
-	// castle+village `createComposedCollider` — carts don't exist yet when that object is
-	// constructed, so this registers a live, position-re-querying collider onto it after the fact
-	// (`registerDynamicCollider`) rather than needing `sceneManager.js` itself to know about carts.
-	// A no-op on mobile (`state.carts` is empty there, so there is nothing to register) — matches
-	// `spawnConfiguredCarts`'s own desktop-only scope, no separate guard needed.
 	if (state.carts.length > 0 && typeof state.playerCollider?.registerDynamicCollider === 'function') {
 		state.playerCollider.registerDynamicCollider(
 			createDynamicCircleCollider(() => state.carts.map((cart) => cart.getCollisionCircle())),
 		);
 	}
 
-	// FAZ 7 (run 53): first dragon, circling a kingdom seat at a fixed altitude — see
-	// `gameplay/dragons.js` and DECISIONS.md ADR-0071. Same spawn-wiring shape as NPCs/animals
-	// above; altitude is ground-height-relative, not absolute, so `sampleClampedGroundY` is reused
-	// even though a flying creature never touches the ground itself.
 	state.dragons = await spawnConfiguredDragons({
 		assetLoader,
 		dragonConfig: DRAGON_CONFIG,
 		seatsById,
 		sampleGroundY: sampleClampedGroundY,
-		// Player-awareness (run 54, ADR-0072): reuses the same EventBus + toast UI
-		// `gameplay/worldEvents.js`'s ambient flavor events already fire through.
 		eventsBus,
 		eventName: EVENTS.WORLD_EVENT_TRIGGERED,
-		// FAZ 7 dragon combat (run 90, DECISIONS.md ADR-0116) — shared across every spawn the same
-		// way `eventName` is; only `DRAGON_CONFIG.SPAWNS[0]` actually configures `biteDamage`, so
-		// this alone doesn't activate biting for a future spawn that doesn't opt in.
 		biteEventName: EVENTS.PLAYER_DAMAGED,
 	});
 	for (const dragon of state.dragons) state.scene.add(dragon.object3D);
