@@ -53,7 +53,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			summitFloor: 0.65,
 			seed: 11,
 			passes: Object.freeze([
-				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.015, outerRadiusNormalized: 0.050, minimumMultiplier: 0.02, corridorEnd: [0.174, 0.275], corridorInnerRadiusNormalized: 0.008, corridorOuterRadiusNormalized: 0.022 }),
+				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.015, outerRadiusNormalized: 0.050, minimumMultiplier: 0.02, corridorEnd: [0.169444, 0.250], corridorInnerRadiusNormalized: 0.008, corridorOuterRadiusNormalized: 0.022 }),
 				Object.freeze({ id: 'vale-south-approach', center: [0.233, 0.467], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.055, minimumMultiplier: 0.02 }),
 			]),
 		}),
