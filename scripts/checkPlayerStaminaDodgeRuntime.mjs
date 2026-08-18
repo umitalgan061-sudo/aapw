@@ -55,11 +55,13 @@ async function emitMeasuredPlayerDamageBurst(amount, count, sourcePrefix) {
         const before = Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuenow'));
         const healthMarker = healthChanges.length;
         const deathMarker = deaths.length;
-        gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: value, sourceId: `${prefix}-${index}` });
+        const damagePayload = { amount: value, sourceId: `${prefix}-${index}` };
+        gameEvents.emit(EVENTS.PLAYER_DAMAGED, damagePayload);
         hits.push({
           index,
           before,
           after: Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuenow')),
+          damage: structuredClone(damagePayload),
           healthChanges: healthChanges.slice(healthMarker).map((entry) => structuredClone(entry)),
           died: deaths.length > deathMarker,
         });
@@ -165,9 +167,9 @@ try {
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
 
   // Each real 20-point guarded hit blocks 12 damage, spends 4.2 stamina and removes 15 poise.
-  // Emit all seven through the shipped EventBus in one browser task. Per-hit health-change capture
-  // makes the proof robust to the shipped synchronous death->respawn reset if ambient world damage
-  // has already lowered health before this isolated combat burst.
+  // Emit all seven through the shipped EventBus in one browser task. Capture the same mutable
+  // PLAYER_DAMAGED payload after dispatch so guard mitigation is proven independently from the
+  // health floor and shipped synchronous death->respawn reset.
   await page.keyboard.down('KeyQ');
   const pressureReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'guard ready for poise pressure' });
   need(pressureReady.stamina >= 35 && pressureReady.poise >= 99.5, `poise pressure must start with the measured seven-hit resource budget ${JSON.stringify(pressureReady)}`);
@@ -191,20 +193,31 @@ try {
   need(breakVitals.poiseState === 'guard-break' && breakVitals.poiseLabel === 'Denge', `poise HUD must show break ${JSON.stringify(breakVitals)}`);
   const breakHealthAfter = await readHealth();
   need(healthBurst.hits.length === 7, `expected seven measured health hits, got ${healthBurst.hits.length}`);
-  let controlledHealthDamage = 0;
+  let controlledMitigatedDamage = 0;
+  let controlledHealthLoss = 0;
   for (const hit of healthBurst.hits) {
     const firstChange = hit.healthChanges[0];
-    need(Number.isFinite(hit.before) && hit.before >= 8, `controlled hit must start with enough health for exact 8-point mitigation ${JSON.stringify(hit)}`);
-    need(firstChange?.current === hit.before - 8, `controlled hit ${hit.index + 1} must apply exactly 8 health ${JSON.stringify(hit)}`);
-    controlledHealthDamage += hit.before - firstChange.current;
-    if (firstChange.current === 0) {
+    const damage = hit.damage;
+    need(
+      damage?.rawAmount === 20
+        && damage.amount === 8
+        && damage.blockedAmount === 12
+        && damage.mitigation === 'guard',
+      `controlled hit ${hit.index + 1} must preserve exact 20 -> 8 guard mitigation ${JSON.stringify(hit)}`,
+    );
+    need(Number.isFinite(hit.before) && hit.before >= 0, `controlled hit must start from a valid health value ${JSON.stringify(hit)}`);
+    const expectedHealth = Math.max(0, hit.before - damage.amount);
+    need(firstChange?.current === expectedHealth, `controlled hit ${hit.index + 1} must respect health floor after mitigated damage ${JSON.stringify(hit)}`);
+    controlledMitigatedDamage += damage.amount;
+    controlledHealthLoss += hit.before - firstChange.current;
+    if (expectedHealth === 0) {
       need(hit.died, `zero-health controlled hit must emit death ${JSON.stringify(hit)}`);
       need(hit.healthChanges.some((entry) => entry.current === entry.maxHealth), `death must synchronously reset health through shipped respawn ${JSON.stringify(hit)}`);
     } else {
       need(!hit.died, `non-lethal controlled hit must not emit death ${JSON.stringify(hit)}`);
     }
   }
-  need(controlledHealthDamage === 56, `seven controlled guarded hits must apply exactly 56 health before any respawn reset, got ${controlledHealthDamage}`);
+  need(controlledMitigatedDamage === 56, `seven controlled guarded hits must each transform 20 raw damage to 8 applied damage, got ${controlledMitigatedDamage}`);
   await page.keyboard.up('KeyQ');
   const recoveredPoise = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.guardBreakRemaining === 0 && frame.poise > 0 && frame.state !== 'guard-break' ? frame : null; }, { timeout: 10000, interval: 100, label: 'guard-break recovery and poise regeneration' });
   need(recoveredPoise.poise > 0 && recoveredPoise.canDodge, 'poise recovery must restore locomotion eligibility');
@@ -219,7 +232,7 @@ try {
     baseline, sprintA, sprintB, beforeRunJumpDodge, runJumpDodge, airborneFrames: airborneFrames.slice(0, 8), recoveryStart, recoveryEnd, vitals,
     guard: { ready: guardReady, impact: guardImpact, healthBefore: guardHealthBefore, healthAfter: guardHealthAfter },
     parry: { ready: parryReady, impact: parryImpact, trigger: parryProof?.frame ?? null, healthBefore: parryHealthBefore, healthAfter: parryHealthAfter },
-    poise: { baseline: pressureBaseline, ready: pressureReady, impacts: pressureImpacts, break: breakFrame, recovered: recoveredPoise, healthBefore: breakHealthBefore, healthAfter: breakHealthAfter, controlledHealthDamage, healthBurst, hud: breakVitals },
+    poise: { baseline: pressureBaseline, ready: pressureReady, impacts: pressureImpacts, break: breakFrame, recovered: recoveredPoise, healthBefore: breakHealthBefore, healthAfter: breakHealthAfter, controlledMitigatedDamage, controlledHealthLoss, healthBurst, hud: breakVitals },
     canvas: { width: canvasBox.width, height: canvasBox.height, pngBytes: canvasPng.length }, browserErrors: errors,
   }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
