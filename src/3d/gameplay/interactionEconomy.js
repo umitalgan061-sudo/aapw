@@ -43,6 +43,16 @@ export const QUARTERMASTER_OFFERS = Object.freeze([
 			kind: 'settlement-service',
 			serviceId: 'dragonstone-watch-ration-prep',
 			label: 'Erzak hazırlama',
+			stationId: 'dragonstone-ration-prep-table',
+			discipline: 'provisioning',
+			craftUpgrade: Object.freeze({
+				recipeId: 'dragonstone-watch-travel-ration-pack',
+				inputItemId: 'dragonstone-field-ration',
+				inputQuantity: 2,
+				outputItemId: 'dragonstone-travel-ration-pack',
+				outputQuantity: 1,
+				label: '2 saha azığını 1 yol azığı paketine hazırla',
+			}),
 		}),
 	}),
 ]);
@@ -199,11 +209,13 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		if (!purchaseQuote.ok) return purchaseQuote;
 		const configuredOffer = configuredOfferFor(offer);
 		const fulfillment = configuredOffer.fulfillment;
-		const granted = grantItem(configuredOffer.itemId, configuredOffer.quantity ?? 1, {
+		const grantResult = grantItem(configuredOffer.itemId, configuredOffer.quantity ?? 1, {
 			sourceType: fulfillment?.kind ?? 'vendor',
 			sourceId: fulfillment?.serviceId ?? QUARTERMASTER_NPC_ID,
+			craftUpgrade: fulfillment?.craftUpgrade ?? null,
 		});
-		if (!granted) return { ...purchaseQuote, ok: false, reason: 'inventory-full' };
+		const granted = grantResult === true || grantResult?.ok === true;
+		if (!granted) return { ...purchaseQuote, ok: false, reason: grantResult?.reason ?? 'inventory-full' };
 		copper -= purchaseQuote.priceCopper;
 		stockByOffer.set(configuredOffer.id, purchaseQuote.remainingStock - 1);
 		syncLedgerTotalsFromStock();
@@ -215,6 +227,8 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 			balanceCopper: copper,
 			offerId: configuredOffer.id,
 			remainingStock: purchaseQuote.remainingStock - 1,
+			crafted: grantResult?.crafted === true,
+			craftedItemId: grantResult?.outputItemId ?? null,
 			ledger: ledgerSnapshot(),
 		};
 	}
@@ -259,7 +273,8 @@ export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMAS
 		const price = Math.max(0, Math.floor(Number(offer.priceCopper) || 0));
 		const availability = remaining <= 0 ? 'TÜKENDİ' : balance < price ? `YETERSİZ BAKIR · ${price - balance} eksik` : `ALINABİLİR · sonra ${balance - price} bakır`;
 		const service = offer.fulfillment?.kind === 'settlement-service' ? ` · HİZMET: ${offer.fulfillment.label}` : '';
-		lines.push(`${offer.label} — ${price} bakır · stok ${remaining}/${limit} · aldın ${bought} · ${availability}${service}`);
+		const craftUpgrade = offer.fulfillment?.craftUpgrade?.label ? ` · DÖNÜŞÜM: ${offer.fulfillment.craftUpgrade.label}` : '';
+		lines.push(`${offer.label} — ${price} bakır · stok ${remaining}/${limit} · aldın ${bought} · ${availability}${service}${craftUpgrade}`);
 	}
 	return lines.join('\n');
 }
