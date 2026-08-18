@@ -36,10 +36,19 @@ export const QUARTERMASTER_OFFERS = Object.freeze([
 
 export function createInteractionEconomyState(initialCopper = STARTING_COPPER, offers = QUARTERMASTER_OFFERS) {
 	let copper = normalizeCopper(initialCopper, STARTING_COPPER);
+	let transactionCount = 0;
+	let lifetimeSpentCopper = 0;
 	const stockByOffer = new Map();
+	const purchasesByOffer = new Map();
 	resetStock();
+	resetLedger();
 
 	function normalizeCopper(value, fallback = 0) {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
+	}
+
+	function normalizeCount(value, fallback = 0) {
 		const parsed = Number(value);
 		return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
 	}
@@ -59,19 +68,44 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		for (const offer of offers) stockByOffer.set(offer.id, stockLimitFor(offer));
 	}
 
+	function resetLedger() {
+		transactionCount = 0;
+		lifetimeSpentCopper = 0;
+		purchasesByOffer.clear();
+		for (const offer of offers) purchasesByOffer.set(offer.id, 0);
+	}
+
+	function ledgerSnapshot() {
+		const purchases = {};
+		for (const offer of offers) purchases[offer.id] = purchasesByOffer.get(offer.id) ?? 0;
+		return { transactionCount, lifetimeSpentCopper, purchasesByOffer: purchases };
+	}
+
 	function snapshot() {
 		const stock = {};
 		for (const offer of offers) stock[offer.id] = stockByOffer.get(offer.id) ?? stockLimitFor(offer);
-		return { copper, stockByOffer: stock };
+		return { copper, stockByOffer: stock, ledger: ledgerSnapshot() };
 	}
 
 	function restore(saved) {
 		copper = normalizeCopper(saved?.copper, STARTING_COPPER);
 		resetStock();
-		if (!saved?.stockByOffer || typeof saved.stockByOffer !== 'object' || Array.isArray(saved.stockByOffer)) return;
+		resetLedger();
+		if (saved?.stockByOffer && typeof saved.stockByOffer === 'object' && !Array.isArray(saved.stockByOffer)) {
+			for (const offer of offers) {
+				if (!Object.hasOwn(saved.stockByOffer, offer.id)) continue;
+				stockByOffer.set(offer.id, normalizeStock(saved.stockByOffer[offer.id], stockLimitFor(offer)));
+			}
+		}
+		const savedLedger = saved?.ledger;
+		if (!savedLedger || typeof savedLedger !== 'object' || Array.isArray(savedLedger)) return;
+		transactionCount = normalizeCount(savedLedger.transactionCount);
+		lifetimeSpentCopper = normalizeCopper(savedLedger.lifetimeSpentCopper, 0);
+		const savedPurchases = savedLedger.purchasesByOffer;
+		if (!savedPurchases || typeof savedPurchases !== 'object' || Array.isArray(savedPurchases)) return;
 		for (const offer of offers) {
-			if (!Object.hasOwn(saved.stockByOffer, offer.id)) continue;
-			stockByOffer.set(offer.id, normalizeStock(saved.stockByOffer[offer.id], stockLimitFor(offer)));
+			if (!Object.hasOwn(savedPurchases, offer.id)) continue;
+			purchasesByOffer.set(offer.id, normalizeCount(savedPurchases[offer.id]));
 		}
 	}
 
@@ -91,12 +125,16 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		if (!granted) return { ok: false, reason: 'inventory-full' };
 		copper -= price;
 		stockByOffer.set(configuredOffer.id, remainingStock - 1);
+		transactionCount += 1;
+		lifetimeSpentCopper += price;
+		purchasesByOffer.set(configuredOffer.id, (purchasesByOffer.get(configuredOffer.id) ?? 0) + 1);
 		return {
 			ok: true,
 			spentCopper: price,
 			balanceCopper: copper,
 			offerId: configuredOffer.id,
 			remainingStock: remainingStock - 1,
+			ledger: ledgerSnapshot(),
 		};
 	}
 
@@ -108,7 +146,12 @@ export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMAS
 	const stock = economySnapshot.stockByOffer && typeof economySnapshot.stockByOffer === 'object'
 		? economySnapshot.stockByOffer
 		: null;
-	const lines = ['Dragonstone Levazımcısı', `Kese: ${balance} bakır`];
+	const ledger = economySnapshot.ledger && typeof economySnapshot.ledger === 'object' && !Array.isArray(economySnapshot.ledger)
+		? economySnapshot.ledger
+		: null;
+	const transactionCount = Math.max(0, Math.floor(Number(ledger?.transactionCount) || 0));
+	const lifetimeSpentCopper = Math.max(0, Math.floor(Number(ledger?.lifetimeSpentCopper) || 0));
+	const lines = ['Dragonstone Levazımcısı', `Kese: ${balance} bakır`, `Alışveriş defteri: ${transactionCount} işlem · ${lifetimeSpentCopper} bakır harcandı`];
 	if (feedback) lines.push(feedback);
 	lines.push('Satın almak için numarayı seç:');
 	for (const offer of offers) {
@@ -117,7 +160,11 @@ export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMAS
 		const remaining = Number.isFinite(savedRemaining)
 			? Math.max(0, Math.min(limit, Math.floor(savedRemaining)))
 			: limit;
-		lines.push(`${offer.label} — ${offer.priceCopper} bakır · stok ${remaining}/${limit}`);
+		const boughtRaw = ledger?.purchasesByOffer && Object.hasOwn(ledger.purchasesByOffer, offer.id)
+			? Number(ledger.purchasesByOffer[offer.id])
+			: 0;
+		const bought = Number.isFinite(boughtRaw) && boughtRaw >= 0 ? Math.floor(boughtRaw) : 0;
+		lines.push(`${offer.label} — ${offer.priceCopper} bakır · stok ${remaining}/${limit} · aldın ${bought}`);
 	}
 	return lines.join('\n');
 }
