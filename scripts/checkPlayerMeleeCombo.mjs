@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 const player = await readFile(new URL('../src/3d/gameplay/player.js', import.meta.url), 'utf8');
 const input = await readFile(new URL('../src/3d/input.js', import.meta.url), 'utf8');
 const touch = await readFile(new URL('../src/3d/ui/touchJoystick.js', import.meta.url), 'utf8');
-const gameplayConfig = await readFile(new URL('../src/3d/gameplay/gameplayConfig.js', import.meta.url), 'utf8');
+const playerConfig = await readFile(new URL('../src/3d/gameplay/playerConfig.js', import.meta.url), 'utf8');
 
 function numberConstant(name) {
 	const match = player.match(new RegExp(`${name}:\\s*([0-9.]+)`));
@@ -72,10 +72,10 @@ for (const fragment of [
 	"setAttribute('aria-label', 'Ağır saldırı')",
 ]) assert.ok(touch.includes(fragment), `missing mobile melee contract: ${fragment}`);
 
-assert.ok(gameplayConfig.includes("idle: '/assets/animations/peasant_girl/idle.fbx'"));
-assert.ok(gameplayConfig.includes("walking: '/assets/animations/peasant_girl/walking.fbx'"));
-assert.ok(gameplayConfig.includes("running: '/assets/animations/peasant_girl/running.fbx'"));
-assert.ok(!gameplayConfig.match(/attack\s*:/i), 'do not invent an attack clip absent from the shipped asset family');
+for (const clip of ['idle', 'walking', 'running']) {
+	assert.ok(playerConfig.includes(`${clip}: 'assets/animations/peasant_girl/${clip}.fbx'`), `missing shipped ${clip} animation source`);
+}
+assert.ok(!playerConfig.match(/\battack\s*:/i), 'do not invent an attack clip absent from the shipped asset family');
 assert.ok(!player.includes('EditorMaterialStudio'));
 assert.ok(!player.includes('CapsuleGeometry'));
 assert.ok(!player.includes('npc.js'));
@@ -85,6 +85,6 @@ console.log(JSON.stringify({
 	contract: 'player-melee-combo-input-window',
 	attack: cfg,
 	inputs: { keyboard: ['KeyE', 'KeyR'], mouse: 'button0-light', gamepad: ['button0-light', 'button2-heavy'], touch: ['light', 'heavy'] },
-	assetPolicy: { newModel: false, fabricatedAttackClip: false, sharedMaterialCoreUnchanged: true },
+	assetPolicy: { newModel: false, fabricatedAttackClip: false, canonicalAnimationConfig: 'src/3d/gameplay/playerConfig.js', sharedMaterialCoreUnchanged: true },
 	ownership: { npcDamageConsumerModified: false, terrainModified: false, rpgSemanticsModified: false },
 }, null, 2));
