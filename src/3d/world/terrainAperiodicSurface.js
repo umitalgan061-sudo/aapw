@@ -99,7 +99,7 @@ export function applyTerrainAperiodicSurface(material) {
 	};
 	const previousProgramKey = material.customProgramCacheKey?.bind(material);
 	material.customProgramCacheKey = () => `${previousProgramKey ? previousProgramKey() : 'standard'}|${TERRAIN_APERIODIC_SURFACE_POLICY.id}`;
-	material.userData.terrainAperiodicSurface = TERRAIN_APERIODIC_SURFACE_POLICY;
+	material.userData.terrainAperiodicSurface = Object.freeze({ ...TERRAIN_APERIODIC_SURFACE_POLICY, policyId: TERRAIN_APERIODIC_SURFACE_POLICY.id });
 	Object.defineProperty(material, MATERIAL_FLAG, { value: true });
 	material.needsUpdate = true;
 	return material;
