@@ -6,6 +6,7 @@
 
 export const QUARTERMASTER_NPC_ID = 'stannis-guard-1';
 export const STARTING_COPPER = 40;
+export const RECENT_TRANSACTION_LIMIT = 5;
 
 export const QUARTERMASTER_OFFERS = Object.freeze([
 	Object.freeze({
@@ -38,6 +39,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	let copper = normalizeCopper(initialCopper, STARTING_COPPER);
 	let transactionCount = 0;
 	let lifetimeSpentCopper = 0;
+	let recentTransactions = [];
 	const stockByOffer = new Map();
 	const purchasesByOffer = new Map();
 	resetStock();
@@ -69,6 +71,10 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		return configured && configured.itemId === offer.itemId ? configured : null;
 	}
 
+	function configuredOfferById(offerId) {
+		return offers.find((candidate) => candidate.id === offerId) ?? null;
+	}
+
 	function resetStock() {
 		stockByOffer.clear();
 		for (const offer of offers) stockByOffer.set(offer.id, stockLimitFor(offer));
@@ -77,14 +83,31 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	function resetLedger() {
 		transactionCount = 0;
 		lifetimeSpentCopper = 0;
+		recentTransactions = [];
 		purchasesByOffer.clear();
 		for (const offer of offers) purchasesByOffer.set(offer.id, 0);
+	}
+
+	function transactionReceipt(configuredOffer, sequence, balanceCopper = copper) {
+		return {
+			sequence,
+			offerId: configuredOffer.id,
+			itemId: configuredOffer.itemId,
+			quantity: Math.max(1, Math.floor(Number(configuredOffer.quantity) || 1)),
+			spentCopper: normalizeCopper(configuredOffer.priceCopper, 0),
+			balanceCopper: normalizeCopper(balanceCopper, copper),
+		};
 	}
 
 	function ledgerSnapshot() {
 		const purchases = {};
 		for (const offer of offers) purchases[offer.id] = purchasesByOffer.get(offer.id) ?? 0;
-		return { transactionCount, lifetimeSpentCopper, purchasesByOffer: purchases };
+		return {
+			transactionCount,
+			lifetimeSpentCopper,
+			purchasesByOffer: purchases,
+			recentTransactions: recentTransactions.map((receipt) => ({ ...receipt })),
+		};
 	}
 
 	function snapshot() {
@@ -108,11 +131,25 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		transactionCount = normalizeCount(savedLedger.transactionCount);
 		lifetimeSpentCopper = normalizeCopper(savedLedger.lifetimeSpentCopper, 0);
 		const savedPurchases = savedLedger.purchasesByOffer;
-		if (!savedPurchases || typeof savedPurchases !== 'object' || Array.isArray(savedPurchases)) return;
-		for (const offer of offers) {
-			if (!Object.hasOwn(savedPurchases, offer.id)) continue;
-			purchasesByOffer.set(offer.id, normalizeCount(savedPurchases[offer.id]));
+		if (savedPurchases && typeof savedPurchases === 'object' && !Array.isArray(savedPurchases)) {
+			for (const offer of offers) {
+				if (!Object.hasOwn(savedPurchases, offer.id)) continue;
+				purchasesByOffer.set(offer.id, normalizeCount(savedPurchases[offer.id]));
+			}
 		}
+		if (!Array.isArray(savedLedger.recentTransactions)) return;
+		const receiptsBySequence = new Map();
+		for (const savedReceipt of savedLedger.recentTransactions) {
+			if (!savedReceipt || typeof savedReceipt !== 'object' || Array.isArray(savedReceipt)) continue;
+			const sequence = normalizeCount(savedReceipt.sequence);
+			if (sequence <= 0 || sequence > transactionCount) continue;
+			const configuredOffer = configuredOfferById(savedReceipt.offerId);
+			if (!configuredOffer) continue;
+			receiptsBySequence.set(sequence, transactionReceipt(configuredOffer, sequence, savedReceipt.balanceCopper));
+		}
+		recentTransactions = [...receiptsBySequence.values()]
+			.sort((left, right) => left.sequence - right.sequence)
+			.slice(-RECENT_TRANSACTION_LIMIT);
 	}
 
 	function quote(offer) {
@@ -141,6 +178,8 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		transactionCount += 1;
 		lifetimeSpentCopper += purchaseQuote.priceCopper;
 		purchasesByOffer.set(configuredOffer.id, (purchasesByOffer.get(configuredOffer.id) ?? 0) + 1);
+		recentTransactions.push(transactionReceipt(configuredOffer, transactionCount, copper));
+		if (recentTransactions.length > RECENT_TRANSACTION_LIMIT) recentTransactions.splice(0, recentTransactions.length - RECENT_TRANSACTION_LIMIT);
 		return {
 			ok: true,
 			spentCopper: purchaseQuote.priceCopper,
@@ -165,6 +204,17 @@ export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMAS
 	const transactionCount = Math.max(0, Math.floor(Number(ledger?.transactionCount) || 0));
 	const lifetimeSpentCopper = Math.max(0, Math.floor(Number(ledger?.lifetimeSpentCopper) || 0));
 	const lines = ['Dragonstone Levazımcısı', `Kese: ${balance} bakır`, `Alışveriş defteri: ${transactionCount} işlem · ${lifetimeSpentCopper} bakır harcandı`];
+	const recentTransactions = Array.isArray(ledger?.recentTransactions) ? ledger.recentTransactions : [];
+	for (let index = recentTransactions.length - 1; index >= 0; index -= 1) {
+		const receipt = recentTransactions[index];
+		const offer = offers.find((candidate) => candidate.id === receipt?.offerId);
+		const sequence = Math.max(0, Math.floor(Number(receipt?.sequence) || 0));
+		if (!offer || sequence <= 0) continue;
+		const spent = Math.max(0, Math.floor(Number(receipt?.spentCopper) || 0));
+		const receiptBalance = Math.max(0, Math.floor(Number(receipt?.balanceCopper) || 0));
+		lines.push(`Son işlem: #${sequence} ${offer.label} · ${spent} bakır · bakiye ${receiptBalance}`);
+		break;
+	}
 	if (feedback) lines.push(feedback);
 	lines.push('Satın almak için numarayı seç:');
 	for (const offer of offers) {
