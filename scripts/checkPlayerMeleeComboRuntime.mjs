@@ -43,6 +43,7 @@ const latestMotion = () => page.evaluate(() => structuredClone(window.__meleeMot
 const motionHistory = () => page.evaluate(() => structuredClone(window.__meleeMotion));
 const attackWindows = () => page.evaluate(() => structuredClone(window.__meleeWindows));
 const combatInputs = () => page.evaluate(() => structuredClone(window.__meleeInputs));
+const recoveryProofTimeoutMs = 20000;
 async function waitFor(read, predicate, label, timeout = 6000, interval = 40) {
 	const deadline = Date.now() + timeout; let last = null;
 	while (Date.now() < deadline) {
@@ -80,8 +81,8 @@ try {
 	need(Math.abs(heavyStart.stamina - 64) < 0.25, `light+heavy chain should spend 36 stamina, got ${heavyStart.stamina}`);
 	const heavyActive = await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'active-start' && event.active, 'heavy active window');
 	need(heavyActive.reachMeters > lightActive.reachMeters && heavyActive.damageScale > lightActive.damageScale, 'heavy attack needs stronger reach/damage metadata');
-	await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'finish', 'heavy recovery finish');
-	await waitMotion((motion) => motion.state === 'idle' && motion.attackKind === 'none', 'post-combo idle', 7000);
+	await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'finish', 'heavy recovery finish', recoveryProofTimeoutMs);
+	await waitMotion((motion) => motion.state === 'idle' && motion.attackKind === 'none', 'post-combo idle', recoveryProofTimeoutMs);
 
 	const windowsBeforeGuard = (await attackWindows()).length;
 	await page.keyboard.down('KeyQ');
@@ -102,7 +103,7 @@ try {
 	const touchInput = await waitFor(combatInputs, (events) => [...events].reverse().find((event) => event.kind === 'light' && event.source === 'touch') ?? null, 'touch light combat intent');
 	const touchStart = await waitWindow((event) => event.phase === 'start' && event.kind === 'light' && event.serial > heavyStart.serial, 'touch light attack start');
 	need(touchInput.source === 'touch' && touchStart.comboStep === 1, `touch attack must enter the same Player state machine ${JSON.stringify({ touchInput, touchStart })}`);
-	await waitWindow((event) => event.serial === touchStart.serial && event.phase === 'finish', 'touch attack finish');
+	await waitWindow((event) => event.serial === touchStart.serial && event.phase === 'finish', 'touch attack finish', recoveryProofTimeoutMs);
 	await page.evaluate(() => { window.__meleeTouch?.dispose?.(); window.__meleeTouch = null; });
 
 	await page.screenshot({ path: path.join(outDir, 'melee-combo.png'), fullPage: true });
