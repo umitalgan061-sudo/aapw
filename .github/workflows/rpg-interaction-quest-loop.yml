@@ -11,6 +11,7 @@ on:
       - 'scripts/checkInteractionQuartermasterTrade.mjs'
       - 'scripts/checkInteractionTradeLedgerAtomicity.mjs'
       - 'scripts/checkInteractionTradeLedgerBrowser.mjs'
+      - 'scripts/checkInteractionSettlementServiceContract.mjs'
       - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
       - 'service-worker.js'
       - '.github/workflows/rpg-interaction-quest-loop.yml'
@@ -45,7 +46,7 @@ jobs:
           printf '%s\n' "${FILES[@]}"
           for path in "${FILES[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
               *) echo "unexpected RPG scope path: $path" >&2; exit 1 ;;
             esac
           done
@@ -64,11 +65,13 @@ jobs:
           node --check scripts/checkInteractionQuartermasterTrade.mjs
           node --check scripts/checkInteractionTradeLedgerAtomicity.mjs
           node --check scripts/checkInteractionTradeLedgerBrowser.mjs
+          node --check scripts/checkInteractionSettlementServiceContract.mjs
           node --check scripts/checkInteractionSettlementServiceBrowser.mjs
           node scripts/checkInteractionQuestLoop.mjs
           node scripts/checkInteractionInventoryRewards.mjs
           node scripts/checkInteractionQuartermasterTrade.mjs
           node scripts/checkInteractionTradeLedgerAtomicity.mjs
+          node scripts/checkInteractionSettlementServiceContract.mjs
 
       - name: Shared regression contracts
         run: |
