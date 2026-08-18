@@ -35,6 +35,21 @@ async function emitPlayerDamage(amount, sourceId) {
     gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: value, sourceId: source });
   }, { amount, source: sourceId });
 }
+async function armDamageOnActiveParry(amount, sourceId) {
+  await page.evaluate(async ({ amount: value, source }) => {
+    const [{ gameEvents }, { EVENTS }] = await Promise.all([import('./src/3d/eventBus.js'), import('./src/3d/config.js')]);
+    window.__parryProof = { armed: true, triggered: false, frame: null };
+    const onMotion = (event) => {
+      const frame = event?.detail;
+      if (!frame || frame.state !== 'guard' || !frame.guarding || !(frame.parryWindowRemaining > 0)) return;
+      window.removeEventListener('aapw:player-motion', onMotion);
+      window.__parryProof.triggered = true;
+      window.__parryProof.frame = structuredClone(frame);
+      gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: value, sourceId: source });
+    };
+    window.addEventListener('aapw:player-motion', onMotion);
+  }, { amount, source: sourceId });
+}
 async function waitForHistoryEvidence(findEvidence, { timeout = 5000, interval = 100, label = 'motion evidence' } = {}) {
   const deadline = Date.now() + timeout; let lastFrames = [];
   while (Date.now() < deadline) { lastFrames = await history(); const evidence = findEvidence(lastFrames); if (evidence) return evidence; await sleep(interval); }
@@ -87,12 +102,18 @@ try {
   need(guardImpact.stamina < guardReady.stamina, 'guard must spend stamina on impact/drain');
   await page.keyboard.up('KeyQ'); await waitState('idle', 6000);
 
-  await page.keyboard.down('KeyQ');
-  const parryReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.parryWindowRemaining > 0 ? frame : null; }, { timeout: 6000, interval: 30, label: 'fresh parry window' });
+  // Arm the damage source before the key press and fire it synchronously from the first telemetry
+  // event that proves the 160ms simulation-time parry window is actually open. This avoids a
+  // Node->browser round-trip consuming the real production window after it has already been observed.
+  await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
   const parryHealthBefore = await readHealth();
-  await emitPlayerDamage(20, 'parry-proof');
-  const parryImpact = await waitForHistoryEvidence((frames) => [...frames].reverse().find((frame) => frame?.defenseResult === 'parry') ?? null, { timeout: 4000, interval: 30, label: 'parry mitigation telemetry' });
+  await armDamageOnActiveParry(20, 'parry-proof');
+  await page.keyboard.down('KeyQ');
+  const parryReady = await waitForHistoryEvidence((frames) => frames.find((frame) => frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining > 0) ?? null, { timeout: 6000, interval: 30, label: 'fresh parry window' });
+  const parryImpact = await waitForHistoryEvidence((frames) => frames.find((frame) => frame?.defenseResult === 'parry') ?? null, { timeout: 4000, interval: 30, label: 'parry mitigation telemetry' });
+  const parryProof = await page.evaluate(() => structuredClone(window.__parryProof));
   const parryHealthAfter = await readHealth();
+  need(parryProof?.triggered && parryProof.frame?.parryWindowRemaining > 0, `parry damage must fire inside active window ${JSON.stringify(parryProof)}`);
   need(parryHealthAfter === parryHealthBefore, `parry must negate damage, got health ${parryHealthBefore} -> ${parryHealthAfter}`);
   need(parryReady.stamina - parryImpact.stamina >= 7.5, 'parry stamina cost missing');
   await page.keyboard.up('KeyQ'); await waitState('idle', 6000);
@@ -106,7 +127,7 @@ try {
   fs.writeFileSync(path.join(outDir, 'metrics.json'), `${JSON.stringify({
     baseline, sprintA, sprintB, beforeRunJumpDodge, runJumpDodge, airborneFrames: airborneFrames.slice(0, 8), recoveryStart, recoveryEnd, vitals,
     guard: { ready: guardReady, impact: guardImpact, healthBefore: guardHealthBefore, healthAfter: guardHealthAfter, rawDamage: 20, appliedDamage: guardHealthBefore - guardHealthAfter },
-    parry: { ready: parryReady, impact: parryImpact, healthBefore: parryHealthBefore, healthAfter: parryHealthAfter, rawDamage: 20, appliedDamage: parryHealthBefore - parryHealthAfter },
+    parry: { ready: parryReady, impact: parryImpact, trigger: parryProof?.frame ?? null, healthBefore: parryHealthBefore, healthAfter: parryHealthAfter, rawDamage: 20, appliedDamage: parryHealthBefore - parryHealthAfter },
     canvas: { width: canvasBox.width, height: canvasBox.height, pngBytes: canvasPng.length }, browserErrors: errors,
   }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
