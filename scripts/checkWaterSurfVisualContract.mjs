@@ -12,14 +12,21 @@ const numberFrom = (text, pattern, label) => { const match = text.match(pattern)
 
 need(!/smoothstep\(\s*0\.22\s*,\s*0\.0\s*,\s*(?:vDepthFactor|fragmentDepth)\s*\)/.test(source), 'reversed-edge GLSL smoothstep returned');
 need(source.includes('float shallowMask = 1.0 - smoothstep(0.0, 0.22, fragmentDepth);'), 'defined inverse shallow-depth mask missing or surf envelope drifted');
-need(source.includes('shallowMask *= shorelineGradientMask(vWorldPosition.xz);'), 'surf must require a real bathymetry shoreline gradient');
+need(source.includes('shallowMask *= shorelineGradientMask(vWorldPosition.xz) * waterCoverage;'), 'surf must require a real bathymetry shoreline gradient and canonical water coverage');
 need(source.includes('float foam = clamp(shallowMask * surge, 0.0, 1.0);'), 'foam must remain shoreline/depth gated');
-need(source.includes('smoothstep(120.0, 420.0, distance(uCameraPosition, vWorldPosition))'), 'fine ripple distance anti-aliasing drifted');
-need(source.includes('smoothstep(1500.0, 1950.0, localEdgeDistance)'), 'near swell must blend to zero before the dense mesh edge'); need(source.includes('new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1)'), 'two-triangle full-world far-water coverage missing'); need(source.includes('float fragmentDepth = sampleFragmentDepth(vWorldPosition.xz);'), 'far water must sample canonical bathymetry per fragment');
+need(source.includes('1.0 - smoothstep(90.0, 360.0, distance(uCameraPosition, vWorldPosition))'), 'fine ripple near-field anti-moire fade drifted');
+need(source.includes('smoothstep(1500.0, 1950.0, localEdgeDistance)'), 'near swell must blend to zero before the dense mesh edge');
+need(source.includes('new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1)'), 'two-triangle full-world far-water coverage missing');
+need(source.includes('vec2 waterField = sampleWaterField(vWorldPosition.xz);'), 'far water must sample canonical depth and wet/dry coverage per fragment');
+need(source.includes('float waterCoverage = smoothstep(0.08, 0.72, waterField.y);'), 'canonical wet/dry coverage shoreline fade drifted');
+need(source.includes('if (waterCoverage <= 0.01) discard;'), 'dry-land fragment discard missing');
 
-const waterExtent = numberFrom(source, /export const WATER_FULL_WORLD_EXTENT_METERS = ([0-9.]+);/, 'full-world water extent'); const worldWidth = numberFrom(configSource, /WORLD_WIDTH_METERS:\s*([0-9.]+)/, 'world width'); const worldDepth = numberFrom(configSource, /WORLD_DEPTH_METERS:\s*([0-9.]+)/, 'world depth');
+const waterExtent = numberFrom(source, /export const WATER_FULL_WORLD_EXTENT_METERS = ([0-9.]+);/, 'full-world water extent');
+const worldWidth = numberFrom(configSource, /WORLD_WIDTH_METERS:\s*([0-9.]+)/, 'world width');
+const worldDepth = numberFrom(configSource, /WORLD_DEPTH_METERS:\s*([0-9.]+)/, 'world depth');
 const worldDiagonal = Math.hypot(worldWidth, worldDepth);
-need(waterExtent >= worldDiagonal, `far-water plane ${waterExtent}m cannot cover full-world diagonal ${worldDiagonal.toFixed(2)}m`); need(source.includes('fullWorld: true'), 'runtime water coverage telemetry must mark full-world adoption');
+need(waterExtent >= worldDiagonal, `far-water plane ${waterExtent}m cannot cover full-world diagonal ${worldDiagonal.toFixed(2)}m`);
+need(source.includes('fullWorld: true'), 'runtime water coverage telemetry must mark full-world adoption');
 
 const component = (name) => {
 	const match = source.match(new RegExp(`float ${name} = sin\\(dot\\(vWorldPosition\\.xz, vec2\\(([-0-9.]+), ([-0-9.]+)\\)\\) ([+-]) uTime \\* ([0-9.]+)\\);`));
@@ -44,6 +51,7 @@ console.log('WATER_SURF_VISUAL_CONTRACT_OK', JSON.stringify({
 	periodB: Number(period(b).toFixed(3)),
 	directionCross: Number(cross.toFixed(6)),
 	depthEnvelope: 0.22,
+	rippleFadeMeters: [90, 360],
 	waterExtent,
 	worldDiagonal: Number(worldDiagonal.toFixed(3)),
 }));
