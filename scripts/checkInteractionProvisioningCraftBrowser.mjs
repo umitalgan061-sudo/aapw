@@ -18,6 +18,15 @@ page.on('console', (message) => { if (message.type() === 'error') consoleErrors.
 
 try {
 	await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+	// This acceptance owns the shipped interaction surface, not full-world castle hydration.
+	// Stop background scene bootstrap immediately after the real game3d document is live so
+	// unrelated Git-LFS pointer castle loads cannot race into this feature-scoped proof.
+	await page.evaluate(() => window.stop());
+	if (pageErrors.length || consoleErrors.length) {
+		throw new Error(`Provisioning craft bootstrap emitted browser errors before isolation: ${JSON.stringify({ pageErrors, consoleErrors })}`);
+	}
+
 	const result = await page.evaluate(async () => {
 		const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
 		const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
@@ -124,7 +133,7 @@ try {
 	for (const key of ['advertised', 'inputsReady', 'crafted', 'craftUx', 'callbacks', 'persisted']) {
 		if (!result[key]) throw new Error(`Provisioning-craft browser assertion failed: ${key} ${JSON.stringify(result)}`);
 	}
-	console.log('[RPG Chromium] PASS: B → Digit1 → Digit1 → Digit3 provisioning craft → atomic input consumption → travel pack → save/load → inventory UI');
+	console.log('[RPG Chromium] PASS: shipped game3d.html interaction surface B → Digit1 → Digit1 → Digit3 provisioning craft → atomic input consumption → travel pack → save/load → inventory UI');
 	console.log(`[RPG Chromium] provisioning craft balance=${result.balance}, transactions=${result.transactions}, provenance=${result.provenance?.sourceType}/${result.provenance?.sourceId}`);
 	console.log('[RPG Chromium] provisioning craft page errors=0, console errors=0');
 } finally {
