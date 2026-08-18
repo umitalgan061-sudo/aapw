@@ -300,6 +300,9 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	const material = new THREE.ShaderMaterial({
 		vertexShader: WATER_VERTEX_SHADER,
 		fragmentShader: WATER_FRAGMENT_SHADER,
+		// ShaderMaterial (unlike built-in materials) does not auto-merge UniformsLib.fog into its
+		// uniforms — WebGLRenderer's refreshFogUniforms() would throw reading `.value` off a
+		// missing `fogColor`/`fogDensity` uniform without this explicit merge.
 		uniforms: THREE.UniformsUtils.merge([
 			THREE.UniformsLib.fog,
 			{
@@ -315,13 +318,16 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		]),
 		transparent: true,
 		depthWrite: true,
-		fog: true,
+		fog: true, // consumes scene.fog (fog.js) via the fog_* chunks included in both shaders above.
 	});
 
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.position.y = waterLevelMeters;
-	mesh.frustumCulled = false;
+	mesh.frustumCulled = false; // recentered on the camera every frame — always meant to be in view.
 
+	// Two triangles cover the complete owner world underneath the dense near mesh. The shared shader
+	// samples bathymetry/coverage per fragment, while vertex swell is edge-faded to zero on this large
+	// plane. Dry owner-world fragments are discarded by the canonical coverage mask.
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
 	farGeometry.rotateX(-Math.PI / 2);
 	const farMaterial = material.clone();
@@ -340,6 +346,16 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	return mesh;
 }
 
+/**
+ * Attaches a baked depth field (`world/waterDepthField.js`) and switches geometric swell on. Until
+ * this is called the surface stays exactly as flat as the ADR-0048 version — displacing water
+ * against unknown bathymetry is precisely the bug that ADR removed, so "no field" means "no waves"
+ * rather than "assume deep".
+ * @param {THREE.Mesh} waterMesh
+ * @param {{texture: THREE.DataTexture, extentMeters: number}} depthField
+ * @param {number} [swellStrength=1] 0..1 multiplier over the whole swell — a hook for a future
+ *   quality preset to soften or disable waves without rebaking the field.
+ */
 export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
 	for (const material of [waterMesh.material, waterMesh.userData.farWater?.material].filter(Boolean)) {
 		const { uniforms } = material;
@@ -347,9 +363,18 @@ export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
 		uniforms.uDepthFieldExtentMeters.value = depthField.extentMeters;
 		uniforms.uSwellStrength.value = swellStrength;
 	}
+	// Remembered so `disposeWater` can release the baked texture with the mesh that owns it.
 	waterMesh.userData.depthField = depthField;
 }
 
+/**
+ * Re-centers the water plane's XZ on the camera (keeping its fixed sea-level Y), advances the
+ * wave animation time, and updates the specular-highlight camera-position uniform.
+ * Call once per frame.
+ * @param {THREE.Mesh} waterMesh
+ * @param {THREE.Vector3} cameraPosition
+ * @param {number} elapsedSeconds
+ */
 export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
 	waterMesh.position.x = cameraPosition.x;
 	waterMesh.position.z = cameraPosition.z;
@@ -359,6 +384,11 @@ export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
 	}
 }
 
+/**
+ * Disposes the water plane's geometry/material, plus any depth field attached via
+ * `setWaterDepthField`. Call on teardown — memory-leak checklist.
+ * @param {THREE.Mesh} waterMesh
+ */
 export function disposeWater(waterMesh) {
 	const farWater = waterMesh.userData.farWater;
 	if (farWater) {
@@ -370,6 +400,7 @@ export function disposeWater(waterMesh) {
 	waterMesh.geometry.dispose();
 	waterMesh.material.dispose();
 	const depthField = waterMesh.userData.depthField;
+	// The shared placeholder is never owned by a mesh and must outlive every one of them.
 	if (depthField && depthField.texture !== PLACEHOLDER_DEPTH_TEXTURE) {
 		depthField.texture.dispose();
 		waterMesh.userData.depthField = null;
