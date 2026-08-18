@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'src/3d/gameplay/creatureSimulationLod.js'
+      - 'src/3d/gameplay/creatureSpawner.js'
       - 'src/3d/gameplay/livingWorldSpawner.js'
       - 'scripts/checkCreatureSimulationLod.mjs'
       - '.github/workflows/creature-simulation-lod.yml'
@@ -38,7 +38,7 @@ jobs:
       - name: Creature behavior LOD contract
         run: |
           set -euo pipefail
-          node --check src/3d/gameplay/creatureSimulationLod.js
+          node --check src/3d/gameplay/creatureSpawner.js
           node --check src/3d/gameplay/livingWorldSpawner.js
           node --check scripts/checkCreatureSimulationLod.mjs
           node scripts/checkCreatureSimulationLod.mjs
@@ -47,6 +47,7 @@ jobs:
           set -euo pipefail
           node scripts/checkCreatureHabitatPlacement.mjs
           node scripts/checkSeededRandomPolicy.js
+          node scripts/checkServiceWorkerCache.js
       - name: Shared material placement contract
         run: |
           set -euo pipefail
