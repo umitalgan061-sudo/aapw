@@ -105,8 +105,9 @@ restored.restore({
 	...committed,
 	stockByOffer: { ...committed.stockByOffer, unknown: 999 },
 	ledger: {
-		...committed.ledger,
-		purchasesByOffer: { ...committed.ledger.purchasesByOffer, unknown: 999 },
+		transactionCount: 999,
+		lifetimeSpentCopper: 9999,
+		purchasesByOffer: { [ration.id]: 99, [whetstone.id]: 99, [rationAllotment.id]: 99, unknown: 999 },
 		recentTransactions: [
 			{ ...committed.ledger.recentTransactions[0], itemId: 'forged', spentCopper: 999 },
 			committed.ledger.recentTransactions[1],
@@ -115,7 +116,59 @@ restored.restore({
 		],
 	},
 });
-assert.deepEqual(restored.snapshot(), committed, 'restore must canonicalize receipts and ignore unknown/out-of-range entries');
+assert.deepEqual(restored.snapshot(), committed, 'restore must derive totals from stock, canonicalize receipts and ignore forged aggregate fields');
+
+const legacyStockOnly = createInteractionEconomyState(0);
+legacyStockOnly.restore({ copper: 22, stockByOffer: committed.stockByOffer });
+assert.deepEqual(legacyStockOnly.snapshot().ledger, {
+	transactionCount: 2,
+	lifetimeSpentCopper: 18,
+	purchasesByOffer: {
+		[ration.id]: 1,
+		[whetstone.id]: 1,
+		[rationAllotment.id]: 0,
+	},
+	recentTransactions: [],
+}, 'stock-aware legacy saves must infer aggregate ledger totals without inventing receipt order');
+
+const resumedLegacy = createInteractionEconomyState(0);
+resumedLegacy.restore({
+	copper: 34,
+	stockByOffer: {
+		[ration.id]: ration.stockLimit - 1,
+		[whetstone.id]: whetstone.stockLimit,
+		[rationAllotment.id]: rationAllotment.stockLimit,
+	},
+});
+result = resumedLegacy.purchase(whetstone, () => true);
+assert.equal(result.ok, true);
+assert.equal(result.ledger.transactionCount, 2);
+assert.equal(result.ledger.lifetimeSpentCopper, 18);
+assert.deepEqual(result.ledger.recentTransactions, [{
+	sequence: 2,
+	offerId: whetstone.id,
+	itemId: whetstone.itemId,
+	quantity: whetstone.quantity,
+	spentCopper: whetstone.priceCopper,
+	balanceCopper: 22,
+}], 'new receipt sequence must continue from stock-inferred legacy purchase count');
+
+const stockWins = createInteractionEconomyState(0);
+stockWins.restore({
+	copper: 40,
+	stockByOffer: {
+		[ration.id]: ration.stockLimit,
+		[whetstone.id]: whetstone.stockLimit,
+		[rationAllotment.id]: rationAllotment.stockLimit,
+	},
+	ledger: {
+		transactionCount: 7,
+		lifetimeSpentCopper: 53,
+		purchasesByOffer: { [ration.id]: 4, [whetstone.id]: 2, [rationAllotment.id]: 1 },
+		recentTransactions: [{ sequence: 7, offerId: rationAllotment.id, balanceCopper: 0 }],
+	},
+});
+assert.deepEqual(stockWins.snapshot().ledger, initialEconomy.ledger, 'full stock must override forged sold-out aggregate history');
 
 const soldOut = createInteractionEconomyState(40);
 for (let index = 0; index < ration.stockLimit; index += 1) assert.equal(soldOut.purchase(ration, () => true).ok, true);
@@ -135,11 +188,29 @@ const historyEconomy = createInteractionEconomyState(200);
 for (let index = 0; index < ration.stockLimit; index += 1) assert.equal(historyEconomy.purchase(ration, () => true).ok, true);
 for (let index = 0; index < whetstone.stockLimit; index += 1) assert.equal(historyEconomy.purchase(whetstone, () => true).ok, true);
 for (let index = 0; index < rationAllotment.stockLimit; index += 1) assert.equal(historyEconomy.purchase(rationAllotment, () => true).ok, true);
-const boundedHistory = historyEconomy.snapshot().ledger.recentTransactions;
-assert.equal(historyEconomy.snapshot().ledger.transactionCount, 7);
+const fullHistory = historyEconomy.snapshot();
+const boundedHistory = fullHistory.ledger.recentTransactions;
+assert.equal(fullHistory.ledger.transactionCount, 7);
+assert.equal(fullHistory.ledger.lifetimeSpentCopper, 53);
 assert.equal(boundedHistory.length, RECENT_TRANSACTION_LIMIT);
 assert.deepEqual(boundedHistory.map((entry) => entry.sequence), [3, 4, 5, 6, 7]);
 assert.equal(boundedHistory.at(-1).offerId, rationAllotment.id);
+
+const boundedRestore = createInteractionEconomyState(0);
+boundedRestore.restore({
+	...fullHistory,
+	ledger: {
+		transactionCount: 700,
+		lifetimeSpentCopper: 5300,
+		purchasesByOffer: { [ration.id]: 400, [whetstone.id]: 200, [rationAllotment.id]: 100 },
+		recentTransactions: [
+			{ sequence: 1, offerId: ration.id, balanceCopper: 194 },
+			...boundedHistory,
+			{ sequence: 8, offerId: ration.id, balanceCopper: 0 },
+		],
+	},
+});
+assert.deepEqual(boundedRestore.snapshot(), fullHistory, 'restore must keep only the canonical last-five sequence window and stock-derived totals');
 
 const restoredDetached = restored.snapshot();
 restoredDetached.ledger.purchasesByOffer[ration.id] = 77;
@@ -147,4 +218,4 @@ restoredDetached.ledger.recentTransactions[0].sequence = 77;
 assert.equal(restored.snapshot().ledger.purchasesByOffer[ration.id], 1);
 assert.equal(restored.snapshot().ledger.recentTransactions[0].sequence, 1);
 
-console.log('PASS checkInteractionTradeLedgerAtomicity: quotes are deterministic, failed trades are atomic, receipts are detached/canonicalized/bounded, and restore ignores unknown offers.');
+console.log('PASS checkInteractionTradeLedgerAtomicity: quotes stay pure, failed trades stay atomic, stock canonically derives aggregate ledger totals, legacy saves infer totals, and receipt history stays detached/bounded.');
