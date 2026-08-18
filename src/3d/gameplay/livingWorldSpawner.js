@@ -117,6 +117,12 @@ export function wrapCreatureWithThreatMemory(creature, {
 					z: creature.object3D.position.z - awayZ * syntheticDistance,
 				};
 				usingMemory = true;
+			} else if (herd) {
+				// The established brain uses its `playerPosition` argument for flee direction even when
+				// `reactingFromHerd` supplied the trigger. Feed the direct same-species alarm source as
+				// that directional threat so the receiver runs away from the alarming animal rather than
+				// from an unrelated distant player. The authored pack radius still owns alert eligibility.
+				effectivePlayerPosition = herdReactivePositions[0];
 			}
 			creature.update(delta, effectivePlayerPosition, herdEnabled ? herdReactivePositions : _herdmateReactivePositions);
 			const fleeing = Boolean(creature.isFleeing || memoryRemainingSeconds > 0 || herd);
