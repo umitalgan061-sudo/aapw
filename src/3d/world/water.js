@@ -192,8 +192,11 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// Fine chop is intentionally near-field only. Beyond a few hundred metres its wavelength
 		// undersamples into repetitive screen-space bands, so the analytic long swell owns distance.
 		float rippleFade = 1.0 - smoothstep(90.0, 360.0, distance(uCameraPosition, vWorldPosition));
+		// Long swell remains geometric at distance, but its analytic normal must also become near-field:
+		// otherwise a 90-degree/full-world camera resolves the 75-200m phases as a striped rectangle.
+		float swellShadingFade = 1.0 - smoothstep(700.0, 1800.0, distance(uCameraPosition, vWorldPosition));
 		// For a height field y = h(x, z) the surface normal is normalize(vec3(-dh/dx, 1.0, -dh/dz)).
-		vec2 slope = vSwellSlope + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
+		vec2 slope = vSwellSlope * swellShadingFade + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
 
