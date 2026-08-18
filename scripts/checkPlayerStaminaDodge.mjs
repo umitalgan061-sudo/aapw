@@ -43,7 +43,7 @@ for (const fragment of [
   'runJumpDodgeRequested = Boolean(jumpRequested) && runIntent', 'canStartDodge()', 'startDodge(moveDirectionXZ)',
   "movementState = 'dodge'", "movementState = 'guard'", "movementState = 'parry'", "movementState = 'guard-break'",
   'spendPoise(blockedAmount * PLAYER_ACTION_CONFIG.GUARD_POISE_DAMAGE_RATIO)', 'if (poise <= 0) triggerGuardBreak()',
-  'guarding = guardIntent && guardBreakRemaining <= 0', 'guardBreakRemaining <= 0 && jumpRequested',
+  'guarding = guardIntent && attackRemaining <= 0 && guardBreakRemaining <= 0', 'guardBreakRemaining <= 0 && jumpRequested',
   "gameEvents.on(EVENTS.PLAYER_DAMAGED, onIncomingDamage)", "payload.mitigation = 'parry'", "payload.mitigation = 'guard'",
   "globalThis.CustomEvent('aapw:player-motion'",
 ]) assert.ok(source.includes(fragment), `missing runtime contract: ${fragment}`);
