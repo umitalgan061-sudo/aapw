@@ -11,6 +11,7 @@ on:
       - 'scripts/checkWaterSurfVisualContract.mjs'
       - 'scripts/checkWorldWaterCoverageP0.mjs'
       - 'scripts/checkWaterCoverageRasterQuality.mjs'
+      - 'scripts/checkWaterCoverageSamplingBudget.mjs'
       - 'scripts/captureLiveWorldWaterTopdown.mjs'
       - '.github/workflows/live-map-shallow-water-visual.yml'
       - '.github/workflows/full-world-runtime-coverage.yml'
@@ -46,7 +47,7 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
           echo "$CHANGED" | grep -Fx 'src/3d/world/water.js'
           echo "$CHANGED" | grep -Fx 'src/3d/world/waterDepthField.js'
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
@@ -65,9 +66,11 @@ jobs:
           node --check scripts/checkWaterSurfVisualContract.mjs
           node --check scripts/checkWorldWaterCoverageP0.mjs
           node --check scripts/checkWaterCoverageRasterQuality.mjs
+          node --check scripts/checkWaterCoverageSamplingBudget.mjs
           node --check scripts/captureLiveWorldWaterTopdown.mjs
           node scripts/checkWorldWaterCoverageP0.mjs
           node scripts/checkWaterCoverageRasterQuality.mjs
+          node scripts/checkWaterCoverageSamplingBudget.mjs
           node scripts/checkWaterSurfVisualContract.mjs
       - name: Hydrate scoped smoke-test LFS assets
         run: |
