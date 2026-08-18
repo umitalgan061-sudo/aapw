@@ -66,7 +66,8 @@ try {
 			.map((node) => node.textContent);
 		const shopOpened = first.dialogueBox.isVisible
 			&& openingChoices.length === QUARTERMASTER_OFFERS.length
-			&& openingText.includes('ALINABİLİR');
+			&& openingText.includes('ALINABİLİR')
+			&& !openingText.includes('Son işlem:');
 
 		const before = first.controller.getRpgSnapshot();
 		first.controller.handleKeyDown({ code: 'Digit1', repeat: false });
@@ -74,14 +75,23 @@ try {
 		const purchasedOffer = QUARTERMASTER_OFFERS[0];
 		const expectedBalance = before.economy.copper - purchasedOffer.priceCopper;
 		const purchasedItem = after.inventory.items.find((item) => item.itemId === purchasedOffer.itemId);
+		const latestReceipt = after.economy.ledger.recentTransactions.at(-1);
 		const purchased = after.economy.copper === expectedBalance
 			&& after.economy.ledger.transactionCount === before.economy.ledger.transactionCount + 1
 			&& after.economy.ledger.lifetimeSpentCopper === before.economy.ledger.lifetimeSpentCopper + purchasedOffer.priceCopper
 			&& after.economy.ledger.purchasesByOffer[purchasedOffer.id] === 1
+			&& latestReceipt?.sequence === 1
+			&& latestReceipt?.offerId === purchasedOffer.id
+			&& latestReceipt?.itemId === purchasedOffer.itemId
+			&& latestReceipt?.spentCopper === purchasedOffer.priceCopper
+			&& latestReceipt?.balanceCopper === expectedBalance
 			&& purchasedItem?.quantity === purchasedOffer.quantity;
 		const purchaseUx = first.dialogueBox._textEl.textContent.includes('aldın 1')
-			&& first.dialogueBox._textEl.textContent.includes(`Kese: ${expectedBalance} bakır`);
-		const callbacks = first.events.inventory.length === 1 && first.events.economy.length === 1;
+			&& first.dialogueBox._textEl.textContent.includes(`Kese: ${expectedBalance} bakır`)
+			&& first.dialogueBox._textEl.textContent.includes(`Son işlem: #1 ${purchasedOffer.label}`);
+		const callbacks = first.events.inventory.length === 1
+			&& first.events.economy.length === 1
+			&& first.events.economy[0].ledger.recentTransactions.at(-1)?.offerId === purchasedOffer.id;
 
 		const saved = structuredClone(after);
 		first.dialogueBox.dispose();
@@ -92,12 +102,17 @@ try {
 		const roundTrip = restored.controller.getRpgSnapshot();
 		restored.controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		const restoredText = restored.dialogueBox._textEl.textContent;
+		const restoredReceipt = roundTrip.economy.ledger.recentTransactions.at(-1);
 		const persisted = roundTrip.economy.copper === saved.economy.copper
 			&& roundTrip.economy.ledger.transactionCount === saved.economy.ledger.transactionCount
 			&& roundTrip.economy.ledger.lifetimeSpentCopper === saved.economy.ledger.lifetimeSpentCopper
 			&& roundTrip.economy.ledger.purchasesByOffer[purchasedOffer.id] === 1
+			&& restoredReceipt?.sequence === 1
+			&& restoredReceipt?.offerId === purchasedOffer.id
+			&& restoredReceipt?.balanceCopper === expectedBalance
 			&& roundTrip.inventory.items.some((item) => item.itemId === purchasedOffer.itemId && item.quantity === purchasedOffer.quantity)
-			&& restoredText.includes('aldın 1');
+			&& restoredText.includes('aldın 1')
+			&& restoredText.includes(`Son işlem: #1 ${purchasedOffer.label}`);
 
 		restored.controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		restored.dialogueBox.dispose();
@@ -113,6 +128,7 @@ try {
 			transactions: roundTrip.economy.ledger.transactionCount,
 			lifetimeSpentCopper: roundTrip.economy.ledger.lifetimeSpentCopper,
 			purchaseCount: roundTrip.economy.ledger.purchasesByOffer[purchasedOffer.id],
+			receiptSequence: restoredReceipt?.sequence,
 		};
 	});
 
@@ -123,8 +139,8 @@ try {
 		if (!result[key]) fail(`Quartermaster browser assertion failed: ${key}`, result);
 	}
 
-	console.log('[RPG Chromium] PASS: game3d.html quartermaster B→Digit1 purchase→ledger→save/load→reopen UX');
-	console.log(`[RPG Chromium] balance=${result.expectedBalance}, transactions=${result.transactions}, lifetimeSpent=${result.lifetimeSpentCopper}, purchaseCount=${result.purchaseCount}`);
+	console.log('[RPG Chromium] PASS: game3d.html quartermaster B→Digit1 purchase→ledger receipt→save/load→reopen UX');
+	console.log(`[RPG Chromium] balance=${result.expectedBalance}, transactions=${result.transactions}, lifetimeSpent=${result.lifetimeSpentCopper}, purchaseCount=${result.purchaseCount}, receipt=#${result.receiptSequence}`);
 	console.log('[RPG Chromium] page errors=0, console errors=0');
 } finally {
 	await page.close();
