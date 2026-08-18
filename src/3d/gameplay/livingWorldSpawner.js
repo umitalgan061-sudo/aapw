@@ -26,17 +26,27 @@ import { spawnConfiguredDragons } from './dragons.js';
 import { isCoarsePointerDevice } from '../sceneManager.js';
 import { createDynamicCircleCollider } from '../physics.js';
 
+export const CREATURE_PREDATOR_THREAT_RULES = Object.freeze({
+	geyik: Object.freeze({ predatorSpeciesIds: Object.freeze(['aslan', 'ayi']), radiusMeters: 24 }),
+	tavsan: Object.freeze({ predatorSpeciesIds: Object.freeze(['aslan', 'ayi']), radiusMeters: 20 }),
+	koyun: Object.freeze({ predatorSpeciesIds: Object.freeze(['aslan', 'ayi']), radiusMeters: 22 }),
+	keci: Object.freeze({ predatorSpeciesIds: Object.freeze(['aslan', 'ayi']), radiusMeters: 20 }),
+	inek: Object.freeze({ predatorSpeciesIds: Object.freeze(['aslan']), radiusMeters: 20 }),
+	at: Object.freeze({ predatorSpeciesIds: Object.freeze(['aslan']), radiusMeters: 22 }),
+	zurafa: Object.freeze({ predatorSpeciesIds: Object.freeze(['aslan']), radiusMeters: 18 }),
+	domuz: Object.freeze({ predatorSpeciesIds: Object.freeze(['aslan']), radiusMeters: 18 }),
+});
+
 /**
  * Adds short bounded threat memory around the established creature brain and, when a shared herd
  * registry is supplied, converts the brain's existing pack-alert primitive into a same-species-only
- * signal. The game loop historically hands every fleeing procedural creature to every other one;
- * filtering here prevents a fleeing deer from alarming a goat/horse while retaining the existing
- * `packAlertRadiusMeters` authored in `creatureBrain.js`.
+ * signal. The optional ecology registry adds a second bounded input: authored predator species can
+ * wake prey and drive flee direction without becoming herd alarm sources themselves.
  *
  * Only direct player threat (plus its short direct-threat memory) is an alarm source. A creature that
- * starts fleeing because a herdmate alarmed it is never re-published as another source, so fear cannot
- * relay indefinitely across the map. Nearby same-species alarm also marks the wrapper urgent before
- * simulation LOD runs, allowing an otherwise-far herd mate to wake promptly for the bounded reaction.
+ * starts fleeing because a herdmate or predator alarmed it is never re-published as another source,
+ * so fear cannot relay indefinitely across the map. Nearby same-species or predator threat also marks
+ * the wrapper urgent before simulation LOD runs, allowing otherwise-far prey to wake promptly.
  */
 export function wrapCreatureWithThreatMemory(creature, {
 	triggerRadiusMeters,
@@ -46,16 +56,21 @@ export function wrapCreatureWithThreatMemory(creature, {
 	packAlertRadiusMeters = null,
 	herdRegistry = null,
 	sourceId = null,
+	predatorSpeciesIds = [],
+	predatorThreatRadiusMeters = 0,
+	ecologyRegistry = null,
 } = {}) {
 	if (!creature?.object3D || typeof creature.update !== 'function') throw new Error('creature controller contract required');
 	const enabled = reactiveDirection === 'away' && triggerRadiusMeters > 0 && memorySeconds > 0;
 	const herdEnabled = enabled && speciesId && packAlertRadiusMeters > 0 && herdRegistry instanceof Map;
+	const ecologyEnabled = speciesId && ecologyRegistry instanceof Map;
+	const predatorEnabled = enabled && ecologyEnabled && predatorThreatRadiusMeters > 0 && Array.isArray(predatorSpeciesIds) && predatorSpeciesIds.length > 0;
 	let memoryRemainingSeconds = 0;
 	let awayX = 0;
 	let awayZ = 1;
 	let directThreatActive = false;
 	const telemetry = creature.object3D.userData;
-	telemetry.creatureThreat = Object.freeze({ phase: 'roam', direct: false, herd: false, herdReactiveCount: 0, memoryRemainingSeconds: 0 });
+	telemetry.creatureThreat = Object.freeze({ phase: 'roam', direct: false, herd: false, predator: false, predatorSpeciesId: null, herdReactiveCount: 0, memoryRemainingSeconds: 0 });
 
 	let herdMembers = null;
 	let member = null;
@@ -74,6 +89,18 @@ export function wrapCreatureWithThreatMemory(creature, {
 		herdMembers.add(member);
 	}
 
+	let ecologyMembers = null;
+	let ecologyMember = null;
+	if (ecologyEnabled) {
+		ecologyMembers = ecologyRegistry.get(speciesId);
+		if (!ecologyMembers) {
+			ecologyMembers = new Set();
+			ecologyRegistry.set(speciesId, ecologyMembers);
+		}
+		ecologyMember = { speciesId, sourceId: sourceId ?? speciesId, object3D: creature.object3D };
+		ecologyMembers.add(ecologyMember);
+	}
+
 	function sameSpeciesAlarmSources() {
 		if (!herdMembers || !member) return [];
 		const result = [];
@@ -81,17 +108,34 @@ export function wrapCreatureWithThreatMemory(creature, {
 			if (other === member || !other.isDirectAlarmSource) continue;
 			const dx = other.object3D.position.x - creature.object3D.position.x;
 			const dz = other.object3D.position.z - creature.object3D.position.z;
-			if (Math.hypot(dx, dz) <= packAlertRadiusMeters) {
-				result.push({ x: other.object3D.position.x, z: other.object3D.position.z });
+			if (Math.hypot(dx, dz) <= packAlertRadiusMeters) result.push({ x: other.object3D.position.x, z: other.object3D.position.z });
+		}
+		return result;
+	}
+
+	function nearbyPredatorSources() {
+		if (!predatorEnabled) return [];
+		const result = [];
+		for (const predatorSpeciesId of predatorSpeciesIds) {
+			const predators = ecologyRegistry.get(predatorSpeciesId);
+			if (!predators) continue;
+			for (const predator of predators) {
+				const dx = predator.object3D.position.x - creature.object3D.position.x;
+				const dz = predator.object3D.position.z - creature.object3D.position.z;
+				const distanceMeters = Math.hypot(dx, dz);
+				if (distanceMeters <= predatorThreatRadiusMeters) {
+					result.push({ x: predator.object3D.position.x, z: predator.object3D.position.z, speciesId: predatorSpeciesId, distanceMeters });
+				}
 			}
 		}
+		result.sort((a, b) => a.distanceMeters - b.distanceMeters || a.speciesId.localeCompare(b.speciesId));
 		return result;
 	}
 
 	return {
 		object3D: creature.object3D,
 		get speciesId() { return speciesId; },
-		get isFleeing() { return Boolean(creature.isFleeing || memoryRemainingSeconds > 0 || sameSpeciesAlarmSources().length > 0); },
+		get isFleeing() { return Boolean(creature.isFleeing || memoryRemainingSeconds > 0 || nearbyPredatorSources().length > 0 || sameSpeciesAlarmSources().length > 0); },
 		update(delta, playerPosition, _herdmateReactivePositions = []) {
 			const validPlayer = Boolean(playerPosition && Number.isFinite(playerPosition.x) && Number.isFinite(playerPosition.z));
 			const dx = validPlayer ? creature.object3D.position.x - playerPosition.x : 0;
@@ -105,8 +149,10 @@ export function wrapCreatureWithThreatMemory(creature, {
 				awayX = dx / safeDistance;
 				awayZ = dz / safeDistance;
 			}
+			const predatorReactivePositions = nearbyPredatorSources();
+			const predator = !direct && memoryRemainingSeconds <= 0 && predatorReactivePositions.length > 0;
 			const herdReactivePositions = sameSpeciesAlarmSources();
-			const herd = !direct && herdReactivePositions.length > 0;
+			const herd = !direct && !predator && herdReactivePositions.length > 0;
 			let effectivePlayerPosition = playerPosition;
 			let usingMemory = false;
 			if (enabled && !direct && memoryRemainingSeconds > 0) {
@@ -117,19 +163,27 @@ export function wrapCreatureWithThreatMemory(creature, {
 					z: creature.object3D.position.z - awayZ * syntheticDistance,
 				};
 				usingMemory = true;
+			} else if (predator) {
+				const nearestPredator = predatorReactivePositions[0];
+				const pdx = nearestPredator.x - creature.object3D.position.x;
+				const pdz = nearestPredator.z - creature.object3D.position.z;
+				const predatorDistance = Math.max(Math.hypot(pdx, pdz), 1e-6);
+				const syntheticDistance = Math.max(0.5, triggerRadiusMeters * 0.5);
+				effectivePlayerPosition = {
+					x: creature.object3D.position.x + pdx / predatorDistance * syntheticDistance,
+					z: creature.object3D.position.z + pdz / predatorDistance * syntheticDistance,
+				};
 			} else if (herd) {
-				// The established brain uses its `playerPosition` argument for flee direction even when
-				// `reactingFromHerd` supplied the trigger. Feed the direct same-species alarm source as
-				// that directional threat so the receiver runs away from the alarming animal rather than
-				// from an unrelated distant player. The authored pack radius still owns alert eligibility.
 				effectivePlayerPosition = herdReactivePositions[0];
 			}
 			creature.update(delta, effectivePlayerPosition, herdEnabled ? herdReactivePositions : _herdmateReactivePositions);
-			const fleeing = Boolean(creature.isFleeing || memoryRemainingSeconds > 0 || herd);
+			const fleeing = Boolean(creature.isFleeing || memoryRemainingSeconds > 0 || predator || herd);
 			telemetry.creatureThreat = Object.freeze({
-				phase: fleeing ? (herd && !usingMemory ? 'herd-flee' : usingMemory ? 'recover' : 'flee') : 'roam',
+				phase: fleeing ? (predator ? 'predator-flee' : herd && !usingMemory ? 'herd-flee' : usingMemory ? 'recover' : 'flee') : 'roam',
 				direct,
 				herd,
+				predator,
+				predatorSpeciesId: predator ? predatorReactivePositions[0]?.speciesId ?? null : null,
 				herdReactiveCount: herdReactivePositions.length,
 				memoryRemainingSeconds: Number(memoryRemainingSeconds.toFixed(3)),
 			});
@@ -138,6 +192,10 @@ export function wrapCreatureWithThreatMemory(creature, {
 			if (herdMembers && member) {
 				herdMembers.delete(member);
 				if (herdMembers.size === 0) herdRegistry.delete(speciesId);
+			}
+			if (ecologyMembers && ecologyMember) {
+				ecologyMembers.delete(ecologyMember);
+				if (ecologyMembers.size === 0) ecologyRegistry.delete(speciesId);
 			}
 			creature.dispose?.();
 		},
@@ -189,10 +247,6 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 	for (const animal of state.animals) state.scene.add(animal.object3D);
 	console.info(`[game3d] Spawned ${state.animals.length} FAZ 6 animal(s).`);
 
-	// Procedural creature population. Placement and habitat rules remain in creatureSpawner.js;
-	// creatureBrain.js remains the behavior owner. Away-reactive wildlife gets a short boundary-memory
-	// adapter before deterministic behavior LOD. The shared registry corrects the legacy game-loop
-	// all-species herdmate list to same-species/direct-source alerts without creating a second brain.
 	const isMobileClassCreatures = isCoarsePointerDevice();
 	const creatureScatterRadiusMeters = (isMobileClassCreatures ? CHUNK_CONFIG.STREAM_RADIUS_CHUNKS : CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS) * CHUNK_CONFIG.CHUNK_SIZE_METERS;
 	const creatureSpawns = scatterCreatures({
@@ -210,9 +264,11 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 	});
 	const rawCreatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, playerCollider: state.playerCollider, mulberry32 });
 	const creatureHerdRegistry = new Map();
+	const creatureEcologyRegistry = new Map();
 	state.creatures = rawCreatures.map((creature, index) => {
 		const speciesId = creatureSpawns[index]?.speciesId;
 		const profile = CREATURE_BEHAVIOR_PROFILES[speciesId];
+		const predatorRule = CREATURE_PREDATOR_THREAT_RULES[speciesId];
 		const threatAwareCreature = wrapCreatureWithThreatMemory(creature, {
 			triggerRadiusMeters: profile?.reactiveTriggerRadiusMeters ?? 0,
 			reactiveDirection: profile?.reactiveDirection,
@@ -221,6 +277,9 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 			packAlertRadiusMeters: profile?.packAlertRadiusMeters,
 			herdRegistry: creatureHerdRegistry,
 			sourceId: creatureSpawns[index]?.id ?? `${speciesId ?? 'creature'}:${index}`,
+			predatorSpeciesIds: predatorRule?.predatorSpeciesIds ?? [],
+			predatorThreatRadiusMeters: predatorRule?.radiusMeters ?? 0,
+			ecologyRegistry: creatureEcologyRegistry,
 		});
 		return wrapCreatureWithSimulationLod(threatAwareCreature, {
 			id: `${speciesId ?? 'creature'}:${index}`,
@@ -232,7 +291,7 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 		});
 	});
 	for (const creature of state.creatures) state.scene.add(creature.object3D);
-	console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s) with same-species herd threat + behavior LOD.`);
+	console.info(`[game3d] Spawned ${state.creatures.length}/${creatureSpawns.length} procedural creature(s) with herd/ecology threat + behavior LOD.`);
 
 	state.carts = isMobileClassCreatures ? [] : spawnConfiguredCarts({ roadEdges: state.roadEdges, mulberry32 });
 	for (const cart of state.carts) state.scene.add(cart.object3D);
