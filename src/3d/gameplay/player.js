@@ -1,7 +1,7 @@
 /**
  * Playable third-person character controller.
  * Reuses the shipped peasant_girl idle/walk/run family, real ground/collider contracts and the
- * existing stamina/dodge/guard controller. Poise and guard-break extend that same state machine.
+ * existing stamina/dodge/guard controller. Poise, guard-break and melee combo share one state machine.
  * @module gameplay/player
  */
 
@@ -38,10 +38,26 @@ const PLAYER_ACTION_CONFIG = Object.freeze({
 	POISE_REGEN_DELAY_SECONDS: 0.9,
 	GUARD_BREAK_SECONDS: 0.75,
 	GUARD_BREAK_STAMINA_PENALTY: 12,
+	LIGHT_ATTACK_STAMINA_COST: 12,
+	HEAVY_ATTACK_STAMINA_COST: 24,
+	LIGHT_ATTACK_SECONDS: 0.44,
+	HEAVY_ATTACK_SECONDS: 0.72,
+	LIGHT_ATTACK_ACTIVE_START_SECONDS: 0.14,
+	LIGHT_ATTACK_ACTIVE_END_SECONDS: 0.26,
+	HEAVY_ATTACK_ACTIVE_START_SECONDS: 0.28,
+	HEAVY_ATTACK_ACTIVE_END_SECONDS: 0.46,
+	ATTACK_COMBO_BUFFER_SECONDS: 0.28,
+	ATTACK_COMBO_MAX_STEPS: 3,
+	LIGHT_ATTACK_REACH_METERS: 1.65,
+	HEAVY_ATTACK_REACH_METERS: 2.05,
+	LIGHT_ATTACK_DAMAGE_SCALE: 1,
+	HEAVY_ATTACK_DAMAGE_SCALE: 1.65,
 	MAX_COLLISION_STEP_METERS: 0.45,
 	MAX_FRAME_DELTA_SECONDS: 0.1,
 });
 
+const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
+const ATTACK_WINDOW_EVENT = 'aapw:player-attack-window';
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 export async function createPlayer({ assetLoader, groundCollider, playerCollider = null, spawn = { x: 0, z: 0 } }) {
@@ -62,6 +78,8 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	let dodgeRemaining = 0, dodgeCooldownRemaining = 0, lastRunPressAge = Infinity, wasRunHeld = false;
 	let runIntent = false, hasMovementInput = false, planarSpeedMps = 0, dodgeDirectionX = 0, dodgeDirectionZ = 1;
 	let guarding = false, wasGuardHeld = false, parryWindowRemaining = 0, parryFeedbackRemaining = 0;
+	let attackKind = 'none', attackRemaining = 0, attackElapsed = 0, attackActive = false, attackComboStep = 0, attackSerial = 0;
+	let bufferedAttackKind = 'none', attackBufferRemaining = 0;
 	let lastDefenseResult = 'none';
 	let movementState = 'idle', currentActionName = null, lastTelemetryState = '', lastTelemetryStamina = -1, lastTelemetryPoise = -1;
 
@@ -106,8 +124,61 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		lastDefenseResult = 'guard-break';
 		playAction('idle', 1);
 	}
+	function attackTuning(kind) {
+		return kind === 'heavy'
+			? { cost: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_STAMINA_COST, duration: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_SECONDS, activeStart: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_ACTIVE_START_SECONDS, activeEnd: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_ACTIVE_END_SECONDS, reach: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_REACH_METERS, damageScale: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_DAMAGE_SCALE }
+			: { cost: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_STAMINA_COST, duration: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_SECONDS, activeStart: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_ACTIVE_START_SECONDS, activeEnd: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_ACTIVE_END_SECONDS, reach: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_REACH_METERS, damageScale: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_DAMAGE_SCALE };
+	}
+	function publishAttackWindow(phase) {
+		if (typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return;
+		const tuning = attackTuning(attackKind);
+		globalThis.dispatchEvent(new globalThis.CustomEvent(ATTACK_WINDOW_EVENT, { detail: Object.freeze({
+			serial: attackSerial, kind: attackKind, comboStep: attackComboStep, phase, active: attackActive,
+			stamina: Number(stamina.toFixed(2)), reachMeters: tuning.reach, damageScale: tuning.damageScale,
+			position: Object.freeze({ x: Number(model.position.x.toFixed(3)), y: Number(model.position.y.toFixed(3)), z: Number(model.position.z.toFixed(3)) }),
+			facing: Object.freeze({ x: Number(Math.sin(model.rotation.y).toFixed(4)), z: Number(Math.cos(model.rotation.y).toFixed(4)) }),
+		}) }));
+	}
+	function canStartAttack(kind) {
+		const tuning = attackTuning(kind);
+		return (kind === 'light' || kind === 'heavy') && attackRemaining <= 0 && guardBreakRemaining <= 0 && dodgeRemaining <= 0 && parryFeedbackRemaining <= 0 && !guarding && isGrounded && stamina >= tuning.cost;
+	}
+	function startAttack(kind, chained = false) {
+		if (!canStartAttack(kind)) return false;
+		const tuning = attackTuning(kind), previousComboStep = attackComboStep;
+		spendStamina(tuning.cost);
+		attackKind = kind; attackRemaining = tuning.duration; attackElapsed = 0; attackActive = false; attackSerial += 1;
+		attackComboStep = chained ? Math.min(PLAYER_ACTION_CONFIG.ATTACK_COMBO_MAX_STEPS, previousComboStep + 1) : 1;
+		bufferedAttackKind = 'none'; attackBufferRemaining = 0; guarding = false; parryWindowRemaining = 0;
+		movementState = `attack-${kind}`; playAction('idle', 1); publishAttackWindow('start');
+		return true;
+	}
+	function updateAttack(dt) {
+		if (attackRemaining <= 0) return;
+		const tuning = attackTuning(attackKind);
+		attackElapsed += dt; attackRemaining = Math.max(0, attackRemaining - dt);
+		const activeNow = attackElapsed >= tuning.activeStart && attackElapsed < tuning.activeEnd;
+		if (activeNow && !attackActive) { attackActive = true; publishAttackWindow('active-start'); }
+		else if (!activeNow && attackActive) { attackActive = false; publishAttackWindow('active-end'); }
+		movementState = `attack-${attackKind}`; playAction('idle', 1);
+		if (attackRemaining > 0) return;
+		if (attackActive) { attackActive = false; publishAttackWindow('active-end'); }
+		publishAttackWindow('finish');
+		const chainedKind = attackBufferRemaining > 0 ? bufferedAttackKind : 'none';
+		attackKind = 'none'; attackElapsed = 0;
+		if (chainedKind !== 'none' && startAttack(chainedKind, true)) return;
+		attackComboStep = 0; bufferedAttackKind = 'none'; attackBufferRemaining = 0;
+	}
+	function onCombatInput(event) {
+		const kind = event?.detail?.kind;
+		if (kind !== 'light' && kind !== 'heavy') return;
+		bufferedAttackKind = kind;
+		attackBufferRemaining = PLAYER_ACTION_CONFIG.ATTACK_COMBO_BUFFER_SECONDS;
+	}
+	globalThis.addEventListener?.(COMBAT_INPUT_EVENT, onCombatInput);
+
 	function canStartDodge() {
-		return !guarding && guardBreakRemaining <= 0 && hasMovementInput && isGrounded && dodgeRemaining <= 0 && dodgeCooldownRemaining <= 0 && stamina >= PLAYER_ACTION_CONFIG.DODGE_COST;
+		return attackRemaining <= 0 && !guarding && guardBreakRemaining <= 0 && hasMovementInput && isGrounded && dodgeRemaining <= 0 && dodgeCooldownRemaining <= 0 && stamina >= PLAYER_ACTION_CONFIG.DODGE_COST;
 	}
 	function startDodge(moveDirectionXZ) {
 		const length = Math.hypot(moveDirectionXZ.x, moveDirectionXZ.z) || 1;
@@ -115,6 +186,13 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		dodgeRemaining = PLAYER_ACTION_CONFIG.DODGE_DURATION_SECONDS;
 		dodgeCooldownRemaining = PLAYER_ACTION_CONFIG.DODGE_COOLDOWN_SECONDS + dodgeRemaining;
 		spendStamina(PLAYER_ACTION_CONFIG.DODGE_COST); lastRunPressAge = Infinity;
+	}
+	function attackPhase() {
+		if (attackRemaining <= 0) return 'none';
+		const tuning = attackTuning(attackKind);
+		if (attackElapsed < tuning.activeStart) return 'windup';
+		if (attackElapsed < tuning.activeEnd) return 'active';
+		return 'recovery';
 	}
 	function motionSnapshot() {
 		return Object.freeze({
@@ -124,7 +202,8 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 			poise: Number(poise.toFixed(2)), maxPoise: PLAYER_ACTION_CONFIG.MAX_POISE,
 			poiseRatio: Number((poise / PLAYER_ACTION_CONFIG.MAX_POISE).toFixed(4)), guardBreakRemaining: Number(guardBreakRemaining.toFixed(3)),
 			guarding, parryWindowRemaining: Number(parryWindowRemaining.toFixed(3)), defenseResult: lastDefenseResult,
-			isGrounded, canDodge: !guarding && guardBreakRemaining <= 0 && isGrounded && dodgeRemaining <= 0 && dodgeCooldownRemaining <= 0 && stamina >= PLAYER_ACTION_CONFIG.DODGE_COST,
+			attackKind, attackPhase: attackPhase(), attackComboStep, attackActive, attackRemaining: Number(attackRemaining.toFixed(3)),
+			isGrounded, canDodge: attackRemaining <= 0 && !guarding && guardBreakRemaining <= 0 && isGrounded && dodgeRemaining <= 0 && dodgeCooldownRemaining <= 0 && stamina >= PLAYER_ACTION_CONFIG.DODGE_COST,
 			speedMps: Number(planarSpeedMps.toFixed(3)), dodgeRemaining: Number(dodgeRemaining.toFixed(3)),
 			dodgeCooldownRemaining: Number(dodgeCooldownRemaining.toFixed(3)), regenDelayRemaining: Number(regenDelayRemaining.toFixed(3)),
 			position: Object.freeze({ x: Number(model.position.x.toFixed(3)), y: Number(model.position.y.toFixed(3)), z: Number(model.position.z.toFixed(3)) }),
@@ -132,7 +211,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	}
 	function publishMotionTelemetry(force = false) {
 		const staminaBucket = Math.floor(stamina * 10), poiseBucket = Math.floor(poise * 10);
-		const transient = movementState === 'dodge' || movementState === 'parry' || movementState === 'guard-break';
+		const transient = movementState === 'dodge' || movementState === 'parry' || movementState === 'guard-break' || movementState.startsWith('attack-');
 		if (!force && !transient && movementState === lastTelemetryState && staminaBucket === lastTelemetryStamina && poiseBucket === lastTelemetryPoise) return;
 		lastTelemetryState = movementState; lastTelemetryStamina = staminaBucket; lastTelemetryPoise = poiseBucket; model.userData.playerMotion = motionSnapshot();
 		if (typeof globalThis.dispatchEvent === 'function' && typeof globalThis.CustomEvent === 'function') globalThis.dispatchEvent(new globalThis.CustomEvent('aapw:player-motion', { detail: model.userData.playerMotion }));
@@ -168,22 +247,25 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		get stamina() { return stamina; }, get maxStamina() { return PLAYER_ACTION_CONFIG.MAX_STAMINA; },
 		get poise() { return poise; }, get maxPoise() { return PLAYER_ACTION_CONFIG.MAX_POISE; },
 		get movementState() { return movementState; }, get sprintExhausted() { return sprintExhausted; },
-		get isDodging() { return dodgeRemaining > 0; }, get isGuarding() { return guarding; }, get isGuardBroken() { return guardBreakRemaining > 0; }, getMotionState: motionSnapshot,
+		get isDodging() { return dodgeRemaining > 0; }, get isGuarding() { return guarding; }, get isGuardBroken() { return guardBreakRemaining > 0; }, get isAttacking() { return attackRemaining > 0; }, getMotionState: motionSnapshot,
 		update(delta, moveDirectionXZ, isRunning, jumpRequested = false) {
 			const dt = clamp(Number.isFinite(delta) ? delta : 0, 0, PLAYER_ACTION_CONFIG.MAX_FRAME_DELTA_SECONDS), frameStartX = model.position.x, frameStartZ = model.position.z;
 			hasMovementInput = moveDirectionXZ.x !== 0 || moveDirectionXZ.z !== 0; runIntent = Boolean(isRunning);
 			lastRunPressAge += dt; dodgeCooldownRemaining = Math.max(0, dodgeCooldownRemaining - dt); regenDelayRemaining = Math.max(0, regenDelayRemaining - dt);
 			poiseRegenDelayRemaining = Math.max(0, poiseRegenDelayRemaining - dt); guardBreakRemaining = Math.max(0, guardBreakRemaining - dt);
 			parryWindowRemaining = Math.max(0, parryWindowRemaining - dt); parryFeedbackRemaining = Math.max(0, parryFeedbackRemaining - dt);
+			attackBufferRemaining = Math.max(0, attackBufferRemaining - dt);
+			if (attackBufferRemaining <= 0 && attackRemaining <= 0) bufferedAttackKind = 'none';
 			if (sprintExhausted && stamina >= PLAYER_ACTION_CONFIG.SPRINT_RESTART_STAMINA) sprintExhausted = false;
 
 			const guardIntent = Boolean(moveDirectionXZ.guarding), guardPressed = guardIntent && !wasGuardHeld;
-			guarding = guardIntent && guardBreakRemaining <= 0 && isGrounded && dodgeRemaining <= 0 && stamina > 0;
+			guarding = guardIntent && attackRemaining <= 0 && guardBreakRemaining <= 0 && isGrounded && dodgeRemaining <= 0 && stamina > 0;
 			if (guardPressed && guarding && stamina >= PLAYER_ACTION_CONFIG.PARRY_STAMINA_COST) parryWindowRemaining = PLAYER_ACTION_CONFIG.PARRY_WINDOW_SECONDS;
 			wasGuardHeld = guardIntent;
 			const runPressed = runIntent && !wasRunHeld, runJumpDodgeRequested = Boolean(jumpRequested) && runIntent;
 			if (canStartDodge() && (runJumpDodgeRequested || (runPressed && lastRunPressAge <= PLAYER_ACTION_CONFIG.DODGE_DOUBLE_TAP_WINDOW_SECONDS))) startDodge(moveDirectionXZ); else if (runPressed) lastRunPressAge = 0;
 			wasRunHeld = runIntent;
+			if (attackRemaining <= 0 && attackBufferRemaining > 0 && bufferedAttackKind !== 'none') startAttack(bufferedAttackKind, false);
 
 			if (guardBreakRemaining > 0) {
 				guarding = false; movementState = 'guard-break'; playAction('idle', 1);
@@ -191,6 +273,8 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 				dodgeRemaining = Math.max(0, dodgeRemaining - dt); moveBy(dodgeDirectionX, dodgeDirectionZ, PLAYER_ACTION_CONFIG.DODGE_SPEED_MPS, dt); turnToward(dodgeDirectionX, dodgeDirectionZ, dt); movementState = 'dodge'; playAction('running', PLAYER_ACTION_CONFIG.DODGE_RUN_ANIMATION_TIMESCALE);
 			} else if (parryFeedbackRemaining > 0) {
 				movementState = 'parry'; playAction('idle', 1);
+			} else if (attackRemaining > 0) {
+				guarding = false; updateAttack(dt);
 			} else if (guarding) {
 				spendStamina(PLAYER_ACTION_CONFIG.GUARD_DRAIN_PER_SECOND * dt);
 				if (hasMovementInput) {
@@ -205,18 +289,18 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 				else { movementState = isGrounded && runIntent && sprintExhausted ? 'exhausted' : (isGrounded ? 'walk' : 'airborne'); playAction('walking', 1); }
 			} else { movementState = isGrounded ? 'idle' : 'airborne'; playAction('idle', 1); }
 
-			if (dodgeRemaining <= 0 && !guarding && guardBreakRemaining <= 0 && jumpRequested && isGrounded) { velocityY = PLAYER_CONFIG.JUMP_SPEED_MPS; isGrounded = false; }
+			if (attackRemaining <= 0 && dodgeRemaining <= 0 && !guarding && guardBreakRemaining <= 0 && jumpRequested && isGrounded) { velocityY = PLAYER_CONFIG.JUMP_SPEED_MPS; isGrounded = false; }
 			({ heightAboveGroundMeters: heightAboveGround, velocityYMps: velocityY, isGrounded } = integrateJumpArc(heightAboveGround, velocityY, dt, PLAYER_CONFIG.GRAVITY_MPS2));
 			model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z) + heightAboveGround;
-			if (guardBreakRemaining <= 0 && dodgeRemaining <= 0 && parryFeedbackRemaining <= 0) {
+			if (attackRemaining <= 0 && guardBreakRemaining <= 0 && dodgeRemaining <= 0 && parryFeedbackRemaining <= 0) {
 				if (!isGrounded) { guarding = false; movementState = 'airborne'; }
-				else if (movementState === 'airborne' || movementState === 'guard-break') movementState = hasMovementInput ? (runIntent && sprintExhausted ? 'exhausted' : 'walk') : 'idle';
+				else if (movementState === 'airborne' || movementState === 'guard-break' || movementState.startsWith('attack-')) movementState = hasMovementInput ? (runIntent && sprintExhausted ? 'exhausted' : 'walk') : 'idle';
 			}
-			if (regenDelayRemaining <= 0 && dodgeRemaining <= 0 && guardBreakRemaining <= 0 && !guarding && !(runIntent && hasMovementInput)) stamina = clamp(stamina + PLAYER_ACTION_CONFIG.STAMINA_REGEN_PER_SECOND * dt, 0, PLAYER_ACTION_CONFIG.MAX_STAMINA);
+			if (regenDelayRemaining <= 0 && attackRemaining <= 0 && dodgeRemaining <= 0 && guardBreakRemaining <= 0 && !guarding && !(runIntent && hasMovementInput)) stamina = clamp(stamina + PLAYER_ACTION_CONFIG.STAMINA_REGEN_PER_SECOND * dt, 0, PLAYER_ACTION_CONFIG.MAX_STAMINA);
 			if (poiseRegenDelayRemaining <= 0 && guardBreakRemaining <= 0 && !guarding) poise = clamp(poise + PLAYER_ACTION_CONFIG.POISE_REGEN_PER_SECOND * dt, 0, PLAYER_ACTION_CONFIG.MAX_POISE);
 			planarSpeedMps = dt > 0 ? Math.hypot(model.position.x - frameStartX, model.position.z - frameStartZ) / dt : 0;
 			mixer.update(dt); publishMotionTelemetry();
 		},
-		dispose() { gameEvents.off(EVENTS.PLAYER_DAMAGED, onIncomingDamage); mixer.stopAllAction(); AssetLoader.disposeObject3D(model); },
+		dispose() { globalThis.removeEventListener?.(COMBAT_INPUT_EVENT, onCombatInput); gameEvents.off(EVENTS.PLAYER_DAMAGED, onIncomingDamage); mixer.stopAllAction(); AssetLoader.disposeObject3D(model); },
 	};
 }
