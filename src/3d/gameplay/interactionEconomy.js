@@ -88,6 +88,20 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		for (const offer of offers) purchasesByOffer.set(offer.id, 0);
 	}
 
+	function syncLedgerTotalsFromStock() {
+		transactionCount = 0;
+		lifetimeSpentCopper = 0;
+		purchasesByOffer.clear();
+		for (const offer of offers) {
+			const limit = stockLimitFor(offer);
+			const remaining = stockByOffer.get(offer.id) ?? limit;
+			const purchases = Math.max(0, limit - remaining);
+			purchasesByOffer.set(offer.id, purchases);
+			transactionCount += purchases;
+			lifetimeSpentCopper += purchases * normalizeCopper(offer.priceCopper, 0);
+		}
+	}
+
 	function transactionReceipt(configuredOffer, sequence, balanceCopper = copper) {
 		return {
 			sequence,
@@ -126,30 +140,34 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 				stockByOffer.set(offer.id, normalizeStock(saved.stockByOffer[offer.id], stockLimitFor(offer)));
 			}
 		}
+
+		// Finite stock is the gameplay-authoritative source. Derive all aggregate ledger totals from it so
+		// legacy stock-aware saves gain truthful history totals and forged aggregate fields cannot drift.
+		syncLedgerTotalsFromStock();
+
 		const savedLedger = saved?.ledger;
 		if (!savedLedger || typeof savedLedger !== 'object' || Array.isArray(savedLedger)) return;
-		transactionCount = normalizeCount(savedLedger.transactionCount);
-		lifetimeSpentCopper = normalizeCopper(savedLedger.lifetimeSpentCopper, 0);
-		const savedPurchases = savedLedger.purchasesByOffer;
-		if (savedPurchases && typeof savedPurchases === 'object' && !Array.isArray(savedPurchases)) {
-			for (const offer of offers) {
-				if (!Object.hasOwn(savedPurchases, offer.id)) continue;
-				purchasesByOffer.set(offer.id, normalizeCount(savedPurchases[offer.id]));
-			}
-		}
-		if (!Array.isArray(savedLedger.recentTransactions)) return;
+		if (!Array.isArray(savedLedger.recentTransactions) || transactionCount <= 0) return;
+
+		const oldestRecentSequence = Math.max(1, transactionCount - RECENT_TRANSACTION_LIMIT + 1);
 		const receiptsBySequence = new Map();
 		for (const savedReceipt of savedLedger.recentTransactions) {
 			if (!savedReceipt || typeof savedReceipt !== 'object' || Array.isArray(savedReceipt)) continue;
 			const sequence = normalizeCount(savedReceipt.sequence);
-			if (sequence <= 0 || sequence > transactionCount) continue;
+			if (sequence < oldestRecentSequence || sequence > transactionCount) continue;
 			const configuredOffer = configuredOfferById(savedReceipt.offerId);
-			if (!configuredOffer) continue;
+			if (!configuredOffer || (purchasesByOffer.get(configuredOffer.id) ?? 0) <= 0) continue;
 			receiptsBySequence.set(sequence, transactionReceipt(configuredOffer, sequence, savedReceipt.balanceCopper));
 		}
-		recentTransactions = [...receiptsBySequence.values()]
-			.sort((left, right) => left.sequence - right.sequence)
-			.slice(-RECENT_TRANSACTION_LIMIT);
+
+		const restoredCountsByOffer = new Map();
+		for (const receipt of [...receiptsBySequence.values()].sort((left, right) => left.sequence - right.sequence)) {
+			const restoredCount = restoredCountsByOffer.get(receipt.offerId) ?? 0;
+			const purchaseCount = purchasesByOffer.get(receipt.offerId) ?? 0;
+			if (restoredCount >= purchaseCount) continue;
+			restoredCountsByOffer.set(receipt.offerId, restoredCount + 1);
+			recentTransactions.push(receipt);
+		}
 	}
 
 	function quote(offer) {
@@ -175,9 +193,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		if (!granted) return { ...purchaseQuote, ok: false, reason: 'inventory-full' };
 		copper -= purchaseQuote.priceCopper;
 		stockByOffer.set(configuredOffer.id, purchaseQuote.remainingStock - 1);
-		transactionCount += 1;
-		lifetimeSpentCopper += purchaseQuote.priceCopper;
-		purchasesByOffer.set(configuredOffer.id, (purchasesByOffer.get(configuredOffer.id) ?? 0) + 1);
+		syncLedgerTotalsFromStock();
 		recentTransactions.push(transactionReceipt(configuredOffer, transactionCount, copper));
 		if (recentTransactions.length > RECENT_TRANSACTION_LIMIT) recentTransactions.splice(0, recentTransactions.length - RECENT_TRANSACTION_LIMIT);
 		return {
