@@ -31,6 +31,7 @@ await page.addInitScript(() => {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const latestMotion = () => page.evaluate(() => structuredClone(window.__meleeMotion.at(-1)));
+const motionHistory = () => page.evaluate(() => structuredClone(window.__meleeMotion));
 const attackWindows = () => page.evaluate(() => structuredClone(window.__meleeWindows));
 const combatInputs = () => page.evaluate(() => structuredClone(window.__meleeInputs));
 async function waitFor(read, predicate, label, timeout = 6000, interval = 40) {
@@ -43,7 +44,7 @@ async function waitFor(read, predicate, label, timeout = 6000, interval = 40) {
 	}
 	throw new Error(`[player-melee-combo-runtime] timed out waiting for ${label}; last=${JSON.stringify(last)}`);
 }
-const waitMotion = (predicate, label, timeout) => waitFor(latestMotion, (motion) => motion && predicate(motion) ? motion : null, label, timeout);
+const waitMotion = (predicate, label, timeout) => waitFor(motionHistory, (motions) => [...motions].reverse().find(predicate) ?? null, label, timeout);
 const waitWindow = (predicate, label, timeout) => waitFor(attackWindows, (events) => [...events].reverse().find(predicate) ?? null, label, timeout);
 
 try {
@@ -100,7 +101,7 @@ try {
 	const metrics = {
 		ok: true,
 		baseline,
-		light: { start: lightStart, active: lightActive },
+		light: { start: lightStart, active: lightActive, lockedMotion: lockedLight },
 		heavy: { start: heavyStart, active: heavyActive },
 		touch: { input: touchInput, start: touchStart },
 		windowPhases: allWindows.map(({ serial, kind, comboStep, phase, active }) => ({ serial, kind, comboStep, phase, active })),
