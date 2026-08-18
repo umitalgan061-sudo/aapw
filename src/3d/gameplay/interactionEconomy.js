@@ -32,6 +32,11 @@ export const QUARTERMASTER_OFFERS = Object.freeze([
 		priceCopper: 5,
 		quantity: 1,
 		stockLimit: 1,
+		fulfillment: Object.freeze({
+			kind: 'settlement-service',
+			serviceId: 'dragonstone-watch-ration-prep',
+			label: 'Erzak hazırlama',
+		}),
 	}),
 ]);
 
@@ -186,9 +191,10 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		const purchaseQuote = quote(offer);
 		if (!purchaseQuote.ok) return purchaseQuote;
 		const configuredOffer = configuredOfferFor(offer);
+		const fulfillment = configuredOffer.fulfillment;
 		const granted = grantItem(configuredOffer.itemId, configuredOffer.quantity ?? 1, {
-			sourceType: 'vendor',
-			sourceId: QUARTERMASTER_NPC_ID,
+			sourceType: fulfillment?.kind ?? 'vendor',
+			sourceId: fulfillment?.serviceId ?? QUARTERMASTER_NPC_ID,
 		});
 		if (!granted) return { ...purchaseQuote, ok: false, reason: 'inventory-full' };
 		copper -= purchaseQuote.priceCopper;
@@ -232,7 +238,7 @@ export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMAS
 		break;
 	}
 	if (feedback) lines.push(feedback);
-	lines.push('Satın almak için numarayı seç:');
+	lines.push('Satın almak veya hizmet almak için numarayı seç:');
 	for (const offer of offers) {
 		const limit = stockLimitForText(offer);
 		const savedRemaining = stock && Object.hasOwn(stock, offer.id) ? Number(stock[offer.id]) : limit;
@@ -245,7 +251,8 @@ export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMAS
 		const bought = Number.isFinite(boughtRaw) && boughtRaw >= 0 ? Math.floor(boughtRaw) : 0;
 		const price = Math.max(0, Math.floor(Number(offer.priceCopper) || 0));
 		const availability = remaining <= 0 ? 'TÜKENDİ' : balance < price ? `YETERSİZ BAKIR · ${price - balance} eksik` : `ALINABİLİR · sonra ${balance - price} bakır`;
-		lines.push(`${offer.label} — ${price} bakır · stok ${remaining}/${limit} · aldın ${bought} · ${availability}`);
+		const service = offer.fulfillment?.kind === 'settlement-service' ? ` · HİZMET: ${offer.fulfillment.label}` : '';
+		lines.push(`${offer.label} — ${price} bakır · stok ${remaining}/${limit} · aldın ${bought} · ${availability}${service}`);
 	}
 	return lines.join('\n');
 }
