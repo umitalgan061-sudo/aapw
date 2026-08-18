@@ -1,11 +1,12 @@
 /**
  * On-screen virtual joystick for touch-primary devices. Movement/run stay analog; jump is an
- * edge-triggered button and guard is a held button so mobile feeds the same combat contract as Q /
- * secondary mouse without creating a mobile-only controller.
+ * edge-triggered button, guard is held, and light/heavy attacks feed the same Player combat intent
+ * contract as keyboard/mouse/gamepad without creating a mobile-only controller.
  * @module ui/touchJoystick
  */
 
 import { TOUCH_JOYSTICK_CONFIG } from '../config.js';
+import { emitPlayerCombatIntent } from '../input.js';
 
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 
@@ -23,6 +24,17 @@ export class TouchJoystick {
 		this._onGuardDown = (event) => { this._guardHeld = true; this._guardButton.setAttribute('aria-pressed', 'true'); event.preventDefault(); };
 		this._onGuardUp = (event) => { this._guardHeld = false; this._guardButton.setAttribute('aria-pressed', 'false'); event.preventDefault?.(); };
 		this._guardButton.addEventListener('pointerdown', this._onGuardDown); this._guardButton.addEventListener('pointerup', this._onGuardUp); this._guardButton.addEventListener('pointercancel', this._onGuardUp); this._guardButton.addEventListener('pointerleave', this._onGuardUp); container.appendChild(this._guardButton);
+
+		this._lightAttackButton = document.createElement('button'); this._lightAttackButton.type = 'button'; this._lightAttackButton.className = 'g3d-touch-light-attack-button'; this._lightAttackButton.textContent = 'Hafif'; this._lightAttackButton.setAttribute('aria-label', 'Hafif saldırı');
+		Object.assign(this._lightAttackButton.style, { position: 'fixed', right: '28px', bottom: '156px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
+		this._onLightAttack = (event) => { emitPlayerCombatIntent('light', 'touch'); event.preventDefault?.(); };
+		this._lightAttackButton.addEventListener('pointerdown', this._onLightAttack); container.appendChild(this._lightAttackButton);
+
+		this._heavyAttackButton = document.createElement('button'); this._heavyAttackButton.type = 'button'; this._heavyAttackButton.className = 'g3d-touch-heavy-attack-button'; this._heavyAttackButton.textContent = 'Ağır'; this._heavyAttackButton.setAttribute('aria-label', 'Ağır saldırı');
+		Object.assign(this._heavyAttackButton.style, { position: 'fixed', right: '112px', bottom: '156px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
+		this._onHeavyAttack = (event) => { emitPlayerCombatIntent('heavy', 'touch'); event.preventDefault?.(); };
+		this._heavyAttackButton.addEventListener('pointerdown', this._onHeavyAttack); container.appendChild(this._heavyAttackButton);
+
 		this._onPointerDown = this._handlePointerDown.bind(this); this._onPointerMove = this._handlePointerMove.bind(this); this._onPointerUp = this._handlePointerUp.bind(this);
 		this._base.addEventListener('pointerdown', this._onPointerDown); this._base.addEventListener('pointermove', this._onPointerMove); this._base.addEventListener('pointerup', this._onPointerUp); this._base.addEventListener('pointercancel', this._onPointerUp);
 	}
@@ -51,6 +63,7 @@ export class TouchJoystick {
 	dispose() {
 		this._base.removeEventListener('pointerdown', this._onPointerDown); this._base.removeEventListener('pointermove', this._onPointerMove); this._base.removeEventListener('pointerup', this._onPointerUp); this._base.removeEventListener('pointercancel', this._onPointerUp);
 		this._jumpButton.removeEventListener('click', this._onJumpClick); this._guardButton.removeEventListener('pointerdown', this._onGuardDown); this._guardButton.removeEventListener('pointerup', this._onGuardUp); this._guardButton.removeEventListener('pointercancel', this._onGuardUp); this._guardButton.removeEventListener('pointerleave', this._onGuardUp);
-		this._jumpRequested = false; this._guardHeld = false; this._guardButton.remove(); this._jumpButton.remove(); this._base.remove();
+		this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack);
+		this._jumpRequested = false; this._guardHeld = false; this._guardButton.remove(); this._jumpButton.remove(); this._lightAttackButton.remove(); this._heavyAttackButton.remove(); this._base.remove();
 	}
 }

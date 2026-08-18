@@ -1,7 +1,7 @@
 /**
- * Keyboard/mouse input state tracking for the playable third-person controller.
- * Direction/run/jump keep their existing contracts; guard is a held action shared by Q and the
- * secondary mouse button so combat never needs a second input framework.
+ * Keyboard/mouse/gamepad input state tracking for the playable third-person controller.
+ * Direction/run/jump/guard keep their existing contracts. Melee attacks are edge-triggered combat
+ * intents shared with touch so Player remains the single gameplay state machine.
  * @module input
  */
 
@@ -12,23 +12,45 @@ const LEFT_KEYS = new Set(['KeyA', 'ArrowLeft']);
 const RUN_KEYS = new Set(['ShiftLeft', 'ShiftRight']);
 const JUMP_KEYS = new Set(['Space']);
 const GUARD_KEYS = new Set(['KeyQ']);
+const LIGHT_ATTACK_KEYS = new Set(['KeyE']);
+const HEAVY_ATTACK_KEYS = new Set(['KeyR']);
 const GUARD_POINTER_BUTTON = 2;
+const LIGHT_ATTACK_POINTER_BUTTON = 0;
+const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
+
+function isInteractiveTarget(target) {
+	return Boolean(target?.closest?.('button, a, input, textarea, select, [contenteditable="true"]'));
+}
+
+export function emitPlayerCombatIntent(kind, source = 'unknown') {
+	if ((kind !== 'light' && kind !== 'heavy') || typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return false;
+	globalThis.dispatchEvent(new globalThis.CustomEvent(COMBAT_INPUT_EVENT, { detail: Object.freeze({ kind, source }) }));
+	return true;
+}
 
 export class KeyboardInput {
 	constructor(target = window) {
 		this._keys = new Set();
 		this._jumpRequested = false;
 		this._guardPointerHeld = false;
+		this._gamepadLightHeld = false;
+		this._gamepadHeavyHeld = false;
 		this._target = target;
 		this._onKeyDown = (event) => {
-			if (JUMP_KEYS.has(event.code) && !this._keys.has(event.code)) this._jumpRequested = true;
+			const firstPress = !this._keys.has(event.code);
+			if (JUMP_KEYS.has(event.code) && firstPress) this._jumpRequested = true;
+			if (firstPress && LIGHT_ATTACK_KEYS.has(event.code)) emitPlayerCombatIntent('light', 'keyboard');
+			if (firstPress && HEAVY_ATTACK_KEYS.has(event.code)) emitPlayerCombatIntent('heavy', 'keyboard');
 			this._keys.add(event.code);
 		};
 		this._onKeyUp = (event) => this._keys.delete(event.code);
 		this._onPointerDown = (event) => {
-			if (event.button !== GUARD_POINTER_BUTTON) return;
-			this._guardPointerHeld = true;
-			event.preventDefault?.();
+			if (event.button === GUARD_POINTER_BUTTON) {
+				this._guardPointerHeld = true;
+				event.preventDefault?.();
+				return;
+			}
+			if (event.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'mouse');
 		};
 		this._onPointerUp = (event) => {
 			if (event.button !== GUARD_POINTER_BUTTON) return;
@@ -45,7 +67,18 @@ export class KeyboardInput {
 		target.addEventListener('contextmenu', this._onContextMenu);
 	}
 
+	_pollGamepadCombat() {
+		const gamepad = globalThis.navigator?.getGamepads?.()?.find?.((candidate) => candidate?.connected) ?? globalThis.navigator?.getGamepads?.()?.[0] ?? null;
+		const lightHeld = Boolean(gamepad?.buttons?.[0]?.pressed);
+		const heavyHeld = Boolean(gamepad?.buttons?.[2]?.pressed);
+		if (lightHeld && !this._gamepadLightHeld) emitPlayerCombatIntent('light', 'gamepad');
+		if (heavyHeld && !this._gamepadHeavyHeld) emitPlayerCombatIntent('heavy', 'gamepad');
+		this._gamepadLightHeld = lightHeld;
+		this._gamepadHeavyHeld = heavyHeld;
+	}
+
 	getAxes() {
+		this._pollGamepadCombat();
 		let forward = 0;
 		let strafe = 0;
 		let running = false;
@@ -70,6 +103,6 @@ export class KeyboardInput {
 		this._target.removeEventListener('pointerup', this._onPointerUp);
 		this._target.removeEventListener('pointercancel', this._onPointerUp);
 		this._target.removeEventListener('contextmenu', this._onContextMenu);
-		this._keys.clear(); this._jumpRequested = false; this._guardPointerHeld = false;
+		this._keys.clear(); this._jumpRequested = false; this._guardPointerHeld = false; this._gamepadLightHeld = false; this._gamepadHeavyHeld = false;
 	}
 }
