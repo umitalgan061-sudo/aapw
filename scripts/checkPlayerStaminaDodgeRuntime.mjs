@@ -219,8 +219,22 @@ try {
   }
   need(controlledMitigatedDamage === 56, `seven controlled guarded hits must each transform 20 raw damage to 8 applied damage, got ${controlledMitigatedDamage}`);
   await page.keyboard.up('KeyQ');
-  const recoveredPoise = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.guardBreakRemaining === 0 && frame.poise > 0 && frame.state !== 'guard-break' ? frame : null; }, { timeout: 10000, interval: 100, label: 'guard-break recovery and poise regeneration' });
-  need(recoveredPoise.poise > 0 && recoveredPoise.canDodge, 'poise recovery must restore locomotion eligibility');
+
+  // Guard-break ending, poise regeneration, and dodge eligibility are separate simulation-time
+  // milestones. The break itself can intentionally exhaust stamina; proving canDodge therefore
+  // requires enough real stamina regeneration to cross the existing dodge-cost threshold rather
+  // than treating the first post-break poise tick as immediate dodge readiness.
+  const recoveredPoise = await waitForHistoryEvidence((frames) => {
+    const frame = frames.at(-1);
+    return frame?.guardBreakRemaining === 0 && frame.poise > 0 && frame.state !== 'guard-break' ? frame : null;
+  }, { timeout: 16000, interval: 100, label: 'guard-break end and first poise regeneration' });
+  need(recoveredPoise.poise > 0 && recoveredPoise.guardBreakRemaining === 0 && !recoveredPoise.guarding, `poise recovery must begin after guard-break unlock ${JSON.stringify(recoveredPoise)}`);
+
+  const recoveredDodge = await waitForHistoryEvidence((frames) => {
+    const frame = frames.at(-1);
+    return frame?.state === 'idle' && frame.guardBreakRemaining === 0 && frame.canDodge ? frame : null;
+  }, { timeout: 25000, interval: 100, label: 'post-break stamina recovery and dodge eligibility' });
+  need(recoveredDodge.canDodge && recoveredDodge.stamina >= 27.5 && recoveredDodge.poise > 0, `stamina recovery must restore real dodge eligibility ${JSON.stringify(recoveredDodge)}`);
 
   const canvas = page.locator('#game3d-canvas');
   const canvasBox = await canvas.boundingBox();
@@ -232,7 +246,7 @@ try {
     baseline, sprintA, sprintB, beforeRunJumpDodge, runJumpDodge, airborneFrames: airborneFrames.slice(0, 8), recoveryStart, recoveryEnd, vitals,
     guard: { ready: guardReady, impact: guardImpact, healthBefore: guardHealthBefore, healthAfter: guardHealthAfter },
     parry: { ready: parryReady, impact: parryImpact, trigger: parryProof?.frame ?? null, healthBefore: parryHealthBefore, healthAfter: parryHealthAfter },
-    poise: { baseline: pressureBaseline, ready: pressureReady, impacts: pressureImpacts, break: breakFrame, recovered: recoveredPoise, healthBefore: breakHealthBefore, healthAfter: breakHealthAfter, controlledMitigatedDamage, controlledHealthLoss, healthBurst, hud: breakVitals },
+    poise: { baseline: pressureBaseline, ready: pressureReady, impacts: pressureImpacts, break: breakFrame, recovered: recoveredPoise, dodgeRecovered: recoveredDodge, healthBefore: breakHealthBefore, healthAfter: breakHealthAfter, controlledMitigatedDamage, controlledHealthLoss, healthBurst, hud: breakVitals },
     canvas: { width: canvasBox.width, height: canvasBox.height, pngBytes: canvasPng.length }, browserErrors: errors,
   }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
