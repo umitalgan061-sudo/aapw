@@ -15,6 +15,7 @@ const EMPTY_LEDGER = {
 		'dragonstone-whetstone': 0,
 		'dragonstone-watch-ration-allotment': 0,
 	},
+	recentTransactions: [],
 };
 const FULL_QUARTERMASTER_ECONOMY = {
 	copper: 40,
@@ -113,4 +114,4 @@ migrated.restoreRpgSnapshot(legacyV3);
 assert.deepEqual(migrated.getInventorySnapshot(), inventory);
 assert.deepEqual(migrated.getEconomySnapshot(), FULL_QUARTERMASTER_ECONOMY);
 
-console.log('[checkInteractionInventoryRewards] PASS: quest rewards -> inventory -> UI -> schema v5 ledger-aware persistence/migration');
+console.log('[checkInteractionInventoryRewards] PASS: quest rewards -> inventory -> UI -> schema v5 ledger/receipt-aware persistence/migration');
