@@ -144,7 +144,7 @@ try {
 }
 
 const curvedResolution = 33;
-const radius = 72;
+const radius = 75;
 const curvedField = bake({
 	extentMeters: 240,
 	resolution: curvedResolution,
