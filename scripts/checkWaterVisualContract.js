@@ -44,13 +44,16 @@ async function main() {
 
 			const uniforms = first.material.uniforms;
 			fail(Boolean(uniforms?.uTime && uniforms?.uShallowColor && uniforms?.uDeepColor && uniforms?.uSunDirection && uniforms?.uCameraPosition), 'water custom uniform set drifted');
+			fail(Boolean(uniforms?.uDepthMap && uniforms?.uDepthFieldExtentMeters && uniforms?.uSwellStrength), 'water depth/coverage uniform set drifted');
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
 			fail(close(uniforms.uTime.value, 0), 'water uTime must start at 0');
-			fail(uniforms.uShallowColor.value?.isColor === true && uniforms.uShallowColor.value.getHex() === 0x4faaa5, 'water shallow color drifted');
+			fail(uniforms.uShallowColor.value?.isColor === true && uniforms.uShallowColor.value.getHex() === 0x527f79, 'water P0 desaturated shallow color drifted');
 			fail(uniforms.uDeepColor.value?.isColor === true && uniforms.uDeepColor.value.getHex() === 0x0a3a4a, 'water deep color drifted');
 			const expectedSun = new THREE.Vector3(300, 400, 200).normalize();
 			fail(vectorClose(uniforms.uSunDirection.value, expectedSun), 'water sun direction drifted');
 			fail(vectorClose(uniforms.uCameraPosition.value, new THREE.Vector3(0, 0, 0)), 'water camera uniform must start at origin');
+			fail(first.userData.waterCoverage?.fullWorld === true && first.userData.waterCoverage?.fullWorldExtentMeters === 17000, 'full-world water coverage metadata drifted');
+			fail(first.userData.farWater?.isMesh === true && first.userData.farWater.geometry?.parameters?.width === 17000 && first.userData.farWater.geometry?.parameters?.height === 17000, 'full-world far-water geometry drifted');
 
 			const vertexShader = first.material.vertexShader;
 			const fragmentShader = first.material.fragmentShader;
@@ -65,8 +68,9 @@ async function main() {
 			fail(uniforms.uSwellStrength.value === 0, 'fresh water mesh must start with swell disabled until a depth field is attached');
 			fail(vertexShader.includes('#include <fog_pars_vertex>') && vertexShader.includes('#include <fog_vertex>'), 'water vertex fog chunks drifted');
 			fail(fragmentShader.includes('uniform float uTime') && fragmentShader.includes('rippleSlope'), 'water fragment ripple contract drifted');
+			fail(fragmentShader.includes('sampleWaterField') && fragmentShader.includes('waterCoverage') && fragmentShader.includes('discard'), 'water canonical coverage masking drifted');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fragment fog chunks drifted');
-			fail(fragmentShader.includes('gl_FragColor = vec4(color, max(alpha, foam * 0.82))'), 'water alpha/specular output signature drifted');
+			fail(fragmentShader.includes('gl_FragColor = vec4(color, max(alpha, foam * 0.78))'), 'water coverage-gated alpha/specular output signature drifted');
 
 			const positions = first.geometry.getAttribute('position');
 			const normals = first.geometry.getAttribute('normal');
