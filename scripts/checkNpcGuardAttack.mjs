@@ -36,12 +36,17 @@ const wrapNpcWithCombatDamage = new Function(`
   return wrapNpcWithCombatDamage;
 `)();
 
+function makeNpc(name, intent = 'combat') {
+  return {
+    object3D: { name, userData: { npcPerception: { intent, lineOfSight: true }, combatStanceBlend: 1 } },
+    update() {},
+    dispose() {},
+  };
+}
+
 const events = [];
-const fakeNpc = {
-  object3D: { name: 'contract-guard', userData: { npcPerception: { intent: 'chase', lineOfSight: true }, combatStanceBlend: 0 } },
-  update() {},
-  dispose() {},
-};
+const fakeNpc = makeNpc('contract-guard', 'chase');
+fakeNpc.object3D.userData.combatStanceBlend = 0;
 const wrapped = wrapNpcWithCombatDamage(fakeNpc, {
   eventsBus: { emit: (name, payload) => events.push({ name, payload }) },
   damageEventName: 'player:damaged',
@@ -70,7 +75,58 @@ assert.ok(events.length >= 2, 'guard must re-arm after bounded cooldown while co
 fakeNpc.object3D.userData.npcPerception = { intent: 'patrol', lineOfSight: true };
 wrapped.update(1 / 60, { x: 100, z: 100 });
 assert.notEqual(fakeNpc.object3D.userData.npcAttack.phase, 'windup', 'leaving combat must cancel pending windup');
+
+const groupEvents = [];
+const attackChannel = { holders: new Map() };
+const firstNpc = makeNpc('guard-a');
+const secondNpc = makeNpc('guard-b');
+const first = wrapNpcWithCombatDamage(firstNpc, {
+  eventsBus: { emit: (name, payload) => groupEvents.push({ name, payload }) },
+  damageEventName: 'player:damaged',
+  attackChannel,
+  attackGroupId: 'stannis',
+  attackerId: 'guard-a',
+});
+const second = wrapNpcWithCombatDamage(secondNpc, {
+  eventsBus: { emit: (name, payload) => groupEvents.push({ name, payload }) },
+  damageEventName: 'player:damaged',
+  attackChannel,
+  attackGroupId: 'stannis',
+  attackerId: 'guard-b',
+});
+
+first.update(1 / 60, { x: 0, z: 2 });
+second.update(1 / 60, { x: 0, z: 2 });
+assert.equal(firstNpc.object3D.userData.npcAttack.phase, 'windup', 'first same-settlement guard must acquire the attack slot');
+assert.equal(firstNpc.object3D.userData.npcAttack.ownsAttackSlot, true);
+assert.equal(secondNpc.object3D.userData.npcAttack.phase, 'hold', 'second same-settlement guard must hold instead of stacking windup');
+assert.equal(secondNpc.object3D.userData.npcAttack.ownsAttackSlot, false);
+assert.equal(attackChannel.holders.size, 1, 'one settlement may expose only one active attack slot');
+
+for (let i = 0; i < 30; i += 1) {
+  first.update(1 / 60, { x: 0, z: 2 });
+  second.update(1 / 60, { x: 0, z: 2 });
+}
+assert.equal(groupEvents.filter((entry) => entry.payload.sourceId === 'guard-a').length, 1, 'slot holder must emit one bounded hit');
+assert.equal(groupEvents.filter((entry) => entry.payload.sourceId === 'guard-b').length, 0, 'blocked guard must not damage during the first holder windup');
+assert.equal(firstNpc.object3D.userData.npcAttack.ownsAttackSlot, false, 'hit must release the shared slot');
+
+for (let i = 0; i < 35; i += 1) {
+  first.update(1 / 60, { x: 0, z: 2 });
+  second.update(1 / 60, { x: 0, z: 2 });
+}
+assert.ok(groupEvents.some((entry) => entry.payload.sourceId === 'guard-b'), 'waiting teammate must acquire a later turn after the first guard yields');
+assert.ok(NPC_GUARD_ATTACK_DEFAULTS.yieldSeconds >= 0.2 && NPC_GUARD_ATTACK_DEFAULTS.yieldSeconds <= 1.5, 'attack yield must remain bounded');
+
+secondNpc.object3D.userData.npcPerception = { intent: 'patrol', lineOfSight: true };
+second.update(1 / 60, { x: 100, z: 100 });
+second.dispose();
+first.dispose();
+assert.equal(attackChannel.holders.size, 0, 'disengage/dispose must not leak settlement attack slots');
+
 assert.match(livingWorldSource, /damageEventName:\s*EVENTS\.PLAYER_DAMAGED/, 'shipped wiring must reuse canonical player damage event');
+assert.match(livingWorldSource, /const guardAttackChannel = \{ holders: new Map\(\) \}/, 'configured guards must share one bounded attack channel');
+assert.match(livingWorldSource, /attackGroupId: npcSeatById\.get\(npc\.object3D\.name\)/, 'attack arbitration must use canonical settlement seat identity');
 assert.equal(livingWorldSource.includes('createHealthState'), false, 'NPC wiring must not duplicate player health');
 assert.equal(livingWorldSource.includes('npcCombatAdapter.js'), false, 'guard attack must not add an uncached runtime dependency');
 
@@ -78,9 +134,13 @@ console.log('NPC_GUARD_ATTACK_PASS', JSON.stringify({
   damage: NPC_GUARD_ATTACK_DEFAULTS.damage,
   windupSeconds: NPC_GUARD_ATTACK_DEFAULTS.windupSeconds,
   cooldownSeconds: NPC_GUARD_ATTACK_DEFAULTS.cooldownSeconds,
+  yieldSeconds: NPC_GUARD_ATTACK_DEFAULTS.yieldSeconds,
   chaseCannotDamage: true,
   investigateCannotDamage: true,
   lineOfSightRequired: true,
+  sameSettlementSingleSlot: true,
+  teammateTurnover: true,
+  slotCleanup: true,
   canonicalDamageEvent: true,
   offlineDependencyAdded: false,
 }));
