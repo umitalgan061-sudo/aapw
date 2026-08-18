@@ -56,6 +56,16 @@ async function waitFor(read, predicate, label, timeout = 6000, interval = 40) {
 }
 const waitMotion = (predicate, label, timeout) => waitFor(motionHistory, (motions) => [...motions].reverse().find(predicate) ?? null, label, timeout);
 const waitWindow = (predicate, label, timeout) => waitFor(attackWindows, (events) => [...events].reverse().find(predicate) ?? null, label, timeout);
+const planarDistance = (a, b) => Math.hypot((a?.x ?? 0) - (b?.x ?? 0), (a?.z ?? 0) - (b?.z ?? 0));
+function validateActiveAnchor(event, motion, baseline, label) {
+	const facingLength = Math.hypot(event?.facing?.x ?? 0, event?.facing?.z ?? 0);
+	const eventMotionDelta = planarDistance(event?.position, motion?.position);
+	const groundDelta = Math.abs((event?.position?.y ?? Infinity) - (baseline?.position?.y ?? 0));
+	need(Math.abs(facingLength - 1) <= 0.002, `${label} facing must be normalized; got ${facingLength}`);
+	need(eventMotionDelta <= 0.05, `${label} attack-window anchor must follow Player motion; delta=${eventMotionDelta}`);
+	need(groundDelta <= 0.05, `${label} active anchor drifted from grounded baseline; deltaY=${groundDelta}`);
+	return Object.freeze({ facingLength: Number(facingLength.toFixed(5)), eventMotionDelta: Number(eventMotionDelta.toFixed(4)), groundDelta: Number(groundDelta.toFixed(4)) });
+}
 
 try {
 	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -72,6 +82,7 @@ try {
 	need(lightActive.reachMeters >= 1.5 && lightActive.damageScale === 1, `bad light hit window ${JSON.stringify(lightActive)}`);
 	const lockedLight = await waitMotion((motion) => motion.attackKind === 'light' && motion.attackActive, 'light active motion');
 	need(!lockedLight.canDodge && !lockedLight.guarding && lockedLight.state === 'attack-light', `light attack must lock dodge/guard ${JSON.stringify(lockedLight)}`);
+	const lightGeometry = validateActiveAnchor(lightActive, lockedLight, baseline, 'light');
 
 	await waitWindow((event) => event.serial === lightStart.serial && event.phase === 'active-end', 'light active-end recovery buffer window');
 	const bufferedHeavyInput = await waitFor(combatInputs, (events) => [...events].reverse().find((event) => event.kind === 'heavy' && event.source === 'keyboard') ?? null, 'buffered heavy keyboard intent');
@@ -81,6 +92,8 @@ try {
 	need(Math.abs(heavyStart.stamina - 64) < 0.25, `light+heavy chain should spend 36 stamina, got ${heavyStart.stamina}`);
 	const heavyActive = await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'active-start' && event.active, 'heavy active window');
 	need(heavyActive.reachMeters > lightActive.reachMeters && heavyActive.damageScale > lightActive.damageScale, 'heavy attack needs stronger reach/damage metadata');
+	const lockedHeavy = await waitMotion((motion) => motion.attackKind === 'heavy' && motion.attackActive, 'heavy active motion');
+	const heavyGeometry = validateActiveAnchor(heavyActive, lockedHeavy, baseline, 'heavy');
 	await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'finish', 'heavy recovery finish', recoveryProofTimeoutMs);
 	await waitMotion((motion) => motion.state === 'idle' && motion.attackKind === 'none', 'post-combo idle', recoveryProofTimeoutMs);
 
@@ -113,15 +126,15 @@ try {
 	const metrics = {
 		ok: true,
 		baseline,
-		light: { start: lightStart, active: lightActive, lockedMotion: lockedLight },
-		heavy: { input: bufferedHeavyInput, start: heavyStart, active: heavyActive },
+		light: { start: lightStart, active: lightActive, lockedMotion: lockedLight, geometry: lightGeometry },
+		heavy: { input: bufferedHeavyInput, start: heavyStart, active: heavyActive, lockedMotion: lockedHeavy, geometry: heavyGeometry },
 		touch: { input: touchInput, start: touchStart },
 		windowPhases: allWindows.map(({ serial, kind, comboStep, phase, active }) => ({ serial, kind, comboStep, phase, active })),
 		inputSources: allInputs,
 		browserErrors: errors,
 	};
 	fs.writeFileSync(path.join(outDir, 'melee-combo.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_MELEE_COMBO_RUNTIME_OK ${JSON.stringify({ lightStamina: lightStart.stamina, heavyStamina: heavyStart.stamina, touchSerial: touchStart.serial, errors: errors.length })}`);
+	console.log(`PLAYER_MELEE_COMBO_RUNTIME_OK ${JSON.stringify({ lightStamina: lightStart.stamina, heavyStamina: heavyStart.stamina, touchSerial: touchStart.serial, lightGeometry, heavyGeometry, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
