@@ -54,6 +54,31 @@ const restoredInventory = createInteractionInventoryState();
 restoredInventory.restore(savedInventory);
 assert.deepEqual(restoredInventory.snapshot(), savedInventory, 'crafted provisioning output must survive inventory save/load');
 
+const tamperedSave = structuredClone(savedInventory);
+tamperedSave.items.push({
+	itemId: 'future-forged-ration',
+	name: 'Sahte Gelecek Eşyası',
+	rarity: 'legendary',
+	weightKg: -999,
+	quantity: 999,
+	provenance: [{ sourceType: 'forged', sourceId: 'future' }],
+});
+const tamperedPack = tamperedSave.items.find((entry) => entry.itemId === recipe.outputItemId);
+tamperedPack.name = 'Sahte Yol Azığı';
+tamperedPack.rarity = 'legendary';
+tamperedPack.weightKg = -999;
+tamperedPack.quantity = 999;
+const sanitizedInventory = createInteractionInventoryState();
+sanitizedInventory.restore(tamperedSave);
+const sanitizedSnapshot = sanitizedInventory.snapshot();
+const sanitizedPack = item(sanitizedSnapshot, recipe.outputItemId);
+assert.equal(sanitizedSnapshot.items.length, 1, 'restore must reject unknown future/forged inventory item ids');
+assert.equal(sanitizedPack?.name, INTERACTION_ITEMS[recipe.outputItemId].name, 'restore must rebuild authored item names');
+assert.equal(sanitizedPack?.rarity, INTERACTION_ITEMS[recipe.outputItemId].rarity, 'restore must rebuild authored rarity');
+assert.equal(sanitizedPack?.weightKg, INTERACTION_ITEMS[recipe.outputItemId].weightKg, 'restore must rebuild authored weight');
+assert.equal(sanitizedPack?.quantity, INTERACTION_ITEMS[recipe.outputItemId].stackLimit, 'restore must clamp crafted output to authored stack limit');
+assert.equal(sanitizedSnapshot.totalWeightKg, Number((INTERACTION_ITEMS[recipe.outputItemId].weightKg * INTERACTION_ITEMS[recipe.outputItemId].stackLimit).toFixed(2)));
+
 const blockedInventory = createInteractionInventoryState();
 assert.equal(blockedInventory.grant(ration.itemId, 2), true);
 assert.equal(blockedInventory.grant(recipe.outputItemId, INTERACTION_ITEMS[recipe.outputItemId].stackLimit), true);
@@ -70,4 +95,4 @@ const text = buildQuartermasterText(createInteractionEconomyState().snapshot());
 assert.match(text, /HİZMET: Erzak hazırlama/);
 assert.match(text, /DÖNÜŞÜM: 2 saha azığını 1 yol azığı paketine hazırla/);
 
-console.log('PASS checkInteractionProvisioningCraft: ration prep preserves legacy fulfillment, atomically converts two rations into a persistent travel pack, and failed output-capacity craft leaves inventory/economy unchanged.');
+console.log('PASS checkInteractionProvisioningCraft: ration prep preserves legacy fulfillment, atomically converts two rations into a persistent travel pack, sanitizes forged save metadata, and failed output-capacity craft leaves inventory/economy unchanged.');
