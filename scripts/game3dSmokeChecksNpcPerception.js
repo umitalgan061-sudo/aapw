@@ -12,7 +12,7 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
 		result = await page.evaluate(async () => {
 			const { createNPC } = await import('/src/3d/gameplay/npc.js');
-			const { wrapNpcWithCombatDamage } = await import('/src/3d/gameplay/npcCombatAdapter.js');
+			const { wrapNpcWithCombatDamage } = await import('/src/3d/gameplay/livingWorldSpawner.js');
 			const { AssetLoader } = await import('/src/3d/assetLoader.js');
 			const { NPC_CONFIG } = await import('/src/3d/gameplay/npcConfig.js');
 			const { EVENTS } = await import('/src/3d/config.js');
