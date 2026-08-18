@@ -71,6 +71,13 @@ export const INTERACTION_ITEMS = Object.freeze({
 		weightKg: 0.35,
 		stackLimit: 5,
 	}),
+	'dragonstone-travel-ration-pack': Object.freeze({
+		id: 'dragonstone-travel-ration-pack',
+		name: 'Dragonstone Yol Azığı Paketi',
+		rarity: 'uncommon',
+		weightKg: 0.6,
+		stackLimit: 2,
+	}),
 	'dragonstone-whetstone': Object.freeze({
 		id: 'dragonstone-whetstone',
 		name: 'Nöbetçi Bileği Taşı',
@@ -80,14 +87,54 @@ export const INTERACTION_ITEMS = Object.freeze({
 	}),
 });
 
-/** Compact inventory state for interaction-owned quest rewards and settlement purchases. */
+/** Compact inventory state for interaction-owned quest rewards and settlement purchases/crafting. */
 export function createInteractionInventoryState() {
 	const entries = new Map();
+
+	function quantityOf(itemId) {
+		return entries.get(itemId)?.quantity ?? 0;
+	}
+
+	function canGrant(itemId, quantity = 1) {
+		const item = INTERACTION_ITEMS[itemId];
+		const amount = Math.max(0, Math.floor(Number(quantity) || 0));
+		return Boolean(item && amount > 0 && quantityOf(itemId) + amount <= item.stackLimit);
+	}
+
+	function consume(itemId, quantity = 1) {
+		const amount = Math.max(0, Math.floor(Number(quantity) || 0));
+		const current = entries.get(itemId);
+		if (!current || amount === 0 || current.quantity < amount) return false;
+		const nextQuantity = current.quantity - amount;
+		if (nextQuantity === 0) entries.delete(itemId);
+		else entries.set(itemId, { quantity: nextQuantity, provenance: [...current.provenance] });
+		return true;
+	}
+
+	function tryCraftUpgrade(upgrade, provenance) {
+		if (!upgrade || typeof upgrade !== 'object') return null;
+		const inputItemId = String(upgrade.inputItemId ?? '');
+		const outputItemId = String(upgrade.outputItemId ?? '');
+		const inputQuantity = Math.max(1, Math.floor(Number(upgrade.inputQuantity) || 1));
+		const outputQuantity = Math.max(1, Math.floor(Number(upgrade.outputQuantity) || 1));
+		if (!INTERACTION_ITEMS[inputItemId] || !INTERACTION_ITEMS[outputItemId]) return null;
+		if (quantityOf(inputItemId) < inputQuantity) return null;
+		if (!canGrant(outputItemId, outputQuantity)) return { ok: false, reason: 'craft-output-full' };
+		if (!consume(inputItemId, inputQuantity)) return { ok: false, reason: 'craft-input-race' };
+		const crafted = grant(outputItemId, outputQuantity, {
+			sourceType: 'settlement-crafting',
+			sourceId: String(upgrade.recipeId ?? provenance?.sourceId ?? 'interaction-crafting'),
+		});
+		if (!crafted) throw new Error('Atomic crafting invariant violated after validated output capacity');
+		return { ok: true, crafted: true, outputItemId, outputQuantity, consumedItemId: inputItemId, consumedQuantity: inputQuantity };
+	}
 
 	function grant(itemId, quantity = 1, provenance = null) {
 		const item = INTERACTION_ITEMS[itemId];
 		const amount = Math.max(0, Math.floor(Number(quantity) || 0));
 		if (!item || amount === 0) return false;
+		const craftResult = tryCraftUpgrade(provenance?.craftUpgrade, provenance);
+		if (craftResult) return craftResult;
 		const current = entries.get(itemId) ?? { quantity: 0, provenance: [] };
 		const nextQuantity = Math.min(item.stackLimit, current.quantity + amount);
 		if (nextQuantity === current.quantity) return false;
@@ -129,7 +176,7 @@ export function createInteractionInventoryState() {
 		}
 	}
 
-	return { grant, snapshot, restore };
+	return { grant, quantityOf, consume, snapshot, restore };
 }
 
 export function buildInventoryText(snapshot = {}) {
