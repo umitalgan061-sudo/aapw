@@ -7,6 +7,7 @@ on:
       - 'src/3d/fog.js'
       - 'scripts/checkTerrainAperiodicSurface.mjs'
       - '.github/workflows/terrain-aperiodic-surface.yml'
+      - '.github/workflows/world-environment-acceptance.yml'
   workflow_dispatch:
 
 jobs:
@@ -31,7 +32,7 @@ jobs:
           printf '%s\n' "$changed"
           while IFS= read -r path; do
             case "$path" in
-              src/3d/world/terrainAperiodicSurface.js|src/3d/fog.js|scripts/checkTerrainAperiodicSurface.mjs|.github/workflows/terrain-aperiodic-surface.yml) ;;
+              src/3d/world/terrainAperiodicSurface.js|src/3d/fog.js|scripts/checkTerrainAperiodicSurface.mjs|.github/workflows/terrain-aperiodic-surface.yml|.github/workflows/world-environment-acceptance.yml) ;;
               *) echo "unexpected path: $path" >&2; exit 1 ;;
             esac
           done <<< "$changed"
