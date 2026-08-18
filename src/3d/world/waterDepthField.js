@@ -27,6 +27,14 @@
  * amplitude tweak that would break it fails the check instead of silently resurrecting ADR-0048's
  * flicker.
  *
+ * The same texture also carries **canonical water coverage** in its green channel. Red answers
+ * "how deep?" while green answers "is this terrain sample actually below sea level?". Those are
+ * deliberately separate signals: depth clamps dry land and an exact shoreline to the same red=0,
+ * which previously meant the full-world water plane still rendered translucent cyan over dry land.
+ * A binary coverage sample baked from the authoritative terrain height, then linearly filtered on
+ * the GPU, gives the shader a continuous shoreline opacity edge without inventing geometry or a
+ * second coastline source.
+ *
  * **Why a baked texture and not GLSL noise.** The height field lives in `world/terrain.js`
  * (`createHeightSampler` — FBM + macro relief + settlement flatten pads). Re-implementing that in
  * GLSL would create a second, drifting copy of the world's shape, which this codebase deliberately
@@ -68,13 +76,17 @@ export const WATER_DEPTH_FIELD_RESOLUTION = 384;
 export const FULL_WAVE_DEPTH_METERS = 10;
 
 /**
- * Bakes the depth field. Every texel stores `clamp((waterLevel - terrainHeight) / fullWaveDepth, 0, 1)`
- * in its red channel — 0 where the ground is at or above the water surface (dry land / exact
- * shoreline), 1 where the water is at least `fullWaveDepthMeters` deep.
+ * Bakes the depth field. Every texel stores:
+ * - red: `clamp((waterLevel - terrainHeight) / fullWaveDepth, 0, 1)`;
+ * - green: canonical water coverage (`1` iff terrain is strictly below water level, else `0`).
+ *
+ * Keeping coverage independent from depth is critical because both dry land and an exact shoreline
+ * have red=0. Linear filtering of green provides the water shader with a soft sub-texel shoreline
+ * transition while the underlying classification stays deterministic and terrain-authoritative.
  *
  * `THREE.RGBAFormat`/`UnsignedByteType` is used rather than the more compact `RedFormat` because
  * single-channel byte textures are a WebGL2-only format and this project still supports a WebGL1
- * fallback path on older mobile hardware. Green/blue/alpha are written as 255 and reserved.
+ * fallback path on older mobile hardware. Blue/alpha remain reserved at 255.
  *
  * @param {object} options
  * @param {(worldX: number, worldZ: number) => number} options.sampleHeightMeters Terrain height
@@ -112,11 +124,12 @@ export function createWaterDepthField({
 			const worldX = originMeters + column * stepMeters;
 			const depthMeters = waterLevelMeters - sampleHeightMeters(worldX, worldZ);
 			const normalized = Math.min(1, Math.max(0, depthMeters / fullWaveDepthMeters));
+			const hasWater = depthMeters > 0;
 			if (normalized >= 1) deepTexels++;
-			if (normalized <= 0) dryTexels++;
+			if (!hasWater) dryTexels++;
 			const offset = (row * resolution + column) * 4;
 			data[offset] = Math.round(normalized * 255);
-			data[offset + 1] = 255;
+			data[offset + 1] = hasWater ? 255 : 0;
 			data[offset + 2] = 255;
 			data[offset + 3] = 255;
 		}
@@ -127,7 +140,7 @@ export function createWaterDepthField({
 	texture.minFilter = THREE.LinearFilter;
 	// Clamp rather than repeat: sampling past the baked square must not wrap the far shore back
 	// under the camera. The shader additionally short-circuits out-of-range UVs to "deep ocean"
-	// (see `water.js`'s `sampleDepthFactor`), so clamping is only a defensive second line.
+	// (see `water.js`), so clamping is only a defensive second line.
 	texture.wrapS = THREE.ClampToEdgeWrapping;
 	texture.wrapT = THREE.ClampToEdgeWrapping;
 	texture.generateMipmaps = false;
