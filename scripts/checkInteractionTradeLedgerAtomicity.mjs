@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import {
 	QUARTERMASTER_OFFERS,
+	RECENT_TRANSACTION_LIMIT,
 	createInteractionEconomyState,
 } from '../src/3d/gameplay/interactionEconomy.js';
 import { createInteractionInventoryState, INTERACTION_ITEMS } from '../src/3d/gameplay/interactionConfig.js';
 
 const ration = QUARTERMASTER_OFFERS[0];
 const whetstone = QUARTERMASTER_OFFERS[1];
+const rationAllotment = QUARTERMASTER_OFFERS[2];
 
 function snapshot(value) {
 	return structuredClone(value.snapshot());
@@ -85,13 +87,18 @@ assert.equal(committed.ledger.transactionCount, 2);
 assert.equal(committed.ledger.lifetimeSpentCopper, ration.priceCopper + whetstone.priceCopper);
 assert.equal(committed.ledger.purchasesByOffer[ration.id], 1);
 assert.equal(committed.ledger.purchasesByOffer[whetstone.id], 1);
+assert.deepEqual(committed.ledger.recentTransactions.map(({ sequence, offerId, balanceCopper }) => ({ sequence, offerId, balanceCopper })), [
+	{ sequence: 1, offerId: ration.id, balanceCopper: 34 },
+	{ sequence: 2, offerId: whetstone.id, balanceCopper: 22 },
+]);
 
 const detached = economy.snapshot();
 detached.copper = 9999;
 detached.stockByOffer[ration.id] = 0;
 detached.ledger.transactionCount = 9999;
 detached.ledger.purchasesByOffer[ration.id] = 9999;
-assert.deepEqual(economy.snapshot(), committed, 'consumer mutation must not alter internal economy or ledger state');
+detached.ledger.recentTransactions[0].balanceCopper = 9999;
+assert.deepEqual(economy.snapshot(), committed, 'consumer mutation must not alter internal economy, ledger or receipts');
 
 const restored = createInteractionEconomyState(0);
 restored.restore({
@@ -100,9 +107,15 @@ restored.restore({
 	ledger: {
 		...committed.ledger,
 		purchasesByOffer: { ...committed.ledger.purchasesByOffer, unknown: 999 },
+		recentTransactions: [
+			{ ...committed.ledger.recentTransactions[0], itemId: 'forged', spentCopper: 999 },
+			committed.ledger.recentTransactions[1],
+			{ sequence: 2, offerId: 'unknown', balanceCopper: 0 },
+			{ sequence: 3, offerId: ration.id, balanceCopper: 16 },
+		],
 	},
 });
-assert.deepEqual(restored.snapshot(), committed, 'unknown persisted offer ids must not enter runtime state');
+assert.deepEqual(restored.snapshot(), committed, 'restore must canonicalize receipts and ignore unknown/out-of-range entries');
 
 const soldOut = createInteractionEconomyState(40);
 for (let index = 0; index < ration.stockLimit; index += 1) assert.equal(soldOut.purchase(ration, () => true).ok, true);
@@ -118,8 +131,20 @@ const soldOutBefore = snapshot(soldOut);
 assert.equal(soldOut.purchase(ration, () => true).reason, 'out-of-stock');
 assert.deepEqual(soldOut.snapshot(), soldOutBefore);
 
+const historyEconomy = createInteractionEconomyState(200);
+for (let index = 0; index < ration.stockLimit; index += 1) assert.equal(historyEconomy.purchase(ration, () => true).ok, true);
+for (let index = 0; index < whetstone.stockLimit; index += 1) assert.equal(historyEconomy.purchase(whetstone, () => true).ok, true);
+for (let index = 0; index < rationAllotment.stockLimit; index += 1) assert.equal(historyEconomy.purchase(rationAllotment, () => true).ok, true);
+const boundedHistory = historyEconomy.snapshot().ledger.recentTransactions;
+assert.equal(historyEconomy.snapshot().ledger.transactionCount, 7);
+assert.equal(boundedHistory.length, RECENT_TRANSACTION_LIMIT);
+assert.deepEqual(boundedHistory.map((entry) => entry.sequence), [3, 4, 5, 6, 7]);
+assert.equal(boundedHistory.at(-1).offerId, rationAllotment.id);
+
 const restoredDetached = restored.snapshot();
 restoredDetached.ledger.purchasesByOffer[ration.id] = 77;
+restoredDetached.ledger.recentTransactions[0].sequence = 77;
 assert.equal(restored.snapshot().ledger.purchasesByOffer[ration.id], 1);
+assert.equal(restored.snapshot().ledger.recentTransactions[0].sequence, 1);
 
-console.log('PASS checkInteractionTradeLedgerAtomicity: purchase quotes are deterministic/side-effect free, failed trades are atomic, committed ledger state is detached, and restore ignores unknown offers.');
+console.log('PASS checkInteractionTradeLedgerAtomicity: quotes are deterministic, failed trades are atomic, receipts are detached/canonicalized/bounded, and restore ignores unknown offers.');
