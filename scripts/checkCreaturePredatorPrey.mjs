@@ -83,10 +83,12 @@ const lionInner = makeCreature(18, 0);
 const lion = wrap(lionInner, 'aslan', 'lion');
 const goatInner = makeCreature(2, 0);
 const goat = wrap(goatInner, 'keci', 'goat', ['aslan', 'ayi'], 20);
+const dt = 1 / 60;
+const farPlayer = { x: 200, z: 200 };
 
 assert.equal(prey.isFleeing, true, 'near authored predator must wake prey before its own tick for LOD urgency');
 const beforeX = preyInner.object3D.position.x;
-prey.update(1 / 60, { x: 200, z: 200 }, []);
+prey.update(dt, farPlayer, []);
 assert.equal(preyInner.object3D.userData.creatureThreat.phase, 'predator-flee');
 assert.equal(preyInner.object3D.userData.creatureThreat.predator, true);
 assert.equal(preyInner.object3D.userData.creatureThreat.predatorSpeciesId, 'aslan');
@@ -94,7 +96,11 @@ assert.ok(preyInner.object3D.position.x < beforeX, 'prey must physically move aw
 assert.equal(lion.isFleeing, false, 'predator must not inherit prey fear');
 
 lionInner.object3D.position.x = 30;
-assert.equal(prey.isFleeing, false, 'predator threat must stop outside bounded authored radius');
+prey.update(dt, farPlayer, []);
+assert.equal(prey.isFleeing, false, 'predator threat must stop after the next normal brain tick outside the bounded authored radius');
+assert.equal(preyInner.object3D.userData.creatureThreat.phase, 'roam', 'predator departure must return prey to normal roam without predator memory');
+assert.equal(preyInner.object3D.userData.creatureThreat.predator, false, 'predator telemetry must clear after leaving authored radius');
+assert.equal(preyInner.object3D.userData.creatureThreat.predatorSpeciesId, null, 'departed predator identity must not remain latched');
 assert.equal(goat.isFleeing, false, 'prey species with smaller radius must not overreact to a distant predator');
 
 assert.match(source, /CREATURE_PREDATOR_THREAT_RULES = Object\.freeze/, 'runtime must expose authored predator-prey rules');
@@ -118,6 +124,7 @@ console.log('CREATURE_PREDATOR_PREY_PASS', JSON.stringify({
   deerThreatRadiusMeters: 24,
   urgentBeforeTick: true,
   nearestPredatorDirection: true,
+  predatorDepartureReturnsToRoam: true,
   noFearRelay: true,
   boundedEcologyRegistry: true,
 }));
