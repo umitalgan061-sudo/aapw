@@ -119,17 +119,41 @@ try {
   need(parryReady.stamina - parryImpact.stamina >= 7.5 && parryImpact.poise === parryReady.poise, 'parry must cost stamina without poise damage');
   await page.keyboard.up('KeyQ'); await waitState('idle', 6000);
 
+  // Isolate guard-break pressure from the earlier sprint/dodge/guard/parry stamina spend. The
+  // shipped controller must naturally regenerate both resources before this independent proof.
+  const pressureBaseline = await waitForHistoryEvidence((frames) => {
+    const frame = frames.at(-1);
+    return frame?.state === 'idle'
+      && frame.guardBreakRemaining === 0
+      && frame.stamina >= 99.5
+      && frame.poise >= 99.5
+      ? frame
+      : null;
+  }, { timeout: 20000, interval: 100, label: 'full stamina and poise recovery before guard-break pressure' });
+  need(pressureBaseline.canDodge && !pressureBaseline.guarding, `pressure baseline must restore locomotion ${JSON.stringify(pressureBaseline)}`);
+  await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
+
   // Each guarded 20-point hit blocks 12 damage and removes 15 poise at the production 1.25 ratio.
   // Seven real guarded hits therefore must exhaust 100 poise and enter the bounded guard-break state.
   await page.keyboard.down('KeyQ');
-  await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'guard ready for poise pressure' });
+  const pressureReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'guard ready for poise pressure' });
+  need(pressureReady.stamina >= 95 && pressureReady.poise >= 99.5, `poise pressure must start with a real resource budget ${JSON.stringify(pressureReady)}`);
   const breakHealthBefore = await readHealth();
+  const pressureImpacts = [];
   let breakFrame = null;
   for (let hit = 0; hit < 7; hit += 1) {
+    const marker = (await history()).length;
+    const before = await latest();
     await emitPlayerDamage(20, `poise-break-${hit}`);
-    breakFrame = await waitForHistoryEvidence((frames) => [...frames].reverse().find((frame) => frame?.defenseResult === 'guard-break' || frame?.state === 'guard-break') ?? null, { timeout: hit === 6 ? 4000 : 700, interval: 40, label: `poise pressure hit ${hit + 1}` }).catch(() => null);
-    if (breakFrame) break;
+    const impact = await waitForHistoryEvidence((frames) => {
+      const afterMarker = frames.slice(marker);
+      if (hit === 6) return afterMarker.find((frame) => frame?.state === 'guard-break' && frame.poise === 0) ?? null;
+      return afterMarker.find((frame) => frame?.defenseResult === 'guard' && frame.poise <= before.poise - 14.5) ?? null;
+    }, { timeout: hit === 6 ? 5000 : 2500, interval: 40, label: `poise pressure hit ${hit + 1}` });
+    pressureImpacts.push(impact);
+    if (impact.state === 'guard-break') { breakFrame = impact; break; }
   }
+  need(pressureImpacts.length === 7, `expected seven real guarded pressure impacts, got ${pressureImpacts.length}`);
   need(breakFrame?.state === 'guard-break' && breakFrame.poise === 0 && breakFrame.guardBreakRemaining > 0, `guard break missing ${JSON.stringify(breakFrame)}`);
   need(!breakFrame.guarding && !breakFrame.canDodge, 'guard break must lock guard/dodge');
   const breakVitals = await readVitals();
@@ -150,7 +174,7 @@ try {
     baseline, sprintA, sprintB, beforeRunJumpDodge, runJumpDodge, airborneFrames: airborneFrames.slice(0, 8), recoveryStart, recoveryEnd, vitals,
     guard: { ready: guardReady, impact: guardImpact, healthBefore: guardHealthBefore, healthAfter: guardHealthAfter },
     parry: { ready: parryReady, impact: parryImpact, trigger: parryProof?.frame ?? null, healthBefore: parryHealthBefore, healthAfter: parryHealthAfter },
-    poise: { break: breakFrame, recovered: recoveredPoise, healthBefore: breakHealthBefore, healthAfter: breakHealthAfter, hud: breakVitals },
+    poise: { baseline: pressureBaseline, ready: pressureReady, impacts: pressureImpacts, break: breakFrame, recovered: recoveredPoise, healthBefore: breakHealthBefore, healthAfter: breakHealthAfter, hud: breakVitals },
     canvas: { width: canvasBox.width, height: canvasBox.height, pngBytes: canvasPng.length }, browserErrors: errors,
   }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
