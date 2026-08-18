@@ -31,6 +31,7 @@ export const NPC_GUARD_ATTACK_DEFAULTS = Object.freeze({
 	windupSeconds: 0.35,
 	cooldownSeconds: 1.2,
 	minimumCombatBlend: 0.55,
+	yieldSeconds: 0.65,
 });
 
 function finitePositive(value, fallback) {
@@ -41,7 +42,9 @@ function finitePositive(value, fallback) {
  * Small integration adapter between existing NPC combat intent and the existing generic player
  * damage EventBus contract. It owns neither health nor another combat state machine: hearing,
  * assist, investigation and chase remain damage-free; only sustained visual `combat` intent with
- * LOS can complete the bounded windup and emit damage.
+ * LOS can complete the bounded windup and emit damage. When a shared settlement attack channel is
+ * supplied, only one guard in that group may own a windup at a time; the slot is released on hit,
+ * disengage or dispose so nearby guards alternate pressure instead of stacking simultaneous damage.
  */
 export function wrapNpcWithCombatDamage(npc, {
 	eventsBus,
@@ -50,24 +53,46 @@ export function wrapNpcWithCombatDamage(npc, {
 	windupSeconds = NPC_GUARD_ATTACK_DEFAULTS.windupSeconds,
 	cooldownSeconds = NPC_GUARD_ATTACK_DEFAULTS.cooldownSeconds,
 	minimumCombatBlend = NPC_GUARD_ATTACK_DEFAULTS.minimumCombatBlend,
+	attackChannel = null,
+	attackGroupId = null,
+	attackerId = npc?.object3D?.name || 'guard',
+	yieldSeconds = NPC_GUARD_ATTACK_DEFAULTS.yieldSeconds,
 } = {}) {
 	if (!npc?.object3D || typeof npc.update !== 'function') throw new Error('NPC controller contract required');
 	if (!eventsBus?.emit || !damageEventName) return npc;
 	const boundedDamage = finitePositive(damage, NPC_GUARD_ATTACK_DEFAULTS.damage);
 	const boundedWindup = Math.max(0.1, Math.min(0.8, finitePositive(windupSeconds, NPC_GUARD_ATTACK_DEFAULTS.windupSeconds)));
 	const boundedCooldown = Math.max(0.5, Math.min(3, finitePositive(cooldownSeconds, NPC_GUARD_ATTACK_DEFAULTS.cooldownSeconds)));
+	const boundedYield = Math.max(0.2, Math.min(1.5, finitePositive(yieldSeconds, NPC_GUARD_ATTACK_DEFAULTS.yieldSeconds)));
 	const requiredBlend = Math.max(0, Math.min(1, Number.isFinite(minimumCombatBlend) ? minimumCombatBlend : NPC_GUARD_ATTACK_DEFAULTS.minimumCombatBlend));
+	const arbitrationEnabled = Boolean(attackGroupId && attackChannel?.holders instanceof Map);
 	let windupRemaining = 0;
 	let cooldownRemaining = 0;
+	let yieldRemaining = 0;
 	let attacksEmitted = 0;
 	let phase = 'idle';
+	const ownsAttackSlot = () => arbitrationEnabled && attackChannel.holders.get(attackGroupId) === attackerId;
+	const releaseAttackSlot = () => {
+		if (ownsAttackSlot()) attackChannel.holders.delete(attackGroupId);
+	};
+	const acquireAttackSlot = () => {
+		if (!arbitrationEnabled) return true;
+		if (yieldRemaining > 0) return false;
+		const holder = attackChannel.holders.get(attackGroupId);
+		if (holder && holder !== attackerId) return false;
+		if (!holder) attackChannel.holders.set(attackGroupId, attackerId);
+		return true;
+	};
 	function publishTelemetry() {
 		npc.object3D.userData.npcAttack = Object.freeze({
 			phase,
 			windupRemaining: Number(windupRemaining.toFixed(3)),
 			cooldownRemaining: Number(cooldownRemaining.toFixed(3)),
+			yieldRemaining: Number(yieldRemaining.toFixed(3)),
 			attacksEmitted,
 			damage: boundedDamage,
+			attackGroupId: attackGroupId ?? null,
+			ownsAttackSlot: ownsAttackSlot(),
 		});
 	}
 	publishTelemetry();
@@ -78,34 +103,49 @@ export function wrapNpcWithCombatDamage(npc, {
 			npc.update(delta, playerPosition);
 			const dt = Math.max(0, Math.min(Number.isFinite(delta) ? delta : 0, 0.25));
 			cooldownRemaining = Math.max(0, cooldownRemaining - dt);
+			yieldRemaining = Math.max(0, yieldRemaining - dt);
 			const perception = npc.object3D.userData.npcPerception;
 			const inCombat = perception?.intent === 'combat'
 				&& perception?.lineOfSight === true
 				&& npc.object3D.userData.combatStanceBlend >= requiredBlend;
 			if (!inCombat) {
 				windupRemaining = 0;
-				phase = cooldownRemaining > 0 ? 'recover' : 'idle';
+				releaseAttackSlot();
+				phase = cooldownRemaining > 0 || yieldRemaining > 0 ? 'recover' : 'idle';
 				publishTelemetry();
 				return;
 			}
 			if (windupRemaining > 0) {
+				if (arbitrationEnabled && !ownsAttackSlot()) {
+					windupRemaining = 0;
+					phase = 'hold';
+					publishTelemetry();
+					return;
+				}
 				windupRemaining = Math.max(0, windupRemaining - dt);
 				phase = 'windup';
 				if (windupRemaining === 0) {
-					eventsBus.emit(damageEventName, { amount: boundedDamage, sourceId: npc.object3D.name || 'guard' });
+					eventsBus.emit(damageEventName, { amount: boundedDamage, sourceId: attackerId });
 					attacksEmitted += 1;
 					cooldownRemaining = boundedCooldown;
+					yieldRemaining = boundedYield;
+					releaseAttackSlot();
 					phase = 'recover';
 				}
-			} else if (cooldownRemaining === 0) {
+			} else if (cooldownRemaining === 0 && acquireAttackSlot()) {
 				windupRemaining = boundedWindup;
 				phase = 'windup';
+			} else if (cooldownRemaining === 0) {
+				phase = 'hold';
 			} else {
 				phase = 'recover';
 			}
 			publishTelemetry();
 		},
-		dispose() { npc.dispose?.(); },
+		dispose() {
+			releaseAttackSlot();
+			npc.dispose?.();
+		},
 	};
 }
 
@@ -316,7 +356,15 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 		groundCollider: state.groundCollider,
 		playerCollider: state.playerCollider,
 	});
-	state.npcs = rawNpcs.map((npc) => wrapNpcWithCombatDamage(npc, { eventsBus, damageEventName: EVENTS.PLAYER_DAMAGED }));
+	const guardAttackChannel = { holders: new Map() };
+	const npcSeatById = new Map(NPC_CONFIG.SPAWNS.map((spawn) => [spawn.id, spawn.seatId]));
+	state.npcs = rawNpcs.map((npc) => wrapNpcWithCombatDamage(npc, {
+		eventsBus,
+		damageEventName: EVENTS.PLAYER_DAMAGED,
+		attackChannel: guardAttackChannel,
+		attackGroupId: npcSeatById.get(npc.object3D.name) ?? null,
+		attackerId: npc.object3D.name || npc.displayName || 'guard',
+	}));
 	for (const npc of state.npcs) state.scene.add(npc.object3D);
 	console.info(`[game3d] Spawned ${state.npcs.length} FAZ 5 NPC(s).`);
 
