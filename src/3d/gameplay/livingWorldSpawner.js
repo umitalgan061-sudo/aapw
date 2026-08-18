@@ -17,6 +17,7 @@
 import { EVENTS, WORLD_DEFAULTS, SETTLEMENT_CONFIG, CHUNK_CONFIG } from '../config.js';
 import { NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG } from './gameplayConfig.js';
 import { spawnConfiguredNPCs } from './npc.js';
+import { wrapNpcWithCombatDamage } from './npcCombatAdapter.js';
 import { spawnConfiguredAnimals } from './animals.js';
 import { spawnConfiguredCreatures, CREATURE_BEHAVIOR_PROFILES } from './creatureBrain.js';
 import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS, wrapCreatureWithSimulationLod } from './creatureSpawner.js';
@@ -225,7 +226,7 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 		state.groundCollider.getGroundHeight(worldX, worldZ),
 		WORLD_DEFAULTS.WATER_LEVEL_METERS + SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
 	);
-	state.npcs = await spawnConfiguredNPCs({
+	const rawNpcs = await spawnConfiguredNPCs({
 		assetLoader,
 		npcConfig: NPC_CONFIG,
 		seatsById,
@@ -233,6 +234,7 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 		groundCollider: state.groundCollider,
 		playerCollider: state.playerCollider,
 	});
+	state.npcs = rawNpcs.map((npc) => wrapNpcWithCombatDamage(npc, { eventsBus, damageEventName: EVENTS.PLAYER_DAMAGED }));
 	for (const npc of state.npcs) state.scene.add(npc.object3D);
 	console.info(`[game3d] Spawned ${state.npcs.length} FAZ 5 NPC(s).`);
 
