@@ -42,6 +42,14 @@ async function emitPlayerDamage(amount, sourceId) {
     gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: value, sourceId: source });
   }, { amount, source: sourceId });
 }
+async function emitPlayerDamageBurst(amount, count, sourcePrefix) {
+  await page.evaluate(async ({ amount: value, count: total, sourcePrefix: prefix }) => {
+    const [{ gameEvents }, { EVENTS }] = await Promise.all([import('./src/3d/eventBus.js'), import('./src/3d/config.js')]);
+    for (let index = 0; index < total; index += 1) {
+      gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: value, sourceId: `${prefix}-${index}` });
+    }
+  }, { amount, count, sourcePrefix });
+}
 async function armDamageOnActiveParry(amount, sourceId) {
   await page.evaluate(async ({ amount: value, source }) => {
     const [{ gameEvents }, { EVENTS }] = await Promise.all([import('./src/3d/eventBus.js'), import('./src/3d/config.js')]);
@@ -119,47 +127,49 @@ try {
   need(parryReady.stamina - parryImpact.stamina >= 7.5 && parryImpact.poise === parryReady.poise, 'parry must cost stamina without poise damage');
   await page.keyboard.up('KeyQ'); await waitState('idle', 6000);
 
-  // Isolate guard-break pressure from the earlier sprint/dodge/guard/parry stamina spend. The
-  // shipped controller must naturally regenerate both resources before this independent proof.
+  // Isolate guard-break pressure from the earlier guard/parry poise spend without requiring a
+  // wall-clock wait for a completely refilled stamina bar. Seven guarded 20-point impacts spend
+  // 29.4 stamina in production; a >=40 stamina baseline is a real, bounded budget once the burst
+  // is emitted synchronously inside one browser task, so render cadence cannot add unrelated guard drain.
   const pressureBaseline = await waitForHistoryEvidence((frames) => {
     const frame = frames.at(-1);
     return frame?.state === 'idle'
       && frame.guardBreakRemaining === 0
-      && frame.stamina >= 99.5
+      && frame.stamina >= 40
       && frame.poise >= 99.5
       ? frame
       : null;
-  }, { timeout: 20000, interval: 100, label: 'full stamina and poise recovery before guard-break pressure' });
+  }, { timeout: 20000, interval: 100, label: 'full poise and bounded stamina budget before guard-break pressure' });
   need(pressureBaseline.canDodge && !pressureBaseline.guarding, `pressure baseline must restore locomotion ${JSON.stringify(pressureBaseline)}`);
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
 
-  // Each guarded 20-point hit blocks 12 damage and removes 15 poise at the production 1.25 ratio.
-  // Seven real guarded hits therefore must exhaust 100 poise and enter the bounded guard-break state.
+  // Each real 20-point guarded hit blocks 12 damage, spends 4.2 stamina and removes 15 poise.
+  // Emit all seven through the shipped EventBus in one browser task: production still publishes
+  // one telemetry frame per impact, while headless render cadence cannot consume guard stamina
+  // between otherwise independent assertion round-trips.
   await page.keyboard.down('KeyQ');
   const pressureReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'guard ready for poise pressure' });
-  need(pressureReady.stamina >= 95 && pressureReady.poise >= 99.5, `poise pressure must start with a real resource budget ${JSON.stringify(pressureReady)}`);
+  need(pressureReady.stamina >= 35 && pressureReady.poise >= 99.5, `poise pressure must start with the measured seven-hit resource budget ${JSON.stringify(pressureReady)}`);
   const breakHealthBefore = await readHealth();
-  const pressureImpacts = [];
-  let breakFrame = null;
-  for (let hit = 0; hit < 7; hit += 1) {
-    const marker = (await history()).length;
-    const before = await latest();
-    await emitPlayerDamage(20, `poise-break-${hit}`);
-    const impact = await waitForHistoryEvidence((frames) => {
-      const afterMarker = frames.slice(marker);
-      if (hit === 6) return afterMarker.find((frame) => frame?.state === 'guard-break' && frame.poise === 0) ?? null;
-      return afterMarker.find((frame) => frame?.defenseResult === 'guard' && frame.poise <= before.poise - 14.5) ?? null;
-    }, { timeout: hit === 6 ? 5000 : 2500, interval: 40, label: `poise pressure hit ${hit + 1}` });
-    pressureImpacts.push(impact);
-    if (impact.state === 'guard-break') { breakFrame = impact; break; }
-  }
+  const marker = (await history()).length;
+  await emitPlayerDamageBurst(20, 7, 'poise-break');
+  const pressureImpacts = await waitForHistoryEvidence((frames) => {
+    const impacts = frames.slice(marker).filter((frame) => frame?.defenseResult === 'guard' || frame?.state === 'guard-break');
+    return impacts.length >= 7 && impacts.some((frame) => frame.state === 'guard-break' && frame.poise === 0) ? impacts.slice(0, 7) : null;
+  }, { timeout: 4000, interval: 40, label: 'seven synchronous real poise-pressure impacts' });
+  const breakFrame = pressureImpacts.find((frame) => frame.state === 'guard-break') ?? null;
   need(pressureImpacts.length === 7, `expected seven real guarded pressure impacts, got ${pressureImpacts.length}`);
+  for (let hit = 0; hit < 6; hit += 1) {
+    const impact = pressureImpacts[hit];
+    need(impact?.defenseResult === 'guard', `pressure hit ${hit + 1} must be a guarded impact ${JSON.stringify(impact)}`);
+    need(impact.poise <= pressureReady.poise - (14.5 * (hit + 1)), `pressure hit ${hit + 1} missing poise loss ${JSON.stringify(impact)}`);
+  }
   need(breakFrame?.state === 'guard-break' && breakFrame.poise === 0 && breakFrame.guardBreakRemaining > 0, `guard break missing ${JSON.stringify(breakFrame)}`);
   need(!breakFrame.guarding && !breakFrame.canDodge, 'guard break must lock guard/dodge');
   const breakVitals = await readVitals();
   need(breakVitals.poiseState === 'guard-break' && breakVitals.poiseLabel === 'Denge', `poise HUD must show break ${JSON.stringify(breakVitals)}`);
   const breakHealthAfter = await readHealth();
-  need(breakHealthBefore - breakHealthAfter >= 56, 'pressure sequence must use seven real mitigated hits, not synthetic poise-only mutation');
+  need(breakHealthBefore - breakHealthAfter === 56, `pressure sequence must apply seven real mitigated hits (expected 56 health), got ${breakHealthBefore} -> ${breakHealthAfter}`);
   await page.keyboard.up('KeyQ');
   const recoveredPoise = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.guardBreakRemaining === 0 && frame.poise > 0 && frame.state !== 'guard-break' ? frame : null; }, { timeout: 10000, interval: 100, label: 'guard-break recovery and poise regeneration' });
   need(recoveredPoise.poise > 0 && recoveredPoise.canDodge, 'poise recovery must restore locomotion eligibility');
