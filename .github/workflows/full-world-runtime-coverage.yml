@@ -9,6 +9,8 @@ on:
       - src/3d/config.js
       - src/3d/sky.js
       - src/3d/world/terrain.js
+      - src/3d/world/water.js
+      - src/3d/world/waterDepthField.js
       - src/3d/world/settlements.js
       - scripts/checkFullWorldRuntimeCoverage.mjs
       - scripts/checkFullWorldRuntimeBrowser.mjs
@@ -17,9 +19,13 @@ on:
       - scripts/checkWorldReferenceHydrologyExtent.js
       - scripts/checkMapAlignedTerrainPBR.mjs
       - scripts/checkTerrainMicroSurface.mjs
+      - scripts/checkWorldWaterCoverageP0.mjs
+      - scripts/checkWaterCoverageRasterQuality.mjs
+      - scripts/checkWaterCoverageSamplingBudget.mjs
       - scripts/roadNetworkSafetyCheck.js
       - scripts/game3dSmokeChecksScene.js
       - .github/workflows/world-map-aligned-terrain-pbr.yml
+      - .github/workflows/live-map-shallow-water-visual.yml
       - .github/workflows/world-environment-acceptance.yml
       - .github/workflows/run167-determinism-policy.yml
       - .github/workflows/run317-terrain3d-heightfield.yml
@@ -48,7 +54,7 @@ jobs:
           git diff --check origin/main...HEAD
           CHANGED="$(git diff --name-only origin/main...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(game3d.html|fixtures/world-reference-mountain-relief-v1\.json|src/3d/config.js|src/3d/sky.js|src/3d/world/terrain.js|src/3d/world/water.js|src/3d/world/settlements.js|src/3d/world/worldReferenceMountainRelief\.js|scripts/captureLiveWorldMountainNaturalization\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainPassReliefSafety\.mjs|scripts/checkMountainVisualProofContract\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkFullWorldRuntimeCoverage.mjs|scripts/checkFullWorldRuntimeBrowser.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|scripts/checkWorldReferenceAlignment.js|scripts/checkWorldReferenceHydrologyExtent.js|scripts/checkMapAlignedTerrainPBR.mjs|scripts/checkTerrainMicroSurface.mjs|scripts/checkWaterSurfVisualContract.mjs|scripts/checkWaterVisualContract.js|scripts/terrainSeatSafetyCheck.js|scripts/roadNetworkSafetyCheck.js|scripts/game3dSmokeChecksScene.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/world-environment-acceptance\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/live-map-mountain-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(game3d.html|fixtures/world-reference-mountain-relief-v1\.json|src/3d/config.js|src/3d/sky.js|src/3d/world/terrain.js|src/3d/world/water.js|src/3d/world/waterDepthField.js|src/3d/world/settlements.js|src/3d/world/worldReferenceMountainRelief\.js|scripts/captureLiveWorldMountainNaturalization\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainPassReliefSafety\.mjs|scripts/checkMountainVisualProofContract\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkFullWorldRuntimeCoverage.mjs|scripts/checkFullWorldRuntimeBrowser.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|scripts/checkWorldReferenceAlignment.js|scripts/checkWorldReferenceHydrologyExtent.js|scripts/checkMapAlignedTerrainPBR.mjs|scripts/checkTerrainMicroSurface.mjs|scripts/checkWorldWaterCoverageP0.mjs|scripts/checkWaterCoverageRasterQuality.mjs|scripts/checkWaterCoverageSamplingBudget.mjs|scripts/checkWaterSurfVisualContract.mjs|scripts/checkWaterVisualContract.js|scripts/terrainSeatSafetyCheck.js|scripts/roadNetworkSafetyCheck.js|scripts/game3dSmokeChecksScene.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/world-environment-acceptance\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/live-map-mountain-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END{print s+0}')"
           D="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END{print s+0}')"
           echo "FULL_WORLD_RUNTIME_CHANGED_LINES=$((A+D))"
@@ -56,6 +62,8 @@ jobs:
           node --check src/3d/config.js
           node --check src/3d/sky.js
           node --check src/3d/world/terrain.js
+          node --check src/3d/world/water.js
+          node --check src/3d/world/waterDepthField.js
           node --check src/3d/world/settlements.js
           node --check scripts/checkFullWorldRuntimeCoverage.mjs
           node --check scripts/checkFullWorldRuntimeBrowser.mjs
@@ -64,8 +72,15 @@ jobs:
           node --check scripts/checkWorldReferenceHydrologyExtent.js
           node --check scripts/checkMapAlignedTerrainPBR.mjs
           node --check scripts/checkTerrainMicroSurface.mjs
+          node --check scripts/checkWorldWaterCoverageP0.mjs
+          node --check scripts/checkWaterCoverageRasterQuality.mjs
+          node --check scripts/checkWaterCoverageSamplingBudget.mjs
           node --check scripts/game3dSmokeChecksScene.js
           grep -F "editorPatch') === '1'" game3d.html
+      - name: Install water contract runtime dependency
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
       - name: Full-map single-source and mountain contracts
         run: |
           set -euo pipefail
@@ -74,6 +89,9 @@ jobs:
           node scripts/checkWorldReferenceHydrologyExtent.js
           node scripts/checkWorldReferenceMountainRelief.mjs
           node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldWaterCoverageP0.mjs
+          node scripts/checkWaterCoverageRasterQuality.mjs
+          node scripts/checkWaterCoverageSamplingBudget.mjs
           node scripts/checkSeededRandomPolicy.js
       - name: Install browser harness
         run: |
