@@ -144,13 +144,31 @@ assert.deepEqual(restored.snapshot(), {
 	},
 	ledger: emptyLedger(),
 });
+
 restored.restore({
 	copper: 17,
 	stockByOffer: { [ration.id]: 999, [whetstone.id]: -2, [rationAllotment.id]: 99 },
 	ledger: {
-		transactionCount: 3.9,
-		lifetimeSpentCopper: 23.8,
-		purchasesByOffer: { [ration.id]: 1.7, [whetstone.id]: 1, [rationAllotment.id]: 1, unknown: 999 },
+		transactionCount: 999,
+		lifetimeSpentCopper: 999,
+		purchasesByOffer: { [ration.id]: 99, [whetstone.id]: 99, [rationAllotment.id]: 99, unknown: 999 },
+		recentTransactions: [{ sequence: 1, offerId: ration.id, balanceCopper: 11 }],
+	},
+});
+assert.deepEqual(restored.snapshot().ledger, emptyLedger(), 'sanitized full stock must defeat forged aggregate purchase history');
+
+const depletedStock = {
+	[ration.id]: ration.stockLimit - 1,
+	[whetstone.id]: whetstone.stockLimit - 1,
+	[rationAllotment.id]: rationAllotment.stockLimit - 1,
+};
+restored.restore({
+	copper: 17,
+	stockByOffer: depletedStock,
+	ledger: {
+		transactionCount: 300,
+		lifetimeSpentCopper: 2300,
+		purchasesByOffer: { [ration.id]: 100, [whetstone.id]: 100, [rationAllotment.id]: 100, unknown: 999 },
 		recentTransactions: [
 			{ sequence: 2, offerId: whetstone.id, itemId: 'forged', spentCopper: 999, balanceCopper: 22 },
 			{ sequence: 3, offerId: rationAllotment.id, balanceCopper: 17 },
@@ -161,11 +179,7 @@ restored.restore({
 });
 assert.deepEqual(restored.snapshot(), {
 	copper: 17,
-	stockByOffer: {
-		'dragonstone-field-ration': 4,
-		'dragonstone-whetstone': 2,
-		'dragonstone-watch-ration-allotment': 1,
-	},
+	stockByOffer: depletedStock,
 	ledger: {
 		transactionCount: 3,
 		lifetimeSpentCopper: 23,
@@ -176,6 +190,19 @@ assert.deepEqual(restored.snapshot(), {
 		},
 		recentTransactions: [receipt(2, whetstone, 22), receipt(3, rationAllotment, 17)],
 	},
+});
+
+const legacyStockAware = createInteractionEconomyState(0);
+legacyStockAware.restore({ copper: 17, stockByOffer: depletedStock });
+assert.deepEqual(legacyStockAware.snapshot().ledger, {
+	transactionCount: 3,
+	lifetimeSpentCopper: 23,
+	purchasesByOffer: {
+		'dragonstone-field-ration': 1,
+		'dragonstone-whetstone': 1,
+		'dragonstone-watch-ration-allotment': 1,
+	},
+	recentTransactions: [],
 });
 restored.restore({ copper: 17, ledger: { transactionCount: -3, lifetimeSpentCopper: -2, purchasesByOffer: { [ration.id]: -1 }, recentTransactions: [{ sequence: 1, offerId: ration.id }] } });
 assert.deepEqual(restored.snapshot().ledger, emptyLedger());
@@ -249,4 +276,4 @@ assert.equal(controller.getEconomySnapshot().stockByOffer[rationAllotment.id], 0
 assert.equal(controller.getEconomySnapshot().ledger.transactionCount, 1);
 assert.deepEqual(controller.getEconomySnapshot().ledger.recentTransactions, [receipt(1, rationAllotment, 35)]);
 
-console.log('PASS checkInteractionQuartermasterTrade: deterministic purse, finite vendor stock, bounded receipts, persistent trade ledger, shipped Digit3 purchase UX and save/load verified.');
+console.log('PASS checkInteractionQuartermasterTrade: deterministic purse, finite vendor stock, stock-derived ledger integrity, bounded receipts, shipped Digit3 purchase UX and save/load verified.');
