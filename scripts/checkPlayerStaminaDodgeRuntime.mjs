@@ -119,15 +119,15 @@ try {
   need(parryReady.stamina - parryImpact.stamina >= 7.5 && parryImpact.poise === parryReady.poise, 'parry must cost stamina without poise damage');
   await page.keyboard.up('KeyQ'); await waitState('idle', 6000);
 
-  // Apply a bounded pressure sequence through the same real EventBus. Each guarded 20-point hit
-  // removes 17.5 poise, so six hits must break 100 poise without bypassing ordinary mitigation.
+  // Each guarded 20-point hit blocks 12 damage and removes 15 poise at the production 1.25 ratio.
+  // Seven real guarded hits therefore must exhaust 100 poise and enter the bounded guard-break state.
   await page.keyboard.down('KeyQ');
   await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'guard ready for poise pressure' });
   const breakHealthBefore = await readHealth();
   let breakFrame = null;
-  for (let hit = 0; hit < 6; hit += 1) {
+  for (let hit = 0; hit < 7; hit += 1) {
     await emitPlayerDamage(20, `poise-break-${hit}`);
-    breakFrame = await waitForHistoryEvidence((frames) => [...frames].reverse().find((frame) => frame?.defenseResult === 'guard-break' || frame?.state === 'guard-break') ?? null, { timeout: hit === 5 ? 4000 : 700, interval: 40, label: `poise pressure hit ${hit + 1}` }).catch(() => null);
+    breakFrame = await waitForHistoryEvidence((frames) => [...frames].reverse().find((frame) => frame?.defenseResult === 'guard-break' || frame?.state === 'guard-break') ?? null, { timeout: hit === 6 ? 4000 : 700, interval: 40, label: `poise pressure hit ${hit + 1}` }).catch(() => null);
     if (breakFrame) break;
   }
   need(breakFrame?.state === 'guard-break' && breakFrame.poise === 0 && breakFrame.guardBreakRemaining > 0, `guard break missing ${JSON.stringify(breakFrame)}`);
@@ -135,7 +135,7 @@ try {
   const breakVitals = await readVitals();
   need(breakVitals.poiseState === 'guard-break' && breakVitals.poiseLabel === 'Denge', `poise HUD must show break ${JSON.stringify(breakVitals)}`);
   const breakHealthAfter = await readHealth();
-  need(breakHealthBefore - breakHealthAfter >= 40, 'pressure sequence must use real mitigated damage, not synthetic poise-only mutation');
+  need(breakHealthBefore - breakHealthAfter >= 56, 'pressure sequence must use seven real mitigated hits, not synthetic poise-only mutation');
   await page.keyboard.up('KeyQ');
   const recoveredPoise = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.guardBreakRemaining === 0 && frame.poise > 0 && frame.state !== 'guard-break' ? frame : null; }, { timeout: 10000, interval: 100, label: 'guard-break recovery and poise regeneration' });
   need(recoveredPoise.poise > 0 && recoveredPoise.canDodge, 'poise recovery must restore locomotion eligibility');
