@@ -11,6 +11,8 @@ on:
       - 'src/3d/ui/healthBar.js'
       - 'scripts/checkPlayerStaminaDodge.mjs'
       - 'scripts/checkPlayerStaminaDodgeRuntime.mjs'
+      - 'scripts/checkPlayerMeleeCombo.mjs'
+      - 'scripts/checkPlayerMeleeComboRuntime.mjs'
       - '.github/workflows/player-stamina-dodge.yml'
   workflow_dispatch:
 
@@ -24,7 +26,7 @@ concurrency:
 jobs:
   contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,7 +45,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$BASE additions=$ADD deletions=$DEL total=$TOTAL"
@@ -69,7 +71,10 @@ jobs:
           node --check src/3d/ui/healthBar.js
           node --check scripts/checkPlayerStaminaDodge.mjs
           node --check scripts/checkPlayerStaminaDodgeRuntime.mjs
+          node --check scripts/checkPlayerMeleeCombo.mjs
+          node --check scripts/checkPlayerMeleeComboRuntime.mjs
           node scripts/checkPlayerStaminaDodge.mjs
+          node scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkServiceWorkerCache.js
           test -f src/3d/materials/MaterialAssignmentCore.js
@@ -83,7 +88,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped scene sprint dodge guard parry proof
+      - name: Shipped scene sprint dodge guard parry and melee proof
         shell: bash
         run: |
           set -euo pipefail
@@ -92,6 +97,11 @@ jobs:
           test -s artifacts/player-stamina-dodge/metrics.json
           grep -q '"defenseResult": "guard"' artifacts/player-stamina-dodge/metrics.json
           grep -q '"defenseResult": "parry"' artifacts/player-stamina-dodge/metrics.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerMeleeComboRuntime.mjs --out-dir=artifacts/player-stamina-dodge | tee artifacts/player-stamina-dodge/melee-combo.log
+          test -s artifacts/player-stamina-dodge/melee-combo.png
+          test -s artifacts/player-stamina-dodge/melee-combo.json
+          grep -q 'PLAYER_MELEE_COMBO_RUNTIME_OK' artifacts/player-stamina-dodge/melee-combo.log
+          grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/melee-combo.json
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
       - name: Final main freshness
