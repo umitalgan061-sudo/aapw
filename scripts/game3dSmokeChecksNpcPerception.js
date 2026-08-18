@@ -2,8 +2,8 @@ const NAV_TIMEOUT_MS = 30_000;
 
 /**
  * Real shipped-runtime proof for configured guard perception. Loads the same Mixamo FBX family the
- * game uses and proves visual detect -> chase -> combat, hearing-only investigation, bounded local
- * guard assist across authored settlement spacing, and return-home behavior on createNPC.
+ * game uses and proves visual detect -> chase -> combat -> bounded attack damage, hearing-only
+ * investigation, local assist across authored settlement spacing, and return-home behavior.
  */
 async function checkNpcGuardPerception(browser, baseUrl) {
 	const page = await browser.newPage();
@@ -12,8 +12,10 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
 		result = await page.evaluate(async () => {
 			const { createNPC } = await import('/src/3d/gameplay/npc.js');
+			const { wrapNpcWithCombatDamage } = await import('/src/3d/gameplay/livingWorldSpawner.js');
 			const { AssetLoader } = await import('/src/3d/assetLoader.js');
 			const { NPC_CONFIG } = await import('/src/3d/gameplay/npcConfig.js');
+			const { EVENTS } = await import('/src/3d/config.js');
 
 			const assetLoader = new AssetLoader();
 			const spawn = NPC_CONFIG.SPAWNS[0];
@@ -53,26 +55,46 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 			}
 
 			const visualGuard = await makeGuard('smoke-visual-guard');
+			const damageEvents = [];
+			const attackGuard = wrapNpcWithCombatDamage(visualGuard, {
+				eventsBus: { emit: (name, payload) => damageEvents.push({ name, payload }) },
+				damageEventName: EVENTS.PLAYER_DAMAGED,
+			});
 			const visiblePlayer = { x: 0, z: 8 };
 			let sawChase = false;
 			let chaseDistanceClosed = false;
-			const chaseStartZ = visualGuard.object3D.position.z;
-			for (let i = 0; i < 300; i += 1) {
-				visualGuard.update(delta, visiblePlayer);
-				const state = visualGuard.object3D.userData.npcPerception;
-				if (state?.intent === 'chase') sawChase = true;
-				if (visualGuard.object3D.position.z > chaseStartZ + 0.5) chaseDistanceClosed = true;
-				if (state?.intent === 'combat' && visualGuard.object3D.userData.combatStanceBlend > 0.5) break;
+			let damageBeforeCombat = false;
+			const chaseStartZ = attackGuard.object3D.position.z;
+			for (let i = 0; i < 360; i += 1) {
+				attackGuard.update(delta, visiblePlayer);
+				const state = attackGuard.object3D.userData.npcPerception;
+				if (state?.intent === 'chase') {
+					sawChase = true;
+					if (damageEvents.length > 0) damageBeforeCombat = true;
+				}
+				if (attackGuard.object3D.position.z > chaseStartZ + 0.5) chaseDistanceClosed = true;
+				if (damageEvents.length > 0 && state?.intent === 'combat') break;
 			}
-			const visualState = visualGuard.object3D.userData.npcPerception;
+			const visualState = attackGuard.object3D.userData.npcPerception;
 			const visualAcquiresCombat = visualState?.intent === 'combat' && visualState.heard === false;
 			const visualLosBounded = visualState?.lineOfSight === true && visualState.lineOfSightSamples <= 32;
-			const combatBlendRaised = visualGuard.object3D.userData.combatStanceBlend > 0.5;
+			const combatBlendRaised = attackGuard.object3D.userData.combatStanceBlend > 0.5;
 			const stoppedAtEngageRadius = Math.hypot(
-				visualGuard.object3D.position.x - visiblePlayer.x,
-				visualGuard.object3D.position.z - visiblePlayer.z,
+				attackGuard.object3D.position.x - visiblePlayer.x,
+				attackGuard.object3D.position.z - visiblePlayer.z,
 			) <= (visualState?.engageRadiusMeters ?? 0) + 0.1;
-			visualGuard.dispose();
+			const guardDealsDamage = damageEvents.length === 1
+				&& damageEvents[0].name === EVENTS.PLAYER_DAMAGED
+				&& damageEvents[0].payload?.amount === 8
+				&& damageEvents[0].payload?.sourceId === 'smoke-visual-guard';
+			const attackTelemetry = attackGuard.object3D.userData.npcAttack;
+			const attackCadenceBounded = attackTelemetry?.attacksEmitted === 1 && attackTelemetry?.phase === 'recover';
+			const noDamageBeforeCombat = damageBeforeCombat === false;
+			const countAfterAttack = damageEvents.length;
+			for (let i = 0; i < 45; i += 1) attackGuard.update(delta, { x: 100, z: 100 });
+			const disengageCancelsDamage = damageEvents.length === countAfterAttack
+				&& attackGuard.object3D.userData.npcAttack?.phase !== 'windup';
+			attackGuard.dispose();
 
 			const assistChannel = { nextRevision: 1, groups: new Map() };
 			const leaderSpawn = NPC_CONFIG.SPAWNS.find((entry) => entry.id === 'stannis-guard-1');
@@ -146,6 +168,10 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 				visualLosBounded,
 				combatBlendRaised,
 				stoppedAtEngageRadius,
+				guardDealsDamage,
+				attackCadenceBounded,
+				noDamageBeforeCombat,
+				disengageCancelsDamage,
 				authoredPairInsideAssist,
 				leaderPublished,
 				wingmanInvestigatesAssist,
@@ -169,9 +195,9 @@ async function checkNpcGuardPerception(browser, baseUrl) {
 		.filter(([key]) => !['homeDistance', 'authoredPairDistance'].includes(key))
 		.every(([, value]) => value === true);
 	const details = ok
-		? `real FBX guards detect/chase/combat; authored Stannis pair ${result.authoredPairDistance.toFixed(1)}m apart shares bounded assist without rebroadcast/combat; hearing investigates; LOS <=32; return home=${result.homeDistance.toFixed(3)}m`
+		? `real FBX guards detect/chase/combat/attack via canonical damage event; authored Stannis pair ${result.authoredPairDistance.toFixed(1)}m apart shares bounded assist without rebroadcast/combat; hearing investigates; LOS <=32; return home=${result.homeDistance.toFixed(3)}m`
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
-	return { name: 'NPC guard detect/chase/combat/assist/investigation (real createNPC runtime)', ok, details };
+	return { name: 'NPC guard detect/chase/combat/attack/assist/investigation (real createNPC runtime)', ok, details };
 }
 
 module.exports = { checkNpcGuardPerception };

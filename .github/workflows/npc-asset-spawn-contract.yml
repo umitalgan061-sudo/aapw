@@ -5,11 +5,13 @@ on:
     paths:
       - 'src/3d/gameplay/npc.js'
       - 'src/3d/gameplay/npcConfig.js'
+      - 'src/3d/gameplay/livingWorldSpawner.js'
       - 'src/3d/materials/MaterialAssignmentCore.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'service-worker.js'
       - 'scripts/checkNpcAssetSpawnContract.mjs'
       - 'scripts/checkNpcGuardPerception.mjs'
+      - 'scripts/checkNpcGuardAttack.mjs'
       - 'scripts/game3dSmokeChecksNpcPerception.js'
       - 'scripts/checkNpcSimulationLod.mjs'
       - 'scripts/checkNpcSimulationLodFairness.mjs'
@@ -42,14 +44,17 @@ jobs:
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
           git diff --check "$BASE_SHA" HEAD
-      - name: NPC asset spawn and guard perception contracts
+      - name: NPC asset spawn perception and attack contracts
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
+          node --check src/3d/gameplay/livingWorldSpawner.js
           node --check scripts/checkNpcAssetSpawnContract.mjs
           node scripts/checkNpcAssetSpawnContract.mjs
           node --check scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcGuardPerception.mjs
+          node --check scripts/checkNpcGuardAttack.mjs
+          node scripts/checkNpcGuardAttack.mjs
           node --check scripts/game3dSmokeChecksNpcPerception.js
       - name: Deterministic NPC simulation LOD contract
         run: |
