@@ -26,6 +26,14 @@ page.on('console', (message) => {
 });
 
 try {
+	// Keep the real shipped game3d.html and its import map/UI shell, but prevent the unrelated
+	// full-world renderer/bootstrap from starting. Interaction modules below are still imported
+	// from the served production paths and every page/console error remains fatal.
+	await page.route(`http://127.0.0.1:${port}/src/3d/game3d.js`, (route) => route.fulfill({
+		status: 200,
+		contentType: 'text/javascript',
+		body: 'export function initGame3D() {}\n',
+	}));
 	await page.goto(`http://127.0.0.1:${port}/game3d.html`, {
 		waitUntil: 'domcontentloaded',
 		timeout: NAV_TIMEOUT_MS,
@@ -166,5 +174,5 @@ try {
 } finally {
 	await page.close();
 	await browser.close();
-	server.close();
+	await new Promise((resolve) => server.close(resolve));
 }
