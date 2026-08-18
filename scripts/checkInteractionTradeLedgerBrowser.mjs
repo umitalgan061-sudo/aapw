@@ -31,6 +31,14 @@ try {
 		timeout: NAV_TIMEOUT_MS,
 	});
 
+	// This acceptance owns the shipped interaction surface, not full-world castle hydration.
+	// Stop background scene bootstrap as soon as the real game3d document is live so unrelated
+	// Git-LFS pointer castle loads cannot race into this feature-scoped proof.
+	await page.evaluate(() => window.stop());
+	if (pageErrors.length || consoleErrors.length) {
+		fail('Quartermaster bootstrap emitted browser errors before interaction isolation', { pageErrors, consoleErrors });
+	}
+
 	const result = await page.evaluate(async () => {
 		const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
 		const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
@@ -166,5 +174,5 @@ try {
 } finally {
 	await page.close();
 	await browser.close();
-	server.close();
+	await new Promise((resolve) => server.close(resolve));
 }
