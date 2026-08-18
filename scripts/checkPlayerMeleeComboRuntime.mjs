@@ -21,11 +21,20 @@ await page.addInitScript(() => {
 	window.__meleeMotion = [];
 	window.__meleeWindows = [];
 	window.__meleeInputs = [];
+	window.__meleeBufferHeavy = false;
 	window.addEventListener('aapw:player-motion', (event) => {
 		window.__meleeMotion.push(structuredClone(event.detail));
 		if (window.__meleeMotion.length > 900) window.__meleeMotion.shift();
 	});
-	window.addEventListener('aapw:player-attack-window', (event) => window.__meleeWindows.push(structuredClone(event.detail)));
+	window.addEventListener('aapw:player-attack-window', (event) => {
+		const detail = structuredClone(event.detail);
+		window.__meleeWindows.push(detail);
+		if (window.__meleeBufferHeavy && detail.kind === 'light' && detail.phase === 'active-end') {
+			window.__meleeBufferHeavy = false;
+			window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR', key: 'r', bubbles: true }));
+			window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyR', key: 'r', bubbles: true }));
+		}
+	});
 	window.addEventListener('aapw:player-combat-input', (event) => window.__meleeInputs.push(structuredClone(event.detail)));
 });
 
@@ -54,6 +63,7 @@ try {
 	const baseline = await waitMotion((motion) => motion.state === 'idle' && motion.isGrounded, 'grounded idle baseline', 15000);
 	need(baseline.stamina === 100 && baseline.attackKind === 'none' && baseline.attackPhase === 'none', `bad baseline ${JSON.stringify(baseline)}`);
 
+	await page.evaluate(() => { window.__meleeBufferHeavy = true; });
 	await page.keyboard.press('KeyE');
 	const lightStart = await waitWindow((event) => event.phase === 'start' && event.kind === 'light' && event.comboStep === 1, 'keyboard light attack start');
 	need(Math.abs(lightStart.stamina - 88) < 0.2, `light stamina cost should be 12, got ${lightStart.stamina}`);
@@ -63,8 +73,9 @@ try {
 	need(!lockedLight.canDodge && !lockedLight.guarding && lockedLight.state === 'attack-light', `light attack must lock dodge/guard ${JSON.stringify(lockedLight)}`);
 
 	await waitWindow((event) => event.serial === lightStart.serial && event.phase === 'active-end', 'light active-end recovery buffer window');
-	await page.keyboard.press('KeyR');
+	const bufferedHeavyInput = await waitFor(combatInputs, (events) => [...events].reverse().find((event) => event.kind === 'heavy' && event.source === 'keyboard') ?? null, 'buffered heavy keyboard intent');
 	const heavyStart = await waitWindow((event) => event.phase === 'start' && event.kind === 'heavy' && event.comboStep === 2, 'buffered heavy combo start');
+	need(bufferedHeavyInput.kind === 'heavy', 'heavy combo must use the shared keyboard combat-intent path');
 	need(heavyStart.serial > lightStart.serial, 'heavy chain needs a new attack serial');
 	need(Math.abs(heavyStart.stamina - 64) < 0.25, `light+heavy chain should spend 36 stamina, got ${heavyStart.stamina}`);
 	const heavyActive = await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'active-start' && event.active, 'heavy active window');
@@ -102,7 +113,7 @@ try {
 		ok: true,
 		baseline,
 		light: { start: lightStart, active: lightActive, lockedMotion: lockedLight },
-		heavy: { start: heavyStart, active: heavyActive },
+		heavy: { input: bufferedHeavyInput, start: heavyStart, active: heavyActive },
 		touch: { input: touchInput, start: touchStart },
 		windowPhases: allWindows.map(({ serial, kind, comboStep, phase, active }) => ({ serial, kind, comboStep, phase, active })),
 		inputSources: allInputs,
