@@ -19,6 +19,9 @@ const LIGHT_ATTACK_POINTER_BUTTON = 0;
 const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
 const INPUT_DEVICE_EVENT = 'aapw:player-input-device';
 const GAMEPAD_DEADZONE = 0.18;
+// Preserve camera angular speed during transient low-FPS frames without allowing a long suspended
+// tab interval to create an unbounded snap. blur/pagehide/visibility-hidden reset the poll clock.
+const GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3;
 const GAMEPAD_BUTTON = Object.freeze({ JUMP: 0, DODGE: 1, LIGHT: 2, HEAVY: 3, GUARD: 4, ZOOM_OUT: 6, ZOOM_IN: 7, SPRINT: 10 });
 const GAMEPAD_MELEE_HAPTICS = Object.freeze({
 	light: Object.freeze({ duration: 55, weakMagnitude: 0.22, strongMagnitude: 0.48 }),
@@ -107,7 +110,7 @@ export class KeyboardInput {
 	}
 	_pollGamepad() {
 		const pads = globalThis.navigator?.getGamepads?.() ?? [], gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex), nextIndex = gamepad?.index ?? null, switched = nextIndex !== this._activeGamepadIndex;
-		const nowSeconds = (globalThis.performance?.now?.() ?? Date.now()) / 1000, lookDeltaSeconds = this._lastPollSeconds === null ? 0 : Math.max(0, Math.min(0.05, nowSeconds - this._lastPollSeconds)); this._lastPollSeconds = nowSeconds;
+		const nowSeconds = (globalThis.performance?.now?.() ?? Date.now()) / 1000, lookDeltaSeconds = this._lastPollSeconds === null ? 0 : Math.max(0, Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)); this._lastPollSeconds = nowSeconds;
 		if (switched) { this._gamepadButtons = gamepad ? readActionButtons(gamepad) : { jump: false, dodge: false, light: false, heavy: false }; this._activeGamepadIndex = nextIndex; emitInputDeviceChange(nextIndex, gamepad ? 'selected' : 'disconnected'); }
 		const sample = samplePlayerGamepad(gamepad, this._gamepadButtons);
 		if (!switched) { if (sample.jumpPressed) this._jumpRequested = true; if (sample.lightPressed) { emitPlayerCombatIntent('light', 'gamepad'); pulsePlayerGamepadMelee(gamepad, 'light'); } if (sample.heavyPressed) { emitPlayerCombatIntent('heavy', 'gamepad'); pulsePlayerGamepadMelee(gamepad, 'heavy'); } }
