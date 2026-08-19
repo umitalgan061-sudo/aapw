@@ -4,7 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { REFERENCE_BIOME_ZONES, REFERENCE_RELIEF_CHAINS, WORLD_REFERENCE_MAP } from '../src/3d/world/worldReferenceMap.js';
+import {
+	REFERENCE_BIOME_ZONES,
+	REFERENCE_RELIEF_CHAINS,
+	WORLD_REFERENCE_MAP,
+	sampleReferenceInfluence,
+} from '../src/3d/world/worldReferenceMap.js';
 import {
 	WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY,
 	sampleNormalizedReferenceMountainReliefMeters,
@@ -55,14 +60,20 @@ assert(source.includes('sampleMappedHighlandMeters(normalizedX, normalizedY)'), 
 assert(source.includes('sampleHabitableSeatMultiplier(normalizedX, normalizedY)'), 'runtime relief no longer protects kingdom-seat basins');
 assert(source.includes('profile.outerWidthNormalized * maximumWidthScale'), 'broad-phase bounds do not cover widened shoulders');
 
+const highlandZones = Object.entries(highlandPolicy).map(([zoneId, profile]) => {
+	const zone = REFERENCE_BIOME_ZONES.find((candidate) => candidate.id === zoneId);
+	assert(zone, `${zoneId}: canonical biome anchor missing`);
+	return { zoneId, zone, profile };
+});
+function isMappedHighland(normalizedX, normalizedY) {
+	return highlandZones.some(({ zone, profile }) => sampleReferenceInfluence(normalizedX, normalizedY, zone) > profile.minimumInfluence);
+}
 function aspectPoint(point) {
 	return { x: point[0] * MAP_ASPECT, y: point[1] };
 }
-
 function normalizedFromAspect(x, y) {
 	return { x: x / MAP_ASPECT, y };
 }
-
 function candidateAt(chain, segmentIndex, t) {
 	const a = aspectPoint(chain.points[segmentIndex]);
 	const b = aspectPoint(chain.points[segmentIndex + 1]);
@@ -70,8 +81,6 @@ function candidateAt(chain, segmentIndex, t) {
 	const y = a.y + (b.y - a.y) * t;
 	const normalized = normalizedFromAspect(x, y);
 	if (normalized.x < 0 || normalized.x > 1 || normalized.y < 0 || normalized.y > 1) return null;
-	const dry = sampleReferenceDryLandWeight(normalized.x, normalized.y);
-	const height = sampleNormalizedReferenceMountainReliefMeters(normalized.x, normalized.y);
 	const length = Math.hypot(b.x - a.x, b.y - a.y);
 	if (length <= EPSILON) return null;
 	return {
@@ -79,13 +88,12 @@ function candidateAt(chain, segmentIndex, t) {
 		t,
 		x,
 		y,
-		dry,
-		height,
+		dry: sampleReferenceDryLandWeight(normalized.x, normalized.y),
+		height: sampleNormalizedReferenceMountainReliefMeters(normalized.x, normalized.y),
 		nx: -(b.y - a.y) / length,
 		ny: (b.x - a.x) / length,
 	};
 }
-
 function strongestDryCenterlinePoint(chain) {
 	let best = null;
 	for (let segmentIndex = 0; segmentIndex < chain.points.length - 1; segmentIndex += 1) {
@@ -97,42 +105,34 @@ function strongestDryCenterlinePoint(chain) {
 	}
 	return best;
 }
-
 function sampleOffset(center, distance, sign) {
-	const aspectX = center.x + center.nx * distance * sign;
-	const y = center.y + center.ny * distance * sign;
-	const normalized = normalizedFromAspect(aspectX, y);
+	const normalized = normalizedFromAspect(center.x + center.nx * distance * sign, center.y + center.ny * distance * sign);
 	if (normalized.x < 0 || normalized.x > 1 || normalized.y < 0 || normalized.y > 1) {
-		return { inBounds: false, height: 0, dry: 0 };
+		return { inBounds: false, height: 0, dry: 0, normalizedX: normalized.x, normalizedY: normalized.y };
 	}
 	return {
 		inBounds: true,
+		normalizedX: normalized.x,
+		normalizedY: normalized.y,
 		height: sampleNormalizedReferenceMountainReliefMeters(normalized.x, normalized.y),
 		dry: sampleReferenceDryLandWeight(normalized.x, normalized.y),
 	};
 }
-
-function lateralProfile(chain, center, profile) {
+function lateralProfile(center, profile) {
 	const safeWidth = profile.outerWidthNormalized * widthPolicy.minimumScale;
 	const maximumWidth = profile.outerWidthNormalized * widthPolicy.maximumScale;
-	const fractions = [0.22, 0.48, 0.74, 0.96];
-	const rows = fractions.map((fraction) => {
+	const rows = [0.22, 0.48, 0.74, 0.96].map((fraction) => {
 		const distance = safeWidth * fraction;
 		const left = sampleOffset(center, distance, -1);
 		const right = sampleOffset(center, distance, 1);
-		return {
-			fraction,
-			distance,
-			left,
-			right,
-			bestHeight: Math.max(left.height, right.height),
-		};
+		return { fraction, distance, left, right, bestHeight: Math.max(left.height, right.height) };
 	});
-	const outside = [
-		sampleOffset(center, maximumWidth * 1.15, -1),
-		sampleOffset(center, maximumWidth * 1.15, 1),
-	];
-	return { rows, outside, safeWidth, maximumWidth };
+	return {
+		rows,
+		outside: [sampleOffset(center, maximumWidth * 1.15, -1), sampleOffset(center, maximumWidth * 1.15, 1)],
+		safeWidth,
+		maximumWidth,
+	};
 }
 
 const evidence = {};
@@ -142,19 +142,20 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 	const center = strongestDryCenterlinePoint(chain);
 	assert(center, `${chain.id}: no dry source-owned centerline candidate found`);
 	assert(center.height > 20, `${chain.id}: selected centerline relief is not visibly elevated`);
-	const lateral = lateralProfile(chain, center, profile);
+	const lateral = lateralProfile(center, profile);
 	assert(lateral.rows[0].bestHeight > 1, `${chain.id}: inner shoulder vanished beside its strongest dry ridge point`);
 	assert(lateral.rows.some((row, index) => index > 0 && row.bestHeight < lateral.rows[0].bestHeight * 0.92), `${chain.id}: shoulder profile is suspiciously flat laterally`);
 	for (const sample of lateral.outside) {
 		if (!sample.inBounds || sample.dry <= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero) continue;
+		// An authored highland may legitimately continue beyond a mountain chain's shoulder. Only
+		// highland-free exterior samples are allowed to prove that the chain itself did not sprawl.
+		if (isMappedHighland(sample.normalizedX, sample.normalizedY)) continue;
 		assert(sample.height <= center.height * 0.08 + 2, `${chain.id}: mountain relief extends materially beyond declared maximum shoulder`);
 	}
 	for (const row of lateral.rows) {
 		for (const side of [row.left, row.right]) {
 			assert(Number.isFinite(side.height) && side.height >= 0, `${chain.id}: non-finite/negative lateral relief sample`);
-			if (side.dry <= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero) {
-				assert(side.height === 0, `${chain.id}: lateral shoulder leaked into source-owned water`);
-			}
+			if (side.dry <= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero) assert(side.height === 0, `${chain.id}: lateral shoulder leaked into source-owned water`);
 		}
 	}
 	evidence[chain.id] = {
@@ -167,16 +168,13 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 }
 
 const highlandEvidence = {};
-for (const zoneId of Object.keys(highlandPolicy)) {
-	const zone = REFERENCE_BIOME_ZONES.find((candidate) => candidate.id === zoneId);
-	assert(zone, `${zoneId}: canonical biome anchor missing`);
+for (const { zoneId, zone } of highlandZones) {
 	const dry = sampleReferenceDryLandWeight(zone.center[0], zone.center[1]);
 	const relief = sampleNormalizedReferenceMountainReliefMeters(zone.center[0], zone.center[1]);
 	assert(dry > WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero, `${zoneId}: highland center is not source-owned land`);
 	assert(relief >= 8, `${zoneId}: map-supported highland has no visible elevation`);
 	highlandEvidence[zoneId] = { dryWeight: rounded(dry), reliefMeters: rounded(relief) };
 }
-
 const plainEvidence = {};
 for (const zoneId of ['braavos-coast', 'dothraki-sea', 'yi-ti', 'grey-waste']) {
 	const zone = REFERENCE_BIOME_ZONES.find((candidate) => candidate.id === zoneId);
