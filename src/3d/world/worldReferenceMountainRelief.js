@@ -41,6 +41,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		crestDetailStrength: 0.20,
 		valleyFrequency: 8.5,
 		valleyStrength: 0.36,
+		shoulderFalloffStrength: 0.22,
 	}),
 	// Moderate map-supported uplands only. Reach, Dothraki Sea and other broad plains are excluded.
 	highlands: Object.freeze({
@@ -253,7 +254,8 @@ function sampleNaturalizedRidgeShape(normalizedX, normalizedY, normalizedDistanc
 		* 2 * p.crestDetailStrength * (1 - smoothstep(0.15, 0.88, normalizedDistance));
 	const valleyNoise = valueNoise2D(normalizedX * p.valleyFrequency + seed * 0.13, normalizedY * p.valleyFrequency - seed * 0.17, seed + 907);
 	const valley = smoothstep(0.64, 0.90, valleyNoise) * (1 - smoothstep(0.78, 0.98, normalizedDistance));
-	return Math.max(0, (primary + secondary + outer) * crestDetail * (1 - valley * p.valleyStrength));
+	const shoulderEnvelope = 1 - p.shoulderFalloffStrength * smoothstep(0.12, 0.88, normalizedDistance);
+	return Math.max(0, (primary + secondary + outer) * crestDetail * (1 - valley * p.valleyStrength) * shoulderEnvelope);
 }
 function sampleLongitudinalMassifEnvelope(chain, axialProgress, normalizedX, normalizedY) {
 	const p = chain.profile.longitudinalMassifs;
