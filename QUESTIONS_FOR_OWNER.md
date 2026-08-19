@@ -441,3 +441,28 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   — each its own larger, separately-verifiable bounded subtask (world-coverage recalibration and
   texture-pipeline risk respectively), not this run's scope. No new question raised, same
   "temporary default, no real playtest yet" category as every prior entry here.
+
+- **🔴 (run 344, `RCA_RUN344_LFS_REPO_RENAME.md`) GitHub deposu `umitalgan061-sudo/westeros-pwa` ->
+  `umitalgan061-sudo/aapw` olarak yeniden adlandırılmış — owner kararı bekliyor, push bildirimiyle
+  iletildi.** Bu run, kendi çalıştığı ortamda `smokeTestGame3D.js`'in iki kez arka arkaya headless
+  Chromium'u çökertmesini kök nedenine kadar izledi: bu oturumun checkout'unda 498 `.glb`/`.fbx`
+  dosyasının HEPSİ gerçek binary değil, ~130 byte'lık git-lfs pointer metniydi; `git lfs pull` askıda
+  kaldı çünkü depo GitHub'da `aapw`'a taşınmış ve LFS batch isteği oraya yönlendiğinde bu oturumun
+  git-proxy yetkilendirmesi eski adı (`westeros-pwa`) taşıdığı için reddediliyor (`403`). Normal
+  `git fetch`/`push` GitHub'ın rename-redirect'i sayesinde eski adla hâlâ çalışıyor — bu yüzden
+  commit geçmişi/main push'ları etkilenmedi, yalnız LFS asset fetch'i kırılıyor. **Veri kaybı YOK:**
+  `add_repo(..., "aapw", access:"push")` ile doğrulandı — depo gerçek ve bu hesaba ait, tam yetkiyle
+  eklendi; aynı LFS nesnesi `aapw` adıyla istendiğinde `200 OK` + geçerli S3 URL döndü, indirilen dosya
+  `file` ile gerçek/sağlam 224076 byte'lık glTF binary v2 olarak doğrulandı. **Bu muhtemelen
+  run341/run343'ün `STABLE_TAGS.md`'de not düştüğü `git push origin <tag>` `HTTP 403` +
+  "repo moved to .../aapw" uyarısıyla aynı kök neden** — o zaman küçük bir rahatsızlık olarak
+  bırakılmış, bu run'da kapsamı netleşti: yalnız tag push değil, her LFS fetch'i etkileniyor.
+  **Geçici varsayılan:** bu run kod değişikliği yapmadı (kanıtlanmamış bir "düzeltme" gerçek nedeni
+  maskeler); gelecekteki run'lar bu ortamda `add_repo(owner, "aapw", access:"push")` ile o oturuma
+  özel geçici bir workaround uygulayabilir (session-local, kalıcı değil). **Owner kararı gerekiyor —
+  tahmin edilmedi, iki seçenek var:** (1) GitHub'da depoyu `westeros-pwa` adına geri döndür (en basit,
+  muhtemelen hem bunu hem tag-push 403'ünü aynı anda çözer), YA DA (2) bu Claude Code Remote
+  ortamının kaynak/repo bağlamasını `aapw`'a güncelle. Belirsiz kalan ayrı bir nokta: run341-343'ün
+  kendi perf-snapshot'ları gerçek doku/geometri sayıları raporlamıştı — o oturumların ortamı bu
+  sorundan etkilenmemiş olabilir (rename daha sonra mı oldu, yoksa onlarda `git-lfs` zaten mı kuruluydu,
+  bilinmiyor) — tahmin edilmedi.

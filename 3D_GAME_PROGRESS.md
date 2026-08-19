@@ -16234,3 +16234,69 @@ knobs, each its own bounded subtask with its own verification burden. `GOVERNANC
 §3 remains at zero half-open rows and six entirely-uncoded, multi-run-scope rows (quest, save/load,
 inventory, player attack, dense settlements, audio). Terrain/road/Terrain3D geocell work remains
 claimed by the concurrent corner-agent sessions and was not touched here.
+
+## Run 344 (2026-08-19, scheduled run) — Verification-only: RCA on a real `smokeTestGame3D.js` crash, root-caused to a stale repo-name binding (not a code regression), owner decision raised
+
+Synced with `origin/main` first: `git fetch origin main` — local `HEAD` was a detached container
+checkout at `80668a6`, already byte-identical to `origin/main` (another concurrent session had pushed
+through `#736`/`#728`/Dragonstone-provisioning/melee-combo since this progress file's own last entry,
+Run 343 — all via the separate PR/GitHub-Actions "corner-agent" pipeline, none of it duplicated here).
+Read `GOVERNANCE.md`, both continuation/owner-directive files, `GOVERNANCE_FULL_GAME_DIRECTIVE.md`,
+this file's tail through Run 343, `DECISIONS.md`'s last ADRs, and `QUESTIONS_FOR_OWNER.md` in full.
+Confirmed §15's own due window: the last periodic-platform-control/rule-consolidation pass was Run 321
+with a stated next window of "~run 341-351" — this run falls inside it, so platform verification (not
+a new feature) was the correct priority regardless of what happened next.
+
+Ran the non-browser half of the platform sweep fresh and clean: `checkTechnicalDebt.js` PASS (0 new
+debt, 56 recorded/42 owner-tracking entries), `checkSeededRandomPolicy.js` PASS (no `Math.random()`),
+`checkAssetsManifest.js` OK (498 entries resolve), `checkSmokeCheckRegistry.js` OK (42 checks/17
+modules, same 5 pre-existing near-cap WARNs, none newly crossed), `terrainSeatSafetyCheck.js` PASS
+14/14, `roadNetworkSafetyCheck.js` PASS (17.84km network, mountain-avoidance + river non-collision both
+hold — length grew from Run 343's 20.24km-era figure via the corner-agent footpath-tier work, ADR-0264,
+not this run), `checkPwaInstallability.js` OK, `checkServiceWorkerCache.js` OK (187 JS files + 31
+model assets all registered), `npm audit` still N/A (`ENOLOCK`, no lockfile, same as every prior run).
+
+The browser half did not complete: `smokeTestGame3D.js` crashed headless Chromium twice in a row, at a
+different check each time, both as "context/browser closed unexpectedly" Playwright protocol errors —
+never a normal assertion failure. Per this project's own RCA rule (repeated failure -> root-cause
+before more code), a focused isolated re-run of just the first 4 scene-boot checks found the real
+cause and it is **environmental, not a game-code regression**: this session's checkout has all 498
+`.glb`/`.fbx` files as ~130-byte git-lfs pointer stubs, not real binaries, because the GitHub repo was
+renamed `westeros-pwa` -> `aapw` and this environment's git-proxy authorization still keys off the old
+name — LFS-specific requests 307-redirect to `aapw` and get `403`-blocked, while plain `git fetch`/
+`push` against the old name keep working via GitHub's transparent rename-redirect (which is why commits
+kept landing normally throughout). Verified directly, not assumed: `add_repo(..., "aapw", access:
+"push")` confirmed this account owns `aapw` with full push rights; the same LFS object requested under
+the `aapw` name returned a valid signed download URL, and the downloaded file is a real, intact 224076-
+byte glTF binary v2 — **no data loss**, purely a routing/authorization gap. Full detail, including the
+likely link to run341/343's own already-noted `git push origin <tag>` `HTTP 403` + rename warning (same
+root cause, previously under-scoped as "just tag pushes"), is in `RCA_RUN344_LFS_REPO_RENAME.md`.
+
+No game/world code was changed this run — the finding is not a code bug, and shipping an unproven
+"fix" (e.g. loosening `AssetLoader`'s error handling) would have masked the real cause. Written up in
+`QUESTIONS_FOR_OWNER.md` (🔴, owner decision needed: rename the repo back, or repoint this
+environment's source to `aapw`) and pushed as a notification, per `GOVERNANCE.md`'s own run151
+precedent for real, owner-gated infra findings.
+
+Full DoD sweep: not applicable in the usual sense — zero source/gameplay files touched, only this file
++ `QUESTIONS_FOR_OWNER.md` + a new `RCA_RUN344_LFS_REPO_RENAME.md` (all Markdown, `node --check` N/A).
+Memory-leak checklist: N/A (no runtime code touched). Technical debt: 0 new. World Coverage: unchanged
+(desktop 96.2% / mobile 4.5%, no terrain/geometry delta). World Evolution Report: no yol/orman/kale/
+NPC/hayvan/creature/event/cart count change; no new ADR (this is an RCA + owner question, not a design
+decision with alternatives — `DECISIONS.md` not touched); "oyuncu fark eder mi" — hayır, bu run'ın
+kendisi görünür bir oyun değişikliği içermiyor, ama bulduğu şey gelecekteki her run'ın gerçek 3D
+asset'lerle test edip etmediğini etkiliyor.
+
+Risk: the finding itself is infra/access-level, not code — LOW risk to ship (nothing shipped). The
+underlying condition it describes (LFS fetch broken under the stale repo-name binding) is a real,
+possibly-recurring risk to future runs' ability to verify against real assets until the owner decides.
+
+Concurrency re-check immediately before commit: `git fetch origin main` re-run — no drift found past
+`80668a6`.
+
+Next safe step: unaffected by this finding — `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3's own remaining
+scope (still zero half-open rows, six uncoded multi-run items) and the `drawDistance`/`textureSize`
+`QUALITY_PRESETS` knobs (Run 343's named next candidates) remain the next bounded code slices once a
+future run confirms real LFS assets are reachable in its own environment (or applies this run's
+documented `add_repo(..., "aapw", access:"push")` session-local workaround first). Terrain/road work
+remains claimed by the concurrent corner-agent sessions.
