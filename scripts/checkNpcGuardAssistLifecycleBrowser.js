@@ -32,7 +32,7 @@ async function main() {
   try {
     await page.goto(`${BASE_URL}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
     const result = await page.evaluate(async () => {
-      const { evaluateNpcGuardAssistAlert } = await import('/src/3d/gameplay/npc.js');
+      const { evaluateNpcGuardAssistAlert, releaseNpcGuardAlertOwnership } = await import('/src/3d/gameplay/npc.js');
       const channel = { groups: new Map() };
       const sourceId = 'stannis-guard-1';
       const receiverId = 'stannis-guard-2';
@@ -78,8 +78,11 @@ async function main() {
       });
       if (singleConsume.reason !== 'stale') throw new Error(`single-consume failed: ${JSON.stringify(singleConsume)}`);
 
-      const activeAlert = channel.groups.get(groupId);
-      if (activeAlert?.sourceId === sourceId) channel.groups.delete(groupId);
+      const nonOwnerRelease = releaseNpcGuardAlertOwnership({ alertChannel: channel, groupId, sourceId: receiverId });
+      if (nonOwnerRelease || channel.groups.get(groupId) !== alert) throw new Error('non-owner release deleted the publisher alert');
+      const ownerRelease = releaseNpcGuardAlertOwnership({ alertChannel: channel, groupId, sourceId });
+      if (!ownerRelease || channel.groups.size !== 0) throw new Error('publisher dispose/loss failed to clear owned alert');
+
       const afterPublisherLoss = evaluateNpcGuardAssistAlert({
         alert: channel.groups.get(groupId),
         observer: { x: 20, z: 0 },
@@ -90,13 +93,22 @@ async function main() {
       });
       if (afterPublisherLoss.accepted) throw new Error('cleared publisher alert remained actionable');
 
+      const replacement = Object.freeze({ ...alert, revision: 12, sourceId: 'stannis-guard-3' });
+      channel.groups.set(groupId, replacement);
+      const staleOwnerRelease = releaseNpcGuardAlertOwnership({ alertChannel: channel, groupId, sourceId });
+      if (staleOwnerRelease || channel.groups.get(groupId) !== replacement) {
+        throw new Error('stale publisher teardown erased a replacement alert');
+      }
+
       return {
         moduleLoadedFromShippedGame: true,
         outsideReason: outside.reason,
         reentryAccepted: afterPatrolReentry.accepted,
         reentryLastKnown: afterPatrolReentry.lastKnown,
         singleConsumeReason: singleConsume.reason,
-        publisherAlertCleared: channel.groups.size === 0,
+        nonOwnerReleaseBlocked: !nonOwnerRelease,
+        publisherAlertCleared: ownerRelease,
+        stalePublisherReplacementPreserved: !staleOwnerRelease,
         staleFutureAssistBlocked: !afterPublisherLoss.accepted,
       };
     });
