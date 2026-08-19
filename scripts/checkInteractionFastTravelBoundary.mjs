@@ -62,6 +62,15 @@ assert.deepEqual(unpreparedMissingDestination.reasons, [
 assert.equal(unpreparedMissingDestination.reasons.includes(FAST_TRAVEL_BLOCK_REASON.UNDISCOVERED_DESTINATION), false);
 assert.equal(unpreparedMissingDestination.readinessTier, FIELD_READINESS_TIER.UNPREPARED);
 
+const strictContext = evaluateFastTravelRequest(ready, {
+	destinationId: 'dragonstone-harbor',
+	discovered: 1,
+	inCombat: 1,
+	routeOpen: 0,
+});
+assert.deepEqual(strictContext.reasons, [FAST_TRAVEL_BLOCK_REASON.UNDISCOVERED_DESTINATION]);
+assert.equal(strictContext.allowed, false);
+
 assert.equal(ready.tier, FIELD_READINESS_TIER.EXPEDITION_READY);
 assert.equal(ready.capabilities.fastTravelEligible, true);
 console.log('[RPG] PASS fast-travel boundary normalization, blocking order, and pure readiness consumption');
