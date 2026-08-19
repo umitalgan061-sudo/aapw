@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { REFERENCE_RELIEF_CHAINS, WORLD_REFERENCE_MAP } from '../src/3d/world/worldReferenceMap.js';
+import { REFERENCE_BIOME_ZONES, REFERENCE_RELIEF_CHAINS, WORLD_REFERENCE_MAP } from '../src/3d/world/worldReferenceMap.js';
 import {
 	WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY,
 	sampleNormalizedReferenceMountainReliefMeters,
@@ -20,9 +20,15 @@ const rounded = (value, digits = 6) => Number(value.toFixed(digits));
 const widthPolicy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.shoulderWidthVariation;
 const coastalPolicy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coastalReliefTaper;
 const talusPolicy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.talusBreakup;
+const ridgePolicy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.ridgeNaturalization;
+const highlandPolicy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.highlands;
+const seatPolicy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.habitableSeatProtection;
 assert(widthPolicy, 'shoulder-width variation policy is missing');
 assert(coastalPolicy, 'coastal relief taper policy is missing');
 assert(talusPolicy, 'talus-breakup policy is missing');
+assert(ridgePolicy, 'multi-ridge naturalization policy is missing');
+assert(highlandPolicy, 'map-supported highland policy is missing');
+assert(seatPolicy, 'habitable-seat relief protection is missing');
 assert(widthPolicy.minimumScale >= 0.80, 'minimum shoulder scale would pinch canonical ranges too aggressively');
 assert(widthPolicy.maximumScale <= 1.70, 'maximum shoulder scale would over-grow canonical ranges');
 assert(widthPolicy.maximumScale - widthPolicy.minimumScale >= 0.45, 'shoulder-width envelope is too uniform to naturalize long ridges');
@@ -32,10 +38,21 @@ assert(coastalPolicy.minimumScale >= 0.08 && coastalPolicy.minimumScale <= 0.20,
 assert(talusPolicy.strength > 0.08 && talusPolicy.strength <= 0.22, 'talus breakup must be visible but bounded');
 assert(talusPolicy.shoulderStart >= 0.1 && talusPolicy.shoulderStart < talusPolicy.shoulderEnd, 'talus shoulder envelope start drifted');
 assert(talusPolicy.shoulderEnd <= 0.95, 'talus breakup must fade before the canonical outer boundary');
+assert(ridgePolicy.primarySharpness >= 1.2 && ridgePolicy.primarySharpness <= 1.8, 'primary ridge sharpness is not realistic/bounded');
+assert(ridgePolicy.secondaryStrength >= 0.18 && ridgePolicy.secondaryStrength <= 0.40, 'secondary ridge is either invisible or dominant');
+assert(ridgePolicy.outerRidgeStrength > 0 && ridgePolicy.outerRidgeStrength < ridgePolicy.secondaryStrength, 'outer ridge must remain weaker than secondary ridge');
+assert(ridgePolicy.valleyStrength >= 0.20 && ridgePolicy.valleyStrength <= 0.45, 'drainage valley cuts are not bounded');
+assert(ridgePolicy.crestDetailFrequency > 25, 'crest breakup is too broad to separate individual summits');
+assert.deepEqual(Object.keys(highlandPolicy).sort(), ['lands-always-winter', 'north', 'westerlands'], 'highland coverage expanded beyond map-supported elevated regions');
+assert(seatPolicy.innerRadiusNormalized > 0 && seatPolicy.outerRadiusNormalized > seatPolicy.innerRadiusNormalized, 'habitable seat protection radii are invalid');
+assert(seatPolicy.minimumMultiplier >= 0.10 && seatPolicy.minimumMultiplier <= 0.30, 'capital basin relief floor drifted');
 assert(source.includes('sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed)'), 'runtime relief no longer consumes shoulder-width variation');
 assert(source.includes('Math.cos(normalizedDistance * Math.PI * 0.5)'), 'runtime ridge cross-section returned to a flat core plateau');
 assert(source.includes('sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight)'), 'runtime relief no longer tapers source-adjacent coastal cliffs');
 assert(source.includes('sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed)'), 'runtime relief no longer consumes talus breakup');
+assert(source.includes('sampleNaturalizedRidgeShape(normalizedX, normalizedY, normalizedDistance, coreRatio, chain.profile.seed)'), 'runtime relief no longer builds primary/secondary ridge morphology');
+assert(source.includes('sampleMappedHighlandMeters(normalizedX, normalizedY)'), 'runtime relief no longer consumes map-supported highlands');
+assert(source.includes('sampleHabitableSeatMultiplier(normalizedX, normalizedY)'), 'runtime relief no longer protects kingdom-seat basins');
 assert(source.includes('profile.outerWidthNormalized * maximumWidthScale'), 'broad-phase bounds do not cover widened shoulders');
 
 function aspectPoint(point) {
@@ -149,7 +166,31 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 	};
 }
 
+const highlandEvidence = {};
+for (const zoneId of Object.keys(highlandPolicy)) {
+	const zone = REFERENCE_BIOME_ZONES.find((candidate) => candidate.id === zoneId);
+	assert(zone, `${zoneId}: canonical biome anchor missing`);
+	const dry = sampleReferenceDryLandWeight(zone.center[0], zone.center[1]);
+	const relief = sampleNormalizedReferenceMountainReliefMeters(zone.center[0], zone.center[1]);
+	assert(dry > WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero, `${zoneId}: highland center is not source-owned land`);
+	assert(relief >= 8, `${zoneId}: map-supported highland has no visible elevation`);
+	highlandEvidence[zoneId] = { dryWeight: rounded(dry), reliefMeters: rounded(relief) };
+}
+
+const plainEvidence = {};
+for (const zoneId of ['braavos-coast', 'dothraki-sea', 'yi-ti', 'grey-waste']) {
+	const zone = REFERENCE_BIOME_ZONES.find((candidate) => candidate.id === zoneId);
+	assert(zone, `${zoneId}: canonical lowland/plain anchor missing`);
+	const dry = sampleReferenceDryLandWeight(zone.center[0], zone.center[1]);
+	const relief = sampleNormalizedReferenceMountainReliefMeters(zone.center[0], zone.center[1]);
+	if (dry >= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull) {
+		assert(relief <= 3, `${zoneId}: broad plain/settlement region was promoted into mountain/highland relief (${relief.toFixed(2)}m)`);
+	}
+	plainEvidence[zoneId] = { dryWeight: rounded(dry), reliefMeters: rounded(relief) };
+}
+
 const drySamples = [];
+let zeroReliefDrySamples = 0;
 for (let y = 0; y <= 48; y += 1) {
 	for (let x = 0; x <= 64; x += 1) {
 		const nx = x / 64;
@@ -158,17 +199,25 @@ for (let y = 0; y <= 48; y += 1) {
 		const relief = sampleNormalizedReferenceMountainReliefMeters(nx, ny);
 		assert(Number.isFinite(relief) && relief >= 0, `grid sample ${x}/${y} returned invalid relief`);
 		if (dry <= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero) assert(relief === 0, `grid sample ${x}/${y} leaked relief into water`);
-		if (dry >= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull && relief > 0) drySamples.push(relief);
+		if (dry >= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull) {
+			if (relief > 0) drySamples.push(relief);
+			else zeroReliefDrySamples += 1;
+		}
 	}
 }
-assert(drySamples.length > 80, 'naturalized mountain field has implausibly little dry-land relief coverage');
-assert(Math.max(...drySamples) > 450, 'naturalized dry-land relief lacks a major peak');
+assert(drySamples.length > 80, 'naturalized mountain/highland field has implausibly little dry-land relief coverage');
+assert(Math.max(...drySamples) > 600, 'naturalized dry-land relief lacks the stronger major peaks requested by visual QA');
+assert(zeroReliefDrySamples > drySamples.length * 1.4, 'too much source-owned dry land received mountain/highland relief; habitable plains are no longer dominant');
 
 console.log('MOUNTAIN_NATURALIZATION_PROFILE_OK', JSON.stringify({
 	policyId: WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id,
 	widthScale: [widthPolicy.minimumScale, widthPolicy.maximumScale],
 	coastalReliefTaper: coastalPolicy,
 	talusStrength: talusPolicy.strength,
+	ridgeNaturalization: ridgePolicy,
 	dryReliefSamples: drySamples.length,
+	zeroReliefDrySamples,
+	highlandEvidence,
+	plainEvidence,
 	evidence,
 }));
