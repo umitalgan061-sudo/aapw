@@ -16808,3 +16808,56 @@ Yakalamak için yazıldığı asıl kusur (her vertex tek düz renk) hâlâ yaka
 
 Sıradaki: arazi LOD'u (ADR-0297'de belgelenen ön koşul) ve Westeros'a özel olarak batı yol geçidi
 koridorlarının daraltılması.
+
+## Run 353 (2026-08-19, owner authorisation) — Kıta yükselimi: kıyı çizgisine dokunmadan dünyaya gerçek kot (ADR-0299)
+
+Sahip haritanın kotunu yükseltme yetkisini açıkça verdi, tek şartla: map.png'den şaşmamak. Ayrıca
+"sırf yollar doğru eğimde olmuyor diye dağ/tepe eklemekten vazgeçme, yollar eteklerden devam edebilir"
+dedi.
+
+**Yapılan.** `world/terrainContinentalUplift.js`: kanonik 96×64 maskesi üzerinde bir kez hesaplanan,
+dört kez bulanıklaştırılan, bilineer örneklenen su-uzaklığı alanı; kara yüksekliğine ekleniyor — su
+hattında **tam sıfır**, iç bölgede 265 m'ye çıkıyor. Sıfır-kıyıda olması tasarımın tamamı ve sahibin
+şartını birebir karşılayan şey: map.png'nin tanımladığı kara/deniz sınırı bir metre bile kaymıyor,
+her ada ve koy kanonik şeklini koruyor; değişen şey her kara parçasının *içinin* kendi kıyısından
+yüzlerce metre yükselmesi. Rölyef katmanlarının hepsi zaten yerel yüksekliğe göre ölçeklendiği için
+otomatik olarak güçleniyor — önceki turların gürültüsünün nihayet üzerine basacağı bir zemin var.
+
+**Neden gürültü değil kot.** Ölçüm: karanın medyanı 5.24 m, %80'i 17.7 m altı. Katmanlar doğruydu,
+ölçeklenecek yükseklik yoktu — 5 m'lik kıta olmaz. ADR-0297 kısa dalga boylu genliğin eğimi pahalıya
+aldığını zaten göstermişti (22.7° ile kapıyı delmişti); yükselim kilometrelerce mesafede tırmandığı
+için aynı metreyi yaklaşık onda bir eğim maliyetiyle veriyor.
+
+**Ölçülen tavan: 265 m.** Yol kapısına karşı ikili aramayla bulundu: 265 geçiyor, 290 ve 320 dağ-kaçınma
+stres testini 20.3° ve 20.8° ile deliyor. Zevk değeri değil — bu dünyanın at arabası yolu
+yönlendirilebilirken taşıyabildiği en yüksek kot.
+
+**Tavanı aşmak için üç deneme, üçü de ölçüldü ve geri alındı** (sahibin yönü gereği önce pathfinder'a
+bakıldı; hiçbiri işe yaramadı ve her biri yapısal bir sebep taşıdığı için kaydedildi):
+1. Koridor 700→1400 m: `cersei → stannis` **kötüleşti** (18.4° → 26.9°). A* toplam maliyeti
+   küçültüyor, maksimum eğimi değil — geniş arama alanı, "daha uzun ama bir yeri dik" rotayı seçebiliyor.
+2. Izgara 60→50 m: yine kötü. O ızgara aynı zamanda eğimin ölçüldüğü taban; inceltmek değişmemiş
+   arazide daha dik yerel eğim raporluyor.
+3. Yükselimi koltuk çevresinde sönümlemek: yine kötü. Pürüzsüz bir kıta alanını 650 m'lik bir diskte
+   sıfırlamak her koltuğun çevresine dik bir kenar örüyor; dördüncü bir kenarı 25.6°'ye itti.
+Üçü de geri alındı, gerekçeleri kaynak koda yazıldı. Gerçek çözüm `roadPathfinder.js`'te
+**maksimum-eğim farkındalıklı rota maliyeti** — kendi alt görevi olarak net biçimde tanımlandı.
+
+**Doğrulama.** 14/14 koltuk PASS — ve koltuklar artık inandırıcı yükseklikte (Kışyarı 13→54 m, Kartal
+Yuvası 49→72 m, Dorne 53→63 m), gerçekten kıyıda olan dört koltuk doğru şekilde 7.25 m'de kalıyor.
+Yollar PASS (18.02 km, tüm eğimler <20°, pathfinder orijinal ayarında). **Sahibin şartının
+karşılandığını kanıtlayan kanonik kapılar:** su maskesi checksum'ı `2ca2bed8d8a1…` değişmedi, hizalama
+PASS (14/14 koltuk round-trip, %100 kapsam), hidroloji genişliği PASS (137.5 km²). Görsel sözleşme,
+borç, determinizm, satır sınırı (546 dosya), servis işçisi (192 JS, v18→v19) PASS. Perf 61 çizim /
+760.068 üçgen / 202 MB.
+
+**Kendi bekçime üçüncü düzeltme.** `checkTerrainVisualContract.js`'in yükseklik assertion'ı artık
+**iki kez doğru çıktı üzerinde** başarısız oldu. Her ikisi de tüm dünyaya ait bir özelliği tek bir
+rastgele 500 m'lik parçaya karşı test ediyordu — o parçanın yeterli yükseklik aralığı içereceği garanti
+değil ve parlak ucu, içinde kumsal olup olmamasına bağlı. Artık `resolveTerrainBiomeColor` doğrudan
+gerçek aralık boyunca test ediliyor (kıyı/çimen/uçurum/zirve ayrı renkler vermeli, zirve çimenden
+parlak olmalı); parça seviyesindeki assertion ise bir parçanın garanti edebileceği şeye çekildi:
+vertexleri tek düz renk değil. Aynı assertion'ın iki kez düşmesi, yanlış nesneye nişan aldığının
+işaretiydi.
+
+Sıradaki: daha fazla kot için maksimum-eğim farkındalıklı yol maliyeti; daha ince zemin için arazi LOD.

@@ -46,11 +46,21 @@ const GRADE_PENALTY_EXPONENT = 3;
  * mountain's own falloff shape (1300m radius, see `world/terrain.js`'s `MACRO_RELIEF_FEATURES`) with
  * many cells across it, large enough that even the longest kingdom-seat-to-seat corridor stays a few
  * thousand nodes (cheap, one-time, at scene-build time only — see `world/roads.js`). */
+// Kept at 60 m. Refining to 50 m was tried on 2026-08-19 and measured *worse*, for a reason worth
+// recording: this grid is also the baseline the route's own grades are sampled over, so a finer grid
+// reports steeper local slopes on the same ground. It made three edges appear to fail that the
+// terrain had not actually changed under. Corridor width, not cell size, is the lever that lets a
+// road go around a hill.
 const GRID_CELL_METERS = 60;
 
 /** Extra margin, in meters, added on all sides of the straight-line bounding box between `start` and
  * `end` before gridding — gives the search room to actually detour around an obstacle near the
  * direct line rather than being boxed in against it. */
+// Kept at 700 m. Widening to 1400 m was tried on 2026-08-19 and measured worse on `cersei -> stannis`
+// (18.4 -> 26.9 deg) for a structural reason worth recording: A* minimises *total* route cost, not
+// *maximum* grade, so a wider search space can win with a longer route that contains one steeper
+// pitch. Letting roads go further around a hill needs a max-grade-aware cost or a hard per-step grade
+// cap, not merely more room — its own subtask.
 const CORRIDOR_PADDING_METERS = 700;
 
 /** Number of Chaikin corner-cutting passes applied to the raw grid path before returning it — purely

@@ -16,6 +16,7 @@ import { referenceProtectionRadiiFromMeters, sampleSeatSafeReferenceHydrology } 
 import { sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
 import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';
 import { coastWarpOffsets, reliefDetailMeters } from './terrainReliefDetail.js';
+import { continentalUpliftMeters } from './terrainContinentalUplift.js';
 import {
 	TERRAIN_MICRO_SURFACE_POLICY,
 	terrainMicroUvAt,
@@ -195,7 +196,16 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 	const micro = canonicalMicroSignal(nx, ny) * (0.45 + sample.microAmplitude * 12);
 	const mountainMeters = sampleWorldReferenceMountainReliefMeters(worldX, worldZ);
 
+	// Continental uplift: inland ground stands hundreds of metres above its own coast, the way a real
+	// landmass does. Zero at the waterline by construction, so the canonical coastline from map.png is
+	// not displaced by a single metre — see `world/terrainContinentalUplift.js`.
+	// Deliberately NOT tapered around seats, unlike the relief detail above. Tapering was tried and
+	// measured worse: zeroing uplift in a 650 m disc while the surrounding land keeps climbing builds a
+	// steep rim around every seat, and it pushed a fourth road edge (`doran -> ziya`) past the ceiling
+	// at 25.6 deg. A smooth continental field must stay smooth.
+	const upliftMeters = continentalUpliftMeters(wx, wy);
 	const dryRelative = 1.0
+		+ upliftMeters
 		+ sample.reliefInfluence * 28
 		+ sample.biomeInfluence * 7
 		+ rockWeight * 8

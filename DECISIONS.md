@@ -16991,3 +16991,87 @@ tepe-vadi ülkesi.
 **Next safe step:** terrain LOD (ADR-0297's documented prerequisite for finer ground detail) remains
 the highest-value visual task; narrowing the western road-pass corridors so the Vale regains its
 authored height is the natural follow-on for Westeros specifically.
+
+## ADR-0299 — Continental uplift: giving the world real elevation without moving one metre of coastline (owner authorisation)
+
+**Risk: MEDIUM-HIGH.** This is the largest height-field change the project has made — every inland
+metre of land rises by up to 265 m. §8.4's gate was run repeatedly throughout, and the canonical
+coastline/mask/alignment guards are what make it safe.
+
+**Owner authorisation.** "rölyef eklemek için bu bütün haritanın kotunu arttırman gerekiyorsa bütün
+gereken işlemleri yapabilirsin … ama bu coğrafi Westeros haritasından şaşmaman gerekiyor. map.png
+görüntüsünden şaşmadan çok fazla detaylı görünüm elde et." Explicit permission to raise the map's
+elevation, with an explicit constraint: do not deviate from map.png. Plus, separately: "sırf yollar
+doğru eğimde olmuyor diye dağ/tepe eklemekten vazgeçme. Yollar dağların eteklerinden devam edebilir."
+
+**Karar.** `world/terrainContinentalUplift.js`: a deterministic distance-to-water field precomputed
+once over the canonical 96x64 mask, blurred four times, sampled bilinearly, and added to land height —
+zero at the waterline, rising to `maxUpliftMeters` deep inland.
+
+Zero-at-the-waterline is the whole design, and it is what satisfies the owner's constraint exactly:
+the land/sea boundary map.png defines is not displaced by a single metre. Every coastline, island and
+inlet keeps its canonical shape while the *interior* of each landmass now stands hundreds of metres
+above its own shore, the way a real continent does. Every relief layer in
+`world/terrainReliefDetail.js` already scales its amplitude with local elevation, so they all amplify
+automatically — this one term is why the earlier rounds' noise finally has something to bite on.
+
+**Neden this and not more noise.** Measured: land had a median height of 5.24 m above sea, 80% of it
+under 17.7 m. The relief layers were correct and had nothing to scale against — no continent is 5 m
+tall. ADR-0297 had already established that raising short-wavelength amplitude buys slope steeply
+(it hit the road ceiling at 22.7 deg); uplift climbs over kilometres, so it buys elevation at roughly
+a tenth the slope cost. It is the only lever that could deliver this much height.
+
+**The measured ceiling: 265 m.** Found by bisection against `scripts/roadNetworkSafetyCheck.js`: 265
+passes; 290 and 320 fail the mountain-avoidance stress test at 20.3 and 20.8 deg. This is not a taste
+value — it is the most elevation this world can carry before a horse-cart road cannot be routed.
+
+**Three attempts to push past it, all measured and all reverted.** The owner's direction was to keep
+the mountains and let roads follow the foothills, so the pathfinder was the first place to look. None
+of it worked, and each failure is worth recording because each is structural, not a tuning miss:
+1. *Corridor padding 700 -> 1400 m.* Made `cersei -> stannis` **worse**, 18.4 -> 26.9 deg. A* minimises
+   *total* route cost, not *maximum* grade, so a wider search space can win with a longer route
+   containing one steeper pitch. More room does not imply gentler roads.
+2. *Grid cell 60 -> 50 m.* Also worse. That grid is the baseline the route's own grades are sampled
+   over, so refining it reports steeper local slopes on unchanged ground — three edges appeared to
+   fail terrain that had not moved.
+3. *Tapering uplift around seats*, as the relief detail already is. Worse again: zeroing a smooth
+   continental field inside a 650 m disc builds a steep rim around every seat and pushed a fourth edge
+   (`doran -> ziya`) to 25.6 deg. A smooth field has to stay smooth.
+All three are reverted, with the reasoning left in the source at each site. The real unlock for more
+height is a **max-grade-aware route cost** (or a hard per-step grade cap) in `world/roadPathfinder.js`
+— its own bounded subtask, now clearly identified.
+
+**Doğrulama.** `terrainSeatSafetyCheck.js` **14/14 PASS** — and the seats now sit at believable
+elevations instead of on a shelf (Winterfell 13 -> 54 m, the Eyrie 49 -> 72 m, Dorne 53 -> 63 m), while
+the four genuinely coastal seats correctly stay at 7.25 m. `roadNetworkSafetyCheck.js` PASS, 18.02 km,
+every grade under 20 deg, pathfinder at its original tuning. **The canonical guards are what prove the
+owner's constraint was honoured:** `checkWorldReferenceWaterMask.js` checksum `2ca2bed8d8a1…`
+unchanged, `checkWorldReferenceAlignment.js` PASS with 14/14 seats round-tripping and 100% coverage,
+`checkWorldReferenceHydrologyExtent.js` PASS at 137.5 km². `checkTerrainVisualContract.js`,
+`checkTechnicalDebt.js`, `checkSeededRandomPolicy.js`, `checkSmokeCheckRegistry.js` (546 files under
+the cap), `checkServiceWorkerCache.js` (192 JS, SHELL_CACHE v18 -> v19) PASS.
+`collectPerfSnapshot.js run353-continental-uplift`: 61 draw calls / 760,068 triangles / 62 geometries /
+32 textures / 202 MB — inside the desktop <2500 / <5M budget. Captures: 613 chunks, zero console/page
+errors.
+
+**A third correction to my own guard.** `checkTerrainVisualContract.js`'s altitude assertion has now
+failed twice on *correct* output — first as "shading must brighten with altitude", then as "must
+measurably differ with altitude" — because both asserted a property of the whole world against a
+single arbitrary 500 m chunk, which is not guaranteed to span enough height, and whose bright end
+depends on whether it happens to contain shoreline sand. It now tests `resolveTerrainBiomeColor`
+directly across the real range (shore / grass / cliff / summit must all resolve distinct, and a summit
+must outshine grassland), while the chunk-level assertion keeps to what a chunk can guarantee: its
+vertices are not all one colour. Two failed attempts at the same assertion is the signal that it was
+aimed at the wrong object.
+
+**Memory leak checklist.** The uplift field is one 6,144-entry Float32Array built once at module load;
+sampling is a bilinear read with no allocation.
+
+**Technical debt.** 0 new. All files under the 600-line cap.
+
+**World Coverage.** Unchanged (137.5 km², coastline untouched by construction). World Evolution Report:
+road network 17.99 -> 18.02 km; +1 ADR; +1 runtime module; "oyuncu fark eder mi" — evet, en büyüğü:
+kıta artık 5 m'lik bir sahanlık değil, kıyıdan içeriye yükselen gerçek bir kara parçası.
+
+**Next safe step:** a max-grade-aware road cost is now the single blocker on more elevation, and
+terrain LOD (ADR-0297) remains the blocker on finer ground detail.

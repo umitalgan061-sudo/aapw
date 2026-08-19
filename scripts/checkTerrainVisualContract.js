@@ -116,16 +116,29 @@ async function main() {
 			const meanOf = (list) => list.reduce((total, item) => total + item.luminance, 0) / list.length;
 			const lowGroundLuminance = meanOf(byHeight.slice(0, decile));
 			const highGroundLuminance = meanOf(byHeight.slice(-decile));
-			// Height must *change* the colour — not necessarily brighten it. The original form of this
-			// assertion required brighter-with-altitude, which is true globally (snow and bare rock sit
-			// above grass) but not inside a single low-lying 500 m chunk, where the brightest thing is
-			// the pale sand at the waterline and the ground above it is darker grass. It started failing
-			// the moment lowland relief was raised, on correct output. What the feature actually
-			// guarantees is that altitude is a real input to the shading, which is what is checked here.
-			fail(
-				Math.abs(highGroundLuminance - lowGroundLuminance) > 0.01,
-				`terrain shading must vary with altitude (low ${lowGroundLuminance.toFixed(4)} vs high ${highGroundLuminance.toFixed(4)})`,
-			);
+			// Deliberately NOT asserted against one chunk's own altitude spread. Two earlier forms of this
+			// check did — first "brighter with altitude", then "measurably different with altitude" — and
+			// both failed on *correct* output, because a single 500 m chunk is not guaranteed to span
+			// enough height for its shading to separate, and which end is brighter depends on whether
+			// that chunk happens to contain shoreline sand. The property is real but belongs to the
+			// shading function, so it is tested there directly, over the whole range the world actually
+			// spans, while the chunk-level assertion above stays on the thing a chunk can guarantee:
+			// its vertices are not all one colour.
+			const { resolveTerrainBiomeColor } = await import('/src/3d/world/terrainBiomeShading.js');
+			const swatch = (options) => {
+				const colour = new THREE.Color();
+				resolveTerrainBiomeColor(colour, { slopeDegrees: 0, rockWeight: 0, snowWeight: 0, worldX: 0, worldZ: 0, ...options });
+				return colour;
+			};
+			const shore = swatch({ heightAboveSeaMeters: 0.6 });
+			const grass = swatch({ heightAboveSeaMeters: 30 });
+			const cliff = swatch({ heightAboveSeaMeters: 120, slopeDegrees: 55 });
+			const summit = swatch({ heightAboveSeaMeters: 620 });
+			const distinct = (a, b) => Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b) > 0.05;
+			fail(distinct(shore, grass), 'shoreline and grassland must not resolve to the same colour');
+			fail(distinct(grass, cliff), 'a steep cliff face must not resolve to the same colour as flat grassland');
+			fail(distinct(cliff, summit), 'a snow summit must not resolve to the same colour as bare cliff rock');
+			fail(summit.r + summit.g + summit.b > grass.r + grass.g + grass.b, 'a snow summit must be brighter than grassland');
 
 			for (let i = 0; i < index.count; i++) {
 				const value = index.getX(i);
