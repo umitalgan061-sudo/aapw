@@ -12,6 +12,7 @@ on:
       - 'scripts/checkCreatureBirdFlockLodWake.mjs'
       - 'scripts/checkCreatureBirdFlightLifecycle.mjs'
       - 'scripts/checkCreatureBirdFlockMemoryRelease.mjs'
+      - 'scripts/checkCreatureBirdFlockScanBudget.mjs'
       - 'scripts/checkCreatureBirdFlockBrowser.js'
       - '.github/workflows/creature-bird-flock.yml'
   workflow_dispatch:
@@ -55,6 +56,8 @@ jobs:
           node scripts/checkCreatureBirdFlightLifecycle.mjs
           node --check scripts/checkCreatureBirdFlockMemoryRelease.mjs
           node scripts/checkCreatureBirdFlockMemoryRelease.mjs
+          node --check scripts/checkCreatureBirdFlockScanBudget.mjs
+          node scripts/checkCreatureBirdFlockScanBudget.mjs
           node scripts/checkCreatureThreatMemory.mjs
           node scripts/checkCreatureSimulationLod.mjs
           node scripts/checkCreatureHabitatPlacement.mjs
