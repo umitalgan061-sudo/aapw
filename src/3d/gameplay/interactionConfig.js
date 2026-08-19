@@ -8,6 +8,7 @@
  */
 
 import { CHOICES_BY_NPC_ID } from './dialogueChoices.js';
+import { buildFieldReadinessText, evaluateFieldReadiness } from './interactionFieldReadiness.js';
 
 /** Dragonstone watch outcome values shared by quest definitions and the interaction adapter. */
 export const WATCH_POLICY = Object.freeze({
@@ -198,7 +199,8 @@ export function createInteractionInventoryState() {
 			};
 		});
 		const totalWeightKg = items.reduce((sum, item) => sum + item.weightKg * item.quantity, 0);
-		return { totalWeightKg: Number(totalWeightKg.toFixed(2)), items };
+		const base = { totalWeightKg: Number(totalWeightKg.toFixed(2)), items };
+		return { ...base, fieldReadiness: evaluateFieldReadiness(base) };
 	}
 
 	function restore(saved) {
@@ -220,7 +222,8 @@ export function createInteractionInventoryState() {
 
 export function buildInventoryText(snapshot = {}) {
 	const items = Array.isArray(snapshot.items) ? snapshot.items : [];
-	const lines = ['Envanter', `Toplam ağırlık: ${Number(snapshot.totalWeightKg) || 0} kg`];
+	const readiness = snapshot?.fieldReadiness?.tier ? snapshot.fieldReadiness : evaluateFieldReadiness(snapshot);
+	const lines = ['Envanter', `Toplam ağırlık: ${Number(snapshot.totalWeightKg) || 0} kg`, ...buildFieldReadinessText(readiness).split('\n')];
 	if (items.length === 0) return [...lines, 'Henüz eşya yok.'].join('\n');
 	for (const item of items) {
 		const origin = item.provenance?.at(-1);
