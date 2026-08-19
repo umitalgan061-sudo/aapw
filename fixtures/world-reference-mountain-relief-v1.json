@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "policyId": "owner-map-live-mountain-relief-2026-08-17-v3",
+  "policyId": "owner-map-live-geography-relief-2026-08-19-v4",
   "sourceMapSha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
   "surfaceMaskSha256": "afe62a77fcc9b15887540b49b3b60b199e416f5e033aefb987a192411c25ae44",
   "grid": {
@@ -8,37 +8,37 @@
     "height": 193,
     "quantizationCentimeters": 1
   },
-  "heightChecksumSha256": "7051946c41505cd52812dc6dce66c8d73afa0d06b815288947b63f45e5cc0cf8",
+  "heightChecksumSha256": "7751af18abfbcd21513979e348258efcaad7ce471282a715b46979de550a3f34",
   "metrics": {
-    "peakMeters": 523.078506,
-    "nonZeroSamples": 3545,
-    "nonZeroRatio": 0.07147033,
+    "peakMeters": 1040.679638,
+    "nonZeroSamples": 5779,
+    "nonZeroRatio": 0.11650975,
     "wetLeakMaxMeters": 0,
     "worldMappingMaxDeltaMeters": 0,
     "chains": {
       "vale-chain": {
-        "peakMeters": 245.065844,
+        "peakMeters": 303.782236,
         "dryOwnedSamples": 97,
         "dryPositiveSamples": 97,
-        "minDryOwnedMeters": 6.911848
+        "minDryOwnedMeters": 5.283825
       },
       "red-mountains": {
-        "peakMeters": 264.194849,
+        "peakMeters": 399.84846,
         "dryOwnedSamples": 93,
         "dryPositiveSamples": 93,
-        "minDryOwnedMeters": 18.398736
+        "minDryOwnedMeters": 23.820573
       },
       "bone-mountains": {
-        "peakMeters": 521.26079,
+        "peakMeters": 922.272723,
         "dryOwnedSamples": 193,
         "dryPositiveSamples": 193,
-        "minDryOwnedMeters": 58.24053
+        "minDryOwnedMeters": 73.538487
       },
       "eastern-chain": {
-        "peakMeters": 369.378353,
+        "peakMeters": 811.734612,
         "dryOwnedSamples": 170,
         "dryPositiveSamples": 170,
-        "minDryOwnedMeters": 133.997584
+        "minDryOwnedMeters": 469.306817
       }
     }
   }
