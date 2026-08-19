@@ -48,7 +48,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		north: Object.freeze({ baseMeters: 52, ruggedMeters: 74, seed: 73, minimumInfluence: 0.12 }),
 		westerlands: Object.freeze({ baseMeters: 68, ruggedMeters: 108, seed: 79, minimumInfluence: 0.10 }),
 	}),
-	habitableSeatProtection: Object.freeze({ innerRadiusNormalized: 0.010, outerRadiusNormalized: 0.045, minimumMultiplier: 0.34 }),
+	habitableSeatProtection: Object.freeze({ innerRadiusNormalized: 0.010, outerRadiusNormalized: 0.045, minimumMultiplier: 0.39 }),
 	chains: Object.freeze({
 		'vale-chain': Object.freeze({
 			peakMeters: 720,
