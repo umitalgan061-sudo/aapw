@@ -12,10 +12,46 @@ const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _move = new THREE.Vector3();
 const _worldUp = new THREE.Vector3(0, 1, 0);
+const _cameraOffset = new THREE.Vector3();
+const _cameraSpherical = new THREE.Spherical();
+const GAMEPAD_CAMERA_YAW_RADIANS_PER_SECOND = 2.5;
+const GAMEPAD_CAMERA_PITCH_RADIANS_PER_SECOND = 1.9;
+const GAMEPAD_CAMERA_ZOOM_METERS_PER_SECOND = 12;
+const CAMERA_POLAR_EPSILON = 0.08;
+
+export function applyGamepadCameraLook(camera, controls, axes) {
+	const lookX = Number.isFinite(axes?.lookX) ? axes.lookX : 0;
+	const lookY = Number.isFinite(axes?.lookY) ? axes.lookY : 0;
+	const cameraZoom = Number.isFinite(axes?.cameraZoom) ? THREE.MathUtils.clamp(axes.cameraZoom, -1, 1) : 0;
+	const dt = Math.max(0, Math.min(0.05, Number.isFinite(axes?.lookDeltaSeconds) ? axes.lookDeltaSeconds : 0));
+	if (dt === 0 || (lookX === 0 && lookY === 0 && cameraZoom === 0)) return false;
+	_cameraOffset.subVectors(camera.position, controls.target);
+	if (_cameraOffset.lengthSq() < 1e-6) return false;
+	_cameraSpherical.setFromVector3(_cameraOffset);
+	_cameraSpherical.theta -= lookX * GAMEPAD_CAMERA_YAW_RADIANS_PER_SECOND * dt;
+	const minPolar = Math.max(CAMERA_POLAR_EPSILON, Number.isFinite(controls.minPolarAngle) ? controls.minPolarAngle : CAMERA_POLAR_EPSILON);
+	const maxPolar = Math.min(Math.PI - CAMERA_POLAR_EPSILON, Number.isFinite(controls.maxPolarAngle) ? controls.maxPolarAngle : Math.PI - CAMERA_POLAR_EPSILON);
+	_cameraSpherical.phi = THREE.MathUtils.clamp(
+		_cameraSpherical.phi + lookY * GAMEPAD_CAMERA_PITCH_RADIANS_PER_SECOND * dt,
+		minPolar,
+		Math.max(minPolar, maxPolar),
+	);
+	const minDistance = Math.max(0.1, Number.isFinite(controls.minDistance) ? controls.minDistance : 0.1);
+	const maxDistance = Math.max(minDistance, Number.isFinite(controls.maxDistance) ? controls.maxDistance : Infinity);
+	_cameraSpherical.radius = THREE.MathUtils.clamp(
+		_cameraSpherical.radius - cameraZoom * GAMEPAD_CAMERA_ZOOM_METERS_PER_SECOND * dt,
+		minDistance,
+		maxDistance,
+	);
+	camera.position.copy(_cameraOffset.setFromSpherical(_cameraSpherical).add(controls.target));
+	return true;
+}
 
 export function computeCameraRelativeMove(camera, controls, axes) {
+	applyGamepadCameraLook(camera, controls, axes);
 	const guarding = Boolean(axes.guarding);
-	if (axes.forward === 0 && axes.strafe === 0) return { x: 0, z: 0, guarding };
+	const inputMagnitude = Math.min(1, Math.hypot(axes.forward, axes.strafe));
+	if (inputMagnitude === 0) return { x: 0, z: 0, guarding };
 	_forward.subVectors(controls.target, camera.position);
 	_forward.y = 0;
 	if (_forward.lengthSq() < 1e-6) _forward.set(0, 0, -1);
@@ -23,7 +59,7 @@ export function computeCameraRelativeMove(camera, controls, axes) {
 	_right.crossVectors(_forward, _worldUp).normalize();
 	_move.set(0, 0, 0).addScaledVector(_forward, axes.forward).addScaledVector(_right, axes.strafe);
 	if (_move.lengthSq() < 1e-6) return { x: 0, z: 0, guarding };
-	_move.normalize();
+	_move.normalize().multiplyScalar(inputMagnitude);
 	return { x: _move.x, z: _move.z, guarding };
 }
 
@@ -34,6 +70,10 @@ export function combineAxes(keyboardAxes, joystickAxes) {
 		strafe: Math.max(-1, Math.min(1, keyboardAxes.strafe + joystickAxes.strafe)),
 		running: keyboardAxes.running || joystickAxes.running,
 		guarding: Boolean(keyboardAxes.guarding || joystickAxes.guarding),
+		lookX: keyboardAxes.lookX ?? 0,
+		lookY: keyboardAxes.lookY ?? 0,
+		cameraZoom: keyboardAxes.cameraZoom ?? 0,
+		lookDeltaSeconds: keyboardAxes.lookDeltaSeconds ?? 0,
 	};
 }
 
