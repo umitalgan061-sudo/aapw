@@ -47,6 +47,16 @@ const target = new EventTarget();
 const input = new KeyboardInput(target);
 
 try {
+	pads = [makePad({ index: 0, mapping: '', axes: [1, -1, 1, -1], buttons: { 0: true, 2: true, 3: true, 4: true, 10: true } })];
+	const unsupported = input.getAxes();
+	assert.deepEqual(
+		{ forward: unsupported.forward, strafe: unsupported.strafe, running: unsupported.running, guarding: unsupported.guarding, jumpRequested: unsupported.jumpRequested },
+		{ forward: 0, strafe: 0, running: false, guarding: false, jumpRequested: false },
+		'unmapped hotplug must remain inert instead of guessing Standard Gamepad indices',
+	);
+	assert.equal(combatEvents().length, 0, 'unmapped hotplug must not emit guessed combat actions');
+	assert.equal(deviceEvents().length, 0, 'unmapped hotplug must not claim the active gamepad slot');
+
 	pads = [makePad({ index: 1, axes: [0.4, -0.8], buttons: { 2: true, 4: true, 10: true } })];
 	const first = input.getAxes();
 	assert.ok(first.forward > 0.6, 'newly selected controller movement must become live immediately');
@@ -79,7 +89,7 @@ try {
 		makePad({ index: 1, connected: false }),
 	];
 	const handoff = input.getAxes();
-	assert.ok(handoff.strafe < -0.95, 'fallback controller analog movement must become live on disconnect handoff');
+	assert.ok(handoff.strafe < -0.95, 'fallback Standard controller analog movement must become live on disconnect handoff');
 	assert.equal(handoff.guarding, true, 'held guard may safely carry through controller handoff');
 	assert.equal(combatEvents('heavy').length, 0, 'held Y on fallback controller must be seeded, not emitted as phantom heavy');
 	assert.deepEqual(deviceEvents().at(-1)?.detail, { device: 'gamepad', gamepadIndex: 0, reason: 'selected' });
@@ -90,13 +100,20 @@ try {
 	input.getAxes();
 	assert.equal(combatEvents('heavy').length, 1, 'fallback controller must emit heavy after real release/repress edge');
 
+	pads = [makePad({ index: 4, mapping: '', axes: [1, -1], buttons: { 2: true, 3: true } })];
+	const lostStandard = input.getAxes();
+	assert.equal(lostStandard.forward, 0, 'losing the last Standard controller must not fall back to an unmapped pad');
+	assert.equal(lostStandard.strafe, 0);
+	assert.equal(combatEvents('light').length, 1);
+	assert.equal(combatEvents('heavy').length, 1);
+	assert.deepEqual(deviceEvents().at(-1)?.detail, { device: 'keyboard-pointer', gamepadIndex: null, reason: 'disconnected' });
+
 	pads = [];
 	const noPad = input.getAxes();
 	assert.equal(noPad.forward, 0);
 	assert.equal(noPad.strafe, 0);
 	assert.equal(noPad.running, false);
 	assert.equal(noPad.guarding, false);
-	assert.deepEqual(deviceEvents().at(-1)?.detail, { device: 'keyboard-pointer', gamepadIndex: null, reason: 'disconnected' });
 
 	pads = [makePad({ index: 0, buttons: { 0: true, 2: true, 3: true } })];
 	const reconnectHeld = input.getAxes();
@@ -111,7 +128,7 @@ try {
 	assert.equal(jumpEdge.jumpRequested, true, 'A must trigger jump after reconnect release/repress');
 	assert.equal(input.getAxes().jumpRequested, false, 'held A must be consumed as a single jump edge');
 
-	console.log('[checkPlayerGamepadHandoff] PASS: sticky selection, disconnect/reconnect and phantom-action suppression are deterministic.');
+	console.log('[checkPlayerGamepadHandoff] PASS: Standard-only sticky selection, disconnect/reconnect and phantom-action suppression are deterministic.');
 } finally {
 	input.dispose();
 	globalThis.dispatchEvent = previousDispatch;
