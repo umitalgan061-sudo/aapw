@@ -74,8 +74,8 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.050, minimumMultiplier: 0.08 }),
 			]),
 		}),
-		'bone-mountains': Object.freeze({ peakMeters: 1580, coreWidthNormalized: 0.0065, outerWidthNormalized: 0.064, summitFloor: 0.14, seed: 37 }),
-		'eastern-chain': Object.freeze({ peakMeters: 1480, coreWidthNormalized: 0.006, outerWidthNormalized: 0.060, summitFloor: 0.15, seed: 53 }),
+		'bone-mountains': Object.freeze({ peakMeters: 1580, coreWidthNormalized: 0.0065, outerWidthNormalized: 0.050, summitFloor: 0.14, seed: 37 }),
+		'eastern-chain': Object.freeze({ peakMeters: 1480, coreWidthNormalized: 0.006, outerWidthNormalized: 0.047, summitFloor: 0.15, seed: 53 }),
 	}),
 });
 
