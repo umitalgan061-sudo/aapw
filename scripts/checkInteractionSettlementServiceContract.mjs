@@ -18,6 +18,16 @@ assert.deepEqual(armorerOffer.fulfillment, {
 	label: 'Zırhçı bileme hazırlığı',
 	stationId: 'dragonstone-armorer-bench',
 	discipline: 'smithing',
+	craftUpgrade: {
+		recipeId: 'dragonstone-expedition-maintenance-kit',
+		inputs: [
+			{ itemId: 'dragonstone-travel-ration-pack', quantity: 1 },
+			{ itemId: 'dragonstone-whetstone', quantity: 1 },
+		],
+		outputItemId: 'dragonstone-expedition-maintenance-kit',
+		outputQuantity: 1,
+		label: '1 yol azığı paketi + 1 bileği taşını 1 sefer bakım kitine hazırla',
+	},
 });
 assert.deepEqual(rationServiceOffer.fulfillment, {
 	kind: 'settlement-service',
