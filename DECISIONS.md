@@ -16935,3 +16935,59 @@ vadi/sırt dokusu, ovalarda düz yeşil yerine engebeli arazi.
 
 **Next safe step:** terrain LOD (fine near, coarse far, stitched) is now the single highest-value
 visual task and the documented prerequisite for finer ground detail.
+
+## ADR-0298 — Westeros relief: mid-scale hill country, and the shore fade that was flattening half the world (owner request)
+
+**Risk: MEDIUM.** Height-field change; §8.4 gate run before and after.
+
+**Karar.** Owner identified the western landmass as Westeros and asked again for non-smooth geography.
+Two changes, both found by measuring rather than guessing:
+
+1. **A mid-scale hill layer on all land** (`hillAmplitudeMeters` 26 m, ~600 m wavelength, ridged).
+   Profiling the west showed why it was needed: the Vale chain tops out at **61 m** despite an authored
+   `peakMeters` of 430, because its road-pass corridors flatten it by up to 98% across ~700 m radii.
+   Westeros therefore has almost no mid-scale vertical structure of its own, and every existing layer
+   was either too fine to see from altitude or gated behind mountain classification it does not have.
+   At ~600 m wavelength a 26 m hill costs ~5 deg of slope — far cheaper per metre of visible relief
+   than raising the fine layers, which is what makes this the right lever.
+2. **The shore fade narrowed from 0.5-6 m to 0.3-2.5 m.** This was a self-inflicted flaw in ADR-0297's
+   own design and the single biggest reason the lowlands stayed smooth: land in this world has a
+   **median height of 5.24 m above sea**, so a fade that only reached full strength at 6 m was
+   multiplying every relief layer to near zero across **half the world's land area** — precisely where
+   most of the terrain is. The narrow band still protects the waterline and the sand line.
+
+**Alternatifler.**
+1. *Narrow the road-pass corridors so the Vale keeps its 430 m.* Rejected for this round: the passes
+   exist to keep `stannis`/`robin`/`berkalp` roads under the 20 deg grade ceiling, and shrinking them
+   risks the gate the whole western road network depends on. Adding relief around them achieves the
+   visual goal without touching a safety mechanism. Worth revisiting as its own subtask with the road
+   check in the loop.
+2. *Raise the fine layers further instead.* Rejected on cost: fine layers buy slope steeply and
+   visibility cheaply; ADR-0297 already hit the road ceiling at 22.7 deg doing exactly that.
+
+**Doğrulama.** §8.4 gate: `terrainSeatSafetyCheck.js` **14/14 PASS**, `roadNetworkSafetyCheck.js` PASS
+(17.99 km, all grades under 20 deg). `checkTechnicalDebt.js`, `checkSeededRandomPolicy.js`,
+`checkSmokeCheckRegistry.js` (545 files under the cap) PASS.
+`collectPerfSnapshot.js run352-westeros-relief`: 64 draw calls / 744,317 triangles / 64 geometries /
+34 textures / 179 MB — inside the desktop <2500 / <5M budget. Captures: 613 chunks, zero console/page
+errors; tallest peak 704 -> 725 m.
+
+**One of my own guards was wrong and is corrected.** ADR-0295's `checkTerrainVisualContract.js`
+assertion required terrain shading to *brighten* with altitude. That holds globally — snow and bare
+rock sit above grass — but not inside a single low-lying 500 m chunk, where the brightest thing is the
+pale sand at the waterline and the ground above it is darker grass. It began failing on **correct**
+output the moment lowland relief rose. Replaced with what the feature actually guarantees: altitude
+must measurably *change* the shading. The original defect it was written to catch (every vertex one
+flat colour) is still caught, by this and by the adjacent uniformity assertion.
+
+**Memory leak checklist.** No new allocation or GPU resource — one more pure noise layer.
+
+**Technical debt.** 0 new. All touched files under the 600-line cap.
+
+**World Coverage.** Unchanged. World Evolution Report: road network 17.88 -> 17.99 km (re-routed);
++1 ADR; "oyuncu fark eder mi" — evet: Westeros ve tüm alçak araziler artık düz yeşil değil, gerçek
+tepe-vadi ülkesi.
+
+**Next safe step:** terrain LOD (ADR-0297's documented prerequisite for finer ground detail) remains
+the highest-value visual task; narrowing the western road-pass corridors so the Vale regains its
+authored height is the natural follow-on for Westeros specifically.

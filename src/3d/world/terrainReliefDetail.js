@@ -114,9 +114,32 @@ export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	/** Above this elevation the relief may carve downward at full strength; below it, downward
 	 * carving is scaled toward zero so the coastal plain cannot be punched below sea level. */
 	negativeReliefFullElevationMeters: 28,
-	/** Detail fades out below this height above sea so the seabed and beaches stay clean. */
-	shoreFadeStartMeters: 0.5,
-	shoreFadeFullMeters: 6,
+	/**
+	 * Mid-scale hill country — the layer that decides whether the world reads as rolling or flat
+	 * from the air, which is the altitude this project's own evidence captures are taken from.
+	 *
+	 * Sized to fill a real gap in the canonical field. Profiling the western landmass showed the
+	 * Vale chain topping out at only 61 m (its authored `peakMeters` is 430) because the road-pass
+	 * corridors flatten it by up to 98% across ~700 m radii — so Westeros has almost no mid-scale
+	 * vertical structure of its own, and every earlier layer here was either too fine to see from
+	 * altitude or gated behind mountain classification it does not have. At ~600 m wavelength a 26 m
+	 * hill costs about 5 deg of slope, comfortably under the 20 deg road ceiling, so this buys large
+	 * visible relief far more cheaply than raising the fine layers ever could.
+	 */
+	hillAmplitudeMeters: 26,
+	hillFrequency: 22,
+	hillOctaves: 3,
+	/**
+	 * Detail fades out below this height above sea so the seabed and the sand line stay clean.
+	 *
+	 * Narrowed from 0.5-6 m on 2026-08-19 after measurement showed it was the single biggest reason
+	 * the lowlands stayed smooth: this world's land has a median height of just 5.24 m above sea, so a
+	 * fade that only reached full strength at 6 m was suppressing added relief across **half the
+	 * world's land area** — every layer in this module was being multiplied to near zero exactly where
+	 * most of the terrain is. 0.3-2.5 m protects the actual waterline and nothing else.
+	 */
+	shoreFadeStartMeters: 0.3,
+	shoreFadeFullMeters: 2.5,
 });
 
 /** Deterministic 2D integer hash -> [0,1). Trig-based, matching the style already used across this
@@ -254,6 +277,11 @@ export function reliefDetailMeters(normalizedX, normalizedY, { heightAboveSeaMet
 	);
 	const erosion = ridged2(normalizedX * P.erosionFrequency - 8.4, normalizedY * P.erosionFrequency + 33.9, P.erosionOctaves);
 	metres += (erosion - 0.5) * 2 * erosionAmplitude * landGate;
+
+	// Mid-scale hill country: the dominant large-form relief on land that is not a canonical mountain
+	// chain. Ridged so it produces ridge-and-valley country rather than smooth dunes.
+	const hills = ridged2(normalizedX * P.hillFrequency + 17.3, normalizedY * P.hillFrequency - 41.6, P.hillOctaves);
+	metres += (hills - 0.5) * 2 * P.hillAmplitudeMeters * landGate;
 
 	// Fine dissection: the gully-and-spur pattern that covers real hillsides. Ridged, elevation-ramped,
 	// and present on every piece of land — this is the layer that removes "smooth" from the world.

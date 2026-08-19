@@ -16776,3 +16776,35 @@ hatası.
 
 Sıradaki: arazi LOD'u artık en yüksek değerli görsel iş ve daha ince zemin detayının belgelenmiş ön
 koşulu.
+
+## Run 352 (2026-08-19, owner request) — Westeros rölyefi: orta ölçekli tepe ülkesi + dünyanın yarısını düzleştiren kıyı sönümlemesi (ADR-0298)
+
+Sahip sol kara kütlesinin Westeros olduğunu belirtip pürüzsüz coğrafya istemediğini yineledi.
+
+**Ölçümle bulunan iki sebep:** (1) Batıdan alınan profil kesiti, Vale zincirinin tanımlı 430 m'lik
+tepesine rağmen yalnızca **61 m**'ye çıktığını gösterdi — yol geçidi koridorları ~700 m yarıçapla %98'e
+varan düzleştirme yapıyor. Yani Westeros'un kendine ait orta ölçekli dikey yapısı neredeyse yok.
+(2) Daha önemlisi: ADR-0297'de kendi koyduğum `shoreFade` 0.5→6 m bandı, bu dünyada karanın **medyan
+yüksekliği 5.24 m** olduğu için tüm rölyef katmanlarını **karanın yarısında sıfıra yakın** çarpıyordu —
+tam da arazinin çoğunun bulunduğu yerde.
+
+Yapılanlar: tüm karaya ~600 m dalga boylu, 26 m genlikli ridged **tepe katmanı** (havadan çok görünür,
+eğim maliyeti ~5° — ince katmanları yükseltmekten çok daha ucuz) ve kıyı sönümlemesinin gerçek su
+hattına daraltılması (0.3-2.5 m).
+
+Yol geçitlerini daraltmayı **bilinçli olarak yapmadım**: o koridorlar batı yol ağını 20°'lik eğim
+tavanının altında tutuyor; güvenlik mekanizmasına dokunmadan aynı görsel sonucu almak mümkündü. Kendi
+alt görevi olarak not edildi.
+
+§8.4: 14/14 koltuk PASS, yollar PASS (17.99 km, tüm eğimler <20°). Borç/determinizm/satır sınırı PASS.
+Perf 64 çizim / 744.317 üçgen / 179 MB. Zirve 704 → 725 m. 613 parça, sıfır konsol hatası.
+
+**Kendi bekçilerimden biri yanlıştı, düzeltildi:** ADR-0295'te yazdığım "arazi gölgelemesi yükseklikle
+*parlaklaşmalı*" assertion'ı küresel olarak doğru (kar ve kaya çimenin üstünde) ama tek bir alçak
+500 m'lik parça içinde değil — orada en parlak şey su hattındaki soluk kum, üstündeki zemin daha koyu
+çimen. Alçak arazi rölyefi yükselince **doğru çıktı üzerinde** başarısız olmaya başladı. Özelliğin
+gerçekten garanti ettiği şeyle değiştirildi: yükseklik gölgelemeyi ölçülebilir biçimde *değiştirmeli*.
+Yakalamak için yazıldığı asıl kusur (her vertex tek düz renk) hâlâ yakalanıyor.
+
+Sıradaki: arazi LOD'u (ADR-0297'de belgelenen ön koşul) ve Westeros'a özel olarak batı yol geçidi
+koridorlarının daraltılması.
