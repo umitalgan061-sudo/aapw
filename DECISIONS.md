@@ -17134,3 +17134,88 @@ dağların eteklerinden dolaşarak geçiyor, tam olarak sahibin istediği gibi.
 
 **Next safe step:** terrain LOD (ADR-0297) is now the only remaining structural blocker on visual
 detail — mesh resolution, not the height field, is what still smooths fine ground.
+
+## ADR-0301 — Per-chunk crack skirts: fixing a live LOD seam defect, and unblocking finer terrain
+
+**Bağlam.** ADR-0300 kapandığında geriye tek yapısal engel kalmıştı: mesh çözünürlüğü. 500 m'lik
+parça / 64 segment = 7,8 m vertex aralığı, yani ~16 m'nin altındaki her detay ortalamayla siliniyor.
+128 segment denenmiş ve geri alınmıştı (`config.js`), çünkü masaüstü açılışı 529 parçayı senkron
+kuruyor. Bu turda `sceneManager.js:190`'ın gerçekten senkron olduğu doğrulandı — yani 128-segment
+başarısızlığı ham maliyet değil, **ana iş parçacığını bloklama**ydı.
+
+Doğru çözüm mesafe-tabanlı LOD. Ve aranınca çıktı ki **LOD zaten var**: run 134 / ADR-0158 kaba-imleç
+cihazlara 64/32/16 bantlarını veriyor. Ama hiçbir şey o dikişleri birleştirmiyor. Kaba parçanın kenarı
+31 m arayla düz bir kiriş çizerken, yanındaki ince parça zemini 7,8 m'de takip ediyor; ikisi
+anlaşmadığı her yerde oyuncu bir T-birleşim çatlağı görüyor. Bu varsayım değil — **bugün mobilde canlı
+bir render hatası**, ve masaüstü LOD'unun da önkoşulu.
+
+**Karar.** Her parça kendi çevresinden aşağı sarkan bir şerit ("skirt") taşıyor
+(`world/terrainChunkSkirt.js`). Dikiş birleştirmek yerine skirt seçildi çünkü birleştirme bir parçanın
+geometrisini *komşusunun* LOD'una bağımlı kılar — komşu bant değiştirince parçanın yeniden kurulması
+gerekir, üstelik akış sırasında komşu henüz yüklü bile olmayabilir. Skirt'te böyle bir bağ yok.
+
+Skirt parçanın kendi geometrisine eklenmiyor, **çocuk mesh** olarak taşınıyor. Böylece parça
+geometrisi 64 segmentte tam olarak 4225 vertex / 24576 index kalıyor — `checkTerrainVisualContract`,
+`checkMobileTerrainLod` ve runtime-parity kanıt kontrollerinin hepsi bunu birebir iddia ediyor. Ayrıca
+`camera.js`'in zemin raycast'i (`intersectObjects(collidables, false)` — özyinelemesiz) ve
+`worldReferenceSurfaceTerrainVisual.js` (parça mesh'ini doğrudan alıyor) eskisiyle aynı yüzeyi görmeye
+devam ediyor. Bu tur tamamen eklemeli.
+
+**Derinlik parça başına, ölçümle.** İlk hâli tek bir sabitti ve tahmin 26 m'ydi.
+`scripts/measureTerrainChunkSkirtDepth.js` dünyanın 27x21 parça ızgarasındaki her paylaşılan kenarı
+ölçtü: dağılım son derece uzun kuyruklu. 64-vs-32 dikişinde **ortalama boşluk 0,80 m**, 64-vs-16'da
+**1,64 m** — ama dünyadaki en kötü tek kenar **60,74 m** (parça (6,0) batı kenarı). Tek sabit o tek dağ
+kenarına göre boyutlanmak zorunda kalırdı, ve 567 parçanın hepsinden sarkan 61 m'lik bir duvar tam da
+modülün kendi notunun uyardığı hata: artık asıldığı zeminin arkasında gizlenmiyor, dik inişlerde dışarı
+taşıyor — çatlağı bir bulaşmayla takas ediyor.
+
+Oysa parça kendi kenar yüksekliklerini zaten biliyor. Bu yüzden her parça, en kaba olası komşunun (16
+segment) çizeceği kirişi kendi verisinden hesaplıyor ve tam o kadar sarkıyor. Karşılaştırma tahmini
+değil **birebir**: LOD seviyeleri birbirinin ikinin kuvveti olduğundan kaba parçanın kenar vertex'leri
+ince parçanınkilerin bir alt kümesinde duruyor. Ek yükseklik örneklemesi yok — az önce kurulmuş
+geometri okunuyor.
+
+Ölçülen sonuç: düz zemin 2 m taban, sıradan arazi 2–5 m, ve dağ parçası (6,0) gerçekten gerektiği
+yerde 62,24 m alıyor.
+
+**Alternatifler.**
+1. *Kenar birleştirme (stitching).* Reddedildi: komşu-bağımlılığı yukarıda. Akış sırasında komşusu
+   henüz yüklenmemiş parça için doğru cevabı üretemiyor.
+2. *Tek global derinlik sabiti.* Ölçümle reddedildi — 0,8 m ortalamaya karşı 60,74 m kuyruk.
+3. *16-segment bandını tamamen kaldırmak.* Reddedildi: bu, run 134'ün ölçülmüş mobil bütçesini geri
+   alırdı. Kuyruğu doğuran band'i silmek yerine kuyruğu kapatmak daha ucuz.
+4. *Skirt'i parça geometrisine eklemek.* Reddedildi: dört kontrolün birebir iddia ettiği topolojiyi
+   kırardı, üstelik hiçbir karşılığı olmadan.
+
+**Doğrulama.** `measureTerrainChunkSkirtDepth.js` **PASS** — örneklenen 10 parçanın her birinin kendi
+skirt'i kendi en kötü kaba-komşu boşluğunu kapatıyor (marj 1,5 m), ve parça geometrisi 4225/24576'da
+kaldı. `terrainSeatSafetyCheck.js` **14/14 PASS**, on dört koltuğun da yüksekliği run 354 ile
+**bayt-bayt aynı** — skirt yalnızca render, tek bir metre yükseklik değiştirmedi.
+`roadNetworkSafetyCheck.js` PASS (13 kenar, 18,29 km, 20° altında). Kanonik şart korundu: su maskesi
+checksum'ı `2ca2bed8d8a1…` değişmedi, hizalama 14/14 round-trip %100 kapsam.
+`checkTerrainVisualContract.js` PASS (4225 vertex, 24576 index, 65/65 dikiş sürekli, disposal 1/1),
+`checkMobileTerrainLod.js` PASS (49 parça = 9 near@64 + 16 mid@32 + 24 far@16, dispose=0),
+`checkServiceWorkerCache.js` ve `checkSmokeCheckRegistry.js` PASS.
+
+**Görsel kanıt (§8.5).** `captureTerrainChunkSkirtEvidence.mjs`, kasıtlı olarak stash'li before/after
+yerine **aynı kareyi** skirt'ler görünür ve görünmezken iki kez render ediyor — çünkü çalışan bir skirt
+görünmezdir, ve stash/yeniden kurma iki farklı sahneyi karşılaştırırdı. Fark böylece yalnızca
+skirt'lere atfedilebilir. Kaba-imleç emülasyonuyla (LOD bantlarını ekrana getiren sinyal) 81 parça, 4
+çerçeveleme (2 açı x yakın/uzak), dünyanın en kötü dikişinin bulunduğu bölgede: kapatılan çatlak
+pikselleri **1198 / 0 / 3489 / 699**. Dördüncü çerçeveleme sıfır — o açıdan görünür çatlak yok, ve
+bu dürüstçe böyle raporlanıyor. Yüzeyin geri kalanı piksel-bazında aynı: bulaşma yok, koyu kenar yok.
+
+**Memory leak checklist.** `disposeTerrainChunk` artık skirt çocuklarını da kaldırıp geometri ve
+materyalini dispose ediyor. `checkTerrainVisualContract` disposal 1/1, `checkMobileTerrainLod`
+dispose=0 ile doğruladı. Skirt hiçbir paylaşılan dokuya referans vermiyor.
+
+**Technical debt.** 0 new.
+
+**World Coverage.** Değişmedi. World Evolution Report: mobilde canlı bir LOD çatlak hatası kapandı;
++1 ADR, +1 modül, +2 script; "oyuncu fark eder mi" — evet, mobilde: LOD sınırlarında zemini kesen
+gökyüzü/boşluk dilimleri kayboldu.
+
+**Next safe step:** masaüstü mesafe-tabanlı LOD. Artık çatlak riski kapalı olduğuna göre yakın bantı
+128 segmente (3,9 m vertex) çıkarıp uzak bantları kabalaştırmak açılış maliyetini de düşürüyor:
+25 parça@128 + 96@64 + 408@32 ≈ 1,36 M vertex, bugünkü 529@64 = 2,38 M'ye karşı — hem iki kat yakın
+detay hem %43 daha az açılış işi. Bu, `config.js`'in 128-segment notunun beklediği dikişli seam.

@@ -17,6 +17,7 @@ import { sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.
 import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';
 import { coastWarpOffsets, reliefDetailMeters } from './terrainReliefDetail.js';
 import { continentalUpliftMeters } from './terrainContinentalUplift.js';
+import { createTerrainChunkSkirt, disposeTerrainChunkSkirt } from './terrainChunkSkirt.js';
 import {
 	TERRAIN_MICRO_SURFACE_POLICY,
 	terrainMicroUvAt,
@@ -490,10 +491,23 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		apronSampledSlope: true,
 	});
 	mesh.userData.currentTerrainMicroSurface = material.userData.terrainMicroSurface;
+	// Crack skirt (DECISIONS.md ADR-0301). Carried as a child rather than extra vertices on the chunk
+	// so this geometry's counts stay exactly 4225/24576 at 64 segments, which every terrain topology
+	// contract asserts. Built last, from the finished geometry, so it inherits real heights and colours.
+	const skirt = createTerrainChunkSkirt(geometry, { segments, size, roughness: material.roughness });
+	if (skirt) {
+		mesh.add(skirt);
+		mesh.userData.currentTerrainChunkSkirt = skirt.userData.terrainChunkSkirt;
+	}
 	return mesh;
 }
 
 export function disposeTerrainChunk(chunkMesh) {
+	for (const child of [...chunkMesh.children]) {
+		if (!child.userData?.terrainChunkSkirt) continue;
+		chunkMesh.remove(child);
+		disposeTerrainChunkSkirt(child);
+	}
 	chunkMesh.geometry.dispose();
 	// The albedo and micro normal/roughness textures are app-lifetime shared resources. Disposing a
 	// single chunk must never invalidate texture maps still referenced by neighboring chunk materials.

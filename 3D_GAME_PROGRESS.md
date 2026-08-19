@@ -16893,3 +16893,43 @@ contract, borç, determinizm, satır sınırı (546 dosya) PASS. Perf 61 çizim 
 
 Sıradaki: arazi LOD'u artık görsel detay önündeki tek yapısal engel — ince zemini pürüzsüzleştiren şey
 yükseklik alanı değil, mesh çözünürlüğü.
+
+### Run 355 — LOD dikişlerindeki çatlaklar kapandı (ADR-0301)
+
+Geçen tur "sıradaki tek yapısal engel arazi LOD'u" demiştim. Ona bakınca iki şey çıktı.
+
+Birincisi: 128-segment denemesinin neden battığını yanlış hatırlıyormuşum. `sceneManager.js`'teki
+açılış önizlemesi 529 parçayı **senkron** kuruyor — sorun ham maliyet değil, ana iş parçacığını
+bloklamaktı.
+
+İkincisi ve daha önemlisi: **LOD zaten var.** Run 134 kaba-imleç cihazlara 64/32/16 bantlarını
+veriyor. Ama hiçbir şey o dikişleri birleştirmiyor. Kaba parçanın kenarı 31 m arayla düz bir kiriş
+çizerken yanındaki ince parça zemini 7,8 m'de takip ediyor; anlaşmadıkları her yerde oyuncu zemini
+kesen bir çatlak görüyor. Yani bu bir "ileride lazım olacak altyapı" değil, **bugün mobilde canlı bir
+render hatası**.
+
+Her parça artık kendi çevresinden aşağı bir şerit sarkıtıyor. Dikiş birleştirmek yerine bunu seçtim
+çünkü birleştirme parçayı komşusunun LOD'una bağımlı kılar — akış sırasında komşu henüz yüklü bile
+olmayabilir. Şerit parçanın kendi geometrisine değil **çocuk mesh**'e gidiyor, böylece parça
+topolojisi dört kontrolün birebir iddia ettiği 4225/24576'da kalıyor; tur tamamen eklemeli.
+
+Derinliği önce tek sabit yapıp 26 m tahmin etmiştim. Ölçünce yanlış çıktı ve asıl ders oradaydı:
+dağılım çok uzun kuyruklu. Ortalama boşluk 0,80–1,64 m, ama **dünyadaki en kötü tek kenar 60,74 m**.
+Tek sabit o tek dağ kenarına göre boyutlanmak zorunda kalırdı — 567 parçanın hepsinden sarkan 61 m'lik
+duvar ise çatlağı bir bulaşmayla takas ederdi. Oysa parça kendi kenar yüksekliklerini zaten biliyor,
+yani en kaba komşunun çizeceği kirişi kendi verisinden birebir hesaplayabiliyor. Sonuç: düz zemin 2 m,
+sıradan arazi 2–5 m, dağ parçası (6,0) gerçekten gerektiği yerde 62,24 m. Ek örnekleme sıfır.
+
+Görsel kanıtı stash'li before/after yerine **aynı kareyi** şeritler açık ve kapalıyken render ederek
+aldım — çalışan bir şerit görünmezdir, iki ayrı sahneyi karşılaştırmak farkı bulandırırdı. Kapatılan
+çatlak pikselleri 4 çerçevelemede 1198 / 0 / 3489 / 699; dördüncüsü sıfır çünkü o açıdan görünür
+çatlak yok, öyle de yazdım. Yüzeyin geri kalanı piksel-bazında aynı.
+
+Kapılar: 14/14 koltuk PASS ve **yükseklikleri run 354 ile bayt-bayt aynı** (şerit yalnızca render),
+yollar PASS (13 kenar, 18,29 km), su maskesi checksum'ı `2ca2bed8d8a1…` değişmedi, hizalama 14/14
+%100, terrain visual contract 4225/24576 + disposal 1/1, mobil LOD 49 parça / dispose=0, SW cache ve
+satır sınırı PASS.
+
+Sıradaki: masaüstü mesafe-tabanlı LOD. Çatlak riski kapandığına göre yakın bant 128 segmente
+(3,9 m vertex) çıkabilir; 25@128 + 96@64 + 408@32 ≈ 1,36 M vertex, bugünkü 2,38 M'ye karşı — hem iki
+kat yakın detay hem %43 daha az açılış işi.
