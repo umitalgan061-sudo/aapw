@@ -6,15 +6,18 @@ import {
 	selectPlayerGamepad,
 } from '../src/3d/input.js';
 
-function makePad({ index = 0, mapping = 'standard', axes = [0, 0], buttons = {}, connected = true } = {}) {
-	const mapped = Array.from({ length: 12 }, (_, buttonIndex) => ({ pressed: Boolean(buttons[buttonIndex]) }));
+function makePad({ index = 0, mapping = 'standard', axes = [0, 0], buttons = {}, values = {}, connected = true } = {}) {
+	const mapped = Array.from({ length: 12 }, (_, buttonIndex) => ({
+		pressed: Boolean(buttons[buttonIndex]) || Number(values[buttonIndex] ?? 0) > 0.5,
+		value: Number(values[buttonIndex] ?? (buttons[buttonIndex] ? 1 : 0)),
+	}));
 	return { index, mapping, connected, axes, buttons: mapped };
 }
 
 const idle = samplePlayerGamepad(makePad());
 assert.deepEqual(
-	{ forward: idle.forward, strafe: idle.strafe, magnitude: idle.magnitude, lookX: idle.lookX, lookY: idle.lookY, running: idle.running, guarding: idle.guarding },
-	{ forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, running: false, guarding: false },
+	{ forward: idle.forward, strafe: idle.strafe, magnitude: idle.magnitude, lookX: idle.lookX, lookY: idle.lookY, cameraZoom: idle.cameraZoom, running: idle.running, guarding: idle.guarding },
+	{ forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, cameraZoom: 0, running: false, guarding: false },
 	'idle Standard Gamepad must not create movement, camera or defense input',
 );
 assert.equal(Object.is(idle.forward, -0), false, 'idle forward axis must be canonical +0');
@@ -44,12 +47,15 @@ assert.ok(movement.magnitude > 0.6 && movement.magnitude <= 1, 'stick magnitude 
 assert.equal(movement.running, true, 'standard left-stick press must feed Player sprint intent');
 assert.equal(movement.guarding, true, 'standard LB/L1 must feed Player guard intent');
 
-const camera = samplePlayerGamepad(makePad({ axes: [0, 0, 0.72, -0.59] }));
+const camera = samplePlayerGamepad(makePad({ axes: [0, 0, 0.72, -0.59], values: { 6: 0.2, 7: 0.7 } }));
 assert.ok(camera.lookX > 0.6 && camera.lookX <= 1, 'standard right-stick X must feed camera yaw');
 assert.ok(camera.lookY < -0.45 && camera.lookY >= -1, 'standard right-stick Y must feed camera pitch');
 assert.ok(camera.lookMagnitude > 0.6 && camera.lookMagnitude <= 1, 'right-stick camera magnitude must remain radial and bounded');
+assert.ok(Math.abs(camera.cameraZoom - 0.5) < 1e-9, 'RT minus LT analog values must feed bounded camera zoom');
 assert.equal(camera.forward, 0, 'right stick must not leak into player movement');
 assert.equal(camera.strafe, 0, 'right stick must not leak into player movement');
+const zoomOut = samplePlayerGamepad(makePad({ values: { 6: 1, 7: 0.25 } }));
+assert.equal(zoomOut.cameraZoom, -0.75, 'LT must zoom out proportionally rather than acting as a binary button');
 
 const firstActions = samplePlayerGamepad(makePad({ buttons: { 0: true, 2: true, 3: true } }), { jump: false, light: false, heavy: false });
 assert.equal(firstActions.jumpPressed, true, 'standard A/bottom-face must edge-trigger jump');
@@ -65,9 +71,10 @@ const released = samplePlayerGamepad(makePad(), heldActions.buttons);
 const pressedAgain = samplePlayerGamepad(makePad({ buttons: { 2: true } }), released.buttons);
 assert.equal(pressedAgain.lightPressed, true, 'attack must retrigger after a real release edge');
 
-const saturated = samplePlayerGamepad(makePad({ axes: [5, -5, 5, -5] }));
+const saturated = samplePlayerGamepad(makePad({ axes: [5, -5, 5, -5], values: { 6: 5, 7: 0 } }));
 assert.ok(Math.hypot(saturated.strafe, saturated.forward) <= 1.000000001, 'saturated diagonal left stick must remain unit-bounded');
 assert.ok(Math.hypot(saturated.lookX, saturated.lookY) <= 1.000000001, 'saturated diagonal right stick must remain unit-bounded');
+assert.equal(saturated.cameraZoom, -1, 'trigger values must clamp to the Standard Gamepad unit range');
 
 const disconnected = samplePlayerGamepad(null, { jump: true, light: true, heavy: true });
 assert.deepEqual(disconnected.buttons, { jump: false, light: false, heavy: false }, 'disconnect must clear edge state');
@@ -75,6 +82,7 @@ assert.equal(disconnected.forward, 0);
 assert.equal(disconnected.strafe, 0);
 assert.equal(disconnected.lookX, 0);
 assert.equal(disconnected.lookY, 0);
+assert.equal(disconnected.cameraZoom, 0);
 
 const pads = [
 	makePad({ index: 3, mapping: '', axes: [0, -1] }),
@@ -89,8 +97,8 @@ assert.equal(selectPlayerGamepad([], 2), null, 'no connected controller must ret
 
 const source = fs.readFileSync(new URL('../src/3d/input.js', import.meta.url), 'utf8');
 for (const contract of [
-	"JUMP: 0", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "SPRINT: 10",
-	"gamepad.axes?.[2]", "gamepad.axes?.[3]", "lookDeltaSeconds",
+	"JUMP: 0", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "ZOOM_OUT: 6", "ZOOM_IN: 7", "SPRINT: 10",
+	"gamepad.axes?.[2]", "gamepad.axes?.[3]", "buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_IN)", "lookDeltaSeconds",
 	"applyGamepadRadialDeadzone", "selectPlayerGamepad", "this._activeGamepadIndex",
 	"emitPlayerCombatIntent('light', 'gamepad')", "emitPlayerCombatIntent('heavy', 'gamepad')", "'aapw:player-input-device'",
 ]) assert.ok(source.includes(contract), `missing shipped gamepad contract: ${contract}`);
@@ -102,8 +110,10 @@ for (const contract of [
 	'export function applyGamepadCameraLook(camera, controls, axes)',
 	'GAMEPAD_CAMERA_YAW_RADIANS_PER_SECOND',
 	'GAMEPAD_CAMERA_PITCH_RADIANS_PER_SECOND',
+	'GAMEPAD_CAMERA_ZOOM_METERS_PER_SECOND',
+	'_cameraSpherical.radius - cameraZoom',
 	'computeCameraRelativeMove(camera, controls, axes)',
 ]) assert.ok(movementSource.includes(contract), `missing camera-relative gamepad contract: ${contract}`);
 
 assert.ok(!source.includes('gamepad?.buttons?.[0]?.pressed'), 'legacy A-as-light direct polling must stay removed');
-console.log('[checkPlayerGamepadInput] PASS: dual-stick radial analog, camera orbit, deterministic selection, sprint/guard and combat edge parity are bounded.');
+console.log('[checkPlayerGamepadInput] PASS: dual-stick radial analog, trigger zoom, camera orbit, deterministic selection, sprint/guard and combat edge parity are bounded.');
