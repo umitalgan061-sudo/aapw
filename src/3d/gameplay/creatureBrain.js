@@ -33,12 +33,13 @@
  * whatever ground is directly beneath it (`plan.alertGait: 'flap'` drives the wing animation the whole
  * time it is airborne), cruises outward for `flightDurationSeconds`, then descends and resumes ground
  * hopping at its new landing spot — a self-terminating flight, not an indefinitely circling one, so a
- * player standing still near a startled bird doesn't watch it loop overhead forever. This is the
- * `flee-on-approach` primitive with a vertical dimension, not `flock` — true multi-bird schooling
- * remains its own future primitive, same "smallest thing that earns the behaviour name" discipline the
- * paragraph above already applies to `kedi`/`domuz`. `playerCollider` is intentionally not consulted
- * while airborne (climbing/cruising/landing) — a bird flying over a castle wall or a cottage roof is
- * correct, not a bug, unlike a ground quadruped walking through one.
+ * player standing still near a startled bird doesn't watch it loop overhead forever. This same flight
+ * controller now also consumes the established same-species bounded alert primitive for `flock`:
+ * a directly startled bird may wake nearby birds of its own species, while receiver-only reactions do
+ * not relay onward because `livingWorldSpawner.js` only publishes direct-player threat sources.
+ * `playerCollider` is intentionally not consulted while airborne (climbing/cruising/landing) — a bird
+ * flying over a castle wall or a cottage roof is correct, not a bug, unlike a ground quadruped walking
+ * through one.
  *
  * **Which species.** Every `CREATURE_BEHAVIOR_PROFILES` key below is a `gameplay/creatureBodyPlans.js`
  * body-plan id, *except* `kurt` (already a real, shipped, asset-driven wolf — `gameplay/animals.js` —
@@ -87,7 +88,7 @@ import { CREATURE_BODY_PLANS } from './creatureBodyPlans.js';
  *   approaching being gets before it stops, so it never visually pushes into the player.
  * @property {number|null} packAlertRadiusMeters Same primitive as `animals.js`'s wolf pack-alert: a
  *   being not yet within its own `reactiveTriggerRadiusMeters` of the player still reacts if a
- *   same-species herdmate within this radius is already reacting. `null` = solitary, no herd check.
+ *   same-species herdmate within this radius is already reacting. `null` = solitary, no herd/flock check.
  * @property {'flight'} [locomotion] Omit (the default) for every quadruped — identical shape/behavior
  *   as before flight species existed. `'flight'` opts a being into the climb/cruise/land state machine
  *   in place of the ground reactive-flee branch (see this file's own "Birds fly now" header section);
@@ -173,25 +174,24 @@ export const CREATURE_BEHAVIOR_PROFILES = Object.freeze({
 		packAlertRadiusMeters: 20,
 	}),
 	// Birds — ground-hop wander (see BIRD_DEFAULTS' restGait: 'hop'), climb-away-and-land in place of
-	// ground flee once startled. Every numeric value below is this pass's own first-pass engineering
-	// judgment, same "temporary default, no real playtest yet" category the rest of this table already
-	// is (see this file's own header + QUESTIONS_FOR_OWNER.md's running list).
+	// ground flee once startled. Flock alert radii deliberately reuse the same same-species-only,
+	// non-relaying registry contract as quadruped herds; they do not create a second flock framework.
 	kuzgun: Object.freeze({
 		wanderRadiusMeters: 4, wanderSpeedMps: 0.6, wanderPauseSeconds: 2.5,
 		reactiveDirection: 'away', reactiveTriggerRadiusMeters: 9, reactiveSpeedMps: 7,
-		packAlertRadiusMeters: null,
+		packAlertRadiusMeters: 12,
 		locomotion: 'flight', flightAltitudeMeters: 12, takeoffClimbMps: 6, flightDurationSeconds: 6,
 	}),
 	kartal: Object.freeze({
 		wanderRadiusMeters: 5, wanderSpeedMps: 0.5, wanderPauseSeconds: 4,
 		reactiveDirection: 'away', reactiveTriggerRadiusMeters: 16, reactiveSpeedMps: 8,
-		packAlertRadiusMeters: null,
+		packAlertRadiusMeters: 20,
 		locomotion: 'flight', flightAltitudeMeters: 22, takeoffClimbMps: 5, flightDurationSeconds: 9,
 	}),
 	tavuk: Object.freeze({
 		wanderRadiusMeters: 3, wanderSpeedMps: 0.5, wanderPauseSeconds: 2,
 		reactiveDirection: 'away', reactiveTriggerRadiusMeters: 5, reactiveSpeedMps: 4,
-		packAlertRadiusMeters: null,
+		packAlertRadiusMeters: 8,
 		locomotion: 'flight', flightAltitudeMeters: 4, takeoffClimbMps: 4, flightDurationSeconds: 2.5,
 	}),
 });
