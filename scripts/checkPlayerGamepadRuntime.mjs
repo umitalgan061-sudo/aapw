@@ -59,6 +59,12 @@ const waitHistory = (key, predicate, label, timeout) => waitFor(
 	label,
 	timeout,
 );
+const waitMotionAfter = (marker, predicate, label, timeout = 10000) => waitFor(
+	histories,
+	(history) => history.motion.slice(marker).find(predicate) ?? null,
+	label,
+	timeout,
+);
 
 async function setPads(specs) {
 	await page.evaluate((nextSpecs) => {
@@ -96,9 +102,23 @@ try {
 	need(lightInput.source === 'gamepad' && lightStart.comboStep === 1, 'gamepad X must enter the existing Player melee state machine');
 	await waitHistory('attacks', (event) => event.serial === lightStart.serial && event.phase === 'finish', 'gamepad light finish', 20000);
 
+	// Raw magnitude 0.59 maps to exactly half travel after the 0.18 radial deadzone:
+	// (0.59 - 0.18) / (1 - 0.18) = 0.5. Camera-relative conversion must preserve it.
+	const partialMarker = (await histories()).motion.length;
+	await setPads([{ index: 1, axes: [0, -0.59, 0, 0] }]);
+	const partialWalk = await waitMotionAfter(partialMarker, (motion) => motion.state === 'walk' && motion.speed > 0.5, 'half-magnitude analog walk');
+	const neutralMarker = (await histories()).motion.length;
+	await setPads([{ index: 1 }]);
+	await waitMotionAfter(neutralMarker, (motion) => motion.state === 'idle', 'neutral after half-magnitude walk');
+	const fullWalkMarker = (await histories()).motion.length;
+	await setPads([{ index: 1, axes: [0, -1, 0, 0] }]);
+	const fullWalk = await waitMotionAfter(fullWalkMarker, (motion) => motion.state === 'walk' && motion.speed > partialWalk.speed, 'full-magnitude analog walk');
+	const analogSpeedRatio = partialWalk.speed / fullWalk.speed;
+	need(analogSpeedRatio > 0.42 && analogSpeedRatio < 0.58, `camera movement lost analog magnitude: partial=${partialWalk.speed} full=${fullWalk.speed} ratio=${analogSpeedRatio}`);
+
 	const sprintMarker = (await histories()).motion.length;
 	await setPads([{ index: 1, axes: [0, -1, 0, 0], buttons: { 10: true } }]);
-	const sprint = await waitFor(histories, (history) => history.motion.slice(sprintMarker).find((motion) => motion.running && motion.speed > 6 && motion.stamina < baseline.stamina) ?? null, 'analog L3 sprint');
+	const sprint = await waitMotionAfter(sprintMarker, (motion) => motion.state === 'sprint' && motion.runIntent && motion.speed > 6 && motion.stamina < baseline.stamina, 'analog L3 sprint');
 	need(sprint.speed > 6, `gamepad sprint speed too low: ${sprint.speed}`);
 	need(sprint.stamina < baseline.stamina, `gamepad sprint must drain stamina: ${sprint.stamina}`);
 
@@ -141,6 +161,7 @@ try {
 		ok: true,
 		baseline: { state: baseline.state, stamina: baseline.stamina },
 		light: { input: lightInput, serial: lightStart.serial, comboStep: lightStart.comboStep },
+		analog: { partialSpeed: partialWalk.speed, fullSpeed: fullWalk.speed, ratio: Number(analogSpeedRatio.toFixed(3)) },
 		sprint: { speed: sprint.speed, stamina: sprint.stamina, state: sprint.state },
 		fallback: { device: fallbackDevice, guarding: fallbackGuard.guarding },
 		heavy: { input: heavyInput, serial: heavyStart.serial, damageScale: heavyStart.damageScale },
@@ -148,7 +169,7 @@ try {
 		browserErrors: errors,
 	};
 	fs.writeFileSync(path.join(outDir, 'gamepad-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_GAMEPAD_RUNTIME_OK ${JSON.stringify({ sprintSpeed: sprint.speed, lightSerial: lightStart.serial, heavySerial: heavyStart.serial, errors: errors.length })}`);
+	console.log(`PLAYER_GAMEPAD_RUNTIME_OK ${JSON.stringify({ analogRatio: metrics.analog.ratio, sprintSpeed: sprint.speed, lightSerial: lightStart.serial, heavySerial: heavyStart.serial, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
