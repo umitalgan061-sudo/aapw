@@ -1,0 +1,108 @@
+name: Live Map Geography Relief
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/worldReferenceMountainRelief.js'
+      - 'scripts/checkGeographyReliefHabitableBasins.mjs'
+      - 'scripts/checkGeographyReliefMorphology.mjs'
+      - 'scripts/checkWorldReferenceMountainRelief.mjs'
+      - 'scripts/checkMountainNaturalizationProfile.mjs'
+      - 'scripts/checkMountainNaturalizationDeterminism.mjs'
+      - 'scripts/checkMountainPassReliefSafety.mjs'
+      - 'scripts/terrainSeatSafetyCheck.js'
+      - 'scripts/roadNetworkSafetyCheck.js'
+      - '.github/workflows/live-map-geography-relief.yml'
+      - '.github/workflows/world-environment-acceptance.yml'
+  workflow_dispatch:
+
+permissions: { contents: read }
+concurrency:
+  group: live-map-geography-relief-${{ github.ref }}
+  cancel-in-progress: true
+
+env: { TZ: Europe/Istanbul }
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+          ref: '${{ github.event.pull_request.head.sha || github.sha }}'
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Exact-main bounded geography scope
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          BASE_SHA="$(git merge-base HEAD "$LIVE_MAIN_SHA")"
+          test "$BASE_SHA" = "$LIVE_MAIN_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/worldReferenceMountainRelief\.js|scripts/checkGeographyReliefHabitableBasins\.mjs|scripts/checkGeographyReliefMorphology\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|\.github/workflows/live-map-geography-relief\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
+          D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "geography relief quota additions=$A deletions=$D total=$((A+D))"
+          test $((A+D)) -le 1000
+
+      - name: Static geography contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldReferenceMountainRelief.js
+          node --check scripts/checkGeographyReliefHabitableBasins.mjs
+          node --check scripts/checkGeographyReliefMorphology.mjs
+          node --check scripts/checkWorldReferenceMountainRelief.mjs
+          node --check scripts/checkMountainNaturalizationProfile.mjs
+          node scripts/checkGeographyReliefHabitableBasins.mjs
+          node scripts/checkGeographyReliefMorphology.mjs
+          node scripts/checkWorldReferenceMountainRelief.mjs
+          node scripts/checkMountainNaturalizationProfile.mjs
+          node scripts/checkMountainNaturalizationDeterminism.mjs
+          node scripts/checkMountainPassReliefSafety.mjs
+
+      - name: Hydrate runtime safety assets
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**" --exclude=""
+
+      - name: Install browser runtime
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Settlement road and shipped scene safety
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/smokeTestGame3D.js
+
+      - name: Offline and deterministic safety
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSeededRandomPolicy.js
+
+      - name: Final exact-main freshness
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
