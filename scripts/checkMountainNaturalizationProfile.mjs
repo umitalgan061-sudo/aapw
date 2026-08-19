@@ -189,10 +189,10 @@ for (const zoneId of ['braavos-coast', 'dothraki-sea', 'yi-ti', 'grey-waste']) {
 
 const drySamples = [];
 let zeroReliefDrySamples = 0;
-for (let y = 0; y <= 96; y += 1) {
-	for (let x = 0; x <= 128; x += 1) {
-		const nx = x / 128;
-		const ny = y / 96;
+for (let y = 0; y <= 192; y += 1) {
+	for (let x = 0; x <= 256; x += 1) {
+		const nx = x / 256;
+		const ny = y / 192;
 		const dry = sampleReferenceDryLandWeight(nx, ny);
 		const relief = sampleNormalizedReferenceMountainReliefMeters(nx, ny);
 		assert(Number.isFinite(relief) && relief >= 0, `grid sample ${x}/${y} returned invalid relief`);
