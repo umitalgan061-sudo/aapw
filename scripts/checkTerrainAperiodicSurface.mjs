@@ -47,8 +47,8 @@ gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 void main() {
 vec4 diffuseColor = vec4(1.0);
 float roughnessFactor = 1.0;
-vec3 geometryNormal = vec3(0.0, 1.0, 0.0);
-vec3 normal = geometryNormal;
+vec3 normal = vec3(0.0, 1.0, 0.0);
+vec3 nonPerturbedNormal = normal;
 #include <color_fragment>
 #include <roughnessmap_fragment>
 #include <normal_fragment_maps>
@@ -65,7 +65,8 @@ assert(shader.fragmentShader.includes(`skewed / ${policy.fineScaleMeters.toFixed
 assert(shader.fragmentShader.includes('roughnessFactor = clamp'));
 assert(shader.fragmentShader.includes('diffuseColor.rgb *= clamp'));
 assert(shader.fragmentShader.includes('aapwNormalContrast'));
-assert(shader.fragmentShader.includes('mix(geometryNormal, normal, aapwNormalContrast)'));
+assert(shader.fragmentShader.includes('mix(nonPerturbedNormal, normal, aapwNormalContrast)'));
+assert(!shader.fragmentShader.includes('mix(geometryNormal, normal, aapwNormalContrast)'), 'do not rely on removed Three.js geometryNormal symbol');
 assert(shader.fragmentShader.includes(policy.normalContrastMin.toFixed(2)));
 assert(shader.fragmentShader.includes(policy.normalContrastMax.toFixed(2)));
 assert(shader.fragmentShader.includes(`smoothstep(${policy.fadeStartMeters.toFixed(1)}, ${policy.maxDistanceMeters.toFixed(1)}`));
@@ -99,4 +100,4 @@ manager.disposeAll();
 geometry.dispose();
 mesh.material.dispose();
 material.dispose();
-console.log('[checkTerrainAperiodicSurface] PASS: shipped ChunkManager terrain receives render-only multi-scale albedo/roughness and aperiodically modulated micro-normal contrast without changing geometry/collider authority.');
+console.log('[checkTerrainAperiodicSurface] PASS: shipped ChunkManager terrain receives render-only multi-scale albedo/roughness and Three.js-compatible aperiodic micro-normal contrast without changing geometry/collider authority.');
