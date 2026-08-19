@@ -84,21 +84,34 @@ assert.equal(disconnected.lookX, 0);
 assert.equal(disconnected.lookY, 0);
 assert.equal(disconnected.cameraZoom, 0);
 
+const unmapped = samplePlayerGamepad(makePad({ mapping: '', axes: [1, -1, 1, -1], buttons: { 0: true, 2: true, 3: true, 4: true, 10: true }, values: { 6: 1, 7: 1 } }));
+assert.equal(unmapped.forward, 0, 'unmapped controller axes must not be guessed as Standard Gamepad movement');
+assert.equal(unmapped.strafe, 0);
+assert.equal(unmapped.lookX, 0, 'unmapped controller axes must not be guessed as Standard Gamepad camera input');
+assert.equal(unmapped.lookY, 0);
+assert.equal(unmapped.cameraZoom, 0);
+assert.equal(unmapped.running, false);
+assert.equal(unmapped.guarding, false);
+assert.equal(unmapped.jumpPressed, false);
+assert.equal(unmapped.lightPressed, false);
+assert.equal(unmapped.heavyPressed, false);
+
 const pads = [
 	makePad({ index: 3, mapping: '', axes: [0, -1] }),
 	makePad({ index: 2, mapping: 'standard', axes: [0, -1] }),
 	makePad({ index: 1, mapping: 'standard', axes: [0, -1] }),
 ];
 assert.equal(selectPlayerGamepad(pads)?.index, 1, 'initial selection must prefer lowest-index Standard Gamepad');
-assert.equal(selectPlayerGamepad(pads, 2)?.index, 2, 'connected preferred controller must stay sticky');
-assert.equal(selectPlayerGamepad([pads[0], { ...pads[1], connected: false }, pads[2]], 2)?.index, 1, 'disconnect must fall back deterministically');
-assert.equal(selectPlayerGamepad([pads[0]], 2)?.index, 3, 'non-standard pad may be fallback when no Standard pad remains');
+assert.equal(selectPlayerGamepad(pads, 2)?.index, 2, 'connected preferred Standard controller must stay sticky');
+assert.equal(selectPlayerGamepad([pads[0], { ...pads[1], connected: false }, pads[2]], 2)?.index, 1, 'disconnect must fall back deterministically to another Standard controller');
+assert.equal(selectPlayerGamepad([pads[0]], 3), null, 'non-standard pad must stay inert when no Standard mapping is available');
 assert.equal(selectPlayerGamepad([], 2), null, 'no connected controller must return null');
 
 const source = fs.readFileSync(new URL('../src/3d/input.js', import.meta.url), 'utf8');
 for (const contract of [
 	"JUMP: 0", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "ZOOM_OUT: 6", "ZOOM_IN: 7", "SPRINT: 10",
 	"gamepad.axes?.[2]", "gamepad.axes?.[3]", "buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_IN)", "lookDeltaSeconds",
+	"pad.mapping === 'standard'", "gamepad.mapping !== 'standard'",
 	"applyGamepadRadialDeadzone", "selectPlayerGamepad", "this._activeGamepadIndex",
 	"emitPlayerCombatIntent('light', 'gamepad')", "emitPlayerCombatIntent('heavy', 'gamepad')", "'aapw:player-input-device'",
 ]) assert.ok(source.includes(contract), `missing shipped gamepad contract: ${contract}`);
@@ -116,4 +129,4 @@ for (const contract of [
 ]) assert.ok(movementSource.includes(contract), `missing camera-relative gamepad contract: ${contract}`);
 
 assert.ok(!source.includes('gamepad?.buttons?.[0]?.pressed'), 'legacy A-as-light direct polling must stay removed');
-console.log('[checkPlayerGamepadInput] PASS: dual-stick radial analog, trigger zoom, camera orbit, deterministic selection, sprint/guard and combat edge parity are bounded.');
+console.log('[checkPlayerGamepadInput] PASS: Standard-only dual-stick analog, trigger zoom, camera orbit, deterministic selection, sprint/guard and combat edge parity are bounded.');
