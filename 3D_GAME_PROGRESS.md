@@ -16743,3 +16743,36 @@ bildirilmedi, düzeltildi.
 
 Sıradaki: batı kara kütlesinde kalan dikdörtgen düz yamalar (muhtemelen pindex detay uygulayıcıları) ve
 hâlâ bildirilmiş durumdaki `checkSkyVisualContract.js` sapması.
+
+## Run 351 (2026-08-19, owner request) — Her yerde detay: tüm karada ince aşınma + yüzey pürüzü, ve ölçülen mesh çözünürlüğü tavanı (ADR-0297)
+
+Sahip: "sadece dağlar değil… pürüzsüz görüntü istemiyorum, çok fazla detaylı gerçek görünüm".
+
+Yapılanlar: (1) tüm karada iki ince katman — `dissection` (~120 m, ridged: yamaçları kaplayan
+vadi/sırt deseni) ve `roughness` (~45 m, düz zeminin düzlem olmasını engelliyor); (2) alçak arazi
+rölyefi ciddi biçimde artırıldı (ova 2.4→5.5 m, swell 6.5→14 m, erozyon 1.2→3.6 m, dissection→6.5 m)
+— çünkü bu dünyanın karasının %80'i deniz seviyesinden <17.7 m, yani ovalar **gerçekten** düzdü,
+renkle düzeltilemezdi; (3) alçak arazide aşağı oyma bastırıldı — simetrik gürültü kıyı ovasını su
+altına delip ovaları yüzlerce tek tip göletle deliyordu; (4) arazi mesh çözünürlüğü cihaz-farkındalıklı
+hale getirildi.
+
+**Ölçülen tavan.** 64 segmentte vertexler 7.8 m aralıklı, yani ~16 m'den ince hiçbir şey hayatta
+kalmıyor — yükseklik alanı ne kadar detay üretirse üretsin mesh onu ortalayıp siliyor. 128 segment
+(3.9 m) uygulandı ve **geri alınmak zorunda kalındı**: masaüstü boot'ta 23×23=529 parça önizliyor,
+yani parça başına 129×129 vertex ≈ ana iş parçacığında **8.8M yükseklik örneği** (bugün ~2.2M).
+`game3d.html` 30 sn içinde `domcontentloaded`'a ulaşamadı ve **her iki arazi güvenlik kontrolü de zaman
+aşımına uğradı** — yoruma açık değil, ölçülmüş bir başarısızlık. Yükseltmek için mesafe-tabanlı LOD
+(yakında ince, uzakta kaba) ve kenar dikişi gerekiyor (farklı çözünürlükler parça sınırlarında
+T-kavşak çatlağı açar); bu kendi başına bir alt görev. Cihaz-farkındalıklı kablolama, o iş için bir
+tutamak olsun diye bırakıldı.
+
+İlk genlik denemesi yol kapısını **22.7°** ile deldi (limit 20°, dağ-kaçınma stres testi); geçene kadar
+geri çekildi. Yayınlanan değerler tavanı geçen en büyük değerler — tahmin değil.
+
+§8.4 öncesi/sonrası: 14/14 koltuk PASS, yollar PASS (17.88 km, tüm eğimler <20°), terrain visual
+contract PASS (65/65 dikiş sürekli), polish/borç/determinizm/satır-sınırı/servis-işçisi PASS.
+Perf 62 çizim / 731.247 üçgen / 179 MB — bütçenin içinde. Zirve 695 → 704 m. 613 parça, sıfır konsol
+hatası.
+
+Sıradaki: arazi LOD'u artık en yüksek değerli görsel iş ve daha ince zemin detayının belgelenmiş ön
+koşulu.

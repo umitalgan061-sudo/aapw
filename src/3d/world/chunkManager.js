@@ -12,6 +12,7 @@
  */
 
 import { createTerrainChunk, disposeTerrainChunk } from './terrain.js';
+import { CHUNK_CONFIG } from '../config.js';
 
 /**
  * @param {number} chunkX
@@ -34,9 +35,12 @@ export class ChunkManager {
 	 *   array here and into `physics.js`'s `createGroundCollider` so rendered chunk geometry and
 	 *   every gameplay height query stay in agreement.
 	 */
-	constructor({ scene, chunkSizeMeters, seed, flattenPads = [] }) {
+	constructor({ scene, chunkSizeMeters, seed, flattenPads = [], segments = CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP }) {
 		this.scene = scene;
 		this.chunkSizeMeters = chunkSizeMeters;
+		/** Mesh resolution per chunk — see `CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP` for why this is
+		 * device-dependent and what it costs. */
+		this.segments = segments;
 		this.seed = seed;
 		this.flattenPads = flattenPads;
 		/** @type {Map<string, import('three').Mesh>} Currently in the scene. */
@@ -57,7 +61,7 @@ export class ChunkManager {
 		const existing = this.loaded.get(key);
 		if (existing) return existing;
 
-		const mesh = createTerrainChunk({ chunkX, chunkZ, size: this.chunkSizeMeters, seed: this.seed, flattenPads: this.flattenPads });
+		const mesh = createTerrainChunk({ chunkX, chunkZ, size: this.chunkSizeMeters, segments: this.segments, seed: this.seed, flattenPads: this.flattenPads });
 		this.scene.add(mesh);
 		this.loaded.set(key, mesh);
 		this.everGenerated.add(key);

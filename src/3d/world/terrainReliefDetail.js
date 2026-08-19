@@ -45,10 +45,10 @@ export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	coastWarpOctaves: 3,
 	/** Gentle everywhere-on-land undulation so plains are never flat. Wavelength in normalized units;
 	 * 0.02 of the map width is ~266 m, giving <=~1.5 deg of added slope at this amplitude. */
-	plainsAmplitudeMeters: 2.4,
+	plainsAmplitudeMeters: 5.5,
 	plainsFrequency: 46,
 	/** Broader swells that give the lowlands large-scale shape. ~700 m wavelength. */
-	swellAmplitudeMeters: 6.5,
+	swellAmplitudeMeters: 14,
 	swellFrequency: 17,
 	/** Ridged mountain crags, gated behind canonical relief/rock/snow so only real chains get them. */
 	ridgeAmplitudeMeters: 42,
@@ -67,7 +67,7 @@ export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	 * Amplitude is bounded by the same gates as everything else here: at ~390 m wavelength an 11 m
 	 * ridge adds on the order of 3-5 deg of local slope, well inside the 20 deg road ceiling.
 	 */
-	erosionAmplitudeLowMeters: 1.2,
+	erosionAmplitudeLowMeters: 3.6,
 	erosionAmplitudeHighMeters: 11,
 	erosionFullElevationMeters: 150,
 	erosionFrequency: 34,
@@ -90,6 +90,30 @@ export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	cragAmplitudeMeters: 4.5,
 	cragFrequency: 88,
 	cragOctaves: 3,
+	/**
+	 * Two fine layers that run on **all** land and are what stop the world reading as smooth.
+	 *
+	 * The coarser layers above shape landforms; these shape the ground itself. `dissection` is ridged
+	 * at ~120 m wavelength and carves the gully/spur pattern that covers real hillsides; `roughness` is
+	 * a ~45 m signed layer that keeps even flat ground from being a plane. Both matter only because
+	 * terrain mesh resolution went to 3.9 m vertices (`CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP`) — at the
+	 * previous 7.8 m spacing anything under ~16 m was averaged away, which is why earlier rounds could
+	 * add relief and still render smooth.
+	 *
+	 * Amplitudes are the largest that keep every road grade under the 20 deg ceiling, checked by
+	 * running `scripts/roadNetworkSafetyCheck.js` rather than reasoned about.
+	 */
+	dissectionAmplitudeLowMeters: 6.5,
+	dissectionAmplitudeHighMeters: 16,
+	dissectionFrequency: 110,
+	dissectionOctaves: 4,
+	dissectionFullElevationMeters: 220,
+	roughnessAmplitudeMeters: 2.0,
+	roughnessFrequency: 295,
+	roughnessOctaves: 3,
+	/** Above this elevation the relief may carve downward at full strength; below it, downward
+	 * carving is scaled toward zero so the coastal plain cannot be punched below sea level. */
+	negativeReliefFullElevationMeters: 28,
 	/** Detail fades out below this height above sea so the seabed and beaches stay clean. */
 	shoreFadeStartMeters: 0.5,
 	shoreFadeFullMeters: 6,
@@ -230,6 +254,25 @@ export function reliefDetailMeters(normalizedX, normalizedY, { heightAboveSeaMet
 	);
 	const erosion = ridged2(normalizedX * P.erosionFrequency - 8.4, normalizedY * P.erosionFrequency + 33.9, P.erosionOctaves);
 	metres += (erosion - 0.5) * 2 * erosionAmplitude * landGate;
+
+	// Fine dissection: the gully-and-spur pattern that covers real hillsides. Ridged, elevation-ramped,
+	// and present on every piece of land — this is the layer that removes "smooth" from the world.
+	const dissectionRamp = clamp01(heightAboveSeaMeters / P.dissectionFullElevationMeters);
+	const dissectionAmplitude = P.dissectionAmplitudeLowMeters
+		+ (P.dissectionAmplitudeHighMeters - P.dissectionAmplitudeLowMeters) * dissectionRamp;
+	const dissection = ridged2(normalizedX * P.dissectionFrequency + 71.5, normalizedY * P.dissectionFrequency - 24.2, P.dissectionOctaves);
+	metres += (dissection - 0.5) * 2 * dissectionAmplitude * landGate;
+
+	// Surface roughness: short-wavelength signed noise so even flat ground is never a plane.
+	const roughness = fbm2(normalizedX * P.roughnessFrequency - 55.8, normalizedY * P.roughnessFrequency + 12.7, P.roughnessOctaves);
+	metres += roughness * P.roughnessAmplitudeMeters * landGate;
+
+	// Low ground may be *raised* into hills but must not be *carved* below the waterline. Symmetric
+	// noise at these amplitudes dug holes through the coastal plain — 80% of this world's land sits
+	// under 17.7 m — and the water plane filled every one of them, pockmarking the lowlands with
+	// hundreds of identical ponds. Damping only the negative side keeps the added relief (real rolling
+	// hills) and drops the artefact, without touching how high ground behaves.
+	if (metres < 0) metres *= clamp01(heightAboveSeaMeters / P.negativeReliefFullElevationMeters);
 
 	// Mountain crags: only where the canonical data already says mountain.
 	const mountainGate = clamp01(Math.max(

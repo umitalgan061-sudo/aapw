@@ -16865,3 +16865,73 @@ dikdörtgen bloklar tamamen kayboldu.
 **Next safe step:** the remaining visible artifacts are rectangular flat patches on the western
 landmass (likely the per-pindex detail appliers) and `checkSkyVisualContract.js`'s still-disclosed
 drift.
+
+## ADR-0297 — Detail everywhere, not just mountains: fine dissection + surface roughness on all land, and the measured mesh-resolution ceiling (owner request)
+
+**Risk: MEDIUM.** Height-field change, so §8.4's gate applies and was run.
+
+**Karar.** Owner: "sadece dağlar değil, genel coğrafyaya baktığında … pürüzsüz görüntü istemiyorum".
+Four changes:
+
+1. **Two fine layers on all land.** `dissection` (ridged, ~120 m wavelength) carves the gully-and-spur
+   pattern that covers real hillsides; `roughness` (~45 m, signed) keeps flat ground from being a
+   plane. Both elevation-ramped but unconditional on land.
+2. **Lowland relief raised.** `plainsAmplitude` 2.4 -> 5.5 m, `swellAmplitude` 6.5 -> 14 m,
+   `erosionAmplitudeLow` 1.2 -> 3.6 m, `dissectionAmplitudeLow` -> 6.5 m. This world's land is 80%
+   below 17.7 m, so the lowlands were genuinely flat, not merely shaded flat — no amount of colour work
+   could fix that.
+3. **Downward carving damped on low ground** (`negativeReliefFullElevationMeters` 28 m). Raising
+   symmetric noise over a coastal plain punched it below sea level and the water plane filled every
+   hole, pockmarking the lowlands with hundreds of identical ponds. Damping only the negative side
+   keeps the hills and removes the artefact.
+4. **Terrain mesh resolution made device-aware** (`CHUNK_CONFIG.TERRAIN_SEGMENTS_*`, threaded through
+   `ChunkManager`), currently 64 on both — see below.
+
+**The real ceiling, measured.** At 64 segments a vertex sits every 7.8 m, so nothing finer than a
+~16 m wavelength survives: the height field can generate as much fine detail as it likes and the mesh
+averages it straight back out. 128 segments (3.9 m vertices) was implemented and **had to be reverted**:
+desktop boots with `PHASE1_PREVIEW_RADIUS_CHUNKS` = 11, i.e. 23x23 = 529 chunks, so 129x129 vertices
+per chunk means ~8.8M height samples on the main thread at boot against ~2.2M today. It blocked long
+enough that `game3d.html` stopped reaching `domcontentloaded` within 30 s and **both terrain safety
+checks timed out** — an unambiguous, measured failure, not a judgement call. Raising it needs
+distance-based LOD with edge stitching (differing resolutions open T-junction cracks at chunk borders),
+which is its own bounded subtask. The device-aware wiring is kept so that work has a seam to land on.
+
+**Alternatifler.**
+1. *Ship 128 segments and accept the boot cost.* Rejected: it breaks the app's own boot budget and two
+   governance gates. Not a trade-off, a regression.
+2. *96 segments as a compromise.* Rejected without shipping: 529 x 9,409 = 5.0M samples, ~2.3x today's
+   boot, still inside the same failure mode with no margin.
+3. *Cut `PHASE1_PREVIEW_RADIUS_CHUNKS` to afford the resolution.* Rejected: preview radius is what
+   desktop World Coverage (96.2%) is computed from, a tracked and governed metric — trading it for mesh
+   density is an owner-level call, not an implementation detail.
+4. *Leave lowland amplitude alone and push colour harder.* Rejected on measurement: the plains are
+   physically flat in this world's canonical field; shading cannot add relief that is not there.
+
+**Doğrulama.** §8.4 gate before and after: `terrainSeatSafetyCheck.js` **14/14 PASS**,
+`roadNetworkSafetyCheck.js` PASS (17.88 km, all grades under 20 deg). The first amplitude attempt
+**failed** the road gate at 22.7 deg on the mountain-avoidance stress test and was dialled back until
+it passed — recorded because the shipped values are the largest that clear the ceiling, not a guess.
+`checkTerrainVisualContract.js` PASS (65/65 seam vertices continuous),
+`checkTerrainPolishIteration08.js`, `checkTechnicalDebt.js`, `checkSeededRandomPolicy.js`,
+`checkSmokeCheckRegistry.js` (545 files under the cap), `checkServiceWorkerCache.js` (191 JS) all PASS.
+`collectPerfSnapshot.js run351-terrain-detail`: 62 draw calls / 731,247 triangles / 63 geometries /
+34 textures / 179 MB — inside the desktop <2500 / <5M budget. Captures: 613 chunks, zero console/page
+errors; tallest peak 695 -> 704 m.
+
+**Sonuç / trade-off.** Massifs now carry visible gully-and-spur dissection and the lowlands read as
+rolling, textured country rather than a smooth green sheet. What is still smoother than the owner's
+reference is bounded by mesh resolution, which is disclosed above with its measured cost rather than
+quietly left as a limitation.
+
+**Memory leak checklist.** No new allocation or GPU resource — noise layers are pure functions; the
+segments option is one number threaded to an existing call.
+
+**Technical debt.** 0 new. All touched files under the 600-line cap.
+
+**World Coverage.** Unchanged (preview radius untouched — see Alternatifler 3). World Evolution Report:
+road network 17.72 -> 17.88 km (re-routed); +1 ADR; "oyuncu fark eder mi" — evet: yamaçlarda gerçek
+vadi/sırt dokusu, ovalarda düz yeşil yerine engebeli arazi.
+
+**Next safe step:** terrain LOD (fine near, coarse far, stitched) is now the single highest-value
+visual task and the documented prerequisite for finer ground detail.

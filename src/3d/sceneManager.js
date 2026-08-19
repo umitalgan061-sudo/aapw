@@ -175,15 +175,18 @@ export function createScene(canvas) {
 		metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
 	});
 
+	// Touch-primary devices get the mobile-budget STREAM_RADIUS_CHUNKS instead of the desktop-only
+	// PHASE1_PREVIEW_RADIUS_CHUNKS boot preview — see this function's own doc comment / ADR-0010.
+	// The same signal picks terrain mesh resolution, which is the property that decides whether fine
+	// relief survives to the screen at all (see `CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP`).
+	const isMobileClass = isCoarsePointerDevice();
 	const chunkManager = new ChunkManager({
 		scene,
 		chunkSizeMeters: CHUNK_CONFIG.CHUNK_SIZE_METERS,
+		segments: isMobileClass ? CHUNK_CONFIG.TERRAIN_SEGMENTS_MOBILE : CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		flattenPads,
 	});
-	// Touch-primary devices get the mobile-budget STREAM_RADIUS_CHUNKS instead of the desktop-only
-	// PHASE1_PREVIEW_RADIUS_CHUNKS boot preview — see this function's own doc comment / ADR-0010.
-	const isMobileClass = isCoarsePointerDevice();
 	const previewRadiusChunks = isMobileClass ? CHUNK_CONFIG.STREAM_RADIUS_CHUNKS : CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS;
 	const generationStart = performance.now();
 	chunkManager.loadSquare(0, 0, previewRadiusChunks);

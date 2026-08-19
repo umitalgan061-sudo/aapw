@@ -84,6 +84,25 @@ export const CHUNK_CONFIG = Object.freeze({
 	STREAM_RADIUS_CHUNKS: 2,
 	/** Desktop boot preview radius; touch devices use the smaller streaming radius. */
 	PHASE1_PREVIEW_RADIUS_CHUNKS: 11,
+	/**
+	 * Terrain mesh resolution per 500 m chunk, per device class.
+	 *
+	 * **Measured ceiling, not a preference.** A vertex every 7.8 m (64 segments) cannot represent
+	 * anything finer than a ~16 m wavelength, so the finest relief the height field produces is
+	 * averaged straight back out — this is the real cap on how detailed terrain can look, above and
+	 * beyond anything the noise layers do. 128 segments (3.9 m vertices) was tried on 2026-08-19 and
+	 * had to be reverted: desktop boots with `PHASE1_PREVIEW_RADIUS_CHUNKS` = 11, i.e. 23x23 = 529
+	 * chunks, so 129x129 vertices per chunk means ~8.8M height samples on the main thread at boot
+	 * against ~2.2M today. It blocked long enough that `game3d.html` stopped reaching
+	 * `domcontentloaded` inside the 30 s navigation budget and both terrain safety checks timed out.
+	 *
+	 * Raising this therefore needs distance-based LOD (fine chunks near the player, coarse far away)
+	 * with proper edge stitching so differing resolutions cannot open T-junction cracks at chunk
+	 * borders — its own bounded subtask, not a constant bump. The wiring below is kept device-aware so
+	 * that work has a seam to land on.
+	 */
+	TERRAIN_SEGMENTS_DESKTOP: 64,
+	TERRAIN_SEGMENTS_MOBILE: 64,
 });
 
 /** Procedural castle dimensions for `world/settlements.js` (FAZ 3). */
