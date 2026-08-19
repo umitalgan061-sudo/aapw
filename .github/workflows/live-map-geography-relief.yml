@@ -51,7 +51,7 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(fixtures/world-reference-mountain-relief-v1\.json|src/3d/world/worldReferenceMountainRelief\.js|scripts/checkGeographyReliefHabitableBasins\.mjs|scripts/checkGeographyReliefMorphology\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|\.github/workflows/live-map-geography-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(fixtures/world-reference-mountain-relief-v1\.json|src/3d/world/worldReferenceMountainRelief\.js|scripts/checkGeographyReliefHabitableBasins\.mjs|scripts/checkGeographyReliefMorphology\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|\.github/workflows/live-map-geography-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "geography relief quota additions=$A deletions=$D total=$((A+D))"
