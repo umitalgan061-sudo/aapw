@@ -15,7 +15,8 @@ const _worldUp = new THREE.Vector3(0, 1, 0);
 
 export function computeCameraRelativeMove(camera, controls, axes) {
 	const guarding = Boolean(axes.guarding);
-	if (axes.forward === 0 && axes.strafe === 0) return { x: 0, z: 0, guarding };
+	const inputMagnitude = Math.min(1, Math.hypot(axes.forward, axes.strafe));
+	if (inputMagnitude === 0) return { x: 0, z: 0, guarding };
 	_forward.subVectors(controls.target, camera.position);
 	_forward.y = 0;
 	if (_forward.lengthSq() < 1e-6) _forward.set(0, 0, -1);
@@ -23,7 +24,7 @@ export function computeCameraRelativeMove(camera, controls, axes) {
 	_right.crossVectors(_forward, _worldUp).normalize();
 	_move.set(0, 0, 0).addScaledVector(_forward, axes.forward).addScaledVector(_right, axes.strafe);
 	if (_move.lengthSq() < 1e-6) return { x: 0, z: 0, guarding };
-	_move.normalize();
+	_move.normalize().multiplyScalar(inputMagnitude);
 	return { x: _move.x, z: _move.z, guarding };
 }
 
