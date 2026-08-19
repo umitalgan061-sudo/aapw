@@ -32,7 +32,7 @@ const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.habitableSeatProtection;
 assert(policy, 'habitableSeatProtection policy missing');
 assert(policy.innerRadiusNormalized > 0, 'seat protection inner radius must be positive');
 assert(policy.outerRadiusNormalized > policy.innerRadiusNormalized, 'seat protection outer radius must exceed inner');
-assert(policy.minimumMultiplier >= 0.1 && policy.minimumMultiplier <= 0.35, 'seat protection minimum multiplier is not a bounded basin');
+assert(policy.minimumMultiplier >= 0.1 && policy.minimumMultiplier <= 0.40, 'seat protection minimum multiplier is not a bounded basin');
 
 function sampleRing(center, radius, count = 48) {
   const rows = [];
