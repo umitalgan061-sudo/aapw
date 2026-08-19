@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-geography-relief-2026-08-19-v4',
+	id: 'owner-map-live-geography-relief-2026-08-19-v5',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -74,8 +74,8 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.050, minimumMultiplier: 0.08 }),
 			]),
 		}),
-		'bone-mountains': Object.freeze({ peakMeters: 1580, coreWidthNormalized: 0.0065, outerWidthNormalized: 0.050, summitFloor: 0.14, seed: 37 }),
-		'eastern-chain': Object.freeze({ peakMeters: 1480, coreWidthNormalized: 0.006, outerWidthNormalized: 0.047, summitFloor: 0.15, seed: 53 }),
+		'bone-mountains': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.0065, outerWidthNormalized: 0.064, summitFloor: 0.14, seed: 37 }),
+		'eastern-chain': Object.freeze({ peakMeters: 1050, coreWidthNormalized: 0.006, outerWidthNormalized: 0.060, summitFloor: 0.15, seed: 53 }),
 	}),
 });
 
