@@ -11,22 +11,23 @@ import * as THREE from 'three';
 import { ChunkManager } from './world/chunkManager.js';
 
 export const TERRAIN_APERIODIC_SURFACE_POLICY = Object.freeze({
-	id: 'terrain-aperiodic-macro-breakup-2026-08-19-v4',
+	id: 'terrain-aperiodic-macro-breakup-2026-08-19-v5',
 	macroScaleMeters: 173,
 	mesoScaleMeters: 61,
 	fineScaleMeters: 19,
 	albedoAmplitude: 0.17,
 	roughnessAmplitude: 0.11,
-	normalContrastMin: 0.08,
-	normalContrastMax: 0.58,
+	periodicRoughnessRetention: 0.18,
+	normalContrastMin: 0.02,
+	normalContrastMax: 0.28,
 	maxDistanceMeters: 1900,
 	fadeStartMeters: 700,
 	renderOnly: true,
 	offlineShellIntegrated: true,
 });
 
-const INSTALL_FLAG = Symbol.for('aapw.terrainAperiodicSurface.install.v4');
-const MATERIAL_FLAG = Symbol.for('aapw.terrainAperiodicSurface.material.v4');
+const INSTALL_FLAG = Symbol.for('aapw.terrainAperiodicSurface.install.v5');
+const MATERIAL_FLAG = Symbol.for('aapw.terrainAperiodicSurface.material.v5');
 
 function terrainVertexInjection(shader) {
 	if (!shader.vertexShader.includes('#include <worldpos_vertex>')) {
@@ -78,7 +79,8 @@ void main() {`)
 	float aapwAlbedoGain = 1.0 + aapwTerrainBreakup * ${TERRAIN_APERIODIC_SURFACE_POLICY.albedoAmplitude.toFixed(3)};
 	diffuseColor.rgb *= clamp(aapwAlbedoGain, 0.80, 1.20);`)
 		.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-	roughnessFactor = clamp(roughnessFactor + aapwTerrainBreakup * ${TERRAIN_APERIODIC_SURFACE_POLICY.roughnessAmplitude.toFixed(3)}, 0.58, 1.0);`);
+	float aapwAperiodicRoughness = clamp(0.92 + aapwTerrainBreakup * ${TERRAIN_APERIODIC_SURFACE_POLICY.roughnessAmplitude.toFixed(3)}, 0.68, 1.0);
+	roughnessFactor = mix(aapwAperiodicRoughness, roughnessFactor, ${TERRAIN_APERIODIC_SURFACE_POLICY.periodicRoughnessRetention.toFixed(2)});`);
 
 	if (shader.fragmentShader.includes('#include <normal_fragment_maps>')) {
 		shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
