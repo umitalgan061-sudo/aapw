@@ -59,7 +59,9 @@ export function samplePlayerGamepad(gamepad, previousButtons = {}) {
 	const light = buttonPressed(gamepad, GAMEPAD_BUTTON.LIGHT);
 	const heavy = buttonPressed(gamepad, GAMEPAD_BUTTON.HEAVY);
 	return {
-		forward: -applyGamepadDeadzone(gamepad.axes?.[1] ?? 0),
+		// Unary negation of a canonical zero produces JavaScript -0; collapse it so input state is
+		// stable across strict comparisons, serialization and downstream movement consumers.
+		forward: (-applyGamepadDeadzone(gamepad.axes?.[1] ?? 0)) || 0,
 		strafe: applyGamepadDeadzone(gamepad.axes?.[0] ?? 0),
 		running: buttonPressed(gamepad, GAMEPAD_BUTTON.SPRINT),
 		guarding: buttonPressed(gamepad, GAMEPAD_BUTTON.GUARD),
