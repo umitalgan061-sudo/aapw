@@ -28,6 +28,10 @@ const GAMEPAD_BUTTON = Object.freeze({
 	ZOOM_IN: 7,
 	SPRINT: 10,
 });
+const GAMEPAD_MELEE_HAPTICS = Object.freeze({
+	light: Object.freeze({ duration: 55, weakMagnitude: 0.22, strongMagnitude: 0.48 }),
+	heavy: Object.freeze({ duration: 90, weakMagnitude: 0.38, strongMagnitude: 0.82 }),
+});
 
 function isInteractiveTarget(target) {
 	return Boolean(target?.closest?.('button, a, input, textarea, select, [contenteditable="true"]'));
@@ -91,6 +95,18 @@ export function samplePlayerGamepad(gamepad, previousButtons = {}) {
 	};
 }
 
+export function pulsePlayerGamepadMelee(gamepad, kind) {
+	const profile = GAMEPAD_MELEE_HAPTICS[kind];
+	const actuator = gamepad?.vibrationActuator;
+	if (!profile || gamepad?.mapping !== 'standard' || !gamepad?.connected || typeof actuator?.playEffect !== 'function') return false;
+	try {
+		void Promise.resolve(actuator.playEffect('dual-rumble', { startDelay: 0, ...profile })).catch(() => {});
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export function emitPlayerCombatIntent(kind, source = 'unknown') {
 	if ((kind !== 'light' && kind !== 'heavy') || typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return false;
 	globalThis.dispatchEvent(new globalThis.CustomEvent(COMBAT_INPUT_EVENT, { detail: Object.freeze({ kind, source }) }));
@@ -149,8 +165,8 @@ export class KeyboardInput {
 		const sample = samplePlayerGamepad(gamepad, this._gamepadButtons);
 		if (!switched) {
 			if (sample.jumpPressed) this._jumpRequested = true;
-			if (sample.lightPressed) emitPlayerCombatIntent('light', 'gamepad');
-			if (sample.heavyPressed) emitPlayerCombatIntent('heavy', 'gamepad');
+			if (sample.lightPressed) { emitPlayerCombatIntent('light', 'gamepad'); pulsePlayerGamepadMelee(gamepad, 'light'); }
+			if (sample.heavyPressed) { emitPlayerCombatIntent('heavy', 'gamepad'); pulsePlayerGamepadMelee(gamepad, 'heavy'); }
 		}
 		this._gamepadButtons = sample.buttons;
 		return { ...sample, lookDeltaSeconds };
