@@ -110,7 +110,7 @@ assert.deepEqual(crafted.consumedItems, [
 
 const ready = inventory.snapshot();
 assert.equal(item(ready, FIELD_READINESS_ITEMS.TRAVEL_RATION_PACK), null);
-assert.equal(item(ready, FIELD_READINESS_ITEMS.WHETSTONE)?.quantity, 1);
+assert.equal(item(ready, FIELD_READINESS_ITEMS.WHETSTONE), null);
 assert.equal(item(ready, FIELD_READINESS_ITEMS.EXPEDITION_MAINTENANCE_KIT)?.quantity, 1);
 assert.equal(ready.fieldReadiness.tier, FIELD_READINESS_TIER.EXPEDITION_READY);
 assert.equal(ready.fieldReadiness.score, 100);
