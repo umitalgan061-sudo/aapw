@@ -1,34 +1,29 @@
-name: NPC Asset Spawn Contract
+name: NPC Guard Home Leash
 
 on:
   pull_request:
     paths:
+      - 'src/3d/gameplay/livingWorldSpawner.js'
       - 'src/3d/gameplay/npc.js'
       - 'src/3d/gameplay/npcConfig.js'
-      - 'src/3d/gameplay/livingWorldSpawner.js'
+      - 'scripts/checkNpcGuardLeash.mjs'
+      - 'scripts/checkNpcGuardLeashBrowser.mjs'
+      - 'scripts/checkNpcGuardPerception.mjs'
+      - 'scripts/checkNpcGuardAttack.mjs'
       - 'src/3d/materials/MaterialAssignmentCore.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'service-worker.js'
-      - 'scripts/checkNpcAssetSpawnContract.mjs'
-      - 'scripts/checkNpcGuardPerception.mjs'
-      - 'scripts/checkNpcGuardAttack.mjs'
-      - 'scripts/checkNpcGuardLeash.mjs'
-      - 'scripts/checkNpcGuardLeashBrowser.mjs'
-      - 'scripts/game3dSmokeChecksNpcPerception.js'
-      - 'scripts/checkNpcSimulationLod.mjs'
-      - 'scripts/checkNpcSimulationLodFairness.mjs'
-      - '.github/workflows/npc-asset-spawn-contract.yml'
       - '.github/workflows/npc-guard-leash.yml'
   workflow_dispatch:
 
 concurrency:
-  group: npc-asset-spawn-${{ github.event.pull_request.number || github.ref }}
+  group: npc-guard-home-leash-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,35 +42,50 @@ jobs:
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
           git diff --check "$BASE_SHA" HEAD
-      - name: NPC asset spawn perception attack and leash contracts
+      - name: Deterministic guard leash and NPC regressions
         run: |
           set -euo pipefail
-          node --check src/3d/gameplay/npc.js
           node --check src/3d/gameplay/livingWorldSpawner.js
-          node --check scripts/checkNpcAssetSpawnContract.mjs
-          node scripts/checkNpcAssetSpawnContract.mjs
+          node --check scripts/checkNpcGuardLeash.mjs
+          node scripts/checkNpcGuardLeash.mjs
           node --check scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcGuardPerception.mjs
           node --check scripts/checkNpcGuardAttack.mjs
           node scripts/checkNpcGuardAttack.mjs
-          node --check scripts/checkNpcGuardLeash.mjs
-          node scripts/checkNpcGuardLeash.mjs
-          node --check scripts/checkNpcGuardLeashBrowser.mjs
-          node --check scripts/game3dSmokeChecksNpcPerception.js
-      - name: Deterministic NPC simulation LOD contract
-        run: |
-          set -euo pipefail
           node --check scripts/checkNpcSimulationLod.mjs
           node scripts/checkNpcSimulationLod.mjs
-          node --check scripts/checkNpcSimulationLodFairness.mjs
-          node scripts/checkNpcSimulationLodFairness.mjs
-      - name: Shared material placement and offline determinism regressions
-        run: |
-          set -euo pipefail
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkServiceWorkerCache.js
           node scripts/checkSeededRandomPolicy.js
+      - name: Hydrate real configured guard assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/characters/**,assets/animations/peasant_girl/**" --exclude=""
+      - name: Install Chromium proof dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Real FBX guard chase leash return and reacquire
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:4173/game3d.html >/dev/null && break
+            sleep 1
+          done
+          node --check scripts/checkNpcGuardLeashBrowser.mjs
+          BASE_URL=http://127.0.0.1:4173 node scripts/checkNpcGuardLeashBrowser.mjs
       - name: Final exact-main freshness
+        shell: bash
         run: |
           set -euo pipefail
           git fetch origin main
