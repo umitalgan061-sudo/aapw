@@ -68,6 +68,8 @@ assert.match(source, /flightAltitudeMeters = Math\.max\(0, flightAltitudeMeters 
   'landing altitude must decrease monotonically toward zero');
 assert.match(source, /if \(flightAltitudeMeters <= 0\) \{\s*flightPhase = 'grounded'/,
   'landing must return to grounded rather than leave an airborne latch');
+assert.match(source, /return currentlyReacting \|\| \(isFlightSpecies && flightPhase !== 'grounded'\)/,
+  'airborne birds must remain urgent until grounded so flight cannot be demoted to distant LOD mid-air');
 assert.match(source, /wanderCenter\.x = object3D\.position\.x;\s*wanderCenter\.z = object3D\.position\.z/,
   'post-flight wander center must move to the actual landing site');
 assert.match(source, /pickNewWanderTarget\(\);\s*pauseTimer = profile\.wanderPauseSeconds/,
@@ -106,6 +108,7 @@ console.log('CREATURE_BIRD_FLIGHT_LIFECYCLE_PASS', JSON.stringify({
   ...lifecycle,
   boundedAltitude: true,
   boundedDuration: true,
+  airborneUrgency: true,
   collisionAwareGround: true,
   airborneObstacleClearance: true,
   deterministicDeltaClock: true,
