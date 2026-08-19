@@ -13,9 +13,9 @@ function makePad({ index = 0, mapping = 'standard', axes = [0, 0], buttons = {},
 
 const idle = samplePlayerGamepad(makePad());
 assert.deepEqual(
-	{ forward: idle.forward, strafe: idle.strafe, magnitude: idle.magnitude, running: idle.running, guarding: idle.guarding },
-	{ forward: 0, strafe: 0, magnitude: 0, running: false, guarding: false },
-	'idle Standard Gamepad must not create movement or defense input',
+	{ forward: idle.forward, strafe: idle.strafe, magnitude: idle.magnitude, lookX: idle.lookX, lookY: idle.lookY, running: idle.running, guarding: idle.guarding },
+	{ forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, running: false, guarding: false },
+	'idle Standard Gamepad must not create movement, camera or defense input',
 );
 assert.equal(Object.is(idle.forward, -0), false, 'idle forward axis must be canonical +0');
 
@@ -44,6 +44,13 @@ assert.ok(movement.magnitude > 0.6 && movement.magnitude <= 1, 'stick magnitude 
 assert.equal(movement.running, true, 'standard left-stick press must feed Player sprint intent');
 assert.equal(movement.guarding, true, 'standard LB/L1 must feed Player guard intent');
 
+const camera = samplePlayerGamepad(makePad({ axes: [0, 0, 0.72, -0.59] }));
+assert.ok(camera.lookX > 0.6 && camera.lookX <= 1, 'standard right-stick X must feed camera yaw');
+assert.ok(camera.lookY < -0.45 && camera.lookY >= -1, 'standard right-stick Y must feed camera pitch');
+assert.ok(camera.lookMagnitude > 0.6 && camera.lookMagnitude <= 1, 'right-stick camera magnitude must remain radial and bounded');
+assert.equal(camera.forward, 0, 'right stick must not leak into player movement');
+assert.equal(camera.strafe, 0, 'right stick must not leak into player movement');
+
 const firstActions = samplePlayerGamepad(makePad({ buttons: { 0: true, 2: true, 3: true } }), { jump: false, light: false, heavy: false });
 assert.equal(firstActions.jumpPressed, true, 'standard A/bottom-face must edge-trigger jump');
 assert.equal(firstActions.lightPressed, true, 'standard X/left-face must edge-trigger light attack');
@@ -58,13 +65,16 @@ const released = samplePlayerGamepad(makePad(), heldActions.buttons);
 const pressedAgain = samplePlayerGamepad(makePad({ buttons: { 2: true } }), released.buttons);
 assert.equal(pressedAgain.lightPressed, true, 'attack must retrigger after a real release edge');
 
-const saturated = samplePlayerGamepad(makePad({ axes: [5, -5] }));
-assert.ok(Math.hypot(saturated.strafe, saturated.forward) <= 1.000000001, 'saturated diagonal stick must remain unit-bounded');
+const saturated = samplePlayerGamepad(makePad({ axes: [5, -5, 5, -5] }));
+assert.ok(Math.hypot(saturated.strafe, saturated.forward) <= 1.000000001, 'saturated diagonal left stick must remain unit-bounded');
+assert.ok(Math.hypot(saturated.lookX, saturated.lookY) <= 1.000000001, 'saturated diagonal right stick must remain unit-bounded');
 
 const disconnected = samplePlayerGamepad(null, { jump: true, light: true, heavy: true });
 assert.deepEqual(disconnected.buttons, { jump: false, light: false, heavy: false }, 'disconnect must clear edge state');
 assert.equal(disconnected.forward, 0);
 assert.equal(disconnected.strafe, 0);
+assert.equal(disconnected.lookX, 0);
+assert.equal(disconnected.lookY, 0);
 
 const pads = [
 	makePad({ index: 3, mapping: '', axes: [0, -1] }),
@@ -79,24 +89,21 @@ assert.equal(selectPlayerGamepad([], 2), null, 'no connected controller must ret
 
 const source = fs.readFileSync(new URL('../src/3d/input.js', import.meta.url), 'utf8');
 for (const contract of [
-	"JUMP: 0",
-	"LIGHT: 2",
-	"HEAVY: 3",
-	"GUARD: 4",
-	"SPRINT: 10",
-	"applyGamepadRadialDeadzone",
-	"selectPlayerGamepad",
-	"this._activeGamepadIndex",
-	"emitPlayerCombatIntent('light', 'gamepad')",
-	"emitPlayerCombatIntent('heavy', 'gamepad')",
-	"'aapw:player-input-device'",
+	"JUMP: 0", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "SPRINT: 10",
+	"gamepad.axes?.[2]", "gamepad.axes?.[3]", "lookDeltaSeconds",
+	"applyGamepadRadialDeadzone", "selectPlayerGamepad", "this._activeGamepadIndex",
+	"emitPlayerCombatIntent('light', 'gamepad')", "emitPlayerCombatIntent('heavy', 'gamepad')", "'aapw:player-input-device'",
 ]) assert.ok(source.includes(contract), `missing shipped gamepad contract: ${contract}`);
 
 const movementSource = fs.readFileSync(new URL('../src/3d/gameLoopHelpers.js', import.meta.url), 'utf8');
 for (const contract of [
 	'const inputMagnitude = Math.min(1, Math.hypot(axes.forward, axes.strafe))',
 	'_move.normalize().multiplyScalar(inputMagnitude)',
-]) assert.ok(movementSource.includes(contract), `camera-relative movement must preserve analog magnitude: ${contract}`);
+	'export function applyGamepadCameraLook(camera, controls, axes)',
+	'GAMEPAD_CAMERA_YAW_RADIANS_PER_SECOND',
+	'GAMEPAD_CAMERA_PITCH_RADIANS_PER_SECOND',
+	'computeCameraRelativeMove(camera, controls, axes)',
+]) assert.ok(movementSource.includes(contract), `missing camera-relative gamepad contract: ${contract}`);
 
 assert.ok(!source.includes('gamepad?.buttons?.[0]?.pressed'), 'legacy A-as-light direct polling must stay removed');
-console.log('[checkPlayerGamepadInput] PASS: radial analog, camera magnitude, deterministic selection, sprint/guard and combat edge parity are bounded.');
+console.log('[checkPlayerGamepadInput] PASS: dual-stick radial analog, camera orbit, deterministic selection, sprint/guard and combat edge parity are bounded.');
