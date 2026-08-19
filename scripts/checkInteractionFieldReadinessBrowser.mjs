@@ -72,6 +72,9 @@ try {
 
 		controller.handleKeyDown({ code: 'Digit2', repeat: false });
 		const crafted = controller.getRpgSnapshot();
+		// Digit2 leaves the quartermaster shop open by design. Mirror the shipped player flow instead
+		// of asking KeyI to replace an active shop: B closes the vendor, then I opens inventory UX.
+		controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		controller.handleKeyDown({ code: 'KeyI', repeat: false });
 		const readyText = dialogueBox._textEl.textContent;
 		const ready = crafted.inventory.fieldReadiness.tier === FIELD_READINESS_TIER.EXPEDITION_READY
