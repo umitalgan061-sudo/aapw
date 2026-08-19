@@ -55,7 +55,7 @@ function quantitiesFromSnapshot(snapshot = {}) {
 	for (const item of Array.isArray(snapshot?.items) ? snapshot.items : []) {
 		const itemId = String(item?.itemId ?? '');
 		if (!itemId) continue;
-		quantities.set(itemId, normalizedQuantity(item?.quantity));
+		quantities.set(itemId, (quantities.get(itemId) ?? 0) + normalizedQuantity(item?.quantity));
 	}
 	return quantities;
 }
