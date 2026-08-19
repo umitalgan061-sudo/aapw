@@ -138,12 +138,23 @@ export class KeyboardInput {
 		};
 		this._onPointerUp = (event) => { if (event.button === GUARD_POINTER_BUTTON) this._guardPointerHeld = false; };
 		this._onContextMenu = (event) => { if (this._guardPointerHeld) event.preventDefault?.(); };
+		this._onBlur = () => {
+			const hadActiveInput = this._keys.size > 0 || this._jumpRequested || this._guardPointerHeld || this._activeGamepadIndex !== null;
+			this._keys.clear();
+			this._jumpRequested = false;
+			this._guardPointerHeld = false;
+			this._gamepadButtons = { jump: false, light: false, heavy: false };
+			this._activeGamepadIndex = null;
+			this._lastPollSeconds = null;
+			if (hadActiveInput) emitInputDeviceChange(null, 'focus-lost');
+		};
 		target.addEventListener('keydown', this._onKeyDown);
 		target.addEventListener('keyup', this._onKeyUp);
 		target.addEventListener('pointerdown', this._onPointerDown);
 		target.addEventListener('pointerup', this._onPointerUp);
 		target.addEventListener('pointercancel', this._onPointerUp);
 		target.addEventListener('contextmenu', this._onContextMenu);
+		target.addEventListener('blur', this._onBlur);
 	}
 
 	_pollGamepad() {
@@ -199,6 +210,7 @@ export class KeyboardInput {
 		this._target.removeEventListener('pointerup', this._onPointerUp);
 		this._target.removeEventListener('pointercancel', this._onPointerUp);
 		this._target.removeEventListener('contextmenu', this._onContextMenu);
+		this._target.removeEventListener('blur', this._onBlur);
 		this._keys.clear();
 		this._jumpRequested = false;
 		this._guardPointerHeld = false;
