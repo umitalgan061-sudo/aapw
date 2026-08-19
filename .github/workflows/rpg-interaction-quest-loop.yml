@@ -16,6 +16,8 @@ on:
       - 'scripts/checkInteractionArmorerServiceBrowser.mjs'
       - 'scripts/checkInteractionProvisioningCraft.mjs'
       - 'scripts/checkInteractionProvisioningCraftBrowser.mjs'
+      - 'scripts/checkInteractionExpeditionKitCraft.mjs'
+      - 'scripts/checkInteractionExpeditionKitBrowser.mjs'
       - 'service-worker.js'
       - '.github/workflows/rpg-interaction-quest-loop.yml'
   workflow_dispatch:
@@ -49,7 +51,7 @@ jobs:
           printf '%s\n' "${FILES[@]}"
           for path in "${FILES[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|scripts/checkInteractionArmorerServiceBrowser.mjs|scripts/checkInteractionProvisioningCraft.mjs|scripts/checkInteractionProvisioningCraftBrowser.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|scripts/checkInteractionArmorerServiceBrowser.mjs|scripts/checkInteractionProvisioningCraft.mjs|scripts/checkInteractionProvisioningCraftBrowser.mjs|scripts/checkInteractionExpeditionKitCraft.mjs|scripts/checkInteractionExpeditionKitBrowser.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
               *) echo "unexpected RPG scope path: $path" >&2; exit 1 ;;
             esac
           done
@@ -73,12 +75,15 @@ jobs:
           node --check scripts/checkInteractionArmorerServiceBrowser.mjs
           node --check scripts/checkInteractionProvisioningCraft.mjs
           node --check scripts/checkInteractionProvisioningCraftBrowser.mjs
+          node --check scripts/checkInteractionExpeditionKitCraft.mjs
+          node --check scripts/checkInteractionExpeditionKitBrowser.mjs
           node scripts/checkInteractionQuestLoop.mjs
           node scripts/checkInteractionInventoryRewards.mjs
           node scripts/checkInteractionQuartermasterTrade.mjs
           node scripts/checkInteractionTradeLedgerAtomicity.mjs
           node scripts/checkInteractionSettlementServiceContract.mjs
           node scripts/checkInteractionProvisioningCraft.mjs
+          node scripts/checkInteractionExpeditionKitCraft.mjs
 
       - name: Shared regression contracts
         run: |
@@ -103,6 +108,7 @@ jobs:
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionSettlementServiceBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionArmorerServiceBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionProvisioningCraftBrowser.mjs
+          NODE_PATH="$NODE_PATH" node scripts/checkInteractionExpeditionKitBrowser.mjs
 
       - name: Final exact-main freshness
         run: |
