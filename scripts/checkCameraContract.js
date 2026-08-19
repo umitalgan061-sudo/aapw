@@ -6,6 +6,15 @@
  */
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
+// Run 348 periodic-platform-control finding: this script's own `page.goto()` used a hardcoded
+// 15000ms timeout, well under this project's own documented `game3d.html` boot cost (~9-13s typical,
+// 20s+ outliers under sandbox contention — see e.g. `game3dSmokeChecksSettlementDiscovery.js`'s own
+// run-332 RCA comment). Reproduced twice in a row in this session (real timeouts, not a one-off
+// flake) while every other `game3d.html`-navigating check in this codebase's active smoke suite
+// already uses a 30000ms `NAV_TIMEOUT_MS` for the same reason. Bumped to match that existing
+// convention rather than introducing a third, inconsistent value.
+const NAV_TIMEOUT_MS = 30_000;
+
 function assert(condition, message) {
 	if (!condition) throw new Error(message);
 }
@@ -21,7 +30,7 @@ async function main() {
 	const browser = await playwright.chromium.launch({ headless: true });
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
 			const { createOrbitCamera, resolveCameraCollision } = await import('/src/3d/camera.js');

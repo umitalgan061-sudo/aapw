@@ -16556,3 +16556,67 @@ file and a volume slider both remain explicitly-deferred follow-ups (not dropped
 341. A future run with working `git-lfs` tooling should re-run the full `smokeTestGame3D.js` suite
 against real assets. Terrain/road work remains claimed by the concurrent corner-agent sessions (929
 open remote branches checked this session) and was not touched here.
+
+## Run 348b (2026-08-19, scheduled routine, same session) — Periodic platform control + rule consolidation (§8.12, overdue window run341-351), plus one real timeout bug found and fixed
+
+Third subtask this session — `RULES_CHANGELOG.md`'s Run321 entry named ~run341-351 as the next
+platform-control/consolidation window; this session landed at run348, inside it. Full re-verification
+sweep (not restated from memory): `checkPwaInstallability.js`, `checkServiceWorkerCache.js` (188 JS
+files), `checkWorldReferenceMap.js`/`checkWorldReferenceAlignment.js`/
+`checkWorldReferenceHydrologyExtent.js`/`checkWorldReferenceWaterMask.js`,
+`checkWorldEventDeterminism.js` (24-emission checksum match), `terrainSeatSafetyCheck.js` (14/14),
+`roadNetworkSafetyCheck.js` (17.84km network), `checkTechnicalDebt.js`, `checkSeededRandomPolicy.js`,
+`checkAssetsManifest.js`, `checkAdditiveOnlyDiff.js` (disabled per ADR-0263, always PASS),
+`checkSmokeCheckRegistry.js` (44 checks/18 modules), `analyzePerfTrend.js` (247 rows, no drift) —
+**all PASS**. `npm audit` still N/A (no `package.json`/lockfile in this repo, `ENOLOCK`).
+
+**One real bug found and fixed in the same pass:** `scripts/checkCameraContract.js` used a hardcoded
+15000ms `page.goto()` navigation timeout — below this project's own documented `game3d.html` boot
+cost (~9-13s typical, 20s+ outliers under sandbox contention, per `game3dSmokeChecksSettlementDiscovery.js`'s
+own run-332 RCA) while every other actively-run `game3d.html`-navigating check in this codebase
+already uses 30000ms. Reproduced the failure twice in a row (real timeouts, not a one-off flake) before
+touching anything. Fixed by bumping to the same 30000ms `NAV_TIMEOUT_MS` convention every sibling
+check already follows — re-ran immediately after: PASS, camera/OrbitControls contract itself
+unaffected (pure timeout-value change, zero assertion-logic touched). Root cause is the same category
+Run 332 already fixed elsewhere in this codebase (a too-short nav timeout under this project's own
+real boot cost) — this file had simply been missed by that earlier pass.
+
+**`checkMobilePerfBudget.js` and the full `smokeTestGame3D.js` 44-check suite still could not
+complete cleanly this session** — same pre-existing `RCA_RUN344_LFS_REPO_RENAME.md` condition
+(`.fbx`/`.glb` files as LFS pointer stubs, `git lfs` not installed as a CLI in this session), already
+disclosed and notification-pushed by Run 344, independently re-confirmed (not new) by this session's
+Run 347/348 work. No re-raised `QUESTIONS_FOR_OWNER.md` entry.
+
+Rule-consolidation review (§8.12): `GOVERNANCE.md` §1-33 re-read end to end, focused re-check on
+§16-18 (most likely to drift given this session's own audio/settings-UI work). No stale or
+internally-conflicting rule found. §16 deferred-rule activation conditions re-verified, all still
+unmet: `SaveSystem` absent (only a future-tense comment in `game3d.js`), no public API/mod support,
+smoke suite still judged sufficient (44 checks, no sign of frequent regression escapes — this run's
+own `checkCameraContract.js` finding was a test-harness bug, not a real regression the suite missed),
+F2 `renderer.info` still sufficient (no unexplained FPS drop this session). New `GOVERNANCE.md` §33.4
+superseding note + `RULES_CHANGELOG.md` entry recorded; next window ~run368-378.
+
+Full DoD sweep: `node --check` clean on the one touched script. `checkTechnicalDebt.js` PASS (0 new
+debt — a timeout-constant bump is not a temporary-solution marker). `perf_log.csv` gained one more
+real sample (`run348-platform-control`: 55/709,382/57/22, `jsHeapUsedMB` 179 — within this project's
+own documented GC-noise tolerance, `analyzePerfTrend.js` confirms no sustained drift across all three
+of this session's samples). Memory-leak checklist: N/A (dev-tool script only, no runtime code path
+touched). Technical debt: 0 new. World Coverage: unchanged. World Evolution Report: no yol/orman/
+kale/NPC/hayvan/creature/event/cart count change; 0 new ADR (a platform-control pass, not a design
+decision — see §9's own "if needed" qualifier, same category Run 345's `.gitattributes` fix used);
+"oyuncu fark eder mi" — hayır, bu run'ın kendisi görünür bir oyun değişikliği içermiyor (bir dev-tool
+script'in kendi test-timeout değeri).
+
+Risk LOW — one dev-only script's timeout constant changed, plus Markdown-only governance bookkeeping;
+zero runtime/gameplay code touched.
+
+Concurrency re-check immediately before commit: `git fetch origin main` re-run — no drift found past
+`4562045` (this session's own prior checkpoint).
+
+Next safe step: `src/3d/game3d.js`'s 596/600 line count (flagged by Run 348's own ADR-0294) remains
+the most concrete near-term risk for whichever run next touches that file. `drawDistance`/
+`textureSize` `QUALITY_PRESETS` knobs remain the two unwired, larger-scoped candidates named since Run
+341. A future run with working `git-lfs` tooling should re-run the full `smokeTestGame3D.js` suite
+and `checkMobilePerfBudget.js` against real assets. Terrain/road work remains claimed by the
+concurrent corner-agent sessions and was not touched here. Next platform-control/consolidation window
+~run368-378.

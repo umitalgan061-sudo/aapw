@@ -5,6 +5,25 @@
 
 ---
 
+- **Run 348 (2026-08-19, periodic platform control + rule consolidation, scheduled routine):** §8.12
+  review was due (Run321 targeted ~run341-351; this run is 348, inside window). Re-read `GOVERNANCE.md`
+  §1-33 end to end, focused re-check on §16-18 (most likely to drift): no stale or internally-conflicting
+  rule found. §16 Ertelenmiş Kurallar: `SaveSystem` confirmed still absent (only a comment referencing
+  its future non-existence in `game3d.js`), public API/mod support still absent, smoke suite still
+  judged sufficient (44/44 checks, no sign of frequent regression escapes), F2 `renderer.info` still
+  sufficient — none of the four activation conditions met, no change. Platform control re-run fresh:
+  PWA installability, service-worker cache completeness, world-reference/hydrology/alignment/
+  water-mask, terrain-seat/road-network/world-event-determinism/technical-debt/seeded-random/
+  assets-manifest/additive-only guards, and perf-trend drift check all PASS; `npm audit` still N/A (no
+  `package.json`). **One real bug found and fixed in the same pass:** `checkCameraContract.js`'s
+  hardcoded 15000ms navigation timeout (below this project's own documented `game3d.html` boot cost)
+  reproducibly failed twice; bumped to the same 30000ms convention every other active check already
+  uses, re-verified PASS. `checkMobilePerfBudget.js`/the full `smokeTestGame3D.js` suite still could
+  not complete cleanly — same pre-existing LFS-pointer-stub condition Run 344 already root-caused and
+  disclosed, re-confirmed not new. Full evidence in `GOVERNANCE.md` §33.4's Run348 superseding note and
+  `3D_GAME_PROGRESS.md`'s Run 347/348 entries. Next consolidation + platform-control target
+  ~run368-378.
+
 - **Run 291 (2026-08-12, periodic platform control + rule consolidation):** §8.12 review was overdue
   (last full consolidation Run240 targeted ~run260; last platform control Run235 targeted ~run255-265;
   this run is 291). Re-read `GOVERNANCE.md` §1-32 end to end: no stale or internally-conflicting rule
