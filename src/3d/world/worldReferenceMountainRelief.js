@@ -42,6 +42,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		valleyFrequency: 8.5,
 		valleyStrength: 0.36,
 		shoulderFalloffStrength: 0.40,
+		ridgeBodyWidthResponse: 0.18,
 	}),
 	// Moderate map-supported uplands only. Reach, Dothraki Sea and other broad plains are excluded.
 	highlands: Object.freeze({
@@ -363,14 +364,18 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		const outerWidth = chain.profile.outerWidthNormalized * widthScale;
 		if (distance >= outerWidth) continue;
 		const normalizedDistance = clamp(distance / Math.max(outerWidth, 1e-9), 0, 1);
-		const coreRatio = clamp(coreWidth / Math.max(outerWidth, 1e-9), 0.05, 0.22);
-		const ridge = sampleNaturalizedRidgeShape(normalizedX, normalizedY, normalizedDistance, coreRatio, chain.profile.seed);
+		const bodyResponse = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.ridgeNaturalization.ridgeBodyWidthResponse;
+		const ridgeBodyWidthScale = widthScale <= 1 ? widthScale : 1 + (widthScale - 1) * bodyResponse;
+		const ridgeBodyWidth = chain.profile.outerWidthNormalized * ridgeBodyWidthScale;
+		const ridgeDistance = clamp(distance / Math.max(ridgeBodyWidth, 1e-9), 0, 1);
+		const coreRatio = clamp(coreWidth / Math.max(ridgeBodyWidth, 1e-9), 0.05, 0.22);
+		const ridge = sampleNaturalizedRidgeShape(normalizedX, normalizedY, ridgeDistance, coreRatio, chain.profile.seed);
 		const summitNoise = valueNoise2D(normalizedX * 8, normalizedY * 8, chain.profile.seed + 101) * 0.58
 			+ valueNoise2D(normalizedX * 17, normalizedY * 17, chain.profile.seed + 211) * 0.27
 			+ valueNoise2D(normalizedX * 31, normalizedY * 31, chain.profile.seed + 313) * 0.15;
 		const summitFloor = chain.profile.summitFloor ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitModulationMinimum;
 		const modulation = summitFloor + (1 - summitFloor) * Math.pow(summitNoise, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitNoiseExponent);
-		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed);
+		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, ridgeDistance, chain.profile.seed);
 		const longitudinalEnvelope = sampleLongitudinalMassifEnvelope(chain, axialProgress, normalizedX, normalizedY);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
 		const coastalPolicy = chain.profile.longitudinalMassifs ? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coastalReliefTaper : DEFAULT_COASTAL_RELIEF_TAPER;
