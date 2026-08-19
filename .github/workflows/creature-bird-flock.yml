@@ -11,6 +11,7 @@ on:
       - 'scripts/checkCreatureBirdFlockPopulation.mjs'
       - 'scripts/checkCreatureBirdFlockLodWake.mjs'
       - 'scripts/checkCreatureBirdFlightLifecycle.mjs'
+      - 'scripts/checkCreatureBirdTerrainClearance.mjs'
       - 'scripts/checkCreatureBirdFlockMemoryRelease.mjs'
       - 'scripts/checkCreatureBirdFlockScanBudget.mjs'
       - 'scripts/checkCreatureBirdFlockBrowser.js'
@@ -54,6 +55,8 @@ jobs:
           node scripts/checkCreatureBirdFlockLodWake.mjs
           node --check scripts/checkCreatureBirdFlightLifecycle.mjs
           node scripts/checkCreatureBirdFlightLifecycle.mjs
+          node --check scripts/checkCreatureBirdTerrainClearance.mjs
+          node scripts/checkCreatureBirdTerrainClearance.mjs
           node --check scripts/checkCreatureBirdFlockMemoryRelease.mjs
           node scripts/checkCreatureBirdFlockMemoryRelease.mjs
           node --check scripts/checkCreatureBirdFlockScanBudget.mjs
