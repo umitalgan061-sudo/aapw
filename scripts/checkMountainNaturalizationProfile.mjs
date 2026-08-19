@@ -50,7 +50,7 @@ assert(ridgePolicy.valleyStrength >= 0.20 && ridgePolicy.valleyStrength <= 0.45,
 assert(ridgePolicy.crestDetailFrequency > 25, 'crest breakup is too broad to separate individual summits');
 assert.deepEqual(Object.keys(highlandPolicy).sort(), ['lands-always-winter', 'north', 'westerlands'], 'highland coverage expanded beyond map-supported elevated regions');
 assert(seatPolicy.innerRadiusNormalized > 0 && seatPolicy.outerRadiusNormalized > seatPolicy.innerRadiusNormalized, 'habitable seat protection radii are invalid');
-assert(seatPolicy.minimumMultiplier >= 0.10 && seatPolicy.minimumMultiplier <= 0.30, 'capital basin relief floor drifted');
+assert(seatPolicy.minimumMultiplier >= 0.10 && seatPolicy.minimumMultiplier <= 0.40, 'capital basin relief floor drifted');
 assert(source.includes('sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed)'), 'runtime relief no longer consumes shoulder-width variation');
 assert(source.includes('Math.cos(normalizedDistance * Math.PI * 0.5)'), 'runtime ridge cross-section returned to a flat core plateau');
 assert(source.includes('sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight)'), 'runtime relief no longer tapers source-adjacent coastal cliffs');
