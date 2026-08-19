@@ -19,12 +19,18 @@ assert.deepEqual(
 );
 assert.equal(Object.is(idle.forward, -0), false, 'idle forward axis must be canonical +0');
 
-for (const [x, y] of [[0.12, -0.17], [0.17, 0], [0, -0.18]]) {
+for (const [x, y] of [[0.08, -0.12], [0.17, 0], [0, -0.18]]) {
+	assert.ok(Math.hypot(x, y) <= 0.18, 'neutral fixture must remain inside the radial deadzone');
 	const sample = samplePlayerGamepad(makePad({ axes: [x, y] }));
 	assert.equal(sample.forward, 0, 'radial stick input inside deadzone must remain neutral');
 	assert.equal(sample.strafe, 0, 'radial stick input inside deadzone must remain neutral');
 	assert.equal(sample.magnitude, 0, 'radial stick magnitude inside deadzone must remain zero');
 }
+
+const componentSmallDiagonal = samplePlayerGamepad(makePad({ axes: [0.12, -0.17] }));
+assert.ok(Math.hypot(0.12, -0.17) > 0.18, 'diagonal fixture must be outside the radial deadzone by vector magnitude');
+assert.ok(componentSmallDiagonal.magnitude > 0, 'radial deadzone must not suppress a diagonal vector whose magnitude exceeds the threshold');
+assert.ok(componentSmallDiagonal.forward > 0 && componentSmallDiagonal.strafe > 0, 'radial deadzone must preserve the diagonal movement direction');
 
 const diagonal = applyGamepadRadialDeadzone(0.7, -0.7);
 assert.ok(diagonal.magnitude <= 1, 'radial deadzone output magnitude must not exceed one');
