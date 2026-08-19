@@ -81,7 +81,7 @@ void main() {`)
 		shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 	float aapwNormalWeight = smoothstep(-0.10, 0.10, aapwTerrainBreakup);
 	float aapwNormalContrast = mix(${TERRAIN_APERIODIC_SURFACE_POLICY.normalContrastMin.toFixed(2)}, ${TERRAIN_APERIODIC_SURFACE_POLICY.normalContrastMax.toFixed(2)}, aapwNormalWeight);
-	normal = normalize(mix(geometryNormal, normal, aapwNormalContrast));`);
+	normal = normalize(mix(nonPerturbedNormal, normal, aapwNormalContrast));`);
 	}
 }
 
