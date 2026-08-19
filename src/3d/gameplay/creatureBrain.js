@@ -219,7 +219,7 @@ function hashSeedString(text) {
  * @param {number} options.groundY
  * @param {number} [options.rotationYRadians]
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
- * @param {{resolveXZ: (x: number, z: number) => {x: number,z: number}}} [options.playerCollider]
+ * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
  *   Run 332's own follow-up to Run 331's own named gap: the same castle+village obstacle collider
  *   `sceneManager.js` builds for `gameplay/player.js` (see its own JSDoc), applied to both the
  *   wander and reactive movement branches here so a being pushes back out of a house/keep instead of
@@ -451,7 +451,7 @@ export function createCreatureBeing({
  * @param {object} options
  * @param {{id: string, speciesId: string, x: number, z: number, rotationYRadians?: number}[]} options.spawns
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
- * @param {{resolveXZ: (x: number, z: number) => {x: number,z: number}}} [options.playerCollider]
+ * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
  *   Forwarded to every `createCreatureBeing` call — see that function's own JSDoc.
  * @param {(seed: number) => () => number} options.mulberry32
  * @returns {ReturnType<typeof createCreatureBeing>[]} Already filtered — a spawn naming a species with
