@@ -98,7 +98,15 @@ try {
 		assert.doesNotMatch(shader, /vec2\(0\.85, 0\.51\)/, 'legacy sub-10m stripe-prone ripple phase must stay removed');
 		assert.doesNotMatch(shader, /\* 2\.4 \+ time \* 1\.8/, 'legacy high-frequency moire component must stay removed');
 		assert.match(shader, /float warp = sin\(dot\(worldXZ, vec2\(0\.014, -0\.011\)\)/, 'anti-band phase warp must stay present');
-		assert.equal(water.material.uniforms.uShallowColor.value.getHex(), 0x527f79, 'shallow water must stay desaturated from old neon cyan');
+		// Retuned 2026-08-19 to the owner's aerial reference (green-teal -> blue). The anti-neon intent
+		// this assertion was written for is preserved and now checked as the property itself.
+		assert.equal(water.material.uniforms.uShallowColor.value.getHex(), 0x53899a, 'shallow water colour drifted');
+		{
+			const { r, g, b } = water.material.uniforms.uShallowColor.value.clone().convertLinearToSRGB();
+			const max = Math.max(r, g, b);
+			const saturation = max <= 0 ? 0 : (max - Math.min(r, g, b)) / max;
+			assert.ok(saturation < 0.6, `shallow water must stay desaturated from old neon cyan (saturation ${saturation.toFixed(3)})`);
+		}
 
 		setWaterDepthField(water, field, 1);
 		assert.equal(water.material.uniforms.uDepthMap.value, field.texture, 'near water must sample canonical field');

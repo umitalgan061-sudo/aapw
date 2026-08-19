@@ -64,7 +64,7 @@ async function main() {
 		const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 		page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
 		page.on('pageerror', (error) => errors.push(String(error)));
-		await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+		await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		initial = await page.evaluate(async () => {
 			const THREE = await import('three');
 			const { STONE_BRIDGE_OWNER_POLICY } = await import('/src/3d/world/worldReferenceStoneBridgeShadow.js');

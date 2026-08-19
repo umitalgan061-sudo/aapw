@@ -61,7 +61,7 @@ async function main() {
 	let result;
 	try {
 		const page = await browser.newPage();
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		result = await page.evaluate(async () => {
 			const { WORLD_SCALE } = await import('/src/3d/config.js');
 			const { KINGDOM_SEATS, mapToWorldXZ } = await import('/src/3d/world/settlements.js');

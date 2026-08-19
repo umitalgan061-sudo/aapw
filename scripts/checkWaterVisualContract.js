@@ -47,8 +47,19 @@ async function main() {
 			fail(Boolean(uniforms?.uDepthMap && uniforms?.uDepthFieldExtentMeters && uniforms?.uSwellStrength), 'water depth/coverage uniform set drifted');
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
 			fail(close(uniforms.uTime.value, 0), 'water uTime must start at 0');
-			fail(uniforms.uShallowColor.value?.isColor === true && uniforms.uShallowColor.value.getHex() === 0x527f79, 'water P0 desaturated shallow color drifted');
-			fail(uniforms.uDeepColor.value?.isColor === true && uniforms.uDeepColor.value.getHex() === 0x0a3a4a, 'water deep color drifted');
+			// Retuned 2026-08-19 to the owner's aerial reference: blue ocean rather than green-teal, with
+			// a deeper far tone so bathymetry reads from altitude. The original point of pinning these —
+			// that shallow water must never go back to neon cyan — is now asserted directly below on
+			// saturation, which is the property that actually mattered, rather than on one exact hex.
+			fail(uniforms.uShallowColor.value?.isColor === true && uniforms.uShallowColor.value.getHex() === 0x53899a, 'water shallow color drifted');
+			fail(uniforms.uDeepColor.value?.isColor === true && uniforms.uDeepColor.value.getHex() === 0x0c2c4a, 'water deep color drifted');
+			// Judged in sRGB, not in THREE.Color's linear working space: "neon" is a perceptual claim,
+			// and the same colour reads far more saturated in linear (0x53899a is 0.46 in sRGB but 0.73
+			// in linear), which would reject ordinary sea blues.
+			const shallow = uniforms.uShallowColor.value.clone().convertLinearToSRGB();
+			const shallowMax = Math.max(shallow.r, shallow.g, shallow.b);
+			const shallowSaturation = shallowMax <= 0 ? 0 : (shallowMax - Math.min(shallow.r, shallow.g, shallow.b)) / shallowMax;
+			fail(shallowSaturation < 0.6, `shallow water must stay desaturated from neon cyan (sRGB saturation ${shallowSaturation.toFixed(3)})`);
 			const expectedSun = new THREE.Vector3(300, 400, 200).normalize();
 			fail(vectorClose(uniforms.uSunDirection.value, expectedSun), 'water sun direction drifted');
 			fail(vectorClose(uniforms.uCameraPosition.value, new THREE.Vector3(0, 0, 0)), 'water camera uniform must start at origin');

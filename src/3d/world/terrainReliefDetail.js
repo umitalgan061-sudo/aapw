@@ -1,0 +1,200 @@
+/**
+ * Coastline domain-warp and multi-octave relief detail — the layer that turns the canonical 96x64
+ * surface mask from a visible grid of squares into organic geography.
+ *
+ * **Why this exists.** The canonical mask is 96x64 cells over a 13,296 x 10,341 m world, so one cell
+ * is ~138 x ~162 m. `sampleReferencePindexQualityV2` reconstructs it bilinearly with a sub-cell warp
+ * of only 0.15-0.19 cells, which smooths the *shading* across a cell edge but leaves the coastline
+ * itself running along cell boundaries: rendered from the air the shore reads as a rectangular
+ * staircase with ~138 m steps, and the inland plains — whose height comes almost entirely from
+ * smoothly-interpolated cell weights — read as billiard-table flat. Neither is what real terrain
+ * looks like.
+ *
+ * Two deterministic additions fix that without touching the canonical data:
+ *
+ * 1. **Coast warp.** The normalized map coordinate is displaced by a few octaves of noise before the
+ *    canonical surface is sampled, at an amplitude of roughly one mask cell. The mask's own land/sea
+ *    decision is unchanged — it is read at a slightly different place — so headlands, bays and inlets
+ *    appear at scales the source grid could never express, while the large-scale landmass stays
+ *    exactly where the owner map puts it.
+ * 2. **Relief detail.** Ridged multi-octave noise added to land height, amplitude-shaped so plains get
+ *    gentle undulation (a couple of metres) and mountain chains get real crags (tens of metres). The
+ *    ridged form (`1 - |noise|`) is used for the mountain band specifically because it produces sharp
+ *    crest lines and V-shaped valleys, which is what reads as erosion from the air, where plain fBm
+ *    reads as rolling dunes.
+ *
+ * **Amplitude discipline.** Fine detail is deliberately capped so it cannot break the gates this
+ * project already enforces: the plains/mid octaves add at most ~2 degrees of local slope, well inside
+ * the 20-degree road-grade ceiling (`scripts/roadNetworkSafetyCheck.js`) and the 35-degree seat
+ * walkability ceiling (`scripts/terrainSeatSafetyCheck.js`), and the large mountain octave is gated
+ * behind `reliefInfluence` so it only fires on the canonical mountain chains that roads already route
+ * around. Settlement flatten pads still override everything locally.
+ *
+ * **Determinism.** Pure functions of position — integer-hash value noise, no `Math.random()`, no
+ * state. The same coordinate always yields the same displacement, so chunk borders agree exactly.
+ * @module world/terrainReliefDetail
+ */
+
+const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
+
+export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
+	id: 'terrain-coast-warp-and-relief-detail-2026-08-19-v1',
+	/** Coast warp amplitude in normalized map units, per axis. ~1 mask cell (1/96, 1/64). */
+	coastWarpU: 1.55 / 96,
+	coastWarpV: 1.55 / 64,
+	coastWarpOctaves: 3,
+	/** Gentle everywhere-on-land undulation so plains are never flat. Wavelength in normalized units;
+	 * 0.02 of the map width is ~266 m, giving <=~1.5 deg of added slope at this amplitude. */
+	plainsAmplitudeMeters: 2.4,
+	plainsFrequency: 46,
+	/** Broader swells that give the lowlands large-scale shape. ~700 m wavelength. */
+	swellAmplitudeMeters: 6.5,
+	swellFrequency: 17,
+	/** Ridged mountain crags, gated behind canonical relief/rock/snow so only real chains get them. */
+	ridgeAmplitudeMeters: 42,
+	ridgeFrequency: 11,
+	ridgeOctaves: 4,
+	/** Detail fades out below this height above sea so the seabed and beaches stay clean. */
+	shoreFadeStartMeters: 0.5,
+	shoreFadeFullMeters: 6,
+});
+
+/** Deterministic 2D integer hash -> [0,1). Trig-based, matching the style already used across this
+ * project's canonical micro-signal functions. */
+function hash2(ix, iy) {
+	const value = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453123;
+	return value - Math.floor(value);
+}
+
+/** Smooth 2D value noise in [0,1) with quintic interpolation (C2 continuous, so derived slopes do not
+ * show interpolation creases). */
+function valueNoise2(x, y) {
+	const x0 = Math.floor(x);
+	const y0 = Math.floor(y);
+	const fx = x - x0;
+	const fy = y - y0;
+	const ux = fx * fx * fx * (fx * (fx * 6 - 15) + 10);
+	const uy = fy * fy * fy * (fy * (fy * 6 - 15) + 10);
+	const n00 = hash2(x0, y0);
+	const n10 = hash2(x0 + 1, y0);
+	const n01 = hash2(x0, y0 + 1);
+	const n11 = hash2(x0 + 1, y0 + 1);
+	const nx0 = n00 + (n10 - n00) * ux;
+	const nx1 = n01 + (n11 - n01) * ux;
+	return nx0 + (nx1 - nx0) * uy;
+}
+
+/**
+ * Signed fractal Brownian motion in roughly [-1, 1]. Exported so `world/terrainBiomeShading.js` can
+ * drive its forest-patch mask from the same deterministic noise basis this module uses for relief,
+ * rather than introducing a second, independently-seeded one.
+ * @param {number} x
+ * @param {number} y
+ * @param {number} octaves
+ * @returns {number}
+ */
+export function signedFbmNoise(x, y, octaves) {
+	return fbm2(x, y, octaves);
+}
+
+/** Signed fractal Brownian motion in roughly [-1, 1]. */
+function fbm2(x, y, octaves) {
+	let amplitude = 0.5;
+	let frequency = 1;
+	let sum = 0;
+	let normalisation = 0;
+	for (let octave = 0; octave < octaves; octave += 1) {
+		sum += (valueNoise2(x * frequency, y * frequency) * 2 - 1) * amplitude;
+		normalisation += amplitude;
+		amplitude *= 0.5;
+		frequency *= 2.03; // slightly off 2 so octaves never align into a visible lattice
+	}
+	return sum / normalisation;
+}
+
+/** Ridged multifractal in [0, 1] — sharp crests, V-shaped troughs. */
+function ridged2(x, y, octaves) {
+	let amplitude = 0.5;
+	let frequency = 1;
+	let sum = 0;
+	let normalisation = 0;
+	for (let octave = 0; octave < octaves; octave += 1) {
+		const signed = valueNoise2(x * frequency, y * frequency) * 2 - 1;
+		sum += (1 - Math.abs(signed)) * amplitude;
+		normalisation += amplitude;
+		amplitude *= 0.5;
+		frequency *= 2.07;
+	}
+	return sum / normalisation;
+}
+
+/**
+ * Coastline domain-warp offsets, in normalized map units.
+ *
+ * Applied to the coordinate handed to the canonical surface sampler, never to the canonical data
+ * itself. Two different frequency bands are summed so the shore gains both broad headlands/bays and
+ * finer inlets instead of one uniform wobble.
+ *
+ * @param {number} normalizedX
+ * @param {number} normalizedY
+ * @returns {{du: number, dv: number}}
+ */
+export function coastWarpOffsets(normalizedX, normalizedY) {
+	const P = TERRAIN_RELIEF_DETAIL_POLICY;
+	// Distinct coordinate offsets per channel so u and v displace independently (a shared field would
+	// only slide the coast diagonally instead of deforming it).
+	const broadU = fbm2(normalizedX * 9.3 + 11.7, normalizedY * 9.3 + 3.1, P.coastWarpOctaves);
+	const broadV = fbm2(normalizedX * 9.3 - 5.9, normalizedY * 9.3 + 27.4, P.coastWarpOctaves);
+	const fineU = fbm2(normalizedX * 31.5 + 61.2, normalizedY * 31.5 - 17.8, 2);
+	const fineV = fbm2(normalizedX * 31.5 - 43.6, normalizedY * 31.5 + 8.5, 2);
+	return {
+		du: (broadU * 0.72 + fineU * 0.28) * P.coastWarpU,
+		dv: (broadV * 0.72 + fineV * 0.28) * P.coastWarpV,
+	};
+}
+
+/**
+ * Extra land relief in metres, to be added to the canonical height.
+ *
+ * Shaped by three independent gates so the amplitude is spent where it reads as geography:
+ * `heightAboveSea` fades detail out at the waterline, `reliefInfluence`/`rockWeight`/`snowWeight`
+ * unlock the large ridged octave only on canonical mountain terrain, and `waterWeight` suppresses
+ * everything over open water.
+ *
+ * @param {number} normalizedX
+ * @param {number} normalizedY
+ * @param {object} context
+ * @param {number} context.heightAboveSeaMeters Canonical height above sea before this addition.
+ * @param {number} context.reliefInfluence Canonical relief-chain influence, 0..1.
+ * @param {number} context.rockWeight Canonical rock surface weight, 0..1.
+ * @param {number} context.snowWeight Canonical snow surface weight, 0..1.
+ * @param {number} context.waterWeight Canonical sea+lake weight, 0..1.
+ * @returns {number} Metres to add (always >= 0 on land, 0 over water).
+ */
+export function reliefDetailMeters(normalizedX, normalizedY, { heightAboveSeaMeters, reliefInfluence, rockWeight, snowWeight, waterWeight }) {
+	const P = TERRAIN_RELIEF_DETAIL_POLICY;
+	const dryness = 1 - clamp01(waterWeight);
+	if (dryness <= 0) return 0;
+	// Fade in above the waterline so shorelines and the seabed stay clean and beaches stay readable.
+	const shoreFade = clamp01((heightAboveSeaMeters - P.shoreFadeStartMeters) / (P.shoreFadeFullMeters - P.shoreFadeStartMeters));
+	if (shoreFade <= 0) return 0;
+	const landGate = dryness * shoreFade;
+
+	const swell = fbm2(normalizedX * P.swellFrequency + 3.7, normalizedY * P.swellFrequency - 9.1, 3);
+	const plains = fbm2(normalizedX * P.plainsFrequency - 21.3, normalizedY * P.plainsFrequency + 14.6, 3);
+	let metres = (swell * P.swellAmplitudeMeters + plains * P.plainsAmplitudeMeters) * landGate;
+
+	// Mountain crags: only where the canonical data already says mountain.
+	const mountainGate = clamp01(Math.max(
+		reliefInfluence * reliefInfluence,
+		clamp01(rockWeight) * 0.8,
+		clamp01(snowWeight) * 0.7,
+	));
+	if (mountainGate > 0) {
+		const ridge = ridged2(normalizedX * P.ridgeFrequency + 47.2, normalizedY * P.ridgeFrequency + 19.8, P.ridgeOctaves);
+		// Centred on its own mean so the ridged octave adds crest relief without lifting the whole
+		// massif (a raised base would change every mountain's absolute height, not just its shape).
+		metres += (ridge - 0.5) * 2 * P.ridgeAmplitudeMeters * mountainGate * landGate;
+	}
+	return metres;
+}

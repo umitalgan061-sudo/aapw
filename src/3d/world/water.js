@@ -260,8 +260,19 @@ export const WATER_PLANE_SEGMENTS_DESKTOP = 320;
  */
 export const WATER_PLANE_SEGMENTS_MOBILE = 192;
 
-const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x527f79);
-const DEFAULT_DEEP_COLOR = new THREE.Color(0x0a3a4a);
+/**
+ * Depth-graded ocean palette, retuned 2026-08-19 against the owner-supplied aerial reference, in
+ * which open water is a deep saturated navy grading to a lighter blue-teal over the shallows.
+ *
+ * The previous pair (`0x527f79` / `0x0a3a4a`) was itself a correction, away from an earlier neon
+ * cyan, and landed on a low-saturation green-teal that read as swamp rather than sea — with water
+ * covering about two thirds of any aerial framing, that dominated the whole world's colour. These
+ * values keep the anti-neon intent (the shallow tone stays well under half saturation) while moving
+ * the hue from green-teal to blue and deepening the far tone, so bathymetry actually reads from the
+ * air. Pinned by `scripts/checkWaterVisualContract.js` and `scripts/checkWorldWaterCoverageP0.mjs`.
+ */
+const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x53899a);
+const DEFAULT_DEEP_COLOR = new THREE.Color(0x0c2c4a);
 /** Matches `game3d.js`'s directional "sun" light position, normalized — kept as a local constant
  * here (not `config.js`) since only this shader's specular highlight reads it today; promote it if
  * a second system needs the same direction. */

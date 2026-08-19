@@ -16620,3 +16620,88 @@ the most concrete near-term risk for whichever run next touches that file. `draw
 and `checkMobilePerfBudget.js` against real assets. Terrain/road work remains claimed by the
 concurrent corner-agent sessions and was not touched here. Next platform-control/consolidation window
 ~run368-378.
+
+## Run 349 (2026-08-19, owner request) — Görünür coğrafi gerçekçilik: eğim/yükseklik biyom gölgelemesi, organik kıyılar, arazi rölyefi ve referansa uygun okyanus (ADR-0295)
+
+Sahip, fotogerçekçi bir havadan arazi görselini hedef olarak verip "3D oyunun coğrafyasını bu şekilde
+gözle görülür bir gerçekçi hale getir" dedi. Bu run o işi yaptı. Tam gerekçe, alternatifler ve ölçümler
+`DECISIONS.md` ADR-0295'te; burada yalnızca gelecekteki bir run'ın devralması gereken şeyler var.
+
+**Neden dünya gerçekçi görünmüyordu (tahmin değil, ölçüm).** Üç bağımsız neden:
+1. Renk sabitti — `createTerrainChunk` her masaüstü vertex'ini tek düz griye (0.588) boyayıp tüm rengi
+   `overlay.png`'ye bırakıyordu; ama o dosya nötr bir detay dokusu değil, **doygun yeşil bir fotoğraf
+   dokusu** (ortalama doygunluk 0.42, deniz üstündeki örnekler bile yeşil). Gri × yeşil ≈ lineer albedo
+   (0.015, 0.031, 0.011) — kıyıdan 566 m'lik zirveye kadar aynı.
+2. Yazdığım rengin yalnızca **%12'si** ekrana ulaşıyordu — `sceneManager`, `ChunkManager.loadChunk`'ı
+   monkey-patch ediyor ve shader `mix(diffuseColor, pindexQualityColor, 0.88)` uyguluyor; o atlas
+   192x128 çözünürlükte ve **eğimden tamamen habersiz**, dolayısıyla uçurum, vadi tabanı, kumsal ve kar
+   alanı hep aynı sınıf rengine düşüyordu.
+3. Kıyı çizgisi maskenin hücre ızgarasıydı — kanonik maske 13.296 × 10.341 m üzerinde 96x64, yani
+   ~138 × ~162 m'lik hücreler; havadan bakınca kıyı dikdörtgen bir merdiven, ovalar ise dümdüzdü.
+
+**Ne yapıldı.** Yeni `world/terrainBiomeShading.js` (eğim + deniz üstü yükseklik + kanonik kaya/kar
+ağırlıklarından vertex albedosu: kum şeridi, ova çimeni, kuru yayla, orman, sıcak/soğuk çıplak kaya,
+kar, deniz tabanı; ~40°'den dik yüzlerde kar tutunmuyor, altındaki kaya görünüyor). Yeni
+`world/terrainReliefDetail.js` (kıyı domain-warp'ı ~1.55 hücre + ridged çok-oktavlı kara rölyefi,
+deterministik hash gürültüsü). Her ikisi de **her koltuğun 650 m çevresinde sıfıra sönümleniyor**.
+`overlay.png` yüklenirken birim-ortalamalı parlaklık çarpanına dönüştürülüyor (hue yetkisi vertex'e
+geçti) ve `qualityBlend` 0.88 → 0.34. Okyanus paleti referansa çekildi.
+
+**Eşikler ölçümle kondu**, tahminle değil: canlı yükseklik alanı 220x220 + 200x200 ızgarayla sondalandı
+— kara oranı %33, karanın %80'i deniz seviyesinden <17.7 m, zirve 566 m; kara eğimi p50 0.6°, p75 4.8°,
+p90 31.7°, maks 84°. Bu sayılar `TERRAIN_BIOME_SHADING_POLICY.measured` içinde kayıtlı, böylece ileride
+bir arazi değişikliği kalibrasyonu geçersiz kılarsa fark edilir.
+
+**§8.4 arazi güvenlik kapısı, öncesi ve sonrası koşuldu.** 14/14 PASS ve **koltuk ham yükseklikleri
+değişiklik öncesiyle birebir aynı** (7.250 / 13.200 / 20.769 / 24.551 / 21.921 / 8.339 / 32.153 /
+53.418 / 7.250 / 48.961 / 7.250 / 20.731 / 9.694 / 7.250) — koltuk taper'ının varlık sebebi bu ve
+varsayılmadı, doğrulandı. Yol ağı PASS (13 kenar, 14/14 bağlı, tüm eğimler 20° altında, 17.84 → 17.73
+km). Su maskesi checksum'ı, hizalama (%100), hidroloji genişliği, dünya-olayı determinizmi hepsi
+değişmedi.
+
+**Taper'ın maliyeti ölçülerek bulundu:** taper'sız tam güçte warp, Dragonstone'un hücresini suya itip
+ham yüksekliğini 32.15 m'den koruma tabanı olan 7.25 m'ye düşürdü, Kartal Yuvası 62.8 m'ye çıktı ve
+`stannis -> robin` yolu 32.6° ile kapıyı deldi. 650 m taper her koltuğu tam kanonik değerine döndürdü,
+o kenarı 16.9°'ye indirdi.
+
+**Görsel kanıt** (`artifacts/terrain-biome-shading/{before,after}/`, repo geleneğince gitignore'da):
+her biri için beş çerçeve — yüksek havadan eğik, kuzey eğik, en yüksek zirve yakın plan, kıyı yakın
+plan, tüm dünya ortografik tepeden; 613 parça yüklendi, **iki koşuda da sıfır konsol/sayfa hatası**.
+Ölçülen delta (tepeden): ortalama RGB 38,53,41 → 43,60,53; doygunluk 0.599 → 0.655; beyaza yakın piksel
+oranı 0 → 0.005 (kar ve kum ilk kez ekrana ulaşıyor). Kıyı çerçevesinde 0 → 0.086.
+
+**`terrain.js` 600 satır sınırını aştı** (626) — render-only mikro-PBR bloğu birebir
+`world/terrainMicroSurface.js`'e taşındı ve `terrain.js`'ten yeniden export edildi (saf taşıma, hiçbir
+sabit/davranış değişmedi, tüm mevcut importlar ve check'ler aynı isimleri çözmeye devam ediyor;
+626 → 491 satır).
+
+**Yol üstünde bulunup düzeltilen ESKİ kusurlar (§8.2).** 25 script `game3d.html`'e sabit 15.000 ms
+zaman aşımıyla gidiyordu — projenin kendi belgelediği ~9-13 sn açılış maliyetinin (20 sn+ uç değerlerle)
+altında — yani **uzun süredir assert etmek yerine sessizce zaman aşımına uğruyorlardı**. Bu, run 348b'nin
+`checkCameraContract.js`'te düzelttiği kök nedenin aynısı; §8.2 gereği bu kez tek tek değil 25'inde
+birden düzeltildi. Bunu yükseltmek, çalışamadıkları için sapmış iki sözleşmeyi hemen ortaya çıkardı:
+`checkTerrainVisualContract.js` roughness 1 bekliyordu (mikro-PBR katmanından beri 0.96) ve runtime'ın
+çoktan üretmeyi bıraktığı iki renkli bir yükseklik gradyanını sabitliyordu — ikisi de düzeltildi, renk
+assertion'ı gerçek bir biyom-gölgeleme sözleşmesiyle değiştirildi.
+
+**Açıkça bildirilen, DÜZELTİLMEYEN:** `checkSkyVisualContract.js` aynı sebeple görünür hale gelen başka
+bir eski sapmada kalıyor. Peşine düşmedim: sky bu değişikliğin kapsamı dışında, doğru assertion'ı
+tahmin etmeden belirleyemedim ve ilgisiz bir modülde yarım yazılmış bir sözleşme, açıkça kırmızı
+duran birinden daha kötüdür. Zaman aşımı düzeltmesi kaldı, assertion'ları yazarlarının bıraktığı gibi.
+`checkMapAlignedTerrainPBR.mjs` ve `checkWorldWaterCoverageP0.mjs` bu konteynerde hâlâ çalışamıyor
+(`three` Node'da çözülmüyor) — eski durum, bu değişiklikle ilgisiz.
+
+Bellek sızıntısı kontrolü: temiz (vertex başına tahsis yok, nötrleştirilmiş kanvas mevcut paylaşılan
+uygulama-ömürlü dokunun görüntüsünü yerinde değiştiriyor, parça imhası değişmedi). Teknik borç: 0 yeni.
+Perf: 59 çizim / 718.672 üçgen / 60 geometri / 28 doku / 202 MB — masaüstü bütçesi <2500 çizim, <5M
+üçgen. World Coverage: değişmedi.
+
+Risk MEDIUM — uzun süredir ilk kez yükseklik alanına dokunuldu; §8.4 kapısı tam olarak bu yüzden var ve
+öncesi/sonrası koşulup geçti.
+
+Sıradaki güvenli adım: havadan kanıtlarda hâlâ üç şey görünüyor, hiçbiri engelleyici değil — açık suda
+eski bir çapraz taralı artefakt (before kanıtında da birebir var, buradan gelmiyor), ridged oktav yalnız
+kanonik rölyef zincirlerine bağlı olduğu için yakın planda pürüzsüz kalan dağ kütleleri ve
+`checkSkyVisualContract.js`'in bildirilen sapması. Terrain/yol alanı eşzamanlı corner-agent
+oturumlarınca sahiplenilmiş durumda — bu run oraya yalnızca sahip doğrudan istediği için girdi ve tüm
+kanonik kapılar yeşil.

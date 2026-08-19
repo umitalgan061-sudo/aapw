@@ -93,7 +93,10 @@ export function applyReferenceSurfaceToTerrainMesh(mesh) {
 
 	mesh.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 	mesh.material.vertexColors = true;
-	mesh.material.color.setHex(0xffffff);
+	// Restore the terrain's own detail gain rather than assuming flat white. `world/terrain.js`
+	// carries a >1 gain when its neutralised detail map is attached (the map stores a ratio around a
+	// mid-grey pivot); resetting to white here halved the entire world's brightness.
+	mesh.material.color.setScalar(mesh.material.userData?.terrainDetailGain ?? 1);
 	mesh.material.roughness = roughnessSum / position.count;
 	mesh.material.metalness = 0;
 	mesh.material.needsUpdate = true;
@@ -273,7 +276,10 @@ export function applyRuntimePindexTerrainPolishToMesh(mesh) {
 	}
 
 	mesh.material.vertexColors = true;
-	mesh.material.color.setHex(0xffffff);
+	// Restore the terrain's own detail gain rather than assuming flat white. `world/terrain.js`
+	// carries a >1 gain when its neutralised detail map is attached (the map stores a ratio around a
+	// mid-grey pivot); resetting to white here halved the entire world's brightness.
+	mesh.material.color.setScalar(mesh.material.userData?.terrainDetailGain ?? 1);
 	mesh.material.roughness = THREE.MathUtils.lerp(
 		mesh.material.roughness,
 		roughnessSum / position.count,
@@ -327,7 +333,24 @@ export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
 	id: 'terrain-pindex-quality-v2-runtime-2026-08-12-v2',
 	atlasWidth: 192,
 	atlasHeight: 128,
-	qualityBlend: 0.88,
+	/**
+	 * How much of the fragment's colour the baked semantic atlas replaces.
+	 *
+	 * Lowered from 0.88 on 2026-08-19. The atlas encodes canonical *semantics* — which surface class
+	 * and biome a map cell belongs to — sampled at the 192x128 atlas resolution, i.e. ~69 x ~81 m per
+	 * texel, and it has no access to local ground slope at all. At 0.88 it was overwriting almost the
+	 * entire per-vertex terrain shading with those flat class swatches, so the world rendered as broad
+	 * uniform olive fields regardless of whether a given metre of ground was a cliff face, a valley
+	 * floor, a beach or a snowfield: only ~12% of `world/terrainBiomeShading.js`'s slope- and
+	 * altitude-driven colour reached the lit diffuse.
+	 *
+	 * At 0.34 the relationship inverts to the one that makes physical sense: per-vertex geography
+	 * (slope, altitude, shoreline, canonical rock/snow weights) is the primary read, and the atlas
+	 * layers canonical biome character, its own relief/elevation rock rules, northern snow and grain
+	 * on top of it. Nothing about the atlas's content or resolution changed — only how much of the
+	 * final colour it is allowed to dictate.
+	 */
+	qualityBlend: 0.34,
 	biomeBlendMax: 0.62,
 	reliefRockBlend: 0.38,
 	elevationRockBlend: 0.28,

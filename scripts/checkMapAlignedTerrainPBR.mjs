@@ -10,6 +10,7 @@ import {
   terrainMapUvAt,
 } from '../src/3d/world/terrain.js';
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from '../src/3d/world/worldReferenceSurfacePindexes.js';
+import { TERRAIN_BIOME_SHADING_POLICY } from '../src/3d/world/terrainBiomeShading.js';
 
 const EPSILON = 1e-7;
 const near = (a, b, message) => assert(Math.abs(a - b) <= EPSILON, `${message}: ${a} != ${b}`);
@@ -37,8 +38,18 @@ assert(/map_Kd[^\r\n]*overlay\.png/i.test(mtl), 'terrain MTL must prove overlay.
 const kd = mtl.match(/^\s*Kd\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)/m);
 assert(kd, 'terrain MTL must declare its diffuse factor');
 for (const component of kd.slice(1).map(Number)) {
-  near(component, CURRENT_TERRAIN_ALBEDO_POLICY.sourceDiffuseFactor, 'runtime authored diffuse factor must match source MTL Kd');
+  // Provenance only. This factor is no longer how the asset reaches the screen — see the role
+  // assertions below — but the recorded value must still match the source MTL it was taken from.
+  near(component, CURRENT_TERRAIN_ALBEDO_POLICY.legacySourceDiffuseFactor, 'recorded legacy diffuse factor must match source MTL Kd');
 }
+// Role split (2026-08-19 v2): the authored image supplies neutralised luminance detail; per-vertex
+// biome shading supplies hue. Pinned here so a future change cannot silently hand colour authority
+// back to a saturated photographic texture, which is exactly what made the world read as one flat
+// dark green from shoreline to summit.
+assert.equal(CURRENT_TERRAIN_ALBEDO_POLICY.role, 'neutralised-luminance-detail-multiplier');
+assert.equal(CURRENT_TERRAIN_ALBEDO_POLICY.hueAuthority, TERRAIN_BIOME_SHADING_POLICY.id);
+assert.equal(TERRAIN_BIOME_SHADING_POLICY.renderOnly, true, 'biome shading must never claim height authority');
+assert.equal(TERRAIN_BIOME_SHADING_POLICY.heightAuthorityUnchanged, true);
 const objHeader = readFileSync(objPath, 'utf8').slice(0, 1024);
 assert(objHeader.includes('# object Terrain'), 'authored mesh family must identify its terrain object');
 

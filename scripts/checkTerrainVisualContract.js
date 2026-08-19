@@ -21,7 +21,7 @@ async function main() {
 	const browser = await playwright.chromium.launch({ headless: true });
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
 			const { WORLD_DEFAULTS } = await import('/src/3d/config.js');
@@ -39,9 +39,8 @@ async function main() {
 			const twin = createTerrainChunk({ chunkX: 0, chunkZ: 0, size, segments, seed });
 			const east = createTerrainChunk({ chunkX: 1, chunkZ: 0, size, segments, seed });
 			const sampler = createHeightSampler(seed);
-			const lowColor = new THREE.Color(0x3d6b28);
-			const highColor = new THREE.Color(0x6b6152);
-			const expectedColor = new THREE.Color();
+			// Vertex-colour statistics for the biome-shading contract asserted after the loop.
+			const colorSamples = [];
 
 			fail(first?.isMesh === true && twin?.isMesh === true && east?.isMesh === true, 'terrain output is not THREE.Mesh');
 			fail(first.geometry?.type === 'PlaneGeometry', `terrain geometry type ${first.geometry?.type} != PlaneGeometry`);
@@ -49,7 +48,12 @@ async function main() {
 			fail(first.geometry.parameters?.widthSegments === segments && first.geometry.parameters?.heightSegments === segments, 'terrain segment count drifted');
 			fail(first.material?.isMeshStandardMaterial === true, 'terrain material is not MeshStandardMaterial');
 			fail(first.material.vertexColors === true, 'terrain material no longer uses vertex colors');
-			fail(close(first.material.roughness, 1) && close(first.material.metalness, 0), 'terrain material roughness/metalness drifted');
+			// Pre-existing drift, found 2026-08-19 once this script's 15s navigation timeout was raised to
+			// the 30s every other game3d.html check uses — it had been timing out rather than asserting.
+			// Terrain roughness has been TERRAIN_MICRO_SURFACE_POLICY.roughnessBase (0.96), not 1, since the
+			// micro-PBR layer landed; the contract is updated to the real value rather than the stale one.
+			const { TERRAIN_MICRO_SURFACE_POLICY } = await import('/src/3d/world/terrain.js');
+			fail(close(first.material.roughness, TERRAIN_MICRO_SURFACE_POLICY.roughnessBase) && close(first.material.metalness, 0), 'terrain material roughness/metalness drifted');
 			fail(close(first.position.x, 0) && close(first.position.y, 0) && close(first.position.z, 0), 'origin chunk mesh position drifted');
 			fail(close(east.position.x, size) && close(east.position.z, 0), 'east chunk world position drifted');
 			fail(first.userData?.chunkCoord?.x === 0 && first.userData?.chunkCoord?.z === 0, 'chunkCoord metadata drifted');
@@ -80,13 +84,43 @@ async function main() {
 				fail(close(normalLength, 1, 2e-5), `terrain normal length drift at ${i}: ${normalLength}`);
 				const sampledHeight = sampler(first.position.x + x, first.position.z + z, DEFAULT_MAX_HEIGHT_METERS);
 				fail(close(y, sampledHeight, 2e-5), `rendered height != sampler at vertex ${i}: ${y} vs ${sampledHeight}`);
-				const fraction = THREE.MathUtils.clamp(sampledHeight / DEFAULT_MAX_HEIGHT_METERS, 0, 1);
-				expectedColor.copy(lowColor).lerp(highColor, Math.pow(fraction, 1.5));
-				fail(colorClose(colors, i, expectedColor), `terrain vertex color drift at ${i}`);
+				const cr = colors.getX(i);
+				const cg = colors.getY(i);
+				const cb = colors.getZ(i);
+				fail(Number.isFinite(cr) && Number.isFinite(cg) && Number.isFinite(cb), `non-finite terrain vertex colour at ${i}`);
+				fail(cr >= 0 && cr <= 1 && cg >= 0 && cg <= 1 && cb >= 0 && cb <= 1, `terrain vertex colour out of range at ${i}`);
+				colorSamples.push({ height: sampledHeight, luminance: 0.2126 * cr + 0.7152 * cg + 0.0722 * cb });
 				fail(close(x, twinPositions.getX(i), 0) && close(y, twinPositions.getY(i), 0) && close(z, twinPositions.getZ(i), 0), `deterministic position drift at ${i}`);
 				fail(close(nx, twinNormals.getX(i), 0) && close(ny, twinNormals.getY(i), 0) && close(nz, twinNormals.getZ(i), 0), `deterministic normal drift at ${i}`);
 				fail(close(colors.getX(i), twinColors.getX(i), 0) && close(colors.getY(i), twinColors.getY(i), 0) && close(colors.getZ(i), twinColors.getZ(i), 0), `deterministic color drift at ${i}`);
 			}
+			// Terrain biome-shading contract (2026-08-19, `world/terrainBiomeShading.js`).
+			//
+			// The previous assertion here pinned a two-colour height gradient
+			// (lowColor.lerp(highColor, pow(height / 24, 1.5))) that the runtime had already stopped
+			// producing — it went unnoticed because this script's 15s navigation timeout meant it never
+			// reached its assertions at all. Rather than re-pin one formula, this asserts the properties
+			// the feature exists to guarantee, which stay true as the palette is tuned:
+			//   1. terrain vertices are not all one colour — the exact defect this replaced, where every
+			//      desktop vertex was painted a single flat grey and all geography read as one shade;
+			//   2. brighter ground sits higher — snow caps and exposed rock above grass and shoreline.
+			let minLuminance = Infinity;
+			let maxLuminance = -Infinity;
+			for (const sample of colorSamples) {
+				if (sample.luminance < minLuminance) minLuminance = sample.luminance;
+				if (sample.luminance > maxLuminance) maxLuminance = sample.luminance;
+			}
+			fail(maxLuminance - minLuminance > 0.02, `terrain vertex colours are effectively uniform (luminance spread ${(maxLuminance - minLuminance).toFixed(4)})`);
+			const byHeight = [...colorSamples].sort((a, b) => a.height - b.height);
+			const decile = Math.max(1, Math.floor(byHeight.length / 10));
+			const meanOf = (list) => list.reduce((total, item) => total + item.luminance, 0) / list.length;
+			const lowGroundLuminance = meanOf(byHeight.slice(0, decile));
+			const highGroundLuminance = meanOf(byHeight.slice(-decile));
+			fail(
+				highGroundLuminance > lowGroundLuminance,
+				`terrain shading must brighten with altitude (low ${lowGroundLuminance.toFixed(4)} vs high ${highGroundLuminance.toFixed(4)})`,
+			);
+
 			for (let i = 0; i < index.count; i++) {
 				const value = index.getX(i);
 				fail(Number.isInteger(value) && value >= 0 && value < positions.count, `invalid terrain index ${value} at ${i}`);

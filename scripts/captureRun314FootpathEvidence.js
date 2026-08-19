@@ -30,7 +30,7 @@ async function main() {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 		page.on('pageerror', (e) => errors.push(`page:${e.message}`));
 		page.on('console', (m) => { if (m.type() === 'error') errors.push(`console:${m.text()}`); });
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
 		const summary = await page.evaluate(async () => {
 			const THREE = await import('three');

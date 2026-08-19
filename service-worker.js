@@ -230,7 +230,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Shared material placement adds two runtime/headless modules; v15->v16 forces existing installs to cache them.
 // Run346 first-audio addition (module + one .wav click sound); v16->v17 forces existing installs to
 // fetch+cache both so the game's first sound works offline too, not only on a fresh install.
-const SHELL_CACHE = 'westeros-shell-v17';
+const SHELL_CACHE = 'westeros-shell-v18';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -370,6 +370,9 @@ const GAME3D_SHELL_FILES = [
     './src/3d/gameplay/interaction.js',
     './src/3d/gameplay/worldEvents.js',
     './src/3d/world/terrain.js',
+    './src/3d/world/terrainBiomeShading.js',
+    './src/3d/world/terrainMicroSurface.js',
+    './src/3d/world/terrainReliefDetail.js',
     './src/3d/world/chunkManager.js',
     './src/3d/world/water.js',
     './src/3d/world/waterDepthField.js',

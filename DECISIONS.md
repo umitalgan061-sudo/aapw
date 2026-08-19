@@ -16610,3 +16610,179 @@ hypothetical. A genuinely distinct discovery-chime audio file (Alternatifler #1)
 named since Run 341. A future run with working `git-lfs` tooling should re-run the full
 `smokeTestGame3D.js` suite against real assets — same open item Runs 344/346/347 already left.
 Terrain/road work remains claimed by the concurrent corner-agent sessions and was not touched here.
+
+## ADR-0295 — Visible geographic realism: slope/altitude biome shading, organic coastlines, land relief detail, and an ocean palette matched to the owner's aerial reference (owner request)
+
+**Risk: MEDIUM.** This is the first change in a long time to touch the terrain **height** field, so
+GOVERNANCE.md §8.4's Arazi Değişikliği Güvenlik Kontrolü applies in full and was run before and after
+(results below). Colour-side work is render-only. Canonical geography — the 9000x7000 owner map, the
+96x64 surface mask and its checksum, the 14 seat coordinates, the water mask, world extent — is
+untouched; what changed is where the mask is *read from* (a bounded, seat-tapered warp) and how the
+result is *shaded*.
+
+**Karar.** The owner supplied a photorealistic aerial terrain render as the target look and asked for
+the game's geography to be made visibly that realistic. Five coordinated changes:
+
+1. **`world/terrainBiomeShading.js` (new).** Per-vertex albedo resolved from real local slope, height
+   above sea, and the canonical rock/snow weights: shore sand, lowland grass, dry upland, forest,
+   warm/cool exposed rock, snow, seabed — layered in that order, with snow shed off faces steeper than
+   ~40 deg so peaks show rock ribs instead of a smooth white cone. Forest is a low-frequency patch
+   mask, not a slope rule (see Alternatifler 3). Thresholds are calibrated against a measured probe of
+   the live field, recorded in `TERRAIN_BIOME_SHADING_POLICY.measured`.
+2. **`world/terrainReliefDetail.js` (new).** A coastline domain-warp (~1.55 mask cells) applied to the
+   coordinate the canonical surface is sampled at, plus ridged multi-octave land relief. Deterministic
+   integer-hash value noise; no `Math.random()`.
+3. **Seat taper (`terrain.js`).** Both of the above fade to zero within 650 m of each kingdom seat, so
+   seats and their road approaches keep exactly the canonical geography (see Doğrulama for the
+   measured failure that sized this).
+4. **Authored-overlay role split.** `overlay.png` is neutralised at load into a unit-mean luminance
+   multiplier; hue authority moves to the per-vertex biome colour. Plus `qualityBlend` in
+   `world/worldReferenceSurfaceTerrainVisual.js` lowered 0.88 -> 0.34.
+5. **Ocean palette.** Shallow `0x527f79` -> `0x53899a`, deep `0x0a3a4a` -> `0x0c2c4a`.
+
+**Neden (problem).** Measured, not assumed. Probing the live field and decoding the authored texture
+in a real browser showed three independent reasons the world could not read as real geography:
+- **Colour was constant.** `createTerrainChunk` painted every desktop vertex one flat grey (0.588) and
+  let `overlay.png` supply all colour — but that image is a *saturated green photographic texture*
+  (mean saturation 0.42, every probe point green, including over open sea). Grey x that green is a
+  linear albedo near (0.015, 0.031, 0.011), applied identically from the shoreline to the 566 m peaks.
+- **Only ~12% of any per-vertex colour survived.** `sceneManager` monkey-patches `ChunkManager.loadChunk`
+  so every chunk passes through a polish pass and a shader that does
+  `mix(diffuseColor, pindexQualityColor, 0.88)` against a 192x128 semantic atlas with no access to
+  slope — so cliffs, valley floors, beaches and snowfields all resolved to the same class swatch.
+- **The coastline was the mask's cell grid.** The canonical mask is 96x64 over 13,296 x 10,341 m, i.e.
+  ~138 x ~162 m cells, reconstructed with only a 0.15-0.19 cell sub-cell warp: from the air the shore
+  was a rectangular staircase and the plains were flat.
+
+**Alternatifler.**
+1. *Colour-only change; leave the height field alone.* Rejected after seeing it: the first capture with
+   biome shading alone still showed rectangular staircase coastlines and billiard-flat plains, because
+   those are height-field properties. Shading a blocky coast in better colours does not make it read as
+   coast. The height work is what §8.4's gate exists to make safe, and it passed.
+2. *Regenerate terrain from a new, higher-resolution heightmap.* Rejected: that would replace canonical
+   geography rather than render it faithfully, discarding the owner map's authority over landmass shape,
+   seat placement and the road/hydrology contracts built on it. The warp deliberately keeps the mask's
+   own land/sea decisions and only changes where each is read.
+3. *Gate forest on slope, as the first revision did.* Rejected once measured: land slope p50 is 0.6 deg
+   and p75 is 4.78 deg, so a `smoothstep(2.5, 9, slope)` gate scored ~0 across the lowlands — the great
+   majority of the world — and rendered one uniform olive sheet. Real forest cover follows climate and
+   soil, not steepness, so it is now a noise patch mask with slope only *excluding* cliffs.
+4. *Raise the coast warp until every straight run dissolves.* Rejected: amplitude is bounded by the
+   gates. At the first attempted strength the warp pushed Dragonstone's cell into water and the
+   `stannis -> robin` road hit 32.6 deg. The seat taper plus ~1.55 cells is the most warp that keeps
+   every gate green.
+5. *Leave `qualityBlend` at 0.88 and fight for contrast inside the remaining 12%.* Rejected as
+   arithmetic: no palette can express slope-driven geography through a 12% channel when the other 88%
+   is a slope-blind class swatch.
+6. *Write a custom terrain shader.* Rejected for this pass: far larger blast radius across a subsystem
+   with ~10 existing browser regression checks, for a result the vertex path already achieves.
+
+**Sonuç / trade-off.** The world now reads as geography from the air: organic coastlines with
+headlands, bays and islets; snow-capped northern highlands; bare rock on cliffs and ridgelines; dark
+forest masses over lighter grassland; a pale sand line at the shore; and a blue ocean whose depth is
+legible. Trade-offs accepted and disclosed: terrain heights away from seats changed (that is the
+point, and the gate governs it); the ocean palette moved off a previously-settled desaturated value
+(the anti-neon intent it was pinned for is preserved and now asserted as saturation rather than one
+hex); and the atlas layer now contributes character rather than dictating colour.
+
+**Etkilenen sistemler.** New: `src/3d/world/terrainBiomeShading.js`, `src/3d/world/terrainReliefDetail.js`,
+`src/3d/world/terrainMicroSurface.js` (pure extraction, see below), `scripts/captureTerrainBiomeShadingEvidence.mjs`.
+Touched: `src/3d/world/terrain.js`, `src/3d/world/worldReferenceSurfaceTerrainVisual.js`,
+`src/3d/world/water.js`, `service-worker.js` (SHELL_CACHE v17->v18, 3 new modules precached), and the
+regression guards listed under Doğrulama. No gameplay, AI, dragon, quest, NPC or event system touched.
+
+`terrain.js` crossed the 600-line cap while doing this, so the render-only micro-PBR block was
+extracted verbatim into `world/terrainMicroSurface.js` and re-exported from `terrain.js` — a pure move,
+no constant or behaviour changed, and every existing importer and check still resolves the same names
+(terrain.js 626 -> 491 lines).
+
+**Doğrulama.** §8.4 gate, run before and after:
+- `terrainSeatSafetyCheck.js` **14/14 PASS** both times. Seat raw heights are **identical to the
+  pre-change baseline** (7.250 / 13.200 / 20.769 / 24.551 / 21.921 / 8.339 / 32.153 / 53.418 / 7.250 /
+  48.961 / 7.250 / 20.731 / 9.694 / 7.250) — the seat taper's whole purpose, verified rather than
+  assumed. All gameplay slopes 0.000.
+- `roadNetworkSafetyCheck.js` PASS, 13 edges, all 14 seats connected, every grade under the 20 deg
+  ceiling, network 17.84 -> 17.73 km.
+- `checkWorldReferenceWaterMask.js` PASS, checksum `2ca2bed8d8a1…` unchanged.
+- `checkWorldReferenceAlignment.js` PASS, 14/14 seats round-trip, coverage 100.0%.
+- `checkWorldReferenceHydrologyExtent.js` PASS (137.5 km², 27x21 chunks, seat-safe overlay 14/14).
+- `checkWorldReferenceMap.js`, `checkWorldEventDeterminism.js` (checksum `ea2bd3bfff60…`),
+  `checkTechnicalDebt.js`, `checkSeededRandomPolicy.js`, `checkAssetsManifest.js`,
+  `checkServiceWorkerCache.js` (191 JS files), `checkPwaInstallability.js`,
+  `checkSmokeCheckRegistry.js` (44 checks, 545 files all under the 600-line cap) — all PASS.
+- Visual contracts: `checkTerrainVisualContract.js` PASS (**65/65 seam vertices continuous**, rendered
+  height == sampler at every vertex, deterministic twin identical, biome contract), `checkWaterVisualContract.js`,
+  `checkRoadVisualContract.js`, `checkVegetationVisualContract.js`, `checkLightingVisualContract.js`,
+  `checkFogVisualContract.js` PASS.
+- `collectPerfSnapshot.js run349-terrain-realism`: 59 draw calls / 718,672 triangles / 60 geometries /
+  28 textures / 202 MB heap — against desktop budgets of <2500 draw calls and <5M triangles, and within
+  noise of run 348's 55/709,382/57/22/202.
+- Evidence (`artifacts/terrain-biome-shading/{before,after}/`, gitignored per repo convention): five
+  framings each — high aerial oblique, northern oblique, tallest-peak close pass, shoreline close pass,
+  and a whole-world orthographic top-down; 613 chunks loaded, **zero console/page errors** in both runs.
+  Measured deltas, top-down: mean RGB 38,53,41 -> 43,60,53; saturation 0.599 -> 0.655; near-white pixel
+  fraction 0 -> 0.005 (snow and sand reaching the screen at all for the first time). Shoreline framing:
+  near-white 0 -> 0.086.
+
+**Cost of the coast warp, measured not guessed.** At full strength with no seat taper the warp moved
+Dragonstone's cell into water — its raw height fell 32.15 m to the 7.25 m seat-protection floor — while
+the Eyrie rose to 62.8 m, and the resulting drop took `stannis -> robin` to 32.6 deg, failing the road
+gate. The 650 m seat taper restored every seat height to its exact canonical value and brought that
+edge to 16.9 deg. This is recorded because it is the reason the taper exists.
+
+**Regression guards deliberately updated (never silently broken).** `checkMapAlignedTerrainPBR.mjs`
+(diffuse-factor provenance renamed to `legacySourceDiffuseFactor`, plus new assertions pinning the
+role split), `checkWorldReferenceAlignment.js` (the Pindex V2 source-text assertion now also pins that
+the warp is anchored to the canonical coordinate and is a clamped, seat-tapered offset of it),
+`checkWaterVisualContract.js` and `checkWorldWaterCoverageP0.mjs` (new hexes; the anti-neon intent
+they were written for is now asserted as sRGB saturation < 0.6, which is the property that actually
+mattered, instead of one exact hex), `checkTerrainVisualContract.js` (see below).
+
+**Pre-existing defects found and fixed on the way (GOVERNANCE.md §8.2).** 25 scripts navigated to
+`game3d.html` with a hardcoded 15,000 ms timeout — below this project's own documented ~9-13 s boot
+cost with 20 s+ outliers — so they had been *timing out instead of asserting*, silently, for a long
+time. This is the same root cause run 348b fixed in `checkCameraContract.js`; per §8.2 it is now fixed
+across all 25 rather than one at a time. Raising it immediately exposed two contracts that had drifted
+while unable to run: `checkTerrainVisualContract.js` asserted a roughness of 1 (the micro-PBR layer has
+set 0.96 since it landed) and pinned a two-colour height gradient the runtime had long stopped
+producing — both corrected, the colour assertion replaced with a real biome-shading contract
+(colours finite and in range, not uniform, and brighter with altitude).
+
+**Disclosed, NOT fixed.** `checkSkyVisualContract.js` fails on further pre-existing drift in the sky
+shader contract, now visible for the same reason. I did not chase it: sky is outside this change's
+scope, I could not establish the correct assertion without guessing, and a half-rewritten contract in
+an unrelated module is worse than a disclosed red one. Its 15 s timeout fix is retained; its
+assertions are exactly as their authors wrote them. `checkMapAlignedTerrainPBR.mjs` and
+`checkWorldWaterCoverageP0.mjs` remain un-runnable in this container (`three` does not resolve under
+Node here; the project targets a browser import map) — pre-existing, unrelated to this change.
+
+**Memory leak checklist.** The biome/relief modules are pure functions with no allocation per vertex
+(one reused scratch colour, one reused surface scratch object). The neutralised detail canvas replaces
+the existing shared app-lifetime texture's image in place — no new GPU resource per chunk, and chunk
+disposal is unchanged. The chunk builder's three new typed arrays are function-local and released with
+the frame. Geometry/texture counts moved 57->60 and 22->28 for the whole scene, not per chunk.
+
+**Technical debt.** 0 new. All touched and new files are under the 600-line cap (`terrain.js` 491,
+`terrainBiomeShading.js` ~345, `terrainReliefDetail.js` ~205, `terrainMicroSurface.js` 166).
+
+**World Coverage.** Unchanged (137.5 km², 27x21 chunks, desktop 96.2% / mobile 4.5% — no extent
+change). World Evolution Report delta: road network 17.84 -> 17.73 km (re-routed on the new field, all
+grades still inside the ceiling); no kale/NPC/hayvan/creature/event/cart count change; +1 ADR; +3
+runtime modules; +1 evidence script; 0 new assets; "oyuncu fark eder mi" — **evet, bu run'ın tamamı
+bundan ibaret**: kıyılar artık 138 m'lik kare basamaklar değil girintili çıkıntılı gerçek kıyılar,
+dağların tepesinde kar ve dik yüzlerinde çıplak kaya var, ovalarda koyu yeşil orman kütleleri ile açık
+otlaklar ayrışıyor, su kenarında soluk kum şeridi beliriyor ve deniz artık derinliği okunabilen gerçek
+bir mavi.
+
+**`QUESTIONS_FOR_OWNER.md`:** no new entry. The owner's own reference image is the design decision;
+this run implements it within the canonical-geography constraints that already exist.
+
+**Concurrency re-check immediately before commit:** `git fetch origin main` re-run — see the commit's
+own log line for the verified tip.
+
+**Next safe step:** the aerial captures still show three things worth a follow-up run, none of them
+blocking: a pre-existing diagonal hatched artifact in one open-water region (visible identically in the
+before capture, so not caused here); mountain massifs that read smooth at close range because the
+ridged octave is gated to canonical relief chains only; and `checkSkyVisualContract.js`'s disclosed
+drift. Terrain/road remains claimed by concurrent corner-agent sessions — this run took it only because
+the owner asked for it directly, and every canonical gate is green.

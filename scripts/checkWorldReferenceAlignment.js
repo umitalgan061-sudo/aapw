@@ -58,7 +58,18 @@ assert(Math.abs(referenceExtentFraction - 1) < 1e-12, `3D runtime owner-map cove
 const terrainSource = fs.readFileSync(new URL('../src/3d/world/terrain.js', import.meta.url), 'utf8');
 const waterSource = fs.readFileSync(new URL('../src/3d/world/water.js', import.meta.url), 'utf8');
 assert(terrainSource.includes("from './worldReferenceAlignment.js'"), 'terrain runtime must use canonical owner-map alignment');
-assert(terrainSource.includes('sampleReferencePindexQualityV2(nx, ny)'), 'terrain runtime must use continuous Pindex V2 geography');
+// Continuous Pindex V2 geography is still the only surface authority. Since 2026-08-19 it is read at
+// a coast-warped coordinate (`wx, wy`) so the canonical 96x64 cell grid stops rendering as a ~138 m
+// rectangular staircase along every shore — the mask's own land/sea decisions are unchanged, only
+// where each is sampled from. The three assertions below pin that arrangement precisely: V2 is used,
+// the warp is derived from the canonical coordinate rather than invented, and the warped coordinate
+// is a bounded displacement of it.
+assert(terrainSource.includes('sampleReferencePindexQualityV2(wx, wy)'), 'terrain runtime must use continuous Pindex V2 geography');
+assert(terrainSource.includes('coastWarpOffsets(nx, ny)'), 'coast warp must be anchored to the canonical owner-map coordinate');
+assert(
+	terrainSource.includes('const wx = clamp01(nx + warp.du * detailTaper)') && terrainSource.includes('const wy = clamp01(ny + warp.dv * detailTaper)'),
+	'warped sample coordinate must remain a clamped, seat-tapered offset of the canonical coordinate',
+);
 assert(terrainSource.includes('sampleWorldReferenceMountainReliefMeters(worldX, worldZ)'), 'terrain runtime must preserve canonical mountain relief');
 assert(terrainSource.includes('sampleSeatSafeReferenceHydrology(nx, ny, PROTECTED_SEATS, PROTECTION_RADII)'), 'terrain runtime must apply seat-safe hydrology before land protection');
 assert(terrainSource.includes('fullOwnerMapCoverage: true') && terrainSource.includes('legacyProceduralFallback: false') && terrainSource.includes('mapDerivedHeight: true'), 'terrain runtime single-source policy drifted');
