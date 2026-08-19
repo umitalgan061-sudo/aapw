@@ -34,8 +34,72 @@ export const NPC_GUARD_ATTACK_DEFAULTS = Object.freeze({
 	yieldSeconds: 0.65,
 });
 
+export const NPC_GUARD_LEASH_DEFAULTS = Object.freeze({
+	leashRadiusMeters: 36,
+	rejoinRadiusMeters: 24,
+});
+
 function finitePositive(value, fallback) {
 	return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * Keeps an established guard controller tied to its authored home/patrol envelope without owning
+ * movement itself. Once the player or guard crosses the bounded home radius, player sensing is
+ * suppressed and the existing NPC controller naturally returns to its patrol waypoint/static home.
+ * A smaller rejoin radius provides hysteresis so a kiting player cannot make the guard oscillate on
+ * the boundary. Combat telemetry is overwritten only while returning, so downstream damage adapters
+ * cannot act on stale `combat` intent during the leash return.
+ */
+export function wrapNpcWithHomeLeash(npc, {
+	leashRadiusMeters = NPC_GUARD_LEASH_DEFAULTS.leashRadiusMeters,
+	rejoinRadiusMeters = NPC_GUARD_LEASH_DEFAULTS.rejoinRadiusMeters,
+} = {}) {
+	if (!npc?.object3D || typeof npc.update !== 'function') throw new Error('NPC controller contract required');
+	const leashRadius = Math.max(28, Math.min(64, finitePositive(leashRadiusMeters, NPC_GUARD_LEASH_DEFAULTS.leashRadiusMeters)));
+	const rejoinRadius = Math.max(8, Math.min(leashRadius - 4, finitePositive(rejoinRadiusMeters, NPC_GUARD_LEASH_DEFAULTS.rejoinRadiusMeters)));
+	const home = Object.freeze({ x: npc.object3D.position.x, z: npc.object3D.position.z });
+	let returning = false;
+	function distanceFromHome(position) {
+		if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) return Infinity;
+		return Math.hypot(position.x - home.x, position.z - home.z);
+	}
+	function publishTelemetry(playerPosition) {
+		npc.object3D.userData.npcLeash = Object.freeze({
+			returning,
+			homeDistanceMeters: Number(distanceFromHome(npc.object3D.position).toFixed(3)),
+			playerHomeDistanceMeters: Number(distanceFromHome(playerPosition).toFixed(3)),
+			leashRadiusMeters: leashRadius,
+			rejoinRadiusMeters: rejoinRadius,
+		});
+	}
+	publishTelemetry(null);
+	return {
+		object3D: npc.object3D,
+		displayName: npc.displayName ?? null,
+		update(delta, playerPosition) {
+			const playerHomeDistance = distanceFromHome(playerPosition);
+			const guardHomeDistance = distanceFromHome(npc.object3D.position);
+			if (playerHomeDistance > leashRadius || guardHomeDistance > leashRadius) returning = true;
+			if (returning && guardHomeDistance <= rejoinRadius && playerHomeDistance <= rejoinRadius) returning = false;
+			npc.update(delta, returning ? null : playerPosition);
+			if (returning) {
+				const previous = npc.object3D.userData.npcPerception ?? {};
+				npc.object3D.userData.npcPerception = {
+					...previous,
+					intent: 'return',
+					reason: 'leash',
+					heard: false,
+					assisted: false,
+					assistSourceId: null,
+					lineOfSight: false,
+					lastKnown: null,
+				};
+			}
+			publishTelemetry(playerPosition);
+		},
+		dispose() { npc.dispose?.(); },
+	};
 }
 
 /**
@@ -358,13 +422,16 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 	});
 	const guardAttackChannel = { holders: new Map() };
 	const npcSeatById = new Map(NPC_CONFIG.SPAWNS.map((spawn) => [spawn.id, spawn.seatId]));
-	state.npcs = rawNpcs.map((npc) => wrapNpcWithCombatDamage(npc, {
-		eventsBus,
-		damageEventName: EVENTS.PLAYER_DAMAGED,
-		attackChannel: guardAttackChannel,
-		attackGroupId: npcSeatById.get(npc.object3D.name) ?? null,
-		attackerId: npc.object3D.name || npc.displayName || 'guard',
-	}));
+	state.npcs = rawNpcs.map((npc) => {
+		const leashAwareNpc = wrapNpcWithHomeLeash(npc);
+		return wrapNpcWithCombatDamage(leashAwareNpc, {
+			eventsBus,
+			damageEventName: EVENTS.PLAYER_DAMAGED,
+			attackChannel: guardAttackChannel,
+			attackGroupId: npcSeatById.get(npc.object3D.name) ?? null,
+			attackerId: npc.object3D.name || npc.displayName || 'guard',
+		});
+	});
 	for (const npc of state.npcs) state.scene.add(npc.object3D);
 	console.info(`[game3d] Spawned ${state.npcs.length} FAZ 5 NPC(s).`);
 
