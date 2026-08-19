@@ -30,6 +30,16 @@ export const QUARTERMASTER_OFFERS = Object.freeze([
 			label: 'Zırhçı bileme hazırlığı',
 			stationId: 'dragonstone-armorer-bench',
 			discipline: 'smithing',
+			craftUpgrade: Object.freeze({
+				recipeId: 'dragonstone-expedition-maintenance-kit',
+				inputs: Object.freeze([
+					Object.freeze({ itemId: 'dragonstone-travel-ration-pack', quantity: 1 }),
+					Object.freeze({ itemId: 'dragonstone-whetstone', quantity: 1 }),
+				]),
+				outputItemId: 'dragonstone-expedition-maintenance-kit',
+				outputQuantity: 1,
+				label: '1 yol azığı paketi + 1 bileği taşını 1 sefer bakım kitine hazırla',
+			}),
 		}),
 	}),
 	Object.freeze({
@@ -221,6 +231,9 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		syncLedgerTotalsFromStock();
 		recentTransactions.push(transactionReceipt(configuredOffer, transactionCount, copper));
 		if (recentTransactions.length > RECENT_TRANSACTION_LIMIT) recentTransactions.splice(0, recentTransactions.length - RECENT_TRANSACTION_LIMIT);
+		const consumedItems = Array.isArray(grantResult?.consumedItems)
+			? grantResult.consumedItems.map((input) => ({ itemId: String(input.itemId), quantity: normalizeCount(input.quantity, 1) }))
+			: [];
 		return {
 			ok: true,
 			spentCopper: purchaseQuote.priceCopper,
@@ -229,6 +242,9 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 			remainingStock: purchaseQuote.remainingStock - 1,
 			crafted: grantResult?.crafted === true,
 			craftedItemId: grantResult?.outputItemId ?? null,
+			consumedItems,
+			consumedItemId: grantResult?.consumedItemId ?? (consumedItems.length === 1 ? consumedItems[0].itemId : null),
+			consumedQuantity: grantResult?.consumedQuantity ?? (consumedItems.length === 1 ? consumedItems[0].quantity : null),
 			ledger: ledgerSnapshot(),
 		};
 	}
