@@ -1,4 +1,7 @@
-/** Persistent FAZ 8 settlement-discovery notifications for desktop, mobile, and PWA play. */
+/** Persistent FAZ 8 settlement-discovery notifications for desktop, mobile, and PWA play.
+ * Run 348: gained an `onDiscover` callback so `game3d.js` can cue `audio/audioManager.js`'s
+ * `playDiscoveryChime()` on the same real discovery event this toast already reacts to — no new
+ * state here, this class still owns only the toast DOM/persistence/timing it always has. */
 
 const DEFAULT_DISCOVERY_RADIUS_METERS = 55;
 const DEFAULT_VISIBLE_MILLISECONDS = 5_000;
@@ -25,7 +28,12 @@ function getDefaultStorage() {
 export class SettlementDiscovery {
 	/**
 	 * @param {{seats: {id: string, name: string, x: number, z: number}[], container?: HTMLElement,
-	 * storage?: Storage|null, radiusMeters?: number, visibleMilliseconds?: number}} options
+	 * storage?: Storage|null, radiusMeters?: number, visibleMilliseconds?: number,
+	 * onDiscover?: (seat: {id: string, name: string, x: number, z: number}) => void}} options
+	 *   `onDiscover` (run 348) fires once per newly-discovered seat, from `_discover()` — never for a
+	 *   seat already in `this._discovered` (guarded by `update()`'s own `continue` above its call
+	 *   site). `game3d.js` passes `() => state.audioManager.playDiscoveryChime()`. Defaults to `null`
+	 *   (no-op), same shape `ui/pauseMenu.js`'s `onOpenChange`/`onMuteChange` options already use.
 	 */
 	constructor({
 		seats,
@@ -33,11 +41,13 @@ export class SettlementDiscovery {
 		storage,
 		radiusMeters = DEFAULT_DISCOVERY_RADIUS_METERS,
 		visibleMilliseconds = DEFAULT_VISIBLE_MILLISECONDS,
+		onDiscover = null,
 	}) {
 		this._seats = seats;
 		this._storage = storage === undefined ? getDefaultStorage() : storage;
 		this._radiusMeters = radiusMeters;
 		this._visibleMilliseconds = visibleMilliseconds;
+		this._onDiscover = onDiscover;
 		this._discovered = readDiscoveries(this._storage);
 		this._hideTimeoutId = null;
 
@@ -75,6 +85,7 @@ export class SettlementDiscovery {
 
 	_discover(seat) {
 		this._discovered.add(seat.id);
+		this._onDiscover?.(seat);
 		try {
 			this._storage?.setItem(STORAGE_KEY, JSON.stringify([...this._discovered]));
 		} catch {

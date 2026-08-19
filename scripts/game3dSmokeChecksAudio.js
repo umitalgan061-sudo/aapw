@@ -1,7 +1,9 @@
 /** First-audio regression check (run 346, GOVERNANCE_FULL_GAME_DIRECTIVE.md §3 item 6 —
  * `audio/audioManager.js`, wired into `ui/pauseMenu.js`'s open/close transitions via `game3d.js`).
  * Run 347 extended it with the mute control's `setMuted()`/`isMuted()`/`readStoredMuted()` surface —
- * `game3dSmokeChecksPauseMenu.js`'s own `checkPauseMenuMute` covers the checkbox/persistence side. */
+ * `game3dSmokeChecksPauseMenu.js`'s own `checkPauseMenuMute` covers the checkbox/persistence side.
+ * Run 348 extended it again with `playDiscoveryChime()` resolving cleanly — the callback-fires side
+ * of that feature lives in `game3dSmokeChecksSettlementDiscovery.js`'s own `checkSettlementDiscovery`. */
 
 // Same environment-quirk margin `game3dSmokeChecksControlsHelp.js`/`game3dSmokeChecksPauseMenu.js`
 // already document (this project's own boot cost, not this run's change).
@@ -85,6 +87,16 @@ async function checkAudioManager(browser, baseUrl) {
 			// regression here -- only 'closed' (this module never closes it) would indicate a bug.
 			const contextNotClosed = listener.context.state !== 'closed';
 
+			// Run 348: the settlement-discovery chime shares playClick()'s already-resumed context (a
+			// real trusted click just ran above), so this doesn't need its own separate gesture -- same
+			// autoplay-policy reasoning `playClick()` itself documents.
+			let discoveryChimeResolvedWithoutThrow = true;
+			try {
+				await window.__audioCheck.audio.playDiscoveryChime();
+			} catch {
+				discoveryChimeResolvedWithoutThrow = false;
+			}
+
 			window.__audioCheck.audio.dispose();
 			const disposeRemovesListener = window.__audioCheck.camera.children.length === 0;
 			// Idempotent by construction (`listener = null` after the first call) -- calling twice must
@@ -96,7 +108,7 @@ async function checkAudioManager(browser, baseUrl) {
 				secondDisposeIsSafe = false;
 			}
 
-			return { contextNotClosed, disposeRemovesListener, secondDisposeIsSafe };
+			return { contextNotClosed, discoveryChimeResolvedWithoutThrow, disposeRemovesListener, secondDisposeIsSafe };
 		});
 
 		result = { ...setup, ...afterClick };
@@ -105,13 +117,14 @@ async function checkAudioManager(browser, baseUrl) {
 	}
 	const ok = Object.values(result).every(Boolean);
 	return {
-		name: 'first audio + mute (audio/audioManager.js, runs 346/347)',
+		name: 'first audio + mute + discovery chime (audio/audioManager.js, runs 346/347/348)',
 		ok,
 		details: ok
 			? 'createAudioManager() adds a real THREE.AudioListener to the camera, starts unmuted '
 				+ '(readStoredMuted() defaults false), and setMuted()/isMuted() track state correctly; a '
 				+ 'real trusted click (not a scripted event) resolves playClick() without throwing and '
-				+ 'leaves the audio context open; dispose() removes the listener and is safe to call twice'
+				+ 'leaves the audio context open; playDiscoveryChime() also resolves without throwing; '
+				+ 'dispose() removes the listener and is safe to call twice'
 			: `FAILED assertion(s): ${JSON.stringify(result)}`,
 	};
 }

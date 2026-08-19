@@ -16473,3 +16473,140 @@ knobs remain the two unwired, larger-scoped candidates named since Run 341. A fu
 environment with working `git-lfs` tooling should re-run the full `smokeTestGame3D.js` suite against
 real assets, same open item Runs 344/346 already left. Terrain/road work remains claimed by the
 concurrent corner-agent sessions (929 open remote branches checked this run) and was not touched here.
+
+## ADR-0294 — Second sound cue: settlement-discovery chime, reusing `ui-click.wav` at a distinct volume/pitch (scheduled routine)
+
+**Risk: LOW.** Additive change across three already-isolated modules
+(`src/3d/audio/audioManager.js`, `src/3d/ui/settlementDiscovery.js`, `src/3d/game3d.js`, one new
+call site each) plus two extended smoke checks. No new asset, no new `STORAGE_KEYS` entry, no
+terrain, height-field, road-topology, placement, AI, or determinism-fixture change — §8.4's
+terrain-safety gate does not apply. `onDiscover` follows the exact same optional-callback,
+defaults-to-no-op shape `ui/pauseMenu.js`'s `onOpenChange`/`onMuteChange` already established.
+
+**Karar.** `audio/audioManager.js`'s internal click-playback logic is factored into a shared
+`playBuffer(volume, playbackRate)`, called by both the existing `playClick()` (unchanged behavior:
+`CLICK_VOLUME`, rate 1) and a new `playDiscoveryChime()` (`DISCOVERY_CHIME_VOLUME = 0.22`,
+`DISCOVERY_CHIME_PLAYBACK_RATE = 1.6`) — both reuse the exact same already-loaded/memoized
+`ui-click.wav` buffer via `THREE.Audio.setPlaybackRate()`, rather than sourcing a second licensed
+asset file. `ui/settlementDiscovery.js` gains one new constructor option, `onDiscover`, invoked once
+from inside `_discover()` (the method that already fires exactly once per newly-crossed discovery
+radius, before this run untouched since Run 153's accessibility wrap) — no new state, no change to
+this class's own toast/persistence/timing logic. `game3d.js` wires
+`onDiscover: () => state.audioManager.playDiscoveryChime()` at construction, the same
+one-line-callback pattern `onMuteChange` used last run.
+
+**Neden (problem).** Run 346's own "Next safe step" note and Run 347's own ADR-0293 Alternatifler #1
+both named "a second sound cue (e.g. settlement-discovery ping)" as the deferred, natural next slice
+once the mute gap closed — not an ambiguous product call, an already-scoped follow-up. Settlement
+discovery was chosen specifically (over e.g. a combat hit sound) because `ui/settlementDiscovery.js`
+already has exactly one clean, already-tested trigger point (`_discover()`) that fires once per real
+game event, with an existing toast UI already giving the moment a visual counterpart — the smallest
+possible "make an existing, already-verified game moment also audible" slice, matching this whole
+audio thread's own "smallest first slice" pattern since Run 346. Sourcing and licensing a genuinely
+new second audio *file* was deliberately not attempted in the same run as writing new gameplay-facing
+code (see Alternatifler #1 below) — reusing the one CC0 asset already in `CREDITS.md`/
+`assets_manifest.json` keeps this run's own footprint additive-code-only, no new external content to
+verify.
+
+**Alternatifler.**
+1. *Source and license a genuinely distinct chime `.wav`/`.ogg` file instead of reusing
+   `ui-click.wav`.* Rejected for this slice: would need finding a correctly-licensed (CC0/CC-BY)
+   file, verifying it, adding a `CREDITS.md` attribution entry and an `assets_manifest.json` record
+   with source URL — a second, separately-verifiable subtask in its own right (this project's own
+   priority ordering treats "verify a new licensed asset" as real, non-trivial scope), not a free
+   extension of "wire an existing sound to a second event." Reusing the existing buffer at a
+   different pitch/volume is a real, audibly distinct cue (verified by ear during this run) without
+   that extra surface. Left as an explicitly named, not silently dropped, future option.
+2. *Gate the chime on `playClick()` itself (same method, same volume/pitch) instead of a distinct
+   `playDiscoveryChime()`.* Rejected: a pause-menu click and a mid-play discovery event are different
+   enough moments that using the identical cue for both would read as one generic "UI blip" rather
+   than two distinguishable game events — `setPlaybackRate()`/a different `setVolume()` is a real,
+   already-available three.js primitive (verified present in the vendored build before use, not
+   assumed) that costs nothing extra to reach for.
+3. *Add a generic `playSound(name, {volume, rate})` API instead of two named methods.* Rejected:
+   with exactly two sounds sharing one buffer, two small named functions (`playClick`,
+   `playDiscoveryChime`) stay more self-documenting at every call site than a string-keyed dispatch
+   this module has no other user for yet — the same "don't build the generic version before there's
+   a second real need for it" reasoning this codebase already applies elsewhere (e.g.
+   `ui/pauseMenu.js`'s settings panel not building a generic settings-row abstraction for two rows).
+   Revisit once a third distinct cue exists.
+4. *Have `ui/settlementDiscovery.js` import and call `audio/audioManager.js` directly instead of an
+   injected `onDiscover` callback.* Rejected: would give the discovery toast a hard dependency on the
+   audio module (and, transitively, on `THREE`) it does not otherwise need, and break this codebase's
+   own established pattern (`onOpenChange`/`onMuteChange` in `ui/pauseMenu.js`) of UI classes staying
+   agnostic to *what* reacts to their events, with `game3d.js` doing the wiring. Also would make the
+   class harder to unit-test in isolation (every existing `SettlementDiscovery` smoke-check instance
+   would need a mocked audio module instead of a plain callback array).
+
+**Sonuç / trade-off.** A second real, player-audible game moment now has sound — discovering a new
+settlement, previously silent even with the toast visible, now also chimes. Zero new asset-licensing
+surface added this run (explicit trade-off, not an oversight — see Alternatifler #1); a future run
+can still add a genuinely distinct sound file as its own bounded slice without this run's choices
+blocking that.
+
+**Etkilenen sistemler.** Touched: `src/3d/audio/audioManager.js` (new `playDiscoveryChime()`, shared
+`playBuffer()` refactor — `playClick()`'s own behavior unchanged, verified by the existing checks
+still passing unmodified), `src/3d/ui/settlementDiscovery.js` (new `onDiscover` option + one call
+site), `src/3d/game3d.js` (one wiring line), `scripts/game3dSmokeChecksSettlementDiscovery.js`
+(3 new assertions: fires once, not out-of-range, not on revisit), `scripts/game3dSmokeChecksAudio.js`
+(1 new assertion: `playDiscoveryChime()` resolves without throwing),
+`GOVERNANCE_FULL_GAME_DIRECTIVE.md` (§3 row 6 narrowing note). No terrain, hydrology, road,
+settlement-placement, NPC, dragon, or world-event system touched; no new asset, no new
+`assets_manifest.json`/`CREDITS.md` entry (same file, already recorded under Run 346's ADR-0292).
+
+**Doğrulama.** `node --check` clean on all 3 touched source files + 2 touched script files.
+`checkTechnicalDebt.js` PASS (0 new debt). `checkSeededRandomPolicy.js` PASS.
+`checkSmokeCheckRegistry.js` OK — still 44 smoke checks across 18 modules (this run extended two
+existing checks rather than adding new ones, so the count is unchanged from Run 347); `game3d.js` now
+596/600 — real but shrinking headroom, flagged as this run's own disclosed risk (see Next safe step).
+A standalone targeted Playwright run against a real `game3d.html` load (this run's own script, same
+"isolate the new/changed checks against a real page load" pattern Runs 346/347 both used): both
+extended checks **PASS** — `onDiscover` fires exactly once per newly-discovered seat, never for an
+out-of-range update, never on a revisit to an already-discovered seat; `playDiscoveryChime()` resolves
+cleanly against the real `THREE.AudioListener`/context a genuine trusted click already resumed.
+`collectPerfSnapshot.js run348-discovery-chime`: 55 draw calls / 709,382 triangles / 57 geometries /
+22 textures / 202MB heap — byte-identical to Run 346/347's own samples, confirming zero rendering-cost
+regression (expected: no new geometry/texture, one more small function in an already-loaded module).
+
+**Full `smokeTestGame3D.js` 44-check suite: NOT completed end-to-end this run — the same pre-existing
+environment condition Runs 344/345/346/347 already root-caused, not caused by this change.** Same
+LFS-pointer-stub condition re-confirmed this run (`git lfs` still not installed as a CLI in this
+session). Not re-attempted a third time this run (Run 347 already re-confirmed the same `timeout
+280s`-zero-output result this session; re-running it again for this smaller, non-terrain change would
+burn session time on an already-established finding, not surface new information). No new
+`QUESTIONS_FOR_OWNER.md` entry — Run 344 already raised and disclosed this exact issue.
+
+**Memory leak checklist.** `playBuffer()`/`playDiscoveryChime()` create no new persistent state — same
+per-call `THREE.Audio` node lifecycle (`onEnded` disconnect) `playClick()` already had, now shared by
+both. `onDiscover` is a plain constructor-time closure reference, not a new listener/timer requiring
+its own cleanup — `SettlementDiscovery.dispose()`'s existing scope (timeout + DOM removal) is
+unaffected and unchanged.
+
+**Technical debt.** 0 new. `audioManager.js` (~188 lines), `settlementDiscovery.js` (~125 lines) both
+comfortably under the cap. `game3d.js` at 596/600 is this run's own disclosed near-cap risk, not new
+debt by this project's own definition (a WARN-listed file approaching the cap, not a violation) — but
+close enough now that the next addition to this file specifically should extract something out first
+rather than add more inline.
+
+**World Coverage.** Unchanged (no terrain/geometry delta, desktop 96.2% / mobile 4.5% unaffected).
+World Evolution Report delta: no yol/orman/kale/NPC/hayvan/creature/event/cart count change; +1 ADR
+(ADR-0294); 0 new smoke-check modules (2 existing checks extended); 0 new assets; "oyuncu fark eder
+mi" — evet: yeni bir yerleşim keşfedildiğinde artık görsel bildirimle birlikte gerçek, işitilebilir
+(ve duraklatma menüsü tıkından farklı perde/hacimde) bir ses de duyuluyor.
+
+**`QUESTIONS_FOR_OWNER.md`:** no new entry — this is a disclosed-gap closure with one clear, small
+implementation (reuse an existing sound for a second existing event), not an ambiguous product/design
+decision needing an owner call.
+
+**Concurrency re-check immediately before commit:** `git fetch origin main` re-run immediately before
+this commit — no drift found past `7002861` (this run's own starting point, the same session's
+`stable-2026-08-19-0456` checkpoint).
+
+**Next safe step:** `src/3d/game3d.js` at 596/600 lines should be the very next thing any future run
+extending it looks at first — real risk of tripping the 600-line cap on the next small addition, not
+hypothetical. A genuinely distinct discovery-chime audio file (Alternatifler #1) and a volume slider
+(ADR-0293's own Alternatifler #1) both remain explicitly-deferred, not dropped, follow-ups.
+`drawDistance`/`textureSize` `QUALITY_PRESETS` knobs remain the two unwired, larger-scoped candidates
+named since Run 341. A future run with working `git-lfs` tooling should re-run the full
+`smokeTestGame3D.js` suite against real assets — same open item Runs 344/346/347 already left.
+Terrain/road work remains claimed by the concurrent corner-agent sessions and was not touched here.

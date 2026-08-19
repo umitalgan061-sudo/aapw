@@ -28,6 +28,13 @@
  * `STORAGE_KEYS.QUALITY_SETTING`) — only the guarded *read* of the persisted default, needed here
  * because `createAudioManager()` runs before any UI class exists (`readStoredMuted()` below, same
  * try/catch shape `sceneManager.js`'s own `readManualQualityLevel()` uses).
+ *
+ * **Second sound cue (run 348).** `ui/settlementDiscovery.js`'s discovery toast now cues
+ * `playDiscoveryChime()` — deliberately reusing `ui-click.wav`'s already-loaded buffer (same "smallest
+ * slice" reasoning as every prior step here) rather than sourcing and licensing a second asset file
+ * for one bounded subtask. `setPlaybackRate()`/a lower `setVolume()` give it a distinct, chime-like
+ * feel from the pause menu's own sharper click without needing new content. Both share
+ * `playBuffer()` below.
  * @module audio/audioManager
  */
 
@@ -43,6 +50,13 @@ const CLICK_SOUND_URL = `${ASSET_PATHS.AUDIO}ui-click.wav`;
 /** Quiet enough to read as a UI accent, not a jarring beep — picked by ear against the source
  * file (CC0, see `CREDITS.md`), no formula behind this number. */
 const CLICK_VOLUME = 0.35;
+
+/** Discovery chime (run 348) reuses `CLICK_SOUND_URL`'s buffer at a lower volume and a higher
+ * pitch (`setPlaybackRate`) — quieter and brighter than the pause-menu click, since it interrupts
+ * active play rather than responding to a deliberate menu action, and needs to read as a distinct
+ * cue despite sharing the same source file. Picked by ear, same as `CLICK_VOLUME`. */
+const DISCOVERY_CHIME_VOLUME = 0.22;
+const DISCOVERY_CHIME_PLAYBACK_RATE = 1.6;
 
 /** Guarded `localStorage` read for the persisted mute preference — `ui/pauseMenu.js`'s settings
  * screen owns *writing* `STORAGE_KEYS.SOUND_MUTED`; this is the one place that needs to read it
@@ -68,8 +82,8 @@ export function readStoredMuted() {
  *   (three.js updates it once per frame as part of the camera's own `updateMatrixWorld`).
  * @param {boolean} [options.initialMuted] Starting mute state — callers pass `readStoredMuted()`
  *   (`game3d.js` does); defaults to `false` so a caller that skips this option still gets sound.
- * @returns {{playClick: () => Promise<void>, setMuted: (muted: boolean) => void,
- *   isMuted: () => boolean, dispose: () => void}}
+ * @returns {{playClick: () => Promise<void>, playDiscoveryChime: () => Promise<void>,
+ *   setMuted: (muted: boolean) => void, isMuted: () => boolean, dispose: () => void}}
  */
 export function createAudioManager({ camera, initialMuted = false }) {
 	let listener = null;
@@ -104,9 +118,15 @@ export function createAudioManager({ camera, initialMuted = false }) {
 		return clickBufferPromise;
 	}
 
-	/** Plays the click once. Safe to call even if audio is unavailable or the buffer hasn't
-	 * resolved yet (early-returns; never throws). */
-	async function playClick() {
+	/** Shared playback path for both `playClick()` and `playDiscoveryChime()` (run 348) — both cue
+	 * off a real, trusted-gesture-adjacent moment (a menu click; a player walking into a settlement's
+	 * discovery radius while already playing), so both get the same autoplay-resume handling. Safe to
+	 * call even if audio is unavailable or the buffer hasn't resolved yet (early-returns; never
+	 * throws).
+	 * @param {number} volume
+	 * @param {number} playbackRate
+	 */
+	async function playBuffer(volume, playbackRate) {
 		if (!listener) return;
 		const context = listener.context;
 		// Initiated before the `await` below on purpose — see the module doc's autoplay-policy note.
@@ -117,7 +137,8 @@ export function createAudioManager({ camera, initialMuted = false }) {
 		try {
 			const sound = new THREE.Audio(listener);
 			sound.setBuffer(buffer);
-			sound.setVolume(CLICK_VOLUME);
+			sound.setVolume(volume);
+			sound.setPlaybackRate(playbackRate);
 			// Wrap rather than replace the prototype's `onEnded` (which flips `isPlaying` back to
 			// false) so this still disconnects the finished source's audio-graph nodes, without
 			// losing that base bookkeeping.
@@ -125,8 +146,19 @@ export function createAudioManager({ camera, initialMuted = false }) {
 			sound.onEnded = () => { baseOnEnded(); sound.disconnect(); };
 			sound.play();
 		} catch (error) {
-			console.warn('[audioManager] click sound playback failed', error);
+			console.warn('[audioManager] sound playback failed', error);
 		}
+	}
+
+	/** Plays the pause-menu UI click. */
+	function playClick() {
+		return playBuffer(CLICK_VOLUME, 1);
+	}
+
+	/** Plays the settlement-discovery chime (run 348) — same source buffer as `playClick()`, at a
+	 * lower volume and higher pitch so it reads as a distinct cue (see this module's own doc). */
+	function playDiscoveryChime() {
+		return playBuffer(DISCOVERY_CHIME_VOLUME, DISCOVERY_CHIME_PLAYBACK_RATE);
 	}
 
 	/** Live mute/unmute for every sound routed through this listener (today just `playClick()`'s
@@ -152,5 +184,5 @@ export function createAudioManager({ camera, initialMuted = false }) {
 		listener = null;
 	}
 
-	return { playClick, setMuted, isMuted, dispose };
+	return { playClick, playDiscoveryChime, setMuted, isMuted, dispose };
 }

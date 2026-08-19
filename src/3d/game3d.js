@@ -343,7 +343,12 @@ export async function initGame3D() {
 			onMuteChange: (muted) => state.audioManager.setMuted(muted),
 		});
 		state.settlementCompass = new SettlementCompass({ seats: state.settlementSeats });
-		state.settlementDiscovery = new SettlementDiscovery({ seats: state.settlementSeats });
+		// Run 348: second sound cue, reusing `audioManager.js`'s already-loaded click buffer at a
+		// distinct volume/pitch (see that module's own doc) rather than a new asset.
+		state.settlementDiscovery = new SettlementDiscovery({
+			seats: state.settlementSeats,
+			onDiscover: () => state.audioManager.playDiscoveryChime(),
+		});
 		state.settlementCompass.setSeatFilter((seat) => !state.settlementDiscovery.isDiscovered(seat.id));
 		state.dayNightClock = new DayNightClock();
 

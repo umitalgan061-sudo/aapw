@@ -16498,3 +16498,61 @@ named since Run 341. A future run with working `git-lfs` tooling should re-run t
 `smokeTestGame3D.js` suite against real assets — same open item Runs 344/346 already left. Terrain/
 road work remains claimed by the concurrent corner-agent sessions (929 open remote branches checked
 this run) and was not touched here.
+
+## Run 348 (2026-08-19, scheduled run, same session as Run 347) — Second sound cue: settlement-discovery chime, reusing `ui-click.wav` at a distinct volume/pitch (ADR-0294)
+
+Continued the same session's chain per `GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md` (no stop after one
+subtask while the quality gate/budget still allow) — picked the deferred follow-up both Run 346's own
+"Next safe step" and Run 347's own ADR-0293 Alternatifler #1 had already named: a second sound cue.
+Settlement discovery was the specific choice because `ui/settlementDiscovery.js`'s `_discover()`
+already fires exactly once per real, already-tested game event (crossing a settlement's discovery
+radius for the first time) with an existing visual toast — the smallest "make an existing verified
+moment also audible" slice available. Full reasoning/alternatives in `DECISIONS.md`'s ADR-0294.
+
+`audio/audioManager.js`'s click-playback logic was factored into a shared `playBuffer(volume,
+playbackRate)`, reused by both the unchanged `playClick()` and a new `playDiscoveryChime()` —
+deliberately reusing the same already-loaded `ui-click.wav` buffer via `THREE.Audio.setPlaybackRate()`
+(lower volume, higher pitch) rather than sourcing a second licensed asset in the same run (that stays
+an explicitly-named, not-dropped, future option — see ADR-0294's Alternatifler #1). `onDiscover` is a
+one-line optional constructor callback, same shape `onOpenChange`/`onMuteChange` already established
+in `ui/pauseMenu.js`; `game3d.js` wires it to `state.audioManager.playDiscoveryChime()`.
+
+Full DoD sweep: `node --check` clean on all 3 touched source files + 2 touched script files.
+`checkTechnicalDebt.js` PASS (0 new debt). `checkSeededRandomPolicy.js` PASS.
+`checkSmokeCheckRegistry.js` OK — still 44 checks/18 modules (two *existing* checks extended, not new
+ones): `checkSettlementDiscovery` gained 3 new assertions (fires exactly once, never out-of-range,
+never on revisit), `checkAudioManager` gained 1 (`playDiscoveryChime()` resolves without throwing).
+**`src/3d/game3d.js` is now 596/600 lines — flagged as this run's own disclosed near-cap risk, real
+enough that the next addition to this specific file should extract something out first.**
+
+Full `smokeTestGame3D.js` 44-check suite still not completed end-to-end this session — same
+pre-existing LFS-pointer-stub environment condition Runs 344/345/346/347 already root-caused, not
+re-attempted a third time this session (already re-confirmed once this session, re-running again for
+this smaller change would burn time without new information). Worked around the same way: a
+standalone script running only the two extended checks against a real `game3d.html` page load — both
+**PASS**. `collectPerfSnapshot.js run348-discovery-chime`: 55 draw calls / 709,382 triangles / 57
+geometries / 22 textures / 202MB heap — byte-identical to this session's own Run 347 sample, zero
+rendering-cost regression. No new `QUESTIONS_FOR_OWNER.md` entry — same already-disclosed LFS issue.
+
+Memory-leak checklist: clean (no new persistent state — `onDiscover` is a plain closure reference,
+`playBuffer()`'s per-call `THREE.Audio` node lifecycle is the same `playClick()` already had).
+Technical debt: 0 new (the 596/600 line count is a disclosed near-cap risk, not a cap violation).
+World Coverage: unchanged (desktop 96.2% / mobile 4.5%, no terrain/geometry delta). World Evolution
+Report: no yol/orman/kale/NPC/hayvan/creature/event/cart count change; +1 ADR (ADR-0294); 0 new
+smoke-check modules; 0 new assets; "oyuncu fark eder mi" — evet: yeni bir yerleşim keşfedildiğinde
+artık görsel bildirimle birlikte, duraklatma menüsü tıkından farklı perdede gerçek bir ses de
+duyuluyor.
+
+Risk LOW — additive change across three already-isolated modules, reusing an existing licensed asset,
+wrapped in the same guarded-callback/error-boundary conventions this area already uses throughout.
+
+Concurrency re-check immediately before commit: `git fetch origin main` re-run — no drift found past
+`7002861` (this session's own `stable-2026-08-19-0456` checkpoint).
+
+Next safe step: `src/3d/game3d.js`'s 596/600 line count is the most concrete next-run risk — split
+before the next addition to that file, not after it trips the cap. A genuinely distinct chime audio
+file and a volume slider both remain explicitly-deferred follow-ups (not dropped). `drawDistance`/
+`textureSize` `QUALITY_PRESETS` knobs remain the two unwired, larger-scoped candidates named since Run
+341. A future run with working `git-lfs` tooling should re-run the full `smokeTestGame3D.js` suite
+against real assets. Terrain/road work remains claimed by the concurrent corner-agent sessions (929
+open remote branches checked this session) and was not touched here.
