@@ -23,10 +23,7 @@ await page.addInitScript(() => {
 	window.__gamepadInputs = [];
 	window.__gamepadDevices = [];
 	window.__gamepadAttacks = [];
-	Object.defineProperty(navigator, 'getGamepads', {
-		configurable: true,
-		value: () => window.__runtimePads,
-	});
+	Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => window.__runtimePads });
 	window.addEventListener('aapw:player-motion', (event) => {
 		window.__gamepadMotion.push(structuredClone(event.detail));
 		if (window.__gamepadMotion.length > 1200) window.__gamepadMotion.shift();
@@ -48,23 +45,12 @@ async function waitFor(read, predicate, label, timeout = 10000, interval = 50) {
 	throw new Error(`[player-gamepad-runtime] timed out waiting for ${label}; last=${JSON.stringify(last)}`);
 }
 const histories = () => page.evaluate(() => ({
-	motion: structuredClone(window.__gamepadMotion),
-	inputs: structuredClone(window.__gamepadInputs),
-	devices: structuredClone(window.__gamepadDevices),
-	attacks: structuredClone(window.__gamepadAttacks),
+	motion: structuredClone(window.__gamepadMotion), inputs: structuredClone(window.__gamepadInputs),
+	devices: structuredClone(window.__gamepadDevices), attacks: structuredClone(window.__gamepadAttacks),
 }));
-const waitHistory = (key, predicate, label, timeout) => waitFor(
-	histories,
-	(history) => [...history[key]].reverse().find(predicate) ?? null,
-	label,
-	timeout,
-);
-const waitMotionAfter = (marker, predicate, label, timeout = 10000) => waitFor(
-	histories,
-	(history) => history.motion.slice(marker).find(predicate) ?? null,
-	label,
-	timeout,
-);
+const latestMotion = () => page.evaluate(() => structuredClone(window.__gamepadMotion.at(-1)));
+const waitHistory = (key, predicate, label, timeout) => waitFor(histories, (history) => [...history[key]].reverse().find(predicate) ?? null, label, timeout);
+const waitMotionAfter = (marker, predicate, label, timeout = 10000) => waitFor(histories, (history) => history.motion.slice(marker).find(predicate) ?? null, label, timeout);
 
 async function setPads(specs) {
 	await page.evaluate((nextSpecs) => {
@@ -74,11 +60,20 @@ async function setPads(specs) {
 			connected: spec.connected !== false,
 			mapping: spec.mapping ?? 'standard',
 			axes: spec.axes ?? [0, 0, 0, 0],
-			buttons: Array.from({ length: 12 }, (_, index) => ({ pressed: Boolean(spec.buttons?.[index]), value: spec.buttons?.[index] ? 1 : 0 })),
+			buttons: Array.from({ length: 12 }, (_, index) => {
+				const value = Number(spec.values?.[index] ?? (spec.buttons?.[index] ? 1 : 0));
+				return { pressed: Boolean(spec.buttons?.[index]) || value > 0.5, value };
+			}),
 			timestamp: performance.now(),
 		}));
 	}, specs);
 }
+const directionBetween = (start, end) => {
+	const dx = end.position.x - start.position.x;
+	const dz = end.position.z - start.position.z;
+	const length = Math.hypot(dx, dz);
+	return length > 0.01 ? { x: dx / length, z: dz / length, distance: length } : null;
+};
 
 try {
 	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -102,19 +97,37 @@ try {
 	need(lightInput.source === 'gamepad' && lightStart.comboStep === 1, 'gamepad X must enter the existing Player melee state machine');
 	await waitHistory('attacks', (event) => event.serial === lightStart.serial && event.phase === 'finish', 'gamepad light finish', 20000);
 
-	// Raw magnitude 0.59 maps to exactly half travel after the 0.18 radial deadzone:
-	// (0.59 - 0.18) / (1 - 0.18) = 0.5. Camera-relative conversion must preserve it.
 	const partialMarker = (await histories()).motion.length;
 	await setPads([{ index: 1, axes: [0, -0.59, 0, 0] }]);
 	const partialWalk = await waitMotionAfter(partialMarker, (motion) => motion.state === 'walk' && motion.speed > 0.5, 'half-magnitude analog walk');
 	const neutralMarker = (await histories()).motion.length;
 	await setPads([{ index: 1 }]);
 	await waitMotionAfter(neutralMarker, (motion) => motion.state === 'idle', 'neutral after half-magnitude walk');
+	const fullStart = await latestMotion();
 	const fullWalkMarker = (await histories()).motion.length;
 	await setPads([{ index: 1, axes: [0, -1, 0, 0] }]);
 	const fullWalk = await waitMotionAfter(fullWalkMarker, (motion) => motion.state === 'walk' && motion.speed > partialWalk.speed, 'full-magnitude analog walk');
+	await sleep(350);
+	const fullEnd = await latestMotion();
 	const analogSpeedRatio = partialWalk.speed / fullWalk.speed;
 	need(analogSpeedRatio > 0.42 && analogSpeedRatio < 0.58, `camera movement lost analog magnitude: partial=${partialWalk.speed} full=${fullWalk.speed} ratio=${analogSpeedRatio}`);
+	const beforeOrbitDirection = directionBetween(fullStart, fullEnd);
+	need(beforeOrbitDirection?.distance > 0.5, `full-stick baseline displacement too small: ${JSON.stringify(beforeOrbitDirection)}`);
+
+	await setPads([{ index: 1 }]);
+	await sleep(120);
+	await setPads([{ index: 1, axes: [0, 0, 1, 0] }]);
+	await sleep(520);
+	await setPads([{ index: 1 }]);
+	await sleep(120);
+	const afterOrbitStart = await latestMotion();
+	await setPads([{ index: 1, axes: [0, -1, 0, 0], values: { 7: 0.35 } }]);
+	await sleep(350);
+	const afterOrbitEnd = await latestMotion();
+	const afterOrbitDirection = directionBetween(afterOrbitStart, afterOrbitEnd);
+	need(afterOrbitDirection?.distance > 0.5, `post-orbit displacement too small: ${JSON.stringify(afterOrbitDirection)}`);
+	const orbitDirectionDot = beforeOrbitDirection.x * afterOrbitDirection.x + beforeOrbitDirection.z * afterOrbitDirection.z;
+	need(orbitDirectionDot < 0.8, `right stick failed to rotate camera-relative travel direction: dot=${orbitDirectionDot}`);
 
 	const sprintMarker = (await histories()).motion.length;
 	await setPads([{ index: 1, axes: [0, -1, 0, 0], buttons: { 10: true } }]);
@@ -162,6 +175,7 @@ try {
 		baseline: { state: baseline.state, stamina: baseline.stamina },
 		light: { input: lightInput, serial: lightStart.serial, comboStep: lightStart.comboStep },
 		analog: { partialSpeed: partialWalk.speed, fullSpeed: fullWalk.speed, ratio: Number(analogSpeedRatio.toFixed(3)) },
+		camera: { directionDotAfterRightStick: Number(orbitDirectionDot.toFixed(3)), triggerZoomExercised: 0.35 },
 		sprint: { speed: sprint.speed, stamina: sprint.stamina, state: sprint.state },
 		fallback: { device: fallbackDevice, guarding: fallbackGuard.guarding },
 		heavy: { input: heavyInput, serial: heavyStart.serial, damageScale: heavyStart.damageScale },
@@ -169,7 +183,7 @@ try {
 		browserErrors: errors,
 	};
 	fs.writeFileSync(path.join(outDir, 'gamepad-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_GAMEPAD_RUNTIME_OK ${JSON.stringify({ analogRatio: metrics.analog.ratio, sprintSpeed: sprint.speed, lightSerial: lightStart.serial, heavySerial: heavyStart.serial, errors: errors.length })}`);
+	console.log(`PLAYER_GAMEPAD_RUNTIME_OK ${JSON.stringify({ analogRatio: metrics.analog.ratio, cameraDot: metrics.camera.directionDotAfterRightStick, sprintSpeed: sprint.speed, lightSerial: lightStart.serial, heavySerial: heavyStart.serial, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
