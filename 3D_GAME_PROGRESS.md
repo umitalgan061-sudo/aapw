@@ -17023,3 +17023,35 @@ PASS, su maskesi ve hizalama değişmedi, masaüstü + mobil LOD PASS, determini
 
 Sıradaki: aynı mesajdaki diğer üç istek — vadiler, köy/krallık olmayan yerlerin ormanlaştırılması, ve
 Westeros'un doğu tarafındaki yollar.
+
+### Run 358 — Orman gerçekten var artık, ve yükseltmenin kaydırdığı bütün eşikler (ADR-0305)
+
+"Köy ve krallık yoksa orman haline getir" dediniz. İki ayrı hata çıktı.
+
+Birincisi: zemin rengi ile ağaçlar birbirinden habersizdi. Zemin run 351'den beri bir yama maskesi
+içinde orman yeşiline boyanıyordu, ama ağaçlar dünya geneline **km² başına 30** dağıtılıyordu — her
+180 m'de bir ağaç, yani bozkır. Orman renkli ama ağaçsız bir zemin vardı.
+
+İkincisi ve daha büyüğü: maske zaten sıfır döndürüyordu, çünkü ağaç sınırı 170/330 m'ydi ve bu değerler
+kıta yükseltmesinden **önce** yazılmıştı. Bunu genelleyip ölçtüm: bu dosyadaki bütün yükseklik eşikleri
+eski dağılıma göreymiş. Kara yüksekliği medyanı 5,24 → **65,72 m**, p90 114 → **254 m**. Eşikler
+kaymamış, zemin altlarından kaymış. Sonucu şuydu: haritanın ormanlık çizdiği ~330 m'lik sıradan iç
+Westeros, "kurak yayla → çıplak kaya" bandında çiziliyordu. Kıta çöl gibi görünüyordu.
+
+Düzeltme: `forestCoverage01` tek otorite olarak export edildi, hem renk hem ağaçlar onu okuyor — bir
+daha ayrışamazlar. Eşiklerin her biri, eski dağılımda işgal ettiği yüzdelik alınıp yeni dağılımdan
+okunarak yeniden türetildi, yani her bandın niyeti korundu, yeniden tahmin edilmedi. Köyler bitki
+örtüsünden önce kuruluyor ki orman evlerin içinden geçmesin.
+
+Sonuç: ağaç sayısı **3.203 → 18.481** (15.289'u orman), ortalama orman örtüsü 0,693, karanın **%70'i**
+orman ve **%83'ü** yeşil zemin.
+
+Bir uyarıyı da yazayım: geçen turun kanıt çekimi (6,0) parçasında ve orası kasten dünyanın en dik
+kenarı — kara yüksekliği dağılımının p94'ü. Oradan bakınca kıta hâlâ kahverengi görünüyor ve bu doğru,
+çünkü orası gerçekten çıplak yayla. Tipik bir yerden (`--chunk=-4,3`) çekince dünya yeşil, ormanlık ve
+dalgalı görünüyor. Çekim script'i artık konum parametresi alıyor.
+
+Kapılar: 14/14 koltuk, yollar (18,31 km), terrain visual contract, SW cache v21→v22, satır sınırı,
+determinizm, borç 0 — hepsi PASS.
+
+Sıradaki: kalan iki isteğiniz — vadilerin düzenlenmesi ve Westeros'un doğu tarafındaki yollar.

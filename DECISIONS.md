@@ -17369,3 +17369,58 @@ Açılış 9.981 ms.
 **Next safe step:** sahibin aynı mesajdaki diğer üç isteği — vadilerin düzenlenmesi, köy/krallık
 olmayan yerlerin map.png'deki gibi ormanlaştırılması, ve Westeros'un doğu tarafındaki yolların
 map.png'ye bakılarak kurulması.
+
+## ADR-0305 — Orman: renk ile ağaçları tek otoriteye bağlamak, ve yükseltmenin kaydırdığı bütün eşikler
+
+**Bağlam.** Sahibin isteği: "köy ve krallık yoksa map.png'deki gibi orman haline getir."
+
+**Bulunan iki ayrı hata.**
+
+1. *Renk ve ağaçlar birbirinden habersizdi.* `terrainBiomeShading.js` run 351'den beri zemini
+   deterministik bir yama maskesi içinde orman yeşiline boyuyordu, ama `vegetation.js` ağaçları dünya
+   geneline **km² başına 30** yoğunlukla dağıtıyordu — yani ortalama her 180 m'de bir ağaç, ki bu
+   orman değil bozkır. Ortada orman renkli ama ağaçsız bir zemin vardı.
+2. *Ve maske zaten ~0 döndürüyordu.* Ağaç sınırı 170/330 m'ydi — bu değerler ADR-0299'un kıta
+   yükseltmesinden **önce** yazılmıştı. Yükseltme iç bölgeyi ~5 m medyandan yüzlerce metreye çıkardı,
+   dolayısıyla Westeros'un iç bölgesinin tamamı ağaç sınırının üstünde kaldı.
+
+İkinci bulgu genellendi: bu dosyadaki **bütün** yükseklik eşikleri eski dağılıma göre yazılmıştı.
+Ölçüm (55 m örgüde 15.964 kara örneği) yeni dağılımı verdi: p50 5,24 → **65,72 m**, p90 114 → **254 m**,
+max 566 → **750 m**. Eşikler kaymadı; zemin altlarından kaydı. Etkisi şuydu: owner haritasının ormanlık
+çizdiği ~330 m'lik sıradan iç Westeros, tamamen "kurak yayla"dan çıplak kayaya geçen bantta çiziliyordu
+— yani kıta çöl gibi görünüyordu.
+
+**Karar.**
+
+*Tek otorite.* `forestCoverage01(worldX, worldZ, height, slope)` `terrainBiomeShading.js`'ten export
+edildi. Hem zemin rengi hem `world/vegetationForestScatter.js`'in ağaç dağıtımı artık onu okuyor, yani
+orman rengi ile gerçek orman bir daha ayrışamaz. Yoğunluk örtüyle orantılı, böylece yama kenarı bir
+çizgide bitmek yerine çalılığa dönüşerek inceliyor.
+
+*Eşikler yeniden türetildi.* Her eşik, **eski dağılımda işgal ettiği yüzdelik** alınıp yeni dağılımda
+aynı yüzdelikten okunarak yeniden hesaplandı — böylece her bandın arkasındaki niyet korunuyor, yeniden
+tahmin edilmiyor: `grassMidFull`/`dryUplandStart` ~p87 (60 → 230 m), `dryUplandFull` ~p93 (190 → 295),
+`rockCoolFull` ~p97 (320 → 420), `snowAltitudeStart` ~p98 (380 → 490). Ağaç sınırı kar sınırının hemen
+üstüne, 520/760 m'ye alındı: yalnızca gerçekten karlı zirveler çıplak kalıyor. `measured` bloğu yeni
+dağılımı kaydediyor, eskisi köken bilgisi olarak korunuyor.
+
+*Ne temiz kalıyor.* Koltuklar ve yollar zaten `isPlaceablePosition` ile dışlanıyor. Köyler burada
+dışlanıyor — bu yüzden `sceneManager.js` artık köyleri bitki örtüsünden **önce** kuruyor. Köyler
+yalnızca araziye, koltuklara ve yollara bağlı olduğu için sıralama değişikliği onları etkilemiyor.
+
+**Ölçülen sonuç.** Ağaç sayısı **3.203 → 18.481** (15.289'u orman). Dünya genelinde ortalama orman
+örtüsü **0,693**, karanın **%70'i** orman (örtü > 0,5), ve karanın **%83'ü** yeşil-baskın zemin
+çiziyor. Öncesinde iç bölge tamamen kurak yayla/kaya bandındaydı.
+
+**Bir uyarı, kayda geçsin.** Run 356'nın kanıt çekimi (6,0) parçasında duruyor; orası kasten dünyanın
+en dik kenarı ve kara yüksekliği dağılımının **p94'ü**. Orada zemin haklı olarak çıplak yayla çiziyor,
+ve tek başına bakıldığında "kıta hâlâ kahverengi" izlenimi veriyor. Biyom yargısı için tipik bir
+konumdan çekim gerekiyor; çekim script'i artık `--chunk=X,Z` kabul ediyor ve doc'u bunu söylüyor.
+
+**Doğrulama.** 14/14 koltuk PASS, yollar PASS (18,31 km, 20° altında), terrain visual contract PASS,
+SW cache (v21→v22) PASS, satır sınırı PASS, determinizm PASS, borç 0.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+**Next safe step:** sahibin kalan iki isteği — vadilerin düzenlenmesi, ve Westeros'un doğu tarafındaki
+yolların map.png'ye bakılarak kurulması.

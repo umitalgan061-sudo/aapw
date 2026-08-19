@@ -43,6 +43,7 @@
 
 import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
+import { generateForestPositions } from './vegetationForestScatter.js';
 
 /**
  * Two low-poly species, each a self-contained silhouette recipe. `weight` values are relative and
@@ -319,10 +320,24 @@ function placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, pos
  *   predictable from `SPECIES.length` alone). `clusterSeatCount` is how many seats actually qualified
  *   for a ring (0 on mobile-sized discs — see above).
  */
-export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2 }) {
+export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2, villageHouses = [] }) {
 	const group = new THREE.Group();
 	const areaKm2 = (Math.PI * radiusMeters * radiusMeters) / 1_000_000;
 	const baseTargetCount = Math.max(0, Math.round(areaKm2 * densityPerKm2));
+
+	// Forest pass (run 358 / ADR-0305). Positions are generated up front, from `terrainBiomeShading.js`'s
+	// forest mask, so this module's instancing/species machinery is reused rather than duplicated and
+	// the woods land in the same InstancedMeshes as every other tree — one draw call per species, not
+	// two. Its own seeded stream keeps the base/cluster passes' draw order untouched.
+	const forestRng = mulberry32(seed ^ 0x464f5253); // "FORS" tag
+	const forestPositions = generateForestPositions({
+		radiusMeters,
+		sampleHeightMeters,
+		seaLevelMeters,
+		isPlaceable: (x, z) => isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges }),
+		rng: forestRng,
+		villageHouses,
+	});
 
 	const clusterInnerRadius = SEAT_EXCLUSION_RADIUS_METERS + CLUSTER_RING_INNER_MARGIN_METERS;
 	const clusterSeats = seats.filter((seat) => Math.hypot(seat.x, seat.z) + CLUSTER_RING_OUTER_RADIUS_METERS <= radiusMeters);
@@ -330,7 +345,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	const clusterTargetPerSeat = Math.max(0, Math.round(ringAreaKm2 * CLUSTER_DENSITY_PER_KM2));
 	const clusterTargetTotal = clusterSeats.length * clusterTargetPerSeat;
 
-	const targetCount = baseTargetCount + clusterTargetTotal;
+	const targetCount = baseTargetCount + clusterTargetTotal + forestPositions.length;
 	if (targetCount === 0) return { group, targetCount: 0, placedCount: 0, clusterSeatCount: 0 };
 
 	// XOR-tagged seed, independent random stream from terrain's own noise / rivers' own tagged
@@ -386,6 +401,13 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		}
 	}
 
+	// Forest pass: positions were already accepted against the mask and every exclusion rule above.
+	for (const forestPoint of forestPositions) {
+		const entry = perSpecies[pickSpeciesIndex(forestRng())];
+		placeTreeInstance(entry, forestPoint.x, forestPoint.z, sampleHeightMeters, forestRng, up, matrix, position, quaternion, scaleVector);
+		placedCount++;
+	}
+
 	// Seat-local clustering ring (run 113/ADR-0140) — see this function's own doc comment for the
 	// qualification rule and the reasoning behind it.
 	for (const seat of clusterSeats) {
@@ -411,7 +433,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		group.add(entry.trunkMesh, entry.foliageMesh);
 	}
 
-	return { group, targetCount, placedCount, clusterSeatCount: clusterSeats.length };
+	return { group, targetCount, placedCount, clusterSeatCount: clusterSeats.length, forestCount: forestPositions.length };
 }
 
 /**

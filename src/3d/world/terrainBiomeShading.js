@@ -63,7 +63,12 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 		probeGrid: '220x220 full-map + 200x200 land-only, live createHeightSampler',
 		seaLevelMeters: 6,
 		landFractionOfMap: 0.332,
-		landHeightAboveSeaMeters: Object.freeze({ p10: 1.03, p25: 2.17, p50: 5.24, p75: 13.26, p80: 17.72, p85: 45.2, p90: 114.24, p95: 236.71, p98: 387.69, p99: 455.81, max: 566.34 }),
+		/** Re-measured in run 358 over the shipped field (15,964 land samples on a 55 m lattice). The
+		 * previous row — p50 5.24, max 566.34 — was taken before ADR-0299's continental uplift and is
+		 * kept below for provenance, because every altitude threshold in this file was authored against
+		 * it and had to be re-derived from this one. */
+		landHeightAboveSeaMeters: Object.freeze({ p10: 14.12, p25: 30.36, p50: 65.72, p60: 90.84, p75: 146.87, p80: 174.87, p85: 215.23, p90: 254.11, p95: 349.1, p97: 419.66, p98: 488.23, p99: 594.7, max: 750.5 }),
+		preUpliftLandHeightAboveSeaMeters: Object.freeze({ p10: 1.03, p25: 2.17, p50: 5.24, p75: 13.26, p80: 17.72, p85: 45.2, p90: 114.24, p95: 236.71, p98: 387.69, p99: 455.81, max: 566.34 }),
 		landSlopeDegrees: Object.freeze({ p25: 0.34, p50: 0.6, p75: 4.78, p90: 31.67, p95: 44.44, p99: 62.51, max: 84.02 }),
 		canonicalSnowCellHeightAboveSeaMeters: Object.freeze({ p25: 14.84, p50: 18.4, p75: 117.46, p90: 371.64 }),
 		canonicalRockCellSlopeDegrees: Object.freeze({ p25: 6.16, p50: 23.68, p75: 38.56, p90: 49.86 }),
@@ -76,10 +81,24 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	shoreSandFullMeters: 0.25,
 	/** 80% of land sits below 17.7 m, so the grass bands are packed low and the dry/alpine ramp only
 	 * engages in the thin mountainous tail (p90 = 114 m, p95 = 237 m). */
-	grassMidStartMeters: 8,
-	grassMidFullMeters: 60,
-	dryUplandStartMeters: 60,
-	dryUplandFullMeters: 190,
+	/**
+	 * Altitude thresholds, all re-derived in run 358 / ADR-0305.
+	 *
+	 * **Why they all moved at once.** Every number here was authored against a world whose land had a
+	 * 5.24 m median; ADR-0299's continental uplift raised that median to 65.72 m and the p90 from 114 m
+	 * to 254 m. Nothing about these values drifted — the ground moved out from under them. The effect
+	 * was that ordinary Westerosi interior at ~330 m, which the owner map draws as wooded country, was
+	 * being painted as fully dry upland shading into bare rock, i.e. the continent read as desert.
+	 *
+	 * Each threshold is re-derived by taking the *percentile it occupied in the old distribution* and
+	 * reading that same percentile off the new one, so the intent behind each band is preserved rather
+	 * than re-guessed: `grassMidFull`/`dryUplandStart` sat at ~p87 (60 m then, 230 m now), `dryUplandFull`
+	 * at ~p93 (190 -> 295), `rockCoolFull` at ~p97 (320 -> 420), `snowAltitudeStart` at ~p98 (380 -> 490).
+	 */
+	grassMidStartMeters: 90,
+	grassMidFullMeters: 230,
+	dryUplandStartMeters: 230,
+	dryUplandFullMeters: 295,
 	/** Rock takes over on genuinely steep ground. Land slope p90 is 31.7 deg and p95 is 44.4 deg, so a
 	 * 22-45 deg ramp turns roughly the steepest tenth of land to exposed rock — every sea cliff and
 	 * mountain face, at any altitude. */
@@ -88,13 +107,13 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	/** The canonical 96x64 mask's own rock classification, blended in alongside the slope term so
 	 * flat-but-stony ground still reads as rock. Scaled below 1 so slope stays the dominant cue. */
 	canonicalRockGain: 0.85,
-	rockCoolStartMeters: 80,
-	rockCoolFullMeters: 320,
+	rockCoolStartMeters: 240,
+	rockCoolFullMeters: 420,
 	/** Altitude snow line. Measured p98 is 387.7 m and p99 is 455.8 m, so a 300-460 m ramp caps only
 	 * the highest couple of percent of land — matching the reference image, where just the tallest
 	 * massif is white. */
-	snowAltitudeStartMeters: 380,
-	snowAltitudeFullMeters: 580,
+	snowAltitudeStartMeters: 490,
+	snowAltitudeFullMeters: 700,
 	/** The canonical snow mask sits at a median of only 18.4 m above sea: in this world (and in the
 	 * owner's reference image, whose north-west island is white to the waterline) the far north is
 	 * genuinely snow-covered lowland, not just high peaks. Honoured at full strength. */
@@ -114,12 +133,25 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	 * between them is the soft edge of a forest, and the midpoint sets roughly how much land is wooded. */
 	forestPatchFrequency: 0.00095,
 	forestPatchOctaves: 4,
-	forestPatchStart: 0.40,
-	forestPatchFull: 0.68,
+	// Lowered in run 358 from 0.40/0.68. The owner's rule is that land which is not a village or a
+	// kingdom seat should read as woodland, so the mask's midpoint has to put most of the map inside a
+	// patch rather than a minority of it.
+	forestPatchStart: 0.30,
+	forestPatchFull: 0.52,
 	forestSlopeFalloffStartDegrees: 30,
 	forestSlopeFalloffFullDegrees: 46,
-	forestTreeLineStartMeters: 170,
-	forestTreeLineFullMeters: 330,
+	/**
+	 * Tree line. Raised from 170/330 m in run 358 — those values predate ADR-0299's continental uplift,
+	 * which took inland ground from a ~5 m median to hundreds of metres. Against the world the game
+	 * actually has, a 330 m ceiling put essentially the whole Westerosi interior *above* the tree line,
+	 * so the forest mask evaluated to zero exactly where the map shows its great woods. The numbers had
+	 * not drifted; the ground moved out from under them.
+	 *
+	 * 520/760 m sits just above the re-derived snow line, so only genuinely snowy summits come out bare
+	 * while the whole interior can be wooded — which is what map.png depicts.
+	 */
+	forestTreeLineStartMeters: 520,
+	forestTreeLineFullMeters: 760,
 	forestMaxStrength: 0.88,
 	/** Independent low-frequency tint drift across the grasslands, so open ground reads as pasture,
 	 * heath and scrub rather than one flat colour. */
@@ -199,6 +231,29 @@ const scratchRock = new THREE.Color();
  * @param {number} sample.worldZ Used only for deterministic mottling.
  * @returns {THREE.Color} `target`.
  */
+/**
+ * How wooded this spot is, in [0, 1] — the single authority for forest, shared by ground colour and by
+ * `world/vegetation.js`'s tree scatter.
+ *
+ * Exported so the two cannot disagree: before run 358 the ground was painted forest-green by this mask
+ * while trees were scattered uniformly at 30/km², so woodland colour and actual woodland had no
+ * relationship at all. Anything that wants to know "is this forest?" must ask here.
+ *
+ * @param {number} worldX
+ * @param {number} worldZ
+ * @param {number} heightAboveSeaMeters
+ * @param {number} slopeDegrees
+ * @returns {number} 0 = open ground, 1 = fully wooded.
+ */
+export function forestCoverage01(worldX, worldZ, heightAboveSeaMeters, slopeDegrees) {
+	const P = TERRAIN_BIOME_SHADING_POLICY;
+	const forestNoise01 = signedFbmNoise(worldX * P.forestPatchFrequency - 13.1, worldZ * P.forestPatchFrequency + 7.4, P.forestPatchOctaves) * 0.5 + 0.5;
+	const forestPatch = smoothstep(P.forestPatchStart, P.forestPatchFull, forestNoise01);
+	const notCliff = 1 - smoothstep(P.forestSlopeFalloffStartDegrees, P.forestSlopeFalloffFullDegrees, slopeDegrees);
+	const belowTreeLine = 1 - smoothstep(P.forestTreeLineStartMeters, P.forestTreeLineFullMeters, heightAboveSeaMeters);
+	return forestPatch * notCliff * belowTreeLine;
+}
+
 export function resolveTerrainBiomeColor(target, { heightAboveSeaMeters, slopeDegrees, rockWeight = 0, snowWeight = 0, worldX = 0, worldZ = 0 }) {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
 	const height = heightAboveSeaMeters;
@@ -212,11 +267,7 @@ export function resolveTerrainBiomeColor(target, { heightAboveSeaMeters, slopeDe
 		.lerp(TERRAIN_BIOME_PALETTE.DRY_UPLAND, smoothstep(P.dryUplandStartMeters, P.dryUplandFullMeters, height));
 
 	// 2. Forest: low-frequency patch mask, below the tree line, excluded only from cliffs.
-	const forestNoise01 = signedFbmNoise(worldX * P.forestPatchFrequency - 13.1, worldZ * P.forestPatchFrequency + 7.4, P.forestPatchOctaves) * 0.5 + 0.5;
-	const forestPatch = smoothstep(P.forestPatchStart, P.forestPatchFull, forestNoise01);
-	const notCliff = 1 - smoothstep(P.forestSlopeFalloffStartDegrees, P.forestSlopeFalloffFullDegrees, slope);
-	const belowTreeLine = 1 - smoothstep(P.forestTreeLineStartMeters, P.forestTreeLineFullMeters, height);
-	const forestAmount = forestPatch * notCliff * belowTreeLine * P.forestMaxStrength;
+	const forestAmount = forestCoverage01(worldX, worldZ, height, slope) * P.forestMaxStrength;
 	if (forestAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.FOREST, forestAmount);
 
 	// 3. Shore sand — suppressed on steep ground so sea cliffs stay rock, not beach.

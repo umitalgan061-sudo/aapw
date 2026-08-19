@@ -302,6 +302,29 @@ export function createScene(canvas) {
 			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.`,
 	);
 
+	// Villages (run 330, ADR-0276) — houses, stone stoops and field walls in a ring around each seat,
+	// so a castle stands over a settlement instead of over empty grass. Same `isPlaceablePosition`
+	// exclusion rules and same radius guard as the vegetation scatter below; five instanced meshes for
+	// the whole world, not one per building.
+	//
+	// Built *before* vegetation as of run 358 / ADR-0305: the forest pass now covers every piece of land
+	// that is not a seat, a road or a village, so it needs these house positions to keep clear. Villages
+	// depend only on terrain, seats and roads, so moving them earlier changes nothing about them.
+	const villagesResult = createVillages({
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		seats: settlementsResult.seats,
+		roadEdges: roadsResult.edges,
+		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
+		mulberry32,
+	});
+	scene.add(villagesResult.group);
+	console.info(
+		`[sceneManager] Built villages: ${villagesResult.houseCount} house(s) and ${villagesResult.wallCount} field wall(s) ` +
+			`across ${villagesResult.villageCount} village(s).`,
+	);
+
 	// Procedural vegetation (GOVERNANCE.md §3's long-named-but-never-built "Vegetation" world
 	// system — see world/vegetation.js's own module doc). Scatter radius matches whatever terrain
 	// radius this device class actually loaded above (`previewRadiusChunks`), so trees never render
@@ -317,30 +340,12 @@ export function createScene(canvas) {
 		seats: settlementsResult.seats,
 		roadEdges: roadsResult.edges,
 		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
+		villageHouses: villagesResult.houses,
 	});
 	scene.add(vegetationResult.group);
 	console.info(
 		`[sceneManager] Scattered vegetation: ${vegetationResult.placedCount}/${vegetationResult.targetCount} tree(s) placed ` +
-			`(${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,
-	);
-
-	// Villages (run 330, ADR-0276) — houses, stone stoops and field walls in a ring around each seat,
-	// so a castle stands over a settlement instead of over empty grass. Same `isPlaceablePosition`
-	// exclusion rules and same radius guard as the vegetation scatter directly above; five instanced
-	// meshes for the whole world, not one per building.
-	const villagesResult = createVillages({
-		sampleHeightMeters: groundCollider.getGroundHeight,
-		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-		seed: WORLD_DEFAULTS.WORLD_SEED,
-		seats: settlementsResult.seats,
-		roadEdges: roadsResult.edges,
-		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
-		mulberry32,
-	});
-	scene.add(villagesResult.group);
-	console.info(
-		`[sceneManager] Built villages: ${villagesResult.houseCount} house(s) and ${villagesResult.wallCount} field wall(s) ` +
-			`across ${villagesResult.villageCount} village(s).`,
+			`(${vegetationResult.forestCount} of them forest, ${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,
 	);
 
 	// Run 330's own "no collision" technical debt, fixed: one circle per house (physics.js's

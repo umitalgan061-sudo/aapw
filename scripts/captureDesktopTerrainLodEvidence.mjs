@@ -29,11 +29,22 @@ import devServerHelper from './devServerHelper.js';
 const { loadPlaywright, startStaticServer } = devServerHelper;
 const WIDTH = 1280;
 const HEIGHT = 860;
-const LABEL = process.argv[2] ?? 'after';
+const LABEL = process.argv.find((value) => !value.startsWith('--') && !value.includes('/')) ?? 'after';
 const OUT_DIR = path.resolve('artifacts/desktop-terrain-lod', LABEL);
-/** Chunk the camera stands in. (6,0) is where the world's steepest measured chunk edge lives, so it
- * is ground with real structure to either resolve or smooth away. */
-const CENTER_CHUNK = { x: 6, z: 0 };
+/**
+ * Chunk the camera stands in, overridable as `--chunk=X,Z`.
+ *
+ * Default (6,0) is where the world's steepest measured chunk edge lives — deliberately atypical, and
+ * useful for judging geometry. It is a poor place to judge *biome*: it sits at the 94th percentile of
+ * land elevation, so it is legitimately bare upland while 83% of the world's land renders green. Pass
+ * a lowland chunk when the question is what the world normally looks like.
+ */
+const CENTER_CHUNK = (() => {
+	const argument = process.argv.find((value) => value.startsWith('--chunk='));
+	if (!argument) return { x: 6, z: 0 };
+	const [x, z] = argument.slice('--chunk='.length).split(',').map(Number);
+	return { x, z };
+})();
 
 const playwright = loadPlaywright();
 if (!playwright) {
