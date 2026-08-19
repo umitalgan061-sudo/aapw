@@ -45,7 +45,7 @@ olanlar (§33.2 ile aynı liste, burada gerekçeli):
 | 3 | Envanter / eşya / ekonomi | Yok. |
 | 4 | Oyuncunun kendi saldırısı | Yok — yalnız ejderha oyuncuya vurabiliyor, tersi yok. |
 | 5 | Dolu yerleşim (ev/ahır/çit/kalabalık) | Kale var, kasaba yok. |
-| 6 | Ses (müzik + efekt) | `assets/audio/` fiilen boş. |
+| 6 | Ses (müzik + efekt) | **Kısmen başladı (Run 346).** `audio/audioManager.js` + tek bir CC0 UI tık sesi (`assets/audio/ui-click.wav`, Kenney) — duraklatma menüsü açılış/kapanışında çalıyor. Müzik yok, savaş/adım/ortam efekti yok, ses seviyesi ayarı yok (`ui/pauseMenu.js`'nin Ayarlar sekmesi hâlâ yalnız grafik kalitesi — bu satırın kendi eski notu zaten bu boşluğu `assets/audio/` boşluğuna bağlamıştı, o bağlantı artık kısmen çözüldü). |
 | 7 | Menü / duraklat / ayarlar akışı | Duraklatma (Run 339, ADR-0285) ve grafik-kalitesi ayar ekranı (Run 341, ADR-0289 — `ui/pauseMenu.js`'nin "Ayarlar" sekmesi, masaüstünde 4 seçenekli kalite seçici, kayıt+yeniden-yükleme ile uygulanıyor) var. Ses/müzik ayarı yok (madde 6'daki boş `assets/audio/` yüzünden kapsam dışı bırakıldı, unutulmadı). |
 
 Bu liste FAZ tablosunun yerine geçmez; onun **üstünde** bir ürün ölçütüdür. FAZ 0-10 teknik olarak

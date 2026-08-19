@@ -53,6 +53,7 @@ import { WorldEventToast } from './ui/worldEventToast.js';
 import { HealthBar } from './ui/healthBar.js';
 import { ControlsHelp } from './ui/controlsHelp.js';
 import { PauseMenu } from './ui/pauseMenu.js';
+import { createAudioManager } from './audio/audioManager.js';
 import { SettlementCompass } from './ui/settlementCompass.js';
 import { SettlementDiscovery } from './ui/settlementDiscovery.js';
 import { DayNightClock } from './ui/dayNightClock.js';
@@ -331,8 +332,11 @@ export async function initGame3D() {
 		// `isMobileClass` (run 341, ADR-0289's settings screen) reuses the same `isCoarsePointerDevice()`
 		// call every other device-budget decision in this file already routes through, rather than a
 		// second independent probe inside `PauseMenu` itself.
+		// First audio in the game (run 346, GOVERNANCE_FULL_GAME_DIRECTIVE.md §3 item 6 — see
+		// `audio/audioManager.js`'s own module doc for scope/autoplay-policy reasoning).
+		state.audioManager = createAudioManager({ camera: state.camera });
 		state.pauseMenu = new PauseMenu({
-			onOpenChange: (open) => { state.paused = open; },
+			onOpenChange: (open) => { state.paused = open; state.audioManager.playClick(); },
 			isMobileClass: isCoarsePointerDevice(),
 		});
 		state.settlementCompass = new SettlementCompass({ seats: state.settlementSeats });
@@ -546,6 +550,7 @@ export async function initGame3D() {
 			state.worldEventToast.dispose();
 			state.controlsHelp.dispose();
 			state.pauseMenu.dispose();
+			state.audioManager.dispose();
 			state.settlementCompass.dispose();
 			state.settlementDiscovery.dispose();
 			state.dayNightClock.dispose();

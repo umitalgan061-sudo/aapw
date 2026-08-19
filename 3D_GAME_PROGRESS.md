@@ -16363,3 +16363,64 @@ the next bounded code slices; this run's own real-asset smoke pass means a futur
 to re-litigate whether the environment is trustworthy for visual verification, just re-apply the same
 `add_repo(..., "aapw")` + local-download workaround (or wait on the owner's decision in
 `QUESTIONS_FOR_OWNER.md`). Terrain/road work remains claimed by the concurrent corner-agent sessions.
+
+## Run 346 (2026-08-19, scheduled run) — First audio in the game (ADR-0292): `audio/audioManager.js` + one CC0 UI click sound on the pause menu
+
+Picked GOVERNANCE_FULL_GAME_DIRECTIVE.md §3 item 6 (audio — the only completely-empty row in that
+table not claimed by a concurrent terrain/road session) over the two named-but-larger
+`QUALITY_PRESETS` knobs (`drawDistance`/`textureSize`), which stay deferred as their own bounded
+slices per ADR-0289/0291's own scoping. Full reasoning, alternatives, and trade-offs in
+`DECISIONS.md`'s ADR-0292 — this entry records only what a future run needs to pick up from.
+
+New: `src/3d/audio/audioManager.js` (real `THREE.AudioListener` on the camera, `playClick()`/
+`dispose()`, error-boundary per §8.13 — a broken/unavailable Web Audio device degrades to silence,
+never a crash), `assets/audio/ui-click.wav` (CC0, Kenney UI Audio Pack via the Calinou/kenney-ui-audio
+Godot mirror — full attribution in `CREDITS.md`), `scripts/game3dSmokeChecksAudio.js`. Wired into
+`game3d.js` (construct at boot, dispose at teardown) and `ui/pauseMenu.js`'s existing `onOpenChange`
+(fires on every open/close, button or Escape). `service-worker.js` `SHELL_CACHE` v16→v17 so the new
+module+sound are precached for offline installs, not only fresh ones.
+
+The new smoke check needed two real fixes before it verified anything, caught in this same run rather
+than shipped broken: it never dismissed `#run266-entry-gate`'s full-viewport consent overlay or waited
+for `#game3d-loading` to hide before issuing a real `page.click()`, so the click timed out against
+whichever element was still on top mid-boot; also needed the injected test button given
+`position:fixed`+high-`z-index` so a real pointer click lands on it instead of the input-capturing
+`#game3d-canvas` underneath. Re-run standalone against a real `game3d.html` page load after both
+fixes: PASS — real `AudioListener` added on construct, a genuine trusted `page.click()` (not a
+scripted event) resolves `playClick()` cleanly, context left open, `dispose()` safe to call twice.
+
+Full DoD sweep: `node --check` clean on all 6 touched/new `.js` files. `checkTechnicalDebt.js` PASS (0
+new debt). `checkSeededRandomPolicy.js` PASS. `checkAssetsManifest.js` PASS. `checkSmokeCheckRegistry.js`
+OK — 43 checks / 19 modules (was 42/18), `game3d.js` 588/600 (real headroom). `collectPerfSnapshot.js
+run346-first-audio`: 55 draw calls / 709,382 triangles / 57 geometries / 22 textures / 202MB heap — in
+line with prior samples, no regression from one non-rendered audio node.
+
+**Full `smokeTestGame3D.js` 43-check suite NOT completed end-to-end this run — pre-existing
+environment condition, not caused by this change.** This session's checkout has all `.fbx`/`.glb`
+files as ~130-byte git-lfs pointer stubs (same condition `RCA_RUN344_LFS_REPO_RENAME.md` already
+root-caused); `git lfs pull` hangs here too. Proof this is pre-existing/unrelated, not masked: the
+suite's own `checkFreeCamera` crashes headless Chromium before the new audio check even runs, on
+unmodified `main` code; `checkMobilePerfBudget.js` independently fails with real `GLTFLoader`
+`SyntaxError` parse errors on multiple castle models — the literal signature of a pointer-stub file
+fed to a binary parser, on files this run never touched. `AssetLoader`'s existing placeholder-box
+fallback is why `game3d.html` still loads and the audio check + perf snapshot still succeed despite
+this. No new `QUESTIONS_FOR_OWNER.md` entry — Run 344 already raised and disclosed this exact issue.
+
+Memory-leak checklist: clean (see ADR-0292 — listener removed on dispose, no timers/DOM/global
+listeners added, per-click `THREE.Audio` nodes disconnected on `onEnded`). Technical debt: 0 new.
+World Coverage: unchanged (desktop 96.2% / mobile 4.5%, no terrain/geometry delta). World Evolution
+Report: no yol/orman/kale/NPC/hayvan/creature/event/cart count change; +1 ADR (ADR-0292); +1 asset
+(CC0); +1 smoke-check module; "oyuncu fark eder mi" — evet, ilk kez: duraklatma menüsü açılış/kapanışında
+artık gerçek bir tık sesi duyuluyor (önceden tamamen sessizdi).
+
+Risk LOW — new isolated module + 5 lines of wiring across two existing files, wrapped in error
+boundaries, verified in isolation against a real page load.
+
+Concurrency re-check immediately before commit: `git fetch origin main` re-run — no drift found past
+`1352159` (this run's own starting point).
+
+Next safe step: a volume/mute control in `ui/pauseMenu.js`'s settings tab (disclosed gap, ADR-0292) or
+a second sound cue reusing `audioManager.js`, if continuing this thread; otherwise `drawDistance`/
+`textureSize` `QUALITY_PRESETS` knobs remain the two unwired, larger-scoped candidates named since Run
+341. A future run with working LFS access should re-run the full 43-check suite against real assets
+(Run 345's workaround). Terrain/road work remains claimed by the concurrent corner-agent sessions.

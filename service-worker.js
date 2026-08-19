@@ -228,7 +228,9 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // installs to replace the old shell rather than retaining a cache that cannot load the G70 adapter.
 // Material Studio adds a new editor module to the offline graph; v14->v15 replaces existing editor caches.
 // Shared material placement adds two runtime/headless modules; v15->v16 forces existing installs to cache them.
-const SHELL_CACHE = 'westeros-shell-v16';
+// Run346 first-audio addition (module + one .wav click sound); v16->v17 forces existing installs to
+// fetch+cache both so the game's first sound works offline too, not only on a fresh install.
+const SHELL_CACHE = 'westeros-shell-v17';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -480,6 +482,14 @@ GAME3D_SHELL_FILES.push('./src/3d/editor/EditorAutoTexture.js');
 // Shared Material Studio core used by autonomous/headless world placement.
 GAME3D_SHELL_FILES.push('./src/3d/materials/MaterialAssignmentCore.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/WorldAssetPlacementPipeline.js');
+
+// Run346: first audio in the game — `audio/audioManager.js` (imported by `game3d.js`) plus the one
+// CC0 click sound it plays (see CREDITS.md). `.wav` is neither in IMAGE_EXTENSIONS nor
+// VIDEO_EXTENSIONS below, so it already takes the same network-first/shell-cache-fallback fetch
+// path every other non-image asset in this file does — it only needs to be precached here, same as
+// the `.fbx`/`.glb` model entries above.
+GAME3D_SHELL_FILES.push('./src/3d/audio/audioManager.js');
+GAME3D_SHELL_FILES.push('./assets/audio/ui-click.wav');
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg'];

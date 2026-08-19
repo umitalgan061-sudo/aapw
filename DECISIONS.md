@@ -16197,3 +16197,130 @@ extension of this one. `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 remains at zero h
 entirely-uncoded, multi-run-scope rows (quest, save/load, inventory, player attack, dense
 settlements, audio). Terrain/road/Terrain3D geocell work remains claimed by the concurrent
 corner-agent sessions and was not touched here.
+
+## ADR-0292 — First audio in the game: `audio/audioManager.js` + one CC0 UI click sound (scheduled routine)
+
+**Risk: LOW.** New, isolated module (`src/3d/audio/audioManager.js`) plus a 4-line wire-up in
+`game3d.js` (construct + dispose, both inside existing lifecycle blocks) and a 1-line call from
+`ui/pauseMenu.js`'s existing `onOpenChange` callback. No terrain, height-field, road-topology,
+placement, AI, or determinism-fixture change — §8.4's terrain-safety gate does not apply. Wrapped in
+try/catch per §8.13 (error-boundary/safe-mode rule): any Web-Audio failure degrades to silence, never
+to a crash.
+
+**Karar.** `createAudioManager({ camera })` adds a `THREE.AudioListener` to the scene camera and
+exposes `playClick()`/`dispose()`. `game3d.js` constructs one instance at boot and disposes it on
+teardown, alongside every other per-scene manager it already owns. `ui/pauseMenu.js`'s
+`onOpenChange` (already fired on every open/close, including Escape) now also calls
+`state.audioManager.playClick()` — the pause menu was chosen as the first sound cue because it is
+already the one guaranteed, deliberate, synchronous user gesture in this game's current build (every
+open comes from a real button click or Escape keydown), which `playClick()`'s own autoplay-policy
+handling depends on (`context.resume()` fired synchronously before any `await`, to stay inside the
+gesture's call stack — see the module's own doc comment).
+
+**Neden (problem).** `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 item 6 has recorded "Ses (müzik + efekt)
+— Yok. `assets/audio/` fiilen boş." since that table existed — one of six completely-untouched rows
+in that section, and the priority list's item 9 (FAZ 5-6/7 gaps) names it as in-scope, uncontested
+scheduled-routine work (no concurrent terrain/road session claims audio). The two unwired
+`QUALITY_PRESETS` render knobs (`drawDistance`/`textureSize`, ADR-0289/0291's named next candidates)
+were both judged too large for one unattended bounded slice when this run started (texture-pipeline
+and World-Coverage-recalibration risk respectively) — audio's smallest possible slice (one UI click)
+was the more conservatively-scoped choice available this run.
+
+**Alternatifler.**
+1. *Ship background music instead of/alongside a UI click.* Rejected for this slice: music needs a
+   licensed CC0/CC-BY loop, a volume/mute control (`ui/pauseMenu.js`'s settings tab has none yet — see
+   its own header note, unchanged by this ADR), and a decision on when it starts/stops/crossfades —
+   three separate design questions, not a bounded single-commit slice.
+2. *Add positional/spatial SFX (footsteps, combat) instead of a UI click.* Rejected for this slice:
+   needs a trigger point in gameplay code (footstep cadence, hit detection) this run did not audit for
+   side effects, and multiple sound files/licenses instead of one. A UI-only click has exactly one
+   call site (`onOpenChange`) and one asset.
+3. *Build a volume/mute control in the same commit.* Rejected: `ui/pauseMenu.js`'s settings tab is
+   graphics-quality-only by design (ADR-0289); adding an audio section is its own scoped UI change,
+   not a free extension of "does one sound file play." Left as an open, disclosed gap (see below).
+4. *Resume the `AudioContext` inside the `await loadClickBuffer()` chain instead of synchronously
+   first.* Rejected: `context.resume()` requires an active user-gesture call stack in most browsers'
+   autoplay-gesture policy; awaiting the buffer load first would let that stack unwind, risking the
+   resume being silently ignored on stricter browsers. Firing `resume()` synchronously before the
+   first `await` (with the buffer load racing alongside it) keeps both fast and inside the gesture.
+
+**Sonuç / trade-off.** The game has real, working audio for the first time — small in scope (one
+0.35-volume, ~0.1s CC0 click, pause-menu-only) but a genuine, player-audible first slice of §3 item 6,
+not a stub. No volume/mute control yet (disclosed gap, narrowing note added to `ui/pauseMenu.js`'s own
+header and to `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3's row 6, not a new `QUESTIONS_FOR_OWNER.md`
+entry — this is scope, not an ambiguous product decision). No music, no combat/footstep/ambient SFX.
+
+**Etkilenen sistemler.** New: `src/3d/audio/audioManager.js`, `assets/audio/ui-click.wav`,
+`scripts/game3dSmokeChecksAudio.js`. Touched: `src/3d/game3d.js` (construct/dispose only),
+`src/3d/ui/pauseMenu.js` (one call site, header comment only), `service-worker.js` (SHELL_CACHE
+v16→v17, two new precached paths), `CREDITS.md` (new Kenney/CC0 entry), `assets_manifest.json` (new
+entry), `scripts/smokeTestGame3D.js` (registers the new check). No terrain, hydrology, road,
+settlement, NPC, dragon, or world-event system touched.
+
+**Doğrulama.** `node --check` clean on all six touched/new `.js` files. `checkTechnicalDebt.js` PASS
+(0 new debt). `checkSeededRandomPolicy.js` PASS. `checkAssetsManifest.js` PASS (new entry resolves,
+license recorded as CC0 with source URL). `checkSmokeCheckRegistry.js` OK — 43 smoke checks across 19
+modules (was 42/18), `game3d.js` 588/600 (real headroom, unchanged WARN list otherwise). The new
+`game3dSmokeChecksAudio.js` check itself needed two real fixes before it actually verified anything
+(caught by this run, not shipped broken): it never dismissed the `#run266-entry-gate` consent overlay
+or waited for `#game3d-loading` to hide before its real `page.click()`, so the click timed out against
+whichever full-viewport element was still on top — both fixed (dismiss gate, wait for
+`g3d-loading-hidden`, give the injected test button a `position:fixed`/high-`z-index` style so a real
+pointer click lands on it instead of the input-capturing `#game3d-canvas` underneath). Re-run
+standalone against a real `game3d.html` page load: PASS — real `THREE.AudioListener` added on
+construct, a genuine Playwright `page.click()` (trusted gesture, not a scripted event) resolves
+`playClick()` without throwing, audio context left open (not closed), `dispose()` removes the
+listener and is safe to call twice. `collectPerfSnapshot.js run346-first-audio`: 55 draw calls /
+709,382 triangles / 57 geometries / 22 textures / 202MB heap — in line with prior runs' own samples,
+no drawcall/triangle regression from adding one non-rendered audio node.
+
+**Full `smokeTestGame3D.js` 43-check suite: NOT completed end-to-end this run — pre-existing
+environment limitation, not caused by this change.** This session's checkout has all `.fbx`/`.glb`
+model files present only as ~130-byte git-lfs pointer stubs (confirmed: `file` reports "ASCII text",
+not real glTF/FBX binaries) — the exact condition `RCA_RUN344_LFS_REPO_RENAME.md` already root-caused
+and disclosed to the owner. `git lfs pull` hangs indefinitely in this session too (same as Run 345
+found); this run did not repeat Run 345's local-download workaround (out of scope for a one-slice
+audio change). Direct evidence this is pre-existing and unrelated to this change: (1) the full suite's
+existing `checkFreeCamera` check crashes headless Chromium *before* the new audio check even runs, on
+`main`'s already-committed code, unmodified by this ADR; (2) `checkMobilePerfBudget.js` independently
+FAILs with real, visible `GLTFLoader` `SyntaxError: Unexpected token 'v', "version ht"...` parse
+errors on multiple castle models — the literal signature of an LFS-pointer-text file being fed to a
+binary glTF parser, on files this run never touched. The game's own `AssetLoader` already degrades
+these failures to a placeholder box per model (not a crash), which is how `game3d.html` still loads,
+the audio check still passes, and `collectPerfSnapshot.js` still returns real numbers despite this —
+consistent with Run 344/345's own findings that this is a real-asset-fidelity gap, not a functional
+break. This run therefore cannot claim the full 43/43 real-asset suite pass Run 345 achieved (Run 345
+ran in a different session that completed the LFS workaround); it can only claim what is verified
+above. No new `QUESTIONS_FOR_OWNER.md` entry — Run 344 already raised this exact owner decision and a
+notification was already sent; re-raising here would be noise.
+
+**Memory leak checklist.** `audioManager.js`'s only mutable state is the `AudioListener` child added
+to `camera` and a memoized buffer promise; `dispose()` removes the listener, and the module adds no
+timers, DOM nodes, or global event listeners. `game3d.js` disposes it in the same teardown block as
+every other manager. Per-click `THREE.Audio` instances are created fresh in `playClick()` and
+disconnected in `onEnded` (wrapping, not replacing, the library's own bookkeeping) — no accumulation
+across repeated pause/resume cycles.
+
+**Technical debt.** 0 new. New files are all under the 600-line cap by a wide margin
+(`audioManager.js` ~100 lines, `game3dSmokeChecksAudio.js` ~85 lines).
+
+**World Coverage.** Unchanged (no terrain/geometry delta, desktop 96.2% / mobile 4.5% unaffected).
+World Evolution Report delta: no yol/orman/kale/NPC/hayvan/creature/event/cart count change; +1 ADR
+(ADR-0292); +1 asset (`ui_click_kenney`, CC0); +1 smoke-check module; "oyuncu fark eder mi" — evet,
+ilk kez: duraklatma menüsünü açıp kapatırken artık gerçek, işitilebilir bir tık sesi var (önceden
+tamamen sessizdi).
+
+**`QUESTIONS_FOR_OWNER.md`:** no new entry (see Doğrulama's closing note — this run's one open
+finding is Run 344's already-disclosed LFS issue, not a new one).
+
+**Concurrency re-check immediately before commit:** `git fetch origin main` re-run — no drift found
+past `1352159` (this run's own starting point).
+
+**Next safe step:** `drawDistance`/`textureSize` `QUALITY_PRESETS` knobs remain the two unwired,
+larger-scoped candidates named since Run 341. On audio specifically: a volume/mute control in
+`ui/pauseMenu.js`'s settings tab is the natural next slice if a future run wants to continue this
+thread, followed by a second sound cue (e.g. settlement-discovery ping) reusing the same
+`audioManager.js` machinery. A future run in an environment with working LFS access should re-run the
+full `smokeTestGame3D.js` suite against real assets to confirm this change end-to-end the way Run 345
+did for the pre-existing codebase. Terrain/road work remains claimed by the concurrent corner-agent
+sessions and was not touched here.

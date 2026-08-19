@@ -22,7 +22,10 @@ import { QUALITY_LEVELS, STORAGE_KEYS } from '../config.js';
  *
  * Run 341 (ADR-0289) added the settings screen this file's own header used to name as its documented
  * next step — scoped to graphics quality only, not volume: `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3's
- * own audio row already records `assets/audio/` as empty, so there is no volume to control yet. The
+ * own audio row already records `assets/audio/` as empty, so there is no volume to control yet
+ * (narrowing note, run 346: `assets/audio/` now holds one CC0 UI click sound played from this
+ * class's own open/close transitions via `audio/audioManager.js` — still no volume/mute control
+ * here, this settings screen's own scope, so the gap above stays open, just narrower). The
  * quality picker writes `STORAGE_KEYS.QUALITY_SETTING` (present in `config.js` since FAZ 0, unread
  * until now) and reloads — `renderQuality.js`'s `resolveRenderQuality()` only consumes it at scene
  * construction (`sceneManager.js`), so there is no live-apply path to build here. Desktop-only, same

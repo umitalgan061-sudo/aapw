@@ -525,3 +525,15 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_wooden_shelf_fbx_file_8b36b5a085e82b02` | `assets/models/fbx/wooden_shelf_fbx_file.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_woodrat_by_poly_by_google_24xnzj_nmln_84f4d24b96d4997f` | `assets/models/fbx/Woodrat by Poly by Google - 24Xnzj_Nmln.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_zebra_by_quaternius_iclpbr6sbz_bf5f621b72ec5e18` | `assets/models/fbx/Zebra by Quaternius - iclPBR6SBZ.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+
+## Kenney (Kenney Vleugels, Kenney.nl) — run 346, first audio in the game
+
+Kaynak: https://kenney.nl/assets/ui-audio — CC0 1.0 Universal (kamu malı, atıf gerekmez ama
+memnuniyetle karşılanır). Dosya, orijinal Kenney zip'inin doğrudan indirilmesi JS render gerektirdiği
+için, aynı asset setinin Godot için paketlenmiş bir aynası olan
+https://github.com/Calinou/kenney-ui-audio (`click1.wav`, kendi `LICENSE.txt`'i de CC0'ı doğruluyor)
+üzerinden alındı ve `assets/audio/ui-click.wav` olarak eklendi.
+
+| Asset ID | Dosya | Kullanım |
+|---|---|---|
+| `ui_click_kenney` | `assets/audio/ui-click.wav` | Duraklatma menüsü açılış/kapanış tık sesi (`src/3d/audio/audioManager.js`) |
