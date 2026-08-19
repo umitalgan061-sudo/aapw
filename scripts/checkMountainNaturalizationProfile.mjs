@@ -38,12 +38,12 @@ assert(widthPolicy.minimumScale >= 0.80, 'minimum shoulder scale would pinch can
 assert(widthPolicy.maximumScale <= 1.70, 'maximum shoulder scale would over-grow canonical ranges');
 assert(widthPolicy.maximumScale - widthPolicy.minimumScale >= 0.45, 'shoulder-width envelope is too uniform to naturalize long ridges');
 assert(widthPolicy.broadFrequency > 0 && widthPolicy.detailFrequency > widthPolicy.broadFrequency, 'shoulder width needs broad + detail spatial scales');
-assert(coastalPolicy.radiusNormalized >= 0.008 && coastalPolicy.radiusNormalized <= 0.018, 'coastal relief taper radius drifted');
-assert(coastalPolicy.minimumScale >= 0.08 && coastalPolicy.minimumScale <= 0.20, 'coastal relief minimum is not bounded');
+assert(coastalPolicy.radiusNormalized >= 0.020 && coastalPolicy.radiusNormalized <= 0.035, 'coastal/lake relief taper is not long enough to prevent mask-edge walls');
+assert(coastalPolicy.minimumScale >= 0.005 && coastalPolicy.minimumScale <= 0.05, 'water-edge relief floor must approach foothill scale');
 assert(talusPolicy.strength > 0.08 && talusPolicy.strength <= 0.22, 'talus breakup must be visible but bounded');
 assert(talusPolicy.shoulderStart >= 0.1 && talusPolicy.shoulderStart < talusPolicy.shoulderEnd, 'talus shoulder envelope start drifted');
 assert(talusPolicy.shoulderEnd <= 0.95, 'talus breakup must fade before the canonical outer boundary');
-assert(ridgePolicy.primarySharpness >= 1.2 && ridgePolicy.primarySharpness <= 1.8, 'primary ridge sharpness is not realistic/bounded');
+assert(ridgePolicy.primarySharpness >= 1.15 && ridgePolicy.primarySharpness <= 1.6, 'primary ridge sharpness is not realistic/bounded');
 assert(ridgePolicy.secondaryStrength >= 0.18 && ridgePolicy.secondaryStrength <= 0.40, 'secondary ridge is either invisible or dominant');
 assert(ridgePolicy.outerRidgeStrength > 0 && ridgePolicy.outerRidgeStrength < ridgePolicy.secondaryStrength, 'outer ridge must remain weaker than secondary ridge');
 assert(ridgePolicy.valleyStrength >= 0.20 && ridgePolicy.valleyStrength <= 0.45, 'drainage valley cuts are not bounded');
@@ -51,9 +51,21 @@ assert(ridgePolicy.crestDetailFrequency > 25, 'crest breakup is too broad to sep
 assert.deepEqual(Object.keys(highlandPolicy).sort(), ['lands-always-winter', 'north', 'westerlands'], 'highland coverage expanded beyond map-supported elevated regions');
 assert(seatPolicy.innerRadiusNormalized > 0 && seatPolicy.outerRadiusNormalized > seatPolicy.innerRadiusNormalized, 'habitable seat protection radii are invalid');
 assert(seatPolicy.minimumMultiplier >= 0.10 && seatPolicy.minimumMultiplier <= 0.40, 'capital basin relief floor drifted');
+for (const chainId of ['bone-mountains', 'eastern-chain']) {
+	const p = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.chains[chainId]?.longitudinalMassifs;
+	assert(p, `${chainId}: longitudinal massif policy missing`);
+	assert(p.saddleFloor >= 0.08 && p.saddleFloor <= 0.18, `${chainId}: saddle floor would disconnect or re-form a tube`);
+	assert(p.anchorWidth >= 0.045 && p.anchorWidth <= 0.08, `${chainId}: anchor massif width drifted`);
+	assert(p.segmentWidth >= 0.05 && p.segmentWidth <= 0.09, `${chainId}: segment massif width drifted`);
+	assert(p.endpointStrength >= 0.4 && p.endpointStrength <= 0.65, `${chainId}: chain ends are not tapered`);
+}
+assert(!WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.chains['vale-chain'].longitudinalMassifs, 'Vale pass geometry must not inherit long-chain massif gating');
+assert(!WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.chains['red-mountains'].longitudinalMassifs, 'Red Mountains pass geometry must not inherit long-chain massif gating');
 assert(source.includes('sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed)'), 'runtime relief no longer consumes shoulder-width variation');
 assert(source.includes('Math.cos(normalizedDistance * Math.PI * 0.5)'), 'runtime ridge cross-section returned to a flat core plateau');
 assert(source.includes('sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight)'), 'runtime relief no longer tapers source-adjacent coastal cliffs');
+assert(source.includes('pointSegmentProjection(px, py'), 'runtime no longer derives an axial chain projection');
+assert(source.includes('sampleLongitudinalMassifEnvelope(chain, axialProgress'), 'runtime no longer breaks long chains into massifs and saddles');
 assert(source.includes('sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed)'), 'runtime relief no longer consumes talus breakup');
 assert(source.includes('sampleNaturalizedRidgeShape(normalizedX, normalizedY, normalizedDistance, coreRatio, chain.profile.seed)'), 'runtime relief no longer builds primary/secondary ridge morphology');
 assert(source.includes('sampleMappedHighlandMeters(normalizedX, normalizedY)'), 'runtime relief no longer consumes map-supported highlands');
@@ -134,6 +146,27 @@ function lateralProfile(center, profile) {
 		maximumWidth,
 	};
 }
+function centerlineSeries(chain, stepsPerSegment = 120) {
+	const rows = [];
+	for (let segmentIndex = 0; segmentIndex < chain.points.length - 1; segmentIndex += 1) {
+		for (let step = segmentIndex === 0 ? 0 : 1; step <= stepsPerSegment; step += 1) {
+			const candidate = candidateAt(chain, segmentIndex, step / stepsPerSegment);
+			if (candidate?.dry >= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull) rows.push(candidate.height);
+		}
+	}
+	return rows;
+}
+function countRuns(values, predicate) {
+	let runs = 0;
+	let active = false;
+	for (const value of values) {
+		if (predicate(value)) {
+			if (!active) runs += 1;
+			active = true;
+		} else active = false;
+	}
+	return runs;
+}
 
 const evidence = {};
 for (const chain of REFERENCE_RELIEF_CHAINS) {
@@ -147,8 +180,6 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 	assert(lateral.rows.some((row, index) => index > 0 && row.bestHeight < lateral.rows[0].bestHeight * 0.92), `${chain.id}: shoulder profile is suspiciously flat laterally`);
 	for (const sample of lateral.outside) {
 		if (!sample.inBounds || sample.dry <= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero) continue;
-		// An authored highland may legitimately continue beyond a mountain chain's shoulder. Only
-		// highland-free exterior samples are allowed to prove that the chain itself did not sprawl.
 		if (isMappedHighland(sample.normalizedX, sample.normalizedY)) continue;
 		assert(sample.height <= center.height * 0.08 + 2, `${chain.id}: mountain relief extends materially beyond declared maximum shoulder`);
 	}
@@ -165,6 +196,22 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 		maximumWidthNormalized: rounded(lateral.maximumWidth),
 		lateralHeightsMeters: lateral.rows.map((row) => rounded(row.bestHeight)),
 	};
+}
+
+const longitudinalEvidence = {};
+for (const chainId of ['bone-mountains', 'eastern-chain']) {
+	const chain = REFERENCE_RELIEF_CHAINS.find((candidate) => candidate.id === chainId);
+	const series = centerlineSeries(chain);
+	assert(series.length > 150, `${chainId}: insufficient dry centerline evidence`);
+	const peak = Math.max(...series);
+	const over100Ratio = series.filter((height) => height > 100).length / series.length;
+	const lowRatio = series.filter((height) => height < peak * 0.30).length / series.length;
+	const highRuns = countRuns(series, (height) => height > peak * 0.55);
+	assert(peak > (chainId === 'bone-mountains' ? 500 : 350), `${chainId}: massif peaks lost required relief`);
+	assert(over100Ratio < 0.88, `${chainId}: >100m relief remains too continuous and still risks a stadium/tube silhouette`);
+	assert(lowRatio >= 0.08, `${chainId}: no meaningful low saddles separate major massifs`);
+	assert(highRuns >= 3, `${chainId}: long chain does not resolve into at least three high massif groups`);
+	longitudinalEvidence[chainId] = { peakMeters: rounded(peak), over100Ratio: rounded(over100Ratio, 4), lowRatio: rounded(lowRatio, 4), highRuns, samples: series.length };
 }
 
 const highlandEvidence = {};
@@ -217,5 +264,6 @@ console.log('MOUNTAIN_NATURALIZATION_PROFILE_OK', JSON.stringify({
 	zeroReliefDrySamples,
 	highlandEvidence,
 	plainEvidence,
+	longitudinalEvidence,
 	evidence,
 }));

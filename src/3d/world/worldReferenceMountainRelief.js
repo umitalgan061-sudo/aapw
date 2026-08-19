@@ -17,19 +17,19 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-geography-relief-2026-08-19-v5',
+	id: 'owner-map-live-geography-relief-2026-08-19-v6',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
-	landGateZero: 0.54,
-	landGateFull: 0.84,
+	landGateZero: 0.42,
+	landGateFull: 0.90,
 	coordinateWarpNormalized: 0.0035,
 	summitModulationMinimum: 0.08,
 	summitNoiseExponent: 2.15,
 	shoulderWidthVariation: Object.freeze({ broadFrequency: 5.5, detailFrequency: 13.5, minimumScale: 0.86, maximumScale: 1.58 }),
-	coastalReliefTaper: Object.freeze({ radiusNormalized: 0.012, minimumScale: 0.10 }),
+	coastalReliefTaper: Object.freeze({ radiusNormalized: 0.026, minimumScale: 0.015 }),
 	talusBreakup: Object.freeze({ broadFrequency: 22, detailFrequency: 47, strength: 0.21, shoulderStart: 0.18, shoulderEnd: 0.90 }),
 	ridgeNaturalization: Object.freeze({
-		primarySharpness: 1.42,
+		primarySharpness: 1.25,
 		secondaryCenter: 0.40,
 		secondaryCenterJitter: 0.10,
 		secondaryWidth: 0.105,
@@ -74,8 +74,22 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.050, minimumMultiplier: 0.08 }),
 			]),
 		}),
-		'bone-mountains': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.0065, outerWidthNormalized: 0.064, summitFloor: 0.14, seed: 37 }),
-		'eastern-chain': Object.freeze({ peakMeters: 1050, coreWidthNormalized: 0.006, outerWidthNormalized: 0.060, summitFloor: 0.15, seed: 53 }),
+		'bone-mountains': Object.freeze({
+			peakMeters: 1300,
+			coreWidthNormalized: 0.0065,
+			outerWidthNormalized: 0.072,
+			summitFloor: 0.14,
+			seed: 37,
+			longitudinalMassifs: Object.freeze({ saddleFloor: 0.11, anchorWidth: 0.058, segmentWidth: 0.066, endpointStrength: 0.54, segmentStrength: 0.82, irregularity: 0.12 }),
+		}),
+		'eastern-chain': Object.freeze({
+			peakMeters: 1250,
+			coreWidthNormalized: 0.006,
+			outerWidthNormalized: 0.068,
+			summitFloor: 0.15,
+			seed: 53,
+			longitudinalMassifs: Object.freeze({ saddleFloor: 0.12, anchorWidth: 0.060, segmentWidth: 0.068, endpointStrength: 0.52, segmentStrength: 0.80, irregularity: 0.11 }),
+		}),
 	}),
 });
 
@@ -170,15 +184,18 @@ function sampleCoastalReliefScale(normalizedX, normalizedY, centerDryWeight) {
 		sampleReferenceDryLandWeight(normalizedX, clamp(normalizedY - radiusY, 0, 1)),
 		sampleReferenceDryLandWeight(normalizedX, clamp(normalizedY + radiusY, 0, 1)),
 	);
-	return p.minimumScale + (1 - p.minimumScale) * smoothstep(0.18, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull, clearance);
+	return p.minimumScale + (1 - p.minimumScale) * smoothstep(0.10, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull, clearance);
 }
-function pointSegmentDistance(px, py, ax, ay, bx, by) {
+function pointSegmentProjection(px, py, ax, ay, bx, by) {
 	const dx = bx - ax;
 	const dy = by - ay;
 	const lengthSquared = dx * dx + dy * dy;
-	if (lengthSquared <= 1e-12) return Math.hypot(px - ax, py - ay);
-	const t = Math.min(1, Math.max(0, ((px - ax) * dx + (py - ay) * dy) / lengthSquared));
-	return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+	if (lengthSquared <= 1e-12) return { distance: Math.hypot(px - ax, py - ay), t: 0 };
+	const t = clamp(((px - ax) * dx + (py - ay) * dy) / lengthSquared, 0, 1);
+	return { distance: Math.hypot(px - (ax + dx * t), py - (ay + dy * t)), t };
+}
+function pointSegmentDistance(px, py, ax, ay, bx, by) {
+	return pointSegmentProjection(px, py, ax, ay, bx, by).distance;
 }
 function samplePassMultiplier(normalizedX, normalizedY, passes = []) {
 	let multiplier = 1;
@@ -238,6 +255,24 @@ function sampleNaturalizedRidgeShape(normalizedX, normalizedY, normalizedDistanc
 	const valley = smoothstep(0.64, 0.90, valleyNoise) * (1 - smoothstep(0.78, 0.98, normalizedDistance));
 	return Math.max(0, (primary + secondary + outer) * crestDetail * (1 - valley * p.valleyStrength));
 }
+function sampleLongitudinalMassifEnvelope(chain, axialProgress, normalizedX, normalizedY) {
+	const p = chain.profile.longitudinalMassifs;
+	if (!p) return 1;
+	let massif = 0;
+	for (let index = 0; index < chain.anchorProgresses.length; index += 1) {
+		const endpoint = index === 0 || index === chain.anchorProgresses.length - 1;
+		const strength = endpoint ? p.endpointStrength : 1;
+		massif = Math.max(massif, gaussian(axialProgress, chain.anchorProgresses[index], p.anchorWidth) * strength);
+	}
+	for (const center of chain.segmentMidProgresses) {
+		massif = Math.max(massif, gaussian(axialProgress, center, p.segmentWidth) * p.segmentStrength);
+	}
+	const irregularity = 1 + (valueNoise2D(normalizedX * 9 + chain.profile.seed, normalizedY * 7 - chain.profile.seed, chain.profile.seed + 1201) - 0.5)
+		* 2 * p.irregularity;
+	const endDistance = Math.min(axialProgress, 1 - axialProgress);
+	const endTaper = p.endpointStrength + (1 - p.endpointStrength) * smoothstep(0, 0.085, endDistance);
+	return p.saddleFloor + (1 - p.saddleFloor) * clamp(massif * irregularity * endTaper, 0, 1);
+}
 
 const COMPILED_CHAINS = Object.freeze(REFERENCE_RELIEF_CHAINS.map((chain) => {
 	const profile = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.chains[chain.id];
@@ -245,10 +280,25 @@ const COMPILED_CHAINS = Object.freeze(REFERENCE_RELIEF_CHAINS.map((chain) => {
 	const points = Object.freeze(chain.points.map(([x, y]) => Object.freeze([x * MAP_ASPECT, y])));
 	const xs = points.map((point) => point[0]);
 	const ys = points.map((point) => point[1]);
+	const segments = [];
+	let totalLength = 0;
+	for (let index = 0; index < points.length - 1; index += 1) {
+		const a = points[index];
+		const b = points[index + 1];
+		const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+		segments.push(Object.freeze({ a, b, length, start: totalLength }));
+		totalLength += length;
+	}
+	const anchorProgresses = [0, ...segments.map((segment) => (segment.start + segment.length) / Math.max(totalLength, 1e-9))];
+	const segmentMidProgresses = segments.map((segment) => (segment.start + segment.length * 0.5) / Math.max(totalLength, 1e-9));
 	const maximumWidthScale = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.shoulderWidthVariation.maximumScale;
 	return Object.freeze({
 		id: chain.id,
 		points,
+		segments: Object.freeze(segments),
+		totalLength,
+		anchorProgresses: Object.freeze(anchorProgresses),
+		segmentMidProgresses: Object.freeze(segmentMidProgresses),
 		profile,
 		minX: Math.min(...xs) - profile.outerWidthNormalized * maximumWidthScale,
 		maxX: Math.max(...xs) + profile.outerWidthNormalized * maximumWidthScale,
@@ -295,10 +345,13 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		if (px < chain.minX || px > chain.maxX || py < chain.minY || py > chain.maxY) continue;
 
 		let distance = Infinity;
-		for (let index = 0; index < chain.points.length - 1; index += 1) {
-			const a = chain.points[index];
-			const b = chain.points[index + 1];
-			distance = Math.min(distance, pointSegmentDistance(px, py, a[0], a[1], b[0], b[1]));
+		let axialProgress = 0;
+		for (const segment of chain.segments) {
+			const projection = pointSegmentProjection(px, py, segment.a[0], segment.a[1], segment.b[0], segment.b[1]);
+			if (projection.distance < distance) {
+				distance = projection.distance;
+				axialProgress = (segment.start + segment.length * projection.t) / Math.max(chain.totalLength, 1e-9);
+			}
 		}
 		const widthScale = sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed);
 		const coreWidth = chain.profile.coreWidthNormalized * clamp(widthScale * 0.92, 0.76, 1.20);
@@ -313,8 +366,9 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		const summitFloor = chain.profile.summitFloor ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitModulationMinimum;
 		const modulation = summitFloor + (1 - summitFloor) * Math.pow(summitNoise, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitNoiseExponent);
 		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed);
+		const longitudinalEnvelope = sampleLongitudinalMassifEnvelope(chain, axialProgress, normalizedX, normalizedY);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
-		strongestMeters = Math.max(strongestMeters, chain.profile.peakMeters * ridge * modulation * talusBreakup * passMultiplier);
+		strongestMeters = Math.max(strongestMeters, chain.profile.peakMeters * ridge * modulation * talusBreakup * longitudinalEnvelope * passMultiplier);
 	}
 
 	strongestMeters = Math.max(strongestMeters, sampleMappedHighlandMeters(normalizedX, normalizedY));
