@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
 	applyGamepadRadialDeadzone,
+	pulsePlayerGamepadMelee,
 	samplePlayerGamepad,
 	selectPlayerGamepad,
 } from '../src/3d/input.js';
@@ -71,6 +72,18 @@ const released = samplePlayerGamepad(makePad(), heldActions.buttons);
 const pressedAgain = samplePlayerGamepad(makePad({ buttons: { 2: true } }), released.buttons);
 assert.equal(pressedAgain.lightPressed, true, 'attack must retrigger after a real release edge');
 
+const hapticCalls = [];
+const hapticPad = { ...makePad(), vibrationActuator: { playEffect: (type, options) => { hapticCalls.push({ type, options }); return Promise.resolve('complete'); } } };
+assert.equal(pulsePlayerGamepadMelee(hapticPad, 'light'), true, 'supported Standard pad should accept light haptics');
+assert.equal(pulsePlayerGamepadMelee(hapticPad, 'heavy'), true, 'supported Standard pad should accept heavy haptics');
+assert.equal(hapticCalls.length, 2);
+assert.equal(hapticCalls[0].type, 'dual-rumble');
+assert.ok(hapticCalls[0].options.duration > 0 && hapticCalls[0].options.duration < 100);
+assert.ok(hapticCalls[1].options.strongMagnitude > hapticCalls[0].options.strongMagnitude, 'heavy attack must feel stronger than light');
+assert.ok(hapticCalls[1].options.strongMagnitude <= 1 && hapticCalls[1].options.weakMagnitude <= 1, 'haptics must stay unit bounded');
+assert.equal(pulsePlayerGamepadMelee({ ...hapticPad, mapping: '' }, 'heavy'), false, 'unmapped pads must never receive guessed combat haptics');
+assert.equal(pulsePlayerGamepadMelee(makePad(), 'light'), false, 'missing vibration actuator must safely no-op');
+
 const saturated = samplePlayerGamepad(makePad({ axes: [5, -5, 5, -5], values: { 6: 5, 7: 0 } }));
 assert.ok(Math.hypot(saturated.strafe, saturated.forward) <= 1.000000001, 'saturated diagonal left stick must remain unit-bounded');
 assert.ok(Math.hypot(saturated.lookX, saturated.lookY) <= 1.000000001, 'saturated diagonal right stick must remain unit-bounded');
@@ -111,7 +124,7 @@ const source = fs.readFileSync(new URL('../src/3d/input.js', import.meta.url), '
 for (const contract of [
 	"JUMP: 0", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "ZOOM_OUT: 6", "ZOOM_IN: 7", "SPRINT: 10",
 	"gamepad.axes?.[2]", "gamepad.axes?.[3]", "buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_IN)", "lookDeltaSeconds",
-	"pad.mapping === 'standard'", "gamepad.mapping !== 'standard'",
+	"pad.mapping === 'standard'", "gamepad.mapping !== 'standard'", "pulsePlayerGamepadMelee", "dual-rumble",
 	"applyGamepadRadialDeadzone", "selectPlayerGamepad", "this._activeGamepadIndex",
 	"emitPlayerCombatIntent('light', 'gamepad')", "emitPlayerCombatIntent('heavy', 'gamepad')", "'aapw:player-input-device'",
 ]) assert.ok(source.includes(contract), `missing shipped gamepad contract: ${contract}`);
@@ -129,4 +142,4 @@ for (const contract of [
 ]) assert.ok(movementSource.includes(contract), `missing camera-relative gamepad contract: ${contract}`);
 
 assert.ok(!source.includes('gamepad?.buttons?.[0]?.pressed'), 'legacy A-as-light direct polling must stay removed');
-console.log('[checkPlayerGamepadInput] PASS: Standard-only dual-stick analog, trigger zoom, camera orbit, deterministic selection, sprint/guard and combat edge parity are bounded.');
+console.log('[checkPlayerGamepadInput] PASS: Standard-only dual-stick analog, trigger zoom, bounded melee haptics, camera orbit, deterministic selection, sprint/guard and combat edge parity are bounded.');
