@@ -21,6 +21,7 @@ on:
       - 'scripts/checkInteractionExpeditionKitBrowser.mjs'
       - 'scripts/checkInteractionFieldReadiness.mjs'
       - 'scripts/checkInteractionFieldReadinessBrowser.mjs'
+      - 'scripts/checkInteractionFastTravelBoundary.mjs'
       - 'service-worker.js'
       - '.github/workflows/rpg-interaction-quest-loop.yml'
   workflow_dispatch:
@@ -54,7 +55,7 @@ jobs:
           printf '%s\n' "${FILES[@]}"
           for path in "${FILES[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|src/3d/gameplay/interactionFieldReadiness.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|scripts/checkInteractionArmorerServiceBrowser.mjs|scripts/checkInteractionProvisioningCraft.mjs|scripts/checkInteractionProvisioningCraftBrowser.mjs|scripts/checkInteractionExpeditionKitCraft.mjs|scripts/checkInteractionExpeditionKitBrowser.mjs|scripts/checkInteractionFieldReadiness.mjs|scripts/checkInteractionFieldReadinessBrowser.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|src/3d/gameplay/interactionFieldReadiness.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|scripts/checkInteractionArmorerServiceBrowser.mjs|scripts/checkInteractionProvisioningCraft.mjs|scripts/checkInteractionProvisioningCraftBrowser.mjs|scripts/checkInteractionExpeditionKitCraft.mjs|scripts/checkInteractionExpeditionKitBrowser.mjs|scripts/checkInteractionFieldReadiness.mjs|scripts/checkInteractionFieldReadinessBrowser.mjs|scripts/checkInteractionFastTravelBoundary.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
               *) echo "unexpected RPG scope path: $path" >&2; exit 1 ;;
             esac
           done
@@ -83,6 +84,7 @@ jobs:
           node --check scripts/checkInteractionExpeditionKitBrowser.mjs
           node --check scripts/checkInteractionFieldReadiness.mjs
           node --check scripts/checkInteractionFieldReadinessBrowser.mjs
+          node --check scripts/checkInteractionFastTravelBoundary.mjs
           node scripts/checkInteractionQuestLoop.mjs
           node scripts/checkInteractionInventoryRewards.mjs
           node scripts/checkInteractionQuartermasterTrade.mjs
@@ -91,6 +93,7 @@ jobs:
           node scripts/checkInteractionProvisioningCraft.mjs
           node scripts/checkInteractionExpeditionKitCraft.mjs
           node scripts/checkInteractionFieldReadiness.mjs
+          node scripts/checkInteractionFastTravelBoundary.mjs
 
       - name: Shared regression contracts
         run: |
