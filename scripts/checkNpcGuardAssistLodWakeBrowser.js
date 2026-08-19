@@ -7,10 +7,29 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function stripBenignServerNoise(log) {
-  return String(log).replace(
-    /-{20,}\nException occurred during processing of request[\s\S]*?ConnectionResetError: \[Errno 104\] Connection reset by peer\n-{20,}\n?/g,
-    '',
+  const text = String(log);
+  const terminalErrors = [...text.matchAll(/^([A-Za-z_]\w*Error):.*$/gm)].map((match) => match[0].trim());
+  const knownDisconnectErrors = terminalErrors.filter((line) =>
+    line === 'BrokenPipeError: [Errno 32] Broken pipe'
+      || line === 'ConnectionResetError: [Errno 104] Connection reset by peer',
   );
+  const unexpectedTerminalErrors = terminalErrors.filter((line) => !knownDisconnectErrors.includes(line));
+  const hasTraceback = /(?:^|\n)Traceback \(most recent call last\):/m.test(text);
+  const hasHttpFailure = /" [45]\d\d /m.test(text);
+
+  // Chromium may close in-flight asset responses after the proof is complete. Python's threaded
+  // http.server logs those client disconnects as interleaved BrokenPipe/ConnectionReset tracebacks.
+  // Treat them as benign only when *every* terminal exception is one of those two known socket-close
+  // errors. A different exception, HTTP 4xx/5xx, or a traceback with no terminal exception remains
+  // fatal below, so this does not turn the server check into a blanket traceback suppression.
+  if (
+    hasTraceback
+    && knownDisconnectErrors.length > 0
+    && unexpectedTerminalErrors.length === 0
+    && !hasHttpFailure
+  ) return '';
+
+  return text;
 }
 
 async function main() {
