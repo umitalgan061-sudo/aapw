@@ -55,13 +55,18 @@ for (const fragment of [
 for (const fragment of [
 	"const LIGHT_ATTACK_KEYS = new Set(['KeyE'])",
 	"const HEAVY_ATTACK_KEYS = new Set(['KeyR'])",
+	"const GAMEPAD_BUTTON = Object.freeze({",
+	'JUMP: 0',
+	'LIGHT: 2',
+	'HEAVY: 3',
+	'export function samplePlayerGamepad(gamepad, previousButtons = {})',
+	'const sample = samplePlayerGamepad(gamepad, this._gamepadButtons)',
 	"emitPlayerCombatIntent('light', 'mouse')",
 	"emitPlayerCombatIntent('light', 'gamepad')",
 	"emitPlayerCombatIntent('heavy', 'gamepad')",
-	"gamepad?.buttons?.[0]?.pressed",
-	"gamepad?.buttons?.[2]?.pressed",
 	"button, a, input, textarea, select",
 ]) assert.ok(input.includes(fragment), `missing input parity contract: ${fragment}`);
+assert.ok(!input.includes("gamepad?.buttons?.[0]?.pressed"), 'legacy A-as-light direct gamepad polling must stay removed');
 
 for (const fragment of [
 	"className = 'g3d-touch-light-attack-button'",
@@ -84,7 +89,7 @@ console.log(JSON.stringify({
 	ok: true,
 	contract: 'player-melee-combo-input-window',
 	attack: cfg,
-	inputs: { keyboard: ['KeyE', 'KeyR'], mouse: 'button0-light', gamepad: ['button0-light', 'button2-heavy'], touch: ['light', 'heavy'] },
+	inputs: { keyboard: ['KeyE', 'KeyR'], mouse: 'button0-light', gamepad: ['A/button0-jump', 'X/button2-light', 'Y/button3-heavy'], touch: ['light', 'heavy'] },
 	assetPolicy: { newModel: false, fabricatedAttackClip: false, canonicalAnimationConfig: 'src/3d/gameplay/playerConfig.js', sharedMaterialCoreUnchanged: true },
 	ownership: { npcDamageConsumerModified: false, terrainModified: false, rpgSemanticsModified: false },
 }, null, 2));
