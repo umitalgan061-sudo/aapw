@@ -115,6 +115,8 @@ async function main() {
         }
       }
 
+      // LOD consumes pre-update fleeing state; release is observable on the next real scheduler tick.
+      if (landingFrame != null) { leader.update(dt, playerFar, []); wingman.update(dt, playerFar, []); }
       const landedAfterBoundedFlight = landingFrame != null && landingFrame < 900;
       const altitudeCeilingRespected = leaderPeakAltitude <= CREATURE_BEHAVIOR_PROFILES.kuzgun.flightAltitudeMeters + 0.05
         && wingmanPeakAltitude <= CREATURE_BEHAVIOR_PROFILES.kuzgun.flightAltitudeMeters + 0.05
