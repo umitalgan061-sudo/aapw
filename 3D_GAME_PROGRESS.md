@@ -16990,3 +16990,36 @@ PASS (19,2°, 18,29 km), terrain visual contract PASS, satır sınırı PASS.
 
 Sıradaki: sahibin S-0035'e cevabı. O gelene kadar ince bant içeriği kapıya takılıyor; bu turda o
 kapının tam olarak nerede olduğu tespit edildi.
+
+### Run 357 — Yollara kes-doldur yatağı, ve zemin sonunda gerçekten pürüzlü (ADR-0304)
+
+"İstediğini yap" dediğiniz için S-0035'te tavsiye ettiğim seçeneği kurdum: kapıyı gevşetmek yerine
+yollara gerçek bir yatak vermek. Yol artık ham arazinin üstünden geçmiyor; kendi kesilip doldurulmuş
+şeridinde ilerliyor — gerçek yollar da böyle yapılır, ve 20°'lik tavan anlamını hiç kaybetmiyor.
+
+Yol boyunca iki hata yaptım, ikisini de ölçüm yakaladı:
+
+Önce profili A*'ın 60 m'lik noktalarından yumuşattım. Ama pürüzlülük ~39 m'de, yani o noktalar zaten
+aliaslıydı — aliaslı örneklerin ortalaması gerçek profili geri getirmiyor. Stres rotası 22,0°'de takıldı.
+Rotayı önce 8 m'de yeniden örnekleyip filtreyi ona uygulayınca düzeldi.
+
+Sonra uçları sert pinledim ki yol kalesine tam otursun. Sonuç **57,1°** — çünkü pinlenmiş uç, 8 m
+ötesindeki ağır filtrelenmiş komşusunun yanında kendisi bir uçurum oluyor. Filtreyi pinsiz çalıştırıp
+uç farkını sonradan sönümlenen bir ofsetle kapatmak doğru çözümdü.
+
+Sonuç: stres rotası 19,2° → 13,0°, ağır pürüzlülükle 11,4°. `umit → Xaro` 15,6° → 9,1°.
+
+**Ve istediğiniz şey artık gerçekten oldu.** Pürüzlülük katmanı düz 2,0 m'den yükseltiye rampalı
+3,5–14,0 m'ye, dalga boyu 45 m'den ~27 m'ye, oktav 3'ten 4'e çıktı — en ince oktav ~3,5 m, yani geçen
+turun 3,9 m'lik mesh'inin taşıyabildiği ölçek. İki tur ancak birlikte işe yarıyor.
+
+Oyuncu ölçeğinde zemin eğriliği: yayla 1,1239 → **1,6805** (+%50) ve 1,0680 → **2,0045** (+%88),
+ova +%35 ve +%33. Geçen tur denediğim versiyon %1 kazandırmıştı; farkı yatağın açtığı pay yarattı.
+Render'da ova artık tümsek ve çukurlarla dolu, düz bir yüzey değil.
+
+Kapılar: yeni koridor guard'ı PASS (yatak 9,4°'ye karşı yanındaki zemin 49,6° — 5,3 kat yumuşak;
+yoldan 66 m ötede arazi bayt-bayt dokunulmamış, yani koridor gerçekten dar), yollar PASS, 14/14 koltuk
+PASS, su maskesi ve hizalama değişmedi, masaüstü + mobil LOD PASS, determinizm PASS. Açılış 9.981 ms.
+
+Sıradaki: aynı mesajdaki diğer üç istek — vadiler, köy/krallık olmayan yerlerin ormanlaştırılması, ve
+Westeros'un doğu tarafındaki yollar.

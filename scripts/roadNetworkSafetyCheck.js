@@ -121,6 +121,7 @@ async function main() {
 			const { createHeightSampler } = await import('/src/3d/world/terrain.js');
 			const { buildRoadNetwork } = await import('/src/3d/world/roads.js');
 			const { findSlopeAwarePath } = await import('/src/3d/world/roadPathfinder.js');
+			const { computeRoadCorridor, buildRoadCorridor } = await import('/src/3d/world/roadCorridorSmoothing.js');
 			const { generateRiverPath } = await import('/src/3d/world/rivers.js');
 
 			// Same flattened field `sceneManager.js` actually builds (DECISIONS.md ADR-0118) — not the
@@ -134,11 +135,18 @@ async function main() {
 				mapBounds: WORLD_SCALE.MAP_BOUNDS,
 				metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
 			});
-			const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+			// Phase 1: settlement-flattened terrain, no road bed yet. Roads are routed over this.
+			const phase1SampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
 			const seats = KINGDOM_SEATS.map((seat) => {
 				const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
-				return { id: seat.id, x, z, groundY: sampleHeightMeters(x, z) };
+				return { id: seat.id, x, z, groundY: phase1SampleHeightMeters(x, z) };
 			});
+
+			// Phase 2: the cut-and-fill bed those routes imply (ADR-0304). This check must score the
+			// same ground `sceneManager.js` builds, so it runs the identical two-phase construction —
+			// otherwise the gate would be grading terrain the game does not actually have.
+			const roadCorridor = computeRoadCorridor({ seats, baseSampleHeightMeters: phase1SampleHeightMeters });
+			const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, roadCorridor);
 
 			const network = buildRoadNetwork({ seats, sampleHeightMeters });
 			const edges = network.edges.map((edge) => ({
@@ -161,7 +169,21 @@ async function main() {
 			// directly over its steepest flank (see this script's own module doc).
 			const stressStart = { x: 900, z: 2200 };
 			const stressEnd = { x: 4300, z: 2200 };
-			const stressResult = findSlopeAwarePath({ sampleHeightMeters, start: stressStart, end: stressEnd });
+			// Routed once, then graded along its own cut-and-fill bed — which is exactly what
+			// `sceneManager.js` builds (ADR-0304): route on phase-1 terrain, lay the bed along that
+			// route, done. Re-routing on the bed would be measuring a road the game never builds, and
+			// a route that wandered off the bed it was given would be scored against ground that has
+			// no bed at all.
+			const stressRoute = findSlopeAwarePath({ sampleHeightMeters, start: stressStart, end: stressEnd });
+			const stressCorridor = buildRoadCorridor([{ points: stressRoute.points }], { sampleHeightMeters });
+			const stressBed = stressCorridor.smoothedEdges[0].points;
+			let stressMaxGrade = 0;
+			for (let i = 1; i < stressBed.length; i++) {
+				const run = Math.hypot(stressBed[i].x - stressBed[i - 1].x, stressBed[i].z - stressBed[i - 1].z);
+				if (run <= 0) continue;
+				stressMaxGrade = Math.max(stressMaxGrade, (Math.atan(Math.abs(stressBed[i].y - stressBed[i - 1].y) / run) * 180) / Math.PI);
+			}
+			const stressResult = { points: stressRoute.points, maxGradeDegrees: stressMaxGrade };
 			const mountainCenter = { x: 2600, z: 2200 };
 			const distanceToMountain = (p) => Math.hypot(p.x - mountainCenter.x, p.z - mountainCenter.z);
 			let straightLineClosest = Infinity;

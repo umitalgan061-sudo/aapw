@@ -17314,3 +17314,58 @@ etkilenmiyor), `checkSmokeCheckRegistry` PASS.
 
 **Next safe step:** sahibin yol-eğimi sorusuna vereceği cevap. O gelene kadar ince bant içeriği
 eklemek kapıya takılıyor; bu turda o kapının nerede olduğu kesin olarak tespit edildi.
+
+## ADR-0304 — Yollara kes-doldur koridoru, ve oyuncu ölçeğinde gerçek pürüzlülük
+
+**Bağlam.** ADR-0303 engeli tespit etmişti: pürüzlülük katmanının *dalga boyu* (genliği değil) yol
+kapısını tetikliyordu, çünkü `roadPathfinder.js` 60 m ızgarada örnekliyor ve o bandı uçurum gibi
+puanlıyordu. S-0035 olarak sahibe soruldu; sahip "istediğini yap" diyerek tavsiye ettiğim 3. seçeneği
+onayladı: kapıyı gevşetmek yerine yollara gerçek bir yatak vermek.
+
+**Karar.** `world/roadCorridorSmoothing.js` — yerleşim pad'lerinin birebir aynı iki fazlı kalıbı.
+Faz 1: her araba yolu pad'li arazi üzerinde rotalanır. Faz 2: rota boyunca yatak döşenir ve arazi dar
+bir koridor içinde o yatağa çekilir. Koridor `sceneManager.js`'te chunk manager ve ground collider'dan
+**önce** kuruluyor, çünkü ikisi de aynı zemini görmek zorunda (ADR-0118 hata modu).
+
+**Ölçümle bulunan iki hata, ikisi de düzeltildi.**
+
+1. *Profili A* noktalarından yumuşatmak.* Noktalar 60 m aralıklı, pürüzlülük ~39 m'de — yani noktalar
+   **zaten aliaslı** ve aliaslı örneklerin ortalaması gerçek profili geri getirmiyor. Stres rotası
+   22,0°'de kaldı. Düzeltme: rotayı önce 8 m'de yeniden örnekle, filtreyi ona uygula.
+2. *Uçları sert pinlemek.* 8 m ötesindeki ağır filtrelenmiş komşusunun yanında pinlenmiş uç noktanın
+   kendisi bir uçurum oluyor — stres rotası **57,1°**. Düzeltme: filtre pinsiz çalışır, uç farkı
+   sonradan filtrenin kendi genişliği boyunca doğrusal sönümlenen bir ofsetle kapatılır. Yol yine
+   kalesinin pad yüksekliğine tam oturur, profil sürekli kalır.
+
+**Sonuç.** Stres rotası 19,2° → **13,0°**, sonra ağır pürüzlülükle birlikte **11,4°**. `umit → Xaro`
+15,6° → 9,1°, `jon → Night King` 9,1° → 4,9°.
+
+**Ve asıl kazanç: pürüzlülük artık gerçekten var.** `terrainReliefDetail.js`'in `roughness` katmanı
+düz 2,0 m / 45 m dalga boyu / 3 oktavdan, yükseltiye rampalı 3,5–14,0 m / ~27 m dalga boyu / 4 oktava
+çıktı — en ince oktav ~3,5 m, yani ADR-0303'ün 3,9 m yakın-bant mesh'inin taşıyabildiği ölçek. İki
+değişiklik yalnızca birlikte işe yarıyor.
+
+Oyuncu ölçeğinde zemin eğriliği (4 m aralıkla RMS ikinci fark):
+
+| konum | önce | sonra | değişim |
+|---|---|---|---|
+| yayla (3000, 0) | 1,1239 | 1,6805 | **+%50** |
+| yayla (2600, 400) | 1,0680 | 2,0045 | **+%88** |
+| ova (0, 0) | 0,6831 | 0,9229 | +%35 |
+| ova (-500, 1500) | 0,4886 | 0,6495 | +%33 |
+
+ADR-0303'te denenip reddedilen versiyon %1 kazandırmıştı; fark, yatağın açtığı paydan geliyor.
+
+**Doğrulama.** `checkRoadCorridorSmoothing.js` (yeni) PASS: 13 yataklı kenar / 2388 segment, yatak
+9,4°'ye karşı yanındaki dokunulmamış zemin 49,6° (**5,3 kat daha yumuşak**), yoldan 66 m ötede arazi
+yataksız alanla **bayt-bayt aynı** (koridor gerçekten dar), merkez hattında 6,0 m'ye kadar kes-doldur,
+en kötü uç adımı 0,35 m (pinleme uçurumu yok), render/oynanış örnekleyicileri tam olarak aynı.
+Yollar PASS (18,31 km, 20° altında), 14/14 koltuk PASS, su maskesi `2ca2bed8d8a1…` değişmedi,
+hizalama 14/14 %100, terrain visual contract 4225/24576, masaüstü + mobil LOD PASS, determinizm PASS.
+Açılış 9.981 ms.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+**Next safe step:** sahibin aynı mesajdaki diğer üç isteği — vadilerin düzenlenmesi, köy/krallık
+olmayan yerlerin map.png'deki gibi ormanlaştırılması, ve Westeros'un doğu tarafındaki yolların
+map.png'ye bakılarak kurulması.

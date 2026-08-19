@@ -24,8 +24,10 @@ import { createHeightSampler } from './world/terrain.js';
  *   ground mesh under every kingdom seat's castle.
  * @returns {{getGroundHeight: (worldX: number, worldZ: number) => number}}
  */
-export function createGroundCollider(seed, fbmOptions, flattenPads) {
-	const sampleHeightMeters = createHeightSampler(seed, fbmOptions, flattenPads);
+export function createGroundCollider(seed, fbmOptions, flattenPads, roadCorridor = null) {
+	// `roadCorridor` (ADR-0304) must be the same one the rendered chunks get, or every gameplay height
+	// query would disagree with the drawn ground exactly where roads are — the ADR-0118 failure mode.
+	const sampleHeightMeters = createHeightSampler(seed, fbmOptions, flattenPads, roadCorridor);
 	return {
 		/** Terrain height, in meters, at the given world-space (x, z). */
 		getGroundHeight(worldX, worldZ) {

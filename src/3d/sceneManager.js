@@ -24,7 +24,8 @@ import {
 import { createWaterDepthField } from './world/waterDepthField.js';
 import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMesh } from './world/rivers.js';
 import { createHeightSampler, mulberry32 } from './world/terrain.js';
-import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
+import { createSettlements, computeSettlementFlattenPads, KINGDOM_SEATS, mapToWorldXZ } from './world/settlements.js';
+import { computeRoadCorridor } from './world/roadCorridorSmoothing.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createVegetation } from './world/vegetation.js';
 import { createVillages } from './world/villages.js';
@@ -179,6 +180,21 @@ export function createScene(canvas) {
 	// PHASE1_PREVIEW_RADIUS_CHUNKS boot preview — see this function's own doc comment / ADR-0010.
 	// The same signal picks terrain mesh resolution, which is the property that decides whether fine
 	// relief survives to the screen at all (see `CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP`).
+	// Road cut-and-fill bed (DECISIONS.md ADR-0304), built with the same two-phase pattern as the
+	// settlement pads above: route every cart edge over pads-flattened terrain, then lay a smoothed bed
+	// along those routes. It has to exist *before* the chunk manager and the ground collider, because
+	// both must see the same ground — a road drawn on one field and walked on another is the ADR-0118
+	// failure mode. This is also what lets `world/terrainReliefDetail.js` carry real player-scale
+	// roughness at all: without a bed, that roughness scores as impassable road grade (ADR-0303).
+	const phase1SampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+	const roadCorridor = computeRoadCorridor({
+		seats: KINGDOM_SEATS.map((seat) => {
+			const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
+			return { id: seat.id, x, z };
+		}),
+		baseSampleHeightMeters: phase1SampleHeightMeters,
+	});
+
 	const isMobileClass = isCoarsePointerDevice();
 	const chunkManager = new ChunkManager({
 		scene,
@@ -186,6 +202,7 @@ export function createScene(canvas) {
 		segments: isMobileClass ? CHUNK_CONFIG.TERRAIN_SEGMENTS_MOBILE : CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		flattenPads,
+		roadCorridor,
 	});
 	const previewRadiusChunks = isMobileClass ? CHUNK_CONFIG.STREAM_RADIUS_CHUNKS : CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS;
 	const generationStart = performance.now();
@@ -201,7 +218,7 @@ export function createScene(canvas) {
 	// snaps to). Static, generated once — see world/rivers.js module doc for why the river itself
 	// doesn't stream/update per frame yet. Same `flattenPads` as `chunkManager` above (ADR-0118) so
 	// this never disagrees with the rendered ground mesh under a castle.
-	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, roadCorridor);
 
 	// Bathymetry for the water surface (ADR-0270). Baked once, from the *same* flattened height
 	// field the rendered chunks and every gameplay query use, so the swell's amplitude taper can

@@ -35,7 +35,7 @@ export class ChunkManager {
 	 *   array here and into `physics.js`'s `createGroundCollider` so rendered chunk geometry and
 	 *   every gameplay height query stay in agreement.
 	 */
-	constructor({ scene, chunkSizeMeters, seed, flattenPads = [], segments = CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP }) {
+	constructor({ scene, chunkSizeMeters, seed, flattenPads = [], segments = CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP, roadCorridor = null }) {
 		this.scene = scene;
 		this.chunkSizeMeters = chunkSizeMeters;
 		/** Mesh resolution per chunk — see `CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP` for why this is
@@ -43,6 +43,9 @@ export class ChunkManager {
 		this.segments = segments;
 		this.seed = seed;
 		this.flattenPads = flattenPads;
+		/** Road cut-and-fill bed (ADR-0304), forwarded verbatim to every `createTerrainChunk` call so the
+		 * drawn ground and every gameplay height query agree along roads. */
+		this.roadCorridor = roadCorridor;
 		/** @type {Map<string, import('three').Mesh>} Currently in the scene. */
 		this.loaded = new Map();
 		/** @type {Set<string>} Every chunk key ever loaded, even if later unloaded. Only grows —
@@ -61,7 +64,7 @@ export class ChunkManager {
 		const existing = this.loaded.get(key);
 		if (existing) return existing;
 
-		const mesh = createTerrainChunk({ chunkX, chunkZ, size: this.chunkSizeMeters, segments: this.segments, seed: this.seed, flattenPads: this.flattenPads });
+		const mesh = createTerrainChunk({ chunkX, chunkZ, size: this.chunkSizeMeters, segments: this.segments, seed: this.seed, flattenPads: this.flattenPads, roadCorridor: this.roadCorridor });
 		this.scene.add(mesh);
 		this.loaded.set(key, mesh);
 		this.everGenerated.add(key);
@@ -214,6 +217,7 @@ function createMobileTerrainLodChunkRun134(manager, chunkX, chunkZ, segments) {
 		segments,
 		seed: manager.seed,
 		flattenPads: manager.flattenPads,
+		roadCorridor: manager.roadCorridor,
 	});
 	mesh.userData.mobileTerrainLodSegmentsRun134 = segments;
 	return mesh;
@@ -369,6 +373,7 @@ function createDesktopTerrainLodChunkRun356(manager, chunkX, chunkZ, segments) {
 		segments,
 		seed: manager.seed,
 		flattenPads: manager.flattenPads,
+		roadCorridor: manager.roadCorridor,
 	});
 	mesh.userData.desktopTerrainLodSegmentsRun356 = segments;
 	return mesh;

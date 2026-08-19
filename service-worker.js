@@ -230,7 +230,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Shared material placement adds two runtime/headless modules; v15->v16 forces existing installs to cache them.
 // Run346 first-audio addition (module + one .wav click sound); v16->v17 forces existing installs to
 // fetch+cache both so the game's first sound works offline too, not only on a fresh install.
-const SHELL_CACHE = 'westeros-shell-v20';
+const SHELL_CACHE = 'westeros-shell-v21';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -317,6 +317,11 @@ const SHELL_FILES = [
 // imported directly by `sceneManager.js`/`game3d.js`. Same failure mode as every entry above
 // without it. `SHELL_CACHE` bumped v10->v11.
 //
+// run 357 (DECISIONS.md ADR-0304): added `world/roadCorridorSmoothing.js` — the road cut-and-fill bed,
+// imported directly by `sceneManager.js`. Same failure mode as every entry below without it: an
+// offline install cached before this run would 404 on it and take the whole 3D mode down.
+// `SHELL_CACHE` bumped v20->v21.
+//
 // run 355 (DECISIONS.md ADR-0301): added `world/terrainChunkSkirt.js` — the per-chunk crack skirt,
 // imported directly by `world/terrain.js`. Offline installs that cached the shell before this run
 // would fetch a `terrain.js` whose import of it 404s, taking the whole 3D mode down rather than
@@ -377,6 +382,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/terrain.js',
     './src/3d/world/terrainBiomeShading.js',
     './src/3d/world/terrainChunkSkirt.js',
+    './src/3d/world/roadCorridorSmoothing.js',
     './src/3d/world/terrainContinentalUplift.js',
     './src/3d/world/terrainMicroSurface.js',
     './src/3d/world/terrainReliefDetail.js',

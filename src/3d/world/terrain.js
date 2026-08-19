@@ -253,8 +253,17 @@ function flattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {
 /**
  * Shared render/physics height sampler. `seed`, `fbmOptions` and `maxHeightMeters` remain accepted
  * for API compatibility, but do not alter the canonical production terrain.
+ *
+ * @param {*} _seed
+ * @param {*} _fbmOptions
+ * @param {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]} [flattenPads]
+ * @param {{sampleCorridorHeight: (x: number, z: number, baseHeightMeters: number) => number}} [roadCorridor]
+ *   Optional road cut-and-fill bed from `world/roadCorridorSmoothing.js` (ADR-0304). Applied *after*
+ *   settlement pads, because a road approaching a castle must end up on the castle's pad height rather
+ *   than carving through it. Passed in rather than imported so this module keeps no dependency on the
+ *   road system — terrain does not know what a road is, it is only told where the ground was rebuilt.
  */
-export function createHeightSampler(_seed, _fbmOptions, flattenPads = []) {
+export function createHeightSampler(_seed, _fbmOptions, flattenPads = [], roadCorridor = null) {
 	return function sampleHeightMeters(worldX, worldZ, _maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, outSurface) {
 		const baseHeightMeters = sampleCanonicalHeightMeters(worldX, worldZ, outSurface);
 		let strongestWeight = 0;
@@ -267,9 +276,10 @@ export function createHeightSampler(_seed, _fbmOptions, flattenPads = []) {
 				strongestAnchorMeters = pad.anchorHeightMeters;
 			}
 		}
-		return strongestWeight > 0
+		const flattened = strongestWeight > 0
 			? lerp(baseHeightMeters, strongestAnchorMeters, strongestWeight)
 			: baseHeightMeters;
+		return roadCorridor ? roadCorridor.sampleCorridorHeight(worldX, worldZ, flattened) : flattened;
 	};
 }
 
@@ -348,8 +358,8 @@ export function getSharedTerrainAlbedoTexture() {
  * neighbouring chunks sample the same world coordinates through the same deterministic field, a
  * shared vertex resolves to the same slope from either side.
  */
-export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [] }) {
-	const sampleHeightMeters = createHeightSampler(seed, undefined, flattenPads);
+export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [], roadCorridor = null }) {
+	const sampleHeightMeters = createHeightSampler(seed, undefined, flattenPads, roadCorridor);
 	const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
 	geometry.rotateX(-Math.PI / 2);
 	const position = geometry.attributes.position;
