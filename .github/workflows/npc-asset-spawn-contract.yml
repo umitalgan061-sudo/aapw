@@ -12,10 +12,13 @@ on:
       - 'scripts/checkNpcAssetSpawnContract.mjs'
       - 'scripts/checkNpcGuardPerception.mjs'
       - 'scripts/checkNpcGuardAttack.mjs'
+      - 'scripts/checkNpcGuardLeash.mjs'
+      - 'scripts/checkNpcGuardLeashBrowser.mjs'
       - 'scripts/game3dSmokeChecksNpcPerception.js'
       - 'scripts/checkNpcSimulationLod.mjs'
       - 'scripts/checkNpcSimulationLodFairness.mjs'
       - '.github/workflows/npc-asset-spawn-contract.yml'
+      - '.github/workflows/npc-guard-leash.yml'
   workflow_dispatch:
 
 concurrency:
@@ -44,7 +47,7 @@ jobs:
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
           git diff --check "$BASE_SHA" HEAD
-      - name: NPC asset spawn perception and attack contracts
+      - name: NPC asset spawn perception attack and leash contracts
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
@@ -55,6 +58,9 @@ jobs:
           node scripts/checkNpcGuardPerception.mjs
           node --check scripts/checkNpcGuardAttack.mjs
           node scripts/checkNpcGuardAttack.mjs
+          node --check scripts/checkNpcGuardLeash.mjs
+          node scripts/checkNpcGuardLeash.mjs
+          node --check scripts/checkNpcGuardLeashBrowser.mjs
           node --check scripts/game3dSmokeChecksNpcPerception.js
       - name: Deterministic NPC simulation LOD contract
         run: |
