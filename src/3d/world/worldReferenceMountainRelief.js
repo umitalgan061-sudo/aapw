@@ -94,6 +94,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 });
 
 const MAP_ASPECT = WORLD_REFERENCE_MAP.pixelWidth / WORLD_REFERENCE_MAP.pixelHeight;
+const DEFAULT_COASTAL_RELIEF_TAPER = Object.freeze({ radiusNormalized: 0.012, minimumScale: 0.10 });
 const SEA_CODE = WORLD_REFERENCE_BASE_SURFACE_MASK.codes.sea;
 const LAKE_CODE = WORLD_REFERENCE_BASE_SURFACE_MASK.codes.lake;
 const HABITABLE_SEAT_MAP_POINTS = Object.freeze([
@@ -173,8 +174,7 @@ export function sampleReferenceDryLandWeight(normalizedX, normalizedY) {
 	return top * (1 - ty) + bottom * ty;
 }
 
-function sampleCoastalReliefScale(normalizedX, normalizedY, centerDryWeight) {
-	const p = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coastalReliefTaper;
+function sampleCoastalReliefScale(normalizedX, normalizedY, centerDryWeight, p = DEFAULT_COASTAL_RELIEF_TAPER) {
 	const radiusY = p.radiusNormalized;
 	const radiusX = radiusY / MAP_ASPECT;
 	const clearance = Math.min(
@@ -328,6 +328,9 @@ function sampleMappedHighlandMeters(normalizedX, normalizedY) {
 export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, normalizedY) {
 	if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) throw new TypeError('normalized coordinates must be finite');
 	if (normalizedX < 0 || normalizedX > 1 || normalizedY < 0 || normalizedY > 1) throw new RangeError('normalized coordinates must be in [0,1]');
+	const dryLandWeight = sampleReferenceDryLandWeight(normalizedX, normalizedY);
+	const landGate = smoothstep(WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull, dryLandWeight);
+	if (landGate === 0) return 0;
 	let strongestMeters = 0;
 
 	for (const chain of COMPILED_CHAINS) {
@@ -368,16 +371,16 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed);
 		const longitudinalEnvelope = sampleLongitudinalMassifEnvelope(chain, axialProgress, normalizedX, normalizedY);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
-		strongestMeters = Math.max(strongestMeters, chain.profile.peakMeters * ridge * modulation * talusBreakup * longitudinalEnvelope * passMultiplier);
+		const coastalPolicy = chain.profile.longitudinalMassifs ? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coastalReliefTaper : DEFAULT_COASTAL_RELIEF_TAPER;
+		const coastalScale = sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight, coastalPolicy);
+		strongestMeters = Math.max(strongestMeters, chain.profile.peakMeters * ridge * modulation * talusBreakup * longitudinalEnvelope * passMultiplier * coastalScale);
 	}
 
-	strongestMeters = Math.max(strongestMeters, sampleMappedHighlandMeters(normalizedX, normalizedY));
+	const highlandMeters = sampleMappedHighlandMeters(normalizedX, normalizedY) * sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight);
+	strongestMeters = Math.max(strongestMeters, highlandMeters);
 	if (strongestMeters === 0) return 0;
-	const dryLandWeight = sampleReferenceDryLandWeight(normalizedX, normalizedY);
-	const landGate = smoothstep(WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull, dryLandWeight);
-	if (landGate === 0) return 0;
 	const seatMultiplier = sampleHabitableSeatMultiplier(normalizedX, normalizedY);
-	return strongestMeters * landGate * sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight) * seatMultiplier;
+	return strongestMeters * landGate * seatMultiplier;
 }
 
 export function sampleWorldReferenceMountainReliefMeters(worldX, worldZ) {
