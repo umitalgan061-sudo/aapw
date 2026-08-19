@@ -11,7 +11,8 @@ const { KeyboardInput } = await import('../src/3d/input.js');
 function makePad({ index, axes = [0, 0], buttons = {}, connected = true, mapping = 'standard' }) { return { index, connected, mapping, axes, buttons: Array.from({ length: 12 }, (_, i) => ({ pressed: Boolean(buttons[i]) })) }; }
 const combatEvents = (kind = null) => emitted.filter((e) => e.type === 'aapw:player-combat-input' && (!kind || e.detail?.kind === kind));
 const deviceEvents = () => emitted.filter((e) => e.type === 'aapw:player-input-device');
-const input = new KeyboardInput(new EventTarget());
+const target = new EventTarget();
+const input = new KeyboardInput(target);
 try {
 	pads = [makePad({ index: 0, mapping: '', axes: [1, -1, 1, -1], buttons: { 0: true, 2: true, 3: true, 4: true, 10: true } })];
 	const unsupported = input.getAxes();
@@ -29,6 +30,15 @@ try {
 	pads = [makePad({ index: 4, mapping: '', axes: [1, -1], buttons: { 2: true, 3: true } })]; const lost = input.getAxes(); assert.equal(lost.forward, 0); assert.equal(lost.strafe, 0); assert.equal(deviceEvents().at(-1)?.detail.device, 'keyboard-pointer');
 	pads = [makePad({ index: 0, buttons: { 0: true, 2: true, 3: true } })]; const reconnectHeld = input.getAxes(); assert.equal(reconnectHeld.jumpRequested, false); assert.equal(combatEvents('light').length, 1); assert.equal(combatEvents('heavy').length, 1);
 	pads = [makePad({ index: 0 })]; input.getAxes(); pads = [makePad({ index: 0, buttons: { 0: true } })]; assert.equal(input.getAxes().jumpRequested, true); assert.equal(input.getAxes().jumpRequested, false);
+	pads = [makePad({ index: 0, axes: [0, -1], buttons: { 2: true, 4: true, 10: true } })]; input.getAxes();
+	const beforeBlurCombat = combatEvents().length;
+	target.dispatchEvent(new Event('blur'));
+	assert.equal(deviceEvents().at(-1)?.detail.reason, 'focus-lost');
+	assert.equal(deviceEvents().at(-1)?.detail.device, 'keyboard-pointer');
+	const heldAfterBlur = input.getAxes();
+	assert.ok(heldAfterBlur.forward > 0.95); assert.equal(heldAfterBlur.running, true); assert.equal(heldAfterBlur.guarding, true);
+	assert.equal(heldAfterBlur.jumpRequested, false); assert.equal(combatEvents().length, beforeBlurCombat, 'held face button after refocus must be seeded, not phantom-fired');
+	pads = [makePad({ index: 0 })]; input.getAxes(); pads = [makePad({ index: 0, buttons: { 2: true } })]; input.getAxes(); assert.equal(combatEvents('light').length, 2, 'real release/repress after focus restore must fire');
 	console.log('[checkPlayerGamepadHandoff] PASS');
 } finally {
 	input.dispose(); globalThis.dispatchEvent = previousDispatch;
