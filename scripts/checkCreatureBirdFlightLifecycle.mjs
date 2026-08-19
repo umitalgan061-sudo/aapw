@@ -95,10 +95,11 @@ const wanderBlock = source.slice(wanderFunctionStart, wanderFunctionEnd);
 assert.match(wanderBlock, /playerCollider\.resolveXZ/, 'ground hopping must keep canonical collision resolution');
 assert.match(wanderBlock, /groundCollider\.getGroundHeight/, 'ground hopping must remain terrain-aligned');
 
-// Determinism policy for bird movement: no wall-clock or random source may appear in the creature
+// Determinism policy for bird movement: no executable wall-clock or random source may appear in the
 // brain. Flight is advanced solely by supplied simulation delta and the seeded wander stream.
-assert.equal(/Math\.random\s*\(/.test(source), false, 'bird brain must not use Math.random');
-assert.equal(/Date\.now\s*\(|performance\.now\s*\(/.test(source), false, 'bird flight must not use wall-clock time');
+const executableSource = source.split('\n').filter((line) => !/^\s*(?:\/\/|\*)/.test(line)).join('\n');
+assert.equal(/Math\.random\s*\(/.test(executableSource), false, 'bird brain must not use Math.random');
+assert.equal(/Date\.now\s*\(|performance\.now\s*\(/.test(executableSource), false, 'bird flight must not use wall-clock time');
 assert.match(source, /flightElapsedSeconds \+= delta/, 'flight lifetime must advance through simulation delta');
 
 console.log('CREATURE_BIRD_FLIGHT_LIFECYCLE_PASS', JSON.stringify({
