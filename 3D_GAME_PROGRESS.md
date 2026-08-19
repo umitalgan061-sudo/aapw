@@ -16300,3 +16300,66 @@ scope (still zero half-open rows, six uncoded multi-run items) and the `drawDist
 future run confirms real LFS assets are reachable in its own environment (or applies this run's
 documented `add_repo(..., "aapw", access:"push")` session-local workaround first). Terrain/road work
 remains claimed by the concurrent corner-agent sessions.
+
+## Run 345 (2026-08-19, scheduled run) — Follow-on to the concurrent Run 344 RCA: full LFS fetch + real-asset smoke re-run, plus one novel `.gitattributes` finding (additive fix, no ADR needed)
+
+Landed on `origin/main` mid-investigation of the exact same `westeros-pwa` -> `aapw` LFS-authorization
+gap Run 344 (`f5c2e45`, `RCA_RUN344_LFS_REPO_RENAME.md`) independently root-caused and pushed a
+notification for — a real Run 328/333-style concurrency collision on the *investigation* itself, not
+just a feature. Rather than duplicate that RCA, this entry only records what this run did *beyond* it:
+`git fetch origin main` immediately before starting confirmed `f5c2e45` was already the tip; merged
+(fast-forward, no divergent work) before continuing.
+
+Applied Run 344's own documented workaround (`add_repo(owner, "aapw", access:"push")`) and went one
+step further: `git lfs pull` itself still hung indefinitely even with `aapw` authorized (root cause
+unclear — the LFS batch API and raw S3-style download URLs both worked fine via direct `curl`, so the
+hang is specific to the `git-lfs` CLI's own transfer-queue behavior in this sandbox, not the
+authorization gap Run 344 found — not investigated further, out of this run's scope). Worked around
+that too: a small local Python script (batch-request + parallel `curl`-equivalent download, oid/size
+verified per file) fetched all 508 real LFS objects (~7.7GB) directly. Post-download, `git status`
+initially showed all 507 touched paths as "modified" — a red flag investigated, not assumed benign:
+`git diff --quiet` proved 504 of them were stat-cache noise only (real content byte-identical to
+`HEAD`, confirmed via `git add -A` producing an empty diff), but 3 were a **real, separate, pre-existing
+bug**: `assets/models/fbx/2.FBX`, `assets/models/fbx/singlemountain.FBX`, and `.../Old House 2 3D
+Models.FBX` all use an uppercase `.FBX` extension, which `.gitattributes`'s `*.fbx` pattern (lowercase
+only, case-sensitive glob) never matched — so git's LFS clean/smudge filter was never applied to these
+3 paths at all, on any client, since they were first added. Verified their recorded oids resolve to
+real, valid, matching LFS objects (`sha256sum` of the freshly-downloaded content matches each pointer's
+`oid` exactly) — this is a filter-application gap, not lost or corrupted data.
+
+Fixed additively: added one new `*.FBX filter=lfs diff=lfs merge=lfs -text` line to `.gitattributes`
+(Golden Rule 6 — mechanical bug fix, no design alternatives to weigh, so no ADR per §9's "if needed"
+qualifier). Verified the fix is genuinely inert on history: re-downloaded the 3 files' real content,
+`git add`'ed them under the new pattern, and `git diff --cached` showed the pointer-text blobs
+byte-identical to what was already committed — the LFS clean filter regenerated the exact same pointer,
+confirming this is pure local-client-behavior metadata, not a re-upload or content change.
+
+With all 508 real assets in place, re-ran the full `smokeTestGame3D.js` suite fresh (the one Run 344
+could not get through even twice) — completed cleanly this time: **42/42 PASS, 0 FAIL**, including
+every settlement/castle/animal/dragon/NPC check that had been silently swallowing placeholder-box
+fallbacks under the pointer-stub condition. This is the first full real-asset confirmation since the
+rename broke agent-session LFS access; it directly answers the one open question Run 344's own entry
+left unresolved ("did run 341-343's environment have this problem or not") in the negative for *this*
+run at least — code health is real and good, not masked by a lucky partial-asset pass.
+
+No new `QUESTIONS_FOR_OWNER.md` entry — Run 344 already raised the one open owner decision (rename
+back vs. repoint the environment) and already pushed a notification for it; re-raising the same
+question here would be noise, not new information.
+
+Full DoD sweep: `node --check` N/A (`.gitattributes` + this file only — no `.js` touched).
+`checkTechnicalDebt.js` PASS (0 new debt). `checkSeededRandomPolicy.js` PASS. `git diff --cached
+--stat` confirms exactly one real line changed (`.gitattributes`). Memory-leak checklist N/A (no
+runtime code touched). Technical debt: 0 new. World Coverage: unchanged (no terrain/geometry delta).
+World Evolution Report: no yol/orman/kale/NPC/hayvan/creature/event/cart count change; no new ADR (see
+above); "oyuncu fark eder mi" — hayır, iki değişiklik de görünmez (asset-fetch ortam düzeltmesi + üç
+dosyanın gelecekte doğru şekilde LFS-izlenmesi).
+
+Risk LOW — one-line additive `.gitattributes` change, verified inert on already-committed content.
+
+Concurrency re-check immediately before commit: `git fetch origin main` re-run.
+
+Next safe step: same as Run 344 left it — `drawDistance`/`textureSize` `QUALITY_PRESETS` knobs remain
+the next bounded code slices; this run's own real-asset smoke pass means a future run no longer needs
+to re-litigate whether the environment is trustworthy for visual verification, just re-apply the same
+`add_repo(..., "aapw")` + local-download workaround (or wait on the owner's decision in
+`QUESTIONS_FOR_OWNER.md`). Terrain/road work remains claimed by the concurrent corner-agent sessions.
