@@ -30,6 +30,16 @@ export const QUARTERMASTER_OFFERS = Object.freeze([
 			label: 'Zırhçı bileme hazırlığı',
 			stationId: 'dragonstone-armorer-bench',
 			discipline: 'smithing',
+			craftUpgrade: Object.freeze({
+				recipeId: 'dragonstone-expedition-maintenance-kit',
+				inputs: Object.freeze([
+					Object.freeze({ itemId: 'dragonstone-travel-ration-pack', quantity: 1 }),
+					Object.freeze({ itemId: 'dragonstone-whetstone', quantity: 1 }),
+				]),
+				outputItemId: 'dragonstone-expedition-maintenance-kit',
+				outputQuantity: 1,
+				label: '1 yol azığı paketi + 1 bileği taşını 1 sefer bakım kitine hazırla',
+			}),
 		}),
 	}),
 	Object.freeze({
