@@ -26,7 +26,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	summitModulationMinimum: 0.08,
 	summitNoiseExponent: 2.15,
 	shoulderWidthVariation: Object.freeze({ broadFrequency: 5.5, detailFrequency: 13.5, minimumScale: 0.86, maximumScale: 1.58 }),
-	coastalReliefTaper: Object.freeze({ radiusNormalized: 0.026, minimumScale: 0.015 }),
+	coastalReliefTaper: Object.freeze({ radiusNormalized: 0.026, minimumScale: 0.04 }),
 	talusBreakup: Object.freeze({ broadFrequency: 22, detailFrequency: 47, strength: 0.21, shoulderStart: 0.18, shoulderEnd: 0.90 }),
 	ridgeNaturalization: Object.freeze({
 		primarySharpness: 1.25,
