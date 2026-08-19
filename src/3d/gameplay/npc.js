@@ -354,6 +354,10 @@ export async function createNPC({
 					suspicion = Math.max(0, suspicion - simulationDelta / 1.0);
 					investigationRemaining = Math.max(0, investigationRemaining - simulationDelta);
 				}
+				if (guardAlertPublished && !awareness.visible && guardAlertChannel?.groups && guardAlertGroupId) {
+					const activeAlert = guardAlertChannel.groups.get(guardAlertGroupId);
+					if (activeAlert?.sourceId === guardSourceId) guardAlertChannel.groups.delete(guardAlertGroupId);
+				}
 				guardAlertPublished = guardAlertPublished && awareness.visible;
 				const groupAlert = guardAlertChannel?.groups?.get?.(guardAlertGroupId);
 				const assist = evaluateNpcGuardAssistAlert({
@@ -364,7 +368,7 @@ export async function createNPC({
 					lastRevision: lastGuardAlertRevision,
 					assistRadiusMeters: guardAssistRadiusMeters,
 				});
-				if (groupAlert?.revision > lastGuardAlertRevision) lastGuardAlertRevision = groupAlert.revision;
+				if (assist.accepted || assist.reason === 'self') lastGuardAlertRevision = Math.max(lastGuardAlertRevision, assist.revision);
 				if (!awareness.visible && assist.accepted && assist.lastKnown) {
 					assisted = true;
 					assistSourceId = assist.sourceId;
