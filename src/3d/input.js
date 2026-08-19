@@ -52,18 +52,19 @@ export function applyGamepadRadialDeadzone(x, y, deadzone = GAMEPAD_DEADZONE) {
 }
 
 export function selectPlayerGamepad(gamepads, preferredIndex = null) {
-	const connected = Array.from(gamepads ?? []).filter((pad) => pad?.connected);
+	// All button/axis indices below follow the browser Standard Gamepad mapping. Treating an
+	// unmapped device as if it were standard can turn arbitrary vendor button indices into jump,
+	// attack, guard or camera input, so unsupported pads remain inert instead of guessing.
+	const standard = Array.from(gamepads ?? []).filter((pad) => pad?.connected && pad.mapping === 'standard');
 	if (preferredIndex !== null) {
-		const sticky = connected.find((pad) => pad.index === preferredIndex);
+		const sticky = standard.find((pad) => pad.index === preferredIndex);
 		if (sticky) return sticky;
 	}
-	const standard = connected.filter((pad) => pad.mapping === 'standard');
-	const candidates = standard.length ? standard : connected;
-	return candidates.sort((a, b) => (a.index ?? 999) - (b.index ?? 999))[0] ?? null;
+	return standard.sort((a, b) => (a.index ?? 999) - (b.index ?? 999))[0] ?? null;
 }
 
 export function samplePlayerGamepad(gamepad, previousButtons = {}) {
-	if (!gamepad?.connected) {
+	if (!gamepad?.connected || gamepad.mapping !== 'standard') {
 		return {
 			forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, lookMagnitude: 0, cameraZoom: 0,
 			running: false, guarding: false, jumpPressed: false, lightPressed: false, heavyPressed: false,
