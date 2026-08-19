@@ -177,7 +177,7 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 	assert(center.height > 20, `${chain.id}: selected centerline relief is not visibly elevated`);
 	const lateral = lateralProfile(center, profile);
 	assert(lateral.rows[0].bestHeight > 1, `${chain.id}: inner shoulder vanished beside its strongest dry ridge point`);
-	assert(lateral.rows.some((row, index) => index > 0 && row.bestHeight < lateral.rows[0].bestHeight * 0.92), `${chain.id}: shoulder profile is suspiciously flat laterally`);
+	assert(lateral.rows.some((row, index) => index > 0 && row.bestHeight < lateral.rows[0].bestHeight * 0.92), `${chain.id}: shoulder profile is suspiciously flat laterally; heights=${lateral.rows.map((row) => rounded(row.bestHeight)).join(',')}`);
 	for (const sample of lateral.outside) {
 		if (!sample.inBounds || sample.dry <= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero) continue;
 		if (isMappedHighland(sample.normalizedX, sample.normalizedY)) continue;
