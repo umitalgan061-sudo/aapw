@@ -203,7 +203,7 @@ function sampleHabitableSeatMultiplier(normalizedX, normalizedY) {
 	const p = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.habitableSeatProtection;
 	let multiplier = 1;
 	for (const [index, seat] of HABITABLE_SEATS.entries()) {
-		const outerRadius = [5, 6, 8, 9, 11].includes(index) ? 0.060 : p.outerRadiusNormalized;
+		const outerRadius = [5, 6, 8, 11].includes(index) ? 0.060 : p.outerRadiusNormalized;
 		const distance = Math.hypot((normalizedX - seat[0]) * MAP_ASPECT, normalizedY - seat[1]);
 		if (distance >= outerRadius) continue;
 		const blend = smoothstep(p.innerRadiusNormalized, outerRadius, distance);
