@@ -91,6 +91,47 @@ async function main() {
       const noRelayStorm = !relay.isFleeing && relay.object3D.userData.creatureThreat.phase === 'roam';
       const crossSpeciesIsolated = !eagle.isFleeing && eagle.object3D.userData.creatureThreat.phase === 'roam';
 
+      // Move the player well away and run the real flight controller through its entire recovery.
+      // Both ravens must finish their bounded climb/cruise/land sequence, release urgent LOD, and
+      // return to ordinary calm simulation without waking the relay bird after landing.
+      const playerFar = { x: 220, z: 220 };
+      let leaderPeakAltitude = leader.object3D.position.y;
+      let wingmanPeakAltitude = wingman.object3D.position.y;
+      let landingFrame = null;
+      let urgentFrames = 0;
+      for (let frame = 0; frame < 900; frame += 1) {
+        leader.update(dt, playerFar, []);
+        wingman.update(dt, playerFar, []);
+        relay.update(dt, playerFar, []);
+        eagle.update(dt, playerFar, []);
+        leaderPeakAltitude = Math.max(leaderPeakAltitude, leader.object3D.position.y);
+        wingmanPeakAltitude = Math.max(wingmanPeakAltitude, wingman.object3D.position.y);
+        if (leader.object3D.userData.simulationLodTier === 'urgent' || wingman.object3D.userData.simulationLodTier === 'urgent') urgentFrames += 1;
+        const bothGrounded = leader.object3D.position.y <= 0.02 && wingman.object3D.position.y <= 0.02;
+        const bothCalm = !leader.isFleeing && !wingman.isFleeing;
+        if (frame > 120 && bothGrounded && bothCalm) {
+          landingFrame = frame;
+          break;
+        }
+      }
+
+      const landedAfterBoundedFlight = landingFrame != null && landingFrame < 900;
+      const altitudeCeilingRespected = leaderPeakAltitude <= CREATURE_BEHAVIOR_PROFILES.kuzgun.flightAltitudeMeters + 0.05
+        && wingmanPeakAltitude <= CREATURE_BEHAVIOR_PROFILES.kuzgun.flightAltitudeMeters + 0.05
+        && leaderPeakAltitude >= CREATURE_BEHAVIOR_PROFILES.kuzgun.flightAltitudeMeters - 0.2
+        && wingmanPeakAltitude >= CREATURE_BEHAVIOR_PROFILES.kuzgun.flightAltitudeMeters - 0.2;
+      const urgentReleasedAfterLanding = landedAfterBoundedFlight
+        && leader.object3D.userData.simulationLodTier !== 'urgent'
+        && wingman.object3D.userData.simulationLodTier !== 'urgent';
+      const calmThreatTelemetry = leader.object3D.userData.creatureThreat.phase === 'roam'
+        && wingman.object3D.userData.creatureThreat.phase === 'roam'
+        && leader.object3D.userData.creatureThreat.direct === false
+        && wingman.object3D.userData.creatureThreat.herd === false;
+      const noPostLandingRelay = !relay.isFleeing
+        && relay.object3D.userData.creatureThreat.phase === 'roam'
+        && eagle.object3D.userData.creatureThreat.phase === 'roam';
+      const boundedUrgentWindow = urgentFrames > 30 && urgentFrames < 900 * 2;
+
       for (const creature of flock) creature.dispose();
       const registryClean = herdRegistry.size === 0 && ecologyRegistry.size === 0;
       return {
@@ -100,12 +141,22 @@ async function main() {
         urgentLod,
         noRelayStorm,
         crossSpeciesIsolated,
+        landedAfterBoundedFlight,
+        altitudeCeilingRespected,
+        urgentReleasedAfterLanding,
+        calmThreatTelemetry,
+        noPostLandingRelay,
+        boundedUrgentWindow,
         registryClean,
+        landingFrame,
+        leaderPeakAltitude: Number(leaderPeakAltitude.toFixed(3)),
+        wingmanPeakAltitude: Number(wingmanPeakAltitude.toFixed(3)),
       };
     });
 
     if (pageErrors.length) throw new Error(`browser errors: ${pageErrors.join(' | ')}`);
-    const failed = Object.entries(result).filter(([, value]) => value !== true);
+    const nonBooleanDiagnostics = new Set(['landingFrame', 'leaderPeakAltitude', 'wingmanPeakAltitude']);
+    const failed = Object.entries(result).filter(([key, value]) => !nonBooleanDiagnostics.has(key) && value !== true);
     if (failed.length) throw new Error(`flock proof failed: ${JSON.stringify(result)}`);
     console.log('CREATURE_BIRD_FLOCK_BROWSER_PASS', JSON.stringify(result));
   } finally {
