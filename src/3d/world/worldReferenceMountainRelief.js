@@ -74,8 +74,8 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.050, minimumMultiplier: 0.08 }),
 			]),
 		}),
-		'bone-mountains': Object.freeze({ peakMeters: 1580, coreWidthNormalized: 0.0065, outerWidthNormalized: 0.064, summitFloor: 0.26, seed: 37 }),
-		'eastern-chain': Object.freeze({ peakMeters: 1480, coreWidthNormalized: 0.006, outerWidthNormalized: 0.060, summitFloor: 0.28, seed: 53 }),
+		'bone-mountains': Object.freeze({ peakMeters: 1580, coreWidthNormalized: 0.0065, outerWidthNormalized: 0.064, summitFloor: 0.14, seed: 37 }),
+		'eastern-chain': Object.freeze({ peakMeters: 1480, coreWidthNormalized: 0.006, outerWidthNormalized: 0.060, summitFloor: 0.15, seed: 53 }),
 	}),
 });
 
@@ -202,10 +202,11 @@ function samplePassMultiplier(normalizedX, normalizedY, passes = []) {
 function sampleHabitableSeatMultiplier(normalizedX, normalizedY) {
 	const p = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.habitableSeatProtection;
 	let multiplier = 1;
-	for (const seat of HABITABLE_SEATS) {
+	for (const [index, seat] of HABITABLE_SEATS.entries()) {
+		const outerRadius = [5, 6, 8, 9, 11].includes(index) ? 0.060 : p.outerRadiusNormalized;
 		const distance = Math.hypot((normalizedX - seat[0]) * MAP_ASPECT, normalizedY - seat[1]);
-		if (distance >= p.outerRadiusNormalized) continue;
-		const blend = smoothstep(p.innerRadiusNormalized, p.outerRadiusNormalized, distance);
+		if (distance >= outerRadius) continue;
+		const blend = smoothstep(p.innerRadiusNormalized, outerRadius, distance);
 		multiplier = Math.min(multiplier, p.minimumMultiplier + (1 - p.minimumMultiplier) * blend);
 	}
 	return multiplier;
