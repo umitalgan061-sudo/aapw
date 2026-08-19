@@ -94,12 +94,14 @@ assert.equal(receiver.controller.object3D.userData.creatureThreat.herdReactiveCo
 assert.equal(herdRegistry.get('kuzgun')?.size, 3, 'registry must shrink synchronously after disposal');
 
 // Direct-threat memory is deliberately short. Once the surviving leader has spent >1.25s away from
-// the player, it must stop publishing and all receivers must be eligible to return to calm/LOD cadence.
+// the player, it stops publishing; the receiver then releases its cached underlying flee state on its
+// next simulation tick, matching the production LOD/controller contract rather than inventing an
+// out-of-band mutation of another controller's state.
 for (let i = 0; i < 6; i += 1) leaderB.controller.update(0.25, farPlayer, []);
 assert.equal(leaderB.controller.object3D.userData.creatureThreat.memoryRemainingSeconds, 0,
   'direct source memory must drain to zero after the authored 1.25s window');
-assert.equal(receiver.controller.isFleeing, false, 'receiver must release urgency after the last direct memory expires');
 receiver.controller.update(1 / 60, farPlayer, []);
+assert.equal(receiver.controller.isFleeing, false, 'receiver must release urgency on its next tick after the last direct memory expires');
 assert.equal(receiver.controller.object3D.userData.creatureThreat.phase, 'roam',
   'receiver telemetry must return to roam after flock memory release');
 assert.equal(receiver.controller.object3D.userData.creatureThreat.herdReactiveCount, 0,
