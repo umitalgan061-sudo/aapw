@@ -2,8 +2,10 @@
 import assert from 'node:assert/strict';
 
 import {
+  REFERENCE_BIOME_ZONES,
   REFERENCE_RELIEF_CHAINS,
   WORLD_REFERENCE_MAP,
+  sampleReferenceInfluence,
 } from '../src/3d/world/worldReferenceMap.js';
 import {
   WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY,
@@ -25,10 +27,16 @@ assert(policy.secondaryCenter > 0.2 && policy.secondaryCenter < 0.6, 'secondary 
 assert(policy.outerRidgeCenter > policy.secondaryCenter, 'outer ridge must sit beyond secondary ridge');
 assert(policy.outerRidgeCenter < 0.85, 'outer ridge would hug the chain envelope');
 
+const highlandZones = Object.entries(WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.highlands).map(([zoneId, profile]) => {
+  const zone = REFERENCE_BIOME_ZONES.find((candidate) => candidate.id === zoneId);
+  assert(zone, `${zoneId}: map-supported highland zone missing`);
+  return { zone, profile };
+});
+const isMappedHighland = (x, y) => highlandZones.some(({ zone, profile }) => sampleReferenceInfluence(x, y, zone) > profile.minimumInfluence);
+
 function aspectPoint([x, y]) {
   return { x: x * MAP_ASPECT, y };
 }
-
 function segmentFrame(chain, segmentIndex, t) {
   const a = aspectPoint(chain.points[segmentIndex]);
   const b = aspectPoint(chain.points[segmentIndex + 1]);
@@ -45,7 +53,6 @@ function segmentFrame(chain, segmentIndex, t) {
     ny: dx / length,
   };
 }
-
 function sampleAspect(x, y) {
   const nx = x / MAP_ASPECT;
   if (nx < 0 || nx > 1 || y < 0 || y > 1) return null;
@@ -56,7 +63,6 @@ function sampleAspect(x, y) {
     meters: sampleNormalizedReferenceMountainReliefMeters(nx, y),
   };
 }
-
 function localMaxima(values, threshold = 0) {
   const peaks = [];
   for (let index = 1; index < values.length - 1; index += 1) {
@@ -64,7 +70,6 @@ function localMaxima(values, threshold = 0) {
   }
   return peaks;
 }
-
 function profileAcross(frame, outerWidth) {
   const samples = [];
   for (let index = -32; index <= 32; index += 1) {
@@ -74,7 +79,6 @@ function profileAcross(frame, outerWidth) {
   }
   return samples;
 }
-
 function profileAlong(frame, span) {
   const samples = [];
   for (let index = -28; index <= 28; index += 1) {
@@ -134,6 +138,9 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
   for (const sign of [-1, 1]) {
     const outside = sampleAspect(best.frame.x + best.frame.nx * outerDistance * sign, best.frame.y + best.frame.ny * outerDistance * sign);
     if (!outside || outside.dry <= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateZero) continue;
+    // If map.png explicitly supports a highland here, non-zero exterior relief is legitimate and
+    // must not be misclassified as mountain-chain sprawl. Everywhere else remains tightly bounded.
+    if (isMappedHighland(outside.x, outside.y)) continue;
     assert(outside.meters <= centerHeight * 0.14 + 18, `${chain.id}: mountain relief materially escaped the canonical envelope`);
   }
 
@@ -147,7 +154,6 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
   };
 }
 
-// Global scan: source-owned water must remain absolute zero and extreme relief must stay sparse.
 let wetLeaks = 0;
 let dryCount = 0;
 let over300 = 0;
