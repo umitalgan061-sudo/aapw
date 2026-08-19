@@ -83,7 +83,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			longitudinalMassifs: Object.freeze({ saddleFloor: 0.11, anchorWidth: 0.058, segmentWidth: 0.066, endpointStrength: 0.54, segmentStrength: 0.82, irregularity: 0.12 }),
 		}),
 		'eastern-chain': Object.freeze({
-			peakMeters: 1250,
+			peakMeters: 1350,
 			coreWidthNormalized: 0.006,
 			outerWidthNormalized: 0.068,
 			summitFloor: 0.15,
