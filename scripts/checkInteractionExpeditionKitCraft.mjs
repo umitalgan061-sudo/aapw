@@ -39,6 +39,7 @@ result = economy.purchase(armorer, grant);
 assert.equal(result.ok, true);
 assert.equal(result.crafted, true);
 assert.equal(result.craftedItemId, recipe.outputItemId);
+assert.deepEqual(result.consumedItems, recipe.inputs, 'successful multi-input craft must report both canonical consumed ingredients');
 assert.equal(result.balanceCopper, 36);
 assert.equal(result.remainingStock, 0);
 const crafted = inventory.snapshot();
@@ -57,11 +58,14 @@ restored.restore(crafted);
 assert.deepEqual(restored.snapshot(), crafted, 'crafted expedition kit must survive canonical inventory save/restore');
 
 const outputFullInventory = createInteractionInventoryState();
-assert.equal(outputFullInventory.grant('dragonstone-whetstone', 1), true);
+const outputFullEconomy = createInteractionEconomyState(60);
+assert.equal(
+	outputFullEconomy.purchase(armorer, (...args) => outputFullInventory.grant(...args)).ok,
+	true,
+	'output-full rollback fixture must first obtain its whetstone through the normal armorer fallback',
+);
 assert.equal(outputFullInventory.grant('dragonstone-travel-ration-pack', 1), true);
 assert.equal(outputFullInventory.grant(recipe.outputItemId, 1), true);
-const outputFullEconomy = createInteractionEconomyState(60);
-assert.equal(outputFullEconomy.purchase(armorer, (...args) => outputFullInventory.grant(...args)).ok, true);
 const outputFullBeforeInventory = structuredClone(outputFullInventory.snapshot());
 const outputFullBeforeEconomy = structuredClone(outputFullEconomy.snapshot());
 result = outputFullEconomy.purchase(armorer, (...args) => outputFullInventory.grant(...args));
