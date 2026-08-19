@@ -88,6 +88,13 @@ export function evaluateNpcGuardAssistAlert({ alert, observer, groupId, sourceId
 	};
 }
 
+export function releaseNpcGuardAlertOwnership({ alertChannel, groupId, sourceId } = {}) {
+	if (!alertChannel?.groups?.get || !alertChannel?.groups?.delete || !groupId || sourceId == null) return false;
+	const activeAlert = alertChannel.groups.get(groupId);
+	if (activeAlert?.sourceId !== sourceId) return false;
+	return alertChannel.groups.delete(groupId);
+}
+
 function moveNpcToward(model, target, speedMps, delta, groundCollider, playerCollider, turnRateRadiansPerSecond, arrivalRadius = 0.7) {
 	const dx = target.x - model.position.x;
 	const dz = target.z - model.position.z;
@@ -354,6 +361,9 @@ export async function createNPC({
 					suspicion = Math.max(0, suspicion - simulationDelta / 1.0);
 					investigationRemaining = Math.max(0, investigationRemaining - simulationDelta);
 				}
+				if (guardAlertPublished && !awareness.visible) {
+					releaseNpcGuardAlertOwnership({ alertChannel: guardAlertChannel, groupId: guardAlertGroupId, sourceId: guardSourceId });
+				}
 				guardAlertPublished = guardAlertPublished && awareness.visible;
 				const groupAlert = guardAlertChannel?.groups?.get?.(guardAlertGroupId);
 				const assist = evaluateNpcGuardAssistAlert({
@@ -364,7 +374,7 @@ export async function createNPC({
 					lastRevision: lastGuardAlertRevision,
 					assistRadiusMeters: guardAssistRadiusMeters,
 				});
-				if (groupAlert?.revision > lastGuardAlertRevision) lastGuardAlertRevision = groupAlert.revision;
+				if (assist.accepted || assist.reason === 'self') lastGuardAlertRevision = Math.max(lastGuardAlertRevision, assist.revision);
 				if (!awareness.visible && assist.accepted && assist.lastKnown) {
 					assisted = true;
 					assistSourceId = assist.sourceId;
@@ -465,6 +475,8 @@ export async function createNPC({
 			mixer.update(simulationDelta);
 		},
 		dispose() {
+			releaseNpcGuardAlertOwnership({ alertChannel: guardAlertChannel, groupId: guardAlertGroupId, sourceId: guardSourceId });
+			guardAlertPublished = false;
 			mixer.stopAllAction();
 			AssetLoader.disposeObject3D(model);
 		},
