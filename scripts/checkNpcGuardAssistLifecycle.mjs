@@ -35,6 +35,9 @@ function extractFunction(name) {
 const evaluateAssist = new Function(
   `${extractFunction('evaluateNpcGuardAssistAlert')}; return evaluateNpcGuardAssistAlert;`,
 )();
+const releaseOwnership = new Function(
+  `${extractFunction('releaseNpcGuardAlertOwnership')}; return releaseNpcGuardAlertOwnership;`,
+)();
 
 const alert = Object.freeze({
   revision: 7,
@@ -77,10 +80,14 @@ assert.equal(evaluateAssist({
 }).reason, 'stale', 'accepted alert must still be single-consume per receiver');
 
 const channel = { groups: new Map([['stannis', alert]]) };
-const publisherStillOwns = channel.groups.get('stannis')?.sourceId === 'stannis-guard-1';
-assert.equal(publisherStillOwns, true);
-if (publisherStillOwns) channel.groups.delete('stannis');
-assert.equal(channel.groups.size, 0, 'publisher loss-of-vision cleanup must remove its active settlement alert');
+assert.equal(releaseOwnership({ alertChannel: channel, groupId: 'stannis', sourceId: 'stannis-guard-2' }), false,
+  'non-owner dispose/loss must not delete another guard\'s active settlement alert');
+assert.equal(channel.groups.get('stannis'), alert, 'failed ownership release must preserve the exact active alert');
+assert.equal(releaseOwnership({ alertChannel: channel, groupId: 'stannis', sourceId: 'stannis-guard-1' }), true,
+  'publisher loss/dispose must remove its own active settlement alert');
+assert.equal(channel.groups.size, 0, 'publisher cleanup must leave no stale active alert');
+assert.equal(releaseOwnership({ alertChannel: channel, groupId: 'stannis', sourceId: 'stannis-guard-1' }), false,
+  'cleanup must be idempotent after the owned alert is gone');
 assert.equal(evaluateAssist({
   alert: channel.groups.get('stannis'),
   observer: { x: 20, z: 0 },
@@ -90,9 +97,19 @@ assert.equal(evaluateAssist({
   assistRadiusMeters: 25,
 }).accepted, false, 'cleared alert must not become a stale future investigation source');
 
+const replacement = Object.freeze({ ...alert, revision: 8, sourceId: 'stannis-guard-3' });
+channel.groups.set('stannis', replacement);
+assert.equal(releaseOwnership({ alertChannel: channel, groupId: 'stannis', sourceId: 'stannis-guard-1' }), false,
+  'late dispose from the previous publisher must not erase a newer publisher alert');
+assert.equal(channel.groups.get('stannis'), replacement,
+  'newer publisher ownership must survive stale publisher teardown');
+
 assert.match(source,
-  /if \(guardAlertPublished && !awareness\.visible && guardAlertChannel\?\.groups && guardAlertGroupId\) \{[\s\S]*activeAlert\?\.sourceId === guardSourceId[\s\S]*groups\.delete\(guardAlertGroupId\)/,
-  'only an active publisher that just lost visual acquisition may clear the shared alert');
+  /if \(guardAlertPublished && !awareness\.visible\) \{\s*releaseNpcGuardAlertOwnership\(\{ alertChannel: guardAlertChannel, groupId: guardAlertGroupId, sourceId: guardSourceId \}\);\s*\}/,
+  'visual-loss cleanup must delegate to the same ownership-safe release primitive used by dispose');
+assert.match(source,
+  /dispose\(\) \{\s*releaseNpcGuardAlertOwnership\(\{ alertChannel: guardAlertChannel, groupId: guardAlertGroupId, sourceId: guardSourceId \}\);\s*guardAlertPublished = false;/,
+  'NPC dispose must synchronously release only its own active group alert before object cleanup');
 assert.match(source,
   /if \(assist\.accepted \|\| assist\.reason === 'self'\) lastGuardAlertRevision = Math\.max\(lastGuardAlertRevision, assist\.revision\)/,
   'receiver revision must advance only after acceptance or publisher self-consumption');
@@ -111,6 +128,10 @@ console.log('NPC_GUARD_ASSIST_LIFECYCLE_PASS', JSON.stringify({
   reentryWhilePublisherActive: true,
   acceptedRevisionSingleConsume: true,
   publisherLossClearsAlert: true,
+  publisherDisposeClearsAlert: true,
+  nonOwnerCannotClear: true,
+  stalePublisherCannotClearReplacement: true,
+  cleanupIdempotent: true,
   staleFutureAssistBlocked: true,
   settlementPartitionPreserved: true,
 }));
