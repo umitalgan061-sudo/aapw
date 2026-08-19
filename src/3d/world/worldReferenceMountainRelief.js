@@ -48,7 +48,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		north: Object.freeze({ baseMeters: 52, ruggedMeters: 74, seed: 73, minimumInfluence: 0.12 }),
 		westerlands: Object.freeze({ baseMeters: 68, ruggedMeters: 108, seed: 79, minimumInfluence: 0.10 }),
 	}),
-	habitableSeatProtection: Object.freeze({ innerRadiusNormalized: 0.010, outerRadiusNormalized: 0.045, minimumMultiplier: 0.39 }),
+	habitableSeatProtection: Object.freeze({ innerRadiusNormalized: 0.010, outerRadiusNormalized: 0.045, minimumMultiplier: 0.40 }),
 	chains: Object.freeze({
 		'vale-chain': Object.freeze({
 			peakMeters: 720,
@@ -278,6 +278,7 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 	if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) throw new TypeError('normalized coordinates must be finite');
 	if (normalizedX < 0 || normalizedX > 1 || normalizedY < 0 || normalizedY > 1) throw new RangeError('normalized coordinates must be in [0,1]');
 	let strongestMeters = 0;
+
 	for (const chain of COMPILED_CHAINS) {
 		const unwarpedX = normalizedX * MAP_ASPECT;
 		const unwarpedY = normalizedY;
