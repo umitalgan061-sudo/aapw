@@ -51,7 +51,10 @@ function talk(controller, npc, visibleChoiceIndex) {
 }
 
 const controller = createController({ onInventoryChanged: (snapshot) => inventoryChanges.push(structuredClone(snapshot)) });
-assert.deepEqual(controller.getInventorySnapshot(), { totalWeightKg: 0, items: [] });
+const emptyInventory = controller.getInventorySnapshot();
+assert.deepEqual({ totalWeightKg: emptyInventory.totalWeightKg, items: emptyInventory.items }, { totalWeightKg: 0, items: [] });
+assert.equal(emptyInventory.fieldReadiness.tier, 'unprepared');
+assert.equal(emptyInventory.fieldReadiness.score, 0);
 
 talk(controller, guard1, 0);
 talk(controller, guard2, 0);
