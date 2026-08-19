@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "policyId": "owner-map-live-geography-relief-2026-08-19-v5",
+  "policyId": "owner-map-live-geography-relief-2026-08-19-v6",
   "sourceMapSha256": "20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1",
   "surfaceMaskSha256": "afe62a77fcc9b15887540b49b3b60b199e416f5e033aefb987a192411c25ae44",
   "grid": {
@@ -8,37 +8,37 @@
     "height": 193,
     "quantizationCentimeters": 1
   },
-  "heightChecksumSha256": "443022d7004d66dd128bae127b3785b98f8e851103a4bea3e6bcfb717ce08541",
+  "heightChecksumSha256": "a1f78973e23ea42d2f6a9796f86a733d0feb7f7039862dc0aee0bf0beceb81e7",
   "metrics": {
-    "peakMeters": 649.532337,
-    "nonZeroSamples": 5779,
-    "nonZeroRatio": 0.11650975,
+    "peakMeters": 599.900898,
+    "nonZeroSamples": 6632,
+    "nonZeroRatio": 0.13370698,
     "wetLeakMaxMeters": 0,
     "worldMappingMaxDeltaMeters": 0,
     "chains": {
       "vale-chain": {
-        "peakMeters": 269.369599,
-        "dryOwnedSamples": 97,
-        "dryPositiveSamples": 97,
-        "minDryOwnedMeters": 5.00838
+        "peakMeters": 265.671009,
+        "dryOwnedSamples": 96,
+        "dryPositiveSamples": 96,
+        "minDryOwnedMeters": 5.008385
       },
       "red-mountains": {
-        "peakMeters": 399.84846,
-        "dryOwnedSamples": 93,
-        "dryPositiveSamples": 93,
-        "minDryOwnedMeters": 16.871544
+        "peakMeters": 399.941622,
+        "dryOwnedSamples": 91,
+        "dryPositiveSamples": 91,
+        "minDryOwnedMeters": 16.351716
       },
       "bone-mountains": {
-        "peakMeters": 574.398526,
-        "dryOwnedSamples": 193,
-        "dryPositiveSamples": 193,
-        "minDryOwnedMeters": 43.294705
+        "peakMeters": 587.342762,
+        "dryOwnedSamples": 192,
+        "dryPositiveSamples": 192,
+        "minDryOwnedMeters": 6.275099
       },
       "eastern-chain": {
-        "peakMeters": 456.814242,
-        "dryOwnedSamples": 170,
-        "dryPositiveSamples": 170,
-        "minDryOwnedMeters": 198.756251
+        "peakMeters": 356.667987,
+        "dryOwnedSamples": 168,
+        "dryPositiveSamples": 168,
+        "minDryOwnedMeters": 11.457022
       }
     }
   }
