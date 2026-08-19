@@ -1,5 +1,7 @@
 /** First-audio regression check (run 346, GOVERNANCE_FULL_GAME_DIRECTIVE.md §3 item 6 —
- * `audio/audioManager.js`, wired into `ui/pauseMenu.js`'s open/close transitions via `game3d.js`). */
+ * `audio/audioManager.js`, wired into `ui/pauseMenu.js`'s open/close transitions via `game3d.js`).
+ * Run 347 extended it with the mute control's `setMuted()`/`isMuted()`/`readStoredMuted()` surface —
+ * `game3dSmokeChecksPauseMenu.js`'s own `checkPauseMenuMute` covers the checkbox/persistence side. */
 
 // Same environment-quirk margin `game3dSmokeChecksControlsHelp.js`/`game3dSmokeChecksPauseMenu.js`
 // already document (this project's own boot cost, not this run's change).
@@ -35,10 +37,20 @@ async function checkAudioManager(browser, baseUrl) {
 		);
 		const setup = await page.evaluate(async () => {
 			const THREE = await import('three');
-			const { createAudioManager } = await import('/src/3d/audio/audioManager.js');
+			const { createAudioManager, readStoredMuted } = await import('/src/3d/audio/audioManager.js');
 			const camera = new THREE.PerspectiveCamera();
 			const audio = createAudioManager({ camera });
 			const listenerAddedOnConstruct = camera.children.some((child) => child.type === 'AudioListener');
+			// Run 347: mute wiring, against the real THREE.AudioListener this module adds (not a mock).
+			// `setMasterVolume()` schedules an exponential ramp (`AudioParam.setTargetAtTime`), so this
+			// only asserts this module's own `isMuted()` bookkeeping, not a same-tick exact gain value —
+			// the ramp itself is three.js's own primitive, not this module's logic to re-verify.
+			const startsUnmuted = audio.isMuted() === false;
+			const readStoredMutedIsFalseByDefault = readStoredMuted() === false;
+			audio.setMuted(true);
+			const mutedFlagUpdates = audio.isMuted() === true;
+			audio.setMuted(false);
+			const unmuteFlagUpdates = audio.isMuted() === false;
 			// Stashed on `window` so the follow-up real click's handler (installed next) and the final
 			// evaluate() below can all reach the same instances -- Playwright's page.click() runs
 			// against page DOM, not this evaluate()'s local scope.
@@ -55,7 +67,10 @@ async function checkAudioManager(browser, baseUrl) {
 			btn.onclick = () => { window.__audioCheck.clickPromise = audio.playClick(); };
 			document.body.appendChild(btn);
 
-			return { listenerAddedOnConstruct };
+			return {
+				listenerAddedOnConstruct, startsUnmuted, readStoredMutedIsFalseByDefault,
+				mutedFlagUpdates, unmuteFlagUpdates,
+			};
 		});
 
 		// A real trusted click, not a scripted DOM event -- the one thing this check exists to prove
@@ -90,12 +105,13 @@ async function checkAudioManager(browser, baseUrl) {
 	}
 	const ok = Object.values(result).every(Boolean);
 	return {
-		name: 'first audio (audio/audioManager.js, run 346)',
+		name: 'first audio + mute (audio/audioManager.js, runs 346/347)',
 		ok,
 		details: ok
-			? 'createAudioManager() adds a real THREE.AudioListener to the camera; a real trusted click '
-				+ '(not a scripted event) resolves playClick() without throwing and leaves the audio '
-				+ 'context open; dispose() removes the listener and is safe to call twice'
+			? 'createAudioManager() adds a real THREE.AudioListener to the camera, starts unmuted '
+				+ '(readStoredMuted() defaults false), and setMuted()/isMuted() track state correctly; a '
+				+ 'real trusted click (not a scripted event) resolves playClick() without throwing and '
+				+ 'leaves the audio context open; dispose() removes the listener and is safe to call twice'
 			: `FAILED assertion(s): ${JSON.stringify(result)}`,
 	};
 }

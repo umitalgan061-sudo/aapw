@@ -21,19 +21,25 @@ import { QUALITY_LEVELS, STORAGE_KEYS } from '../config.js';
  * paused always closes the pause overlay (resume), mirroring `ControlsHelp`'s own escape-to-close.
  *
  * Run 341 (ADR-0289) added the settings screen this file's own header used to name as its documented
- * next step — scoped to graphics quality only, not volume: `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3's
- * own audio row already records `assets/audio/` as empty, so there is no volume to control yet
- * (narrowing note, run 346: `assets/audio/` now holds one CC0 UI click sound played from this
- * class's own open/close transitions via `audio/audioManager.js` — still no volume/mute control
- * here, this settings screen's own scope, so the gap above stays open, just narrower). The
- * quality picker writes `STORAGE_KEYS.QUALITY_SETTING` (present in `config.js` since FAZ 0, unread
- * until now) and reloads — `renderQuality.js`'s `resolveRenderQuality()` only consumes it at scene
- * construction (`sceneManager.js`), so there is no live-apply path to build here. Desktop-only, same
- * boundary `renderQuality.js` itself already draws: the mobile perf budget (DrawCalls<500,
- * Triangles<500K, ADR-0010) is treated as fixed, not something a settings screen should loosen, so a
- * coarse-pointer device sees an explanatory note instead of the picker (`isMobileClass` constructor
- * option, `game3d.js`'s own `isCoarsePointerDevice()` call site — same pattern `ControlsHelp`'s
- * `isMobileClass` already uses, not a second independent device probe).
+ * next step — scoped to graphics quality only at first: `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3's
+ * own audio row recorded `assets/audio/` as empty, so there was no volume to control yet (narrowing
+ * note, run 346: `assets/audio/` gained one CC0 UI click sound played from this class's own
+ * open/close transitions via `audio/audioManager.js` — still no mute control that run, deferred as
+ * this settings screen's own scope). The quality picker writes `STORAGE_KEYS.QUALITY_SETTING`
+ * (present in `config.js` since FAZ 0, unread until now) and reloads — `renderQuality.js`'s
+ * `resolveRenderQuality()` only consumes it at scene construction (`sceneManager.js`), so there is no
+ * live-apply path for it here. Desktop-only, same boundary `renderQuality.js` itself already draws:
+ * the mobile perf budget (DrawCalls<500, Triangles<500K, ADR-0010) is treated as fixed, not something
+ * a settings screen should loosen, so a coarse-pointer device sees an explanatory note instead of the
+ * picker (`isMobileClass` constructor option, `game3d.js`'s own `isCoarsePointerDevice()` call site —
+ * same pattern `ControlsHelp`'s `isMobileClass` already uses, not a second independent device probe).
+ *
+ * Run 347 closes the mute half of that gap: a checkbox above the quality picker (shown on *both*
+ * desktop and mobile — audio isn't part of the perf-budget decision the quality picker's
+ * desktop-only split exists for). Unlike quality, mute applies live via `onMuteChange` straight into
+ * `audio/audioManager.js`'s `setMuted()` — no reload, since there is no renderer/scene state to
+ * reconstruct for it. Still no volume slider/music — one on/off switch for the one sound effect that
+ * exists, same "smallest first slice" pattern this whole settings screen was built with.
  */
 
 let pauseMenuInstanceCounter = 0;
@@ -60,7 +66,8 @@ function getDefaultStorage() {
 export class PauseMenu {
 	/**
 	 * @param {{container?: HTMLElement, onOpenChange?: (open: boolean) => void, quitHref?: string,
-	 *   isMobileClass?: boolean, storage?: Storage|null, reload?: () => void}} [options]
+	 *   isMobileClass?: boolean, storage?: Storage|null, reload?: () => void,
+	 *   onMuteChange?: (muted: boolean) => void}} [options]
 	 *   `onOpenChange` fires synchronously from `setOpen()` (including the Escape/button-driven
 	 *   paths below) — `game3d.js` uses it only to flip its own `state.paused` flag, no other
 	 *   coupling. `quitHref` defaults to `index.html`, the same destination `game3d.html`'s
@@ -68,7 +75,10 @@ export class PauseMenu {
 	 *   `isMobileClass` defaults to `false` (desktop); `game3d.js` passes its own
 	 *   `isCoarsePointerDevice()` result. `storage` defaults to `globalThis.localStorage` (guarded);
 	 *   overridable for tests. `reload` defaults to `() => window.location.reload()`; overridable for
-	 *   tests, which don't want a real navigation.
+	 *   tests, which don't want a real navigation. `onMuteChange` fires synchronously from the mute
+	 *   checkbox's `change` handler with the new checked state; `game3d.js` passes
+	 *   `(muted) => state.audioManager.setMuted(muted)`. Defaults to `null` (no-op), same as
+	 *   `onOpenChange`.
 	 */
 	constructor({
 		container = document.body,
@@ -77,11 +87,13 @@ export class PauseMenu {
 		isMobileClass = false,
 		storage,
 		reload = () => window.location.reload(),
+		onMuteChange = null,
 	} = {}) {
 		this._open = false;
 		this._onOpenChange = onOpenChange;
 		this._storage = storage === undefined ? getDefaultStorage() : storage;
 		this._reload = reload;
+		this._onMuteChange = onMuteChange;
 
 		this._root = document.createElement('div');
 		this._root.className = 'g3d-pause-menu';
@@ -167,6 +179,18 @@ export class PauseMenu {
 		title.textContent = 'Ayarlar';
 		settingsPanel.appendChild(title);
 
+		// Mute checkbox (run 347) — shown on both desktop and mobile, unlike the quality picker below:
+		// audio isn't part of the perf-budget decision that split exists for.
+		const soundRow = document.createElement('label');
+		soundRow.className = 'g3d-pause-menu-settings-sound';
+		this._muteCheckbox = document.createElement('input');
+		this._muteCheckbox.type = 'checkbox';
+		this._muteCheckbox.checked = this._readStoredMuted();
+		soundRow.append(this._muteCheckbox, document.createTextNode('Sesi kapat'));
+		settingsPanel.appendChild(soundRow);
+		this._onMuteCheckboxChange = () => this._applyMuteSelection();
+		this._muteCheckbox.addEventListener('change', this._onMuteCheckboxChange);
+
 		this._qualityRadios = [];
 		if (isMobileClass) {
 			const note = document.createElement('p');
@@ -211,6 +235,32 @@ export class PauseMenu {
 		settingsPanel.appendChild(this._settingsBackButton);
 
 		return settingsPanel;
+	}
+
+	/** @returns {boolean} Defaults to `false` (unmuted) — never throws, same guarded shape
+	 * `_readStoredQualityLevel()` below uses, mirrored by `audio/audioManager.js`'s own
+	 * `readStoredMuted()` (that copy exists because `createAudioManager()` needs the value before
+	 * this class is even constructed; this one is this checkbox's own initial `checked` state). */
+	_readStoredMuted() {
+		try {
+			return this._storage?.getItem(STORAGE_KEYS.SOUND_MUTED) === '1';
+		} catch {
+			return false;
+		}
+	}
+
+	/** Unlike `_applyQualitySelection()` below, this applies immediately — no reload, since
+	 * `onMuteChange` calls straight into a live `audioManager.setMuted()` and there is no
+	 * renderer/scene state a mute toggle needs reconstructed. Still persisted the same guarded way. */
+	_applyMuteSelection() {
+		const muted = this._muteCheckbox.checked;
+		try {
+			this._storage?.setItem(STORAGE_KEYS.SOUND_MUTED, muted ? '1' : '0');
+		} catch {
+			// Same swallow-and-continue policy `_applyQualitySelection()` already uses for a full/blocked
+			// storage quota — losing this one preference is not worth failing the toggle itself.
+		}
+		this._onMuteChange?.(muted);
 	}
 
 	/** @returns {string} A valid `QUALITY_LEVELS` value; falls back to `AUTOMATIC` for anything
@@ -282,6 +332,7 @@ export class PauseMenu {
 		this._settingsButton.removeEventListener('click', this._onSettingsOpenClick);
 		this._settingsBackButton.removeEventListener('click', this._onSettingsBackClick);
 		this._settingsApplyButton?.removeEventListener('click', this._onSettingsApplyClick);
+		this._muteCheckbox?.removeEventListener('change', this._onMuteCheckboxChange);
 		window.removeEventListener('keydown', this._onKeyDown);
 		this._root.remove();
 	}

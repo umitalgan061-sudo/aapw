@@ -261,4 +261,104 @@ async function checkControlsHelpPauseMenuEscapeCoexistence(browser, baseUrl) {
 	};
 }
 
-module.exports = { checkPauseMenu, checkPauseMenuSettings, checkControlsHelpPauseMenuEscapeCoexistence };
+/**
+ * Mute checkbox regression check (run 347, closing the "no volume/mute control" gap
+ * `checkPauseMenuSettings` above and `ui/pauseMenu.js`'s own header both disclosed since run 341).
+ * Unlike the quality picker, mute applies live (`onMuteChange`, no reload) — asserted on both
+ * desktop and mobile, since the checkbox (unlike the quality radios) shows on both.
+ */
+async function checkPauseMenuMute(browser, baseUrl) {
+	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+	let result;
+	try {
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		result = await page.evaluate(async () => {
+			const { PauseMenu } = await import('/src/3d/ui/pauseMenu.js');
+			const { STORAGE_KEYS } = await import('/src/3d/config.js');
+
+			// Same fake-storage isolation shape `checkPauseMenuSettings` above already uses.
+			function makeFakeStorage(initial = {}) {
+				const data = { ...initial };
+				return {
+					getItem: (key) => (key in data ? data[key] : null),
+					setItem: (key, value) => { data[key] = String(value); },
+					_data: data,
+				};
+			}
+
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			let reloadCount = 0;
+			const muteEvents = [];
+			const storage = makeFakeStorage();
+			const menu = new PauseMenu({
+				container,
+				storage,
+				reload: () => { reloadCount += 1; },
+				onMuteChange: (muted) => muteEvents.push(muted),
+			});
+
+			menu.setOpen(true);
+			container.querySelector('.g3d-pause-menu-settings-open').click();
+			const checkbox = container.querySelector('.g3d-pause-menu-settings-sound input');
+			const startsUnchecked = checkbox.checked === false;
+
+			checkbox.checked = true;
+			checkbox.dispatchEvent(new Event('change'));
+			const firedMutedTrue = JSON.stringify(muteEvents) === JSON.stringify([true]);
+			const storedMuted = storage._data[STORAGE_KEYS.SOUND_MUTED] === '1';
+			const muteDidNotReload = reloadCount === 0;
+
+			checkbox.checked = false;
+			checkbox.dispatchEvent(new Event('change'));
+			const firedMutedFalse = JSON.stringify(muteEvents) === JSON.stringify([true, false]);
+			const storedUnmuted = storage._data[STORAGE_KEYS.SOUND_MUTED] === '0';
+
+			menu.dispose();
+			container.remove();
+
+			// A fresh instance against the same storage (what a real page load after this run's own
+			// last toggle would see) starts with the checkbox reflecting the persisted value.
+			storage._data[STORAGE_KEYS.SOUND_MUTED] = '1';
+			const reloadedContainer = document.createElement('div');
+			document.body.appendChild(reloadedContainer);
+			const reloadedMenu = new PauseMenu({ container: reloadedContainer, storage });
+			reloadedMenu.setOpen(true);
+			reloadedContainer.querySelector('.g3d-pause-menu-settings-open').click();
+			const reflectsStoredMute = reloadedContainer.querySelector('.g3d-pause-menu-settings-sound input').checked === true;
+			reloadedMenu.dispose();
+			reloadedContainer.remove();
+
+			// Mobile: the checkbox is present (unlike the quality radios, which are replaced by a note).
+			const mobileContainer = document.createElement('div');
+			document.body.appendChild(mobileContainer);
+			const mobileMenu = new PauseMenu({ container: mobileContainer, isMobileClass: true, storage: makeFakeStorage() });
+			mobileMenu.setOpen(true);
+			mobileContainer.querySelector('.g3d-pause-menu-settings-open').click();
+			const mobileHasMuteCheckbox = mobileContainer.querySelector('.g3d-pause-menu-settings-sound input') !== null;
+			mobileMenu.dispose();
+			mobileContainer.remove();
+
+			return {
+				startsUnchecked, firedMutedTrue, storedMuted, muteDidNotReload, firedMutedFalse,
+				storedUnmuted, reflectsStoredMute, mobileHasMuteCheckbox,
+			};
+		});
+	} finally {
+		await page.close();
+	}
+	const ok = Object.values(result).every(Boolean);
+	return {
+		name: 'pause menu mute checkbox (ui/pauseMenu.js, run 347)',
+		ok,
+		details: ok
+			? 'mute checkbox defaults unchecked, shown on both desktop and mobile; toggling fires '
+				+ 'onMuteChange with the new state and persists immediately without reloading; a fresh '
+				+ 'instance against the same storage reflects the persisted mute state'
+			: `FAILED assertion(s): ${JSON.stringify(result)}`,
+	};
+}
+
+module.exports = {
+	checkPauseMenu, checkPauseMenuSettings, checkControlsHelpPauseMenuEscapeCoexistence, checkPauseMenuMute,
+};

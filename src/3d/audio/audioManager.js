@@ -20,11 +20,19 @@
  * **Error boundary (§8.13).** Every failure mode (no Web Audio support, the file failing to load,
  * playback throwing) is caught and logged, never thrown past this module — one missing UI click
  * must not crash the rest of the game.
+ *
+ * **Mute (run 347).** `ui/pauseMenu.js`'s settings screen gained a mute checkbox — unlike the
+ * graphics-quality picker next to it, this applies live (`setMuted()`/`AudioListener.setMasterVolume`)
+ * rather than needing a reload, since there is no scene state to reconstruct. This module still owns
+ * no `localStorage` writes (`ui/pauseMenu.js` does, same as it already does for
+ * `STORAGE_KEYS.QUALITY_SETTING`) — only the guarded *read* of the persisted default, needed here
+ * because `createAudioManager()` runs before any UI class exists (`readStoredMuted()` below, same
+ * try/catch shape `sceneManager.js`'s own `readManualQualityLevel()` uses).
  * @module audio/audioManager
  */
 
 import * as THREE from 'three';
-import { ASSET_PATHS } from '../config.js';
+import { ASSET_PATHS, STORAGE_KEYS } from '../config.js';
 
 /** `ASSET_PATHS.AUDIO` has been in `config.js` since Phase 0 ("no magic numbers... add them here
  * instead") but had no reader anywhere in `src/` until this run — same "finally consume a
@@ -36,23 +44,44 @@ const CLICK_SOUND_URL = `${ASSET_PATHS.AUDIO}ui-click.wav`;
  * file (CC0, see `CREDITS.md`), no formula behind this number. */
 const CLICK_VOLUME = 0.35;
 
+/** Guarded `localStorage` read for the persisted mute preference — `ui/pauseMenu.js`'s settings
+ * screen owns *writing* `STORAGE_KEYS.SOUND_MUTED`; this is the one place that needs to read it
+ * back, since `createAudioManager()` is constructed before any UI class exists. Same try/catch
+ * shape `sceneManager.js`'s own `readManualQualityLevel()` uses for `STORAGE_KEYS.QUALITY_SETTING`
+ * — a blocked/absent `localStorage` (private browsing, some embedded webviews) falls back to
+ * unmuted rather than throwing.
+ * @returns {boolean}
+ */
+export function readStoredMuted() {
+	try {
+		return globalThis.localStorage?.getItem(STORAGE_KEYS.SOUND_MUTED) === '1';
+	} catch {
+		return false;
+	}
+}
+
 /**
  * @param {object} options
  * @param {THREE.Camera} options.camera Real scene camera — the `AudioListener` is added as its
  *   child so `THREE.Audio` has an output to route through. This project doesn't use positional
  *   audio yet, so the listener's tracked position/orientation goes unused today but is harmless
  *   (three.js updates it once per frame as part of the camera's own `updateMatrixWorld`).
- * @returns {{playClick: () => Promise<void>, dispose: () => void}}
+ * @param {boolean} [options.initialMuted] Starting mute state — callers pass `readStoredMuted()`
+ *   (`game3d.js` does); defaults to `false` so a caller that skips this option still gets sound.
+ * @returns {{playClick: () => Promise<void>, setMuted: (muted: boolean) => void,
+ *   isMuted: () => boolean, dispose: () => void}}
  */
-export function createAudioManager({ camera }) {
+export function createAudioManager({ camera, initialMuted = false }) {
 	let listener = null;
 	let audioLoader = null;
+	let muted = !!initialMuted;
 	/** @type {Promise<AudioBuffer|null>|null} */
 	let clickBufferPromise = null;
 
 	try {
 		listener = new THREE.AudioListener();
 		camera.add(listener);
+		listener.setMasterVolume(muted ? 0 : 1);
 	} catch (error) {
 		// A device/browser without usable Web Audio must not take the rest of the game down over
 		// one UI click — every method below already treats `listener === null` as "sound disabled".
@@ -100,6 +129,22 @@ export function createAudioManager({ camera }) {
 		}
 	}
 
+	/** Live mute/unmute for every sound routed through this listener (today just `playClick()`'s
+	 * one-shot nodes, but future sounds get this for free) via `AudioListener.setMasterVolume` —
+	 * multiplying the whole listener's output rather than gating `playClick()` itself, so a click
+	 * already mid-playback when the player mutes stops immediately instead of finishing at full
+	 * volume. No-op if the listener never came up — same "listener === null means sound is already
+	 * off" treatment every other method here gives that case; `muted` still updates so `isMuted()`
+	 * stays accurate. */
+	function setMuted(next) {
+		muted = !!next;
+		if (listener) listener.setMasterVolume(muted ? 0 : 1);
+	}
+
+	function isMuted() {
+		return muted;
+	}
+
 	/** Removes the listener from the camera. No timers/DOM/global listeners were ever added, so
 	 * this is the entire memory-leak surface. */
 	function dispose() {
@@ -107,5 +152,5 @@ export function createAudioManager({ camera }) {
 		listener = null;
 	}
 
-	return { playClick, dispose };
+	return { playClick, setMuted, isMuted, dispose };
 }

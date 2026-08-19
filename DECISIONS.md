@@ -16324,3 +16324,152 @@ thread, followed by a second sound cue (e.g. settlement-discovery ping) reusing 
 full `smokeTestGame3D.js` suite against real assets to confirm this change end-to-end the way Run 345
 did for the pre-existing codebase. Terrain/road work remains claimed by the concurrent corner-agent
 sessions and was not touched here.
+
+## ADR-0293 — Mute control for the pause-menu click sound: `audioManager.setMuted()`/`isMuted()` + a live-apply checkbox in `ui/pauseMenu.js` (scheduled routine)
+
+**Risk: LOW.** Additive change to two already-isolated modules (`src/3d/audio/audioManager.js`,
+`src/3d/ui/pauseMenu.js`) plus one new `STORAGE_KEYS` entry and a 2-line wire-up in `game3d.js`
+(read initial state, pass one new callback). No terrain, height-field, road-topology, placement, AI,
+or determinism-fixture change — §8.4's terrain-safety gate does not apply. `setMuted()` degrades the
+same way every other `audioManager.js` method already does if the listener never came up (no-op, no
+throw); the checkbox's own storage read/write is wrapped the same guarded try/catch
+`_readStoredQualityLevel()`/`_applyQualitySelection()` already use.
+
+**Karar.** `createAudioManager({ camera, initialMuted })` now also returns `setMuted(muted)`/
+`isMuted()`, backed by the real `THREE.AudioListener.setMasterVolume()` (multiplies whatever is
+routed through the listener — today just `playClick()`'s one-shot nodes, but any future sound gets
+muted for free) rather than gating `playClick()` itself, so a click already mid-playback when the
+player mutes stops immediately instead of finishing at full volume. `ui/pauseMenu.js`'s settings
+screen gains one checkbox, shown on *both* desktop and mobile (unlike the quality radios, which are
+desktop-only) since audio isn't part of the perf-budget decision that split exists for. Unlike the
+quality picker, the checkbox applies live via a new `onMuteChange` constructor option straight into
+`state.audioManager.setMuted()` — no `reload()`, since there is no renderer/scene state a mute toggle
+needs reconstructed (this project's second settings-screen control, and the first one that doesn't
+need the reload path the first one required). Persistence (`STORAGE_KEYS.SOUND_MUTED`) stays owned by
+`ui/pauseMenu.js`, matching the existing "the settings UI class owns all `localStorage` writes for its
+own settings" convention; `audio/audioManager.js` exports one small `readStoredMuted()` guarded-read
+helper so `game3d.js` can seed the *initial* value before `PauseMenu` is even constructed (mirrors
+`sceneManager.js`'s own `readManualQualityLevel()` shape for `STORAGE_KEYS.QUALITY_SETTING`, for the
+same reason: the value is needed before any UI class exists).
+
+**Neden (problem).** `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 item 6 and `ui/pauseMenu.js`'s own header
+have both disclosed "no volume/mute control" as an open gap since Run 346 shipped the first sound
+effect — named explicitly as the natural next slice in Run 346's own "Next safe step" note. No
+concurrent session claims audio/settings-UI work (929 open remote branches checked this run; the
+`audio|pause|quality|volume|mute|sound` name-filter matched none touching this area) — terrain/road
+remains the only heavily-contested area, and this slice stays clear of it. The two other
+previously-named candidates (`drawDistance`/`textureSize` `QUALITY_PRESETS` knobs) remain larger,
+separately-scoped slices (texture-pipeline risk and World-Coverage-recalibration risk respectively,
+per ADR-0289/0291's own scoping) — mute is the smaller, more conservatively-bounded gap to close in
+one unattended run.
+
+**Alternatifler.**
+1. *Add a volume slider (0–100%) instead of a binary mute checkbox.* Rejected for this slice: this
+   project has exactly one sound effect today (`playClick()`, already tuned to a fixed
+   `CLICK_VOLUME = 0.35` by ear); a continuous slider controlling a single fixed-volume click adds a
+   second number for a player to reason about with no real audible range to explore yet. A checkbox
+   is the smallest control that closes the actual disclosed gap ("I can't turn this off"); a slider is
+   the natural follow-up once there is more than one sound or a music track to balance against it.
+2. *Gate `playClick()` itself on the `muted` flag (skip calling `sound.play()`) instead of using
+   `AudioListener.setMasterVolume()`.* Rejected: `setMasterVolume()` is the real three.js primitive for
+   "silence everything routed through this listener," so every *future* sound (footsteps, music,
+   combat SFX) gets muted for free without each new call site needing its own `if (muted) return`
+   guard. It also stops a click already mid-playback the instant the player mutes, where a
+   play-time-only gate would let an in-flight click finish at full volume.
+3. *Make the checkbox desktop-only, matching the quality radios' `isMobileClass` split.* Rejected:
+   that split exists specifically for the *graphics* perf budget (ADR-0010's mobile
+   DrawCalls/Triangles ceiling), which mute has nothing to do with — a mobile player has exactly as
+   much reason to want silence as a desktop one. Showing it on both keeps the settings screen's own
+   scoping logic honest (device-budget reasons get a device split; everything else doesn't).
+4. *Require the existing "Uygula ve Yeniden Başlat" button for mute too, instead of applying live.*
+   Rejected: that button exists because `resolveRenderQuality()` only runs at scene construction, so
+   quality genuinely has no live-apply path yet. Mute has no such constraint — `setMasterVolume()` is
+   a live audio-graph operation — so gating it behind a reload button would be a strictly worse
+   experience for no real reason, and would misleadingly imply mute needs the same reconstruction
+   quality does.
+5. *Have `audioManager.js` read/write `localStorage` directly instead of `ui/pauseMenu.js` owning it.*
+   Rejected: would split "who owns writing a settings value" across two files depending on which
+   setting, with no benefit — `ui/pauseMenu.js` already owns this for `STORAGE_KEYS.QUALITY_SETTING`,
+   and `audioManager.js` still needs its own guarded *read* regardless (it exists before `PauseMenu`
+   is constructed), so centralizing writes in the settings-UI class keeps exactly one file responsible
+   for "what this settings screen persists."
+
+**Sonuç / trade-off.** The one disclosed "no volume/mute control" gap named since Run 346 is closed
+for its actual scope (an on/off switch), not expanded past it — still no slider, no music, no
+per-sound-type volume. A player who finds the pause-menu click sound unwanted now has a real,
+immediate, two-click way to silence it, on both desktop and mobile, that survives a page reload.
+
+**Etkilenen sistemler.** Touched: `src/3d/audio/audioManager.js` (new `setMuted()`/`isMuted()`/
+`readStoredMuted()`, `initialMuted` constructor option), `src/3d/ui/pauseMenu.js` (new mute checkbox +
+`onMuteChange` option + `_readStoredMuted()`/`_applyMuteSelection()`, header comment), `src/3d/config.js`
+(new `STORAGE_KEYS.SOUND_MUTED`), `src/3d/game3d.js` (seed `initialMuted`, wire `onMuteChange` — 2
+lines), `game3d.css` (`.g3d-pause-menu-settings-sound` row style), `scripts/game3dSmokeChecksPauseMenu.js`
+(new `checkPauseMenuMute`), `scripts/game3dSmokeChecksAudio.js` (extended `checkAudioManager` with the
+real-listener mute assertions), `scripts/smokeTestGame3D.js` (registers the new check),
+`GOVERNANCE_FULL_GAME_DIRECTIVE.md` (§3 rows 6/7 narrowing notes). No terrain, hydrology, road,
+settlement, NPC, dragon, or world-event system touched; no new asset (reuses Run 346's existing
+`ui-click.wav`, so `CREDITS.md`/`assets_manifest.json` need no new entry).
+
+**Doğrulama.** `node --check` clean on all four touched `.js` source files (`config.js`,
+`audioManager.js`, `pauseMenu.js`, `game3d.js`) and all three touched/new script files
+(`game3dSmokeChecksPauseMenu.js`, `game3dSmokeChecksAudio.js`, `smokeTestGame3D.js`).
+`checkTechnicalDebt.js` PASS (0 new debt). `checkSeededRandomPolicy.js` PASS. `checkAssetsManifest.js`
+PASS (unchanged — no new asset). `checkSmokeCheckRegistry.js` OK — 44 smoke checks across 18 modules
+(was 43/18), every export invoked exactly once; `game3d.js` 591/600 (still within cap, WARN-listed
+same as before, +3 lines from this run's own wiring). A standalone targeted Playwright run (this
+run's own script, `/tmp/.../verifyRun347Mute.js` — same "isolate the new check against a real page
+load" pattern Run 346 used when the full suite couldn't complete) against a real `game3d.html` load:
+both **PASS** — the mute checkbox defaults unchecked, renders on both desktop and mobile, toggling
+fires `onMuteChange` with the correct value and persists immediately with zero `reload()` calls, a
+fresh `PauseMenu` instance against the same storage reflects the persisted value; and the extended
+audio check confirms `readStoredMuted()` defaults false, `setMuted()`/`isMuted()` track state
+correctly against the real `THREE.AudioListener` this module adds, and the original run-346 assertions
+(listener-on-construct, trusted-click `playClick()`, dispose safety) still hold.
+
+**Full `smokeTestGame3D.js` 44-check suite: NOT completed end-to-end this run — the same pre-existing
+environment condition Runs 344/345/346 already root-caused and disclosed, not caused by this change.**
+This session's checkout still has every `.fbx`/`.glb` model file as a ~130-byte git-lfs pointer stub
+(confirmed again this run — `git lfs` isn't even installed as a CLI in this session's environment) and
+`git lfs` tooling was not available to attempt Run 345's local-download workaround (out of scope for a
+one-slice settings-UI change). This run's own attempt to run the full suite (`timeout 280 node
+scripts/smokeTestGame3D.js`) produced zero output and was killed by its own timeout — consistent with
+Run 346's own documented finding that `checkFreeCamera` crashes/hangs headless Chromium before later
+checks (including this run's own two) ever run, on `main`'s already-committed code, unrelated to this
+change. `collectPerfSnapshot.js run347-mute-control` still succeeded independently (it only boots
+`game3d.html` and samples the F2 panel, not the full check suite): 55 draw calls / 709,382 triangles /
+57 geometries / 22 textures / 202MB heap — byte-for-byte identical to Run 346's own
+`run346-first-audio` sample, confirming zero rendering-cost regression from mute wiring (expected: no
+new geometry/texture, only an audio-graph gain node). No new `QUESTIONS_FOR_OWNER.md` entry — Run 344
+already raised and disclosed this exact LFS/environment issue and a notification was already sent;
+re-raising it again here would be noise, not new information.
+
+**Memory leak checklist.** `setMuted()`/`isMuted()` add no new mutable state beyond the existing
+`muted` boolean (already accounted for in `dispose()`'s scope — nothing new to release, since
+`setMasterVolume()` operates on the already-tracked `listener.gain` node, not a new one per call).
+`ui/pauseMenu.js`'s new checkbox gets one `change` listener, added at construction and removed in
+`dispose()` (added to the existing removal list alongside the quality-apply button's own).
+
+**Technical debt.** 0 new. `game3d.js` (591/600) and `pauseMenu.js` (339/600) both stay comfortably
+under the cap; the two other touched files (`audioManager.js` ~156 lines, `config.js` ~136 lines) do
+too.
+
+**World Coverage.** Unchanged (no terrain/geometry delta, desktop 96.2% / mobile 4.5% unaffected).
+World Evolution Report delta: no yol/orman/kale/NPC/hayvan/creature/event/cart count change; +1 ADR
+(ADR-0293); +1 smoke-check (44 total, was 43); 0 new assets; "oyuncu fark eder mi" — evet: duraklatma
+menüsündeki Ayarlar sekmesinde artık "Sesi kapat" onay kutusu var, işaretlenince (masaüstü veya
+mobil fark etmeksizin) tık sesi anında susuyor, sayfa yeniden yüklenmeden.
+
+**`QUESTIONS_FOR_OWNER.md`:** no new entry — this is a disclosed-gap closure with one clear, small
+implementation (an on/off switch for one existing sound), not an ambiguous product/design decision
+needing an owner call.
+
+**Concurrency re-check immediately before commit:** `git fetch origin main` re-run immediately before
+this commit — no drift found past `075f76d` (this run's own starting point, `stable-2026-08-19-0430`).
+
+**Next safe step:** a volume slider or a second sound cue (e.g. a settlement-discovery ping, named
+since Run 346) both remain natural follow-ups if a future run continues this thread — both explicitly
+deferred, not silently dropped (see Alternatifler #1). `drawDistance`/`textureSize` `QUALITY_PRESETS`
+knobs remain the two unwired, larger-scoped candidates named since Run 341. A future run in an
+environment with working `git-lfs` tooling should re-run the full `smokeTestGame3D.js` suite against
+real assets, same open item Runs 344/346 already left. Terrain/road work remains claimed by the
+concurrent corner-agent sessions (929 open remote branches checked this run) and was not touched here.

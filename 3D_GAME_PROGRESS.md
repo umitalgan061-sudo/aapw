@@ -16424,3 +16424,77 @@ a second sound cue reusing `audioManager.js`, if continuing this thread; otherwi
 `textureSize` `QUALITY_PRESETS` knobs remain the two unwired, larger-scoped candidates named since Run
 341. A future run with working LFS access should re-run the full 43-check suite against real assets
 (Run 345's workaround). Terrain/road work remains claimed by the concurrent corner-agent sessions.
+
+## Run 347 (2026-08-19, scheduled run) — Mute control for the pause-menu click sound: `audioManager.setMuted()`/`isMuted()` + a live-apply checkbox in `ui/pauseMenu.js` (ADR-0293)
+
+Terrain/road remains the only heavily-contested area this run found: 929 open remote branches at
+session start, dozens under `agent/buzul-*`/`agent/gunbatimi-*` actively touching terrain relief,
+road-path, mountain-naturalization, and water coverage. A name-filter for
+`audio|pause|quality|drawdistance|texturesize|volume|mute|sound` matched none of them — confirming
+Run 346's own "Next safe step" note (a volume/mute control) was still safe, unclaimed ground. Picked
+it over the two other named candidates (`drawDistance`/`textureSize` `QUALITY_PRESETS` knobs) as the
+smaller, more conservatively-scoped slice for one unattended run. Full reasoning, alternatives, and
+trade-offs in `DECISIONS.md`'s ADR-0293 — this entry only records what a future run needs to pick up
+from.
+
+New: `audioManager.js` gained `setMuted(muted)`/`isMuted()` (backed by the real
+`THREE.AudioListener.setMasterVolume()`, so any future sound gets muted for free, not just the one
+click) and an exported `readStoredMuted()` guarded-read helper (same shape `sceneManager.js`'s own
+`readManualQualityLevel()` uses, needed because `createAudioManager()` runs before `PauseMenu` even
+exists). `ui/pauseMenu.js`'s settings screen gained one checkbox — shown on *both* desktop and mobile
+(unlike the quality radios, which stay desktop-only for perf-budget reasons that don't apply to
+audio) — that applies **live** via a new `onMuteChange` option, no reload (this settings screen's
+first control that doesn't need one). `STORAGE_KEYS.SOUND_MUTED` persists it, written by
+`ui/pauseMenu.js` (same "the settings UI owns its own storage writes" convention `QUALITY_SETTING`
+already established), read back by `audioManager.js`'s own guarded helper for the initial value.
+
+`scripts/game3dSmokeChecksPauseMenu.js` gained `checkPauseMenuMute` (checkbox present on both device
+classes, toggling fires the callback + persists without reloading, a fresh instance reflects storage);
+`scripts/game3dSmokeChecksAudio.js`'s existing `checkAudioManager` was extended with real-listener
+mute assertions (`readStoredMuted()` defaults false, `setMuted()`/`isMuted()` track correctly) —
+deliberately *not* asserting an exact post-call `getMasterVolume()` value, since `setMasterVolume()`
+schedules an exponential ramp (`AudioParam.setTargetAtTime`), not a same-tick exact write; asserting
+that would have been a flaky/incorrect check of three.js's own primitive, not this module's logic.
+
+Full DoD sweep: `node --check` clean on all 4 touched source files + 3 touched/new script files.
+`checkTechnicalDebt.js` PASS (0 new debt). `checkSeededRandomPolicy.js` PASS. `checkAssetsManifest.js`
+PASS (unchanged, no new asset — reuses Run 346's `ui-click.wav`). `checkSmokeCheckRegistry.js` OK —
+44 smoke checks across 18 modules (was 43), `game3d.js` 591/600 (still real headroom, +3 lines from
+this run's own wiring, same WARN list as before otherwise).
+
+**Full `smokeTestGame3D.js` 44-check suite NOT completed end-to-end this run — the same pre-existing
+environment condition Runs 344/345/346 already root-caused, not caused by this change.** This
+session's checkout still has every `.fbx`/`.glb` as a ~130-byte LFS pointer stub and `git lfs` isn't
+even installed as a CLI here; the full-suite attempt (`timeout 280s`) produced zero output before
+being killed — consistent with Run 346's own finding that `checkFreeCamera` crashes/hangs headless
+Chromium before later checks run, unrelated to this change. Worked around the same way Run 346 did:
+a standalone script running only this run's two new/extended checks directly against a real
+`game3d.html` page load — both **PASS** (see ADR-0293's Doğrulama section for the full assertion
+list). `collectPerfSnapshot.js run347-mute-control` also succeeded independently: 55 draw calls /
+709,382 triangles / 57 geometries / 22 textures / 202MB heap — byte-identical to Run 346's own sample,
+confirming zero rendering-cost regression (expected: an audio-graph gain node adds neither geometry
+nor texture memory). No new `QUESTIONS_FOR_OWNER.md` entry — Run 344 already raised and disclosed
+this exact LFS/environment issue.
+
+Memory-leak checklist: clean (`setMuted()`/`isMuted()` operate on the already-tracked `listener.gain`
+node, no new state; the checkbox's one `change` listener is removed in `dispose()` alongside the
+existing quality-apply button's own). Technical debt: 0 new. World Coverage: unchanged (desktop
+96.2% / mobile 4.5%, no terrain/geometry delta). World Evolution Report: no yol/orman/kale/NPC/
+hayvan/creature/event/cart count change; +1 ADR (ADR-0293); +1 smoke-check (44 total); 0 new assets;
+"oyuncu fark eder mi" — evet: duraklatma menüsünün Ayarlar sekmesinde artık "Sesi kapat" onay kutusu
+var (masaüstü ve mobilde), işaretlenince tık sesi anında susuyor, sayfa yenilenmeden.
+
+Risk LOW — additive change to two already-isolated modules + one new storage key + a 2-line
+`game3d.js` wire-up, wrapped in the same guarded-storage/error-boundary conventions this codebase
+already uses everywhere else in this area.
+
+Concurrency re-check immediately before commit: `git fetch origin main` re-run — no drift found past
+`075f76d` (this run's own starting point, `stable-2026-08-19-0430`).
+
+Next safe step: a volume slider or a second sound cue (settlement-discovery ping, named since Run
+346) both remain natural follow-ups, explicitly deferred not dropped (ADR-0293's Alternatifler #1).
+`drawDistance`/`textureSize` `QUALITY_PRESETS` knobs remain the two unwired, larger-scoped candidates
+named since Run 341. A future run with working `git-lfs` tooling should re-run the full
+`smokeTestGame3D.js` suite against real assets — same open item Runs 344/346 already left. Terrain/
+road work remains claimed by the concurrent corner-agent sessions (929 open remote branches checked
+this run) and was not touched here.

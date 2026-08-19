@@ -45,8 +45,8 @@ olanlar (§33.2 ile aynı liste, burada gerekçeli):
 | 3 | Envanter / eşya / ekonomi | Yok. |
 | 4 | Oyuncunun kendi saldırısı | Yok — yalnız ejderha oyuncuya vurabiliyor, tersi yok. |
 | 5 | Dolu yerleşim (ev/ahır/çit/kalabalık) | Kale var, kasaba yok. |
-| 6 | Ses (müzik + efekt) | **Kısmen başladı (Run 346).** `audio/audioManager.js` + tek bir CC0 UI tık sesi (`assets/audio/ui-click.wav`, Kenney) — duraklatma menüsü açılış/kapanışında çalıyor. Müzik yok, savaş/adım/ortam efekti yok, ses seviyesi ayarı yok (`ui/pauseMenu.js`'nin Ayarlar sekmesi hâlâ yalnız grafik kalitesi — bu satırın kendi eski notu zaten bu boşluğu `assets/audio/` boşluğuna bağlamıştı, o bağlantı artık kısmen çözüldü). |
-| 7 | Menü / duraklat / ayarlar akışı | Duraklatma (Run 339, ADR-0285) ve grafik-kalitesi ayar ekranı (Run 341, ADR-0289 — `ui/pauseMenu.js`'nin "Ayarlar" sekmesi, masaüstünde 4 seçenekli kalite seçici, kayıt+yeniden-yükleme ile uygulanıyor) var. Ses/müzik ayarı yok (madde 6'daki boş `assets/audio/` yüzünden kapsam dışı bırakıldı, unutulmadı). |
+| 6 | Ses (müzik + efekt) | **Kısmen başladı (Run 346, genişledi Run 347).** `audio/audioManager.js` + tek bir CC0 UI tık sesi (`assets/audio/ui-click.wav`, Kenney) — duraklatma menüsü açılış/kapanışında çalıyor. **Run 347: sesi kapat/aç kontrolü eklendi** (`ui/pauseMenu.js`'nin Ayarlar sekmesinde, hem masaüstü hem mobilde görünen bir onay kutusu; canlı uygulanıyor, sayfa yeniden yüklemesi gerektirmiyor). Hâlâ yok: müzik, savaş/adım/ortam efekti, hacim kaydırıcısı (yalnız aç/kapa) — tek ses efektine oranla henüz gereksiz görülen bir sonraki dilim. |
+| 7 | Menü / duraklat / ayarlar akışı | Duraklatma (Run 339, ADR-0285) ve grafik-kalitesi ayar ekranı (Run 341, ADR-0289 — `ui/pauseMenu.js`'nin "Ayarlar" sekmesi, masaüstünde 4 seçenekli kalite seçici, kayıt+yeniden-yükleme ile uygulanıyor) var. **Run 347: aynı sekmeye ses aç/kapa onay kutusu eklendi** (madde 6). Hacim kaydırıcısı/müzik ayarı hâlâ yok (kapsam dışı, unutulmadı). |
 
 Bu liste FAZ tablosunun yerine geçmez; onun **üstünde** bir ürün ölçütüdür. FAZ 0-10 teknik olarak
 bitse bile yukarıdakiler olmadan proje "tam anlamıyla oyun" sayılmaz.

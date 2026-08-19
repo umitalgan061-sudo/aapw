@@ -112,6 +112,9 @@ export const STORAGE_KEYS = Object.freeze({
 	QUALITY_SETTING: 'westeros3d_quality',
 	SAVE_SLOT: 'westeros3d_save',
 	LAST_PHASE_LOADED: 'westeros3d_debug_lastPhase',
+	// Run 347: `ui/pauseMenu.js`'s settings screen mute checkbox writes this; `audio/audioManager.js`'s
+	// own `readStoredMuted()` reads it back at construction (before any UI class exists).
+	SOUND_MUTED: 'westeros3d_soundMuted',
 });
 
 /** Named events shared across systems via the EventBus. */
