@@ -92,5 +92,11 @@ for (const contract of [
 	"'aapw:player-input-device'",
 ]) assert.ok(source.includes(contract), `missing shipped gamepad contract: ${contract}`);
 
+const movementSource = fs.readFileSync(new URL('../src/3d/gameLoopHelpers.js', import.meta.url), 'utf8');
+for (const contract of [
+	'const inputMagnitude = Math.min(1, Math.hypot(axes.forward, axes.strafe))',
+	'_move.normalize().multiplyScalar(inputMagnitude)',
+]) assert.ok(movementSource.includes(contract), `camera-relative movement must preserve analog magnitude: ${contract}`);
+
 assert.ok(!source.includes('gamepad?.buttons?.[0]?.pressed'), 'legacy A-as-light direct polling must stay removed');
-console.log('[checkPlayerGamepadInput] PASS: radial analog, deterministic selection, sprint/guard and combat edge parity are bounded.');
+console.log('[checkPlayerGamepadInput] PASS: radial analog, camera magnitude, deterministic selection, sprint/guard and combat edge parity are bounded.');
