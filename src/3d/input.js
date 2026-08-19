@@ -17,9 +17,91 @@ const HEAVY_ATTACK_KEYS = new Set(['KeyR']);
 const GUARD_POINTER_BUTTON = 2;
 const LIGHT_ATTACK_POINTER_BUTTON = 0;
 const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
+const INPUT_DEVICE_EVENT = 'aapw:player-input-device';
+const GAMEPAD_DEADZONE = 0.18;
+const GAMEPAD_BUTTON = Object.freeze({
+	JUMP: 0,        // Xbox A / standard bottom face
+	LIGHT: 2,       // Xbox X / standard left face
+	HEAVY: 3,       // Xbox Y / standard top face
+	GUARD: 4,       // LB / L1
+	SPRINT: 10,     // left stick press
+});
 
 function isInteractiveTarget(target) {
 	return Boolean(target?.closest?.('button, a, input, textarea, select, [contenteditable="true"]'));
+}
+
+function buttonPressed(gamepad, index) {
+	return Boolean(gamepad?.buttons?.[index]?.pressed);
+}
+
+function readActionButtons(gamepad) {
+	return {
+		jump: buttonPressed(gamepad, GAMEPAD_BUTTON.JUMP),
+		light: buttonPressed(gamepad, GAMEPAD_BUTTON.LIGHT),
+		heavy: buttonPressed(gamepad, GAMEPAD_BUTTON.HEAVY),
+	};
+}
+
+/**
+ * Radial deadzone keeps stick direction stable and preserves analog magnitude after removing the
+ * hardware-noise floor. Axis-by-axis deadzones distort diagonals and can make 45° movement faster.
+ */
+export function applyGamepadRadialDeadzone(x, y, deadzone = GAMEPAD_DEADZONE) {
+	const nx = Number.isFinite(x) ? x : 0;
+	const ny = Number.isFinite(y) ? y : 0;
+	const magnitude = Math.min(1, Math.hypot(nx, ny));
+	if (magnitude <= deadzone || magnitude === 0) return { x: 0, y: 0, magnitude: 0 };
+	const remappedMagnitude = Math.min(1, (magnitude - deadzone) / (1 - deadzone));
+	const scale = remappedMagnitude / Math.hypot(nx, ny);
+	return {
+		x: (nx * scale) || 0,
+		y: (ny * scale) || 0,
+		magnitude: remappedMagnitude,
+	};
+}
+
+/**
+ * Pick one controller deterministically. A previously active connected controller stays active so
+ * a second pad cannot steal control mid-combat. If it disappears, prefer the lowest-index Standard
+ * mapping, then the lowest-index connected fallback.
+ */
+export function selectPlayerGamepad(gamepads, preferredIndex = null) {
+	const connected = Array.from(gamepads ?? []).filter((pad) => pad?.connected);
+	if (preferredIndex !== null) {
+		const sticky = connected.find((pad) => pad.index === preferredIndex);
+		if (sticky) return sticky;
+	}
+	const standard = connected.filter((pad) => pad.mapping === 'standard');
+	const candidates = standard.length ? standard : connected;
+	return candidates.sort((a, b) => (a.index ?? 999) - (b.index ?? 999))[0] ?? null;
+}
+
+/**
+ * Pure Standard Gamepad sampler. The left stick maps onto the same forward/strafe axes as keyboard
+ * and touch; face buttons use browser Standard Gamepad layout (A jump, X light, Y heavy).
+ */
+export function samplePlayerGamepad(gamepad, previousButtons = {}) {
+	if (!gamepad?.connected) {
+		return {
+			forward: 0, strafe: 0, magnitude: 0, running: false, guarding: false,
+			jumpPressed: false, lightPressed: false, heavyPressed: false,
+			buttons: { jump: false, light: false, heavy: false },
+		};
+	}
+	const stick = applyGamepadRadialDeadzone(gamepad.axes?.[0] ?? 0, gamepad.axes?.[1] ?? 0);
+	const buttons = readActionButtons(gamepad);
+	return {
+		forward: (-stick.y) || 0,
+		strafe: stick.x,
+		magnitude: stick.magnitude,
+		running: buttonPressed(gamepad, GAMEPAD_BUTTON.SPRINT),
+		guarding: buttonPressed(gamepad, GAMEPAD_BUTTON.GUARD),
+		jumpPressed: buttons.jump && !previousButtons.jump,
+		lightPressed: buttons.light && !previousButtons.light,
+		heavyPressed: buttons.heavy && !previousButtons.heavy,
+		buttons,
+	};
 }
 
 export function emitPlayerCombatIntent(kind, source = 'unknown') {
@@ -28,13 +110,20 @@ export function emitPlayerCombatIntent(kind, source = 'unknown') {
 	return true;
 }
 
+function emitInputDeviceChange(index, reason) {
+	if (typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return;
+	globalThis.dispatchEvent(new globalThis.CustomEvent(INPUT_DEVICE_EVENT, {
+		detail: Object.freeze({ device: index === null ? 'keyboard-pointer' : 'gamepad', gamepadIndex: index, reason }),
+	}));
+}
+
 export class KeyboardInput {
 	constructor(target = window) {
 		this._keys = new Set();
 		this._jumpRequested = false;
 		this._guardPointerHeld = false;
-		this._gamepadLightHeld = false;
-		this._gamepadHeavyHeld = false;
+		this._gamepadButtons = { jump: false, light: false, heavy: false };
+		this._activeGamepadIndex = null;
 		this._target = target;
 		this._onKeyDown = (event) => {
 			const firstPress = !this._keys.has(event.code);
@@ -67,22 +156,36 @@ export class KeyboardInput {
 		target.addEventListener('contextmenu', this._onContextMenu);
 	}
 
-	_pollGamepadCombat() {
-		const gamepad = globalThis.navigator?.getGamepads?.()?.find?.((candidate) => candidate?.connected) ?? globalThis.navigator?.getGamepads?.()?.[0] ?? null;
-		const lightHeld = Boolean(gamepad?.buttons?.[0]?.pressed);
-		const heavyHeld = Boolean(gamepad?.buttons?.[2]?.pressed);
-		if (lightHeld && !this._gamepadLightHeld) emitPlayerCombatIntent('light', 'gamepad');
-		if (heavyHeld && !this._gamepadHeavyHeld) emitPlayerCombatIntent('heavy', 'gamepad');
-		this._gamepadLightHeld = lightHeld;
-		this._gamepadHeavyHeld = heavyHeld;
+	_pollGamepad() {
+		const pads = globalThis.navigator?.getGamepads?.() ?? [];
+		const gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex);
+		const nextIndex = gamepad?.index ?? null;
+		const switched = nextIndex !== this._activeGamepadIndex;
+
+		if (switched) {
+			// Seed the new pad's held face-button state before sampling. A controller connected while X/Y/A
+			// is already held must not create a phantom attack or jump; release/repress is required.
+			this._gamepadButtons = gamepad ? readActionButtons(gamepad) : { jump: false, light: false, heavy: false };
+			this._activeGamepadIndex = nextIndex;
+			emitInputDeviceChange(nextIndex, gamepad ? 'selected' : 'disconnected');
+		}
+
+		const sample = samplePlayerGamepad(gamepad, this._gamepadButtons);
+		if (!switched) {
+			if (sample.jumpPressed) this._jumpRequested = true;
+			if (sample.lightPressed) emitPlayerCombatIntent('light', 'gamepad');
+			if (sample.heavyPressed) emitPlayerCombatIntent('heavy', 'gamepad');
+		}
+		this._gamepadButtons = sample.buttons;
+		return sample;
 	}
 
 	getAxes() {
-		this._pollGamepadCombat();
-		let forward = 0;
-		let strafe = 0;
-		let running = false;
-		let guarding = this._guardPointerHeld;
+		const gamepad = this._pollGamepad();
+		let forward = gamepad.forward;
+		let strafe = gamepad.strafe;
+		let running = gamepad.running;
+		let guarding = this._guardPointerHeld || gamepad.guarding;
 		for (const code of this._keys) {
 			if (FORWARD_KEYS.has(code)) forward += 1;
 			else if (BACK_KEYS.has(code)) forward -= 1;
@@ -93,7 +196,13 @@ export class KeyboardInput {
 		}
 		const jumpRequested = this._jumpRequested;
 		this._jumpRequested = false;
-		return { forward: Math.max(-1, Math.min(1, forward)), strafe: Math.max(-1, Math.min(1, strafe)), running, jumpRequested, guarding };
+		return {
+			forward: Math.max(-1, Math.min(1, forward)),
+			strafe: Math.max(-1, Math.min(1, strafe)),
+			running,
+			jumpRequested,
+			guarding,
+		};
 	}
 
 	dispose() {
@@ -103,6 +212,10 @@ export class KeyboardInput {
 		this._target.removeEventListener('pointerup', this._onPointerUp);
 		this._target.removeEventListener('pointercancel', this._onPointerUp);
 		this._target.removeEventListener('contextmenu', this._onContextMenu);
-		this._keys.clear(); this._jumpRequested = false; this._guardPointerHeld = false; this._gamepadLightHeld = false; this._gamepadHeavyHeld = false;
+		this._keys.clear();
+		this._jumpRequested = false;
+		this._guardPointerHeld = false;
+		this._gamepadButtons = { jump: false, light: false, heavy: false };
+		this._activeGamepadIndex = null;
 	}
 }
