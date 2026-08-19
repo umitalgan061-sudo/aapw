@@ -7,6 +7,7 @@ on:
       - 'src/3d/input.js'
       - 'scripts/checkPlayerGamepadInput.mjs'
       - 'scripts/checkPlayerGamepadHandoff.mjs'
+      - 'scripts/checkPlayerGamepadRuntime.mjs'
       - 'scripts/checkPlayerMeleeCombo.mjs'
       - '.github/workflows/player-gamepad-parity.yml'
       - '.github/workflows/player-stamina-dodge.yml'
@@ -22,7 +23,7 @@ concurrency:
 jobs:
   contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,7 +45,7 @@ jobs:
           git diff --check "$MAIN_SHA"...HEAD
           CHANGED="$(git diff --name-only "$MAIN_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerMeleeCombo\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$MAIN_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
@@ -57,6 +58,7 @@ jobs:
           node --check src/3d/input.js
           node --check scripts/checkPlayerGamepadInput.mjs
           node --check scripts/checkPlayerGamepadHandoff.mjs
+          node --check scripts/checkPlayerGamepadRuntime.mjs
           node scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadHandoff.mjs
           node --check scripts/checkPlayerMeleeCombo.mjs
@@ -72,6 +74,27 @@ jobs:
           node scripts/checkServiceWorkerCache.js
           ! grep -q 'EditorMaterialStudio' src/3d/input.js
 
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Shipped scene gamepad parity proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerGamepadRuntime.mjs --out-dir=artifacts/player-gamepad | tee artifacts-player-gamepad.log
+          test -s artifacts/player-gamepad/gamepad-runtime.png
+          test -s artifacts/player-gamepad/gamepad-runtime.json
+          grep -q 'PLAYER_GAMEPAD_RUNTIME_OK' artifacts-player-gamepad.log
+          grep -q '"browserErrors": \[\]' artifacts/player-gamepad/gamepad-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+
       - name: Final main freshness
         if: github.event_name == 'pull_request'
         shell: bash
@@ -81,3 +104,13 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           test "$(git merge-base HEAD "$BASE_SHA")" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: player-gamepad-${{ github.sha }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            artifacts/player-gamepad/
+            artifacts-player-gamepad.log
