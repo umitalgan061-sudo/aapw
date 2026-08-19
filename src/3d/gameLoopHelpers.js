@@ -17,13 +17,17 @@ const _cameraSpherical = new THREE.Spherical();
 const GAMEPAD_CAMERA_YAW_RADIANS_PER_SECOND = 2.5;
 const GAMEPAD_CAMERA_PITCH_RADIANS_PER_SECOND = 1.9;
 const GAMEPAD_CAMERA_ZOOM_METERS_PER_SECOND = 12;
+const GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3;
 const CAMERA_POLAR_EPSILON = 0.08;
 
 export function applyGamepadCameraLook(camera, controls, axes) {
 	const lookX = Number.isFinite(axes?.lookX) ? axes.lookX : 0;
 	const lookY = Number.isFinite(axes?.lookY) ? axes.lookY : 0;
 	const cameraZoom = Number.isFinite(axes?.cameraZoom) ? THREE.MathUtils.clamp(axes.cameraZoom, -1, 1) : 0;
-	const dt = Math.max(0, Math.min(0.05, Number.isFinite(axes?.lookDeltaSeconds) ? axes.lookDeltaSeconds : 0));
+	// Camera look is wall-clock sampled by KeyboardInput rather than Player's simulation delta. A
+	// 50 ms clamp made right-stick turn speed collapse on slow/mobile frames; 300 ms preserves
+	// useful angular progress while focus/page lifecycle resets prevent suspended-tab catch-up snaps.
+	const dt = Math.max(0, Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, Number.isFinite(axes?.lookDeltaSeconds) ? axes.lookDeltaSeconds : 0));
 	if (dt === 0 || (lookX === 0 && lookY === 0 && cameraZoom === 0)) return false;
 	_cameraOffset.subVectors(camera.position, controls.target);
 	if (_cameraOffset.lengthSq() < 1e-6) return false;
