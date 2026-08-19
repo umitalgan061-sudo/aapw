@@ -26,7 +26,9 @@ const GAMEPAD_BUTTON = Object.freeze({
 	JUMP: 0, DODGE: 1, LIGHT: 2, HEAVY: 3, GUARD: 4, PARRY: 5, ZOOM_OUT: 6, ZOOM_IN: 7, SPRINT: 10,
 	DPAD_UP: 12, DPAD_DOWN: 13, DPAD_LEFT: 14, DPAD_RIGHT: 15,
 });
-const GAMEPAD_MELEE_HAPTICS = Object.freeze({
+const GAMEPAD_ACTION_HAPTICS = Object.freeze({
+	dodge: Object.freeze({ duration: 45, weakMagnitude: 0.3, strongMagnitude: 0.55 }),
+	parry: Object.freeze({ duration: 38, weakMagnitude: 0.18, strongMagnitude: 0.68 }),
 	light: Object.freeze({ duration: 55, weakMagnitude: 0.22, strongMagnitude: 0.48 }),
 	heavy: Object.freeze({ duration: 90, weakMagnitude: 0.38, strongMagnitude: 0.82 }),
 });
@@ -92,11 +94,12 @@ export function samplePlayerGamepad(gamepad, previousButtons = {}) {
 	};
 }
 
-export function pulsePlayerGamepadMelee(gamepad, kind) {
-	const profile = GAMEPAD_MELEE_HAPTICS[kind], actuator = gamepad?.vibrationActuator;
+export function pulsePlayerGamepadAction(gamepad, kind) {
+	const profile = GAMEPAD_ACTION_HAPTICS[kind], actuator = gamepad?.vibrationActuator;
 	if (!profile || gamepad?.mapping !== 'standard' || !gamepad?.connected || typeof actuator?.playEffect !== 'function') return false;
 	try { void Promise.resolve(actuator.playEffect('dual-rumble', { startDelay: 0, ...profile })).catch(() => {}); return true; } catch { return false; }
 }
+export function pulsePlayerGamepadMelee(gamepad, kind) { return pulsePlayerGamepadAction(gamepad, kind); }
 
 export function emitPlayerCombatIntent(kind, source = 'unknown') {
 	if ((kind !== 'light' && kind !== 'heavy') || typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return false;
@@ -129,7 +132,13 @@ export class KeyboardInput {
 		const nowSeconds = (globalThis.performance?.now?.() ?? Date.now()) / 1000, lookDeltaSeconds = this._lastPollSeconds === null ? 0 : Math.max(0, Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)); this._lastPollSeconds = nowSeconds;
 		if (switched) { this._gamepadButtons = gamepad ? readActionButtons(gamepad) : { jump: false, dodge: false, light: false, heavy: false, parry: false }; this._activeGamepadIndex = nextIndex; emitInputDeviceChange(nextIndex, gamepad ? 'selected' : 'disconnected'); }
 		const sample = samplePlayerGamepad(gamepad, this._gamepadButtons);
-		if (!switched) { if (sample.jumpPressed) this._jumpRequested = true; if (sample.lightPressed) { emitPlayerCombatIntent('light', 'gamepad'); pulsePlayerGamepadMelee(gamepad, 'light'); } if (sample.heavyPressed) { emitPlayerCombatIntent('heavy', 'gamepad'); pulsePlayerGamepadMelee(gamepad, 'heavy'); } }
+		if (!switched) {
+			if (sample.jumpPressed) this._jumpRequested = true;
+			if (sample.dodgePressed) pulsePlayerGamepadAction(gamepad, 'dodge');
+			if (sample.parryPressed) pulsePlayerGamepadAction(gamepad, 'parry');
+			if (sample.lightPressed) { emitPlayerCombatIntent('light', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'light'); }
+			if (sample.heavyPressed) { emitPlayerCombatIntent('heavy', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'heavy'); }
+		}
 		this._gamepadButtons = sample.buttons; return { ...sample, lookDeltaSeconds };
 	}
 	getAxes() {
