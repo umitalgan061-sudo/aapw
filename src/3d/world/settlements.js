@@ -110,13 +110,13 @@ const REAL_CASTLE_FOOTPRINT_METERS = 46;
  * narrower than that on at least one axis, so this is already a conservative upper bound, not a
  * measured-per-model number). `OUTER` is where the pad has fully eased back to untouched natural
  * terrain. The canonical full-owner-map relief is far taller than the historical 24m FBM field, so
- * the old 75m outer radius produced >20° road segments at the pad feather. A 150m outer radius gives
- * the same 38m flat castle footprint a 112m smooth transition; exact browser road qualification on
+ * the old 75m outer radius produced >20° road segments at the pad feather. A 180m outer radius gives
+ * the same 38m flat castle footprint a 142m smooth transition; exact browser road qualification on
  * the canonical field keeps every one of the 13 settlement routes at or below the 20° safety limit.
  * One shared radius pair for every seat keeps render, physics, settlement and road metadata aligned.
  */
 const SETTLEMENT_FLATTEN_INNER_RADIUS_METERS = 38;
-const SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 150;
+const SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 180;
 
 /**
  * Builds the `flattenPads` list `world/terrain.js`'s `createHeightSampler` consumes to flatten the
@@ -450,7 +450,7 @@ export function disposeSettlements(group) {
  * `createStoneMaterial` instance/maps — each model got a unique one, unlike the procedural
  * castles' shared `InstancedMesh` material, since `disposeCastleMaterial` is safe to call once per
  * mesh here with no dedup needed). Call on scene teardown, alongside `disposeSettlements`.
- * @param {THREE.Group} group `spawnRealCastleModels`'s returned group.
+ * @param {THREE.Group} group `spawnRealCastleModels`'s returned group`.
  */
 export function disposeRealCastleModels(group) {
 	// Run 330: seats that share a castle file also share its geometry (`Object3D.clone()` copies the
