@@ -16951,3 +16951,42 @@ run 354'ün 15 sn taramasıyla aynı kök neden. Bütçe 42 dosyada 60 sn'ye ç�
 
 Bunun 23,5 sn'lik açılışı düzeltmediğini açıkça yazıyorum: yalnızca ölçüm aracını ölçtüğü şeye uygun
 hale getiriyor. Asıl çare sıradaki turun konusu olan masaüstü LOD'u.
+
+### Run 356 — Masaüstü LOD, ve beklediğim sonucun çıkmaması (ADR-0303)
+
+Masaüstü mesafe-tabanlı LOD'u kurdum: yakın bant 128 segment (3,9 m vertex), orta 64, uzak 32.
+Run 140'ın canlı-dünya ayırt edicisini kullandım, yani yalnızca gerçek oyun yöneticisi LOD alıyor;
+jenerik/test yöneticileri tekdüze kalıyor ve mevcut sözleşmeler birebir korunuyor.
+
+**Açılış 23.697 ms → 15.180 ms (%36 azalma).** Bu gerçek ve büyük bir kazanç — ADR-0302'de işaret
+ettiğim 27,3 s'lik açılışın asıl çaresi de buydu.
+
+**Ama beklediğim görsel kazanç çıkmadı, ve bunu olduğu gibi yazıyorum.** Vertex aralığını yarıya
+indirmek dört çerçevelemede render edilmiş yüksek frekans enerjisini 7,75→7,99 / 16,02→16,04 /
+11,90→11,83 / 20,51→20,65 yaptı; yani hiç. Üçgen sayısı %23 arttı. Sebep basit ve benim öncülüm
+yarım doğruymuş: mesh çözünürlüğü bir tavandı, ama **yükseklik alanında o tavanın altında zaten
+içerik yok.** En ince katman ~45 m'de, en ince oktavı ~11 m'de ve orada genliği ~0,5 m. İnce mesh
+üretilmemiş detayı gösteremez.
+
+Bunun üzerine ince bandı doldurmayı denedim: `roughness` genliğini yükseltiye göre rampaladım. Bütün
+kapılardan geçti — ama oyuncu ölçeğindeki zemin eğriliğini yalnızca **%1** değiştirdi (1,1239 →
+1,1340). Gerekçesi "görünür detay ekler"di, ölçüm eklemediğini söyledi, o yüzden göndermedim.
+`terrainReliefDetail.js` bu turda dokunulmamış durumda.
+
+**Turun asıl bulgusu bisect sırasında çıktı.** `roughness` dalga boyunu 45 m → 39 m yapmak *tek
+başına* yol eğimini 19,4° → 24,3°'ye çıkarıyor; oysa genliği 7,5'ten 3,0'a düşürmek 25,2° → 24,3°,
+neredeyse sıfır etki. Yani kapıyı tetikleyen diklik değil **dalga boyu**. Sebebi `roadPathfinder.js`'in
+60 m ızgarada örneklemesi: dalga boyu 60 m'ye yaklaşan her katman komşu örnekler arasında büyük fark
+üretiyor ve uçurum gibi puanlanıyor. Ölçülen şey geçilebilirlik değil, örnekleme aliasing'i.
+
+Yani oyuncu ölçeğinde pürüzlülüğün önündeki engel arazi tarafında değil, ölçüm tarafında. Bunu kendim
+çözmedim çünkü çözümü "yol eğimi"nin tanımını değiştirmek — bir at arabası 5 m'lik tümseği umursamaz,
+onlarca metrelik sürekli eğimi umursar. Kapının semantiğini değiştirmek ya da yollara yerleşimlerdeki
+gibi kes-doldur koridoru vermek gerçek bir ürün kararı, o yüzden `QUESTIONS_FOR_OWNER.md` S-0035
+olarak sordum ve tavsiyemi de yazdım.
+
+Kapılar: masaüstü LOD guard'ı (yeni) PASS, mobil LOD PASS (dokunulmadı), 14/14 koltuk PASS, yollar
+PASS (19,2°, 18,29 km), terrain visual contract PASS, satır sınırı PASS.
+
+Sıradaki: sahibin S-0035'e cevabı. O gelene kadar ince bant içeriği kapıya takılıyor; bu turda o
+kapının tam olarak nerede olduğu tespit edildi.

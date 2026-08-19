@@ -17257,3 +17257,60 @@ LOD: 25@128 + 96@64 + 408@32 ≈ 1,36 M vertex, bugünkü 529@64 = 2,38 M'ye kar
 birleştirilmiş `main` + run 355 üzerinde PASS.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0303 — Masaüstü mesafe-tabanlı LOD, ve "pürüzsüzlüğün" gerçek engelinin nerede olduğu
+
+**Bağlam.** ADR-0301 çatlak riskini kapattıktan sonra sıra `config.js`'in beklettiği işe geldi:
+masaüstü mesh çözünürlüğü. 7,8 m vertex aralığı ~16 m'nin altındaki hiçbir şeyi taşıyamıyor.
+
+**Karar.** `chunkManager.js`'e, run 130/134/140'ın üzerine eklemeli bir masaüstü LOD sarmalayıcısı:
+Chebyshev yarıçap ≤2'de 128 segment (3,9 m vertex), ≤5'te 64, ötesinde 32. Run 140'ın canlı-dünya
+ayırt edicisi aynen kullanıldı — yalnızca `sceneManager.js`'in 14 düzleştirme pad'ini verdiği yönetici
+LOD alıyor, jenerik/test yöneticileri tekdüze kalıyor, yani mevcut masaüstü sözleşmeleri birebir
+korunuyor. Merkez kayınca bant değiştiren parçalar yeniden kuruluyor; regrade yarıçapı 6 ile sınırlı,
+çünkü oyun akışı bir seferde tek parça ilerliyor.
+
+**Ölçülen kazanç: açılış.** 529 parçalık masaüstü önizlemesi **23.697 ms → 15.180 ms (%36 azalma)**,
+yakın alan aynı anda 7,8 m'den 3,9 m vertex'e iniyor. Bu ayrıca ADR-0302'nin işaret ettiği 27,3 s'lik
+açılışın da asıl çaresi.
+
+**Ölçülen kazanç-sızlık: görüntü. Bu turun asıl bulgusu bu.** Beklentim yakın alan detayının gözle
+görülür artmasıydı. Ölçüm aksini söyledi: dört çerçevelemede render edilmiş yüksek frekans görüntü
+enerjisi 7,75→7,99 / 16,02→16,04 / 11,90→11,83 / 20,51→20,65 — yani hiç. Üçgen sayısı ise regrade
+yarıçapı içinde 1,38 M → 1,70 M (+%23).
+
+Neden: **yükseklik alanında 4–16 m bandında zaten içerik yok.** En ince katman `roughness` ~45 m'de,
+en ince oktavı ~11 m'de ve orada genliği ~0,5 m. İnce mesh üretilmemiş detayı gösteremez.
+
+**Sonra denediğim ve ölçümle geri aldığım şey.** İnce bandı doldurmak için `roughness` genliğini
+yükseltip yükseltiye göre rampaladım (düz 2,0 → alçak 1,6 / yüksek 4,0). Kapılardan geçti (yol 19,4°,
+14/14 koltuk) ama oyuncu ölçeğindeki zemin eğriliğini (4 m aralıkla RMS ikinci fark) yalnızca
+**1,1239 → 1,1340, yani %1** değiştirdi. Gerekçesi "görünür detay ekler"di, ölçüm eklemediğini
+söyledi; o yüzden değişiklik gönderilmedi. `terrainReliefDetail.js` bu turda dokunulmamış durumda.
+
+**Asıl engel, ve neden bu bir sahip kararına yaklaşıyor.** Bisect sırasında çıkan kök neden şu:
+`roughness` frekansını 295 → 340 yapmak (45 m → 39 m dalga boyu) **tek başına** yol eğimini
+19,4° → 24,3°'ye çıkardı, oysa genliği 7,5'ten 3,0'a düşürmek 25,2° → 24,3°, neredeyse hiçbir şey
+değiştirmedi. Yani kapıyı tetikleyen diklik değil dalga boyu.
+
+Sebebi `roadPathfinder.js`'in `GRID_CELL_METERS = 60` ızgarasında örneklemesi. Dalga boyu 60 m'ye
+yaklaşan her arazi katmanı komşu örnekler arasında büyük yükseklik farkı üretiyor ve kontrol bunu
+uçurum gibi puanlıyor — ölçtüğü şey gerçek geçilebilirlik değil **örnekleme aliasing'i**. Bu yüzden
+oyuncu ölçeğinde pürüzlülük eklemenin önündeki engel arazi tarafında değil, ölçüm tarafında.
+
+Bunu kendi başıma çözmedim çünkü çözümü "yol eğimi" tanımını değiştirmek: bir at arabası 5 m'lik bir
+tümseği umursamaz, onlarca metrelik sürekli eğimi umursar. Kapının semantiğini değiştirmek ya da
+yollara yerleşimlerdeki gibi kes-doldur koridoru vermek gerçek bir ürün kararı (GOVERNANCE.md §14),
+tahmin edilecek bir şey değil. `QUESTIONS_FOR_OWNER.md`'ye soru olarak eklendi.
+
+**Doğrulama.** `checkDesktopTerrainLod.js` (bu turda eklendi) PASS: bantlar 128/64/32 doğru vertex
+sayılarıyla (16641/4225/1089), 6 artımlı geçişten sonra regrade yarıçapı içindeki her parça kendi
+mesafesinin gerektirdiği bantta, her parça skirt'li, jenerik yöneticiler tekdüze, dispose=0.
+`checkMobileTerrainLod.js` PASS (mobil yol byte-for-byte dokunulmadı). 14/14 koltuk PASS, yollar PASS
+(19,2°, 18,29 km), `checkTerrainVisualContract` PASS (kendi parçalarını 64'te kuruyor, LOD'dan
+etkilenmiyor), `checkSmokeCheckRegistry` PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+**Next safe step:** sahibin yol-eğimi sorusuna vereceği cevap. O gelene kadar ince bant içeriği
+eklemek kapıya takılıyor; bu turda o kapının nerede olduğu kesin olarak tespit edildi.

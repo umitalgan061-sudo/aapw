@@ -466,3 +466,32 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   kendi perf-snapshot'ları gerçek doku/geometri sayıları raporlamıştı — o oturumların ortamı bu
   sorundan etkilenmemiş olabilir (rename daha sonra mı oldu, yoksa onlarda `git-lfs` zaten mı kuruluydu,
   bilinmiyor) — tahmin edilmedi.
+
+## S-0035 (run 356) — Yol eğimi 60 m ızgarada ölçülüyor; oyuncu ölçeğinde pürüzlülüğün önündeki engel bu
+
+**Durum:** Sahip kararı bekliyor. Engelleyici: bu cevaplanmadan zemine oyuncu ölçeğinde pürüzlülük
+eklenemiyor.
+
+Sahibin duran isteği "pürüzsüz coğrafya istemiyorum". Run 356'da mesh çözünürlüğü yakın alanda 3,9 m'ye
+indirildi, yani artık ince detay *taşınabiliyor*. Ama ince detay *üretmek* `roadNetworkSafetyCheck.js`
+kapısına takılıyor ve ölçüm gösterdi ki takılma sebebi diklik değil:
+
+- `roughness` dalga boyunu 45 m → 39 m yapmak tek başına yol eğimini 19,4° → 24,3° çıkarıyor.
+- Aynı katmanın genliğini 7,5 m → 3,0 m düşürmek 25,2° → 24,3°, yani neredeyse hiçbir etki.
+
+Sebep: `roadPathfinder.js` `GRID_CELL_METERS = 60` ile örnekliyor. Dalga boyu 60 m'ye yaklaşan arazi,
+komşu örnekler arasında büyük fark üretiyor ve uçurum gibi puanlanıyor — ölçülen şey aliasing.
+
+**Soru:** "Yol eğimi" hangi ölçekte tanımlanmalı? Üç seçenek:
+
+1. **Kapı olduğu gibi kalsın.** Zemin oyuncu ölçeğinde pürüzsüz kalır. En güvenli, ama sahibin
+   isteğiyle doğrudan çelişiyor.
+2. **Eğim daha uzun bir taban çizgisinde ölçülsün** (ör. 60 m yerine 150–200 m üzerinden ortalama
+   eğim). Bir at arabasının gerçekten umursadığı şey bu; 5 m'lik tümsek değil. Kapının anlamını
+   değiştirir, o yüzden sahip onayı gerekiyor.
+3. **Yollara kes-doldur koridoru verilsin** — yerleşimlerdeki `flattenPads` mantığının yol
+   güzergâhına uygulanmış hâli. Arazi pürüzlü kalır, yol kendi şeridini düzler. En gerçekçi ve en
+   pahalı seçenek; ayrı bir alt görev.
+
+**Tavsiyem:** 3, uzun vadede doğru olan o; 2 ise ara adım olarak ucuz. Ama ikisi de "yol nedir"
+tanımını değiştirdiği için tahmin edilmedi.
