@@ -8,9 +8,9 @@
     "height": 193,
     "quantizationCentimeters": 1
   },
-  "heightChecksumSha256": "b54e15d9f90f73e6e6546518e3146667e576dd74c3993bb8ff4a52e9d3b3e9ec",
+  "heightChecksumSha256": "51bda63447f9a31f22821a7fe5a91399ae1a18bfbdb4c0ea5bc30550ee9343ad",
   "metrics": {
-    "peakMeters": 582.413638,
+    "peakMeters": 576.924122,
     "nonZeroSamples": 6632,
     "nonZeroRatio": 0.13370698,
     "wetLeakMaxMeters": 0,
