@@ -83,4 +83,30 @@ assert.equal(result.crafted, false);
 assert.equal(item(missingInputInventory.snapshot(), 'dragonstone-travel-ration-pack')?.quantity, 1);
 assert.equal(item(missingInputInventory.snapshot(), 'dragonstone-whetstone')?.quantity, 1, 'missing recipe input falls back to normal service fulfillment without consuming the pack');
 
-console.log('PASS checkInteractionExpeditionKitCraft: armorer service supports atomic two-input smithing, rollback, fallback, ledger debit and save/load.');
+const duplicateInputInventory = createInteractionInventoryState();
+assert.equal(duplicateInputInventory.grant('dragonstone-field-ration', 2), true);
+const duplicateInputRecipe = {
+	recipeId: 'duplicate-input-canonicalization-proof',
+	inputs: [
+		{ itemId: 'dragonstone-field-ration', quantity: 1 },
+		{ itemId: 'dragonstone-field-ration', quantity: 1 },
+	],
+	outputItemId: recipe.outputItemId,
+	outputQuantity: 1,
+};
+result = duplicateInputInventory.grant('dragonstone-whetstone', 1, {
+	sourceType: 'settlement-service',
+	sourceId: 'duplicate-input-proof',
+	craftUpgrade: duplicateInputRecipe,
+});
+assert.equal(result.ok, true);
+assert.equal(result.crafted, true);
+assert.deepEqual(result.consumedItems, [{ itemId: 'dragonstone-field-ration', quantity: 2 }], 'duplicate authored inputs must collapse into one canonical consumption requirement');
+assert.equal(item(duplicateInputInventory.snapshot(), 'dragonstone-field-ration'), null);
+assert.equal(item(duplicateInputInventory.snapshot(), recipe.outputItemId)?.quantity, 1);
+assert.deepEqual(item(duplicateInputInventory.snapshot(), recipe.outputItemId)?.provenance, [{
+	sourceType: 'settlement-crafting',
+	sourceId: duplicateInputRecipe.recipeId,
+}]);
+
+console.log('PASS checkInteractionExpeditionKitCraft: armorer service supports atomic two-input smithing, rollback, fallback, duplicate-input canonicalization, ledger debit and save/load.');
