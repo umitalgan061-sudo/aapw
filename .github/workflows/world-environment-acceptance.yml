@@ -7,6 +7,8 @@ on:
     branches: [main]
     paths:
       - 'fixtures/world-reference-mountain-relief-v1.json'
+      - 'scripts/checkGeographyReliefHabitableBasins.mjs'
+      - 'scripts/checkGeographyReliefMorphology.mjs'
       - 'scripts/checkWorldReferenceMountainRelief.mjs'
       - 'scripts/checkMountainNaturalizationProfile.mjs'
       - 'scripts/checkMountainNaturalizationDeterminism.mjs'
@@ -31,6 +33,7 @@ on:
       - '.github/workflows/run167-determinism-policy.yml'
       - '.github/workflows/run317-terrain3d-heightfield.yml'
       - '.github/workflows/live-map-mountain-relief.yml'
+      - '.github/workflows/live-map-geography-relief.yml'
       - '.github/workflows/full-world-runtime-coverage.yml'
       - '.github/workflows/world-environment-acceptance.yml'
   workflow_dispatch:
@@ -64,7 +67,7 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(fixtures/world-reference-mountain-relief-v1\.json|scripts/captureLiveWorldMountainNaturalization\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainPassReliefSafety\.mjs|scripts/checkMountainVisualProofContract\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix\.mjs|scripts/checkWorldSurfacePlacementPolicy\.mjs|scripts/checkMapAlignedTerrainPBR\.mjs|scripts/checkTerrainMicroSurface\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWaterVisualContract\.js|scripts/terrainSeatSafetyCheck\.js|scripts/roadNetworkSafetyCheck\.js|scripts/checkSharedMaterialPlacementContract\.js|src/3d/sky\.js|src/3d/world/terrain\.js|src/3d/world/water\.js|src/3d/world/waterDepthField\.js|src/3d/world/worldReferenceMountainRelief\.js|src/3d/world/WorldAssetPlacementPipeline\.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/live-map-mountain-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(fixtures/world-reference-mountain-relief-v1\.json|scripts/checkGeographyReliefHabitableBasins\.mjs|scripts/checkGeographyReliefMorphology\.mjs|scripts/captureLiveWorldMountainNaturalization\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainPassReliefSafety\.mjs|scripts/checkMountainVisualProofContract\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix\.mjs|scripts/checkWorldSurfacePlacementPolicy\.mjs|scripts/checkMapAlignedTerrainPBR\.mjs|scripts/checkTerrainMicroSurface\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWaterVisualContract\.js|scripts/terrainSeatSafetyCheck\.js|scripts/roadNetworkSafetyCheck\.js|scripts/checkSharedMaterialPlacementContract\.js|src/3d/sky\.js|src/3d/world/terrain\.js|src/3d/world/water\.js|src/3d/world/waterDepthField\.js|src/3d/world/worldReferenceMountainRelief\.js|src/3d/world/WorldAssetPlacementPipeline\.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/live-map-mountain-relief\.yml|\.github/workflows/live-map-geography-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "world acceptance quota additions=$A deletions=$D total=$((A+D))"
@@ -76,6 +79,8 @@ jobs:
       - name: Static syntax and shared placement contract
         run: |
           set -euo pipefail
+          node --check scripts/checkGeographyReliefHabitableBasins.mjs
+          node --check scripts/checkGeographyReliefMorphology.mjs
           node --check scripts/checkWorldReferenceMountainRelief.mjs
           node --check scripts/checkMountainNaturalizationProfile.mjs
           node --check scripts/checkMountainNaturalizationDeterminism.mjs
@@ -95,6 +100,8 @@ jobs:
           node --check src/3d/world/waterDepthField.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
           node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkGeographyReliefHabitableBasins.mjs
+          node scripts/checkGeographyReliefMorphology.mjs
           node scripts/checkMountainNaturalizationProfile.mjs
           node scripts/checkMountainNaturalizationDeterminism.mjs
           node scripts/checkMountainPassReliefSafety.mjs
