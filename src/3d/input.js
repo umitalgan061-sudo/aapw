@@ -138,7 +138,7 @@ export class KeyboardInput {
 		};
 		this._onPointerUp = (event) => { if (event.button === GUARD_POINTER_BUTTON) this._guardPointerHeld = false; };
 		this._onContextMenu = (event) => { if (this._guardPointerHeld) event.preventDefault?.(); };
-		this._onBlur = () => {
+		this._onFocusLoss = (event) => {
 			const hadActiveInput = this._keys.size > 0 || this._jumpRequested || this._guardPointerHeld || this._activeGamepadIndex !== null;
 			this._keys.clear();
 			this._jumpRequested = false;
@@ -146,7 +146,7 @@ export class KeyboardInput {
 			this._gamepadButtons = { jump: false, light: false, heavy: false };
 			this._activeGamepadIndex = null;
 			this._lastPollSeconds = null;
-			if (hadActiveInput) emitInputDeviceChange(null, 'focus-lost');
+			if (hadActiveInput) emitInputDeviceChange(null, event?.type === 'pagehide' ? 'page-hidden' : 'focus-lost');
 		};
 		target.addEventListener('keydown', this._onKeyDown);
 		target.addEventListener('keyup', this._onKeyUp);
@@ -154,7 +154,8 @@ export class KeyboardInput {
 		target.addEventListener('pointerup', this._onPointerUp);
 		target.addEventListener('pointercancel', this._onPointerUp);
 		target.addEventListener('contextmenu', this._onContextMenu);
-		target.addEventListener('blur', this._onBlur);
+		target.addEventListener('blur', this._onFocusLoss);
+		target.addEventListener('pagehide', this._onFocusLoss);
 	}
 
 	_pollGamepad() {
@@ -210,7 +211,8 @@ export class KeyboardInput {
 		this._target.removeEventListener('pointerup', this._onPointerUp);
 		this._target.removeEventListener('pointercancel', this._onPointerUp);
 		this._target.removeEventListener('contextmenu', this._onContextMenu);
-		this._target.removeEventListener('blur', this._onBlur);
+		this._target.removeEventListener('blur', this._onFocusLoss);
+		this._target.removeEventListener('pagehide', this._onFocusLoss);
 		this._keys.clear();
 		this._jumpRequested = false;
 		this._guardPointerHeld = false;
