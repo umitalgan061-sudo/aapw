@@ -6,7 +6,10 @@ on:
     paths:
       - 'src/3d/gameplay/creatureBrain.js'
       - 'src/3d/gameplay/livingWorldSpawner.js'
+      - 'src/3d/gameplay/creatureSpawner.js'
       - 'scripts/checkCreatureBirdFlock.mjs'
+      - 'scripts/checkCreatureBirdFlockPopulation.mjs'
+      - 'scripts/checkCreatureBirdFlockLodWake.mjs'
       - 'scripts/checkCreatureBirdFlockBrowser.js'
       - '.github/workflows/creature-bird-flock.yml'
   workflow_dispatch:
@@ -42,6 +45,10 @@ jobs:
           node --check src/3d/gameplay/creatureBrain.js
           node --check scripts/checkCreatureBirdFlock.mjs
           node scripts/checkCreatureBirdFlock.mjs
+          node --check scripts/checkCreatureBirdFlockPopulation.mjs
+          node scripts/checkCreatureBirdFlockPopulation.mjs
+          node --check scripts/checkCreatureBirdFlockLodWake.mjs
+          node scripts/checkCreatureBirdFlockLodWake.mjs
           node scripts/checkCreatureThreatMemory.mjs
           node scripts/checkCreatureSimulationLod.mjs
           node scripts/checkCreatureHabitatPlacement.mjs
@@ -57,7 +64,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Real Three.js bird flock proof
+      - name: Real Three.js bird flock lifecycle proof
         run: node scripts/checkCreatureBirdFlockBrowser.js
       - name: Final exact-main freshness
         shell: bash
