@@ -17075,3 +17075,62 @@ kıta artık 5 m'lik bir sahanlık değil, kıyıdan içeriye yükselen gerçek 
 
 **Next safe step:** a max-grade-aware road cost is now the single blocker on more elevation, and
 terrain LOD (ADR-0297) remains the blocker on finer ground detail.
+
+## ADR-0300 — A hard per-step road grade cap, and the elevation budget it unlocked (265 m -> 780 m)
+
+**Risk: MEDIUM.** One pathfinder cost change plus the height rise it made affordable. §8.4's gate run
+throughout; canonical guards unchanged.
+
+**Karar.** `world/roadPathfinder.js` gains `ROAD_MAX_GRADE_DEGREES` (17) and a near-prohibitive
+`OVER_CAP_PENALTY` (4000x) applied to any step above it. `TERRAIN_CONTINENTAL_UPLIFT_POLICY.maxUpliftMeters`
+then rises 265 -> 780.
+
+**Neden.** ADR-0299 ended with the elevation budget pinned at 265 m and named the reason precisely:
+`scripts/roadNetworkSafetyCheck.js` asserts a route's **maximum** grade, while A* minimises a route's
+**total** cost. Those are different objectives, so a shorter route containing one over-limit pitch
+legitimately wins, and no tuning of the smooth cubic penalty can change it — ADR-0299 proved that
+empirically by widening the search corridor, which made `cersei -> stannis` *worse* (18.4 -> 26.9 deg)
+because the extra room only surfaced more short-but-steep candidates. A hard cap aligns the two
+objectives directly: staying under the cap becomes primary, being short becomes the tiebreaker.
+
+**Sonuç, measured on unchanged terrain.** Applying the cap alone, at the then-current 265 m uplift,
+dropped every edge's maximum grade sharply at identical network length (18.02 km):
+`robin -> berkalp` 18.5 -> 10.5 deg, `stannis -> robin` 19.0 -> 17.3 deg, `cersei -> stannis` — the edge
+that had blocked every previous attempt — 26.9 -> 18.3 deg. The roads were always available; the search
+had simply not been asked for them.
+
+That headroom is what the elevation increase spends. Bisected against the road gate: **780 m passes,
+850 fails** on three edges (21.4 / 23.5 / 20.3 deg). The world's interior now stands up to 780 m above
+its own coast, against 265 m before and 0 m two rounds ago.
+
+**Alternatifler.**
+1. *Steepen the smooth penalty instead (raise the exponent, lower the comfort grade).* Rejected on the
+   argument above and on measurement — ADR-0299 tried lowering `ROAD_COMFORT_GRADE_DEGREES` to 8 as
+   part of a batch and it did not help. A smooth penalty cannot express a hard constraint.
+2. *Make over-cap steps infinite/impassable.* Rejected: this module's stated contract is that a route
+   always exists at *some* finite cost, so genuinely ungentle terrain still yields a road instead of a
+   pathfinding failure. 4000x is prohibitive in practice without breaking that, and keeps the
+   Euclidean heuristic admissible (the multiplier stays >= 1).
+3. *Raise the check's own 20 deg ceiling.* Rejected: that number encodes whether a horse cart can use
+   the road — a gameplay fact, not an obstacle to route around. Fixing the search was the honest fix.
+
+**Doğrulama.** `roadNetworkSafetyCheck.js` PASS at 780 m — 13 edges, all 14 seats connected, every
+grade under 20 deg, 18.29 km. `terrainSeatSafetyCheck.js` **14/14 PASS**, seats at believable heights
+(the Eyrie 75 m, Riverrun 71 m, Highgarden 68 m; the four coastal seats correctly still 7.25 m).
+Canonical constraint intact: water-mask checksum `2ca2bed8d8a1…` unchanged, alignment PASS with 14/14
+round-trip at 100% coverage. `checkTerrainVisualContract.js`, `checkRoadVisualContract.js` (13 edges,
+18.29 km), `checkTechnicalDebt.js`, `checkSeededRandomPolicy.js`, `checkSmokeCheckRegistry.js` (546
+files under the cap) PASS. `collectPerfSnapshot.js run354-grade-capped-uplift`: 61 draw calls /
+769,878 triangles / 62 geometries / 32 textures / 190 MB — inside the desktop budget. Captures: 613
+chunks, zero console/page errors.
+
+**Memory leak checklist.** None — one comparison added to a pure cost function.
+
+**Technical debt.** 0 new.
+
+**World Coverage.** Unchanged. World Evolution Report: road network 18.02 -> 18.29 km; +1 ADR;
+"oyuncu fark eder mi" — evet: iç bölge kendi kıyısından 780 m'ye kadar yükseliyor ve yollar bunu
+dağların eteklerinden dolaşarak geçiyor, tam olarak sahibin istediği gibi.
+
+**Next safe step:** terrain LOD (ADR-0297) is now the only remaining structural blocker on visual
+detail — mesh resolution, not the height field, is what still smooths fine ground.

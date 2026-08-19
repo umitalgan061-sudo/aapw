@@ -42,6 +42,33 @@ export const ROAD_COMFORT_GRADE_DEGREES = 10;
  * without making any grade literally infinite/unreachable (see module doc). */
 const GRADE_PENALTY_EXPONENT = 3;
 
+/**
+ * Hard grade cap, in degrees, above which a single step becomes so expensive that A* will only take
+ * it when no alternative exists at all.
+ *
+ * **Why a cap and not just a steeper penalty (2026-08-19).** `scripts/roadNetworkSafetyCheck.js`
+ * asserts a route's *maximum* grade, but A* minimises a route's *total* cost — so a shorter route
+ * containing one over-limit pitch legitimately beats a longer gentle one, and no amount of tuning the
+ * smooth penalty changes that, because the two are optimising different quantities. This was measured
+ * the hard way in ADR-0299: widening the search corridor to give roads more room to go around hills
+ * made `cersei -> stannis` *worse* (18.4 -> 26.9 deg), since the extra room simply revealed more
+ * short-but-steep candidates. A near-prohibitive cost above the cap is what actually aligns the two:
+ * it makes A* treat "stay under the cap" as the primary objective and "be short" as the tiebreaker.
+ *
+ * Set below the check's own 20 deg ceiling so smoothing and terrain resampling
+ * (`smoothAndResamplePath`) cannot nudge a barely-legal route over the line afterwards.
+ *
+ * The cost stays finite on purpose — the module's contract is that a route always exists at *some*
+ * cost, so terrain that genuinely cannot be crossed gently still yields a road rather than nothing.
+ * The Euclidean heuristic also stays admissible, since the multiplier remains >= 1.
+ */
+export const ROAD_MAX_GRADE_DEGREES = 17;
+
+/** Multiplier applied on top of the smooth penalty once a step exceeds `ROAD_MAX_GRADE_DEGREES`.
+ * Large enough that crossing one capped cell costs more than a kilometre of gentle detour, small
+ * enough to stay far from floating-point trouble when summed over a long route. */
+const OVER_CAP_PENALTY = 4000;
+
 /** Grid cell size, in meters, for the A* search corridor. Small enough to resolve the macro-relief
  * mountain's own falloff shape (1300m radius, see `world/terrain.js`'s `MACRO_RELIEF_FEATURES`) with
  * many cells across it, large enough that even the longest kingdom-seat-to-seat corridor stays a few
@@ -84,7 +111,8 @@ const EIGHT_NEIGHBOR_OFFSETS = Object.freeze([
  */
 function gradeCostMultiplier(angleDegrees) {
 	const ratio = angleDegrees / ROAD_COMFORT_GRADE_DEGREES;
-	return 1 + ratio ** GRADE_PENALTY_EXPONENT;
+	const smooth = 1 + ratio ** GRADE_PENALTY_EXPONENT;
+	return angleDegrees > ROAD_MAX_GRADE_DEGREES ? smooth * OVER_CAP_PENALTY : smooth;
 }
 
 /**

@@ -41,14 +41,19 @@ export const TERRAIN_CONTINENTAL_UPLIFT_POLICY = Object.freeze({
 	/**
 	 * Peak uplift, reached where a point is `fullUpliftCells` or more from any water cell.
 	 *
-	 * 265 m is the measured ceiling, found by bisection against
-	 * `scripts/roadNetworkSafetyCheck.js` with the pathfinder at its original tuning: 265 passes, 290
-	 * and 320 fail the mountain-avoidance stress test at 20.3 and 20.8 deg. It is not a taste value —
-	 * it is the most elevation this world can carry before a horse-cart road cannot be routed.
-	 * Raising it further needs a max-grade-aware route cost (see `world/roadPathfinder.js`), not a
-	 * bigger number here.
+	 * 780 m is the measured ceiling, found by bisection against
+	 * `scripts/roadNetworkSafetyCheck.js`: 780 passes, 850 fails on three edges (21.4 / 23.5 / 20.3
+	 * deg). It is not a taste value — it is the most elevation this world can carry while a horse-cart
+	 * road can still be routed across it.
+	 *
+	 * The previous ceiling was 265 m. What moved it was not a bigger number here but
+	 * `ROAD_MAX_GRADE_DEGREES` in `world/roadPathfinder.js`: A* was minimising a route's *total* cost
+	 * while the safety check asserts its *maximum* grade, so a short route with one over-limit pitch
+	 * kept winning. Once a hard per-step cap made those steps near-prohibitive, every edge's max grade
+	 * fell sharply on the *same* terrain (`robin -> berkalp` 18.5 -> 10.5 deg at unchanged network
+	 * length), and the elevation budget nearly tripled.
 	 */
-	maxUpliftMeters: 265,
+	maxUpliftMeters: 780,
 	/**
 	 * Distance to water, in mask cells, at which uplift reaches full strength. One cell is ~138 x
 	 * ~162 m, so 20 cells is roughly 2.8 km.

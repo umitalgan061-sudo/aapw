@@ -16861,3 +16861,35 @@ vertexleri tek düz renk değil. Aynı assertion'ın iki kez düşmesi, yanlış
 işaretiydi.
 
 Sıradaki: daha fazla kot için maksimum-eğim farkındalıklı yol maliyeti; daha ince zemin için arazi LOD.
+
+## Run 354 (2026-08-19, owner request) — Sert eğim tavanı ve açtığı kot bütçesi: 265 m → 780 m (ADR-0300)
+
+ADR-0299 kot bütçesini 265 m'de bırakıp sebebini net söylemişti: yol kontrolü bir rotanın **maksimum**
+eğimini kontrol ediyor, A* ise **toplam** maliyetini küçültüyor. Farklı hedefler, o yüzden "kısa ama bir
+yeri dik" rota meşru şekilde kazanıyor ve pürüzsüz cezayı ne kadar ayarlarsan ayarla değişmiyor —
+ADR-0299 bunu koridoru genişletip `cersei → stannis`'i kötüleştirerek ampirik olarak kanıtlamıştı.
+
+**Yapılan:** `roadPathfinder.js`'e `ROAD_MAX_GRADE_DEGREES` (17°) ve bunu aşan her adıma neredeyse
+yasaklayıcı bir çarpan (4000×). Bu, iki hedefi hizalıyor: tavanın altında kalmak birincil, kısa olmak
+eşitlik bozucu oluyor.
+
+**Değişmemiş arazi üzerinde ölçülen sonuç** (tek başına tavan, o anki 265 m kotta, ağ uzunluğu aynı
+18.02 km): `robin → berkalp` 18.5° → **10.5°**, `stannis → robin` 19.0° → 17.3°, ve her denemeyi
+tıkayan `cersei → stannis` 26.9° → **18.3°**. Yollar hep vardı; arama onları istememişti.
+
+Bu marj kot artışına harcandı. Yol kapısına karşı ikili arama: **780 m geçiyor, 850 m** üç kenarda
+düşüyor (21.4° / 23.5° / 20.3°). Dünyanın içi artık kendi kıyısından 780 m'ye kadar yükseliyor —
+iki tur önce 0 m, bir tur önce 265 m'ydi.
+
+Koltuklar inandırıcı yükseklikte: Kartal Yuvası 75 m, Nehirova 71 m, Yüksekbahçe 68 m; gerçekten
+kıyıda olan dört koltuk doğru şekilde 7.25 m'de. Kanonik şart korundu: su maskesi checksum'ı
+`2ca2bed8d8a1…` değişmedi, hizalama 14/14 round-trip %100 kapsam.
+
+Yol kapısının 20°'lik tavanını yükseltmedim — o sayı bir at arabasının yolu kullanıp kullanamayacağını
+ifade ediyor, yani dolaşılacak bir engel değil, oyun gerçeği. Doğru düzeltme aramayı düzeltmekti.
+
+Kapılar: yollar PASS (13 kenar, 14/14 bağlı, 18.29 km), 14/14 koltuk PASS, terrain/road visual
+contract, borç, determinizm, satır sınırı (546 dosya) PASS. Perf 61 çizim / 769.878 üçgen / 190 MB.
+
+Sıradaki: arazi LOD'u artık görsel detay önündeki tek yapısal engel — ince zemini pürüzsüzleştiren şey
+yükseklik alanı değil, mesh çözünürlüğü.
