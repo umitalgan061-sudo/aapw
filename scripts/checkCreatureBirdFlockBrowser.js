@@ -6,6 +6,13 @@ const PORT = 4179;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function stripBenignConnectionResetTracebacks(log) {
+  return String(log).replace(
+    /-{20,}\nException occurred during processing of request[\s\S]*?ConnectionResetError: \[Errno 104\] Connection reset by peer\n-{20,}\n?/g,
+    '',
+  );
+}
+
 async function main() {
   const server = spawn('python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1'], {
     cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'],
@@ -107,8 +114,9 @@ async function main() {
     server.kill('SIGTERM');
   }
 
-  if (serverErrors.some((line) => /Traceback|Error:/i.test(line))) {
-    throw new Error(`static server errors: ${serverErrors.join('')}`);
+  const fatalServerLog = stripBenignConnectionResetTracebacks(serverErrors.join(''));
+  if (/Traceback|(?:^|\n)\w*Error:|" [45]\d\d /im.test(fatalServerLog)) {
+    throw new Error(`static server errors: ${fatalServerLog}`);
   }
 }
 
