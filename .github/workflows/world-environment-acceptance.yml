@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'fixtures/world-reference-mountain-relief-v1.json'
+      - 'scripts/checkWorldReferenceMountainRelief.mjs'
+      - 'scripts/checkMountainNaturalizationProfile.mjs'
+      - 'scripts/checkMountainNaturalizationDeterminism.mjs'
+      - 'scripts/checkMountainPassReliefSafety.mjs'
+      - 'scripts/captureLiveWorldMountainNaturalization.mjs'
       - 'scripts/checkWorldEnvironmentAcceptanceMatrix.mjs'
       - 'scripts/checkWorldSurfacePlacementPolicy.mjs'
       - 'scripts/checkMapAlignedTerrainPBR.mjs'
@@ -17,6 +23,7 @@ on:
       - 'scripts/roadNetworkSafetyCheck.js'
       - 'src/3d/sky.js'
       - 'src/3d/world/terrain.js'
+      - 'src/3d/world/worldReferenceMountainRelief.js'
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
@@ -69,6 +76,10 @@ jobs:
       - name: Static syntax and shared placement contract
         run: |
           set -euo pipefail
+          node --check scripts/checkWorldReferenceMountainRelief.mjs
+          node --check scripts/checkMountainNaturalizationProfile.mjs
+          node --check scripts/checkMountainNaturalizationDeterminism.mjs
+          node --check scripts/checkMountainPassReliefSafety.mjs
           node --check scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
           node --check scripts/checkWorldSurfacePlacementPolicy.mjs
           node --check scripts/checkMapAlignedTerrainPBR.mjs
@@ -79,10 +90,14 @@ jobs:
           node --check src/3d/materials/MaterialAssignmentCore.js
           node --check src/3d/sky.js
           node --check src/3d/world/terrain.js
+          node --check src/3d/world/worldReferenceMountainRelief.js
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
           node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkMountainNaturalizationProfile.mjs
+          node scripts/checkMountainNaturalizationDeterminism.mjs
+          node scripts/checkMountainPassReliefSafety.mjs
           node scripts/checkWorldSurfacePlacementPolicy.mjs
           node scripts/checkMapAlignedTerrainPBR.mjs
           node scripts/checkTerrainMicroSurface.mjs
