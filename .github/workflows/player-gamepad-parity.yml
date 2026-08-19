@@ -5,7 +5,9 @@ on:
     paths:
       - 'src/3d/input.js'
       - 'scripts/checkPlayerGamepadInput.mjs'
+      - 'scripts/checkPlayerMeleeCombo.mjs'
       - '.github/workflows/player-gamepad-parity.yml'
+      - '.github/workflows/player-stamina-dodge.yml'
   workflow_dispatch:
 
 jobs:
@@ -31,19 +33,21 @@ jobs:
           git diff --check "$MAIN_SHA"...HEAD
           CHANGED="$(git diff --name-only "$MAIN_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|scripts/checkPlayerGamepadInput\.mjs|\.github/workflows/player-gamepad-parity\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerMeleeCombo\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "PLAYER_GAMEPAD_CHANGED_LINES=$((A+D))"
           test $((A+D)) -le 1000
           echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
 
-      - name: Standard gamepad player contract
+      - name: Standard gamepad and player melee input contracts
         run: |
           set -euo pipefail
           node --check src/3d/input.js
           node --check scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadInput.mjs
+          node --check scripts/checkPlayerMeleeCombo.mjs
+          node scripts/checkPlayerMeleeCombo.mjs
 
       - name: Shared material and PWA contracts
         run: |
