@@ -24,6 +24,8 @@ const GAMEPAD_BUTTON = Object.freeze({
 	LIGHT: 2,
 	HEAVY: 3,
 	GUARD: 4,
+	ZOOM_OUT: 6,
+	ZOOM_IN: 7,
 	SPRINT: 10,
 });
 
@@ -31,6 +33,10 @@ function isInteractiveTarget(target) {
 	return Boolean(target?.closest?.('button, a, input, textarea, select, [contenteditable="true"]'));
 }
 function buttonPressed(gamepad, index) { return Boolean(gamepad?.buttons?.[index]?.pressed); }
+function buttonValue(gamepad, index) {
+	const value = gamepad?.buttons?.[index]?.value;
+	return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : (buttonPressed(gamepad, index) ? 1 : 0);
+}
 function readActionButtons(gamepad) {
 	return { jump: buttonPressed(gamepad, GAMEPAD_BUTTON.JUMP), light: buttonPressed(gamepad, GAMEPAD_BUTTON.LIGHT), heavy: buttonPressed(gamepad, GAMEPAD_BUTTON.HEAVY) };
 }
@@ -59,7 +65,7 @@ export function selectPlayerGamepad(gamepads, preferredIndex = null) {
 export function samplePlayerGamepad(gamepad, previousButtons = {}) {
 	if (!gamepad?.connected) {
 		return {
-			forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, lookMagnitude: 0,
+			forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, lookMagnitude: 0, cameraZoom: 0,
 			running: false, guarding: false, jumpPressed: false, lightPressed: false, heavyPressed: false,
 			buttons: { jump: false, light: false, heavy: false },
 		};
@@ -74,6 +80,7 @@ export function samplePlayerGamepad(gamepad, previousButtons = {}) {
 		lookX: look.x,
 		lookY: look.y,
 		lookMagnitude: look.magnitude,
+		cameraZoom: buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_IN) - buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_OUT),
 		running: buttonPressed(gamepad, GAMEPAD_BUTTON.SPRINT),
 		guarding: buttonPressed(gamepad, GAMEPAD_BUTTON.GUARD),
 		jumpPressed: buttons.jump && !previousButtons.jump,
@@ -167,7 +174,7 @@ export class KeyboardInput {
 		return {
 			forward: Math.max(-1, Math.min(1, forward)), strafe: Math.max(-1, Math.min(1, strafe)),
 			running, jumpRequested, guarding,
-			lookX: gamepad.lookX, lookY: gamepad.lookY, lookDeltaSeconds: gamepad.lookDeltaSeconds,
+			lookX: gamepad.lookX, lookY: gamepad.lookY, cameraZoom: gamepad.cameraZoom, lookDeltaSeconds: gamepad.lookDeltaSeconds,
 		};
 	}
 
