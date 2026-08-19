@@ -41,7 +41,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		crestDetailStrength: 0.20,
 		valleyFrequency: 8.5,
 		valleyStrength: 0.36,
-		shoulderFalloffStrength: 0.22,
+		shoulderFalloffStrength: 0.40,
 	}),
 	// Moderate map-supported uplands only. Reach, Dothraki Sea and other broad plains are excluded.
 	highlands: Object.freeze({
