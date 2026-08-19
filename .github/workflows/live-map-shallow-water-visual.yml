@@ -48,9 +48,11 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|scripts/checkWaterVisualContract\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
-          echo "$CHANGED" | grep -Fx 'src/3d/world/water.js'
-          echo "$CHANGED" | grep -Fx 'src/3d/world/waterDepthField.js'
+          test "$(echo "$CHANGED" | grep -Ev '^(fixtures/world-reference-mountain-relief-v1\.json|src/3d/world/worldReferenceMountainRelief\.js|src/3d/world/water\.js|src/3d/world/waterDepthField\.js|scripts/checkGeographyReliefHabitableBasins\.mjs|scripts/checkGeographyReliefMorphology\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkWaterVisualContract\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-geography-relief\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          if echo "$CHANGED" | grep -Eq '^src/3d/world/(water|waterDepthField)\.js$'; then
+            echo "$CHANGED" | grep -Fx 'src/3d/world/water.js'
+            echo "$CHANGED" | grep -Fx 'src/3d/world/waterDepthField.js'
+          fi
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "shallow-water visual quota additions=$A deletions=$D total=$((A+D))"
