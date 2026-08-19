@@ -22,7 +22,10 @@ const GAMEPAD_DEADZONE = 0.18;
 // Preserve camera angular speed during transient low-FPS frames without allowing a long suspended
 // tab interval to create an unbounded snap. blur/pagehide/visibility-hidden reset the poll clock.
 const GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3;
-const GAMEPAD_BUTTON = Object.freeze({ JUMP: 0, DODGE: 1, LIGHT: 2, HEAVY: 3, GUARD: 4, ZOOM_OUT: 6, ZOOM_IN: 7, SPRINT: 10 });
+const GAMEPAD_BUTTON = Object.freeze({
+	JUMP: 0, DODGE: 1, LIGHT: 2, HEAVY: 3, GUARD: 4, ZOOM_OUT: 6, ZOOM_IN: 7, SPRINT: 10,
+	DPAD_UP: 12, DPAD_DOWN: 13, DPAD_LEFT: 14, DPAD_RIGHT: 15,
+});
 const GAMEPAD_MELEE_HAPTICS = Object.freeze({
 	light: Object.freeze({ duration: 55, weakMagnitude: 0.22, strongMagnitude: 0.48 }),
 	heavy: Object.freeze({ duration: 90, weakMagnitude: 0.38, strongMagnitude: 0.82 }),
@@ -52,6 +55,14 @@ export function applyGamepadRadialDeadzone(x, y, deadzone = GAMEPAD_DEADZONE) {
 	return { x: (nx * scale) || 0, y: (ny * scale) || 0, magnitude: remappedMagnitude };
 }
 
+function readGamepadDpad(gamepad) {
+	const x = Number(buttonPressed(gamepad, GAMEPAD_BUTTON.DPAD_RIGHT)) - Number(buttonPressed(gamepad, GAMEPAD_BUTTON.DPAD_LEFT));
+	const y = Number(buttonPressed(gamepad, GAMEPAD_BUTTON.DPAD_DOWN)) - Number(buttonPressed(gamepad, GAMEPAD_BUTTON.DPAD_UP));
+	const length = Math.hypot(x, y);
+	if (length === 0) return { x: 0, y: 0, magnitude: 0 };
+	return { x: x / length, y: y / length, magnitude: 1 };
+}
+
 export function selectPlayerGamepad(gamepads, preferredIndex = null) {
 	const standard = Array.from(gamepads ?? []).filter((pad) => pad?.connected && pad.mapping === 'standard');
 	if (preferredIndex !== null) { const sticky = standard.find((pad) => pad.index === preferredIndex); if (sticky) return sticky; }
@@ -61,10 +72,13 @@ export function selectPlayerGamepad(gamepads, preferredIndex = null) {
 export function samplePlayerGamepad(gamepad, previousButtons = {}) {
 	if (!gamepad?.connected || gamepad.mapping !== 'standard') return { forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, lookMagnitude: 0, cameraZoom: 0, running: false, guarding: false, jumpPressed: false, dodgePressed: false, lightPressed: false, heavyPressed: false, buttons: { jump: false, dodge: false, light: false, heavy: false } };
 	const stick = applyGamepadRadialDeadzone(gamepad.axes?.[0] ?? 0, gamepad.axes?.[1] ?? 0);
+	// D-pad is a digital accessibility fallback, not an extra force vector. A live analog stick wins
+	// so pressing a D-pad direction cannot accelerate, cancel or skew an intentional stick vector.
+	const dpad = readGamepadDpad(gamepad), locomotion = stick.magnitude > 0 ? stick : dpad;
 	const look = applyGamepadRadialDeadzone(gamepad.axes?.[2] ?? 0, gamepad.axes?.[3] ?? 0);
 	const buttons = readActionButtons(gamepad);
 	return {
-		forward: (-stick.y) || 0, strafe: stick.x, magnitude: stick.magnitude,
+		forward: (-locomotion.y) || 0, strafe: locomotion.x, magnitude: locomotion.magnitude,
 		lookX: look.x, lookY: look.y, lookMagnitude: look.magnitude,
 		cameraZoom: buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_IN) - buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_OUT),
 		running: buttonPressed(gamepad, GAMEPAD_BUTTON.SPRINT), guarding: buttonPressed(gamepad, GAMEPAD_BUTTON.GUARD),
@@ -120,7 +134,7 @@ export class KeyboardInput {
 		const gamepad = this._pollGamepad(); let forward = gamepad.forward, strafe = gamepad.strafe, running = gamepad.running, guarding = this._guardPointerHeld || gamepad.guarding;
 		for (const code of this._keys) { if (FORWARD_KEYS.has(code)) forward += 1; else if (BACK_KEYS.has(code)) forward -= 1; else if (RIGHT_KEYS.has(code)) strafe += 1; else if (LEFT_KEYS.has(code)) strafe -= 1; else if (RUN_KEYS.has(code)) running = true; else if (GUARD_KEYS.has(code)) guarding = true; }
 		// B/Circle is a one-frame adapter into Player's existing run+jump dodge request. It only
-		// synthesizes that contract while the left stick has movement magnitude, so a stationary B
+		// synthesizes that contract while locomotion has movement magnitude, so a stationary B
 		// press can never leak through as a normal jump and no second dodge state machine is created.
 		const dodgeRequested = gamepad.dodgePressed && gamepad.magnitude > 0;
 		if (dodgeRequested) running = true;
