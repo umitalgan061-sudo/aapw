@@ -6,14 +6,17 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'src/3d/fog.js'
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
+      - 'scripts/checkTerrainAperiodicSurface.mjs'
       - 'scripts/checkWaterVisualContract.js'
       - 'scripts/checkWaterSurfVisualContract.mjs'
       - 'scripts/checkWorldWaterCoverageP0.mjs'
       - 'scripts/checkWaterCoverageRasterQuality.mjs'
       - 'scripts/checkWaterCoverageSamplingBudget.mjs'
       - 'scripts/captureLiveWorldWaterTopdown.mjs'
+      - '.github/workflows/terrain-aperiodic-surface.yml'
       - '.github/workflows/live-map-shallow-water-visual.yml'
       - '.github/workflows/full-world-runtime-coverage.yml'
       - '.github/workflows/world-environment-acceptance.yml'
@@ -38,7 +41,7 @@ jobs:
           ref: '${{ github.event.pull_request.head.sha || github.sha }}'
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Exact-main bounded water scope and quota
+      - name: Exact-main bounded water and environment scope
         run: |
           set -euo pipefail
           git fetch origin main
@@ -48,9 +51,13 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|scripts/checkWaterVisualContract\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
-          echo "$CHANGED" | grep -Fx 'src/3d/world/water.js'
-          echo "$CHANGED" | grep -Fx 'src/3d/world/waterDepthField.js'
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/fog\.js|src/3d/world/water\.js|src/3d/world/waterDepthField\.js|scripts/checkTerrainAperiodicSurface\.mjs|scripts/checkWaterVisualContract\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/terrain-aperiodic-surface\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          if echo "$CHANGED" | grep -Eq '^src/3d/world/water(DepthField)?\.js$'; then
+            echo "$CHANGED" | grep -Fx 'src/3d/world/water.js'
+            echo "$CHANGED" | grep -Fx 'src/3d/world/waterDepthField.js'
+          else
+            echo 'terrain/environment coordination change: retaining full shipped water regression without requiring a water production delta'
+          fi
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "shallow-water visual quota additions=$A deletions=$D total=$((A+D))"
@@ -62,18 +69,22 @@ jobs:
       - name: Static shader and coverage contract
         run: |
           set -euo pipefail
+          node --check src/3d/fog.js
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
+          node --check scripts/checkTerrainAperiodicSurface.mjs
           node --check scripts/checkWaterVisualContract.js
           node --check scripts/checkWaterSurfVisualContract.mjs
           node --check scripts/checkWorldWaterCoverageP0.mjs
           node --check scripts/checkWaterCoverageRasterQuality.mjs
           node --check scripts/checkWaterCoverageSamplingBudget.mjs
           node --check scripts/captureLiveWorldWaterTopdown.mjs
+          node scripts/checkTerrainAperiodicSurface.mjs
           node scripts/checkWorldWaterCoverageP0.mjs
           node scripts/checkWaterCoverageRasterQuality.mjs
           node scripts/checkWaterCoverageSamplingBudget.mjs
           node scripts/checkWaterSurfVisualContract.mjs
+          node scripts/checkServiceWorkerCache.js
       - name: Hydrate scoped smoke-test LFS assets
         run: |
           set -euo pipefail
