@@ -86,13 +86,20 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Settlement road and shipped scene safety
+      - name: Settlement seat safety
         run: |
           set -euo pipefail
-          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
-          node scripts/terrainSeatSafetyCheck.js
-          node scripts/roadNetworkSafetyCheck.js
-          node scripts/smokeTestGame3D.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/terrainSeatSafetyCheck.js
+
+      - name: Road network safety
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/roadNetworkSafetyCheck.js
+
+      - name: Shipped scene smoke safety
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
 
       - name: Offline and deterministic safety
         run: |
