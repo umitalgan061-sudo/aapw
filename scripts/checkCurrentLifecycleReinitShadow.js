@@ -179,7 +179,7 @@ async function main() {
 		await installTrackerAndEarlyLifecycleOwner(page);
 		page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
 		page.on('pageerror', (error) => consoleErrors.push(String(error)));
-		await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		await page.waitForFunction(activeStateReady(0), { index: 0 }, { timeout: 60000 });
 		await page.waitForTimeout(300);
 

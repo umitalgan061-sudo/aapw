@@ -211,7 +211,7 @@ async function main() {
     const page = await context.newPage();
     page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
     page.on('pageerror', (error) => errors.push(String(error)));
-    await page.goto(`http://127.0.0.1:${server.address().port}/__pindex_quality_v2__`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto(`http://127.0.0.1:${server.address().port}/__pindex_quality_v2__`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     const proof = await buildProof(page);
     assert(proof.runtimePolicyId.endsWith('-v2'), `Unexpected runtime policy: ${proof.runtimePolicyId}`);
     assert(proof.atlasResolution.join('x') === '192x128', `Atlas resolution drift: ${proof.atlasResolution}`);

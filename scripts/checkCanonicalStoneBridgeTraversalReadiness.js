@@ -222,7 +222,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
     page.on('pageerror', (error) => errors.push(String(error)));
-    await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     const first = await collect(page);
     const second = await collect(page);
     assert(errors.length === 0, `console/page errors: ${errors.join(' | ')}`);

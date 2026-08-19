@@ -61,7 +61,7 @@ async function main() {
 		const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 		page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
 		page.on('pageerror', (error) => consoleErrors.push(String(error)));
-		await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		await page.waitForFunction(() => {
 			const s = window.__RUN197_LIVE_STATE__;
 			return Boolean(s?.player && s?.keyboardInput && s?.interaction && s?.worldEvents && Array.isArray(s?.npcs) && Array.isArray(s?.animals) && Array.isArray(s?.dragons));

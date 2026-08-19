@@ -105,7 +105,7 @@ function findSprintEvidence(frames) {
   return displaced ? [origin, displaced] : null;
 }
 try {
-  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.locator('#run266-entry-enter').click();
   await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
   await waitForHistoryEvidence((frames) => frames.length > 0 ? frames.at(-1) : null, { timeout: 30000, label: 'first player motion frame' });

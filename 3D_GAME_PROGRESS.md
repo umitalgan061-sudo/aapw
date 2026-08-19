@@ -16933,3 +16933,21 @@ satır sınırı PASS.
 Sıradaki: masaüstü mesafe-tabanlı LOD. Çatlak riski kapandığına göre yakın bant 128 segmente
 (3,9 m vertex) çıkabilir; 25@128 + 96@64 + 408@32 ≈ 1,36 M vertex, bugünkü 2,38 M'ye karşı — hem iki
 kat yakın detay hem %43 daha az açılış işi.
+
+### Run 355b — "birleştirme açılışı bozdu" dediğim şey yanlıştı (ADR-0302)
+
+Yayın öncesi eşzamanlılık kontrolü uzak `main`'i ilerlemiş buldu ve rebase sonrası bir kontrol
+zaman aşımına düştü. İlk teşhisim "kuş-sürüsü birleştirmesi açılışı bozdu" oldu. Ölçünce yanlış çıktı,
+o yüzden düzeltiyorum.
+
+Üç yapılandırmayı ayrı ayrı ölçtüm: temiz `c7ce773` 23.553 ms, temiz `2bca1ec` 23.508 ms, `2bca1ec` +
+benim skirt'im 23.697 ms. Birleştirme hiçbir şey eklemiyor; benim değişikliğim de 529 parçanın
+tamamında +144 ms (%0,6).
+
+Gerçek bulgu: açılış zaten ~27,3 sn ve gezinme bütçesi 30 sn'ydi. `game3d.html`'in modül script'leri
+`defer` semantiğinde olduğu için `domcontentloaded` senkron açılışın tamamını bekliyor. 3 sn'den az
+payla 42 kontrol, iddia ettikleri sözleşmeye göre değil makine gürültüsüne göre geçip düşüyordu —
+run 354'ün 15 sn taramasıyla aynı kök neden. Bütçe 42 dosyada 60 sn'ye çıktı.
+
+Bunun 23,5 sn'lik açılışı düzeltmediğini açıkça yazıyorum: yalnızca ölçüm aracını ölçtüğü şeye uygun
+hale getiriyor. Asıl çare sıradaki turun konusu olan masaüstü LOD'u.

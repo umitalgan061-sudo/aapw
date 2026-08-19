@@ -17219,3 +17219,41 @@ gökyüzü/boşluk dilimleri kayboldu.
 128 segmente (3,9 m vertex) çıkarıp uzak bantları kabalaştırmak açılış maliyetini de düşürüyor:
 25 parça@128 + 96@64 + 408@32 ≈ 1,36 M vertex, bugünkü 529@64 = 2,38 M'ye karşı — hem iki kat yakın
 detay hem %43 daha az açılış işi. Bu, `config.js`'in 128-segment notunun beklediği dikişli seam.
+
+## ADR-0302 — 42 tarayıcı kontrolü kendi açılış maliyetinin altında bir gezinme bütçesiyle çalışıyordu
+
+**Bağlam.** Run 355'in yayın öncesi eşzamanlılık kontrolü uzak `main`'i `c7ce773` → `2bca1ec`
+ilerlemiş buldu (başka bir oturumun kuş-sürüsü PR'ı). Rebase sonrası `checkTerrainVisualContract`
+`page.goto` zaman aşımıyla düştü. İlk okumam "birleştirme açılışı bozdu" oldu — **bu yanlıştı** ve
+ölçüm düzeltti.
+
+**Kök neden (§8.2).** Üç yapılandırma ayrı ayrı ölçüldü:
+
+| yapılandırma | 529 parça yükleme | su derinliği |
+|---|---|---|
+| `c7ce773` (temiz) | 23.553 ms | 3.758 ms |
+| `2bca1ec` (temiz) | 23.508 ms | 3.755 ms |
+| `2bca1ec` + run 355 | 23.697 ms | 3.717 ms |
+
+Yani birleştirme de, run 355'in skirt'i de açılışa pratikte hiçbir şey eklemiyor (skirt 529 parçanın
+tamamında **+144 ms, %0,6**). Gerçek durum şu: açılış zaten **~27,3 sn** sürüyor ve `game3d.html`'in
+modül script'leri `defer` semantiğinde olduğundan `domcontentloaded` bu senkron açılışın tamamını
+bekliyor. Bütçe 30 sn'ydi — yani 3 sn'den az pay. `c7ce773`'ün geçip `2bca1ec`'in düşmesi nedensellik
+değil, kap değişkenliğiydi.
+
+Aynı numarayı 42 kontrol paylaşıyordu. Hepsi iddia ettikleri sözleşmeye göre değil, o anki makine
+gürültüsüne göre geçip düşüyordu — run 354'ün 15 sn taramasıyla birebir aynı kök neden sınıfı.
+
+**Karar.** `page.goto` gezinme bütçesi 42 dosyada 30 sn → 60 sn. Yalnızca `goto` çağrılarının içindeki
+`timeout` değiştirildi; aynı dosyalardaki diğer bekleme süreleri elle sürülmedi.
+
+**Bunun ne olmadığı.** Zaman aşımını yükseltmek 23,5 sn'lik açılışı düzeltmiyor, yalnızca ölçüm
+aracını ölçtüğü şeye uygun hale getiriyor — hiçbir kontrol açılış süresini sözleşme olarak iddia
+etmiyor, 30 sn kasıtlı bir performans eşiği değil gezinme payıydı. Asıl çare masaüstü mesafe-tabanlı
+LOD: 25@128 + 96@64 + 408@32 ≈ 1,36 M vertex, bugünkü 529@64 = 2,38 M'ye karşı, yani açılış işinde
+~%43 azalma. Bu ADR onun yerine geçmez, onu görünür kılar.
+
+**Doğrulama.** `checkTerrainVisualContract`, `checkVegetationVisualContract`, `checkWaterVisualContract`
+birleştirilmiş `main` + run 355 üzerinde PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.

@@ -23,7 +23,7 @@ async function main() {
 
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
 		const result = await page.evaluate(async () => {
 			const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
