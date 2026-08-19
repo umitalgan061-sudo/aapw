@@ -30,15 +30,30 @@ try {
 	pads = [makePad({ index: 4, mapping: '', axes: [1, -1], buttons: { 2: true, 3: true } })]; const lost = input.getAxes(); assert.equal(lost.forward, 0); assert.equal(lost.strafe, 0); assert.equal(deviceEvents().at(-1)?.detail.device, 'keyboard-pointer');
 	pads = [makePad({ index: 0, buttons: { 0: true, 2: true, 3: true } })]; const reconnectHeld = input.getAxes(); assert.equal(reconnectHeld.jumpRequested, false); assert.equal(combatEvents('light').length, 1); assert.equal(combatEvents('heavy').length, 1);
 	pads = [makePad({ index: 0 })]; input.getAxes(); pads = [makePad({ index: 0, buttons: { 0: true } })]; assert.equal(input.getAxes().jumpRequested, true); assert.equal(input.getAxes().jumpRequested, false);
+
 	pads = [makePad({ index: 0, axes: [0, -1], buttons: { 2: true, 4: true, 10: true } })]; input.getAxes();
 	const beforeBlurCombat = combatEvents().length;
+	const beforeBlurLight = combatEvents('light').length;
 	target.dispatchEvent(new Event('blur'));
 	assert.equal(deviceEvents().at(-1)?.detail.reason, 'focus-lost');
 	assert.equal(deviceEvents().at(-1)?.detail.device, 'keyboard-pointer');
 	const heldAfterBlur = input.getAxes();
 	assert.ok(heldAfterBlur.forward > 0.95); assert.equal(heldAfterBlur.running, true); assert.equal(heldAfterBlur.guarding, true);
 	assert.equal(heldAfterBlur.jumpRequested, false); assert.equal(combatEvents().length, beforeBlurCombat, 'held face button after refocus must be seeded, not phantom-fired');
-	pads = [makePad({ index: 0 })]; input.getAxes(); pads = [makePad({ index: 0, buttons: { 2: true } })]; input.getAxes(); assert.equal(combatEvents('light').length, 2, 'real release/repress after focus restore must fire');
+	pads = [makePad({ index: 0 })]; input.getAxes(); pads = [makePad({ index: 0, buttons: { 2: true } })]; input.getAxes();
+	assert.equal(combatEvents('light').length, beforeBlurLight + 1, 'real release/repress after focus restore must fire exactly once');
+
+	pads = [makePad({ index: 0, axes: [0.5, -0.7], buttons: { 3: true, 4: true } })]; input.getAxes();
+	const beforePageHideCombat = combatEvents().length;
+	const beforePageHideHeavy = combatEvents('heavy').length;
+	target.dispatchEvent(new Event('pagehide'));
+	assert.equal(deviceEvents().at(-1)?.detail.reason, 'page-hidden');
+	assert.equal(deviceEvents().at(-1)?.detail.device, 'keyboard-pointer');
+	const heldAfterPageHide = input.getAxes();
+	assert.ok(heldAfterPageHide.forward > 0.5 && heldAfterPageHide.strafe > 0.25); assert.equal(heldAfterPageHide.guarding, true);
+	assert.equal(combatEvents().length, beforePageHideCombat, 'pagehide restore must seed held Y instead of phantom-firing heavy');
+	pads = [makePad({ index: 0 })]; input.getAxes(); pads = [makePad({ index: 0, buttons: { 3: true } })]; input.getAxes();
+	assert.equal(combatEvents('heavy').length, beforePageHideHeavy + 1, 'release/repress after pagehide must fire exactly one heavy attack');
 	console.log('[checkPlayerGamepadHandoff] PASS');
 } finally {
 	input.dispose(); globalThis.dispatchEvent = previousDispatch;
