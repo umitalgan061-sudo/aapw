@@ -6,10 +6,13 @@ import {
 	createInteractionInventoryState,
 } from '../src/3d/gameplay/interactionConfig.js';
 import {
+	FAST_TRAVEL_BLOCK_REASON,
 	FIELD_READINESS_ITEMS,
 	FIELD_READINESS_TIER,
+	buildFastTravelRequestText,
 	buildFieldReadinessText,
 	evaluateCraftAvailability,
+	evaluateFastTravelRequest,
 	evaluateFieldReadiness,
 } from '../src/3d/gameplay/interactionFieldReadiness.js';
 import { QUARTERMASTER_OFFERS } from '../src/3d/gameplay/interactionEconomy.js';
@@ -33,6 +36,18 @@ assert.deepEqual(empty.fieldReadiness.missingForExpedition, [
 	FIELD_READINESS_ITEMS.WHETSTONE,
 ]);
 assert.match(buildInventoryText(empty), /Sefer hazırlığı: HAZIR DEĞİL · 0\/100/);
+
+const blockedWithoutKit = evaluateFastTravelRequest(empty, {
+	destinationId: 'dragonstone-harbor',
+	discovered: true,
+	routeOpen: true,
+	distanceKm: 3.476,
+});
+assert.equal(blockedWithoutKit.allowed, false);
+assert.deepEqual(blockedWithoutKit.reasons, [FAST_TRAVEL_BLOCK_REASON.FIELD_KIT_REQUIRED]);
+assert.equal(blockedWithoutKit.distanceKm, 3.48);
+assert.match(buildFastTravelRequestText(blockedWithoutKit), /Hızlı seyahat: KİLİTLİ/);
+assert.match(buildFastTravelRequestText(blockedWithoutKit), /Sefer Bakım Kiti gerekli/);
 
 assert.equal(grant(inventory, FIELD_READINESS_ITEMS.FIELD_RATION), true);
 const rationOnly = inventory.snapshot();
@@ -126,6 +141,37 @@ assert.deepEqual(ready.fieldReadiness.capabilities, {
 });
 assert.deepEqual(ready.fieldReadiness.missingForExpedition, []);
 
+const travelReady = evaluateFastTravelRequest(ready, {
+	destinationId: 'dragonstone-harbor',
+	discovered: true,
+	routeOpen: true,
+	inCombat: false,
+	distanceKm: 3.476,
+});
+assert.equal(travelReady.allowed, true);
+assert.equal(travelReady.status, 'ready');
+assert.equal(travelReady.destinationId, 'dragonstone-harbor');
+assert.equal(travelReady.distanceKm, 3.48);
+assert.deepEqual(travelReady.reasons, []);
+assert.match(buildFastTravelRequestText(travelReady), /HAZIR · dragonstone-harbor · 3.48 km/);
+
+const travelBlockedByWorld = evaluateFastTravelRequest(ready.fieldReadiness, {
+	destinationId: 'dragonstone-clifftop',
+	discovered: false,
+	routeOpen: false,
+	inCombat: true,
+});
+assert.equal(travelBlockedByWorld.allowed, false);
+assert.deepEqual(travelBlockedByWorld.reasons, [
+	FAST_TRAVEL_BLOCK_REASON.UNDISCOVERED_DESTINATION,
+	FAST_TRAVEL_BLOCK_REASON.COMBAT_ACTIVE,
+	FAST_TRAVEL_BLOCK_REASON.ROUTE_BLOCKED,
+]);
+const blockedWorldText = buildFastTravelRequestText(travelBlockedByWorld);
+assert.match(blockedWorldText, /hedef henüz keşfedilmedi/);
+assert.match(blockedWorldText, /çatışma sürüyor/);
+assert.match(blockedWorldText, /rota şu anda kapalı/);
+
 const readinessText = buildFieldReadinessText(ready.fieldReadiness);
 assert.match(readinessText, /Sefer hazırlığı: SEFERE HAZIR · 100\/100/);
 assert.match(readinessText, /Saha ekipmanı: Dragonstone Sefer Bakım Kiti · field-kit/);
@@ -161,7 +207,15 @@ assert.deepEqual(roundTrip.fieldReadiness.equipped, {
 });
 assert.deepEqual(roundTrip.items, ready.items);
 
+const restoredTravel = evaluateFastTravelRequest(roundTrip, {
+	destinationId: 'dragonstone-harbor',
+	discovered: true,
+	routeOpen: true,
+});
+assert.equal(restoredTravel.allowed, true);
+assert.equal(restoredTravel.readinessTier, FIELD_READINESS_TIER.EXPEDITION_READY);
+
 const pureRoundTrip = evaluateFieldReadiness(roundTrip);
 assert.deepEqual(pureRoundTrip, roundTrip.fieldReadiness);
 
-console.log('[RPG] PASS interaction field readiness, derived equipment, recipe UX, and forged-state rejection');
+console.log('[RPG] PASS interaction field readiness, derived equipment, fast travel contract, recipe UX, and forged-state rejection');
