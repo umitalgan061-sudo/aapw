@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/3d/gameplay/npc.js'
       - 'scripts/checkNpcGuardAssistLodWake.mjs'
+      - 'scripts/checkNpcGuardAssistLodWakeStress.mjs'
       - 'scripts/checkNpcGuardAssistLodWakeBrowser.js'
       - 'scripts/checkNpcGuardAssistLifecycle.mjs'
       - 'scripts/checkNpcGuardAssistIsolation.mjs'
@@ -43,8 +44,10 @@ jobs:
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
           node --check scripts/checkNpcGuardAssistLodWake.mjs
+          node --check scripts/checkNpcGuardAssistLodWakeStress.mjs
           node --check scripts/checkNpcGuardAssistLodWakeBrowser.js
           node scripts/checkNpcGuardAssistLodWake.mjs
+          node scripts/checkNpcGuardAssistLodWakeStress.mjs
           node scripts/checkNpcGuardAssistLifecycle.mjs
           node scripts/checkNpcGuardAssistIsolation.mjs
           node scripts/checkNpcSimulationLod.mjs
