@@ -16705,3 +16705,41 @@ kanonik rölyef zincirlerine bağlı olduğu için yakın planda pürüzsüz kal
 `checkSkyVisualContract.js`'in bildirilen sapması. Terrain/yol alanı eşzamanlı corner-agent
 oturumlarınca sahiplenilmiş durumda — bu run oraya yalnızca sahip doğrudan istediği için girdi ve tüm
 kanonik kapılar yeşil.
+
+## Run 350 (2026-08-19, owner request) — Arazi rölyef derinliği: tüm karada aşınma, yüksekliğe orantılı sırt genliği, kar sınırındaki beyaz blokların kaldırılması (ADR-0296)
+
+Sahip "gerçekçi coğrafyaya devam et, görüntüye odaklan" dedi. Bu run, ADR-0295'in kendi havadan
+kanıtlarında **görülen** üç kusuru düzeltti — spekülatif iyileştirme değil:
+
+1. **Ovalar yumuşak kum tepesi gibiydi** — ridged (aşınma) katmanı yalnız kanonik dağ zincirlerine
+   bağlıydı, yani karanın ~%80'i sadece pürüzsüz fBm alıyordu. Artık aşınma katmanı tüm karada koşuyor,
+   genliği yükseklikle artıyor (gerçek arazide de değişen şey varlığı değil genliğidir).
+2. **Zirveler kubbe gibiydi** — sabit 42 m'lik sırt genliği 600 m'lik bir kütlede yuvarlama hatası.
+   Genlik artık yüksekliğe orantılı (erozyon 0.055×, tavan 40 m; sırt 0.26×, tavan 135 m) + yakın
+   planda pürüzsüzleşmesin diye kısa dalga boylu bir crag katmanı. Zirve 605 → 695 m (yükseltme değil,
+   oyma sonucu).
+3. **Kar sınırında sert beyaz dikdörtgenler vardı** — kaynağı atlas filtrelemesi değildi (o zaten
+   `LinearFilter`); CPU polish geçişi `classifyReferenceBaseSurface` ile **en-yakın-hücre** okuyor,
+   yani sert 138×162 m hücreler. Ağırlıkları {sea .12, lake .18, soil .38, rock .5, snow .58} →
+   {.10, .14, .12, .14, .16}'ya düşürüldü; taşıdığı bilgi zaten `terrainBiomeShading.js` tarafından
+   sürekli ve daha yüksek çözünürlükte sağlanıyor. **Bloklar tamamen kayboldu.**
+
+Ayrıca kaya paleti koyulaştırıldı (0x8a7f6d → 0x6b6155, 0x93908a → 0x7c7973 — ~0.5 luma'da kütleler
+kayadan çok kum tepesine benziyordu) ve kar sınırı 300/460 → 380/580 m'ye çekildi ki zirvelerde kaya
+görünsün.
+
+§8.4 kapısı öncesi/sonrası: 14/14 koltuk PASS, yollar PASS (tüm eğimler <20°, 17.72 km),
+`checkTerrainVisualContract` PASS (65/65 dikiş sürekli), teknik borç/determinizm/satır sınırı PASS.
+Perf 59 çizim / 719.793 üçgen / 190 MB — run 349'la aynı, bütçenin çok içinde. 613 parça, sıfır konsol
+hatası.
+
+**Yol üstünde bulunan ESKİ kusur (§8.2):** `checkTerrainPolishIteration08.js` aktivasyon token'larını
+`game3d.html`'de arıyordu, ama Iteration #08'in kurulumu bir zamanlar `sceneManager.createScene`'e
+taşınmış ve bekçi güncellenmemiş — **stash'leyerek HEAD'de de birebir başarısız olduğu doğrulandı**.
+Gerçek çağrı yerine yönlendirildi; sıralama assertion'ı da artık kurulumun herhangi bir `ChunkManager`
+oluşturulmadan önce çalıştığını kontrol ediyor (monkey-patch ettiği için asıl önemli olan özellik).
+`checkSkyVisualContract.js`'in aksine burada doğru assertion belirsiz değildi, o yüzden yalnızca
+bildirilmedi, düzeltildi.
+
+Sıradaki: batı kara kütlesinde kalan dikdörtgen düz yamalar (muhtemelen pindex detay uygulayıcıları) ve
+hâlâ bildirilmiş durumdaki `checkSkyVisualContract.js` sapması.

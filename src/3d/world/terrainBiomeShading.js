@@ -93,8 +93,8 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	/** Altitude snow line. Measured p98 is 387.7 m and p99 is 455.8 m, so a 300-460 m ramp caps only
 	 * the highest couple of percent of land — matching the reference image, where just the tallest
 	 * massif is white. */
-	snowAltitudeStartMeters: 300,
-	snowAltitudeFullMeters: 460,
+	snowAltitudeStartMeters: 380,
+	snowAltitudeFullMeters: 580,
 	/** The canonical snow mask sits at a median of only 18.4 m above sea: in this world (and in the
 	 * owner's reference image, whose north-west island is white to the waterline) the far north is
 	 * genuinely snow-covered lowland, not just high peaks. Honoured at full strength. */
@@ -165,8 +165,8 @@ export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	GRASS_MID: new THREE.Color(0x87914b),
 	DRY_UPLAND: new THREE.Color(0x9a9159),
 	FOREST: new THREE.Color(0x3a5226),
-	ROCK_WARM: new THREE.Color(0x8a7f6d),
-	ROCK_COOL: new THREE.Color(0x93908a),
+	ROCK_WARM: new THREE.Color(0x6b6155),
+	ROCK_COOL: new THREE.Color(0x7c7973),
 	SNOW: new THREE.Color(0xf4f6f8),
 });
 

@@ -16786,3 +16786,82 @@ before capture, so not caused here); mountain massifs that read smooth at close 
 ridged octave is gated to canonical relief chains only; and `checkSkyVisualContract.js`'s disclosed
 drift. Terrain/road remains claimed by concurrent corner-agent sessions — this run took it only because
 the owner asked for it directly, and every canonical gate is green.
+
+## ADR-0296 — Terrain relief depth: erosion structure on all land, elevation-proportional ridging, and removal of the nearest-cell colour blocks (owner request, follow-on to ADR-0295)
+
+**Risk: MEDIUM.** Touches the terrain height field again, so GOVERNANCE.md §8.4's gate applies and was
+run; plus one render-only weight change. Canonical geography untouched.
+
+**Karar.** Owner asked to keep going on visible realism, focused on the image. Three changes, each
+driven by a specific defect visible in ADR-0295's own aerial captures:
+
+1. **Erosion relief on all land, not just canonical chains.** ADR-0295 gated every ridged octave behind
+   `mountainGate`, so the ~80% of land that is not a canonical relief chain received only smooth fBm and
+   read from the air as soft dunes. A ridged erosion layer now runs unconditionally on land, its
+   amplitude ramping with elevation (`erosionAmplitude*`), which is how real terrain behaves: lowlands
+   smoother, uplands rougher — presence is not what changes with height, amplitude is.
+2. **Relief amplitude scales with the landform.** A fixed 42 m ridge is decisive on a 90 m hill and a
+   rounding error on a 600 m massif, which is exactly why the tallest peaks still rendered as smooth
+   domes. Erosion and mountain-ridge amplitudes now take the larger of their fixed value and a fraction
+   of local elevation (`elevationErosionFraction` 0.055 cap 40 m; `elevationRidgeFraction` 0.26 cap
+   135 m), plus a short-wavelength crag layer so a peak stays rugged at close range.
+3. **The white rectangles are gone.** `RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.semanticBlendBySurface`
+   dropped from `{sea .12, lake .18, soil .38, rock .5, snow .58}` to `{.10, .14, .12, .14, .16}`. That
+   pass classifies with `classifyReferenceBaseSurface`, the **nearest-cell** reader on the 96x64 mask —
+   hard 138 x 162 m cells, no interpolation — so at the old weights it stamped hard-edged rectangles of
+   flat colour across the snowline of every massif, clearly visible in the previous capture. The
+   information it contributed is now supplied continuously and at higher fidelity by
+   `terrainBiomeShading.js` reading the bilinear, coast-warped Pindex V2 weights.
+
+Also: rock palette darkened (`ROCK_WARM` 0x8a7f6d -> 0x6b6155, `ROCK_COOL` 0x93908a -> 0x7c7973) because
+at ~0.5 luma the massifs read as sand dunes rather than stone; and the altitude snow line raised
+(380/580 m, was 300/460) so rock stays visible on the peaks instead of a uniform white cap.
+
+**Neden (problem).** Each is a defect read directly off the rendered image, not a speculative
+improvement: smooth dune-like plains, dome-shaped peaks, and hard white rectangles on every snowline.
+
+**Alternatifler.**
+1. *Raise the atlas filtering to kill the rectangles.* Rejected after checking: the atlas is already
+   `LinearFilter` on both min and mag. The blocks came from the CPU polish pass's nearest-cell
+   classifier, not from texture sampling — fixing the wrong layer would have changed nothing.
+2. *Drop the polish pass entirely.* Rejected: it still contributes a genuine canonical tint and is
+   pinned by `checkTerrainPolishIteration08.js` as a shipped-game contract. Reducing its weight keeps
+   the contract and removes the artifact.
+3. *Push ridge amplitude higher for more drama.* Bounded by the gates, not by taste — the current
+   values are what keeps every road grade under 20 deg.
+
+**Sonuç / trade-off.** Peaks now have real summits, ridgelines and drainage valleys (tallest peak
+605 -> 695 m as ridging carves rather than lifts); all land carries visible erosion structure; and the
+snowline is a natural boundary instead of a grid of white blocks.
+
+**Doğrulama.** §8.4 gate before and after: `terrainSeatSafetyCheck.js` **14/14 PASS**,
+`roadNetworkSafetyCheck.js` PASS all grades < 20 deg (17.72 km). `checkTerrainVisualContract.js` PASS
+(65/65 seam vertices continuous). `checkTerrainPolishIteration08.js` PASS (see below).
+`checkTechnicalDebt.js`, `checkSeededRandomPolicy.js`, `checkSmokeCheckRegistry.js` (545 files under
+the cap) PASS. `collectPerfSnapshot.js run350-terrain-relief-depth`: 59 draw calls / 719,793 triangles /
+60 geometries / 28 textures / 190 MB — unchanged from run 349 within noise, far inside the desktop
+budget. Fresh captures: 613 chunks, zero console/page errors; near-white fraction rose again on the
+shoreline framing (0.088 -> 0.142) as rock and snow separate properly.
+
+**Pre-existing defect found and fixed (§8.2).** `checkTerrainPolishIteration08.js` asserted its
+activation tokens against `game3d.html`, but Iteration #08's install moved into
+`sceneManager.createScene` at some point and the guard was never updated — **verified failing
+identically on HEAD before any change in this run**, by stashing. Retargeted to the real call site,
+including the ordering assertion, which now checks the installer runs before any `ChunkManager` is
+constructed (the property that actually matters, since it monkey-patches `loadChunk`). Unlike
+`checkSkyVisualContract.js`'s drift, the correct assertion here was unambiguous, so it was fixed rather
+than only disclosed.
+
+**Memory leak checklist.** No new allocation, no new GPU resource — noise additions are pure functions,
+the palette change is two constants, the polish weight is one frozen object.
+
+**Technical debt.** 0 new. All touched files remain under the 600-line cap.
+
+**World Coverage.** Unchanged. World Evolution Report: road network 17.73 -> 17.72 km (re-routed on the
+new field); +1 ADR; no asset/NPC/creature/event change; "oyuncu fark eder mi" — evet: dağların artık
+gerçek zirveleri, sırtları ve vadileri var, tüm karada aşınma dokusu görünüyor ve kar sınırındaki beyaz
+dikdörtgen bloklar tamamen kayboldu.
+
+**Next safe step:** the remaining visible artifacts are rectangular flat patches on the western
+landmass (likely the per-pindex detail appliers) and `checkSkyVisualContract.js`'s still-disclosed
+drift.

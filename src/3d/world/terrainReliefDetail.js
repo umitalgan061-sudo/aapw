@@ -54,6 +54,42 @@ export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	ridgeAmplitudeMeters: 42,
 	ridgeFrequency: 11,
 	ridgeOctaves: 4,
+	/**
+	 * Erosion relief present on **all** land, not just the canonical mountain chains.
+	 *
+	 * The first revision gated every ridged octave behind `mountainGate`, so the ~80% of land that is
+	 * not a canonical chain received only smooth fBm and read from the air as soft dunes rather than
+	 * eroded ground. Real terrain carries drainage structure everywhere; what changes with elevation is
+	 * its *amplitude*, not its presence. So this layer runs unconditionally on land and ramps from
+	 * `erosionAmplitudeLowMeters` at the waterline to `erosionAmplitudeHighMeters` at
+	 * `erosionFullElevationMeters`, which mirrors how lowlands are smoother than uplands.
+	 *
+	 * Amplitude is bounded by the same gates as everything else here: at ~390 m wavelength an 11 m
+	 * ridge adds on the order of 3-5 deg of local slope, well inside the 20 deg road ceiling.
+	 */
+	erosionAmplitudeLowMeters: 1.2,
+	erosionAmplitudeHighMeters: 11,
+	erosionFullElevationMeters: 150,
+	erosionFrequency: 34,
+	erosionOctaves: 4,
+	/**
+	 * Relief amplitude has to scale with the landform it is carving.
+	 *
+	 * A fixed 42 m ridge is decisive on a 90 m hill and invisible on a 600 m massif — which is exactly
+	 * what the first capture showed: the tallest peaks still rendered as smooth domes because the
+	 * ridged octave was a rounding error against their own height. Both the erosion and mountain-crag
+	 * amplitudes therefore take the larger of their fixed value and a fraction of local elevation, so a
+	 * peak is carved in proportion to how tall it is. Capped so the tallest terrain cannot run away.
+	 */
+	elevationErosionFraction: 0.055,
+	elevationErosionCapMeters: 40,
+	elevationRidgeFraction: 0.26,
+	elevationRidgeCapMeters: 135,
+	/** A short-wavelength crag layer so mountains stay rugged when the camera is close, where the
+	 * broad `ridgeFrequency` octave alone reads as a smooth dome. */
+	cragAmplitudeMeters: 4.5,
+	cragFrequency: 88,
+	cragOctaves: 3,
 	/** Detail fades out below this height above sea so the seabed and beaches stay clean. */
 	shoreFadeStartMeters: 0.5,
 	shoreFadeFullMeters: 6,
@@ -184,6 +220,17 @@ export function reliefDetailMeters(normalizedX, normalizedY, { heightAboveSeaMet
 	const plains = fbm2(normalizedX * P.plainsFrequency - 21.3, normalizedY * P.plainsFrequency + 14.6, 3);
 	let metres = (swell * P.swellAmplitudeMeters + plains * P.plainsAmplitudeMeters) * landGate;
 
+	// Erosion structure on ALL land. Ridged rather than plain fBm because the sharp crests and
+	// V-shaped troughs are exactly what reads as drainage from the air; amplitude ramps with elevation
+	// so lowlands stay gentle and uplands get real shape.
+	const erosionRamp = clamp01(heightAboveSeaMeters / P.erosionFullElevationMeters);
+	const erosionAmplitude = Math.max(
+		P.erosionAmplitudeLowMeters + (P.erosionAmplitudeHighMeters - P.erosionAmplitudeLowMeters) * erosionRamp * erosionRamp,
+		Math.min(P.elevationErosionCapMeters, heightAboveSeaMeters * P.elevationErosionFraction),
+	);
+	const erosion = ridged2(normalizedX * P.erosionFrequency - 8.4, normalizedY * P.erosionFrequency + 33.9, P.erosionOctaves);
+	metres += (erosion - 0.5) * 2 * erosionAmplitude * landGate;
+
 	// Mountain crags: only where the canonical data already says mountain.
 	const mountainGate = clamp01(Math.max(
 		reliefInfluence * reliefInfluence,
@@ -191,10 +238,18 @@ export function reliefDetailMeters(normalizedX, normalizedY, { heightAboveSeaMet
 		clamp01(snowWeight) * 0.7,
 	));
 	if (mountainGate > 0) {
+		const ridgeAmplitude = Math.max(
+			P.ridgeAmplitudeMeters,
+			Math.min(P.elevationRidgeCapMeters, heightAboveSeaMeters * P.elevationRidgeFraction),
+		);
 		const ridge = ridged2(normalizedX * P.ridgeFrequency + 47.2, normalizedY * P.ridgeFrequency + 19.8, P.ridgeOctaves);
 		// Centred on its own mean so the ridged octave adds crest relief without lifting the whole
 		// massif (a raised base would change every mountain's absolute height, not just its shape).
-		metres += (ridge - 0.5) * 2 * P.ridgeAmplitudeMeters * mountainGate * landGate;
+		metres += (ridge - 0.5) * 2 * ridgeAmplitude * mountainGate * landGate;
+		// Short-wavelength crags on top, so a peak still looks like rock rather than a dome up close.
+		// Scaled off the same elevation-aware amplitude at a fixed fraction, for the same reason.
+		const crag = ridged2(normalizedX * P.cragFrequency + 5.1, normalizedY * P.cragFrequency - 61.3, P.cragOctaves);
+		metres += (crag - 0.5) * 2 * Math.max(P.cragAmplitudeMeters, ridgeAmplitude * 0.16) * mountainGate * landGate;
 	}
 	return metres;
 }

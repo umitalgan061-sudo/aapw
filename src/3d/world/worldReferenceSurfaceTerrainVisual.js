@@ -163,7 +163,19 @@ import { applyPindex09DetailToTerrainMesh } from './worldReferencePindex09Detail
 
 export const RUNTIME_PINDEX_TERRAIN_POLISH_POLICY = Object.freeze({
 	id: 'terrain-polish-iteration-008-visible-pindex-runtime-2026-08-12-v1',
-	semanticBlendBySurface: Object.freeze({ sea: 0.12, lake: 0.18, soil: 0.38, rock: 0.5, snow: 0.58 }),
+	/**
+	 * How far each vertex is pulled toward its flat class swatch.
+	 *
+	 * Lowered across the board on 2026-08-19. This pass classifies with
+	 * `classifyReferenceBaseSurface`, which is the **nearest-cell** reader on the 96x64 mask — hard
+	 * 138 x 162 m cells, no interpolation — so at the old weights it stamped visible hard-edged
+	 * rectangles of flat colour over the terrain, plainly visible as white blocks across the snowline
+	 * of every massif in the aerial captures. The information it was adding (which canonical class a
+	 * point belongs to) is now supplied continuously and at higher fidelity by
+	 * `world/terrainBiomeShading.js`, which reads the *bilinear, coast-warped* Pindex V2 weights, so
+	 * these weights are reduced to a light canonical tint rather than a dominant overlay.
+	 */
+	semanticBlendBySurface: Object.freeze({ sea: 0.10, lake: 0.14, soil: 0.12, rock: 0.14, snow: 0.16 }),
 	wetLowHeightBoost: 0.18,
 	wetHeightFadeMeters: 18,
 	roughnessBlend: 0.65,
