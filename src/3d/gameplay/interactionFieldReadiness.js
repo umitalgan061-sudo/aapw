@@ -29,6 +29,22 @@ export const FIELD_READINESS_ITEMS = Object.freeze({
 	EXPEDITION_MAINTENANCE_KIT: 'dragonstone-expedition-maintenance-kit',
 });
 
+export const FAST_TRAVEL_BLOCK_REASON = Object.freeze({
+	NO_DESTINATION: 'no-destination',
+	UNDISCOVERED_DESTINATION: 'undiscovered-destination',
+	FIELD_KIT_REQUIRED: 'field-kit-required',
+	COMBAT_ACTIVE: 'combat-active',
+	ROUTE_BLOCKED: 'route-blocked',
+});
+
+const FAST_TRAVEL_REASON_LABEL = Object.freeze({
+	[FAST_TRAVEL_BLOCK_REASON.NO_DESTINATION]: 'hedef seçilmedi',
+	[FAST_TRAVEL_BLOCK_REASON.UNDISCOVERED_DESTINATION]: 'hedef henüz keşfedilmedi',
+	[FAST_TRAVEL_BLOCK_REASON.FIELD_KIT_REQUIRED]: 'Sefer Bakım Kiti gerekli',
+	[FAST_TRAVEL_BLOCK_REASON.COMBAT_ACTIVE]: 'çatışma sürüyor',
+	[FAST_TRAVEL_BLOCK_REASON.ROUTE_BLOCKED]: 'rota şu anda kapalı',
+});
+
 function normalizedQuantity(value) {
 	const parsed = Number(value);
 	return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
@@ -148,6 +164,48 @@ export function evaluateCraftAvailability(upgrade, snapshot = {}, itemDefinition
 		outputQuantity,
 		outputCapacity,
 	});
+}
+
+/**
+ * Bridge the derived field-kit capability into the travel/map layer without owning travel state.
+ * The caller supplies live discovery/combat/route context; this function only produces a stable,
+ * side-effect-free authorization decision that a POI or fast-travel UI can consume.
+ */
+export function evaluateFastTravelRequest(snapshotOrReadiness = {}, context = {}) {
+	const readiness = snapshotOrReadiness?.capabilities?.fastTravelEligible !== undefined
+		? snapshotOrReadiness
+		: evaluateFieldReadiness(snapshotOrReadiness);
+	const destinationId = String(context?.destinationId ?? '').trim();
+	const distance = Number(context?.distanceKm);
+	const distanceKm = Number.isFinite(distance) && distance >= 0 ? Number(distance.toFixed(2)) : null;
+	const discovered = context?.discovered === true;
+	const inCombat = context?.inCombat === true;
+	const routeOpen = context?.routeOpen !== false;
+	const reasons = [];
+	if (!destinationId) reasons.push(FAST_TRAVEL_BLOCK_REASON.NO_DESTINATION);
+	if (destinationId && !discovered) reasons.push(FAST_TRAVEL_BLOCK_REASON.UNDISCOVERED_DESTINATION);
+	if (!readiness?.capabilities?.fastTravelEligible) reasons.push(FAST_TRAVEL_BLOCK_REASON.FIELD_KIT_REQUIRED);
+	if (inCombat) reasons.push(FAST_TRAVEL_BLOCK_REASON.COMBAT_ACTIVE);
+	if (!routeOpen) reasons.push(FAST_TRAVEL_BLOCK_REASON.ROUTE_BLOCKED);
+	const allowed = reasons.length === 0;
+	return Object.freeze({
+		allowed,
+		status: allowed ? 'ready' : 'blocked',
+		destinationId: destinationId || null,
+		distanceKm,
+		readinessTier: readiness?.tier ?? FIELD_READINESS_TIER.UNPREPARED,
+		requiredCapability: 'fastTravelEligible',
+		reasons: Object.freeze(reasons),
+	});
+}
+
+export function buildFastTravelRequestText(decision = evaluateFastTravelRequest()) {
+	if (decision.allowed) {
+		const distance = decision.distanceKm == null ? '' : ` · ${decision.distanceKm} km`;
+		return `Hızlı seyahat: HAZIR · ${decision.destinationId}${distance}`;
+	}
+	const reasonText = (decision.reasons ?? []).map((reason) => FAST_TRAVEL_REASON_LABEL[reason] ?? reason).join(', ');
+	return `Hızlı seyahat: KİLİTLİ${reasonText ? ` · ${reasonText}` : ''}`;
 }
 
 export function buildFieldReadinessText(readiness = evaluateFieldReadiness()) {
