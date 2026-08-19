@@ -23,6 +23,7 @@ await page.addInitScript(() => {
 	window.__gamepadInputs = [];
 	window.__gamepadDevices = [];
 	window.__gamepadAttacks = [];
+	window.__gamepadHaptics = [];
 	Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => window.__runtimePads });
 	window.addEventListener('aapw:player-motion', (event) => {
 		window.__gamepadMotion.push(structuredClone(event.detail));
@@ -47,10 +48,11 @@ async function waitFor(read, predicate, label, timeout = 10000, interval = 50) {
 const histories = () => page.evaluate(() => ({
 	motion: structuredClone(window.__gamepadMotion), inputs: structuredClone(window.__gamepadInputs),
 	devices: structuredClone(window.__gamepadDevices), attacks: structuredClone(window.__gamepadAttacks),
+	haptics: structuredClone(window.__gamepadHaptics),
 }));
 const latestMotion = () => page.evaluate(() => structuredClone(window.__gamepadMotion.at(-1)));
 const waitHistory = (key, predicate, label, timeout) => waitFor(histories, (history) => [...history[key]].reverse().find(predicate) ?? null, label, timeout);
-const waitMotionAfter = (marker, predicate, label, timeout = 10000) => waitFor(histories, (history) => history.motion.slice(marker).find(predicate) ?? null, label, timeout);
+const resetMotionHistory = () => page.evaluate(() => { window.__gamepadMotion.length = 0; });
 
 async function setPads(specs) {
 	await page.evaluate((nextSpecs) => {
@@ -64,6 +66,12 @@ async function setPads(specs) {
 				const value = Number(spec.values?.[index] ?? (spec.buttons?.[index] ? 1 : 0));
 				return { pressed: Boolean(spec.buttons?.[index]) || value > 0.5, value };
 			}),
+			vibrationActuator: spec.haptics === false ? null : {
+				playEffect: (type, options) => {
+					window.__gamepadHaptics.push({ gamepadIndex: spec.index, type, options: structuredClone(options) });
+					return Promise.resolve('complete');
+				},
+			},
 			timestamp: performance.now(),
 		}));
 	}, specs);
@@ -94,19 +102,21 @@ try {
 	await setPads([{ index: 1, buttons: { 2: true } }]);
 	const lightInput = await waitHistory('inputs', (event) => event.kind === 'light' && event.source === 'gamepad', 'gamepad X light intent');
 	const lightStart = await waitHistory('attacks', (event) => event.kind === 'light' && event.phase === 'start', 'gamepad light attack start');
+	const lightHaptic = await waitHistory('haptics', (event) => event.gamepadIndex === 1, 'gamepad X light haptic');
 	need(lightInput.source === 'gamepad' && lightStart.comboStep === 1, 'gamepad X must enter the existing Player melee state machine');
+	need(lightHaptic.type === 'dual-rumble' && lightHaptic.options.strongMagnitude > 0, 'light attack must use bounded dual-rumble feedback');
 	await waitHistory('attacks', (event) => event.serial === lightStart.serial && event.phase === 'finish', 'gamepad light finish', 20000);
 
-	const partialMarker = (await histories()).motion.length;
+	await resetMotionHistory();
 	await setPads([{ index: 1, axes: [0, -0.59, 0, 0] }]);
-	const partialWalk = await waitMotionAfter(partialMarker, (motion) => motion.state === 'walk' && motion.speed > 0.5, 'half-magnitude analog walk');
-	const neutralMarker = (await histories()).motion.length;
+	const partialWalk = await waitHistory('motion', (motion) => motion.state === 'walk' && motion.speed > 0.5, 'half-magnitude analog walk');
+	await resetMotionHistory();
 	await setPads([{ index: 1 }]);
-	await waitMotionAfter(neutralMarker, (motion) => motion.state === 'idle', 'neutral after half-magnitude walk');
+	await waitHistory('motion', (motion) => motion.state === 'idle', 'neutral after half-magnitude walk');
 	const fullStart = await latestMotion();
-	const fullWalkMarker = (await histories()).motion.length;
+	await resetMotionHistory();
 	await setPads([{ index: 1, axes: [0, -1, 0, 0] }]);
-	const fullWalk = await waitMotionAfter(fullWalkMarker, (motion) => motion.state === 'walk' && motion.speed > partialWalk.speed, 'full-magnitude analog walk');
+	const fullWalk = await waitHistory('motion', (motion) => motion.state === 'walk' && motion.speed > partialWalk.speed, 'full-magnitude analog walk');
 	await sleep(350);
 	const fullEnd = await latestMotion();
 	const analogSpeedRatio = partialWalk.speed / fullWalk.speed;
@@ -129,9 +139,9 @@ try {
 	const orbitDirectionDot = beforeOrbitDirection.x * afterOrbitDirection.x + beforeOrbitDirection.z * afterOrbitDirection.z;
 	need(orbitDirectionDot < 0.8, `right stick failed to rotate camera-relative travel direction: dot=${orbitDirectionDot}`);
 
-	const sprintMarker = (await histories()).motion.length;
+	await resetMotionHistory();
 	await setPads([{ index: 1, axes: [0, -1, 0, 0], buttons: { 10: true } }]);
-	const sprint = await waitMotionAfter(sprintMarker, (motion) => motion.state === 'sprint' && motion.runIntent && motion.speed > 6 && motion.stamina < baseline.stamina, 'analog L3 sprint');
+	const sprint = await waitHistory('motion', (motion) => motion.state === 'sprint' && motion.runIntent && motion.speed > 6 && motion.stamina < baseline.stamina, 'analog L3 sprint');
 	need(sprint.speed > 6, `gamepad sprint speed too low: ${sprint.speed}`);
 	need(sprint.stamina < baseline.stamina, `gamepad sprint must drain stamina: ${sprint.stamina}`);
 
@@ -161,7 +171,9 @@ try {
 	await setPads([{ index: 0, buttons: { 3: true } }]);
 	const heavyInput = await waitHistory('inputs', (event) => event.kind === 'heavy' && event.source === 'gamepad', 'fallback Y heavy intent');
 	const heavyStart = await waitHistory('attacks', (event) => event.kind === 'heavy' && event.phase === 'start' && event.serial > lightStart.serial, 'fallback heavy attack start');
+	const heavyHaptic = await waitHistory('haptics', (event) => event.gamepadIndex === 0, 'fallback Y heavy haptic');
 	need(heavyInput.source === 'gamepad' && heavyStart.damageScale > 1, 'fallback Y must enter existing heavy attack contract');
+	need(heavyHaptic.options.strongMagnitude > lightHaptic.options.strongMagnitude, 'heavy attack haptic must be stronger than light feedback');
 
 	await setPads([]);
 	const disconnected = await waitHistory('devices', (event) => event.device === 'keyboard-pointer' && event.gamepadIndex === null, 'gamepad disconnect');
@@ -173,17 +185,17 @@ try {
 	const metrics = {
 		ok: true,
 		baseline: { state: baseline.state, stamina: baseline.stamina },
-		light: { input: lightInput, serial: lightStart.serial, comboStep: lightStart.comboStep },
+		light: { input: lightInput, serial: lightStart.serial, comboStep: lightStart.comboStep, haptic: lightHaptic.options },
 		analog: { partialSpeed: partialWalk.speed, fullSpeed: fullWalk.speed, ratio: Number(analogSpeedRatio.toFixed(3)) },
 		camera: { directionDotAfterRightStick: Number(orbitDirectionDot.toFixed(3)), triggerZoomExercised: 0.35 },
 		sprint: { speed: sprint.speed, stamina: sprint.stamina, state: sprint.state },
 		fallback: { device: fallbackDevice, guarding: fallbackGuard.guarding },
-		heavy: { input: heavyInput, serial: heavyStart.serial, damageScale: heavyStart.damageScale },
+		heavy: { input: heavyInput, serial: heavyStart.serial, damageScale: heavyStart.damageScale, haptic: heavyHaptic.options },
 		deviceEvents: snapshot.devices,
 		browserErrors: errors,
 	};
 	fs.writeFileSync(path.join(outDir, 'gamepad-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_GAMEPAD_RUNTIME_OK ${JSON.stringify({ analogRatio: metrics.analog.ratio, cameraDot: metrics.camera.directionDotAfterRightStick, sprintSpeed: sprint.speed, lightSerial: lightStart.serial, heavySerial: heavyStart.serial, errors: errors.length })}`);
+	console.log(`PLAYER_GAMEPAD_RUNTIME_OK ${JSON.stringify({ analogRatio: metrics.analog.ratio, cameraDot: metrics.camera.directionDotAfterRightStick, sprintSpeed: sprint.speed, lightSerial: lightStart.serial, heavySerial: heavyStart.serial, haptics: snapshot.haptics.length, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
