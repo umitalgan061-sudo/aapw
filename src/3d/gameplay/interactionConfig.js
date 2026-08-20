@@ -23,34 +23,6 @@ export const WATCH_POLICY = Object.freeze({
 	MERCY: 'mercy',
 });
 
-/** Small serializable world-state owner for the shipped Dragonstone watch consequence. */
-export function createWatchWorldState() {
-	const values = { dragonstoneWatchPolicy: null };
-
-	function set(key, value) {
-		if (key !== 'dragonstoneWatchPolicy') return false;
-		if (![null, WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(value)) return false;
-		values[key] = value;
-		return true;
-	}
-
-	function get(key) {
-		return values[key] ?? null;
-	}
-
-	function snapshot() {
-		return { ...values };
-	}
-
-	function restore(saved) {
-		values.dragonstoneWatchPolicy = null;
-		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
-		set('dragonstoneWatchPolicy', saved.dragonstoneWatchPolicy ?? null);
-	}
-
-	return { get, set, snapshot, restore };
-}
-
 export const INTERACTION_JOURNEY_POLICY = Object.freeze({ MAX_FATIGUE_KM: 52, MAX_COMMIT_COUNT: 1_000_000, MAX_RECENT_RECEIPTS: 5 });
 
 /** Compact travel-survival state kept inside the existing interaction RPG owner. */
@@ -117,12 +89,6 @@ export function buildJourneyStateText(journey = {}, readiness = {}) {
 	const lastReceipt = Array.isArray(journey?.recentReceipts) ? journey.recentReceipts.at(-1) : null;
 	if (lastReceipt) lines.push(`Son sefer: ${lastReceipt.totalDistanceKm} km · ${lastReceipt.consumedTravelPacks} yol azığı · ${lastReceipt.restStopCount} dinlenme`);
 	return lines.join('\n');
-}
-
-export function watchPolicyLabel(policy) {
-	if (policy === WATCH_POLICY.MERCY) return 'İkinci şans';
-	if (policy === WATCH_POLICY.DISCIPLINE) return 'Sıkı disiplin';
-	return null;
 }
 
 export const INTERACTION_ITEMS = Object.freeze({
