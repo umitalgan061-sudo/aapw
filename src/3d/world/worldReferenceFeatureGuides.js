@@ -1,13 +1,15 @@
 import { WORLD_SCALE } from '../config.js';
 
 export const OWNER_MAP_FEATURE_GUIDE_POLICY = Object.freeze({
-	id: 'owner-map-live-feature-guides-2026-08-20-v1',
+	id: 'owner-map-live-feature-guides-2026-08-20-v2',
 	sourceAsset: 'map.png/map.png',
 	sourceSha256: '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1',
 	pixelWidth: 1536,
 	pixelHeight: 1024,
 	roadInnerWidthNormalized: 0.006,
 	roadOuterWidthNormalized: 0.024,
+	roadPaintInnerWidthNormalized: 0.00035,
+	roadPaintOuterWidthNormalized: 0.00155,
 	roadOffGuideCostPenalty: 0.42,
 	forestBackgroundAcceptance: 0.22,
 });
@@ -69,6 +71,21 @@ function pointSegmentDistance(px, py, ax, ay, bx, by) {
 	return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
 }
 
+function minimumRoadGuideDistance(worldX, worldZ) {
+	const { x, y } = normalizedFromWorld(worldX, worldZ);
+	if (x < 0 || x > 1 || y < 0 || y > 1) return Infinity;
+	const px = x * MAP_ASPECT;
+	let minimumDistance = Infinity;
+	for (const guide of REFERENCE_ROAD_GUIDES) {
+		for (let index = 1; index < guide.points.length; index += 1) {
+			const a = guide.points[index - 1];
+			const b = guide.points[index];
+			minimumDistance = Math.min(minimumDistance, pointSegmentDistance(px, y, a[0] * MAP_ASPECT, a[1], b[0] * MAP_ASPECT, b[1]));
+		}
+	}
+	return minimumDistance;
+}
+
 export function sampleReferenceForestInfluenceWorld(worldX, worldZ) {
 	const { x, y } = normalizedFromWorld(worldX, worldZ);
 	if (x < 0 || x > 1 || y < 0 || y > 1) return 0;
@@ -84,20 +101,19 @@ export function sampleReferenceForestInfluenceWorld(worldX, worldZ) {
 }
 
 export function sampleReferenceRoadPreferenceWorld(worldX, worldZ) {
-	const { x, y } = normalizedFromWorld(worldX, worldZ);
-	if (x < 0 || x > 1 || y < 0 || y > 1) return 0;
-	const px = x * MAP_ASPECT;
-	let minimumDistance = Infinity;
-	for (const guide of REFERENCE_ROAD_GUIDES) {
-		for (let index = 1; index < guide.points.length; index += 1) {
-			const a = guide.points[index - 1];
-			const b = guide.points[index];
-			minimumDistance = Math.min(minimumDistance, pointSegmentDistance(px, y, a[0] * MAP_ASPECT, a[1], b[0] * MAP_ASPECT, b[1]));
-		}
-	}
+	const distance = minimumRoadGuideDistance(worldX, worldZ);
 	return 1 - smoothstep(
 		OWNER_MAP_FEATURE_GUIDE_POLICY.roadInnerWidthNormalized,
 		OWNER_MAP_FEATURE_GUIDE_POLICY.roadOuterWidthNormalized,
-		minimumDistance,
+		distance,
+	);
+}
+
+export function sampleReferenceRoadPaintWorld(worldX, worldZ) {
+	const distance = minimumRoadGuideDistance(worldX, worldZ);
+	return 1 - smoothstep(
+		OWNER_MAP_FEATURE_GUIDE_POLICY.roadPaintInnerWidthNormalized,
+		OWNER_MAP_FEATURE_GUIDE_POLICY.roadPaintOuterWidthNormalized,
+		distance,
 	);
 }
