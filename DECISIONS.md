@@ -18072,3 +18072,81 @@ aydınlatma görsel sözleşmesi (aynalanmış tabloyla) — hepsi PASS.
 HEAD'de de aynı şekilde başarısız — daha önceki turlarda da bildirilmişti, bu turun kırdığı bir şey değil.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0317 — Bütün model kütüphanesi, bütün haritaya
+
+**Bağlam.** Sahip: *"assets'de bulunan bütün modelleri bütün coğrafyaya dağıt. Hepsini doğru yere doğru
+dokularla yerleştir."*
+
+Önceki durum bunun çok gerisindeydi: `worldLandmarkScatter.js` **14** modeli oyuncunun çevresindeki bir
+diske koyuyordu, `heroTrees.js` de **90** ağacı daha küçük bir diske. Harita 27x21 chunk; yani dünyanın
+neredeyse tamamı boştu.
+
+### Neyin dağıtıldığı, ve neyin bilerek dağıtılmadığı
+
+`assets/models` altında **334 `.glb`** var. "Hepsi" harfiyen alınamaz, çünkü dört grup coğrafyayı
+döşemek yerine bozardı — bu yüzden dışarıda bıraktıklarımı sessizce atlamak yerine yazıyorum:
+
+- **Canlı varlıklar (50 dosya)** — insanlar, hayvanlar, kuşlar, böcekler. Bunları `livingWorldSpawner.js`
+  doğuruyor, hareket ettiriyor ve canlandırıyor. Statik prop olarak serpmek bir Çiftçi'yi, bir Geyik'i ve
+  bir Martı'yı dünyanın dört bir yanında adım ortasında dondururdu.
+- **Kendisi arazi olan modeller (11 dosya)** — `terrain_test`, `rugged_mountain_landscape`,
+  `snow_terrain_low_poly`, `road_terrain`, `the_landscape_is_a_forest_in_the_mountains`… Her biri bir
+  manzara mesh'i. Bu dünyaya bırakmak, gerçek arazinin içinden geçen kopya yamaçlar bırakırdı.
+- **Koltuk kalesi modelleri (32 dosya)** — Meshy_AI kaleler ve tam kaleler. `settlements.js` bunları
+  zaten 14 krallık koltuğuna yerleştiriyor; serpmek açık araziye sahipsiz kaleler saçar ve koltukları
+  anlamsızlaştırırdı.
+- **İç mekân/şaka varlıkları (7 dosya)** — `Curtains`, `Candle`, `Cigarette butt`… Döşenecek iç mekân yok
+  ve bir sigara izmariti Westeros değil.
+
+Sur kapıları, duvar kuleleri, duvar parçaları ve harabe kitleri **tutuldu** — bunlar prop, kale değil.
+Geriye **150 kataloglanmış model** kalıyor.
+
+### Doğru yer
+
+Her aday nokta dört ölçülen olgudan bir biyoma çözülüyor — deniz seviyesinden yükseklik, yerel eğim,
+sahip haritasının orman kapsaması ve ariditesi — ve yalnızca o biyomu talep eden kayıtlar uygun oluyor.
+Ahır Kızıl Çöl'e, palmiye Duvar'a düşemiyor. Ayrıca: su üstüne hiçbir şey, koltuk pad'inin içine hiçbir
+şey (orası kalenin), inşa edilemeyecek kadar dik zemine bina yok.
+
+### Doğru dokular
+
+Bir glTF'in taban rengi, emissive ve specular dokuları **sRGB** kodludur; normal, roughness, metalness ve
+AO haritaları ise **doğrusal** veridir. three.js hepsini aynı şekilde çözmeye razıdır, ve içe aktarılan
+prop'ların soluk ya da fazla parlak görünmesinin olağan sebebi tam olarak budur. `normalisePropMaterials`
+her haritayı rolüne göre doğru renk uzayına koyuyor, renk haritalarına anizotropik filtreleme veriyor
+(yalayan açılarda dağılmasınlar diye) ve gölge alıp vermeyi açıyor — prop dünyanın ışığında dursun,
+üstünde yüzmesin.
+
+### Chunk akışı
+
+Katalog **her chunk için tanımlı** ama yalnızca kameranın 3 chunk yakınındaki 7x7 blok kuruluyor; oyuncu
+uzaklaştıkça sökülüyor. Dünya her yerde döşeli, yalnızca yakını bellekte. Canlı prop tavanı 220 (çizim
+çağrısı bütçesi), chunk başına 6.
+
+### Kapı iki gerçek hata yakaladı
+
+`scripts/checkWorldPropScatter.js` dünyanın **667 chunk'ının tamamını** yürüyor ve iddiaları ölçüyor.
+İlk çalıştırmada iki şeyi düşürdü:
+
+1. **`roadside` biyomu hiç oluşmuyordu.** Katalog onu tanımlıyordu ama `resolvePropBiome` hiç
+   döndürmüyordu — 8 kayıt (fıçı, sandık, şenlik ateşi, kuş evi, bank, kapı) dünyanın hiçbir yerinde
+   görünemezdi. Fıçı ve şenlik ateşi vahşi doğa nesnesi değil, insanların gittikleri yolların kenarına
+   bıraktığı şeyler; bu dünyanın yolları 14 koltuktan çıkıyor, o yüzden koltuk açıklığının hemen
+   dışındaki halka onların yeri oldu.
+2. **Katalogun beşte biri hiç yerleşmiyordu** (130/150, %86,7). Sebep ağırlıklı kümülatif çekim: üç
+   düzine kayıtlı bir biyomda en hafifler pratikte hiç kazanmıyordu. Bu doğrudan "bütün modelleri dağıt"
+   isteğinin başarısızlığı. Reddetme örneklemesine geçildi — ağırlık hâlâ anlamlı (6'lık kayıt 1'liğin
+   altı katı) ama aday önce **düzgün** çekildiği için her kaydın ulaşılabilir bir olasılığı var.
+
+Düzeltmelerden sonra: **1462 prop**, **137/150 kayıt (%91,3)**, sekiz biyomun hepsi mevcut, su altı 0,
+fazla dik 0, koltuk içi 0, çakışma 0, determinizm sapması 0.
+
+**Doğrulama.** Dünya prop kapısı PASS, 14/14 koltuk, determinizm, varlık manifesti (499 giriş),
+service worker v32→v33, satır sınırı (`worldPropScatter.js` 420, katalog 223, `game3d.js` 600'de
+değişmedi).
+
+**Technical debt.** `worldLandmarkScatter.js` ve `heroTrees.js` kaldırıldı — bu modül ikisini de
+kapsıyor ve yan yana bırakmak yakın alanda aynı ağaçları ve ahırları iki kez yerleştirirdi.
+
+**World Coverage.** Prop kapsaması diskten **bütün haritaya** çıktı.

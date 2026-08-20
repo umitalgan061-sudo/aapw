@@ -1,27 +1,33 @@
 /**
  * World dressing — the authored-asset layer that sits on top of the generated geography.
  *
- * **Why one module for two things.** `world/worldLandmarkScatter.js` (docks, ruins, windmills, standing
- * stones) and `world/heroTrees.js` (the repository's real tree models) are the same *kind* of layer:
- * both load authored `.glb` files, both place them by biome over ground that
- * `worldFoundation.js` has already finished shaping, both degrade to nothing when the models are
- * unreadable. `game3d.js` sits exactly on the 600-line cap GOVERNANCE.md §5 sets, so composing them
- * here costs the game module nothing — it keeps calling one init and one dispose — while each layer
- * keeps its own file, its own policy and its own tests.
+ * **Why this indirection exists.** A dressing layer loads authored `.glb` files and places them by
+ * biome over ground `worldFoundation.js` has already finished shaping, degrading to nothing when the
+ * models are unreadable. `game3d.js` sits exactly on the 600-line cap GOVERNANCE.md §5 sets, so
+ * composing layers here costs the game module nothing — it keeps calling one init and one dispose —
+ * while each layer keeps its own file, its own policy and its own tests. Run 370 leaves one layer, but
+ * the seam is what let three become one without `game3d.js` changing at all.
  *
- * **Failure is per-layer.** A layer that throws is logged and skipped; the other still dresses the
+ * **Failure is per-layer.** A layer that throws is logged and skipped; any others still dress the
  * world, and the game boots either way. Nothing here is load-bearing for gameplay.
  *
  * @module world/worldDressing
  */
 
-import { initWorldLandmarks, disposeWorldLandmarks } from './worldLandmarkScatter.js';
-import { initHeroTrees, disposeHeroTrees } from './heroTrees.js';
+import { initWorldProps, disposeWorldProps } from './worldPropScatter.js';
 
-/** The layers, in the order they are added to the scene. */
+/**
+ * The layers, in the order they are added to the scene.
+ *
+ * **Run 370 folded three layers into one.** `worldLandmarkScatter.js` placed fourteen hand-picked models
+ * in a disc around the player and `heroTrees.js` placed ninety trees in a smaller one. The owner asked
+ * for the whole library across the whole map, and `worldPropScatter.js` does that — same biome rules,
+ * same placeholder discipline, but the full catalogue and chunk-streamed over the entire world. Keeping
+ * the old two alongside it would place the same trees and barns twice in the near field, so they are
+ * retired rather than layered.
+ */
 const DRESSING_LAYERS = Object.freeze([
-	Object.freeze({ id: 'landmarks', init: initWorldLandmarks, dispose: disposeWorldLandmarks }),
-	Object.freeze({ id: 'hero-trees', init: initHeroTrees, dispose: disposeHeroTrees }),
+	Object.freeze({ id: 'world-props', init: initWorldProps, dispose: disposeWorldProps }),
 ]);
 
 /**

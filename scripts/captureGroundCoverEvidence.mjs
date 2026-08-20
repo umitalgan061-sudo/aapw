@@ -18,10 +18,10 @@
  * - **grass silhouette complexity**: the mean absolute Laplacian of luminance over green-dominant
  *   pixels only. A field of flat rectangles has long uniform interiors and few edges; tapered crossed
  *   blades have an edge every few pixels. The statistic separates the two.
- * - **hero-tree placements**, from `world/heroTrees.js`'s pure planner. In a checkout without Git LFS
- *   objects the authored `.glb` models are pointer stubs and none of them load, so the *spawned* count
- *   is legitimately zero here; the *planned* count is what this environment can honestly measure, and
- *   it is what will be planted wherever LFS resolves.
+ * - **prop placements**, from `world/worldPropScatter.js`'s pure per-chunk planner. In a checkout
+ *   without Git LFS objects the authored `.glb` models are pointer stubs and none of them load, so the
+ *   *built* count is legitimately zero here; the *planned* count is what this environment can honestly
+ *   measure, and it is what will be placed wherever LFS resolves.
  *
  * Run once per tree state and diff:
  *   node scripts/captureGroundCoverEvidence.mjs after
@@ -77,12 +77,12 @@ try {
 		} });
 		document.head.append(importMap);
 
-		const [THREE, sceneModule, configModule, lightingModule, heroTreeModule] = await Promise.all([
+		const [THREE, sceneModule, configModule, lightingModule, propModule] = await Promise.all([
 			import('/src/3d/vendor/three/three.module.js'),
 			import('/src/3d/sceneManager.js'),
 			import('/src/3d/config.js'),
 			import('/src/3d/lighting.js'),
-			import('/src/3d/world/heroTrees.js'),
+			import('/src/3d/world/worldPropScatter.js'),
 		]);
 		const { WORLD_DEFAULTS, CHUNK_CONFIG } = configModule;
 
@@ -118,17 +118,22 @@ try {
 			}
 			: null;
 
-		// Hero trees: the pure planner, so this measures placement in an environment where the models
-		// themselves cannot load. See this script's header.
-		const placements = heroTreeModule.planHeroTreePlacements({
-			sampleHeightMeters: state.groundCollider.getGroundHeight,
-			seed: WORLD_DEFAULTS.WORLD_SEED,
-			seats: state.settlementSeats ?? [],
-			centerX: cx,
-			centerZ: cz,
-		});
+		// World props: the pure per-chunk planner, so this measures placement in an environment where the
+		// models themselves cannot load. See this script's header.
+		const placements = [];
+		for (let dz = -2; dz <= 2; dz += 1) {
+			for (let dx = -2; dx <= 2; dx += 1) {
+				placements.push(...propModule.planChunkProps({
+					chunkX: centerChunk.x + dx,
+					chunkZ: centerChunk.z + dz,
+					sampleHeightMeters: state.groundCollider.getGroundHeight,
+					seed: WORLD_DEFAULTS.WORLD_SEED,
+					seats: state.settlementSeats ?? [],
+				}));
+			}
+		}
 		const byClimate = {};
-		for (const placement of placements) byClimate[placement.climate] = (byClimate[placement.climate] ?? 0) + 1;
+		for (const placement of placements) byClimate[placement.terrain] = (byClimate[placement.terrain] ?? 0) + 1;
 
 		const ground = state.groundCollider.getGroundHeight(cx, cz);
 		const aspect = width / height;
@@ -182,7 +187,7 @@ try {
 				silhouetteComplexity: counted ? energy / counted : 0,
 			});
 		}
-		return { shots, grassStats, ground, heroTrees: { planned: placements.length, byClimate } };
+		return { shots, grassStats, ground, props: { planned: placements.length, byClimate } };
 	}, { width: WIDTH, height: HEIGHT, centerChunk: CENTER_CHUNK });
 
 	for (const shot of result.shots) {
@@ -201,8 +206,8 @@ try {
 			: `[captureGroundCoverEvidence] ${LABEL}: no grass InstancedMesh found in the scene.`,
 	);
 	console.log(
-		`[captureGroundCoverEvidence] ${LABEL}: ${result.heroTrees.planned} hero-tree placements planned ` +
-			`(${JSON.stringify(result.heroTrees.byClimate)}); ground ${result.ground.toFixed(1)} m.`,
+		`[captureGroundCoverEvidence] ${LABEL}: ${result.props.planned} prop placements planned over 5x5 chunks ` +
+			`(${JSON.stringify(result.props.byClimate)}); ground ${result.ground.toFixed(1)} m.`,
 	);
 	if (consoleErrors.length) console.log(`[captureGroundCoverEvidence] console errors: ${consoleErrors.slice(0, 4).join(' | ')}`);
 	console.log(`[captureGroundCoverEvidence] Wrote ${result.shots.length} PNGs to ${OUT_DIR}`);

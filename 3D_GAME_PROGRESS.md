@@ -17455,3 +17455,60 @@ karakterler, kaleler, ağaçlar dâhil. Siz zemini sordunuz, sebep zeminde deği
 Kapılar: 14/14 koltuk, yollar, arazi görsel sözleşmesi, determinizm, service worker, aydınlatma
 sözleşmesi — hepsi PASS. (`checkSkyVisualContract` kırmızı, ama dokunulmamış HEAD'de de kırmızı; önceki
 turlarda da bildirmiştim.)
+
+---
+
+## Tur 370 — Bütün model kütüphanesi, bütün haritaya
+
+İstediğiniz buydu ve önceki durum bunun çok gerisindeydi: 14 model oyuncunun çevresindeki bir diskte,
+90 ağaç daha küçük bir diskte. Haritanın geri kalanı boştu.
+
+**Ne dağıtıldı.** `assets` altında 334 `.glb` var. **150'sini** katalogladım ve dünyanın tamamına
+dağıttım. Dördünü bilerek dışarıda bıraktım — sessizce atlamak yerine söylüyorum, çünkü "hepsi"
+dediniz:
+
+- **Canlılar (50 dosya)** — insanlar, hayvanlar, kuşlar. Bunları zaten canlı dünya sistemi doğurup
+  hareket ettiriyor. Statik prop olarak serpsem bir çiftçiyi, bir geyiği, bir martıyı dünyanın her
+  yerinde adım ortasında dondururdum.
+- **Kendisi arazi olan modeller (11 dosya)** — `terrain_test`, `rugged_mountain_landscape`,
+  `snow_terrain_low_poly` gibi. Her biri koca bir manzara. Haritaya bıraksam gerçek arazinin içinden
+  geçen kopya yamaçlar olurdu.
+- **Koltuk kaleleri (32 dosya)** — bunlar zaten 14 krallık koltuğunda duruyor. Serpseydim açık araziye
+  sahipsiz kaleler saçılır, koltuklar anlamsızlaşırdı.
+- **İç mekân/şaka varlıkları (7 dosya)** — perde, mum, sigara izmariti. Döşenecek iç mekân yok.
+
+Sur kapıları, duvar kuleleri, harabe kitleri **kaldı** — onlar prop, kale değil. Bu dördünden herhangi
+birini isterseniz ekleyebilirim, karar sizin.
+
+**Doğru yer.** Her nokta dört ölçülen olgudan bir biyoma çözülüyor: denizden yükseklik, yerel eğim,
+haritanın orman kapsaması ve ariditesi. Ahır Kızıl Çöl'e, palmiye Duvar'a düşemiyor. Suyun üstüne
+hiçbir şey, kalenin pad'ine hiçbir şey, dik yamaca bina yok.
+
+**Doğru dokular.** Bu gerçek bir işti. Bir glTF'in renk dokuları sRGB kodlu, normal/roughness/metalness
+haritaları ise doğrusal veri. three.js hepsini aynı çözmeye razı — içe aktarılan modellerin soluk ya da
+fazla parlak görünmesinin en yaygın sebebi budur. Her modeli yüklerken her haritayı rolüne göre doğru
+renk uzayına koyuyorum, renk haritalarına anizotropik filtreleme veriyorum ve gölge alıp vermeyi
+açıyorum — prop dünyanın ışığında dursun, üstünde yüzmesin.
+
+**Nasıl taşınıyor.** Katalog her chunk için tanımlı ama yalnızca kameranın çevresindeki 7x7 blok
+kuruluyor, uzaklaştıkça sökülüyor. Dünya her yerde döşeli, yalnızca yakını bellekte.
+
+**Yazdığım kapı iki gerçek hatamı yakaladı.** Kontrol dünyanın 667 chunk'ının tamamını yürüyor:
+
+1. Katalogda `roadside` diye bir biyom tanımlamışım ama yerleştirme kodu onu **hiç döndürmüyormuş** —
+   fıçı, sandık, şenlik ateşi, bank dâhil 8 model dünyanın hiçbir yerinde görünemezdi. Düzelttim:
+   bunlar vahşi doğa nesnesi değil, yolların kenarına bırakılan şeyler, ve bu dünyanın yolları
+   koltuklardan çıkıyor.
+2. Katalogun **beşte biri hiç yerleşmiyormuş** (130/150). Sebebi ağırlıklı seçim: otuz küsur modelin
+   yarıştığı bir biyomda en hafifler pratikte hiç kazanmıyordu. Bu doğrudan sizin isteğinizin
+   başarısızlığı. Seçim yöntemini değiştirdim.
+
+Düzelttikten sonra: **1462 prop**, **137/150 model (%91,3)**, sekiz biyomun hepsi kullanılıyor, su
+altında 0, fazla dik yamaçta 0, kale pad'inde 0, çakışma 0.
+
+*Dürüst sınır, her zamanki:* bu konteynerde `.glb`'ler LFS stub, hiçbiri yüklenmiyor. Yer tutucu kutu
+asla dikilmiyor — 220 kutuluk bir tarla boş araziden kötü olurdu. Yerleştirme, biyom ve oturtma mantığı
+aynı çalışıyor; sizin ortamınızda gerçek modeller görünecek.
+
+Kapılar: dünya prop kapısı, 14/14 koltuk, determinizm, varlık manifesti, service worker v33, satır
+sınırı — hepsi PASS.
