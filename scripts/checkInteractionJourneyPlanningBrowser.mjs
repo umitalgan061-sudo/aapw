@@ -21,6 +21,7 @@ try {
 	const result = await page.evaluate(async () => {
 		const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
 		const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
+		const { buildInventoryText, createInteractionInventoryState } = await import('/src/3d/gameplay/interactionConfig.js');
 		const { REST_KIND, buildExpeditionJourneyOptionsText, buildExpeditionJourneyText, buildJourneyRestText, evaluateExpeditionJourney, evaluateJourneyWithRestStops, rankExpeditionJourneyOptions } = await import('/src/3d/gameplay/interactionFieldReadiness.js');
 		const host = document.createElement('div'); document.body.appendChild(host);
 		const dialogueBox = new DialogueBox(host);
@@ -47,11 +48,12 @@ try {
 		]);
 		dialogueBox.show(buildExpeditionJourneyOptionsText(ranked));
 		const rankedRendered = dialogueBox._textEl.textContent;
-		const restPlan = evaluateJourneyWithRestStops(restored.inventory, [
+		const restSteps = [
 			{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 28 },
 			{ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'watch-road-tavern', discovered: true, open: true },
 			{ type: 'travel', destinationId: 'harbor-road', discovered: true, routeOpen: true, distanceKm: 30 },
-		]);
+		];
+		const restPlan = evaluateJourneyWithRestStops(restored.inventory, restSteps);
 		dialogueBox.show(buildJourneyRestText(restPlan));
 		const restRendered = dialogueBox._textEl.textContent;
 		const inventoryAfterPlanning = controller.getRpgSnapshot().inventory;
@@ -60,12 +62,27 @@ try {
 		const sequential = plan.complete === true && plan.legs[0].requiredTravelPacks === 0 && plan.legs[1].requiredTravelPacks === 1 && plan.legs[2].remainingTravelPacksAfter === 0;
 		const recommendation = ranked.preferredRouteId === 'ridge' && rankedRendered.includes('Sırt yolu · ÖNERİ · HAZIR · 28 km · 1 azık') && rankedRendered.includes('Önerilen rota: Sırt yolu');
 		const tavernRecovery = restPlan.complete === true && restPlan.totalDistanceKm === 58 && restPlan.steps[1].fatigueAfterKm === 0 && restRendered.includes('Taverna · watch-road-tavern · DİNLENDİ') && restRendered.includes('Plan hazır · son yorgunluk: 30 km');
+
+		const journeyInventory = createInteractionInventoryState();
+		journeyInventory.restore(restored.inventory);
+		const committed = journeyInventory.commitJourneyWithRestStops(restSteps);
+		dialogueBox.show(buildInventoryText(committed.inventory));
+		const committedRendered = dialogueBox._textEl.textContent;
+		const committedTravel = committed.ok === true
+			&& committed.consumedQuantity === 2
+			&& journeyInventory.quantityOf('dragonstone-travel-ration-pack') === 0
+			&& journeyInventory.quantityOf('dragonstone-expedition-maintenance-kit') === 1
+			&& committed.inventory.totalWeightKg === 0.85
+			&& committed.inventory.fieldReadiness.tier === 'expedition-ready'
+			&& committedRendered.includes('Hızlı seyahat menzili: 12 km · Yol azığı: 0')
+			&& committedRendered.includes('Dragonstone Sefer Bakım Kiti ×1');
+
 		dialogueBox.dispose(); host.remove();
-		return { renderedRoute, sequential, recommendation, tavernRecovery, preserved, rendered, rankedRendered, restRendered };
+		return { renderedRoute, sequential, recommendation, tavernRecovery, preserved, committedTravel, rendered, rankedRendered, restRendered, committedRendered, committedPacks: committed.consumedQuantity };
 	});
 	if (pageErrors.length || consoleErrors.length) throw new Error(`Journey-planning browser proof emitted errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
-	for (const key of ['renderedRoute', 'sequential', 'recommendation', 'tavernRecovery', 'preserved']) if (!result[key]) throw new Error(`Journey-planning browser assertion failed: ${key} ${JSON.stringify(result)}`);
-	console.log(`[RPG Chromium] PASS sequential journey planning + tavern recovery ${JSON.stringify(result)}`);
+	for (const key of ['renderedRoute', 'sequential', 'recommendation', 'tavernRecovery', 'preserved', 'committedTravel']) if (!result[key]) throw new Error(`Journey-planning browser assertion failed: ${key} ${JSON.stringify(result)}`);
+	console.log(`[RPG Chromium] PASS sequential journey planning + tavern recovery + atomic commit ${JSON.stringify(result)}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
