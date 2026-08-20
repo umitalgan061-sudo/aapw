@@ -128,23 +128,46 @@ export function resolvePropBiome({ heightAboveSeaMeters, slopeDegrees, forest01,
 const BUILT_BIOMES = new Set(['farmland', 'coast', 'upland', 'roadside']);
 
 /**
- * Picks one entry from a biome's list, by rejection sampling on weight.
+ * Per-biome rotation arrays: every entry once, then extra copies by weight.
  *
- * The obvious approach — a weighted cumulative draw — was measured and found wanting: in a biome with
- * three dozen entries, the lightest ones essentially never won, and `scripts/checkWorldPropScatter.js`
- * reported a fifth of the catalogue as never appearing anywhere in the world. That is a direct failure of
- * the owner's request, which was to distribute *all* the models. Rejection sampling keeps weight
- * meaningful — a weight-6 entry is still six times as likely as a weight-1 — while giving every entry a
- * reachable, non-vanishing probability, because the candidate is drawn uniformly first.
+ * **Why a rotation and not a random draw.** Both a weighted cumulative draw and rejection sampling were
+ * tried and measured, and both leave part of the catalogue on the floor — 86.7% and 93.0% of entries
+ * placed respectively, because in a biome with forty entries competing for seventy-five placements,
+ * chance alone will never reach some of them. "Distribute all the models" is the requirement, so
+ * coverage cannot be left to chance.
+ *
+ * Putting each entry in the array *once* first guarantees that stepping through it reaches every entry
+ * within `entries.length` steps; appending `weight - 1` further copies afterwards keeps weight
+ * meaningful, since a heavy entry still occupies more of the array overall. The step index is derived
+ * from the chunk's own coordinates, so neighbouring chunks advance through the rotation and the whole
+ * catalogue is walked across the map — while any single chunk remains a pure function of where it is.
  */
-function pickEntry(entries, rng) {
-	let maxWeight = 1;
-	for (const entry of entries) if (entry.weight > maxWeight) maxWeight = entry.weight;
-	for (let attempt = 0; attempt < 12; attempt += 1) {
-		const candidate = entries[Math.floor(rng() * entries.length) % entries.length];
-		if (rng() * maxWeight <= candidate.weight) return candidate;
-	}
-	return entries[Math.floor(rng() * entries.length) % entries.length];
+const BIOME_ROTATIONS = Object.freeze(Object.fromEntries(
+	Object.entries(PROP_CATALOGUE_BY_BIOME).map(([biome, entries]) => {
+		const rotation = entries.slice();
+		for (const entry of entries) {
+			for (let extra = 1; extra < entry.weight; extra += 1) rotation.push(entry);
+		}
+		return [biome, Object.freeze(rotation)];
+	}),
+));
+
+/**
+ * Picks one entry for a biome, by rotation.
+ *
+ * `ordinal` mixes the chunk's coordinates with the slot being filled, so successive placements — within
+ * a chunk and across neighbouring chunks — step through the rotation rather than resampling it.
+ */
+function pickEntry(biome, chunkX, chunkZ, slot) {
+	const rotation = BIOME_ROTATIONS[biome];
+	if (!rotation || rotation.length === 0) return null;
+	// A linear index over the chunk grid, so neighbouring chunks advance through the rotation instead of
+	// landing on the same offset. The first attempt multiplied the chunkZ term by `rotation.length`,
+	// which made it vanish under the modulo and left only chunkX varying — measured coverage fell to
+	// 85.9%, worse than the random draw it replaced. The guard is what reported that.
+	const linear = (chunkZ + 512) * 1024 + (chunkX + 512);
+	const ordinal = Math.abs(linear * PROP_SCATTER_POLICY.maxPropsPerChunk + slot);
+	return rotation[ordinal % rotation.length];
 }
 
 /** Deterministic per-chunk stream. Coordinates hashed so a chunk is identical however it was reached. */
@@ -204,9 +227,8 @@ export function planChunkProps({ chunkX, chunkZ, sampleHeightMeters, seed, seats
 		if (!biome) continue;
 		if (BUILT_BIOMES.has(biome) && slopeDegrees > P.maxBuildSlopeDegrees) continue;
 
-		const entries = PROP_CATALOGUE_BY_BIOME[biome];
-		if (!entries || entries.length === 0) continue;
-		const chosen = pickEntry(entries, rng);
+		const chosen = pickEntry(biome, chunkX, chunkZ, placed.length);
+		if (!chosen) continue;
 
 		// Spacing: a church must not grow out of a barn, so each keeps its own footprint clear.
 		const tooClose = placed.some((other) => {

@@ -11,10 +11,18 @@
  * **1. Coverage of the map.** Every biome the catalogue defines must actually occur somewhere. A biome
  * with no ground answering to it means its entries are dead weight that will never appear.
  *
- * **2. Coverage of the catalogue.** Most of the catalogue must actually get placed somewhere in the
- * world. This is the check that would have caught the real risk in a scatter this size: an entry whose
- * biome is so rare, or whose weight is so low against its neighbours, that it never wins a draw. The
- * threshold is deliberately high, because "distribute all the models" is the request.
+ * **2. Coverage of the catalogue.** Nearly all of the catalogue must actually get placed somewhere in
+ * the world. This is the check that catches the real risk in a scatter this size: an entry whose biome
+ * is so rare, or so crowded, that it never wins a draw. The threshold is deliberately high, because
+ * "distribute all the models" is the request — it caught exactly that twice, at 86.7% and again at
+ * 93.0%, and the root cause both times was catalogue crowding rather than the selection mechanism.
+ *
+ * The threshold is 95% rather than 100% for an arithmetic reason worth stating. Coverage of a biome is
+ * bounded by how much of the world resolves to it: `upland` (ground above 240 m) yields about 32
+ * placements across the whole map, and no selection scheme can show more distinct models than it has
+ * placements. Reaching 100% would mean either inventing upland where the map has none, or filing upland
+ * models under country they do not belong to — and "her modeli doğru yere" rules both out. The residual
+ * is reported by name on every run, so it stays visible rather than becoming invisible slack.
  *
  * **3. Placement is legal everywhere.** No prop below or at sea level, none on ground steeper than the
  * policy allows, none inside a kingdom seat's clearance, and no two props inside their combined
@@ -31,7 +39,7 @@
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 /** Share of the catalogue that must appear somewhere in the world. */
-const MIN_CATALOGUE_COVERAGE = 0.9;
+const MIN_CATALOGUE_COVERAGE = 0.95;
 
 (async () => {
 	const playwright = loadPlaywright();
@@ -160,6 +168,11 @@ const MIN_CATALOGUE_COVERAGE = 0.9;
 		console.log(`[world-props] walked ${result.chunksWalked} chunks (the whole map), planned ${result.totalProps} props`);
 		console.log(`[world-props] catalogue coverage ${result.usedCount}/${result.catalogueSize} entries (${(coverage * 100).toFixed(1)}%); withheld by category: ${JSON.stringify(result.exclusions)}`);
 		console.log(`[world-props] by biome: ${JSON.stringify(result.byBiome)}`);
+		// Always reported, not only on failure: knowing *which* entries never appear is what tells the next
+		// run whether a biome is overcrowded, and an earlier revision of this check hid the list on PASS.
+		if (result.unusedCount > 0) {
+			console.log(`[world-props] never placed (${result.unusedCount}): ${result.unused.join(', ')}${result.unusedCount > result.unused.length ? ', …' : ''}`);
+		}
 		console.log(`[world-props] legality: ${JSON.stringify(result.violations)}; determinism drift ${result.determinismDrift}`);
 		if (failures.length) {
 			for (const failure of failures) console.error(`[world-props] FAIL: ${failure}`);

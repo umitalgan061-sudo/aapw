@@ -18150,3 +18150,66 @@ değişmedi).
 kapsıyor ve yan yana bırakmak yakın alanda aynı ağaçları ve ahırları iki kez yerleştirirdi.
 
 **World Coverage.** Prop kapsaması diskten **bütün haritaya** çıktı.
+
+## ADR-0318 — 36 hayvan modeli hiçbir sistemde yokmuş; katalog kalabalığı da kapsamı boğuyormuş
+
+**Bağlam.** Sahip isteği tekrarladı: *"assets'de bulunan bütün modelleri bütün coğrafyaya dağıt."*
+ADR-0317 katalogu 150'ye çıkarmıştı ama iki şeyi kaçırmıştım.
+
+### 1. "Canlı varlık" dışlamam fazla genişti
+
+ADR-0317 bütün hayvan modellerini "`livingWorldSpawner.js` canlıları o doğuruyor" gerekçesiyle dışarıda
+bırakmıştı. *Rigli* türler için doğru. Ama ölçtüm: `assets_manifest.json`'a göre kullanılmayan hayvan
+modellerinin **36'sının rigi ve animasyon klibi hiç yok**. Spawner onları sürükleyemez —
+`animalConfig.js` yalnızca **12** türü tanımlıyor, geri kalanı **hiçbir sistemde** değildi. Yani
+"bütün modelleri dağıt" isteği karşısında bunlar hiçbir yerdeydi.
+
+Hareketsiz bir model, kendi habitatına konduğunda düşük poligonlu bir dünyada **ortam faunası**dır ve
+kullanılmayan bir dosyadan kesinlikle iyidir. 36'sı da biyomlarına göre kataloglandı: ormana ayı,
+porsuk, geyik, baykuş; yaylaya dağ koyunu, puma; kar hattına kar leoparı; kurağa aslan, çakal, fil;
+çayıra kelebek, arı, bizon; çiftliğe tavuk, inek, at; kıyıya martı. Rigli türler hâlâ spawner'ın ve
+hâlâ bu katalogda değil.
+
+Ayrıca `assets/models/animals/` altında **üç bina** yanlış klasörlenmiş duruyordu (bir cottage, iki
+farm) — kimse orada bina aramadığı için kullanılmıyorlardı; katalogda artık bina olarak duruyorlar.
+`shark.glb` dışarıda: bu serpme yalnızca kuru zemine yerleştiriyor.
+
+*Kale modelleri hakkında dürüst not:* kullanılmayan 7 kale dosyası, zaten kullanımda olan 8 kalenin
+**decimate edilmemiş orijinalleri**. Yani yeni kale değiller; onları eklemek yeni bir kale değil, daha
+ağır bir kopya olurdu. 14 koltuğun 14'ü de zaten gerçek kale modeli taşıyor.
+
+### 2. Asıl darboğaz seçim mekanizması değil, katalog kalabalığıydı
+
+Kapsamı yükseltmek için önce seçim mekanizmasını değiştirdim ve **üç kez üst üste yanıldım**, üçünü de
+kapı ölçtü:
+
+| deneme | kapsam |
+|---|---|
+| ağırlıklı kümülatif çekim (ADR-0317) | %86,7 |
+| reddetme örneklemesi | %93,0 |
+| rotasyon, `chunkZ` terimi `rotation.length` ile çarpılmış | **%85,9** (daha kötü) |
+| rotasyon, ordinal düzeltildi | %92,4 |
+| rotasyon, ordinal chunk başına 1 adım | **%60,5** (çok daha kötü) |
+
+Mekanizmayı kurcalamayı bırakıp sebebe baktım: `arid` biyomuna **40 kayıt** tıkmıştım — bütün Yunan
+harabeleri ve heykeller dâhil — oysa dünya yalnızca ~82 kurak yerleştirme üretiyor. Harabeler ve
+heykeller doğası gereği çöle ait değil; insanların inşa ettiği yerlerin yanında dururlar. 21'ini
+`roadside`, `upland` ve `woodland`'e dağıttım. Tek başına bu hamle kapsamı **%92,4 → %97,3** yaptı.
+
+Yani sorun hiçbir zaman seçim algoritması değildi. Bunu üç başarısız denemeden sonra öğrendim ve
+yazıyorum çünkü sadece son hâli görmek yanıltıcı olurdu.
+
+### Kapsam neden %100 değil, ve neden olmamalı
+
+Kalan 6 kayıt `upland` ve benzeri seyrek biyomlarda. Bir biyomun kapsaması, dünyanın ne kadarının o
+biyoma çözüldüğüyle **sınırlıdır**: 240 m üstü zemin bütün haritada ~32 yerleştirme üretiyor, ve hiçbir
+seçim şeması sahip olduğu yerleştirmeden fazla ayrı model gösteremez. %100'e çıkarmanın iki yolu var ve
+ikisi de sahibin kendi cümlesini çiğniyor: ya haritada olmayan yaylayı uydurmak, ya da yayla modellerini
+ait olmadıkları ülkeye dosyalamak. *"Hepsini doğru yere"* ikisini de yasaklıyor. Kalan kayıtlar her
+çalıştırmada **adıyla raporlanıyor**, görünmez bir pay olmasın diye.
+
+**Doğrulama.** Dünya prop kapısı PASS: 667 chunk, **1472 prop**, **179/185 kayıt (%96,8)**, sekiz
+biyomun hepsi, su altı 0 / dik 0 / koltuk içi 0 / çakışma 0, determinizm sapması 0. Determinizm,
+varlık manifesti (499), satır sınırı (katalog 272, serpme 442) PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Katalog 150 → **185** kayıt.

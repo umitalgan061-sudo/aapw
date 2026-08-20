@@ -17512,3 +17512,47 @@ aynı çalışıyor; sizin ortamınızda gerçek modeller görünecek.
 
 Kapılar: dünya prop kapısı, 14/14 koltuk, determinizm, varlık manifesti, service worker v33, satır
 sınırı — hepsi PASS.
+
+---
+
+## Tur 371 — 36 hayvan modeli hiçbir sistemde yokmuş
+
+Geçen tur "bütün hayvanları dışarıda bıraktım, çünkü onları canlı dünya sistemi doğuruyor" demiştim.
+**Bu fazla geniş bir gerekçeydi ve kontrol edince yanlış çıktı.**
+
+Manifestten ölçtüm: kullanılmayan hayvan modellerinin **36'sının rigi ve animasyonu hiç yok**. Spawner
+onları hareket ettiremez — zaten yalnızca 12 türü tanıyor. Yani bu 36 model **hiçbir sistemde**
+değildi; ne yürüyorlardı ne duruyorlardı, sadece diskte yatıyorlardı. Sizin "bütün modelleri dağıt"
+isteğiniz karşısında bunlar hiçbir yerdeydi.
+
+Hareketsiz bir model, kendi habitatına konduğunda ortam faunasıdır ve kullanılmayan bir dosyadan
+kesinlikle iyidir. Hepsini biyomlarına göre yerleştirdim: ormana ayı, porsuk, geyik, baykuş, tilki;
+yaylaya dağ koyunu ve puma; kar hattına kar leoparı; kurak Essos'a aslan, çakal, fil; çayıra kelebek,
+arı, bizon; çiftliğe tavuk, inek, at, köpek; kıyıya martı. Rigli türler hâlâ canlı dünya sisteminin.
+
+Ayrıca hayvanlar klasöründe **yanlış yere konmuş üç bina** buldum (bir kulübe, iki çiftlik) — kimse
+orada bina aramadığı için kullanılmıyorlardı. Artık bina olarak katalogdalar.
+
+*Kaleler hakkında:* kullanılmayan 7 kale dosyasına baktım, hepsi zaten kullanımdaki 8 kalenin
+sadeleştirilmemiş orijinali. Yani yeni kale değiller, daha ağır kopyalar. 14 koltuğun 14'ünde de zaten
+gerçek kale modeli var.
+
+**Ve bir şeyi üç kez yanlış yaptım.** Katalog kapsamını yükseltmek için seçim mekanizmasını
+değiştirmeye çalıştım: ağırlıklı çekim %86,7, reddetme örneklemesi %93,0, rotasyon denemem **%85,9**
+(daha kötü), ordinal düzeltmesi %92,4, bir sonraki denemem **%60,5** (çok daha kötü). Kapı her seferinde
+söyledi.
+
+Sonra kurcalamayı bırakıp sebebe baktım: kurak biyoma **40 model** tıkmışım — bütün antik harabeler ve
+heykeller dâhil — oysa dünya sadece ~82 kurak yerleştirme üretiyor. Harabeler çöle ait değil ki;
+insanların inşa ettiği yerlerin yanında dururlar. 21'ini yola, yaylaya ve ormana dağıttım. Tek başına
+bu, kapsamı **%92,4'ten %97,3'e** çıkardı. Sorun hiçbir zaman algoritma değilmiş.
+
+**Neden %100 değil.** Kalan 6 model seyrek biyomlarda. Bir biyomun kapsaması dünyanın ne kadarının o
+biyom olduğuyla sınırlı: 240 metre üstü zemin bütün haritada ~32 yerleştirme veriyor, ve hiçbir yöntem
+sahip olduğu yerden fazla ayrı model gösteremez. %100 yapmanın iki yolu var, ikisi de sizin kendi
+cümlenizi çiğniyor: ya olmayan yaylayı uydurmak, ya da yayla modellerini ait olmadıkları yere koymak.
+"Hepsini doğru yere" dediniz; ikisini de yapmadım. Kalan modeller her çalıştırmada adıyla
+raporlanıyor, görünmez bir pay olmasın diye.
+
+Sonuç: **1472 prop**, **179/185 model (%96,8)**, sekiz biyomun hepsi, su altında 0, dik yamaçta 0,
+kale pad'inde 0, çakışma 0.
