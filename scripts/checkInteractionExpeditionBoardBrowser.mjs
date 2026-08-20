@@ -37,6 +37,8 @@ try {
 		const boardText = dialogueBox._textEl.textContent;
 		controller.handleKeyDown({ code: 'Digit2', repeat: false });
 		const resultText = dialogueBox._textEl.textContent;
+		controller.showQuestJournal();
+		const journalText = dialogueBox._textEl.textContent;
 		controller.showInventory();
 		const inventoryText = dialogueBox._textEl.textContent;
 		const rpg = controller.getRpgSnapshot();
@@ -44,18 +46,24 @@ try {
 		return {
 			boardText,
 			resultText,
+			journalText,
 			inventoryText,
 			fatigueKm: rpg.journey?.fatigueKm,
 			packs: rpg.inventory.fieldReadiness.travelCapacity.travelRationPacks,
+			xp: rpg.progression.totalExperience,
+			reputation: rpg.reputation.dragonstone,
+			completedRoutes: rpg.worldState.dragonstoneExpeditionRoutes,
 		};
 	});
 	if (pageErrors.length || consoleErrors.length) throw new Error(`Expedition-board browser proof emitted errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
-	if (!result.boardText.includes('Dragonstone Sefer Panosu')) throw new Error(`Board did not render: ${JSON.stringify(result)}`);
+	if (!result.boardText.includes('Dragonstone Sefer Panosu') || !result.boardText.includes('Tamamlanan kontrat: 0/3')) throw new Error(`Board did not render contract state: ${JSON.stringify(result)}`);
 	if (!result.boardText.includes('1. Nöbet Yolu Devriyesi') || !result.boardText.includes('2. Liman Taverna Seferi') || !result.boardText.includes('3. Sırt Kampı Seferi')) throw new Error(`Route choices missing from shipped board text: ${JSON.stringify(result)}`);
-	if (!result.resultText.includes('SEFER TAMAMLANDI') || !result.resultText.includes('dragonstone-harbor-tavern')) throw new Error(`Committed route result missing: ${JSON.stringify(result)}`);
+	if (!result.boardText.includes('İLK ÖDÜL: 30 XP + 2 itibar')) throw new Error(`First completion reward missing from shipped board text: ${JSON.stringify(result)}`);
+	if (!result.resultText.includes('SEFER TAMAMLANDI') || !result.resultText.includes('dragonstone-harbor-tavern') || !result.resultText.includes('Kontrat ödülü: 30 XP + 2 Dragonstone itibarı')) throw new Error(`Committed route reward/result missing: ${JSON.stringify(result)}`);
+	if (!result.journalText.includes('Seviye: 1 · XP: 30/100') || !result.journalText.includes('Dragonstone itibarı: 2') || !result.journalText.includes('Sefer kontratları: 1/3')) throw new Error(`Post-contract journal UX mismatch: ${JSON.stringify(result)}`);
 	if (!result.inventoryText.includes('Sefer yorgunluğu: 30/36 km') || !result.inventoryText.includes('Yol azığı: 0')) throw new Error(`Post-expedition inventory UX mismatch: ${JSON.stringify(result)}`);
-	if (result.fatigueKm !== 30 || result.packs !== 0) throw new Error(`Canonical state mismatch: ${JSON.stringify(result)}`);
-	console.log(`[RPG Chromium] PASS expedition board keyboard loop ${JSON.stringify({ fatigueKm: result.fatigueKm, packs: result.packs })}`);
+	if (result.fatigueKm !== 30 || result.packs !== 0 || result.xp !== 30 || result.reputation !== 2 || result.completedRoutes?.[0] !== 'dragonstone-harbor-tavern-run') throw new Error(`Canonical contract state mismatch: ${JSON.stringify(result)}`);
+	console.log(`[RPG Chromium] PASS expedition contract keyboard loop ${JSON.stringify({ fatigueKm: result.fatigueKm, packs: result.packs, xp: result.xp, reputation: result.reputation, completedRoutes: result.completedRoutes })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
