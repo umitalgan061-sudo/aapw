@@ -26,6 +26,7 @@
  */
 
 import { REFERENCE_BIOME_ZONES, sampleReferenceInfluence } from './worldReferenceMap.js';
+import { sampleMapForest01 } from './worldReferenceBiomeField.js';
 
 /**
  * Forest affinity in [0, 1] per biome kind recorded in `REFERENCE_BIOME_ZONES`.
@@ -94,6 +95,14 @@ const ZONE_AUTHORITY_FULL_INFLUENCE = 0.35;
  * @returns {number} 0 = never wooded, 1 = fully wooded.
  */
 export function canonicalForestAffinity(normalizedX, normalizedY) {
+	// Run 364: the owner map itself now answers this, per cell, from its own pixels — see
+	// `world/worldReferenceBiomeField.js`. The seventeen-ellipse blend below was an approximation of
+	// exactly this data, built while the image was gitignored and unreadable; it is kept as the
+	// fallback for the small share of land no zone and no legible colour covers, and because several
+	// modules import this function's name.
+	const fromImage = sampleMapForest01(normalizedX, normalizedY);
+	if (fromImage > 0.02) return fromImage;
+
 	let weightedTotal = 0;
 	let weight = 0;
 	for (const zone of REFERENCE_BIOME_ZONES) {

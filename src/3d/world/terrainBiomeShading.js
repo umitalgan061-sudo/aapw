@@ -39,6 +39,7 @@ import { signedFbmNoise } from './terrainReliefDetail.js';
 import { WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { canonicalForestAffinity } from './worldReferenceForestAffinity.js';
+import { sampleMapAridity01 } from './worldReferenceBiomeField.js';
 
 /**
  * World X/Z to normalized owner-map coordinates — the same projection `world/terrain.js`'s private
@@ -277,6 +278,10 @@ export function forestCoverage01(worldX, worldZ, heightAboveSeaMeters, slopeDegr
 	return forestPatch * notCliff * belowTreeLine * affinity;
 }
 
+/** Dorne and the Red Waste, as the map paints them: pale warm sand rather than the green the rest of
+ * the world gets. Run 364 / ADR-0311. */
+const ARID_SAND = new THREE.Color(0.72, 0.56, 0.38);
+
 export function resolveTerrainBiomeColor(target, { heightAboveSeaMeters, slopeDegrees, rockWeight = 0, snowWeight = 0, worldX = 0, worldZ = 0 }) {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
 	const height = heightAboveSeaMeters;
@@ -292,6 +297,14 @@ export function resolveTerrainBiomeColor(target, { heightAboveSeaMeters, slopeDe
 	// 2. Forest: low-frequency patch mask, below the tree line, excluded only from cliffs.
 	const forestAmount = forestCoverage01(worldX, worldZ, height, slope) * P.forestMaxStrength;
 	if (forestAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.FOREST, forestAmount);
+
+	// Desert, straight off the map (ADR-0311). Dorne and the Red Waste are the two places the owner map
+	// paints warm sand instead of green, and until now the world rendered them the same olive as the
+	// Reach. Applied after forest and before the slope-driven rock below, so a cliff in Dorne is still
+	// rock — sand covers the ground, not the crags standing out of it.
+	const { nx: aridNx, ny: aridNy } = normalizedMapPoint(worldX, worldZ);
+	const aridity = sampleMapAridity01(aridNx, aridNy);
+	if (aridity > 0.02) target.lerp(ARID_SAND, aridity * 0.88);
 
 	// 3. Shore sand — suppressed on steep ground so sea cliffs stay rock, not beach.
 	const sandAmount = (1 - smoothstep(P.shoreSandFullMeters, P.shoreSandTopMeters, height))

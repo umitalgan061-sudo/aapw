@@ -17181,3 +17181,30 @@ Yan kazanç: yol koridoru yatak eğimi 9,4° → **4,4°**, yanındaki zemin 49,
 üstünden çekilince yolların geçtiği arazi gerçekten yumuşadı.
 
 14/14 koltuk PASS, yollar 18,29 km PASS, su maskesi ve hizalama değişmedi, bütün diğer kapılar PASS.
+
+### Run 364 — Biyom artık haritanın piksellerinden, hücre hücre (ADR-0311)
+
+"Karış karış" dediniz, ben de bölge bölge elle okumayı bırakıp görselin kendisinden veri türettim.
+
+Şimdiye kadar "neresi ormanlık, neresi çöl" sorusunu 17 elle konmuş elips yanıtlıyordu. Artık kanonik
+tuval üzerinde **192x128 hücrelik** bir alan var ve her hücre iki değeri doğrudan resimden taşıyor:
+orman ve kuraklık.
+
+İlk formülüm yanlıştı ve ölçüm düzeltti: ormanı yeşil *tonundan* aramıştım, Dothraki Denizi'ni orman
+sandı. Bilinen noktaların gerçek renklerine bakınca sebep çıktı — bu haritada **ormanla tarlanın tonu
+aynı** (Reach 73°, Kurtormanı 169°), ayıran şey **koyuluk**: Reach 0,72, Qohor ormanı 0,51, Sothoryos
+cengeli 0,36. Formülü buna göre kurunca resmin gerçek ormanlarını buldu — Sothoryos, Ulthos, Yi Ti,
+Qohor kuzeyi, Kurtormanı, Ib.
+
+Kuraklık da isabetli çıktı (Dorne 0,61, Kızıl Çorak 0,86) ve ilk kez **arazi rengini** sürüyor: Dorne
+artık Reach'le aynı zeytuni yeşil değil, haritadaki gibi sıcak kum. Ekteki Dorne çekiminde plaj, kum ve
+içinden geçen kanonik yol görünüyor.
+
+Kıyı şeridine dokunulmadı — bu alan karanın *ne olduğunu* söylüyor, *nerede* olduğunu asla; su maskesi
+checksum'ı değişmedi.
+
+Kapılar: 14/14 koltuk, yollar 18,29 km, su maskesi, terrain visual contract, SW cache v26→v27, satır
+sınırı, determinizm — hepsi PASS.
+
+Kalan: taban bitki geçişi (30/km², tekdüze) kuraklığı okumuyor, çölde hâlâ seyrek ağaç var. Düzeltmesi
+`isPlaceablePosition`'a kuraklık kapısı ama o fonksiyonu köyler de kullanıyor — kendi turu gerekiyor.

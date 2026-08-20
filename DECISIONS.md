@@ -17646,3 +17646,48 @@ yumuşadı. Su maskesi checksum'ı `2ca2bed8d8a1…` değişmedi, hizalama 14/14
 contract, masaüstü LOD, satır sınırı, determinizm, SW cache PASS.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0311 — Biyom artık haritanın kendi piksellerinden, hücre hücre
+
+**Bağlam.** Sahip "map.png'ye çok dikkatlice bakarak 3D haritanın her yerini karış karış geliştir"
+dedi. Elle bölge okumaya devam etmek yerine görselin kendisinden veri türetildi.
+
+**Önceki durum.** "Neresi ormanlık, neresi çöl" sorusunu `REFERENCE_BIOME_ZONES` yanıtlıyordu: 17 elle
+konmuş elips, her birine tek bir `kind`. Görsel gitignore'da ve her klonda yokken bu mevcut en iyi
+cevaptı. Run 361 dosyayı commit'ledi; bu tur yaklaşımı, yaklaştığı şeyle değiştiriyor.
+
+**Karar.** `world/worldReferenceBiomeField.js`: kanonik 9000x7000 tuval üzerinde **192x128** hücrelik
+bir alan, her hücrede iki değer doğrudan resimden okunmuş (4'er bit, hex satırlar,
+`dataSha256 640693473da09828…`):
+
+- **forest** — haritanın orayı ne kadar ormanlık çizdiği.
+- **arid** — ne kadar çöl çizdiği.
+
+**Kalibrasyon tahminle değil ölçümle yapıldı.** İlk formülüm ormanı yeşil *tonu* üzerinden aradı ve
+Dothraki Denizi'ni orman sandı. Bilinen noktaların gerçek renklerine bakınca sebep çıktı: bu haritada
+ormanla tarlanın **tonu aynı** (Reach 73°, Kurtormanı 169° — koyu orman mürekkebi teale kaçtığı için),
+ayıran şey **koyuluk**. Reach val 0,72; Qohor ormanı 0,51; Sothoryos cengeli 0,36. Formül buna göre
+kuruldu: val 0,72 → 0,32 arası sönümleme, su/çıplak kaya/kurak zemin dışlanmış, gölgeyi orman sanmamak
+için hafif doygunluk ağırlığı.
+
+Sonuç, resmin gerçek ormanlarını buluyor: Sothoryos, Ulthos, Yi Ti'nin doğusu, Qohor kuzeyi,
+Kurtormanı, Ib. Kuraklık da isabetli: Dorne 0,61, Kızıl Çorak 0,86, yeşil her yer 0.
+
+**İki bağlantı.** `canonicalForestAffinity` artık bu alana devrediyor (17-elips harmanı, resmin
+okunamadığı yıllarda tam da bu verinin yaklaşımıydı; adı import eden modüller için ve rengin
+okunamadığı küçük pay için yedek olarak duruyor). Ve kuraklık ilk kez **arazi rengini** sürüyor:
+Dorne ile Kızıl Çorak artık Reach'le aynı zeytuni yeşil değil, haritadaki gibi sıcak kum.
+
+**Sınır.** Bu bir kara/deniz otoritesi değil. Kıyı şeridi tam olarak
+`worldReferenceSurfacePindexes.js`'in checksum korumalı 96x64 maskesinin koyduğu yerde kalıyor; buradaki
+hiçbir şey onun bir metresini oynatamaz. Bu alan karanın *ne olduğunu* söylüyor, *nerede* olduğunu asla.
+
+**Doğrulama.** 14/14 koltuk PASS, yollar PASS (18,29 km), su maskesi checksum'ı `2ca2bed8d8a1…`
+değişmedi, terrain visual contract, SW cache (v26→v27), satır sınırı, determinizm PASS. Dorne'dan
+görsel: sıcak kum, plaj ve içinden geçen kanonik yol — Reach'in yeşilinden açıkça ayrı.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+**Next safe step:** taban bitki örtüsü geçişi (km² başına 30, tekdüze) kuraklığı hiç okumuyor, bu yüzden
+çölde hâlâ seyrek ağaç kalıyor. `isPlaceablePosition`'a kuraklık kapısı eklemek doğru düzeltme ama o
+fonksiyonu köyler de kullanıyor, yani köy sayılarını da etkiler — kendi turunu hak ediyor.
