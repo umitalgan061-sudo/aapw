@@ -50,33 +50,70 @@ export function createWatchWorldState() {
 	return { get, set, snapshot, restore };
 }
 
-export const INTERACTION_JOURNEY_POLICY = Object.freeze({ MAX_FATIGUE_KM: 52, MAX_COMMIT_COUNT: 1_000_000 });
+export const INTERACTION_JOURNEY_POLICY = Object.freeze({ MAX_FATIGUE_KM: 52, MAX_COMMIT_COUNT: 1_000_000, MAX_RECENT_RECEIPTS: 5 });
 
 /** Compact travel-survival state kept inside the existing interaction RPG owner. */
 export function createInteractionJourneyState() {
 	let fatigueKm = 0;
 	let commitCount = 0;
 	let lastDestinationId = null;
+	let recentReceipts = [];
 	function normalizeFatigue(value) {
 		const parsed = Number(value);
 		return Number.isFinite(parsed) && parsed >= 0 ? Math.min(INTERACTION_JOURNEY_POLICY.MAX_FATIGUE_KM, Number(parsed.toFixed(2))) : 0;
 	}
-	function snapshot() { return { fatigueKm, commitCount, lastDestinationId }; }
+	function normalizeDistance(value) {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) && parsed >= 0 ? Number(parsed.toFixed(2)) : 0;
+	}
+	function normalizeCount(value, max = INTERACTION_JOURNEY_POLICY.MAX_COMMIT_COUNT) {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) && parsed >= 0 ? Math.min(max, Math.floor(parsed)) : 0;
+	}
+	function sanitizeReceipt(receipt) {
+		if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) return null;
+		const sequence = normalizeCount(receipt.sequence);
+		if (sequence <= 0) return null;
+		return {
+			sequence,
+			totalDistanceKm: normalizeDistance(receipt.totalDistanceKm),
+			consumedTravelPacks: normalizeCount(receipt.consumedTravelPacks, 100),
+			finalFatigueKm: normalizeFatigue(receipt.finalFatigueKm),
+			destinationId: String(receipt.destinationId ?? '').trim() || null,
+			restStopCount: normalizeCount(receipt.restStopCount, 100),
+		};
+	}
+	function snapshot() { return { fatigueKm, commitCount, lastDestinationId, recentReceipts: recentReceipts.map((receipt) => ({ ...receipt })) }; }
 	function restore(saved) {
 		fatigueKm = normalizeFatigue(saved?.fatigueKm);
-		const count = Number(saved?.commitCount);
-		commitCount = Number.isFinite(count) && count >= 0 ? Math.min(INTERACTION_JOURNEY_POLICY.MAX_COMMIT_COUNT, Math.floor(count)) : 0;
+		commitCount = normalizeCount(saved?.commitCount);
 		lastDestinationId = String(saved?.lastDestinationId ?? '').trim() || null;
+		recentReceipts = (Array.isArray(saved?.recentReceipts) ? saved.recentReceipts : [])
+			.map(sanitizeReceipt)
+			.filter(Boolean)
+			.slice(-INTERACTION_JOURNEY_POLICY.MAX_RECENT_RECEIPTS);
 	}
 	function applyCommit(result) {
 		if (result?.ok !== true || result?.plan?.complete !== true) return false;
 		fatigueKm = normalizeFatigue(result.plan.finalFatigueKm);
 		commitCount = Math.min(INTERACTION_JOURNEY_POLICY.MAX_COMMIT_COUNT, commitCount + 1);
 		const travelSteps = result.plan.steps?.filter((step) => step.type === 'travel' && step.allowed) ?? [];
+		const restSteps = result.plan.steps?.filter((step) => step.type === 'rest' && step.allowed) ?? [];
 		lastDestinationId = travelSteps.at(-1)?.destinationId ?? lastDestinationId;
+		recentReceipts.push({ sequence: commitCount, totalDistanceKm: normalizeDistance(result.plan.totalDistanceKm), consumedTravelPacks: normalizeCount(result.consumedQuantity, 100), finalFatigueKm: fatigueKm, destinationId: lastDestinationId, restStopCount: restSteps.length });
+		recentReceipts = recentReceipts.slice(-INTERACTION_JOURNEY_POLICY.MAX_RECENT_RECEIPTS);
 		return true;
 	}
 	return { snapshot, restore, applyCommit };
+}
+
+export function buildJourneyStateText(journey = {}) {
+	const fatigueKm = Math.max(0, Math.min(INTERACTION_JOURNEY_POLICY.MAX_FATIGUE_KM, Number(journey?.fatigueKm) || 0));
+	const lines = [`Sefer yorgunluğu: ${Number(fatigueKm.toFixed(2))}/${INTERACTION_JOURNEY_POLICY.MAX_FATIGUE_KM} km`];
+	if (journey?.lastDestinationId) lines.push(`Son sefer hedefi: ${journey.lastDestinationId}`);
+	const lastReceipt = Array.isArray(journey?.recentReceipts) ? journey.recentReceipts.at(-1) : null;
+	if (lastReceipt) lines.push(`Son sefer: ${lastReceipt.totalDistanceKm} km · ${lastReceipt.consumedTravelPacks} yol azığı · ${lastReceipt.restStopCount} dinlenme`);
+	return lines.join('\n');
 }
 
 export function watchPolicyLabel(policy) {
@@ -307,10 +344,11 @@ export function createInteractionInventoryState() {
 	return { grant, quantityOf, consume, consumeFastTravelProvisions, commitJourneyWithRestStops, snapshot, restore };
 }
 
-export function buildInventoryText(snapshot = {}) {
+export function buildInventoryText(snapshot = {}, journey = null) {
 	const items = Array.isArray(snapshot.items) ? snapshot.items : [];
 	const readiness = snapshot?.fieldReadiness?.tier ? snapshot.fieldReadiness : evaluateFieldReadiness(snapshot);
 	const lines = ['Envanter', `Toplam ağırlık: ${Number(snapshot.totalWeightKg) || 0} kg`, ...buildFieldReadinessText(readiness).split('\n')];
+	if (journey) lines.push(...buildJourneyStateText(journey).split('\n'));
 	if (items.length === 0) return [...lines, 'Henüz eşya yok.'].join('\n');
 	for (const item of items) {
 		const origin = item.provenance?.at(-1);
