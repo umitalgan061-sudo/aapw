@@ -29,7 +29,13 @@ const crypto = require('crypto');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 const ROOT = path.resolve(__dirname, '..');
+/** The path the running app actually loads: `style.css` and `index.html` both reference
+ * `resimler/map.png`, so this copy is functional, not archival. */
 const MAP_PATH = path.join(ROOT, 'resimler/map.png');
+/** The owner also pushed the image to `map.png/map.png` (PR #792). Nothing loads that path, but it is
+ * the owner's own upload so it stays; the check asserts the two copies have not drifted apart, which
+ * is the only way a duplicated source of truth can hurt. */
+const OWNER_UPLOAD_PATH = path.join(ROOT, 'map.png/map.png');
 const EXPECTED_SHA256 = '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1';
 /** Water is allowed within this many normalized units of a waypoint — the coarse mask's own cell is
  * about 0.010 x 0.016, and a coastal road legitimately runs right along the shore. */
@@ -51,7 +57,16 @@ function checkMapFile() {
 		console.error('[owner-map] FAIL: expected baseline JPEG bytes (the file is a JPEG despite its .png name)');
 		return null;
 	}
-	console.log(`[owner-map] PASS: resimler/map.png present, ${bytes.length} bytes, JPEG, sha256 ${sha256.slice(0, 12)}… matches the contract.`);
+	let duplicateNote = '';
+	if (fs.existsSync(OWNER_UPLOAD_PATH)) {
+		const otherSha = crypto.createHash('sha256').update(fs.readFileSync(OWNER_UPLOAD_PATH)).digest('hex');
+		if (otherSha !== sha256) {
+			console.error(`[owner-map] FAIL: map.png/map.png (${otherSha.slice(0, 12)}…) has drifted from resimler/map.png (${sha256.slice(0, 12)}…)`);
+			return null;
+		}
+		duplicateNote = '; map.png/map.png is byte-identical';
+	}
+	console.log(`[owner-map] PASS: resimler/map.png present, ${bytes.length} bytes, JPEG, sha256 ${sha256.slice(0, 12)}… matches the contract${duplicateNote}.`);
 	return true;
 }
 
