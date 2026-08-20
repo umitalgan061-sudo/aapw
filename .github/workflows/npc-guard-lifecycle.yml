@@ -8,6 +8,7 @@ on:
       - 'scripts/checkNpcGuardLifecycleContract.mjs'
       - 'scripts/checkNpcGuardLifecycleBrowser.js'
       - 'scripts/checkNpcGuardGroupLifecycleBrowser.js'
+      - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
       - '.github/workflows/npc-guard-lifecycle.yml'
   workflow_dispatch:
 
@@ -42,6 +43,7 @@ jobs:
           node --check scripts/checkNpcGuardLifecycleContract.mjs
           node --check scripts/checkNpcGuardLifecycleBrowser.js
           node --check scripts/checkNpcGuardGroupLifecycleBrowser.js
+          node --check scripts/checkNpcGuardLifecycleFrameRateBrowser.js
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcGuardAttack.mjs
@@ -66,6 +68,8 @@ jobs:
         run: node scripts/checkNpcGuardLifecycleBrowser.js
       - name: Real shipped Three.js guard group proof
         run: node scripts/checkNpcGuardGroupLifecycleBrowser.js
+      - name: Real shipped Three.js guard frame-rate proof
+        run: node scripts/checkNpcGuardLifecycleFrameRateBrowser.js
       - name: Final exact-main freshness
         shell: bash
         run: |
