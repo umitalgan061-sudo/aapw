@@ -218,6 +218,8 @@ export function findSlopeAwarePath({
 	end,
 	cellMeters = GRID_CELL_METERS,
 	corridorPaddingMeters = CORRIDOR_PADDING_METERS,
+	referenceRoadPreference = null,
+	referenceRoadOffGuidePenalty = 0,
 }) {
 	const minX = Math.min(start.x, end.x) - corridorPaddingMeters;
 	const maxX = Math.max(start.x, end.x) + corridorPaddingMeters;
@@ -277,7 +279,14 @@ export function findSlopeAwarePath({
 			const horizontalDistance = Math.hypot(di * cellMeters, dj * cellMeters);
 			const rise = Math.abs(heightAt(ni, nj) - hCurrent);
 			const angleDegrees = (Math.atan2(rise, horizontalDistance) * 180) / Math.PI;
-			const stepCost = horizontalDistance * gradeCostMultiplier(angleDegrees);
+			const roadPreference = referenceRoadPreference
+				? Math.max(0, Math.min(1, referenceRoadPreference(toWorldX(ni), toWorldZ(nj))))
+				: 1;
+			// Preference can only add cost away from the painted corridor; it never discounts below
+			// raw horizontal distance, so the Euclidean A* heuristic remains admissible. Grade safety
+			// still dominates because the existing over-cap multiplier is orders of magnitude larger.
+			const guideMultiplier = 1 + (1 - roadPreference) * Math.max(0, referenceRoadOffGuidePenalty);
+			const stepCost = horizontalDistance * gradeCostMultiplier(angleDegrees) * guideMultiplier;
 			const tentativeG = gScore[idx] + stepCost;
 			if (tentativeG < gScore[nIdx]) {
 				gScore[nIdx] = tentativeG;

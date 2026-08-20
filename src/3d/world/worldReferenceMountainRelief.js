@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-17-v3',
+	id: 'owner-map-live-mountain-relief-2026-08-20-v4',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -71,6 +71,9 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		}),
 		'bone-mountains': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.008, outerWidthNormalized: 0.060, seed: 37 }),
 		'eastern-chain': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.007, outerWidthNormalized: 0.055, seed: 53 }),
+		'frostfangs': Object.freeze({ peakMeters: 760, coreWidthNormalized: 0.007, outerWidthNormalized: 0.044, summitFloor: 0.46, seed: 67 }),
+		'painted-mountains': Object.freeze({ peakMeters: 320, coreWidthNormalized: 0.006, outerWidthNormalized: 0.034, summitFloor: 0.42, seed: 71 }),
+		'jogos-spine': Object.freeze({ peakMeters: 540, coreWidthNormalized: 0.006, outerWidthNormalized: 0.030, summitFloor: 0.44, seed: 79 }),
 	}),
 });
 

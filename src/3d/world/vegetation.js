@@ -43,6 +43,7 @@
 
 import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
+import { OWNER_MAP_FEATURE_GUIDE_POLICY, sampleReferenceForestInfluenceWorld } from './worldReferenceFeatureGuides.js';
 
 /**
  * Two low-poly species, each a self-contained silhouette recipe. `weight` values are relative and
@@ -374,6 +375,14 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			const x = Math.cos(angle) * radius;
 			const z = Math.sin(angle) * radius;
 			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+
+			// The exact owner map now shapes the forest itself, not just terrain tint. Keep a small
+			// background chance for hedgerows/sparse woodland, while concentrating the same bounded
+			// target count into the dark-green forest belts traced from map.png/map.png.
+			const forestInfluence = sampleReferenceForestInfluenceWorld(x, z);
+			const forestAcceptance = OWNER_MAP_FEATURE_GUIDE_POLICY.forestBackgroundAcceptance
+				+ (1 - OWNER_MAP_FEATURE_GUIDE_POLICY.forestBackgroundAcceptance) * forestInfluence;
+			if (rng() > forestAcceptance) continue;
 
 			// Species is drawn only for an accepted position, from the same seeded stream, so v1's
 			// (ADR-0138) position/count behavior is unaffected in shape — only which species-specific

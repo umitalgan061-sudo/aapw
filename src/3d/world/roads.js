@@ -28,6 +28,7 @@
 
 import * as THREE from 'three';
 import { findSlopeAwarePath } from './roadPathfinder.js';
+import { OWNER_MAP_FEATURE_GUIDE_POLICY, sampleReferenceRoadPreferenceWorld } from './worldReferenceFeatureGuides.js';
 
 /** Ribbon width, in meters, for the single road tier this first pass renders — wide enough to read
  * clearly as a real cart road against the terrain at this world's scale (chunks are 500m/edge),
@@ -221,6 +222,8 @@ export function buildRoadNetwork({ seats, sampleHeightMeters }) {
 				sampleHeightMeters,
 				start: { x: from.x, z: from.z },
 				end: { x: to.x, z: to.z },
+				referenceRoadPreference: sampleReferenceRoadPreferenceWorld,
+				referenceRoadOffGuidePenalty: OWNER_MAP_FEATURE_GUIDE_POLICY.roadOffGuideCostPenalty,
 			});
 			appendRoadRibbon(buffers, points, widthMeters, color);
 
