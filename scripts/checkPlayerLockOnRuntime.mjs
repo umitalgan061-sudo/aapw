@@ -64,23 +64,24 @@ async function setPad({ axes = [0, 0, 0, 0], buttons = {}, connected = true } = 
 	}, { axes, buttons, connected });
 }
 
-async function acquireWithCameraSweep() {
-	for (let attempt = 0; attempt < 8; attempt += 1) {
+async function acquireWithGuidedApproach() {
+	let approachBursts = 0, nearestSeen = Infinity;
+	for (let attempt = 0; attempt < 18; attempt += 1) {
 		const lockStart = (await histories()).locks.length;
-		await setPad({ buttons: { 11: true } });
-		await sleep(180);
-		await setPad();
-		await sleep(100);
+		await setPad({ buttons: { 11: true } }); await sleep(180); await setPad(); await sleep(100);
 		const recent = (await histories()).locks.slice(lockStart);
 		const acquired = recent.find((event) => event.locked === true && event.reason === 'acquired');
-		if (acquired) return { acquired, sweepAttempts: attempt };
-		need(recent.some((event) => event.locked === false && event.reason === 'no-target'), `R3 attempt ${attempt} emitted no bounded acquisition result`);
-		await setPad({ axes: [0, 0, 0.8, 0] });
-		await sleep(350);
-		await setPad();
-		await sleep(100);
+		if (acquired) return { acquired, sweepAttempts: attempt, approachBursts, nearestSeen };
+		const noTarget = recent.find((event) => event.locked === false && event.reason === 'no-target');
+		need(noTarget, `R3 attempt ${attempt} emitted no bounded acquisition result`);
+		need(typeof noTarget.nearestTargetId === 'string' && Number.isFinite(noTarget.nearestDistanceMeters) && Number.isFinite(noTarget.nearestAngleDegrees), `R3 attempt ${attempt} missing nearest-candidate telemetry: ${JSON.stringify(noTarget)}`);
+		nearestSeen = Math.min(nearestSeen, noTarget.nearestDistanceMeters);
+		if (noTarget.nearestDistanceMeters > 30 && noTarget.nearestAngleDegrees <= 48) {
+			await setPad({ buttons: { 12: true } }); await sleep(1400); await setPad(); await sleep(120); approachBursts += 1;
+		}
+		await setPad({ axes: [0, 0, 0.8, 0] }); await sleep(300); await setPad(); await sleep(100);
 	}
-	throw new Error('[player-lock-on-runtime] R3 camera sweep found no eligible shipped NPC within the 30m acquisition contract');
+	throw new Error(`[player-lock-on-runtime] guided R3 approach found no eligible shipped NPC; nearest=${nearestSeen.toFixed(2)}m bursts=${approachBursts}`);
 }
 
 function facingDot(attack, targetPosition) {
@@ -113,10 +114,10 @@ try {
 	const displacement = Math.hypot(approachEnd.position.x - approachStart.position.x, approachEnd.position.z - approachStart.position.z);
 	need(displacement > 1, `approach did not produce meaningful collider-resolved movement: ${displacement}`);
 
-	// The live NPC population is authoritative but its bearing from spawn is not. Sweep the real right-stick
-	// camera between edge-triggered R3 attempts instead of assuming a particular NPC sits inside the initial
-	// 68° cone. Every attempt still uses the shipped controller and the production <=30m acquisition gate.
-	const { acquired, sweepAttempts } = await acquireWithCameraSweep();
+	// The shipped NPC population owns its spawn positions. no-target telemetry exposes only the nearest
+	// eligible read-only candidate, letting this proof rotate and walk the real Player until the existing
+	// <=30m/68° contract can acquire it instead of widening production range or moving NPCs for the test.
+	const { acquired, sweepAttempts, approachBursts, nearestSeen } = await acquireWithGuidedApproach();
 	need(typeof acquired.targetId === 'string' && acquired.targetId.length > 0, `invalid target id ${JSON.stringify(acquired)}`);
 	need(acquired.distanceMeters > 0 && acquired.distanceMeters <= 30, `acquired target outside 30m contract: ${acquired.distanceMeters}`);
 	need(Number.isFinite(acquired.targetPosition?.x) && Number.isFinite(acquired.targetPosition?.z), `missing target position ${JSON.stringify(acquired)}`);
@@ -143,7 +144,7 @@ try {
 	const metrics = {
 		ok: true,
 		baseline: { state: baseline.state, position: baseline.position },
-		approach: { displacementMeters: Number(displacement.toFixed(3)), endPosition: approachEnd.position, path: 'dpad-camera-relative-collider-ground' },
+		approach: { displacementMeters: Number(displacement.toFixed(3)), endPosition: approachEnd.position, path: 'dpad-camera-relative-collider-ground', guidedBursts: approachBursts, nearestSeenMeters: Number(nearestSeen.toFixed(3)) },
 		acquisition: { sweepAttempts },
 		acquired,
 		attack: { serial: attack.serial, kind: attack.kind, position: attack.position, facing: attack.facing, targetFacingDot: Number(dot.toFixed(4)) },
@@ -151,7 +152,7 @@ try {
 		browserErrors: errors,
 	};
 	fs.writeFileSync(path.join(outDir, 'lock-on-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_LOCK_ON_RUNTIME_OK ${JSON.stringify({ targetId: acquired.targetId, distanceMeters: acquired.distanceMeters, approachMeters: metrics.approach.displacementMeters, sweepAttempts, targetFacingDot: metrics.attack.targetFacingDot, errors: errors.length })}`);
+	console.log(`PLAYER_LOCK_ON_RUNTIME_OK ${JSON.stringify({ targetId: acquired.targetId, distanceMeters: acquired.distanceMeters, approachMeters: metrics.approach.displacementMeters, guidedBursts: approachBursts, sweepAttempts, targetFacingDot: metrics.attack.targetFacingDot, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
